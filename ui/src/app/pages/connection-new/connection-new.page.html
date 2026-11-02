@@ -622,33 +622,10 @@
   <section class="gw-section" id="used-by" aria-labelledby="used-by-title">
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="used-by-title">Used by</h2>
-      <p class="gw-section__description">The endpoints that expose <span class="gw-mono">{{ name() }}</span> and the mode of each of its tools there. Modes are set on the endpoint.</p>
+      <p class="gw-section__description">The endpoints that expose <span class="gw-mono">{{ name() }}</span> and the mode of each of its tools there. Choose a mode next to an endpoint to change it immediately. Changes apply from the next call.</p>
     </header>
     @if (usedBy().length) {
-      <div class="gw-table-wrap" role="region" aria-labelledby="used-by-cap" tabindex="0">
-        <table class="gw-table">
-          <caption class="gw-sr-only" id="used-by-cap">Tools of {{ name() }} by endpoint, with their modes</caption>
-          <thead>
-            <tr>
-              <th scope="col">Tool</th>
-              <th scope="col">Endpoint</th>
-              <th scope="col">Mode</th>
-              <th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (u of usedBy(); track u.endpoint + ' ' + u.tool) {
-              @let mv = modeOf(u.mode);
-              <tr>
-                <th scope="row" class="gw-table__cell--mono">{{ u.tool }}</th>
-                <td><a class="gw-link gw-mono" [routerLink]="['/endpoints', u.endpoint]"><span class="gw-sr-only">Endpoint </span>{{ u.endpoint }}</a></td>
-                <td><span class="gw-mode" [class]="mv.cls"><svg [lucideIcon]="mv.icon" class="gw-icon"></svg>{{ mv.text }}</span></td>
-                <td class="gw-table__cell--actions"><a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/activity" [queryParams]="{ q: activityQuery(name()!, u.tool, u.endpoint) }">View activity<span class="gw-sr-only"> of {{ u.tool }} on {{ name() }} through {{ u.endpoint }}</span></a></td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
+      <gw-connection-tool-modes [connection]="name()!" [connectionVersion]="detail()!.version" [rows]="usedBy()" (changed)="toolModesChanged($event)" />
     } @else {
       <div class="gw-card gw-card--dashed">
         <div class="gw-empty gw-empty--compact">

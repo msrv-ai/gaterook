@@ -21,7 +21,7 @@ import { ApiError, isApiError } from '../../core/api/api-error';
 import { ApprovalItem, ApprovalsApi } from '../../core/api/approvals.api';
 import { ConnectionDetail, ConnectionHealth, ConnectionsApi, StoredSecret, TestOutcome } from '../../core/api/connections.api';
 import { ConnectionFormSpec, ConnectorCatalog, ConnectorTool, ConnectorTypeDetail, ConnectorTypesApi } from '../../core/api/connector-types.api';
-import { EndpointSummary, EndpointsApi, ToolGroup } from '../../core/api/endpoints.api';
+import { EndpointSummary, EndpointsApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { Policies, PoliciesApi } from '../../core/api/policies.api';
 import { MasterKeyApi, SecretRow, SecretsApi } from '../../core/api/secrets.api';
 import { Env, JsonObject, JsonValue, ToolMode } from '../../core/api/types';
@@ -88,6 +88,7 @@ import {
   usedByMeta,
   usedByRows,
 } from './connection-new-view';
+import { ConnectionToolModes } from './connection-tool-modes';
 
 /** The connector type of external MCP servers, which Add MCP server adds (Connectors › MCP servers). */
 const MCP_SERVER_TYPE = 'mcp-server';
@@ -145,6 +146,7 @@ export function errorText(e: ApiError | null): string {
     GwConnectorPicker,
     GwConnectionForm,
     GwConnectionTest,
+    ConnectionToolModes,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-page gw-page--narrow' },
@@ -656,6 +658,13 @@ export class ConnectionNewPage {
       this.detailState.set(err?.kind === 'not-found' ? 'not-found' : 'error');
       this.specState.set('error');
     }
+  }
+
+  protected toolModesChanged(change: { readonly endpoint: string; readonly tools: readonly ToolRow[] }): void {
+    this.detail.update((detail) => detail ? { ...detail, usedBy: detail.usedBy.map((use) => {
+      const tool = change.endpoint === use.endpoint ? change.tools.find((row) => row.name === use.tool) : null;
+      return tool ? { ...use, mode: tool.mode } : use;
+    }) } : detail);
   }
 
   protected retryEdit(): void {

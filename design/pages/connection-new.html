@@ -1039,7 +1039,7 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
       <section class="gw-section" id="used-by" aria-labelledby="used-by-title" data-mode-show="edit" hidden>
         <header class="gw-section__header">
           <h2 class="gw-section__title" id="used-by-title">Used by</h2>
-          <p class="gw-section__description">The endpoints that expose <span class="gw-mono" data-slot="name">dev-db</span> and the mode of each of its tools there. Modes are set on the endpoint.</p>
+          <p class="gw-section__description">The endpoints that expose <span class="gw-mono" data-slot="name">dev-db</span> and the mode of each of its tools there. Choose a mode next to an endpoint to change it immediately. Changes apply from the next call.</p>
         </header>
         <div class="gw-table-wrap" role="region" aria-labelledby="used-by-cap" tabindex="0">
           <table class="gw-table">
@@ -1047,34 +1047,73 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
             <thead>
               <tr>
                 <th scope="col">Tool</th>
-                <th scope="col">Endpoint</th>
-                <th scope="col">Mode</th>
+                <th scope="col">Endpoint · mode</th>
                 <th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody data-used-by>
               <tr>
                 <th scope="row" class="gw-table__cell--mono">sql_list_schemas</th>
-                <td><a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a></td>
-                <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                <td>
+                  <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a>
+                  <span class="gw-menu-host">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="used-sql_list_schemas" aria-label="Read only: sql_list_schemas on dev"><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+                    <div class="gw-menu" id="used-sql_list_schemas" role="menu" aria-label="Mode of sql_list_schemas on dev" hidden>
+                      <button class="gw-menu__item" type="button" role="menuitemradio" tabindex="-1" aria-checked="false"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off</span><i class="gw-icon gw-menu__check" data-lucide="check"></i></button>
+                      <button class="gw-menu__item" type="button" role="menuitemradio" tabindex="-1" aria-checked="true"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only</span><i class="gw-icon gw-menu__check" data-lucide="check"></i></button>
+                      <button class="gw-menu__item" type="button" role="menuitemradio" tabindex="-1" aria-checked="false"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval</span><i class="gw-icon gw-menu__check" data-lucide="check"></i></button>
+                      <button class="gw-menu__item" type="button" role="menuitemradio" tabindex="-1" aria-checked="false"><i class="gw-icon gw-menu__icon" data-lucide="shield-off"></i><span class="gw-menu__label">Bypass</span><i class="gw-icon gw-menu__check" data-lucide="check"></i></button>
+                    </div>
+                  </span>
+                </td>
                 <td class="gw-table__cell--actions"><a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=connection:dev-db%20tool:sql_list_schemas">View activity<span class="gw-sr-only"> of sql_list_schemas on dev-db</span></a></td>
               </tr>
               <tr>
                 <th scope="row" class="gw-table__cell--mono">sql_describe_table</th>
-                <td><a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a></td>
-                <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                <td>
+                  <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a>
+                  <span class="gw-menu-host">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="used-sql_describe_table" aria-label="Read only: sql_describe_table on dev"><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+                    <div class="gw-menu" id="used-sql_describe_table" role="menu" aria-label="Mode of sql_describe_table on dev" hidden>
+                      <button class="gw-menu__item" type="button" role="menuitemradio" tabindex="-1" aria-checked="false"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off</span><i class="gw-icon gw-menu__check" data-lucide="check"></i></button>
+                      <button class="gw-menu__item" type="button" role="menuitemradio" tabindex="-1" aria-checked="true"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only</span><i class="gw-icon gw-menu__check" data-lucide="check"></i></button>
+                      <button class="gw-menu__item" type="button" role="menuitemradio" tabindex="-1" aria-checked="false"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval</span><i class="gw-icon gw-menu__check" data-lucide="check"></i></button>
+                      <button class="gw-menu__item" type="button" role="menuitemradio" tabindex="-1" aria-checked="false"><i class="gw-icon gw-menu__icon" data-lucide="shield-off"></i><span class="gw-menu__label">Bypass</span><i class="gw-icon gw-menu__check" data-lucide="check"></i></button>
+                    </div>
+                  </span>
+                </td>
                 <td class="gw-table__cell--actions"><a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=connection:dev-db%20tool:sql_describe_table">View activity<span class="gw-sr-only"> of sql_describe_table on dev-db</span></a></td>
               </tr>
               <tr>
                 <th scope="row" class="gw-table__cell--mono">sql_query</th>
-                <td><a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a></td>
-                <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                <td>
+                  <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a>
+                  <span class="gw-menu-host">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="used-sql_query" aria-label="Read only: sql_query on dev"><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+                    <div class="gw-menu" id="used-sql_query" role="menu" aria-label="Mode of sql_query on dev" hidden>
+                      <button class="gw-menu__item" type="button" role="menuitemradio" tabindex="-1" aria-checked="false"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off</span><i class="gw-icon gw-menu__check" data-lucide="check"></i></button>
+                      <button class="gw-menu__item" type="button" role="menuitemradio" tabindex="-1" aria-checked="true"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only</span><i class="gw-icon gw-menu__check" data-lucide="check"></i></button>
+                      <button class="gw-menu__item" type="button" role="menuitemradio" tabindex="-1" aria-checked="false"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval</span><i class="gw-icon gw-menu__check" data-lucide="check"></i></button>
+                      <button class="gw-menu__item" type="button" role="menuitemradio" tabindex="-1" aria-checked="false"><i class="gw-icon gw-menu__icon" data-lucide="shield-off"></i><span class="gw-menu__label">Bypass</span><i class="gw-icon gw-menu__check" data-lucide="check"></i></button>
+                    </div>
+                  </span>
+                </td>
                 <td class="gw-table__cell--actions"><a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=connection:dev-db%20tool:sql_query">View activity<span class="gw-sr-only"> of sql_query on dev-db</span></a></td>
               </tr>
               <tr>
                 <th scope="row" class="gw-table__cell--mono">sql_execute</th>
-                <td><a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a></td>
-                <td><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span></td>
+                <td>
+                  <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a>
+                  <span class="gw-menu-host">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="used-sql_execute" aria-label="Approval: sql_execute on dev"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+                    <div class="gw-menu" id="used-sql_execute" role="menu" aria-label="Mode of sql_execute on dev" hidden>
+                      <button class="gw-menu__item" type="button" role="menuitemradio" tabindex="-1" aria-checked="false"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off</span><i class="gw-icon gw-menu__check" data-lucide="check"></i></button>
+                      <button class="gw-menu__item" type="button" role="menuitemradio" tabindex="-1" aria-checked="false" disabled aria-describedby="used-execute-read-note"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only</span><i class="gw-icon gw-menu__check" data-lucide="check"></i></button>
+                      <button class="gw-menu__item" type="button" role="menuitemradio" tabindex="-1" aria-checked="true"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval</span><i class="gw-icon gw-menu__check" data-lucide="check"></i></button>
+                      <button class="gw-menu__item" type="button" role="menuitemradio" tabindex="-1" aria-checked="false"><i class="gw-icon gw-menu__icon" data-lucide="shield-off"></i><span class="gw-menu__label">Bypass</span><i class="gw-icon gw-menu__check" data-lucide="check"></i></button>
+                    </div>
+                  </span><p class="gw-text-caption gw-fg-muted" id="used-execute-read-note">Mutates data: approval, bypass or off</p>
+                </td>
                 <td class="gw-table__cell--actions"><a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=connection:dev-db%20tool:sql_execute">View activity<span class="gw-sr-only"> of sql_execute on dev-db</span></a></td>
               </tr>
             </tbody>
@@ -1415,7 +1454,7 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
       eps: [["stage-readonly", [["sql_list_schemas", R], ["sql_describe_table", R], ["sql_query", R], ["sql_execute", O]]]] }
   };
   var TYPE_ALIAS = { logs: "loki" }; // Saved legacy Logs links open the Loki choice; new links use each connector type.
-  var MODES = { read: ["eye", "Read only"], approval: ["user-check", "Approval"], off: ["circle-off", "Off"] };
+  var MODES = { read: ["eye", "Read only"], approval: ["user-check", "Approval"], off: ["circle-off", "Off"], bypass: ["shield-off", "Bypass"] };
 
   function el(tag, cls, text) {
     var n = doc.createElement(tag);
@@ -1760,28 +1799,86 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
     // Used by
     var body = doc.querySelector("[data-used-by]");
     body.textContent = "";
+    var toolRows = new Map();
     c.eps.forEach(function (ep) {
       ep[1].forEach(function (t) {
-        var tr = el("tr");
-        var th = el("th", "gw-table__cell--mono", t[0]);
-        th.setAttribute("scope", "row");
-        var tdEp = el("td");
-        var a = el("a", "gw-link gw-mono");
-        a.href = "endpoint-detail.html?endpoint=" + ep[0];
-        a.appendChild(el("span", "gw-sr-only", "Endpoint "));
-        a.appendChild(doc.createTextNode(ep[0]));
-        tdEp.appendChild(a);
-        var tdMode = el("td");
-        tdMode.appendChild(modeChip(t[1]));
-        var tdAct = el("td", "gw-table__cell--actions");
-        var tool = t[0].split(" ")[0];
-        var act = el("a", "gw-btn gw-btn--ghost gw-btn--sm", "View activity");
-        act.href = logLink("connection:" + name + " tool:" + tool + " endpoint:" + ep[0]);
-        act.appendChild(el("span", "gw-sr-only", " of " + t[0] + " on " + name + " through " + ep[0]));
-        tdAct.appendChild(act);
-        [th, tdEp, tdMode, tdAct].forEach(function (n) { tr.appendChild(n); });
-        body.appendChild(tr);
+        if (!toolRows.has(t[0])) toolRows.set(t[0], []);
+        toolRows.get(t[0]).push({ endpoint: ep[0], tool: t });
       });
+    });
+    toolRows.forEach(function (uses, tool) {
+      var tr = el("tr");
+      var th = el("th", "gw-table__cell--mono gw-table__cell--wrap", tool);
+      th.setAttribute("scope", "row");
+      var tdEp = el("td");
+      var stack = el("div", "gw-stack gw-stack--sm");
+      uses.forEach(function (use, index) {
+        var line = el("div");
+        var a = el("a", "gw-link gw-mono", use.endpoint);
+        a.href = "endpoint-detail.html?endpoint=" + use.endpoint;
+        line.appendChild(a);
+        line.appendChild(doc.createTextNode(" "));
+        var host = el("span", "gw-menu-host");
+        var trigger = el("button", "gw-btn gw-btn--ghost gw-btn--sm");
+        trigger.type = "button";
+        trigger.setAttribute("aria-haspopup", "menu");
+        trigger.setAttribute("aria-expanded", "false");
+        var id = "used-mode-" + tool.replace(/[^a-z0-9_-]/gi, "-") + "-" + index;
+        trigger.setAttribute("aria-controls", id);
+        trigger.setAttribute("aria-label", MODES[use.tool[1]][1] + ": " + tool + " on " + use.endpoint);
+        trigger.appendChild(modeChip(use.tool[1]));
+        var chevron = el("i", "gw-icon gw-icon--sm");
+        chevron.setAttribute("data-lucide", "chevron-down");
+        trigger.appendChild(chevron);
+        var menu = el("div", "gw-menu gw-menu--wide");
+        menu.id = id;
+        menu.setAttribute("role", "menu");
+        menu.setAttribute("aria-label", "Mode of " + tool + " on " + use.endpoint);
+        menu.hidden = true;
+        var readOnly = use.endpoint === "stage-readonly" || use.endpoint === "incident-prod";
+        var mutates = ["sql_execute", "http_request", "ssh_exec", "k8s_rollout_restart", "k8s_apply"].indexOf(tool) !== -1;
+        trigger.disabled = readOnly && mutates;
+        ["off", "read", "approval", "bypass"].forEach(function (mode) {
+          var option = el("button", "gw-menu__item");
+          option.type = "button";
+          option.setAttribute("role", "menuitemradio");
+          option.setAttribute("tabindex", "-1");
+          option.setAttribute("aria-checked", String(mode === use.tool[1]));
+          option.disabled = (mode === "read" && mutates) || (mode === "bypass" && readOnly);
+          var icon = el("i", "gw-icon gw-menu__icon");
+          icon.setAttribute("data-lucide", MODES[mode][0]);
+          option.appendChild(icon);
+          var label = el("span", "gw-menu__label", MODES[mode][1]);
+          var hint = mode === "off" ? "Agents can't call this tool" : mode === "read" ? (mutates ? "Mutates data: approval, bypass or off" : "Calls run at once without changes to data") : mode === "approval" ? "Every call waits for your decision" : (readOnly ? "Unavailable: the endpoint is read only" : "Calls run without approval, including changes to data; policy limits still apply");
+          label.appendChild(el("span", "gw-menu__hint", hint));
+          option.appendChild(label);
+          var check = el("i", "gw-icon gw-menu__check");
+          check.setAttribute("data-lucide", "check");
+          option.appendChild(check);
+          option.addEventListener("click", function () {
+            if (option.disabled) return;
+            use.tool[1] = mode;
+            trigger.replaceChild(modeChip(mode), trigger.querySelector(".gw-mode"));
+            trigger.setAttribute("aria-label", MODES[mode][1] + ": " + tool + " on " + use.endpoint);
+            if (window.gwIcons) window.gwIcons(trigger);
+            toast({ tone: "success", title: tool + ": " + MODES[mode][1] + " on " + use.endpoint, body: "Applies from the next call." });
+          });
+          menu.appendChild(option);
+        });
+        host.appendChild(trigger);
+        host.appendChild(menu);
+        line.appendChild(host);
+        if (trigger.disabled) line.appendChild(el("p", "gw-text-caption gw-fg-muted", "Locked: endpoint " + use.endpoint + " is read only, so tools that change data stay off"));
+        stack.appendChild(line);
+      });
+      tdEp.appendChild(stack);
+      var tdAct = el("td", "gw-table__cell--actions");
+      var act = el("a", "gw-btn gw-btn--ghost gw-btn--sm", "View activity");
+      act.href = logLink("connection:" + name + " tool:" + tool + (uses.length === 1 ? " endpoint:" + uses[0].endpoint : ""));
+      act.appendChild(el("span", "gw-sr-only", " of " + tool + " on " + name));
+      tdAct.appendChild(act);
+      [th, tdEp, tdAct].forEach(function (node) { tr.appendChild(node); });
+      body.appendChild(tr);
     });
     if (window.gwIcons) window.gwIcons(body);
 

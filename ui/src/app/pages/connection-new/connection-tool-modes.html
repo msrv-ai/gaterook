@@ -1,0 +1,87 @@
+<div class="gw-table-wrap" role="region" aria-labelledby="used-by-cap" tabindex="0">
+  <table class="gw-table">
+    <caption class="gw-sr-only" id="used-by-cap">Tools of {{ connection() }} by endpoint, with their modes</caption>
+    <thead><tr><th scope="col">Tool</th><th scope="col">Endpoint · mode</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
+    <tbody>
+      @for (tool of tools(); track tool.tool) {
+        <tr>
+          <th scope="row" class="gw-table__cell--mono gw-table__cell--wrap">{{ tool.tool }}</th>
+          <td class="gw-table__cell--wrap">
+            <div class="gw-stack gw-stack--sm">
+              @for (use of tool.endpoints; track use.endpoint) {
+                <div>
+                  <a class="gw-link gw-mono" [routerLink]="['/endpoints', use.endpoint]"><span class="gw-sr-only">Endpoint </span>{{ use.endpoint }}</a>
+                  <span class="gw-menu-host">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" #opener [gwMenuTrigger]="menu" aria-haspopup="menu"
+                      [attr.aria-label]="looks[use.mode].text + ': ' + tool.tool + ' on ' + use.endpoint"
+                      [disabled]="use.disabled" [gwAriaDisabled]="use.state?.saving || use.state?.loading" [attr.aria-busy]="use.state?.saving || use.state?.loading ? 'true' : null"
+                      [attr.aria-describedby]="use.id + '-status'">
+                      <span class="gw-mode" [class]="looks[use.mode].cls"><svg [lucideIcon]="looks[use.mode].icon" class="gw-icon"></svg>{{ looks[use.mode].text }}</span>
+                      @if (use.state?.saving || use.state?.loading) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}
+                      @else {<svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm"></svg>}
+                    </button>
+                    <div class="gw-menu gw-menu--wide" gwMenu #menu="gwMenu" [id]="use.id" role="menu" [attr.aria-label]="'Mode of ' + tool.tool + ' on ' + use.endpoint" hidden
+                      (picked)="use.source && pick(use.endpoint, use.source, $event, opener)">
+                      @for (mode of modes; track mode) {
+                        <button class="gw-menu__item" type="button" role="menuitemradio" tabindex="-1" [attr.data-value]="mode" [attr.aria-checked]="mode === use.mode"
+                          [disabled]="(mode === 'READ_ONLY' && (use.note?.readOnlyDisabled || (use.note?.needsConfirmation && !use.source?.definitionHash))) || (mode === 'BYPASS' && use.state?.readOnly)">
+                          <svg [lucideIcon]="looks[mode].icon" class="gw-icon gw-menu__icon"></svg>
+                          <span class="gw-menu__label">{{ looks[mode].text }}
+                            <span class="gw-menu__hint">
+                              @switch (mode) {
+                                @case ('OFF') {Agents can't call this tool}
+                                @case ('READ_ONLY') {{{ use.note?.readOnlyDisabled || use.note?.needsConfirmation ? use.note.text : 'Calls run at once without changes to data' }}}
+                                @case ('APPROVAL') {Every call waits for your decision}
+                                @case ('BYPASS') {{{ use.state?.readOnly ? 'Unavailable: the endpoint is read only' : 'Calls run without approval, including changes to data; policy limits still apply' }}}
+                              }
+                            </span>
+                          </span>
+                          <svg lucideIcon="check" class="gw-icon gw-menu__check"></svg>
+                        </button>
+                      }
+                    </div>
+                  </span>
+                  <p class="gw-text-caption gw-fg-muted" [id]="use.id + '-status'" role="status">
+                    @if (use.state?.loading) {Loading modes…}
+                    @else if (use.state?.saving) {Saving mode…}
+                    @else if (use.state?.error) {
+                      {{ use.state.error }} <button class="gw-btn gw-btn--link gw-btn--sm" type="button" (click)="retry(use.endpoint)">Retry<span class="gw-sr-only"> modes on {{ use.endpoint }}</span></button>
+                    }
+                    @else if (use.state?.blocked) {{{ use.state.blocked }}}
+                    @else if (!use.source) {This tool is no longer available on the endpoint.}
+                    @else if (use.note?.locked) {{{ use.note.text }}}
+                    @if (use.source?.bypassUntil; as until) {Temporary bypass until {{ time.absolute(until) }}. Changing the saved mode ends it.}
+                  </p>
+                </div>
+              }
+            </div>
+          </td>
+          <td class="gw-table__cell--actions"><a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/activity" [queryParams]="{ q: activityQuery(connection(), tool.tool, tool.endpoints.length === 1 ? tool.endpoints[0].endpoint : null) }">View activity<span class="gw-sr-only"> of {{ tool.tool }} on {{ connection() }}</span></a></td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>
+
+<dialog class="gw-dialog gw-dialog--md gw-dialog--warning" gwDialog #confirmDialog="gwDialog" gwDialogStatic [attr.aria-labelledby]="confirming() ? 'connection-mode-confirm-title' : null" [attr.aria-describedby]="confirming() ? 'connection-mode-confirm-description' : null">
+  @if (confirming(); as confirmation) {
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg lucideIcon="shield-question-mark" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" id="connection-mode-confirm-title">Let <span class="gw-mono">{{ confirmation.tool.name }}</span> run without approval?</h2>
+      <p class="gw-dialog__description" id="connection-mode-confirm-description"><span class="gw-mono">{{ confirmation.tool.declaredBy }}</span> declares that this tool only reads. The gateway can't check what an external server does: in Read only every call runs at once and is only logged.</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-dialog__body gw-stack">
+      <p>Connection <span class="gw-mono">{{ connection() }}</span> on endpoint <span class="gw-mono">{{ confirmation.endpoint }}</span>, this tool only. An update asks again.</p>
+      <label class="gw-checkbox">
+        <input class="gw-checkbox__input" type="checkbox" required [checked]="acknowledged()" (change)="acknowledged.set($any($event.target).checked)">
+        <span class="gw-checkbox__control" aria-hidden="true"></span>
+        <span class="gw-checkbox__label" id="connection-mode-ack">I checked that {{ confirmation.tool.name }} only reads</span>
+      </label>
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
+      <button class="gw-btn gw-btn--primary" type="button" [gwAriaDisabled]="!acknowledged()" aria-describedby="connection-mode-ack" (click)="allowReadOnly()">Allow read only for {{ confirmation.tool.name }}</button>
+    </footer>
+  }
+</dialog>
