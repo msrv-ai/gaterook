@@ -335,6 +335,7 @@ beforeEach(() => {
   const groups = (connection: string): ToolGroup[] => [{ group: connection, connection, env: null, tools: structuredClone(core.endpointTools) }];
   const endpoints: Partial<EndpointsApi> = {
     list: vi.fn(async () => (core.empty ? [] : structuredClone(ENDPOINTS))),
+    get: vi.fn(async (slug: string) => ({ endpoint: ENDPOINTS.find((endpoint) => endpoint.slug === slug) } as never)),
     create: vi.fn(async (r: { slug: string; startFrom: string }) => {
       if (core.createEndpointFails) throw core.createEndpointFails;
       core.endpointsCreated.push({ slug: r.slug, startFrom: r.startFrom });
@@ -343,7 +344,7 @@ beforeEach(() => {
     tools: vi.fn(async () => groups('qa-db')),
     setMode: vi.fn(async (slug: string, r: { toolKey: string; connection: string | null; mode: ToolMode; version: number }) => {
       core.modes.push({ slug, toolKey: r.toolKey, connection: r.connection, mode: r.mode, version: r.version });
-      core.endpointTools = core.endpointTools.map((t) => (t.toolKey === r.toolKey ? { ...t, mode: r.mode, version: t.version + 1 } : t));
+      core.endpointTools = core.endpointTools.map((t) => (t.toolKey === r.toolKey ? { ...t, mode: r.mode, storedMode: r.mode, version: t.version + 1 } : t));
       return groups(r.connection ?? 'qa-db');
     }),
     previewConnection: vi.fn(async (slug: string, name: string) => core.previews.get(slug) ?? { connection: name, env: 'dev' as const, tools: [], warnings: [], refusal: null }),
@@ -1302,6 +1303,22 @@ describe('Add connection: duplicate', () => {
 });
 
 describe('Connection: edit view', () => {
+  it('changes a tool mode immediately without saving or replacing the connection draft', async () => {
+    core.endpointTools = TOOLS.map((tool) => row(tool.name, tool.name === 'sql_execute' ? 'APPROVAL' : 'READ_ONLY'));
+    vi.mocked(TestBed.inject(EndpointsApi).tools).mockImplementation(async () => [{
+      group: 'dev-db', connection: 'dev-db', env: 'dev', tools: structuredClone(core.endpointTools),
+    }]);
+    const p = await open('/connections/dev-db');
+    await p.type('cf-connection-host', 'unsaved.dev.internal');
+    p.q<HTMLButtonElement>('button[aria-label="Read only: sql_query on dev"]')!.click();
+    p.q<HTMLButtonElement>('[role="menu"][aria-label="Mode of sql_query on dev"] [data-value="OFF"]')!.click();
+    await p.settle();
+    expect(core.modes).toEqual([{ slug: 'dev', toolKey: 'sql_query', connection: 'dev-db', mode: 'OFF', version: 1 }]);
+    expect(core.updates).toEqual([]);
+    expect(p.q<HTMLInputElement>('#cf-connection-host')!.value).toBe('unsaved.dev.internal');
+    expect(text(p.q('.gw-stat:last-child'))).toContain('2 tools on dev');
+  });
+
   it('keeps unmatched update errors beside the form until retry or Discard', async () => {
     core.updateFails = [new ApiError('unprocessable', 422, {
       title: 'Invalid connection', errors: [{ field: '/config', message: 'The selected settings cannot be used together.' }],

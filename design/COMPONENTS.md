@@ -336,7 +336,7 @@ Environment marker beside a connection name in every risky context. It differs f
 
 ### `gw-mode`
 
-Display-only tool mode, icon plus words: Off (circle-off, neutral), Read only (eye, info), Approval (user-check, warning), Bypass (shield-off, danger). Bypass runs calls without approval, within policy limits. To choose a mode, use gw-segmented.
+Display-only tool mode, icon plus words: Off (circle-off, neutral), Read only (eye, info), Approval (user-check, warning), Bypass (shield-off, danger). Bypass runs calls without approval, within policy limits. To choose a mode, use gw-segmented, or place the display-only chip inside a gw-btn menu trigger for compact tables.
 
 [SCSS](scss/components/_status.scss)
 
@@ -1478,7 +1478,7 @@ Redis also shows Connection type in the main Connection section, with Without TL
 - GCP or Google Cloud Logging test failure with local ADC selected: **Sign in with Google** runs the installed Google Cloud CLI in the desktop app; its explanation names the command and the shared local sign-in. While sign-in runs, both sign-in and test buttons stay focusable with `aria-disabled`, a spinner and an associated status. Successful sign-in tests the unchanged connection again. A missing CLI or failed sign-in keeps the form and shows an actionable error; browser-only mode explains the terminal command.
 - validation error after submit
 - duplicate (?duplicate=<name>): wizard from Configure, settings copied, name <name>-copy, credentials empty + info alert 'not copied'
-- edit (?edit=<name>): health stat with sparkline, settings with gw-secret stored / reference, 'Used by' table (tool × endpoint × mode), Save changes ('Applies from the next call'), Delete connection (danger confirm)
+- edit (?edit=<name>): health stat with sparkline, settings with gw-secret stored / reference, 'Used by' table (one row per tool, endpoints with immediate Off / Read only / Approval / Bypass menus in one column), Save changes ('Applies from the next call'), Delete connection (danger confirm)
 - first run (connection-new ?state=first-run): Encrypted here preselected, Secret source behind 'Use a secret manager instead (Vault, GCP, AWS)' (__toggle placed before the fieldset), plain-words section descriptions
 
 **Reference screens:**
