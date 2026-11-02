@@ -1,5 +1,6 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import { GwAccessSwitch } from '../../kit/access-switch';
 import { RouterLink } from '@angular/router';
 import { GwCodeBlock } from '../../code/code-block';
 import { isApiError } from '../../core/api/api-error';
@@ -55,7 +56,7 @@ export const SKELETON_DELAY_MS = 300;
  */
 @Component({
   selector: 'gw-overview-page',
-  imports: [NgTemplateOutlet, RouterLink, GwIcon, GwToggle, GwCodeBlock, GwApprovalRequestCompact, GwStatusTile, GwGuideStep],
+  imports: [GwAccessSwitch, NgTemplateOutlet, RouterLink, GwIcon, GwToggle, GwCodeBlock, GwApprovalRequestCompact, GwStatusTile, GwGuideStep],
   providers: [OverviewData],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-page' },
@@ -102,6 +103,10 @@ export class OverviewPage {
   protected readonly groups = computed(() => endpointConnectionGroups(
     this.overview()?.health ?? [], this.data.connections(), this.data.endpoints(), this.data.clients()?.clients ?? null,
   ));
+  protected connectionAccess(name: string) {
+    return this.data.connections()?.find((row) => row.name === name) ?? null;
+  }
+
   protected readonly moreOpen = signal(false);
   protected readonly moreLabel = computed(() => {
     const more = this.tiles().more;

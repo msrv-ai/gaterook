@@ -128,7 +128,7 @@ class ConnectionsController {
    */
   record Row(String name, String type, String typeName, String env, String host, List<String> badges,
       String secretSource, Health health, List<String> usedBy, boolean verified, long version, String typeLabel,
-      String variant, String serverVersion) {}
+      String variant, String serverVersion, boolean enabled) {}
 
   /** A stored secret field: never its value, length or hash. {@code state}: {@code stored}, {@code needs-value}, … */
   record StoredSecret(String field, String secretId, String name, String state, Integer version, String source) {}
@@ -299,6 +299,18 @@ class ConnectionsController {
         + "never copied: enter them again.");
   }
 
+  @PostMapping("/api/connections/{name}/enable")
+  Row enable(@PathVariable String name, @RequestBody(required = false) Reason request) {
+    return row(connections.setEnabled(name, true, Reasons.check(request == null ? null : request.reason())),
+        configs.byName(name).orElseThrow());
+  }
+
+  @PostMapping("/api/connections/{name}/disable")
+  Row disable(@PathVariable String name, @RequestBody(required = false) Reason request) {
+    return row(connections.setEnabled(name, false, Reasons.check(request == null ? null : request.reason())),
+        configs.byName(name).orElseThrow());
+  }
+
   // ── Edit ────────────────────────────────────────────────────────────────────────────────────────────────────
 
   @GetMapping("/api/connections/{name}")
@@ -460,7 +472,7 @@ class ConnectionsController {
       badges.add("Read replica");
     }
     return new Row(s.name(), s.type(), s.typeName(), s.env().id(), s.target(), List.copyOf(badges), s.secretSource(),
-        health(s.health()), s.usedBy(), s.verified(), s.version(), s.typeLabel(), s.variant(), s.serverVersion());
+        health(s.health()), s.usedBy(), s.verified(), s.version(), s.typeLabel(), s.variant(), s.serverVersion(), s.enabled());
   }
 
   private boolean mcpServer(String type) {

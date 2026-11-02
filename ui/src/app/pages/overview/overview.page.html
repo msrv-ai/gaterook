@@ -79,7 +79,7 @@
       <section class="gw-section" aria-labelledby="ov-conn-title">
         <header class="gw-section__header">
           <h2 class="gw-section__title" id="ov-conn-title" tabindex="-1" #connectionsTitle>Your connections</h2>
-          <p class="gw-section__description">@if (groups()) {Connections grouped by endpoint and the AI apps configured to use them. Shared connections appear in each endpoint.} @else {{{ t.description }}}</p>
+          <p class="gw-section__description">@if (groups()) {Connections grouped by endpoint and the AI apps configured to use them. Shared connections appear in each endpoint. Connection switches apply across all endpoints; endpoint switches control access through that endpoint.} @else {{{ t.description }}}</p>
           <div class="gw-section__actions">
             <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/endpoints">All endpoints</a>
             <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/connections">All connections</a>
@@ -103,6 +103,7 @@
                   </div>
                   @if (group.endpoint; as endpoint) {
                     <div class="gw-card__actions">
+                      <gw-access-switch kind="endpoint" [name]="endpoint.slug" [enabled]="endpoint.status !== 'disabled'" [blocked]="endpoint.blockedReason" (changed)="retry()" />
                       <span class="gw-sr-only">Environment</span><span [class]="'gw-env gw-env--sm gw-env--' + endpoint.env">{{ endpoint.env }}</span>
                       @if (endpoint.blockedReason) {
                         <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Needs review</span></span>
@@ -283,8 +284,11 @@
   <!-- A connection as a tile: the whole tile opens it; Test again (unreachable) is its own target above that link. -->
   <ng-template #connectionTile let-c let-level="level">
     @let busy = testing().includes(c.name);
-    <li gwStatusTile #tile="gwStatusTile" [level]="level ?? 3" [name]="c.name" mono [env]="c.env" [icon]="c.icon" [meta]="c.meta" [state]="c.state" [link]="['/connections', c.name]" [checking]="busy">
-      @if (c.retest) {
+    <li gwStatusTile #tile="gwStatusTile" [level]="level ?? 3" [name]="c.name" mono [env]="c.env" [icon]="c.icon" [meta]="c.meta" [state]="connectionAccess(c.name)?.enabled === false ? { tone: 'neutral', label: 'Disabled by you' } : c.state" [link]="['/connections', c.name]" [checking]="busy">
+      @if (connectionAccess(c.name); as access) {
+        <gw-access-switch kind="connection" [name]="c.name" [enabled]="access.enabled !== false" [blocked]="access.verified ? null : 'Review the change outside GateRook first.'" (changed)="retry()" />
+      }
+      @if (c.retest && connectionAccess(c.name)?.enabled !== false) {
         <button class="gw-btn gw-btn--sm" type="button" (click)="testAgain(c.name)" [attr.aria-busy]="busy ? 'true' : null" [attr.aria-disabled]="busy ? 'true' : null" [attr.aria-describedby]="busy ? tile.stateId : null">@if (busy) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> }Test again<span class="gw-sr-only"> {{ c.name }}</span></button>
       }
     </li>

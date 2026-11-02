@@ -1,3 +1,4 @@
+import { GwAccessSwitch } from '../../kit/access-switch';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -87,7 +88,7 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
  */
 @Component({
   selector: 'gw-connections-page',
-  imports: [RouterLink, GwIcon, GwMenu, GwMenuTrigger, GwSearchClearButton, GwDialog, GwDialogClose, GwToggle, GwCodeBlock, GwHowItWorks, GwHowItWorksStep],
+  imports: [GwAccessSwitch, RouterLink, GwIcon, GwMenu, GwMenuTrigger, GwSearchClearButton, GwDialog, GwDialogClose, GwToggle, GwCodeBlock, GwHowItWorks, GwHowItWorksStep],
   providers: [ConnectionsData],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-page' },

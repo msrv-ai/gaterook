@@ -461,6 +461,7 @@ export interface McpSecretView {
 
 /** One external MCP server: a connection of the `mcp-server` type (§2.3), its config, and what its process does. */
 export interface McpServerView {
+  readonly enabled?: boolean;
   readonly name: string;
   readonly env: Env;
   readonly transport: 'stdio' | 'http';
@@ -619,6 +620,7 @@ export function mcpServerView(
     start: config['start'] === 'with-core' ? 'with-core' : 'on-first-call',
     idleStopMinutes: typeof idle === 'number' ? idle : 15,
     toolPrefix: prefix,
+    enabled: row.enabled !== false,
     verified: row.verified && (detail?.verified ?? true),
     oauth: transport === 'http' && authType(config) === 'oauth',
     cloud: transport === 'http' && (authType(config) === 'google' || authType(config) === 'aws') ? (authType(config) as 'google' | 'aws') : null,

@@ -10,6 +10,7 @@ import ai.msrv.gaterook.core.audit.AuditUnavailableException;
 import ai.msrv.gaterook.core.audit.AuditWriter;
 import ai.msrv.gaterook.core.endpoints.CoreTools;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshot;
+import ai.msrv.gaterook.core.endpoints.EndpointSnapshotService;
 import ai.msrv.gaterook.core.endpoints.ToolCatalog;
 import ai.msrv.gaterook.core.invocation.ConnectorInvoker;
 import ai.msrv.gaterook.core.invocation.ResultLimiter;
@@ -52,9 +53,10 @@ public class CoreToolsHandler {
   private final ConnectorInvoker invoker;
   private final Masker masker;
   private final Calls calls;
+  private final EndpointSnapshotService snapshots;
 
   public CoreToolsHandler(PolicyEngine engine, PolicyService policies, ToolGuard guard, AuditWriter audit,
-      ConnectorInvoker invoker, Masker masker, Calls calls) {
+      ConnectorInvoker invoker, Masker masker, Calls calls, EndpointSnapshotService snapshots) {
     this.engine = engine;
     this.policies = policies;
     this.guard = guard;
@@ -62,6 +64,7 @@ public class CoreToolsHandler {
     this.invoker = invoker;
     this.masker = masker;
     this.calls = calls;
+    this.snapshots = snapshots;
   }
 
   public ObjectNode call(McpRequest r, ToolCatalog.PublishedTool tool, ObjectNode args) {
@@ -140,6 +143,8 @@ public class CoreToolsHandler {
       }
       ObjectNode c = list.addObject();
       c.put("name", w.config().name());
+      c.put("enabled", w.enabled());
+      if (!w.enabled()) c.put("disabledReason", s.disabledReason(w.config().name()));
       c.put("type", w.config().type());
       c.put("typeName", w.manifest().name());
       c.put("env", w.config().env().id());
@@ -152,7 +157,7 @@ public class CoreToolsHandler {
           names.add(p.tool().name() + (p.mode() == Mode.APPROVAL ? " (approval)" : ""));
         }
       }
-      text.append(w.config().name()).append(" · ").append(w.manifest().name()).append(" · ")
+      text.append(w.config().name()).append(w.enabled() ? "" : " (disabled by the user)").append(" · ").append(w.manifest().name()).append(" · ")
           .append(w.config().env().id()).append(": ").append(names.isEmpty() ? "no tools" : String.join(", ", names))
           .append('\n');
     }
@@ -168,7 +173,8 @@ public class CoreToolsHandler {
     ToolCall call = new ToolCall(callId, CoreTools.DESCRIBE_CONNECTION, w.config().name(),
         JsonNodeFactory.instance.objectNode(), null);
     return invoker.describe(new ConnectorInvoker.Request(callId, w.config(), call, limits,
-        policies.maskPolicy(w.config().env()), r.span().traceId(), r.span().traceparent()), object);
+        policies.maskPolicy(w.config().env()), r.span().traceId(), r.span().traceparent(),
+        () -> snapshots.requireAvailable(s.id(), w.config().name())), object);
   }
 
   /**

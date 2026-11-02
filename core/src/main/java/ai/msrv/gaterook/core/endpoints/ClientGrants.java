@@ -54,7 +54,7 @@ import tools.jackson.databind.node.ObjectNode;
  * {@code /internal/bridge/tokens}, for a fresh one.
  *
  * <p>A token is issued only for a grant that verifies, isn't revoked and was made for exactly the endpoint and client
- * that ask ({@code grant_mismatch} otherwise), on an enabled endpoint. A grant's id is readable by every process of the
+ * that ask ({@code grant_mismatch} otherwise), on an existing endpoint, including one paused by the user. A grant's id is readable by every process of the
  * account (it sits in plain config files), so the first token of a grant to a prod endpoint
  * waits until the person allows it on the desktop ({@code /internal/bridge/confirm}). That approval is signed and
  * saved with the grant, surviving token renewal and core restarts until access is revoked. A grant has at most
@@ -286,9 +286,6 @@ public class ClientGrants implements DisposableBean {
     if (!e.getSlug().equals(r.endpoint()) || !g.getClient().equals(r.client())) {
       return TokenAnswer.refused(GRANT_MISMATCH, "The access " + prefix(g.getId()) + " isn't for " + who + " on "
           + r.endpoint() + ". Connect " + who + " to " + r.endpoint() + " from the app.");
-    }
-    if (!e.isEnabled()) {
-      return TokenAnswer.refused(ENDPOINT_OFF, "Endpoint " + e.getSlug() + " is disabled in GateRook.");
     }
     if (e.getEnv() == Env.PROD && g.getConfirmedAt() == null) {
       if (denied.contains(g.getId())) {

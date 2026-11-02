@@ -25,7 +25,7 @@ Log queries have no maximum time range by default in any environment. To set one
 
 ## Application overview
 
-The Overview page brings pending approvals, connection health, and AI app access into one place. Use the sidebar to manage connections, secrets, policies, and endpoints, or inspect tool calls in Activity.
+The Overview page brings pending approvals, connection health, and AI app access into one place. Use the On/Off switches there, in Endpoints, or in Connections to pause access without removing settings. A connection switch applies across all endpoints; an endpoint switch affects only that endpoint. Paused tools remain visible to AI apps and return a message asking the user to enable access. Use the sidebar to manage connections, secrets, policies, and endpoints, or inspect tool calls in Activity.
 
 ![GateRook Overview page showing connection health, AI app connection status, and navigation for managing access and reviewing activity.](docs/images/gaterook-overview.png)
 

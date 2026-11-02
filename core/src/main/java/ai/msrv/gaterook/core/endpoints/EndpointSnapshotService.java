@@ -82,6 +82,16 @@ public class EndpointSnapshotService {
     this.readTx.setReadOnly(true);
   }
 
+  /** Rechecks a user pause immediately before a queued resource operation. */
+  public boolean requireAvailable(String endpointId, String connection)
+      throws ai.msrv.gaterook.connector.api.ConnectorException {
+    EndpointSnapshot current = get(endpointId).orElseThrow(() ->
+        ai.msrv.gaterook.connector.api.ConnectorException.unavailable("Endpoint was deleted. Nothing ran.", null));
+    String reason = current.disabledReason(connection);
+    if (reason != null) throw ai.msrv.gaterook.connector.api.ConnectorException.unavailable(reason, null);
+    return true;
+  }
+
   public Optional<EndpointSnapshot> get(String endpointId) {
     EndpointSnapshot cached = cache.get(endpointId);
     if (cached != null && !expired(cached)) {
@@ -259,7 +269,7 @@ public class EndpointSnapshotService {
       ConnectorManifest manifest = type.manifest();
       String problem = !stored.get().verified() ? stored.get().name() + " was changed outside GateRook"
           : !type.usable() ? manifest.name() + " is switched off" : null;
-      wired.add(new EndpointSnapshot.Wired(stored.get().config(), manifest, problem));
+      wired.add(new EndpointSnapshot.Wired(stored.get().config(), manifest, problem, stored.get().enabled()));
       members.add(new ToolPairs.Member(stored.get().config(), manifest, problem == null));
     }
     // One EndpointView per connector type: same-named pairs of one type carry one definition (report 06 §3.1).

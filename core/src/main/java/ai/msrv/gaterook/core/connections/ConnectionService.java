@@ -94,7 +94,7 @@ public class ConnectionService {
    */
   public record Summary(String id, String name, String type, String typeName, Env env, String target,
       String secretSource, ConnectionConfigs.Health health, List<String> usedBy, boolean verified, long version,
-      String typeLabel, String variant, String serverVersion) {}
+      String typeLabel, String variant, String serverVersion, boolean enabled) {}
 
   /** One stored secret field of a connection, without its value. */
   public record SecretField(String field, String secretId, String name, String state, Integer version,
@@ -509,6 +509,23 @@ public class ConnectionService {
 
   // ── Internals ───────────────────────────────────────────────────────────────────────────────────────────────
 
+  /** Pauses agent access everywhere without changing wiring, credentials or tool modes. */
+  public Summary setEnabled(String name, boolean enabled, String reason) {
+    writeTx.executeWithoutResult(tx -> {
+      ConnectionEntity row = repository.findByName(name).orElseThrow(() -> notFound(name));
+      requireVerified(configs.stored(row));
+      if (row.isEnabled() == enabled) return;
+      row.setEnabled(enabled, clock.instant());
+      repository.saveAndFlush(row);
+      rows.sign(row);
+      setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.SETTINGS,
+          "Connection " + name, enabled ? "Disabled" : "Enabled", enabled ? "Enabled" : "Disabled",
+          reason, row.getEnv(), null, name, null));
+      publisher.publishEvent(new ConnectionChanged(row.getId(), name, row.getEnv(), row.getVersion()));
+    });
+    return summary(name);
+  }
+
   private Summary summary(ConnectionConfigs.Stored s) {
     ConnectorManifest manifest = registry.manifest(s.config().type()).orElse(null);
     String typeName = manifest == null ? s.config().type() : manifest.name();
@@ -527,7 +544,7 @@ public class ConnectionService {
         ConnectionTargets.display(s.config().config(), schema, metadata), secretSource, s.health(),
         usage().map(u -> u.endpoints(s.id())).orElse(List.of()), s.verified(), s.config().version(),
         typeLabel(manifest, typeName, variant.orElse(null), serverVersion),
-        variant.map(ConnectionForms.Variant::id).orElse(null), serverVersion);
+        variant.map(ConnectionForms.Variant::id).orElse(null), serverVersion, s.enabled());
   }
 
   /**

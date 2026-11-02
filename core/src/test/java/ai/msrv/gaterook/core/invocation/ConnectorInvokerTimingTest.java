@@ -88,6 +88,29 @@ class ConnectorInvokerTimingTest {
     verify(connector, never()).execute(any(), any(), any(), any());
   }
 
+  @Test
+  void finalAdmissionRefusesPrepareExecutionDescriptionsAndResourceReads() throws Exception {
+    Connector connector = mock(Connector.class, CALLS_REAL_METHODS);
+    ToolGuard guard = new ToolGuard();
+    ConnectorInvoker.Request paused = new ConnectorInvoker.Request(REQUEST.callId(), CFG, REQUEST.call(), LIMITS,
+        REQUEST.mask(), null, null, () -> {
+          throw ConnectorException.unavailable("Connection dev-logs is disabled by the user. Nothing ran.", null);
+        });
+    try {
+      ConnectorInvoker invoker = invoker(connector, guard);
+      assertThat(invoker.prepare(paused).errorMessage()).contains("disabled by the user");
+      assertThat(invoker.execute(paused).errorMessage()).contains("disabled by the user");
+      assertThat(invoker.describe(paused, null).errorMessage()).contains("disabled by the user");
+      assertThat(invoker.readResource(paused, "mcpgw://connections/dev-logs/schema").errorMessage())
+          .contains("disabled by the user");
+      verify(connector, never()).prepare(any(), any(), any(), any());
+      verify(connector, never()).execute(any(), any(), any(), any());
+      verify(connector, never()).readResource(any(), any(), any(), any());
+    } finally {
+      guard.destroy();
+    }
+  }
+
   private static ConnectorInvoker invoker(Connector connector, ToolGuard guard) {
     ConnectorRegistry registry = mock(ConnectorRegistry.class);
     when(registry.connectorFor(CFG)).thenReturn(Optional.of(connector));

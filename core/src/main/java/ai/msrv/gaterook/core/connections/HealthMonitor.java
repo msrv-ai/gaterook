@@ -144,7 +144,7 @@ public class HealthMonitor implements ApplicationListener<ApplicationReadyEvent>
       try {
         if (!lock.locked()) {
           configs.byId(event.connectionId()).filter(ConnectionConfigs.Stored::verified)
-              .filter(s -> registry.usable(s.config().type())).ifPresent(this::check);
+              .filter(s -> s.enabled() && registry.usable(s.config().type())).ifPresent(this::check);
         }
       } catch (RuntimeException e) {
         log.debug("Initial health check failed: {}", masker.log(e.toString()));
@@ -225,7 +225,7 @@ public class HealthMonitor implements ApplicationListener<ApplicationReadyEvent>
 
   private List<ConnectionConfigs.Stored> eligible() {
     return configs.all().stream().filter(ConnectionConfigs.Stored::verified)
-        .filter(s -> registry.usable(s.config().type())).toList();
+        .filter(s -> s.enabled() && registry.usable(s.config().type())).toList();
   }
 
   void check(ConnectionConfigs.Stored stored) {

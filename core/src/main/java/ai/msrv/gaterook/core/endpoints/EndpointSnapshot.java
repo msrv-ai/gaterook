@@ -31,7 +31,11 @@ public record EndpointSnapshot(String id, String slug, String description, Env e
    * @param problem why its tools don't run ("changed outside GateRook", "PostgreSQL is switched off"), or
    *                {@code null}
    */
-  public record Wired(ConnectionConfig config, ConnectorManifest manifest, String problem) {
+  public record Wired(ConnectionConfig config, ConnectorManifest manifest, String problem, boolean enabled) {
+
+    public Wired(ConnectionConfig config, ConnectorManifest manifest, String problem) {
+      this(config, manifest, problem, true);
+    }
 
     public boolean usable() {
       return problem == null;
@@ -71,6 +75,15 @@ public record EndpointSnapshot(String id, String slug, String description, Env e
    * @param storedMode what {@code endpoint_tool} says
    */
   public record CorePair(String rowId, long rowVersion, String tool, Mode mode, Mode storedMode) {}
+
+  /** User pauses keep discovery intact and refuse resource access with an actionable explanation. */
+  public String disabledReason(String connection) {
+    if (!enabled) return "Endpoint " + slug + " is disabled by the user. Ask the user to enable it in GateRook "
+        + "before retrying. Nothing ran.";
+    return connection(connection).filter(w -> !w.enabled()).map(w -> "Connection " + connection
+        + " is disabled by the user across all endpoints. Ask the user to enable it in GateRook before retrying. "
+        + "Nothing ran.").orElse(null);
+  }
 
   public boolean blocked() {
     return blockedReason != null;

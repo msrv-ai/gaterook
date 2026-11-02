@@ -87,6 +87,7 @@
               }
             </div>
             <div class="gw-card__actions">
+              <gw-access-switch kind="endpoint" [name]="c.e.slug" [enabled]="c.e.status !== 'disabled'" [blocked]="c.e.blockedReason" (changed)="data.refresh()" />
               @if (c.blocked) {
                 <span class="gw-status gw-status--warning" [id]="c.id + '-status'"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Needs review</span></span>
               } @else if (c.e.status === 'running') {

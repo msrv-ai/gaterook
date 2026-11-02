@@ -1,3 +1,4 @@
+import { GwAccessSwitch } from '../../kit/access-switch';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -110,7 +111,7 @@ export const SPLIT_FRAGMENT = 'ep-dlg-split';
  */
 @Component({
   selector: 'gw-endpoint-detail-page',
-  imports: [
+  imports: [GwAccessSwitch,
     RouterLink,
     FormField,
     GwIcon,

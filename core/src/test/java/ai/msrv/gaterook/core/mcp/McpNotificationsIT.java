@@ -244,12 +244,14 @@ class McpNotificationsIT {
   }
 
   @Test
-  void disablingAnEndpointClosesItsNotificationStream() throws Exception {
+  void disablingAnEndpointKeepsDiscoveryAndItsNotificationStream() throws Exception {
     Endpoint endpoint = endpoint("disabled");
     try (Stream stream = open(endpoint)) {
       endpoints.disable(endpoint.slug(), null);
-      stream.awaitClosed();
       stream.assertQuiet();
+      assertThat(names(endpoint.tools())).contains("sql_query");
+      setMode(endpoint, "sql_query", Mode.OFF);
+      stream.awaitChange();
     }
   }
 

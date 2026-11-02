@@ -44,6 +44,10 @@ public class ConnectionRows {
 
   private JsonNode fields(ConnectionEntity row) {
     ObjectNode f = rowMac.fields();
+    // Enabled is the legacy default. Omitting it preserves existing signatures after migration.
+    if (!row.isEnabled()) {
+      f.put("enabled", false);
+    }
     f.put("name", row.getName());
     f.put("type", row.getType());
     f.put("env", row.getEnv().id());

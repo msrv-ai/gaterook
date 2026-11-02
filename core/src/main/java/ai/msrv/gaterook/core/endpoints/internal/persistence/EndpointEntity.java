@@ -18,7 +18,7 @@ import org.hibernate.type.SqlTypes;
 
 /**
  * An MCP endpoint ({@code /mcp/dev}). {@code env} is derived, the strictest env of its connections (prod never mixes),
- * and is stored so that requests don't recompute it. A disabled endpoint answers 404 after authentication and keeps
+ * and is stored so that requests don't recompute it. A disabled endpoint keeps discovery available, refuses resource calls, and keeps
  * its pending approval requests.
  */
 @Entity

@@ -2055,7 +2055,7 @@
       "name": "status-tile",
       "scss": "elements/_status-tile.scss",
       "html": "elements/status-tile.html",
-      "purpose": "One compact card that names one thing (a connection, an AI app) and says its state in words, with at most one action (Connect, Test again, How to install). For pages that answer 'what is connected and is it working' at a glance; sets of tiles sit in a gw-grid --3 list (--2 for the fixed set of four AI apps), problems first. AI app tiles show each connected or restart-pending endpoint once as a neutral small badge below the metadata. The title links to the thing's page; when the action is the tile's only destination the title is plain text and the tile is not interactive.",
+      "purpose": "One compact card that names one thing (a connection, an AI app) and says its state in words, with an optional access switch and one action (Connect, Test again, How to install). For pages that answer 'what is connected and is it working' at a glance; sets of tiles sit in a gw-grid --3 list (--2 for the fixed set of four AI apps), problems first. AI app tiles show each connected or restart-pending endpoint once as a neutral small badge below the metadata. The title links to the thing's page; when the action is the tile's only destination the title is plain text and the tile is not interactive.",
       "composes": [
         "gw-card",
         "gw-icon-tile",
@@ -2067,7 +2067,8 @@
         "gw-mono",
         "gw-grid",
         "gw-badge",
-        "gw-tag-list"
+        "gw-tag-list",
+        "gw-switch"
       ],
       "states": [
         "healthy / connected (success)",
@@ -2077,7 +2078,8 @@
         "found, not connected (info) + Connect",
         "not installed (neutral) + How to install (gw-btn--link)",
         "action unavailable: <button aria-disabled> + aria-describedby to a visible reason (never a link)",
-        "narrow tile (content box < 280px, about 314px outer): state and action under the text on one row"
+        "narrow tile (content box < 280px, about 314px outer): state and action under the text on one row",
+        "connection access on / off (gw-switch); shared connections use one global setting"
       ],
       "usedIn": [
         "pages/overview.html"

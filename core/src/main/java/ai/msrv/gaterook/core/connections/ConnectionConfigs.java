@@ -39,7 +39,12 @@ public class ConnectionConfigs {
    * @param secretIds pointer of each stored secret field → its secret id
    */
   public record Stored(ConnectionConfig config, boolean verified, Health health, Instant createdAt,
-      Instant updatedAt, Map<String, String> secretIds) {
+      Instant updatedAt, Map<String, String> secretIds, boolean enabled) {
+
+    public Stored(ConnectionConfig config, boolean verified, Health health, Instant createdAt,
+        Instant updatedAt, Map<String, String> secretIds) {
+      this(config, verified, health, createdAt, updatedAt, secretIds, true);
+    }
 
     public String id() {
       return config.id();
@@ -112,6 +117,6 @@ public class ConnectionConfigs {
     ConnectionConfig cfg = rows.toConfig(row, registry.manifest(row.getType()).orElse(null));
     return new Stored(cfg, verified, new Health(row.getHealthState(), row.getHealthLatencyMs(),
         row.getHealthMessage(), row.getHealthCheckedAt(), row.getHealthSince()), row.getCreatedAt(), row.getUpdatedAt(),
-        Map.copyOf(SecretFields.placeholders(rows.storedConfig(row))));
+        Map.copyOf(SecretFields.placeholders(rows.storedConfig(row))), row.isEnabled());
   }
 }

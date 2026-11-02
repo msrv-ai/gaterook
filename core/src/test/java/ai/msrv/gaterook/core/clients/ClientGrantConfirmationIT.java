@@ -109,6 +109,16 @@ class ClientGrantConfirmationIT {
   }
 
   @Test
+  void aPausedEndpointStillIssuesTokensForAnAlreadyAuthorizedBridge() {
+    Grant grant = create("cursor", "incident-prod", "cursor-paused");
+    confirm(grant, true);
+    core.bean(EndpointService.class).disable("incident-prod", null);
+    TokenAnswer token = issue(grant, 401);
+    assertThat(token.ok()).isTrue();
+    assertAuthenticates("incident-prod", token.token(), true);
+  }
+
+  @Test
   void changingStoredConfirmationOutsideTheCoreNeverGrantsAccessOrKeepsLiveTokens() {
     Grant forged = create("cursor", "incident-prod", "cursor-forged");
     core.jdbc().update("update client_grant set confirmed_at = ? where id = ?",

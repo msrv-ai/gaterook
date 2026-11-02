@@ -259,6 +259,8 @@ describe('Overview page', () => {
       expect(href(byText(section, 'a', 'All endpoints'))).toBe('/endpoints');
       expect(href(groups[0].querySelector('h3 a'))).toBe('/endpoints/dev');
       expect(groups.map((g) => g.querySelectorAll('.gw-status-tile').length)).toEqual([8, 3, 3, 1]);
+      expect(section.querySelectorAll('gw-access-switch[kind=endpoint] input[role=switch]')).toHaveLength(3);
+      expect(section.querySelectorAll('gw-access-switch[kind=connection] input[role=switch]')).toHaveLength(15);
       expect(section.querySelector('#ov-conn-more')).toBeNull();
       expect(section.querySelectorAll('.gw-status-tile h3')).toHaveLength(0);
       expect(section.querySelectorAll('.gw-status-tile h4')).toHaveLength(15);

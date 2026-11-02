@@ -32,7 +32,7 @@
     <section class="gw-section" aria-labelledby="st-conn">
       <header class="gw-section__header">
         <h2 class="gw-section__title" id="st-conn">Connections: unreachable, slow, healthy</h2>
-        <p class="gw-section__description">The whole tile opens the connection; Test again is its own target above that link.</p>
+        <p class="gw-section__description">The whole tile opens the connection; The access switch and Test again are separate targets above that link. Access switches apply across all endpoints.</p>
       </header>
       <ul class="gw-grid gw-grid--3" role="list" aria-label="Connections, problems first">
         <li class="gw-card gw-card--interactive gw-status-tile">
@@ -42,6 +42,7 @@
             <p class="gw-text-caption gw-fg-muted gw-truncate">HTTP API · billing.stage.acme.dev</p>
           </div>
           <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-19" data-gw-access="connection:billing-api" aria-label="Access to connection billing-api" aria-describedby="access-demo-19-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-19">On</label><span class="gw-sr-only" id="access-demo-19-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div>
             <span class="gw-status gw-status--danger"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Unreachable</span></span>
             <button class="gw-btn gw-btn--sm" type="button" data-gw-toast="billing.stage.acme.dev did not answer." data-gw-toast-title="billing-api is still unreachable" data-gw-toast-tone="danger">Test again<span class="gw-sr-only"> billing-api</span></button>
           </div>
@@ -53,6 +54,7 @@
             <p class="gw-text-caption gw-fg-muted gw-truncate">Redis 7</p>
           </div>
           <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-20" data-gw-access="connection:cache-redis" aria-label="Access to connection cache-redis" aria-describedby="access-demo-20-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-20">On</label><span class="gw-sr-only" id="access-demo-20-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div>
             <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Slow · 1.8 s</span></span>
           </div>
         </li>
@@ -63,6 +65,7 @@
             <p class="gw-text-caption gw-fg-muted gw-truncate">Read replica · replica.prod.internal</p>
           </div>
           <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-21" data-gw-access="connection:prod-replica" aria-label="Access to connection prod-replica" aria-describedby="access-demo-21-hint"><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-21">Off</label><span class="gw-sr-only" id="access-demo-21-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div>
             <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span>
           </div>
         </li>
@@ -147,6 +150,7 @@
             <p class="gw-text-caption gw-fg-muted">HTTP API · <span class="gw-mono">billing.stage.acme.dev</span></p>
           </div>
           <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-22" data-gw-access="connection:billing-api" aria-label="Access to connection billing-api" aria-describedby="access-demo-22-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-22">On</label><span class="gw-sr-only" id="access-demo-22-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div>
             <span class="gw-status gw-status--checking" role="status" id="st-busy-state"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Checking…<span class="gw-sr-only"> billing-api</span></span></span>
             <button class="gw-btn gw-btn--sm" type="button" aria-busy="true" aria-disabled="true" aria-describedby="st-busy-state"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Test again<span class="gw-sr-only"> billing-api, busy example</span></button>
           </div>
@@ -167,6 +171,7 @@
             <p class="gw-text-caption gw-fg-muted gw-truncate">HTTP API</p>
           </div>
           <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-23" data-gw-access="connection:billing-api" aria-label="Access to connection billing-api" aria-describedby="access-demo-23-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-23">On</label><span class="gw-sr-only" id="access-demo-23-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div>
             <span class="gw-status gw-status--danger"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Unreachable</span></span>
             <button class="gw-btn gw-btn--sm" type="button">Test again<span class="gw-sr-only"> billing-api, narrow example</span></button>
           </div>

@@ -163,12 +163,14 @@ Replacement requires the typed `RESTORE` confirmation and a native confirmation 
 11. **Execute the authorized payload once.** The gateway runs the stored approved payload or freshly prepared Bypass payload itself. A failure or timeout is not retried automatically; uncertain external outcomes are reported explicitly. Approved calls retain their masked results for subsequent status retrieval.
 12. **Correlate the trace.** Link MCP activity, the approval, and execution with trace IDs; propagate a valid parent trace when supplied. Telemetry export remains opt-in.
 
+User access switches are independent of tool modes. Disabling an endpoint pauses resource access through it; disabling a connection pauses its use across all endpoints. Both settings persist, are covered by row signatures, and emit setup changes. The connection's legacy enabled default omits the new flag from its MAC fields so existing signatures remain valid after migration; disabled rows explicitly sign `enabled: false`. Tools and resource descriptors remain discoverable under the same authenticated scope. Calls, connection descriptions, and resource reads explain that access was disabled by the user and ask the agent to request enablement. Admission is rechecked after waiting for connector capacity, including preparation and approved execution. Operations already executing are not cancelled. Existing authorization, credentials, wiring, and stored modes survive a pause. A previously authorized bridge can renew its token and notification streams stay open. Health monitoring skips disabled connections; explicit administrative tests remain available.
+
 Legacy `initialize` advertises `capabilities.tools.listChanged: true`. Clients listen on `GET /mcp/{slug}` with the
 same bearer token, the negotiated `MCP-Protocol-Version`, and `Accept: text/event-stream`. Opening a stream sends
 one `notifications/tools/list_changed` to refresh any cached list from before connection or reconnection. After committed changes
 invalidate the endpoint snapshot, each stream compares the published catalog hash and sends
 `notifications/tools/list_changed` when the definitions clients receive change, including the connections and other
-values that descriptions name. Changes that leave those definitions unchanged do not send further notifications. Authentication and endpoint availability are checked before each
+values that descriptions name. Changes that leave those definitions unchanged do not send further notifications. Authentication and endpoint existence are checked before each
 notification and heartbeat; disconnected streams are released, and shutdown closes subscriptions before waiting
 for HTTP requests. A token or grant holds at most two streams: a third closes its oldest, so a client reconnecting after a drop the gateway has not noticed yet gets through; the gateway holds 64 in all and refuses more with 429. The stream has no replay IDs; its initial notification refreshes changes missed while disconnected.
 Both stdio bridges forward these notifications. Claude Desktop's agent mode, which serves its Code and Cowork
