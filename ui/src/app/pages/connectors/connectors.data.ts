@@ -5,6 +5,7 @@ import { ConnectorCatalog, ConnectorTypesApi } from '../../core/api/connector-ty
 import { EndpointSummary, EndpointsApi, ToolGroup } from '../../core/api/endpoints.api';
 import {
   CatalogIndex,
+  McpRegistryPage,
   McpServerConfig,
   McpServerReview,
   McpServerSource,
@@ -300,6 +301,11 @@ export class ConnectorsData {
 
   reviewServer(source: McpServerSource): Promise<McpServerReview> {
     return this.serversApi.review(source);
+  }
+
+  /** A page of the MCP registry's servers whose names contain `search` (Add MCP server › Find a server). */
+  searchRegistry(search: string, cursor: string | null = null): Promise<McpRegistryPage> {
+    return this.serversApi.searchRegistry(search, cursor);
   }
 
   async addServer(source: McpServerSource): Promise<McpServerStarted> {

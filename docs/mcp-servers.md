@@ -4,7 +4,7 @@ GateRook can put an MCP server you already use behind its modes, approvals and a
 
 ## Add a server
 
-Open **Connectors › MCP servers › Add MCP server**; **Connections › Add connection › External MCP server** leads there too. Either fill in the fields, or open **Paste a configuration from the server’s docs** and paste what the server's documentation gives for an AI app:
+Open **Connectors › MCP servers › Add MCP server**; **Connections › Add connection › External MCP server** leads there too. Fill in the fields, [find the server in the MCP registry](#find-a-server-in-the-mcp-registry), or open **Paste a configuration from the server’s docs** and paste what the server's documentation gives for an AI app:
 
 | What you paste | Example |
 | --- | --- |
@@ -15,6 +15,16 @@ Open **Connectors › MCP servers › Add MCP server**; **Connections › Add co
 | The URL | `https://mcp.stripe.com` |
 
 Only names of headers and variables are taken from a paste. The review asks for each value and stores it encrypted as a secret of the server. A command that runs `mcp-remote` for a URL becomes that URL, because GateRook signs in itself. A command that runs the MCP Proxy for AWS becomes its URL signed with AWS credentials, with the proxy's profile and region. A Google server pasted with a token in `Authorization` signs in with Google Cloud credentials instead, billed to its `x-goog-user-project`. An address ending in `/sse` becomes `/mcp`, because GateRook connects over Streamable HTTP and servers that still list an SSE address usually answer there too. With a URL and no name, the name follows the host: `mcp.linear.app` becomes `linear-mcp`, and a Google or AWS server is named after its product, such as `bigtableadmin-mcp`.
+
+### Find a server in the MCP registry
+
+Open **Find a server in the MCP registry** and type at least three characters of a server's name, such as `linear`. GateRook searches the [Official MCP Registry](https://registry.modelcontextprotocol.io), where publishers list their public servers, and shows the latest version of each match, 20 at a time. **Use** fills the fields as a pasted configuration does:
+
+- A server at a URL gets its Streamable HTTP address, or its SSE address changed to `/mcp`, and the names of the headers it needs.
+- An npm package gets `npx -y <package>@<version>`, a PyPI package `uvx --from <package>==<version> <package>`, both pinned to the version the registry names, and the names of the variables the server needs. A package that the registry lists only as a Docker image, an MCP bundle or a NuGet package can't be added from the search; paste the configuration from its docs instead.
+- Parts that only you know stay visible: `{tenant_id}` in a URL, `<workspace>` in a command. **Review and connect** waits until you replace them.
+
+The registry checks who published a name: a domain such as `app.linear` belongs to the publisher of `linear.app`, and `io.github.<owner>` to that GitHub account. It doesn't check what a server does, and anyone can publish one. The search only fills the form; nothing runs or connects before the review, and the review shows the exact command or URL. The registry gets only your search text, through the same guarded connection as the catalog. A build can search another registry with the same API by setting `gateway.mcp-registry.url`; an empty value turns the search off.
 
 **Review and connect** sends one request to the server without a sign-in and shows what it found:
 
