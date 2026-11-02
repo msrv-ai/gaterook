@@ -1660,7 +1660,7 @@
   <section class="gw-section" aria-labelledby="tpl-f-title">
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="tpl-f-title">Tools of an external MCP server or plugin</h2>
-      <p class="gw-section__description">The 26 tools of <code class="gw-code">github-mcp</code> just added to endpoint <code class="gw-code">dev</code> (4 shown, under the names agents see). Annotations of an external tool come from the server, not from the gateway, so each row says “Declared by github-mcp, not verified”. <code class="gw-code">github-mcp</code> declares none, so no tool is declared read only: all 26 start in Approval and stay approval, bypass or off, and Read only is unavailable with its reason (native <code class="gw-code">disabled</code>: the option would remove the approval). A tool that a server or plugin does declare read only, and not destructive, can go to Read only, but only after you confirm it for that one tool: the option is unavailable with its reason and a Confirm button beside it. The plugin Jira Service Desk below shows it, as if added to <code class="gw-code">dev</code>.</p>
+      <p class="gw-section__description">The 26 tools of <code class="gw-code">github-mcp</code> just added to endpoint <code class="gw-code">dev</code> (4 shown, under the names agents see). Annotations of an external tool come from the server, not from the gateway, so each row says “Declared by github-mcp, not verified”. <code class="gw-code">github-mcp</code> declares none, so no tool is declared read only: all 26 start in Approval and stay approval, bypass or off, and Read only is unavailable with its reason (native <code class="gw-code">disabled</code>: the option would remove the approval). A tool that a server or plugin does declare read only, and not destructive, can go to Read only, but only after you confirm it for that one tool: picking the option opens the confirmation, and the tool keeps its mode until you allow it. The plugin Jira Service Desk below shows it, as if added to <code class="gw-code">dev</code>.</p>
     </header>
     <div class="gw-tool-policy-list">
       <div class="gw-toolbar">
@@ -1812,12 +1812,11 @@
                       <fieldset class="gw-segmented gw-segmented--sm" aria-describedby="tpl-f-why-jira_search_requests">
                         <legend class="gw-sr-only">Mode for jira_search_requests</legend>
                         <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-jira_search_requests" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
-                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-jira_search_requests" value="read" aria-disabled="true" aria-describedby="tpl-f-why-jira_search_requests"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-jira_search_requests" value="read" aria-describedby="tpl-f-why-jira_search_requests" data-gw-dialog-open="tpl-f-dlg-ro"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                         <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-jira_search_requests" value="approval" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
                       <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-jira_search_requests" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                       </fieldset>
-                      <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="tpl-f-why-jira_search_requests"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Read only needs your confirmation for this tool</p>
-                      <button class="gw-btn gw-btn--link gw-btn--sm" type="button" data-gw-dialog-open="tpl-f-dlg-ro">Confirm read only<span class="gw-sr-only"> for jira_search_requests</span></button>
+                      <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="tpl-f-why-jira_search_requests"><i class="gw-icon gw-icon--xs" data-lucide="info"></i>Read only needs your confirmation for this tool</p>
                     </div>
                   </td>
                 </tr>
@@ -1850,9 +1849,10 @@
     </div>
 
     <!-- Per-tool confirmation before an external tool may run without approval: only for a tool its server or plugin
-         declares read only. gw-dialog--warning (risky, reversible: the mode can go back to Approval any time),
+         declares read only, opened by picking its Read only option (kit.js: a radio with data-gw-dialog-open keeps
+         the current mode checked). gw-dialog--warning (risky, reversible: the mode can go back to Approval any time),
          Cancel autofocus, the primary is aria-disabled until the acknowledgement is checked (kit.js
-         data-gw-enable-when). -->
+         data-gw-enable-when). Allow confirms the tool and picks Read only. -->
     <dialog class="gw-dialog gw-dialog--md gw-dialog--warning" id="tpl-f-dlg-ro" aria-labelledby="tpl-f-dlg-ro-t" aria-describedby="tpl-f-dlg-ro-d" data-gw-static>
       <header class="gw-dialog__header">
         <span class="gw-icon-tile"><i class="gw-icon" data-lucide="shield-question-mark"></i></span>

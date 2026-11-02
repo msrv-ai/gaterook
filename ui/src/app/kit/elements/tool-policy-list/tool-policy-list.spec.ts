@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { DEMO_TOOL_GROUPS } from '../../../dev/fixtures-tools';
+import { ToolRow } from '../../../core/api/endpoints.api';
+import { DEMO_TOOL_GROUPS, DEMO_TOOL_GROUPS_EXTERNAL } from '../../../dev/fixtures-tools';
 import { provideKitIcons } from '../../icons';
 import { GwToolPolicyList, TemporaryBypassOpen, ToolModeChange } from './tool-policy-list';
 
@@ -55,5 +56,85 @@ describe('tool-policy-list bypass mode', () => {
     fixture.componentRef.setInput('endpointEnv', 'prod');
     await fixture.whenStable();
     expect(writer.textContent).not.toContain('Temporary bypass…');
+  });
+});
+
+describe('tool-policy-list read only of an external tool', () => {
+  async function render(row: Partial<ToolRow> = {}) {
+    TestBed.configureTestingModule({ providers: [provideRouter([]), provideKitIcons()] });
+    const fixture = TestBed.createComponent(GwToolPolicyList);
+    const g = DEMO_TOOL_GROUPS_EXTERNAL[0];
+    const tools = g.group.tools.map((t) => (t.name === 'list_issues' ? { ...t, ...row } : t));
+    fixture.componentRef.setInput('groups', [{ ...g, group: { ...g.group, tools } }]);
+    fixture.componentRef.setInput('slug', 'dev');
+    const changes: ToolModeChange[] = [];
+    const confirmed: unknown[] = [];
+    fixture.componentInstance.modeChange.subscribe((change) => changes.push(change));
+    fixture.componentInstance.confirmReadOnly.subscribe((c) => confirmed.push(c));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    const tr = [...root.querySelectorAll<HTMLElement>('tr.gw-tool-policy-list__row')].find((r) => r.textContent?.includes('list_issues'))!;
+    const radio = (value: string) => tr.querySelector<HTMLInputElement>(`input[value="${value}"]`)!;
+    const dialog = root.querySelector('dialog')!;
+    const button = (text: string) => [...dialog.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim().startsWith(text))!;
+    return { fixture, tr, radio, dialog, button, changes, confirmed };
+  }
+
+  it('opens the confirmation from Read only and keeps the mode until Allow picks it', async () => {
+    const { fixture, tr, radio, dialog, button, changes, confirmed } = await render();
+    const read = radio('read');
+    expect(read.disabled).toBe(false);
+    expect(read.hasAttribute('aria-disabled')).toBe(false);
+    expect(tr.textContent).toContain('Read only needs your confirmation for this tool');
+    expect(tr.textContent).not.toContain('Confirm read only');
+
+    read.click();
+    await fixture.whenStable();
+    expect(dialog.hasAttribute('open')).toBe(true);
+    expect(dialog.textContent).toContain('Let list_issues run without approval?');
+    expect(read.checked).toBe(false);
+    expect(radio('approval').checked).toBe(true);
+
+    button('Allow read only').click();
+    expect(confirmed).toEqual([]);
+    dialog.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click();
+    await fixture.whenStable();
+    button('Allow read only').click();
+    await fixture.whenStable();
+    expect(confirmed).toEqual([{ toolKey: 'list_issues', connection: 'github-mcp', definitionHash: 'sha256-list_issues' }]);
+    expect(changes).toEqual([]);
+    expect(dialog.hasAttribute('open')).toBe(false);
+    expect(read.checked).toBe(true);
+    expect(document.activeElement).toBe(read);
+    expect(tr.textContent).not.toContain('needs your confirmation');
+  });
+
+  it('keeps the mode when the confirmation is cancelled', async () => {
+    const { fixture, radio, dialog, button, changes, confirmed } = await render();
+    radio('read').click();
+    await fixture.whenStable();
+    button('Cancel').click();
+    await fixture.whenStable();
+    expect(dialog.hasAttribute('open')).toBe(false);
+    expect(radio('read').checked).toBe(false);
+    expect(radio('approval').checked).toBe(true);
+    expect(document.activeElement).toBe(radio('read'));
+    expect(changes).toEqual([]);
+    expect(confirmed).toEqual([]);
+  });
+
+  it('sets a confirmed tool to Read only without asking again', async () => {
+    const { fixture, radio, dialog, changes } = await render({ readOnlyConfirmed: true });
+    radio('read').click();
+    await fixture.whenStable();
+    expect(dialog.hasAttribute('open')).toBe(false);
+    expect(changes).toEqual([expect.objectContaining({ toolKey: 'list_issues', connection: 'github-mcp', mode: 'READ_ONLY' })]);
+  });
+
+  it('keeps Read only unavailable when there is no definition to confirm', async () => {
+    const { tr, radio } = await render({ definitionHash: null });
+    expect(radio('read').getAttribute('aria-disabled')).toBe('true');
+    expect(tr.textContent).toContain('Read only needs your confirmation for this tool');
   });
 });

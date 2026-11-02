@@ -5,7 +5,7 @@ import { ApiError } from '../../core/api/api-error';
 import { ClientsApi, ClientsView } from '../../core/api/clients.api';
 import { ConnectionsApi } from '../../core/api/connections.api';
 import { ConnectorTypesApi } from '../../core/api/connector-types.api';
-import { EndpointDetail, EndpointsApi, TokensApi } from '../../core/api/endpoints.api';
+import { EndpointDetail, EndpointsApi, TokensApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { PoliciesApi } from '../../core/api/policies.api';
 import { SettingsApi } from '../../core/api/settings.api';
 import { OAuthApi, OAuthGrant } from '../../core/api/tunnel.api';
@@ -14,7 +14,7 @@ import { EndpointsStore } from '../../core/stores/endpoints.store';
 import { DEMO_GRANTS } from '../../dev/fixtures-clients';
 import { connected } from '../clients/clients.fixtures';
 import { EndpointDetailData, LIVE_RELOAD_MS, builtInDescriptions } from './endpoint-detail.data';
-import { clientsView, connectionRows, detail, groups, policies, risk, settings, summary, tokens } from './endpoint-detail.fixtures';
+import { clientsView, connectionRows, detail, groups, policies, risk, settings, summary, tokens, tool } from './endpoint-detail.fixtures';
 
 /** The page's data service against fake admin API services and a fake event stream. */
 
@@ -34,6 +34,8 @@ let events: FakeEvents;
 let calls: string[];
 let detailAnswer: () => Promise<EndpointDetail>;
 let setModeAnswer: () => Promise<unknown>;
+let modeBodies: unknown[];
+let confirmAnswer: () => Promise<unknown>;
 let addAnswer: (name: string) => Promise<EndpointDetail>;
 let grantsAnswer: () => Promise<unknown>;
 let clientsAnswer: () => Promise<ClientsView>;
@@ -43,8 +45,10 @@ function setup(): EndpointDetailData {
   events = new FakeEvents();
   calls = [];
   settingsBodies = [];
+  modeBodies = [];
   detailAnswer = () => Promise.resolve(detail());
   setModeAnswer = () => Promise.resolve(groups());
+  confirmAnswer = () => Promise.reject(new ApiError('conflict', 409, { detail: 'The tool changed.' }));
   addAnswer = () => Promise.resolve(detail());
   grantsAnswer = () => Promise.reject(new ApiError('not-available', 404, {}));
   clientsAnswer = () => Promise.resolve(clientsView());
@@ -60,11 +64,12 @@ function setup(): EndpointDetailData {
     check: () => Promise.resolve({ tools: 18, revisions: 2, instructionsChars: 827, instructionsMax: 4000, gatewayP95Ms: 3, problems: [], text: '' }),
     setMode: (slug, change) => {
       calls.push(`mode ${change.toolKey} ${change.mode}`);
+      modeBodies.push(change);
       return setModeAnswer() as never;
     },
     confirmReadOnly: (slug, c) => {
       calls.push(`confirm ${c.toolKey}`);
-      return Promise.reject(new ApiError('conflict', 409, { detail: 'The tool changed.' }));
+      return confirmAnswer() as never;
     },
     bulk: (slug, r) => {
       calls.push(`bulk ${r.group} ${r.mode}`);
@@ -325,6 +330,29 @@ describe('EndpointDetailData', () => {
 
     const r = await data.bulk('dev-db', 'READ_ONLY');
     expect(r.skipped).toEqual([{ toolKey: 'sql_execute', reason: 'Mutates data' }]);
+  });
+
+  it('allows read only as the confirmation, then the mode at the version the confirmation gave back', async () => {
+    const data = setup();
+    await data.open('dev');
+    const withGh = (row: Partial<ToolRow>): ToolGroup[] => [
+      ...groups(),
+      { group: 'MCP server', connection: 'gh', env: 'dev', tools: [tool('github_list', 'APPROVAL', { declaredBy: 'github-mcp', readOnlyConfirmed: true, version: 4, ...row })] },
+    ];
+    confirmAnswer = () => Promise.resolve(withGh({}));
+    const answer = withGh({ mode: 'READ_ONLY', storedMode: 'READ_ONLY', version: 5 });
+    setModeAnswer = () => Promise.resolve(answer);
+    calls.length = 0;
+    await data.confirmReadOnly({ toolKey: 'github_list', connection: 'gh', definitionHash: 'hash-github_list' });
+    expect(calls).toEqual(['confirm github_list', 'mode github_list READ_ONLY', 'get dev']);
+    expect(modeBodies).toEqual([{ toolKey: 'github_list', connection: 'gh', mode: 'READ_ONLY', version: 4 }]);
+    expect(data.groups()).toBe(answer);
+
+    // The confirmation counts, the mode change doesn't: the picker re-reads what the core keeps.
+    setModeAnswer = () => Promise.reject(new ApiError('conflict', 409, { detail: 'Changed elsewhere.' }));
+    calls.length = 0;
+    await expect(data.confirmReadOnly({ toolKey: 'github_list', connection: 'gh', definitionHash: 'hash-github_list' })).rejects.toThrow('Changed elsewhere.');
+    expect(calls).toEqual(['confirm github_list', 'mode github_list READ_ONLY', 'tools dev', 'get dev']);
   });
 
   it('adds connections one by one and reports the ones the core refused', async () => {
