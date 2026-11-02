@@ -74,7 +74,12 @@ class SandboxTest {
     Files.writeString(own.resolve("state.json"), "its own");
     // A file of the home outside the work folder and the caches: where a login item or a shell profile would go.
     Path stray = Path.of(System.getProperty("user.home")).resolve(".gaterook-sandbox-test-" + System.nanoTime());
+    // Node lstat-s every folder above a script before it runs it (realpath): the folders above the work folder give
+    // their metadata, while GateRook's home still can't be listed or read.
     String script = "cat " + gateway.resolve("master.keyset") + " || echo denied-read; "
+        + "/usr/bin/stat -f %N " + gateway + " >/dev/null && echo stat-home; "
+        + "/usr/bin/stat -f %N " + own.getParent() + " >/dev/null && echo stat-above; "
+        + "ls " + gateway + " >/dev/null 2>&1 || echo denied-list; "
         + "cat " + own.resolve("state.json") + "; echo; "
         + "echo w > " + own.resolve("out.txt") + " && echo wrote; "
         + "echo w > " + stray + " 2>/dev/null || echo denied-write; "
@@ -88,7 +93,8 @@ class SandboxTest {
       Files.deleteIfExists(stray);
     }
     assertThat(r.out()).as(r.err()).contains("denied-read").contains("its own").contains("wrote")
-        .contains("denied-write").contains("wrote-tmp").doesNotContain("the key");
+        .contains("denied-write").contains("wrote-tmp").doesNotContain("the key")
+        .contains("stat-home").contains("stat-above").contains("denied-list");
     assertThat(r.code()).isZero();
     // The profile names both forms of each path; clients' configs are closed too, and writes outside the work folder,
     // the temporary folders, the devices and the caches.
@@ -97,7 +103,12 @@ class SandboxTest {
         .contains("/.cursor\")").contains("/.codex\")").contains("/Library/Application Support/Claude\")")
         .contains("/.config/gh\")").contains("(deny file-write* (subpath \"/\"))")
         .contains("(allow file-write* (subpath \"/dev\"))").contains("/.npm\"))")
-        .contains("(allow file-read* file-write* (subpath \"" + own + "\"))");
+        .contains("(allow file-read* file-write* (subpath \"" + own + "\"))")
+        .contains("(allow file-read-metadata\n").contains("(literal \"" + gateway + "\")")
+        .contains("(literal \"" + gateway.toRealPath() + "\")").contains("(literal \"" + own.getParent() + "\")");
+    // Metadata only, and after the denial: later rules win in SBPL.
+    assertThat(profile.indexOf("(allow file-read-metadata")).isGreaterThan(profile.indexOf("(deny file-read* file-write*"));
+    assertThat(profile).doesNotContain("(allow file-read* file-write* (subpath \"" + gateway + "\"))");
   }
 
   @Test

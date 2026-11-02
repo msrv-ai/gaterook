@@ -393,9 +393,11 @@ final class Sandbox {
    * connects (Cursor's and Antigravity's may hold a token, Codex's and Claude's name grants); writing nowhere but the
    * {@code --rw} paths, the temporary folders, the devices and the package managers' caches ({@link #MAC_WRITABLE}:
    * {@code npx} and {@code uvx} fetch into them). The rest of the home stays closed to writes: a login item, a shell
-   * profile, another app's settings or a repository's hooks planted from inside would run unconfined later. Later
-   * rules win in SBPL. Seatbelt compares {@code subpath} with the canonical path only — a rule for {@code /tmp/x}
-   * doesn't stop reading {@code /private/tmp/x} — so every path is written as given and as the kernel sees it.
+   * profile, another app's settings or a repository's hooks planted from inside would run unconfined later. The
+   * folders above a {@code --rw} path may be stat-ed, not read: GateRook's home is closed, yet the work folders of its
+   * MCP servers live in it. Later rules win in SBPL. Seatbelt compares {@code subpath} with the canonical path only — a
+   * rule for {@code /tmp/x} doesn't stop reading {@code /private/tmp/x} — so every path is written as given and as the
+   * kernel sees it.
    */
   static String macProfile(Map<String, String> env, List<String> readWrite) {
     Path home = Path.of(System.getProperty("user.home"));
@@ -428,6 +430,24 @@ final class Sandbox {
       for (String form : canonicalForms(Path.of(rw))) {
         b.append("(allow file-read* file-write* (subpath ").append(sbplString(form)).append("))\n");
       }
+    }
+    // A program finds its own path by lstat-ing every folder above it (Node's realpath does, before any script runs):
+    // the folders above a --rw path, GateRook's home and its mcp/ among them, give their metadata, never a listing or
+    // a file.
+    java.util.LinkedHashSet<String> above = new java.util.LinkedHashSet<>();
+    for (String rw : readWrite) {
+      for (String form : canonicalForms(Path.of(rw))) {
+        for (Path p = Path.of(form).getParent(); p != null; p = p.getParent()) {
+          above.add(p.toString());
+        }
+      }
+    }
+    if (!above.isEmpty()) {
+      b.append("(allow file-read-metadata\n");
+      for (String p : above) {
+        b.append("  (literal ").append(sbplString(p)).append(")\n");
+      }
+      b.append(")\n");
     }
     return b.toString();
   }
