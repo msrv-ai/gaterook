@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, output, signal, viewChild } from '@angular/core';
 import { McpRegistryServer, McpServerAuthConfig, McpServerConfig, McpServerReview, McpServerSource } from '../../../core/api/plugins.api';
 import { GwDialog, GwDialogClose } from '../../../kit/dialog';
 import { GwToggle } from '../../../kit/disclosure';
 import { GwIcon } from '../../../kit/icons';
 import { GwSearchClearButton } from '../../../kit/search';
+import { GwTabs } from '../../../kit/tabs';
 import { joinAnd, tokenizeCommand } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
 import { signingTarget } from '../mcp-cloud';
@@ -260,13 +261,15 @@ let nextId = 0;
 
 /**
  * `<dialog gwMcpAddDialog>` (kit `dlg-add-mcp`): put an MCP server behind the gateway — its name (it prefixes the
- * tool names), stdio command or HTTP URL, and the variables (or headers) whose values come from secrets. Nothing
- * starts here: "Review and start" asks the core what would run (`POST /api/mcp-servers/review`) and opens the review,
- * which starts it. Focus starts on Name; each refusal stays at its field.
+ * tool names), stdio command or HTTP URL, and the variables (or headers) whose values come from secrets. Two tabs:
+ * Manual entry, with those fields and a pasted configuration, and the Official MCP Registry, whose Use fills Manual
+ * entry and returns there. Nothing starts here: "Review and start" asks the core what would run
+ * (`POST /api/mcp-servers/review`) and opens the review, which starts it. Focus starts on Name; each refusal stays at
+ * its field.
  */
 @Component({
   selector: 'dialog[gwMcpAddDialog]',
-  imports: [GwIcon, GwDialogClose, GwToggle, GwSearchClearButton],
+  imports: [GwIcon, GwDialogClose, GwToggle, GwSearchClearButton, GwTabs],
   hostDirectives: [{ directive: GwDialog, inputs: ['gwDialogStatic'], outputs: ['closed'] }],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
@@ -283,11 +286,202 @@ let nextId = 0;
         <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
       </header>
       <div class="gw-dialog__body">
-        <div class="gw-stack">
-          <div class="gw-stack gw-stack--sm">
-            <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [attr.aria-controls]="uid + '-find'" [(expanded)]="findOpen" (click)="focusFind()"><svg lucideIcon="search" class="gw-icon gw-icon--sm"></svg> Find a server in the MCP registry <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button></div>
-            @if (chosen(); as c) {<p class="gw-field__hint" role="status"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Filled in {{ c }}</p>}
-            <div class="gw-stack gw-stack--sm" [id]="uid + '-find'" [hidden]="!findOpen()">
+        <div class="gw-tabs">
+          <div class="gw-tabs__list" role="tablist" aria-label="Ways to add an MCP server" gwTabs (selectedChange)="onTab($event)">
+            <button class="gw-tabs__tab" type="button" role="tab" [id]="uid + '-tab-manual'" aria-selected="true" [attr.aria-controls]="uid + '-manual'"><svg lucideIcon="pencil" class="gw-icon"></svg> Manual entry</button>
+            <button class="gw-tabs__tab" type="button" role="tab" [id]="uid + '-tab-registry'" aria-selected="false" [attr.aria-controls]="uid + '-registry'" tabindex="-1"><svg lucideIcon="library" class="gw-icon"></svg> Official MCP Registry</button>
+          </div>
+          <div class="gw-tabs__panel" role="tabpanel" [id]="uid + '-manual'" [attr.aria-labelledby]="uid + '-tab-manual'" tabindex="0">
+            <div class="gw-stack">
+              @if (chosen(); as c) {<p class="gw-field__hint" role="status"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Filled in {{ c }}</p>}
+              <div class="gw-stack gw-stack--sm">
+                <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [attr.aria-controls]="uid + '-paste'"><svg lucideIcon="file-code" class="gw-icon gw-icon--sm"></svg> Paste a configuration from the server’s docs <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button></div>
+                <div class="gw-field" [id]="uid + '-paste'" hidden>
+                  <label class="gw-field__label" [for]="uid + '-paste-text'">Configuration</label>
+                  <textarea class="gw-textarea gw-textarea--code" [id]="uid + '-paste-text'" rows="5" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder='{ "mcpServers": { "linear": { "url": "https://mcp.linear.app/mcp" } } }' (input)="paste(value($event))" [attr.aria-invalid]="pasteError() ? 'true' : null" [attr.aria-describedby]="uid + '-paste-hint' + (pasteError() ? ' ' + uid + '-paste-err' : '') + (pasted() ? ' ' + uid + '-paste-done' : '')"></textarea>
+                  <p class="gw-field__hint" [id]="uid + '-paste-hint'">What the docs give for Claude Desktop, Cursor, VS Code or Codex, a <span class="gw-mono">claude mcp add</span> or <span class="gw-mono">codex mcp add</span> command, or the URL. It fills the fields below and isn’t kept; keys and tokens in it aren’t copied.</p>
+                  @if (pasteError()) {<p class="gw-field__error" [id]="uid + '-paste-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ pasteError() }}</p>}
+                  @if (pasted(); as p) {<p class="gw-field__hint" [id]="uid + '-paste-done'" role="status"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Filled in {{ p }}</p>}
+                </div>
+              </div>
+              <div class="gw-field">
+                <label class="gw-field__label" [for]="uid + '-name'">Name</label>
+                <input class="gw-input gw-input--mono" [id]="uid + '-name'" type="text" autofocus required placeholder="sentry-mcp" spellcheck="false" autocomplete="off" [value]="name()" (input)="name.set(value($event)); suggested.set(null); clear('name')" [attr.aria-invalid]="errors().name ? 'true' : null" [attr.aria-describedby]="uid + '-name-hint' + (errors().name ? ' ' + uid + '-name-err' : '')">
+                <p class="gw-field__hint" [id]="uid + '-name-hint'">Lowercase letters, digits and <span class="gw-mono">-</span>. It also prefixes the tool names.</p>
+                @if (errors().name) {<p class="gw-field__error" [id]="uid + '-name-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().name }}</p>}
+              </div>
+              <fieldset class="gw-field" [attr.aria-describedby]="uid + '-transport-hint'">
+                <legend class="gw-field__label">Transport</legend>
+                <div class="gw-segmented">
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-transport'" value="stdio" [checked]="transport() === 'stdio'" (change)="setTransport('stdio')"><span class="gw-segmented__label"><svg lucideIcon="terminal" class="gw-icon gw-icon--sm"></svg>stdio</span></label>
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-transport'" value="http" [checked]="transport() === 'http'" (change)="setTransport('http')"><span class="gw-segmented__label"><svg lucideIcon="globe" class="gw-icon gw-icon--sm"></svg>HTTP</span></label>
+                </div>
+                <p class="gw-field__hint" [id]="uid + '-transport-hint'">stdio: the gateway starts a command on this computer. HTTP: it calls a URL with Streamable HTTP and signs in to it for you when the server asks.</p>
+              </fieldset>
+              <div class="gw-field" [hidden]="transport() !== 'stdio'">
+                <label class="gw-field__label" [for]="uid + '-command'">Command</label>
+                <input class="gw-input gw-input--mono" [id]="uid + '-command'" type="text" required [disabled]="transport() !== 'stdio'" placeholder="npx -y @scope/mcp-server@1.2.3" spellcheck="false" autocomplete="off" [value]="command()" (input)="command.set(value($event)); clear('command')" [attr.aria-invalid]="errors().command ? 'true' : null" [attr.aria-describedby]="uid + '-command-hint' + (errors().command ? ' ' + uid + '-command-err' : '')">
+                <p class="gw-field__hint" [id]="uid + '-command-hint'">Runs without a shell, from <span class="gw-mono">~/.gaterook/mcp/</span> and the server name. Pin a version (<span class="gw-mono">&#64;1.2.3</span>): without one, npx can fetch new code on every start.</p>
+                @if (errors().command) {<p class="gw-field__error" [id]="uid + '-command-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().command }}</p>}
+              </div>
+              <div class="gw-field" [hidden]="transport() !== 'http'">
+                <label class="gw-field__label" [for]="uid + '-url'">URL</label>
+                <input class="gw-input gw-input--mono" [id]="uid + '-url'" type="url" required [disabled]="transport() !== 'http'" placeholder="https://mcp.linear.app/mcp" spellcheck="false" autocomplete="off" [value]="url()" (input)="setUrl(value($event))" [attr.aria-invalid]="errors().url ? 'true' : null" [attr.aria-describedby]="uid + '-url-hint' + (errors().url ? ' ' + uid + '-url-err' : '')">
+                <p class="gw-field__hint" [id]="uid + '-url-hint'">HTTPS, or <span class="gw-mono">http://127.0.0.1</span> for a server on this computer. A server that asks for a sign-in gets one in your browser after the review.</p>
+                @if (errors().url) {<p class="gw-field__error" [id]="uid + '-url-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().url }}</p>}
+              </div>
+              <div class="gw-stack gw-stack--sm" [hidden]="transport() !== 'http'">
+                <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [attr.aria-controls]="uid + '-signin'" [(expanded)]="signInOpen"><svg lucideIcon="sliders-horizontal" class="gw-icon gw-icon--sm"></svg> Sign-in options <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button></div>
+                <div class="gw-stack gw-stack--sm" [id]="uid + '-signin'" [hidden]="!signInOpen()">
+                  <fieldset class="gw-field" [attr.aria-describedby]="uid + '-with-hint'">
+                    <legend class="gw-field__label">Sign in with</legend>
+                    <div class="gw-segmented">
+                      <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-with'" value="oauth" [id]="uid + '-with-oauth'" [checked]="signInWith() === 'oauth'" (change)="setSignInWith('oauth')"><span class="gw-segmented__label"><svg lucideIcon="log-in" class="gw-icon gw-icon--sm"></svg>OAuth</span></label>
+                      <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-with'" value="google" [id]="uid + '-with-google'" [checked]="signInWith() === 'google'" (change)="setSignInWith('google')"><span class="gw-segmented__label"><svg lucideIcon="cloud" class="gw-icon gw-icon--sm"></svg>Google Cloud</span></label>
+                      <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-with'" value="aws" [id]="uid + '-with-aws'" [checked]="signInWith() === 'aws'" (change)="setSignInWith('aws')"><span class="gw-segmented__label"><svg lucideIcon="cloud" class="gw-icon gw-icon--sm"></svg>AWS</span></label>
+                    </div>
+                    <p class="gw-field__hint" [id]="uid + '-with-hint'">@switch (signInWith()) {
+                      @case ('google') {Google’s MCP servers (<span class="gw-mono">https://&lt;service&gt;.googleapis.com/mcp</span>) take a token of your Google Cloud credentials. GateRook gets it and renews it: no OAuth app, no browser.}
+                      @case ('aws') {MCP servers on AWS (<span class="gw-mono">https://aws-mcp.&lt;region&gt;.api.aws/mcp</span>, Bedrock AgentCore) take requests signed with SigV4. No browser sign-in that ends after 12 hours.}
+                      @default {Leave the fields empty: GateRook signs in as GateRook, with the client details it publishes or by registering itself, and listens on this computer for the browser. Fill them in for a server that asks you to create an OAuth app (GitHub and Slack do), or that accepts only certain redirect addresses.}
+                    }</p>
+                  </fieldset>
+                  @switch (signInWith()) {
+                    @case ('google') {
+                      <fieldset class="gw-field">
+                        <legend class="gw-field__label">Credentials</legend>
+                        <div class="gw-radio">
+                          <input class="gw-radio__input" type="radio" [name]="uid + '-gcp'" [id]="uid + '-gcp-adc'" value="adc" [checked]="gcpSource() === 'adc'" (change)="gcpSource.set('adc')" [attr.aria-describedby]="uid + '-gcp-adc-hint'">
+                          <span class="gw-radio__control" aria-hidden="true"></span>
+                          <label class="gw-radio__label" [for]="uid + '-gcp-adc'">Google sign-in on this computer</label>
+                          <p class="gw-radio__hint" [id]="uid + '-gcp-adc-hint'">What <span class="gw-mono">gcloud auth application-default login</span> set up. The server’s tools act as you.</p>
+                        </div>
+                        <div class="gw-radio">
+                          <input class="gw-radio__input" type="radio" [name]="uid + '-gcp'" [id]="uid + '-gcp-key'" value="serviceAccountKey" [checked]="gcpSource() === 'serviceAccountKey'" (change)="gcpSource.set('serviceAccountKey')" [attr.aria-describedby]="uid + '-gcp-key-hint'">
+                          <span class="gw-radio__control" aria-hidden="true"></span>
+                          <label class="gw-radio__label" [for]="uid + '-gcp-key'">Service account key (JSON)</label>
+                          <p class="gw-radio__hint" [id]="uid + '-gcp-key-hint'">The review asks for it. It is stored encrypted as a secret of this server and never shown again.</p>
+                        </div>
+                      </fieldset>
+                      <div class="gw-field">
+                        <label class="gw-field__label" [for]="uid + '-impersonate'">Act as a service account <span class="gw-field__optional">Optional</span></label>
+                        <input class="gw-input gw-input--mono" [id]="uid + '-impersonate'" type="text" spellcheck="false" autocomplete="off" placeholder="gw-mcp@acme.iam.gserviceaccount.com" [value]="impersonate()" (input)="impersonate.set(value($event)); clear('impersonate')" [attr.aria-invalid]="errors().impersonate ? 'true' : null" [attr.aria-describedby]="uid + '-impersonate-hint' + (errors().impersonate ? ' ' + uid + '-impersonate-err' : '')">
+                        <p class="gw-field__hint" [id]="uid + '-impersonate-hint'">A short-lived token of this service account, with only its roles. It needs <span class="gw-mono">roles/mcp.toolUser</span> and the roles of the product.</p>
+                        @if (errors().impersonate) {<p class="gw-field__error" [id]="uid + '-impersonate-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().impersonate }}</p>}
+                      </div>
+                      <div class="gw-field">
+                        <label class="gw-field__label" [for]="uid + '-quota'">Billed project <span class="gw-field__optional">Optional</span></label>
+                        <input class="gw-input gw-input--mono" [id]="uid + '-quota'" type="text" spellcheck="false" autocomplete="off" placeholder="acme-prod" [value]="quotaProject()" (input)="quotaProject.set(value($event)); clear('quotaProject')" [attr.aria-invalid]="errors().quotaProject ? 'true' : null" [attr.aria-describedby]="uid + '-quota-hint' + (errors().quotaProject ? ' ' + uid + '-quota-err' : '')">
+                        <p class="gw-field__hint" [id]="uid + '-quota-hint'">Sent as <span class="gw-mono">x-goog-user-project</span>. Default: the project of your sign-in.</p>
+                        @if (errors().quotaProject) {<p class="gw-field__error" [id]="uid + '-quota-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().quotaProject }}</p>}
+                      </div>
+                      <div class="gw-field">
+                        <label class="gw-field__label" [for]="uid + '-scopes'">Scopes <span class="gw-field__optional">Optional</span></label>
+                        <input class="gw-input gw-input--mono" [id]="uid + '-scopes'" type="text" spellcheck="false" autocomplete="off" placeholder="https://www.googleapis.com/auth/cloud-platform" [value]="scopes()" (input)="scopes.set(value($event)); clear('scopes')" [attr.aria-invalid]="errors().scopes ? 'true' : null" [attr.aria-describedby]="uid + '-scopes-hint' + (errors().scopes ? ' ' + uid + '-scopes-err' : '')">
+                        <p class="gw-field__hint" [id]="uid + '-scopes-hint'">Default: <span class="gw-mono">cloud-platform</span>, which every Google Cloud MCP server takes.</p>
+                        @if (errors().scopes) {<p class="gw-field__error" [id]="uid + '-scopes-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().scopes }}</p>}
+                      </div>
+                    }
+                    @case ('aws') {
+                      <fieldset class="gw-field">
+                        <legend class="gw-field__label">Credentials</legend>
+                        <div class="gw-radio">
+                          <input class="gw-radio__input" type="radio" [name]="uid + '-aws'" [id]="uid + '-aws-profile'" value="profile" [checked]="awsSource() === 'profile'" (change)="awsSource.set('profile')" [attr.aria-describedby]="uid + '-aws-profile-hint'">
+                          <span class="gw-radio__control" aria-hidden="true"></span>
+                          <label class="gw-radio__label" [for]="uid + '-aws-profile'">A profile on this computer</label>
+                          <p class="gw-radio__hint" [id]="uid + '-aws-profile-hint'">From <span class="gw-mono">~/.aws/credentials</span> and <span class="gw-mono">~/.aws/config</span>.</p>
+                        </div>
+                        <div class="gw-radio">
+                          <input class="gw-radio__input" type="radio" [name]="uid + '-aws'" [id]="uid + '-aws-key'" value="accessKey" [checked]="awsSource() === 'accessKey'" (change)="awsSource.set('accessKey')" [attr.aria-describedby]="uid + '-aws-key-hint'">
+                          <span class="gw-radio__control" aria-hidden="true"></span>
+                          <label class="gw-radio__label" [for]="uid + '-aws-key'">An access key</label>
+                          <p class="gw-radio__hint" [id]="uid + '-aws-key-hint'">The review asks for its secret. It is stored encrypted as a secret of this server and never shown again.</p>
+                        </div>
+                      </fieldset>
+                      @if (awsSource() === 'profile') {
+                        <div class="gw-field">
+                          <label class="gw-field__label" [for]="uid + '-profile'">Profile <span class="gw-field__optional">Optional</span></label>
+                          <input class="gw-input gw-input--mono" [id]="uid + '-profile'" type="text" spellcheck="false" autocomplete="off" placeholder="default" [value]="profile()" (input)="profile.set(value($event)); clear('profile')" [attr.aria-invalid]="errors().profile ? 'true' : null" [attr.aria-describedby]="errors().profile ? uid + '-profile-err' : null">
+                          @if (errors().profile) {<p class="gw-field__error" [id]="uid + '-profile-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().profile }}</p>}
+                        </div>
+                      } @else {
+                        <div class="gw-field">
+                          <label class="gw-field__label" [for]="uid + '-key-id'">Access key ID</label>
+                          <input class="gw-input gw-input--mono" [id]="uid + '-key-id'" type="text" spellcheck="false" autocomplete="off" placeholder="AKIA…" [value]="accessKeyId()" (input)="accessKeyId.set(value($event)); clear('accessKeyId')" [attr.aria-invalid]="errors().accessKeyId ? 'true' : null" [attr.aria-describedby]="errors().accessKeyId ? uid + '-key-id-err' : null">
+                          @if (errors().accessKeyId) {<p class="gw-field__error" [id]="uid + '-key-id-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().accessKeyId }}</p>}
+                        </div>
+                      }
+                      <div class="gw-field">
+                        <label class="gw-field__label" [for]="uid + '-role'">Assume a role <span class="gw-field__optional">Optional</span></label>
+                        <input class="gw-input gw-input--mono" [id]="uid + '-role'" type="text" spellcheck="false" autocomplete="off" placeholder="arn:aws:iam::123456789012:role/gw-mcp" [value]="roleArn()" (input)="roleArn.set(value($event)); clear('roleArn')" [attr.aria-invalid]="errors().roleArn ? 'true' : null" [attr.aria-describedby]="uid + '-role-hint' + (errors().roleArn ? ' ' + uid + '-role-err' : '')">
+                        <p class="gw-field__hint" [id]="uid + '-role-hint'">Short-lived credentials of this role, renewed by GateRook. Its policy decides what the server may do in AWS.</p>
+                        @if (errors().roleArn) {<p class="gw-field__error" [id]="uid + '-role-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().roleArn }}</p>}
+                      </div>
+                      <div class="gw-field">
+                        <label class="gw-field__label" [for]="uid + '-external'">External ID <span class="gw-field__optional">Optional</span></label>
+                        <input class="gw-input gw-input--mono" [id]="uid + '-external'" type="text" spellcheck="false" autocomplete="off" [value]="externalId()" (input)="externalId.set(value($event)); clear('externalId')" [attr.aria-invalid]="errors().externalId ? 'true' : null" [attr.aria-describedby]="errors().externalId ? uid + '-external-err' : null">
+                        @if (errors().externalId) {<p class="gw-field__error" [id]="uid + '-external-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().externalId }}</p>}
+                      </div>
+                      <div class="gw-field">
+                        <label class="gw-field__label" [for]="uid + '-service'">Service <span class="gw-field__optional">Optional</span></label>
+                        <input class="gw-input gw-input--mono" [id]="uid + '-service'" type="text" spellcheck="false" autocomplete="off" [placeholder]="target()?.service ?? 'aws-mcp'" [value]="service()" (input)="service.set(value($event)); clear('service')" [attr.aria-invalid]="errors().service ? 'true' : null" [attr.aria-describedby]="uid + '-service-hint' + (errors().service ? ' ' + uid + '-service-err' : '')">
+                        <p class="gw-field__hint" [id]="uid + '-service-hint'">What requests are signed for. Default: from the URL, <span class="gw-mono">aws-mcp.us-east-1.api.aws</span> → <span class="gw-mono">aws-mcp</span> in <span class="gw-mono">us-east-1</span>.</p>
+                        @if (errors().service) {<p class="gw-field__error" [id]="uid + '-service-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().service }}</p>}
+                      </div>
+                      <div class="gw-field">
+                        <label class="gw-field__label" [for]="uid + '-region'">Region <span class="gw-field__optional">Optional</span></label>
+                        <input class="gw-input gw-input--mono" [id]="uid + '-region'" type="text" spellcheck="false" autocomplete="off" [placeholder]="target()?.region ?? 'us-east-1'" [value]="region()" (input)="region.set(value($event)); clear('region')" [attr.aria-invalid]="errors().region ? 'true' : null" [attr.aria-describedby]="errors().region ? uid + '-region-err' : null">
+                        @if (errors().region) {<p class="gw-field__error" [id]="uid + '-region-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().region }}</p>}
+                      </div>
+                    }
+                    @default {
+                  <div class="gw-field">
+                    <label class="gw-field__label" [for]="uid + '-client'">OAuth client ID <span class="gw-field__optional">Optional</span></label>
+                    <input class="gw-input gw-input--mono" [id]="uid + '-client'" type="text" spellcheck="false" autocomplete="off" [disabled]="transport() !== 'http'" [value]="clientId()" (input)="clientId.set(value($event)); clear('clientId')" [attr.aria-invalid]="errors().clientId ? 'true' : null" [attr.aria-describedby]="uid + '-client-hint' + (errors().clientId ? ' ' + uid + '-client-err' : '')">
+                    <p class="gw-field__hint" [id]="uid + '-client-hint'">The ID of the OAuth app you created for GateRook at the server’s provider. The review asks for its secret, if it has one.</p>
+                    @if (errors().clientId) {<p class="gw-field__error" [id]="uid + '-client-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().clientId }}</p>}
+                  </div>
+                  <div class="gw-field">
+                    <label class="gw-field__label" [for]="uid + '-scopes'">Scopes <span class="gw-field__optional">Optional</span></label>
+                    <input class="gw-input gw-input--mono" [id]="uid + '-scopes'" type="text" spellcheck="false" autocomplete="off" placeholder="read write" [disabled]="transport() !== 'http'" [value]="scopes()" (input)="scopes.set(value($event)); clear('scopes')" [attr.aria-invalid]="errors().scopes ? 'true' : null" [attr.aria-describedby]="uid + '-scopes-hint' + (errors().scopes ? ' ' + uid + '-scopes-err' : '')">
+                    <p class="gw-field__hint" [id]="uid + '-scopes-hint'">Default: what the server asks for.</p>
+                    @if (errors().scopes) {<p class="gw-field__error" [id]="uid + '-scopes-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().scopes }}</p>}
+                  </div>
+                  <div class="gw-field">
+                    <label class="gw-field__label" [for]="uid + '-port'">Callback port <span class="gw-field__optional">Optional</span></label>
+                    <input class="gw-input gw-input--mono" [id]="uid + '-port'" type="text" inputmode="numeric" spellcheck="false" autocomplete="off" placeholder="7471" [disabled]="transport() !== 'http'" [value]="callbackPort()" (input)="callbackPort.set(value($event)); clear('callbackPort')" [attr.aria-invalid]="errors().callbackPort ? 'true' : null" [attr.aria-describedby]="uid + '-port-hint' + (errors().callbackPort ? ' ' + uid + '-port-err' : '')">
+                    <p class="gw-field__hint" [id]="uid + '-port-hint'">Where the browser comes back to: <span class="gw-mono">http://localhost:&lt;port&gt;/callback</span>, or <span class="gw-mono">http://127.0.0.1:7471/callback</span> for an OAuth app. Default: any free port.</p>
+                    @if (errors().callbackPort) {<p class="gw-field__error" [id]="uid + '-port-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().callbackPort }}</p>}
+                  </div>
+                    }
+                  }
+                </div>
+              </div>
+              <fieldset class="gw-field">
+                <legend class="gw-field__label">Variables or headers</legend>
+                @for (row of variables(); track $index; let i = $index) {
+                  <div class="gw-field">
+                    <label class="gw-field__label" [for]="uid + '-var-name-' + i">{{ transport() === 'http' ? 'Header' : 'Variable' }} name</label>
+                    <input class="gw-input gw-input--mono" [id]="uid + '-var-name-' + i" type="text" [placeholder]="transport() === 'http' ? 'Authorization' : 'SENTRY_AUTH_TOKEN'" spellcheck="false" autocomplete="off" [value]="row.name" (input)="setVariable(i, value($event))" [attr.aria-describedby]="uid + '-env-hint'">
+                  </div>
+                }
+                <!-- The core takes no existing secret by name (C10: a server's
+                     values are its own secrets), so the kit's "Value from secret" select is gone; each value is typed in the
+                     review, right before the start, and stored encrypted as a secret of the server. -->
+                <p class="gw-field__hint" [id]="uid + '-env-hint'">The review asks for their values before the start. Each is stored encrypted as a secret of this server and never shown again. Only these reach the process, and the agent never sees them.</p>
+                @if (errors().variables) {<p class="gw-field__error" [id]="uid + '-var-err'" role="alert"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().variables }}</p>}
+                <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" (click)="addVariable()"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg>Add variable</button></div>
+              </fieldset>
+              @if (error()) {
+                <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+                  <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+                  <div class="gw-alert__content"><p class="gw-alert__title">The server wasn't reviewed</p><p class="gw-alert__body">{{ error() }}</p></div>
+                </div>
+              }
+            </div>
+          </div>
+          <div class="gw-tabs__panel" role="tabpanel" [id]="uid + '-registry'" [attr.aria-labelledby]="uid + '-tab-registry'" tabindex="0" hidden>
+            <div class="gw-stack gw-stack--sm">
               <div class="gw-field">
                 <label class="gw-field__label" [for]="uid + '-find-q'">Server name</label>
                 <div class="gw-search">
@@ -295,7 +489,7 @@ let nextId = 0;
                   <input class="gw-search__input" type="search" [id]="uid + '-find-q'" placeholder="linear, sentry, postgres" spellcheck="false" autocapitalize="off" autocomplete="off" [attr.aria-describedby]="uid + '-find-hint'" (input)="find(value($event))" (keydown.enter)="findNow($event)">
                   <button class="gw-search__clear" type="button" aria-label="Clear search"><svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg></button>
                 </div>
-                <p class="gw-field__hint" [id]="uid + '-find-hint'">Searches the names of public MCP servers. Use fills the fields below; nothing runs or connects before the review.</p>
+                <p class="gw-field__hint" [id]="uid + '-find-hint'">Searches server names in the registry. Use fills in Manual entry; nothing runs or connects before the review.</p>
               </div>
               <p class="gw-text-small gw-fg-muted gw-tabular" role="status">{{ findStatus() }}</p>
               @if (findError(); as e) {
@@ -350,200 +544,19 @@ let nextId = 0;
                 <div class="gw-empty gw-empty--compact">
                   <span class="gw-empty__icon"><svg lucideIcon="search-x" class="gw-icon"></svg></span>
                   <p class="gw-empty__title">No server name contains “{{ q }}”</p>
-                  <p class="gw-empty__text">Try a shorter part of its name, or paste the configuration from the server’s docs.</p>
+                  <p class="gw-empty__text">Try a shorter part of its name, or paste the configuration from the server’s docs in Manual entry.</p>
                 </div>
               }
             </div>
           </div>
-          <div class="gw-stack gw-stack--sm">
-            <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [attr.aria-controls]="uid + '-paste'"><svg lucideIcon="file-code" class="gw-icon gw-icon--sm"></svg> Paste a configuration from the server’s docs <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button></div>
-            <div class="gw-field" [id]="uid + '-paste'" hidden>
-              <label class="gw-field__label" [for]="uid + '-paste-text'">Configuration</label>
-              <textarea class="gw-textarea gw-textarea--code" [id]="uid + '-paste-text'" rows="5" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder='{ "mcpServers": { "linear": { "url": "https://mcp.linear.app/mcp" } } }' (input)="paste(value($event))" [attr.aria-invalid]="pasteError() ? 'true' : null" [attr.aria-describedby]="uid + '-paste-hint' + (pasteError() ? ' ' + uid + '-paste-err' : '') + (pasted() ? ' ' + uid + '-paste-done' : '')"></textarea>
-              <p class="gw-field__hint" [id]="uid + '-paste-hint'">What the docs give for Claude Desktop, Cursor, VS Code or Codex, a <span class="gw-mono">claude mcp add</span> or <span class="gw-mono">codex mcp add</span> command, or the URL. It fills the fields below and isn’t kept; keys and tokens in it aren’t copied.</p>
-              @if (pasteError()) {<p class="gw-field__error" [id]="uid + '-paste-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ pasteError() }}</p>}
-              @if (pasted(); as p) {<p class="gw-field__hint" [id]="uid + '-paste-done'" role="status"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Filled in {{ p }}</p>}
-            </div>
-          </div>
-          <div class="gw-field">
-            <label class="gw-field__label" [for]="uid + '-name'">Name</label>
-            <input class="gw-input gw-input--mono" [id]="uid + '-name'" type="text" autofocus required placeholder="sentry-mcp" spellcheck="false" autocomplete="off" [value]="name()" (input)="name.set(value($event)); suggested.set(null); clear('name')" [attr.aria-invalid]="errors().name ? 'true' : null" [attr.aria-describedby]="uid + '-name-hint' + (errors().name ? ' ' + uid + '-name-err' : '')">
-            <p class="gw-field__hint" [id]="uid + '-name-hint'">Lowercase letters, digits and <span class="gw-mono">-</span>. It also prefixes the tool names.</p>
-            @if (errors().name) {<p class="gw-field__error" [id]="uid + '-name-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().name }}</p>}
-          </div>
-          <fieldset class="gw-field" [attr.aria-describedby]="uid + '-transport-hint'">
-            <legend class="gw-field__label">Transport</legend>
-            <div class="gw-segmented">
-              <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-transport'" value="stdio" [checked]="transport() === 'stdio'" (change)="setTransport('stdio')"><span class="gw-segmented__label"><svg lucideIcon="terminal" class="gw-icon gw-icon--sm"></svg>stdio</span></label>
-              <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-transport'" value="http" [checked]="transport() === 'http'" (change)="setTransport('http')"><span class="gw-segmented__label"><svg lucideIcon="globe" class="gw-icon gw-icon--sm"></svg>HTTP</span></label>
-            </div>
-            <p class="gw-field__hint" [id]="uid + '-transport-hint'">stdio: the gateway starts a command on this computer. HTTP: it calls a URL with Streamable HTTP and signs in to it for you when the server asks.</p>
-          </fieldset>
-          <div class="gw-field" [hidden]="transport() !== 'stdio'">
-            <label class="gw-field__label" [for]="uid + '-command'">Command</label>
-            <input class="gw-input gw-input--mono" [id]="uid + '-command'" type="text" required [disabled]="transport() !== 'stdio'" placeholder="npx -y @scope/mcp-server@1.2.3" spellcheck="false" autocomplete="off" [value]="command()" (input)="command.set(value($event)); clear('command')" [attr.aria-invalid]="errors().command ? 'true' : null" [attr.aria-describedby]="uid + '-command-hint' + (errors().command ? ' ' + uid + '-command-err' : '')">
-            <p class="gw-field__hint" [id]="uid + '-command-hint'">Runs without a shell, from <span class="gw-mono">~/.gaterook/mcp/</span> and the server name. Pin a version (<span class="gw-mono">&#64;1.2.3</span>): without one, npx can fetch new code on every start.</p>
-            @if (errors().command) {<p class="gw-field__error" [id]="uid + '-command-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().command }}</p>}
-          </div>
-          <div class="gw-field" [hidden]="transport() !== 'http'">
-            <label class="gw-field__label" [for]="uid + '-url'">URL</label>
-            <input class="gw-input gw-input--mono" [id]="uid + '-url'" type="url" required [disabled]="transport() !== 'http'" placeholder="https://mcp.linear.app/mcp" spellcheck="false" autocomplete="off" [value]="url()" (input)="setUrl(value($event))" [attr.aria-invalid]="errors().url ? 'true' : null" [attr.aria-describedby]="uid + '-url-hint' + (errors().url ? ' ' + uid + '-url-err' : '')">
-            <p class="gw-field__hint" [id]="uid + '-url-hint'">HTTPS, or <span class="gw-mono">http://127.0.0.1</span> for a server on this computer. A server that asks for a sign-in gets one in your browser after the review.</p>
-            @if (errors().url) {<p class="gw-field__error" [id]="uid + '-url-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().url }}</p>}
-          </div>
-          <div class="gw-stack gw-stack--sm" [hidden]="transport() !== 'http'">
-            <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [attr.aria-controls]="uid + '-signin'" [(expanded)]="signInOpen"><svg lucideIcon="sliders-horizontal" class="gw-icon gw-icon--sm"></svg> Sign-in options <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button></div>
-            <div class="gw-stack gw-stack--sm" [id]="uid + '-signin'" [hidden]="!signInOpen()">
-              <fieldset class="gw-field" [attr.aria-describedby]="uid + '-with-hint'">
-                <legend class="gw-field__label">Sign in with</legend>
-                <div class="gw-segmented">
-                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-with'" value="oauth" [id]="uid + '-with-oauth'" [checked]="signInWith() === 'oauth'" (change)="setSignInWith('oauth')"><span class="gw-segmented__label"><svg lucideIcon="log-in" class="gw-icon gw-icon--sm"></svg>OAuth</span></label>
-                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-with'" value="google" [id]="uid + '-with-google'" [checked]="signInWith() === 'google'" (change)="setSignInWith('google')"><span class="gw-segmented__label"><svg lucideIcon="cloud" class="gw-icon gw-icon--sm"></svg>Google Cloud</span></label>
-                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-with'" value="aws" [id]="uid + '-with-aws'" [checked]="signInWith() === 'aws'" (change)="setSignInWith('aws')"><span class="gw-segmented__label"><svg lucideIcon="cloud" class="gw-icon gw-icon--sm"></svg>AWS</span></label>
-                </div>
-                <p class="gw-field__hint" [id]="uid + '-with-hint'">@switch (signInWith()) {
-                  @case ('google') {Google’s MCP servers (<span class="gw-mono">https://&lt;service&gt;.googleapis.com/mcp</span>) take a token of your Google Cloud credentials. GateRook gets it and renews it: no OAuth app, no browser.}
-                  @case ('aws') {MCP servers on AWS (<span class="gw-mono">https://aws-mcp.&lt;region&gt;.api.aws/mcp</span>, Bedrock AgentCore) take requests signed with SigV4. No browser sign-in that ends after 12 hours.}
-                  @default {Leave the fields empty: GateRook signs in as GateRook, with the client details it publishes or by registering itself, and listens on this computer for the browser. Fill them in for a server that asks you to create an OAuth app (GitHub and Slack do), or that accepts only certain redirect addresses.}
-                }</p>
-              </fieldset>
-              @switch (signInWith()) {
-                @case ('google') {
-                  <fieldset class="gw-field">
-                    <legend class="gw-field__label">Credentials</legend>
-                    <div class="gw-radio">
-                      <input class="gw-radio__input" type="radio" [name]="uid + '-gcp'" [id]="uid + '-gcp-adc'" value="adc" [checked]="gcpSource() === 'adc'" (change)="gcpSource.set('adc')" [attr.aria-describedby]="uid + '-gcp-adc-hint'">
-                      <span class="gw-radio__control" aria-hidden="true"></span>
-                      <label class="gw-radio__label" [for]="uid + '-gcp-adc'">Google sign-in on this computer</label>
-                      <p class="gw-radio__hint" [id]="uid + '-gcp-adc-hint'">What <span class="gw-mono">gcloud auth application-default login</span> set up. The server’s tools act as you.</p>
-                    </div>
-                    <div class="gw-radio">
-                      <input class="gw-radio__input" type="radio" [name]="uid + '-gcp'" [id]="uid + '-gcp-key'" value="serviceAccountKey" [checked]="gcpSource() === 'serviceAccountKey'" (change)="gcpSource.set('serviceAccountKey')" [attr.aria-describedby]="uid + '-gcp-key-hint'">
-                      <span class="gw-radio__control" aria-hidden="true"></span>
-                      <label class="gw-radio__label" [for]="uid + '-gcp-key'">Service account key (JSON)</label>
-                      <p class="gw-radio__hint" [id]="uid + '-gcp-key-hint'">The review asks for it. It is stored encrypted as a secret of this server and never shown again.</p>
-                    </div>
-                  </fieldset>
-                  <div class="gw-field">
-                    <label class="gw-field__label" [for]="uid + '-impersonate'">Act as a service account <span class="gw-field__optional">Optional</span></label>
-                    <input class="gw-input gw-input--mono" [id]="uid + '-impersonate'" type="text" spellcheck="false" autocomplete="off" placeholder="gw-mcp@acme.iam.gserviceaccount.com" [value]="impersonate()" (input)="impersonate.set(value($event)); clear('impersonate')" [attr.aria-invalid]="errors().impersonate ? 'true' : null" [attr.aria-describedby]="uid + '-impersonate-hint' + (errors().impersonate ? ' ' + uid + '-impersonate-err' : '')">
-                    <p class="gw-field__hint" [id]="uid + '-impersonate-hint'">A short-lived token of this service account, with only its roles. It needs <span class="gw-mono">roles/mcp.toolUser</span> and the roles of the product.</p>
-                    @if (errors().impersonate) {<p class="gw-field__error" [id]="uid + '-impersonate-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().impersonate }}</p>}
-                  </div>
-                  <div class="gw-field">
-                    <label class="gw-field__label" [for]="uid + '-quota'">Billed project <span class="gw-field__optional">Optional</span></label>
-                    <input class="gw-input gw-input--mono" [id]="uid + '-quota'" type="text" spellcheck="false" autocomplete="off" placeholder="acme-prod" [value]="quotaProject()" (input)="quotaProject.set(value($event)); clear('quotaProject')" [attr.aria-invalid]="errors().quotaProject ? 'true' : null" [attr.aria-describedby]="uid + '-quota-hint' + (errors().quotaProject ? ' ' + uid + '-quota-err' : '')">
-                    <p class="gw-field__hint" [id]="uid + '-quota-hint'">Sent as <span class="gw-mono">x-goog-user-project</span>. Default: the project of your sign-in.</p>
-                    @if (errors().quotaProject) {<p class="gw-field__error" [id]="uid + '-quota-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().quotaProject }}</p>}
-                  </div>
-                  <div class="gw-field">
-                    <label class="gw-field__label" [for]="uid + '-scopes'">Scopes <span class="gw-field__optional">Optional</span></label>
-                    <input class="gw-input gw-input--mono" [id]="uid + '-scopes'" type="text" spellcheck="false" autocomplete="off" placeholder="https://www.googleapis.com/auth/cloud-platform" [value]="scopes()" (input)="scopes.set(value($event)); clear('scopes')" [attr.aria-invalid]="errors().scopes ? 'true' : null" [attr.aria-describedby]="uid + '-scopes-hint' + (errors().scopes ? ' ' + uid + '-scopes-err' : '')">
-                    <p class="gw-field__hint" [id]="uid + '-scopes-hint'">Default: <span class="gw-mono">cloud-platform</span>, which every Google Cloud MCP server takes.</p>
-                    @if (errors().scopes) {<p class="gw-field__error" [id]="uid + '-scopes-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().scopes }}</p>}
-                  </div>
-                }
-                @case ('aws') {
-                  <fieldset class="gw-field">
-                    <legend class="gw-field__label">Credentials</legend>
-                    <div class="gw-radio">
-                      <input class="gw-radio__input" type="radio" [name]="uid + '-aws'" [id]="uid + '-aws-profile'" value="profile" [checked]="awsSource() === 'profile'" (change)="awsSource.set('profile')" [attr.aria-describedby]="uid + '-aws-profile-hint'">
-                      <span class="gw-radio__control" aria-hidden="true"></span>
-                      <label class="gw-radio__label" [for]="uid + '-aws-profile'">A profile on this computer</label>
-                      <p class="gw-radio__hint" [id]="uid + '-aws-profile-hint'">From <span class="gw-mono">~/.aws/credentials</span> and <span class="gw-mono">~/.aws/config</span>.</p>
-                    </div>
-                    <div class="gw-radio">
-                      <input class="gw-radio__input" type="radio" [name]="uid + '-aws'" [id]="uid + '-aws-key'" value="accessKey" [checked]="awsSource() === 'accessKey'" (change)="awsSource.set('accessKey')" [attr.aria-describedby]="uid + '-aws-key-hint'">
-                      <span class="gw-radio__control" aria-hidden="true"></span>
-                      <label class="gw-radio__label" [for]="uid + '-aws-key'">An access key</label>
-                      <p class="gw-radio__hint" [id]="uid + '-aws-key-hint'">The review asks for its secret. It is stored encrypted as a secret of this server and never shown again.</p>
-                    </div>
-                  </fieldset>
-                  @if (awsSource() === 'profile') {
-                    <div class="gw-field">
-                      <label class="gw-field__label" [for]="uid + '-profile'">Profile <span class="gw-field__optional">Optional</span></label>
-                      <input class="gw-input gw-input--mono" [id]="uid + '-profile'" type="text" spellcheck="false" autocomplete="off" placeholder="default" [value]="profile()" (input)="profile.set(value($event)); clear('profile')" [attr.aria-invalid]="errors().profile ? 'true' : null" [attr.aria-describedby]="errors().profile ? uid + '-profile-err' : null">
-                      @if (errors().profile) {<p class="gw-field__error" [id]="uid + '-profile-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().profile }}</p>}
-                    </div>
-                  } @else {
-                    <div class="gw-field">
-                      <label class="gw-field__label" [for]="uid + '-key-id'">Access key ID</label>
-                      <input class="gw-input gw-input--mono" [id]="uid + '-key-id'" type="text" spellcheck="false" autocomplete="off" placeholder="AKIA…" [value]="accessKeyId()" (input)="accessKeyId.set(value($event)); clear('accessKeyId')" [attr.aria-invalid]="errors().accessKeyId ? 'true' : null" [attr.aria-describedby]="errors().accessKeyId ? uid + '-key-id-err' : null">
-                      @if (errors().accessKeyId) {<p class="gw-field__error" [id]="uid + '-key-id-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().accessKeyId }}</p>}
-                    </div>
-                  }
-                  <div class="gw-field">
-                    <label class="gw-field__label" [for]="uid + '-role'">Assume a role <span class="gw-field__optional">Optional</span></label>
-                    <input class="gw-input gw-input--mono" [id]="uid + '-role'" type="text" spellcheck="false" autocomplete="off" placeholder="arn:aws:iam::123456789012:role/gw-mcp" [value]="roleArn()" (input)="roleArn.set(value($event)); clear('roleArn')" [attr.aria-invalid]="errors().roleArn ? 'true' : null" [attr.aria-describedby]="uid + '-role-hint' + (errors().roleArn ? ' ' + uid + '-role-err' : '')">
-                    <p class="gw-field__hint" [id]="uid + '-role-hint'">Short-lived credentials of this role, renewed by GateRook. Its policy decides what the server may do in AWS.</p>
-                    @if (errors().roleArn) {<p class="gw-field__error" [id]="uid + '-role-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().roleArn }}</p>}
-                  </div>
-                  <div class="gw-field">
-                    <label class="gw-field__label" [for]="uid + '-external'">External ID <span class="gw-field__optional">Optional</span></label>
-                    <input class="gw-input gw-input--mono" [id]="uid + '-external'" type="text" spellcheck="false" autocomplete="off" [value]="externalId()" (input)="externalId.set(value($event)); clear('externalId')" [attr.aria-invalid]="errors().externalId ? 'true' : null" [attr.aria-describedby]="errors().externalId ? uid + '-external-err' : null">
-                    @if (errors().externalId) {<p class="gw-field__error" [id]="uid + '-external-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().externalId }}</p>}
-                  </div>
-                  <div class="gw-field">
-                    <label class="gw-field__label" [for]="uid + '-service'">Service <span class="gw-field__optional">Optional</span></label>
-                    <input class="gw-input gw-input--mono" [id]="uid + '-service'" type="text" spellcheck="false" autocomplete="off" [placeholder]="target()?.service ?? 'aws-mcp'" [value]="service()" (input)="service.set(value($event)); clear('service')" [attr.aria-invalid]="errors().service ? 'true' : null" [attr.aria-describedby]="uid + '-service-hint' + (errors().service ? ' ' + uid + '-service-err' : '')">
-                    <p class="gw-field__hint" [id]="uid + '-service-hint'">What requests are signed for. Default: from the URL, <span class="gw-mono">aws-mcp.us-east-1.api.aws</span> → <span class="gw-mono">aws-mcp</span> in <span class="gw-mono">us-east-1</span>.</p>
-                    @if (errors().service) {<p class="gw-field__error" [id]="uid + '-service-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().service }}</p>}
-                  </div>
-                  <div class="gw-field">
-                    <label class="gw-field__label" [for]="uid + '-region'">Region <span class="gw-field__optional">Optional</span></label>
-                    <input class="gw-input gw-input--mono" [id]="uid + '-region'" type="text" spellcheck="false" autocomplete="off" [placeholder]="target()?.region ?? 'us-east-1'" [value]="region()" (input)="region.set(value($event)); clear('region')" [attr.aria-invalid]="errors().region ? 'true' : null" [attr.aria-describedby]="errors().region ? uid + '-region-err' : null">
-                    @if (errors().region) {<p class="gw-field__error" [id]="uid + '-region-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().region }}</p>}
-                  </div>
-                }
-                @default {
-              <div class="gw-field">
-                <label class="gw-field__label" [for]="uid + '-client'">OAuth client ID <span class="gw-field__optional">Optional</span></label>
-                <input class="gw-input gw-input--mono" [id]="uid + '-client'" type="text" spellcheck="false" autocomplete="off" [disabled]="transport() !== 'http'" [value]="clientId()" (input)="clientId.set(value($event)); clear('clientId')" [attr.aria-invalid]="errors().clientId ? 'true' : null" [attr.aria-describedby]="uid + '-client-hint' + (errors().clientId ? ' ' + uid + '-client-err' : '')">
-                <p class="gw-field__hint" [id]="uid + '-client-hint'">The ID of the OAuth app you created for GateRook at the server’s provider. The review asks for its secret, if it has one.</p>
-                @if (errors().clientId) {<p class="gw-field__error" [id]="uid + '-client-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().clientId }}</p>}
-              </div>
-              <div class="gw-field">
-                <label class="gw-field__label" [for]="uid + '-scopes'">Scopes <span class="gw-field__optional">Optional</span></label>
-                <input class="gw-input gw-input--mono" [id]="uid + '-scopes'" type="text" spellcheck="false" autocomplete="off" placeholder="read write" [disabled]="transport() !== 'http'" [value]="scopes()" (input)="scopes.set(value($event)); clear('scopes')" [attr.aria-invalid]="errors().scopes ? 'true' : null" [attr.aria-describedby]="uid + '-scopes-hint' + (errors().scopes ? ' ' + uid + '-scopes-err' : '')">
-                <p class="gw-field__hint" [id]="uid + '-scopes-hint'">Default: what the server asks for.</p>
-                @if (errors().scopes) {<p class="gw-field__error" [id]="uid + '-scopes-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().scopes }}</p>}
-              </div>
-              <div class="gw-field">
-                <label class="gw-field__label" [for]="uid + '-port'">Callback port <span class="gw-field__optional">Optional</span></label>
-                <input class="gw-input gw-input--mono" [id]="uid + '-port'" type="text" inputmode="numeric" spellcheck="false" autocomplete="off" placeholder="7471" [disabled]="transport() !== 'http'" [value]="callbackPort()" (input)="callbackPort.set(value($event)); clear('callbackPort')" [attr.aria-invalid]="errors().callbackPort ? 'true' : null" [attr.aria-describedby]="uid + '-port-hint' + (errors().callbackPort ? ' ' + uid + '-port-err' : '')">
-                <p class="gw-field__hint" [id]="uid + '-port-hint'">Where the browser comes back to: <span class="gw-mono">http://localhost:&lt;port&gt;/callback</span>, or <span class="gw-mono">http://127.0.0.1:7471/callback</span> for an OAuth app. Default: any free port.</p>
-                @if (errors().callbackPort) {<p class="gw-field__error" [id]="uid + '-port-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().callbackPort }}</p>}
-              </div>
-                }
-              }
-            </div>
-          </div>
-          <fieldset class="gw-field">
-            <legend class="gw-field__label">Variables or headers</legend>
-            @for (row of variables(); track $index; let i = $index) {
-              <div class="gw-field">
-                <label class="gw-field__label" [for]="uid + '-var-name-' + i">{{ transport() === 'http' ? 'Header' : 'Variable' }} name</label>
-                <input class="gw-input gw-input--mono" [id]="uid + '-var-name-' + i" type="text" [placeholder]="transport() === 'http' ? 'Authorization' : 'SENTRY_AUTH_TOKEN'" spellcheck="false" autocomplete="off" [value]="row.name" (input)="setVariable(i, value($event))" [attr.aria-describedby]="uid + '-env-hint'">
-              </div>
-            }
-            <!-- The core takes no existing secret by name (C10: a server's
-                 values are its own secrets), so the kit's "Value from secret" select is gone; each value is typed in the
-                 review, right before the start, and stored encrypted as a secret of the server. -->
-            <p class="gw-field__hint" [id]="uid + '-env-hint'">The review asks for their values before the start. Each is stored encrypted as a secret of this server and never shown again. Only these reach the process, and the agent never sees them.</p>
-            @if (errors().variables) {<p class="gw-field__error" [id]="uid + '-var-err'" role="alert"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().variables }}</p>}
-            <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" (click)="addVariable()"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg>Add variable</button></div>
-          </fieldset>
-          @if (error()) {
-            <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
-              <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
-              <div class="gw-alert__content"><p class="gw-alert__title">The server wasn't reviewed</p><p class="gw-alert__body">{{ error() }}</p></div>
-            </div>
-          }
         </div>
       </div>
       <footer class="gw-dialog__footer">
         <button class="gw-btn" type="button" gwDialogClose>Cancel</button>
-        <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() ? 'true' : null">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="shield-check" class="gw-icon"></svg>} {{ transport() === 'http' ? 'Review and connect' : 'Review and start' }}</button>
+        <!-- A result's Use is the registry's action: the review starts from Manual entry, where the fields are. -->
+        @if (tab() === 'manual') {
+          <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() ? 'true' : null">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="shield-check" class="gw-icon"></svg>} {{ transport() === 'http' ? 'Review and connect' : 'Review and start' }}</button>
+        }
       </footer>
     </form>
   `,
@@ -587,8 +600,10 @@ export class GwMcpAddDialog {
   protected readonly suggested = signal<string | null>(null);
   protected readonly pasted = signal<string | null>(null);
   protected readonly pasteError = signal<string | null>(null);
-  /** Find a server: the MCP registry's servers whose names contain the query, a page at a time (§7.5). */
-  protected readonly findOpen = signal(false);
+  /** Manual entry (the fields, and a pasted configuration) or the Official MCP Registry tab. */
+  protected readonly tab = signal<'manual' | 'registry'>('manual');
+  private readonly tabs = viewChild.required(GwTabs);
+  /** The registry tab: the servers whose names contain the query, a page at a time (§7.5). */
   protected readonly found = signal<readonly RegistryResult[]>([]);
   /** The query the shown results answer; null before a search, or after the query became too short. */
   protected readonly searched = signal<string | null>(null);
@@ -649,7 +664,7 @@ export class GwMcpAddDialog {
     this.pasteError.set(null);
     const paste = this.host.querySelector<HTMLTextAreaElement>(`#${this.uid}-paste-text`);
     if (paste) paste.value = '';
-    this.findOpen.set(false);
+    this.tabs().selectById(`${this.uid}-tab-manual`);
     this.resetFind();
     this.chosen.set(null);
     const search = this.host.querySelector<HTMLInputElement>(`#${this.uid}-find-q`);
@@ -727,11 +742,8 @@ export class GwMcpAddDialog {
     ]);
   }
 
-  /** Opens Find a server with the keyboard in its field. */
-  protected focusFind(): void {
-    setTimeout(() => {
-      if (this.findOpen()) this.host.querySelector<HTMLInputElement>(`#${this.uid}-find-q`)?.focus();
-    });
+  protected onTab(id: string): void {
+    this.tab.set(id === `${this.uid}-tab-registry` ? 'registry' : 'manual');
   }
 
   /** The query as typed: a search 350 ms after the last key, from 3 characters (the registry's minimum). */
@@ -817,8 +829,8 @@ export class GwMcpAddDialog {
   }
 
   /**
-   * A result fills the form as a pasted configuration would, and the keyboard moves to what the person must finish:
-   * a URL or command with parts to replace, else the name. Nothing runs before the review.
+   * A result fills Manual entry as a pasted configuration would, opens that tab, and the keyboard moves to what the
+   * person must finish: a URL or command with parts to replace, else the name. Nothing runs before the review.
    */
   protected use(r: RegistryResult): void {
     if (r.use.kind === 'none') return;
@@ -833,7 +845,7 @@ export class GwMcpAddDialog {
     const what = this.fill(filled);
     this.chosen.set(`${what} from ${r.title} in the MCP registry.${filled.notes.length ? ` ${filled.notes.join(' ')}` : ''}`);
     const unfinished = filled.transport === 'http' ? templateParts(filled.url).length > 0 : /<[A-Za-z_]|\{[A-Za-z_]/.test(filled.command);
-    this.findOpen.set(false);
+    this.tabs().selectById(`${this.uid}-tab-manual`);
     setTimeout(() => this.host.querySelector<HTMLElement>(`#${this.uid}-${unfinished ? (filled.transport === 'http' ? 'url' : 'command') : 'name'}`)?.focus());
   }
 

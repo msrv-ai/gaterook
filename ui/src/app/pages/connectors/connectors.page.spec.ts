@@ -964,11 +964,17 @@ describe('Connectors page: MCP servers', () => {
     button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
     await settle(fixture);
     const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    button(add, 'Find a server in the MCP registry').click();
+    // Manual entry first, as before; the registry is the other tab, with no review of its own in the footer.
+    expect(button(add, 'Manual entry').getAttribute('aria-selected')).toBe('true');
+    button(add, 'Official MCP Registry').click();
     await settle(fixture);
-    const search = add.querySelector<HTMLInputElement>('input[type="search"]')!;
-    expect(document.activeElement).toBe(search);
-    const status = () => text(add.querySelector('[id$="-find"] [role="status"]'));
+    expect(button(add, 'Official MCP Registry').getAttribute('aria-selected')).toBe('true');
+    const registry = add.querySelector<HTMLElement>('[role="tabpanel"][id$="-registry"]')!;
+    expect(registry.hidden).toBe(false);
+    expect(add.querySelector<HTMLElement>('[role="tabpanel"][id$="-manual"]')!.hidden).toBe(true);
+    expect(Array.from(add.querySelectorAll('footer button')).map(text)).toEqual(['Cancel']);
+    const search = registry.querySelector<HTMLInputElement>('input[type="search"]')!;
+    const status = () => text(registry.querySelector('[role="status"]'));
 
     // The registry takes 3 characters at least: nothing is asked before.
     type(search, 'li');
@@ -1008,8 +1014,10 @@ describe('Connectors page: MCP servers', () => {
     expect(name.value).toBe('linear-mcp');
     expect(add.querySelector<HTMLInputElement>('input[type="radio"][value="http"]')!.checked).toBe(true);
     expect(add.querySelector<HTMLInputElement>('input[type="url"]')!.value).toBe('https://mcp.linear.app/mcp');
+    // Use returns to Manual entry with the fields filled, and its review.
+    expect(button(add, 'Manual entry').getAttribute('aria-selected')).toBe('true');
+    expect(registry.hidden).toBe(true);
     expect(text(add)).toContain('Filled in the name and the URL from Linear in the MCP registry.');
-    expect(add.querySelector<HTMLElement>('[id$="-find"]')!.hidden).toBe(true);
     expect(document.activeElement).toBe(name);
 
     button(add, 'Review and connect').click();
@@ -1028,20 +1036,42 @@ describe('Connectors page: MCP servers', () => {
     button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
     await settle(fixture);
     const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
-    button(add, 'Find a server in the MCP registry').click();
+    button(add, 'Official MCP Registry').click();
     await settle(fixture);
-    const search = add.querySelector<HTMLInputElement>('input[type="search"]')!;
+    const registry = add.querySelector<HTMLElement>('[role="tabpanel"][id$="-registry"]')!;
+    const search = registry.querySelector<HTMLInputElement>('input[type="search"]')!;
     type(search, 'linear');
     search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     await settle(fixture);
-    const alert = add.querySelector('[id$="-find"] .gw-alert--danger');
+    const alert = registry.querySelector('.gw-alert--danger');
     expect(text(alert)).toContain('registry.modelcontextprotocol.io answered HTTP 503');
 
     fail = false;
     button(alert, 'Try again').click();
     await settle(fixture);
-    expect(add.querySelector('[id$="-find"] .gw-alert--danger')).toBeNull();
+    expect(registry.querySelector('.gw-alert--danger')).toBeNull();
     expect(add.querySelectorAll('[aria-label="Servers in the MCP registry"] article')).toHaveLength(2);
+  });
+
+  it('opens on Manual entry again after the registry tab was left open', async () => {
+    setup();
+    const { fixture, el } = await render();
+    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    button(add, 'Official MCP Registry').click();
+    await settle(fixture);
+    button(add.querySelector('footer'), 'Cancel').click();
+    await settle(fixture);
+    expect(add.open).toBe(false);
+
+    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
+    await settle(fixture);
+    expect(add.open).toBe(true);
+    expect(button(add, 'Manual entry').getAttribute('aria-selected')).toBe('true');
+    expect(add.querySelector<HTMLElement>('[role="tabpanel"][id$="-registry"]')!.hidden).toBe(true);
+    expect(document.activeElement).toBe(add.querySelector('input[placeholder="sentry-mcp"]'));
+    expect(Array.from(add.querySelectorAll('footer button')).map(text)).toEqual(['Cancel', 'Review and start']);
   });
 
   it('warns about a key in the URL in the review, and still connects the server with it', async () => {
