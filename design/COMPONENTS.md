@@ -1030,7 +1030,7 @@ Light visualisation of what to configure and how it connects, in SETUP order: Se
 - connector done→done: brand-fg solid; a todo on either side: border-strong dashed; otherwise: border-strong solid; arrows centred between the cards
 - layout: compact vertical below md, one row per node md–lg, horizontal chain from lg (equal columns, arrows in the gap, the note in a shared second row)
 - --vertical: always stacked with compact nodes, for narrow columns
-- --wiring: AI apps → endpoint → Connections (endpoint-detail); names truncate with title, the status column is capped at 128px and wraps
+- --wiring: AI apps → endpoint → Connections (endpoint-detail); names truncate with title, the status column is capped at 128px and wraps. When the endpoint is disabled, its effective tool summary counts every tool as Off; omit empty Read only and Approval chips. Saved modes remain unchanged.
 - demo: all set up, first run (only the master key done), needs attention (billing-api unreachable, Cursor needs restart), wiring, narrow column
 - setup order: Secrets & resources → Connections → Policies → Endpoints → AI apps; 'start here' sits on the first todo node (usually Secrets & resources)
 - caption + aria-describedby: 'Set it up left to right. An agent's call travels the other way: AI app → endpoint → policy → connection, where the secret is injected.'
@@ -1256,6 +1256,7 @@ What agents may call on one endpoint and how. Every tool is grouped by its conne
 - default: endpoint dev, 14 tools in 5 connection groups, summary '14 tools · 6 read only · 3 approval · 5 off'
 - destructive tool: Read only <input disabled> + __mode-note 'Mutates data: approval, bypass or off' (lock icon, aria-describedby on the fieldset and the option)
 - read-only subset: ssh_run keeps Read only, __mode-note 'Read only runs runbooks marked read only' (info icon)
+- endpoint disabled: `gw-card--muted` groups, neutral `gw-mode--off` for every tool and an all-off summary. Show the saved mode separately; restore mode pickers and bulk actions when the endpoint is enabled. Never rewrite saved modes to Off.
 - locked by the endpoint: incident-prod (prod-replica + prod-logs, prod), sql_execute <fieldset disabled> + note naming the read-only endpoint
 - limits collapsed / expanded (data-gw-toggle, aria-expanded ↔ tr[hidden], chevron pair)
 - limit overridden (filled input, 'Overrides dev policy: 1,000 rows', gw-counter on the toggle, Reset enabled) vs inherited (empty input, policy value as placeholder, 'Inherited from dev policy: …', Reset disabled); overrides only stricter
@@ -1757,6 +1758,8 @@ Stands in for the whole window while the gateway core is unavailable: fixed, z s
 One compact card that names one thing (a connection, an AI app) and says its state in words, with an optional access switch and one action (Connect, Test again, How to install). For pages that answer 'what is connected and is it working' at a glance; sets of tiles sit in a gw-grid --3 list (--2 for the fixed set of four AI apps), problems first. The title links to the thing's page; when the action is the tile's only destination the title is plain text and the tile is not interactive.
 
 Connection tiles may place a `gw-switch` in `__end` above the stretched link. Its accessible name identifies the connection and global scope. Repeat appearances of a shared connection use the same value and pending state. Off means agent access is disabled by the user; it preserves tool modes and credentials. Endpoint switches affect access through that endpoint only. Disabling either keeps discovery visible and returns an explanation asking the agent to request user enablement. Show On/Off in text, keep the control busy during saving, and report save failures.
+
+When an endpoint is disabled, show a neutral `gw-alert` saying **All tools are off on this endpoint**. Its connection tiles use `gw-card--muted` and the neutral **Endpoint off** status instead of health. Show their switches as Off with `aria-disabled` and an explanation naming the endpoint and saved global setting. Keep links available. AI app badges inside that endpoint also say **Endpoint off** in neutral tone. Enabling the endpoint restores the saved connection values; the same connection on another endpoint stays unchanged. Do not dim the whole group with opacity or change global connection settings.
 
 AI app tiles show their endpoint slugs below the metadata as neutral small badges with monospaced labels in a wrapping `gw-tag-list`. Use `gw-badge--wrap` to keep long slugs fully visible within narrow tiles. Show each connected or restart-pending endpoint once. Exclude failed and revoked links, and omit the list when no endpoints remain. Name the list `Connected endpoints for <app>`; badges are display only and retain the tile's existing navigation.
 

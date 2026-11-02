@@ -128,6 +128,8 @@ export class GwToolPolicyList {
   readonly endpointEnv = input<Env>('dev');
   /** A read-only endpoint: tools that change data stay off, their pickers locked. */
   readonly readOnly = input(false, { transform: booleanAttribute });
+  /** Display effective Off access while keeping every saved tool mode unchanged. */
+  readonly endpointDisabled = input(false, { transform: booleanAttribute });
   /** Tool name → one sentence (the connector type's tool descriptions). */
   readonly descriptions = input<Readonly<Record<string, string>>>({});
   /** Environment → its effective policy sections (`GET /api/policies`): the inherited limits. */

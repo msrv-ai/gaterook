@@ -303,6 +303,34 @@ describe('Overview page', () => {
       expect(text(groups[1])).toContain('Needs review');
     });
 
+    it('shows every connection off only inside the disabled endpoint, including shared connections', async () => {
+      setupPage();
+      endpointsAnswer = () => Promise.resolve(kitEndpoints().map((e) => e.slug === 'dev' ? { ...e, status: 'disabled' } : e));
+      const { fixture, el } = await render();
+      const group = el.querySelector('section[aria-labelledby="ov-group-0"]')!;
+      expect(text(group)).toContain('All tools are off on this endpoint.');
+      expect(text(group.querySelector('.gw-tag-list'))).toContain('Claude Desktop · Endpoint off');
+      const tiles = Array.from(group.querySelectorAll('.gw-status-tile'));
+      expect(tiles).toHaveLength(8);
+      for (const tile of tiles) {
+        expect(tile.classList.contains('gw-card--muted')).toBe(true);
+        expect(text(tile.querySelector('.gw-status__label'))).toBe('Endpoint off');
+        const toggle = tile.querySelector<HTMLInputElement>('input[role="switch"]')!;
+        expect(toggle.checked).toBe(false);
+        expect(toggle.getAttribute('aria-disabled')).toBe('true');
+      }
+      const active = el.querySelector('section[aria-labelledby="ov-group-1"]')!;
+      expect(active.querySelector<HTMLInputElement>('input[aria-label="Access to connection billing-api across all endpoints"]')!.checked).toBe(true);
+      TestBed.inject(EndpointsApi).enable = async () => {
+        endpointsAnswer = () => Promise.resolve(kitEndpoints());
+        return kitEndpoints()[0];
+      };
+      group.querySelector<HTMLInputElement>('gw-access-switch[kind="endpoint"] input')!.click();
+      await settle(fixture);
+      expect(text(group)).not.toContain('All tools are off on this endpoint.');
+      expect(group.querySelector<HTMLInputElement>('input[aria-label="Access to connection billing-api across all endpoints"]')!.checked).toBe(true);
+    });
+
     it('distinguishes unavailable AI app data from an endpoint with no connected apps', async () => {
       setupPage(undefined, () => Promise.reject(new Error('Unavailable')));
       const { el } = await render();

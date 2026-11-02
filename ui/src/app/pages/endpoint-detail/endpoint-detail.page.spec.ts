@@ -489,6 +489,21 @@ describe('Endpoint detail page', () => {
     await settle(fixture);
     expect(calls).toContain('disable dev');
     expect(text(el.querySelector('#ep-status'))).toBe('Disabled');
+    expect(text(el.querySelector('.gw-alert--neutral'))).toContain('All tools are off on dev');
+    expect(el.querySelector('gw-setup-wiring .gw-mode--read')).toBeNull();
+    expect(el.querySelector('gw-setup-wiring .gw-mode--approval')).toBeNull();
+    expect(text(el.querySelector('gw-setup-wiring .gw-mode--off'))).toBe('22 off');
+    const toolRows = Array.from(el.querySelectorAll('#tools .gw-tool-policy-list__row'));
+    expect(toolRows.length).toBeGreaterThan(0);
+    for (const row of toolRows) {
+      expect(text(row.querySelector('.gw-mode'))).toBe('Off · endpoint disabled');
+      expect(text(row.querySelector('.gw-tool-policy-list__mode-note'))).toContain('Saved mode:');
+      expect(row.querySelector('input[type="radio"]')).toBeNull();
+    }
+    for (const toggle of el.querySelectorAll<HTMLInputElement>('#connections input[role="switch"]')) {
+      expect(toggle.checked).toBe(false);
+      expect(toggle.getAttribute('aria-disabled')).toBe('true');
+    }
     const t = toasts().at(-1)!;
     expect(t.title).toBe('Endpoint dev disabled');
     expect(t.body).toBe('Claude Desktop and Codex get an error on their next call. Tokens and settings are kept.');
@@ -496,6 +511,9 @@ describe('Endpoint detail page', () => {
     await settle(fixture);
     expect(calls).toContain('enable dev');
     expect(text(el.querySelector('#ep-status'))).toBe('Running');
+    expect(el.querySelector('.gw-alert--neutral')).toBeNull();
+    expect(el.querySelector('#tools input[type="radio"]:checked')).not.toBeNull();
+    expect(calls.some((call) => call.startsWith('mode '))).toBe(false);
   });
 
   it('deletes after the confirmation, with what stops working, then goes to Endpoints', async () => {

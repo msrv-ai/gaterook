@@ -18,14 +18,16 @@
   </div>
   <div class="gw-toolbar__end">
     <p class="gw-tool-policy-list__summary" [id]="uid + '-summary'" role="status"><span class="gw-text-small gw-fg-secondary">{{ summary() }}@if (chips().length) {<span class="gw-sr-only">:</span>}</span>
-      @for (c of chips(); track c.mode) {
+      @if (endpointDisabled()) {
+        <span class="gw-mode gw-mode--off"><svg lucideIcon="circle-off" class="gw-icon"></svg>All off · endpoint disabled</span>
+      } @else { @for (c of chips(); track c.mode) {
         <span [class]="'gw-mode ' + modes[c.mode].cls"><svg [lucideIcon]="modes[c.mode].icon" class="gw-icon"></svg>{{ c.text }}</span>
-      }</p>
+      } }</p>
   </div>
 </div>
 
 @for (g of shown(); track g.id) {
-  <section class="gw-card gw-card--flush" [attr.aria-labelledby]="g.id">
+  <section class="gw-card gw-card--flush" [class.gw-card--muted]="endpointDisabled()" [attr.aria-labelledby]="g.id">
     <header class="gw-card__header">
       <div class="gw-tool-policy-list__group-heading">
         <span class="gw-icon-tile"><svg [lucideIcon]="g.icon" class="gw-icon"></svg></span>
@@ -35,10 +37,10 @@
             @case (4) { <h4 class="gw-card__title" [id]="g.id"><ng-container *ngTemplateOutlet="groupTitle; context: { $implicit: g }" /></h4> }
             @default { <h3 class="gw-card__title" [id]="g.id"><ng-container *ngTemplateOutlet="groupTitle; context: { $implicit: g }" /></h3> }
           }
-          <p class="gw-card__description">{{ g.description }}</p>
+          <p class="gw-card__description">@if (endpointDisabled()) {Saved configuration: }{{ g.description }}</p>
         </div>
       </div>
-      @if (!picker() && !g.external && !g.builtIn) {
+      @if (!endpointDisabled() && !picker() && !g.external && !g.builtIn) {
         <div class="gw-card__actions">
           <div class="gw-menu-host">
             <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="menu" aria-expanded="false" [gwMenuTrigger]="bulkMenu">Set all to…<span class="gw-sr-only"> for {{ g.title }} tools</span><svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm"></svg></button>
@@ -56,7 +58,7 @@
       <div class="gw-table-wrap" role="region" [attr.aria-labelledby]="g.id + '-cap'" tabindex="0">
         <table class="gw-table" [class.gw-table--interactive]="picker()">
           <caption class="gw-sr-only" [id]="g.id + '-cap'">{{ g.external ? 'Tools of ' + g.title + ' on endpoint ' + slug() : g.builtIn ? 'Tools on the gateway' : 'Tools on ' + g.title }}</caption>
-          <thead><tr><th scope="col">Tool</th><th scope="col">{{ picker() ? 'Mode on ' + slug() : 'Mode' }}</th>@if (!picker() && !g.external) {<th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Limits</span></th>}</tr></thead>
+          <thead><tr><th scope="col">Tool</th><th scope="col">{{ endpointDisabled() ? 'Access on ' + slug() : picker() ? 'Mode on ' + slug() : 'Mode' }}</th>@if (!picker() && !g.external) {<th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Limits</span></th>}</tr></thead>
           <tbody>
             @for (r of g.rows; track r.key) {
               <tr class="gw-tool-policy-list__row" [attr.data-mode]="modeValue[r.tool.mode]" [attr.aria-selected]="isSelected(g, r) ? 'true' : null">
@@ -76,7 +78,12 @@
                   }
                 </th>
                 <td>
-                  @if (picker()) {
+                  @if (endpointDisabled()) {
+                    <div class="gw-tool-policy-list__mode">
+                      <span class="gw-mode gw-mode--off"><svg lucideIcon="circle-off" class="gw-icon"></svg>Off · endpoint disabled</span>
+                      <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted">Saved mode: {{ modes[r.tool.mode].text }}</p>
+                    </div>
+                  } @else if (picker()) {
                     <span [class]="'gw-mode ' + modes[r.tool.mode].cls"><svg [lucideIcon]="modes[r.tool.mode].icon" class="gw-icon"></svg>{{ modes[r.tool.mode].text }}</span>
                   } @else {
                     <div class="gw-tool-policy-list__mode">

@@ -96,4 +96,29 @@ describe('access switch', () => {
     expect(s.setEnabled).not.toHaveBeenCalled();
     expect(row.control.getAttribute('aria-disabled')).toBe('true');
   });
+
+  it('shows effective Off under a paused endpoint and restores the saved global setting', () => {
+    const s = setup();
+    const row = s.render('connection');
+    row.fixture.componentRef.setInput('pausedByEndpoint', 'incident-prod');
+    row.fixture.detectChanges();
+    expect(row.control.checked).toBe(false);
+    expect(row.control.getAttribute('aria-disabled')).toBe('true');
+    expect(row.control.getAttribute('aria-label')).toContain('through endpoint incident-prod');
+    expect(row.fixture.nativeElement.textContent).toContain('saved connection setting is On');
+    row.control.click();
+    expect(row.control.checked).toBe(false);
+    expect(s.setEnabled).not.toHaveBeenCalled();
+    row.fixture.componentRef.setInput('pausedByEndpoint', null);
+    row.fixture.detectChanges();
+    expect(row.control.checked).toBe(true);
+    expect(row.control.getAttribute('aria-disabled')).toBeNull();
+    row.fixture.componentRef.setInput('enabled', false);
+    row.fixture.componentRef.setInput('pausedByEndpoint', 'incident-prod');
+    row.fixture.detectChanges();
+    row.fixture.componentRef.setInput('pausedByEndpoint', null);
+    row.fixture.detectChanges();
+    expect(row.control.checked).toBe(false);
+    expect(s.setEnabled).not.toHaveBeenCalled();
+  });
 });

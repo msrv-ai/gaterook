@@ -116,6 +116,12 @@
                   }
                 </header>
                 <div class="gw-card__body gw-stack">
+                  @if (group.endpoint?.status === 'disabled') {
+                    <div class="gw-alert gw-alert--neutral gw-alert--compact" role="status">
+                      <svg lucideIcon="circle-off" class="gw-icon gw-alert__icon"></svg>
+                      <div class="gw-alert__content"><p class="gw-alert__title">All tools are off on this endpoint.</p><p class="gw-alert__body">Enable the endpoint to restore access. Connection settings and tool modes are kept.</p></div>
+                    </div>
+                  }
                   @if (group.endpoint; as endpoint) {
                     <div class="gw-stack gw-stack--sm">
                       <p class="gw-text-caption gw-fg-muted">AI apps</p>
@@ -124,7 +130,7 @@
                       } @else if (group.apps.length) {
                         <ul class="gw-tag-list" role="list" [attr.aria-label]="'AI apps for endpoint ' + endpoint.slug">
                           @for (app of group.apps; track app.client) {
-                            <li [class]="'gw-badge gw-badge--wrap gw-badge--' + app.state.tone">{{ app.name }} · {{ app.state.label }}</li>
+                            <li [class]="'gw-badge gw-badge--wrap gw-badge--' + (endpoint.status === 'disabled' ? 'neutral' : app.state.tone)">{{ app.name }} · {{ endpoint.status === 'disabled' ? 'Endpoint off' : app.state.label }}</li>
                           }
                         </ul>
                       } @else {
@@ -135,7 +141,7 @@
                   @if (group.connections.length) {
                     <ul class="gw-grid gw-grid--3" role="list" [attr.aria-label]="group.endpoint ? 'Connections on endpoint ' + group.endpoint.slug : 'Connections not on an endpoint'">
                       @for (c of group.connections; track c.name) {
-                        <ng-container *ngTemplateOutlet="connectionTile; context: { $implicit: c, level: 4 }" />
+                        <ng-container *ngTemplateOutlet="connectionTile; context: { $implicit: c, level: 4, pausedByEndpoint: group.endpoint?.status === 'disabled' ? group.endpoint.slug : null }" />
                       }
                     </ul>
                   } @else if (group.endpoint; as endpoint) {
@@ -282,13 +288,13 @@
   }
 
   <!-- A connection as a tile: the whole tile opens it; Test again (unreachable) is its own target above that link. -->
-  <ng-template #connectionTile let-c let-level="level">
+  <ng-template #connectionTile let-c let-level="level" let-pausedByEndpoint="pausedByEndpoint">
     @let busy = testing().includes(c.name);
-    <li gwStatusTile #tile="gwStatusTile" [level]="level ?? 3" [name]="c.name" mono [env]="c.env" [icon]="c.icon" [meta]="c.meta" [state]="connectionAccess(c.name)?.enabled === false ? { tone: 'neutral', label: 'Disabled by you' } : c.state" [link]="['/connections', c.name]" [checking]="busy">
+    <li gwStatusTile #tile="gwStatusTile" [class.gw-card--muted]="!!pausedByEndpoint || connectionAccess(c.name)?.enabled === false" [level]="level ?? 3" [name]="c.name" mono [env]="c.env" [icon]="c.icon" [meta]="c.meta" [state]="pausedByEndpoint ? { tone: 'neutral', label: 'Endpoint off' } : connectionAccess(c.name)?.enabled === false ? { tone: 'neutral', label: 'Disabled by you' } : c.state" [link]="['/connections', c.name]" [checking]="busy && !pausedByEndpoint && connectionAccess(c.name)?.enabled !== false">
       @if (connectionAccess(c.name); as access) {
-        <gw-access-switch kind="connection" [name]="c.name" [enabled]="access.enabled !== false" [blocked]="access.verified ? null : 'Review the change outside GateRook first.'" (changed)="retry()" />
+        <gw-access-switch kind="connection" [name]="c.name" [enabled]="access.enabled !== false" [pausedByEndpoint]="pausedByEndpoint ?? null" [blocked]="access.verified ? null : 'Review the change outside GateRook first.'" (changed)="retry()" />
       }
-      @if (c.retest && connectionAccess(c.name)?.enabled !== false) {
+      @if (c.retest && !pausedByEndpoint && connectionAccess(c.name)?.enabled !== false) {
         <button class="gw-btn gw-btn--sm" type="button" (click)="testAgain(c.name)" [attr.aria-busy]="busy ? 'true' : null" [attr.aria-disabled]="busy ? 'true' : null" [attr.aria-describedby]="busy ? tile.stateId : null">@if (busy) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> }Test again<span class="gw-sr-only"> {{ c.name }}</span></button>
       }
     </li>

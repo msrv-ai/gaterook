@@ -98,6 +98,15 @@
     </div>
   }
 } @else if (summary(); as s) {
+  @if (s.status === 'disabled') {
+    <div class="gw-alert gw-alert--neutral" role="status">
+      <svg lucideIcon="circle-off" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">All tools are off on {{ s.slug }}</p>
+        <p class="gw-alert__body">Enable the endpoint to restore access. Saved connection settings and tool modes are kept. AI apps can still see the tools and ask you to enable them.</p>
+      </div>
+    </div>
+  }
   @if (s.blockedReason; as why) {
     <!-- The row fails its integrity check: agents can't call it until a person keeps it as stored. -->
     <div class="gw-alert gw-alert--warning" role="status">
@@ -159,9 +168,9 @@
             <p class="gw-section__description">A mode for each tool on each connection. Tools that change data wait for approval by default. Bypass runs calls without approval; policy denials and limits still apply.</p>
           </header>
           @if (data.groups()) {
-            <div gwToolPolicyList [groups]="policyGroups()" [slug]="s.slug" [endpointEnv]="s.env" [readOnly]="s.access === 'read-only'" [descriptions]="data.descriptions()" [policies]="policies()" (modeChange)="setMode($event)" (bulk)="bulk($event)" (overridesChange)="setOverrides($event)" (confirmReadOnly)="confirmReadOnly($event)" (temporaryBypass)="openTemporaryBypass($event)"></div>
+            <div gwToolPolicyList [groups]="policyGroups()" [slug]="s.slug" [endpointEnv]="s.env" [endpointDisabled]="s.status === 'disabled'" [readOnly]="s.access === 'read-only'" [descriptions]="data.descriptions()" [policies]="policies()" (modeChange)="setMode($event)" (bulk)="bulk($event)" (overridesChange)="setOverrides($event)" (confirmReadOnly)="confirmReadOnly($event)" (temporaryBypass)="openTemporaryBypass($event)"></div>
           }
-          <p class="gw-text-caption gw-fg-muted"><svg lucideIcon="info" class="gw-icon gw-icon--xs"></svg> <code class="gw-code">approval_status</code> is always available and isn't counted: agents use it to check a request that waits for approval.</p>
+          <p class="gw-text-caption gw-fg-muted"><svg lucideIcon="info" class="gw-icon gw-icon--xs"></svg> <code class="gw-code">approval_status</code> isn't counted: agents use it to check a request that waits for approval.@if (s.status === 'disabled') { It is also blocked while the endpoint is off.}</p>
         </section>
       } @else {
         <section class="gw-card" aria-labelledby="ep-empty-tools-title">
@@ -226,9 +235,9 @@
                         <th scope="row"><a class="gw-link gw-mono" [id]="'ep-conn-' + v.c.name" routerLink="/connections" [queryParams]="{ q: v.c.name }">{{ v.c.name }}</a> <span class="gw-sr-only">environment</span> <span [class]="'gw-env gw-env--sm gw-env--' + v.c.env">{{ v.c.env }}</span></th>
                         <td>{{ v.c.typeName }}</td>
                         <td class="gw-table__cell--mono">{{ v.target }}</td>
-                        <td><span class="gw-tabular">{{ v.tools.total }}</span>@if (v.tools.modes) { <span class="gw-fg-muted">· {{ v.tools.modes }}</span>}</td>
+                        <td><span class="gw-tabular">{{ v.tools.total }}</span>@if (s.status === 'disabled') { <span class="gw-mode gw-mode--off"><svg lucideIcon="circle-off" class="gw-icon"></svg>All off · endpoint disabled</span>} @else if (v.tools.modes) { <span class="gw-fg-muted">· {{ v.tools.modes }}</span>}</td>
                         <td><span [class]="'gw-status gw-status--' + v.health.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ v.health.text }}</span></span></td>
-                        <td><gw-access-switch kind="connection" [name]="v.c.name" [enabled]="v.c.enabled !== false" [blocked]="v.c.problem" (changed)="retry()" /></td>
+                        <td><gw-access-switch kind="connection" [name]="v.c.name" [enabled]="v.c.enabled !== false" [pausedByEndpoint]="s.status === 'disabled' ? s.slug : null" [blocked]="v.c.problem" (changed)="retry()" /></td>
                         <td class="gw-table__cell--actions">
                           <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/activity" [queryParams]="{ q: 'endpoint:' + s.slug + ' connection:' + v.c.name }">View activity<span class="gw-sr-only"> of {{ v.c.name }} on {{ s.slug }}</span></a>
                           <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askRemove(v.c, $event)">Remove<span class="gw-sr-only"> {{ v.c.name }} from {{ s.slug }}</span></button>

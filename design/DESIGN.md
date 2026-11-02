@@ -122,6 +122,10 @@ The modes are **Off**, **Read only**, **Approval**, and **Bypass**. Bypass runs 
 
 External MCP/plugin hints are labeled **Declared by <server>, not verified**. A newly exposed external tool starts in Approval. Read only requires an explicit declaration and an individual confirmation; it cannot be enabled in bulk. An undeclared tool offers Approval, Bypass or Off, with native-disabled Read only and a visible explanation.
 
+### Endpoint access
+
+An endpoint switched off makes all its tools unavailable. Use a neutral alert, muted connection cards, **Endpoint off** statuses and effective Off switches with an explained `aria-disabled` state. In Tools & policies, every tool shows a neutral Off chip and its saved mode separately. Enabling the endpoint restores its saved configuration. A shared connection remains available through other enabled endpoints. Keep navigation and the endpoint switch usable, and preserve text contrast without reducing the opacity of the whole group.
+
 ### Environments
 
 Show `gw-env` next to connections in approvals, Playground, endpoint tools, and Activity. Production is red and explicitly named. Environment choice cards explain stricter production defaults: read-only transactions, 100-row limit instead of dev's 1,000, three-second statement timeout instead of five, no DDL, ten-minute approval window, and an approval comment.
