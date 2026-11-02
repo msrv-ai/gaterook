@@ -140,9 +140,12 @@
             <p class="gw-page-header__description" data-mode-show="duplicate" hidden>A new connection with the settings of <span class="gw-mono" data-slot="name">dev-db</span>. Secrets are never copied: enter or reference the credentials of the copy.</p>
             <p class="gw-page-header__description" data-mode-show="edit" hidden><span data-slot="type">PostgreSQL 16</span> at <span class="gw-mono" data-slot="host">db.dev.internal:5432/app</span>. Saved changes apply from the next call; calls in flight finish with the old settings.</p>
             <div class="gw-page-header__meta" data-mode-show="edit" hidden>
+              <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="edit-access" data-gw-access="connection:dev-db" aria-label="Access to connection dev-db across all endpoints" aria-describedby="edit-access-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="edit-access">On</label><span class="gw-sr-only" id="edit-access-hint">Applies immediately across all endpoints. Unsaved settings stay in the form. When off, AI apps can still see this connection and ask you to enable it.</span></div>
+              <span class="gw-text-small gw-fg-muted">Across all endpoints</span>
               <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev" data-slot="env">dev</span>
+              <span class="gw-status gw-status--neutral" id="edit-access-off" hidden><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Disabled by you</span></span>
               <span class="gw-status gw-status--success" data-slot="health"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 12 ms</span></span>
-              <span class="gw-text-small gw-fg-muted">Checked <time datetime="2026-10-22T14:29:43+02:00" title="2026-10-22 14:29:43 CEST" data-slot="checked">1 min ago</time></span>
+              <span class="gw-text-small gw-fg-muted" id="edit-access-checked">Checked <time datetime="2026-10-22T14:29:43+02:00" title="2026-10-22 14:29:43 CEST" data-slot="checked">1 min ago</time></span>
             </div>
           </div>
           <div class="gw-page-header__actions">
@@ -155,6 +158,10 @@
       </header>
 
       <!-- Edit view only: how the connection is doing and who uses it -->
+      <div class="gw-alert gw-alert--neutral gw-alert--compact" id="edit-access-disabled" role="status" hidden>
+        <i class="gw-icon gw-alert__icon" data-lucide="circle-off"></i>
+        <div class="gw-alert__content"><p class="gw-alert__title">Access is off across all endpoints.</p><p class="gw-alert__body">AI apps can still see this connection and ask you to enable it. Tool modes and credentials are kept.</p></div>
+      </div>
       <dl class="gw-grid gw-grid--2" data-mode-show="edit" hidden>
         <div class="gw-stat">
           <dt class="gw-stat__label">Health check, last 24 hours</dt>
@@ -1663,6 +1670,13 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
   }
 
   // ───── Edit view ─────
+  var editAccess = doc.getElementById("edit-access");
+  editAccess.addEventListener("change", function () {
+    doc.getElementById("edit-access-disabled").hidden = editAccess.checked;
+    doc.getElementById("edit-access-off").hidden = editAccess.checked;
+    doc.querySelector('[data-slot="health"]').hidden = !editAccess.checked;
+    doc.getElementById("edit-access-checked").hidden = !editAccess.checked;
+  });
   var secretVersion = 3;
   var cannotRotate = false; // the connector can't set a new value at the source (all but SQL)
   function showSecretView(view) {
@@ -1681,6 +1695,8 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
     }
   }
   function fillEdit(name, c) {
+    editAccess.setAttribute("data-gw-access", "connection:" + name);
+    editAccess.setAttribute("aria-label", "Access to connection " + name + " across all endpoints");
     var h1 = doc.getElementById("page-title");
     h1.textContent = "Edit connection ";
     h1.appendChild(el("span", "gw-mono", name));

@@ -65,6 +65,8 @@ export class GwAccessSwitch {
       } else {
         await this.injector.get(ConnectionsApi).setEnabled(name, enabled);
       }
+      // A reused edit page may now show another connection while this request completes.
+      if (this.key() !== key) return;
       this.value.set(enabled);
       this.changed.emit(enabled);
       this.toasts.show({ tone: 'neutral', title: `${this.kind() === 'endpoint' ? 'Endpoint' : 'Connection'} ${name} ${enabled ? 'enabled' : 'disabled'}`,

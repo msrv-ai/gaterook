@@ -30,6 +30,7 @@ import { CoreStore } from '../../core/stores/core.store';
 import { PRODUCT } from '../../shell/title.strategy';
 import { TimeService } from '../../core/time/time.service';
 import { Announcer } from '../../kit/announcer';
+import { AccessChanges, GwAccessSwitch } from '../../kit/access-switch';
 import { GwAriaDisabled } from '../../kit/aria-disabled';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
 import { GwToggle } from '../../kit/disclosure';
@@ -145,6 +146,7 @@ export function errorText(e: ApiError | null): string {
     GwConnectorPicker,
     GwConnectionForm,
     GwConnectionTest,
+    GwAccessSwitch,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-page gw-page--narrow' },
@@ -153,6 +155,7 @@ export function errorText(e: ApiError | null): string {
 export class ConnectionNewPage {
   private readonly typesApi = inject(ConnectorTypesApi);
   private readonly connections = inject(ConnectionsApi);
+  private readonly accessChanges = inject(AccessChanges);
   private readonly endpointsApi = inject(EndpointsApi);
   private readonly policiesApi = inject(PoliciesApi);
   private readonly secretsApi = inject(SecretsApi);
@@ -401,6 +404,9 @@ export class ConnectionNewPage {
   protected readonly detail = signal<ConnectionDetail | null>(null);
   protected readonly detailState = signal<LoadState | 'not-found'>('idle');
   protected readonly detailError = signal<ApiError | null>(null);
+  protected readonly accessRefreshing = signal(false);
+  protected readonly accessSyncError = signal<string | null>(null);
+  protected readonly accessBusy = computed(() => this.accessRefreshing() || this.accessChanges.pending().has(`connection:${this.name()}`));
   protected readonly host = signal<string | null>(null);
   protected readonly health = signal<ConnectionHealth | null>(null);
   /** Health events received while a detail request is in flight must survive its older snapshot. */
@@ -621,6 +627,8 @@ export class ConnectionNewPage {
   }
 
   private async startEdit(name: string, gen: number): Promise<void> {
+    this.accessRefreshing.set(false);
+    this.accessSyncError.set(null);
     this.detailState.set('loading');
     this.specState.set('loading');
     const healthRevision = this.healthRevision;
@@ -1204,9 +1212,43 @@ export class ConnectionNewPage {
 
   // ─── Edit: save, test, secrets, delete ───
 
+  protected async accessChanged(enabled: boolean): Promise<void> {
+    this.detail.update((d) => d ? { ...d, enabled } : d);
+    await this.syncAccess();
+  }
+
+  /** Refresh the edit version after an access change without replacing unsaved fields. */
+  protected async syncAccess(): Promise<void> {
+    const name = this.name();
+    const gen = this.gen;
+    if (!name || !this.detail() || this.accessRefreshing()) return;
+    this.accessRefreshing.set(true);
+    this.accessSyncError.set(null);
+    try {
+      const fresh = await this.connections.get(name);
+      if (gen !== this.gen) return;
+      const baseline = this.detail()!;
+      const secretState = (secrets: readonly StoredSecret[]) => secrets.map((s) =>
+        [s.field, s.secretId, s.name, s.state, s.version, s.source]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+      const unchanged = JSON.stringify([baseline.name, baseline.type, this.startEnv(), this.startConfig(), secretState(this.stored())])
+        === JSON.stringify([fresh.name, fresh.type, fresh.env, fresh.config, secretState(fresh.secrets)]);
+      this.detail.update((d) => d ? { ...d, enabled: fresh.enabled ?? d.enabled, verified: fresh.verified } : d);
+      if (!unchanged || !fresh.verified || fresh.version < this.version) {
+        this.accessSyncError.set('Saved settings changed elsewhere. Your draft is kept. Discard your edits and reload to review the current settings before saving.');
+        return;
+      }
+      this.version = fresh.version;
+      this.detail.update((d) => d ? { ...d, version: fresh.version } : d);
+    } catch {
+      if (gen === this.gen) this.accessSyncError.set('Access was updated, but the current settings could not be checked. Your draft is kept. Check again before saving.');
+    } finally {
+      if (gen === this.gen) this.accessRefreshing.set(false);
+    }
+  }
+
   private async saveEdit(value: ConnectionFormValue, confirm: string | null = null): Promise<void> {
     const name = this.name()!;
-    if (this.saving()) return;
+    if (this.saving() || this.accessBusy() || this.accessSyncError()) return;
     this.saving.set(true);
     try {
       await this.connections.update(name, { config: value.config, env: value.env, version: this.version, confirm });

@@ -25,13 +25,17 @@
           @if (detail(); as d) {
             <p class="gw-page-header__description"><span>{{ d.typeLabel || d.typeName }}</span>@if (host()) { at <span class="gw-mono">{{ host() }}</span>}. Saved changes apply from the next call; calls in flight finish with the old settings.</p>
             <div class="gw-page-header__meta">
+              <gw-access-switch kind="connection" [name]="d.name" [enabled]="d.enabled !== false" [blocked]="!d.verified ? 'Review the change outside GateRook first.' : saving() ? 'Wait until the connection settings are saved.' : accessRefreshing() ? 'Updating connection access. Please wait.' : null" (changed)="accessChanged($event)" />
+              <span class="gw-text-small gw-fg-muted">Across all endpoints</span>
               <span class="gw-sr-only">environment</span> <span class="gw-env" [class]="'gw-env--' + d.env">{{ d.env }}</span>
-              @if (editTesting()) {
+              @if (d.enabled === false) {
+                <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Disabled by you</span></span>
+              } @else if (editTesting()) {
                 <span class="gw-status gw-status--checking" id="edit-checking"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Checking {{ d.name }}</span></span>
               } @else if (healthView(); as hv) {
                 <span class="gw-status" [class]="'gw-status--' + hv.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ hv.text }}</span></span>
               }
-              @if (health()?.checkedAt; as at) {
+              @if (d.enabled !== false && health()?.checkedAt; as at) {
                 <span class="gw-text-small gw-fg-muted">Checked <time [attr.datetime]="time.iso(at)" [title]="time.absolute(at)">{{ time.relative(at) }}</time></span>
               }
             </div>
@@ -81,6 +85,20 @@
 </header>
 
 @if (m === 'edit') {
+  @if (detail()?.enabled === false) {
+    <div class="gw-alert gw-alert--neutral gw-alert--compact" role="status">
+      <svg lucideIcon="circle-off" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content"><p class="gw-alert__title">Access is off across all endpoints.</p><p class="gw-alert__body">AI apps can still see this connection and ask you to enable it. Tool modes and credentials are kept.</p></div>
+    </div>
+  }
+  @if (accessBusy()) {<p class="gw-text-small gw-fg-muted" id="edit-access-saving" role="status">Updating connection access…</p>}
+  @if (accessSyncError(); as why) {
+    <div class="gw-alert gw-alert--warning gw-alert--compact" role="status" id="edit-access-error">
+      <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content"><p class="gw-alert__body">{{ why }}</p></div>
+      <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="syncAccess()">Check again</button><button class="gw-btn gw-btn--sm" type="button" (click)="retryEdit()">Discard edits and reload</button></div>
+    </div>
+  }
   @switch (detailState()) {
     @case ('not-found') {
       <div class="gw-card">
@@ -300,7 +318,7 @@
           @if (m === 'edit') {
             <p class="gw-form__note"><svg lucideIcon="info" class="gw-icon"></svg>Applies from the next call</p>
             <button class="gw-btn" type="button" (click)="discard()">Discard</button>
-            <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="saving() ? 'true' : null" [attr.aria-disabled]="saving() || form()?.databaseLoading() ? 'true' : null" [attr.aria-describedby]="form()?.databaseLoading() ? 'cf-database-status' : null">@if (saving()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Save changes<span class="gw-sr-only"> to {{ name() }}</span></button>
+            <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="saving() ? 'true' : null" [attr.aria-disabled]="saving() || accessBusy() || accessSyncError() || form()?.databaseLoading() ? 'true' : null" [attr.aria-describedby]="accessBusy() ? 'edit-access-saving' : accessSyncError() ? 'edit-access-error' : form()?.databaseLoading() ? 'cf-database-status' : null">@if (saving()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Save changes<span class="gw-sr-only"> to {{ name() }}</span></button>
           } @else {
             <button class="gw-btn gw-btn--ghost" type="button" (click)="go(1)"><svg lucideIcon="arrow-left" class="gw-icon"></svg> Back</button>
             <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-disabled]="form()?.databaseLoading() ? 'true' : null" [attr.aria-describedby]="form()?.databaseLoading() ? 'cf-database-status' : null">Continue<span class="gw-sr-only"> to test</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
