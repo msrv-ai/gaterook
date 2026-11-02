@@ -81,7 +81,7 @@ export interface ModeNote {
   readonly locked: boolean;
   /** Read only is natively disabled (it would remove the approval). */
   readonly readOnlyDisabled: boolean;
-  /** Read only is unavailable until the person confirms it for this tool (external tools). */
+  /** Picking Read only first asks the person to confirm it for this tool (external tools). */
   readonly needsConfirmation: boolean;
 }
 
@@ -118,7 +118,7 @@ export function modeNote(t: ToolRow, endpoint: { readonly slug: string; readonly
     if (t.annotations.destructiveHint) return lock('Declared destructive: approval, bypass or off');
     if (!t.annotations.readOnlyHint) return lock('Not declared read only: approval, bypass or off');
     if (!t.readOnlyConfirmed) {
-      return { icon: 'lock', text: 'Read only needs your confirmation for this tool', locked: false, readOnlyDisabled: false, needsConfirmation: true };
+      return { icon: 'info', text: 'Read only needs your confirmation for this tool', locked: false, readOnlyDisabled: false, needsConfirmation: true };
     }
     return null;
   }

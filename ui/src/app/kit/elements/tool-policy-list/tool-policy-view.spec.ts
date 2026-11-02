@@ -39,7 +39,9 @@ describe('tool-policy-list view (design/elements/tool-policy-list.html)', () => 
   });
 
   it('external tools: read only only after a confirmation, never for declared writers', () => {
-    expect(modeNote(external('list_issues'), { slug: 'dev', readOnly: false })).toMatchObject({ needsConfirmation: true });
+    // Read only stays a choice: picking it opens the confirmation, so the note informs rather than locks.
+    expect(modeNote(external('list_issues'), { slug: 'dev', readOnly: false })).toMatchObject({ icon: 'info', readOnlyDisabled: false, needsConfirmation: true });
+    expect(modeNote({ ...external('list_issues'), readOnlyConfirmed: true }, { slug: 'dev', readOnly: false })).toBeNull();
     expect(modeNote(external('merge_pull_request'), { slug: 'dev', readOnly: false })?.text).toBe('Declared destructive: approval, bypass or off');
     expect(modeNote(external('create_issue'), { slug: 'dev', readOnly: false })?.text).toBe('Not declared read only: approval, bypass or off');
   });

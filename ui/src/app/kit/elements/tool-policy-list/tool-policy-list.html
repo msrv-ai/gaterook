@@ -83,7 +83,7 @@
                       <fieldset class="gw-segmented gw-segmented--sm" [disabled]="r.note?.locked ?? false" [attr.aria-describedby]="r.note ? r.id + '-why' : null">
                         <legend class="gw-sr-only">Mode for {{ r.tool.name }}</legend>
                         <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" [name]="r.id + '-mode'" value="off" [checked]="r.tool.mode === 'OFF'" (change)="onMode(g, r, 'off')"><span class="gw-segmented__label"><svg lucideIcon="circle-off" class="gw-icon gw-icon--sm"></svg>Off</span></label>
-                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" [name]="r.id + '-mode'" value="read" [checked]="r.tool.mode === 'READ_ONLY'" [disabled]="r.note?.readOnlyDisabled ?? false" [attr.aria-disabled]="r.note?.needsConfirmation ? 'true' : null" [attr.aria-describedby]="r.note?.readOnlyDisabled || r.note?.needsConfirmation ? r.id + '-why' : null" (change)="onMode(g, r, 'read')"><span class="gw-segmented__label"><svg lucideIcon="eye" class="gw-icon gw-icon--sm"></svg>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" [name]="r.id + '-mode'" value="read" [checked]="r.tool.mode === 'READ_ONLY'" [disabled]="r.note?.readOnlyDisabled ?? false" [attr.aria-disabled]="r.note?.needsConfirmation && !r.tool.definitionHash ? 'true' : null" [attr.aria-describedby]="r.note?.readOnlyDisabled || r.note?.needsConfirmation ? r.id + '-why' : null" (change)="onMode(g, r, 'read', $any($event.target))"><span class="gw-segmented__label"><svg lucideIcon="eye" class="gw-icon gw-icon--sm"></svg>Read only</span></label>
                         <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" [name]="r.id + '-mode'" value="approval" [checked]="r.tool.mode === 'APPROVAL'" (change)="onMode(g, r, 'approval')"><span class="gw-segmented__label"><svg lucideIcon="user-check" class="gw-icon gw-icon--sm"></svg>Approval</span></label>
                         <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" [name]="r.id + '-mode'" value="bypass" [checked]="r.tool.mode === 'BYPASS'" [disabled]="readOnly()" [attr.aria-describedby]="r.id + '-bypass-hint'" (change)="onMode(g, r, 'bypass')"><span class="gw-segmented__label"><svg lucideIcon="shield-off" class="gw-icon gw-icon--sm"></svg>Bypass</span></label>
                       </fieldset>
@@ -91,9 +91,6 @@
                       @if (readOnly() && !r.note?.locked) {<p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted"><svg lucideIcon="lock" class="gw-icon gw-icon--xs"></svg>Bypass is unavailable: this endpoint is read only.</p>}
                       @if (r.note; as n) {
                         <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" [id]="r.id + '-why'"><svg [lucideIcon]="n.icon" class="gw-icon gw-icon--xs"></svg>{{ n.text }}</p>
-                        @if (n.needsConfirmation && r.tool.definitionHash) {
-                          <button class="gw-btn gw-btn--link gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askConfirm(g, r, $any($event.currentTarget))">Confirm read only<span class="gw-sr-only"> for {{ r.tool.name }}</span></button>
-                        }
                       }
                       @if (r.tool.bypassUntil) {
                         <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted"><svg lucideIcon="clock" class="gw-icon gw-icon--xs"></svg>Temporary bypass until <time [attr.datetime]="r.tool.bypassUntil">{{ absoluteTime(r.tool.bypassUntil) }}</time></p>
@@ -176,9 +173,9 @@
 <ng-template #groupTitle let-g>@if (g.connection) {<span class="gw-mono">{{ g.title }}</span>@if (g.source.group.env) { <span class="gw-sr-only">environment</span> <span [class]="'gw-env gw-env--sm gw-env--' + g.source.group.env">{{ g.source.group.env }}</span>}} @else {{{ g.title }}}</ng-template>
 
 <!--
-  Per-tool confirmation before an external tool may run without approval: gw-dialog--warning (risky, reversible:
-  the mode can go back to Approval any time), Cancel autofocus, the primary aria-disabled until the acknowledgement
-  is checked.
+  Per-tool confirmation before an external tool may run without approval, opened by picking its Read only option:
+  gw-dialog--warning (risky, reversible: the mode can go back to Approval any time), Cancel autofocus, the primary
+  aria-disabled until the acknowledgement is checked. Allow confirms the tool and picks Read only.
 -->
 <dialog class="gw-dialog gw-dialog--md gw-dialog--warning" gwDialog #confirmDialog="gwDialog" gwDialogStatic [attr.aria-labelledby]="confirming() ? uid + '-ro-t' : null" [attr.aria-describedby]="confirming() ? uid + '-ro-d' : null">
   @if (confirming(); as c) {

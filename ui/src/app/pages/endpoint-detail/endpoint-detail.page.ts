@@ -464,7 +464,8 @@ export class EndpointDetailPage {
     try {
       await this.data.confirmReadOnly(c);
     } catch (e) {
-      this.toast({ tone: 'danger', title: "Read only wasn't confirmed", body: this.errorText(e) });
+      // The confirmation or the mode change after it: either way the tool kept its mode.
+      this.toast({ tone: 'danger', title: "The mode wasn't changed", body: this.errorText(e) });
     }
   }
 

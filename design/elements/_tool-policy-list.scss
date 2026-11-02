@@ -121,14 +121,16 @@
 //             allows ("Read only runs runbooks marked read only")
 //           external tool (MCP server, plugin): starts in Approval when added to an
 //             endpoint, whatever it declares. Declared read only: the Read only
-//             option is aria-disabled + aria-describedby → __mode-note "Read only
-//             needs your confirmation for this tool", and a gw-btn--link --sm
-//             "Confirm read only" under the note opens a per-tool gw-dialog--warning
-//             (what the server declares, that it is unverified, an acknowledgement
-//             checkbox; the primary "Allow read only for <tool>" is aria-disabled
-//             until it is checked; Cancel autofocus). Not declared read only, or
-//             declared destructive: Read only natively disabled, like a built-in
-//             destructive tool ("Not declared read only: approval or off").
+//             option stays enabled, aria-describedby → __mode-note "Read only
+//             needs your confirmation for this tool" (info icon); picking it opens
+//             a per-tool gw-dialog--warning instead of taking the check (what the
+//             server declares, that it is unverified, an acknowledgement checkbox;
+//             the primary "Allow read only for <tool>" is aria-disabled until it is
+//             checked; Cancel autofocus, focus back on the option). The current mode
+//             stays checked until Allow, which confirms and picks Read only. Not
+//             declared read only, or declared destructive: Read only natively
+//             disabled, like a built-in destructive tool ("Not declared read only:
+//             approval or off").
 //           locked by the endpoint: <fieldset disabled> + __mode-note naming the
 //             read-only endpoint
 //           limits: toggle aria-expanded ↔ __limits [hidden]; overridden = filled input
