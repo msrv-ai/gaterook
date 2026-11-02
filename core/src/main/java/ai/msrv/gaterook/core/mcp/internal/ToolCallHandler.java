@@ -228,7 +228,9 @@ public class ToolCallHandler {
     if (!outcome.ok()) {
       r.span().error(outcome.errorKind().name());
     }
-    return ResultWriter.callToolResult(r.env(), outcome.result(), request.callId(), r.span().traceId(), extraMeta);
+    ToolResult result = answers.withTemporaryBypassNotice(outcome.result(), r.snapshot().id(),
+        auditCall.toolKey(), request.cfg().id());
+    return ResultWriter.callToolResult(r.env(), result, request.callId(), r.span().traceId(), extraMeta);
   }
 
   /**
@@ -263,6 +265,7 @@ public class ToolCallHandler {
       completed(auditCall, new ConnectorInvoker.Outcome(unchanged, null, null, 0, 0, why.length(), null, why, false), 0,
           AuditWriter.Verdict.ALLOWED, null);
       // "Unchanged" is no output of the tool: a tool with an outputSchema can only say it as an error.
+      unchanged = answers.withTemporaryBypassNotice(unchanged, r.snapshot().id(), pair.toolKey(), cfg.id());
       return ResultWriter.callToolResult(env, outputSchema == null ? unchanged : ApprovalAnswers.asError(unchanged),
           call.callId(), r.span().traceId(), null);
     }

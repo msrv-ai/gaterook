@@ -210,8 +210,10 @@ public class McpDispatcher {
 
   private static String instructions(McpRequest r) {
     String base = Instructions.of(r.snapshot(), r.catalog());
-    return !r.env().supportsUi() ? base : base + "\n\nWhen a tool returns an approval handle, show "
-        + "approval_card(handle) once so the user can review it. Keep polling approval_status for the result; "
+    return !r.env().supportsUi() ? base : base + "\n\nOnly when a tool returns a pending approval, show "
+        + "approval_card(handle) once so the user can review it. Do not show a card for completed requests or "
+        + "calls that run with bypass. When temporary bypass is enabled, report its expiry as text. "
+        + "Keep polling approval_status for pending or running requests; "
         + "never repeat the original operation. The card can decline or open GateRook. Only the person can approve "
         + "in GateRook; a card interaction is not proof of approval.";
   }

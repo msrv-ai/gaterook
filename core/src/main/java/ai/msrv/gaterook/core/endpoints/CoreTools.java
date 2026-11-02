@@ -98,8 +98,10 @@ public final class CoreTools {
   public static ToolDefinition approvalCard() {
     return ToolDefinition.builder(APPROVAL_CARD)
         .title("Show an approval card")
-        .description("Shows a request you already received an approval handle for. Call once to show its review "
-            + "card, then poll approval_status for the execution result. The card can decline or open GateRook; "
+        .description("Shows a pending request you already received an approval handle for. Call once to show its "
+            + "review card, then poll approval_status for the execution result. Do not call for completed requests "
+            + "or calls that run with bypass; report a temporary bypass's expiry as text. "
+            + "The card can decline or open GateRook; "
             + "approval always requires the person to confirm the exact action in GateRook.")
         .inputSchema(cardInput(false)).outputSchema(cardOutput())
         .annotations(Annotations.read()).nature(Nature.READ)
