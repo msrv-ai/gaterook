@@ -144,7 +144,7 @@ class ConnectionsController {
   record Detail(String name, String type, String typeName, String env, JsonNode config, long version,
       List<StoredSecret> secrets, Health health, List<Long> spark24h, List<UsedBy> usedBy, boolean verified,
       JsonNode metadata, String host, String typeLabel, String variant, String serverVersion,
-      long healthIntervalSeconds) {}
+      long healthIntervalSeconds, boolean enabled) {}
 
   /** {@code ?duplicate=}: settings to start from; {@code notice} is the kit's info alert. */
   record Draft(String type, String env, JsonNode config, List<String> emptySecretFields, String notice) {}
@@ -324,7 +324,7 @@ class ConnectionsController {
             f.source())).toList(), health(d.health()), List.of(),
         d.usedBy().stream().map(u -> new UsedBy(u.tool(), u.endpoint(), Modes.id(u.mode()))).toList(), d.verified(),
         formMetadata(manifest, configs.byName(name).map(c -> c.config().metadata()).orElse(null)), s.target(),
-        s.typeLabel(), s.variant(), s.serverVersion(), health.interval().toSeconds());
+        s.typeLabel(), s.variant(), s.serverVersion(), health.interval().toSeconds(), s.enabled());
   }
 
   /**

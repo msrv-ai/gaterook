@@ -312,6 +312,11 @@ beforeEach(() => {
       if (core.detail instanceof ApiError) throw core.detail;
       return structuredClone(core.detail);
     }),
+    setEnabled: vi.fn(async (_name: string, enabled: boolean) => {
+      if (core.detail instanceof ApiError) throw core.detail;
+      core.detail = { ...core.detail, enabled, version: core.detail.version + 1 };
+      return { ...core.detail, usedBy: [], badges: [], secretSource: 'encrypted', host: null };
+    }),
     list: vi.fn(async () =>
       (core.empty ? { items: [], facets: {}, total: 0 } : { items: [{ name: 'dev-db', host: 'db.dev.internal:5432/app' }], facets: {}, total: 1 }) as never,
     ),
@@ -1285,6 +1290,7 @@ describe('Add connection: duplicate', () => {
     const p = await open('/connections/new?duplicate=dev-db');
     expect(p.visible()).toEqual(['step-2']);
     expect(text(p.q('h1'))).toBe('Duplicate dev-db');
+    expect(p.q('gw-access-switch')).toBeNull();
     expect(text(p.q('#cf-form .gw-alert--info'))).toBe(
       'Copied from dev-db: where it is, the environment and the advanced settings. The credentials are not: enter a password or reference a secret for the copy.',
     );
@@ -1330,6 +1336,80 @@ describe('Connection: edit view', () => {
     expect(core.discoveries[1].confirm).toBe('send-secret-to-new-host');
     expect(p.q<HTMLInputElement>('#cf-database-0')!.checked).toBe(true);
     expect(core.updates).toEqual([]);
+  });
+
+  it('changes access immediately without losing draft fields and saves with the refreshed version', async () => {
+    const p = await open('/connections/dev-db');
+    await p.type('cf-credentials-user', 'draft_user');
+    p.button('Load databases').click();
+    await p.settle();
+    const access = p.q<HTMLInputElement>('gw-access-switch input')!;
+    expect(access.checked).toBe(true);
+    expect(access.closest('form')).toBeNull();
+    access.click();
+    await p.settle();
+    expect(TestBed.inject(ConnectionsApi).setEnabled).toHaveBeenCalledWith('dev-db', false);
+    expect(core.updates).toEqual([]);
+    expect(p.q<HTMLInputElement>('#cf-credentials-user')!.value).toBe('draft_user');
+    expect(text(p.q('.gw-page-header__meta .gw-status'))).toBe('Disabled by you');
+    expect(text(p.q('.gw-alert--neutral'))).toContain('Access is off across all endpoints.');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates[0].version).toBe(4);
+    expect(core.updates[0].config['credentials']).toMatchObject({ user: 'draft_user' });
+    expect(p.q<HTMLInputElement>('gw-access-switch input')!.checked).toBe(false);
+    p.q<HTMLInputElement>('gw-access-switch input')!.click();
+    await p.settle();
+    expect(p.q<HTMLInputElement>('gw-access-switch input')!.checked).toBe(true);
+    expect(p.q('.gw-alert--neutral')).toBeNull();
+  });
+
+  it('keeps the draft and blocks Save until a failed access refresh succeeds', async () => {
+    const p = await open('/connections/dev-db');
+    await p.type('cf-credentials-user', 'draft_user');
+    p.button('Load databases').click();
+    await p.settle();
+    const api = TestBed.inject(ConnectionsApi);
+    vi.mocked(api.get).mockRejectedValueOnce(new Error('offline'));
+    p.q<HTMLInputElement>('gw-access-switch input')!.click();
+    await p.settle();
+    expect(p.q<HTMLInputElement>('#cf-credentials-user')!.value).toBe('draft_user');
+    expect(text(p.q('#edit-access-error'))).toContain('Your draft is kept.');
+    expect(p.button('Save changes').getAttribute('aria-disabled')).toBe('true');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates).toEqual([]);
+    p.button('Check again', p.q('#edit-access-error')!).click();
+    await p.settle();
+    expect(p.q('#edit-access-error')).toBeNull();
+    expect(p.q<HTMLInputElement>('#cf-credentials-user')!.value).toBe('draft_user');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates[0].version).toBe(4);
+  });
+
+  it('does not adopt a concurrent settings change as the version of the draft', async () => {
+    const p = await open('/connections/dev-db');
+    await p.type('cf-credentials-user', 'draft_user');
+    p.button('Load databases').click();
+    await p.settle();
+    core.detail = { ...structuredClone(DETAIL), version: 4, config: { ...DETAIL.config, credentials: { user: 'changed_elsewhere' } } };
+    p.q<HTMLInputElement>('gw-access-switch input')!.click();
+    await p.settle();
+    expect(text(p.q('#edit-access-error'))).toContain('Saved settings changed elsewhere.');
+    expect(p.q<HTMLInputElement>('#cf-credentials-user')!.value).toBe('draft_user');
+    expect(p.button('Save changes').getAttribute('aria-disabled')).toBe('true');
+    expect(core.updates).toEqual([]);
+  });
+
+  it('refreshes access when secret-store metadata is enriched separately from connection details', async () => {
+    core.detail = { ...structuredClone(DETAIL), secrets: [{ ...DETAIL.secrets[0], state: 'reference', source: 'reference' }] };
+    vi.mocked(TestBed.inject(SecretsApi).list).mockResolvedValueOnce([{ id: 'sec-1', store: 'vault-main', canRotate: false } as SecretRow]);
+    const p = await open('/connections/dev-db');
+    p.q<HTMLInputElement>('gw-access-switch input')!.click();
+    await p.settle();
+    expect(p.q('#edit-access-error')).toBeNull();
+    expect(p.button('Save changes').getAttribute('aria-disabled')).toBeNull();
   });
 
   it('shows health, who uses it and the settings with the stored secret', async () => {

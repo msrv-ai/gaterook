@@ -64,6 +64,8 @@ class AccessSwitchIT {
       AdminMvc api = new AdminMvc(core.context(), core.bean(LocalListener.class).port());
       JsonNode off = api.expect(200, HttpMethod.POST, "/api/connections/shared-db/disable", "{}");
       assertThat(off.path("enabled").asBoolean()).isFalse();
+      assertThat(api.expect(200, HttpMethod.GET, "/api/connections/shared-db", null)
+          .path("enabled").asBoolean(true)).isFalse();
       assertThat(connections.summary("shared-db").verified()).isTrue();
       assertThat(core.jdbc().queryForObject("select enabled from connection where name = 'shared-db'", Boolean.class))
           .isFalse();
@@ -85,6 +87,8 @@ class AccessSwitchIT {
           .hasMessageContaining("disabled by the user");
       JsonNode on = api.expect(200, HttpMethod.POST, "/api/connections/shared-db/enable", "{}");
       assertThat(on.path("enabled").asBoolean()).isTrue();
+      assertThat(api.expect(200, HttpMethod.GET, "/api/connections/shared-db", null)
+          .path("enabled").asBoolean()).isTrue();
       assertThat(first.legacy("tools/list", null).result().path("tools")).isEqualTo(originalTools);
       assertThat(first.legacyCall("sql_query", args("connection", "shared-db", "sql", "SELECT 1"))
           .result().path("isError").asBoolean()).isFalse();

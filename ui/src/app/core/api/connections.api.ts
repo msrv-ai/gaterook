@@ -107,6 +107,8 @@ export interface ConnectionDetail {
   readonly spark24h: number[];
   readonly usedBy: ConnectionUsedBy[];
   readonly verified: boolean;
+  /** Global user access setting; older cores default to enabled. */
+  readonly enabled?: boolean;
   /**
    * What the last successful test found that the form lists options from (`x-options-from`: Kubernetes
    * `kubeconfigContexts`); only those keys, never a secret; null without (step API).

@@ -70,6 +70,20 @@ describe('access switch', () => {
     expect(s.show).toHaveBeenCalledWith(expect.objectContaining({ tone: 'danger' }));
   });
 
+  it('does not apply a completed toggle to a different connection after navigation', async () => {
+    const s = setup();
+    const row = s.render('connection');
+    row.control.click();
+    row.fixture.componentRef.setInput('name', 'another-connection');
+    row.fixture.detectChanges();
+    s.resolve();
+    await row.fixture.whenStable();
+    row.fixture.detectChanges();
+    expect(row.control.checked).toBe(true);
+    expect(row.changed).not.toHaveBeenCalled();
+    expect(s.show).not.toHaveBeenCalled();
+  });
+
   it('re-enables only the named endpoint and follows refreshed input', async () => {
     const s = setup();
     const row = s.render('endpoint', false);
