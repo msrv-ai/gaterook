@@ -5865,6 +5865,9 @@ legend.gw-form__legend {
 .gw-dialog--lg {
   width: var(--gw-layout-dialog-lg);
 }
+.gw-dialog--tall {
+  height: calc(100dvh - 2 * var(--gw-space-8));
+}
 .gw-dialog > form {
   display: contents;
 }

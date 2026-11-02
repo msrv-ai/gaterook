@@ -273,7 +273,8 @@ let nextId = 0;
   hostDirectives: [{ directive: GwDialog, inputs: ['gwDialogStatic'], outputs: ['closed'] }],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
-    class: 'gw-dialog gw-dialog--lg',
+    // --tall: Manual entry and the registry's results differ in length; switching tabs keeps the panel still.
+    class: 'gw-dialog gw-dialog--lg gw-dialog--tall',
     '[attr.aria-labelledby]': 'uid + "-t"',
     '[attr.aria-describedby]': 'uid + "-d"',
   },

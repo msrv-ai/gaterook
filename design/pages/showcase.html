@@ -5065,6 +5065,105 @@ LIMIT :limit&lt;/textarea&gt;
   &lt;/footer&gt;
 &lt;/dialog&gt;</code></pre></details>
 
+  <h3>Tabs: a steady height</h3>
+  <p class="sc-lead"><code class="gw-code">gw-dialog--tall</code> keeps the full available height whatever the body shows, so switching between tabs of different length, or results that arrive later, never resizes or re-centres the panel. The body scrolls; the header and the footer stay.</p>
+  <div class="sc-demo" data-sc-code>
+    <button class="gw-btn" type="button" data-gw-dialog-open="sc-d-dlg-tall"><i class="gw-icon" data-lucide="plug"></i> Add MCP server</button>
+    <dialog class="gw-dialog gw-dialog--lg gw-dialog--tall" id="sc-d-dlg-tall" aria-labelledby="sc-d-dlg-tall-title" aria-describedby="sc-d-dlg-tall-desc" data-gw-static>
+      <form method="dialog">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="plug"></i></span>
+          <h2 class="gw-dialog__title" id="sc-d-dlg-tall-title">Add MCP server</h2>
+          <p class="gw-dialog__description" id="sc-d-dlg-tall-desc">Enter it by hand or find it in the Official MCP Registry. Switching tabs keeps the panel where it is.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <div class="gw-tabs">
+            <div class="gw-tabs__list" role="tablist" aria-label="Ways to add an MCP server">
+              <button class="gw-tabs__tab" type="button" role="tab" id="sc-d-dlg-tall-t1" aria-selected="true" aria-controls="sc-d-dlg-tall-p1"><i class="gw-icon" data-lucide="pencil"></i> Manual entry</button>
+              <button class="gw-tabs__tab" type="button" role="tab" id="sc-d-dlg-tall-t2" aria-selected="false" aria-controls="sc-d-dlg-tall-p2" tabindex="-1"><i class="gw-icon" data-lucide="library"></i> Official MCP Registry</button>
+            </div>
+            <div class="gw-tabs__panel" role="tabpanel" id="sc-d-dlg-tall-p1" aria-labelledby="sc-d-dlg-tall-t1" tabindex="0">
+              <div class="gw-stack">
+                <div class="gw-field">
+                  <label class="gw-field__label" for="sc-d-dlg-tall-name">Name</label>
+                  <input class="gw-input gw-input--mono" id="sc-d-dlg-tall-name" type="text" value="sentry-mcp" spellcheck="false" autocomplete="off" autofocus>
+                </div>
+                <div class="gw-field">
+                  <label class="gw-field__label" for="sc-d-dlg-tall-command">Command</label>
+                  <input class="gw-input gw-input--mono" id="sc-d-dlg-tall-command" type="text" value="npx -y @sentry/mcp-server@0.12.0" spellcheck="false" autocomplete="off">
+                </div>
+                <div class="gw-field">
+                  <label class="gw-field__label" for="sc-d-dlg-tall-var">Variable name</label>
+                  <input class="gw-input gw-input--mono" id="sc-d-dlg-tall-var" type="text" value="SENTRY_AUTH_TOKEN" spellcheck="false" autocomplete="off" aria-describedby="sc-d-dlg-tall-var-hint">
+                  <p class="gw-field__hint" id="sc-d-dlg-tall-var-hint">The review asks for its value before the start and stores it encrypted.</p>
+                </div>
+              </div>
+            </div>
+            <div class="gw-tabs__panel" role="tabpanel" id="sc-d-dlg-tall-p2" aria-labelledby="sc-d-dlg-tall-t2" tabindex="0" hidden>
+              <div class="gw-search">
+                <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+                <input class="gw-search__input" type="search" aria-label="Server name" placeholder="linear, sentry, postgres" spellcheck="false" autocomplete="off">
+                <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+          <button class="gw-btn gw-btn--primary" type="submit"><i class="gw-icon" data-lucide="shield-check"></i> Review and start</button>
+        </footer>
+      </form>
+    </dialog>
+  </div>
+<details class="sc-code"><summary>Markup</summary><pre><code>&lt;button class=&quot;gw-btn&quot; type=&quot;button&quot; data-gw-dialog-open=&quot;sc-d-dlg-tall&quot;&gt;&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;plug&quot;&gt;&lt;/i&gt; Add MCP server&lt;/button&gt;
+&lt;dialog class=&quot;gw-dialog gw-dialog--lg gw-dialog--tall&quot; id=&quot;sc-d-dlg-tall&quot; aria-labelledby=&quot;sc-d-dlg-tall-title&quot; aria-describedby=&quot;sc-d-dlg-tall-desc&quot; data-gw-static&gt;
+  &lt;form method=&quot;dialog&quot;&gt;
+    &lt;header class=&quot;gw-dialog__header&quot;&gt;
+      &lt;span class=&quot;gw-icon-tile&quot;&gt;&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;plug&quot;&gt;&lt;/i&gt;&lt;/span&gt;
+      &lt;h2 class=&quot;gw-dialog__title&quot; id=&quot;sc-d-dlg-tall-title&quot;&gt;Add MCP server&lt;/h2&gt;
+      &lt;p class=&quot;gw-dialog__description&quot; id=&quot;sc-d-dlg-tall-desc&quot;&gt;Enter it by hand or find it in the Official MCP Registry. Switching tabs keeps the panel where it is.&lt;/p&gt;
+      &lt;button class=&quot;gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close&quot; type=&quot;button&quot; aria-label=&quot;Close&quot; data-gw-dialog-close&gt;&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;x&quot;&gt;&lt;/i&gt;&lt;/button&gt;
+    &lt;/header&gt;
+    &lt;div class=&quot;gw-dialog__body&quot;&gt;
+      &lt;div class=&quot;gw-tabs&quot;&gt;
+        &lt;div class=&quot;gw-tabs__list&quot; role=&quot;tablist&quot; aria-label=&quot;Ways to add an MCP server&quot;&gt;
+          &lt;button class=&quot;gw-tabs__tab&quot; type=&quot;button&quot; role=&quot;tab&quot; id=&quot;sc-d-dlg-tall-t1&quot; aria-selected=&quot;true&quot; aria-controls=&quot;sc-d-dlg-tall-p1&quot;&gt;&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;pencil&quot;&gt;&lt;/i&gt; Manual entry&lt;/button&gt;
+          &lt;button class=&quot;gw-tabs__tab&quot; type=&quot;button&quot; role=&quot;tab&quot; id=&quot;sc-d-dlg-tall-t2&quot; aria-selected=&quot;false&quot; aria-controls=&quot;sc-d-dlg-tall-p2&quot; tabindex=&quot;-1&quot;&gt;&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;library&quot;&gt;&lt;/i&gt; Official MCP Registry&lt;/button&gt;
+        &lt;/div&gt;
+        &lt;div class=&quot;gw-tabs__panel&quot; role=&quot;tabpanel&quot; id=&quot;sc-d-dlg-tall-p1&quot; aria-labelledby=&quot;sc-d-dlg-tall-t1&quot; tabindex=&quot;0&quot;&gt;
+          &lt;div class=&quot;gw-stack&quot;&gt;
+            &lt;div class=&quot;gw-field&quot;&gt;
+              &lt;label class=&quot;gw-field__label&quot; for=&quot;sc-d-dlg-tall-name&quot;&gt;Name&lt;/label&gt;
+              &lt;input class=&quot;gw-input gw-input--mono&quot; id=&quot;sc-d-dlg-tall-name&quot; type=&quot;text&quot; value=&quot;sentry-mcp&quot; spellcheck=&quot;false&quot; autocomplete=&quot;off&quot; autofocus&gt;
+            &lt;/div&gt;
+            &lt;div class=&quot;gw-field&quot;&gt;
+              &lt;label class=&quot;gw-field__label&quot; for=&quot;sc-d-dlg-tall-command&quot;&gt;Command&lt;/label&gt;
+              &lt;input class=&quot;gw-input gw-input--mono&quot; id=&quot;sc-d-dlg-tall-command&quot; type=&quot;text&quot; value=&quot;npx -y @sentry/mcp-server@0.12.0&quot; spellcheck=&quot;false&quot; autocomplete=&quot;off&quot;&gt;
+            &lt;/div&gt;
+            &lt;div class=&quot;gw-field&quot;&gt;
+              &lt;label class=&quot;gw-field__label&quot; for=&quot;sc-d-dlg-tall-var&quot;&gt;Variable name&lt;/label&gt;
+              &lt;input class=&quot;gw-input gw-input--mono&quot; id=&quot;sc-d-dlg-tall-var&quot; type=&quot;text&quot; value=&quot;SENTRY_AUTH_TOKEN&quot; spellcheck=&quot;false&quot; autocomplete=&quot;off&quot; aria-describedby=&quot;sc-d-dlg-tall-var-hint&quot;&gt;
+              &lt;p class=&quot;gw-field__hint&quot; id=&quot;sc-d-dlg-tall-var-hint&quot;&gt;The review asks for its value before the start and stores it encrypted.&lt;/p&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+        &lt;div class=&quot;gw-tabs__panel&quot; role=&quot;tabpanel&quot; id=&quot;sc-d-dlg-tall-p2&quot; aria-labelledby=&quot;sc-d-dlg-tall-t2&quot; tabindex=&quot;0&quot; hidden&gt;
+          &lt;div class=&quot;gw-search&quot;&gt;
+            &lt;i class=&quot;gw-icon gw-search__icon&quot; data-lucide=&quot;search&quot;&gt;&lt;/i&gt;
+            &lt;input class=&quot;gw-search__input&quot; type=&quot;search&quot; aria-label=&quot;Server name&quot; placeholder=&quot;linear, sentry, postgres&quot; spellcheck=&quot;false&quot; autocomplete=&quot;off&quot;&gt;
+            &lt;button class=&quot;gw-search__clear&quot; type=&quot;button&quot; aria-label=&quot;Clear search&quot;&gt;&lt;i class=&quot;gw-icon gw-icon--sm&quot; data-lucide=&quot;x&quot;&gt;&lt;/i&gt;&lt;/button&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+    &lt;footer class=&quot;gw-dialog__footer&quot;&gt;
+      &lt;button class=&quot;gw-btn&quot; type=&quot;button&quot; data-gw-dialog-close&gt;Cancel&lt;/button&gt;
+      &lt;button class=&quot;gw-btn gw-btn--primary&quot; type=&quot;submit&quot;&gt;&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;shield-check&quot;&gt;&lt;/i&gt; Review and start&lt;/button&gt;
+    &lt;/footer&gt;
+  &lt;/form&gt;
+&lt;/dialog&gt;</code></pre></details>
+
   <h3>Drawer: read beside the list</h3>
   <div class="sc-demo" data-sc-code>
     <button class="gw-btn" type="button" data-gw-dialog-open="sc-d-drawer-event"><i class="gw-icon" data-lucide="panel-right-open"></i> Open event 4f2a9c71</button>

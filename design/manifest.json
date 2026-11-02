@@ -1031,6 +1031,7 @@
       "purpose": "Native <dialog> opened with showModal(). gw-dialog is centred and holds one question or one short task (revoke a token, create an endpoint). gw-drawer is pinned to the inline-end edge at full height, for reading beside the list (event detail, trace).",
       "variants": [
         "gw-dialog--sm (400) / --md (560, default) / --lg (720)",
+        "gw-dialog--tall (the full available height whatever the body shows: tabs whose panels differ in length, a search whose results arrive later; switching or loading never resizes the panel, the body scrolls)",
         "gw-dialog--danger (irreversible actions AND untrusted code: unsigned plugin install, external MCP server review; header icon tile in the danger tone; confirm is gw-btn--danger and names the object; Cancel has autofocus)",
         "gw-drawer--md (560, default) / --lg (720), never wider than the viewport",
         "gw-dialog--warning (risky but reversible confirm: publish the tunnel, change the port, accept calls from any address; amber icon tile; the confirm is a normal or primary button, never --danger; Cancel has autofocus; an Undo toast never brings the exposure back)"

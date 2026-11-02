@@ -26,6 +26,10 @@
 // .gw-dialog   centred; one question or one short task (confirm, issue a token,
 //              create an endpoint). Radius lg, shadow lg, scrim bg.backdrop.
 //   --sm 400 (confirm) | --md 560 (default, short form) | --lg 720 (longer content)
+//   --tall     the full available height whatever the body shows: tabs whose
+//              panels differ in length, a search whose results arrive later.
+//              Switching a tab or loading never resizes or re-centres the
+//              panel; the body scrolls as in every dialog.
 //   --warning  risky but reversible confirm (publish the tunnel, change the port,
 //              accept calls from any address): warning icon tile; the confirm
 //              button is NOT --danger; autofocus on Cancel. Installing an unsigned
@@ -179,6 +183,9 @@
   &--sm { width: var(--gw-layout-dialog-sm); }
   &--md { width: var(--gw-layout-dialog-md); }
   &--lg { width: var(--gw-layout-dialog-lg); }
+
+  // Its max-height as its height: a tab switch or late results keep the panel still.
+  &--tall { height: calc(100dvh - 2 * var(--gw-space-8)); }
 
   @include _modal-parts;
 
