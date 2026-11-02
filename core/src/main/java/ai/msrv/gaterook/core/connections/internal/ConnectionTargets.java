@@ -1,5 +1,6 @@
 package ai.msrv.gaterook.core.connections.internal;
 
+import ai.msrv.gaterook.core.platform.Masker;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -70,7 +71,8 @@ public final class ConnectionTargets {
    * default port), the cluster's namespace ("k8s.dev.internal:6443 · ns app-dev") and the AWS account
    * ("eu-central-1 · acme-stage": its alias, its id, or the account the last test signed in to). An HTTP API (and an
    * MCP server reached over HTTP) keeps its whole base URL: the scheme is part of what the agent calls. Never user
-   * info, a query or a fragment. Empty when the config names no target.
+   * info, a query or a fragment, nor an MCP server's path segment that looks like a key ({@code ‹masked›}). Empty when
+   * the config names no target.
    *
    * @param schema   the type's config schema, for default ports; or {@code null}
    * @param metadata what the last successful test found ({@code account} of AWS); or {@code null}
@@ -108,9 +110,10 @@ public final class ConnectionTargets {
       return address(config.path("server").asString()) + (namespace.isBlank() ? "" : " · ns " + namespace);
     }
     if (config.path("url").isString()) {
-      // An MCP server's URL is what it is called at, scheme included; a log backend's is only where it is.
+      // An MCP server's URL is what it is called at, scheme included, without a key it may carry in its path; a log
+      // backend's is only where it is.
       String url = config.path("url").asString();
-      return config.has("transport") ? withoutQuery(withoutUserInfo(url)) : address(url);
+      return config.has("transport") ? Masker.standard().url(withoutQuery(withoutUserInfo(url))) : address(url);
     }
     if (config.at("/regions/0").isString()) {
       String account = config.path("accountAlias").asString("");

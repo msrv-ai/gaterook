@@ -196,7 +196,9 @@
                     <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" [attr.aria-disabled]="v.testBlocked ? 'true' : null" (click)="test(v.row)"><svg lucideIcon="plug-zap" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Test connection@if (v.testBlocked; as why) {<span class="gw-menu__hint">{{ why }}</span>}</span></button>
                     <a class="gw-menu__item" role="menuitem" tabindex="-1" [routerLink]="['/connections', v.row.name]"><svg lucideIcon="pencil" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Edit</span></a>
                     <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/activity" [queryParams]="{ q: 'connection:' + v.row.name }"><svg lucideIcon="activity" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">connection:{{ v.row.name }}</span></span></a>
-                    <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/connections/new" [queryParams]="{ duplicate: v.row.name }"><svg lucideIcon="copy-plus" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Duplicate</span></a>
+                    @if (!v.mcpServer) {
+                      <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/connections/new" [queryParams]="{ duplicate: v.row.name }"><svg lucideIcon="copy-plus" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Duplicate</span></a>
+                    }
                     <div class="gw-menu__divider" role="separator"></div>
                     <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" aria-haspopup="dialog" (click)="askDelete(v.row, $event)"><svg lucideIcon="trash-2" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Delete connection</span></button>
                   </div>

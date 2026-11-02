@@ -1,14 +1,17 @@
 import { DestroyRef, Injectable, Signal, computed, inject, signal } from '@angular/core';
 import { isNotAvailable } from '../../core/api/api-error';
-import { ConnectionDetail, ConnectionRow, ConnectionsApi } from '../../core/api/connections.api';
+import { ConnectionDetail, ConnectionRow, ConnectionsApi, SecretInputs } from '../../core/api/connections.api';
 import { ConnectorCatalog, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointSummary, EndpointsApi, ToolGroup } from '../../core/api/endpoints.api';
 import {
   CatalogIndex,
+  McpServerConfig,
   McpServerReview,
   McpServerSource,
   McpServerStarted,
   McpServersApi,
+  McpSignIn,
+  McpSignInStatus,
   PluginCheck,
   PluginUpdatePreview,
   PluginsApi,
@@ -122,6 +125,8 @@ export class ConnectorsData {
   private readonly detailsSignal = signal<ReadonlyMap<string, ConnectionDetail>>(new Map());
   private readonly snapshotsSignal = signal<ReadonlyMap<string, ToolsSnapshot>>(new Map());
   private readonly liveStatesSignal = signal<ReadonlyMap<string, string>>(new Map());
+  /** The OAuth sign-in of each server that signs in (`GET /api/mcp-servers/{name}/sign-in`). */
+  private readonly signInsSignal = signal<ReadonlyMap<string, McpSignInStatus>>(new Map());
   private readonly endpointToolsSignal = signal<ReadonlyMap<string, readonly ToolGroup[]>>(new Map());
 
   /** Tools of each endpoint (only loaded when there are templates: On endpoints, Try in Playground). */
@@ -133,6 +138,7 @@ export class ConnectorsData {
     const details = this.detailsSignal();
     const snapshots = this.snapshotsSignal();
     const live = this.liveStatesSignal();
+    const signIns = this.signInsSignal();
     const installed = this.types.value()?.installed ?? [];
     const catalog = this.catalog.value();
     return rows
@@ -145,6 +151,7 @@ export class ConnectorsData {
           snapshots.get(r.name) ?? null,
           live.get(r.name) ?? null,
           catalog,
+          signIns.get(r.name) ?? null,
         ),
       );
   });
@@ -161,6 +168,10 @@ export class ConnectorsData {
       this.events.on('mcp-server.state', (e) => {
         if (e?.name && e.state) this.liveStatesSignal.update((m) => new Map(m).set(e.name, e.state));
         void this.types.refresh();
+      }),
+      // A stored server signed in again, signed out, or needs a new sign-in: its row says so.
+      this.events.on('mcp-server.sign-in', (e) => {
+        if (e?.server && this.signInsSignal().has(e.server)) void this.loadSignIn(e.server);
       }),
     );
     return this.refreshAll();
@@ -200,7 +211,13 @@ export class ConnectorsData {
       if (!known || known.version !== r.version) {
         void this.connectionsApi
           .get(r.name)
-          .then((d) => this.detailsSignal.update((m) => new Map(m).set(r.name, d)))
+          .then((d) => {
+            this.detailsSignal.update((m) => new Map(m).set(r.name, d));
+            const auth = d.config?.['auth'];
+            if (d.config?.['transport'] === 'http' && auth && typeof auth === 'object' && (auth as JsonObject)['type'] === 'oauth') {
+              void this.loadSignIn(r.name);
+            }
+          })
           .catch(() => undefined);
       }
       if (!this.snapshotsSignal().has(r.name)) {
@@ -300,6 +317,32 @@ export class ConnectorsData {
     });
     await Promise.all([this.types.refresh(), this.connections.refresh()]);
     return r;
+  }
+
+  /** Starts a sign-in to the server under review; the review shows it until the browser comes back. */
+  startSignIn(source: { readonly config: McpServerConfig; readonly secrets?: SecretInputs }): Promise<McpSignIn> {
+    return this.serversApi.startSignIn(source);
+  }
+
+  /** Signs in to a stored server again (or after it signed out). */
+  signInAgain(name: string): Promise<McpSignIn> {
+    return this.serversApi.signInAgain(name);
+  }
+
+  async signOut(name: string): Promise<McpSignInStatus> {
+    const status = await this.serversApi.signOut(name);
+    this.signInsSignal.update((m) => new Map(m).set(name, status));
+    return status;
+  }
+
+  /** The sign-in of a stored server, read again (after it signed in, or an event said it changed). */
+  async loadSignIn(name: string): Promise<void> {
+    try {
+      const status = await this.serversApi.signInStatus(name);
+      this.signInsSignal.update((m) => new Map(m).set(name, status));
+    } catch {
+      // A core without sign-ins, or the server is gone: the row shows no sign-in.
+    }
   }
 
   async removeServer(name: string): Promise<void> {

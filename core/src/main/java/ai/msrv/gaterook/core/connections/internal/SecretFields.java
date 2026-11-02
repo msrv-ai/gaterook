@@ -30,6 +30,12 @@ public final class SecretFields {
   /** Marks a property that holds a public identifier secret scanners flag, such as an AWS access key id. */
   public static final String NOT_SECRET = "x-not-secret";
 
+  /**
+   * Marks a property whose value may carry a key the service takes nowhere else, such as an MCP server's URL
+   * ({@code https://mcp.example.com/<key>/mcp}): the person was warned, it is stored as typed.
+   */
+  public static final String KEY_ALLOWED = "x-key-allowed";
+
   /** Pointer templates of every writeOnly property. */
   public static List<String> templates(JsonNode schema) {
     return collect(schema, s -> s.path("writeOnly").asBoolean(false));
@@ -41,6 +47,11 @@ public final class SecretFields {
    */
   public static List<String> notSecretTemplates(JsonNode schema) {
     return collect(schema, s -> s.path(NOT_SECRET).asBoolean(false));
+  }
+
+  /** Pointer templates of every property marked {@value #KEY_ALLOWED}: saving doesn't refuse a key there either. */
+  public static List<String> keyAllowedTemplates(JsonNode schema) {
+    return collect(schema, s -> s.path(KEY_ALLOWED).asBoolean(false));
   }
 
   /** A leased login supplies its own user. Only the validation copy gets a stand-in; saved settings never do. */

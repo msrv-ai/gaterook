@@ -6,13 +6,16 @@ import { GwToggle } from '../../../kit/disclosure';
 import { GwIcon } from '../../../kit/icons';
 import { GwMenu, GwMenuTrigger } from '../../../kit/menu';
 import { ToastService } from '../../../kit/toast.service';
-import { McpServerView, joinAnd, plural, serverActivityQuery, serverPaths, serverStatus } from '../connectors-view';
+import { McpServerView, joinAnd, plural, serverActivityQuery, serverPaths, serverStatus, signInText } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
 import { failureDetails, failureText } from '../dialogs/failure';
 
-/** What a server row asks the page to do: Add MCP server or Remove (their dialogs live outside the tabs). */
+/**
+ * What a server row asks the page to do: Add MCP server, Remove, or sign in to it again and sign out (their dialogs
+ * live outside the tabs).
+ */
 export interface McpServerAction {
-  readonly type: 'add' | 'remove';
+  readonly type: 'add' | 'remove' | 'sign-in' | 'sign-out';
   readonly server: McpServerView | null;
   readonly opener: HTMLElement | null;
 }
@@ -45,6 +48,7 @@ export class GwMcpServersPanel {
   protected readonly unused = computed(() => (this.servers() ?? []).filter((s) => !s.usedBy.length));
 
   protected readonly serverStatus = serverStatus;
+  protected readonly signInText = signInText;
   protected readonly activityQuery = serverActivityQuery;
   protected readonly paths = serverPaths;
   protected readonly plural = plural;
@@ -57,9 +61,23 @@ export class GwMcpServersPanel {
   }
 
   protected remove(s: McpServerView, e: Event): void {
+    this.fromMenu('remove', s, e);
+  }
+
+  /** Sign in again (the row's button, or its menu): the page opens the sign-in dialog. */
+  protected signIn(s: McpServerView, e: Event): void {
+    this.fromMenu('sign-in', s, e);
+  }
+
+  protected signOut(s: McpServerView, e: Event): void {
+    this.fromMenu('sign-out', s, e);
+  }
+
+  /** A menu item's dialog returns focus to the menu's trigger: the item itself is hidden once the menu closes. */
+  private fromMenu(type: McpServerAction['type'], s: McpServerView, e: Event): void {
     const target = e.currentTarget as HTMLElement | null;
     const trigger = target?.closest('.gw-menu-host')?.querySelector<HTMLElement>('[aria-haspopup="menu"]') ?? null;
-    this.action.emit({ type: 'remove', server: s, opener: trigger ?? target });
+    this.action.emit({ type, server: s, opener: trigger ?? target });
   }
 
   /** Restart (kit: a toast "Tools listed again: 26, same as before."). */

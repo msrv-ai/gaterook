@@ -2,7 +2,9 @@ import { ApiError } from '../../../core/api/api-error';
 import { clickhouseCheck, sentryReview } from '../connectors.fixtures';
 import { failureDetails, failureText } from './failure';
 import { mcpRequest } from './mcp-add.dialog';
-import { mcpReviewView, mcpSecretValues } from './mcp-review.dialog';
+import { connectedToast } from './mcp-endpoint.dialog';
+import { McpServerAuthConfig } from '../../../core/api/plugins.api';
+import { mcpReviewView, mcpSecretValues, signInConfig } from './mcp-review.dialog';
 import { accessText, connectionFormText, pluginFacts } from './plugin-facts';
 
 describe('plugin review facts', () => {
@@ -97,6 +99,82 @@ describe('Add MCP server request', () => {
     const http = mcpRequest('linear', 'http', 'ignored', ' https://mcp.linear.app/mcp ', [{ name: 'Authorization' }]);
     expect(http.source).toEqual({ config: { name: 'linear', transport: 'http', url: 'https://mcp.linear.app/mcp', headers: [{ name: 'Authorization' }] } });
   });
+
+  it('turns sign-in options into an OAuth sign-in of the URL, and leaves it out when they are empty', () => {
+    const app = mcpRequest('github-mcp', 'http', '', 'https://api.githubcopilot.com/mcp/', [], { clientId: ' Iv23li0abc ', scopes: ' repo  read:org ', callbackPort: '7471' });
+    expect(app.source).toEqual({
+      config: {
+        name: 'github-mcp',
+        transport: 'http',
+        url: 'https://api.githubcopilot.com/mcp/',
+        headers: [],
+        auth: { type: 'oauth', clientId: 'Iv23li0abc', scopes: 'repo read:org', callbackPort: 7471 },
+      },
+    });
+    expect(mcpRequest('linear-mcp', 'http', '', 'https://mcp.linear.app/mcp', []).source).toEqual({
+      config: { name: 'linear-mcp', transport: 'http', url: 'https://mcp.linear.app/mcp', headers: [] },
+    });
+    // A command never gets them.
+    expect(mcpRequest('a', 'stdio', 'run', '', [], { clientId: 'x', scopes: '', callbackPort: '' }).source).toEqual({
+      config: { name: 'a', transport: 'stdio', command: ['run'], env: [] },
+    });
+  });
+
+  it('refuses sign-in options HTTP or the server can’t take', () => {
+    const errors = (o: { clientId?: string; scopes?: string; callbackPort?: string }, headers: { name: string }[] = []) =>
+      mcpRequest('x', 'http', '', 'https://x.dev/mcp', headers, { clientId: '', scopes: '', callbackPort: '', ...o }).errors;
+    expect(errors({ callbackPort: '80' })?.callbackPort).toBe('Use a port from 1024 to 65535.');
+    expect(errors({ callbackPort: 'abc' })?.callbackPort).toBe('Use a port from 1024 to 65535.');
+    expect(errors({ clientId: 'a b' })?.clientId).toBe('A client ID has no spaces or control characters.');
+    expect(errors({ scopes: 'a "b"' })?.scopes).toBe('Separate scopes with spaces; a scope has no quotes or backslashes.');
+    expect(errors({ clientId: 'abc' }, [{ name: 'Authorization' }])?.variables).toBe(
+      'The OAuth sign-in sends the Authorization header. Remove that header, or the client ID.',
+    );
+  });
+
+  it('signs in with Google Cloud credentials: this computer’s sign-in or a key, a service account, a billed project', () => {
+    const google = (o: Record<string, string>, url = 'https://bigtableadmin.googleapis.com/mcp', headers: { name: string }[] = []) =>
+      mcpRequest('bigtable-admin', 'http', '', url, headers, { with: 'google', clientId: 'ignored', scopes: '', callbackPort: '', ...o });
+    expect(google({}).source).toEqual({
+      config: { name: 'bigtable-admin', transport: 'http', url: 'https://bigtableadmin.googleapis.com/mcp', headers: [],
+        auth: { type: 'google', credentials: { source: 'adc' } } },
+    });
+    expect(google({ source: 'serviceAccountKey', impersonate: 'gw-mcp@acme-stage.iam.gserviceaccount.com', quotaProject: 'acme-billing',
+      scopes: ' https://www.googleapis.com/auth/bigtable.admin ' }).source).toEqual({
+      config: { name: 'bigtable-admin', transport: 'http', url: 'https://bigtableadmin.googleapis.com/mcp', headers: [],
+        auth: { type: 'google', credentials: { source: 'serviceAccountKey', impersonate: 'gw-mcp@acme-stage.iam.gserviceaccount.com',
+          quotaProject: 'acme-billing' }, scopes: 'https://www.googleapis.com/auth/bigtable.admin' } },
+    });
+    expect(google({ impersonate: 'me@gmail.com' }).errors?.impersonate).toBe('A service account looks like name@project.iam.gserviceaccount.com.');
+    expect(google({ quotaProject: 'X' }).errors?.quotaProject).toBe('A project ID has 6 to 30 lowercase letters, digits and -.');
+    expect(google({}, undefined, [{ name: 'Authorization' }]).errors?.variables).toBe(
+      'Google Cloud credentials send the Authorization header. Remove that header, or sign in another way.',
+    );
+  });
+
+  it('signs requests with AWS credentials for the service and region the URL names, or the ones given', () => {
+    const aws = (o: Record<string, string>, url = 'https://aws-mcp.us-east-1.api.aws/mcp') =>
+      mcpRequest('aws-mcp', 'http', '', url, [], { with: 'aws', clientId: '', scopes: '', callbackPort: '', ...o });
+    expect(aws({}).source).toEqual({
+      config: { name: 'aws-mcp', transport: 'http', url: 'https://aws-mcp.us-east-1.api.aws/mcp', headers: [],
+        auth: { type: 'aws', credentials: { source: 'profile', profile: 'default' } } },
+    });
+    expect(aws({ source: 'accessKey', accessKeyId: 'AKIAIOSFODNN7EXAMPLE', roleArn: 'arn:aws:iam::123456789012:role/gw-mcp',
+      externalId: 'gw-ext-1a2b3c', region: 'eu-west-1' }).source).toEqual({
+      config: { name: 'aws-mcp', transport: 'http', url: 'https://aws-mcp.us-east-1.api.aws/mcp', headers: [],
+        auth: { type: 'aws', credentials: { source: 'accessKey', accessKeyId: 'AKIAIOSFODNN7EXAMPLE', roleArn: 'arn:aws:iam::123456789012:role/gw-mcp',
+          externalId: 'gw-ext-1a2b3c' }, region: 'eu-west-1' } },
+    });
+    expect(aws({ source: 'accessKey' }).errors?.accessKeyId).toBe('Enter the access key ID.');
+    expect(aws({ source: 'accessKey', accessKeyId: 'AKIA-short' }).errors?.accessKeyId).toBe('An access key ID looks like AKIA… (20 characters).');
+    expect(aws({ roleArn: 'gw-mcp' }).errors?.roleArn).toBe('A role ARN looks like arn:aws:iam::123456789012:role/name.');
+    expect(aws({ region: 'Mars' }).errors?.region).toBe('A region looks like us-east-1.');
+    // A host that names no service and region needs both said.
+    expect(aws({}, 'https://mcp.example.com/mcp').errors?.service).toBe(
+      'Name the service and region to sign for: the URL doesn’t say, as aws-mcp.us-east-1.api.aws does.',
+    );
+    expect(aws({ service: 'bedrock-agentcore', region: 'us-west-2' }, 'https://mcp.example.com/mcp').errors).toBeNull();
+  });
 });
 
 describe('MCP server values', () => {
@@ -177,6 +255,141 @@ describe('MCP server review', () => {
       { name: 'X_TOKEN', pointer: '/env/0/secretRef' },
     ]);
     expect(w.risk).toBe('Every call sends these secrets to this URL. Nobody has verified the server behind it.');
+    expect(w.signIn).toBeNull();
+  });
+
+  it('shows the core’s URL and warnings for a server at a URL, and a command’s warnings as its rows', () => {
+    const keyed = mcpReviewView({
+      review: sentryReview({
+        transport: 'http',
+        url: 'https://mcp.example.com/‹masked›/mcp',
+        argv: [],
+        env: [],
+        warnings: ['The URL carries a key. GateRook stores it with the server’s settings, not as an encrypted secret.'],
+      }),
+      source: { config: { name: 'search-mcp', transport: 'http', url: 'https://mcp.example.com/k-AbCdEf/mcp' } },
+      name: 'search-mcp',
+      transport: 'http',
+      target: 'https://mcp.example.com/k-AbCdEf/mcp',
+      variables: [],
+      opener: null,
+    });
+    // The key the URL carries stays as the core masked it: the review shows the core's URL, not the typed one.
+    expect(keyed.target).toBe('https://mcp.example.com/‹masked›/mcp');
+    expect(keyed.warnings).toEqual(['The URL carries a key. GateRook stores it with the server’s settings, not as an encrypted secret.']);
+    const command = mcpReviewView(typed(['npx', '-y', '@sentry/mcp-server'], sentryReview({ notPinned: true, warnings: ['Not pinned: it can fetch new code on every start.'] })));
+    expect(command.warnings).toEqual([]);
+    expect(command.version).toEqual({ pinned: false });
+  });
+
+  const remote = (auth: NonNullable<Parameters<typeof sentryReview>[0]>['auth'], headers: string[] = [], clientId?: string) =>
+    mcpReviewView({
+      review: sentryReview({ transport: 'http', url: 'https://mcp.linear.app/mcp', argv: [], env: headers, auth }),
+      source: {
+        config: { name: 'linear-mcp', transport: 'http', url: 'https://mcp.linear.app/mcp', ...(clientId ? { auth: { type: 'oauth' as const, clientId } } : {}) },
+      },
+      name: 'linear-mcp',
+      transport: 'http',
+      target: 'https://mcp.linear.app/mcp',
+      variables: headers.map((name) => ({ name })),
+      opener: null,
+    });
+
+  it('asks for a sign-in where the server wants one, and says the sign-in goes to the URL', () => {
+    const w = remote({ kind: 'oauth', issuer: 'https://mcp.linear.app', authorizationHost: 'mcp.linear.app', registration: 'dynamic' });
+    expect(w.signIn).toBe('required');
+    expect(w.risk).toBe('Every call sends your sign-in to this URL. Nobody has verified the server behind it.');
+    expect(w.trust).toBe('I trust this server with my sign-in');
+    const withHeader = remote({ kind: 'oauth', registration: 'dynamic' }, ['X-Workspace']);
+    expect(withHeader.risk).toBe('Every call sends your sign-in and these secrets to this URL. Nobody has verified the server behind it.');
+    expect(withHeader.trust).toBe('I trust this server with my sign-in and these secrets');
+    expect(remote({ kind: 'optional', registration: 'dynamic' }).signIn).toBe('optional');
+    expect(remote({ kind: 'none' }).signIn).toBeNull();
+    // Nothing secret goes with the calls of a server without a sign-in or headers: the review doesn't say otherwise.
+    expect(remote({ kind: 'none' }).risk).toBe('Every call goes to this URL. Nobody has verified the server behind it.');
+    expect(remote({ kind: 'none' }).trust).toBe('I trust this server with the calls of my AI apps');
+    const bare = mcpReviewView({ ...typed(['./server']), review: sentryReview({ env: [] }), variables: [] });
+    expect(bare.risk).toBe('This code runs on your computer. Nobody has verified it: it can reach anything your user account can.');
+    expect(bare.trust).toBe('I trust this code on this computer');
+    expect(remote({ kind: 'refused', message: 'It refused the request.' }).signIn).toBeNull();
+    // A key the person passes as the Authorization header is their choice instead of the sign-in.
+    expect(remote({ kind: 'oauth', registration: 'dynamic' }, ['Authorization']).signIn).toBeNull();
+    expect(remote({ kind: 'oauth', registration: 'app' }, [], 'Iv23li0abc').appClient).toBe('Iv23li0abc');
+  });
+
+  const cloudy = (auth: NonNullable<Parameters<typeof sentryReview>[0]>['auth'], chosen?: McpServerAuthConfig, url = 'https://bigtableadmin.googleapis.com/mcp') =>
+    mcpReviewView({
+      review: sentryReview({ transport: 'http', url, argv: [], env: [], auth }),
+      source: { config: { name: 'bigtable-admin', transport: 'http', url, ...(chosen ? { auth: chosen } : {}) } },
+      name: 'bigtable-admin',
+      transport: 'http',
+      target: url,
+      variables: [],
+      opener: null,
+    });
+
+  it('offers a Google or AWS server its cloud’s credentials, and reviews them as the sign-in', () => {
+    // Google gives OAuth only to an app the person registers: its own credentials instead.
+    const offered = cloudy({ kind: 'optional', registration: 'app-required', cloud: 'google', secretRequired: true });
+    expect(offered.suggest).toBe('google');
+    expect(offered.signIn).toBe('optional');
+
+    const adc = cloudy({ kind: 'optional', registration: 'app-required', cloud: 'google' }, { type: 'google', credentials: { source: 'adc', quotaProject: 'acme-billing' } });
+    expect(adc.suggest).toBeNull();
+    expect(adc.signIn).toBeNull();
+    expect(adc.cloud).toBe('google');
+    expect(adc.cloudText).toBe('A Google token from the Google sign-in of this computer, billed to acme-billing. GateRook gets a new one before it expires.');
+    expect(adc.trust).toBe('I trust this server with my Google Cloud credentials');
+    expect(adc.secrets).toEqual([]);
+
+    const keyed = cloudy({ kind: 'optional', cloud: 'google' }, { type: 'google', credentials: { source: 'serviceAccountKey' } });
+    expect(keyed.secrets).toEqual([{ name: 'Service account key (JSON)', pointer: '/auth/credentials/serviceAccountKey', label: 'Service account key (JSON)', multiline: true }]);
+    expect(keyed.named).toEqual([]);
+
+    const url = 'https://aws-mcp.us-east-1.api.aws/mcp';
+    expect(cloudy({ kind: 'optional', registration: 'dynamic', cloud: 'aws' }, undefined, url).suggest).toBe('aws');
+    const signed = cloudy({ kind: 'optional', cloud: 'aws' }, { type: 'aws', credentials: { source: 'accessKey', accessKeyId: 'AKIAIOSFODNN7EXAMPLE' } }, url);
+    expect(signed.cloudText).toBe('Each request signed with SigV4 for aws-mcp in us-east-1, with the access key AKIAIOSFODNN7EXAMPLE.');
+    expect(signed.secrets.map((x) => x.pointer)).toEqual(['/auth/credentials/secretAccessKey']);
+    expect(signed.risk).toBe('Every call carries a signature of your AWS credentials to this URL. Nobody has verified the server behind it.');
+    // A server elsewhere is offered nothing.
+    expect(remote({ kind: 'optional', registration: 'dynamic' }).suggest).toBeNull();
+  });
+
+  it('signs in and adds with the same config: the reviewed one with the sign-in and the typed client ID', () => {
+    const config = { name: 'github-mcp', transport: 'http' as const, url: 'https://api.githubcopilot.com/mcp/', headers: [] };
+    expect(signInConfig(config, null)).toEqual({ ...config, auth: { type: 'oauth' } });
+    expect(signInConfig(config, ' Iv23li0abc ')).toEqual({ ...config, auth: { type: 'oauth', clientId: 'Iv23li0abc' } });
+    const app = { ...config, auth: { type: 'oauth' as const, clientId: 'from-options', callbackPort: 7471 } };
+    expect(signInConfig(app, '')).toEqual(app);
+  });
+});
+
+describe('MCP server endpoint step', () => {
+  const linear = { name: 'linear-mcp', http: true, tools: 23 };
+
+  it('says where the tools went, that they start as Approval, or that they are Off', () => {
+    expect(connectedToast(linear, { added: ['dev'], notAdded: [] })).toEqual({
+      tone: 'success',
+      title: 'MCP server linear-mcp connected',
+      body: 'Its 23 tools are on dev, each as Approval. Change their modes on the endpoint.',
+    });
+    expect(connectedToast({ ...linear, tools: 1 }, { added: ['dev', 'stage'], notAdded: [] }).body).toBe(
+      'Its tool is on dev and stage, each as Approval. Change their modes on the endpoint.',
+    );
+    expect(connectedToast({ name: 'notes-mcp', http: false, tools: null }, { added: [], notAdded: [] })).toEqual({
+      tone: 'success',
+      title: 'MCP server notes-mcp started',
+      body: 'Its tools are Off until you add them to an endpoint. There each starts as Approval.',
+    });
+  });
+
+  it('names the endpoints the core refused, with its reasons', () => {
+    expect(connectedToast(linear, { added: ['dev'], notAdded: [{ slug: 'shared', why: 'Live tokens would cross the prod line.' }] })).toEqual({
+      tone: 'warning',
+      title: 'MCP server linear-mcp connected, not added to shared',
+      body: 'Its 23 tools are on dev as Approval. Live tokens would cross the prod line.',
+    });
   });
 });
 

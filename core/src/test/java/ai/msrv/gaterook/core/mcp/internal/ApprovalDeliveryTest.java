@@ -16,6 +16,7 @@ import ai.msrv.gaterook.core.approvals.ApprovalAnswers;
 import ai.msrv.gaterook.core.approvals.ApprovalService;
 import ai.msrv.gaterook.core.approvals.ApprovalView;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshot;
+import ai.msrv.gaterook.core.endpoints.EndpointSnapshotService;
 import ai.msrv.gaterook.core.platform.Caller;
 import ai.msrv.gaterook.core.platform.Ingress;
 import ai.msrv.gaterook.core.platform.LocalListener;
@@ -45,7 +46,7 @@ class ApprovalDeliveryTest {
   final RequestStateCodecTest.MutableClock clock = new RequestStateCodecTest.MutableClock(T0);
   final ApprovalService approvals = mock(ApprovalService.class);
   final ApprovalAnswers answers = new ApprovalAnswers(new LocalListener(() -> 7465), Masker.standard(),
-      policies());
+      policies(), mock(EndpointSnapshotService.class));
   final RequestStateCodec codec = new RequestStateCodec(RequestStateCodecTest.keys("k"), JsonMapper.builder().build(),
       clock);
   final ApprovalDelivery delivery = new ApprovalDelivery(approvals, answers, codec, clock);

@@ -70,7 +70,8 @@ class McpBypassIT {
             : client.legacyCall("sql_execute", args("connection", "bypass-db", "sql", sql));
         assertThat(reply.status()).isEqualTo(200);
         assertThat(reply.result().path("isError").asBoolean()).isFalse();
-        assertThat(reply.result().toString()).doesNotContain("NOT EXECUTED YET", "approvalUrl");
+        assertThat(reply.result().toString()).doesNotContain("NOT EXECUTED YET", "approvalUrl",
+            "Temporary bypass is enabled until");
       }
       assertThat(FakeConnectors.EXECUTIONS).hasSize(2).allSatisfy(e -> {
         assertThat(e.sql()).isEqualTo(sql);

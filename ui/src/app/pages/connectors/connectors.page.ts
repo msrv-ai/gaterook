@@ -1,5 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { CoreStore } from '../../core/stores/core.store';
 import { Announcer } from '../../kit/announcer';
 import { GwHowItWorks, GwHowItWorksStep } from '../../kit/elements/how-it-works/how-it-works';
@@ -12,7 +12,9 @@ import { ConnectorsData } from './connectors.data';
 import { GwConfirmDialog } from './dialogs/confirm.dialog';
 import { failureText } from './dialogs/failure';
 import { GwMcpAddDialog, McpReviewed } from './dialogs/mcp-add.dialog';
+import { GwMcpEndpointDialog, McpServerConnected } from './dialogs/mcp-endpoint.dialog';
 import { GwMcpReviewDialog } from './dialogs/mcp-review.dialog';
+import { GwMcpSignInDialog } from './dialogs/mcp-sign-in.dialog';
 import { GwPluginInstallDialog, PluginChecked } from './dialogs/plugin-install.dialog';
 import { GwPluginReviewDialog } from './dialogs/plugin-review.dialog';
 import { GwPluginUpdateDialog } from './dialogs/plugin-update.dialog';
@@ -61,6 +63,8 @@ export const SKELETON_DELAY_MS = 300;
     GwPluginUpdateDialog,
     GwMcpAddDialog,
     GwMcpReviewDialog,
+    GwMcpSignInDialog,
+    GwMcpEndpointDialog,
     GwConfirmDialog,
     GwTemplateInstallDialog,
   ],
@@ -74,12 +78,20 @@ export class ConnectorsPage {
   private readonly core = inject(CoreStore);
   private readonly toasts = inject(ToastService);
   private readonly announcer = inject(Announcer);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly injector = inject(Injector);
+
+  /** `?add=mcp-server` (the connection wizard's External MCP server): Add MCP server opens on the MCP servers tab. */
+  readonly add = input<string | null>(null);
 
   private readonly installDialog = viewChild.required(GwPluginInstallDialog);
   private readonly reviewDialog = viewChild.required(GwPluginReviewDialog);
   private readonly updateDialog = viewChild.required(GwPluginUpdateDialog);
   private readonly addServerDialog = viewChild.required(GwMcpAddDialog);
   private readonly serverReviewDialog = viewChild.required(GwMcpReviewDialog);
+  private readonly serverSignInDialog = viewChild.required(GwMcpSignInDialog);
+  private readonly serverEndpointDialog = viewChild.required(GwMcpEndpointDialog);
   private readonly confirmDialog = viewChild.required(GwConfirmDialog);
   private readonly templateInstallDialog = viewChild.required(GwTemplateInstallDialog);
   private readonly templatesPanel = viewChild.required(GwTemplatesPanel);
@@ -111,6 +123,19 @@ export class ConnectorsPage {
     effect((onCleanup) => {
       if (this.installed()) clearTimeout(timer);
       onCleanup(() => clearTimeout(timer));
+    });
+    effect(() => {
+      if (this.add() !== 'mcp-server') return;
+      untracked(() =>
+        afterNextRender(
+          () => {
+            this.addServerDialog().open(null);
+            // Once: a reload or Back doesn't open it again.
+            void this.router.navigate([], { relativeTo: this.route, queryParams: { add: null }, queryParamsHandling: 'merge', fragment: 'mcp-servers', replaceUrl: true });
+          },
+          { injector: this.injector },
+        ),
+      );
     });
     // The core came back (it was away, or another instance answers): everything may be stale.
     let wasRunning = this.core.running();
@@ -376,6 +401,32 @@ export class ConnectorsPage {
       return;
     }
     const s = a.server;
+    if (a.type === 'sign-in') {
+      this.serverSignInDialog().show(s, a.opener);
+      return;
+    }
+    if (a.type === 'sign-out') {
+      this.confirmDialog().ask(
+        {
+          tone: 'warning',
+          icon: 'key-round',
+          title: `Sign out of ${s.name}?`,
+          description: [
+            {
+              text: `GateRook forgets the sign-in and revokes it at the server where it allows that. The calls of ${s.name} don’t run until you sign in again; its tools and modes stay.`,
+              code: false,
+            },
+          ],
+          confirm: `Sign out of ${s.name}`,
+          run: async () => {
+            await this.data.signOut(s.name);
+            this.toasts.show({ tone: 'success', title: `Signed out of ${s.name}`, body: 'Sign in again from its row when you need its tools.' });
+          },
+        },
+        a.opener,
+      );
+      return;
+    }
     const tools = s.tools !== null ? `its ${plural(s.tools, 'tool')}` : 'its tools';
     const used = s.usedBy.length ? `${s.usedBy.join(', ')} ${s.usedBy.length === 1 ? 'loses' : 'lose'} them.` : 'No endpoint uses them yet.';
     const secrets = s.secrets.map((x) => x.secret).filter((x): x is string => !!x);
@@ -409,6 +460,11 @@ export class ConnectorsPage {
 
   protected onReviewed(r: McpReviewed): void {
     this.serverReviewDialog().show(r);
+  }
+
+  /** The server connected: its tools join an endpoint next, as a connection's do at the end of the wizard. */
+  protected onConnected(c: McpServerConnected): void {
+    void this.serverEndpointDialog().show(c);
   }
 
   /** The menu item's menu trigger: the item itself is hidden once the menu closes. */

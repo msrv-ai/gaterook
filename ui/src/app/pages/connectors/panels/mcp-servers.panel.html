@@ -71,12 +71,18 @@
             <tr [id]="'mcp-' + s.name">
               <th scope="row">
                 <span class="gw-mono">{{ s.name }}</span>
-                <div class="gw-text-caption gw-fg-muted">@if (s.signed) {<span class="gw-badge gw-badge--success gw-badge--sm"><svg lucideIcon="badge-check" class="gw-icon gw-badge__icon"></svg>Signed<span class="gw-sr-only"> catalog entry</span></span> }{{ s.transport === 'http' ? 'HTTP' : 'stdio' }}@if (s.pinned === true && s.version) { · pinned <span class="gw-mono">v{{ s.version }}</span>} @else if (s.pinned === false) { · <span class="gw-badge gw-badge--warning gw-badge--sm"><svg lucideIcon="triangle-alert" class="gw-icon gw-badge__icon"></svg>Not pinned</span>}</div>
+                <div class="gw-text-caption gw-fg-muted">@if (s.signed) {<span class="gw-badge gw-badge--success gw-badge--sm"><svg lucideIcon="badge-check" class="gw-icon gw-badge__icon"></svg>Signed<span class="gw-sr-only"> catalog entry</span></span> }{{ s.transport === 'http' ? 'HTTP' : 'stdio' }}@if (s.oauth) { · OAuth}@if (s.pinned === true && s.version) { · pinned <span class="gw-mono">v{{ s.version }}</span>} @else if (s.pinned === false) { · <span class="gw-badge gw-badge--warning gw-badge--sm"><svg lucideIcon="triangle-alert" class="gw-icon gw-badge__icon"></svg>Not pinned</span>}</div>
               </th>
               <td class="gw-table__cell--mono gw-table__cell--truncate" [attr.title]="s.command ?? s.url">{{ s.command ?? s.url }}</td>
-              <td>@for (sec of s.secrets; track sec.name; let last = $last) {<span class="gw-fg-muted"><svg lucideIcon="lock-keyhole" class="gw-icon gw-icon--sm"></svg></span> <a class="gw-link gw-mono" routerLink="/secrets" fragment="stored-secrets" [attr.title]="secretTitle(sec.name, sec.secret)">{{ sec.name }}@if (sec.secret) {<span class="gw-sr-only">, value from the secret {{ sec.secret }}</span>}</a>@if (!last) {, }} @empty {<span class="gw-fg-muted">None</span>}</td>
+              <td>@for (sec of s.secrets; track sec.name; let last = $last) {<span class="gw-fg-muted"><svg lucideIcon="lock-keyhole" class="gw-icon gw-icon--sm"></svg></span> <a class="gw-link gw-mono" routerLink="/secrets" fragment="stored-secrets" [attr.title]="secretTitle(sec.name, sec.secret)">{{ sec.name }}@if (sec.secret) {<span class="gw-sr-only">, value from the secret {{ sec.secret }}</span>}</a>@if (!last) {, }} @empty {@if (!s.oauth && !s.cloud) {<span class="gw-fg-muted">None</span>}}@if (s.oauth) {{{ s.secrets.length ? ', ' : '' }}<span class="gw-fg-muted"><svg lucideIcon="key-round" class="gw-icon gw-icon--sm"></svg></span> OAuth sign-in}@if (s.cloud) {{{ s.secrets.length ? ', ' : '' }}<span class="gw-fg-muted"><svg lucideIcon="cloud" class="gw-icon gw-icon--sm"></svg></span> {{ s.cloud === 'google' ? 'Google Cloud credentials' : 'AWS credentials (SigV4)' }}}</td>
               <td class="gw-table__cell--num">@if (s.tools !== null) {{{ s.tools }}} @else {<span class="gw-fg-muted">Not listed yet</span>}</td>
-              <td><span [class]="'gw-status gw-status--' + st.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ st.text }}</span></span></td>
+              <td>
+                <span [class]="'gw-status gw-status--' + st.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ st.text }}</span></span>
+                @if (signInText(s); as si) {
+                  <div><span [class]="'gw-status gw-status--' + si.tone" [attr.title]="s.signIn?.message || null"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ si.text }}</span></span>
+                  @if (si.tone !== 'success') { <button class="gw-btn gw-btn--link gw-btn--sm" type="button" (click)="signIn(s, $event)">Sign in<span class="gw-sr-only"> to {{ s.name }}</span></button>}</div>
+                }
+              </td>
               <td class="gw-table__cell--actions">
                 <span class="gw-tooltip"><button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [attr.aria-labelledby]="'tip-restart-' + s.name" [attr.aria-busy]="restarting() === s.name ? 'true' : null" [attr.aria-disabled]="restarting() === s.name ? 'true' : null" (click)="restart(s)">@if (restarting() === s.name) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="rotate-cw" class="gw-icon gw-icon--sm"></svg>}</button><span class="gw-tooltip__bubble" role="tooltip" [id]="'tip-restart-' + s.name">Restart {{ s.name }}</span></span>
                 <div class="gw-menu-host">
@@ -84,6 +90,12 @@
                   <div class="gw-menu gw-menu--right" gwMenu #menu="gwMenu" [id]="menuId(s)" role="menu" [attr.aria-label]="'More actions for ' + s.name" hidden>
                     <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/activity" [queryParams]="{ q: activityQuery(s) }"><svg lucideIcon="activity" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">{{ activityQuery(s) }}</span></span></a>
                     <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/endpoints"><svg lucideIcon="waypoints" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Add tools to an endpoint</span></a>
+                    @if (s.oauth) {
+                      <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" (click)="signIn(s, $event)"><svg lucideIcon="log-in" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Sign in again</span></button>
+                      @if (s.signIn?.state === 'signed-in' || s.signIn?.state === 'needs-sign-in') {
+                        <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" (click)="signOut(s, $event)"><svg lucideIcon="key-round" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Sign out</span></button>
+                      }
+                    }
                     <div class="gw-menu__divider" role="separator"></div>
                     <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" (click)="remove(s, $event)"><svg lucideIcon="trash-2" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Remove MCP server</span></button>
                   </div>

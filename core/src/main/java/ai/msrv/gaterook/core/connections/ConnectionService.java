@@ -280,7 +280,8 @@ public class ConnectionService {
       }
     });
     validate(manifest, next, java.util.Set.of(), env);
-    Optional<String> newTarget = ConnectionTargets.changedTarget(current.config().config(), cleaned);
+    // Shown and recorded without a key an MCP server's URL may carry.
+    Optional<String> newTarget = ConnectionTargets.changedTarget(current.config().config(), cleaned).map(masker::url);
     if (newTarget.isPresent() && !current.secretIds().isEmpty() && !confirmed(confirm, CONFIRM_NEW_HOST)) {
       throw ProblemException.needsConfirmation("Send the stored secret to a new host?",
           "Send the stored credentials of " + name + " to " + newTarget.get() + "? Confirm, or enter new values.",
@@ -745,10 +746,14 @@ public class ConnectionService {
     });
     List<String> exempt = new ArrayList<>(SecretFields.templates(manifest.configSchema()));
     exempt.addAll(SecretFields.notSecretTemplates(manifest.configSchema()));
+    exempt.addAll(SecretFields.keyAllowedTemplates(manifest.configSchema()));
     checkLooksLikeSecret(config, "", exempt);
   }
 
-  /** @param exempt secret fields (their values never stay in the config) and public identifiers */
+  /**
+   * @param exempt secret fields (their values never stay in the config), public identifiers and values that may carry
+   *     a key ({@value SecretFields#KEY_ALLOWED})
+   */
   private void checkLooksLikeSecret(JsonNode node, String pointer, List<String> exempt) {
     if (SecretFields.isPlaceholder(node)) {
       return;

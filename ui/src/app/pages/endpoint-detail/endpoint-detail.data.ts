@@ -366,10 +366,21 @@ export class EndpointDetailData {
     }
   }
 
+  /**
+   * "Allow read only" for a tool its server or plugin declares read only: the confirmation, bound to the definition the
+   * person saw, then the mode (the core takes Read only only once confirmed). The groups are set once, after both, so
+   * the picker doesn't show the old mode in between.
+   */
   async confirmReadOnly(c: { readonly toolKey: string; readonly connection: string | null; readonly definitionHash: string }): Promise<void> {
     const slug = this.requireSlug();
     try {
-      this.groupsSignal.set(await this.endpoints.confirmReadOnly(slug, c));
+      const confirmed = await this.endpoints.confirmReadOnly(slug, c);
+      const row = confirmed.find((g) => g.connection === c.connection)?.tools.find((t) => t.toolKey === c.toolKey);
+      this.groupsSignal.set(
+        row && row.mode !== 'READ_ONLY'
+          ? await this.endpoints.setMode(slug, { toolKey: c.toolKey, connection: c.connection, mode: 'READ_ONLY', version: row.version })
+          : confirmed,
+      );
     } catch (e) {
       // The definition changed since the page loaded (another hash), or the core refused: show what it keeps.
       await this.reloadTools();

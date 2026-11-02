@@ -8,23 +8,33 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.MissingNode;
 
 /**
  * The settings of one {@code mcp-server} connection as the runtime reads them ({@code config.schema.json}). The values
  * of variables and headers are never here: a binding names the secret field ({@code /env/0/secretRef}) the value is
  * resolved from when the process starts.
  *
- * @param secretField the JSON pointer of the binding's secret, or {@code null} when the binding has none stored
+ * @param auth the HTTP server's sign-in settings as canonical JSON ({@code {"type":"oauth",…}}), or {@code null}: the
+ *             tokens are the core's ({@link ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime.Authorization}),
+ *             these are only what the person chose
  */
 record ServerConfig(String name, String transport, List<String> command, String url, List<Binding> env,
     List<Binding> headers, List<String> inheritEnv, boolean startWithCore, Duration idleStop, Duration startTimeout,
-    Duration callTimeout, int maxInFlight, String catalogEntry, String toolPrefix) {
+    Duration callTimeout, int maxInFlight, String catalogEntry, String toolPrefix, String auth) {
 
   static final String STDIO = "stdio";
   static final String HTTP = "http";
 
   /** A variable (stdio) or header (HTTP) whose value comes from a secret. */
   record Binding(String name, String secretField) {}
+
+  /** {@code auth.type} of a server the person signs in to in the browser (OAuth 2.1, ARCHITECTURE.md §7.5). */
+  static final String OAUTH = "oauth";
+  /** {@code auth.type} of a server that takes a Google access token from the server's Google Cloud credentials (§7.6). */
+  static final String GOOGLE = "google";
+  /** {@code auth.type} of a server on AWS whose requests are signed with SigV4 from the server's AWS credentials. */
+  static final String AWS = "aws";
 
   private static final Pattern PREFIX = Pattern.compile("^[a-z][a-z0-9]{0,14}_$");
 
@@ -48,16 +58,50 @@ record ServerConfig(String name, String transport, List<String> command, String 
       }
     }
     String prefix = Texts.str(c.path("toolPrefix"), null);
+    JsonNode auth = c.path("auth");
     return new ServerConfig(cfg.name(), transport, List.copyOf(command), Texts.str(c.path("url"), null),
         bindings(cfg, "env"), bindings(cfg, "headers"), List.copyOf(inherit),
         "with-core".equals(Texts.str(c.path("start"), null)), Duration.ofMinutes(Math.max(0, idle)),
         Duration.ofSeconds(Math.clamp(start, 5, 300)), Duration.ofSeconds(Math.clamp(call, 1, 300)),
         Math.clamp(c.path("maxInFlight").asInt(4), 1, 16), Texts.str(c.path("catalogEntry"), null),
-        prefix != null && PREFIX.matcher(prefix).matches() ? prefix : defaultPrefix(cfg.name()));
+        prefix != null && PREFIX.matcher(prefix).matches() ? prefix : defaultPrefix(cfg.name()),
+        HTTP.equals(transport) && auth.isObject() ? Texts.JSON.writeValueAsString(Texts.canonical(auth)) : null);
   }
 
   boolean http() {
     return HTTP.equals(transport);
+  }
+
+  /** Whether the person signs in to this HTTP server in the browser, so each request carries the core's token. */
+  boolean oauth() {
+    return OAUTH.equals(authType());
+  }
+
+  /**
+   * Whether this OAuth server also answers without a sign-in ({@code auth.optional}): it connects without one until the
+   * person signs in, and its calls that need one say so.
+   */
+  boolean signInOptional() {
+    return oauth() && authSettings().path("optional").asBoolean(false);
+  }
+
+  /** Whether each request carries a Google access token from the server's Google Cloud credentials. */
+  boolean google() {
+    return GOOGLE.equals(authType());
+  }
+
+  /** Whether each request is signed with SigV4 from the server's AWS credentials. */
+  boolean aws() {
+    return AWS.equals(authType());
+  }
+
+  /** The sign-in settings as the person chose them; a missing node for a server without any. */
+  JsonNode authSettings() {
+    return auth == null ? MissingNode.getInstance() : Texts.JSON.readTree(auth);
+  }
+
+  private String authType() {
+    return auth == null ? null : Texts.str(authSettings().path("type"), null);
   }
 
   /**

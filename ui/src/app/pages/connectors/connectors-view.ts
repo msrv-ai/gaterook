@@ -1,4 +1,4 @@
-import { CatalogEntry, CatalogIndex } from '../../core/api/plugins.api';
+import { CatalogEntry, CatalogIndex, McpSignInStatus } from '../../core/api/plugins.api';
 import { ConnectionDetail, ConnectionRow } from '../../core/api/connections.api';
 import { ConnectorProcess, InstalledConnector } from '../../core/api/connector-types.api';
 import { EndpointSummary, ToolGroup } from '../../core/api/endpoints.api';
@@ -466,6 +466,7 @@ export interface McpServerView {
   readonly transport: 'stdio' | 'http';
   /** The command as it runs, argv joined (quoted where an argument has a space). */
   readonly command: string | null;
+  /** Over HTTP, its URL as the Connections list shows it: no query, and `‹masked›` for a key in its path. */
   readonly url: string | null;
   readonly secrets: McpSecretView[];
   /** Variables of this computer the process also gets (HTTPS_PROXY…). */
@@ -488,6 +489,12 @@ export interface McpServerView {
   readonly idleStopMinutes: number | null;
   readonly toolPrefix: string;
   readonly verified: boolean;
+  /** It signs in with OAuth in the browser (`auth.type: "oauth"` over HTTP). */
+  readonly oauth: boolean;
+  /** It signs in with its cloud's credentials (`auth.type` `google` or `aws`, §7.6), or null. */
+  readonly cloud: 'google' | 'aws' | null;
+  /** Its sign-in as the core keeps it, or null before it loaded (or for a server without one). */
+  readonly signIn: McpSignInStatus | null;
 }
 
 /** `github-mcp` → `github_` (the connector's default: the name up to its first `-`, lowercase letters and digits). */
@@ -574,11 +581,13 @@ export function mcpServerView(
   toolsSnapshot: number | null,
   liveState: string | null,
   catalog: CatalogIndex | null,
+  signIn: McpSignInStatus | null = null,
 ): McpServerView {
   const config: JsonObject = detail?.config ?? {};
   const transport = config['transport'] === 'http' ? 'http' : 'stdio';
   const argv = stringArray(config['command']);
-  const url = typeof config['url'] === 'string' ? config['url'] : null;
+  // The URL as the core lists it: a key the server takes in its URL isn't shown again (the config keeps it as typed).
+  const url = transport === 'http' ? row.host : null;
   const catalogEntry = typeof config['catalogEntry'] === 'string' ? config['catalogEntry'] : null;
   const entryId = catalogEntry?.split('@')[0] ?? null;
   const fromCatalog = entryId ? catalog?.entries.find((e) => e.kind === 'mcp-server' && e.id === entryId) : undefined;
@@ -611,7 +620,42 @@ export function mcpServerView(
     idleStopMinutes: typeof idle === 'number' ? idle : 15,
     toolPrefix: prefix,
     verified: row.verified && (detail?.verified ?? true),
+    oauth: transport === 'http' && authType(config) === 'oauth',
+    cloud: transport === 'http' && (authType(config) === 'google' || authType(config) === 'aws') ? (authType(config) as 'google' | 'aws') : null,
+    signIn,
   };
+}
+
+/** `auth.type` of a server's config, or null. */
+function authType(config: JsonObject): string | null {
+  const auth = config['auth'];
+  return typeof auth === 'object' && auth !== null && !Array.isArray(auth) && typeof (auth as JsonObject)['type'] === 'string'
+    ? ((auth as JsonObject)['type'] as string)
+    : null;
+}
+
+/** The sign-in of a server in words for its row: "Signed in at mcp.linear.app", "Needs sign-in". */
+export function signInText(s: McpServerView): { readonly tone: 'success' | 'warning' | 'neutral'; readonly text: string } | null {
+  if (!s.oauth) return null;
+  const at = s.signIn?.issuer ? ` at ${hostOf(s.signIn.issuer)}` : '';
+  switch (s.signIn?.state) {
+    case 'signed-in':
+      return { tone: 'success', text: `Signed in${at}` };
+    case 'needs-sign-in':
+      return { tone: 'warning', text: 'Needs sign-in' };
+    case 'signed-out':
+      return { tone: 'neutral', text: 'Signed out' };
+    default:
+      return null;
+  }
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
 }
 
 /** The Status column of MCP servers and the link on its Installed card: "Running", "Sleeping", "Not started yet". */

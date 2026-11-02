@@ -31,6 +31,8 @@
  *   tabs         [role=tablist] > [role=tab][aria-controls]        arrows, Home/End, automatic activation;
  *                a URL #hash pointing at a tab, a panel or anything inside one selects that tab
  *   dialog       button[data-gw-dialog-open="id"] → <dialog id> .gw-dialog / .gw-drawer (showModal)
+ *                A radio with it opens the dialog INSTEAD of taking the check (click, Space, arrow
+ *                keys): an option that needs a confirmation first; the checked option stays.
  *                [data-gw-dialog-close] inside closes; backdrop click closes unless data-gw-static.
  *                The dialog's initial focus is in the MARKUP: autofocus on its first field, or on
  *                Cancel in a confirmation. On close, focus returns to the opener (the menu's
@@ -394,6 +396,8 @@
   doc.addEventListener("click", function (e) {
     var opener = e.target.closest("[data-gw-dialog-open]");
     if (opener) {
+      // A cancelled click gives a radio's check back (arrow keys in a group dispatch one too).
+      if (opener.type === "radio") e.preventDefault();
       var dlg = doc.getElementById(opener.getAttribute("data-gw-dialog-open"));
       if (dlg && typeof dlg.showModal === "function" && !dlg.open) {
         dlg._gwReturn = returnTarget(opener);

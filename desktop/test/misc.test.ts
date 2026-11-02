@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 import { CORE_ENV_ALLOWLIST, coreArgv, coreEnv } from '../src/main/core-command.ts';
 import { clientId, defaultFileName, filePurpose, linkId, revealKind } from '../src/main/file-purposes.ts';
 import { resolveLayout } from '../src/main/layout.ts';
-import { autoUpdateWanted, checkDue, friendlyUpdateError, namesPublisher, updatesUnavailable, updateStateFor } from '../src/main/updates.ts';
+import { autoUpdateWanted, checkEveryMs, due, friendlyUpdateError, namesPublisher, updatesUnavailable, updateStateFor } from '../src/main/updates.ts';
 import { openableConfig, revealableFolder } from '../src/main/file-purposes.ts';
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tempDir } from './helpers.ts';
@@ -207,11 +207,12 @@ describe('updates', () => {
     assert.ok(!namesPublisher(`${feed}# publisherName: GateRook Inc.\n`));
   });
 
-  it('checks once a day while the setting is on', () => {
-    assert.ok(checkDue(true, null, 1000));
-    assert.ok(!checkDue(false, null, 1000));
-    assert.ok(!checkDue(true, 0, 23 * 3_600_000));
-    assert.ok(checkDue(true, 0, 24 * 3_600_000));
+  it('checks every hour on macOS and once a day elsewhere', () => {
+    assert.equal(checkEveryMs('darwin'), 3_600_000);
+    assert.equal(checkEveryMs('win32'), 24 * 3_600_000);
+    assert.ok(due(null, 1000, 3_600_000), 'never checked');
+    assert.ok(!due(0, 3_599_999, 3_600_000));
+    assert.ok(due(0, 3_600_000, 3_600_000));
   });
 
   it('keeps a person\'s "off" while the core doesn\'t answer', () => {

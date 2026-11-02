@@ -44,7 +44,7 @@ export const CONNECTOR_NAMES: Record<string, string> = {
   gcp: 'GCP',
   aws: 'AWS',
   http: 'HTTP API',
-  'mcp-server': 'MCP server',
+  'mcp-server': 'External MCP server',
 };
 
 export function connectorIcon(type: string): string {

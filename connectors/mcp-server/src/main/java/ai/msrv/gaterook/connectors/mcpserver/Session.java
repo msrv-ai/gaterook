@@ -7,6 +7,7 @@ import ai.msrv.gaterook.connector.api.SecretResolver;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
 import ai.msrv.gaterook.connectors.support.egress.GuardedEgress;
 import ai.msrv.gaterook.connectors.support.egress.UrlRules;
+import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
 import io.modelcontextprotocol.client.McpAsyncClient;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.json.McpJsonMapper;
@@ -52,11 +53,32 @@ final class Session {
   /**
    * What a start needs.
    *
-   * @param toolPrefix   the prefix the server's tools are published under
-   * @param npmIntegrity the integrity a catalog server's installed package must have, or {@code null}
+   * @param toolPrefix    the prefix the server's tools are published under
+   * @param npmIntegrity  the integrity a catalog server's installed package must have, or {@code null}
+   * @param authorization the core's sign-in for every request of an HTTP session, or {@code null}
+   * @param credentials   what opens the server's cloud credentials when a session starts, or {@code null}
    */
   record Request(ConnectionConfig cfg, ServerConfig server, String toolPrefix, String npmIntegrity,
-      SecretResolver secrets, ExecContext ctx) {}
+      SecretResolver secrets, ExecContext ctx, McpServerRuntime.Authorization authorization, Credentials credentials) {
+
+    Request(ConnectionConfig cfg, ServerConfig server, String toolPrefix, String npmIntegrity, SecretResolver secrets,
+        ExecContext ctx) {
+      this(cfg, server, toolPrefix, npmIntegrity, secrets, ctx, null, null);
+    }
+
+    Request(ConnectionConfig cfg, ServerConfig server, String toolPrefix, String npmIntegrity, SecretResolver secrets,
+        ExecContext ctx, McpServerRuntime.Authorization authorization) {
+      this(cfg, server, toolPrefix, npmIntegrity, secrets, ctx, authorization, null);
+    }
+  }
+
+  /**
+   * Opens the cloud credentials of an HTTP session (a Google token, SigV4) when it starts: a call that finds the
+   * server running never opens them again.
+   */
+  interface Credentials {
+    RequestCredentials open() throws ConnectorException;
+  }
 
   final String connectionId;
   final long configVersion;
@@ -147,8 +169,14 @@ final class Session {
       URI url = checkUrl(server.url());
       GuardedEgress guarded = GuardedEgress.of(r.ctx()).orElseThrow(() -> ConnectorException.unavailable(
           "This call has no network access of the gateway's egress guard.", null));
+      if (server.oauth() && r.authorization() == null && !server.signInOptional()) {
+        throw ConnectorException.unavailable(server.name() + " isn't signed in.", new McpServerRuntime.SignInRequired(
+            server.name() + " isn't signed in. Sign in to it in GateRook › Connectors › MCP servers."));
+      }
+      // A server whose sign-in is optional connects without one until the person signs in.
+      RequestCredentials cloud = r.credentials() == null ? null : r.credentials().open();
       http = new GatewayHttpTransport(url, guarded.client(), values, MAPPER, MAX_MESSAGE,
-          server.callTimeout().plusSeconds(5), server.name());
+          server.callTimeout().plusSeconds(5), server.name(), server.oauth() ? r.authorization() : null, cloud);
       transport = http;
     } else {
       prepare(workDir);
@@ -334,6 +362,11 @@ final class Session {
   }
 
   static ConnectorException translate(RuntimeException e, Duration budget, String what) {
+    McpServerRuntime.SignInRequired signIn = McpServerRuntime.SignInRequired.in(e);
+    if (signIn != null) {
+      // Nothing reached the server: the message says where to sign in.
+      return ConnectorException.unavailable(signIn.getMessage(), signIn);
+    }
     for (Throwable t = e; t != null; t = t.getCause()) {
       if (t instanceof Ended ended) {
         return ConnectorException.unavailable(ended.getMessage(), e);

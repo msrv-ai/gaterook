@@ -103,7 +103,7 @@ interface GroupView {
  * connection (an override can only be stricter). Bypass runs calls without approval. A
  * tool that changes data offers Approval, Bypass or Off, and its Read only stays NATIVELY
  * disabled (DESIGN.md §8: safety must not depend on a script). Tools of external MCP servers and plugins say who
- * declared their annotations; Read only for one of them needs a confirmation for that tool.
+ * declared their annotations; picking Read only for one of them opens a confirmation for that tool first.
  *
  * `variant="picker"` is Playground's tool picker: the same groups, the mode as a `gw-mode` chip, rows link to the tool
  * (`picked` says which row, so the page knows the connection too); the search also matches connection names, and
@@ -157,6 +157,7 @@ export class GwToolPolicyList {
   readonly modeChange = output<ToolModeChange>();
   readonly bulk = output<{ readonly connection: string | null; readonly mode: ToolMode }>();
   readonly overridesChange = output<ToolOverridesChange>();
+  /** "Allow read only" in the confirmation: the page confirms the tool, then sets it to Read only. */
   readonly confirmReadOnly = output<{ readonly toolKey: string; readonly connection: string | null; readonly definitionHash: string }>();
   readonly temporaryBypass = output<TemporaryBypassOpen>();
   /** Picker: a row's link was activated (before the router follows it): the tool and the connection of its group. */
@@ -196,7 +197,8 @@ export class GwToolPolicyList {
       const local = this.localModes();
       const rows: RowView[] = g.group.tools.map((t) => {
         const key = `${connection ?? 'core'}/${t.toolKey}`;
-        const tool = local[key] ? { ...t, mode: local[key] } : t;
+        // A Read only picked here on an external tool was allowed in its confirmation first: onMode takes it no other way.
+        const tool = local[key] ? { ...t, mode: local[key], readOnlyConfirmed: t.readOnlyConfirmed || local[key] === 'READ_ONLY' } : t;
         const fields = limitFields(g.type);
         return {
           tool,
@@ -296,9 +298,17 @@ export class GwToolPolicyList {
     this.modeFilter.set(pick.value as ModeFilter);
   }
 
-  protected onMode(g: GroupView, r: RowView, value: string): void {
+  /** `picked`: the radio of an option that may first ask for a confirmation (Read only). */
+  protected onMode(g: GroupView, r: RowView, value: string, picked?: HTMLInputElement): void {
     const mode = (Object.keys(MODE_VALUE) as ToolMode[]).find((m) => MODE_VALUE[m] === value);
     if (!mode || mode === r.tool.mode || r.note?.locked || (mode === 'BYPASS' && this.readOnly())) return;
+    if (mode === 'READ_ONLY' && r.note?.needsConfirmation) {
+      // The current mode keeps the check until "Allow read only"; closing the dialog returns the keyboard here.
+      const current = picked?.closest('fieldset')?.querySelector<HTMLInputElement>(`input[value="${MODE_VALUE[r.tool.mode]}"]`);
+      if (current) current.checked = true;
+      if (r.tool.definitionHash) this.askConfirm(g, r, picked ?? null);
+      return;
+    }
     this.localModes.update((m) => ({ ...m, [r.key]: mode }));
     this.modeChange.emit({ toolKey: r.tool.toolKey, connection: g.connection, mode, version: r.tool.version });
   }
@@ -383,7 +393,7 @@ export class GwToolPolicyList {
     this.overridesChange.emit({ toolKey: r.tool.toolKey, connection: g.connection, overrides: null, version: r.tool.version });
   }
 
-  protected askConfirm(g: GroupView, r: RowView, opener: HTMLElement): void {
+  private askConfirm(g: GroupView, r: RowView, opener: HTMLElement | null): void {
     this.acknowledged.set(false);
     this.confirming.set({ row: r, group: g });
     this.confirmDialog()?.openAfterRender(opener);
@@ -392,6 +402,8 @@ export class GwToolPolicyList {
   protected allow(): void {
     const c = this.confirming();
     if (!c || !this.acknowledged() || !c.row.tool.definitionHash) return;
+    // The picker shows Read only until the page's new groups answer it.
+    this.localModes.update((m) => ({ ...m, [c.row.key]: 'READ_ONLY' }));
     this.confirmReadOnly.emit({ toolKey: c.row.tool.toolKey, connection: c.group.connection, definitionHash: c.row.tool.definitionHash });
     this.confirmDialog()?.close('allow');
   }

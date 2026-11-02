@@ -9,6 +9,7 @@ import static org.mockito.Mockito.spy;
 
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
+import ai.msrv.gaterook.core.approvals.ApprovalService;
 import ai.msrv.gaterook.core.connections.ConnectionService;
 import ai.msrv.gaterook.core.endpoints.EndpointConnections;
 import ai.msrv.gaterook.core.endpoints.EndpointService;
@@ -28,14 +29,20 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 
 /** Timed grants remain scoped, signed, persistent, and subject to policy and exact expiry. */
 class TemporaryBypassIT {
@@ -236,6 +243,91 @@ class TemporaryBypassIT {
         + "and status = 'pending'", Integer.class)).isEqualTo(1);
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void uiClientsGetTheBypassDeadlineAsTextWithoutAnApprovalCard(boolean modern) {
+    String slug = "bypass-text-" + modern;
+    create(slug, Env.DEV);
+    McpClient client = client(slug);
+    initializeUi(client);
+    var query = endpoints.snapshot(slug).pairs().stream().filter(p -> p.toolKey().equals("sql_query"))
+        .findFirst().orElseThrow();
+    var queryArgs = args("connection", connection(slug), "sql", "SELECT 1");
+    var before = uiCall(client, "sql_query", queryArgs, modern).result();
+    tools.setTemporaryBypass(slug, "sql_query", connection(slug), 30, query.rowVersion(), "Temporary reads");
+    grant(slug, 30);
+
+    for (String name : List.of("sql_query", "sql_execute")) {
+      var arguments = name.equals("sql_query") ? queryArgs
+          : args("connection", connection(slug), "sql", "UPDATE orders SET status = 'ready' WHERE id = 9");
+      var result = uiCall(client, name, arguments, modern).result();
+      SpecSchemas.assertValid(modern ? McpClient.MODERN : "2025-11-25", "CallToolResult", result);
+      assertThat(result.path("isError").asBoolean()).isFalse();
+      assertThat(result.path("content").toString()).contains("Temporary bypass is enabled until "
+          + deadline(30), "for " + name + " on " + connection(slug), "do not show an approval card");
+      assertThat(result.toString()).doesNotContain("Show approval_card", "gaterook.approval-card", "approvalUrl",
+          "input_required", "resourceUri");
+      assertThat(result.at("/structuredContent/handle").isMissingNode()).isTrue();
+      if (name.equals("sql_query")) {
+        assertThat(result.path("structuredContent")).isEqualTo(before.path("structuredContent"));
+      }
+    }
+    assertThat(core.jdbc().queryForObject("select count(*) from approval where endpoint_slug = ?",
+        Integer.class, slug)).isZero();
+
+    var unchanged = uiCall(client, "sql_execute", args("connection", connection(slug), "sql", "UPDATE no_change"),
+        modern).result();
+    assertThat(unchanged.path("content").toString()).contains("nothing to change", deadline(30));
+    var refused = uiCall(client, "sql_execute", args("connection", connection(slug), "sql", "UPDATE leak_payload"),
+        modern).result();
+    assertThat(refused.path("isError").asBoolean()).isTrue();
+    assertThat(refused.toString()).doesNotContain("Temporary bypass is enabled until");
+  }
+
+  @Test
+  void completingAnExistingApprovalReportsOnlyTheCurrentScopedBypass() {
+    String slug = "bypass-after-approval";
+    create(slug, Env.DEV);
+    McpClient client = client(slug);
+    initializeUi(client);
+    String handle = client.legacyCall("sql_execute", args("connection", connection(slug), "sql",
+        "UPDATE orders SET status = 'ready' WHERE id = 10")).result().at("/structuredContent/handle").asString();
+    assertThat(handle).matches("ap_[a-z0-9]{12}");
+    grant(slug, 15);
+    var pending = client.legacyCall("approval_status", args("handle", handle)).result();
+    assertThat(pending.at("/structuredContent/status").asString()).isEqualTo("pending");
+    assertThat(pending.toString()).doesNotContain("Temporary bypass is enabled until");
+
+    ApprovalService approvals = core.bean(ApprovalService.class);
+    approvals.decide(handle, ApprovalService.Decision.APPROVE, "app", null,
+        approvals.find(handle).orElseThrow().digest());
+    TestCore.await(() -> approvals.find(handle).orElseThrow().terminal(), "the original approval to complete");
+    var completed = client.legacyCall("approval_status", args("handle", handle)).result();
+    assertThat(completed.at("/structuredContent/status").asString()).isEqualTo("completed");
+    assertThat(completed.path("content").toString()).contains("Temporary bypass is enabled until " + deadline(15),
+        "do not show an approval card");
+    assertThat(completed.toString()).doesNotContain("Show approval_card", "resourceUri");
+
+    CLOCK.now = NOW.plus(Duration.ofMinutes(15));
+    assertThat(client.legacyCall("approval_status", args("handle", handle)).result().toString())
+        .doesNotContain("Temporary bypass is enabled until");
+    grant(slug, 30);
+    assertThat(client.legacyCall("approval_status", args("handle", handle)).result().path("content").toString())
+        .contains(deadline(45));
+    tools.revokeTemporaryBypass(slug, "sql_execute", connection(slug), pair(slug).rowVersion(), "End bypass");
+
+    // A grant on another connection or endpoint must not describe this completed request as bypassed.
+    create("bypass-elsewhere", Env.DEV);
+    grant("bypass-elsewhere", 30);
+    core.bean(EndpointConnections.class).add(slug, connection("bypass-elsewhere"), null);
+    var other = endpoints.snapshot(slug).pairs().stream().filter(p -> p.toolKey().equals("sql_execute")
+        && p.connectionName().equals(connection("bypass-elsewhere"))).findFirst().orElseThrow();
+    tools.setTemporaryBypass(slug, other.toolKey(), other.connectionName(), 30, other.rowVersion(), "Other scope");
+    assertThat(client.legacyCall("approval_status", args("handle", handle)).result().toString())
+        .doesNotContain("Temporary bypass is enabled until");
+    assertThat(FakeConnectors.EXECUTIONS.stream().filter(e -> handle.equals(e.approvalId())).count()).isEqualTo(1);
+  }
+
   @Test
   void changingAnUnsignedGrantBlocksTheEndpointAndCannotBeResignedByRevocation() {
     create("tampered-grant", Env.DEV);
@@ -360,6 +452,38 @@ class TemporaryBypassIT {
   private static McpClient client(String slug) {
     return new McpClient(core.bean(LocalListener.class).port(), slug,
         core.bean(TokenService.class).issue(slug, "temporary-test", 7, null).token());
+  }
+
+  private static String deadline(int minutes) {
+    return NOW.plus(Duration.ofMinutes(minutes)).truncatedTo(ChronoUnit.SECONDS).atZone(ZoneId.systemDefault())
+        .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+  }
+
+  private static ObjectNode uiCapabilities() {
+    ObjectNode capabilities = JsonNodeFactory.instance.objectNode();
+    capabilities.putObject("extensions").putObject("io.modelcontextprotocol/ui").putArray("mimeTypes")
+        .add("text/html;profile=mcp-app");
+    return capabilities;
+  }
+
+  private static void initializeUi(McpClient client) {
+    ObjectNode params = args("protocolVersion", "2025-11-25");
+    params.set("capabilities", uiCapabilities());
+    params.putObject("clientInfo").put("name", "bypass-text-test").put("version", "1.0");
+    var result = client.legacy("initialize", params).result();
+    assertThat(result.path("instructions").asString()).contains("Only when a tool returns a pending approval",
+        "Do not show a card for completed requests", "report its expiry as text");
+  }
+
+  private static McpClient.Answer uiCall(McpClient client, String tool, ObjectNode arguments, boolean modern) {
+    if (!modern) return client.legacyCall(tool, arguments);
+    ObjectNode params = args("name", tool);
+    params.set("arguments", arguments);
+    ObjectNode meta = params.putObject("_meta");
+    meta.put("io.modelcontextprotocol/protocolVersion", McpClient.MODERN);
+    meta.set("io.modelcontextprotocol/clientCapabilities", uiCapabilities());
+    return client.post(client.request("tools/call", params).toString(), Map.of(
+        "MCP-Protocol-Version", McpClient.MODERN, "Mcp-Method", "tools/call", "Mcp-Name", tool));
   }
 
   private static final class MutableClock extends Clock {

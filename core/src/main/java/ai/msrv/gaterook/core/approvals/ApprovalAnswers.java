@@ -1,7 +1,9 @@
 package ai.msrv.gaterook.core.approvals;
 
 import ai.msrv.gaterook.connector.api.ActionPreview;
+import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.connector.api.ToolResult;
+import ai.msrv.gaterook.core.endpoints.EndpointSnapshotService;
 import ai.msrv.gaterook.core.platform.CanonicalJson;
 import ai.msrv.gaterook.core.platform.LocalListener;
 import ai.msrv.gaterook.core.platform.MaskPolicy;
@@ -55,11 +57,14 @@ public class ApprovalAnswers {
   private final LocalListener listener;
   private final Masker masker;
   private final PolicyService policies;
+  private final EndpointSnapshotService snapshots;
 
-  public ApprovalAnswers(LocalListener listener, Masker masker, PolicyService policies) {
+  public ApprovalAnswers(LocalListener listener, Masker masker, PolicyService policies,
+      EndpointSnapshotService snapshots) {
     this.listener = listener;
     this.masker = masker;
     this.policies = policies;
+    this.snapshots = snapshots;
   }
 
   /**
@@ -163,8 +168,9 @@ public class ApprovalAnswers {
     String head = "Approved by you" + via(a) + " and executed on " + a.connectionName() + " (" + a.env().id() + ")";
     if (a.result() == null) {
       s.put("resultExpired", true);
-      return ToolResult.json(s, head + ". The result is no longer stored (it is kept 60 minutes); see Activity in "
-          + "GateRook.");
+      return withTemporaryBypassNotice(ToolResult.json(s, head
+          + ". The result is no longer stored (it is kept 60 minutes); see Activity in GateRook."),
+          a.endpointId(), a.toolKey(), a.connectionId());
     }
     if (a.result().structuredContent() != null) {
       s.set("result", a.result().structuredContent());
@@ -182,7 +188,26 @@ public class ApprovalAnswers {
     content.addAll(rest);
     ToolResult r = new ToolResult(List.copyOf(content), s, false, null, a.result().truncated(),
         a.result().truncatedReason(), List.of(), a.result().maskedCount(), a.result().resultBytes(), null);
-    return r;
+    return withTemporaryBypassNotice(r, a.endpointId(), a.toolKey(), a.connectionId());
+  }
+
+  /** Presentation only: use current scope and expiry without changing the result schema or any approval. */
+  public ToolResult withTemporaryBypassNotice(ToolResult result, String endpointId, String toolKey,
+      String connectionId) {
+    if (result.isError() || toolKey == null || connectionId == null) return result;
+    return snapshots.get(endpointId).filter(s -> s.enabled() && !s.blocked())
+        .flatMap(s -> s.onPairs().stream().filter(p -> toolKey.equals(p.toolKey())
+            && connectionId.equals(p.config().id()) && p.mode() == Mode.BYPASS && p.bypassUntil() != null)
+            .findFirst())
+        .map(p -> {
+          List<ToolResult.Content> content = new ArrayList<>(result.content());
+          content.add(ToolResult.Content.text("Temporary bypass is enabled until " + time(p.bypassUntil())
+              + " for " + p.tool().name() + " on " + p.connectionName()
+              + ". Report this as text; do not show an approval card."));
+          return new ToolResult(List.copyOf(content), result.structuredContent(), result.isError(), result.table(),
+              result.truncated(), result.truncatedReason(), result.maskPaths(), result.maskedCount(),
+              result.resultBytes(), result.meta());
+        }).orElse(result);
   }
 
   private ToolResult refused(ApprovalView a) {

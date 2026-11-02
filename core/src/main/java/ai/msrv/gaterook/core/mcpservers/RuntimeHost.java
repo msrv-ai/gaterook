@@ -24,8 +24,9 @@ import tools.jackson.databind.node.ObjectNode;
  * (into the snapshot), state changes (SSE {@code mcp-server.state}) and starts of servers set to start with the core.
  * It attaches once every singleton exists; the runtime does nothing slow there (warm start ≤ 0.5 s).
  *
- * <p>It also takes part in the deletion of a connection: the snapshot row goes in the deletion's transaction, the
- * process stops after it (the type's connector hears {@code onConnectionRemoved}).
+ * <p>It also takes part in the deletion of a connection: the snapshot row and the sign-in go in the deletion's
+ * transaction, the process stops after it (the type's connector hears {@code onConnectionRemoved}) and the sign-in's
+ * tokens are revoked where the server allows it.
  */
 @Component
 @Order(50)
@@ -39,10 +40,12 @@ class RuntimeHost implements McpServerRuntime.Host, SmartInitializingSingleton, 
   private final McpServerRepository repository;
   private final McpServerSource source;
   private final EventBus events;
+  private final ObjectProvider<McpServerSignIns> signIns;
 
   RuntimeHost(ObjectProvider<McpServerRuntime> runtime, GatewayPaths paths, ObjectProvider<ConnectorRegistry> registry,
       ObjectProvider<McpServerService> service, ObjectProvider<ConnectionConfigs> configs,
-      McpServerRepository repository, McpServerSource source, EventBus events) {
+      McpServerRepository repository, McpServerSource source, EventBus events,
+      ObjectProvider<McpServerSignIns> signIns) {
     this.runtime = runtime;
     this.paths = paths;
     this.registry = registry;
@@ -51,6 +54,7 @@ class RuntimeHost implements McpServerRuntime.Host, SmartInitializingSingleton, 
     this.repository = repository;
     this.source = source;
     this.events = events;
+    this.signIns = signIns;
   }
 
   @Override
@@ -117,10 +121,16 @@ class RuntimeHost implements McpServerRuntime.Host, SmartInitializingSingleton, 
   }
 
   @Override
+  public Optional<McpServerRuntime.Authorization> authorization(String connectionId) {
+    return signIns.getObject().authorization(connectionId);
+  }
+
+  @Override
   public Removal onRemoving(String connectionId, String connectionName, String reason) {
     repository.findByConnectionId(connectionId).ifPresent(repository::delete);
     repository.flush();
     source.forget(connectionId);
+    signIns.getObject().removing(connectionId);
     return Removal.none();
   }
 }

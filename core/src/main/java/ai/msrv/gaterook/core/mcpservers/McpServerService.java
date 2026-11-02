@@ -7,6 +7,7 @@ import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.SecretResolver;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
+import ai.msrv.gaterook.connectors.cloudauth.AwsSigV4;
 import ai.msrv.gaterook.connectors.support.egress.EgressDenial;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
 import ai.msrv.gaterook.core.connections.ConnectionConfigs;
@@ -86,14 +87,37 @@ public class McpServerService {
   public record ToolView(String name, String original, String title, String description, String nature,
       JsonNode annotations, String declaredBy, JsonNode inputSchema) {}
 
-  /** What will run, before it runs. */
-  public record ReviewView(McpServerRuntime.Review review, String name, String catalogEntry, String protocol) {}
+  /**
+   * What will run, before it runs; over HTTP also how the server wants clients to sign in ({@code auth}, from an
+   * unauthenticated look at it), {@code null} for a command.
+   */
+  public record ReviewView(McpServerRuntime.Review review, String name, String catalogEntry, String protocol,
+      McpServerSignIns.AuthView auth) {}
 
   /**
    * A server to review or add: a config as the Add MCP server form sends it (with {@code name}) and the values of its
    * new secrets by JSON pointer ({@code /env/0/secretRef}), or a catalog entry ({@code github-mcp@0.6.2}).
+   *
+   * @param signIn the finished sign-in of a server with {@code auth.type: "oauth"} ({@code POST …/sign-ins}), to add it
    */
-  public record Source(JsonNode config, Map<String, SecretInput> secrets, String catalog, String env) {}
+  public record Source(JsonNode config, Map<String, SecretInput> secrets, String catalog, String env, String signIn) {
+
+    public Source(JsonNode config, Map<String, SecretInput> secrets, String catalog, String env) {
+      this(config, secrets, catalog, env, null);
+    }
+  }
+
+  /** The secret field of an OAuth app's client secret ({@code auth.clientSecret} of an HTTP server). */
+  static final String CLIENT_SECRET = "/auth/clientSecret";
+  /** The secret field of a Google service account key ({@code auth.credentials} of a server on Google Cloud, §7.6). */
+  static final String SERVICE_ACCOUNT_KEY = "/auth/credentials/serviceAccountKey";
+  /** The secret field of an AWS secret access key ({@code auth.credentials} of a server on AWS, §7.6). */
+  static final String SECRET_ACCESS_KEY = "/auth/credentials/secretAccessKey";
+
+  /** What the review says about a URL that carries a key. */
+  static final String KEY_IN_URL = "The URL carries a key. GateRook stores it with the server's settings, not as an "
+      + "encrypted secret, and the provider or a proxy may log it. If the server accepts the key in a header, add that "
+      + "header instead.";
 
   private final McpServerRepository repository;
   private final McpServerRows rows;
@@ -110,6 +134,7 @@ public class McpServerService {
   private final IntegrityAlerts alerts;
   private final Masker masker;
   private final ObjectProvider<SetupChangeRecorder> setupChanges;
+  private final McpServerSignIns signIns;
   private final JsonMapper json;
   private final Clock clock;
   private final TransactionTemplate writeTx;
@@ -118,8 +143,8 @@ public class McpServerService {
       ObjectProvider<McpServerRuntime> runtime, ObjectProvider<McpServerCatalog> catalog,
       ConnectionService connections, ConnectionConfigs configs, ConnectionTester tester, SecretService secrets,
       CallContexts contexts, EnvironmentPolicies policies, ConnectorRegistry registry, IntegrityAlerts alerts,
-      Masker masker, ObjectProvider<SetupChangeRecorder> setupChanges, JsonMapper json, Clock clock,
-      PlatformTransactionManager transactions) {
+      Masker masker, ObjectProvider<SetupChangeRecorder> setupChanges, McpServerSignIns signIns, JsonMapper json,
+      Clock clock, PlatformTransactionManager transactions) {
     this.repository = repository;
     this.rows = rows;
     this.source = source;
@@ -135,6 +160,7 @@ public class McpServerService {
     this.alerts = alerts;
     this.masker = masker;
     this.setupChanges = setupChanges;
+    this.signIns = signIns;
     this.json = json;
     this.clock = clock;
     this.writeTx = new TransactionTemplate(transactions);
@@ -142,11 +168,136 @@ public class McpServerService {
 
   // ── Review and add ──────────────────────────────────────────────────────────────────────────────────────────
 
-  /** {@code POST /api/mcp-servers/review}: the command as it will run, its variables, sandbox and warnings. */
+  /**
+   * {@code POST /api/mcp-servers/review}: the command as it will run, its variables, sandbox and warnings; over HTTP
+   * also how the server wants clients to sign in, from one unauthenticated request to it.
+   */
   public ReviewView review(Source request) {
     Draft d = draft(request, false);
     McpServerRuntime.Review r = requireRuntime().review(d.cfg());
-    return new ReviewView(r, d.cfg().name(), d.catalogEntry(), null);
+    McpServerSignIns.AuthView auth = null;
+    if ("http".equals(d.config().path("transport").asString(null))) {
+      try {
+        auth = signIns.discover(d.cfg(), httpUrl(d.config()));
+      } catch (ProblemException e) {
+        auth = new McpServerSignIns.AuthView("unknown", null, null, null, null, null, e.getMessage());
+      }
+      r = withoutUrlKey(r);
+    }
+    return new ReviewView(r, d.cfg().name(), d.catalogEntry(), null, auth);
+  }
+
+  /**
+   * A review whose URL carries a key, as some servers take it ({@code https://mcp.example.com/<key>/mcp},
+   * {@code ?apiKey=…}): the URL shown without it, and a warning. The person may still add the server.
+   */
+  private McpServerRuntime.Review withoutUrlKey(McpServerRuntime.Review r) {
+    String shown = r.url() == null ? null : masker.url(r.url());
+    if (shown == null || shown.equals(r.url())) {
+      return r;
+    }
+    List<String> warnings = new ArrayList<>(r.warnings());
+    warnings.add(KEY_IN_URL);
+    return new McpServerRuntime.Review(r.transport(), r.argv(), r.resolvedCommand(), r.node(), shown, r.variables(),
+        r.inherited(), r.notPinned(), r.sandbox(), r.workDir(), r.log(), warnings);
+  }
+
+  /**
+   * {@code POST /api/mcp-servers/sign-ins}: a sign-in to a server before it is added, with the settings of the review
+   * ({@code auth.type: "oauth"}); its client secret, if the person's OAuth app has one, at {@code /auth/clientSecret}.
+   */
+  public McpServerSignIns.SignInView signIn(Source request) {
+    try {
+      Draft d = draft(request, false);
+      if (!McpServerSignIns.oauth(d.cfg())) {
+        throw ProblemException.unprocessable("No sign-in", "Only a server over HTTP set to sign in with OAuth signs "
+            + "in.", "/config/auth");
+      }
+      char[] secret = null;
+      SecretInput given = request.secrets() == null ? null : request.secrets().get(CLIENT_SECRET);
+      if (given != null && given.isLocal()) {
+        secret = given.value().clone();
+      }
+      return signIns.start(new McpServerSignIns.Target(d.cfg(), null, d.cfg().name(), httpUrl(d.config()),
+          d.config().path("auth"), secret));
+    } finally {
+      clearSecrets(request);
+    }
+  }
+
+  /** {@code GET …/sign-ins/{id}}. */
+  public McpServerSignIns.SignInView signInState(String id) {
+    return signIns.view(id);
+  }
+
+  /** {@code POST …/sign-ins/{id}/address}: the address the browser ended on, when it couldn't come back. */
+  public McpServerSignIns.SignInView signInAddress(String id, String address) {
+    return signIns.paste(id, address);
+  }
+
+  /** {@code DELETE …/sign-ins/{id}}. */
+  public void cancelSignIn(String id) {
+    signIns.cancel(id);
+  }
+
+  /** The page Electron opens in the browser for the sign-in {@code id}. */
+  public String authorizationUrl(String id) {
+    return signIns.authorizationUrl(id);
+  }
+
+  /** {@code POST /api/mcp-servers/{name}/sign-in}: signs in to a stored server again (or for the first time). */
+  public McpServerSignIns.SignInView signIn(String name) {
+    Stored s = stored(name);
+    if (!McpServerSignIns.oauth(s.cfg())) {
+      throw ProblemException.unprocessable("No sign-in", name + " doesn't sign in with OAuth.", null);
+    }
+    char[] secret = null;
+    try (var resolver = secrets.resolver(s.cfg(), new Taint())) {
+      if (resolver.isSet(CLIENT_SECRET)) {
+        try (SecretResolver.Secret value = resolver.secret(CLIENT_SECRET)) {
+          secret = value.chars().clone();
+        }
+      }
+    } catch (ConnectorException e) {
+      throw ProblemException.unprocessable("Client secret unavailable", "The client secret of " + name + " can't be "
+          + "read: " + e.getMessage(), null);
+    }
+    return signIns.start(new McpServerSignIns.Target(s.cfg(), s.cfg().id(), name, httpUrl(s.cfg().config()),
+        s.cfg().config().path("auth"), secret));
+  }
+
+  /** {@code GET /api/mcp-servers/{name}/sign-in}. */
+  public McpServerSignIns.StatusView signInStatus(String name) {
+    return signIns.status(stored(name).cfg());
+  }
+
+  /** {@code POST /api/mcp-servers/{name}/sign-out}: the tokens are revoked where possible and forgotten. */
+  public McpServerSignIns.StatusView signOut(String name, String reason) {
+    Stored s = stored(name);
+    signIns.signOut(s.cfg(), reason);
+    return signIns.status(s.cfg());
+  }
+
+  private static java.net.URI httpUrl(JsonNode config) {
+    String url = config.path("url").asString(null);
+    if (url == null) {
+      throw ProblemException.unprocessable("URL missing", "Give the server's URL.", "/config/url");
+    }
+    try {
+      return java.net.URI.create(url);
+    } catch (IllegalArgumentException e) {
+      throw ProblemException.unprocessable("Invalid URL", "That isn't a URL.", "/config/url");
+    }
+  }
+
+  private static void clearSecrets(Source request) {
+    if (request.secrets() != null) {
+      request.secrets().values().forEach(v -> {
+        if (v != null) {
+          v.clear();
+        }
+      });
+    }
   }
 
   /**
@@ -175,8 +326,17 @@ public class McpServerService {
           throw ProblemException.unprocessable("Not installed", e.getMessage(), "/catalog");
         }
       }
-      McpServerRuntime.Handshake h = probe(d, request.secrets());
-      return store(d, h, request.secrets(), reason);
+      McpServerSignIns.DraftSignIn signIn = null;
+      if (McpServerSignIns.oauth(d.cfg())) {
+        if (request.signIn() != null && !request.signIn().isBlank()) {
+          signIn = signIns.take(request.signIn(), d.cfg());
+        } else if (!McpServerSignIns.optional(d.cfg())) {
+          throw ProblemException.unprocessable("Sign in first", "Sign in to " + d.cfg().name() + " in your browser "
+              + "before it connects.", "/signIn");
+        }
+      }
+      McpServerRuntime.Handshake h = probe(d, request.secrets(), signIn);
+      return store(d, h, request.secrets(), reason, signIn);
     } finally {
       if (request.secrets() != null) {
         request.secrets().values().forEach(s -> {
@@ -234,7 +394,9 @@ public class McpServerService {
       throw ProblemException.unprocessable("Invalid name", "Use lower-case letters, digits and hyphens, like "
           + "github-mcp.", "/config/name");
     }
-    String prefix = config.path("toolPrefix").isString() ? config.path("toolPrefix").asString() : defaultPrefix(name);
+    String prefix = config.path("toolPrefix").isString() ? config.path("toolPrefix").asString()
+        : freePrefix(name, p -> registry.reservedPrefixes().contains(p)
+            || pluginWithNamespace(registry.types(), p).isPresent() || repository.findByToolPrefix(p).isPresent());
     if (!PREFIX.matcher(prefix).matches()) {
       throw ProblemException.unprocessable("Invalid prefix", "A tool prefix is a lower-case letter, up to 14 letters "
           + "or digits and an underscore, like github_.", "/config/toolPrefix");
@@ -282,11 +444,115 @@ public class McpServerService {
             + plugin.get() + ". Choose another prefix.");
       }
     }
+    if (config.path("auth") instanceof ObjectNode auth) {
+      if (!"http".equals(transport)) {
+        throw ProblemException.unprocessable("Sign-in over HTTP only", "A command on this computer gets its keys as "
+            + "variables; only a server at a URL signs in.", "/config/auth");
+      }
+      // The client secret of the person's OAuth app is a secret of the server, given beside the config.
+      auth.remove("clientSecret");
+      if (given.containsKey(CLIENT_SECRET)) {
+        fields.add(CLIENT_SECRET);
+        checked.add(CLIENT_SECRET);
+      }
+      String type = auth.path("type").asString(null);
+      String way = switch (type == null ? "" : type) {
+        case "oauth" -> "The OAuth sign-in sends";
+        case "google" -> "Google Cloud credentials send";
+        case "aws" -> "AWS credentials send";
+        default -> null;
+      };
+      if (way != null) {
+        for (JsonNode h : config.path("headers")) {
+          if ("authorization".equalsIgnoreCase(h.path("name").asString(""))) {
+            throw ProblemException.unprocessable("Two sign-ins", way + " the Authorization header. Remove the "
+                + "Authorization header, or sign in another way.", "/config/headers");
+          }
+        }
+      }
+      if ("google".equals(type) || "aws".equals(type)) {
+        cloudCredentials(type, auth, config, given, forCreate, fields, checked);
+      } else if (auth.has("credentials") || auth.has("service") || auth.has("region")) {
+        throw ProblemException.unprocessable("Credentials for a cloud sign-in", "Cloud credentials, a service and a "
+            + "region belong to a server that signs in with Google Cloud or AWS credentials.", "/config/auth");
+      }
+    }
     // Checked as the connection will be: the type's schema, the env's locks.
     connections.validate(registry.requireManifest(TYPE), config, forCreate ? fields : checked, env);
     ConnectionConfig cfg = new ConnectionConfig("draft-" + Ids.uuid(), name, TYPE, env, 0, config.deepCopy(),
         Set.copyOf(fields), null);
     return new Draft(cfg, config, prefix, entry, entry == null ? null : entry.ref(), null);
+  }
+
+  /**
+   * Checks the cloud credentials of a server that signs in with them (§7.6): where they come from, the key that is a
+   * secret of the server ({@link #SERVICE_ACCOUNT_KEY}, {@link #SECRET_ACCESS_KEY}) and, for AWS, the service and
+   * region a request is signed for. The key is given beside the config, never in it.
+   */
+  private static void cloudCredentials(String type, ObjectNode auth, ObjectNode config, Map<String, SecretInput> given,
+      boolean forCreate, Set<String> fields, Set<String> checked) {
+    boolean google = "google".equals(type);
+    if (!(auth.path("credentials") instanceof ObjectNode credentials)) {
+      throw ProblemException.unprocessable("Credentials missing", "Choose where GateRook takes the "
+          + (google ? "Google Cloud" : "AWS") + " credentials from.", "/config/auth/credentials");
+    }
+    credentials.remove(google ? "serviceAccountKey" : "secretAccessKey");
+    String source = credentials.path("source").asString(google ? "adc" : "profile");
+    if (google ? !List.of("adc", "serviceAccountKey").contains(source) : !List.of("profile", "accessKey")
+        .contains(source)) {
+      throw ProblemException.unprocessable("Check the credentials", source + " isn't where " + (google
+          ? "Google Cloud credentials come from: use Google sign-in on this computer or a service account key."
+          : "AWS credentials come from: use a profile on this computer or an access key."), "/config/auth/credentials");
+    }
+    credentials.put("source", source);
+    String field = google ? SERVICE_ACCOUNT_KEY : SECRET_ACCESS_KEY;
+    if (source.equals(google ? "serviceAccountKey" : "accessKey")) {
+      checked.add(field);
+      if (given.containsKey(field)) {
+        fields.add(field);
+      } else if (forCreate) {
+        throw ProblemException.unprocessable("Secret missing", (google ? "Enter the service account key (JSON)."
+            : "Enter the secret access key.") + " GateRook stores it as a secret of this server.", "/secrets");
+      }
+    }
+    try {
+      if (google) {
+        ai.msrv.gaterook.connectors.cloudauth.GcpSpec.fromConfig(config, "/auth/credentials");
+      } else {
+        java.net.URI url = httpUrl(config);
+        AwsSigV4.Target target = AwsSigV4.target(auth.path("service").asString(null),
+            auth.path("region").asString(null), url.getHost()).orElseThrow(() -> ProblemException.unprocessable(
+                "Service and region missing", url.getHost() + " doesn't name an AWS service and region. Enter them "
+                    + "in Sign-in options, such as aws-mcp and us-east-1.", "/config/auth/service"));
+        ai.msrv.gaterook.connectors.cloudauth.AwsSpec.fromConfig(config, "/auth/credentials", target.region());
+      }
+    } catch (IllegalArgumentException e) {
+      throw ProblemException.unprocessable("Check the credentials", e.getMessage(), "/config/auth/credentials");
+    }
+  }
+
+  /**
+   * The prefix of a server the person didn't give one: from its name ({@code github-mcp} → {@code github_}), else its
+   * whole name when that one is taken ({@code aws-mcp} → {@code awsmcp_}: {@code aws_} is GateRook's own family), else
+   * that with a digit. The first one when every candidate is taken: adding then says by whom.
+   *
+   * @param taken whether a prefix is a built-in family, a plugin's namespace or another server's prefix
+   */
+  static String freePrefix(String name, java.util.function.Predicate<String> taken) {
+    String first = defaultPrefix(name);
+    String whole = name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+    String base = whole.isEmpty() || !Character.isLetter(whole.charAt(0)) ? first.substring(0, first.length() - 1)
+        : whole.length() > 15 ? whole.substring(0, 15) : whole;
+    List<String> candidates = new ArrayList<>(List.of(first, base + "_"));
+    for (int i = 2; i <= 9; i++) {
+      candidates.add((base.length() > 14 ? base.substring(0, 14) : base) + i + "_");
+    }
+    for (String c : candidates) {
+      if (PREFIX.matcher(c).matches() && !taken.test(c)) {
+        return c;
+      }
+    }
+    return first;
   }
 
   /** What a draft runs as: its throw-away connection, the stored config, the prefix, the catalog entry. */
@@ -300,9 +566,13 @@ public class McpServerService {
     }
   }
 
-  /** Starts the draft once with the typed values and stops it again. */
-  private McpServerRuntime.Handshake probe(Draft d, Map<String, SecretInput> given) {
+  /** Starts the draft once with the typed values (and its sign-in, if any) and stops it again. */
+  private McpServerRuntime.Handshake probe(Draft d, Map<String, SecretInput> given,
+      McpServerRuntime.Authorization signIn) {
     Taint taint = new Taint();
+    if (signIn != null) {
+      signIn.secrets().forEach(taint::add);
+    }
     Map<String, char[]> values = new HashMap<>();
     Map<String, SecretService.DraftReference> references = new HashMap<>();
     if (given != null) {
@@ -323,7 +593,7 @@ public class McpServerService {
         .taint(taint).build();
     SecretResolver fallback = references.isEmpty() ? null : secrets.draftResolver(cfg, references, taint);
     try (TypedSecrets resolver = new TypedSecrets(values, fallback, taint)) {
-      return requireRuntime().probe(cfg, resolver, ctx);
+      return requireRuntime().probe(cfg, resolver, ctx, signIn);
     } catch (ConnectorException e) {
       EgressDenial denial = EgressDenial.find(e);
       if (denial != null && denial.verdict().suggestedRange().isPresent()) {
@@ -340,7 +610,8 @@ public class McpServerService {
     }
   }
 
-  private Started store(Draft d, McpServerRuntime.Handshake h, Map<String, SecretInput> given, String reason) {
+  private Started store(Draft d, McpServerRuntime.Handshake h, Map<String, SecretInput> given, String reason,
+      McpServerSignIns.DraftSignIn signIn) {
     List<Map<String, Object>> tools = toolMaps(h.tools());
     String sha = CanonicalJson.sha256Hex(rows.tree(tools));
     String id = writeTx.execute(s -> {
@@ -355,10 +626,15 @@ public class McpServerService {
       row = repository.saveAndFlush(row);
       rows.sign(row);
       connections.recordMetadata(created.id(), metadata(h, sha));
+      if (signIn != null) {
+        // The tokens of the person's sign-in become the server's encrypted secret, renewed in place from now on.
+        signIns.store(created.id(), d.cfg().name(), signIn.bundle());
+      }
       setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.MCP_SERVER,
           "MCP server " + d.cfg().name() + " added", null, h.tools().size() + " tools · " + version(h)
-              + (d.catalogEntry() == null ? "" : " · " + d.catalogEntry()), reason, d.cfg().env(), null,
-          d.cfg().name(), details(h)));
+              + (d.catalogEntry() == null ? "" : " · " + d.catalogEntry())
+              + (signIn == null ? "" : " · signed in with " + signInHost(signIn.issuer())), reason, d.cfg().env(),
+          null, d.cfg().name(), details(h)));
       return created.id();
     });
     source.forget(id);
@@ -396,7 +672,7 @@ public class McpServerService {
       ConnectionConfig cfg = new ConnectionConfig("draft-" + Ids.uuid(), name, TYPE, env, 0, stored.deepCopy(),
           Set.copyOf(values.keySet()), null);
       Draft d = new Draft(cfg, stored, prefix, null, stored.path("catalogEntry").asString(null), npmIntegrity);
-      return store(d, handshake, values, reason);
+      return store(d, handshake, values, reason, null);
     } finally {
       values.values().forEach(v -> {
         if (v != null) {
@@ -733,6 +1009,15 @@ public class McpServerService {
       base = "mcp" + base;
     }
     return (base.length() > 15 ? base.substring(0, 15) : base) + "_";
+  }
+
+  private static String signInHost(String issuer) {
+    try {
+      String host = java.net.URI.create(issuer).getHost();
+      return host == null ? issuer : host;
+    } catch (IllegalArgumentException e) {
+      return issuer;
+    }
   }
 
   private static Env env(String id) {

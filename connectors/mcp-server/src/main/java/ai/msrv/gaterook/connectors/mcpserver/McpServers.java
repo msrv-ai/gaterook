@@ -6,6 +6,9 @@ import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connectors.cloudauth.AwsSpec;
+import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
+import ai.msrv.gaterook.connectors.cloudauth.CloudEndpoints;
 import ai.msrv.gaterook.connectors.support.egress.GuardedEgress;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
 import io.modelcontextprotocol.spec.McpSchema;
@@ -42,6 +45,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
   private final Clock clock;
   private final Duration tick;
   private final ConnectorManifest type;
+  private final CloudCredentials cloud;
   private final Map<String, Supervisor> supervisors = new ConcurrentHashMap<>();
   private final Map<String, ServerLog> logs = new ConcurrentHashMap<>();
   private final java.util.Set<Thread> closingSessions = ConcurrentHashMap.newKeySet();
@@ -59,12 +63,19 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
    */
   public McpServers(Map<String, String> coreEnv, String osName, boolean loginShellPath, Clock clock, Duration tick,
       ConnectorManifest type) {
+    this(coreEnv, osName, loginShellPath, clock, tick, type, new CloudCredentials(CloudEndpoints.PRODUCTION, clock));
+  }
+
+  /** @param cloud the core's cloud credentials: a server's Google token or AWS signature comes from them */
+  public McpServers(Map<String, String> coreEnv, String osName, boolean loginShellPath, Clock clock, Duration tick,
+      ConnectorManifest type, CloudCredentials cloud) {
     this.coreEnv = Map.copyOf(coreEnv);
     this.osName = osName;
     this.loginShellPath = loginShellPath;
     this.clock = clock;
     this.tick = tick;
     this.type = type;
+    this.cloud = Objects.requireNonNull(cloud, "cloud");
   }
 
   @Override
@@ -104,6 +115,9 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
       if (server.url() != null && server.url().toLowerCase(Locale.ROOT).startsWith("http://")) {
         warnings.add("Plain HTTP to this computer: any program here can answer on that port.");
       }
+      if (server.aws()) {
+        warnings.addAll(profileWarnings(cfg));
+      }
       return new Review(ServerConfig.HTTP, List.of(), null, null, server.url(), variables, List.of(), false, null,
           null, logFile(cfg.name()).toString(), warnings);
     }
@@ -139,15 +153,22 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
   }
 
   @Override
-  public Handshake probe(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) throws ConnectorException {
+  public Handshake probe(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Authorization authorization)
+      throws ConnectorException {
     ServerConfig server = ServerConfig.of(cfg);
-    Session.Request request = new Session.Request(cfg, server, server.toolPrefix(), null, secrets, ctx);
-    Session s = Session.open(request, workDir(cfg.name()), launcher(), log(cfg.name()), pids(), now(), x -> {},
-        x -> {});
+    Session.Request request = new Session.Request(cfg, server, server.toolPrefix(), null, secrets, ctx,
+        authorization, credentials(cfg, server, secrets, ctx));
     try {
-      return handshake(request, s, s.tools);
+      Session s = Session.open(request, workDir(cfg.name()), launcher(), log(cfg.name()), pids(), now(), x -> {},
+          x -> {});
+      try {
+        return handshake(request, s, s.tools);
+      } finally {
+        s.close(pids());
+      }
     } finally {
-      s.close(pids());
+      // A draft's credentials never serve a call: the stored server gets its own.
+      cloud.evict(cfg.id());
     }
   }
 
@@ -156,7 +177,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
       boolean restart) throws ConnectorException {
     Session s = session(cfg, snapshot, secrets, ctx, restart, Supervisor.Why.PERSON);
     Session.Request request = new Session.Request(cfg, ServerConfig.of(cfg), snapshot.toolPrefix(),
-        snapshot.npmIntegrity(), secrets, ctx);
+        snapshot.npmIntegrity(), secrets, ctx, s.http == null ? null : s.http.authorization());
     if (!s.announced.compareAndSet(false, true)) {
       // It ran already: Test and Start list its tools again.
       s.listTools(Session.min(Duration.ofSeconds(30), ctx.remaining()));
@@ -242,9 +263,9 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
     }
     ServerConfig server = ServerConfig.of(cfg);
     Session.Request request = new Session.Request(cfg, server, snapshot.toolPrefix(), snapshot.npmIntegrity(),
-        secrets, ctx);
+        secrets, ctx, server.oauth() ? authorization(cfg.id()) : null, credentials(cfg, server, secrets, ctx));
     String config = configFingerprint(server, snapshot.npmIntegrity());
-    String full = fingerprint(config, server, secrets, ctx);
+    String full = fingerprint(config, cfg, server, secrets, ctx);
     Duration budget = Session.min(server.startTimeout().plusSeconds(5), ctx.remaining());
     Session s = supervisor(cfg.id()).acquire(request, full, config, restart, why, budget);
     if (why == Supervisor.Why.CALL && s.announced.compareAndSet(false, true)) {
@@ -373,6 +394,41 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
 
   // ── Internals ───────────────────────────────────────────────────────────────────────────────────────────────
 
+  /** The core's sign-in of a stored server, or {@code null} when it keeps none (the start then says so). */
+  private Authorization authorization(String connectionId) {
+    Host h = host;
+    return h == null ? null : h.authorization(connectionId).orElse(null);
+  }
+
+  /**
+   * What opens the cloud credentials of a server that signs in with them (§7.6) when its session starts: a Google token
+   * or SigV4 from the server's own credentials; {@code null} for any other server.
+   */
+  private Session.Credentials credentials(ConnectionConfig cfg, ServerConfig server, SecretResolver secrets,
+      ExecContext ctx) {
+    if (server.google()) {
+      return () -> GoogleRequestCredentials.of(cloud, cfg, secrets, ctx::taint);
+    }
+    if (server.aws()) {
+      return () -> AwsRequestCredentials.of(cloud, cfg, Session.checkUrl(server.url()), secrets, ctx::taint, clock);
+    }
+    return null;
+  }
+
+  /** What the review says about an AWS profile: it runs a program, it doesn't exist, it uses SSO. */
+  private List<String> profileWarnings(ConnectionConfig cfg) {
+    ServerConfig server = ServerConfig.of(cfg);
+    try {
+      java.net.URI url = Session.checkUrl(server.url());
+      return AwsRequestCredentials.target(server.authSettings(), url)
+          .map(t -> cloud.profileWarnings(AwsSpec.fromConfig(cfg.config(), AwsRequestCredentials.POINTER, t.region())))
+          .orElse(List.of());
+    } catch (ConnectorException | IllegalArgumentException e) {
+      // The settings themselves are checked when the server is added.
+      return List.of();
+    }
+  }
+
   private Supervisor supervisor(String connectionId) {
     return supervisors.computeIfAbsent(connectionId, id -> new Supervisor(id, this));
   }
@@ -447,6 +503,8 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
     ArrayNode inherit = n.putArray("inherit");
     server.inheritEnv().forEach(inherit::add);
     n.put("npmIntegrity", npmIntegrity);
+    // Another client, scope or callback is another sign-in: a session made with the old one drains.
+    n.put("auth", server.auth());
     return Texts.sha256(n);
   }
 
@@ -455,24 +513,38 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
    * HTTP, the egress guard the session's client was made under: a private range the policy no longer allows must not
    * live on in an open session.
    */
-  private static String fingerprint(String config, ServerConfig server, SecretResolver secrets, ExecContext ctx) {
+  private static String fingerprint(String config, ConnectionConfig cfg, ServerConfig server, SecretResolver secrets,
+      ExecContext ctx) {
     StringBuilder out = new StringBuilder(config);
     if (server.http()) {
       out.append("|egress=").append(GuardedEgress.of(ctx).map(g -> g.spec().toString()).orElse("none"));
     }
     for (ServerConfig.Binding b : server.http() ? server.headers() : server.env()) {
-      String version = "?";
-      if (b.secretField() != null) {
-        try {
-          SecretResolver.Meta meta = secrets.meta(b.secretField());
-          version = meta == null ? "?" : String.valueOf(meta.version());
-        } catch (RuntimeException e) {
-          version = "?";
-        }
+      out.append('|').append(b.name()).append('=').append(version(secrets, b.secretField()));
+    }
+    // A new service account key or secret access key is new credentials: the session made with the old ones drains.
+    for (String field : CLOUD_SECRETS) {
+      if (cfg.secretFields().contains(field)) {
+        out.append('|').append(field).append('=').append(version(secrets, field));
       }
-      out.append('|').append(b.name()).append('=').append(version);
     }
     return Texts.sha256(out.toString());
+  }
+
+  /** The secret fields of a server's cloud credentials. */
+  private static final List<String> CLOUD_SECRETS = List.of(GoogleRequestCredentials.POINTER + "/serviceAccountKey",
+      AwsRequestCredentials.POINTER + "/secretAccessKey");
+
+  private static String version(SecretResolver secrets, String field) {
+    if (field == null) {
+      return "?";
+    }
+    try {
+      SecretResolver.Meta meta = secrets.meta(field);
+      return meta == null ? "?" : String.valueOf(meta.version());
+    } catch (RuntimeException e) {
+      return "?";
+    }
   }
 
   Path workDir(String name) {
