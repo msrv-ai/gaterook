@@ -21,10 +21,9 @@ public final class Instructions {
   private Instructions() {}
 
   public static String of(EndpointSnapshot s, ToolCatalog.Catalog catalog) {
-    if (s.instructions() != null && !s.instructions().isBlank()) {
-      return s.instructions();
-    }
-    return defaults(s, catalog);
+    String base = s.instructions() != null && !s.instructions().isBlank() ? s.instructions() : defaults(s, catalog);
+    String disabled = s.disabledReason(null);
+    return disabled == null ? base : disabled + "\n\n" + base;
   }
 
   /**

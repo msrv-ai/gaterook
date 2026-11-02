@@ -130,7 +130,7 @@ class McpHttpController {
 
   /**
    * An independent Streamable HTTP notification stream, written on Tomcat's virtual request thread. Revalidate
-   * access before each notification and heartbeat, so expired credentials and disabled endpoints close the stream.
+   * access before each notification and heartbeat, so expired credentials close the stream; user pauses retain discovery.
    */
   @GetMapping("/mcp/{slug}")
   ResponseEntity<byte[]> get(@PathVariable String slug, HttpServletRequest http, HttpServletResponse response)
@@ -150,7 +150,7 @@ class McpHttpController {
     if (!acceptsEvents(http.getHeader(HttpHeaders.ACCEPT))) {
       return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE).build();
     }
-    Optional<EndpointSnapshot> initial = snapshots.bySlug(slug).filter(EndpointSnapshot::enabled);
+    Optional<EndpointSnapshot> initial = snapshots.bySlug(slug);
     if (initial.isEmpty()) {
       return ResponseEntity.notFound().build();
     }
@@ -180,7 +180,7 @@ class McpHttpController {
           break;
         }
         Optional<EndpointSnapshot> current = snapshots.get(initial.get().id())
-            .filter(s -> s.enabled() && s.slug().equals(slug) && legacyEnabled(s));
+            .filter(s -> s.slug().equals(slug) && legacyEnabled(s));
         if (current.isEmpty()) {
           break;
         }

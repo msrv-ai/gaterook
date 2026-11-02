@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.BooleanSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -53,9 +52,15 @@ public class ConnectorInvoker {
   /** Budget of a connector's {@code describe} contribution to {@code describe_connection}. */
   public static final Duration DESCRIBE_TIMEOUT = Duration.ofSeconds(2);
 
+  /** Final admission can explain why a queued call must no longer reach the resource. */
+  @FunctionalInterface
+  public interface ExecutionAllowed {
+    boolean getAsBoolean() throws ConnectorException;
+  }
+
   /** One call. */
   public record Request(String callId, ConnectionConfig cfg, ToolCall call, Limits limits, MaskPolicy mask,
-      String traceId, String traceparent, BooleanSupplier executionAllowed) {
+      String traceId, String traceparent, ExecutionAllowed executionAllowed) {
 
     public Request(String callId, ConnectionConfig cfg, ToolCall call, Limits limits, MaskPolicy mask,
         String traceId, String traceparent) {
@@ -162,7 +167,10 @@ public class ConnectorInvoker {
     CallContext ctx = context(r, taint, PREPARE_TIMEOUT);
     try (var resolver = secrets.resolver(r.cfg(), taint)) {
       PreparedAction action = guard.run(r.cfg().id(), r.cfg().name(), connector.maxConcurrency(), PREPARE_TIMEOUT,
-          ctx, () -> connector.prepare(r.call(), r.cfg(), resolver, ctx));
+          ctx, () -> {
+            checkExecutionAllowed(r);
+            return connector.prepare(r.call(), r.cfg(), resolver, ctx);
+          });
       if (action == null) {
         action = PreparedAction.approval(connector.describeAction(r.call(), r.cfg()), null);
       }
@@ -174,6 +182,13 @@ public class ConnectorInvoker {
       return new Prepared(null, ConnectorException.Kind.INTERNAL, internal(connector, r));
     } finally {
       taint.clear();
+    }
+  }
+
+  private static void checkExecutionAllowed(Request r) throws ConnectorException {
+    if (r.executionAllowed() != null && !r.executionAllowed().getAsBoolean()) {
+      throw ConnectorException.denied("Temporary bypass expired or its configuration changed. Nothing ran. "
+          + "Retry the call to use the current approval policy.");
     }
   }
 
@@ -199,10 +214,7 @@ public class ConnectorInvoker {
     try (var resolver = secrets.resolver(r.cfg(), taint)) {
       ToolResult raw = guard.run(r.cfg().id(), r.cfg().name(), connector.maxConcurrency(), timeout, call, () -> {
         // Check after waiting for connector capacity, immediately before any resource operation.
-        if (r.executionAllowed() != null && !r.executionAllowed().getAsBoolean()) {
-          throw ConnectorException.denied("Temporary bypass expired or its configuration changed. Nothing ran. "
-              + "Retry the call to use the current approval policy.");
-        }
+        checkExecutionAllowed(r);
         resource.start();
         try {
           return invoke(connector, kind, argument, r, resolver, ctx);

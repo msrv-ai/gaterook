@@ -62,6 +62,7 @@
             <th scope="col">Secrets passed</th>
             <th scope="col" class="gw-table__cell--num">Tools</th>
             <th scope="col">Status</th>
+            <th scope="col">Access</th>
             <th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th>
           </tr>
         </thead>
@@ -83,6 +84,7 @@
                   @if (si.tone !== 'success') { <button class="gw-btn gw-btn--link gw-btn--sm" type="button" (click)="signIn(s, $event)">Sign in<span class="gw-sr-only"> to {{ s.name }}</span></button>}</div>
                 }
               </td>
+              <td><gw-access-switch kind="connection" [name]="s.name" [enabled]="s.enabled !== false" [blocked]="s.verified ? null : 'Review the change outside GateRook first.'" (changed)="data.connections.refresh()" /></td>
               <td class="gw-table__cell--actions">
                 <span class="gw-tooltip"><button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [attr.aria-labelledby]="'tip-restart-' + s.name" [attr.aria-busy]="restarting() === s.name ? 'true' : null" [attr.aria-disabled]="restarting() === s.name ? 'true' : null" (click)="restart(s)">@if (restarting() === s.name) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="rotate-cw" class="gw-icon gw-icon--sm"></svg>}</button><span class="gw-tooltip__bubble" role="tooltip" [id]="'tip-restart-' + s.name">Restart {{ s.name }}</span></span>
                 <div class="gw-menu-host">

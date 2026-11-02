@@ -146,20 +146,21 @@
             <th scope="col" class="gw-table__cell--optional">Credentials</th>
             <th scope="col">Health</th>
             <th scope="col">Used by</th>
+            <th scope="col">Access</th>
             <th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>
           @for (v of view(); track v.row.name) {
             <tr>
-              <th scope="row">
+              <th scope="row" class="gw-table__cell--truncate">
                 <a class="gw-link gw-mono" [id]="idOf('conn-link', v.row.name)" [routerLink]="['/connections', v.row.name]">{{ v.row.name }}</a> <span class="gw-sr-only">environment</span> <span [class]="'gw-env gw-env--sm gw-env--' + v.row.env">{{ v.row.env }}</span>
                 @if (v.row.host) {
-                  <div class="gw-text-code-sm gw-fg-muted" [title]="v.row.host">{{ v.row.host }}</div>
+                  <div class="gw-text-code-sm gw-fg-muted gw-truncate" [title]="v.row.host">{{ v.row.host }}</div>
                 }
               </th>
               <td class="gw-table__cell--optional"><svg [lucideIcon]="connectorIcon(v.row.type)" class="gw-icon gw-icon--sm"></svg> {{ typeText(v.row) }}@for (b of v.row.badges; track b) { <span class="gw-badge gw-badge--outline gw-badge--sm">{{ b }}</span>}</td>
-              <td class="gw-table__cell--optional">
+              <td class="gw-table__cell--optional gw-table__cell--truncate">
                 @if (v.credentials.muted) {
                   <span class="gw-fg-muted"><svg [lucideIcon]="v.credentials.icon" class="gw-icon gw-icon--sm"></svg> {{ v.credentials.label }}</span>
                 } @else {
@@ -189,6 +190,7 @@
                   <span class="gw-text-small gw-fg-muted">No endpoint</span>
                 }
               </td>
+              <td><gw-access-switch kind="connection" [name]="v.row.name" [enabled]="v.row.enabled !== false" [blocked]="v.row.verified ? null : 'Review the change outside GateRook first.'" (changed)="data.refresh()" /></td>
               <td class="gw-table__cell--actions">
                 <div class="gw-menu-host">
                   <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [attr.aria-label]="'Actions for connection ' + v.row.name" aria-haspopup="menu" [gwMenuTrigger]="rowMenu"><svg lucideIcon="ellipsis" class="gw-icon"></svg></button>
@@ -208,7 +210,7 @@
             @if (v.alert; as a) {
               <!-- Where it happened: the problem of this row under it, with what to do (kit billing-api). -->
               <tr>
-                <td colspan="6">
+                <td colspan="7">
                   <div [class]="'gw-alert gw-alert--' + a.tone + ' gw-alert--compact'">
                     <svg [lucideIcon]="a.icon" class="gw-icon gw-alert__icon"></svg>
                     <div class="gw-alert__content">
@@ -232,7 +234,7 @@
             }
           } @empty {
             <tr>
-              <td class="gw-table__empty" colspan="6">
+              <td class="gw-table__empty" colspan="7">
                 <div class="gw-empty gw-empty--compact">
                   <span class="gw-empty__icon"><svg lucideIcon="search-x" class="gw-icon"></svg></span>
                   <p class="gw-empty__title">No connections match these filters</p>

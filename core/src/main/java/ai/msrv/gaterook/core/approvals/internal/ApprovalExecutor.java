@@ -301,7 +301,8 @@ public class ApprovalExecutor implements DisposableBean {
     long started = System.nanoTime();
     try (CallTracing.Started span = tracing.child("execute " + a.getTool(), a.getTraceContext(), tags)) {
       outcome = invoker.executeApproved(new ConnectorInvoker.Request(a.getCallId(), cfg, check.call(),
-          check.decision().limits(), policies.maskPolicy(cfg.env()), span.traceId(), span.traceparent()),
+          check.decision().limits(), policies.maskPolicy(cfg.env()), span.traceId(), span.traceparent(),
+              () -> snapshots.requireAvailable(a.getEndpointId(), cfg.name())),
           new ConnectorInvoker.Approval(id, prepared, action.payload()));
       if (!outcome.ok()) {
         span.error(outcome.errorKind().name());
@@ -331,9 +332,8 @@ public class ApprovalExecutor implements DisposableBean {
     if (s.blocked()) {
       return Check.refused(s.slug() + " was changed outside GateRook. Not executed.");
     }
-    if (!s.enabled()) {
-      return Check.refused("Endpoint " + s.slug() + " is disabled. Not executed.");
-    }
+    String disabled = s.disabledReason(a.getConnectionName());
+    if (disabled != null) return Check.refused(disabled);
     String connectionId = canonical.path("connection").path("id").asString();
     EndpointSnapshot.Pair pair = s.pairs().stream().filter(p -> p.config().id().equals(connectionId)
         && p.toolKey().equals(a.getToolKey())).findFirst().orElse(null);

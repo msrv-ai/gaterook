@@ -1217,4 +1217,16 @@
     tabFromHash();
   }
   if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", boot); else boot();
+  // Access switches in reference screens keep repeated connection tiles synchronized.
+  doc.addEventListener("change", function (event) {
+    var source = event.target.closest("[data-gw-access]");
+    if (!source) return;
+    doc.querySelectorAll("[data-gw-access]").forEach(function (control) {
+      if (control.getAttribute("data-gw-access") !== source.getAttribute("data-gw-access")) return;
+      control.checked = source.checked;
+      var label = control.parentElement.querySelector(".gw-switch__label");
+      if (label) label.textContent = source.checked ? "On" : "Off";
+    });
+  });
+
 })();

@@ -9579,7 +9579,7 @@ th[aria-sort=descending] .gw-table__sort .gw-table__sort-icon--desc {
   align-items: flex-end;
   gap: var(--gw-space-1-5);
 }
-.gw-status-tile__end > :where(a, button) {
+.gw-status-tile__end > :where(a, button, .gw-switch) {
   position: relative;
   z-index: var(--gw-z-raised);
 }

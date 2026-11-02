@@ -220,7 +220,7 @@
       <section class="gw-section" aria-labelledby="ov-conn-title" data-ov-show="in-use">
         <header class="gw-section__header">
           <h2 class="gw-section__title" id="ov-conn-title">Your connections</h2>
-          <p class="gw-section__description">Connections grouped by endpoint and the AI apps configured to use them. Shared connections appear in each endpoint.</p>
+          <p class="gw-section__description">Connections grouped by endpoint and the AI apps configured to use them. Shared connections appear in each endpoint. Connection switches apply across all endpoints; endpoint switches control access through that endpoint.</p>
           <div class="gw-section__actions">
             <a class="gw-btn gw-btn--ghost gw-btn--sm" href="endpoints.html">All endpoints</a>
             <a class="gw-btn gw-btn--ghost gw-btn--sm" href="connections.html">All connections</a>
@@ -233,7 +233,7 @@
                 <h3 class="gw-card__title" id="ov-endpoint-dev"><i class="gw-icon" data-lucide="waypoints"></i><a class="gw-link gw-mono gw-truncate" title="dev" href="endpoint-detail.html?endpoint=dev">dev</a></h3>
                 <p class="gw-card__description">8 connections</p>
               </div>
-              <div class="gw-card__actions"><span class="gw-sr-only">environment</span><span class="gw-env gw-env--sm gw-env--dev">dev</span> <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Running</span></span></div>
+              <div class="gw-card__actions"><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-16" data-gw-access="endpoint:dev" aria-label="Access to endpoint dev" aria-describedby="access-demo-16-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-16">On</label><span class="gw-sr-only" id="access-demo-16-hint">Applies to all connections through this endpoint. When off, AI can still see it and ask you to enable access.</span></div><span class="gw-sr-only">environment</span><span class="gw-env gw-env--sm gw-env--dev">dev</span> <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Running</span></span></div>
             </header>
             <div class="gw-card__body gw-stack">
               <div class="gw-stack gw-stack--sm">
@@ -251,6 +251,7 @@
                     <p class="gw-text-caption gw-fg-muted">HTTP API · <span class="gw-mono">billing.stage.acme.dev</span></p>
                   </div>
                   <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-1" data-gw-access="connection:billing-api" aria-label="Access to connection billing-api" aria-describedby="access-demo-1-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-1">On</label><span class="gw-sr-only" id="access-demo-1-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div>
                     <span class="gw-status gw-status--danger" id="ov-retest-state-dev" data-ov-retest-state><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Unreachable</span></span>
                     <button class="gw-btn gw-btn--sm" type="button" data-ov-retest aria-describedby="ov-retest-state-dev">Test again<span class="gw-sr-only"> billing-api</span></button>
                   </div>
@@ -262,6 +263,7 @@
                     <p class="gw-text-caption gw-fg-muted gw-truncate">Redis 7</p>
                   </div>
                   <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-2" data-gw-access="connection:cache-redis" aria-label="Access to connection cache-redis" aria-describedby="access-demo-2-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-2">On</label><span class="gw-sr-only" id="access-demo-2-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div>
                     <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Slow · 1.8 s</span></span>
                   </div>
                 </li>
@@ -271,7 +273,8 @@
                     <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=app-logs">app-logs</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h4>
                     <p class="gw-text-caption gw-fg-muted gw-truncate">Loki logs</p>
                   </div>
-                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                  <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-3" data-gw-access="connection:app-logs" aria-label="Access to connection app-logs" aria-describedby="access-demo-3-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-3">On</label><span class="gw-sr-only" id="access-demo-3-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
                 </li>
                 <li class="gw-card gw-card--interactive gw-status-tile">
                   <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="ship-wheel"></i></span>
@@ -279,7 +282,8 @@
                     <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=dev-cluster">dev-cluster</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h4>
                     <p class="gw-text-caption gw-fg-muted gw-truncate">Kubernetes · namespace app-dev</p>
                   </div>
-                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                  <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-4" data-gw-access="connection:dev-cluster" aria-label="Access to connection dev-cluster" aria-describedby="access-demo-4-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-4">On</label><span class="gw-sr-only" id="access-demo-4-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
                 </li>
                 <li class="gw-card gw-card--interactive gw-status-tile">
                   <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span>
@@ -288,6 +292,7 @@
                     <p class="gw-text-caption gw-fg-muted gw-truncate">PostgreSQL 16</p>
                   </div>
                   <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-5" data-gw-access="connection:dev-db" aria-label="Access to connection dev-db" aria-describedby="access-demo-5-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-5">On</label><span class="gw-sr-only" id="access-demo-5-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div>
                     <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span>
                   </div>
                 </li>
@@ -297,7 +302,8 @@
                     <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=dev-vm">dev-vm</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h4>
                     <p class="gw-text-caption gw-fg-muted gw-truncate">SSH server</p>
                   </div>
-                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                  <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-6" data-gw-access="connection:dev-vm" aria-label="Access to connection dev-vm" aria-describedby="access-demo-6-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-6">On</label><span class="gw-sr-only" id="access-demo-6-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
                 </li>
                 <li class="gw-card gw-card--interactive gw-status-tile">
                   <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="leaf"></i></span>
@@ -305,7 +311,8 @@
                     <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=orders-mongo">orders-mongo</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h4>
                     <p class="gw-text-caption gw-fg-muted gw-truncate">MongoDB</p>
                   </div>
-                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                  <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-7" data-gw-access="connection:orders-mongo" aria-label="Access to connection orders-mongo" aria-describedby="access-demo-7-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-7">On</label><span class="gw-sr-only" id="access-demo-7-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
                 </li>
                 <li class="gw-card gw-card--interactive gw-status-tile">
                   <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="cloud"></i></span>
@@ -313,7 +320,8 @@
                     <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=aws-stage">aws-stage</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></h4>
                     <p class="gw-text-caption gw-fg-muted gw-truncate">AWS · eu-central-1</p>
                   </div>
-                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                  <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-8" data-gw-access="connection:aws-stage" aria-label="Access to connection aws-stage" aria-describedby="access-demo-8-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-8">On</label><span class="gw-sr-only" id="access-demo-8-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
                 </li>
               </ul>
             </div>
@@ -324,7 +332,7 @@
                 <h3 class="gw-card__title" id="ov-endpoint-stage-readonly"><i class="gw-icon" data-lucide="waypoints"></i><a class="gw-link gw-mono gw-truncate" title="stage-readonly" href="endpoint-detail.html?endpoint=stage-readonly">stage-readonly</a></h3>
                 <p class="gw-card__description">3 connections</p>
               </div>
-              <div class="gw-card__actions"><span class="gw-sr-only">environment</span><span class="gw-env gw-env--sm gw-env--stage">stage</span> <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Running</span></span></div>
+              <div class="gw-card__actions"><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-17" data-gw-access="endpoint:stage-readonly" aria-label="Access to endpoint stage-readonly" aria-describedby="access-demo-17-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-17">On</label><span class="gw-sr-only" id="access-demo-17-hint">Applies to all connections through this endpoint. When off, AI can still see it and ask you to enable access.</span></div><span class="gw-sr-only">environment</span><span class="gw-env gw-env--sm gw-env--stage">stage</span> <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Running</span></span></div>
             </header>
             <div class="gw-card__body gw-stack">
               <p class="gw-text-small gw-fg-muted">No AI apps linked. <a class="gw-link" href="clients.html">Connect an AI app</a>.</p>
@@ -336,6 +344,7 @@
                     <p class="gw-text-caption gw-fg-muted">HTTP API · <span class="gw-mono">billing.stage.acme.dev</span></p>
                   </div>
                   <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-9" data-gw-access="connection:billing-api" aria-label="Access to connection billing-api" aria-describedby="access-demo-9-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-9">On</label><span class="gw-sr-only" id="access-demo-9-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div>
                     <span class="gw-status gw-status--danger" id="ov-retest-state-stage-readonly" data-ov-retest-state><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Unreachable</span></span>
                     <button class="gw-btn gw-btn--sm" type="button" data-ov-retest aria-describedby="ov-retest-state-stage-readonly">Test again<span class="gw-sr-only"> billing-api</span></button>
                   </div>
@@ -346,7 +355,8 @@
                     <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=aws-stage">aws-stage</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></h4>
                     <p class="gw-text-caption gw-fg-muted gw-truncate">AWS · eu-central-1</p>
                   </div>
-                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                  <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-10" data-gw-access="connection:aws-stage" aria-label="Access to connection aws-stage" aria-describedby="access-demo-10-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-10">On</label><span class="gw-sr-only" id="access-demo-10-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
                 </li>
                 <li class="gw-card gw-card--interactive gw-status-tile">
                   <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span>
@@ -354,7 +364,8 @@
                     <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=stage-db">stage-db</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></h4>
                     <p class="gw-text-caption gw-fg-muted gw-truncate">PostgreSQL 16</p>
                   </div>
-                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                  <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-11" data-gw-access="connection:stage-db" aria-label="Access to connection stage-db" aria-describedby="access-demo-11-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-11">On</label><span class="gw-sr-only" id="access-demo-11-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
                 </li>
               </ul>
             </div>
@@ -365,7 +376,7 @@
                 <h3 class="gw-card__title" id="ov-endpoint-incident-prod"><i class="gw-icon" data-lucide="waypoints"></i><a class="gw-link gw-mono gw-truncate" title="incident-prod" href="endpoint-detail.html?endpoint=incident-prod">incident-prod</a></h3>
                 <p class="gw-card__description">3 connections</p>
               </div>
-              <div class="gw-card__actions"><span class="gw-sr-only">environment</span><span class="gw-env gw-env--sm gw-env--prod">prod</span> <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Running</span></span></div>
+              <div class="gw-card__actions"><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-18" data-gw-access="endpoint:incident-prod" aria-label="Access to endpoint incident-prod" aria-describedby="access-demo-18-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-18">On</label><span class="gw-sr-only" id="access-demo-18-hint">Applies to all connections through this endpoint. When off, AI can still see it and ask you to enable access.</span></div><span class="gw-sr-only">environment</span><span class="gw-env gw-env--sm gw-env--prod">prod</span> <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Running</span></span></div>
             </header>
             <div class="gw-card__body gw-stack">
               <div class="gw-stack gw-stack--sm">
@@ -381,7 +392,8 @@
                     <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=prod-logs">prod-logs</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></h4>
                     <p class="gw-text-caption gw-fg-muted gw-truncate">GCP Cloud Logging</p>
                   </div>
-                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                  <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-12" data-gw-access="connection:prod-logs" aria-label="Access to connection prod-logs" aria-describedby="access-demo-12-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-12">On</label><span class="gw-sr-only" id="access-demo-12-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
                 </li>
                 <li class="gw-card gw-card--interactive gw-status-tile">
                   <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span>
@@ -389,7 +401,8 @@
                     <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=prod-replica">prod-replica</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></h4>
                     <p class="gw-text-caption gw-fg-muted gw-truncate">PostgreSQL read replica</p>
                   </div>
-                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                  <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-13" data-gw-access="connection:prod-replica" aria-label="Access to connection prod-replica" aria-describedby="access-demo-13-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-13">On</label><span class="gw-sr-only" id="access-demo-13-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
                 </li>
                 <li class="gw-card gw-card--interactive gw-status-tile">
                   <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="terminal"></i></span>
@@ -397,7 +410,8 @@
                     <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=prod-vm">prod-vm</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></h4>
                     <p class="gw-text-caption gw-fg-muted gw-truncate">SSH server · runbooks only</p>
                   </div>
-                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                  <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-14" data-gw-access="connection:prod-vm" aria-label="Access to connection prod-vm" aria-describedby="access-demo-14-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-14">On</label><span class="gw-sr-only" id="access-demo-14-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
                 </li>
               </ul>
             </div>
@@ -419,7 +433,8 @@
                     <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=github-mcp">github-mcp</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h4>
                     <p class="gw-text-caption gw-fg-muted gw-truncate">External MCP server</p>
                   </div>
-                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                  <div class="gw-status-tile__end">
+                    <div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-15" data-gw-access="connection:github-mcp" aria-label="Access to connection github-mcp" aria-describedby="access-demo-15-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-15">On</label><span class="gw-sr-only" id="access-demo-15-hint">Applies across all endpoints. When off, AI can still see it and ask you to enable access.</span></div><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
                 </li>
               </ul>
             </div>

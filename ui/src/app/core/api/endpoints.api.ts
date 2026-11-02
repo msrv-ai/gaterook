@@ -39,6 +39,7 @@ export interface EndpointSummary {
 }
 
 export interface WiredConnection {
+  readonly enabled?: boolean;
   readonly name: string;
   readonly type: string;
   readonly typeName: string;

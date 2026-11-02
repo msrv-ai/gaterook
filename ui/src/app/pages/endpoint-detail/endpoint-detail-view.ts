@@ -43,7 +43,7 @@ export function andList(items: readonly string[]): string {
 export function headerDescription(e: EndpointSummary, connections: number): string {
   const what = e.description?.trim().replace(/[.\s]+$/, '') || 'An endpoint';
   const on = connections ? ` on ${plural(connections, 'connection')}` : ' with no connections yet';
-  if (e.status === 'disabled') return `${what}${on}. Disabled: every call gets an error until you enable it; tokens and settings are kept.`;
+  if (e.status === 'disabled') return `${what}${on}. Disabled: tools stay visible, but calls are blocked until you enable access; tokens and settings are kept.`;
   if (e.access === 'read-only') return `${what}${on}. Read only: agents read, and no tool that changes data is offered.`;
   const bypass = e.tools.bypass ?? 0;
   if (bypass) return `${what}${on}. ${plural(bypass, 'tool')} in Bypass ${bypass === 1 ? 'runs' : 'run'} without approval, including changes to data. Policy denials and limits still apply.`;

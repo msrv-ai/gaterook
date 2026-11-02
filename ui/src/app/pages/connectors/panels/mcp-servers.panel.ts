@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { GwAccessSwitch } from '../../../kit/access-switch';
 import { RouterLink } from '@angular/router';
 import { GwCodeBlock } from '../../../code/code-block';
 import { Announcer } from '../../../kit/announcer';
@@ -29,7 +30,7 @@ export interface McpServerAction {
  */
 @Component({
   selector: 'div[gwMcpServersPanel]',
-  imports: [RouterLink, GwIcon, GwMenu, GwMenuTrigger, GwToggle, GwCodeBlock],
+  imports: [GwAccessSwitch, RouterLink, GwIcon, GwMenu, GwMenuTrigger, GwToggle, GwCodeBlock],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-tabs__panel', role: 'tabpanel', id: 'mcp-servers', 'aria-labelledby': 'tab-mcp', tabindex: '0' },
   templateUrl: './mcp-servers.panel.html',

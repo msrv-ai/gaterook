@@ -110,6 +110,9 @@ public class ToolCallHandler {
         : JsonNodeFactory.instance.objectNode();
     r.span().tag("gen_ai.tool.name", name);
 
+    String disabled = r.snapshot().disabledReason(args.path("connection").asString(null));
+    if (disabled != null) return ResultWriter.toolError(env, disabled, null);
+
     if (CoreTools.APPROVAL_STATUS.equals(name)) {
       return approvalStatus(r, args);
     }
@@ -148,6 +151,8 @@ public class ToolCallHandler {
     }
     EndpointSnapshot.Pair pair = found.get();
     ConnectionConfig cfg = pair.config();
+    disabled = r.snapshot().disabledReason(cfg.name());
+    if (disabled != null) return ResultWriter.toolError(env, disabled, null);
     String argumentsDigest = RequestStateCodec.argumentsDigest(name, args);
 
     // A retry of an approval round: the state proves who, where, what and with which arguments.
@@ -314,7 +319,8 @@ public class ToolCallHandler {
       Decision decision, Classification classification) {
     return new ConnectorInvoker.Request(call.callId(), pair.config(), call, decision.limits(),
         policies.maskPolicy(pair.config().env()), r.span().traceId(), r.span().traceparent(),
-        pair.bypassUntil() == null ? null : () -> temporaryBypassStillAllowed(r, pair, decision, classification));
+        () -> snapshots.requireAvailable(r.snapshot().id(), pair.connectionName())
+            && (pair.bypassUntil() == null || temporaryBypassStillAllowed(r, pair, decision, classification)));
   }
 
   private boolean temporaryBypassStillAllowed(McpRequest r, EndpointSnapshot.Pair original, Decision decision,

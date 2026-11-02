@@ -12,6 +12,7 @@
       @if (summary(); as s) {
         <p class="gw-page-header__description">{{ description() }}</p>
         <div class="gw-page-header__meta">
+          <gw-access-switch kind="endpoint" [name]="s.slug" [enabled]="s.status !== 'disabled'" [blocked]="s.blockedReason" (changed)="retry()" />
           @if (status(); as st) {
             <span [class]="'gw-status gw-status--' + st.tone" id="ep-status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ st.text }}</span></span>
           }
@@ -218,7 +219,7 @@
               <div class="gw-table-wrap" role="region" aria-labelledby="ep-conn-cap" tabindex="0">
                 <table class="gw-table">
                   <caption class="gw-sr-only" id="ep-conn-cap">Connections of endpoint {{ s.slug }}</caption>
-                  <thead><tr><th scope="col">Connection</th><th scope="col">Type</th><th scope="col">Target</th><th scope="col">Tools on {{ s.slug }}</th><th scope="col">Health</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
+                  <thead><tr><th scope="col">Connection</th><th scope="col">Type</th><th scope="col">Target</th><th scope="col">Tools on {{ s.slug }}</th><th scope="col">Health</th><th scope="col">Access</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
                   <tbody>
                     @for (v of views(); track v.c.name) {
                       <tr>
@@ -227,6 +228,7 @@
                         <td class="gw-table__cell--mono">{{ v.target }}</td>
                         <td><span class="gw-tabular">{{ v.tools.total }}</span>@if (v.tools.modes) { <span class="gw-fg-muted">· {{ v.tools.modes }}</span>}</td>
                         <td><span [class]="'gw-status gw-status--' + v.health.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ v.health.text }}</span></span></td>
+                        <td><gw-access-switch kind="connection" [name]="v.c.name" [enabled]="v.c.enabled !== false" [blocked]="v.c.problem" (changed)="retry()" /></td>
                         <td class="gw-table__cell--actions">
                           <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/activity" [queryParams]="{ q: 'endpoint:' + s.slug + ' connection:' + v.c.name }">View activity<span class="gw-sr-only"> of {{ v.c.name }} on {{ s.slug }}</span></a>
                           <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askRemove(v.c, $event)">Remove<span class="gw-sr-only"> {{ v.c.name }} from {{ s.slug }}</span></button>

@@ -41,7 +41,7 @@
 //                  own page; plain text when the tile's action is its only
 //                  destination (Cursor · Connect, Antigravity · How to install)
 //         __end    the state (gw-status, words always) and, under it, at most
-//                  ONE action (gw-btn --sm: Connect, Test again, How to install).
+//                  access switch (gw-switch) and optional gw-btn --sm action.
 //                  Only the action sits above the stretched link, so a click on
 //                  the state still opens the tile.
 // States  the gw-status vocabulary (BLUEPRINT §7). Busy: while Test again runs the
@@ -97,7 +97,7 @@
     gap: var(--gw-space-1-5);
 
     // only the action sits above the card's stretched link
-    > :where(a, button) {
+    > :where(a, button, .gw-switch) {
       position: relative;
       z-index: var(--gw-z-raised);
     }

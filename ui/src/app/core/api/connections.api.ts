@@ -47,6 +47,8 @@ export interface ConnectionRow {
   readonly usedBy: string[];
   /** False when the row was changed outside GateRook (it stays off until reviewed). */
   readonly verified: boolean;
+  /** User access switch; older cores default to enabled. */
+  readonly enabled?: boolean;
   readonly version: number;
   /** The Type column in the kit's words: "PostgreSQL 16", "Loki", "MongoDB 7", "SSH" (step API). */
   readonly typeLabel?: string;
@@ -232,6 +234,10 @@ export class ConnectionsApi {
 
   list(query: ConnectionQuery = {}): Promise<ConnectionList> {
     return this.api.get('/api/connections', { ...query });
+  }
+
+  setEnabled(name: string, enabled: boolean): Promise<ConnectionRow> {
+    return this.api.post(`/api/connections/${encodeURIComponent(name)}/${enabled ? 'enable' : 'disable'}`, {});
   }
 
   /** 202: results arrive as `connection.health` events. */

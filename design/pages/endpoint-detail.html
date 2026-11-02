@@ -138,7 +138,7 @@
           <div class="gw-page-header__heading">
             <h1 class="gw-page-header__title"><span class="gw-sr-only">Endpoint </span><span class="gw-mono">dev</span></h1>
             <p class="gw-page-header__description">Local development on 8 connections. Agents read freely; anything that changes data waits for your approval.</p>
-            <div class="gw-page-header__meta">
+            <div class="gw-page-header__meta"><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-116" data-gw-access="endpoint:dev" aria-label="Access to endpoint dev" aria-describedby="access-demo-116-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-116">On</label><span class="gw-sr-only" id="access-demo-116-hint">Applies through this endpoint only. When off, AI can ask you to enable access.</span></div>
               <span class="gw-status gw-status--success" id="ep-status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Running</span></span>
               <span class="gw-divider gw-divider--vertical" aria-hidden="true"></span>
               <div class="gw-copy-field" role="group" aria-label="Endpoint URL">
@@ -1910,7 +1910,7 @@
                 <div class="gw-table-wrap" role="region" aria-labelledby="ep-conn-cap" tabindex="0">
                   <table class="gw-table">
                     <caption class="gw-sr-only" id="ep-conn-cap">Connections of endpoint dev</caption>
-                    <thead><tr><th scope="col">Connection</th><th scope="col">Type</th><th scope="col">Target</th><th scope="col">Tools on dev</th><th scope="col">Health</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
+                    <thead><tr><th scope="col">Connection</th><th scope="col">Type</th><th scope="col">Target</th><th scope="col">Tools on dev</th><th scope="col">Health</th><th scope="col">Access</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
                     <tbody>
                       <tr>
                         <th scope="row"><a class="gw-link gw-mono" href="connections.html?q=dev-db">dev-db</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></th>
@@ -1918,7 +1918,7 @@
                         <td class="gw-table__cell--mono">db.dev.internal:5432/app</td>
                         <td><span class="gw-tabular">4</span> <span class="gw-fg-muted">· 3 read only, 1 approval</span></td>
                         <td><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 12 ms</span></span></td>
-                        <td class="gw-table__cell--actions">
+                        <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-117" data-gw-access="connection:dev-db" aria-label="Access to connection dev-db" aria-describedby="access-demo-117-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-117">On</label><span class="gw-sr-only" id="access-demo-117-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                           <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=endpoint:dev%20connection:dev-db">View activity<span class="gw-sr-only"> of dev-db on dev</span></a>
                           <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="ep-dlg-remove-dev-db">Remove<span class="gw-sr-only"> dev-db from dev</span></button>
                         </td>
@@ -1929,7 +1929,7 @@
                         <td class="gw-table__cell--mono">mongo.dev.internal:27017/orders</td>
                         <td><span class="gw-tabular">2</span> <span class="gw-fg-muted">· 2 read only</span></td>
                         <td><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></td>
-                        <td class="gw-table__cell--actions">
+                        <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-118" data-gw-access="connection:orders-mongo" aria-label="Access to connection orders-mongo" aria-describedby="access-demo-118-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-118">On</label><span class="gw-sr-only" id="access-demo-118-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                           <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=endpoint:dev%20connection:orders-mongo">View activity<span class="gw-sr-only"> of orders-mongo on dev</span></a>
                           <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="ep-dlg-remove-orders-mongo">Remove<span class="gw-sr-only"> orders-mongo from dev</span></button>
                         </td>
@@ -1940,7 +1940,7 @@
                         <td class="gw-table__cell--mono">cache.dev.internal:6379</td>
                         <td><span class="gw-tabular">2</span> <span class="gw-fg-muted">· 2 read only</span></td>
                         <td><span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Slow · 1.8 s</span></span></td>
-                        <td class="gw-table__cell--actions">
+                        <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-119" data-gw-access="connection:cache-redis" aria-label="Access to connection cache-redis" aria-describedby="access-demo-119-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-119">On</label><span class="gw-sr-only" id="access-demo-119-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                           <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=endpoint:dev%20connection:cache-redis">View activity<span class="gw-sr-only"> of cache-redis on dev</span></a>
                           <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="ep-dlg-remove-cache-redis">Remove<span class="gw-sr-only"> cache-redis from dev</span></button>
                         </td>
@@ -1951,7 +1951,7 @@
                         <td class="gw-table__cell--mono">10.20.0.14</td>
                         <td><span class="gw-tabular">2</span> <span class="gw-fg-muted">· 1 read only, 1 off</span></td>
                         <td><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></td>
-                        <td class="gw-table__cell--actions">
+                        <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-120" data-gw-access="connection:dev-vm" aria-label="Access to connection dev-vm" aria-describedby="access-demo-120-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-120">On</label><span class="gw-sr-only" id="access-demo-120-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                           <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=endpoint:dev%20connection:dev-vm">View activity<span class="gw-sr-only"> of dev-vm on dev</span></a>
                           <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="ep-dlg-remove-dev-vm">Remove<span class="gw-sr-only"> dev-vm from dev</span></button>
                         </td>
@@ -1962,7 +1962,7 @@
                         <td class="gw-table__cell--mono">loki.dev.internal:3100</td>
                         <td><span class="gw-tabular">2</span> <span class="gw-fg-muted">· 1 read only, 1 off</span></td>
                         <td><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></td>
-                        <td class="gw-table__cell--actions">
+                        <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-121" data-gw-access="connection:app-logs" aria-label="Access to connection app-logs" aria-describedby="access-demo-121-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-121">On</label><span class="gw-sr-only" id="access-demo-121-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                           <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=endpoint:dev%20connection:app-logs">View activity<span class="gw-sr-only"> of app-logs on dev</span></a>
                           <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="ep-dlg-remove-app-logs">Remove<span class="gw-sr-only"> app-logs from dev</span></button>
                         </td>
@@ -1973,7 +1973,7 @@
                         <td class="gw-table__cell--mono">k8s.dev.internal:6443 · ns app-dev</td>
                         <td><span class="gw-tabular">4</span> <span class="gw-fg-muted">· 1 read only, 1 approval, 2 off</span></td>
                         <td><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></td>
-                        <td class="gw-table__cell--actions">
+                        <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-122" data-gw-access="connection:dev-cluster" aria-label="Access to connection dev-cluster" aria-describedby="access-demo-122-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-122">On</label><span class="gw-sr-only" id="access-demo-122-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                           <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=endpoint:dev%20connection:dev-cluster">View activity<span class="gw-sr-only"> of dev-cluster on dev</span></a>
                           <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="ep-dlg-remove-dev-cluster">Remove<span class="gw-sr-only"> dev-cluster from dev</span></button>
                         </td>
@@ -1984,7 +1984,7 @@
                         <td class="gw-table__cell--mono">eu-central-1 · acme-stage · AssumeRole</td>
                         <td><span class="gw-tabular">2</span> <span class="gw-fg-muted">· 2 read only</span></td>
                         <td><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></td>
-                        <td class="gw-table__cell--actions">
+                        <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-123" data-gw-access="connection:aws-stage" aria-label="Access to connection aws-stage" aria-describedby="access-demo-123-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-123">On</label><span class="gw-sr-only" id="access-demo-123-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                           <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=endpoint:dev%20connection:aws-stage">View activity<span class="gw-sr-only"> of aws-stage on dev</span></a>
                           <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="ep-dlg-remove-aws-stage">Remove<span class="gw-sr-only"> aws-stage from dev</span></button>
                         </td>
@@ -1995,7 +1995,7 @@
                         <td class="gw-table__cell--mono">https://billing.stage.acme.dev</td>
                         <td><span class="gw-tabular">2</span> <span class="gw-fg-muted">· 1 approval, 1 off</span></td>
                         <td><span class="gw-status gw-status--danger"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Unreachable</span></span></td>
-                        <td class="gw-table__cell--actions">
+                        <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-124" data-gw-access="connection:billing-api" aria-label="Access to connection billing-api" aria-describedby="access-demo-124-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-124">On</label><span class="gw-sr-only" id="access-demo-124-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                           <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=endpoint:dev%20connection:billing-api">View activity<span class="gw-sr-only"> of billing-api on dev</span></a>
                           <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="ep-dlg-remove-billing-api">Remove<span class="gw-sr-only"> billing-api from dev</span></button>
                         </td>

@@ -74,6 +74,9 @@ class OAuthClientUseTest {
     }, antigravity -> {
       assertThat(antigravity.client()).isEqualTo("antigravity");
       assertThat(antigravity.endpoint()).isEqualTo("stage");
+    }, paused -> {
+      assertThat(paused.client()).isEqualTo("cursor");
+      assertThat(paused.endpoint()).isEqualTo("disabled");
     });
   }
 

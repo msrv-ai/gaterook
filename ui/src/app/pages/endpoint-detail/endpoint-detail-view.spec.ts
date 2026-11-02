@@ -63,7 +63,7 @@ describe('endpoint detail view', () => {
     it('says what the endpoint is for and what its access means (kit)', () => {
       expect(headerDescription(summary(), 8)).toBe('Local development on 8 connections. Agents read freely; anything that changes data waits for your approval.');
       expect(headerDescription(summary({ status: 'disabled' }), 1)).toBe(
-        'Local development on 1 connection. Disabled: every call gets an error until you enable it; tokens and settings are kept.',
+        'Local development on 1 connection. Disabled: tools stay visible, but calls are blocked until you enable access; tokens and settings are kept.',
       );
       expect(headerDescription(summary({ access: 'read-only', description: '' }), 0)).toBe(
         'An endpoint with no connections yet. Read only: agents read, and no tool that changes data is offered.',
@@ -76,7 +76,7 @@ describe('endpoint detail view', () => {
         'Local development on 2 connections. 1 tool in Bypass runs without approval, including changes to data. Policy denials and limits still apply.',
       );
       expect(headerDescription({ ...endpoint, tools: { ...endpoint.tools, bypass: 2 } }, 2)).toContain('2 tools in Bypass run without approval');
-      expect(headerDescription({ ...endpoint, status: 'disabled' }, 2)).toContain('Disabled: every call gets an error');
+      expect(headerDescription({ ...endpoint, status: 'disabled' }, 2)).toContain('Disabled: tools stay visible, but calls are blocked');
       expect(headerDescription({ ...endpoint, status: 'disabled' }, 2)).not.toContain('runs without approval');
       expect(headerDescription({ ...endpoint, access: 'read-only' }, 2)).toContain('Read only: agents read');
       expect(headerDescription({ ...endpoint, access: 'read-only' }, 2)).not.toContain('runs without approval');

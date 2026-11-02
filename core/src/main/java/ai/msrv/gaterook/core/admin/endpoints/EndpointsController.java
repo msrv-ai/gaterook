@@ -86,7 +86,7 @@ class EndpointsController {
 
   /** A connection on the endpoint; {@code problem}: why its tools don't run, or {@code null}. */
   record Wired(String name, String type, String typeName, String env, String health, String problem,
-      EndpointDtos.ToolCounts tools) {}
+      EndpointDtos.ToolCounts tools, boolean enabled) {}
 
   record Usage(long callsLastMinute, int rateLimitPerToken, int rateLimitPerTool) {}
 
@@ -270,7 +270,7 @@ class EndpointsController {
       String health = connections.byId(w.config().id()).map(c -> c.health().state() == null ? "unknown"
           : c.health().state().name().toLowerCase(Locale.ROOT)).orElse("unknown");
       wired.add(new Wired(w.config().name(), w.config().type(), w.manifest().name(), w.config().env().id(), health,
-          w.problem(), new EndpointDtos.ToolCounts(read, approval, off, bypass)));
+          w.problem(), new EndpointDtos.ToolCounts(read, approval, off, bypass), w.enabled()));
     }
     return new Detail(summary(endpoints.get(slug)), List.copyOf(wired), settings(s));
   }

@@ -384,7 +384,7 @@ public class EndpointService {
 
   // ── Disable, enable, delete ─────────────────────────────────────────────────────────────────────────────────
 
-  /** {@code POST /api/endpoints/{slug}/disable}: answers 404 after authentication; pending requests stay. */
+  /** {@code POST /api/endpoints/{slug}/disable}: keeps discovery available; resource calls explain the user pause. */
   public Summary disable(String slug, String reason) {
     return setEnabled(slug, false, reason);
   }

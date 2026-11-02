@@ -456,7 +456,7 @@ public class OAuthServer {
         && g.revokedAt() == null && g.expiresAt().isAfter(now) && g.lastUsedAt() != null)
         .flatMap(g -> grants.live(g.id()).flatMap(live -> clients.forToken(
             new Issuers.Server(Ingress.LOCAL, "", null), live.clientId()))
-            .flatMap(client -> snapshots.get(g.endpointId()).filter(e -> e.enabled() && !e.blocked()
+            .flatMap(client -> snapshots.get(g.endpointId()).filter(e -> !e.blocked()
                 && e.oauthEnabled() && e.env() != Env.PROD && issuers.localResource(e.slug()).equals(g.resource()))
                 .map(e -> new ClientUse(g.id(), clientHint(client.host(), client.name()), e.slug(), e.env().id(),
                     g.createdAt(), g.lastUsedAt()))).stream())

@@ -232,15 +232,15 @@
                 <th scope="col" class="gw-table__cell--optional">Type</th>
                 <th scope="col" class="gw-table__cell--optional">Credentials</th>
                 <th scope="col">Health</th>
-                <th scope="col">Used by</th>
+                <th scope="col">Used by</th><th scope="col">Access</th>
                 <th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
             <tr data-conn="app-logs" data-type="loki" data-env="dev" data-health="healthy">
-              <th scope="row">
+              <th scope="row" class="gw-table__cell--truncate">
                 <a class="gw-link gw-mono" href="connection-new.html?edit=app-logs">app-logs</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span>
-                <div class="gw-text-code-sm gw-fg-muted" title="loki.dev.internal:3100">loki.dev.internal:3100</div>
+                <div class="gw-text-code-sm gw-fg-muted gw-truncate" title="loki.dev.internal:3100">loki.dev.internal:3100</div>
               </th>
               <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="scroll-text"></i> Loki</td>
               <td class="gw-table__cell--optional">
@@ -253,7 +253,7 @@
               <td>
                 <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a>
               </td>
-              <td class="gw-table__cell--actions">
+              <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-104" data-gw-access="connection:app-logs" aria-label="Access to connection app-logs" aria-describedby="access-demo-104-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-104">On</label><span class="gw-sr-only" id="access-demo-104-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                 <div class="gw-menu-host">
                   <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection app-logs" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-app-logs"><i class="gw-icon" data-lucide="ellipsis"></i></button>
                   <div class="gw-menu gw-menu--right" id="conn-menu-app-logs" role="menu" aria-label="Actions for connection app-logs" hidden>
@@ -268,9 +268,9 @@
               </td>
             </tr>
             <tr data-conn="aws-stage" data-type="aws" data-env="stage" data-health="healthy">
-              <th scope="row">
+              <th scope="row" class="gw-table__cell--truncate">
                 <a class="gw-link gw-mono" href="connection-new.html?edit=aws-stage">aws-stage</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span>
-                <div class="gw-text-code-sm gw-fg-muted" title="eu-central-1 · acme-stage">eu-central-1 · acme-stage</div>
+                <div class="gw-text-code-sm gw-fg-muted gw-truncate" title="eu-central-1 · acme-stage">eu-central-1 · acme-stage</div>
               </th>
               <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="cloud"></i> AWS</td>
               <td class="gw-table__cell--optional">
@@ -285,7 +285,7 @@
                 <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a><br>
                 <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=stage-readonly"><span class="gw-sr-only">Endpoint </span>stage-readonly</a>
               </td>
-              <td class="gw-table__cell--actions">
+              <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-105" data-gw-access="connection:aws-stage" aria-label="Access to connection aws-stage" aria-describedby="access-demo-105-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-105">On</label><span class="gw-sr-only" id="access-demo-105-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                 <div class="gw-menu-host">
                   <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection aws-stage" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-aws-stage"><i class="gw-icon" data-lucide="ellipsis"></i></button>
                   <div class="gw-menu gw-menu--right" id="conn-menu-aws-stage" role="menu" aria-label="Actions for connection aws-stage" hidden>
@@ -300,9 +300,9 @@
               </td>
             </tr>
             <tr data-conn="billing-api" data-type="http" data-env="stage" data-health="unreachable">
-              <th scope="row">
+              <th scope="row" class="gw-table__cell--truncate">
                 <a class="gw-link gw-mono" href="connection-new.html?edit=billing-api">billing-api</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span>
-                <div class="gw-text-code-sm gw-fg-muted" title="https://billing.stage.acme.dev">https://billing.stage.acme.dev</div>
+                <div class="gw-text-code-sm gw-fg-muted gw-truncate" title="https://billing.stage.acme.dev">https://billing.stage.acme.dev</div>
               </th>
               <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="globe"></i> HTTP API</td>
               <td class="gw-table__cell--optional">
@@ -317,7 +317,7 @@
                 <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a><br>
                 <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=stage-readonly"><span class="gw-sr-only">Endpoint </span>stage-readonly</a>
               </td>
-              <td class="gw-table__cell--actions">
+              <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-106" data-gw-access="connection:billing-api" aria-label="Access to connection billing-api" aria-describedby="access-demo-106-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-106">On</label><span class="gw-sr-only" id="access-demo-106-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                 <div class="gw-menu-host">
                   <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection billing-api" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-billing-api"><i class="gw-icon" data-lucide="ellipsis"></i></button>
                   <div class="gw-menu gw-menu--right" id="conn-menu-billing-api" role="menu" aria-label="Actions for connection billing-api" hidden>
@@ -332,7 +332,7 @@
               </td>
             </tr>
             <tr data-detail-for="billing-api">
-              <td colspan="6">
+              <td colspan="7">
                 <div class="gw-alert gw-alert--danger gw-alert--compact">
                   <i class="gw-icon gw-alert__icon" data-lucide="circle-alert"></i>
                   <div class="gw-alert__content">
@@ -347,9 +347,9 @@
               </td>
             </tr>
             <tr data-conn="cache-redis" data-type="redis" data-env="dev" data-health="slow">
-              <th scope="row">
+              <th scope="row" class="gw-table__cell--truncate">
                 <a class="gw-link gw-mono" href="connection-new.html?edit=cache-redis">cache-redis</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span>
-                <div class="gw-text-code-sm gw-fg-muted" title="cache.dev.internal:6379">cache.dev.internal:6379</div>
+                <div class="gw-text-code-sm gw-fg-muted gw-truncate" title="cache.dev.internal:6379">cache.dev.internal:6379</div>
               </th>
               <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="layers"></i> Redis 7</td>
               <td class="gw-table__cell--optional">
@@ -362,7 +362,7 @@
               <td>
                 <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a>
               </td>
-              <td class="gw-table__cell--actions">
+              <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-107" data-gw-access="connection:cache-redis" aria-label="Access to connection cache-redis" aria-describedby="access-demo-107-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-107">On</label><span class="gw-sr-only" id="access-demo-107-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                 <div class="gw-menu-host">
                   <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection cache-redis" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-cache-redis"><i class="gw-icon" data-lucide="ellipsis"></i></button>
                   <div class="gw-menu gw-menu--right" id="conn-menu-cache-redis" role="menu" aria-label="Actions for connection cache-redis" hidden>
@@ -377,9 +377,9 @@
               </td>
             </tr>
             <tr data-conn="dev-cluster" data-type="kubernetes" data-env="dev" data-health="healthy">
-              <th scope="row">
+              <th scope="row" class="gw-table__cell--truncate">
                 <a class="gw-link gw-mono" href="connection-new.html?edit=dev-cluster">dev-cluster</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span>
-                <div class="gw-text-code-sm gw-fg-muted" title="k8s.dev.internal:6443 · ns app-dev">k8s.dev.internal:6443 · ns app-dev</div>
+                <div class="gw-text-code-sm gw-fg-muted gw-truncate" title="k8s.dev.internal:6443 · ns app-dev">k8s.dev.internal:6443 · ns app-dev</div>
               </th>
               <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="ship-wheel"></i> Kubernetes</td>
               <td class="gw-table__cell--optional">
@@ -392,7 +392,7 @@
               <td>
                 <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a>
               </td>
-              <td class="gw-table__cell--actions">
+              <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-108" data-gw-access="connection:dev-cluster" aria-label="Access to connection dev-cluster" aria-describedby="access-demo-108-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-108">On</label><span class="gw-sr-only" id="access-demo-108-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                 <div class="gw-menu-host">
                   <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection dev-cluster" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-dev-cluster"><i class="gw-icon" data-lucide="ellipsis"></i></button>
                   <div class="gw-menu gw-menu--right" id="conn-menu-dev-cluster" role="menu" aria-label="Actions for connection dev-cluster" hidden>
@@ -407,9 +407,9 @@
               </td>
             </tr>
             <tr data-conn="dev-db" data-type="postgresql" data-env="dev" data-health="healthy">
-              <th scope="row">
+              <th scope="row" class="gw-table__cell--truncate">
                 <a class="gw-link gw-mono" href="connection-new.html?edit=dev-db">dev-db</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span>
-                <div class="gw-text-code-sm gw-fg-muted" title="db.dev.internal:5432/app">db.dev.internal:5432/app</div>
+                <div class="gw-text-code-sm gw-fg-muted gw-truncate" title="db.dev.internal:5432/app">db.dev.internal:5432/app</div>
               </th>
               <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="database"></i> PostgreSQL 16</td>
               <td class="gw-table__cell--optional">
@@ -422,7 +422,7 @@
               <td>
                 <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a>
               </td>
-              <td class="gw-table__cell--actions">
+              <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-109" data-gw-access="connection:dev-db" aria-label="Access to connection dev-db" aria-describedby="access-demo-109-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-109">On</label><span class="gw-sr-only" id="access-demo-109-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                 <div class="gw-menu-host">
                   <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection dev-db" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-dev-db"><i class="gw-icon" data-lucide="ellipsis"></i></button>
                   <div class="gw-menu gw-menu--right" id="conn-menu-dev-db" role="menu" aria-label="Actions for connection dev-db" hidden>
@@ -437,9 +437,9 @@
               </td>
             </tr>
             <tr data-conn="dev-vm" data-type="ssh" data-env="dev" data-health="healthy">
-              <th scope="row">
+              <th scope="row" class="gw-table__cell--truncate">
                 <a class="gw-link gw-mono" href="connection-new.html?edit=dev-vm">dev-vm</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span>
-                <div class="gw-text-code-sm gw-fg-muted" title="10.20.0.14:22">10.20.0.14:22</div>
+                <div class="gw-text-code-sm gw-fg-muted gw-truncate" title="10.20.0.14:22">10.20.0.14:22</div>
               </th>
               <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="terminal"></i> SSH</td>
               <td class="gw-table__cell--optional">
@@ -453,7 +453,7 @@
               <td>
                 <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a>
               </td>
-              <td class="gw-table__cell--actions">
+              <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-110" data-gw-access="connection:dev-vm" aria-label="Access to connection dev-vm" aria-describedby="access-demo-110-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-110">On</label><span class="gw-sr-only" id="access-demo-110-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                 <div class="gw-menu-host">
                   <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection dev-vm" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-dev-vm"><i class="gw-icon" data-lucide="ellipsis"></i></button>
                   <div class="gw-menu gw-menu--right" id="conn-menu-dev-vm" role="menu" aria-label="Actions for connection dev-vm" hidden>
@@ -468,9 +468,9 @@
               </td>
             </tr>
             <tr data-conn="orders-mongo" data-type="mongodb" data-env="dev" data-health="healthy">
-              <th scope="row">
+              <th scope="row" class="gw-table__cell--truncate">
                 <a class="gw-link gw-mono" href="connection-new.html?edit=orders-mongo">orders-mongo</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span>
-                <div class="gw-text-code-sm gw-fg-muted" title="mongo.dev.internal:27017/orders">mongo.dev.internal:27017/orders</div>
+                <div class="gw-text-code-sm gw-fg-muted gw-truncate" title="mongo.dev.internal:27017/orders">mongo.dev.internal:27017/orders</div>
               </th>
               <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="leaf"></i> MongoDB 7</td>
               <td class="gw-table__cell--optional">
@@ -483,7 +483,7 @@
               <td>
                 <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a>
               </td>
-              <td class="gw-table__cell--actions">
+              <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-111" data-gw-access="connection:orders-mongo" aria-label="Access to connection orders-mongo" aria-describedby="access-demo-111-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-111">On</label><span class="gw-sr-only" id="access-demo-111-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                 <div class="gw-menu-host">
                   <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection orders-mongo" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-orders-mongo"><i class="gw-icon" data-lucide="ellipsis"></i></button>
                   <div class="gw-menu gw-menu--right" id="conn-menu-orders-mongo" role="menu" aria-label="Actions for connection orders-mongo" hidden>
@@ -498,9 +498,9 @@
               </td>
             </tr>
             <tr data-conn="prod-logs" data-type="gcp-logging" data-env="prod" data-health="healthy">
-              <th scope="row">
+              <th scope="row" class="gw-table__cell--truncate">
                 <a class="gw-link gw-mono" href="connection-new.html?edit=prod-logs">prod-logs</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span>
-                <div class="gw-text-code-sm gw-fg-muted" title="projects/acme-prod">projects/acme-prod</div>
+                <div class="gw-text-code-sm gw-fg-muted gw-truncate" title="projects/acme-prod">projects/acme-prod</div>
               </th>
               <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="scroll-text"></i> GCP Cloud Logging</td>
               <td class="gw-table__cell--optional">
@@ -514,7 +514,7 @@
               <td>
                 <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=incident-prod"><span class="gw-sr-only">Endpoint </span>incident-prod</a>
               </td>
-              <td class="gw-table__cell--actions">
+              <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-112" data-gw-access="connection:prod-logs" aria-label="Access to connection prod-logs" aria-describedby="access-demo-112-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-112">On</label><span class="gw-sr-only" id="access-demo-112-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                 <div class="gw-menu-host">
                   <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection prod-logs" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-prod-logs"><i class="gw-icon" data-lucide="ellipsis"></i></button>
                   <div class="gw-menu gw-menu--right" id="conn-menu-prod-logs" role="menu" aria-label="Actions for connection prod-logs" hidden>
@@ -529,9 +529,9 @@
               </td>
             </tr>
             <tr data-conn="prod-replica" data-type="postgresql" data-env="prod" data-health="healthy">
-              <th scope="row">
+              <th scope="row" class="gw-table__cell--truncate">
                 <a class="gw-link gw-mono" href="connection-new.html?edit=prod-replica">prod-replica</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span>
-                <div class="gw-text-code-sm gw-fg-muted" title="replica.prod.internal:5432/app">replica.prod.internal:5432/app</div>
+                <div class="gw-text-code-sm gw-fg-muted gw-truncate" title="replica.prod.internal:5432/app">replica.prod.internal:5432/app</div>
               </th>
               <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="database"></i> PostgreSQL 16 <span class="gw-badge gw-badge--outline gw-badge--sm">Read replica</span></td>
               <td class="gw-table__cell--optional">
@@ -545,7 +545,7 @@
               <td>
                 <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=incident-prod"><span class="gw-sr-only">Endpoint </span>incident-prod</a>
               </td>
-              <td class="gw-table__cell--actions">
+              <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-113" data-gw-access="connection:prod-replica" aria-label="Access to connection prod-replica" aria-describedby="access-demo-113-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-113">On</label><span class="gw-sr-only" id="access-demo-113-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                 <div class="gw-menu-host">
                   <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection prod-replica" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-prod-replica"><i class="gw-icon" data-lucide="ellipsis"></i></button>
                   <div class="gw-menu gw-menu--right" id="conn-menu-prod-replica" role="menu" aria-label="Actions for connection prod-replica" hidden>
@@ -560,9 +560,9 @@
               </td>
             </tr>
             <tr data-conn="prod-vm" data-type="ssh" data-env="prod" data-health="healthy">
-              <th scope="row">
+              <th scope="row" class="gw-table__cell--truncate">
                 <a class="gw-link gw-mono" href="connection-new.html?edit=prod-vm">prod-vm</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span>
-                <div class="gw-text-code-sm gw-fg-muted" title="10.40.0.21:22">10.40.0.21:22</div>
+                <div class="gw-text-code-sm gw-fg-muted gw-truncate" title="10.40.0.21:22">10.40.0.21:22</div>
               </th>
               <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="terminal"></i> SSH <span class="gw-badge gw-badge--outline gw-badge--sm">Runbooks only</span></td>
               <td class="gw-table__cell--optional">
@@ -576,7 +576,7 @@
               <td>
                 <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=incident-prod"><span class="gw-sr-only">Endpoint </span>incident-prod</a>
               </td>
-              <td class="gw-table__cell--actions">
+              <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-114" data-gw-access="connection:prod-vm" aria-label="Access to connection prod-vm" aria-describedby="access-demo-114-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-114">On</label><span class="gw-sr-only" id="access-demo-114-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                 <div class="gw-menu-host">
                   <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection prod-vm" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-prod-vm"><i class="gw-icon" data-lucide="ellipsis"></i></button>
                   <div class="gw-menu gw-menu--right" id="conn-menu-prod-vm" role="menu" aria-label="Actions for connection prod-vm" hidden>
@@ -591,14 +591,14 @@
               </td>
             </tr>
             <tr data-conn="stage-db" data-type="postgresql" data-env="stage" data-health="healthy">
-              <th scope="row">
+              <th scope="row" class="gw-table__cell--truncate">
                 <a class="gw-link gw-mono" href="connection-new.html?edit=stage-db">stage-db</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span>
-                <div class="gw-text-code-sm gw-fg-muted" title="db.stage.internal:5432/app">db.stage.internal:5432/app</div>
+                <div class="gw-text-code-sm gw-fg-muted gw-truncate" title="db.stage.internal:5432/app">db.stage.internal:5432/app</div>
               </th>
               <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="database"></i> PostgreSQL 16</td>
               <td class="gw-table__cell--optional">
                 <i class="gw-icon gw-icon--sm" data-lucide="vault"></i> Vault reference
-                <div class="gw-text-code-sm gw-fg-muted" title="vault://kv/stage/db#password">kv/stage/db#password</div>
+                <div class="gw-text-code-sm gw-fg-muted gw-truncate" title="vault://kv/stage/db#password">kv/stage/db#password</div>
               </td>
               <td>
                 <span class="gw-status gw-status--success" data-conn-status><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 24 ms</span></span>
@@ -607,7 +607,7 @@
               <td>
                 <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=stage-readonly"><span class="gw-sr-only">Endpoint </span>stage-readonly</a>
               </td>
-              <td class="gw-table__cell--actions">
+              <td><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="access-demo-115" data-gw-access="connection:stage-db" aria-label="Access to connection stage-db" aria-describedby="access-demo-115-hint" checked><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="access-demo-115">On</label><span class="gw-sr-only" id="access-demo-115-hint">Applies across all endpoints. When off, AI can ask you to enable access.</span></div></td><td class="gw-table__cell--actions">
                 <div class="gw-menu-host">
                   <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection stage-db" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-stage-db"><i class="gw-icon" data-lucide="ellipsis"></i></button>
                   <div class="gw-menu gw-menu--right" id="conn-menu-stage-db" role="menu" aria-label="Actions for connection stage-db" hidden>
@@ -622,7 +622,7 @@
               </td>
             </tr>
             <tr id="conn-no-match" hidden>
-              <td class="gw-table__empty" colspan="6">
+              <td class="gw-table__empty" colspan="7">
                 <div class="gw-empty gw-empty--compact">
                   <span class="gw-empty__icon"><i class="gw-icon" data-lucide="search-x"></i></span>
                   <p class="gw-empty__title">No connections match these filters</p>

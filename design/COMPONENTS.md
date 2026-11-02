@@ -1754,7 +1754,9 @@ Stands in for the whole window while the gateway core is unavailable: fixed, z s
 
 ### `status-tile`
 
-One compact card that names one thing (a connection, an AI app) and says its state in words, with at most one action (Connect, Test again, How to install). For pages that answer 'what is connected and is it working' at a glance; sets of tiles sit in a gw-grid --3 list (--2 for the fixed set of four AI apps), problems first. The title links to the thing's page; when the action is the tile's only destination the title is plain text and the tile is not interactive.
+One compact card that names one thing (a connection, an AI app) and says its state in words, with an optional access switch and one action (Connect, Test again, How to install). For pages that answer 'what is connected and is it working' at a glance; sets of tiles sit in a gw-grid --3 list (--2 for the fixed set of four AI apps), problems first. The title links to the thing's page; when the action is the tile's only destination the title is plain text and the tile is not interactive.
+
+Connection tiles may place a `gw-switch` in `__end` above the stretched link. Its accessible name identifies the connection and global scope. Repeat appearances of a shared connection use the same value and pending state. Off means agent access is disabled by the user; it preserves tool modes and credentials. Endpoint switches affect access through that endpoint only. Disabling either keeps discovery visible and returns an explanation asking the agent to request user enablement. Show On/Off in text, keep the control busy during saving, and report save failures.
 
 AI app tiles show their endpoint slugs below the metadata as neutral small badges with monospaced labels in a wrapping `gw-tag-list`. Use `gw-badge--wrap` to keep long slugs fully visible within narrow tiles. Show each connected or restart-pending endpoint once. Exclude failed and revoked links, and omit the list when no endpoints remain. Name the list `Connected endpoints for <app>`; badges are display only and retain the tile's existing navigation.
 

@@ -11,6 +11,7 @@ import ai.msrv.gaterook.core.audit.AuditUnavailableException;
 import ai.msrv.gaterook.core.audit.AuditWriter;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshot;
+import ai.msrv.gaterook.core.endpoints.EndpointSnapshotService;
 import ai.msrv.gaterook.core.invocation.ConnectorInvoker;
 import ai.msrv.gaterook.core.invocation.ToolGuard;
 import ai.msrv.gaterook.core.platform.CanonicalJson;
@@ -55,9 +56,10 @@ public class ResourcesHandler {
   private final AuditWriter audit;
   private final ConnectorInvoker invoker;
   private final Calls calls;
+  private final EndpointSnapshotService snapshots;
 
   public ResourcesHandler(ConnectorRegistry registry, PolicyEngine engine, PolicyService policies, ToolGuard guard,
-      AuditWriter audit, ConnectorInvoker invoker, Calls calls) {
+      AuditWriter audit, ConnectorInvoker invoker, Calls calls, EndpointSnapshotService snapshots) {
     this.registry = registry;
     this.engine = engine;
     this.policies = policies;
@@ -65,6 +67,7 @@ public class ResourcesHandler {
     this.audit = audit;
     this.invoker = invoker;
     this.calls = calls;
+    this.snapshots = snapshots;
   }
 
   /** One offered resource and the pair it reads through. */
@@ -104,6 +107,8 @@ public class ResourcesHandler {
           "Resource not found: " + uri, JsonNodeFactory.instance.objectNode().put("uri", uri));
     }
     EndpointSnapshot.Pair pair = offer.get().pair();
+    String disabled = r.snapshot().disabledReason(pair.connectionName());
+    if (disabled != null) throw new McpException(JsonRpc.INVALID_PARAMS, disabled);
     PolicyEngine.Rates rates = engine.rates(pair.view(), pair.config());
     ToolGuard.Admission admission = guard.admit(r.caller().principalId(), TOOL, rates.perToken(), rates.perTool());
     if (!admission.allowed()) {
@@ -129,7 +134,8 @@ public class ResourcesHandler {
     long started = System.nanoTime();
     ConnectorInvoker.Outcome o = invoker.readResource(new ConnectorInvoker.Request(callId, pair.config(),
         new ToolCall(callId, TOOL, pair.connectionName(), args, null), decision.limits(),
-        policies.maskPolicy(pair.config().env()), r.span().traceId(), r.span().traceparent()), uri);
+        policies.maskPolicy(pair.config().env()), r.span().traceId(), r.span().traceparent(),
+        () -> snapshots.requireAvailable(r.snapshot().id(), pair.connectionName())), uri);
     long durationMs = (System.nanoTime() - started) / 1_000_000;
     try {
       audit.completed(call, new AuditWriter.Completion(o.ok() ? AuditWriter.Verdict.ALLOWED

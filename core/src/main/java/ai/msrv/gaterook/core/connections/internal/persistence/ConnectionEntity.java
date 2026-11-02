@@ -45,6 +45,9 @@ public class ConnectionEntity {
   @Column(name = "env", length = 8, nullable = false)
   private Env env;
 
+  @Column(name = "enabled", nullable = false)
+  private boolean enabled = true;
+
   @JdbcTypeCode(SqlTypes.JSON)
   @Column(name = "config", nullable = false)
   private Map<String, Object> config;
@@ -115,6 +118,15 @@ public class ConnectionEntity {
 
   public Env getEnv() {
     return env;
+  }
+
+  public boolean isEnabled() {
+    return enabled;
+  }
+
+  public void setEnabled(boolean enabled, Instant now) {
+    this.enabled = enabled;
+    touch(now);
   }
 
   public Map<String, Object> getConfig() {

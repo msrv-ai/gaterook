@@ -1,3 +1,4 @@
+import { GwAccessSwitch } from '../../kit/access-switch';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -120,7 +121,7 @@ const START_FROM: readonly { readonly id: StartFrom; readonly env: Env; readonly
  */
 @Component({
   selector: 'gw-endpoints-page',
-  imports: [
+  imports: [GwAccessSwitch,
     RouterLink,
     FormField,
     GwIcon,

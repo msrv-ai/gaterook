@@ -62,10 +62,6 @@ public class McpGateway {
       return new Response(404, JsonRpc.error(env.id(), JsonRpc.METHOD_NOT_FOUND, "Endpoint " + slug + " doesn't "
           + "exist", null));
     }
-    if (!snapshot.get().enabled()) {
-      return new Response(404, JsonRpc.error(env.id(), JsonRpc.METHOD_NOT_FOUND, "Endpoint " + slug + " is disabled",
-          null));
-    }
     McpDispatcher.Reply reply = dispatcher.dispatch(env, caller, snapshot.get(), header.apply(BridgeClient.HEADER));
     return new Response(reply.status(), reply.body());
   }
