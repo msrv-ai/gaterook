@@ -29,6 +29,49 @@
       </div>
     </header>
 
+    <section class="gw-section" aria-labelledby="st-endpoint-off">
+      <header class="gw-section__header">
+        <h2 class="gw-section__title" id="st-endpoint-off">Endpoint disabled</h2>
+        <p class="gw-section__description">Effective access is Off while the endpoint is disabled. Saved global connection settings stay On, and shared connections remain available through other endpoints.</p>
+      </header>
+      <div class="gw-alert gw-alert--neutral gw-alert--compact">
+        <i class="gw-icon gw-alert__icon" data-lucide="circle-off"></i>
+        <div class="gw-alert__content"><p class="gw-alert__title">All tools are off on this endpoint.</p><p class="gw-alert__body">Enable stage-readonly to restore access. Connection settings and tool modes are kept.</p></div>
+      </div>
+      <ul class="gw-grid gw-grid--3" role="list" aria-label="Connections on disabled endpoint stage-readonly">
+        <li class="gw-card gw-card--muted gw-card--interactive gw-status-tile">
+          <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="globe"></i></span>
+          <div class="gw-status-tile__main">
+            <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="../pages/connection-new.html?edit=billing-api">billing-api</a><span class="gw-sr-only">environment</span><span class="gw-env gw-env--stage gw-env--sm">stage</span></h3>
+            <p class="gw-text-caption gw-fg-muted">HTTP API</p>
+          </div>
+          <div class="gw-status-tile__end">
+            <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Endpoint off</span></span>
+            <div class="gw-switch">
+              <input class="gw-switch__input" type="checkbox" role="switch" id="st-paused-billing-api" aria-label="Access to connection billing-api through endpoint stage-readonly" aria-disabled="true" aria-describedby="st-paused-billing-api-hint">
+              <span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="st-paused-billing-api">Off</label>
+              <span class="gw-sr-only" id="st-paused-billing-api-hint">Endpoint stage-readonly is off. Enable the endpoint to restore access here. The saved connection setting is On; access through other endpoints is unchanged.</span>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--muted gw-card--interactive gw-status-tile">
+          <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="cloud"></i></span>
+          <div class="gw-status-tile__main">
+            <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="../pages/connection-new.html?edit=aws-stage">aws-stage</a><span class="gw-sr-only">environment</span><span class="gw-env gw-env--stage gw-env--sm">stage</span></h3>
+            <p class="gw-text-caption gw-fg-muted">AWS</p>
+          </div>
+          <div class="gw-status-tile__end">
+            <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Endpoint off</span></span>
+            <div class="gw-switch">
+              <input class="gw-switch__input" type="checkbox" role="switch" id="st-paused-aws-stage" aria-label="Access to connection aws-stage through endpoint stage-readonly" aria-disabled="true" aria-describedby="st-paused-aws-stage-hint">
+              <span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="st-paused-aws-stage">Off</label>
+              <span class="gw-sr-only" id="st-paused-aws-stage-hint">Endpoint stage-readonly is off. Enable the endpoint to restore access here. The saved connection setting is On; access through other endpoints is unchanged.</span>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </section>
+
     <section class="gw-section" aria-labelledby="st-conn">
       <header class="gw-section__header">
         <h2 class="gw-section__title" id="st-conn">Connections: unreachable, slow, healthy</h2>

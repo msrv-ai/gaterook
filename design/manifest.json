@@ -1597,6 +1597,7 @@
         "destructive tool: Read only <input disabled> + __mode-note 'Mutates data: approval, bypass or off' (lock icon, aria-describedby on the fieldset and the option)",
         "read-only subset: ssh_run keeps Read only, __mode-note 'Read only runs runbooks marked read only' (info icon)",
         "locked by the endpoint: incident-prod (prod-replica + prod-logs, prod), sql_execute <fieldset disabled> + note naming the read-only endpoint",
+        "endpoint disabled: muted group cards, neutral Off access for every tool, saved mode shown separately; mode pickers and bulk mode actions return when enabled",
         "limits collapsed / expanded (data-gw-toggle, aria-expanded ↔ tr[hidden], chevron pair)",
         "limit overridden (filled input, 'Overrides dev policy: 1,000 rows', gw-counter on the toggle, Reset enabled) vs inherited (empty input, policy value as placeholder, 'Inherited from dev policy: …', Reset disabled); overrides only stricter",
         "filtered by mode: Mode: Approval (listbox aria-selected), '3 of 14 tools match', groups '1 of 4 tools shown', groups without a match omitted",
@@ -2079,7 +2080,8 @@
         "not installed (neutral) + How to install (gw-btn--link)",
         "action unavailable: <button aria-disabled> + aria-describedby to a visible reason (never a link)",
         "narrow tile (content box < 280px, about 314px outer): state and action under the text on one row",
-        "connection access on / off (gw-switch); shared connections use one global setting"
+        "connection access on / off (gw-switch); shared connections use one global setting",
+        "endpoint disabled: neutral All tools are off alert, muted connection tiles, Endpoint off status and effective Off switches with an explained aria-disabled state; saved settings and other endpoints are unchanged"
       ],
       "usedIn": [
         "pages/overview.html"

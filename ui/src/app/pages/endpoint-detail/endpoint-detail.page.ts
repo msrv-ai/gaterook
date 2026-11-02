@@ -217,7 +217,9 @@ export class EndpointDetailPage {
     return {
       slug: e.slug,
       url: e.url,
-      tools: e.tools,
+      tools: e.status === 'disabled'
+        ? { read: 0, approval: 0, off: e.tools.read + e.tools.approval + e.tools.off + (e.tools.bypass ?? 0) }
+        : e.tools,
       tokens: this.counts()?.tokens ?? e.tokens.active,
       oauth: d.settings.oauthEnabled,
       policy: `${env} rules · mutations need approval`,
