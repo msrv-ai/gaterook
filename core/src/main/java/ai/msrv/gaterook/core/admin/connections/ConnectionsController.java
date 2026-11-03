@@ -15,6 +15,7 @@ import ai.msrv.gaterook.core.connections.ConnectionUsage;
 import ai.msrv.gaterook.core.connections.HealthMonitor;
 import ai.msrv.gaterook.core.connections.SecretInput;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
+import ai.msrv.gaterook.core.mcpservers.McpServerService;
 import ai.msrv.gaterook.core.platform.Masker;
 import ai.msrv.gaterook.core.platform.Taint;
 import ai.msrv.gaterook.core.policy.PolicyService;
@@ -163,9 +164,11 @@ class ConnectionsController {
   private final ConnectorRegistry registry;
   private final PolicyService policies;
   private final Masker masker;
+  private final McpServerService mcpServers;
 
   ConnectionsController(ConnectionService connections, ConnectionConfigs configs, ConnectionTester tester,
-      HealthMonitor health, ConnectorRegistry registry, PolicyService policies, Masker masker) {
+      HealthMonitor health, ConnectorRegistry registry, PolicyService policies, Masker masker,
+      McpServerService mcpServers) {
     this.connections = connections;
     this.configs = configs;
     this.tester = tester;
@@ -173,6 +176,7 @@ class ConnectionsController {
     this.registry = registry;
     this.policies = policies;
     this.masker = masker;
+    this.mcpServers = mcpServers;
   }
 
   // ── List ────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -350,8 +354,13 @@ class ConnectionsController {
     if (request.version() == null) {
       throw ApiRequestException.unprocessable("Version missing", "Send the version you edited.", "/version");
     }
-    ConnectionService.Summary s = connections.update(name, env(request.env()), request.config(), request.version(),
-        Reasons.check(request.reason()), request.confirm());
+    Env env = env(request.env());
+    String reason = Reasons.check(request.reason());
+    // An external MCP server is checked as adding one checks it: its sign-in, prefix and catalog entry.
+    boolean server = configs.byName(name).map(c -> McpServerService.TYPE.equals(c.config().type())).orElse(false);
+    ConnectionService.Summary s = server
+        ? mcpServers.update(name, env, request.config(), request.version(), reason, request.confirm())
+        : connections.update(name, env, request.config(), request.version(), reason, request.confirm());
     return row(s, configs.byId(s.id()).orElse(null));
   }
 

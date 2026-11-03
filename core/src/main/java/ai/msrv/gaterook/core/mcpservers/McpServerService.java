@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -55,6 +56,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.MissingNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -444,37 +446,20 @@ public class McpServerService {
             + plugin.get() + ". Choose another prefix.");
       }
     }
-    if (config.path("auth") instanceof ObjectNode auth) {
-      if (!"http".equals(transport)) {
-        throw ProblemException.unprocessable("Sign-in over HTTP only", "A command on this computer gets its keys as "
-            + "variables; only a server at a URL signs in.", "/config/auth");
-      }
-      // The client secret of the person's OAuth app is a secret of the server, given beside the config.
-      auth.remove("clientSecret");
+    if (config.path("auth").isObject()) {
+      signIn(config, credentialMembers(registry.requireManifest(TYPE).configSchema()), key -> {
+        checked.add(key);
+        if (given.containsKey(key)) {
+          fields.add(key);
+        } else if (forCreate) {
+          throw ProblemException.unprocessable("Secret missing", (SERVICE_ACCOUNT_KEY.equals(key)
+              ? "Enter the service account key (JSON)." : "Enter the secret access key.") + " GateRook stores it as "
+              + "a secret of this server.", "/secrets");
+        }
+      });
       if (given.containsKey(CLIENT_SECRET)) {
         fields.add(CLIENT_SECRET);
         checked.add(CLIENT_SECRET);
-      }
-      String type = auth.path("type").asString(null);
-      String way = switch (type == null ? "" : type) {
-        case "oauth" -> "The OAuth sign-in sends";
-        case "google" -> "Google Cloud credentials send";
-        case "aws" -> "AWS credentials send";
-        default -> null;
-      };
-      if (way != null) {
-        for (JsonNode h : config.path("headers")) {
-          if ("authorization".equalsIgnoreCase(h.path("name").asString(""))) {
-            throw ProblemException.unprocessable("Two sign-ins", way + " the Authorization header. Remove the "
-                + "Authorization header, or sign in another way.", "/config/headers");
-          }
-        }
-      }
-      if ("google".equals(type) || "aws".equals(type)) {
-        cloudCredentials(type, auth, config, given, forCreate, fields, checked);
-      } else if (auth.has("credentials") || auth.has("service") || auth.has("region")) {
-        throw ProblemException.unprocessable("Credentials for a cloud sign-in", "Cloud credentials, a service and a "
-            + "region belong to a server that signs in with Google Cloud or AWS credentials.", "/config/auth");
       }
     }
     // Checked as the connection will be: the type's schema, the env's locks.
@@ -485,12 +470,94 @@ public class McpServerService {
   }
 
   /**
+   * Checks the sign-in of a server's config as adding and editing it both do (§7.5, §7.6): only a server at a URL signs
+   * in, never beside an Authorization header of its own, and cloud credentials belong to a cloud sign-in only. The
+   * client secret or cloud key typed into the config goes (it is a secret of the server, given beside the config), and
+   * so do cloud credentials of another sign-in that hold their defaults alone, as the connection form sends them.
+   *
+   * @param credentialMembers the schemas of the members of {@code auth.credentials}, with their defaults
+   * @param key               told the secret field of the cloud key the credentials come from, when they need one
+   */
+  static void signIn(ObjectNode config, JsonNode credentialMembers, Consumer<String> key) {
+    if (!(config.path("auth") instanceof ObjectNode auth)) {
+      return;
+    }
+    if (!"http".equals(config.path("transport").asString("stdio"))) {
+      throw ProblemException.unprocessable("Sign-in over HTTP only", "A command on this computer gets its keys as "
+          + "variables; only a server at a URL signs in.", "/config/auth");
+    }
+    // The client secret of the person's OAuth app is a secret of the server, given beside the config.
+    auth.remove("clientSecret");
+    String type = auth.path("type").asString(null);
+    String way = switch (type == null ? "" : type) {
+      case "oauth" -> "The OAuth sign-in sends";
+      case "google" -> "Google Cloud credentials send";
+      case "aws" -> "AWS credentials send";
+      default -> null;
+    };
+    if (way != null) {
+      for (JsonNode h : config.path("headers")) {
+        if ("authorization".equalsIgnoreCase(h.path("name").asString(""))) {
+          throw ProblemException.unprocessable("Two sign-ins", way + " the Authorization header. Remove the "
+              + "Authorization header, or sign in another way.", "/config/headers");
+        }
+      }
+    }
+    if ("google".equals(type) || "aws".equals(type)) {
+      cloudCredentials(type, auth, config, key);
+      return;
+    }
+    if (auth.path("credentials") instanceof ObjectNode credentials && onlyDefaults(credentials, credentialMembers)) {
+      auth.remove("credentials");
+    }
+    if (auth.has("credentials") || auth.has("service") || auth.has("region")) {
+      throw ProblemException.unprocessable("Credentials for a cloud sign-in", "Cloud credentials, a service and a "
+          + "region belong to a server that signs in with Google Cloud or AWS credentials.", "/config/auth");
+    }
+  }
+
+  /** Whether every member of {@code value} is its schema's {@code default} (an empty object too). */
+  private static boolean onlyDefaults(ObjectNode value, JsonNode members) {
+    for (Map.Entry<String, JsonNode> e : value.properties()) {
+      JsonNode d = members.path(e.getKey()).path("default");
+      if (d.isMissingNode() || !d.equals(e.getValue())) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /** The schemas of the members of {@code auth.credentials}, wherever a branch of the type's schema declares them. */
+  static JsonNode credentialMembers(JsonNode schema) {
+    if (!schema.isObject()) {
+      return MissingNode.getInstance();
+    }
+    JsonNode members = schema.path("properties").path("auth").path("properties").path("credentials")
+        .path("properties");
+    if (members.isObject()) {
+      return members;
+    }
+    List<JsonNode> parts = new ArrayList<>();
+    for (String k : List.of("allOf", "anyOf", "oneOf")) {
+      schema.path(k).forEach(parts::add);
+    }
+    parts.add(schema.path("then"));
+    parts.add(schema.path("else"));
+    for (JsonNode part : parts) {
+      JsonNode found = credentialMembers(part);
+      if (found.isObject()) {
+        return found;
+      }
+    }
+    return MissingNode.getInstance();
+  }
+
+  /**
    * Checks the cloud credentials of a server that signs in with them (§7.6): where they come from, the key that is a
    * secret of the server ({@link #SERVICE_ACCOUNT_KEY}, {@link #SECRET_ACCESS_KEY}) and, for AWS, the service and
    * region a request is signed for. The key is given beside the config, never in it.
    */
-  private static void cloudCredentials(String type, ObjectNode auth, ObjectNode config, Map<String, SecretInput> given,
-      boolean forCreate, Set<String> fields, Set<String> checked) {
+  private static void cloudCredentials(String type, ObjectNode auth, ObjectNode config, Consumer<String> key) {
     boolean google = "google".equals(type);
     if (!(auth.path("credentials") instanceof ObjectNode credentials)) {
       throw ProblemException.unprocessable("Credentials missing", "Choose where GateRook takes the "
@@ -505,15 +572,8 @@ public class McpServerService {
           : "AWS credentials come from: use a profile on this computer or an access key."), "/config/auth/credentials");
     }
     credentials.put("source", source);
-    String field = google ? SERVICE_ACCOUNT_KEY : SECRET_ACCESS_KEY;
     if (source.equals(google ? "serviceAccountKey" : "accessKey")) {
-      checked.add(field);
-      if (given.containsKey(field)) {
-        fields.add(field);
-      } else if (forCreate) {
-        throw ProblemException.unprocessable("Secret missing", (google ? "Enter the service account key (JSON)."
-            : "Enter the secret access key.") + " GateRook stores it as a secret of this server.", "/secrets");
-      }
+      key.accept(google ? SERVICE_ACCOUNT_KEY : SECRET_ACCESS_KEY);
     }
     try {
       if (google) {
@@ -738,6 +798,44 @@ public class McpServerService {
   public ConnectionService.DeleteSummary delete(String name, String reason) {
     stored(name);
     return connections.delete(name, name, reason);
+  }
+
+  /**
+   * {@code PUT /api/connections/{name}} of a server (Connections › Edit): its sign-in checked as adding checks it, with
+   * its stored secrets in place of the values given there, then saved as any connection is. Its tools stay published
+   * under the prefix it was added with, and only the catalog names the entry it came from.
+   */
+  public ConnectionService.Summary update(String name, Env env, JsonNode config, long version, String reason,
+      String confirm) {
+    ConnectionConfigs.Stored c = configs.byName(name).filter(x -> TYPE.equals(x.config().type()))
+        .orElseThrow(() -> notFound(name));
+    if (!c.verified() || !(config instanceof ObjectNode request)) {
+      // Refused there as any connection's would be: changed outside GateRook, or no settings.
+      return connections.update(name, env, config, version, reason, confirm);
+    }
+    String prefix = stored(name).snapshot().toolPrefix();
+    ObjectNode next = request.deepCopy();
+    if (next.hasNonNull("toolPrefix") && !prefix.equals(next.path("toolPrefix").asString(null))) {
+      throw ProblemException.unprocessable("Prefix can't change", "Its tools are published under " + prefix + ", and "
+          + "endpoints and agents know them by it. To use another prefix, add the server again.", "/config/toolPrefix");
+    }
+    next.put("toolPrefix", prefix);
+    next.remove("catalogEntry");
+    JsonNode entry = c.config().config().path("catalogEntry");
+    if (entry.isString()) {
+      next.put("catalogEntry", entry.asString());
+    }
+    signIn(next, credentialMembers(registry.requireManifest(TYPE).configSchema()), key -> {
+      if (!c.secretIds().containsKey(key)) {
+        // Said at the source, where the person changes it: Edit replaces a stored key but has none to add.
+        boolean google = SERVICE_ACCOUNT_KEY.equals(key);
+        throw ProblemException.unprocessable("Secret missing", name + " has no " + (google ? "service account key"
+            : "secret access key") + " stored: GateRook takes it when a server is added. Use " + (google
+            ? "Google sign-in on this computer" : "an AWS profile on this computer") + ", or add the server again "
+            + "with its key.", "/config/auth/credentials/source");
+      }
+    });
+    return connections.update(name, env, next, version, reason, confirm);
   }
 
   /** The person reviewed a row changed outside GateRook and keeps it as it is. */
