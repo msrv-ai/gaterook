@@ -325,6 +325,23 @@ describe('schema-form: display sections', () => {
       .toEqual(['/kind', '/auth/first', '/auth/second', '/connection/certificate']);
   });
 
+  it('keeps a message of the core until its value changes, and leaves Save to the core', () => {
+    const f = make({ connection: { host: 'db', caCertificate: 'longer than the allowed length' } });
+    const at = (pointer: string) => f.compiled.all.find((n) => n.pointer === pointer)!;
+    f.applyServerErrors(new ApiError('unprocessable', 422, {
+      errors: [{ field: '/config/connection/host', message: 'Use an allowed host.' }],
+    }));
+    expect(f.error(at('/connection/host'))).toBe('Use an allowed host.');
+    // The form's own rules still hold Save back; the core's message is shown beside them.
+    expect(f.submit()).toBe(false);
+    expect(f.invalidNodes().map((n) => n.pointer)).toEqual(['/connection/host', '/connection/caCertificate']);
+    f.set(at('/connection/caCertificate'), 'short CA');
+    expect(f.submit()).toBe(true);
+    expect(f.error(at('/connection/host'))).toBe('Use an allowed host.');
+    f.set(at('/connection/host'), 'db.example.test');
+    expect(f.error(at('/connection/host'))).toBeNull();
+  });
+
   it('opens the display section for server errors at the original config path', () => {
     const f = make({ connection: { caCertificate: 'invalid CA' } });
     const advanced = f.compiled.sections[1];
