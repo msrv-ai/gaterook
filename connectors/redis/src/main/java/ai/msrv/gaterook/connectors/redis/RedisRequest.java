@@ -13,7 +13,7 @@ import tools.jackson.databind.node.ObjectNode;
  * rule) and again in {@code execute} (report 05 §3.6). They come from the agent's arguments or, for a call a person
  * approved, from the payload stored with the request, which has the same shape ({@link #payload()}).
  */
-sealed interface RedisRequest permits RedisRequest.Get, RedisRequest.Scan {
+sealed interface RedisRequest permits RedisRequest.Get, RedisRequest.Scan, RedisWrite {
 
   String GET_TOOL = "redis_get";
   String SCAN_TOOL = "redis_scan";
@@ -82,16 +82,33 @@ sealed interface RedisRequest permits RedisRequest.Get, RedisRequest.Scan {
     return switch (tool) {
       case GET_TOOL -> get(arguments, cfg, s);
       case SCAN_TOOL -> scan(arguments, cfg, s);
+      case "redis_set", "redis_hset", "redis_lpush", "redis_rpush", "redis_sadd", "redis_zadd" ->
+          RedisWrite.parse(tool, arguments, cfg, s);
       default -> throw new Refusal("unknown-tool", "The Redis connector has no tool " + tool + ".", null);
     };
   }
 
   private static Get get(JsonNode a, ConnectionConfig cfg, RedisSettings s) throws Refusal {
+    Key k = key(a, cfg, s, "read");
+    int limit = bounded(a, "limit", 100);
+    String cursor = cursor(a);
+    if (cursor != null) {
+      java.util.Optional<String> why = Cursors.peekGet(cursor, s.cursorScope(cfg.id()), k.bytes());
+      if (why.isPresent()) {
+        throw new Refusal("bad-cursor", why.get(), null);
+      }
+    }
+    return new Get(k.bytes(), k.text(), k.base64(), limit, cursor, s.database());
+  }
+
+  record Key(byte[] bytes, String text, boolean base64) {}
+
+  static Key key(JsonNode a, ConnectionConfig cfg, RedisSettings s, String action) throws Refusal {
     String keyText = a.path("key").isString() ? a.path("key").asString() : null;
     if (keyText == null || keyText.isEmpty() || keyText.length() > 1_024) {
       throw new Refusal("bad-argument", "key is 1 to 1,024 characters.", null);
     }
-    String encoding = a.path("encoding").asString("utf8");
+    String encoding = a.has("encoding") ? a.path("encoding").asString("") : "utf8";
     boolean base64 = encoding.equals("base64");
     if (!base64 && !encoding.equals("utf8")) {
       throw new Refusal("bad-argument", "encoding is utf8 or base64.", null);
@@ -111,18 +128,10 @@ sealed interface RedisRequest permits RedisRequest.Get, RedisRequest.Scan {
       key = keyText.getBytes(StandardCharsets.UTF_8);
     }
     if (!s.keyAllowed(key)) {
-      throw new Refusal("key-not-allowed", cfg.name() + " doesn't let agents read " + RedisValues.quote(key) + ": "
-          + s.whyNotAllowed(key) + ".", "Read keys the connection allows; describe_connection shows its key lists.");
+      throw new Refusal("key-not-allowed", cfg.name() + " doesn't let agents " + action + " " + RedisValues.quote(key)
+          + ": " + s.whyNotAllowed(key) + ".", "Use keys the connection allows; describe_connection shows its key lists.");
     }
-    int limit = bounded(a, "limit", 100);
-    String cursor = cursor(a);
-    if (cursor != null) {
-      java.util.Optional<String> why = Cursors.peekGet(cursor, s.cursorScope(cfg.id()), key);
-      if (why.isPresent()) {
-        throw new Refusal("bad-cursor", why.get(), null);
-      }
-    }
-    return new Get(key, keyText, base64, limit, cursor, s.database());
+    return new Key(key, keyText, base64);
   }
 
   private static Scan scan(JsonNode a, ConnectionConfig cfg, RedisSettings s) throws Refusal {
@@ -155,7 +164,7 @@ sealed interface RedisRequest permits RedisRequest.Get, RedisRequest.Scan {
       }
       return s.database();
     }
-    if (!db.isIntegralNumber() || db.asLong() < 0 || db.asLong() > 1_023) {
+    if (!db.isIntegralNumber() || !db.canConvertToInt() || db.asInt() < 0 || db.asInt() > 1_023) {
       throw new Refusal("bad-argument", "database is a whole number from 0 to 1,023.", null);
     }
     int selected = db.asInt();

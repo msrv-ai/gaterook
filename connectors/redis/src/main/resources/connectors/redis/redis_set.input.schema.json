@@ -1,0 +1,80 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "key",
+    "value"
+  ],
+  "description": "Writes one key. Up to 1,000 elements and 1 MiB total; connection value-size and call limits also apply. Oversized writes are rejected in full.",
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "encoding": {
+      "type": "string",
+      "enum": [
+        "utf8",
+        "base64"
+      ],
+      "default": "utf8",
+      "description": "base64: key is the base64 of a key that isn't UTF-8, as redis_scan lists it."
+    },
+    "database": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1023,
+      "description": "Required when several databases are selected. Defaults to the sole selected database."
+    },
+    "value": {
+      "type": "string",
+      "maxLength": 2097152
+    },
+    "valueEncoding": {
+      "type": "string",
+      "enum": [
+        "utf8",
+        "base64"
+      ],
+      "default": "utf8",
+      "description": "Encoding of value; independent of the key encoding."
+    },
+    "condition": {
+      "type": "string",
+      "enum": [
+        "always",
+        "NX",
+        "XX"
+      ],
+      "default": "always",
+      "description": "NX creates only if absent; XX replaces only if present."
+    },
+    "ttlMs": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647000,
+      "description": "Expiration in milliseconds. Cannot be combined with keepTtl=true."
+    },
+    "keepTtl": {
+      "type": "boolean",
+      "default": false,
+      "description": "Preserve the existing TTL. Without ttlMs or keepTtl=true, SET removes any TTL."
+    }
+  },
+  "not": {
+    "required": [
+      "ttlMs",
+      "keepTtl"
+    ],
+    "properties": {
+      "keepTtl": {
+        "const": true
+      }
+    }
+  }
+}

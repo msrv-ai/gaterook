@@ -24,8 +24,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The connector without a server: manifest, classification (READ or DENY — never MUTATION), the exact action of a
- * read set to Approval, and refusals that happen before any socket is opened.
+ * The connector without a server: manifest, classification, exact action previews, and refusals that happen before any socket is opened.
  */
 class RedisConnectorTest {
 
@@ -50,7 +49,7 @@ class RedisConnectorTest {
     assertThat(m.name()).isEqualTo("Redis");
     assertThat(m.group()).isEqualTo("Databases");
     assertThat(m.icon()).isEqualTo("layers");
-    assertThat(m.description()).isEqualTo("Read keys and scan by pattern. Read only.");
+    assertThat(m.description()).isEqualTo("Read and write values, and scan keys by pattern. Writes require approval by default.");
     assertThat(m.configSchema().path("type").asString()).isEqualTo("object");
     assertThat(m.policySchema()).isNull();
   }
@@ -59,8 +58,9 @@ class RedisConnectorTest {
   void publishesTheToolsOfTheKit() {
     List<ToolDefinition> tools = connector.manifest().tools();
 
-    assertThat(tools).extracting(ToolDefinition::name).containsExactly("redis_get", "redis_scan");
-    for (ToolDefinition t : tools) {
+    assertThat(tools).extracting(ToolDefinition::name).containsExactly("redis_get", "redis_scan", "redis_set",
+        "redis_hset", "redis_lpush", "redis_rpush", "redis_sadd", "redis_zadd");
+    for (ToolDefinition t : tools.subList(0, 2)) {
       assertThat(t.nature()).as(t.name()).isEqualTo(Nature.READ);
       assertThat(t.defaultMode()).isEqualTo(Mode.READ_ONLY);
       assertThat(t.prodDefaultMode()).isEqualTo(Mode.READ_ONLY);
@@ -100,7 +100,8 @@ class RedisConnectorTest {
       redis_scan | {"pattern":"a\\u0000b"}                         | DENY | dev.redis.bad-pattern
       redis_scan | {"pattern":"line\\nbreak"}                      | DENY | dev.redis.bad-pattern
       redis_scan | {"cursor":"rgc.eyJ4"}                           | DENY | dev.redis.bad-cursor
-      redis_set  | {"key":"x","value":"y"}                         | DENY | dev.redis.unknown-tool
+      redis_set  | {"key":"x","value":"y"}                         | MUTATION |
+      redis_eval | {"key":"x","value":"y"}                         | DENY | dev.redis.unknown-tool
       """)
   void classifiesWithoutIo(String tool, String arguments, Classification.Kind kind, String rule) {
     Classification c = connector.classify(Configs.call(tool, arguments), cfg(), Configs.policy(Env.DEV));
@@ -131,7 +132,7 @@ class RedisConnectorTest {
     Classification c = connector.classify(Configs.call("redis_get", "{\"key\":\"session:\\u202e48213\"}"), cfg(),
         Configs.policy(Env.DEV));
     assertThat(c.reason()).isEqualTo("cache-redis doesn't let agents read \"session:\\xe2\\x80\\xae48213\": it "
-        + "matches a pattern of \"Keys the agent never reads\".");
+        + "matches a pattern of \"Keys the agent never accesses\".");
   }
 
   @Test
@@ -143,7 +144,7 @@ class RedisConnectorTest {
     Classification other = connector.classify(Configs.call("redis_get", "{\"key\":\"orders:1\"}"), c,
         Configs.policy(Env.DEV));
     assertThat(other.ruleId()).isEqualTo("dev.redis.key-not-allowed");
-    assertThat(other.reason()).contains("matches none of \"Keys the agent may read\"");
+    assertThat(other.reason()).contains("matches none of \"Keys the agent may access\"");
   }
 
   @Test
@@ -157,7 +158,7 @@ class RedisConnectorTest {
   }
 
   @Test
-  void noArgumentsEverMakeAMutation() {
+  void readToolArgumentsNeverMakeAMutation() {
     Random random = new Random(7);
     String[] words = {"key", "pattern", "cursor", "limit", "count", "type", "encoding", "details", "command", "value"};
     for (int i = 0; i < 2_000; i++) {

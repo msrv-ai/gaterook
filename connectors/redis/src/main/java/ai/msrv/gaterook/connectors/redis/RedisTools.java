@@ -13,10 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * The two read tools of Redis (report 05 §3, kit endpoint-detail). Both are pure READ, so both publish an
- * outputSchema; neither takes a command, so there is no path to a write.
- */
+/** Read tools publish output schemas; write tools can return approval handles and default to Approval. */
 final class RedisTools {
 
   static final String GET_DESCRIPTION = "Read one key: a string, hash, list, set, sorted set or stream, a page of "
@@ -48,7 +45,27 @@ final class RedisTools {
             .nature(Nature.READ)
             .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY)
             .resultShape(ResultShape.JSON)
-            .build());
+            .build(),
+        write(schemas, "redis_set", "Write a string", "Set a string value, replacing any existing value and type. "
+            + "Supports NX/XX, ttlMs and keepTtl; without either TTL option an existing TTL is removed.", true),
+        write(schemas, "redis_hset", "Write hash fields", "Set one or more hash fields. Existing fields are "
+            + "overwritten; other fields and the key's TTL are preserved. Returns the number of new fields.", true),
+        write(schemas, "redis_lpush", "Prepend list values", "Prepend values to a list in argument order: "
+            + "[a, b] produces b, a at the head. Returns the resulting list length.", false),
+        write(schemas, "redis_rpush", "Append list values", "Append values to a list in argument order. "
+            + "Returns the resulting list length.", false),
+        write(schemas, "redis_sadd", "Add set members", "Add string members to a set. Existing members are "
+            + "unchanged. Returns the number of new members.", false),
+        write(schemas, "redis_zadd", "Write sorted set members", "Add members with numeric scores, updating "
+            + "scores of existing members. Returns the number of new members.", true));
+  }
+
+  private static ToolDefinition write(SchemaResources schemas, String name, String title, String description,
+      boolean destructive) {
+    return ToolDefinition.builder(name).title(title).description(description + " Requires approval by default.")
+        .inputSchema(schemas.load(name + ".input"))
+        .annotations(Annotations.write(destructive)).nature(Nature.MUTATION)
+        .defaultMode(Mode.APPROVAL, Mode.APPROVAL).resultShape(ResultShape.JSON).build();
   }
 
   /**
@@ -69,6 +86,10 @@ final class RedisTools {
     String max = NumberFormat.getIntegerInstance(Locale.US).format(Math.min(rows, 1_000));
     List<ToolDefinition> out = new ArrayList<>();
     for (ToolDefinition t : tools) {
+      if (t.mutating()) {
+        out.add(t);
+        continue;
+      }
       String suffix = t.name().equals("redis_get") ? " Max " + max + " elements per call." : " Max " + max
           + " keys per call.";
       out.add(ToolDefinition.builder(t.name())
