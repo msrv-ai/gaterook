@@ -2845,7 +2845,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "default": "stdio",
         "x-enumTitles": [
           "Command on this computer (stdio)",
-          "URL (Streamable HTTP)"
+          "URL (Streamable HTTP or SSE)"
         ]
       },
       "start": {
@@ -2887,6 +2887,24 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "minimum": 1,
         "maximum": 16,
         "default": 4
+      },
+      "share": {
+        "type": "object",
+        "title": "Share with agents",
+        "additionalProperties": false,
+        "description": "What the server offers besides tools. Reads of its resources and prompts run without approval, through the endpoint's policy, masked and recorded in Activity.",
+        "properties": {
+          "resources": {
+            "type": "boolean",
+            "default": false,
+            "title": "Its resources and resource templates"
+          },
+          "prompts": {
+            "type": "boolean",
+            "default": false,
+            "title": "Its prompts and their completions"
+          }
+        }
       },
       "catalogEntry": {
         "type": "string",
@@ -12094,7 +12112,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
     }
   },
   "mcp-server": {
-    "sections": [],
+    "sections": [
+      "/share"
+    ],
     "loose": [
       "/toolPrefix",
       "/transport",
@@ -12110,7 +12130,16 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "/maxInFlight",
       "/catalogEntry"
     ],
-    "rows": {},
+    "rows": {
+      "/share": [
+        [
+          "/share/resources"
+        ],
+        [
+          "/share/prompts"
+        ]
+      ]
+    },
     "fields": [
       {
         "pointer": "/toolPrefix",
@@ -12339,6 +12368,54 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "prodForbidden": null,
         "optionsFrom": null,
         "confirm": null
+      },
+      {
+        "pointer": "/share",
+        "kind": "object",
+        "title": "Share with agents",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/share/resources",
+        "kind": "checkbox",
+        "title": "Its resources and resource templates",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/share/prompts",
+        "kind": "checkbox",
+        "title": "Its prompts and their completions",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
       }
     ],
     "defaults": {
@@ -12348,6 +12425,10 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "startTimeoutSeconds": 30,
       "callTimeoutSeconds": 60,
       "maxInFlight": 4,
+      "share": {
+        "resources": false,
+        "prompts": false
+      },
       "command": []
     },
     "prodDefaults": {
@@ -12357,6 +12438,10 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "startTimeoutSeconds": 30,
       "callTimeoutSeconds": 30,
       "maxInFlight": 4,
+      "share": {
+        "resources": false,
+        "prompts": false
+      },
       "command": []
     }
   }

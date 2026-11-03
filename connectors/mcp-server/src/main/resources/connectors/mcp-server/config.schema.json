@@ -20,7 +20,7 @@
       "default": "stdio",
       "x-enumTitles": [
         "Command on this computer (stdio)",
-        "URL (Streamable HTTP)"
+        "URL (Streamable HTTP or SSE)"
       ]
     },
     "start": {

@@ -14,13 +14,13 @@ Open **Connectors › MCP servers › Add MCP server**; **Connections › Add co
 | A command | `claude mcp add --transport http sentry https://mcp.sentry.dev/mcp`, `codex mcp add linear --url …` |
 | The URL | `https://mcp.stripe.com` |
 
-Only names of headers and variables are taken from a paste. The review asks for each value and stores it encrypted as a secret of the server. A command that runs `mcp-remote` for a URL becomes that URL, because GateRook signs in itself. A command that runs the MCP Proxy for AWS becomes its URL signed with AWS credentials, with the proxy's profile and region. A Google server pasted with a token in `Authorization` signs in with Google Cloud credentials instead, billed to its `x-goog-user-project`. An address ending in `/sse` becomes `/mcp`, because GateRook connects over Streamable HTTP and servers that still list an SSE address usually answer there too. With a URL and no name, the name follows the host: `mcp.linear.app` becomes `linear-mcp`, and a Google or AWS server is named after its product, such as `bigtableadmin-mcp`.
+Only names of headers and variables are taken from a paste. The review asks for each value and stores it encrypted as a secret of the server. A command that runs `mcp-remote` for a URL becomes that URL, because GateRook signs in itself. A command that runs the MCP Proxy for AWS becomes its URL signed with AWS credentials, with the proxy's profile and region. A Google server pasted with a token in `Authorization` signs in with Google Cloud credentials instead, billed to its `x-goog-user-project`. An address ending in `/sse` stays as it is: GateRook connects there over Streamable HTTP when the server takes it, else over the older SSE transport. If the server also lists an address ending in `/mcp`, use that one. With a URL and no name, the name follows the host: `mcp.linear.app` becomes `linear-mcp`, and a Google or AWS server is named after its product, such as `bigtableadmin-mcp`.
 
 ### Find a server in the MCP registry
 
 Open the **Official MCP Registry** tab and type at least three characters of a server's name, such as `linear`. GateRook searches the [Official MCP Registry](https://registry.modelcontextprotocol.io), where publishers list their public servers, and shows the latest version of each match, 20 at a time. **Use** fills **Manual entry** as a pasted configuration does and returns to it, where **Review and connect** or **Review and start** continues:
 
-- A server at a URL gets its Streamable HTTP address, or its SSE address changed to `/mcp`, and the names of the headers it needs.
+- A server at a URL gets its Streamable HTTP address, else its SSE address, and the names of the headers it needs.
 - An npm package gets `npx -y <package>@<version>`, a PyPI package `uvx --from <package>==<version> <package>`, both pinned to the version the registry names, and the names of the variables the server needs. A package that the registry lists only as a Docker image, an MCP bundle or a NuGet package can't be added from the search; paste the configuration from its docs instead.
 - Parts that only you know stay visible: `{tenant_id}` in a URL, `<workspace>` in a command. **Review and connect** waits until you replace them.
 
@@ -40,6 +40,19 @@ For a server on Google Cloud or AWS, the review also offers to sign in with that
 Adding a server ends as adding a connection does: GateRook offers the endpoints its tools may join, the usual one chosen. There each tool starts as Approval, and you change modes on the endpoint. **Not now** leaves the tools Off until you add the server to an endpoint later.
 
 The server is then listed in **Connections** with the other connections, where you test, edit or delete it. In **Connectors › MCP servers** you can also restart it, sign in to it again or sign out.
+
+## What a server shares besides tools
+
+The review says what a server offers besides tools: resources, prompts, and the MCP Apps its tools show. Its tools are published as described above. The rest reaches agents as follows:
+
+- **Resources and prompts.** In the server's settings, **Share with agents** lets it share its resources and resource templates, its prompts and their completions, or both. Both are off by default. AI apps then list them next to GateRook's own: resources under `mcpgw://connections/<server>/mcp/…`, prompts with the server's prefix. Reading one runs without approval, through the endpoint's policy, masked like a result and recorded in **Activity**. A paused server or endpoint shares nothing.
+- **MCP Apps.** When a tool that is on shows an app, AI apps that render MCP Apps show it through GateRook, whether or not the server shares its resources. The tool's review pins which app it shows.
+- **Images, audio and files.** Results keep them. GateRook can't mask pixels: it withholds a block whose bytes contain a secret it handed to the server, and one that doesn't fit the result's size limit, with a note in its place.
+- **Progress, log messages and cancelling.** When the AI app asks for them, it hears a call's progress and the server's log messages while the call runs, masked. Stopping a call in the AI app stops it at the server.
+- **Changes and updates.** AI apps that listen hear when the server's resources or prompts change, and get updates of the resources they subscribed to.
+- **Tasks.** A tool that the server runs as a task runs to its end within the call's timeout. AI apps that use tasks can run a call through GateRook as a task; one that waits for approval then waits for your decision.
+
+GateRook speaks the MCP revisions `2026-07-28` and `2025-11-25` back to `2024-11-05`, the newest the server speaks, over stdio, Streamable HTTP or the older SSE transport. It gives a server no access to the AI app: a server that asks for its model, its files or your input gets an error.
 
 ## Sign in
 
@@ -98,7 +111,7 @@ A few providers admit only clients on their own allowlist, by name or by redirec
 | --- | --- |
 | A private address | A server on this computer or your network needs its range in **Policies › HTTP: allowed private ranges** for the environment. |
 | Can't listen on port … | Another program uses the callback port. Choose another one in **Sign-in options**, or leave it empty for any free port. |
-| It answered HTTP 404 or 405 | Check the URL. Streamable HTTP addresses usually end in `/mcp`. |
+| It answered HTTP 404 or 405 | Check the URL. Streamable HTTP addresses usually end in `/mcp`, SSE addresses in `/sse`. |
 | The provider's page says the client or its redirect address is invalid | The provider couldn't use the details GateRook publishes. Cancel the sign-in in GateRook and try again later. If it keeps happening and the provider lets you create an OAuth app, enter that app's client ID in **Sign-in options**. |
 | Needs you to sign in again | Sign in from the server's row. |
 | Refused its renewed sign-in | The provider took a new token back at once. Sign in again if it keeps happening. |

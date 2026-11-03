@@ -37,6 +37,23 @@ public interface Connector extends AutoCloseable {
   default List<ResourceDescriptor> resources(ConnectionConfig cfg) { return List.of(); }
   default ToolResult readResource(String uri, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
       throws ConnectorException { throw ConnectorException.badInput("No resource " + uri); }
+  /** What a connection shares that only the resource can list: an external MCP server the person lets share its
+   *  resources or prompts (ARCHITECTURE.md §5.4). No I/O. */
+  default boolean sharesResources(ConnectionConfig cfg) { return false; }
+  default boolean sharesPrompts(ConnectionConfig cfg) { return false; }
+  /** MCP's shapes, URIs and names as the endpoint publishes them (under ResourceDescriptor.prefix/appPrefix of the
+   *  connection); the core masks each answer like a result. null: none. */
+  default JsonNode listResources(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, boolean templates)
+      throws ConnectorException { return null; }               // {"resources": […]} | {"resourceTemplates": […]}
+  default JsonNode listPrompts(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
+      throws ConnectorException { return null; }               // {"prompts": […]}
+  default JsonNode getPrompt(String name, JsonNode arguments, ConnectionConfig cfg, SecretResolver secrets,
+      ExecContext ctx) throws ConnectorException { throw ConnectorException.badInput("No prompt " + name); }
+  default JsonNode complete(JsonNode params, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
+      throws ConnectorException { return null; }               // {"completion": {"values", "total", "hasMore"}}
+  /** The URIs of listResources clients subscribe to now, whenever that changes (an empty set: none any more). The
+   *  connection asks its resource for their updates and tells the host (McpServerRuntime.Host). No I/O here. */
+  default void subscriptions(ConnectionConfig cfg, Set<String> uris) {}
   /** No-code template kinds: "sql-query" (SQL), "ssh-runbook" (SSH), "openapi" (HTTP). */
   default List<TemplateKind> templateKinds() { return List.of(); }
   default int maxConcurrency() { return 4; }                       // semaphore bulkhead per connection
@@ -83,7 +100,8 @@ package ai.msrv.gaterook.connector.api; import tools.jackson.databind.JsonNode;
  *  connections in the description; MCP clients get no enum. outputSchema only for pure READ. */
 public record ToolDefinition(String name /* ^[a-z][a-z0-9_]{0,63}$ */, String title, String description,
     JsonNode inputSchema, JsonNode outputSchema, Annotations annotations /* always explicit */, Nature nature,
-    Mode defaultMode /* dev/stage endpoints */, Mode prodDefaultMode, ResultShape resultShape, Risk risk) {
+    Mode defaultMode /* dev/stage endpoints */, Mode prodDefaultMode, ResultShape resultShape, Risk risk,
+    JsonNode meta /* the tool's _meta for clients, or null: an external MCP server's app (ui.resourceUri) */) {
   public enum Nature { READ, MUTATION, MIXED }          // MIXED: classify() decides per call (ssh_run, http_request)
   public enum Mode { OFF, READ_ONLY, APPROVAL, BYPASS } // Bypass skips approval, not policy denials or limits
   public enum ResultShape { TABLE, JSON, TEXT, LOGS }
@@ -112,7 +130,7 @@ public record ToolDefinition(String name /* ^[a-z][a-z0-9_]{0,63}$ */, String ti
       if (nature != Nature.READ && outputSchema != null) throw new IllegalStateException(name + ": outputSchema only for READ tools");
       if (nature == Nature.MUTATION && (defaultMode == Mode.READ_ONLY || prodDefaultMode == Mode.READ_ONLY))
         throw new IllegalStateException(name + ": a mutating tool can't default to Read only");
-      return new ToolDefinition(name, title, description, inputSchema, outputSchema, annotations, nature, defaultMode, prodDefaultMode, resultShape, risk);
+      return new ToolDefinition(name, title, description, inputSchema, outputSchema, annotations, nature, defaultMode, prodDefaultMode, resultShape, risk, meta);
     }
   }
 }
@@ -301,6 +319,12 @@ public interface ExecContext {
    *  the agent chose (aws_describe where) matches this, or what it keeps would spell out a masked value (C8 review).
    *  Default: the tree as it is (the plugin host). */
   default JsonNode masked(JsonNode tree) { return tree; }
+  /** What the call's MCP client asked to hear while it runs (ARCHITECTURE.md §5.5): its progress, and the resource's log
+   *  messages at or above its level. Both are masked like a result and bounded; nothing happens when it didn't ask. */
+  default boolean wantsProgress() { return false; }
+  default void progress(double progress, Double total, String message) {}
+  default String clientLogLevel() { return null; }   // debug … emergency (RFC 5424), or null for none
+  default void clientLog(String level, String logger, JsonNode data) {}
   /** HMAC-signed opaque handles (cursors of logs_tail, redis_scan): the agent can't forge them. */
   interface HandleCodec { String seal(String purpose, JsonNode payload, Duration ttl); Optional<JsonNode> open(String purpose, String handle); }
   /** Neutral types: the core implements it on EgressClients (OkHttp, connect-time address check), the host on EgressHttpClient. */
@@ -340,8 +364,13 @@ package ai.msrv.gaterook.connector.api; import java.util.List; import tools.jack
 public record ToolResult(List<Content> content, JsonNode structuredContent, boolean isError, Table table,
     boolean truncated, String truncatedReason /* row_limit | size_limit | output_limit | timeout | partial | head */,
     List<String> maskPaths /* known-sensitive JSON paths */, int maskedCount /* core */, long resultBytes /* core */, JsonNode meta) {
-  public record Content(String type /* text | resource_link */, String text, String uri, String mimeType, String name) {
-    public static Content text(String text) { return new Content("text", text, null, null, null); }
+  /** data: Base64 of an image, audio or blob; the core withholds a block whose bytes carry a secret, or that is larger
+   *  than the call's limit, with a note, and never changes the bytes. meta: the block's _meta (an MCP App's CSP). */
+  public record Content(String type /* text | resource_link | image | audio | resource */, String text, String uri,
+      String mimeType, String name, String data, JsonNode meta) {
+    public static Content text(String text) { return new Content("text", text, null, null, null, null, null); }
+    public static Content image(String base64, String mimeType) { … }   // also audio(…), link(uri, name, mimeType)
+    public static Content resource(String uri, String mimeType, String text, String blob) { … }  // embedded
   }
   public record Column(String name, String type, String sourceSchema, String sourceTable, String sourceColumn) {}
   public record Table(List<Column> columns, ArrayNode rows, String nextCursor) {}
@@ -378,7 +407,13 @@ public record EndpointView(String slug, Env env, List<ConnectionConfig> connecti
 }
 // ── ResourceDescriptor.java / ApiVersion.java ──────────────────────────────────────────────────────────────────
 package ai.msrv.gaterook.connector.api;
-public record ResourceDescriptor(String uri /* mcpgw://connections/dev-db/schema */, String name, String mimeType, String description) {}
+/** Every URI a connection publishes is under its own prefix (an MCP App's, which needs ui://, under appPrefix): the core
+ *  routes a read by that alone, so one connection never answers for another. */
+public record ResourceDescriptor(String uri /* mcpgw://connections/dev-db/schema */, String name, String mimeType, String description) {
+  public static final String APP_MIME_TYPE = "text/html;profile=mcp-app";
+  public static String prefix(String connection) { return "mcpgw://connections/" + connection + "/"; }
+  public static String appPrefix(String connection) { return "ui://gaterook/connections/" + connection + "/"; }
+}
 package ai.msrv.gaterook.connector.api;
 public final class ApiVersion { public static final String CURRENT = "1.0.0"; private ApiVersion() {} }  // plugins: requires.connectorApi
 ```
