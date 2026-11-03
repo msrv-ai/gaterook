@@ -100,6 +100,37 @@ public interface ExecContext {
     return Optional.empty();
   }
 
+  /**
+   * Whether the call's client asked to hear its progress (MCP {@code progressToken}): only then is it worth asking the
+   * resource for progress.
+   */
+  default boolean wantsProgress() {
+    return false;
+  }
+
+  /**
+   * Progress of the call for its client ({@code notifications/progress}): masked like a result and sent at most a few
+   * times a second; nothing happens when the client didn't ask.
+   *
+   * @param total   how much there is in all, or {@code null} when unknown
+   * @param message what is happening, or {@code null}
+   */
+  default void progress(double progress, Double total, String message) {}
+
+  /**
+   * The least severe log level the call's client asked for ({@code debug} … {@code emergency}, RFC 5424), or
+   * {@code null} when it wants none.
+   */
+  default String clientLogLevel() {
+    return null;
+  }
+
+  /**
+   * A log message of the resource for the call's client ({@code notifications/message}), at or above
+   * {@link #clientLogLevel}: masked like a result, bounded in size and number. Not the gateway's own log ({@link #log}).
+   */
+  default void clientLog(String level, String logger, JsonNode data) {}
+
   /** HMAC-signed opaque handles (cursors of logs_tail, redis_scan): the agent can't forge them. */
   interface HandleCodec {
     String seal(String purpose, JsonNode payload, Duration ttl);

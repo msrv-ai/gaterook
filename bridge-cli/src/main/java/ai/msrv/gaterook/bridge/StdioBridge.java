@@ -41,6 +41,8 @@ final class StdioBridge implements AutoCloseable {
   private static final String INSTANCE_HEADER = "X-Gateway-Bridge-Instance";
   private static final String CLIENT_HEADER = "X-Gateway-Bridge-Client";
   private static final int MAX_CLIENT_HEADER = 4096;
+  /** The most of one answer the bridge reads. */
+  static final int MAX_ANSWER = 64 * 1024 * 1024;
 
   private record Token(String value, URI url, Instant expires, String instance) {}
 
@@ -121,7 +123,7 @@ final class StdioBridge implements AutoCloseable {
     try {
       Token held = token;
       Token t = token(false);
-      HttpResponse<String> r;
+      HttpResponse<InputStream> r;
       try {
         r = post(t, line, msg, method);
       } catch (ConnectException e) {
@@ -135,16 +137,19 @@ final class StdioBridge implements AutoCloseable {
         r = post(t, line, msg, method);
       }
       if (r.statusCode() == 401) {
+        r.body().close();
         t = replace(t);
         r = post(t, line, msg, method);
       }
       String answeredBy = r.headers().firstValue(INSTANCE_HEADER).orElse(null);
       if (t.instance() != null && !t.instance().equals(answeredBy) && !fromCurrentRun(t, answeredBy)) {
+        r.body().close();
         token = null;
         reply(id, NOT_RUNNING);
         return;
       }
       if (r.statusCode() == 202) {
+        r.body().close();
         if ("notifications/initialized".equals(method)) {
           listen();
         }
@@ -152,14 +157,19 @@ final class StdioBridge implements AutoCloseable {
       }
       String type = r.headers().firstValue("Content-Type").orElse("");
       if (type.startsWith("text/event-stream")) {
-        for (String data : sseData(r.body())) {
-          write(data.strip());
+        // Event by event as they come (a call's progress, then its answer): the run that answered is checked above.
+        try (InputStream body = r.body()) {
+          events(body, data -> write(data.strip()));
         }
         return;
       }
-      if (type.startsWith("application/json") && !r.body().isBlank()) {
+      String text;
+      try (InputStream body = r.body()) {
+        text = new String(body.readNBytes(MAX_ANSWER), StandardCharsets.UTF_8);
+      }
+      if (type.startsWith("application/json") && !text.isBlank()) {
         if ("initialize".equals(method)) {
-          Object result = Json.get(Json.parse(r.body()), "result");
+          Object result = Json.get(Json.parse(text), "result");
           String v = Json.string(result, "protocolVersion");
           if (v != null) {
             negotiated = v;
@@ -167,7 +177,7 @@ final class StdioBridge implements AutoCloseable {
           listChanged = Boolean.TRUE.equals(Json.get(Json.get(Json.get(result, "capabilities"), "tools"),
               "listChanged"));
         }
-        write(r.body().strip());
+        write(text.strip());
         return;
       }
       reply(id, "GateRook answered HTTP " + r.statusCode() + ".");
@@ -386,7 +396,7 @@ final class StdioBridge implements AutoCloseable {
     return token;
   }
 
-  private HttpResponse<String> post(Token t, String body, Object msg, String method)
+  private HttpResponse<InputStream> post(Token t, String body, Object msg, String method)
       throws IOException, InterruptedException {
     HttpRequest.Builder b = HttpRequest.newBuilder(t.url()).timeout(REQUEST_WAIT)
         .header("Content-Type", "application/json").header("Accept", "application/json, text/event-stream")
@@ -412,7 +422,49 @@ final class StdioBridge implements AutoCloseable {
         b.header(CLIENT_HEADER, declaration);
       }
     }
-    return http.send(b.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+    return http.send(b.build(), HttpResponse.BodyHandlers.ofInputStream());
+  }
+
+  /**
+   * The data of each server-sent event of {@code in} as it completes, at most {@link #MAX_ANSWER} bytes in all: a
+   * line without end can't make the bridge hold more.
+   */
+  static void events(InputStream in, java.util.function.Consumer<String> data) throws IOException {
+    BufferedReader lines = new BufferedReader(new InputStreamReader(new java.io.FilterInputStream(in) {
+      private long read;
+
+      @Override
+      public int read() throws IOException {
+        int c = super.read();
+        if (c >= 0 && ++read > MAX_ANSWER) {
+          throw new IOException("The answer is larger than 64 MiB.");
+        }
+        return c;
+      }
+
+      @Override
+      public int read(byte[] b, int off, int len) throws IOException {
+        int n = super.read(b, off, len);
+        if (n > 0 && (read += n) > MAX_ANSWER) {
+          throw new IOException("The answer is larger than 64 MiB.");
+        }
+        return n;
+      }
+    }, StandardCharsets.UTF_8));
+    List<String> event = new ArrayList<>();
+    for (String line = lines.readLine(); line != null; line = lines.readLine()) {
+      if (line.isEmpty()) {
+        if (!event.isEmpty()) {
+          data.accept(String.join("\n", event));
+          event.clear();
+        }
+      } else if (line.startsWith("data:")) {
+        event.add(line.substring(5).startsWith(" ") ? line.substring(6) : line.substring(5));
+      }
+    }
+    if (!event.isEmpty()) {
+      data.accept(String.join("\n", event));
+    }
   }
 
   /**

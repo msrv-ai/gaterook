@@ -214,6 +214,17 @@ public class FakeConnectors {
         .build(), false);
   }
 
+  /** The calls of {@code gh_wait} that were cancelled while they waited. */
+  public static final List<String> CANCELLED = new CopyOnWriteArrayList<>();
+
+  private static void sleep(long ms) {
+    try {
+      Thread.sleep(ms);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
+  }
+
   /** A 1×1 transparent PNG. */
   public static final String PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
@@ -244,6 +255,12 @@ public class FakeConnectors {
                   .meta(read("{\"ui\":{\"resourceUri\":\"" + ai.msrv.gaterook.connector.api.ResourceDescriptor
                       .appPrefix(cfg.name()) + "chart.html\",\"visibility\":[\"app\"]}}")).build(),
               ToolDefinition.builder("gh_picture").title("Picture").description("Answers a picture.")
+                  .inputSchema(input("query")).annotations(Annotations.read()).nature(Nature.READ)
+                  .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY).build(),
+              ToolDefinition.builder("gh_steps").title("Steps").description("Reports its progress and logs.")
+                  .inputSchema(input("query")).annotations(Annotations.read()).nature(Nature.READ)
+                  .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY).build(),
+              ToolDefinition.builder("gh_wait").title("Wait").description("Waits until it is cancelled.")
                   .inputSchema(input("query")).annotations(Annotations.read()).nature(Nature.READ)
                   .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY).build()))
           .build(), false);
@@ -328,6 +345,23 @@ public class FakeConnectors {
     @Override
     public ToolResult execute(ToolCall call, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
         throws ConnectorException {
+      if (call.tool().equals("gh_steps")) {
+        String password = secrets.secret("/credentials/password").unsafeString();
+        for (int i = 1; i <= 3; i++) {
+          ctx.progress(i, 3.0, "step " + i + " as " + password);
+          sleep(200);
+        }
+        ctx.clientLog("debug", "steps", JsonNodeFactory.instance.stringNode("too fine to hear"));
+        ctx.clientLog("warning", "steps", JsonNodeFactory.instance.stringNode("logged in with " + password));
+        return ToolResult.text("three steps");
+      }
+      if (call.tool().equals("gh_wait")) {
+        ctx.onCancel(() -> CANCELLED.add(call.callId()));
+        for (int i = 0; i < 200 && !ctx.cancelled(); i++) {
+          sleep(100);
+        }
+        return ToolResult.text(ctx.cancelled() ? "cancelled" : "finished");
+      }
       if (call.tool().equals("gh_picture")) {
         String password = secrets.secret("/credentials/password").unsafeString();
         String withSecret = java.util.Base64.getEncoder().encodeToString(("PNG" + password).getBytes(

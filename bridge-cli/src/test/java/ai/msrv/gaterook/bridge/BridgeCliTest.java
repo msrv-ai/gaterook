@@ -293,6 +293,11 @@ class BridgeCliTest {
     assertThat(StdioBridge.headerName("sql_query")).isEqualTo("sql_query");
     assertThat(StdioBridge.headerName("café")).startsWith("=?base64?").endsWith("?=");
     assertThat(StdioBridge.sseData("data: a\ndata: b\n\ndata: c\n")).containsExactly("a\nb", "c");
+    // An answer that streams goes on event by event, comments and event names left out.
+    java.util.List<String> streamed = new java.util.ArrayList<>();
+    StdioBridge.events(new java.io.ByteArrayInputStream("event: message\ndata: a\r\ndata: b\r\n\r\n: keep\n\ndata: c\n"
+        .getBytes(java.nio.charset.StandardCharsets.UTF_8)), streamed::add);
+    assertThat(streamed).containsExactly("a\nb", "c");
   }
 
   @Test

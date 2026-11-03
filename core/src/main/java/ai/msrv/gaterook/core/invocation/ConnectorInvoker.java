@@ -12,6 +12,7 @@ import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.core.connectors.CallContext;
 import ai.msrv.gaterook.core.connectors.CallContexts;
+import ai.msrv.gaterook.core.connectors.CallListener;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.invocation.internal.ApprovedContext;
 import ai.msrv.gaterook.core.platform.MaskPolicy;
@@ -124,7 +125,12 @@ public class ConnectorInvoker {
 
   /** A READ (or a core tool's read of the connection): the context is never approved. */
   public Outcome execute(Request r) {
-    return run(r, null, Kind.EXECUTE, null, null);
+    return execute(r, CallListener.NONE);
+  }
+
+  /** {@link #execute(Request)} that {@code listener} hears while it runs: its progress, log messages, cancellation. */
+  public Outcome execute(Request r, CallListener listener) {
+    return run(r, null, Kind.EXECUTE, null, null, listener);
   }
 
   /**
@@ -213,6 +219,11 @@ public class ConnectorInvoker {
   private enum Kind { EXECUTE, DESCRIBE, READ_RESOURCE, QUERY }
 
   private Outcome run(Request r, Authorization approval, Kind kind, String argument, Query query) {
+    return run(r, approval, kind, argument, query, CallListener.NONE);
+  }
+
+  private Outcome run(Request r, Authorization approval, Kind kind, String argument, Query query,
+      CallListener listener) {
     Optional<Connector> found = registry.connectorFor(r.cfg());
     if (found.isEmpty()) {
       return failure(ConnectorException.Kind.RESOURCE_UNAVAILABLE, r.cfg().name() + " isn't available right now.",
@@ -225,7 +236,8 @@ public class ConnectorInvoker {
       case EXECUTE -> callTimeout(connector, r, approval != null && approval.approvalId() != null);
       case READ_RESOURCE, QUERY -> r.limits().toolTimeout();
     };
-    CallContext call = context(r, taint, timeout);
+    CallContext call = context(r, taint, timeout, listener);
+    listener.started(call::cancel);
     ExecContext ctx = approval == null ? call
         : new ApprovedContext(call, approval.approvalId(), approval.preparedState(), approval.payload());
     ResourceTimer resource = new ResourceTimer();
@@ -320,8 +332,12 @@ public class ConnectorInvoker {
   }
 
   private CallContext context(Request r, Taint taint, Duration timeout) {
+    return context(r, taint, timeout, CallListener.NONE);
+  }
+
+  private CallContext context(Request r, Taint taint, Duration timeout, CallListener listener) {
     return contexts.builder(r.callId(), r.cfg(), r.limits()).trace(r.traceId(), r.traceparent()).timeout(timeout)
-        .taint(taint).mask(r.mask()).build();
+        .taint(taint).mask(r.mask()).listener(listener).build();
   }
 
   /** The agent gets the connector's message, masked; an internal error only says where to look. */

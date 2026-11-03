@@ -239,4 +239,32 @@ class ModernServersTest {
     assertThat(call.path("params").path("task").path("ttl").asLong()).isPositive();
     assertThat(methods()).contains("tasks/get", "tasks/result");
   }
+
+  @Test
+  void progressAndLogMessagesOfACallReachItsClientInBothEras() throws Exception {
+    for (String mode : new String[] {"modern", "dual"}) {
+      ConnectionConfig cfg = cfg(mode, "");
+      McpServerRuntime.Handshake h = runtime.probe(cfg, secrets, Fixtures.Context.of(Duration.ofSeconds(60)));
+      // The dual server reviewed in 2025-11-25: its calls speak that era.
+      String version = mode.equals("dual") ? "2025-11-25" : h.protocolVersion();
+      Connector c = runtime.connector(cfg, new McpServerRuntime.Snapshot("raw_", h.serverVersion(), version,
+          h.tools(), null));
+      Fixtures.Context ctx = Fixtures.Context.of(Duration.ofSeconds(30)).listening("info");
+
+      ToolResult r = c.execute(Fixtures.call("raw_steps", "{}"), cfg, secrets, ctx);
+
+      assertThat(r.content().getFirst().text()).isEqualTo("three steps");
+      assertThat(ctx.heard).as(mode).contains("1.0/3.0 step 1", "2.0/3.0 step 2", "3.0/3.0 step 3",
+          "warning steps: almost done");
+      JsonNode call = sent().stream().filter(m -> m.path("params").path("name").asString("").equals("steps"))
+          .reduce((a, b) -> b).orElseThrow();
+      assertThat(call.path("params").path("_meta").path("progressToken").isMissingNode()).isFalse();
+      if (mode.equals("modern")) {
+        assertThat(call.path("params").path("_meta").path("io.modelcontextprotocol/logLevel").asString())
+            .isEqualTo("info");
+      }
+      runtime.stop("cn_raw");
+      Files.deleteIfExists(wire);
+    }
+  }
 }

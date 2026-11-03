@@ -165,6 +165,10 @@ final class Fixtures {
     final JsonNode payload;
     final Egress egress;
     final List<String> taints = new CopyOnWriteArrayList<>();
+    /** What the client heard: "3.0/3.0 step 3", "warning steps: almost done". */
+    final List<String> heard = new CopyOnWriteArrayList<>();
+    boolean progressWanted;
+    String logLevel;
 
     Context(Duration timeout, boolean approved, JsonNode payload, Egress egress) {
       this.limits = Fixtures.limits(timeout);
@@ -282,6 +286,33 @@ final class Fixtures {
     @Override
     public void taint(CharSequence value) {
       taints.add(value.toString());
+    }
+
+    /** A client that asked for progress and for log messages from {@code level} on. */
+    Context listening(String level) {
+      progressWanted = true;
+      logLevel = level;
+      return this;
+    }
+
+    @Override
+    public boolean wantsProgress() {
+      return progressWanted;
+    }
+
+    @Override
+    public void progress(double progress, Double total, String message) {
+      heard.add(progress + "/" + total + " " + message);
+    }
+
+    @Override
+    public String clientLogLevel() {
+      return logLevel;
+    }
+
+    @Override
+    public void clientLog(String level, String logger, JsonNode data) {
+      heard.add(level + " " + logger + ": " + (data == null ? "" : data.asString()));
     }
   }
 

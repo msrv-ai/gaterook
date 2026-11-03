@@ -199,7 +199,7 @@ final class ServerConnector implements Connector {
     // Over 2026-07-28 HTTP the arguments a tool marks x-mcp-header go into Mcp-Param-* headers too.
     Map<String, String> headers = s.client.era() == UpstreamClient.Era.MODERN && s.http != null
         ? UpstreamClient.paramHeaders(live.get("inputSchema"), params.get("arguments")) : Map.of();
-    UpstreamClient.Ask ask = new UpstreamClient.Ask(budget, UpstreamClient.Watch.NONE, ctx, headers);
+    UpstreamClient.Ask ask = new UpstreamClient.Ask(budget, watch(ctx), ctx, headers);
     s.inFlight.incrementAndGet();
     try {
       ObjectNode result = asTask(entry, s) ? s.client.callAsTask(params, ask)
@@ -213,6 +213,21 @@ final class ServerConnector implements Connector {
       // What the call may have started is known before the root can crash and orphan it.
       s.observe();
     }
+  }
+
+  /**
+   * What the call's client hears of it, when it asked: the server's progress, and its log messages at the client's
+   * level (2026-07-28 asks the server for that level with the request). The core masks both before they leave.
+   */
+  static UpstreamClient.Watch watch(ExecContext ctx) {
+    String level = ctx.clientLogLevel();
+    if (!ctx.wantsProgress() && level == null) {
+      return UpstreamClient.Watch.NONE;
+    }
+    return new UpstreamClient.Watch(ctx.wantsProgress() ? p -> ctx.progress(p.path("progress").asDouble(0),
+        p.path("total").isNumber() ? p.get("total").asDouble() : null, Texts.str(p.get("message"), null)) : null,
+        level == null ? null : l -> ctx.clientLog(Texts.str(l.get("level"), "info"), Texts.str(l.get("logger"),
+            null), l.get("data")), level);
   }
 
   /**

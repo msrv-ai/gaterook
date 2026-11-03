@@ -234,6 +234,28 @@ describe('gw-bridge.mjs', () => {
     }
   });
 
+  it('passes a call\'s progress on as it comes, before the answer', async () => {
+    const b = startBridge(home);
+    let finish;
+    try {
+      // The bridge's first request gets a token; this answer serves the call itself.
+      await b.call({ jsonrpc: '2.0', id: 1, method: 'ping' });
+      mcpAnswers.push(() => ({ status: 200, type: 'text/event-stream', stream: (res) => {
+        res.write('event: message\ndata: {"jsonrpc":"2.0","method":"notifications/progress",'
+          + '"params":{"progressToken":"p","progress":1,"total":2}}\n\n');
+        finish = () => res.end('event: message\ndata: {"jsonrpc":"2.0","id":7,"result":{"done":true}}\n\n');
+      } }));
+      b.send({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'x', _meta: { progressToken: 'p' } } });
+      const progress = await b.next();
+      assert.equal(progress.method, 'notifications/progress');
+      assert.equal(progress.params.progress, 1);
+      finish();
+      assert.deepEqual(await b.next(), { jsonrpc: '2.0', id: 7, result: { done: true } });
+    } finally {
+      await b.stop();
+    }
+  });
+
   it('says what the broker says, keeps running, and accepts only the local endpoint URL', async () => {
     const b = startBridge(home);
     try {

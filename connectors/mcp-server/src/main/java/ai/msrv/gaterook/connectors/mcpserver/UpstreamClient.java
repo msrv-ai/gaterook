@@ -718,7 +718,8 @@ final class UpstreamClient implements Channel.Sink {
         }
       }
       case "notifications/message" -> {
-        Pending p = stream == null ? null : pending.get(stream);
+        // The call whose answer carried it; on stdio, which has no such thing, the one call that listens, if one.
+        Pending p = stream != null ? pending.get(stream) : soleListener();
         if (p != null && p.watch.log() != null) {
           p.watch.log().accept(params);
         }
@@ -753,6 +754,20 @@ final class UpstreamClient implements Channel.Sink {
         // notifications/subscriptions/acknowledged and anything newer: nothing to do.
       }
     }
+  }
+
+  /** The only request waiting that wants log messages, or {@code null} when none or several do. */
+  private Pending soleListener() {
+    Pending found = null;
+    for (Pending p : pending.values()) {
+      if (p.watch.log() != null) {
+        if (found != null) {
+          return null;
+        }
+        found = p;
+      }
+    }
+    return found;
   }
 
   @Override

@@ -4,6 +4,7 @@ import ai.msrv.gaterook.core.audit.AuditWriter;
 import ai.msrv.gaterook.core.endpoints.CoreTools;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshot;
 import ai.msrv.gaterook.core.endpoints.ToolCatalog;
+import ai.msrv.gaterook.core.mcp.McpGateway;
 import ai.msrv.gaterook.core.platform.CallTracing;
 import ai.msrv.gaterook.core.platform.Caller;
 import ai.msrv.gaterook.core.platform.CanonicalJson;
@@ -42,7 +43,10 @@ public class McpDispatcher {
 
   private static final Set<String> LEGACY_METHODS = Set.of("initialize", "ping", "tools/list", "tools/call",
       "resources/list", "resources/templates/list", "resources/read", "prompts/list", "prompts/get",
-      "completion/complete");
+      "completion/complete", "logging/setLevel");
+  /** RFC 5424 severities as MCP names them, least severe first. */
+  static final List<String> LOG_LEVELS = List.of("debug", "info", "notice", "warning", "error", "critical",
+      "alert", "emergency");
   private static final Set<String> MODERN_METHODS = Set.of("server/discover", "tools/list", "tools/call",
       "resources/list", "resources/templates/list", "resources/read", "prompts/list", "prompts/get",
       "completion/complete");
@@ -62,10 +66,12 @@ public class McpDispatcher {
   private final AuditWriter audit;
   private final CallTracing tracing;
   private final ClientMemory clients;
+  private final InFlight inFlight;
   private final JsonMapper json;
 
   public McpDispatcher(ToolCatalog catalogs, ToolCallHandler tools, ResourcesHandler resources,
-      PromptsHandler prompts, AuditWriter audit, CallTracing tracing, ClientMemory clients, JsonMapper json) {
+      PromptsHandler prompts, AuditWriter audit, CallTracing tracing, ClientMemory clients, InFlight inFlight,
+      JsonMapper json) {
     this.catalogs = catalogs;
     this.tools = tools;
     this.resources = resources;
@@ -73,6 +79,7 @@ public class McpDispatcher {
     this.audit = audit;
     this.tracing = tracing;
     this.clients = clients;
+    this.inFlight = inFlight;
     this.json = json;
   }
 
@@ -81,6 +88,15 @@ public class McpDispatcher {
    *                     bridge caller's is read, and only on a legacy request after {@code initialize}
    */
   public Reply dispatch(Envelope request, Caller caller, EndpointSnapshot snapshot, String bridgeClient) {
+    return dispatch(request, caller, snapshot, bridgeClient, McpGateway.Stream.NONE);
+  }
+
+  /** @param stream where the request's notifications go before its answer */
+  public Reply dispatch(Envelope request, Caller caller, EndpointSnapshot snapshot, String bridgeClient,
+      McpGateway.Stream stream) {
+    // Which client of the principal: a bridge's declaration tells the clients that share its grant apart.
+    String client = caller.kind() == Caller.Kind.BRIDGE && bridgeClient != null
+        ? CanonicalJson.sha256Hex(JsonNodeFactory.instance.stringNode(bridgeClient)).substring(0, 16) : null;
     Envelope env = request;
     if (env.era() == Era.LEGACY) {
       if ("initialize".equals(env.method())) {
@@ -99,6 +115,10 @@ public class McpDispatcher {
       }
     }
     if (env.notification()) {
+      if ("notifications/cancelled".equals(env.method())) {
+        // The client gave up its call: it stops as its deadline would; an approval a person decides isn't touched.
+        inFlight.cancel(InFlight.Key.of(caller.principalId(), client, env.params().get("requestId")));
+      }
       return Reply.accepted();
     }
     Set<String> methods = env.era() == Era.MODERN ? MODERN_METHODS : LEGACY_METHODS;
@@ -120,7 +140,8 @@ public class McpDispatcher {
     tags.put("jsonrpc.request.id", env.id().isString() ? env.id().asString() : env.id().toString());
     String target = env.params().path("name").asString(env.params().path("uri").asString(""));
     try (CallTracing.Started span = tracing.server((env.method() + " " + target).strip(), env.traceparent(), tags)) {
-      McpRequest r = new McpRequest(env, caller, snapshot, catalogs.forEndpoint(snapshot), span);
+      McpRequest r = new McpRequest(env, caller, snapshot, catalogs.forEndpoint(snapshot), span,
+          stream == null ? McpGateway.Stream.NONE : stream, logLevel(env, caller, client), client);
       try {
         ObjectNode result = handle(r);
         return new Reply(200, JsonRpc.result(env.id(), result));
@@ -161,8 +182,28 @@ public class McpDispatcher {
         yield ResultWriter.complete(env, prompts.get(r), -1);
       }
       case "completion/complete" -> ResultWriter.complete(env, prompts.complete(r), -1);
+      case "logging/setLevel" -> {
+        String level = env.params().path("level").asString("");
+        if (!LOG_LEVELS.contains(level)) {
+          throw McpException.invalidParams("params.level must be one of " + String.join(", ", LOG_LEVELS));
+        }
+        clients.logLevel(r.caller().principalId(), r.client(), level);
+        yield JsonNodeFactory.instance.objectNode();
+      }
       default -> throw new McpException(JsonRpc.METHOD_NOT_FOUND, "Method not found: " + env.method());
     };
+  }
+
+  /**
+   * The least severe level of the log messages the client wants with this request: 2026-07-28 says it in each
+   * request's {@code _meta}; the 2025 revisions with {@code logging/setLevel}, once. {@code null}: none.
+   */
+  private String logLevel(Envelope env, Caller caller, String client) {
+    if (env.era() == Era.MODERN) {
+      String level = env.meta().path("io.modelcontextprotocol/logLevel").asString(null);
+      return level != null && LOG_LEVELS.contains(level) ? level : null;
+    }
+    return clients.logLevel(caller.principalId(), client);
   }
 
   /** While a completed row waits in the audit backlog, nothing new runs (§5 step 11). */
@@ -205,6 +246,7 @@ public class McpDispatcher {
     c.putObject("resources");
     c.putObject("prompts");
     c.putObject("completions");
+    c.putObject("logging");
     if (ui) c.putObject("extensions").putObject(McpAppResource.EXTENSION);
     return c;
   }

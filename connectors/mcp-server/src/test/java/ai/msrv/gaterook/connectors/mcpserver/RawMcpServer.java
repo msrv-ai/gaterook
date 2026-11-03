@@ -254,6 +254,8 @@ public final class RawMcpServer {
     chart.putObject("_meta").putObject("ui").put("resourceUri", "ui://charts/view.html");
     chart.putObject("annotations").put("readOnlyHint", true);
     tool(list, "picture", "Answers a picture and a link.").putObject("annotations").put("readOnlyHint", true);
+    tool(list, "steps", "Reports three steps of progress and logs one.").putObject("annotations")
+        .put("readOnlyHint", true);
     if (mode.equals("tasks")) {
       tool(list, "job", "Runs as a task.").putObject("execution").put("taskSupport", "required");
     }
@@ -310,6 +312,29 @@ public final class RawMcpServer {
         send(response(id, r));
       }
       case "chart" -> result(id, text("chart data", false), modern);
+      case "steps" -> {
+        JsonNode token = params.path("_meta").get("progressToken");
+        String level = params.path("_meta").path("io.modelcontextprotocol/logLevel").asString(null);
+        for (int i = 1; i <= 3; i++) {
+          if (token != null) {
+            ObjectNode n = JSON.createObjectNode().put("jsonrpc", "2.0").put("method", "notifications/progress");
+            n.putObject("params").put("progress", i).put("total", 3).put("message", "step " + i).set("progressToken",
+                token);
+            send(n);
+          }
+          try {
+            Thread.sleep(150);
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+          }
+        }
+        if (!modern || level != null) {
+          ObjectNode log = JSON.createObjectNode().put("jsonrpc", "2.0").put("method", "notifications/message");
+          log.putObject("params").put("level", "warning").put("logger", "steps").put("data", "almost done");
+          send(log);
+        }
+        result(id, text("three steps", false), modern);
+      }
       case "picture" -> {
         ObjectNode r = JSON.createObjectNode();
         ArrayNode content = r.putArray("content");
