@@ -16,7 +16,7 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * A Redis connection's configuration ({@code config.schema.json}, report 05 §4), read once per call: everything an
- * agent can't change — the server, its database, TLS, the login's user and the keys it may read.
+ * agent can't change — the server, its database, TLS, the login's user and the keys it may access.
  *
  * @param verifyHost   {@code tlsVerify=full}: the certificate must name {@link #host}; {@code ca}: only its chain
  * @param caCertificates a private CA, or empty for the platform's trust store
@@ -107,8 +107,8 @@ record RedisSettings(String host, int port, int database, List<Integer> database
     String user = credentials.path("user").asString("").strip();
 
     JsonNode advanced = cfg.config().path("advanced");
-    List<RedisGlob> allow = globs(advanced.path("keyAllowlist"), "Keys the agent may read");
-    List<RedisGlob> deny = globs(advanced.path("keyDenylist"), "Keys the agent never reads");
+    List<RedisGlob> allow = globs(advanced.path("keyAllowlist"), "Keys the agent may access");
+    List<RedisGlob> deny = globs(advanced.path("keyDenylist"), "Keys the agent never accesses");
     int commandTimeout = range(advanced, "commandTimeoutMs", 2_000, 200, 30_000, "The command timeout");
     int connectTimeout = range(advanced, "connectTimeoutMs", 2_000, 500, 30_000, "The connect timeout");
     int maxValueKb = range(advanced, "maxValueKb", 64, 1, 1_024, "The max value size");
@@ -160,9 +160,9 @@ record RedisSettings(String host, int port, int database, List<Integer> database
   /** The words for a key the lists hide: which list did it. */
   String whyNotAllowed(byte[] key) {
     if (denied(key)) {
-      return "it matches a pattern of \"Keys the agent never reads\"";
+      return "it matches a pattern of \"Keys the agent never accesses\"";
     }
-    return "it matches none of \"Keys the agent may read\"";
+    return "it matches none of \"Keys the agent may access\"";
   }
 
   /** Whether a pattern of the lists means one thing to an x86-64 server and another to an arm64 one. */

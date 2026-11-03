@@ -21,6 +21,13 @@ final class Actions {
     return switch (r) {
       case RedisRequest.Get g -> get(g, s, cfg, target);
       case RedisRequest.Scan sc -> scan(sc, cfg, target);
+      case RedisWrite w -> ActionPreview.of(ActionPreview.Kind.COMMAND, "text", w.preview(), target,
+          shorten(w.payload().path("tool").asString() + " " + RedisValues.quote(w.key().bytes()) + " · "
+              + cfg.name() + " (" + cfg.env().id() + ")"))
+          .withFields(List.of(new ActionPreview.Field("Key", RedisValues.quote(w.key().bytes())),
+              new ActionPreview.Field("Elements", Integer.toString(w.items()))))
+          .withFacets(Map.of("redis.key", RedisReads.display(w.key().bytes())))
+          .withPayload(w.payload());
     };
   }
 

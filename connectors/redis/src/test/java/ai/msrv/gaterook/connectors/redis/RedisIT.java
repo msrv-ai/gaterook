@@ -402,24 +402,24 @@ class RedisIT {
           Credentials.resolve(RedisSettings.parse(c), TestSecrets.password(LocalRedis.DEFAULT_PASSWORD)),
           Instant.now().plusSeconds(5))) {
         assertThatThrownBy(() -> s.call(Cmd.SET, "cache:str", "pwned"))
-            .isInstanceOf(ReadOnlyCommandExecutor.RefusedCommandException.class);
+            .isInstanceOf(RedisCommandExecutor.RefusedCommandException.class);
         assertThatThrownBy(() -> s.batch(List.of(new CommandArguments(Protocol.Command.FLUSHALL))))
-            .isInstanceOf(ReadOnlyCommandExecutor.RefusedCommandException.class);
+            .isInstanceOf(RedisCommandExecutor.RefusedCommandException.class);
         assertThatThrownBy(() -> s.batch(List.of(RedisSession.args(Cmd.TYPE, "a"),
             new CommandArguments(Protocol.Command.KEYS).add("*"))))
-            .isInstanceOf(ReadOnlyCommandExecutor.RefusedCommandException.class);
+            .isInstanceOf(RedisCommandExecutor.RefusedCommandException.class);
       }
       // Even a Jedis connection of its own, behind the executor, sends nothing refused.
       try (Connection raw = new Connection(new HostAndPort("127.0.0.1", redis.port),
           DefaultJedisClientConfig.builder().password(LocalRedis.DEFAULT_PASSWORD).protocol(RedisProtocol.RESP2)
               .build())) {
-        ReadOnlyCommandExecutor x = new ReadOnlyCommandExecutor(raw, ReadOnlyCommandExecutor.Mode.READS,
+        RedisCommandExecutor x = new RedisCommandExecutor(raw, RedisCommandExecutor.Mode.READS,
             Clock.systemUTC(), Instant.now().plusSeconds(5), 2_000);
         for (Protocol.Command cmd : List.of(Protocol.Command.SET, Protocol.Command.FLUSHALL, Protocol.Command.KEYS,
             Protocol.Command.EVAL, Protocol.Command.DEL)) {
           CommandArguments a = new CommandArguments(cmd).add("cache:str").add("x");
           assertThatThrownBy(() -> x.executeCommand(new CommandObject<>(a, BuilderFactory.RAW_OBJECT)))
-              .isInstanceOf(ReadOnlyCommandExecutor.RefusedCommandException.class);
+              .isInstanceOf(RedisCommandExecutor.RefusedCommandException.class);
         }
       }
       // Every tool, then the server's own count of what it ran.

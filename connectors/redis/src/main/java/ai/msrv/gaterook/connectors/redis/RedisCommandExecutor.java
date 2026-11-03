@@ -18,7 +18,7 @@ import redis.clients.jedis.executors.CommandExecutor;
 /**
  * The only way this connector's commands reach a Redis server: every command — single or in a batch — is checked
  * against an allowlist of names <em>and</em> shapes before a byte is written (report 05 §1, §7). Anything else —
- * {@code SET}, {@code FLUSHALL}, {@code KEYS}, {@code EVAL}, {@code CONFIG SET}, {@code CLIENT KILL}, even a
+ * {@code FLUSHALL}, {@code KEYS}, {@code EVAL}, {@code CONFIG SET}, {@code CLIENT KILL}, even a
  * {@code Protocol.Command} of Jedis — fails here with {@link RefusedCommandException}, never at the server.
  *
  * <p>One executor serves one borrowed connection for one call. Before every command it sets the socket's read timeout
@@ -26,10 +26,10 @@ import redis.clients.jedis.executors.CommandExecutor;
  * Jedis' own pipelines would bypass a {@link CommandExecutor}; this connector never uses them — {@link #executeBatch}
  * is its pipeline, under the same checks.
  */
-final class ReadOnlyCommandExecutor implements CommandExecutor {
+final class RedisCommandExecutor implements CommandExecutor {
 
-  /** {@link #READS} for the tools, {@link #PROBE} for Test connection (reads plus the exact permission probes). */
-  enum Mode { READS, PROBE }
+  /** Writes have a separate allowlist; read tools and connection probes cannot use it. */
+  enum Mode { READS, WRITES, PROBE }
 
   /** A command the gateway never sends. Indicates a bug in the connector: no agent input names a command. */
   static final class RefusedCommandException extends JedisException {
@@ -52,7 +52,7 @@ final class ReadOnlyCommandExecutor implements CommandExecutor {
   private final Instant deadline;
   private final int commandTimeoutMs;
 
-  ReadOnlyCommandExecutor(Connection connection, Mode mode, Clock clock, Instant deadline, int commandTimeoutMs) {
+  RedisCommandExecutor(Connection connection, Mode mode, Clock clock, Instant deadline, int commandTimeoutMs) {
     this.connection = connection;
     this.mode = mode;
     this.clock = clock;
@@ -118,7 +118,7 @@ final class ReadOnlyCommandExecutor implements CommandExecutor {
     List<String> a = words(args);
     String name = a.getFirst().toUpperCase(Locale.ROOT);
     int n = a.size();
-    boolean ok = switch (name) {
+    boolean ok = mode == Mode.WRITES ? writeShape(a, name) : switch (name) {
       case "PING", "DBSIZE" -> n == 1;
       case "HELLO" -> n == 2 && (a.get(1).equals("2") || a.get(1).equals("3"));
       case "CLIENT" -> n == 3 && is(a.get(1), "NO-TOUCH") && (is(a.get(2), "ON") || is(a.get(2), "OFF"));
@@ -145,6 +145,53 @@ final class ReadOnlyCommandExecutor implements CommandExecutor {
       throw new RefusedCommandException("Command " + name + " is not allowed by the gateway"
           + (n > 1 ? " in this form" : ""));
     }
+  }
+
+  private static boolean writeShape(List<String> a, String name) {
+    int n = a.size();
+    return switch (name) {
+      case "SET" -> {
+        if (n < 3 || n > 6) {
+          yield false;
+        }
+        int i = 3;
+        if (i < n && (is(a.get(i), "NX") || is(a.get(i), "XX"))) {
+          i++;
+        }
+        if (i < n && is(a.get(i), "KEEPTTL")) {
+          i++;
+        } else if (i + 1 < n && is(a.get(i), "PX")) {
+          try {
+            long ttl = Long.parseLong(a.get(i + 1));
+            if (ttl < 1 || ttl > 2_147_483_647_000L) {
+              yield false;
+            }
+          } catch (NumberFormatException e) {
+            yield false;
+          }
+          i += 2;
+        }
+        yield i == n;
+      }
+      case "HSET" -> n >= 4 && n <= 2 + 2 * RedisWrite.MAX_ITEMS && n % 2 == 0;
+      case "ZADD" -> {
+        if (n < 4 || n > 2 + 2 * RedisWrite.MAX_ITEMS || n % 2 != 0) {
+          yield false;
+        }
+        for (int i = 2; i < n; i += 2) {
+          try {
+            if (!Double.isFinite(Double.parseDouble(a.get(i)))) {
+              yield false;
+            }
+          } catch (NumberFormatException e) {
+            yield false;
+          }
+        }
+        yield true;
+      }
+      case "LPUSH", "RPUSH", "SADD" -> n >= 3 && n <= 2 + RedisWrite.MAX_ITEMS;
+      default -> false;
+    };
   }
 
   /** {@code [option value]…} from {@code from} on, each option once, from {@code allowed}. */

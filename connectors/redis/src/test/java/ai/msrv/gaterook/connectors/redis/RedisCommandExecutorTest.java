@@ -3,7 +3,7 @@ package ai.msrv.gaterook.connectors.redis;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import ai.msrv.gaterook.connectors.redis.ReadOnlyCommandExecutor.Mode;
+import ai.msrv.gaterook.connectors.redis.RedisCommandExecutor.Mode;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
@@ -28,7 +28,7 @@ import redis.clients.jedis.exceptions.JedisConnectionException;
  * and in batches, whatever object names the command — and the probes of Test connection only in their exact shape.
  * {@code RedisIT} checks the same on a real server's command statistics.
  */
-class ReadOnlyCommandExecutorTest {
+class RedisCommandExecutorTest {
 
   /** A connection without a socket that records what would go on the wire. */
   static final class RecordingConnection extends Connection {
@@ -77,8 +77,8 @@ class ReadOnlyCommandExecutorTest {
 
   private final RecordingConnection connection = new RecordingConnection();
 
-  private ReadOnlyCommandExecutor executor(Mode mode) {
-    return new ReadOnlyCommandExecutor(connection, mode, Clock.systemUTC(), Instant.now().plusSeconds(10), 2_000);
+  private RedisCommandExecutor executor(Mode mode) {
+    return new RedisCommandExecutor(connection, mode, Clock.systemUTC(), Instant.now().plusSeconds(10), 2_000);
   }
 
   private static CommandObject<Object> command(Object command, Object... args) {
@@ -104,38 +104,38 @@ class ReadOnlyCommandExecutorTest {
   void writesAndAdminCommandsNeverReachTheWire(String line) {
     String[] w = line.split(" ");
     Object[] args = java.util.Arrays.copyOfRange(w, 1, w.length);
-    ReadOnlyCommandExecutor x = executor(Mode.READS);
+    RedisCommandExecutor x = executor(Mode.READS);
     assertThatThrownBy(() -> x.executeCommand(command(w[0], args)))
-        .isInstanceOf(ReadOnlyCommandExecutor.RefusedCommandException.class)
+        .isInstanceOf(RedisCommandExecutor.RefusedCommandException.class)
         .hasMessageContaining("not allowed by the gateway");
     // The same through Jedis' own command constants, when it has one.
     java.util.Optional<Protocol.Command> known = java.util.Arrays.stream(Protocol.Command.values())
         .filter(c -> c.name().equals(w[0])).findFirst();
     known.ifPresent(c -> assertThatThrownBy(() -> x.executeCommand(command(c, args)))
-        .isInstanceOf(ReadOnlyCommandExecutor.RefusedCommandException.class));
+        .isInstanceOf(RedisCommandExecutor.RefusedCommandException.class));
     assertThat(connection.wire).isEmpty();
   }
 
   @Test
   void aCommandOfOurOwnEnumIsCheckedByItsShapeToo() {
-    ReadOnlyCommandExecutor x = executor(Mode.READS);
+    RedisCommandExecutor x = executor(Mode.READS);
     // SET exists in the enum for the probe; the read executor refuses it in any shape.
     assertThatThrownBy(() -> x.executeCommand(command(Cmd.SET, "gw:probe:1", "1", "NX", "XX")))
-        .isInstanceOf(ReadOnlyCommandExecutor.RefusedCommandException.class);
+        .isInstanceOf(RedisCommandExecutor.RefusedCommandException.class);
     assertThatThrownBy(() -> x.executeCommand(command(Cmd.CLIENT, "KILL", "ID", "7")))
-        .isInstanceOf(ReadOnlyCommandExecutor.RefusedCommandException.class);
+        .isInstanceOf(RedisCommandExecutor.RefusedCommandException.class);
     assertThatThrownBy(() -> x.executeCommand(command(Cmd.MEMORY, "DOCTOR")))
-        .isInstanceOf(ReadOnlyCommandExecutor.RefusedCommandException.class);
+        .isInstanceOf(RedisCommandExecutor.RefusedCommandException.class);
     assertThatThrownBy(() -> x.executeCommand(command(Cmd.HELLO, "3", "AUTH", "default", "x")))
-        .isInstanceOf(ReadOnlyCommandExecutor.RefusedCommandException.class);
+        .isInstanceOf(RedisCommandExecutor.RefusedCommandException.class);
     assertThatThrownBy(() -> x.executeCommand(command(Cmd.SCAN, "0", "MATCH", "*", "MATCH", "x")))
-        .isInstanceOf(ReadOnlyCommandExecutor.RefusedCommandException.class);
+        .isInstanceOf(RedisCommandExecutor.RefusedCommandException.class);
     assertThat(connection.wire).isEmpty();
   }
 
   @Test
   void theReadsOfTheToolsGoThrough() {
-    ReadOnlyCommandExecutor x = executor(Mode.READS);
+    RedisCommandExecutor x = executor(Mode.READS);
     x.executeCommand(command(Cmd.TYPE, "cache:1"));
     x.executeCommand(command(Cmd.MEMORY, "USAGE", "cache:1"));
     x.executeCommand(command(Cmd.CLIENT, "NO-TOUCH", "ON"));
@@ -150,10 +150,10 @@ class ReadOnlyCommandExecutorTest {
 
   @Test
   void oneRefusedCommandStopsTheWholeBatchBeforeAnyIsSent() {
-    ReadOnlyCommandExecutor x = executor(Mode.READS);
+    RedisCommandExecutor x = executor(Mode.READS);
     List<CommandArguments> batch = List.of(command(Cmd.TYPE, "a").getArguments(),
         command(Protocol.Command.FLUSHALL).getArguments(), command(Cmd.PTTL, "a").getArguments());
-    assertThatThrownBy(() -> x.executeBatch(batch)).isInstanceOf(ReadOnlyCommandExecutor.RefusedCommandException.class);
+    assertThatThrownBy(() -> x.executeBatch(batch)).isInstanceOf(RedisCommandExecutor.RefusedCommandException.class);
     assertThat(connection.wire).isEmpty();
 
     assertThat(x.executeBatch(List.of(command(Cmd.TYPE, "a").getArguments(), command(Cmd.PTTL, "a").getArguments())))
@@ -163,7 +163,7 @@ class ReadOnlyCommandExecutorTest {
 
   @Test
   void theProbesPassOnlyInTheirExactShapeAndOnlyForTestConnection() {
-    ReadOnlyCommandExecutor probe = executor(Mode.PROBE);
+    RedisCommandExecutor probe = executor(Mode.PROBE);
     probe.executeCommand(command(Cmd.SET, "gw:probe:7f", "1", "NX", "XX"));
     probe.executeCommand(command(Cmd.ACL, "GETUSER", "ro"));
     probe.executeCommand(command(Cmd.ACL, "DRYRUN", "ro", "SET", "gw:probe:7f", "1"));
@@ -187,22 +187,49 @@ class ReadOnlyCommandExecutorTest {
         new Object[] {Cmd.COMMAND, "GETKEYS", "SET", "k", "v"},
         new Object[] {Cmd.COMMAND, "LIST", "FILTERBY", "ACLCAT", "write", "x"})) {
       assertThatThrownBy(() -> probe.executeCommand(command(bad[0], java.util.Arrays.copyOfRange(bad, 1, bad.length))))
-          .as(java.util.Arrays.toString(bad)).isInstanceOf(ReadOnlyCommandExecutor.RefusedCommandException.class);
+          .as(java.util.Arrays.toString(bad)).isInstanceOf(RedisCommandExecutor.RefusedCommandException.class);
     }
     assertThat(connection.wire).hasSize(8);
   }
 
   @Test
   void nothingIsSentOnceTheCallIsOutOfTime() {
-    ReadOnlyCommandExecutor late = new ReadOnlyCommandExecutor(connection, Mode.READS, Clock.systemUTC(),
+    RedisCommandExecutor late = new RedisCommandExecutor(connection, Mode.READS, Clock.systemUTC(),
         Instant.now().minusMillis(1), 2_000);
     assertThatThrownBy(() -> late.executeCommand(command(Cmd.PING)))
-        .isInstanceOf(ReadOnlyCommandExecutor.CallDeadlineException.class);
+        .isInstanceOf(RedisCommandExecutor.CallDeadlineException.class);
     assertThat(connection.wire).isEmpty();
 
-    ReadOnlyCommandExecutor soon = new ReadOnlyCommandExecutor(connection, Mode.READS, Clock.systemUTC(),
+    RedisCommandExecutor soon = new RedisCommandExecutor(connection, Mode.READS, Clock.systemUTC(),
         Instant.now().plus(Duration.ofMillis(300)), 2_000);
     soon.executeCommand(command(Cmd.PING));
     assertThat(connection.soTimeout).as("the command timeout cut to the call's deadline").isBetween(1, 300);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"SET k v", "SET k v NX PX 100", "SET k v XX KEEPTTL", "HSET k a b c d",
+      "LPUSH k a b", "RPUSH k a", "SADD k a b", "ZADD k 1.5 a -2 b"})
+  void onlyTheWriteExecutorAcceptsSupportedWriteShapes(String line) {
+    String[] words = line.split(" ");
+    Object[] args = java.util.Arrays.copyOfRange(words, 1, words.length);
+    for (Mode mode : List.of(Mode.READS, Mode.PROBE)) {
+      assertThatThrownBy(() -> executor(mode).executeCommand(command(words[0], args)))
+          .isInstanceOf(RedisCommandExecutor.RefusedCommandException.class);
+    }
+    assertThat(connection.wire).isEmpty();
+    executor(Mode.WRITES).executeCommand(command(words[0], args));
+    assertThat(connection.wire).containsExactly(line);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"FLUSHALL", "DEL k", "EVAL return 0", "CONFIG SET x y", "GET k", "SET k v NX XX",
+      "SET k v GET", "SET k v PX 0", "SET k v PX 1 KEEPTTL", "SET k v PX nope", "HSET k a", "LPUSH k",
+      "SADD k", "ZADD k NX 1 a", "ZADD k NaN a", "ZADD k Infinity a", "ZADD k 1 a 2", "SET k v EX 10"})
+  void writeModeStillRejectsRawCommandsAndUnsupportedOptions(String line) {
+    String[] words = line.split(" ");
+    Object[] args = java.util.Arrays.copyOfRange(words, 1, words.length);
+    assertThatThrownBy(() -> executor(Mode.WRITES).executeCommand(command(words[0], args)))
+        .isInstanceOf(RedisCommandExecutor.RefusedCommandException.class);
+    assertThat(connection.wire).isEmpty();
   }
 }

@@ -97,6 +97,7 @@ For the full connector integration suite, follow [the Docker test-services guide
 | [External MCP servers](docs/mcp-servers.md) | Finding servers in the MCP registry, adding them by URL or pasted configuration, OAuth sign-in, your own OAuth app, and troubleshooting |
 | [Oracle Database](docs/oracle.md) | Service connections, TLS, schema access, queries and Oracle-specific limits |
 | [SQL Server](docs/sql-server.md) | SQL authentication, database selection, permissions, and T-SQL limits |
+| [Redis](docs/redis.md) | Reading and writing values, expiration, key and database scopes, and write limits |
 | [GCP logs](docs/gcp-logs.md) | Logs Explorer filters, GKE logs, credentials, scopes, and endpoint access |
 | [SSH log files](docs/ssh-log-files.md) | Remote file selection, searching, latest records, time ranges, and continuation |
 | [Repository layout](docs/repository-layout.md) | Source directories and their responsibilities |

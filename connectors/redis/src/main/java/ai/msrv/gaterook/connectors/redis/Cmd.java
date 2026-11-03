@@ -4,17 +4,18 @@ import java.nio.charset.StandardCharsets;
 import redis.clients.jedis.commands.ProtocolCommand;
 
 /**
- * Every command this connector builds. The tools read through the first group only; the second exists for Test
- * connection's permission probes, which only {@link ReadOnlyCommandExecutor.Mode#PROBE} lets through, in their exact
- * shape (report 05 §5). There is no other way to name a command: the agent never supplies one.
+ * Every command this connector builds. Separate executor modes allow reads, bounded writes or exact connection
+ * probes. The agent never supplies a command name.
  */
 enum Cmd implements ProtocolCommand {
   // Reads (report 05 §3.4–3.7; all O(limit), no KEYS, no HGETALL/SMEMBERS, strings by GETRANGE past the limit).
   PING, HELLO, CLIENT, TYPE, PTTL, MEMORY, DBSIZE, SCAN,
   STRLEN, GET, GETRANGE, HLEN, HSCAN, LLEN, LRANGE, SCARD, SSCAN, ZCARD, ZRANGE, XLEN, XREVRANGE,
   JSON_GET("JSON.GET"),
+  // Writes: one validated key and bounded values; SET also has a non-writing permission probe shape.
+  SET, HSET, LPUSH, RPUSH, SADD, ZADD,
   // Test connection only: they can't change anything in the shape the probe executor allows.
-  ACL, SET, CONFIG, COMMAND, INFO;
+  ACL, CONFIG, COMMAND, INFO;
 
   private final byte[] raw;
 

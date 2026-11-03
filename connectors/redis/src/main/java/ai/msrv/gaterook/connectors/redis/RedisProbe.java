@@ -84,7 +84,7 @@ final class RedisProbe {
     }
     checks.add(new Check("connect", true, ms(t0), (s.tls() ? "TLS · " : "") + s.hostPort()));
     try {
-      ReadOnlyCommandExecutor x = new ReadOnlyCommandExecutor(c, ReadOnlyCommandExecutor.Mode.PROBE, clock,
+      RedisCommandExecutor x = new RedisCommandExecutor(c, RedisCommandExecutor.Mode.PROBE, clock,
           deadline, s.commandTimeoutMs());
       return probe(cfg, s, login, x, checks, clock);
     } catch (JedisException e) {
@@ -95,7 +95,7 @@ final class RedisProbe {
   }
 
   private static TestResult probe(ConnectionConfig cfg, RedisSettings s, Credentials login,
-      ReadOnlyCommandExecutor x, List<Check> checks, Clock clock) {
+      RedisCommandExecutor x, List<Check> checks, Clock clock) {
     long[] pings = new long[3];
     for (int i = 0; i < pings.length; i++) {
       long t = System.nanoTime();
@@ -220,15 +220,16 @@ final class RedisProbe {
     Env env = cfg.env();
     if (admin) {
       result = result.withHint(new Hint(Severity.DANGER, "redis.admin", "credentials.user", "This user can change "
-          + "the server configuration and flush data. Use a read-only user."));
+          + "the server configuration and flush data. Use a user limited to the commands you need."));
     }
     if (Boolean.TRUE.equals(write) || admin) {
       if (user.equals("default")) {
         result = result.withHint(new Hint(Severity.WARNING, "redis.default-user", "credentials.user", "You're "
-            + "connected as default, which can run every command. Create a read-only user for GateRook."));
+            + "connected as default, which can run every command. Create a scoped user for GateRook."));
       }
       result = result.withHint(new Hint(env == Env.DEV ? Severity.INFO : Severity.WARNING, "redis.user-can-write",
-          "credentials.user", "This user can write. Agents only read, but a read-only user keeps it that way."));
+          "credentials.user", "This user can write. Write tools require approval by default. For read-only access, "
+              + "use a read-only user."));
       snippets.putObject("redis.user-can-write").put("language", "text").put("text", readOnlyUser(version));
     }
     if (replica) {
@@ -290,7 +291,7 @@ final class RedisProbe {
 
   record DatabaseListing(List<Integer> databases, boolean complete) {}
 
-  private static DatabaseListing databases(ReadOnlyCommandExecutor x, int connectedDatabase) {
+  private static DatabaseListing databases(RedisCommandExecutor x, int connectedDatabase) {
     try {
       Map<String, Object> config = Replies.pairs(run(x, Cmd.CONFIG, "GET", "databases"));
       int count = Integer.parseInt(Replies.text(config.get("databases")));
@@ -334,7 +335,7 @@ final class RedisProbe {
    * {@code ['a'..0xff]} and {@code get} and {@code set} match. On 6.2, or for a user without {@code COMMAND},
    * {@code INFO server} names the platform ({@code @dangerous}: administrators only); otherwise it stays unknown.
    */
-  static RedisGlob.Chars chars(ReadOnlyCommandExecutor x) {
+  static RedisGlob.Chars chars(RedisCommandExecutor x) {
     try {
       return Replies.list(run(x, Cmd.COMMAND, "LIST", "FILTERBY", "PATTERN", SIGN_PROBE)).isEmpty()
           ? RedisGlob.Chars.SIGNED : RedisGlob.Chars.UNSIGNED;
@@ -371,12 +372,12 @@ final class RedisProbe {
         + (v7 ? "" : "+client|setname +client|id ") + "-dump -xread -lolwut";
   }
 
-  private static Object run(ReadOnlyCommandExecutor x, Cmd command, Object... args) {
+  private static Object run(RedisCommandExecutor x, Cmd command, Object... args) {
     return x.executeCommand(new CommandObject<>(RedisSession.args(command, args), BuilderFactory.RAW_OBJECT));
   }
 
   private static String probeKey() {
-    return ReadOnlyCommandExecutor.PROBE_PREFIX + UUID.randomUUID();
+    return RedisCommandExecutor.PROBE_PREFIX + UUID.randomUUID();
   }
 
   private static String major(String version) {

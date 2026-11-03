@@ -75,6 +75,32 @@ class Redis62IT {
   }
 
   @Test
+  void typedWritesAndKeepTtlWorkOnSixTwo() throws Exception {
+    var cfg = Configs.local(redis).user("rw").build();
+    Map<String, String> writes = Map.of(
+        "redis_set", "{\"key\":\"write62:str\",\"value\":\"a\",\"condition\":\"NX\",\"ttlMs\":60000}",
+        "redis_hset", "{\"key\":\"write62:hash\",\"fields\":{\"a\":\"b\"}}",
+        "redis_lpush", "{\"key\":\"write62:list\",\"values\":[\"a\"]}",
+        "redis_rpush", "{\"key\":\"write62:list\",\"values\":[\"b\"]}",
+        "redis_sadd", "{\"key\":\"write62:set\",\"values\":[\"a\"]}",
+        "redis_zadd", "{\"key\":\"write62:zset\",\"members\":[{\"score\":2.5,\"value\":\"a\"}]}");
+    for (var entry : writes.entrySet()) {
+      assertThat(connector.execute(Configs.call(entry.getKey(), entry.getValue()), cfg,
+          TestSecrets.password("rw-pass"), TestCtx.of()).isError()).isFalse();
+    }
+    connector.execute(Configs.call("redis_set", "{\"key\":\"write62:str\",\"value\":\"b\",\"keepTtl\":true}"),
+        cfg, TestSecrets.password("rw-pass"), TestCtx.of());
+    try (Jedis j = redis.admin()) {
+      assertThat(j.get("write62:str")).isEqualTo("b");
+      assertThat(j.pttl("write62:str")).isPositive();
+      assertThat(j.hget("write62:hash", "a")).isEqualTo("b");
+      assertThat(j.lrange("write62:list", 0, -1)).containsExactly("a", "b");
+      assertThat(j.smembers("write62:set")).containsExactly("a");
+      assertThat(j.zscore("write62:zset", "a")).isEqualTo(2.5);
+    }
+  }
+
+  @Test
   void aReadOnlyUserIsReadWithoutDryRun() {
     TestResult r = connector.test(Configs.local(redis).user("ro").build(), TestSecrets.password("ro-pass"),
         TestCtx.of());
@@ -106,7 +132,7 @@ class Redis62IT {
         .isEqualTo("ACL SETUSER gw_reader on >CHANGE-ME ~* resetchannels -@all +@read +@connection -@dangerous "
             + "+client|setname +client|id -dump -xread -lolwut");
     try (Jedis j = redis.admin()) {
-      assertThat(j.keys(ReadOnlyCommandExecutor.PROBE_PREFIX + "*")).isEmpty();
+      assertThat(j.keys(RedisCommandExecutor.PROBE_PREFIX + "*")).isEmpty();
     }
   }
 
