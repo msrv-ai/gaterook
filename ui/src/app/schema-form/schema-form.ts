@@ -233,8 +233,12 @@ export class SchemaForm {
     if (node.kind === 'object' || !this.visible(node)) return null;
     const value = node.kind === 'secret' ? (this.secrets()[node.pointer] ?? '') : getAt(this.model(), node.path);
     const server = this.serverErrors().find((e) => e.pointer === node.pointer && e.value === value);
-    if (server) return server.message;
-    if (!this.submitted()) return null;
+    return server ? server.message : this.problem(node);
+  }
+
+  /** The first of the form's own rules the field breaks after Save (never a message of the core). */
+  private problem(node: SchemaNode): string | null {
+    if (node.kind === 'object' || !this.visible(node) || !this.submitted()) return null;
     if (node.kind === 'secret') return this.secretProblem(node);
     return this.field(node)().errors()[0]?.message ?? null;
   }
@@ -518,12 +522,15 @@ export class SchemaForm {
 
   /**
    * Save pressed: shows every message, opens the collapsed sections that hold one and moves focus to the first
-   * invalid field. Returns whether the form may go to the core.
+   * invalid field. Returns whether the form may go to the core. Only the form's own rules hold it back: a message of
+   * the core stays until its value changes, but Save sends the form for the core to check again, so a refusal that
+   * another field settled (two sign-ins, answered by leaving the sign-in out) doesn't block it.
    */
   submit(ignorePointers: readonly string[] = []): boolean {
     this.submitted.set(true);
     untracked(() => this.tree().markAsTouched());
-    const invalid = untracked(this.invalidNodes).filter((node) => !ignorePointers.includes(node.pointer));
+    const invalid = untracked(() => this.compiled.all.filter((node) => this.problem(node) !== null))
+      .filter((node) => !ignorePointers.includes(node.pointer));
     if (!invalid.length) return true;
     for (const section of this.compiled.all.filter((n) => n.kind === 'object')) {
       if (section.collapsed && invalid.some((n) => containsNode(section, n))) this.setExpanded(section, true);

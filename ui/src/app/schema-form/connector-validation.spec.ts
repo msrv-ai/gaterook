@@ -1,6 +1,7 @@
 import { Injector } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { CONNECTOR_FORMS } from '../../testing/connector-schemas';
+import { ApiError } from '../core/api/api-error';
 import { JsonObject } from '../core/api/types';
 import { getAt } from './compile';
 import { createSchemaForm } from './schema-form';
@@ -320,6 +321,22 @@ describe('schema-form: minimal active connector configurations', () => {
     expect(form.submit()).toBe(true);
     expect(form.value()).not.toHaveProperty('auth');
     expect(form.secretInputs()).toEqual({});
+  });
+
+  it('External MCP: two sign-ins answered by leaving the sign-in out go back to the core', () => {
+    const form = createSchemaForm(CONNECTOR_FORMS['mcp-server'], {
+      idPrefix: 'mcp-twice', pointerPrefix: '/config', injector: TestBed.inject(Injector),
+      current: { transport: 'http', url: 'https://mcp.example.test/mcp', headers: [{ name: 'Authorization' }], auth: { type: 'oauth' } },
+    });
+    const active = (pointer: string) => form.compiled.all.find((node) => node.pointer === pointer && form.visible(node))!;
+    const twice = 'The OAuth sign-in sends the Authorization header. Remove the Authorization header, or sign in another way.';
+    form.applyServerErrors(new ApiError('unprocessable', 422, { errors: [{ field: '/config/headers', message: twice }] }));
+    expect(form.error(active('/headers'))).toBe(twice);
+
+    form.set(active('/auth/type'), null);
+    expect(form.submit()).toBe(true);
+    expect(form.value()).not.toHaveProperty('auth');
+    expect(form.value()['headers']).toMatchObject([{ name: 'Authorization' }]);
   });
 
   it('External MCP: a stored sign-in keeps its settings and a stdio server never sends one', () => {
