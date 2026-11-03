@@ -128,6 +128,22 @@ final class Session {
   /** Whether the server took no Streamable HTTP and speaks the HTTP+SSE transport of 2024-11-05. */
   volatile boolean sse;
 
+  /**
+   * A list of what the server shares, as an endpoint publishes it, kept until the server says it changed or
+   * {@link #LIST_TTL} passed; for prompts also the server's name of each published one.
+   */
+  record Listed(ObjectNode list, Map<String, String> originals, Instant until) {
+
+    boolean fresh(Instant now) {
+      return now.isBefore(until);
+    }
+  }
+
+  static final Duration LIST_TTL = Duration.ofSeconds(30);
+  volatile Listed resources;
+  volatile Listed templates;
+  volatile Listed prompts;
+
   private Session(String connectionId, long configVersion, ServerConfig server, UpstreamClient client,
       GatewayStdioTransport stdio, HttpCalls http, List<String> secretValues, Instant startedAt, ServerLog log) {
     this.connectionId = connectionId;
@@ -362,6 +378,23 @@ final class Session {
           return;
         }
         onToolsChanged.accept(current);
+      }
+
+      @Override
+      public void resourcesChanged() {
+        Session current = self[0];
+        if (current != null) {
+          current.resources = null;
+          current.templates = null;
+        }
+      }
+
+      @Override
+      public void promptsChanged() {
+        Session current = self[0];
+        if (current != null) {
+          current.prompts = null;
+        }
       }
 
       @Override

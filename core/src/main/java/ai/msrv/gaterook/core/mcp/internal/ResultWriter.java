@@ -14,6 +14,7 @@ import tools.jackson.databind.node.ObjectNode;
  * {@code tools/list}, {@code resources/list}, {@code resources/templates/list}, {@code resources/read},
  * {@code prompts/list}) also {@code ttlMs} and {@code cacheScope: "private"} (the answer depends on the token). Legacy
  * results have none of these. With 2025-03-26 a {@code resource_link} becomes text with its URI (the type is newer).
+ * Images, audio and embedded resources pass as their blocks: every revision the gateway speaks has them.
  */
 public final class ResultWriter {
 
@@ -67,20 +68,7 @@ public final class ResultWriter {
     ArrayNode content = out.putArray("content");
     boolean oldest = "2025-03-26".equals(env.version());
     for (ToolResult.Content c : r.content()) {
-      if ("resource_link".equals(c.type()) && !oldest && c.uri() != null) {
-        ObjectNode link = content.addObject();
-        link.put("type", "resource_link");
-        link.put("uri", c.uri());
-        link.put("name", c.name() == null ? c.uri() : c.name());
-        if (c.mimeType() != null) {
-          link.put("mimeType", c.mimeType());
-        }
-      } else if ("resource_link".equals(c.type())) {
-        content.addObject().put("type", "text").put("text", (c.name() == null ? "" : c.name() + ": ")
-            + (c.uri() == null ? "" : c.uri()));
-      } else {
-        content.addObject().put("type", "text").put("text", c.text() == null ? "" : c.text());
-      }
+      content.add(block(c, oldest));
     }
     JsonNode s = r.structuredContent();
     if (s != null && !s.isNull()) {
@@ -108,6 +96,57 @@ public final class ResultWriter {
       out.set("_meta", meta);
     }
     return complete(env, out, -1);
+  }
+
+  /**
+   * One content block as MCP writes it: text, an image or audio with its Base64 {@code data}, an embedded resource
+   * (its text or blob), a link to a resource. With 2025-03-26 a link becomes text with its URI (the type is newer).
+   */
+  static ObjectNode block(ToolResult.Content c, boolean oldest) {
+    ObjectNode b = JsonNodeFactory.instance.objectNode();
+    switch (c.type()) {
+      case "image", "audio" -> {
+        if (c.data() == null) {
+          return b.put("type", "text").put("text", c.text() == null ? "" : c.text());
+        }
+        b.put("type", c.type()).put("data", c.data()).put("mimeType", c.mimeType() == null
+            ? "application/octet-stream" : c.mimeType());
+      }
+      case "resource" -> {
+        b.put("type", "resource");
+        ObjectNode res = b.putObject("resource");
+        res.put("uri", c.uri() == null ? "" : c.uri());
+        if (c.mimeType() != null) {
+          res.put("mimeType", c.mimeType());
+        }
+        if (c.data() != null) {
+          res.put("blob", c.data());
+        } else {
+          res.put("text", c.text() == null ? "" : c.text());
+        }
+        if (c.meta() != null && c.meta().isObject()) {
+          res.set("_meta", c.meta());
+        }
+        return b;
+      }
+      case "resource_link" -> {
+        if (oldest || c.uri() == null) {
+          return b.put("type", "text").put("text", (c.name() == null ? "" : c.name() + ": ")
+              + (c.uri() == null ? "" : c.uri()));
+        }
+        b.put("type", "resource_link");
+        b.put("uri", c.uri());
+        b.put("name", c.name() == null ? c.uri() : c.name());
+        if (c.mimeType() != null) {
+          b.put("mimeType", c.mimeType());
+        }
+      }
+      default -> b.put("type", "text").put("text", c.text() == null ? "" : c.text());
+    }
+    if (c.meta() != null && c.meta().isObject()) {
+      b.set("_meta", c.meta());
+    }
+    return b;
   }
 
   /** {@code isError} result with one text: the tool ran (or was refused) and the model should read why. */

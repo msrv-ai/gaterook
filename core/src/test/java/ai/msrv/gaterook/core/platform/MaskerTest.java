@@ -567,4 +567,44 @@ class MaskerTest {
     assertThat(masker.text("no secret here…‹truncated 2 chars›", taint, MaskPolicy.SECRETS_ONLY).text())
         .isEqualTo("no secret here…‹truncated 2 chars›");
   }
+
+  /** Bytes can't be masked without breaking them: a block whose bytes carry a secret is left out, the rest passes. */
+  @Test
+  void anImageWhoseBytesCarryASecretIsWithheldAndOthersPass() {
+    Taint taint = new Taint();
+    taint.add("pw-binary-secret-0123");
+    String clean = Base64.getEncoder().encodeToString(new byte[] {(byte) 0x89, 'P', 'N', 'G', 1, 2, 3, 4});
+    for (String lead : List.of("", "x", "xy")) {
+      // At every alignment of the Base64: the secret may follow any number of other bytes.
+      String carrying = Base64.getEncoder().encodeToString((lead + "PNG:pw-binary-secret-0123:END")
+          .getBytes(StandardCharsets.UTF_8));
+      ToolResult r = new ToolResult(List.of(ToolResult.Content.image(clean, "image/png"),
+          ToolResult.Content.image(carrying, "image/png"), ToolResult.Content.resource("mcpgw://connections/a/x",
+              "text/plain", "the key is pw-binary-secret-0123", null)), null, false, null, false, null, List.of(), 0, 0,
+          null);
+
+      Masker.MaskedResult masked = masker.result(r, taint, MaskPolicy.SECRETS_ONLY);
+
+      assertThat(masked.result().content().get(0).data()).isEqualTo(clean);
+      assertThat(masked.result().content().get(1).data()).isNull();
+      assertThat(masked.result().content().get(1).text()).isEqualTo("[image image/png withheld by GateRook: it "
+          + "carried a secret]");
+      assertThat(masked.result().content().get(2).text()).isEqualTo("the key is " + MASK);
+      assertThat(masked.outcome().fields()).isEqualTo(2);
+    }
+  }
+
+  @Test
+  void theMetaOfABlockIsMaskedLikeAnyTree() {
+    Taint taint = new Taint();
+    taint.add("pw-in-meta-0123");
+    ToolResult r = new ToolResult(List.of(ToolResult.Content.resource("ui://gaterook/connections/a/app.html",
+        "text/html;profile=mcp-app", "<p>app</p>", null).withMeta(JSON.readTree(
+            "{\"ui\":{\"csp\":{\"connectDomains\":[\"https://x.example/?k=pw-in-meta-0123\"]}}}"))), null, false,
+        null, false, null, List.of(), 0, 0, null);
+
+    ToolResult masked = masker.result(r, taint, MaskPolicy.SECRETS_ONLY).result();
+
+    assertThat(masked.content().getFirst().meta().toString()).doesNotContain("pw-in-meta").contains(MASK);
+  }
 }

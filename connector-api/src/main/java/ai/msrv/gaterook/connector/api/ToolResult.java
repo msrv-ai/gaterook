@@ -20,10 +20,50 @@ public record ToolResult(List<Content> content, JsonNode structuredContent, bool
     boolean truncated, String truncatedReason, List<String> maskPaths, int maskedCount, long resultBytes,
     JsonNode meta) {
 
-  /** {@code type}: text | resource_link. */
-  public record Content(String type, String text, String uri, String mimeType, String name) {
+  /**
+   * One block of the result.
+   *
+   * @param type {@code text} | {@code resource_link} | {@code image} | {@code audio} | {@code resource} (an embedded
+   *             resource: its {@code uri}, and either its {@code text} or a blob in {@code data})
+   * @param data Base64 of an image, audio or blob, or {@code null}: the core withholds a block whose bytes carry a
+   *             secret and one larger than the call's limit, never changes it
+   * @param meta the block's {@code _meta} as the resource gave it (an MCP App's {@code ui}: its CSP), or {@code null}
+   */
+  public record Content(String type, String text, String uri, String mimeType, String name, String data,
+      JsonNode meta) {
+
+    public Content(String type, String text, String uri, String mimeType, String name) {
+      this(type, text, uri, mimeType, name, null, null);
+    }
+
     public static Content text(String text) {
       return new Content("text", text, null, null, null);
+    }
+
+    public static Content image(String base64, String mimeType) {
+      return new Content("image", null, null, mimeType, null, base64, null);
+    }
+
+    public static Content audio(String base64, String mimeType) {
+      return new Content("audio", null, null, mimeType, null, base64, null);
+    }
+
+    /** An embedded resource: {@code text}, or a Base64 {@code blob}. */
+    public static Content resource(String uri, String mimeType, String text, String blob) {
+      return new Content("resource", text, uri, mimeType, null, blob, null);
+    }
+
+    public static Content link(String uri, String name, String mimeType) {
+      return new Content("resource_link", null, uri, mimeType, name, null, null);
+    }
+
+    public Content withMeta(JsonNode value) {
+      return new Content(type, text, uri, mimeType, name, data, value);
+    }
+
+    /** Whether the block carries bytes rather than text: an image, audio, a blob. */
+    public boolean binary() {
+      return data != null;
     }
   }
 

@@ -30,8 +30,8 @@ import tools.jackson.databind.node.ObjectNode;
  * One request of an authenticated caller on one endpoint (ARCHITECTURE.md §5 steps 3–12): the era and its methods,
  * the endpoint's revisions, a SERVER span per request ({@code mcp.method.name}, {@code mcp.protocol.version},
  * {@code jsonrpc.request.id}, {@code gen_ai.tool.name}) under the client's {@code traceparent}, and every answer
- * written for its era. Unknown methods are {@code -32601} (modern: HTTP 404); {@code subscriptions/listen},
- * {@code completion/complete} and {@code logging/setLevel} are not offered.
+ * written for its era. Unknown methods are {@code -32601} (modern: HTTP 404). Prompts and completions come from
+ * {@link PromptsHandler}: the gateway's own and those external MCP servers share.
  */
 @Component
 public class McpDispatcher {
@@ -41,9 +41,11 @@ public class McpDispatcher {
   public static final int PAGE = 100;
 
   private static final Set<String> LEGACY_METHODS = Set.of("initialize", "ping", "tools/list", "tools/call",
-      "resources/list", "resources/templates/list", "resources/read", "prompts/list", "prompts/get");
+      "resources/list", "resources/templates/list", "resources/read", "prompts/list", "prompts/get",
+      "completion/complete");
   private static final Set<String> MODERN_METHODS = Set.of("server/discover", "tools/list", "tools/call",
-      "resources/list", "resources/templates/list", "resources/read", "prompts/list", "prompts/get");
+      "resources/list", "resources/templates/list", "resources/read", "prompts/list", "prompts/get",
+      "completion/complete");
 
   /** What to answer: HTTP status and body ({@code null}: 202 without a body). */
   public record Reply(int status, ObjectNode body) {
@@ -56,16 +58,18 @@ public class McpDispatcher {
   private final ToolCatalog catalogs;
   private final ToolCallHandler tools;
   private final ResourcesHandler resources;
+  private final PromptsHandler prompts;
   private final AuditWriter audit;
   private final CallTracing tracing;
   private final ClientMemory clients;
   private final JsonMapper json;
 
-  public McpDispatcher(ToolCatalog catalogs, ToolCallHandler tools, ResourcesHandler resources, AuditWriter audit,
-      CallTracing tracing, ClientMemory clients, JsonMapper json) {
+  public McpDispatcher(ToolCatalog catalogs, ToolCallHandler tools, ResourcesHandler resources,
+      PromptsHandler prompts, AuditWriter audit, CallTracing tracing, ClientMemory clients, JsonMapper json) {
     this.catalogs = catalogs;
     this.tools = tools;
     this.resources = resources;
+    this.prompts = prompts;
     this.audit = audit;
     this.tracing = tracing;
     this.clients = clients;
@@ -150,17 +154,13 @@ public class McpDispatcher {
         requireAudit();
         yield ResultWriter.complete(env, resources.read(r), 0);
       }
-      case "prompts/list" -> {
-        ObjectNode out = JsonNodeFactory.instance.objectNode();
-        out.set("prompts", Prompts.list());
-        yield ResultWriter.complete(env, out, 300_000);
-      }
+      // The gateway's own prompts are fresh for five minutes; a server that shares its own can change them sooner.
+      case "prompts/list" -> ResultWriter.complete(env, prompts.list(r), prompts.shared(r) ? 30_000 : 300_000);
       case "prompts/get" -> {
-        String name = env.params().path("name").asString("");
-        ObjectNode out = Prompts.get(name, env.params().path("arguments"))
-            .orElseThrow(() -> McpException.invalidParams("Unknown prompt: " + name));
-        yield ResultWriter.complete(env, out, -1);
+        requireAudit();
+        yield ResultWriter.complete(env, prompts.get(r), -1);
       }
+      case "completion/complete" -> ResultWriter.complete(env, prompts.complete(r), -1);
       default -> throw new McpException(JsonRpc.METHOD_NOT_FOUND, "Method not found: " + env.method());
     };
   }
@@ -204,6 +204,7 @@ public class McpDispatcher {
     }
     c.putObject("resources");
     c.putObject("prompts");
+    c.putObject("completions");
     if (ui) c.putObject("extensions").putObject(McpAppResource.EXTENSION);
     return c;
   }
@@ -222,7 +223,7 @@ public class McpDispatcher {
   private ObjectNode toolsList(McpRequest r) {
     boolean ui = r.env().supportsUi();
     List<ToolCatalog.PublishedTool> all = r.catalog().tools().stream()
-        .filter(t -> ui || !CoreTools.APPROVAL_CARD_ACTION.equals(t.name())).toList();
+        .filter(t -> ui || (!CoreTools.APPROVAL_CARD_ACTION.equals(t.name()) && !t.appOnly())).toList();
     String listHash = r.catalog().listHash() + (ui ? ":ui" : ":text");
     int offset = cursor(r.env(), listHash);
     ObjectNode out = JsonNodeFactory.instance.objectNode();
@@ -254,6 +255,9 @@ public class McpDispatcher {
       n.putObject("_meta").putObject("ui").put("resourceUri", McpAppResource.URI);
     } else if (ui && CoreTools.APPROVAL_CARD_ACTION.equals(t.name())) {
       n.putObject("_meta").putObject("ui").putArray("visibility").add("app");
+    } else if (ui && t.meta() != null && t.meta().path("ui").isObject()) {
+      // An MCP server's app, by the URI the endpoint publishes it under: read through the gateway like any resource.
+      n.putObject("_meta").set("ui", t.meta().get("ui").deepCopy());
     }
     return n;
   }

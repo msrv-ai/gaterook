@@ -479,6 +479,22 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
     if (s.sse) {
       notes.add("Over the HTTP+SSE transport of 2024-11-05: the URL takes no Streamable HTTP");
     }
+    List<String> offers = new ArrayList<>();
+    if (s.init != null && s.init.has("resources")) {
+      offers.add("resources");
+    }
+    if (s.init != null && s.init.has("prompts")) {
+      offers.add("prompts");
+    }
+    if (!offers.isEmpty()) {
+      notes.add("Offers " + String.join(" and ", offers) + " besides tools: agents get them once you let it share "
+          + "them in its settings");
+    }
+    long apps = mapped.tools().stream().filter(t -> t.path("ui").isObject()).count();
+    if (apps > 0) {
+      notes.add(apps + (apps == 1 ? " tool shows an MCP App" : " tools show MCP Apps")
+          + ": clients that render apps get them through GateRook");
+    }
     String instructions = s.init == null || s.init.instructions() == null ? null
         : Texts.clean(s.init.instructions(), 4_000, true);
     return new Handshake(info, s.protocolVersion(), instructions, mapped.tools(), mapped.rejected(), s.startMillis,

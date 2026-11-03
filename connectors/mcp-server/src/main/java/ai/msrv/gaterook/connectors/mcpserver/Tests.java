@@ -48,6 +48,12 @@ final class Tests {
     for (String note : h.notes()) {
       if (note.startsWith("Not pinned")) {
         r = r.withHint(new TestResult.Hint(TestResult.Severity.WARNING, "mcp.not-pinned", "/command", note));
+      } else if (note.startsWith("Offers ")) {
+        r = r.withHint(new TestResult.Hint(TestResult.Severity.INFO, "mcp.offers", "/share", note + "."));
+      } else if (note.contains("MCP App")) {
+        r = r.withHint(new TestResult.Hint(TestResult.Severity.INFO, "mcp.apps", null, note + "."));
+      } else if (note.startsWith("Over the HTTP+SSE")) {
+        r = r.withHint(new TestResult.Hint(TestResult.Severity.INFO, "mcp.sse", "/url", note + "."));
       }
     }
     ObjectNode details = Texts.JSON.createObjectNode();

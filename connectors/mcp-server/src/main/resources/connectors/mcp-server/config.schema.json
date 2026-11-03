@@ -63,6 +63,24 @@
       "maximum": 16,
       "default": 4
     },
+    "share": {
+      "type": "object",
+      "title": "Share with agents",
+      "additionalProperties": false,
+      "description": "What the server offers besides tools. Reads of its resources and prompts run without approval, through the endpoint's policy, masked and recorded in Activity.",
+      "properties": {
+        "resources": {
+          "type": "boolean",
+          "default": false,
+          "title": "Its resources and resource templates"
+        },
+        "prompts": {
+          "type": "boolean",
+          "default": false,
+          "title": "Its prompts and their completions"
+        }
+      }
+    },
     "catalogEntry": {
       "type": "string",
       "readOnly": true,

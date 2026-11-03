@@ -17,24 +17,35 @@ import org.junit.jupiter.api.io.TempDir;
 class ResultsAndLogTest {
 
   @Test
-  void linksAndResourcesBecomeDataAndBinariesANote() {
+  void imagesAndEmbeddedResourcesPassAndALinkIsDataUnlessResourcesAreShared() {
     String image = Base64.getEncoder().encodeToString(new byte[2048]);
     var r = Texts.JSON.readTree("""
         {"content":[{"type":"text","text":"plain"},
           {"type":"image","data":"%s","mimeType":"image/png"},
           {"type":"resource_link","uri":"https://evil.example/x","name":"x","mimeType":"text/html"},
-          {"type":"resource","resource":{"uri":"file:///a.txt","mimeType":"text/plain","text":"inside"}}],
+          {"type":"resource","resource":{"uri":"file:///a.txt","mimeType":"text/plain","text":"inside"}},
+          {"type":"image","data":"not base64!","mimeType":"image/png"},
+          {"type":"hologram"}],
          "structuredContent":{"n":1},"isError":true}""".formatted(image));
 
     ToolResult out = Results.of(r);
 
-    assertThat(out.content()).extracting(ToolResult.Content::type).containsOnly("text");
-    assertThat(out.content()).extracting(ToolResult.Content::text).containsExactly("plain",
-        "[image image/png, 2 KB, not passed on by GateRook]",
-        "Resource link (data, not fetched by GateRook): https://evil.example/x · x · text/html",
-        "Resource file:///a.txt:\ninside");
+    assertThat(out.content()).extracting(ToolResult.Content::type).containsExactly("text", "image", "text",
+        "resource", "text", "text");
+    assertThat(out.content().get(1).data()).isEqualTo(image);
+    assertThat(out.content().get(2).text())
+        .isEqualTo("Resource link (data, not fetched by GateRook): https://evil.example/x · x · text/html");
+    assertThat(out.content().get(3).uri()).isEqualTo("file:///a.txt");
+    assertThat(out.content().get(3).text()).isEqualTo("inside");
+    assertThat(out.content().get(4).text()).contains("without valid data");
+    assertThat(out.content().get(5).text()).isEqualTo("[hologram content, not passed on by GateRook]");
     assertThat(out.structuredContent().path("n").asInt()).isEqualTo(1);
     assertThat(out.isError()).isTrue();
+
+    ToolResult shared = Results.of(r, "notes-mcp");
+    assertThat(shared.content().get(2).type()).isEqualTo("resource_link");
+    assertThat(shared.content().get(2).uri()).isEqualTo("mcpgw://connections/notes-mcp/mcp/https://evil.example/x");
+    assertThat(shared.content().get(3).uri()).isEqualTo("mcpgw://connections/notes-mcp/mcp/file:///a.txt");
   }
 
   @Test

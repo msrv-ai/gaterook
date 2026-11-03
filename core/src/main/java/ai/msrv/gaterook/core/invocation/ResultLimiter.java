@@ -17,7 +17,8 @@ import tools.jackson.databind.node.ObjectNode;
  * of its tool's output schema plus a text rendering (the core renders tables, connectors don't), and the whole result
  * is cut to the call's limits — whole rows of a table, whole entries of the largest array of a JSON result, text at a
  * character boundary — with {@code truncated} and the reason ({@code row_limit}, {@code size_limit}). The size counted
- * is what the agent receives: text plus structured content.
+ * is what the agent receives: text, the Base64 of images, audio and blobs, and structured content. Bytes can't be cut:
+ * a binary block that doesn't fit is left out whole, largest first, with a note of what it was.
  */
 public final class ResultLimiter {
 
@@ -37,9 +38,12 @@ public final class ResultLimiter {
     if (size(masked) <= max) {
       return masked;
     }
-    ToolResult cut = masked;
-    if (masked.structuredContent() != null && masked.structuredContent().isObject()) {
-      cut = cutLargestArray(masked, max);
+    ToolResult cut = withoutLargeBinaries(masked, max);
+    if (size(cut) <= max) {
+      return cut.truncated("size_limit");
+    }
+    if (cut.structuredContent() != null && cut.structuredContent().isObject()) {
+      cut = cutLargestArray(cut, max);
     }
     if (size(cut) > max) {
       cut = cutText(cut, max);
@@ -47,11 +51,11 @@ public final class ResultLimiter {
     return cut.truncated() ? cut : cut.truncated("size_limit");
   }
 
-  /** Bytes of what the agent gets: every text and URI, and the structured content as JSON. */
+  /** Bytes of what the agent gets: every text, URI and Base64 of a block, and the structured content as JSON. */
   public static long size(ToolResult r) {
     long n = 0;
     for (ToolResult.Content c : r.content()) {
-      n += utf8(c.text()) + utf8(c.uri()) + utf8(c.name()) + utf8(c.mimeType());
+      n += cost(c);
     }
     if (r.structuredContent() != null) {
       n += CanonicalJson.bytes(r.structuredContent()).length;
@@ -68,6 +72,14 @@ public final class ResultLimiter {
       o.put("type", c.type());
       o.put("text", c.text());
       o.put("uri", c.uri());
+      // Only where there are any, so that a result of texts hashes as it always has.
+      if (c.data() != null) {
+        o.put("mimeType", c.mimeType());
+        o.put("data", c.data());
+      }
+      if (c.meta() != null) {
+        o.set("meta", c.meta());
+      }
     }
     n.set("structuredContent", r.structuredContent());
     n.put("isError", r.isError());
@@ -78,7 +90,9 @@ public final class ResultLimiter {
   public static String preview(ToolResult r, int chars) {
     StringBuilder out = new StringBuilder();
     for (ToolResult.Content c : r.content()) {
-      if (c.text() != null) {
+      if (c.binary()) {
+        out.append(note(c, "")).append('\n');
+      } else if (c.text() != null) {
         out.append(c.text()).append('\n');
       } else if (c.uri() != null) {
         out.append(c.uri()).append('\n');
@@ -260,6 +274,49 @@ public final class ResultLimiter {
     return out;
   }
 
+  /**
+   * Leaves out images, audio and blobs, largest first, until the result fits or none is left: bytes can't be cut, and
+   * a note of what was there (type, size) costs a few bytes.
+   */
+  private static ToolResult withoutLargeBinaries(ToolResult r, long max) {
+    List<ToolResult.Content> content = new ArrayList<>(r.content());
+    long size = size(r);
+    while (size > max) {
+      int largest = -1;
+      for (int i = 0; i < content.size(); i++) {
+        if (content.get(i).binary() && (largest < 0 || cost(content.get(i)) > cost(content.get(largest)))) {
+          largest = i;
+        }
+      }
+      if (largest < 0) {
+        break;
+      }
+      ToolResult.Content c = content.get(largest);
+      ToolResult.Content note = ToolResult.Content.text(note(c, ", left out: larger than the size limit"));
+      size += cost(note) - cost(c);
+      content.set(largest, note);
+    }
+    if (content.equals(r.content())) {
+      return r;
+    }
+    return new ToolResult(List.copyOf(content), r.structuredContent(), r.isError(), r.table(), true, "size_limit",
+        r.maskPaths(), r.maskedCount(), 0, r.meta());
+  }
+
+  /** "[image image/png, 12 KB]" of a block that carries bytes, {@code more} said before the bracket closes. */
+  static String note(ToolResult.Content c, String more) {
+    long bytes = c.data() == null ? 0 : c.data().length() * 3L / 4;
+    String size = bytes < 1024 ? bytes + " bytes" : bytes < 1024 * 1024 ? (bytes / 1024) + " KB"
+        : (bytes / (1024 * 1024)) + " MB";
+    return "[" + c.type() + (c.mimeType() == null ? "" : " " + c.mimeType()) + (c.uri() == null ? "" : " "
+        + c.uri()) + ", " + size + more + "]";
+  }
+
+  private static long cost(ToolResult.Content c) {
+    return utf8(c.text()) + utf8(c.uri()) + utf8(c.name()) + utf8(c.mimeType()) + (c.data() == null ? 0
+        : c.data().length()) + (c.meta() == null ? 0 : CanonicalJson.bytes(c.meta()).length);
+  }
+
   /** Cuts texts from the last one back, at a character boundary, with a note; structured content is kept. */
   private static ToolResult cutText(ToolResult r, long max) {
     long structured = r.structuredContent() == null ? 0 : CanonicalJson.bytes(r.structuredContent()).length;
@@ -267,7 +324,7 @@ public final class ResultLimiter {
     List<ToolResult.Content> out = new ArrayList<>();
     String note = "\n… cut by the size limit";
     for (ToolResult.Content c : r.content()) {
-      long cost = utf8(c.text()) + utf8(c.uri()) + utf8(c.name()) + utf8(c.mimeType());
+      long cost = cost(c);
       if (cost <= budget) {
         out.add(c);
         budget -= cost;

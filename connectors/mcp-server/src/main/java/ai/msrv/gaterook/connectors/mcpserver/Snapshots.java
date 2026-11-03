@@ -188,7 +188,7 @@ final class Snapshots {
     return Texts.sha256(Texts.JSON.valueToTree(declared));
   }
 
-  /** The tool as an endpoint publishes it. */
+  /** The tool as an endpoint publishes it, {@code server} being the connection's name. */
   static ToolDefinition definition(JsonNode entry, String server) {
     JsonNode annotations = entry.path("annotations");
     boolean read = declaresReadOnly(annotations.isObject() ? (ObjectNode) annotations : null);
@@ -208,6 +208,17 @@ final class Snapshots {
         .defaultMode(Mode.APPROVAL, Mode.APPROVAL)
         .resultShape(ResultShape.JSON)
         .risk(new Risk(true, true, Egress.CHANNEL));
+    JsonNode ui = entry.path("ui");
+    if (ui.path("resourceUri").isString()) {
+      // Its app, by the URI the endpoint publishes it under: a client that renders apps reads it through the gateway.
+      ObjectNode meta = Texts.JSON.createObjectNode();
+      ObjectNode app = meta.putObject("ui");
+      app.put("resourceUri", Federation.exposed(server, ui.get("resourceUri").asString()));
+      if (ui.path("visibility").isArray()) {
+        app.set("visibility", ui.get("visibility").deepCopy());
+      }
+      b.meta(meta);
+    }
     if (read) {
       b.nature(Nature.READ).annotations(new Annotations(true, false, idempotent == null ? Boolean.FALSE : idempotent,
           openWorld == null ? Boolean.TRUE : openWorld));

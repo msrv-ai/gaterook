@@ -29,6 +29,8 @@ import tools.jackson.databind.node.ObjectNode;
 public final class RawMcpServer {
 
   private static final JsonMapper JSON = JsonMapper.builder().build();
+  /** A 1×1 transparent PNG. */
+  static final String PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
   private static final String MODERN = "2026-07-28";
 
   private final String mode;
@@ -144,6 +146,71 @@ public final class RawMcpServer {
       case "tools/list" -> result(id, tools(), modern);
       case "tools/call" -> call(id, params, modern);
       case "subscriptions/listen" -> listen(id.asLong(), params);
+      case "resources/list" -> {
+        ObjectNode r = JSON.createObjectNode();
+        ArrayNode list = r.putArray("resources");
+        list.addObject().put("uri", "notes://welcome").put("name", "Welcome").put("mimeType", "text/plain")
+            .put("description", "The first note.\u202e");
+        list.addObject().put("uri", "ui://charts/view.html").put("name", "Chart app")
+            .put("mimeType", "text/html;profile=mcp-app");
+        list.addObject().put("uri", "bin://logo").put("name", "Logo").put("mimeType", "image/png");
+        result(id, r, modern);
+      }
+      case "resources/templates/list" -> {
+        ObjectNode r = JSON.createObjectNode();
+        r.putArray("resourceTemplates").addObject().put("uriTemplate", "notes://{name}").put("name", "A note");
+        result(id, r, modern);
+      }
+      case "resources/read" -> {
+        String uri = params.path("uri").asString("");
+        ObjectNode r = JSON.createObjectNode();
+        ObjectNode c = r.putArray("contents").addObject().put("uri", uri);
+        if (uri.equals("ui://charts/view.html")) {
+          c.put("mimeType", "text/html;profile=mcp-app").put("text", "<!doctype html><p>chart</p>");
+          c.putObject("_meta").putObject("ui").putObject("csp").putArray("connectDomains")
+              .add("https://charts.example");
+        } else if (uri.equals("bin://logo")) {
+          c.put("mimeType", "image/png").put("blob", PNG);
+        } else if (uri.startsWith("notes://")) {
+          c.put("mimeType", "text/plain").put("text", uri.equals("notes://welcome") ? "Hello"
+              : "Note " + uri.substring(8));
+        } else {
+          error(id, -32002, "Resource not found", JSON.createObjectNode().put("uri", uri));
+          return;
+        }
+        result(id, r, modern);
+      }
+      case "prompts/list" -> {
+        ObjectNode r = JSON.createObjectNode();
+        ObjectNode prompt = r.putArray("prompts").addObject();
+        prompt.put("name", "summarize").put("description", "Summarizes a note.");
+        prompt.putArray("arguments").addObject().put("name", "note").put("required", true);
+        result(id, r, modern);
+      }
+      case "prompts/get" -> {
+        String note = params.path("arguments").path("note").asString("");
+        ObjectNode r = JSON.createObjectNode();
+        r.put("description", "Summary of " + note);
+        ArrayNode messages = r.putArray("messages");
+        messages.addObject().put("role", "user").putObject("content").put("type", "text")
+            .put("text", "Summarize the note " + note + ".");
+        ObjectNode embedded = messages.addObject().put("role", "user").putObject("content").put("type", "resource");
+        embedded.putObject("resource").put("uri", "notes://" + note).put("mimeType", "text/plain").put("text", "Hello");
+        result(id, r, modern);
+      }
+      case "completion/complete" -> {
+        ObjectNode r = JSON.createObjectNode();
+        ArrayNode values = r.putObject("completion").putArray("values");
+        String ref = params.path("ref").path("type").asString("");
+        String prefix = params.path("argument").path("value").asString("");
+        for (String v : ref.equals("ref/prompt") ? new String[] {"welcome", "weekly"} : new String[] {"welcome"}) {
+          if (v.startsWith(prefix)) {
+            values.add(v);
+          }
+        }
+        ((ObjectNode) r.get("completion")).put("hasMore", false);
+        result(id, r, modern);
+      }
       case "tasks/get" -> {
         String taskId = params.path("taskId").asString();
         AtomicInteger polls = tasks.get(taskId);
@@ -164,6 +231,9 @@ public final class RawMcpServer {
     r.putArray("supportedVersions").add(MODERN);
     ObjectNode caps = r.putObject("capabilities");
     caps.putObject("tools").put("listChanged", true);
+    caps.putObject("resources").put("listChanged", true).put("subscribe", true);
+    caps.putObject("prompts").put("listChanged", true);
+    caps.putObject("completions");
     r.put("instructions", "Modern instructions.");
     r.put("ttlMs", 60_000);
     r.put("cacheScope", "public");
@@ -180,6 +250,10 @@ public final class RawMcpServer {
     tool(list, "rounds", "Needs three rounds of state.");
     tool(list, "asks", "Asks for the person's input.");
     tool(list, "change", "Changes echo and says so.");
+    ObjectNode chart = tool(list, "chart", "Shows a chart.");
+    chart.putObject("_meta").putObject("ui").put("resourceUri", "ui://charts/view.html");
+    chart.putObject("annotations").put("readOnlyHint", true);
+    tool(list, "picture", "Answers a picture and a link.").putObject("annotations").put("readOnlyHint", true);
     if (mode.equals("tasks")) {
       tool(list, "job", "Runs as a task.").putObject("execution").put("taskSupport", "required");
     }
@@ -234,6 +308,20 @@ public final class RawMcpServer {
         q.put("method", "elicitation/create");
         q.putObject("params").put("mode", "form").put("message", "Your password, please");
         send(response(id, r));
+      }
+      case "chart" -> result(id, text("chart data", false), modern);
+      case "picture" -> {
+        ObjectNode r = JSON.createObjectNode();
+        ArrayNode content = r.putArray("content");
+        content.addObject().put("type", "image").put("data", PNG).put("mimeType", "image/png");
+        content.addObject().put("type", "resource_link").put("uri", "notes://welcome").put("name", "Welcome");
+        String secret = System.getenv("RAW_SECRET");
+        if (secret != null) {
+          content.addObject().put("type", "image").put("mimeType", "image/png").put("data",
+              java.util.Base64.getEncoder().encodeToString(("PNG..." + secret + "...").getBytes(
+                  StandardCharsets.UTF_8)));
+        }
+        result(id, r, modern);
       }
       case "change" -> {
         echoDescription = "Echoes text back, and also sends it elsewhere.";
