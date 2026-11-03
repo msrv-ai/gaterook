@@ -2997,7 +2997,170 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "url": {
               "type": "string",
               "format": "uri",
-              "pattern": "^(https://|http://(127\\.0\\.0\\.1|localhost)[:/])"
+              "pattern": "^(https://|http://(127\\.0\\.0\\.1|localhost)[:/])",
+              "x-key-allowed": true
+            },
+            "auth": {
+              "type": "object",
+              "title": "Sign-in",
+              "additionalProperties": false,
+              "required": [
+                "type"
+              ],
+              "properties": {
+                "type": {
+                  "enum": [
+                    "oauth",
+                    "google",
+                    "aws"
+                  ],
+                  "x-enumTitles": [
+                    "Sign in with OAuth in the browser",
+                    "Google Cloud credentials",
+                    "AWS credentials (SigV4)"
+                  ]
+                },
+                "optional": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "OAuth only: the server also answers without a sign-in, so it connects without one until you sign in"
+                },
+                "clientId": {
+                  "type": "string",
+                  "title": "OAuth client ID",
+                  "minLength": 1,
+                  "maxLength": 512,
+                  "pattern": "^[\\x21-\\x7E]+$",
+                  "description": "Only for a server that doesn't let apps register themselves: the ID of the OAuth app you created for GateRook"
+                },
+                "clientSecret": {
+                  "type": "string",
+                  "title": "Client secret",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "description": "Only when that OAuth app has one"
+                },
+                "scopes": {
+                  "type": "string",
+                  "title": "Scopes",
+                  "maxLength": 2048,
+                  "pattern": "^[\\x21\\x23-\\x5B\\x5D-\\x7E]+( [\\x21\\x23-\\x5B\\x5D-\\x7E]+)*$",
+                  "description": "Default: what the server asks for"
+                },
+                "callbackPort": {
+                  "type": "integer",
+                  "title": "Callback port",
+                  "minimum": 1024,
+                  "maximum": 65535,
+                  "description": "Default: any free port"
+                },
+                "callbackHost": {
+                  "enum": [
+                    "127.0.0.1",
+                    "localhost"
+                  ],
+                  "default": "127.0.0.1"
+                },
+                "callbackPath": {
+                  "type": "string",
+                  "title": "Callback path",
+                  "pattern": "^/[A-Za-z0-9._~/-]{0,127}$",
+                  "default": "/callback"
+                },
+                "credentials": {
+                  "type": "object",
+                  "title": "Credentials",
+                  "description": "Google Cloud or AWS: where GateRook takes the credentials of each request from",
+                  "additionalProperties": false,
+                  "properties": {
+                    "source": {
+                      "enum": [
+                        "adc",
+                        "serviceAccountKey",
+                        "profile",
+                        "accessKey"
+                      ],
+                      "x-enumTitles": [
+                        "Google sign-in on this computer (ADC)",
+                        "Service account key (JSON)",
+                        "AWS profile on this computer",
+                        "AWS access key"
+                      ]
+                    },
+                    "serviceAccountKey": {
+                      "type": "string",
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "x-widget": "textarea",
+                      "maxLength": 10000
+                    },
+                    "impersonate": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+                      "examples": [
+                        "gw-mcp@acme-stage.iam.gserviceaccount.com"
+                      ]
+                    },
+                    "lifetimeSeconds": {
+                      "type": "integer",
+                      "minimum": 300,
+                      "maximum": 3600,
+                      "default": 900,
+                      "x-unit": "s"
+                    },
+                    "quotaProject": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$",
+                      "description": "Billed project (x-goog-user-project)"
+                    },
+                    "profile": {
+                      "type": "string",
+                      "maxLength": 128,
+                      "pattern": "\\S"
+                    },
+                    "accessKeyId": {
+                      "type": "string",
+                      "pattern": "^(AKIA|ASIA)[A-Z0-9]{16}$",
+                      "x-not-secret": true
+                    },
+                    "secretAccessKey": {
+                      "type": "string",
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "format": "password"
+                    },
+                    "roleArn": {
+                      "type": "string",
+                      "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
+                      "examples": [
+                        "arn:aws:iam::412398765012:role/gw-mcp"
+                      ]
+                    },
+                    "externalId": {
+                      "type": "string",
+                      "pattern": "^[\\w+=,.@:/-]{2,1224}$",
+                      "description": "Not a secret. Add it to the role's trust policy as sts:ExternalId"
+                    },
+                    "sessionSeconds": {
+                      "type": "integer",
+                      "minimum": 900,
+                      "maximum": 3600,
+                      "default": 900,
+                      "x-unit": "s"
+                    }
+                  }
+                },
+                "service": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9-]{1,64}$",
+                  "description": "AWS: the service requests are signed for. Default: from the URL, aws-mcp.us-east-1.api.aws → aws-mcp"
+                },
+                "region": {
+                  "type": "string",
+                  "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
+                  "description": "AWS: the region requests are signed for. Default: from the URL"
+                }
+              }
             },
             "headers": {
               "type": "array",
@@ -3029,7 +3192,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
       }
     ],
     "patternProperties": {
-      "^(command|env|inheritEnv|url|headers)$": {}
+      "^(command|env|inheritEnv|url|headers|auth)$": {}
     }
   },
   "ssh-logs": {
@@ -12113,6 +12276,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
   },
   "mcp-server": {
     "sections": [
+      "/auth",
       "/share"
     ],
     "loose": [
@@ -12131,6 +12295,76 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "/catalogEntry"
     ],
     "rows": {
+      "/auth": [
+        [
+          "/auth/type"
+        ],
+        [
+          "/auth/optional"
+        ],
+        [
+          "/auth/clientId"
+        ],
+        [
+          "/auth/clientSecret"
+        ],
+        [
+          "/auth/scopes"
+        ],
+        [
+          "/auth/callbackPort"
+        ],
+        [
+          "/auth/callbackHost"
+        ],
+        [
+          "/auth/callbackPath"
+        ],
+        [
+          "/auth/credentials"
+        ],
+        [
+          "/auth/service"
+        ],
+        [
+          "/auth/region"
+        ]
+      ],
+      "/auth/credentials": [
+        [
+          "/auth/credentials/source"
+        ],
+        [
+          "/auth/credentials/serviceAccountKey"
+        ],
+        [
+          "/auth/credentials/impersonate"
+        ],
+        [
+          "/auth/credentials/lifetimeSeconds"
+        ],
+        [
+          "/auth/credentials/quotaProject"
+        ],
+        [
+          "/auth/credentials/profile"
+        ],
+        [
+          "/auth/credentials/accessKeyId"
+        ],
+        [
+          "/auth/credentials/secretAccessKey"
+        ],
+        [
+          "/auth/credentials/roleArn"
+        ],
+        [
+          "/auth/credentials/externalId"
+        ],
+        [
+          "/auth/credentials/sessionSeconds"
+        ]
+      ],
       "/share": [
         [
           "/share/resources"
@@ -12363,6 +12597,432 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "unit": null,
         "options": [],
         "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth",
+        "kind": "object",
+        "title": "Sign-in",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/type",
+        "kind": "select",
+        "title": "type",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "oauth",
+          "google",
+          "aws"
+        ],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/optional",
+        "kind": "checkbox",
+        "title": "optional",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/clientId",
+        "kind": "text",
+        "title": "OAuth client ID",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/clientSecret",
+        "kind": "secret",
+        "title": "Client secret",
+        "required": false,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/scopes",
+        "kind": "text",
+        "title": "Scopes",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/callbackPort",
+        "kind": "number",
+        "title": "Callback port",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/callbackHost",
+        "kind": "select",
+        "title": "callbackHost",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "127.0.0.1",
+          "localhost"
+        ],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/callbackPath",
+        "kind": "text",
+        "title": "Callback path",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/credentials/source",
+        "kind": "select",
+        "title": "source",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "adc",
+          "serviceAccountKey",
+          "profile",
+          "accessKey"
+        ],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/credentials/serviceAccountKey",
+        "kind": "secret",
+        "title": "serviceAccountKey",
+        "required": false,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": true,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/credentials/impersonate",
+        "kind": "text",
+        "title": "impersonate",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/credentials/lifetimeSeconds",
+        "kind": "number",
+        "title": "lifetimeSeconds",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "s",
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/credentials/quotaProject",
+        "kind": "text",
+        "title": "quotaProject",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/credentials/profile",
+        "kind": "text",
+        "title": "profile",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/credentials/accessKeyId",
+        "kind": "text",
+        "title": "accessKeyId",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/credentials/secretAccessKey",
+        "kind": "secret",
+        "title": "secretAccessKey",
+        "required": false,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/credentials/roleArn",
+        "kind": "text",
+        "title": "roleArn",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/credentials/externalId",
+        "kind": "text",
+        "title": "externalId",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/credentials/sessionSeconds",
+        "kind": "number",
+        "title": "sessionSeconds",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "s",
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/service",
+        "kind": "text",
+        "title": "service",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/region",
+        "kind": "text",
+        "title": "region",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,

@@ -308,7 +308,7 @@
                   inputmode="numeric"
                   [value]="numberText()"
                   autocomplete="off"
-                  [attr.required]="n.required ? '' : null"
+                  [attr.required]="f.needed(n) ? '' : null"
                   [attr.aria-describedby]="describedBy"
                   [attr.aria-invalid]="error ? 'true' : null"
                   (input)="setNumber($event)"
@@ -324,7 +324,7 @@
                 inputmode="numeric"
                 [value]="numberText()"
                 autocomplete="off"
-                [attr.required]="n.required ? '' : null"
+                [attr.required]="f.needed(n) ? '' : null"
                 [attr.aria-describedby]="describedBy"
                 [attr.aria-invalid]="error ? 'true' : null"
                 (input)="setNumber($event)"
@@ -355,7 +355,9 @@
                 (blur)="f.touch(n)"
               >
                 @if (value() === null) {
-                  <option value="" selected>Choose…</option>
+                  <option value="" selected>{{ clearable() ? 'Not set' : 'Choose…' }}</option>
+                } @else if (clearable()) {
+                  <option value="">Not set</option>
                 }
                 @for (o of options; track $index) {
                   <option [value]="String(o.value)" [selected]="isChecked(o.value)" [disabled]="f.optionForbidden(n, o.value)">{{ o.description ? o.title + ' · ' + o.description : o.title }}</option>

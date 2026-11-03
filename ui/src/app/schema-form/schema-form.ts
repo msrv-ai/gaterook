@@ -13,6 +13,7 @@ import {
   containsNode,
   defaultOn,
   getAt,
+  inUse,
   initialValue,
   isForbidden,
   isVisible,
@@ -161,7 +162,7 @@ export class SchemaForm {
     this.model = signal(this.blankText(initialValue(schema, options.current ?? null, options.current ? null : env)));
     this.initial = this.model();
     this.tree = form(this.model as unknown as WritableSignal<Record<string, unknown>>, (p) => this.rules(p), { injector: options.injector });
-    this.value = computed(() => cleanValue(this.compiled, this.model()));
+    this.value = computed(() => cleanValue(this.compiled, this.model(), this.filled()));
     this.enforceLocks(env);
   }
 
@@ -196,6 +197,14 @@ export class SchemaForm {
 
   visible(node: SchemaNode): boolean {
     return isVisible(node, this.model()) && !(this.source() === 'dynamic' && this.loginUsername(node));
+  }
+
+  /**
+   * Whether the field must be filled in now: it is required, and each omittable object around it is in use (the type
+   * of a sign-in that has a client ID; nothing while Sign-in is left empty).
+   */
+  needed(node: SchemaNode): boolean {
+    return node.required && node.within.every((path) => inUse(this.compiled, path, this.model(), this.filled()));
   }
 
   loginUsername(node: SchemaNode): boolean {
@@ -347,6 +356,10 @@ export class SchemaForm {
     this.secrets.update((s) => ({ ...s, [node.pointer]: value }));
   }
 
+  /** The secret fields something is typed into (a value or a reference), by pointer. */
+  private readonly filled = computed<ReadonlySet<string>>(() =>
+    new Set(Object.entries(this.secrets()).filter(([, typed]) => typed.trim()).map(([pointer]) => pointer)));
+
   /** The typed reference with the selected store's scheme, shared by validation, testing and saving. */
   secretReference(node: SchemaNode): string {
     return completeReference(this.source(), this.secrets()[node.pointer] ?? '');
@@ -448,13 +461,13 @@ export class SchemaForm {
     const typed = this.secrets()[node.pointer]?.trim() ?? '';
     if (REFERENCE_SOURCES.has(this.source())) {
       const dynamicLogin = this.source() === 'dynamic' && this.loginField(node);
-      if (!typed && !node.required && state !== 'editing' && !dynamicLogin) return null;
+      if (!typed && !this.needed(node) && state !== 'editing' && !dynamicLogin) return null;
       if (!typed) return this.source() === 'dynamic' ? 'Enter the Vault role.' : 'Enter the secret reference.';
       const scheme = this.source() === 'dynamic' ? 'vault://' : `${this.source()}://`;
       if (!this.secretReference(node).startsWith(scheme)) return `A reference starts with ${scheme}. Copy it from the store.`;
       return null;
     }
-    if (!typed && (node.required || state === 'editing')) return `${node.title} is required.`;
+    if (!typed && (this.needed(node) || state === 'editing')) return `${node.title} is required.`;
     return null;
   }
 
@@ -600,10 +613,11 @@ export class SchemaForm {
         // An empty list is a value to `required`; "at least one" is the rule here.
         validate(path, ({ value }) => {
           const v = value();
-          return active() && (!Array.isArray(v) || v.length === 0) ? { kind: 'required', message: requiredMessage(node) } : null;
+          return active() && this.needed(node) && (!Array.isArray(v) || v.length === 0)
+            ? { kind: 'required', message: requiredMessage(node) } : null;
         });
       } else if (node.required) {
-        required(path, { message: requiredMessage(node), when: () => active() });
+        required(path, { message: requiredMessage(node), when: () => active() && this.needed(node) });
       }
       validate(path, ({ value }) => {
         if (!active()) return null;
