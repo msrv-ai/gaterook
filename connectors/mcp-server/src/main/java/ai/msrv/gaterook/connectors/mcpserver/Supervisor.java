@@ -388,9 +388,9 @@ final class Supervisor {
   private void ping(Session s) {
     boolean ok;
     try {
-      s.client.ping().block(PING_TIMEOUT);
+      s.client.ping(PING_TIMEOUT);
       ok = true;
-    } catch (RuntimeException e) {
+    } catch (ConnectorException | RuntimeException e) {
       ok = false;
     }
     boolean hung = false;

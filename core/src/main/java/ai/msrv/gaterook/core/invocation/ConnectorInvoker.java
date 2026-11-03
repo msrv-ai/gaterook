@@ -12,6 +12,7 @@ import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.core.connectors.CallContext;
 import ai.msrv.gaterook.core.connectors.CallContexts;
+import ai.msrv.gaterook.core.connectors.CallListener;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.invocation.internal.ApprovedContext;
 import ai.msrv.gaterook.core.platform.MaskPolicy;
@@ -124,7 +125,12 @@ public class ConnectorInvoker {
 
   /** A READ (or a core tool's read of the connection): the context is never approved. */
   public Outcome execute(Request r) {
-    return run(r, null, Kind.EXECUTE, null);
+    return execute(r, CallListener.NONE);
+  }
+
+  /** {@link #execute(Request)} that {@code listener} hears while it runs: its progress, log messages, cancellation. */
+  public Outcome execute(Request r, CallListener listener) {
+    return run(r, null, Kind.EXECUTE, null, null, listener);
   }
 
   /**
@@ -134,7 +140,7 @@ public class ConnectorInvoker {
   public Outcome executeApproved(Request r, Approval approval) {
     Objects.requireNonNull(approval, "approval");
     return run(r, new Authorization(Objects.requireNonNull(approval.approvalId(), "approvalId"),
-        approval.preparedState(), approval.payload()), Kind.EXECUTE, null);
+        approval.preparedState(), approval.payload()), Kind.EXECUTE, null, null);
   }
 
   /** A policy-allowed Bypass call: execute the exact prepared action without creating an approval request. */
@@ -143,17 +149,35 @@ public class ConnectorInvoker {
       throw new IllegalArgumentException("Bypass requires an executable prepared action");
     }
     return run(r, new Authorization(null, prepared.preparedState(), prepared.preview().payload()),
-        Kind.EXECUTE, null);
+        Kind.EXECUTE, null, null);
   }
 
   /** {@code describe_connection}'s contribution of the connector (≤ 2 s); empty when it has none. */
   public Outcome describe(Request r, String object) {
-    return run(r, null, Kind.DESCRIBE, object);
+    return run(r, null, Kind.DESCRIBE, object, null);
   }
 
   /** {@code resources/read} of a connector resource. */
   public Outcome readResource(Request r, String uri) {
-    return run(r, null, Kind.READ_RESOURCE, uri);
+    return run(r, null, Kind.READ_RESOURCE, uri, null);
+  }
+
+  /**
+   * A connector's answer of its own as a result: a list of the resources or prompts it shares (as structured
+   * content), a prompt (its messages as blocks), completions.
+   */
+  @FunctionalInterface
+  public interface Query {
+    ToolResult run(Connector connector, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
+        throws ConnectorException;
+  }
+
+  /**
+   * A {@link Query} with the connection's secrets, bulkhead and deadline, its answer masked and cut like any result
+   * ({@code null}: an empty object).
+   */
+  public Outcome query(Request r, Query query) {
+    return run(r, null, Kind.QUERY, null, query);
   }
 
   /** {@code prepare} before an approval request exists (≤ 5 s, secrets of built-ins, no side effects). */
@@ -192,9 +216,14 @@ public class ConnectorInvoker {
     }
   }
 
-  private enum Kind { EXECUTE, DESCRIBE, READ_RESOURCE }
+  private enum Kind { EXECUTE, DESCRIBE, READ_RESOURCE, QUERY }
 
-  private Outcome run(Request r, Authorization approval, Kind kind, String argument) {
+  private Outcome run(Request r, Authorization approval, Kind kind, String argument, Query query) {
+    return run(r, approval, kind, argument, query, CallListener.NONE);
+  }
+
+  private Outcome run(Request r, Authorization approval, Kind kind, String argument, Query query,
+      CallListener listener) {
     Optional<Connector> found = registry.connectorFor(r.cfg());
     if (found.isEmpty()) {
       return failure(ConnectorException.Kind.RESOURCE_UNAVAILABLE, r.cfg().name() + " isn't available right now.",
@@ -205,9 +234,10 @@ public class ConnectorInvoker {
     Duration timeout = switch (kind) {
       case DESCRIBE -> min(DESCRIBE_TIMEOUT, r.limits().toolTimeout());
       case EXECUTE -> callTimeout(connector, r, approval != null && approval.approvalId() != null);
-      case READ_RESOURCE -> r.limits().toolTimeout();
+      case READ_RESOURCE, QUERY -> r.limits().toolTimeout();
     };
-    CallContext call = context(r, taint, timeout);
+    CallContext call = context(r, taint, timeout, listener);
+    listener.started(call::cancel);
     ExecContext ctx = approval == null ? call
         : new ApprovedContext(call, approval.approvalId(), approval.preparedState(), approval.payload());
     ResourceTimer resource = new ResourceTimer();
@@ -217,7 +247,7 @@ public class ConnectorInvoker {
         checkExecutionAllowed(r);
         resource.start();
         try {
-          return invoke(connector, kind, argument, r, resolver, ctx);
+          return invoke(connector, kind, argument, query, r, resolver, ctx);
         } finally {
           resource.stop();
         }
@@ -284,7 +314,7 @@ public class ConnectorInvoker {
         : r.limits().toolTimeout();
   }
 
-  private static ToolResult invoke(Connector connector, Kind kind, String argument, Request r,
+  private static ToolResult invoke(Connector connector, Kind kind, String argument, Query query, Request r,
       SecretResolver resolver, ExecContext ctx) throws ConnectorException {
     return switch (kind) {
       case EXECUTE -> connector.execute(r.call(), r.cfg(), resolver, ctx);
@@ -293,12 +323,21 @@ public class ConnectorInvoker {
         yield d.isEmpty() ? null : ToolResult.json(d.get(), null);
       }
       case READ_RESOURCE -> connector.readResource(argument, r.cfg(), resolver, ctx);
+      case QUERY -> {
+        ToolResult answer = query.run(connector, r.cfg(), resolver, ctx);
+        yield answer == null ? ToolResult.json(tools.jackson.databind.node.JsonNodeFactory.instance.objectNode(),
+            null) : answer;
+      }
     };
   }
 
   private CallContext context(Request r, Taint taint, Duration timeout) {
+    return context(r, taint, timeout, CallListener.NONE);
+  }
+
+  private CallContext context(Request r, Taint taint, Duration timeout, CallListener listener) {
     return contexts.builder(r.callId(), r.cfg(), r.limits()).trace(r.traceId(), r.traceparent()).timeout(timeout)
-        .taint(taint).mask(r.mask()).build();
+        .taint(taint).mask(r.mask()).listener(listener).build();
   }
 
   /** The agent gets the connector's message, masked; an internal error only says where to look. */

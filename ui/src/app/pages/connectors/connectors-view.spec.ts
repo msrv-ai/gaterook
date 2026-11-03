@@ -377,7 +377,7 @@ describe('connectors view: MCP servers', () => {
       pinned: null,
       start: 'with-core',
       verified: false,
-      description: 'Calls https://mcp.linear.app/mcp over Streamable HTTP.',
+      description: 'Calls https://mcp.linear.app/mcp over HTTP.',
     });
     // A key the server takes in its URL stays in the config; the card shows the URL as the core lists it.
     const keyed = mcpServerView(
@@ -389,7 +389,7 @@ describe('connectors view: MCP servers', () => {
       null,
     );
     expect(keyed.url).toBe('https://mcp.example.com/‹masked›/v2/mcp');
-    expect(keyed.description).toBe('Calls https://mcp.example.com/‹masked›/v2/mcp over Streamable HTTP.');
+    expect(keyed.description).toBe('Calls https://mcp.example.com/‹masked›/v2/mcp over HTTP.');
 
     // Without the detail (it failed to load) the row still shows, with what the row says.
     const bare = mcpServerView(connection('x-mcp', 'mcp-server'), null, null, null, null, null);

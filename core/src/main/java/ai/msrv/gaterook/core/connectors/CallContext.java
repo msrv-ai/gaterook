@@ -50,6 +50,19 @@ public final class CallContext implements ExecContext {
   private final System.Logger logger;
   private final AtomicBoolean cancelled = new AtomicBoolean();
   private final List<Runnable> onCancel = new ArrayList<>();
+  private final CallListener listener;
+  /** When progress last went to the client, and how many log messages did. */
+  private volatile long progressAt;
+  private final java.util.concurrent.atomic.AtomicInteger logs = new java.util.concurrent.atomic.AtomicInteger();
+
+  /** At most this often a call's progress goes to its client: the rest of a burst is dropped, never the last step. */
+  static final long PROGRESS_EVERY_NANOS = 100_000_000L;
+  /** At most this many log messages of one call go to its client, each at most this long as JSON. */
+  static final int MAX_LOGS = 100;
+  static final int MAX_LOG_BYTES = 8 * 1024;
+  /** RFC 5424 severities, least severe first, as MCP names them. */
+  static final List<String> LEVELS = List.of("debug", "info", "notice", "warning", "error", "critical", "alert",
+      "emergency");
 
   private CallContext(Builder b) {
     this.callId = b.callId;
@@ -67,6 +80,7 @@ public final class CallContext implements ExecContext {
     this.workDir = b.workDir;
     this.quotas = b.quotas;
     this.logger = System.getLogger(b.loggerName);
+    this.listener = b.listener;
   }
 
   public static Builder builder(String callId, Env env, Limits limits, Clock clock) {
@@ -212,6 +226,53 @@ public final class CallContext implements ExecContext {
     return Optional.of(Masker.MASK);
   }
 
+  @Override
+  public boolean wantsProgress() {
+    return listener.wantsProgress();
+  }
+
+  /** Masked with this call's taint and policy, and no more often than {@link #PROGRESS_EVERY_NANOS}, but the last. */
+  @Override
+  public void progress(double progress, Double total, String message) {
+    if (!listener.wantsProgress() || cancelled.get()) {
+      return;
+    }
+    long now = System.nanoTime();
+    boolean last = total != null && progress >= total;
+    if (!last && now - progressAt < PROGRESS_EVERY_NANOS) {
+      return;
+    }
+    progressAt = now;
+    String text = message == null ? null : Masker.standard().text(message.length() > 1_000 ? message.substring(0,
+        1_000) : message, taint, mask).text();
+    listener.progress(progress, total, text);
+  }
+
+  @Override
+  public String clientLogLevel() {
+    return listener.logLevel();
+  }
+
+  /** At or above the client's level, masked like a result, cut to {@link #MAX_LOG_BYTES}, {@link #MAX_LOGS} at most. */
+  @Override
+  public void clientLog(String level, String logger, JsonNode data) {
+    String wanted = listener.logLevel();
+    int at = level == null ? -1 : LEVELS.indexOf(level);
+    if (wanted == null || at < 0 || at < LEVELS.indexOf(wanted) || cancelled.get()
+        || logs.incrementAndGet() > MAX_LOGS) {
+      return;
+    }
+    JsonNode masked = data == null ? null : Masker.standard().tree(data, taint, mask).tree();
+    if (masked != null && ai.msrv.gaterook.core.platform.CanonicalJson.bytes(masked).length > MAX_LOG_BYTES) {
+      String text = masked.isString() ? masked.asString() : masked.toString();
+      masked = tools.jackson.databind.node.JsonNodeFactory.instance.stringNode(text.substring(0, Math.min(
+          text.length(), MAX_LOG_BYTES / 4)) + "…");
+    }
+    String name = logger == null ? null : Masker.standard().text(logger.length() > 200 ? logger.substring(0, 200)
+        : logger, taint, mask).text();
+    listener.log(level, name, masked);
+  }
+
   private static void runQuietly(Runnable action) {
     try {
       action.run();
@@ -238,6 +299,7 @@ public final class CallContext implements ExecContext {
     private Path workDir;
     private RemoteQuotas quotas = new RemoteQuotas();
     private String loggerName = "ai.msrv.gaterook.connector";
+    private CallListener listener = CallListener.NONE;
 
     private Builder(String callId, Env env, Limits limits, Clock clock) {
       this.callId = Objects.requireNonNull(callId, "callId");
@@ -291,6 +353,12 @@ public final class CallContext implements ExecContext {
 
     public Builder quotas(RemoteQuotas value) {
       this.quotas = Objects.requireNonNull(value, "value");
+      return this;
+    }
+
+    /** Who hears the call while it runs (its MCP client's progress and log messages); nobody by default. */
+    public Builder listener(CallListener value) {
+      this.listener = Objects.requireNonNull(value, "value");
       return this;
     }
 

@@ -597,7 +597,7 @@ export function mcpServerView(
   const description =
     installed?.description ||
     fromCatalog?.description ||
-    (transport === 'http' ? `Calls ${url ?? 'its URL'} over Streamable HTTP.` : 'Runs over stdio on this computer.');
+    (transport === 'http' ? `Calls ${url ?? 'its URL'} over HTTP.` : 'Runs over stdio on this computer.');
   const prefix = typeof config['toolPrefix'] === 'string' && config['toolPrefix'] ? (config['toolPrefix'] as string) : defaultToolPrefix(row.name);
   const idle = config['idleStopMinutes'];
   return {

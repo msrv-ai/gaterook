@@ -15,9 +15,6 @@ import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
-import io.modelcontextprotocol.spec.McpError;
-import io.modelcontextprotocol.spec.McpSchema;
-import io.modelcontextprotocol.spec.McpTransportSessionNotFoundException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -144,7 +141,7 @@ final class ServerConnector implements Connector {
     if (s != null) {
       long t0 = System.nanoTime();
       try {
-        s.await(s.client.ping(), Session.min(Duration.ofSeconds(5), ctx.remaining()), "ping");
+        s.client.ping(Session.min(Duration.ofSeconds(5), ctx.remaining()));
         return HealthResult.healthy((System.nanoTime() - t0) / 1_000_000);
       } catch (ConnectorException e) {
         return HealthResult.unreachable(e.getMessage());
@@ -185,28 +182,8 @@ final class ServerConnector implements Connector {
       arguments = p.path("arguments").isObject() ? p.path("arguments") : Texts.JSON.createObjectNode();
     }
     Session s = runtime.session(cfg, snapshot, secrets, ctx, false, Supervisor.Why.CALL);
-    // The values reached the process when it started (maybe in an earlier call): this call's output masks them too.
-    for (String v : s.secretValues) {
-      ctx.taint(v);
-    }
-    if (s.http != null && s.http.authorization() != null) {
-      // So do the tokens of its sign-in, which the core renews while the session lives.
-      for (String v : s.http.authorization().secrets()) {
-        ctx.taint(v);
-      }
-    }
-    if (s.http != null && s.http.credentials() != null) {
-      // And the token or keys of its cloud credentials, renewed while the session lives.
-      for (String v : s.http.credentials().secrets()) {
-        ctx.taint(v);
-      }
-    }
-    McpSchema.Tool live = null;
-    for (McpSchema.Tool t : s.tools) {
-      if (original.equals(t.name())) {
-        live = t;
-      }
-    }
+    taint(s, ctx);
+    ObjectNode live = s.tool(original);
     if (live == null) {
       throw ConnectorException.unavailable(cfg.name() + " no longer lists " + original + ". Its tools are listed "
           + "again in Connectors › MCP servers.", null);
@@ -215,14 +192,19 @@ final class ServerConnector implements Connector {
       throw ConnectorException.denied(cfg.name() + " changed " + original + " since it was reviewed, so the call "
           + "doesn't run. The new definition is in Connectors › MCP servers; its endpoints ask for approval again.");
     }
-    @SuppressWarnings("unchecked")
-    Map<String, Object> args = Texts.JSON.treeToValue(arguments, Map.class);
+    ObjectNode params = Texts.JSON.createObjectNode();
+    params.put("name", original);
+    params.set("arguments", arguments.isObject() ? arguments.deepCopy() : Texts.JSON.createObjectNode());
     Duration budget = Session.min(server.callTimeout(), ctx.remaining());
+    // Over 2026-07-28 HTTP the arguments a tool marks x-mcp-header go into Mcp-Param-* headers too.
+    Map<String, String> headers = s.client.era() == UpstreamClient.Era.MODERN && s.http != null
+        ? UpstreamClient.paramHeaders(live.get("inputSchema"), params.get("arguments")) : Map.of();
+    UpstreamClient.Ask ask = new UpstreamClient.Ask(budget, watch(ctx), ctx, headers);
     s.inFlight.incrementAndGet();
     try {
-      McpSchema.CallToolResult result = s.await(s.client.callTool(McpSchema.CallToolRequest.builder(original)
-          .arguments(args).build()), budget, original);
-      return Results.of(result);
+      ObjectNode result = asTask(entry, s) ? s.client.callAsTask(params, ask)
+          : s.client.request("tools/call", params, ask);
+      return Results.of(result, server.shareResources() ? cfg.name() : null);
     } catch (ConnectorException e) {
       throw callFailed(e, s, read, original, budget);
     } finally {
@@ -233,6 +215,32 @@ final class ServerConnector implements Connector {
     }
   }
 
+  /**
+   * What the call's client hears of it, when it asked: the server's progress, and its log messages at the client's
+   * level (2026-07-28 asks the server for that level with the request). The core masks both before they leave.
+   */
+  static UpstreamClient.Watch watch(ExecContext ctx) {
+    String level = ctx.clientLogLevel();
+    if (!ctx.wantsProgress() && level == null) {
+      return UpstreamClient.Watch.NONE;
+    }
+    return new UpstreamClient.Watch(ctx.wantsProgress() ? p -> ctx.progress(p.path("progress").asDouble(0),
+        p.path("total").isNumber() ? p.get("total").asDouble() : null, Texts.str(p.get("message"), null)) : null,
+        level == null ? null : l -> ctx.clientLog(Texts.str(l.get("level"), "info"), Texts.str(l.get("logger"),
+            null), l.get("data")), level);
+  }
+
+  /**
+   * Whether a call runs as a task: the tool requires one, and the server runs tool calls as tasks (2025-11-25). A
+   * tool that only may is called directly, and so is one whose server doesn't say it can.
+   */
+  private static boolean asTask(JsonNode entry, Session s) {
+    UpstreamClient.Hello h = s.init;
+    return "required".equals(Texts.str(entry.get("taskSupport"), null)) && h != null
+        && h.era() == UpstreamClient.Era.LEGACY
+        && h.capabilities().path("tasks").path("requests").path("tools").path("call").isObject();
+  }
+
   /** What a failed call tells the agent: a server's own error is data; a lost process may have done it. */
   private ConnectorException callFailed(ConnectorException e, Session s, boolean read, String original,
       Duration budget) {
@@ -241,15 +249,17 @@ final class ServerConnector implements Connector {
       // The server refused the token before it read the call, or no token went at all.
       return ConnectorException.unavailable(signIn.getMessage() + " " + original + " didn't run.", signIn);
     }
-    Throwable cause = e.getCause();
-    for (Throwable t = cause; t != null; t = t.getCause()) {
-      if (t instanceof McpTransportSessionNotFoundException) {
-        runtime.broken(s, "The server ended its session");
-        return ConnectorException.unavailable(cfg.name() + " ended its session before it took the call; it didn't "
-            + "run. Try again.", e);
-      }
-      if (t instanceof McpError) {
+    if (Channel.SessionGone.in(e)) {
+      runtime.broken(s, "The server ended its session");
+      return ConnectorException.unavailable(cfg.name() + " ended its session before it took the call; it didn't "
+          + "run. Try again.", e);
+    }
+    for (Throwable t = e.getCause(); t != null; t = t.getCause()) {
+      if (t instanceof Rpc.Error) {
         return ConnectorException.resourceError(cfg.name() + " refused " + original + ": " + e.getMessage(), e);
+      }
+      if (t.getCause() == t) {
+        break;
       }
     }
     if (!s.alive() || (s.http != null && e.kind() == ConnectorException.Kind.RESOURCE_UNAVAILABLE)) {
@@ -267,6 +277,192 @@ final class ServerConnector implements Connector {
     return e;
   }
 
+  // ── What the server shares besides tools (ARCHITECTURE.md §5.4) ──────────────────────────────────────────────
+
+  @Override
+  public boolean sharesResources(ConnectionConfig cfg) {
+    return server.shareResources();
+  }
+
+  @Override
+  public boolean sharesPrompts(ConnectionConfig cfg) {
+    return server.sharePrompts();
+  }
+
+  @Override
+  public JsonNode listResources(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, boolean templates)
+      throws ConnectorException {
+    if (!server.shareResources()) {
+      return null;
+    }
+    return shared(secrets, ctx, s -> {
+      if (!s.init.has("resources")) {
+        return Federation.resources(cfg.name(), List.of(), templates);
+      }
+      Session.Listed cached = templates ? s.templates : s.resources;
+      if (cached != null && cached.fresh(runtime.now())) {
+        return cached.list().deepCopy();
+      }
+      List<ObjectNode> listed = s.client.list(templates ? "resources/templates/list" : "resources/list",
+          templates ? "resourceTemplates" : "resources", Session.min(Duration.ofSeconds(30), ctx.remaining()),
+          Federation.MAX_ITEMS);
+      ObjectNode list = Federation.resources(cfg.name(), listed, templates);
+      Session.Listed fresh = new Session.Listed(list, Map.of(), runtime.now().plus(Session.LIST_TTL));
+      if (templates) {
+        s.templates = fresh;
+      } else {
+        s.resources = fresh;
+      }
+      return list.deepCopy();
+    });
+  }
+
+  /**
+   * A shared resource of the server, or the app of a reviewed tool ({@code ui://}): an app is read whether or not the
+   * server shares its resources, since the tool that names it was reviewed, but only an app some tool names.
+   */
+  @Override
+  public ToolResult readResource(String uri, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
+      throws ConnectorException {
+    String upstream = Federation.upstream(cfg.name(), uri).orElseThrow(() -> ConnectorException.badInput(
+        "No resource " + uri));
+    boolean app = uri.startsWith(ai.msrv.gaterook.connector.api.ResourceDescriptor.appPrefix(cfg.name()));
+    if (app ? snapshot.tools().stream().noneMatch(t -> upstream.equals(Texts.str(t.path("ui").get("resourceUri"),
+        null))) : !server.shareResources()) {
+      throw ConnectorException.denied(app ? "No reviewed tool of " + cfg.name() + " shows " + uri + "."
+          : cfg.name() + " doesn't share its resources. A person can let it in Connectors › MCP servers.");
+    }
+    JsonNode read = shared(secrets, ctx, s -> s.client.request("resources/read",
+        Texts.JSON.createObjectNode().put("uri", upstream), new UpstreamClient.Ask(Session.min(server.callTimeout(),
+            ctx.remaining()), UpstreamClient.Watch.NONE, ctx, Map.of())));
+    return Federation.contents(cfg.name(), read);
+  }
+
+  @Override
+  public JsonNode listPrompts(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
+      throws ConnectorException {
+    if (!server.sharePrompts()) {
+      return null;
+    }
+    return shared(secrets, ctx, s -> prompts(s, ctx).list().deepCopy());
+  }
+
+  @Override
+  public JsonNode getPrompt(String name, JsonNode arguments, ConnectionConfig cfg, SecretResolver secrets,
+      ExecContext ctx) throws ConnectorException {
+    if (!server.sharePrompts()) {
+      throw ConnectorException.denied(cfg.name() + " doesn't share its prompts.");
+    }
+    return shared(secrets, ctx, s -> {
+      String original = prompts(s, ctx).originals().get(name);
+      if (original == null) {
+        throw ConnectorException.badInput(cfg.name() + " has no prompt " + name + ".");
+      }
+      ObjectNode params = Texts.JSON.createObjectNode().put("name", original);
+      params.set("arguments", arguments != null && arguments.isObject() ? arguments.deepCopy()
+          : Texts.JSON.createObjectNode());
+      JsonNode got = s.client.request("prompts/get", params, new UpstreamClient.Ask(Session.min(server.callTimeout(),
+          ctx.remaining()), UpstreamClient.Watch.NONE, ctx, Map.of()));
+      return Federation.prompt(cfg.name(), got);
+    });
+  }
+
+  @Override
+  public JsonNode complete(JsonNode params, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
+      throws ConnectorException {
+    String type = Texts.str(params.path("ref").get("type"), "");
+    if (type.equals("ref/prompt") ? !server.sharePrompts() : !server.shareResources()) {
+      return null;
+    }
+    return shared(secrets, ctx, s -> {
+      if (!s.init.has("completions")) {
+        return null;
+      }
+      if (!(params.deepCopy() instanceof ObjectNode p) || !(p.get("ref") instanceof ObjectNode ref)) {
+        return null;
+      }
+      if (type.equals("ref/prompt")) {
+        String original = prompts(s, ctx).originals().get(Texts.str(ref.get("name"), ""));
+        if (original == null) {
+          return null;
+        }
+        ref.put("name", original);
+      } else {
+        String upstream = Federation.upstream(cfg.name(), Texts.str(ref.get("uri"), "")).orElse(null);
+        if (upstream == null) {
+          return null;
+        }
+        ref.put("uri", upstream);
+      }
+      return s.client.request("completion/complete", p, new UpstreamClient.Ask(Session.min(Duration.ofSeconds(10),
+          ctx.remaining()), UpstreamClient.Watch.NONE, ctx, Map.of()));
+    });
+  }
+
+  /** Only what the server shares: an app isn't a resource clients subscribe to. */
+  @Override
+  public void subscriptions(ConnectionConfig cfg, java.util.Set<String> uris) {
+    runtime.subscriptions(cfg.id(), cfg.name(), server.shareResources() ? uris : java.util.Set.of());
+  }
+
+  /** The prompts of the server under the connection's prefix, listed again when the cached list is stale. */
+  private Session.Listed prompts(Session s, ExecContext ctx) throws ConnectorException {
+    Session.Listed cached = s.prompts;
+    if (cached != null && cached.fresh(runtime.now())) {
+      return cached;
+    }
+    List<ObjectNode> listed = s.init.has("prompts") ? s.client.list("prompts/list", "prompts",
+        Session.min(Duration.ofSeconds(30), ctx.remaining()), Federation.MAX_ITEMS) : List.of();
+    Federation.Prompts mapped = Federation.prompts(snapshot.toolPrefix(), listed);
+    Session.Listed fresh = new Session.Listed(mapped.list(), mapped.originals(), runtime.now().plus(Session.LIST_TTL));
+    s.prompts = fresh;
+    return fresh;
+  }
+
+  /** What one exchange with the running server does, on the session a call would use. */
+  private interface Exchange<T> {
+    T run(Session s) throws ConnectorException;
+  }
+
+  /** {@code work} on the session (started if it sleeps), counted as in flight so it isn't stopped for idleness. */
+  private <T> T shared(SecretResolver secrets, ExecContext ctx, Exchange<T> work) throws ConnectorException {
+    Session s = runtime.session(cfg, snapshot, secrets, ctx, false, Supervisor.Why.CALL);
+    taint(s, ctx);
+    s.inFlight.incrementAndGet();
+    try {
+      return work.run(s);
+    } catch (ConnectorException e) {
+      if (Channel.SessionGone.in(e) || (s.http != null && e.kind() == ConnectorException.Kind.RESOURCE_UNAVAILABLE
+          && !s.alive())) {
+        runtime.broken(s, "The connection broke");
+      }
+      throw e;
+    } finally {
+      s.inFlight.decrementAndGet();
+      s.lastUsed = runtime.now();
+    }
+  }
+
+  /**
+   * The values that reached the process when it started (maybe in an earlier call), the tokens of its sign-in and its
+   * cloud credentials: this call's output is masked for them too.
+   */
+  private static void taint(Session s, ExecContext ctx) {
+    for (String v : s.secretValues) {
+      ctx.taint(v);
+    }
+    if (s.http != null && s.http.authorization() != null) {
+      for (String v : s.http.authorization().secrets()) {
+        ctx.taint(v);
+      }
+    }
+    if (s.http != null && s.http.credentials() != null) {
+      for (String v : s.http.credentials().secrets()) {
+        ctx.taint(v);
+      }
+    }
+  }
+
   @Override
   public Optional<JsonNode> describe(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, String object) {
     ObjectNode out = Texts.JSON.createObjectNode();
@@ -275,9 +471,12 @@ final class ServerConnector implements Connector {
     if (snapshot.protocolVersion() != null) {
       out.put("protocol", snapshot.protocolVersion());
     }
-    out.put("transport", server.transport());
+    Session running = runtime.running(cfg.id());
+    out.put("transport", running == null ? server.transport() : running.transport());
     out.put("tools", snapshot.tools().size());
     out.put("annotationsDeclared", Snapshots.annotated(snapshot.tools()));
+    out.put("sharesResources", server.shareResources());
+    out.put("sharesPrompts", server.sharePrompts());
     out.put("note", "Tool annotations are declared by the server, not verified by GateRook.");
     return Optional.of(out);
   }

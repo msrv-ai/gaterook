@@ -125,6 +125,8 @@ public final class WireCodec {
       putIfNotNull(item, "uri", c.uri());
       putIfNotNull(item, "mimeType", c.mimeType());
       putIfNotNull(item, "name", c.name());
+      putIfNotNull(item, "data", c.data());
+      set(item, "meta", c.meta());
     }
     set(o, "structuredContent", r.structuredContent());
     o.put("isError", r.isError());
@@ -153,7 +155,7 @@ public final class WireCodec {
     List<ToolResult.Content> content = new ArrayList<>();
     for (JsonNode c : n.path("content")) {
       content.add(new ToolResult.Content(c.path("type").asString("text"), text(c.get("text")), text(c.get("uri")),
-          text(c.get("mimeType")), text(c.get("name"))));
+          text(c.get("mimeType")), text(c.get("name")), text(c.get("data")), tree(c.get("meta"))));
     }
     ToolResult.Table table = null;
     JsonNode t = n.get("table");

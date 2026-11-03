@@ -4,6 +4,7 @@ import ai.msrv.gaterook.core.audit.AuditWriter;
 import ai.msrv.gaterook.core.endpoints.CoreTools;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshot;
 import ai.msrv.gaterook.core.endpoints.ToolCatalog;
+import ai.msrv.gaterook.core.mcp.McpGateway;
 import ai.msrv.gaterook.core.platform.CallTracing;
 import ai.msrv.gaterook.core.platform.Caller;
 import ai.msrv.gaterook.core.platform.CanonicalJson;
@@ -30,8 +31,9 @@ import tools.jackson.databind.node.ObjectNode;
  * One request of an authenticated caller on one endpoint (ARCHITECTURE.md §5 steps 3–12): the era and its methods,
  * the endpoint's revisions, a SERVER span per request ({@code mcp.method.name}, {@code mcp.protocol.version},
  * {@code jsonrpc.request.id}, {@code gen_ai.tool.name}) under the client's {@code traceparent}, and every answer
- * written for its era. Unknown methods are {@code -32601} (modern: HTTP 404); {@code subscriptions/listen},
- * {@code completion/complete} and {@code logging/setLevel} are not offered.
+ * written for its era. Unknown methods are {@code -32601} (modern: HTTP 404). Prompts and completions come from
+ * {@link PromptsHandler}: the gateway's own and those external MCP servers share. A call may run as a task
+ * ({@link CallTasks}): the {@code tasks/*} methods of 2025-11-25, or those of the 2026-07-28 Tasks extension.
  */
 @Component
 public class McpDispatcher {
@@ -41,9 +43,15 @@ public class McpDispatcher {
   public static final int PAGE = 100;
 
   private static final Set<String> LEGACY_METHODS = Set.of("initialize", "ping", "tools/list", "tools/call",
-      "resources/list", "resources/templates/list", "resources/read", "prompts/list", "prompts/get");
+      "resources/list", "resources/templates/list", "resources/read", "prompts/list", "prompts/get",
+      "completion/complete", "logging/setLevel", "resources/subscribe", "resources/unsubscribe", "tasks/get",
+      "tasks/result", "tasks/list", "tasks/cancel");
+  /** RFC 5424 severities as MCP names them, least severe first. */
+  static final List<String> LOG_LEVELS = List.of("debug", "info", "notice", "warning", "error", "critical",
+      "alert", "emergency");
   private static final Set<String> MODERN_METHODS = Set.of("server/discover", "tools/list", "tools/call",
-      "resources/list", "resources/templates/list", "resources/read", "prompts/list", "prompts/get");
+      "resources/list", "resources/templates/list", "resources/read", "prompts/list", "prompts/get",
+      "completion/complete", "tasks/get", "tasks/update", "tasks/cancel");
 
   /** What to answer: HTTP status and body ({@code null}: 202 without a body). */
   public record Reply(int status, ObjectNode body) {
@@ -56,19 +64,28 @@ public class McpDispatcher {
   private final ToolCatalog catalogs;
   private final ToolCallHandler tools;
   private final ResourcesHandler resources;
+  private final PromptsHandler prompts;
   private final AuditWriter audit;
   private final CallTracing tracing;
   private final ClientMemory clients;
+  private final InFlight inFlight;
+  private final ResourceSubscriptions subscriptions;
+  private final CallTasks tasks;
   private final JsonMapper json;
 
-  public McpDispatcher(ToolCatalog catalogs, ToolCallHandler tools, ResourcesHandler resources, AuditWriter audit,
-      CallTracing tracing, ClientMemory clients, JsonMapper json) {
+  public McpDispatcher(ToolCatalog catalogs, ToolCallHandler tools, ResourcesHandler resources,
+      PromptsHandler prompts, AuditWriter audit, CallTracing tracing, ClientMemory clients, InFlight inFlight,
+      ResourceSubscriptions subscriptions, CallTasks tasks, JsonMapper json) {
     this.catalogs = catalogs;
     this.tools = tools;
     this.resources = resources;
+    this.prompts = prompts;
     this.audit = audit;
     this.tracing = tracing;
     this.clients = clients;
+    this.inFlight = inFlight;
+    this.subscriptions = subscriptions;
+    this.tasks = tasks;
     this.json = json;
   }
 
@@ -77,6 +94,15 @@ public class McpDispatcher {
    *                     bridge caller's is read, and only on a legacy request after {@code initialize}
    */
   public Reply dispatch(Envelope request, Caller caller, EndpointSnapshot snapshot, String bridgeClient) {
+    return dispatch(request, caller, snapshot, bridgeClient, McpGateway.Stream.NONE);
+  }
+
+  /** @param stream where the request's notifications go before its answer */
+  public Reply dispatch(Envelope request, Caller caller, EndpointSnapshot snapshot, String bridgeClient,
+      McpGateway.Stream stream) {
+    // Which client of the principal: a bridge's declaration tells the clients that share its grant apart.
+    String client = caller.kind() == Caller.Kind.BRIDGE && bridgeClient != null
+        ? CanonicalJson.sha256Hex(JsonNodeFactory.instance.stringNode(bridgeClient)).substring(0, 16) : null;
     Envelope env = request;
     if (env.era() == Era.LEGACY) {
       if ("initialize".equals(env.method())) {
@@ -95,6 +121,10 @@ public class McpDispatcher {
       }
     }
     if (env.notification()) {
+      if ("notifications/cancelled".equals(env.method())) {
+        // The client gave up its call: it stops as its deadline would; an approval a person decides isn't touched.
+        inFlight.cancel(InFlight.Key.of(caller.principalId(), client, env.params().get("requestId")));
+      }
       return Reply.accepted();
     }
     Set<String> methods = env.era() == Era.MODERN ? MODERN_METHODS : LEGACY_METHODS;
@@ -116,7 +146,8 @@ public class McpDispatcher {
     tags.put("jsonrpc.request.id", env.id().isString() ? env.id().asString() : env.id().toString());
     String target = env.params().path("name").asString(env.params().path("uri").asString(""));
     try (CallTracing.Started span = tracing.server((env.method() + " " + target).strip(), env.traceparent(), tags)) {
-      McpRequest r = new McpRequest(env, caller, snapshot, catalogs.forEndpoint(snapshot), span);
+      McpRequest r = new McpRequest(env, caller, snapshot, catalogs.forEndpoint(snapshot), span,
+          stream == null ? McpGateway.Stream.NONE : stream, logLevel(env, caller, client), client);
       try {
         ObjectNode result = handle(r);
         return new Reply(200, JsonRpc.result(env.id(), result));
@@ -140,9 +171,9 @@ public class McpDispatcher {
       case "tools/list" -> ResultWriter.complete(env, toolsList(r), 30_000);
       case "tools/call" -> {
         requireAudit();
-        ObjectNode result = tools.call(r);
-        yield result;
+        yield call(r);
       }
+      case "tasks/get", "tasks/result", "tasks/list", "tasks/cancel", "tasks/update" -> task(r);
       case "resources/list" -> ResultWriter.complete(env, page(resources.list(r, false), "resources", env), 30_000);
       case "resources/templates/list" -> ResultWriter.complete(env, page(resources.list(r, true),
           "resourceTemplates", env), 30_000);
@@ -150,19 +181,126 @@ public class McpDispatcher {
         requireAudit();
         yield ResultWriter.complete(env, resources.read(r), 0);
       }
-      case "prompts/list" -> {
-        ObjectNode out = JsonNodeFactory.instance.objectNode();
-        out.set("prompts", Prompts.list());
-        yield ResultWriter.complete(env, out, 300_000);
-      }
+      // The gateway's own prompts are fresh for five minutes; a server that shares its own can change them sooner.
+      case "prompts/list" -> ResultWriter.complete(env, prompts.list(r), prompts.shared(r) ? 30_000 : 300_000);
       case "prompts/get" -> {
-        String name = env.params().path("name").asString("");
-        ObjectNode out = Prompts.get(name, env.params().path("arguments"))
-            .orElseThrow(() -> McpException.invalidParams("Unknown prompt: " + name));
-        yield ResultWriter.complete(env, out, -1);
+        requireAudit();
+        yield ResultWriter.complete(env, prompts.get(r), -1);
+      }
+      case "completion/complete" -> ResultWriter.complete(env, prompts.complete(r), -1);
+      case "resources/subscribe" -> {
+        String uri = env.params().path("uri").asString("");
+        if (!resources.subscribable(r.snapshot(), uri)) {
+          throw new McpException(JsonRpc.RESOURCE_NOT_FOUND, "No updates of " + uri + " here: only resources a "
+              + "server shares have them.", JsonNodeFactory.instance.objectNode().put("uri", uri));
+        }
+        if (!subscriptions.add(ResourceSubscriptions.legacy(r.caller().principalId()), r.snapshot().id(), uri)) {
+          throw McpException.invalidParams("A client hears updates of at most " + ResourceSubscriptions.MAX_PER_OWNER
+              + " resources.");
+        }
+        yield JsonNodeFactory.instance.objectNode();
+      }
+      case "resources/unsubscribe" -> {
+        subscriptions.remove(ResourceSubscriptions.legacy(r.caller().principalId()),
+            env.params().path("uri").asString(""));
+        yield JsonNodeFactory.instance.objectNode();
+      }
+      case "logging/setLevel" -> {
+        String level = env.params().path("level").asString("");
+        if (!LOG_LEVELS.contains(level)) {
+          throw McpException.invalidParams("params.level must be one of " + String.join(", ", LOG_LEVELS));
+        }
+        clients.logLevel(r.caller().principalId(), r.client(), level);
+        yield JsonNodeFactory.instance.objectNode();
       }
       default -> throw new McpException(JsonRpc.METHOD_NOT_FOUND, "Method not found: " + env.method());
     };
+  }
+
+  /**
+   * {@code tools/call}, or the same call as a task: one with {@code params.task} of 2025-11-25 answers with the task at
+   * once; one of 2026-07-28 from a client that takes tasks answers as usual when it ends within a moment, else with
+   * the task. The gateway's own tools answer at once and never run as tasks; neither does the retry of an approval
+   * round. When the client has too many unfinished tasks, a 2025-11-25 call is refused and a 2026-07-28 one runs as an
+   * ordinary call.
+   */
+  private ObjectNode call(McpRequest r) {
+    Envelope env = r.env();
+    JsonNode asked = env.params().get("task");
+    boolean legacy = env.era() == Era.LEGACY && Era.LEGACY_VERSION.equals(env.version()) && asked != null
+        && asked.isObject();
+    boolean modern = env.takesTasks() && !env.params().has("requestState");
+    if (!legacy && !modern) {
+      return tools.call(r);
+    }
+    String name = env.params().path("name").asString("");
+    if (r.catalog().tool(name).map(ToolCatalog.PublishedTool::core).orElse(true)) {
+      if (legacy && r.catalog().tool(name).isPresent()) {
+        throw new McpException(JsonRpc.METHOD_NOT_FOUND, name + " doesn't run as a task.");
+      }
+      return tools.call(r);
+    }
+    Optional<CallTasks.Task> started = tasks.start(r, legacy ? CallTasks.ttl(asked.get("ttl"))
+        : CallTasks.DEFAULT_TTL, tools::call);
+    if (started.isEmpty()) {
+      if (legacy) {
+        throw new McpException(JsonRpc.OVER_BUDGET, "A client runs at most " + CallTasks.PER_CLIENT + " tasks at "
+            + "once. Wait for one to end.");
+      }
+      return tools.call(r);
+    }
+    CallTasks.Task task = started.get();
+    if (legacy) {
+      ObjectNode created = JsonNodeFactory.instance.objectNode();
+      created.set("task", tasks.legacy(task));
+      return created;
+    }
+    return tasks.quick(task).orElseGet(() -> ResultWriter.task(tasks.modern(task, false)));
+  }
+
+  /**
+   * The methods of a task: {@code tasks/get}, {@code tasks/result}, {@code tasks/list} and {@code tasks/cancel} of
+   * 2025-11-25; {@code tasks/get}, {@code tasks/update} and {@code tasks/cancel} of the 2026-07-28 Tasks extension,
+   * where {@code tasks/get} carries the result. A task of another client is as unknown as one that never was.
+   */
+  private ObjectNode task(McpRequest r) {
+    Envelope env = r.env();
+    String method = env.method();
+    boolean modern = env.era() == Era.MODERN;
+    if (!modern && (!Era.LEGACY_VERSION.equals(env.version()) || method.equals("tasks/update"))) {
+      throw new McpException(JsonRpc.METHOD_NOT_FOUND, "Method not found: " + method);
+    }
+    if (method.equals("tasks/list")) {
+      return tasks.list(r);
+    }
+    JsonNode id = env.params().get("taskId");
+    if (id == null || !id.isString() || id.asString().isEmpty()) {
+      throw McpException.invalidParams("params.taskId is required");
+    }
+    String taskId = id.asString();
+    CallTasks.Task t = tasks.find(r, taskId).orElseThrow(() -> McpException.invalidParams("Unknown task "
+        + (taskId.length() > 80 ? taskId.substring(0, 80) + "…" : taskId) + "."));
+    return switch (method) {
+      case "tasks/get" -> modern ? ResultWriter.complete(env, tasks.modern(t, true), -1) : tasks.legacy(t);
+      case "tasks/result" -> tasks.result(t);
+      case "tasks/cancel" -> {
+        tasks.cancel(t);
+        yield modern ? ResultWriter.complete(env, JsonNodeFactory.instance.objectNode(), -1) : tasks.legacy(t);
+      }
+      default -> throw McpException.invalidParams("Task " + taskId + " doesn't wait for input.");
+    };
+  }
+
+  /**
+   * The least severe level of the log messages the client wants with this request: 2026-07-28 says it in each
+   * request's {@code _meta}; the 2025 revisions with {@code logging/setLevel}, once. {@code null}: none.
+   */
+  private String logLevel(Envelope env, Caller caller, String client) {
+    if (env.era() == Era.MODERN) {
+      String level = env.meta().path("io.modelcontextprotocol/logLevel").asString(null);
+      return level != null && LOG_LEVELS.contains(level) ? level : null;
+    }
+    return clients.logLevel(caller.principalId(), client);
   }
 
   /** While a completed row waits in the audit backlog, nothing new runs (§5 step 11). */
@@ -176,7 +314,7 @@ public class McpDispatcher {
   private ObjectNode initialize(McpRequest r) {
     ObjectNode out = JsonNodeFactory.instance.objectNode();
     out.put("protocolVersion", r.env().version());
-    out.set("capabilities", capabilities(true, r.env().supportsUi()));
+    out.set("capabilities", capabilities(r.env()));
     ObjectNode info = out.putObject("serverInfo");
     info.put("name", ResultWriter.SERVER_NAME);
     info.put("title", "GateRook · " + r.snapshot().slug());
@@ -191,20 +329,39 @@ public class McpDispatcher {
     for (String v : revisions(r.snapshot())) {
       versions.add(v);
     }
-    out.set("capabilities", capabilities(false, r.env().supportsUi()));
+    out.set("capabilities", capabilities(r.env()));
     out.put("instructions", instructions(r));
     return ResultWriter.complete(r.env(), out, 60_000);
   }
 
-  private static ObjectNode capabilities(boolean legacy, boolean ui) {
+  /**
+   * What the gateway offers. Changes of the lists and updates of subscribed resources come on the GET stream (2025
+   * revisions) or a {@code subscriptions/listen} stream (2026-07-28). Calls run as tasks with 2025-11-25 and with the
+   * Tasks extension of 2026-07-28.
+   */
+  private static ObjectNode capabilities(Envelope env) {
     ObjectNode c = JsonNodeFactory.instance.objectNode();
-    ObjectNode tools = c.putObject("tools");
-    if (legacy) {
-      tools.put("listChanged", true);
+    c.putObject("tools").put("listChanged", true);
+    c.putObject("resources").put("subscribe", true).put("listChanged", true);
+    c.putObject("prompts").put("listChanged", true);
+    c.putObject("completions");
+    c.putObject("logging");
+    if (env.era() == Era.LEGACY && Era.LEGACY_VERSION.equals(env.version())) {
+      ObjectNode t = c.putObject("tasks");
+      t.putObject("list");
+      t.putObject("cancel");
+      t.putObject("requests").putObject("tools").putObject("call");
     }
-    c.putObject("resources");
-    c.putObject("prompts");
-    if (ui) c.putObject("extensions").putObject(McpAppResource.EXTENSION);
+    ObjectNode extensions = JsonNodeFactory.instance.objectNode();
+    if (env.era() == Era.MODERN) {
+      extensions.putObject(CallTasks.EXTENSION);
+    }
+    if (env.supportsUi()) {
+      extensions.putObject(McpAppResource.EXTENSION);
+    }
+    if (!extensions.isEmpty()) {
+      c.set("extensions", extensions);
+    }
     return c;
   }
 
@@ -221,14 +378,15 @@ public class McpDispatcher {
   /** {@code tools/list}: pages of 100, the cursor names its offset and the list it belongs to. */
   private ObjectNode toolsList(McpRequest r) {
     boolean ui = r.env().supportsUi();
+    boolean tasks = r.env().era() == Era.LEGACY && Era.LEGACY_VERSION.equals(r.env().version());
     List<ToolCatalog.PublishedTool> all = r.catalog().tools().stream()
-        .filter(t -> ui || !CoreTools.APPROVAL_CARD_ACTION.equals(t.name())).toList();
+        .filter(t -> ui || (!CoreTools.APPROVAL_CARD_ACTION.equals(t.name()) && !t.appOnly())).toList();
     String listHash = r.catalog().listHash() + (ui ? ":ui" : ":text");
     int offset = cursor(r.env(), listHash);
     ObjectNode out = JsonNodeFactory.instance.objectNode();
     ArrayNode list = out.putArray("tools");
     for (int i = offset; i < Math.min(all.size(), offset + PAGE); i++) {
-      list.add(tool(all.get(i), ui));
+      list.add(tool(all.get(i), ui, tasks));
     }
     if (offset + PAGE < all.size()) {
       out.put("nextCursor", encodeCursor(offset + PAGE, listHash));
@@ -236,7 +394,8 @@ public class McpDispatcher {
     return out;
   }
 
-  private static ObjectNode tool(ToolCatalog.PublishedTool t, boolean ui) {
+  /** @param tasks whether the client's revision runs calls as tasks (2025-11-25): the gateway's own tools don't */
+  private static ObjectNode tool(ToolCatalog.PublishedTool t, boolean ui, boolean tasks) {
     ObjectNode n = JsonNodeFactory.instance.objectNode();
     n.put("name", t.name());
     n.put("title", t.title());
@@ -250,10 +409,16 @@ public class McpDispatcher {
     a.put("destructiveHint", Boolean.TRUE.equals(t.annotations().destructiveHint()));
     a.put("idempotentHint", Boolean.TRUE.equals(t.annotations().idempotentHint()));
     a.put("openWorldHint", Boolean.TRUE.equals(t.annotations().openWorldHint()));
+    if (tasks && !t.core()) {
+      n.putObject("execution").put("taskSupport", "optional");
+    }
     if (ui && CoreTools.APPROVAL_CARD.equals(t.name())) {
       n.putObject("_meta").putObject("ui").put("resourceUri", McpAppResource.URI);
     } else if (ui && CoreTools.APPROVAL_CARD_ACTION.equals(t.name())) {
       n.putObject("_meta").putObject("ui").putArray("visibility").add("app");
+    } else if (ui && t.meta() != null && t.meta().path("ui").isObject()) {
+      // An MCP server's app, by the URI the endpoint publishes it under: read through the gateway like any resource.
+      n.putObject("_meta").set("ui", t.meta().get("ui").deepCopy());
     }
     return n;
   }

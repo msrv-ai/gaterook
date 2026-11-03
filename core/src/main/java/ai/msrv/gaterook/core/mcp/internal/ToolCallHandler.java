@@ -14,6 +14,7 @@ import ai.msrv.gaterook.core.approvals.ApprovalService;
 import ai.msrv.gaterook.core.approvals.ApprovalStatusTool;
 import ai.msrv.gaterook.core.audit.AuditUnavailableException;
 import ai.msrv.gaterook.core.audit.AuditWriter;
+import ai.msrv.gaterook.core.connectors.CallListener;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.endpoints.CoreTools;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshot;
@@ -21,6 +22,7 @@ import ai.msrv.gaterook.core.endpoints.EndpointSnapshotService;
 import ai.msrv.gaterook.core.endpoints.ToolCatalog;
 import ai.msrv.gaterook.core.invocation.ConnectorInvoker;
 import ai.msrv.gaterook.core.invocation.ToolGuard;
+import ai.msrv.gaterook.core.mcp.McpGateway;
 import ai.msrv.gaterook.core.platform.Ids;
 import ai.msrv.gaterook.core.platform.SchemaValidator;
 import ai.msrv.gaterook.core.policy.Decision;
@@ -70,12 +72,13 @@ public class ToolCallHandler {
   private final Calls calls;
   private final ApprovalCards approvalCards;
   private final EndpointSnapshotService snapshots;
+  private final InFlight inFlight;
 
   public ToolCallHandler(ToolCatalog catalogs, SchemaValidator validator, ConnectorRegistry registry,
       PolicyEngine engine, PolicyService policies, ToolGuard guard, AuditWriter audit, ConnectorInvoker invoker,
       ApprovalService approvals, ApprovalAnswers answers, ApprovalStatusTool statusTool, ApprovalDelivery delivery,
       RequestStateCodec states, CoreToolsHandler coreTools, Calls calls, ApprovalCards approvalCards,
-      EndpointSnapshotService snapshots) {
+      EndpointSnapshotService snapshots, InFlight inFlight) {
     this.catalogs = catalogs;
     this.validator = validator;
     this.registry = registry;
@@ -93,6 +96,7 @@ public class ToolCallHandler {
     this.calls = calls;
     this.approvalCards = approvalCards;
     this.snapshots = snapshots;
+    this.inFlight = inFlight;
   }
 
   public ObjectNode call(McpRequest r) {
@@ -225,8 +229,14 @@ public class ToolCallHandler {
   private ObjectNode run(McpRequest r, AuditWriter.Call auditCall, ConnectorInvoker.Request request,
       ObjectNode extraMeta, PreparedAction bypass) {
     long started = System.nanoTime();
-    ConnectorInvoker.Outcome outcome = bypass == null ? invoker.execute(request)
-        : invoker.executeBypass(request, bypass);
+    InFlight.Key key = InFlight.Key.of(r);
+    ConnectorInvoker.Outcome outcome;
+    try {
+      outcome = bypass == null ? invoker.execute(request, listener(r, key))
+          : invoker.executeBypass(request, bypass);
+    } finally {
+      inFlight.done(key);
+    }
     long durationMs = (System.nanoTime() - started) / 1_000_000;
     completed(auditCall, outcome, durationMs, outcome.ok() ? AuditWriter.Verdict.ALLOWED : AuditWriter.Verdict.ERROR,
         null);
@@ -236,6 +246,68 @@ public class ToolCallHandler {
     ToolResult result = answers.withTemporaryBypassNotice(outcome.result(), r.snapshot().id(),
         auditCall.toolKey(), request.cfg().id());
     return ResultWriter.callToolResult(r.env(), result, request.callId(), r.span().traceId(), extraMeta);
+  }
+
+  /**
+   * What the client hears of a call that runs while it waits: progress for its {@code progressToken}, the resource's
+   * log messages at its level (both masked by the call's context), and its {@code notifications/cancelled}.
+   */
+  private CallListener listener(McpRequest r, InFlight.Key key) {
+    JsonNode token = r.progressToken();
+    String level = r.logLevel();
+    McpGateway.Stream stream = r.stream();
+    return new CallListener() {
+      @Override
+      public boolean wantsProgress() {
+        return token != null;
+      }
+
+      @Override
+      public String logLevel() {
+        return level;
+      }
+
+      @Override
+      public void progress(double progress, Double total, String message) {
+        ObjectNode n = notification("notifications/progress");
+        ObjectNode p = (ObjectNode) n.get("params");
+        p.set("progressToken", token.deepCopy());
+        p.put("progress", progress);
+        if (total != null) {
+          p.put("total", total);
+        }
+        if (message != null) {
+          p.put("message", message);
+        }
+        stream.send(n);
+      }
+
+      @Override
+      public void log(String at, String logger, JsonNode data) {
+        ObjectNode n = notification("notifications/message");
+        ObjectNode p = (ObjectNode) n.get("params");
+        p.put("level", at);
+        if (logger != null) {
+          p.put("logger", logger);
+        }
+        p.set("data", data == null ? JsonNodeFactory.instance.nullNode() : data);
+        stream.send(n);
+      }
+
+      @Override
+      public void started(Runnable cancel) {
+        inFlight.started(key, cancel);
+        stream.onClose(cancel);
+      }
+    };
+  }
+
+  private static ObjectNode notification(String method) {
+    ObjectNode n = JsonNodeFactory.instance.objectNode();
+    n.put("jsonrpc", "2.0");
+    n.put("method", method);
+    n.putObject("params");
+    return n;
   }
 
   /**

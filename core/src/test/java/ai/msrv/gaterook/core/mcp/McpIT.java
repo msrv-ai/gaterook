@@ -110,10 +110,10 @@ class McpIT {
   @Test
   void eachEraIsCheckedBeforeAnythingRuns() {
     // Unknown method: legacy 200, modern 404 (MUST).
-    McpClient.Answer legacy = dev.legacy("completion/complete", null);
+    McpClient.Answer legacy = dev.legacy("sampling/createMessage", null);
     assertThat(legacy.status()).isEqualTo(200);
     assertThat(legacy.error().path("code").asInt()).isEqualTo(-32601);
-    McpClient.Answer modern = dev.modern("subscriptions/listen", JsonNodeFactory.instance.objectNode(), false);
+    McpClient.Answer modern = dev.modern("roots/list", JsonNodeFactory.instance.objectNode(), false);
     assertThat(modern.status()).isEqualTo(404);
     assertThat(modern.error().path("code").asInt()).isEqualTo(-32601);
     SpecSchemas.assertValid("2026-07-28", "JSONRPCErrorResponse", modern.body());

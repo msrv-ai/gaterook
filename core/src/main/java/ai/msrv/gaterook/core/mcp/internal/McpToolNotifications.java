@@ -1,10 +1,13 @@
 package ai.msrv.gaterook.core.mcp.internal;
 
+import ai.msrv.gaterook.core.connectors.ConnectionNotified;
 import ai.msrv.gaterook.core.endpoints.EndpointCatalogInvalidated;
 import java.time.Duration;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -16,9 +19,12 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Wakes MCP streams after a committed change invalidates an endpoint snapshot. Each stream has one pending wakeup:
- * bursts coalesce, and a slow client never blocks the committing thread. The stream's own request thread reads the
- * new catalog and compares its hash, outside the transaction that published the invalidation.
+ * Wakes MCP streams after a committed change invalidates an endpoint snapshot, or when a connection's resource says
+ * something outside any call ({@link ConnectionNotified}: an MCP server's resources or prompts changed, a resource was
+ * updated). Each stream has one pending wakeup: bursts coalesce, and a slow client never blocks the committing thread;
+ * what a connection said waits in a short queue of its own (the oldest goes when it is full). The stream's own request
+ * thread reads the new catalog and compares its hash, outside the transaction that published the invalidation, and
+ * decides which notices concern its endpoint and its subscriptions.
  */
 @Component
 public class McpToolNotifications implements SmartLifecycle {
@@ -93,8 +99,24 @@ public class McpToolNotifications implements SmartLifecycle {
   public void invalidated(EndpointCatalogInvalidated event) {
     for (Subscription subscription : subscriptions) {
       if (event.endpointId() == null || subscription.endpointId.equals(event.endpointId())) {
+        subscription.catalog = true;
         subscription.signal();
       }
+    }
+  }
+
+  @EventListener
+  public void notified(ConnectionNotified event) {
+    for (Subscription subscription : subscriptions) {
+      subscription.notice(event);
+    }
+  }
+
+  /** What woke a stream: the catalog may have changed, and what connections said since the last wake. */
+  public record Wake(boolean catalog, List<ConnectionNotified> notices) {
+
+    public boolean any() {
+      return catalog || !notices.isEmpty();
     }
   }
 
@@ -104,6 +126,8 @@ public class McpToolNotifications implements SmartLifecycle {
     private final String endpointId;
     private final String principal;
     private final ArrayBlockingQueue<Boolean> pending = new ArrayBlockingQueue<>(1);
+    private final ArrayBlockingQueue<ConnectionNotified> notices = new ArrayBlockingQueue<>(64);
+    private volatile boolean catalog;
     private volatile boolean closed;
 
     private Subscription(String endpointId, String principal) {
@@ -115,9 +139,34 @@ public class McpToolNotifications implements SmartLifecycle {
       pending.offer(Boolean.TRUE);
     }
 
+    private void notice(ConnectionNotified n) {
+      while (!notices.offer(n)) {
+        notices.poll();
+      }
+      signal();
+    }
+
+    public String endpointId() {
+      return endpointId;
+    }
+
     /** True means the catalog may have changed; false means the heartbeat interval elapsed or the stream closed. */
     public boolean awaitChange(Duration timeout) throws InterruptedException {
-      return !closed && pending.poll(timeout.toNanos(), TimeUnit.NANOSECONDS) != null && !closed;
+      return await(timeout).catalog();
+    }
+
+    /** What happened until {@code timeout}: nothing ({@link Wake#any} false) when it passed or the stream closed. */
+    public Wake await(Duration timeout) throws InterruptedException {
+      boolean woken = !closed && pending.poll(timeout.toNanos(), TimeUnit.NANOSECONDS) != null && !closed;
+      if (!woken) {
+        return new Wake(false, List.of());
+      }
+      boolean changed = catalog;
+      catalog = false;
+      List<ConnectionNotified> said = new ArrayList<>();
+      notices.drainTo(said);
+      // The first wake of a stream (subscribe's own) refreshes whatever the client cached before.
+      return new Wake(changed || said.isEmpty(), List.copyOf(said));
     }
 
     public boolean isClosed() {

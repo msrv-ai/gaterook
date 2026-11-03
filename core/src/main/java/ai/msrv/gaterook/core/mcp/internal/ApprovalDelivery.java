@@ -26,6 +26,8 @@ import tools.jackson.databind.node.ObjectNode;
  *       sealed {@code requestState}; each retry is held up to 20 s; {@code decline} rejects the request (always
  *       safe), {@code cancel} hands over to the handle; after 45 s since the first round, or past round 5, the handle
  *       answer ({@code resultType: complete}) and {@code approval_status} take over;</li>
+ *   <li><b>task</b> — a call that runs as a task ({@link CallTasks}) waits for the decision itself, until the request
+ *       expires: its client polls the task, which says what it waits for;</li>
  *   <li><b>handle</b> — everyone else: the first answer waits up to {@code firstWait} (15 s) for a quick decision,
  *       then returns {@code status: pending} with the handle.</li>
  * </ul>
@@ -39,6 +41,8 @@ public class ApprovalDelivery {
   public static final Duration MRTR_BUDGET = Duration.ofSeconds(45);
   public static final int MAX_ROUNDS = 5;
   public static final String INPUT_KEY = "gateway_approval";
+  /** How often a task that waits for a decision looks whether it was cancelled. */
+  static final Duration TASK_LOOK = Duration.ofSeconds(5);
 
   private static final DateTimeFormatter CLOCK = DateTimeFormatter.ofPattern("HH:mm:ss");
 
@@ -71,6 +75,9 @@ public class ApprovalDelivery {
     if (r.env().supportsUi()) {
       return new Answer(a.pending() ? answers.pending(a) : answers.state(a), null, a);
     }
+    if (r.task() != null) {
+      return decided(r.task(), a);
+    }
     if (mrtr(r)) {
       Instant now = clock.instant();
       ObjectNode requests = JsonNodeFactory.instance.objectNode();
@@ -85,6 +92,19 @@ public class ApprovalDelivery {
     ApprovalView now = r.firstWaitSeconds() > 0 ? approvals.await(a.id(), Duration.ofSeconds(r.firstWaitSeconds()))
         : a;
     return new Answer(now.pending() ? answers.pending(now) : answers.state(now), null, now);
+  }
+
+  /** A task's call waits until the request is decided and what was approved ran, or the task is cancelled. */
+  private Answer decided(CallTasks.Task task, ApprovalView a) {
+    String until = LocalTime.ofInstant(a.expiresAt(), ZoneId.systemDefault()).format(CLOCK);
+    ApprovalView now = a;
+    while (!now.terminal() && task.working() && !Thread.currentThread().isInterrupted()) {
+      task.waitsFor(a.id(), now.pending() ? "Waiting for a person to approve it in GateRook: request " + a.id()
+          + ", auto-deny at " + until + "." : "Approved in GateRook; " + a.tool() + " runs on " + a.connectionName()
+          + " now.");
+      now = approvals.await(a.id(), TASK_LOOK);
+    }
+    return new Answer(now.terminal() ? answers.state(now) : answers.pending(now), null, now);
   }
 
   /**

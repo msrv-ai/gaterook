@@ -10,10 +10,19 @@ import tools.jackson.databind.JsonNode;
  * @param annotations     MCP annotations, always explicit (the MCP defaults are destructive and open world)
  * @param defaultMode     initial mode on dev/stage endpoints
  * @param prodDefaultMode initial mode on prod endpoints
+ * @param meta            what the tool's {@code _meta} carries for the client, or {@code null}: an external MCP
+ *                        server's app ({@code ui.resourceUri} as the endpoint publishes it, {@code ui.visibility})
  */
 public record ToolDefinition(String name, String title, String description, JsonNode inputSchema,
     JsonNode outputSchema, Annotations annotations, Nature nature, Mode defaultMode, Mode prodDefaultMode,
-    ResultShape resultShape, Risk risk) {
+    ResultShape resultShape, Risk risk, JsonNode meta) {
+
+  public ToolDefinition(String name, String title, String description, JsonNode inputSchema, JsonNode outputSchema,
+      Annotations annotations, Nature nature, Mode defaultMode, Mode prodDefaultMode, ResultShape resultShape,
+      Risk risk) {
+    this(name, title, description, inputSchema, outputSchema, annotations, nature, defaultMode, prodDefaultMode,
+        resultShape, risk, null);
+  }
 
   /** {@code MIXED}: classify() decides per call (ssh_run, http_request). */
   public enum Nature { READ, MUTATION, MIXED }
@@ -65,6 +74,7 @@ public record ToolDefinition(String name, String title, String description, Json
     private Mode prodDefaultMode = Mode.READ_ONLY;
     private ResultShape resultShape = ResultShape.JSON;
     private Risk risk = new Risk(true, true, Egress.NONE);
+    private JsonNode meta;
 
     private Builder(String name) {
       this.name = name;
@@ -117,6 +127,11 @@ public record ToolDefinition(String name, String title, String description, Json
       return this;
     }
 
+    public Builder meta(JsonNode v) {
+      meta = v;
+      return this;
+    }
+
     public ToolDefinition build() {
       if (nature != Nature.READ && outputSchema != null) {
         throw new IllegalStateException(name + ": outputSchema only for READ tools");
@@ -125,7 +140,7 @@ public record ToolDefinition(String name, String title, String description, Json
         throw new IllegalStateException(name + ": a mutating tool can't default to Read only");
       }
       return new ToolDefinition(name, title, description, inputSchema, outputSchema, annotations, nature,
-          defaultMode, prodDefaultMode, resultShape, risk);
+          defaultMode, prodDefaultMode, resultShape, risk, meta);
     }
   }
 }

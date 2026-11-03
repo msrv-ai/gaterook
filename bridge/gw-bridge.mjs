@@ -112,6 +112,9 @@ export function brokerCall(address, request, waitMs = BROKER_WAIT_MS) {
   });
 }
 
+/** The methods of the 2026-07-28 Tasks extension, whose Mcp-Name is the task's id. */
+const TASK_METHODS = new Set(['tasks/get', 'tasks/update', 'tasks/cancel']);
+
 /** The header value of Mcp-Name: as is when plain ASCII, else the base64 sentinel of the 2026-07-28 transport. */
 export function headerName(value) {
   return /^[\x20-\x7e]*$/.test(value) && value.trim() === value ? value
@@ -357,7 +360,12 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
     return token;
   }
 
-  function post(t, body, msg) {
+  /**
+   * One POST to the core. An event stream that the core run of the token answers goes to `onEvent` event by event as
+   * it arrives (a call's progress and log messages, then its answer); anything else is read whole, so that an answer
+   * of another run can be checked before any of it is passed on.
+   */
+  function post(t, body, msg, onEvent = null) {
     const headers = {
       'Content-Type': 'application/json',
       Accept: 'application/json, text/event-stream',
@@ -369,7 +377,8 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
       headers['MCP-Protocol-Version'] = modern;
       headers['Mcp-Method'] = msg.method;
       const name = msg.method === 'resources/read' ? msg.params.uri
-        : (msg.method === 'tools/call' || msg.method === 'prompts/get') ? msg.params.name : null;
+        : (msg.method === 'tools/call' || msg.method === 'prompts/get') ? msg.params.name
+          : TASK_METHODS.has(msg.method) ? msg.params.taskId : null;
       if (typeof name === 'string') headers['Mcp-Name'] = headerName(name);
     } else if (msg && msg.method !== 'initialize') {
       if (negotiated) headers['MCP-Protocol-Version'] = negotiated;
@@ -382,6 +391,32 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
         host: '127.0.0.1', port: Number(t.url.port), path: t.url.pathname, method: 'POST', headers,
         timeout: REQUEST_WAIT_MS, agent: false,
       }, (res) => {
+        const type = String(res.headers['content-type'] || '');
+        if (onEvent && res.statusCode === 200 && type.startsWith('text/event-stream')
+          && (!t.instance || res.headers[INSTANCE_HEADER] === t.instance)) {
+          let buffer = '';
+          let size = 0;
+          res.setEncoding('utf8');
+          res.on('data', (c) => {
+            size += Buffer.byteLength(c);
+            if (size > MAX_ANSWER) {
+              req.destroy(new Error('The answer is larger than 64 MiB.'));
+              return;
+            }
+            buffer += c;
+            for (let m = /\r?\n\r?\n/.exec(buffer); m; m = /\r?\n\r?\n/.exec(buffer)) {
+              const event = buffer.slice(0, m.index);
+              buffer = buffer.slice(m.index + m[0].length);
+              for (const data of sseData(event)) onEvent(data);
+            }
+          });
+          res.on('end', () => {
+            for (const data of sseData(buffer)) onEvent(data);
+            resolve({ status: res.statusCode, type, instance: res.headers[INSTANCE_HEADER], body: '', streamed: true });
+          });
+          res.on('error', reject);
+          return;
+        }
         const chunks = [];
         let size = 0;
         res.on('data', (c) => {
@@ -442,8 +477,12 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
       const held = token;
       let t = await tokenFor(false);
       let r;
+      const onEvent = (data) => {
+        noteList(msg, data);
+        write(data.trim());
+      };
       try {
-        r = await post(t, line, msg);
+        r = await post(t, line, msg, onEvent);
       } catch (e) {
         // Nobody got the request. A token kept from before may name the port of a core that has since moved
         // (Settings › Local API, a restart): the broker knows the current URL, and sending again is safe.
@@ -452,11 +491,11 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
           throw e;
         }
         t = await tokenFor(true, held);
-        r = await post(t, line, msg);
+        r = await post(t, line, msg, onEvent);
       }
       if (r.status === 401) {
         t = await tokenFor(true, t);
-        r = await post(t, line, msg);
+        r = await post(t, line, msg, onEvent);
       }
       if (t.instance && r.instance !== t.instance) {
         // Another run of the core has another id, and it may still accept a token issued before its restart. The
@@ -480,9 +519,8 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
         return;
       }
       if (r.type.startsWith('text/event-stream')) {
-        for (const data of sseData(r.body)) {
-          noteList(msg, data);
-          write(data.trim());
+        if (!r.streamed) {
+          for (const data of sseData(r.body)) onEvent(data);
         }
         return;
       }

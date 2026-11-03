@@ -317,7 +317,7 @@ let nextId = 0;
                   <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-transport'" value="stdio" [checked]="transport() === 'stdio'" (change)="setTransport('stdio')"><span class="gw-segmented__label"><svg lucideIcon="terminal" class="gw-icon gw-icon--sm"></svg>stdio</span></label>
                   <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-transport'" value="http" [checked]="transport() === 'http'" (change)="setTransport('http')"><span class="gw-segmented__label"><svg lucideIcon="globe" class="gw-icon gw-icon--sm"></svg>HTTP</span></label>
                 </div>
-                <p class="gw-field__hint" [id]="uid + '-transport-hint'">stdio: the gateway starts a command on this computer. HTTP: it calls a URL with Streamable HTTP and signs in to it for you when the server asks.</p>
+                <p class="gw-field__hint" [id]="uid + '-transport-hint'">stdio: the gateway starts a command on this computer. HTTP: it calls a URL with Streamable HTTP, or the older SSE transport, and signs in to it for you when the server asks.</p>
               </fieldset>
               <div class="gw-field" [hidden]="transport() !== 'stdio'">
                 <label class="gw-field__label" [for]="uid + '-command'">Command</label>

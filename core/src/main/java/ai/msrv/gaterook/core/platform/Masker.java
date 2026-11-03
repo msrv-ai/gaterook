@@ -24,7 +24,8 @@ import tools.jackson.databind.node.ObjectNode;
  * report 12 §7.7): results before the agent, Playground or the audit see them, arguments in the audit, texts of
  * notifications, log messages. Every string the agent can read is a value here: texts, the {@code uri}, {@code name}
  * and {@code mimeType} of a {@code resource_link}, JSON property names (hashes keyed by tokens), table column names
- * and string cells; numbers and binary nodes are checked by their text against the taint and personal data. Each
+ * and string cells; numbers and binary nodes are checked by their text against the taint and personal data. An
+ * image, audio or blob of a result is left out whole when its bytes carry a secret ({@code carriesSecret}). Each
  * goes through, in order:
  * <ol>
  *   <li>the call's {@link Taint}: every stored secret handed out and every derived credential, in their encodings,
@@ -122,9 +123,16 @@ public final class Masker {
     Pass pass = new Pass(fingerprints, taint, policy);
     List<ToolResult.Content> content = new ArrayList<>(result.content().size());
     for (ToolResult.Content c : result.content()) {
+      if (c.binary() && pass.carriesSecret(c.data())) {
+        // Bytes can't be masked without breaking them: a block that carries a secret is left out whole.
+        content.add(ToolResult.Content.text("[" + c.type() + (c.mimeType() == null ? "" : " " + pass.string(
+            c.mimeType())) + " withheld by GateRook: it carried a secret]"));
+        continue;
+      }
       // A resource link reaches the agent as much as a text does: a presigned URL carries the STS session token.
       content.add(new ToolResult.Content(c.type(), pass.string(c.text()), pass.string(c.uri()),
-          pass.string(c.mimeType()), pass.string(c.name())));
+          pass.string(c.mimeType()), pass.string(c.name()), c.data(),
+          c.meta() == null ? null : pass.node(c.meta(), new ArrayList<>(), false)));
     }
     JsonNode structured = result.structuredContent() == null ? null
         : pass.node(maskPaths(result.structuredContent(), result.maskPaths(), pass), new ArrayList<>(), false);
@@ -330,6 +338,24 @@ public final class Masker {
 
     Outcome outcome() {
       return fields == 0 ? Outcome.NONE : new Outcome(fields, counter.byRule());
+    }
+
+    /**
+     * Whether the Base64 of a binary block carries a secret: the taint keeps every secret's Base64 at each alignment,
+     * so a secret anywhere in the bytes shows in their Base64; the fingerprints of the process are checked the same
+     * way. No rule or entropy check: random bytes look like secrets to both. Counts a field when it does.
+     */
+    boolean carriesSecret(String base64) {
+      if (base64 == null || base64.isEmpty()) {
+        return false;
+      }
+      boolean found = (taint != null && taint.occursIn(base64))
+          || !fingerprints.mask(base64, MASK, new MaskCounter()).equals(base64);
+      if (found) {
+        counter.hit("stored-secret");
+        fields++;
+      }
+      return found;
     }
 
     /** One string value: taint → rules → entropy → personal data. Counts a field when anything changed. */

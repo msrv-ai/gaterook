@@ -48,6 +48,12 @@ final class Tests {
     for (String note : h.notes()) {
       if (note.startsWith("Not pinned")) {
         r = r.withHint(new TestResult.Hint(TestResult.Severity.WARNING, "mcp.not-pinned", "/command", note));
+      } else if (note.startsWith("Offers ")) {
+        r = r.withHint(new TestResult.Hint(TestResult.Severity.INFO, "mcp.offers", "/share", note + "."));
+      } else if (note.contains("MCP App")) {
+        r = r.withHint(new TestResult.Hint(TestResult.Severity.INFO, "mcp.apps", null, note + "."));
+      } else if (note.startsWith("Over the HTTP+SSE")) {
+        r = r.withHint(new TestResult.Hint(TestResult.Severity.INFO, "mcp.sse", "/url", note + "."));
       }
     }
     ObjectNode details = Texts.JSON.createObjectNode();
@@ -83,7 +89,7 @@ final class Tests {
       case TIMEOUT -> "mcp.timeout";
       case BAD_INPUT -> "mcp.config";
       case DENIED -> "mcp.denied";
-      default -> message.contains("2026-07-28") ? "mcp.protocol" : "mcp.start";
+      default -> message.contains(UpstreamClient.SPEAKS) ? "mcp.protocol" : "mcp.start";
     };
     int nl = message.indexOf('\n');
     return nl < 0 ? TestResult.failure(code, message, null)

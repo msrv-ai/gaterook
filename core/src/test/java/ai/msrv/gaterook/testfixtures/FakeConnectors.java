@@ -203,12 +203,185 @@ public class FakeConnectors {
   /** One connector per MCP server connection: its tools and the version its server reports. */
   static Connector mcpServer(ConnectionConfig cfg) {
     String version = cfg.string("/connection/note") == null ? "1.0.0" : cfg.string("/connection/note");
+    if ("share.internal".equals(cfg.string("/connection/host"))) {
+      return new SharingMcp(cfg, version);
+    }
     return new Fake(ConnectorManifest.builder("mcpfake", version, ConnectorManifest.Kind.MCP_SERVER).name("FakeMCP")
         .group("HTTP and MCP").description("An MCP server for tests.").configSchema(config()).dynamicTools(true)
         .tools(List.of(ToolDefinition.builder("gh_search").title("Search code").description("Searches the code.")
             .inputSchema(input("query")).annotations(Annotations.read()).nature(Nature.READ)
             .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY).build()))
         .build(), false);
+  }
+
+  /** What each sharing connection was last told its clients subscribe to. */
+  public static final java.util.Map<String, java.util.Set<String>> SUBSCRIBED =
+      new java.util.concurrent.ConcurrentHashMap<>();
+
+  /** The calls of {@code gh_wait} that were cancelled while they waited. */
+  public static final List<String> CANCELLED = new CopyOnWriteArrayList<>();
+
+  private static void sleep(long ms) {
+    try {
+      Thread.sleep(ms);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
+  }
+
+  /** A 1×1 transparent PNG. */
+  public static final String PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
+  /**
+   * An external MCP server that shares its resources and prompts (host {@code share.internal}): a resource whose text
+   * and a blob that carries the connection's password (masked and withheld on the way out), a template, an entry
+   * under another connection's namespace (never listed), the app of {@code gh_chart}, a picture of {@code gh_picture},
+   * a prompt with an image and completions.
+   */
+  static final class SharingMcp extends Fake {
+    private final String name;
+
+    SharingMcp(ConnectionConfig cfg, String version) {
+      super(ConnectorManifest.builder("mcpfake", version, ConnectorManifest.Kind.MCP_SERVER).name("FakeMCP")
+          .group("HTTP and MCP").description("An MCP server for tests.").configSchema(config()).dynamicTools(true)
+          .tools(List.of(
+              ToolDefinition.builder("gh_search").title("Search code").description("Searches the code.")
+                  .inputSchema(input("query")).annotations(Annotations.read()).nature(Nature.READ)
+                  .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY).build(),
+              ToolDefinition.builder("gh_chart").title("Chart").description("Shows a chart.")
+                  .inputSchema(input("query")).annotations(Annotations.read()).nature(Nature.READ)
+                  .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY)
+                  .meta(read("{\"ui\":{\"resourceUri\":\"" + ai.msrv.gaterook.connector.api.ResourceDescriptor
+                      .appPrefix(cfg.name()) + "chart.html\"}}")).build(),
+              ToolDefinition.builder("gh_widget").title("Widget action").description("Called by its app only.")
+                  .inputSchema(input("query")).annotations(Annotations.read()).nature(Nature.READ)
+                  .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY)
+                  .meta(read("{\"ui\":{\"resourceUri\":\"" + ai.msrv.gaterook.connector.api.ResourceDescriptor
+                      .appPrefix(cfg.name()) + "chart.html\",\"visibility\":[\"app\"]}}")).build(),
+              ToolDefinition.builder("gh_picture").title("Picture").description("Answers a picture.")
+                  .inputSchema(input("query")).annotations(Annotations.read()).nature(Nature.READ)
+                  .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY).build(),
+              ToolDefinition.builder("gh_steps").title("Steps").description("Reports its progress and logs.")
+                  .inputSchema(input("query")).annotations(Annotations.read()).nature(Nature.READ)
+                  .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY).build(),
+              ToolDefinition.builder("gh_wait").title("Wait").description("Waits until it is cancelled.")
+                  .inputSchema(input("query")).annotations(Annotations.read()).nature(Nature.READ)
+                  .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY).build()))
+          .build(), false);
+      this.name = cfg.name();
+    }
+
+    private String own(String rest) {
+      return ai.msrv.gaterook.connector.api.ResourceDescriptor.prefix(name) + "mcp/" + rest;
+    }
+
+    @Override
+    public boolean sharesResources(ConnectionConfig cfg) {
+      return true;
+    }
+
+    @Override
+    public boolean sharesPrompts(ConnectionConfig cfg) {
+      return true;
+    }
+
+    @Override
+    public JsonNode listResources(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, boolean templates) {
+      if (templates) {
+        return read("{\"resourceTemplates\":[{\"uriTemplate\":\"" + own("notes://{name}") + "\",\"name\":\"A note\"}]}");
+      }
+      return read("{\"resources\":[{\"uri\":\"" + own("notes://welcome") + "\",\"name\":\"Welcome\","
+          + "\"mimeType\":\"text/plain\"},{\"uri\":\"" + own("bin://key") + "\",\"name\":\"Key\"},"
+          + "{\"uri\":\"mcpgw://connections/someone-else/mcp/x\",\"name\":\"Not mine\"}]}");
+    }
+
+    @Override
+    public ToolResult readResource(String uri, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
+        throws ConnectorException {
+      RESOURCE_READS.add(uri);
+      String password = secrets.secret("/credentials/password").unsafeString();
+      if (uri.equals(ai.msrv.gaterook.connector.api.ResourceDescriptor.appPrefix(name) + "chart.html")) {
+        return new ToolResult(List.of(ToolResult.Content.resource(uri, "text/html;profile=mcp-app",
+            "<p>chart a8f3c2d1e9b74f6a0c5d2e8b1a7f4c3d9e6b0a2f5c8d1e4b7a0c3f6d9e2b5a8</p><!-- " + password + " -->",
+            null).withMeta(read("{\"ui\":{\"csp\":{\"connectDomains\":[\"https://charts.example\"]}}}"))),
+            null, false, null, false, null, List.of(), 0, 0, null);
+      }
+      if (uri.equals(own("bin://key"))) {
+        String blob = java.util.Base64.getEncoder().encodeToString(("BIN" + password + "BIN").getBytes(
+            java.nio.charset.StandardCharsets.UTF_8));
+        return new ToolResult(List.of(ToolResult.Content.resource(uri, "application/octet-stream", null, blob)),
+            null, false, null, false, null, List.of(), 0, 0, null);
+      }
+      if (uri.startsWith(own("notes://"))) {
+        String note = uri.substring(own("notes://").length());
+        return new ToolResult(List.of(ToolResult.Content.resource(uri, "text/plain", note.equals("welcome")
+            ? "Hello, the password is " + password : "Note " + note, null)), null, false, null, false, null,
+            List.of(), 0, 0, null);
+      }
+      throw ConnectorException.resourceError("No such resource " + uri, null);
+    }
+
+    @Override
+    public void subscriptions(ConnectionConfig cfg, java.util.Set<String> uris) {
+      SUBSCRIBED.put(cfg.name(), java.util.Set.copyOf(uris));
+    }
+
+    @Override
+    public JsonNode listPrompts(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
+      return read("{\"prompts\":[{\"name\":\"gh_summarize\",\"description\":\"Summarizes a note.\","
+          + "\"arguments\":[{\"name\":\"note\",\"required\":true}]},{\"name\":\"investigate_incident\"}]}");
+    }
+
+    @Override
+    public JsonNode getPrompt(String prompt, JsonNode arguments, ConnectionConfig cfg, SecretResolver secrets,
+        ExecContext ctx) throws ConnectorException {
+      String password = secrets.secret("/credentials/password").unsafeString();
+      ObjectNode out = JsonNodeFactory.instance.objectNode();
+      out.put("description", "Summary of " + arguments.path("note").asString());
+      var messages = out.putArray("messages");
+      messages.addObject().put("role", "user").putObject("content").put("type", "text")
+          .put("text", "Summarize " + arguments.path("note").asString() + " with " + password + ".");
+      messages.addObject().put("role", "assistant").putObject("content").put("type", "image").put("data", PNG)
+          .put("mimeType", "image/png");
+      return out;
+    }
+
+    @Override
+    public JsonNode complete(JsonNode params, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
+      return read("{\"completion\":{\"values\":[\"welcome\",\"weekly\"],\"total\":2,\"hasMore\":false}}");
+    }
+
+    @Override
+    public ToolResult execute(ToolCall call, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
+        throws ConnectorException {
+      if (call.tool().equals("gh_steps")) {
+        String password = secrets.secret("/credentials/password").unsafeString();
+        for (int i = 1; i <= 3; i++) {
+          ctx.progress(i, 3.0, "step " + i + " as " + password);
+          sleep(200);
+        }
+        ctx.clientLog("debug", "steps", JsonNodeFactory.instance.stringNode("too fine to hear"));
+        ctx.clientLog("warning", "steps", JsonNodeFactory.instance.stringNode("logged in with " + password));
+        return ToolResult.text("three steps");
+      }
+      if (call.tool().equals("gh_wait")) {
+        ctx.onCancel(() -> CANCELLED.add(call.callId()));
+        for (int i = 0; i < 200 && !ctx.cancelled(); i++) {
+          sleep(100);
+        }
+        return ToolResult.text(ctx.cancelled() ? "cancelled" : "finished");
+      }
+      if (call.tool().equals("gh_picture")) {
+        String password = secrets.secret("/credentials/password").unsafeString();
+        String withSecret = java.util.Base64.getEncoder().encodeToString(("PNG" + password).getBytes(
+            java.nio.charset.StandardCharsets.UTF_8));
+        return new ToolResult(List.of(ToolResult.Content.image(PNG, "image/png"),
+            ToolResult.Content.image(withSecret, "image/png"),
+            ToolResult.Content.link(own("notes://welcome"), "Welcome", "text/plain")), null, false, null, false, null,
+            List.of(), 0, 0, null);
+      }
+      return super.execute(call, cfg, secrets, ctx);
+    }
   }
 
   // ── Manifests ───────────────────────────────────────────────────────────────────────────────────────────────

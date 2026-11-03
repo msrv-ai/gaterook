@@ -8,14 +8,8 @@ import ai.msrv.gaterook.connectors.support.BuiltIn;
 import ai.msrv.gaterook.connectors.support.egress.GuardedEgress;
 import ai.msrv.gaterook.connectors.support.egress.UrlRules;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
-import io.modelcontextprotocol.client.McpAsyncClient;
-import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.json.McpJsonMapper;
 import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper;
-import io.modelcontextprotocol.json.schema.jackson3.DefaultJsonSchemaValidator;
-import io.modelcontextprotocol.spec.McpClientTransport;
-import io.modelcontextprotocol.spec.McpError;
-import io.modelcontextprotocol.spec.McpSchema;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -27,28 +21,37 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import okhttp3.HttpUrl;
-import reactor.core.publisher.Mono;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
- * One running process (stdio) or HTTP session of a server, from {@code initialize} to its end: the MCP Java SDK's
- * async client (ARCHITECTURE.md A1: the SDK is only a client here) over the gateway's own transports, with no client
- * capability declared — no roots, sampling or elicitation, so a server can't ask the model or the person anything
- * through the gateway (report 11 §6.6).
+ * One running process (stdio) or HTTP session of a server, from its handshake to its end: the gateway's own
+ * {@link UpstreamClient} (ARCHITECTURE.md A1) over a {@link Channel} — the process's stdio, Streamable HTTP, or the
+ * 2024-11-05 HTTP+SSE transport of a URL that takes no Streamable HTTP — with no client capability declared, so a server
+ * can't ask the model or the person anything through the gateway (report 11 §6.6).
+ *
+ * <p>A new server and a person's Test, Start or Restart find out the revision (2026-07-28 first); a call of a stored
+ * server speaks the era its snapshot recorded, so a working server is talked to as it was reviewed.
  */
 final class Session {
 
   /** What a JSON-RPC line or response may be at most. */
   static final int MAX_MESSAGE = 4 * 1024 * 1024;
-  /** Explicit, never through the SDK's ServiceLoader (report 15 §9 rule 7). */
+  /** Explicit, never through the SDK's ServiceLoader (report 15 §9 rule 7): only the tools' types for their hash. */
   static final McpJsonMapper MAPPER = new JacksonMcpJsonMapper(Texts.JSON);
-  private static volatile DefaultJsonSchemaValidator validator;
+  /** How many tools of one server are listed at most. */
+  static final int MAX_TOOLS = 1_000;
 
-  /** The protocol revisions the SDK client speaks (2.1.0: up to 2025-11-25). */
-  static final List<String> REVISIONS = List.of("2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25");
+  /** The revisions the client speaks, newest first. */
+  static final List<String> REVISIONS = List.of(UpstreamClient.MODERN, "2025-11-25", "2025-06-18", "2025-03-26",
+      "2024-11-05");
+
+  /** How long a stdio server may take to answer {@code server/discover} before it counts as one of 2025. */
+  static final Duration PROBE = Duration.ofSeconds(10);
 
   /**
    * What a start needs.
@@ -57,18 +60,34 @@ final class Session {
    * @param npmIntegrity  the integrity a catalog server's installed package must have, or {@code null}
    * @param authorization the core's sign-in for every request of an HTTP session, or {@code null}
    * @param credentials   what opens the server's cloud credentials when a session starts, or {@code null}
+   * @param era           the era to speak, or {@code null} to find out (a new server, a person's start)
    */
   record Request(ConnectionConfig cfg, ServerConfig server, String toolPrefix, String npmIntegrity,
-      SecretResolver secrets, ExecContext ctx, McpServerRuntime.Authorization authorization, Credentials credentials) {
+      SecretResolver secrets, ExecContext ctx, McpServerRuntime.Authorization authorization, Credentials credentials,
+      UpstreamClient.Era era) {
 
     Request(ConnectionConfig cfg, ServerConfig server, String toolPrefix, String npmIntegrity, SecretResolver secrets,
         ExecContext ctx) {
-      this(cfg, server, toolPrefix, npmIntegrity, secrets, ctx, null, null);
+      this(cfg, server, toolPrefix, npmIntegrity, secrets, ctx, null, null, null);
     }
 
     Request(ConnectionConfig cfg, ServerConfig server, String toolPrefix, String npmIntegrity, SecretResolver secrets,
         ExecContext ctx, McpServerRuntime.Authorization authorization) {
-      this(cfg, server, toolPrefix, npmIntegrity, secrets, ctx, authorization, null);
+      this(cfg, server, toolPrefix, npmIntegrity, secrets, ctx, authorization, null, null);
+    }
+
+    Request(ConnectionConfig cfg, ServerConfig server, String toolPrefix, String npmIntegrity, SecretResolver secrets,
+        ExecContext ctx, McpServerRuntime.Authorization authorization, Credentials credentials) {
+      this(cfg, server, toolPrefix, npmIntegrity, secrets, ctx, authorization, credentials, null);
+    }
+
+    /** The era a reviewed snapshot recorded ({@code null}: find out). */
+    static UpstreamClient.Era eraOf(String protocolVersion) {
+      if (protocolVersion == null) {
+        return null;
+      }
+      return UpstreamClient.MODERN.equals(protocolVersion) ? UpstreamClient.Era.MODERN
+          : UpstreamClient.LEGACY.contains(protocolVersion) ? UpstreamClient.Era.LEGACY : null;
     }
   }
 
@@ -83,15 +102,16 @@ final class Session {
   final String connectionId;
   final long configVersion;
   final ServerConfig server;
-  final McpAsyncClient client;
+  final UpstreamClient client;
   final GatewayStdioTransport stdio;
-  final GatewayHttpTransport http;
+  /** The requests of an HTTP session (Streamable HTTP or SSE); {@code null} over stdio. */
+  final HttpCalls http;
   final List<String> secretValues;
   final Instant startedAt;
   final ServerLog log;
   final AtomicInteger inFlight = new AtomicInteger();
-  volatile McpSchema.InitializeResult init;
-  volatile List<McpSchema.Tool> tools = List.of();
+  volatile UpstreamClient.Hello init;
+  volatile List<ObjectNode> tools = List.of();
   volatile Instant lastUsed;
   volatile Instant lastPing;
   volatile boolean closing;
@@ -105,10 +125,27 @@ final class Session {
   /** Whether a changed list waits to be told to the host, and whether a thread is telling it now. */
   volatile boolean toolsDirty;
   final java.util.concurrent.atomic.AtomicBoolean announcing = new java.util.concurrent.atomic.AtomicBoolean();
+  /** Whether the server took no Streamable HTTP and speaks the HTTP+SSE transport of 2024-11-05. */
+  volatile boolean sse;
 
-  private Session(String connectionId, long configVersion, ServerConfig server, McpAsyncClient client,
-      GatewayStdioTransport stdio, GatewayHttpTransport http, List<String> secretValues, Instant startedAt,
-      ServerLog log) {
+  /**
+   * A list of what the server shares, as an endpoint publishes it, kept until the server says it changed or
+   * {@link #LIST_TTL} passed; for prompts also the server's name of each published one.
+   */
+  record Listed(ObjectNode list, Map<String, String> originals, Instant until) {
+
+    boolean fresh(Instant now) {
+      return now.isBefore(until);
+    }
+  }
+
+  static final Duration LIST_TTL = Duration.ofSeconds(30);
+  volatile Listed resources;
+  volatile Listed templates;
+  volatile Listed prompts;
+
+  private Session(String connectionId, long configVersion, ServerConfig server, UpstreamClient client,
+      GatewayStdioTransport stdio, HttpCalls http, List<String> secretValues, Instant startedAt, ServerLog log) {
     this.connectionId = connectionId;
     this.configVersion = configVersion;
     this.server = server;
@@ -128,22 +165,43 @@ final class Session {
   }
 
   boolean alive() {
-    if (closing) {
+    if (closing || client.closed()) {
       return false;
     }
     ProcessHandle root = root();
     return http != null || (root != null && root.isAlive());
   }
 
+  /** How the session reaches the server: {@code stdio}, {@code http} (Streamable HTTP) or {@code sse} (2024-11-05). */
+  String transport() {
+    return stdio != null ? ServerConfig.STDIO : sse ? "sse" : ServerConfig.HTTP;
+  }
+
+  /** The revision both agreed on ({@code 2026-07-28}, {@code 2025-11-25}). */
+  String protocolVersion() {
+    UpstreamClient.Hello h = init;
+    return h == null ? null : h.protocolVersion();
+  }
+
   /**
-   * Starts the process (or opens the session), answers {@code initialize} and lists every page of tools.
+   * Starts the process (or opens the session), agrees on a revision and lists every page of tools.
    *
-   * @param onToolsChanged what to do when the server said its list changed ({@code notifications/tools/list_changed})
-   *                       and the client listed it again; {@link #tools} is the new list by then
+   * @param onToolsChanged what to do when the server said its list changed and it was listed again; {@link #tools} is
+   *                       the new list by then
    * @param onExit         what to do when the process ends (crash or stop)
    */
   static Session open(Request r, Path workDir, Launcher launcher, ServerLog log, PidFile pids, Instant now,
       Consumer<Session> onToolsChanged, Consumer<Session> onExit) throws ConnectorException {
+    return open(r, workDir, launcher, log, pids, now, onToolsChanged, onExit, (what, uri) -> {});
+  }
+
+  /**
+   * @param onNotice what the server says outside any call besides its tools: {@code resources} or {@code prompts}
+   *                 changed ({@code uri} null), or the resource {@code uri} (the server's) was {@code updated}
+   */
+  static Session open(Request r, Path workDir, Launcher launcher, ServerLog log, PidFile pids, Instant now,
+      Consumer<Session> onToolsChanged, Consumer<Session> onExit, java.util.function.BiConsumer<String, String> onNotice)
+      throws ConnectorException {
     long started = System.nanoTime();
     ServerConfig server = r.server();
     Map<String, String> values = new LinkedHashMap<>();
@@ -162,9 +220,9 @@ final class Session {
     }
     log.secrets(secretValues);
     log.clearTail();
-    McpClientTransport transport;
+    Channel channel;
     GatewayStdioTransport stdio = null;
-    GatewayHttpTransport http = null;
+    HttpCalls http = null;
     if (server.http()) {
       URI url = checkUrl(server.url());
       GuardedEgress guarded = GuardedEgress.of(r.ctx()).orElseThrow(() -> ConnectorException.unavailable(
@@ -175,9 +233,9 @@ final class Session {
       }
       // A server whose sign-in is optional connects without one until the person signs in.
       RequestCredentials cloud = r.credentials() == null ? null : r.credentials().open();
-      http = new GatewayHttpTransport(url, guarded.client(), values, MAPPER, MAX_MESSAGE,
-          server.callTimeout().plusSeconds(5), server.name(), server.oauth() ? r.authorization() : null, cloud);
-      transport = http;
+      http = new HttpCalls(url, guarded.client(), values, MAX_MESSAGE, server.callTimeout().plusSeconds(5),
+          server.name(), server.oauth() ? r.authorization() : null, cloud);
+      channel = new GatewayHttpTransport(http);
     } else {
       prepare(workDir);
       if (r.npmIntegrity() != null) {
@@ -192,7 +250,7 @@ final class Session {
               + "absolute path.", null));
       List<String> argv = launcher.argv(resolved, server.command().subList(1, server.command().size()), workDir);
       Map<String, String> env = launcher.environment(server, values, workDir);
-      stdio = new GatewayStdioTransport(argv, env, workDir, MAPPER, MAX_MESSAGE, log::line, log::mask);
+      stdio = new GatewayStdioTransport(argv, env, workDir, MAX_MESSAGE, log::line, log::mask);
       try {
         Process p = stdio.start();
         pids.record(r.cfg().id(), p.toHandle());
@@ -201,40 +259,34 @@ final class Session {
         throw ConnectorException.unavailable("Couldn't start " + command + ": " + Texts.clean(e.getMessage(), 300,
             false), e);
       }
-      transport = stdio;
+      channel = stdio;
     }
     Session[] self = new Session[1];
-    McpAsyncClient client = McpClient.async(transport)
-        .clientInfo(McpSchema.Implementation.builder("gaterook", BuiltIn.VERSION).title("GateRook").build())
-        // Nothing: the server can't ask for roots, sampling or the person's input through the gateway.
-        .capabilities(McpSchema.ClientCapabilities.builder().build())
-        .requestTimeout(Duration.ofSeconds(300))
-        .initializationTimeout(server.startTimeout())
-        .jsonSchemaValidator(validator())
-        .toolsChangeConsumer(list -> Mono.fromRunnable(() -> {
-          Session current = self[0];
-          if (current != null && current.init != null) {
-            current.tools = list == null ? List.of() : List.copyOf(list);
-            onToolsChanged.accept(current);
-          }
-        }))
-        .loggingConsumer(n -> Mono.fromRunnable(() -> log.line("[" + n.level() + "] " + (n.logger() == null ? ""
-            : n.logger() + ": ") + n.data())))
-        .build();
+    UpstreamClient client = new UpstreamClient(channel, clientInfo(), server.name(), events(self, log,
+        onToolsChanged, onNotice));
     Session s = new Session(r.cfg().id(), r.cfg().version(), server, client, stdio, http, secretValues, now, log);
     self[0] = s;
     if (stdio != null) {
-      stdio.process().onExit().thenAccept(p -> onExit.accept(self[0]));
+      GatewayStdioTransport own = stdio;
+      own.process().onExit().thenAccept(p -> {
+        // An answer still owed never comes: the request fails now, not at its timeout.
+        client.closed(own.failure() != null ? own.failure() : "The server's process ended before it answered.");
+        onExit.accept(self[0]);
+      });
     }
     try {
       Duration budget = min(server.startTimeout(), r.ctx().remaining());
-      s.init = s.await(client.initialize(), budget, "initialize");
-      if (s.init.capabilities() != null && s.init.capabilities().tools() != null) {
-        McpSchema.ListToolsResult listed = s.await(client.listTools(), min(Duration.ofSeconds(30),
-            r.ctx().remaining()), "tools/list");
-        s.tools = listed.tools() == null ? List.of() : List.copyOf(listed.tools());
+      try {
+        s.init = client.connect(r.era(), PROBE, budget);
+      } catch (ConnectorException e) {
+        Session sse = http != null && noStreamableHttp(e)
+            ? viaSse(r, s, http, log, now, self, onToolsChanged, onNotice, e, started) : null;
+        if (sse == null) {
+          throw e;
+        }
+        return sse;
       }
-      s.listHash = listHash(s.tools);
+      s.afterConnect(r);
     } catch (ConnectorException e) {
       s.abort();
       throw s.explain(e);
@@ -246,28 +298,179 @@ final class Session {
     return s;
   }
 
-  /** The tools again, all pages (Test, Restart, {@code list_changed}). */
-  List<McpSchema.Tool> listTools(Duration budget) throws ConnectorException {
-    McpSchema.ListToolsResult listed = await(client.listTools(), budget, "tools/list");
-    tools = listed.tools() == null ? List.of() : List.copyOf(listed.tools());
+  /** The tools of a session that just agreed on a revision. */
+  private void afterConnect(Request r) throws ConnectorException {
+    if (init.has("tools")) {
+      tools = client.list("tools/list", "tools", min(Duration.ofSeconds(30), r.ctx().remaining()), MAX_TOOLS);
+    }
+    listHash = listHash(tools);
+  }
+
+  /** The server's URIs of the resources clients subscribed to through the gateway. */
+  private volatile java.util.Set<String> subscribed = java.util.Set.of();
+
+  /**
+   * Hears what changes and updates from now on: the tool, resource and prompt lists the server offers to tell about,
+   * and the updates of {@code uris} (the server's) when it takes subscriptions. Its stream opens when the server offers
+   * to tell anything, and only for a session that serves calls, never a throw-away review.
+   */
+  synchronized void subscribe(java.util.Set<String> uris) {
+    java.util.Set<String> before = subscribed;
+    subscribed = java.util.Set.copyOf(uris);
+    if (init == null) {
+      return;
+    }
+    JsonNode caps = init.capabilities();
+    boolean tells = caps.path("tools").path("listChanged").asBoolean(false)
+        || caps.path("resources").path("listChanged").asBoolean(false)
+        || caps.path("prompts").path("listChanged").asBoolean(false)
+        || (caps.path("resources").path("subscribe").asBoolean(false) && !subscribed.isEmpty());
+    if (tells) {
+      client.listen(List.copyOf(subscribed));
+    }
+    client.subscriptions(before, subscribed);
+  }
+
+  /**
+   * A URL whose POSTs are refused (404, 405 and the like) as Streamable HTTP's backwards compatibility says: maybe a
+   * server of the 2024-11-05 HTTP+SSE transport, which takes a GET there and names its message endpoint.
+   */
+  private static boolean noStreamableHttp(ConnectorException e) {
+    if (McpServerRuntime.SignInRequired.in(e) != null) {
+      return false;
+    }
+    Channel.Failure f = Channel.Failure.in(e);
+    if (f == null) {
+      return false;
+    }
+    int status = f.status();
+    return status == 400 || status == 404 || status == 405 || status == 406 || status == 415;
+  }
+
+  /**
+   * The same server over the HTTP+SSE transport. When it isn't one either, the Streamable HTTP failure is the
+   * answer: that is the transport the URL was given for.
+   */
+  private static Session viaSse(Request r, Session failed, HttpCalls http, ServerLog log, Instant now,
+      Session[] self, Consumer<Session> onToolsChanged, java.util.function.BiConsumer<String, String> onNotice,
+      ConnectorException original, long started) throws ConnectorException {
+    failed.closing = true;
+    failed.client.close();
+    GatewaySseTransport sse = new GatewaySseTransport(http);
+    UpstreamClient client = new UpstreamClient(sse, clientInfo(), r.server().name(), events(self, log,
+        onToolsChanged, onNotice));
+    Session s = new Session(r.cfg().id(), r.cfg().version(), r.server(), client, null, http, failed.secretValues, now,
+        log);
+    self[0] = s;
+    try {
+      s.init = client.connect(UpstreamClient.Era.LEGACY, PROBE, min(r.server().startTimeout(), r.ctx().remaining()));
+      s.afterConnect(r);
+    } catch (ConnectorException e) {
+      client.close();
+      if (!sse.opened()) {
+        // No event stream there either: the Streamable HTTP failure says what is wrong with the URL.
+        throw original;
+      }
+      throw e;
+    }
+    s.sse = true;
+    log.note("Connected over the HTTP+SSE transport of 2024-11-05: the URL takes no Streamable HTTP POST.");
+    s.startMillis = (System.nanoTime() - started) / 1_000_000;
+    return s;
+  }
+
+  private static ObjectNode clientInfo() {
+    ObjectNode info = JsonNodeFactory.instance.objectNode();
+    info.put("name", "gaterook");
+    info.put("title", "GateRook");
+    info.put("version", BuiltIn.VERSION);
+    return info;
+  }
+
+  /** What the session does about what isn't an answer: a changed tool list is listed again; logs go to its log. */
+  private static UpstreamClient.Events events(Session[] self, ServerLog log, Consumer<Session> onToolsChanged,
+      java.util.function.BiConsumer<String, String> onNotice) {
+    return new UpstreamClient.Events() {
+      @Override
+      public void toolsChanged() {
+        Session current = self[0];
+        if (current == null || current.init == null || current.closing) {
+          return;
+        }
+        try {
+          current.tools = current.client.list("tools/list", "tools", Duration.ofSeconds(30), MAX_TOOLS);
+        } catch (ConnectorException e) {
+          log.note("Couldn't list the tools again after the server said they changed: " + e.getMessage());
+          return;
+        }
+        onToolsChanged.accept(current);
+      }
+
+      @Override
+      public void resourcesChanged() {
+        Session current = self[0];
+        if (current != null) {
+          current.resources = null;
+          current.templates = null;
+        }
+        onNotice.accept("resources", null);
+      }
+
+      @Override
+      public void promptsChanged() {
+        Session current = self[0];
+        if (current != null) {
+          current.prompts = null;
+        }
+        onNotice.accept("prompts", null);
+      }
+
+      @Override
+      public void resourceUpdated(String uri) {
+        onNotice.accept("updated", uri);
+      }
+
+      @Override
+      public void log(ObjectNode params) {
+        JsonNode data = params.get("data");
+        String logger = Texts.str(params.get("logger"), null);
+        log.line("[" + Texts.str(params.get("level"), "info") + "] " + (logger == null ? "" : logger + ": ")
+            + (data == null ? "" : data.isString() ? data.asString() : data.toString()));
+      }
+    };
+  }
+
+  /** The tools again, all pages (Test, Restart). */
+  List<ObjectNode> listTools(Duration budget) throws ConnectorException {
+    tools = client.list("tools/list", "tools", budget, MAX_TOOLS);
     listHash = listHash(tools);
     return tools;
   }
 
   /** What a list of tools declares, as one hash of their definition hashes in order. */
-  static String listHash(List<McpSchema.Tool> tools) {
+  static String listHash(List<ObjectNode> tools) {
     StringBuilder out = new StringBuilder();
-    for (McpSchema.Tool t : tools) {
+    for (ObjectNode t : tools) {
       out.append(Snapshots.definitionHash(t)).append(',');
     }
     return Texts.sha256(out.toString());
+  }
+
+  /** The tool the server lists now under its own name, or {@code null}. */
+  ObjectNode tool(String original) {
+    for (ObjectNode t : tools) {
+      if (original.equals(Texts.str(t.get("name"), null))) {
+        return t;
+      }
+    }
+    return null;
   }
 
   /** Stops the session: the client lets go, then the whole process tree is stopped (TERM, then KILL). */
   void close(PidFile pids) {
     closing = true;
     try {
-      client.closeGracefully().block(Duration.ofSeconds(4));
+      client.close();
     } catch (RuntimeException e) {
       // The process may be gone already.
     }
@@ -319,107 +522,6 @@ final class Session {
     return new ConnectorException(e.kind(), msg.toString(), e.getCause());
   }
 
-  /**
-   * {@link #block} that also ends when the server's process does: the SDK keeps a request open until its timeout, and
-   * a server that died with the answer still owed must not hold a call (or a start) for that long.
-   */
-  <T> T await(Mono<T> mono, Duration budget, String what) throws ConnectorException {
-    Process p = stdio == null ? null : stdio.process();
-    if (p == null) {
-      return block(mono, budget, what);
-    }
-    Mono<T> ended = Mono.fromFuture(p.onExit(), true).then(Mono.error(() -> new Ended(stdio.failure() != null
-        ? stdio.failure() : "The server's process ended before it answered " + what + ".")));
-    return block(Mono.firstWithSignal(mono, ended), budget, what);
-  }
-
-  /** The process ended while a request waited for its answer. */
-  static final class Ended extends RuntimeException {
-    private static final long serialVersionUID = 1L;
-
-    Ended(String message) {
-      super(message, null, false, false);
-    }
-  }
-
-  /**
-   * Waits for {@code mono} at most {@code budget}; what the server answered or why not, as the core's error kinds.
-   * A server that only speaks 2026-07-28 refuses the legacy {@code initialize} or answers it with that revision.
-   */
-  static <T> T block(Mono<T> mono, Duration budget, String what) throws ConnectorException {
-    if (budget.isZero() || budget.isNegative()) {
-      throw ConnectorException.timeout("No time was left for " + what + ".");
-    }
-    try {
-      T value = mono.block(budget);
-      if (value == null) {
-        throw ConnectorException.unavailable("The server gave no answer to " + what + ".", null);
-      }
-      return value;
-    } catch (RuntimeException e) {
-      throw translate(e, budget, what);
-    }
-  }
-
-  static ConnectorException translate(RuntimeException e, Duration budget, String what) {
-    McpServerRuntime.SignInRequired signIn = McpServerRuntime.SignInRequired.in(e);
-    if (signIn != null) {
-      // Nothing reached the server: the message says where to sign in.
-      return ConnectorException.unavailable(signIn.getMessage(), signIn);
-    }
-    for (Throwable t = e; t != null; t = t.getCause()) {
-      if (t instanceof Ended ended) {
-        return ConnectorException.unavailable(ended.getMessage(), e);
-      }
-      if (t instanceof McpError mcp) {
-        String message = mcpMessage(mcp);
-        if (message.contains("2026-07-28")) {
-          return ConnectorException.unavailable("Speaks 2026-07-28 only; GateRook connects up to 2025-11-25.",
-              e);
-        }
-        return ConnectorException.resourceError(message, e);
-      }
-      if (t instanceof TimeoutException || (t instanceof IllegalStateException
-          && String.valueOf(t.getMessage()).startsWith("Timeout on blocking read"))) {
-        return ConnectorException.timeout("Didn't answer " + what + " in " + seconds(budget) + ".");
-      }
-      if (t instanceof InterruptedException) {
-        Thread.currentThread().interrupt();
-        return ConnectorException.timeout(what + " was cancelled.");
-      }
-    }
-    return ConnectorException.unavailable(Texts.clean(String.valueOf(rootMessage(e)), 300, false), e);
-  }
-
-  /** The text of a JSON-RPC error of the server, with its data when that says more. */
-  static String mcpMessage(McpError e) {
-    McpSchema.JSONRPCResponse.JSONRPCError error = e.getJsonRpcError();
-    if (error == null) {
-      return Texts.clean(String.valueOf(e.getMessage()), 500, false);
-    }
-    String message = error.message() == null ? "error " + error.code() : error.message();
-    if (error.data() != null) {
-      String data = String.valueOf(error.data());
-      if (!data.isBlank() && !message.contains(data)) {
-        message = message + " (" + data + ")";
-      }
-    }
-    return Texts.clean(message, 500, false);
-  }
-
-  private static String rootMessage(Throwable e) {
-    Throwable t = e;
-    while (t.getCause() != null && t.getCause() != t) {
-      t = t.getCause();
-    }
-    return t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
-  }
-
-  private static String seconds(Duration d) {
-    long s = Math.max(1, d.toSeconds());
-    return s + " s";
-  }
-
   static Duration min(Duration a, Duration b) {
     return a.compareTo(b) <= 0 ? a : b;
   }
@@ -461,14 +563,5 @@ final class Session {
       throw ConnectorException.unavailable("Couldn't create the server's folder " + workDir + ": " + e.getMessage(),
           e);
     }
-  }
-
-  private static DefaultJsonSchemaValidator validator() {
-    DefaultJsonSchemaValidator v = validator;
-    if (v == null) {
-      v = new DefaultJsonSchemaValidator(Texts.JSON);
-      validator = v;
-    }
-    return v;
   }
 }

@@ -380,10 +380,11 @@ class McpNotificationsIT {
           StringBuilder event = new StringBuilder();
           for (String line; (line = lines.readLine()) != null;) {
             if (line.isEmpty()) {
-              if (!event.isEmpty()) {
+              // Some of these changes change the resource list too (ARCHITECTURE.md §5.5): this test hears tools.
+              if (!event.isEmpty() && !event.toString().contains("notifications/resources/list_changed")) {
                 data.add(event.toString());
-                event.setLength(0);
               }
+              event.setLength(0);
             } else if (line.startsWith("data:")) {
               if (!event.isEmpty()) {
                 event.append('\n');

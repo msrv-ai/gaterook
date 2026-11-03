@@ -47,4 +47,22 @@ public class ClientMemory {
     Remembered remembered = byPrincipal.get(principalId);
     return remembered == null ? null : remembered.capabilities();
   }
+
+  /** {@code logging/setLevel} of a legacy client, by principal and client: the level its later calls' logs start at. */
+  private final Map<String, String> logLevels = new LinkedHashMap<>(64, 0.75f, true) {
+    private static final long serialVersionUID = 1L;
+
+    @Override
+    protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+      return size() > MAX;
+    }
+  };
+
+  public synchronized void logLevel(String principalId, String client, String level) {
+    logLevels.put(principalId + "\0" + (client == null ? "" : client), level);
+  }
+
+  public synchronized String logLevel(String principalId, String client) {
+    return logLevels.get(principalId + "\0" + (client == null ? "" : client));
+  }
 }

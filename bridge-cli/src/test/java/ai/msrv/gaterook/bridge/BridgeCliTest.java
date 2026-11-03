@@ -276,6 +276,36 @@ class BridgeCliTest {
   }
 
   @Test
+  void stdioNamesTheToolOrTheTaskOfAModernRequestInItsHeaders() throws Exception {
+    List<String> named = new java.util.concurrent.CopyOnWriteArrayList<>();
+    HttpServer http = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    http.createContext("/mcp/dev", ex -> {
+      Object id = Json.get(Json.parse(new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)), "id");
+      named.add(ex.getRequestHeaders().getFirst("Mcp-Method") + " " + ex.getRequestHeaders().getFirst("Mcp-Name"));
+      byte[] out = ("{\"jsonrpc\":\"2.0\",\"id\":" + Json.write(id) + ",\"result\":{}}").getBytes(StandardCharsets.UTF_8);
+      ex.getResponseHeaders().add("X-Gateway-Bridge-Instance", "inst-1");
+      ex.getResponseHeaders().add("Content-Type", "application/json");
+      ex.sendResponseHeaders(200, out.length);
+      ex.getResponseBody().write(out);
+      ex.close();
+    });
+    http.start();
+    int port = http.getAddress().getPort();
+    try (FakeBroker broker = new FakeBroker(home, r -> issued(port, "dev", "gwb_n"))) {
+      StdioBridge bridge = new StdioBridge("dev", GRANT, "cursor", BrokerClient.fromEnvironment(Map.of("GW_HOME",
+          home.toString())), new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
+      String meta = "\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"2026-07-28\"}";
+      bridge.handle("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"sql_query\","
+          + meta + "}}");
+      bridge.handle("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tasks/get\",\"params\":{\"taskId\":\"tsk_abc\","
+          + meta + "}}");
+      assertThat(named).containsExactly("tools/call sql_query", "tasks/get tsk_abc");
+    } finally {
+      http.stop(0);
+    }
+  }
+
+  @Test
   void stdioAnswersErrorsWithTheRequestIdAndRefusesForeignUrls() throws Exception {
     ByteArrayOutputStream captured = new ByteArrayOutputStream();
     PrintStream out = new PrintStream(captured, true, StandardCharsets.UTF_8);
@@ -293,6 +323,11 @@ class BridgeCliTest {
     assertThat(StdioBridge.headerName("sql_query")).isEqualTo("sql_query");
     assertThat(StdioBridge.headerName("café")).startsWith("=?base64?").endsWith("?=");
     assertThat(StdioBridge.sseData("data: a\ndata: b\n\ndata: c\n")).containsExactly("a\nb", "c");
+    // An answer that streams goes on event by event, comments and event names left out.
+    java.util.List<String> streamed = new java.util.ArrayList<>();
+    StdioBridge.events(new java.io.ByteArrayInputStream("event: message\ndata: a\r\ndata: b\r\n\r\n: keep\n\ndata: c\n"
+        .getBytes(java.nio.charset.StandardCharsets.UTF_8)), streamed::add);
+    assertThat(streamed).containsExactly("a\nb", "c");
   }
 
   @Test

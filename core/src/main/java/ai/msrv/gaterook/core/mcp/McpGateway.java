@@ -27,6 +27,27 @@ public class McpGateway {
   /** The answer: HTTP status and the JSON-RPC body, or {@code null} for 202 (a notification). */
   public record Response(int status, ObjectNode body) {}
 
+  /**
+   * Where the notifications of a request go before its answer: the event stream the POST is answered with
+   * ({@code notifications/progress}, {@code notifications/message}). Called from the resource's reading thread: it
+   * never blocks.
+   */
+  @FunctionalInterface
+  public interface Stream {
+
+    /** Nobody listens: the request is answered as JSON, and what it would have said goes nowhere. */
+    Stream NONE = notification -> false;
+
+    /** @return whether the notification will reach the client */
+    boolean send(ObjectNode notification);
+
+    /**
+     * What to do when the client closes the stream: over 2026-07-28 that is how it cancels the request, so the call
+     * stops; the 2025 revisions cancel with {@code notifications/cancelled} instead, and ignore it here.
+     */
+    default void onClose(Runnable action) {}
+  }
+
   private final EndpointSnapshotService snapshots;
   private final McpDispatcher dispatcher;
   private final ToolCatalog catalogs;
@@ -50,6 +71,12 @@ public class McpGateway {
    * @param header the request's headers by name (case-insensitive)
    */
   public Response handle(String slug, Caller caller, ObjectNode request, Function<String, String> header) {
+    return handle(slug, caller, request, header, Stream.NONE);
+  }
+
+  /** {@link #handle} whose notifications go to {@code stream} before the answer. */
+  public Response handle(String slug, Caller caller, ObjectNode request, Function<String, String> header,
+      Stream stream) {
     Envelope env;
     try {
       env = EraResolver.resolve(request, header);
@@ -62,7 +89,8 @@ public class McpGateway {
       return new Response(404, JsonRpc.error(env.id(), JsonRpc.METHOD_NOT_FOUND, "Endpoint " + slug + " doesn't "
           + "exist", null));
     }
-    McpDispatcher.Reply reply = dispatcher.dispatch(env, caller, snapshot.get(), header.apply(BridgeClient.HEADER));
+    McpDispatcher.Reply reply = dispatcher.dispatch(env, caller, snapshot.get(), header.apply(BridgeClient.HEADER),
+        stream);
     return new Response(reply.status(), reply.body());
   }
 

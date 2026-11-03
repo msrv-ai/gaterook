@@ -342,9 +342,12 @@ function googleToken(server: PastedServer, headers: { readonly [key: string]: Js
 // ── URLs and names ────────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * A server at a URL. An address for the older SSE transport (`…/sse`) becomes `…/mcp`: GateRook speaks Streamable
- * HTTP, and servers that still document an `/sse` address usually answer at `/mcp` too.
+ * A server at a URL. An address of the older SSE transport (`…/sse`) stays as given: GateRook tries Streamable HTTP
+ * there first and falls back to that transport (§7.5).
  */
+/** What the review says about an address of the older SSE transport. */
+export const SSE_NOTE = 'An SSE address: GateRook speaks the older SSE transport to it when the server takes no Streamable HTTP there. If the server also lists an address ending in /mcp, use that one.';
+
 export function fromUrl(name: string, raw: string, headers: readonly string[], notes: readonly string[]): PastedServer | { readonly error: string } {
   let url: URL;
   try {
@@ -354,8 +357,7 @@ export function fromUrl(name: string, raw: string, headers: readonly string[], n
   }
   const out = [...notes];
   if (/\/sse\/?$/.test(url.pathname)) {
-    url.pathname = url.pathname.replace(/\/sse\/?$/, '/mcp');
-    out.unshift('Changed /sse to /mcp: GateRook connects over Streamable HTTP, and servers that list an SSE address usually answer there too.');
+    out.unshift(SSE_NOTE);
   }
   const value = url.toString().replace(/\/$/, url.pathname === '/' ? '' : '/');
   return { name: serverName(name, url), transport: 'http', url: value, command: '', variables: unique(headers), notes: out, others: 0 };

@@ -1,11 +1,11 @@
 import { McpRegistryArgument, McpRegistryPackage, McpRegistryRemote, McpRegistryServer } from '../../core/api/plugins.api';
 import { joinAnd } from './connectors-view';
-import { PastedServer, fromArgv, fromUrl, serverName, valuesNote } from './mcp-paste';
+import { PastedServer, SSE_NOTE, fromArgv, fromUrl, serverName, valuesNote } from './mcp-paste';
 
 /**
  * How Add MCP server takes an entry of the MCP registry (§7.5): the first remote it can connect to (Streamable HTTP,
- * else an SSE address, which becomes `/mcp`), else a package it can start over stdio (npm with npx, PyPI with uvx),
- * else nothing, with the reason.
+ * else an SSE address, as given), else a package it can start over stdio (npm with npx, PyPI with uvx), else nothing,
+ * with the reason.
  */
 export type RegistryUse =
   | { readonly kind: 'remote'; readonly remote: McpRegistryRemote }
@@ -62,12 +62,12 @@ function fromRemote(s: McpRegistryServer, remote: McpRegistryRemote): PastedServ
   return {
     name: registryName(s.name),
     transport: 'http',
-    url: sse ? remote.url.replace(/\/sse\/?$/, '/mcp') : remote.url,
+    url: remote.url,
     command: '',
     variables: headers,
     notes: [
       `Replace ${joinAnd(template)} in the URL with your own ${template.length === 1 ? 'value' : 'values'}.${described.length ? ` ${described.join('. ')}.` : ''}`,
-      ...(sse ? ['Changed /sse to /mcp: GateRook connects over Streamable HTTP, and servers that list an SSE address usually answer there too.'] : []),
+      ...(sse ? [SSE_NOTE] : []),
       ...notes,
     ],
     others: 0,
