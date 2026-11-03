@@ -41,6 +41,8 @@ Adding a server ends as adding a connection does: GateRook offers the endpoints 
 
 The server is then listed in **Connections** with the other connections, where you test, edit or delete it. In **Connectors › MCP servers** you can also restart it, sign in to it again or sign out.
 
+Editing a server checks its sign-in as adding it does. Its tool prefix stays the one it was added with, because endpoints and agents know its tools by it: to use another prefix, add the server again. A cloud key (a service account key or a secret access key) can be replaced there but not added: to switch to a key, add the server again with it.
+
 ## What a server shares besides tools
 
 The review says what a server offers besides tools: resources, prompts, and the MCP Apps its tools show. Its tools are published as described above. The rest reaches agents as follows:
