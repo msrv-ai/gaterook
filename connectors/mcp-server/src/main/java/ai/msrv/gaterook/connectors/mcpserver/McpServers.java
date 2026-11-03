@@ -302,10 +302,52 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
   @Override
   public Session open(Session.Request request, Supervisor owner) throws ConnectorException {
     String name = request.cfg().name();
+    String id = request.cfg().id();
     Session s = Session.open(request, workDir(name), launcher(), log(name), pids(), now(),
-        x -> toolsChanged(x, request, owner), owner::exited);
-    s.listen();
+        x -> toolsChanged(x, request, owner), owner::exited, (what, uri) -> notice(id, name, what, uri));
+    s.subscribe(upstream(name, subscriptions.getOrDefault(id, java.util.Set.of())));
     return s;
+  }
+
+  /** The resources of each stored server clients subscribe to now, as endpoints publish them. */
+  private final Map<String, java.util.Set<String>> subscriptions = new ConcurrentHashMap<>();
+
+  /** Clients subscribe to {@code uris} of a server now: its running session hears their updates, and its next one. */
+  void subscriptions(String connectionId, String name, java.util.Set<String> uris) {
+    if (uris.isEmpty()) {
+      subscriptions.remove(connectionId);
+    } else {
+      subscriptions.put(connectionId, java.util.Set.copyOf(uris));
+    }
+    Session s = running(connectionId);
+    if (s != null) {
+      s.subscribe(upstream(name, uris));
+    }
+  }
+
+  private static java.util.Set<String> upstream(String name, java.util.Set<String> exposed) {
+    java.util.Set<String> out = new java.util.LinkedHashSet<>();
+    for (String uri : exposed) {
+      Federation.upstream(name, uri).ifPresent(out::add);
+    }
+    return out;
+  }
+
+  /** What a server said outside any call, for the host: a changed list, an updated resource (as published). */
+  private void notice(String connectionId, String name, String what, String uri) {
+    Host h = host;
+    if (h == null || connectionId.startsWith("draft-")) {
+      return;
+    }
+    try {
+      if ("updated".equals(what)) {
+        h.resourceUpdated(connectionId, Federation.exposed(name, uri));
+      } else {
+        h.listChanged(connectionId, what);
+      }
+    } catch (RuntimeException e) {
+      LOG.log(System.Logger.Level.WARNING, "The core didn't take a notification of an MCP server", e);
+    }
   }
 
   /**

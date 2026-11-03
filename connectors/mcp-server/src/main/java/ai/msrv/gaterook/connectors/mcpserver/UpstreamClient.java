@@ -65,6 +65,8 @@ final class UpstreamClient implements Channel.Sink {
   static final String META_SERVER = "io.modelcontextprotocol/serverInfo";
   static final String META_SUBSCRIPTION = "io.modelcontextprotocol/subscriptionId";
   static final String META_RELATED_TASK = "io.modelcontextprotocol/related-task";
+  /** The Tasks extension of 2026-07-28: a server that offers it may answer {@code tools/call} with a task. */
+  static final String TASKS_EXTENSION = "io.modelcontextprotocol/tasks";
 
   /** What a refusal of every revision says. */
   static final String SPEAKS = "GateRook speaks " + MODERN + " and " + LEGACY.getFirst() + " back to " + LEGACY.getLast()
@@ -311,6 +313,9 @@ final class UpstreamClient implements Channel.Sink {
     for (int round = 0; ; round++) {
       Duration left = ask.budget().minusNanos(System.nanoTime() - started);
       ObjectNode r = once(method, p, left, ask);
+      if (era == Era.MODERN && "tools/call".equals(method) && "task".equals(Texts.str(r.get("resultType"), null))) {
+        return awaitTask(r, ask, started);
+      }
       if (era != Era.MODERN || !"input_required".equals(Texts.str(r.get("resultType"), null))) {
         return r;
       }
@@ -346,6 +351,10 @@ final class UpstreamClient implements Channel.Sink {
     Pending pend = new Pending(id, method, ask.watch());
     if (era == Era.MODERN) {
       envelope(p, ask.watch().logLevel());
+      if ("tools/call".equals(method) && offersTasks()) {
+        // Only a call may become a task, so only a call says the client takes one.
+        ((ObjectNode) meta(p).get(META_CAPABILITIES)).putObject("extensions").putObject(TASKS_EXTENSION);
+      }
     }
     if (ask.watch().progress() != null) {
       String token = "gr-" + id;
@@ -527,6 +536,34 @@ final class UpstreamClient implements Channel.Sink {
     Thread.ofVirtual().name("mcp-listen").start(() -> listenLoop(filter));
   }
 
+  /**
+   * The resources to hear updates of, over the 2025 revisions: {@code resources/subscribe} for each new one,
+   * {@code resources/unsubscribe} for each no longer wanted (on a thread of its own: nobody waits for it). Over
+   * 2026-07-28 {@link #listen} carries them instead.
+   */
+  void subscriptions(java.util.Set<String> before, java.util.Set<String> now) {
+    Hello h = hello;
+    if (h == null || closed != null || h.era() != Era.LEGACY
+        || !h.capabilities().path("resources").path("subscribe").asBoolean(false)) {
+      return;
+    }
+    List<String[]> changes = new ArrayList<>();
+    now.stream().filter(x -> !before.contains(x)).forEach(x -> changes.add(new String[] {"resources/subscribe", x}));
+    before.stream().filter(x -> !now.contains(x)).forEach(x -> changes.add(new String[] {"resources/unsubscribe", x}));
+    if (changes.isEmpty()) {
+      return;
+    }
+    Thread.ofVirtual().name("mcp-subscribe").start(() -> {
+      for (String[] c : changes) {
+        try {
+          request(c[0], JsonNodeFactory.instance.objectNode().put("uri", c[1]), Ask.within(Duration.ofSeconds(10)));
+        } catch (ConnectorException e) {
+          // The server keeps its subscriptions as it can; updates of that resource may not come.
+        }
+      }
+    });
+  }
+
   private void listenLoop(ObjectNode filter) {
     long backoff = 1_000;
     while (closed == null && filter.equals(listening)) {
@@ -596,7 +633,7 @@ final class UpstreamClient implements Channel.Sink {
     }
   }
 
-  // ── Tasks (2025-11-25) ──────────────────────────────────────────────────────────────────────────────────────
+  // ── Tasks (2025-11-25 and the extension of 2026-07-28) ───────────────────────────────────────────────────────
 
   /**
    * {@code tools/call} as a task, for a tool that requires one ({@code execution.taskSupport: "required"}) on a server
@@ -659,6 +696,76 @@ final class UpstreamClient implements Channel.Sink {
           new Ask(left.isNegative() ? Duration.ofSeconds(5) : left, Watch.NONE, null, Map.of()));
     } catch (ConnectorException e) {
       if (!terminal(task)) {
+        try {
+          request("tasks/cancel", JsonNodeFactory.instance.objectNode().put("taskId", taskId),
+              Ask.within(Duration.ofSeconds(5)));
+        } catch (ConnectorException ignored) {
+          // It ends by its ttl.
+        }
+      }
+      throw e;
+    }
+  }
+
+  /** Whether the server of 2026-07-28 runs tool calls as tasks of the extension. */
+  private boolean offersTasks() {
+    Hello h = hello;
+    return h != null && h.era() == Era.MODERN && h.capabilities().path("extensions").path(TASKS_EXTENSION).isObject();
+  }
+
+  /**
+   * A {@code tools/call} that a server of 2026-07-28 answered with a task of the Tasks extension: its status is polled
+   * ({@code tasks/get}, as often as the server suggests) until it ends, when the same answer carries the result. A
+   * task that wants input, or outlives the budget or the call, is cancelled ({@code tasks/cancel}).
+   */
+  private ObjectNode awaitTask(ObjectNode task, Ask ask, long started) throws ConnectorException {
+    String taskId = Texts.str(task.get("taskId"), null);
+    if (taskId == null) {
+      throw ConnectorException.resourceError(server + " started a task without an id.", null);
+    }
+    ObjectNode now = task;
+    try {
+      while (!terminal(now)) {
+        if ("input_required".equals(Texts.str(now.get("status"), null))) {
+          throw ConnectorException.resourceError(server + " wants input GateRook doesn't give to go on with the "
+              + "task " + Texts.clean(taskId, 80, false) + ".", null);
+        }
+        Duration left = ask.budget().minusNanos(System.nanoTime() - started);
+        if (left.isNegative() || left.isZero()) {
+          throw ConnectorException.timeout("The task of " + server + " didn't end in " + seconds(ask.budget()) + ".");
+        }
+        if (ask.ctx() != null && ask.ctx().cancelled()) {
+          throw ConnectorException.timeout("The task was cancelled.");
+        }
+        long interval = Math.clamp(now.path("pollIntervalMs").asLong(1_000), 250, 5_000);
+        CompletableFuture<Void> wake = new CompletableFuture<>();
+        taskWaits.put(taskId, wake);
+        try {
+          wake.get(Math.min(interval, left.toMillis()), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException | ExecutionException e) {
+          // Time to look.
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          throw ConnectorException.timeout("The task was cancelled.");
+        } finally {
+          taskWaits.remove(taskId);
+        }
+        now = request("tasks/get", JsonNodeFactory.instance.objectNode().put("taskId", taskId),
+            Ask.within(min(Duration.ofSeconds(30), left)));
+      }
+      String status = Texts.str(now.get("status"), "");
+      if ("completed".equals(status) && now.get("result") instanceof ObjectNode result) {
+        return result;
+      }
+      if ("failed".equals(status) && now.get("error") instanceof ObjectNode error) {
+        Rpc.Error e = Rpc.Error.of(error);
+        throw ConnectorException.resourceError(e.getMessage(), e);
+      }
+      throw ConnectorException.resourceError(server + ("cancelled".equals(status) ? " cancelled the task"
+          : " ended the task " + Texts.clean(status, 40, false) + " without a result") + statusMessage(now) + ".",
+          null);
+    } catch (ConnectorException e) {
+      if (!terminal(now)) {
         try {
           request("tasks/cancel", JsonNodeFactory.instance.objectNode().put("taskId", taskId),
               Ask.within(Duration.ofSeconds(5)));

@@ -10,10 +10,16 @@ import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.BooleanSupplier;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,7 +31,8 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * What a server shares besides tools ({@link RawMcpServer}, 2026-07-28): its resources, templates and prompts under the
  * connection's namespace and prefix, only when the person lets it share them; the app a reviewed tool names, whether
- * or not; images and links of a tool's result as blocks.
+ * or not; images and links of a tool's result as blocks; the updates of the resources clients subscribe to, and its
+ * changed lists, in both eras.
  */
 class SharingTest {
 
@@ -36,6 +43,8 @@ class SharingTest {
   Path home;
 
   private McpServers runtime;
+  private Fixtures.Host host;
+  private Path wire;
   private Fixtures.Secrets secrets;
 
   @BeforeEach
@@ -43,8 +52,10 @@ class SharingTest {
     runtime = new McpServers(Map.of("PATH", System.getenv().getOrDefault("PATH", "/usr/bin:/bin"),
         "HOME", home.toString()), System.getProperty("os.name"), false, Clock.systemUTC(), Duration.ofMillis(100),
         McpServerConnector.typeManifest());
-    runtime.attach(new Fixtures.Host(home));
-    secrets = new Fixtures.Secrets().with("/env/0/secretRef", home.resolve("wire.jsonl").toString());
+    host = new Fixtures.Host(home);
+    runtime.attach(host);
+    wire = home.resolve("wire.jsonl");
+    secrets = new Fixtures.Secrets().with("/env/0/secretRef", wire.toString());
   }
 
   @AfterEach
@@ -53,6 +64,10 @@ class SharingTest {
   }
 
   private static ConnectionConfig cfg(String share) {
+    return cfg("modern", share);
+  }
+
+  private static ConnectionConfig cfg(String mode, String share) {
     ObjectNode c = Fixtures.object("{\"transport\":\"stdio\",\"env\":[{\"name\":\"RAW_LOG\"}]"
         + (share.isEmpty() ? "" : ",\"share\":" + share) + "}");
     ArrayNode command = c.putArray("command");
@@ -60,7 +75,7 @@ class SharingTest {
     command.add("-cp");
     command.add(System.getProperty("java.class.path"));
     command.add(RawMcpServer.class.getName());
-    command.add("modern");
+    command.add(mode);
     return Fixtures.cfg("cn_raw", "raw-mcp", Env.DEV, 1, c);
   }
 
@@ -72,6 +87,35 @@ class SharingTest {
 
   private Fixtures.Context ctx() {
     return Fixtures.Context.of(Duration.ofSeconds(30));
+  }
+
+  /** What the client wrote to the server's stdin, one message a line. */
+  private List<JsonNode> sent() {
+    List<JsonNode> out = new ArrayList<>();
+    try {
+      if (Files.exists(wire)) {
+        for (String line : Files.readAllLines(wire)) {
+          out.add(Texts.JSON.readTree(line));
+        }
+      }
+    } catch (IOException e) {
+      // Being written: the next look reads it.
+    }
+    return out;
+  }
+
+  private List<JsonNode> sent(String method) {
+    return sent().stream().filter(m -> m.path("method").asString("").equals(method)).toList();
+  }
+
+  private static void await(BooleanSupplier condition) throws InterruptedException {
+    long end = System.nanoTime() + Duration.ofSeconds(10).toNanos();
+    while (!condition.getAsBoolean()) {
+      if (System.nanoTime() > end) {
+        throw new AssertionError("Condition not met in 10 s");
+      }
+      Thread.sleep(50);
+    }
   }
 
   @Test
@@ -174,5 +218,48 @@ class SharingTest {
     assertThat(r.content().get(0).mimeType()).isEqualTo("image/png");
     assertThat(r.content().get(1).type()).isEqualTo("resource_link");
     assertThat(r.content().get(1).uri()).isEqualTo(EXPOSED_WELCOME);
+  }
+
+  @Test
+  void subscribedResourcesTellTheirUpdatesInBothEras() throws Exception {
+    for (String mode : new String[] {"modern", "dual"}) {
+      host.notices.clear();
+      Files.deleteIfExists(wire);
+      ConnectionConfig cfg = cfg(mode, "{\"resources\":true}");
+      McpServerRuntime.Handshake h = runtime.probe(cfg, secrets, ctx());
+      // The dual server reviewed in 2025-11-25: its session speaks that era.
+      String version = mode.equals("dual") ? "2025-11-25" : h.protocolVersion();
+      Connector c = runtime.connector(cfg, new McpServerRuntime.Snapshot("raw_", h.serverVersion(), version,
+          h.tools(), null));
+      // Clients subscribe before the session runs: it hears them when it opens. Another server's URI isn't its own.
+      c.subscriptions(cfg, Set.of(EXPOSED_WELCOME, "mcpgw://connections/other/mcp/notes://welcome"));
+      c.execute(Fixtures.call("raw_echo", "{\"text\":\"x\"}"), cfg, secrets, ctx());
+      if (mode.equals("modern")) {
+        await(() -> sent("subscriptions/listen").stream().anyMatch(m -> m.path("params").path("notifications")
+            .path("resourceSubscriptions").toString().equals("[\"notes://welcome\"]")));
+        assertThat(sent("resources/subscribe")).as(mode).isEmpty();
+      } else {
+        await(() -> !sent("resources/subscribe").isEmpty());
+        assertThat(sent("resources/subscribe")).as(mode).singleElement()
+            .satisfies(m -> assertThat(m.path("params").path("uri").asString()).isEqualTo("notes://welcome"));
+      }
+
+      // The server may take its stream a moment after the request arrives: ask until it tells.
+      for (int i = 0; i < 20 && !host.notices.contains("updated " + EXPOSED_WELCOME); i++) {
+        assertThat(c.execute(Fixtures.call("raw_touch", "{}"), cfg, secrets, ctx()).content().getFirst().text())
+            .isEqualTo("touched");
+        Thread.sleep(250);
+      }
+      assertThat(host.notices).as(mode).contains("updated " + EXPOSED_WELCOME, "resources");
+
+      c.subscriptions(cfg, Set.of());
+      if (mode.equals("modern")) {
+        await(() -> sent("subscriptions/listen").getLast().path("params").path("notifications")
+            .path("resourceSubscriptions").isMissingNode());
+      } else {
+        await(() -> sent("resources/unsubscribe").size() == 1);
+      }
+      runtime.stop("cn_raw");
+    }
   }
 }

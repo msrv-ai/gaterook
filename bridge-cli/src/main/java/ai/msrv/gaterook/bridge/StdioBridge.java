@@ -41,6 +41,9 @@ final class StdioBridge implements AutoCloseable {
   private static final String INSTANCE_HEADER = "X-Gateway-Bridge-Instance";
   private static final String CLIENT_HEADER = "X-Gateway-Bridge-Client";
   private static final int MAX_CLIENT_HEADER = 4096;
+  /** The methods of the 2026-07-28 Tasks extension, whose Mcp-Name is the task's id. */
+  private static final java.util.Set<String> TASK_METHODS = java.util.Set.of("tasks/get", "tasks/update",
+      "tasks/cancel");
   /** The most of one answer the bridge reads. */
   static final int MAX_ANSWER = 64 * 1024 * 1024;
 
@@ -409,7 +412,8 @@ final class StdioBridge implements AutoCloseable {
         b.header("Mcp-Method", method);
       }
       String name = "resources/read".equals(method) ? Json.string(params, "uri")
-          : "tools/call".equals(method) || "prompts/get".equals(method) ? Json.string(params, "name") : null;
+          : "tools/call".equals(method) || "prompts/get".equals(method) ? Json.string(params, "name")
+          : TASK_METHODS.contains(method) ? Json.string(params, "taskId") : null;
       if (name != null) {
         b.header("Mcp-Name", headerName(name));
       }

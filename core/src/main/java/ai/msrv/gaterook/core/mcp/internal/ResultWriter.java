@@ -36,6 +36,13 @@ public final class ResultWriter {
     return result;
   }
 
+  /** A task in place of the result (the Tasks extension of 2026-07-28: {@code resultType: task}). */
+  public static ObjectNode task(ObjectNode task) {
+    task.put("resultType", "task");
+    serverInfo(task);
+    return task;
+  }
+
   /** {@code input_required} (MRTR, modern only). */
   public static ObjectNode inputRequired(ObjectNode inputRequests, String requestState) {
     ObjectNode r = JsonNodeFactory.instance.objectNode();

@@ -209,6 +209,12 @@ describe('gw-bridge.mjs', () => {
       assert.equal(post.headers['mcp-protocol-version'], '2026-07-28');
       assert.equal(post.headers['mcp-method'], 'tools/call');
       assert.equal(post.headers['mcp-name'], 'sql_query');
+      // A task of the 2026-07-28 Tasks extension is named by its id.
+      await b.call({ jsonrpc: '2.0', id: 4, method: 'tasks/get', params: { taskId: 'tsk_abc',
+        _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28' } } });
+      const task = core.seen.filter((s) => s.url === '/mcp/dev').at(-1);
+      assert.equal(task.headers['mcp-method'], 'tasks/get');
+      assert.equal(task.headers['mcp-name'], 'tsk_abc');
       assert.equal(headerName('café'), `=?base64?${Buffer.from('café').toString('base64')}?=`);
     } finally {
       await b.stop();

@@ -3,6 +3,7 @@ package ai.msrv.gaterook.core.mcpservers;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
 import ai.msrv.gaterook.core.connections.ConnectionConfigs;
 import ai.msrv.gaterook.core.connections.ConnectionRemovalParticipant;
+import ai.msrv.gaterook.core.connectors.ConnectionNotified;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.mcpservers.internal.persistence.McpServerRepository;
 import ai.msrv.gaterook.core.platform.EventBus;
@@ -13,6 +14,7 @@ import java.util.Optional;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -41,11 +43,12 @@ class RuntimeHost implements McpServerRuntime.Host, SmartInitializingSingleton, 
   private final McpServerSource source;
   private final EventBus events;
   private final ObjectProvider<McpServerSignIns> signIns;
+  private final ApplicationEventPublisher publisher;
 
   RuntimeHost(ObjectProvider<McpServerRuntime> runtime, GatewayPaths paths, ObjectProvider<ConnectorRegistry> registry,
       ObjectProvider<McpServerService> service, ObjectProvider<ConnectionConfigs> configs,
       McpServerRepository repository, McpServerSource source, EventBus events,
-      ObjectProvider<McpServerSignIns> signIns) {
+      ObjectProvider<McpServerSignIns> signIns, ApplicationEventPublisher publisher) {
     this.runtime = runtime;
     this.paths = paths;
     this.registry = registry;
@@ -55,6 +58,7 @@ class RuntimeHost implements McpServerRuntime.Host, SmartInitializingSingleton, 
     this.source = source;
     this.events = events;
     this.signIns = signIns;
+    this.publisher = publisher;
   }
 
   @Override
@@ -113,6 +117,19 @@ class RuntimeHost implements McpServerRuntime.Host, SmartInitializingSingleton, 
       data.put("detail", process.detail());
     }
     events.publish("mcp-server.state", data);
+  }
+
+  /** A server's resources or prompts changed: the endpoints it is on tell their clients that listen. */
+  @Override
+  public void listChanged(String connectionId, String what) {
+    publisher.publishEvent(new ConnectionNotified(connectionId, "prompts".equals(what)
+        ? ConnectionNotified.Kind.PROMPTS_CHANGED : ConnectionNotified.Kind.RESOURCES_CHANGED, null));
+  }
+
+  /** A resource clients subscribed to was updated: they hear it. */
+  @Override
+  public void resourceUpdated(String connectionId, String uri) {
+    publisher.publishEvent(new ConnectionNotified(connectionId, ConnectionNotified.Kind.RESOURCE_UPDATED, uri));
   }
 
   @Override

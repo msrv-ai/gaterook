@@ -20,7 +20,8 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * A stdio MCP server written against the wire, for what the SDK's server of the tests can't do: the 2026-07-28
  * revision (no {@code initialize}, the envelope in every request's {@code _meta}, {@code input_required} rounds,
- * {@code subscriptions/listen}), both eras on one process as servers of that revision do, and tasks of 2025-11-25.
+ * {@code subscriptions/listen}, the Tasks extension), both eras on one process as servers of that revision do, and
+ * tasks of 2025-11-25.
  * Every line it reads is appended to the file {@code RAW_LOG} names, so a test can see what the client sent.
  *
  * <p>Modes (first argument): {@code modern} (2026-07-28 only: {@code initialize} is refused), {@code dual} (both,
@@ -38,7 +39,10 @@ public final class RawMcpServer {
   private final Path log;
   private final Set<Long> cancelled = ConcurrentHashMap.newKeySet();
   private final Map<String, AtomicInteger> tasks = new ConcurrentHashMap<>();
-  private final Map<Long, Boolean> listens = new ConcurrentHashMap<>();
+  /** The open listen streams and what each opted in to. */
+  private final Map<Long, JsonNode> listens = new ConcurrentHashMap<>();
+  /** The resources a client of the 2025 era subscribed to. */
+  private final Set<String> subscribed = ConcurrentHashMap.newKeySet();
   private volatile String era;
   private volatile String echoDescription = "Echoes text back.";
 
@@ -133,6 +137,7 @@ public final class RawMcpServer {
         r.put("protocolVersion", "2025-11-25");
         ObjectNode caps = r.putObject("capabilities");
         caps.putObject("tools").put("listChanged", true);
+        caps.putObject("resources").put("listChanged", true).put("subscribe", true);
         if (mode.equals("tasks")) {
           ObjectNode t = caps.putObject("tasks");
           t.putObject("cancel");
@@ -146,6 +151,14 @@ public final class RawMcpServer {
       case "tools/list" -> result(id, tools(), modern);
       case "tools/call" -> call(id, params, modern);
       case "subscriptions/listen" -> listen(id.asLong(), params);
+      case "resources/subscribe" -> {
+        subscribed.add(params.path("uri").asString(""));
+        result(id, JSON.createObjectNode(), false);
+      }
+      case "resources/unsubscribe" -> {
+        subscribed.remove(params.path("uri").asString(""));
+        result(id, JSON.createObjectNode(), false);
+      }
       case "resources/list" -> {
         ObjectNode r = JSON.createObjectNode();
         ArrayNode list = r.putArray("resources");
@@ -215,12 +228,21 @@ public final class RawMcpServer {
         String taskId = params.path("taskId").asString();
         AtomicInteger polls = tasks.get(taskId);
         int n = polls == null ? 99 : polls.incrementAndGet();
+        if (modern) {
+          // The extension's answer: the task itself, and its result once it completed.
+          ObjectNode r = modernTask(taskId, n >= 2 ? "completed" : "working");
+          if (n >= 2) {
+            r.set("result", text("later done after polls", false));
+          }
+          result(id, r, true);
+          return;
+        }
         result(id, task(taskId, n >= 2 ? "completed" : "working"), false);
       }
       case "tasks/result" -> result(id, text("task done after polls", false), false);
       case "tasks/cancel" -> {
         tasks.remove(params.path("taskId").asString());
-        result(id, task(params.path("taskId").asString(), "cancelled"), false);
+        result(id, modern ? JSON.createObjectNode() : task(params.path("taskId").asString(), "cancelled"), modern);
       }
       default -> error(id, -32601, "Method not found: " + method, null);
     }
@@ -234,6 +256,7 @@ public final class RawMcpServer {
     caps.putObject("resources").put("listChanged", true).put("subscribe", true);
     caps.putObject("prompts").put("listChanged", true);
     caps.putObject("completions");
+    caps.putObject("extensions").putObject("io.modelcontextprotocol/tasks");
     r.put("instructions", "Modern instructions.");
     r.put("ttlMs", 60_000);
     r.put("cacheScope", "public");
@@ -255,6 +278,10 @@ public final class RawMcpServer {
     chart.putObject("annotations").put("readOnlyHint", true);
     tool(list, "picture", "Answers a picture and a link.").putObject("annotations").put("readOnlyHint", true);
     tool(list, "steps", "Reports three steps of progress and logs one.").putObject("annotations")
+        .put("readOnlyHint", true);
+    tool(list, "touch", "Says that the welcome note and the resource list changed.").putObject("annotations")
+        .put("readOnlyHint", true);
+    tool(list, "later", "Runs as a task when the client takes one.").putObject("annotations")
         .put("readOnlyHint", true);
     if (mode.equals("tasks")) {
       tool(list, "job", "Runs as a task.").putObject("execution").put("taskSupport", "required");
@@ -312,6 +339,44 @@ public final class RawMcpServer {
         send(response(id, r));
       }
       case "chart" -> result(id, text("chart data", false), modern);
+      case "later" -> {
+        boolean takesTasks = params.path("_meta").path("io.modelcontextprotocol/clientCapabilities")
+            .path("extensions").path("io.modelcontextprotocol/tasks").isObject();
+        if (!modern || !takesTasks) {
+          result(id, text("later done at once", false), modern);
+          return;
+        }
+        String taskId = "later-" + id.asString();
+        tasks.put(taskId, new AtomicInteger());
+        ObjectNode r = modernTask(taskId, "working");
+        r.put("resultType", "task");
+        send(response(id, r));
+      }
+      case "touch" -> {
+        String welcome = "notes://welcome";
+        if (modern) {
+          // Each listen stream hears what it opted in to, with its id.
+          listens.forEach((listen, filter) -> {
+            boolean wantsWelcome = false;
+            for (JsonNode uri : filter.path("resourceSubscriptions")) {
+              wantsWelcome |= uri.asString("").equals(welcome);
+            }
+            if (wantsWelcome) {
+              send(notification("notifications/resources/updated", JSON.createObjectNode().put("uri", welcome),
+                  listen));
+            }
+            if (filter.path("resourcesListChanged").asBoolean(false)) {
+              send(notification("notifications/resources/list_changed", JSON.createObjectNode(), listen));
+            }
+          });
+        } else {
+          if (subscribed.contains(welcome)) {
+            send(notification("notifications/resources/updated", JSON.createObjectNode().put("uri", welcome), null));
+          }
+          send(notification("notifications/resources/list_changed", null, null));
+        }
+        result(id, text("touched", false), modern);
+      }
       case "steps" -> {
         JsonNode token = params.path("_meta").get("progressToken");
         String level = params.path("_meta").path("io.modelcontextprotocol/logLevel").asString(null);
@@ -387,7 +452,7 @@ public final class RawMcpServer {
   }
 
   private void listen(long id, JsonNode params) {
-    listens.put(id, Boolean.TRUE);
+    listens.put(id, params.path("notifications").deepCopy());
     ObjectNode ack = JSON.createObjectNode();
     ack.put("jsonrpc", "2.0");
     ack.put("method", "notifications/subscriptions/acknowledged");
@@ -395,6 +460,33 @@ public final class RawMcpServer {
     p.putObject("_meta").put("io.modelcontextprotocol/subscriptionId", id);
     p.set("notifications", params.path("notifications").deepCopy());
     send(ack);
+  }
+
+  /** A notification outside any request; one of a listen stream carries its id. */
+  private static ObjectNode notification(String method, ObjectNode params, Long subscription) {
+    ObjectNode n = JSON.createObjectNode();
+    n.put("jsonrpc", "2.0");
+    n.put("method", method);
+    if (subscription != null) {
+      ObjectNode p = params == null ? JSON.createObjectNode() : params;
+      p.putObject("_meta").put("io.modelcontextprotocol/subscriptionId", subscription);
+      n.set("params", p);
+    } else if (params != null) {
+      n.set("params", params);
+    }
+    return n;
+  }
+
+  /** A task as the Tasks extension of 2026-07-28 writes it: its fields at the top of the result. */
+  private static ObjectNode modernTask(String taskId, String status) {
+    ObjectNode t = JSON.createObjectNode();
+    t.put("taskId", taskId);
+    t.put("status", status);
+    t.put("createdAt", "2026-10-25T10:00:00Z");
+    t.put("lastUpdatedAt", "2026-10-25T10:00:01Z");
+    t.put("ttlMs", 60_000);
+    t.put("pollIntervalMs", 100);
+    return t;
   }
 
   private static ObjectNode task(String taskId, String status) {

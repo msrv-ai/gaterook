@@ -112,6 +112,9 @@ export function brokerCall(address, request, waitMs = BROKER_WAIT_MS) {
   });
 }
 
+/** The methods of the 2026-07-28 Tasks extension, whose Mcp-Name is the task's id. */
+const TASK_METHODS = new Set(['tasks/get', 'tasks/update', 'tasks/cancel']);
+
 /** The header value of Mcp-Name: as is when plain ASCII, else the base64 sentinel of the 2026-07-28 transport. */
 export function headerName(value) {
   return /^[\x20-\x7e]*$/.test(value) && value.trim() === value ? value
@@ -374,7 +377,8 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
       headers['MCP-Protocol-Version'] = modern;
       headers['Mcp-Method'] = msg.method;
       const name = msg.method === 'resources/read' ? msg.params.uri
-        : (msg.method === 'tools/call' || msg.method === 'prompts/get') ? msg.params.name : null;
+        : (msg.method === 'tools/call' || msg.method === 'prompts/get') ? msg.params.name
+          : TASK_METHODS.has(msg.method) ? msg.params.taskId : null;
       if (typeof name === 'string') headers['Mcp-Name'] = headerName(name);
     } else if (msg && msg.method !== 'initialize') {
       if (negotiated) headers['MCP-Protocol-Version'] = negotiated;

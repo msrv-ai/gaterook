@@ -24,7 +24,7 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * What external MCP servers share besides tools, through a real core (ARCHITECTURE.md §5.3): resources, templates,
+ * What external MCP servers share besides tools, through a real core (ARCHITECTURE.md §5.4): resources, templates,
  * prompts and completions of a sharing server under its connection's namespace, masked and audited like reads; the
  * apps of its tools for clients that render them, and app-only tools only for them; images, blobs and links of
  * results as blocks, withheld when their bytes carry a secret.

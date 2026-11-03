@@ -324,6 +324,8 @@ final class Fixtures {
     final List<McpServerRuntime.Handshake> handshakes = new CopyOnWriteArrayList<>();
     final List<McpServerRuntime.ProcessView> states = new CopyOnWriteArrayList<>();
     final List<String> wanted = new CopyOnWriteArrayList<>();
+    /** What the servers said outside any call: a changed list ({@code resources}, {@code prompts}) or an update. */
+    final List<String> notices = new CopyOnWriteArrayList<>();
     final Set<String> reserved = new LinkedHashSet<>(List.of("sql_query", "approval_status"));
 
     Host(Path home) {
@@ -354,6 +356,16 @@ final class Fixtures {
     @Override
     public void wanted(String connectionId) {
       wanted.add(connectionId);
+    }
+
+    @Override
+    public void listChanged(String connectionId, String what) {
+      notices.add(what);
+    }
+
+    @Override
+    public void resourceUpdated(String connectionId, String uri) {
+      notices.add("updated " + uri);
     }
 
     @Override

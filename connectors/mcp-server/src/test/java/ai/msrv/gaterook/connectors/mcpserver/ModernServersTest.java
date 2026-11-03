@@ -32,7 +32,8 @@ import tools.jackson.databind.node.ObjectNode;
  * server is asked {@code server/discover} first, every request carries the envelope, {@code input_required} rounds
  * that only carry state go again, a request that asks the person something fails, a call the gateway gives up is
  * cancelled at the server, tool changes arrive on a {@code subscriptions/listen} stream, a stored server is spoken to
- * in the era it was reviewed in, and a tool of 2025-11-25 that requires a task runs as one.
+ * in the era it was reviewed in, a tool of 2025-11-25 that requires a task runs as one, and a server of 2026-07-28 that
+ * offers the Tasks extension may answer a call with a task.
  */
 class ModernServersTest {
 
@@ -238,6 +239,29 @@ class ModernServersTest {
         .findFirst().orElseThrow();
     assertThat(call.path("params").path("task").path("ttl").asLong()).isPositive();
     assertThat(methods()).contains("tasks/get", "tasks/result");
+  }
+
+  @Test
+  void aServerOf2026MayAnswerACallWithATaskOfTheExtension() throws Exception {
+    ConnectionConfig cfg = cfg("modern", "");
+    McpServerRuntime.Handshake h = runtime.probe(cfg, secrets, Fixtures.Context.of(Duration.ofSeconds(60)));
+    Connector c = runtime.connector(cfg, new McpServerRuntime.Snapshot("raw_", h.serverVersion(), h.protocolVersion(),
+        h.tools(), null));
+
+    ToolResult r = c.execute(Fixtures.call("raw_later", "{}"), cfg, secrets, Fixtures.Context.of(Duration.ofSeconds(30)));
+
+    assertThat(r.content().getFirst().text()).isEqualTo("later done after polls");
+    JsonNode call = sent().stream().filter(m -> m.path("params").path("name").asString("").equals("later"))
+        .findFirst().orElseThrow();
+    assertThat(call.path("params").path("_meta").path("io.modelcontextprotocol/clientCapabilities").path("extensions")
+        .has("io.modelcontextprotocol/tasks")).isTrue();
+    List<JsonNode> polls = sent().stream().filter(m -> m.path("method").asString("").equals("tasks/get")).toList();
+    assertThat(polls).hasSize(2).allSatisfy(m -> assertThat(m.path("params").path("taskId").asString())
+        .isEqualTo("later-" + call.path("id").asString()));
+    // Only a call may become a task: nothing else says the client takes one.
+    assertThat(sent()).filteredOn(m -> !m.path("method").asString("").equals("tools/call"))
+        .allSatisfy(m -> assertThat(m.path("params").path("_meta").path("io.modelcontextprotocol/clientCapabilities")
+            .isEmpty()).isTrue());
   }
 
   @Test

@@ -114,6 +114,15 @@ public interface McpServerRuntime extends AutoCloseable {
     void wanted(String connectionId);
 
     /**
+     * A running server said its resources ({@code resources}) or prompts ({@code prompts}) changed. Called on the
+     * runtime's own thread; the host must not block it for long.
+     */
+    default void listChanged(String connectionId, String what) {}
+
+    /** A resource a client subscribed to was updated; {@code uri} as endpoints publish it. */
+    default void resourceUpdated(String connectionId, String uri) {}
+
+    /**
      * The OAuth sign-in of a stored HTTP server whose config asks for one ({@code auth.type: "oauth"}), asked for when
      * a session opens: empty when the core keeps none for it, and then the session's requests go without one.
      */

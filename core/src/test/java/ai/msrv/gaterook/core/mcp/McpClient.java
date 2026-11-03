@@ -80,20 +80,30 @@ final class McpClient {
   // ── Modern ──────────────────────────────────────────────────────────────────────────────────────────────────
 
   Answer modern(String method, ObjectNode params, boolean elicitationUrl) {
-    ObjectNode meta = params.has("_meta") ? (ObjectNode) params.get("_meta") : params.putObject("_meta");
-    meta.put("io.modelcontextprotocol/protocolVersion", MODERN);
-    ObjectNode caps = meta.putObject("io.modelcontextprotocol/clientCapabilities");
+    ObjectNode caps = JsonNodeFactory.instance.objectNode();
     if (elicitationUrl) {
       caps.putObject("elicitation").putObject("url");
     }
+    return modern(method, params, caps);
+  }
+
+  /** A modern request whose client declares {@code capabilities}. */
+  Answer modern(String method, ObjectNode params, ObjectNode capabilities) {
+    ObjectNode meta = params.has("_meta") ? (ObjectNode) params.get("_meta") : params.putObject("_meta");
+    meta.put("io.modelcontextprotocol/protocolVersion", MODERN);
+    meta.set("io.modelcontextprotocol/clientCapabilities", capabilities);
     meta.putObject("io.modelcontextprotocol/clientInfo").put("name", "codex-mcp-client").put("version", "0.164.0");
     Map<String, String> headers = new LinkedHashMap<>();
     headers.put("MCP-Protocol-Version", MODERN);
     headers.put("Mcp-Method", method);
-    String name = method.equals("resources/read") ? params.path("uri").asString(null)
-        : params.path("name").asString(null);
-    if (name != null && (method.equals("tools/call") || method.equals("prompts/get")
-        || method.equals("resources/read"))) {
+    String field = switch (method) {
+      case "tools/call", "prompts/get" -> "name";
+      case "resources/read" -> "uri";
+      case "tasks/get", "tasks/update", "tasks/cancel" -> "taskId";
+      default -> null;
+    };
+    String name = field == null ? null : params.path(field).asString(null);
+    if (name != null) {
       headers.put("Mcp-Name", name);
     }
     return post(request(method, params).toString(), headers);

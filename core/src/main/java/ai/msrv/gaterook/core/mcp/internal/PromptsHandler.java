@@ -26,7 +26,7 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Prompts and completions (ARCHITECTURE.md §5.3): the gateway's own prompts ({@link Prompts}) and those of every
+ * Prompts and completions (ARCHITECTURE.md §5.4): the gateway's own prompts ({@link Prompts}) and those of every
  * external MCP server the person let share its prompts, named as the endpoint publishes them (its tool prefix and the
  * server's name); {@code completion/complete} for a shared prompt's argument or a shared resource template's variable.
  *
@@ -81,6 +81,16 @@ public class PromptsHandler {
       }
     }
     return out;
+  }
+
+  /** Which connections of the endpoint share their prompts, as a hash: a list a client keeps is stale when it changes. */
+  public String offerHash(ai.msrv.gaterook.core.endpoints.EndpointSnapshot s) {
+    StringBuilder out = new StringBuilder();
+    for (Sharing.Shared x : Sharing.of(s, registry, Sharing.What.PROMPTS)) {
+      out.append(x.name()).append(':').append(x.config().version()).append('|');
+    }
+    return ai.msrv.gaterook.core.platform.CanonicalJson.sha256Hex(JsonNodeFactory.instance.stringNode(
+        out.toString()));
   }
 
   /** Whether a connection of the endpoint shares prompts of its own. */

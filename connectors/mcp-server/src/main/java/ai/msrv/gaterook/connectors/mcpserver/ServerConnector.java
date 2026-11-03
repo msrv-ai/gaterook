@@ -277,7 +277,7 @@ final class ServerConnector implements Connector {
     return e;
   }
 
-  // ── What the server shares besides tools (ARCHITECTURE.md §5.3) ──────────────────────────────────────────────
+  // ── What the server shares besides tools (ARCHITECTURE.md §5.4) ──────────────────────────────────────────────
 
   @Override
   public boolean sharesResources(ConnectionConfig cfg) {
@@ -397,6 +397,12 @@ final class ServerConnector implements Connector {
       return s.client.request("completion/complete", p, new UpstreamClient.Ask(Session.min(Duration.ofSeconds(10),
           ctx.remaining()), UpstreamClient.Watch.NONE, ctx, Map.of()));
     });
+  }
+
+  /** Only what the server shares: an app isn't a resource clients subscribe to. */
+  @Override
+  public void subscriptions(ConnectionConfig cfg, java.util.Set<String> uris) {
+    runtime.subscriptions(cfg.id(), cfg.name(), server.shareResources() ? uris : java.util.Set.of());
   }
 
   /** The prompts of the server under the connection's prefix, listed again when the cached list is stale. */

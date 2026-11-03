@@ -27,7 +27,7 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * What a client hears while a call runs (ARCHITECTURE.md §5.4): its progress for its {@code progressToken} and the
+ * What a client hears while a call runs (ARCHITECTURE.md §5.5): its progress for its {@code progressToken} and the
  * resource's log messages at the level it asked for, on an event stream the POST is answered with once there is
  * something to say, masked, then the answer; a call that says nothing is answered as JSON; and a client's
  * {@code notifications/cancelled} stops its own call.

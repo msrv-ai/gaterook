@@ -14,7 +14,7 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * What an MCP server shares besides tools, as an endpoint publishes it (ARCHITECTURE.md §5.3): its resources under the
+ * What an MCP server shares besides tools, as an endpoint publishes it (ARCHITECTURE.md §5.4): its resources under the
  * connection's namespace ({@code mcpgw://connections/<name>/mcp/<the server's URI>}), its MCP Apps under the
  * connection's app namespace ({@code ui://gaterook/connections/<name>/<the rest of the server's ui:// URI>}), its
  * prompts under the connection's tool prefix. The mapping is plain and reversible: no two servers can answer for each

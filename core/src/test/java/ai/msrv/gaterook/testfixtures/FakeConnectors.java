@@ -214,6 +214,10 @@ public class FakeConnectors {
         .build(), false);
   }
 
+  /** What each sharing connection was last told its clients subscribe to. */
+  public static final java.util.Map<String, java.util.Set<String>> SUBSCRIBED =
+      new java.util.concurrent.ConcurrentHashMap<>();
+
   /** The calls of {@code gh_wait} that were cancelled while they waited. */
   public static final List<String> CANCELLED = new CopyOnWriteArrayList<>();
 
@@ -315,6 +319,11 @@ public class FakeConnectors {
             List.of(), 0, 0, null);
       }
       throw ConnectorException.resourceError("No such resource " + uri, null);
+    }
+
+    @Override
+    public void subscriptions(ConnectionConfig cfg, java.util.Set<String> uris) {
+      SUBSCRIBED.put(cfg.name(), java.util.Set.copyOf(uris));
     }
 
     @Override

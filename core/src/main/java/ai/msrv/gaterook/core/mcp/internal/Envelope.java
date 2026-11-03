@@ -27,6 +27,12 @@ public record Envelope(Era era, String version, JsonNode id, String method, Obje
         && clientCapabilities.path("elicitation").path("url").isObject();
   }
 
+  /** The client takes tasks of the 2026-07-28 Tasks extension in this request ({@link CallTasks}). */
+  public boolean takesTasks() {
+    return era == Era.MODERN && clientCapabilities != null
+        && clientCapabilities.path("extensions").path(CallTasks.EXTENSION).isObject();
+  }
+
   public JsonNode meta() {
     JsonNode meta = params.path("_meta");
     return meta.isObject() ? meta : JsonNodeFactory.instance.objectNode();

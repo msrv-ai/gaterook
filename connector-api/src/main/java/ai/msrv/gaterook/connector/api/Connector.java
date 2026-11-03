@@ -140,6 +140,12 @@ public interface Connector extends AutoCloseable {
     return null;
   }
 
+  /**
+   * The resources of this connection clients subscribe to now ({@link #listResources}'s URIs), whenever that changes:
+   * a connection whose resource tells about updates asks it for them while it runs. No I/O in the call itself.
+   */
+  default void subscriptions(ConnectionConfig cfg, java.util.Set<String> uris) {}
+
   /** No-code template kinds: "sql-query" (SQL), "ssh-runbook" (SSH), "openapi" (HTTP). */
   default List<TemplateKind> templateKinds() {
     return List.of();

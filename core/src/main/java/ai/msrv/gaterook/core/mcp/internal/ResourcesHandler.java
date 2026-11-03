@@ -35,7 +35,7 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Resources (report 01 §3.6, ARCHITECTURE.md §5.3), from three places, every one under the URI namespace of the
+ * Resources (report 01 §3.6, ARCHITECTURE.md §5.4), from three places, every one under the URI namespace of the
  * connection it belongs to ({@link ResourceDescriptor#prefix}):
  *
  * <ul>
@@ -279,6 +279,44 @@ public class ResourcesHandler {
     return new ConnectorInvoker.Request(callId, cfg, new ToolCall(callId, tool, cfg.name(),
         args == null ? JsonNodeFactory.instance.objectNode() : args, null), decision.limits(), mask,
         r.span().traceId(), r.span().traceparent(), () -> snapshots.requireAvailable(r.snapshot().id(), cfg.name()));
+  }
+
+  /**
+   * Whether a client of {@code s} may hear updates of {@code uri}: a resource of a connection that shares its own, the
+   * policy letting the endpoint read it. An app, a built-in resource or anyone else's URI has none.
+   */
+  public boolean subscribable(EndpointSnapshot s, String uri) {
+    Optional<Sharing.Shared> shared = Sharing.forUri(s, registry, uri);
+    return shared.isPresent() && uri.startsWith(ResourceDescriptor.prefix(shared.get().name()))
+        && decide(shared.get().view(), shared.get().config()).outcome() == Decision.Outcome.ALLOW;
+  }
+
+  /**
+   * The resources an endpoint offers, as a hash, without asking any server: what its connections declare and its apps,
+   * as {@link #list} lists them, and which connections share their own (with their versions). A list a client keeps is
+   * stale when this changes; what a sharing server lists changes when it says so ({@code ConnectionNotified}).
+   */
+  public String offerHash(EndpointSnapshot s) {
+    StringBuilder out = new StringBuilder(Boolean.toString(s.blocked()));
+    for (Offer o : offers(s)) {
+      if (decide(o.pair().view(), o.pair().config()).outcome() == Decision.Outcome.ALLOW) {
+        ResourceDescriptor d = o.descriptor();
+        out.append("\n").append(d.uri()).append('|').append(d.name()).append('|').append(d.mimeType()).append('|')
+            .append(d.description());
+      }
+    }
+    for (App a : apps(s)) {
+      if (decide(a.view(), a.pair().config()).outcome() == Decision.Outcome.ALLOW) {
+        out.append("\napp ").append(a.uri()).append('|').append(a.pair().tool().title());
+      }
+    }
+    for (Sharing.Shared x : Sharing.of(s, registry, Sharing.What.RESOURCES)) {
+      if (decide(x.view(), x.config()).outcome() == Decision.Outcome.ALLOW) {
+        out.append("\nshared ").append(x.name()).append(':').append(x.config().version());
+      }
+    }
+    return ai.msrv.gaterook.core.platform.CanonicalJson.sha256Hex(JsonNodeFactory.instance.stringNode(
+        out.toString()));
   }
 
   /** A resource read is a READ of its pair: the same policy gates as a tool call of it. */

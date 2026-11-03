@@ -192,6 +192,16 @@ final class Session {
    */
   static Session open(Request r, Path workDir, Launcher launcher, ServerLog log, PidFile pids, Instant now,
       Consumer<Session> onToolsChanged, Consumer<Session> onExit) throws ConnectorException {
+    return open(r, workDir, launcher, log, pids, now, onToolsChanged, onExit, (what, uri) -> {});
+  }
+
+  /**
+   * @param onNotice what the server says outside any call besides its tools: {@code resources} or {@code prompts}
+   *                 changed ({@code uri} null), or the resource {@code uri} (the server's) was {@code updated}
+   */
+  static Session open(Request r, Path workDir, Launcher launcher, ServerLog log, PidFile pids, Instant now,
+      Consumer<Session> onToolsChanged, Consumer<Session> onExit, java.util.function.BiConsumer<String, String> onNotice)
+      throws ConnectorException {
     long started = System.nanoTime();
     ServerConfig server = r.server();
     Map<String, String> values = new LinkedHashMap<>();
@@ -253,7 +263,7 @@ final class Session {
     }
     Session[] self = new Session[1];
     UpstreamClient client = new UpstreamClient(channel, clientInfo(), server.name(), events(self, log,
-        onToolsChanged));
+        onToolsChanged, onNotice));
     Session s = new Session(r.cfg().id(), r.cfg().version(), server, client, stdio, http, secretValues, now, log);
     self[0] = s;
     if (stdio != null) {
@@ -270,7 +280,7 @@ final class Session {
         s.init = client.connect(r.era(), PROBE, budget);
       } catch (ConnectorException e) {
         Session sse = http != null && noStreamableHttp(e)
-            ? viaSse(r, s, http, log, now, self, onToolsChanged, e, started) : null;
+            ? viaSse(r, s, http, log, now, self, onToolsChanged, onNotice, e, started) : null;
         if (sse == null) {
           throw e;
         }
@@ -296,14 +306,29 @@ final class Session {
     listHash = listHash(tools);
   }
 
+  /** The server's URIs of the resources clients subscribed to through the gateway. */
+  private volatile java.util.Set<String> subscribed = java.util.Set.of();
+
   /**
-   * Opens the stream on which the server tells what isn't an answer, when it offers to tell anything: a session that
-   * serves calls, never a throw-away review.
+   * Hears what changes and updates from now on: the tool, resource and prompt lists the server offers to tell about,
+   * and the updates of {@code uris} (the server's) when it takes subscriptions. Its stream opens when the server offers
+   * to tell anything, and only for a session that serves calls, never a throw-away review.
    */
-  void listen() {
-    if (init != null && init.capabilities().path("tools").path("listChanged").asBoolean(false)) {
-      client.listen(List.of());
+  synchronized void subscribe(java.util.Set<String> uris) {
+    java.util.Set<String> before = subscribed;
+    subscribed = java.util.Set.copyOf(uris);
+    if (init == null) {
+      return;
     }
+    JsonNode caps = init.capabilities();
+    boolean tells = caps.path("tools").path("listChanged").asBoolean(false)
+        || caps.path("resources").path("listChanged").asBoolean(false)
+        || caps.path("prompts").path("listChanged").asBoolean(false)
+        || (caps.path("resources").path("subscribe").asBoolean(false) && !subscribed.isEmpty());
+    if (tells) {
+      client.listen(List.copyOf(subscribed));
+    }
+    client.subscriptions(before, subscribed);
   }
 
   /**
@@ -327,13 +352,13 @@ final class Session {
    * answer: that is the transport the URL was given for.
    */
   private static Session viaSse(Request r, Session failed, HttpCalls http, ServerLog log, Instant now,
-      Session[] self, Consumer<Session> onToolsChanged, ConnectorException original, long started)
-      throws ConnectorException {
+      Session[] self, Consumer<Session> onToolsChanged, java.util.function.BiConsumer<String, String> onNotice,
+      ConnectorException original, long started) throws ConnectorException {
     failed.closing = true;
     failed.client.close();
     GatewaySseTransport sse = new GatewaySseTransport(http);
     UpstreamClient client = new UpstreamClient(sse, clientInfo(), r.server().name(), events(self, log,
-        onToolsChanged));
+        onToolsChanged, onNotice));
     Session s = new Session(r.cfg().id(), r.cfg().version(), r.server(), client, null, http, failed.secretValues, now,
         log);
     self[0] = s;
@@ -363,7 +388,8 @@ final class Session {
   }
 
   /** What the session does about what isn't an answer: a changed tool list is listed again; logs go to its log. */
-  private static UpstreamClient.Events events(Session[] self, ServerLog log, Consumer<Session> onToolsChanged) {
+  private static UpstreamClient.Events events(Session[] self, ServerLog log, Consumer<Session> onToolsChanged,
+      java.util.function.BiConsumer<String, String> onNotice) {
     return new UpstreamClient.Events() {
       @Override
       public void toolsChanged() {
@@ -387,6 +413,7 @@ final class Session {
           current.resources = null;
           current.templates = null;
         }
+        onNotice.accept("resources", null);
       }
 
       @Override
@@ -395,6 +422,12 @@ final class Session {
         if (current != null) {
           current.prompts = null;
         }
+        onNotice.accept("prompts", null);
+      }
+
+      @Override
+      public void resourceUpdated(String uri) {
+        onNotice.accept("updated", uri);
       }
 
       @Override

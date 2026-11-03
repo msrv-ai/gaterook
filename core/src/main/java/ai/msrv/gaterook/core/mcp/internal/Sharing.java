@@ -20,7 +20,7 @@ import java.util.function.Function;
 
 /**
  * The connections of an endpoint that share what only they can list — the resources and prompts of an external MCP
- * server whose person let it share them (ARCHITECTURE.md §5.3) — and the pair each is decided through. Such a pair is
+ * server whose person let it share them (ARCHITECTURE.md §5.4) — and the pair each is decided through. Such a pair is
  * a READ of the connection on the endpoint, in Read only: the person's choice to share is the confirmation, and the
  * policy still decides it (a policy that didn't verify, a prod connection outside a prod endpoint, a read-only
  * endpoint with a mutation). A connection that is unusable or paused by the user shares nothing.
