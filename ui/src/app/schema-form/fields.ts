@@ -116,6 +116,15 @@ export class GwSchemaField {
     return this.value() === option;
   }
 
+  /**
+   * A choice that may stay empty says "Not set" and keeps that option once a value is picked, as the playground's do:
+   * an optional field, or one an omittable object requires (Sign-in's type), so the object can be left out again.
+   */
+  protected clearable(): boolean {
+    const n = this.node();
+    return n.schema['default'] === undefined && (!n.required || n.within.length > 0);
+  }
+
   // ─── Tags ───
 
   protected tags(): string[] {

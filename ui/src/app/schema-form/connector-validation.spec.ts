@@ -184,6 +184,17 @@ const cases: readonly ConnectionCase[] = [
     config: { transport: 'stdio', command: ['node', '/example/mcp-server.js'] } },
   { name: 'External MCP: HTTP without a local command', type: 'mcp-server',
     config: { transport: 'http', url: 'https://mcp.example.test/mcp' } },
+  { name: 'External MCP: HTTP with an OAuth sign-in', type: 'mcp-server',
+    config: { transport: 'http', url: 'https://mcp.example.test/mcp', auth: { type: 'oauth' } } },
+  { name: 'External MCP: HTTP with its own OAuth app', type: 'mcp-server',
+    config: { transport: 'http', url: 'https://mcp.example.test/mcp', auth: { type: 'oauth', clientId: 'gaterook-example' } },
+    secrets: { '/auth/clientSecret': 'test-only-client-secret' } },
+  { name: 'External MCP: HTTP with Google Cloud credentials', type: 'mcp-server',
+    config: { transport: 'http', url: 'https://mcp.example.test/mcp', auth: { type: 'google', credentials: { source: 'adc' } } } },
+  { name: 'External MCP: HTTP with an AWS access key', type: 'mcp-server',
+    config: { transport: 'http', url: 'https://aws-mcp.us-east-1.api.aws/mcp',
+      auth: { type: 'aws', credentials: { source: 'accessKey', accessKeyId } } },
+    secrets: { '/auth/credentials/secretAccessKey': secretKey } },
 ];
 
 describe('schema-form: minimal active connector configurations', () => {
@@ -286,6 +297,42 @@ describe('schema-form: minimal active connector configurations', () => {
       '/credentials/privateKey': { source: 'local', value: 'test-only-pasted-key' },
       '/credentials/passphrase': { source: 'local', value: 'test-only-key-passphrase' },
     });
+  });
+
+  it('External MCP: HTTP without a sign-in sends no auth, and a sign-in filled in needs its type', () => {
+    const form = createSchemaForm(CONNECTOR_FORMS['mcp-server'], {
+      idPrefix: 'mcp-auth', current: { transport: 'http', url: 'https://mcp.example.test/mcp' }, injector: TestBed.inject(Injector),
+    });
+    const active = (pointer: string) => form.compiled.all.find((node) => node.pointer === pointer && form.visible(node))!;
+    expect(form.submit()).toBe(true);
+    expect(form.value()).not.toHaveProperty('auth');
+
+    form.setSecret(active('/auth/clientSecret'), 'test-only-client-secret');
+    expect(form.submit()).toBe(false);
+    expect(form.invalidNodes().map((node) => node.pointer)).toEqual(['/auth/type']);
+    form.set(active('/auth/type'), 'oauth');
+    expect(form.submit()).toBe(true);
+    expect(form.value()['auth']).toMatchObject({ type: 'oauth', callbackHost: '127.0.0.1', callbackPath: '/callback' });
+    expect(form.secretInputs()).toEqual({ '/auth/clientSecret': { source: 'local', value: 'test-only-client-secret' } });
+
+    form.set(active('/auth/type'), null);
+    form.setSecret(active('/auth/clientSecret'), '');
+    expect(form.submit()).toBe(true);
+    expect(form.value()).not.toHaveProperty('auth');
+    expect(form.secretInputs()).toEqual({});
+  });
+
+  it('External MCP: a stored sign-in keeps its settings and a stdio server never sends one', () => {
+    const stored = { transport: 'http', url: 'https://mcp.example.test/mcp', auth: { type: 'oauth', optional: true } };
+    const http = createSchemaForm(CONNECTOR_FORMS['mcp-server'], { idPrefix: 'mcp-stored', current: stored, injector: TestBed.inject(Injector) });
+    expect(http.submit()).toBe(true);
+    expect(http.value()['auth']).toMatchObject({ type: 'oauth', optional: true });
+
+    const stdio = createSchemaForm(CONNECTOR_FORMS['mcp-server'], {
+      idPrefix: 'mcp-stdio', current: { transport: 'stdio', command: ['node', '/example/mcp-server.js'] }, injector: TestBed.inject(Injector),
+    });
+    expect(stdio.submit()).toBe(true);
+    expect(stdio.value()).not.toHaveProperty('auth');
   });
 
   it('Redis keeps database zero when the user only enters the host', () => {
@@ -391,6 +438,10 @@ describe('schema-form: minimal active connector configurations', () => {
       pointer: '/auth/username' },
     { name: 'External MCP stdio command', type: 'mcp-server', config: { transport: 'stdio' }, pointer: '/command' },
     { name: 'External MCP HTTP URL', type: 'mcp-server', config: { transport: 'http' }, pointer: '/url' },
+    { name: 'External MCP sign-in type once a sign-in setting is filled in', type: 'mcp-server',
+      config: { transport: 'http', url: 'https://mcp.example.test/mcp', auth: { clientId: 'gaterook-example' } }, pointer: '/auth/type' },
+    { name: 'External MCP sign-in type once a sign-in default is changed', type: 'mcp-server',
+      config: { transport: 'http', url: 'https://mcp.example.test/mcp', auth: { callbackHost: 'localhost' } }, pointer: '/auth/type' },
   ];
 
   for (const sample of missingRequired) {

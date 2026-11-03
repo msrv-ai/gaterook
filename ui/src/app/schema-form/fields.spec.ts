@@ -150,3 +150,47 @@ describe('secret reference fields', () => {
     expect(view.form.secretInputs()).toEqual({});
   });
 });
+
+const CHOICE_SCHEMA: JsonObject = {
+  type: 'object', required: ['mode'], properties: {
+    mode: { enum: ['read', 'write'] },
+    start: { enum: ['on-first-call', 'with-core'], default: 'on-first-call' },
+    context: { enum: ['kind-dev', 'gke-prod'] },
+    auth: { type: 'object', title: 'Sign-in', required: ['type'], properties: { type: { enum: ['oauth', 'google'] } } },
+  },
+};
+
+@Component({ imports: [GwSchemaForm], template: '<gw-schema-form [form]="form" />' })
+class ChoiceHost {
+  readonly form = createSchemaForm(CHOICE_SCHEMA, { idPrefix: 'choice' });
+}
+
+describe('choices that may stay empty', () => {
+  it('say Not set and keep it once a value is picked, so an omittable object can be left out again', async () => {
+    TestBed.configureTestingModule({ providers: [provideKitIcons()] });
+    const fixture = TestBed.createComponent(ChoiceHost);
+    const form = fixture.componentInstance.form;
+    const settle = async () => { fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges(); };
+    await settle();
+    const el = fixture.nativeElement as HTMLElement;
+    const select = (id: string) => el.querySelector<HTMLSelectElement>(`#choice-${id}`)!;
+    const empty = (id: string) => [...select(id).options].filter((o) => o.value === '').map((o) => o.text);
+    const pick = async (id: string, value: string) => {
+      select(id).value = value;
+      select(id).dispatchEvent(new Event('change', { bubbles: true }));
+      await settle();
+    };
+    expect(['mode', 'start', 'context', 'auth-type'].map(empty)).toEqual([['Choose…'], [], ['Not set'], ['Not set']]);
+
+    await pick('mode', 'read');
+    await pick('context', 'gke-prod');
+    await pick('auth-type', 'oauth');
+    expect(['mode', 'context', 'auth-type'].map(empty)).toEqual([[], ['Not set'], ['Not set']]);
+    expect(form.value()).toEqual({ mode: 'read', start: 'on-first-call', context: 'gke-prod', auth: { type: 'oauth' } });
+
+    await pick('auth-type', '');
+    await pick('context', '');
+    expect(form.value()).toEqual({ mode: 'read', start: 'on-first-call' });
+    expect(form.submit()).toBe(true);
+  });
+});
