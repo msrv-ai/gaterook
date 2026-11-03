@@ -11,7 +11,6 @@ import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
 import ai.msrv.gaterook.connectors.cloudauth.CloudEndpoints;
 import ai.msrv.gaterook.connectors.support.egress.GuardedEgress;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
-import io.modelcontextprotocol.spec.McpSchema;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
@@ -156,8 +155,9 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
   public Handshake probe(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Authorization authorization)
       throws ConnectorException {
     ServerConfig server = ServerConfig.of(cfg);
+    // A new server: which revision it speaks is found out.
     Session.Request request = new Session.Request(cfg, server, server.toolPrefix(), null, secrets, ctx,
-        authorization, credentials(cfg, server, secrets, ctx));
+        authorization, credentials(cfg, server, secrets, ctx), null);
     try {
       Session s = Session.open(request, workDir(cfg.name()), launcher(), log(cfg.name()), pids(), now(), x -> {},
           x -> {});
@@ -262,8 +262,10 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
       throw ConnectorException.unavailable("GateRook is quitting.", null);
     }
     ServerConfig server = ServerConfig.of(cfg);
+    // A call speaks the era the review recorded; a person's Test, Start or Restart finds out again.
     Session.Request request = new Session.Request(cfg, server, snapshot.toolPrefix(), snapshot.npmIntegrity(),
-        secrets, ctx, server.oauth() ? authorization(cfg.id()) : null, credentials(cfg, server, secrets, ctx));
+        secrets, ctx, server.oauth() ? authorization(cfg.id()) : null, credentials(cfg, server, secrets, ctx),
+        why == Supervisor.Why.PERSON ? null : Session.Request.eraOf(snapshot.protocolVersion()));
     String config = configFingerprint(server, snapshot.npmIntegrity());
     String full = fingerprint(config, cfg, server, secrets, ctx);
     Duration budget = Session.min(server.startTimeout().plusSeconds(5), ctx.remaining());
@@ -300,8 +302,10 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
   @Override
   public Session open(Session.Request request, Supervisor owner) throws ConnectorException {
     String name = request.cfg().name();
-    return Session.open(request, workDir(name), launcher(), log(name), pids(), now(),
-        s -> toolsChanged(s, request, owner), owner::exited);
+    Session s = Session.open(request, workDir(name), launcher(), log(name), pids(), now(),
+        x -> toolsChanged(x, request, owner), owner::exited);
+    s.listen();
+    return s;
   }
 
   /**
@@ -450,18 +454,19 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
     return l;
   }
 
-  private Handshake handshake(Session.Request request, Session s, List<McpSchema.Tool> tools) {
+  private Handshake handshake(Session.Request request, Session s, List<ObjectNode> tools) {
     Host h = host;
-    Snapshots.Mapped mapped = Snapshots.of(request.toolPrefix(), tools, name -> h == null ? Optional.empty()
+    Snapshots.Mapped mapped = Snapshots.fromJson(request.toolPrefix(), tools, name -> h == null ? Optional.empty()
         : h.reservedProblem(name));
     ObjectNode info = Texts.JSON.createObjectNode();
-    McpSchema.Implementation impl = s.init == null ? null : s.init.serverInfo();
+    ObjectNode impl = s.init == null ? null : s.init.serverInfo();
     if (impl != null) {
-      info.put("name", Texts.clean(String.valueOf(impl.name()), 200, false));
-      if (impl.title() != null) {
-        info.put("title", Texts.clean(impl.title(), 200, false));
+      info.put("name", Texts.clean(Texts.str(impl.get("name"), String.valueOf(impl.get("name"))), 200, false));
+      if (impl.path("title").isString()) {
+        info.put("title", Texts.clean(impl.get("title").asString(), 200, false));
       }
-      info.put("version", Texts.clean(String.valueOf(impl.version()), 100, false));
+      info.put("version", Texts.clean(Texts.str(impl.get("version"), String.valueOf(impl.get("version"))), 100,
+          false));
     }
     List<String> notes = new ArrayList<>();
     notes.add(mapped.tools().size() + " tools, " + Snapshots.annotated(mapped.tools()) + " declare annotations");
@@ -471,10 +476,13 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
     if (!request.server().http() && Commands.notPinned(request.server().command())) {
       notes.add("Not pinned: it can fetch new code on every start");
     }
+    if (s.sse) {
+      notes.add("Over the HTTP+SSE transport of 2024-11-05: the URL takes no Streamable HTTP");
+    }
     String instructions = s.init == null || s.init.instructions() == null ? null
         : Texts.clean(s.init.instructions(), 4_000, true);
-    return new Handshake(info, s.init == null ? null : s.init.protocolVersion(), instructions, mapped.tools(),
-        mapped.rejected(), s.startMillis, notes);
+    return new Handshake(info, s.protocolVersion(), instructions, mapped.tools(), mapped.rejected(), s.startMillis,
+        notes);
   }
 
   private void announce(String connectionId, Handshake h) {

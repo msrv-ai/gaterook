@@ -11,10 +11,10 @@ import org.springframework.aot.hint.RuntimeHintsRegistrar;
  * Native-image hints of the External MCP server connector; they live with the module, not in the core
  * (ARCHITECTURE.md §2.3).
  *
- * <p>The MCP SDK binds every JSON-RPC message to the records nested in {@link McpSchema} with Jackson, several levels
- * deep ({@code InitializeResult → ServerCapabilities → ToolCapabilities}). One record missing from the image doesn't
- * fail loudly: its response can't be bound, the request never completes and {@code initialize} hangs until its
- * timeout (report 15, 20 s in native). So every nested type is registered, recursively, with all its members.
+ * <p>The client reads messages as trees, but a server's tools are bound to the SDK's {@code Tool} record with Jackson
+ * for their definition hash ({@code Snapshots.tool}), and that record nests others ({@code ToolAnnotations},
+ * {@code Icon}). One record missing from the image doesn't fail loudly: the tool can't be read and isn't published. So
+ * every type nested in {@link McpSchema} is registered, recursively, with all its members.
  */
 class McpServerHints implements RuntimeHintsRegistrar {
 

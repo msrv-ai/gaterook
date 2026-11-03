@@ -182,6 +182,10 @@ final class Fixtures {
       return new Context(Duration.ofSeconds(30), true, payload, null);
     }
 
+    static Context approved(JsonNode payload, Duration timeout) {
+      return new Context(timeout, true, payload, null);
+    }
+
     @Override
     public String callId() {
       return "tc_test";

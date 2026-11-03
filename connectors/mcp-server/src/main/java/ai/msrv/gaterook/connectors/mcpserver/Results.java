@@ -1,7 +1,6 @@
 package ai.msrv.gaterook.connectors.mcpserver;
 
 import ai.msrv.gaterook.connector.api.ToolResult;
-import io.modelcontextprotocol.spec.McpSchema;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -18,37 +17,42 @@ final class Results {
 
   private Results() {}
 
-  static ToolResult of(McpSchema.CallToolResult r) {
+  static ToolResult of(JsonNode r) {
     List<ToolResult.Content> content = new ArrayList<>();
-    for (McpSchema.Content c : r.content() == null ? List.<McpSchema.Content>of() : r.content()) {
+    for (JsonNode c : r.path("content")) {
       content.add(ToolResult.Content.text(text(c)));
     }
-    JsonNode structured = r.structuredContent() == null ? null : Texts.JSON.valueToTree(r.structuredContent());
-    boolean error = Boolean.TRUE.equals(r.isError());
+    JsonNode s = r.get("structuredContent");
+    JsonNode structured = s == null || s.isNull() ? null : s;
+    boolean error = r.path("isError").asBoolean(false);
     return new ToolResult(List.copyOf(content), structured, error, null, false, null, List.of(), 0, 0, null);
   }
 
   /** The text a content block becomes. */
-  static String text(McpSchema.Content c) {
-    return switch (c) {
-      case McpSchema.TextContent t -> t.text() == null ? "" : t.text();
-      case McpSchema.ImageContent i -> "[image " + i.mimeType() + ", " + size(i.data()) + ", not passed on by "
+  static String text(JsonNode c) {
+    String type = Texts.str(c.get("type"), "");
+    return switch (type) {
+      case "text" -> Texts.str(c.get("text"), "");
+      case "image" -> "[image " + Texts.str(c.get("mimeType"), "") + ", " + size(Texts.str(c.get("data"), null))
+          + ", not passed on by GateRook]";
+      case "audio" -> "[audio " + Texts.str(c.get("mimeType"), "") + ", " + size(Texts.str(c.get("data"), null))
+          + ", not passed on by GateRook]";
+      case "resource_link" -> "Resource link (data, not fetched by GateRook): " + Texts.str(c.get("uri"), "")
+          + (c.path("name").isString() ? " · " + c.get("name").asString() : "")
+          + (c.path("mimeType").isString() ? " · " + c.get("mimeType").asString() : "");
+      case "resource" -> embedded(c.path("resource"));
+      default -> "[" + Texts.clean(type.isEmpty() ? "unknown" : type, 40, false) + " content, not passed on by "
           + "GateRook]";
-      case McpSchema.AudioContent a -> "[audio " + a.mimeType() + ", " + size(a.data()) + ", not passed on by "
-          + "GateRook]";
-      case McpSchema.ResourceLink l -> "Resource link (data, not fetched by GateRook): " + l.uri()
-          + (l.name() == null ? "" : " · " + l.name()) + (l.mimeType() == null ? "" : " · " + l.mimeType());
-      case McpSchema.EmbeddedResource e -> embedded(e.resource());
-      default -> "[" + c.type() + " content, not passed on by GateRook]";
     };
   }
 
-  private static String embedded(McpSchema.ResourceContents r) {
-    if (r instanceof McpSchema.TextResourceContents t) {
-      return "Resource " + t.uri() + ":\n" + (t.text() == null ? "" : t.text());
+  private static String embedded(JsonNode r) {
+    if (r.path("text").isString()) {
+      return "Resource " + Texts.str(r.get("uri"), "") + ":\n" + r.get("text").asString();
     }
-    if (r instanceof McpSchema.BlobResourceContents b) {
-      return "[resource " + b.uri() + ", " + b.mimeType() + ", " + size(b.blob()) + ", not passed on by GateRook]";
+    if (r.path("blob").isString()) {
+      return "[resource " + Texts.str(r.get("uri"), "") + ", " + Texts.str(r.get("mimeType"), "") + ", "
+          + size(r.get("blob").asString()) + ", not passed on by GateRook]";
     }
     return "[resource, not passed on by GateRook]";
   }

@@ -3,7 +3,6 @@ package ai.msrv.gaterook.connectors.mcpserver;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ai.msrv.gaterook.connector.api.ToolResult;
-import io.modelcontextprotocol.spec.McpSchema;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -12,7 +11,6 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Clock;
 import java.util.Base64;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -20,17 +18,13 @@ class ResultsAndLogTest {
 
   @Test
   void linksAndResourcesBecomeDataAndBinariesANote() {
-    McpSchema.CallToolResult r = McpSchema.CallToolResult.builder()
-        .addContent(new McpSchema.TextContent("plain"))
-        .addContent(new McpSchema.ImageContent(null, Base64.getEncoder().encodeToString(new byte[2048]),
-            "image/png"))
-        .addContent(McpSchema.ResourceLink.builder().uri("https://evil.example/x").name("x").mimeType("text/html")
-            .build())
-        .addContent(new McpSchema.EmbeddedResource(null, new McpSchema.TextResourceContents("file:///a.txt",
-            "text/plain", "inside")))
-        .structuredContent(Map.of("n", 1))
-        .isError(true)
-        .build();
+    String image = Base64.getEncoder().encodeToString(new byte[2048]);
+    var r = Texts.JSON.readTree("""
+        {"content":[{"type":"text","text":"plain"},
+          {"type":"image","data":"%s","mimeType":"image/png"},
+          {"type":"resource_link","uri":"https://evil.example/x","name":"x","mimeType":"text/html"},
+          {"type":"resource","resource":{"uri":"file:///a.txt","mimeType":"text/plain","text":"inside"}}],
+         "structuredContent":{"n":1},"isError":true}""".formatted(image));
 
     ToolResult out = Results.of(r);
 

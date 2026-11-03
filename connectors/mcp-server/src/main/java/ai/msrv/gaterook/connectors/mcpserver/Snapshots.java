@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -41,13 +42,53 @@ final class Snapshots {
 
   private Snapshots() {}
 
+  /**
+   * The entries of what a server lists now, under {@code prefix}, in its order. Each tool is read as the MCP Java
+   * SDK's {@code Tool}, the type its definition hash has always been taken over: a tool the server didn't change keeps
+   * its hash, and with it the person's Read only confirmation.
+   */
+  static Mapped fromJson(String prefix, List<ObjectNode> listed, Function<String, Optional<String>> reserved) {
+    List<McpSchema.Tool> tools = new ArrayList<>();
+    List<ObjectNode> raw = new ArrayList<>();
+    List<McpServerRuntime.Rejected> unreadable = new ArrayList<>();
+    for (ObjectNode t : listed) {
+      try {
+        tools.add(tool(t));
+        raw.add(t);
+      } catch (RuntimeException e) {
+        unreadable.add(new McpServerRuntime.Rejected(Texts.clean(Texts.str(t.get("name"), "(no name)"), 128, false),
+            "its definition isn't a valid MCP tool"));
+      }
+    }
+    Mapped mapped = of(prefix, tools, raw, reserved);
+    if (unreadable.isEmpty()) {
+      return mapped;
+    }
+    List<McpServerRuntime.Rejected> all = new ArrayList<>(mapped.rejected());
+    all.addAll(unreadable);
+    return new Mapped(mapped.tools(), List.copyOf(all));
+  }
+
+  /** A tool of a {@code tools/list} answer as the SDK's type. */
+  static McpSchema.Tool tool(ObjectNode json) {
+    return Session.MAPPER.convertValue(json, McpSchema.Tool.class);
+  }
+
   /** The entries of what a server lists now, under {@code prefix}, in its order. */
   static Mapped of(String prefix, List<McpSchema.Tool> listed, Function<String, Optional<String>> reserved) {
+    return of(prefix, listed, null, reserved);
+  }
+
+  /** @param raw the tools as the server sent them, in the same order ({@code null}: none) */
+  private static Mapped of(String prefix, List<McpSchema.Tool> listed, List<ObjectNode> raw,
+      Function<String, Optional<String>> reserved) {
     List<JsonNode> out = new ArrayList<>();
     List<McpServerRuntime.Rejected> rejected = new ArrayList<>();
     Set<String> taken = new HashSet<>();
     Set<String> originals = new HashSet<>();
-    for (McpSchema.Tool tool : listed) {
+    for (int index = 0; index < listed.size(); index++) {
+      McpSchema.Tool tool = listed.get(index);
+      ObjectNode json = raw == null ? null : raw.get(index);
       String original = tool.name();
       String shown = original == null ? "(no name)" : Texts.clean(original, 128, false);
       if (original != null && !originals.add(original)) {
@@ -88,10 +129,48 @@ final class Snapshots {
         entry.set("annotations", annotations);
       }
       entry.put("definitionHash", definitionHash(tool));
+      if (json != null) {
+        extras(json, entry);
+      }
       taken.add(name.exposed());
       out.add(entry);
     }
     return new Mapped(List.copyOf(out), List.copyOf(rejected));
+  }
+
+  /**
+   * What a tool declares beside its definition, kept in its entry: whether it must, may or must not run as a task
+   * ({@code execution.taskSupport}, 2025-11-25), and the MCP App it is shown with ({@code _meta.ui}: its
+   * {@code ui://} resource and who may call it). Neither is in the definition hash, so that a hash stays what it was;
+   * a tool that runs as a task is still called through the gateway, and an app is read through it.
+   */
+  static void extras(ObjectNode json, ObjectNode entry) {
+    String task = Texts.str(json.path("execution").get("taskSupport"), null);
+    if (task != null && (task.equals("required") || task.equals("optional"))) {
+      entry.put("taskSupport", task);
+    }
+    JsonNode ui = json.path("_meta").path("ui");
+    ObjectNode app = Texts.JSON.createObjectNode();
+    String uri = Texts.str(ui.get("resourceUri"), Texts.str(json.path("_meta").get("ui/resourceUri"), null));
+    if (uri != null && uri.startsWith("ui://") && uri.length() <= 2_048 && !Texts.invisible(uri)) {
+      app.put("resourceUri", uri);
+    }
+    if (ui.path("visibility").isArray()) {
+      ArrayNode visibility = app.putArray("visibility");
+      for (JsonNode v : ui.get("visibility")) {
+        if (v.isString() && (v.asString().equals("model") || v.asString().equals("app"))) {
+          visibility.add(v.asString());
+        }
+      }
+    }
+    if (app.has("resourceUri")) {
+      entry.set("ui", app);
+    }
+  }
+
+  /** {@link #definitionHash(McpSchema.Tool)} of a tool as the server sent it. */
+  static String definitionHash(ObjectNode json) {
+    return definitionHash(tool(json));
   }
 
   /**

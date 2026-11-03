@@ -30,7 +30,7 @@ import tools.jackson.databind.json.JsonMapper;
  * second way to stop a process, so this one exits on EOF.
  *
  * <p>Modes (first argument): {@code normal}, {@code hang} (never answers), {@code garbage} (prints non-JSON on
- * stdout), {@code exit} (exits at once with code 7), {@code only-2026} (refuses every older revision).
+ * stdout), {@code exit} (exits at once with code 7), {@code only-2027} (refuses every revision the gateway speaks).
  */
 public final class FakeMcpServer {
 
@@ -61,7 +61,7 @@ public final class FakeMcpServer {
         System.exit(7);
         return;
       }
-      case "only-2026" -> {
+      case "only-2027" -> {
         refuseOldRevisions(out);
         return;
       }
@@ -188,7 +188,7 @@ public final class FakeMcpServer {
     return McpSchema.CallToolResult.builder().content(List.of(new McpSchema.TextContent(text))).build();
   }
 
-  /** A server that speaks only a revision newer than the client's: every {@code initialize} gets the same error. */
+  /** A server that speaks only a revision newer than the client's: every request gets the same error. */
   private static void refuseOldRevisions(PrintStream out) throws IOException {
     JsonMapper json = JsonMapper.builder().build();
     BufferedReader in = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
@@ -204,7 +204,7 @@ public final class FakeMcpServer {
       e.put("code", -32602);
       e.put("message", "Unsupported protocol version");
       var data = e.putObject("data");
-      data.putArray("supported").add("2026-07-28");
+      data.putArray("supported").add("2027-03-30");
       data.put("requested", request.path("params").path("protocolVersion").asString(""));
       out.println(json.writeValueAsString(error));
     }

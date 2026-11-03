@@ -48,7 +48,8 @@ import tools.jackson.databind.node.ObjectNode;
  *   <li>{@code @modelcontextprotocol/server-github} 2025.4.8: 26 tools, none declares annotations, all published as
  *       {@code github_*}; a package changed after the install doesn't start.</li>
  *   <li>{@code @modelcontextprotocol/server-everything} 2.0.0: over stdio, and over Streamable HTTP on this computer
- *       through the egress guard (allowed as the environment's private range), with a call.</li>
+ *       through the egress guard (allowed as the environment's private range), with a call; it serves both eras and is
+ *       spoken to in 2026-07-28.</li>
  * </ul>
  */
 @Tag("mcp-servers")
@@ -161,7 +162,8 @@ class RealServersTest {
     command.add("stdio");
     McpServerRuntime.Handshake overStdio = runtime.probe(stdio("cn_every", "everything", command, null),
         new Fixtures.Secrets(), Fixtures.Context.of(Duration.ofSeconds(60)));
-    assertThat(overStdio.protocolVersion()).isEqualTo("2025-11-25");
+    // Its stdio entry serves both eras: a new server is spoken to in the newest.
+    assertThat(overStdio.protocolVersion()).isEqualTo("2026-07-28");
     assertThat(overStdio.tools()).extracting(t -> t.path("exposed").asString()).contains("everything_echo",
         "everything_get_env");
     // get-env answers the server's whole environment: the core's own variables never reach it.
@@ -193,7 +195,8 @@ class RealServersTest {
           AddressPolicy.builder().allowPrivate("127.0.0.1/32").build()));
       McpServerRuntime.Handshake h = runtime.probe(cfg, new Fixtures.Secrets(),
           new Fixtures.Context(Duration.ofSeconds(60), false, null, guard));
-      assertThat(h.protocolVersion()).isEqualTo("2025-11-25");
+      // Over Streamable HTTP too.
+      assertThat(h.protocolVersion()).isEqualTo("2026-07-28");
       assertThat(h.tools()).extracting(t -> t.path("original").asString()).contains("echo");
 
       McpServerRuntime.Snapshot snapshot = new McpServerRuntime.Snapshot("everything_", h.serverVersion(),

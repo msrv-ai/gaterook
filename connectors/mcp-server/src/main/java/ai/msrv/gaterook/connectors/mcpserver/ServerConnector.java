@@ -15,9 +15,6 @@ import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
-import io.modelcontextprotocol.spec.McpError;
-import io.modelcontextprotocol.spec.McpSchema;
-import io.modelcontextprotocol.spec.McpTransportSessionNotFoundException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -144,7 +141,7 @@ final class ServerConnector implements Connector {
     if (s != null) {
       long t0 = System.nanoTime();
       try {
-        s.await(s.client.ping(), Session.min(Duration.ofSeconds(5), ctx.remaining()), "ping");
+        s.client.ping(Session.min(Duration.ofSeconds(5), ctx.remaining()));
         return HealthResult.healthy((System.nanoTime() - t0) / 1_000_000);
       } catch (ConnectorException e) {
         return HealthResult.unreachable(e.getMessage());
@@ -201,12 +198,7 @@ final class ServerConnector implements Connector {
         ctx.taint(v);
       }
     }
-    McpSchema.Tool live = null;
-    for (McpSchema.Tool t : s.tools) {
-      if (original.equals(t.name())) {
-        live = t;
-      }
-    }
+    ObjectNode live = s.tool(original);
     if (live == null) {
       throw ConnectorException.unavailable(cfg.name() + " no longer lists " + original + ". Its tools are listed "
           + "again in Connectors › MCP servers.", null);
@@ -215,13 +207,18 @@ final class ServerConnector implements Connector {
       throw ConnectorException.denied(cfg.name() + " changed " + original + " since it was reviewed, so the call "
           + "doesn't run. The new definition is in Connectors › MCP servers; its endpoints ask for approval again.");
     }
-    @SuppressWarnings("unchecked")
-    Map<String, Object> args = Texts.JSON.treeToValue(arguments, Map.class);
+    ObjectNode params = Texts.JSON.createObjectNode();
+    params.put("name", original);
+    params.set("arguments", arguments.isObject() ? arguments.deepCopy() : Texts.JSON.createObjectNode());
     Duration budget = Session.min(server.callTimeout(), ctx.remaining());
+    // Over 2026-07-28 HTTP the arguments a tool marks x-mcp-header go into Mcp-Param-* headers too.
+    Map<String, String> headers = s.client.era() == UpstreamClient.Era.MODERN && s.http != null
+        ? UpstreamClient.paramHeaders(live.get("inputSchema"), params.get("arguments")) : Map.of();
+    UpstreamClient.Ask ask = new UpstreamClient.Ask(budget, UpstreamClient.Watch.NONE, ctx, headers);
     s.inFlight.incrementAndGet();
     try {
-      McpSchema.CallToolResult result = s.await(s.client.callTool(McpSchema.CallToolRequest.builder(original)
-          .arguments(args).build()), budget, original);
+      ObjectNode result = asTask(entry, s) ? s.client.callAsTask(params, ask)
+          : s.client.request("tools/call", params, ask);
       return Results.of(result);
     } catch (ConnectorException e) {
       throw callFailed(e, s, read, original, budget);
@@ -233,6 +230,17 @@ final class ServerConnector implements Connector {
     }
   }
 
+  /**
+   * Whether a call runs as a task: the tool requires one, and the server runs tool calls as tasks (2025-11-25). A
+   * tool that only may is called directly, and so is one whose server doesn't say it can.
+   */
+  private static boolean asTask(JsonNode entry, Session s) {
+    UpstreamClient.Hello h = s.init;
+    return "required".equals(Texts.str(entry.get("taskSupport"), null)) && h != null
+        && h.era() == UpstreamClient.Era.LEGACY
+        && h.capabilities().path("tasks").path("requests").path("tools").path("call").isObject();
+  }
+
   /** What a failed call tells the agent: a server's own error is data; a lost process may have done it. */
   private ConnectorException callFailed(ConnectorException e, Session s, boolean read, String original,
       Duration budget) {
@@ -241,15 +249,17 @@ final class ServerConnector implements Connector {
       // The server refused the token before it read the call, or no token went at all.
       return ConnectorException.unavailable(signIn.getMessage() + " " + original + " didn't run.", signIn);
     }
-    Throwable cause = e.getCause();
-    for (Throwable t = cause; t != null; t = t.getCause()) {
-      if (t instanceof McpTransportSessionNotFoundException) {
-        runtime.broken(s, "The server ended its session");
-        return ConnectorException.unavailable(cfg.name() + " ended its session before it took the call; it didn't "
-            + "run. Try again.", e);
-      }
-      if (t instanceof McpError) {
+    if (Channel.SessionGone.in(e)) {
+      runtime.broken(s, "The server ended its session");
+      return ConnectorException.unavailable(cfg.name() + " ended its session before it took the call; it didn't "
+          + "run. Try again.", e);
+    }
+    for (Throwable t = e.getCause(); t != null; t = t.getCause()) {
+      if (t instanceof Rpc.Error) {
         return ConnectorException.resourceError(cfg.name() + " refused " + original + ": " + e.getMessage(), e);
+      }
+      if (t.getCause() == t) {
+        break;
       }
     }
     if (!s.alive() || (s.http != null && e.kind() == ConnectorException.Kind.RESOURCE_UNAVAILABLE)) {
@@ -275,7 +285,8 @@ final class ServerConnector implements Connector {
     if (snapshot.protocolVersion() != null) {
       out.put("protocol", snapshot.protocolVersion());
     }
-    out.put("transport", server.transport());
+    Session running = runtime.running(cfg.id());
+    out.put("transport", running == null ? server.transport() : running.transport());
     out.put("tools", snapshot.tools().size());
     out.put("annotationsDeclared", Snapshots.annotated(snapshot.tools()));
     out.put("note", "Tool annotations are declared by the server, not verified by GateRook.");

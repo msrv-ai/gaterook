@@ -83,7 +83,7 @@ final class Tests {
       case TIMEOUT -> "mcp.timeout";
       case BAD_INPUT -> "mcp.config";
       case DENIED -> "mcp.denied";
-      default -> message.contains("2026-07-28") ? "mcp.protocol" : "mcp.start";
+      default -> message.contains(UpstreamClient.SPEAKS) ? "mcp.protocol" : "mcp.start";
     };
     int nl = message.indexOf('\n');
     return nl < 0 ? TestResult.failure(code, message, null)
