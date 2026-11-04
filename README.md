@@ -21,9 +21,9 @@ Log queries have no maximum time range by default in any environment. To set one
 
 ## Connectors
 
-Built-in connectors turn your services into MCP tools. Add a connection with its credentials and allowed resources, then choose the endpoints and tool modes that give AI apps access.
+GateRook connects your services through built-in connectors and external MCP servers. Add a connection with its credentials and allowed resources, then choose the endpoints and tool modes that give AI apps access.
 
-| Service | Built-in support |
+| Service | Supported capabilities |
 | --- | --- |
 | SQL databases | PostgreSQL, MySQL/MariaDB, [Oracle Database](docs/oracle.md), and [SQL Server](docs/sql-server.md): inspect schemas, query data, and review changes before execution |
 | Document and key-value stores | MongoDB document queries and updates; Redis key inspection and reads |
@@ -31,6 +31,8 @@ Built-in connectors turn your services into MCP tools. Add a connection with its
 | Logs | [GCP Cloud Logging](docs/gcp-logs.md), AWS CloudWatch Logs, Loki, and [selected log files over SSH](docs/ssh-log-files.md): search and read logs within configured limits |
 | Infrastructure and cloud | SSH commands and runbooks; Kubernetes resources, events, pod logs, and reviewed changes; AWS and GCP resource inspection and metrics |
 | HTTP APIs | Scoped HTTP requests and selected operations imported from an OpenAPI specification |
+| [MCP servers](docs/mcp-servers.md) | Remote Streamable HTTP servers and local stdio commands, added by URL, command, or pasted configuration; tools follow GateRook's access rules and approvals |
+| [Official MCP Registry](https://registry.modelcontextprotocol.io/) | Search public MCP servers from GateRook and fill in supported remote URLs or npm/PyPI commands for review before connecting |
 
 For HTTP APIs, [import an OpenAPI file or prepare one with your AI app](docs/http-api-import.md). Review the server, authentication, and selected operations before saving them as MCP tools.
 
@@ -46,6 +48,20 @@ Open **Connectors → MCP servers → Add MCP server** and choose how to add one
 For servers that support OAuth, sign in through your browser. GateRook stores the sign-in encrypted, renews it, and keeps the credentials out of AI apps. After adding a server, choose which endpoints may use it; tools start in **Approval** mode on selected endpoints and remain **Off** elsewhere.
 
 See [the external MCP server guide](docs/mcp-servers.md) for setup, registry package support, cloud credentials, OAuth options, and troubleshooting.
+
+## Secrets and key storage
+
+Manage credentials in **Secrets**. GateRook's local vault encrypts stored values and keeps its master key outside the database. With OS credential protection enabled and a secure backend available, the master-key file is encrypted using a key protected by **macOS Keychain**, **Windows DPAPI**, or **Linux Secret Service / KWallet**. macOS unlock supports Touch ID or your Mac password; Windows adds Windows Hello when available. The Secrets page shows the current protection status.
+
+To use an existing secret store, open **Secrets → External stores** and connect a provider:
+
+| Secret store | Supported capabilities |
+| --- | --- |
+| HashiCorp Vault / OpenBao | Read KV v1/v2 secrets with AppRole or token authentication; Vault can also sign SSH certificates |
+| GCP Secret Manager | Read secret versions using Application Default Credentials or a service account key, with optional service account impersonation |
+| AWS Secrets Manager | Read secrets using an AWS profile or access key to assume a role, with ExternalId and a session policy scoped to configured secret references |
+
+Select the store in a connection's credential fields and enter a secret reference. GateRook resolves external values at call time, caches them briefly in memory, and keeps them out of AI apps. See [external stores and reference syntax](docs/research/12-secrets.md#5-external-stores-and-reference-syntax) and [desktop key protection](docs/ARCHITECTURE.md#71-electron) for details.
 
 ## Application overview
 
