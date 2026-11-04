@@ -31,7 +31,7 @@ The registry checks who published a name: a domain such as `app.linear` belongs 
 - **Sign-in with OAuth.** You sign in in your browser, as in Claude Desktop, Cursor or Codex.
 - **Optional sign-in.** The server also answers without one, with less access. If you connect without signing in, you can sign in later from the server's row.
 - **No sign-in.** Connect directly.
-- **It wants a key.** It refused the request without offering a sign-in. Add the header that carries its key, such as `Authorization`.
+- **It wants a key.** It refused the request without offering a sign-in. Select **Back**, then choose **Bearer token** in **Sign-in options**, or add the custom header the server requires.
 
 Some servers take their key in the URL, as their docs give it: `https://mcp.example.com/<key>/mcp` or `…/mcp?apiKey=<key>`. Such a server still connects, but the review warns you. GateRook stores the URL with the server's settings, not encrypted as a secret, and the provider or a proxy on the way may log it. If the server also accepts the key in a header, add that header instead. The review shows the URL with `‹masked›` in place of the key, and the lists show it without the key. Agents never see the URL.
 
@@ -42,6 +42,12 @@ Adding a server ends as adding a connection does: GateRook offers the endpoints 
 The server is then listed in **Connections** with the other connections, where you test, edit or delete it. In **Connectors › MCP servers** you can also restart it, sign in to it again or sign out.
 
 Editing a server checks its sign-in as adding it does. Its tool prefix stays the one it was added with, because endpoints and agents know its tools by it: to use another prefix, add the server again. A cloud key (a service account key or a secret access key) can be replaced there but not added: to switch to a key, add the server again with it.
+
+### Connect with a Bearer token
+
+For an HTTP server, **Sign-in options** appears directly below the URL, with the authentication choices always visible. Choose **Bearer token**, then **Review and connect**. Enter only the token in the review: GateRook adds the `Authorization` header and the `Bearer ` prefix automatically. An existing `Bearer ` prefix is accepted without adding it twice. The token is stored encrypted when you connect and never shown again.
+
+You can still add other headers. If you already named an `Authorization` header, **Bearer token** uses that header rather than adding a duplicate. For another authentication scheme, leave **Bearer token** unselected, keep the custom header and enter its complete value in the review. **Back** preserves the setup fields; secret values must be entered again.
 
 ## What a server shares besides tools
 
@@ -73,10 +79,10 @@ The server's row shows **Signed in**, **Needs sign-in** or **Signed out**. A ser
 Some servers neither accept GateRook's published details nor let apps register themselves. At the time of writing (November 2026) these include GitHub's, Slack's and Asana's v2 server. The review then says so and shows the redirect URI to register, `http://127.0.0.1:7471/callback`:
 
 1. Create an OAuth app for GateRook in the provider's developer settings, with that redirect URI.
-2. In **Add MCP server › Sign-in options**, enter its client ID, or enter it in the review.
+2. In **Add MCP server › Sign-in options › OAuth app options**, enter its client ID, or enter it in the review.
 3. If the app has a client secret, enter it in the review. It is stored as a write-only secret of the server.
 
-**Sign-in options** also set the **Scopes** to ask for, and a **Callback port** for a server or an app that accepts only one redirect address.
+**OAuth app options** also set the **Scopes** to ask for, and a **Callback port** for a server or an app that accepts only one redirect address.
 
 ## Servers on Google Cloud
 

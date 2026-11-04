@@ -59,8 +59,10 @@ export interface McpReviewed {
   readonly transport: 'stdio' | 'http';
   /** The command or URL as typed (empty for a catalog server: the core resolves it). */
   readonly target: string;
-  /** The variables (or headers) as typed; empty for a catalog server, whose review names them. */
+  /** The requested variables or headers, including a generated Authorization header for a Bearer token. */
   readonly variables: readonly { readonly name: string }[];
+  /** The Authorization header is entered as a token, with its Bearer prefix added at connection time. */
+  readonly bearer?: boolean;
   readonly opener: HTMLElement | null;
 }
 
@@ -83,14 +85,15 @@ export interface McpFormErrors {
 }
 
 /**
- * Sign-in options of a server at a URL (Advanced). OAuth: an app the person created, because the server doesn't let
+ * Sign-in options of a server at a URL. Bearer: a token entered in the review and sent in the Authorization header.
+ * OAuth: an app the person created, because the server doesn't let
  * apps register themselves, or a callback the server accepts; empty, GateRook signs in as itself, with its published
  * client details or by registering, and listens on any free port. Google Cloud or AWS: the credentials each request
  * is authorized with instead (§7.6), a token from Google sign-in on this computer or a service account key, or SigV4
  * with an AWS profile or access key. A key is typed in the review.
  */
 export interface McpSignInOptions {
-  readonly with?: 'oauth' | 'google' | 'aws';
+  readonly with?: 'oauth' | 'bearer' | 'google' | 'aws';
   readonly clientId: string;
   readonly scopes: string;
   readonly callbackPort: string;
@@ -180,9 +183,11 @@ export function mcpRequest(
   if (transport === 'http') {
     const way = signIn.with ?? 'oauth';
     const scopes = signIn.scopes.trim().replace(/\s+/g, ' ');
-    if (scopes && !SCOPES.test(scopes)) errors.scopes = 'Separate scopes with spaces; a scope has no quotes or backslashes.';
+    if (way !== 'bearer' && scopes && !SCOPES.test(scopes)) errors.scopes = 'Separate scopes with spaces; a scope has no quotes or backslashes.';
     const keyed = bindings.some((b) => b.name.toLowerCase() === 'authorization');
-    if (way === 'google') {
+    if (way === 'bearer') {
+      if (!keyed) bindings.push({ name: 'Authorization' });
+    } else if (way === 'google') {
       auth = googleAuth(signIn, scopes, errors);
       if (keyed) errors.variables = 'Google Cloud credentials send the Authorization header. Remove that header, or sign in another way.';
     } else if (way === 'aws') {
@@ -331,23 +336,31 @@ let nextId = 0;
                 <p class="gw-field__hint" [id]="uid + '-url-hint'">HTTPS, or <span class="gw-mono">http://127.0.0.1</span> for a server on this computer. A server that asks for a sign-in gets one in your browser after the review.</p>
                 @if (errors().url) {<p class="gw-field__error" [id]="uid + '-url-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().url }}</p>}
               </div>
-              <div class="gw-stack gw-stack--sm" [hidden]="transport() !== 'http'">
-                <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [attr.aria-controls]="uid + '-signin'" [(expanded)]="signInOpen"><svg lucideIcon="sliders-horizontal" class="gw-icon gw-icon--sm"></svg> Sign-in options <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button></div>
-                <div class="gw-stack gw-stack--sm" [id]="uid + '-signin'" [hidden]="!signInOpen()">
+              <section class="gw-card" [hidden]="transport() !== 'http'" [attr.aria-labelledby]="uid + '-signin-title'">
+                <header class="gw-card__header">
+                  <div class="gw-card__heading">
+                    <h3 class="gw-card__title" [id]="uid + '-signin-title'"><svg lucideIcon="key-round" class="gw-icon"></svg> Sign-in options</h3>
+                    <p class="gw-card__description">Choose how GateRook authenticates with this server.</p>
+                  </div>
+                </header>
+                <div class="gw-card__body gw-stack gw-stack--sm">
                   <fieldset class="gw-field" [attr.aria-describedby]="uid + '-with-hint'">
                     <legend class="gw-field__label">Sign in with</legend>
                     <div class="gw-segmented">
                       <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-with'" value="oauth" [id]="uid + '-with-oauth'" [checked]="signInWith() === 'oauth'" (change)="setSignInWith('oauth')"><span class="gw-segmented__label"><svg lucideIcon="log-in" class="gw-icon gw-icon--sm"></svg>OAuth</span></label>
+                      <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-with'" value="bearer" [id]="uid + '-with-bearer'" [checked]="signInWith() === 'bearer'" (change)="setSignInWith('bearer')"><span class="gw-segmented__label"><svg lucideIcon="key-round" class="gw-icon gw-icon--sm"></svg>Bearer token</span></label>
                       <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-with'" value="google" [id]="uid + '-with-google'" [checked]="signInWith() === 'google'" (change)="setSignInWith('google')"><span class="gw-segmented__label"><svg lucideIcon="cloud" class="gw-icon gw-icon--sm"></svg>Google Cloud</span></label>
                       <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-with'" value="aws" [id]="uid + '-with-aws'" [checked]="signInWith() === 'aws'" (change)="setSignInWith('aws')"><span class="gw-segmented__label"><svg lucideIcon="cloud" class="gw-icon gw-icon--sm"></svg>AWS</span></label>
                     </div>
                     <p class="gw-field__hint" [id]="uid + '-with-hint'">@switch (signInWith()) {
+                      @case ('bearer') {Enter just your token in the review. GateRook adds the <span class="gw-mono">Authorization: Bearer</span> header automatically and stores it encrypted. No browser sign-in is needed.}
                       @case ('google') {Google’s MCP servers (<span class="gw-mono">https://&lt;service&gt;.googleapis.com/mcp</span>) take a token of your Google Cloud credentials. GateRook gets it and renews it: no OAuth app, no browser.}
                       @case ('aws') {MCP servers on AWS (<span class="gw-mono">https://aws-mcp.&lt;region&gt;.api.aws/mcp</span>, Bedrock AgentCore) take requests signed with SigV4. No browser sign-in that ends after 12 hours.}
-                      @default {Leave the fields empty: GateRook signs in as GateRook, with the client details it publishes or by registering itself, and listens on this computer for the browser. Fill them in for a server that asks you to create an OAuth app (GitHub and Slack do), or that accepts only certain redirect addresses.}
+                      @default {Sign in in your browser if the server asks. Use OAuth app options only if the provider requires your own app or a specific callback address.}
                     }</p>
                   </fieldset>
                   @switch (signInWith()) {
+                    @case ('bearer') {}
                     @case ('google') {
                       <fieldset class="gw-field">
                         <legend class="gw-field__label">Credentials</legend>
@@ -436,6 +449,8 @@ let nextId = 0;
                       </div>
                     }
                     @default {
+                  <div><button class="gw-btn gw-btn--sm" type="button" gwToggle [attr.aria-controls]="uid + '-signin'" [(expanded)]="signInOpen"><svg lucideIcon="sliders-horizontal" class="gw-icon gw-icon--sm"></svg> OAuth app options <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button></div>
+                  <div class="gw-stack gw-stack--sm" [id]="uid + '-signin'" [hidden]="!signInOpen()">
                   <div class="gw-field">
                     <label class="gw-field__label" [for]="uid + '-client'">OAuth client ID <span class="gw-field__optional">Optional</span></label>
                     <input class="gw-input gw-input--mono" [id]="uid + '-client'" type="text" spellcheck="false" autocomplete="off" [disabled]="transport() !== 'http'" [value]="clientId()" (input)="clientId.set(value($event)); clear('clientId')" [attr.aria-invalid]="errors().clientId ? 'true' : null" [attr.aria-describedby]="uid + '-client-hint' + (errors().clientId ? ' ' + uid + '-client-err' : '')">
@@ -454,16 +469,17 @@ let nextId = 0;
                     <p class="gw-field__hint" [id]="uid + '-port-hint'">Where the browser comes back to: <span class="gw-mono">http://localhost:&lt;port&gt;/callback</span>, or <span class="gw-mono">http://127.0.0.1:7471/callback</span> for an OAuth app. Default: any free port.</p>
                     @if (errors().callbackPort) {<p class="gw-field__error" [id]="uid + '-port-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().callbackPort }}</p>}
                   </div>
+                  </div>
                     }
                   }
                 </div>
-              </div>
+              </section>
               <fieldset class="gw-field">
-                <legend class="gw-field__label">Variables or headers</legend>
+                <legend class="gw-field__label">{{ transport() === 'http' && signInWith() === 'bearer' ? 'Additional headers' : 'Variables or headers' }}</legend>
                 @for (row of variables(); track $index; let i = $index) {
                   <div class="gw-field">
                     <label class="gw-field__label" [for]="uid + '-var-name-' + i">{{ transport() === 'http' ? 'Header' : 'Variable' }} name</label>
-                    <input class="gw-input gw-input--mono" [id]="uid + '-var-name-' + i" type="text" [placeholder]="transport() === 'http' ? 'Authorization' : 'SENTRY_AUTH_TOKEN'" spellcheck="false" autocomplete="off" [value]="row.name" (input)="setVariable(i, value($event))" [attr.aria-describedby]="uid + '-env-hint'">
+                    <input class="gw-input gw-input--mono" [id]="uid + '-var-name-' + i" type="text" [placeholder]="transport() === 'http' ? (signInWith() === 'bearer' ? 'X-API-Key' : 'Authorization') : 'SENTRY_AUTH_TOKEN'" spellcheck="false" autocomplete="off" [value]="row.name" (input)="setVariable(i, value($event))" [attr.aria-describedby]="uid + '-env-hint'">
                   </div>
                 }
                 <!-- The core takes no existing secret by name (C10: a server's
@@ -471,7 +487,7 @@ let nextId = 0;
                      review, right before the start, and stored encrypted as a secret of the server. -->
                 <p class="gw-field__hint" [id]="uid + '-env-hint'">The review asks for their values before the start. Each is stored encrypted as a secret of this server and never shown again. Only these reach the process, and the agent never sees them.</p>
                 @if (errors().variables) {<p class="gw-field__error" [id]="uid + '-var-err'" role="alert"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().variables }}</p>}
-                <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" (click)="addVariable()"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg>Add variable</button></div>
+                <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" (click)="addVariable()"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg>{{ transport() === 'http' ? 'Add header' : 'Add variable' }}</button></div>
               </fieldset>
               @if (error()) {
                 <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
@@ -580,8 +596,8 @@ export class GwMcpAddDialog {
   protected readonly scopes = signal('');
   protected readonly callbackPort = signal('');
   protected readonly signInOpen = signal(false);
-  /** OAuth in the browser (when the server asks), or the server's Google Cloud or AWS credentials (§7.6). */
-  protected readonly signInWith = signal<'oauth' | 'google' | 'aws'>('oauth');
+  /** OAuth in the browser, a Bearer token, or the server's Google Cloud or AWS credentials (§7.6). */
+  protected readonly signInWith = signal<'oauth' | 'bearer' | 'google' | 'aws'>('oauth');
   protected readonly gcpSource = signal<'adc' | 'serviceAccountKey'>('adc');
   protected readonly impersonate = signal('');
   protected readonly quotaProject = signal('');
@@ -677,6 +693,11 @@ export class GwMcpAddDialog {
     this.dialog.openAfterRender(opener);
   }
 
+  /** Returns from the review with the existing draft and the original focus-return target. */
+  resume(opener: HTMLElement | null): void {
+    this.dialog.openAfterRender(opener);
+  }
+
   /** The URL as typed; an empty name (or the one suggested before) follows its host: mcp.linear.app → linear-mcp. */
   protected setUrl(url: string): void {
     this.url.set(url);
@@ -734,6 +755,7 @@ export class GwMcpAddDialog {
     }
     this.variables.set(r.variables.length ? r.variables.map((name) => ({ name })) : [{ name: '' }]);
     if (r.auth) this.applySignIn(r.auth);
+    else if (this.signInWith() === 'bearer') this.setSignInWith('oauth');
     this.errors.set({});
     const kind = r.transport === 'http' ? 'header' : 'variable';
     return joinAnd([
@@ -876,7 +898,7 @@ export class GwMcpAddDialog {
     if (this.errors()[field]) this.errors.update((e) => ({ ...e, [field]: undefined }));
   }
 
-  protected setSignInWith(way: 'oauth' | 'google' | 'aws'): void {
+  protected setSignInWith(way: 'oauth' | 'bearer' | 'google' | 'aws'): void {
     this.signInWith.set(way);
     this.errors.update((e) => ({ ...e, clientId: undefined, scopes: undefined, callbackPort: undefined, impersonate: undefined,
       quotaProject: undefined, profile: undefined, accessKeyId: undefined, roleArn: undefined, externalId: undefined,
@@ -944,9 +966,8 @@ export class GwMcpAddDialog {
         name: this.name().trim(),
         transport: this.transport(),
         target: this.transport() === 'http' ? this.url().trim() : this.command().trim(),
-        variables: this.variables()
-          .map((v) => ({ name: v.name.trim() }))
-          .filter((v) => v.name),
+        variables: 'config' in r.source ? (r.source.config.headers ?? r.source.config.env ?? []) : [],
+        bearer: 'config' in r.source && r.source.config.transport === 'http' && way === 'bearer',
         opener,
       });
     } catch (err) {

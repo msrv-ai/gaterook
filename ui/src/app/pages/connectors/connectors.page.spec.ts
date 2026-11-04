@@ -628,6 +628,7 @@ describe('Connectors page: Catalog', () => {
     expect(review.open).toBe(true);
     expect(text(review.querySelector('.gw-dialog__title'))).toBe('Start MCP server github-mcp?');
     expect(text(document.activeElement)).toBe('Cancel');
+    expect(Array.from(review.querySelectorAll('footer button')).map(text)).not.toContain('Back');
     const rows = Object.fromEntries(Array.from(review.querySelectorAll('.gw-kv__row')).map((r) => [text(r.querySelector('dt')), text(r.querySelector('dd'))]));
     expect(rows['Command']).toBe('node /Users/me/.gaterook/mcp/github-mcp/dist/index.js');
     expect(rows['Secrets passed']).toBe('GITHUB_PERSONAL_ACCESS_TOKEN, from a new secret of github-mcp, encrypted here');
@@ -1116,6 +1117,134 @@ describe('Connectors page: MCP servers', () => {
     expect(add.open).toBe(true);
   });
 
+  it('returns from a refused HTTP review to choose Bearer token and connects with the token prefixed automatically', async () => {
+    setup();
+    const reviewApi = vi.spyOn(TestBed.inject(McpServersApi), 'review').mockResolvedValueOnce(sentryReview({
+      name: 'private-mcp',
+      transport: 'http',
+      url: 'https://mcp.example.com/mcp',
+      argv: [],
+      env: [],
+      auth: { kind: 'refused', message: 'It refused the request (HTTP 401) and publishes no OAuth metadata.' },
+    }));
+    const { fixture, el } = await render();
+    const opener = button(el.querySelector('.gw-page-header__actions'), 'Add connector');
+    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    const name = add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!;
+    type(name, 'private-mcp');
+    check(add.querySelector<HTMLInputElement>('input[type="radio"][value="http"]')!);
+    await settle(fixture);
+    const bearer = add.querySelector<HTMLInputElement>('input[type="radio"][value="bearer"]')!;
+    expect(bearer.closest('[hidden]')).toBeNull();
+    type(add.querySelector<HTMLInputElement>('input[type="url"]')!, 'https://mcp.example.com/mcp');
+    button(add, 'Review and connect').click();
+    await settle(fixture);
+
+    const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
+    expect(review.open).toBe(true);
+    expect(text(review.querySelector('.gw-alert--warning'))).toContain('It wants a key, not a sign-in');
+    expect(text(review.querySelector('.gw-alert--warning'))).toContain('Go back');
+    check(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
+    await settle(fixture);
+    button(review, 'Back').click();
+    await settle(fixture);
+
+    expect(review.open).toBe(false);
+    expect(add.open).toBe(true);
+    expect(name.value).toBe('private-mcp');
+    expect(add.querySelector<HTMLInputElement>('input[type="radio"][value="http"]')!.checked).toBe(true);
+    expect(add.querySelector<HTMLInputElement>('input[type="url"]')!.value).toBe('https://mcp.example.com/mcp');
+    expect(document.activeElement).toBe(name);
+    expect(calls).not.toContain('create-server');
+    check(bearer);
+    await settle(fixture);
+    button(add, 'Review and connect').click();
+    await settle(fixture);
+
+    const config = { name: 'private-mcp', transport: 'http', url: 'https://mcp.example.com/mcp', headers: [{ name: 'Authorization' }] };
+    expect(reviewApi).toHaveBeenCalledTimes(2);
+    expect(reviewApi).toHaveBeenLastCalledWith({ config });
+    expect(review.open).toBe(true);
+    expect(add.open).toBe(false);
+    expect(review.querySelector('.gw-alert--warning')).toBeNull();
+    expect(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked).toBe(false);
+    const connect = button(review, 'Connect MCP server private-mcp');
+    expect(connect.getAttribute('aria-disabled')).toBe('true');
+    let token = review.querySelector<HTMLInputElement>('input[type="password"]')!;
+    expect(text(review.querySelector(`label[for="${token.id}"]`))).toBe('Bearer token');
+    type(token, ' Bearer ');
+    connect.click();
+    await settle(fixture);
+    expect(calls).not.toContain('create-server');
+    check(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
+    await settle(fixture);
+    connect.click();
+    await settle(fixture);
+    expect(calls).not.toContain('create-server');
+    expect(token.getAttribute('aria-invalid')).toBe('true');
+    expect(text(review.querySelector('.gw-field__error'))).toBe('Enter the bearer token.');
+    button(review, 'Back').click();
+    await settle(fixture);
+    expect(token.value).toBe('');
+    expect(bearer.checked).toBe(true);
+    expect(add.querySelector<HTMLInputElement>('input[id$="-var-name-0"]')!.value).toBe('');
+    button(add, 'Review and connect').click();
+    await settle(fixture);
+    expect(reviewApi).toHaveBeenCalledTimes(3);
+    expect(reviewApi).toHaveBeenLastCalledWith({ config });
+    expect(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked).toBe(false);
+    token = review.querySelector<HTMLInputElement>('input[type="password"]')!;
+    expect(token.value).toBe('');
+    type(token, ' example-token ');
+    check(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
+    await settle(fixture);
+    connect.click();
+    await settle(fixture);
+    expect(bodies['create-server']).toEqual({
+      config,
+      secrets: { '/headers/0/secretRef': { source: 'local', value: 'Bearer example-token' } },
+      acknowledge: true,
+    });
+    expect(token.value).toBe('');
+    const step = el.querySelector<HTMLDialogElement>('dialog[gwMcpEndpointDialog]')!;
+    button(step, 'Not now').click();
+    await settle(fixture);
+    expect(document.activeElement).toBe(opener);
+
+    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
+    await settle(fixture);
+    expect(bearer.checked).toBe(false);
+    expect(add.querySelector<HTMLInputElement>('input[type="radio"][value="oauth"]')!.checked).toBe(true);
+  });
+
+  it('does not carry Bearer mode to a pasted configuration with its own Authorization header', async () => {
+    setup();
+    const { fixture, el } = await render();
+    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    check(add.querySelector<HTMLInputElement>('input[type="radio"][value="http"]')!);
+    await settle(fixture);
+    check(add.querySelector<HTMLInputElement>('input[type="radio"][value="bearer"]')!);
+    button(add, 'Paste a configuration').click();
+    await settle(fixture);
+    const paste = add.querySelector<HTMLTextAreaElement>('textarea[id$="-paste-text"]')!;
+    type(paste, '{"url":"https://mcp.example.com/mcp","headers":{"Authorization":"Basic example-credentials"}}');
+    await settle(fixture);
+    expect(add.querySelector<HTMLInputElement>('input[type="radio"][value="bearer"]')!.checked).toBe(false);
+    expect(add.querySelector<HTMLInputElement>('input[type="radio"][value="oauth"]')!.checked).toBe(true);
+    expect(add.querySelector<HTMLInputElement>('input[placeholder="Authorization"]')!.value).toBe('Authorization');
+    expect(paste.value).toBe('');
+    button(add, 'Review and connect').click();
+    await settle(fixture);
+    const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
+    const value = review.querySelector<HTMLInputElement>('input[type="password"]')!;
+    expect(text(review.querySelector(`label[for="${value.id}"]`))).toBe('Value of Authorization');
+    expect(value.value).toBe('');
+  });
+
   it('wipes the typed values when the review closes without a start', async () => {
     setup();
     const { fixture, el } = await render();
@@ -1130,11 +1259,32 @@ describe('Connectors page: MCP servers', () => {
     const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
     const value = review.querySelector<HTMLInputElement>('input[type="password"]')!;
     type(value, 'sntrys_typed');
+    button(review, 'Back').click();
+    await settle(fixture);
+    expect(review.open).toBe(false);
+    expect(value.value).toBe('');
+    expect(add.open).toBe(true);
+    expect(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!.value).toBe('sentry-mcp');
+    expect(add.querySelector<HTMLInputElement>('input[placeholder^="npx"]')!.value).toBe('npx -y @sentry/mcp-server@0.12.0');
+    expect(add.querySelector<HTMLInputElement>('input[placeholder="SENTRY_AUTH_TOKEN"]')!.value).toBe('SENTRY_AUTH_TOKEN');
+    button(add, 'Review and start').click();
+    await settle(fixture);
+    expect(review.open).toBe(true);
+    expect(review.querySelector<HTMLInputElement>('input[type="password"]')!.value).toBe('');
+    type(review.querySelector<HTMLInputElement>('input[type="password"]')!, 'sntrys_retyped');
     button(review, 'Cancel').click();
     await settle(fixture);
     expect(review.open).toBe(false);
     expect(value.value).toBe('');
     expect(calls).not.toContain('create-server');
+    expect(document.activeElement).toBe(button(el.querySelector('.gw-page-header__actions'), 'Add connector'));
+
+    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
+    await settle(fixture);
+    expect(add.open).toBe(true);
+    expect(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!.value).toBe('');
+    expect(add.querySelector<HTMLInputElement>('input[placeholder^="npx"]')!.value).toBe('');
+    expect(add.querySelector<HTMLInputElement>('input[placeholder="SENTRY_AUTH_TOKEN"]')!.value).toBe('');
   });
 
   it('offers one Add MCP server in the empty state when there is none', async () => {
