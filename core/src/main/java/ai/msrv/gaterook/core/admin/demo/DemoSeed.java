@@ -254,10 +254,17 @@ class DemoSeed {
     }
     for (JsonNode e : world.path("endpoints")) {
       String slug = e.path("slug").asString();
-      endpoints.create(slug, e.path("description").asString(null),
-          EndpointService.StartFrom.of(e.path("startFrom").asString("empty")), "Demo world");
+      EndpointService.StartFrom start = EndpointService.StartFrom.of(e.path("startFrom").asString("empty"));
+      List<String> selected = new ArrayList<>();
       for (JsonNode c : e.path("connections")) {
-        wiring.add(slug, c.asString(), null);
+        selected.add(c.asString());
+      }
+      endpoints.create(slug, e.path("description").asString(null),
+          start, start == EndpointService.StartFrom.EMPTY ? List.of() : selected, "Demo world");
+      if (start == EndpointService.StartFrom.EMPTY) {
+        for (String name : selected) {
+          wiring.add(slug, name, null);
+        }
       }
       if (e.has("access")) {
         endpoints.updateSettings(slug, new EndpointService.SettingsUpdate(null, e.path("access").asString(), null, null,

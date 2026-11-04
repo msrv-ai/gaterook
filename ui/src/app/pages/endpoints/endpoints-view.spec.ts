@@ -190,8 +190,8 @@ describe('Endpoints view', () => {
   });
 
   it('writes the toasts of create, duplicate and delete', () => {
-    expect(createdToast('payments-dev', 'empty')).toEqual({ tone: 'success', title: 'Endpoint payments-dev created', body: 'Add its connections and pick tool modes next.' });
-    expect(createdToast('ro', 'read-only-dev').body).toBe('Check its connections and tool modes next.');
+    expect(createdToast('payments-dev', 0)).toEqual({ tone: 'success', title: 'Endpoint payments-dev created', body: 'No connections added. Add connections and pick tool modes next.' });
+    expect(createdToast('ro', 2).body).toBe('2 connections added. Review their tool modes next.');
     expect(duplicatedToast('dev-copy', 'dev')).toEqual({ tone: 'success', title: 'Endpoint dev-copy created', body: 'A copy of dev without tokens or AI app links.' });
     expect(deletedToast('dev', { tokensRevoked: [], rejectedApprovals: 0 }).body).toBe('Its URL stops answering. The audit log keeps every call.');
     expect(deletedToast('dev', { tokensRevoked: ['a', 'b'], rejectedApprovals: 3 }).body).toBe(
@@ -199,21 +199,21 @@ describe('Endpoints view', () => {
     );
   });
 
-  it('counts the connections each Start from would take', () => {
+  it('counts the connections available for each Start from', () => {
     expect(startFromMeta(kitConnections())).toEqual({
       empty: 'Start from scratch',
-      'read-only-dev': '6 dev connections',
-      'incident-response': '3 prod connections · stricter prod limits',
+      'read-only-dev': '6 dev connections available',
+      'incident-response': '3 prod connections available · stricter prod limits',
     });
-    expect(startFromMeta([])['read-only-dev']).toBe('No dev connections yet');
+    expect(startFromMeta([])['read-only-dev']).toBe('No dev connections available');
     // A connection changed outside GateRook is skipped by the core.
-    expect(startFromMeta([{ ...conn('a', 'dev', 'healthy', 1, []), verified: false }])['read-only-dev']).toBe('No dev connections yet');
+    expect(startFromMeta([{ ...conn('a', 'dev', 'healthy', 1, []), verified: false }])['read-only-dev']).toBe('No dev connections available');
     expect(startFromMeta(null)['read-only-dev']).toBe('Dev connections');
     // An external MCP server joins an endpoint only when the person adds it.
-    expect(startFromMeta([{ ...conn('github-mcp', 'dev', 'healthy', 1, []), type: 'mcp-server' }])['read-only-dev']).toBe('No dev connections yet');
+    expect(startFromMeta([{ ...conn('github-mcp', 'dev', 'healthy', 1, []), type: 'mcp-server' }])['read-only-dev']).toBe('No dev connections available');
   });
 
-  it("counts the tools each Start from would turn on, from the core's preview (step API)", () => {
+  it("uses the core's eligible candidates without implying that all tools will be enabled", () => {
     const starts = [
       { startFrom: 'empty' as const, env: 'dev' as const, access: 'standard' as const, connections: [], tools: { read: 0, approval: 0, off: 0 } },
       {
@@ -227,12 +227,12 @@ describe('Endpoints view', () => {
     ];
     expect(startFromMeta(kitConnections(), starts)).toEqual({
       empty: 'Start from scratch',
-      'read-only-dev': '6 dev connections · 12 tools',
-      'incident-response': '3 prod connections · stricter prod limits',
+      'read-only-dev': '6 dev connections available',
+      'incident-response': '3 prod connections available · stricter prod limits',
     });
     // The core's count of connections wins over the list's (it skips what it wouldn't wire).
-    expect(startFromMeta(null, starts)['read-only-dev']).toBe('6 dev connections · 12 tools');
-    expect(startFromMeta(kitConnections(), [{ ...starts[1], connections: [] }])['read-only-dev']).toBe('No dev connections yet');
+    expect(startFromMeta(null, starts)['read-only-dev']).toBe('6 dev connections available');
+    expect(startFromMeta(kitConnections(), [{ ...starts[1], connections: [] }])['read-only-dev']).toBe('No dev connections available');
   });
 
   it('maps the core’s field errors to the Create dialog', () => {

@@ -185,7 +185,8 @@ class EndpointsIT {
     EndpointService.StartPreview preview = endpoints.previewStart(EndpointService.StartFrom.READ_ONLY_DEV);
     assertThat(preview.connections()).contains("s-dev-db", "s-dev-vm", "s-dev-api").doesNotContain("s-dev-mcp",
         "s-prod-db");
-    EndpointService.Summary ro = endpoints.create("s-readonly", null, EndpointService.StartFrom.READ_ONLY_DEV, null);
+    EndpointService.Summary ro = endpoints.create("s-readonly", null, EndpointService.StartFrom.READ_ONLY_DEV,
+        preview.connections(), null);
     assertThat(ro.access()).isEqualTo("read-only");
     assertThat(ro.tools()).as("the card's count is the list's after Create").isEqualTo(preview.tools());
     assertThat(ro.connections()).isEqualTo(preview.connections().size());
@@ -201,7 +202,7 @@ class EndpointsIT {
 
     EndpointService.StartPreview incidentPreview = endpoints.previewStart(EndpointService.StartFrom.INCIDENT_RESPONSE);
     EndpointService.Summary incident = endpoints.create("s-incident", null,
-        EndpointService.StartFrom.INCIDENT_RESPONSE, null);
+        EndpointService.StartFrom.INCIDENT_RESPONSE, incidentPreview.connections(), null);
     assertThat(incident.env()).isEqualTo(Env.PROD);
     assertThat(incident.tools()).isEqualTo(incidentPreview.tools());
     EndpointSnapshot p = snapshots.bySlug("s-incident").orElseThrow();

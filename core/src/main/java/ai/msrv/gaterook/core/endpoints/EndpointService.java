@@ -92,9 +92,9 @@ public class EndpointService {
   public enum StartFrom {
     /** No connections, every tool off. */
     EMPTY,
-    /** Every dev connection with its read-only tools on; the endpoint is read only. */
+    /** Selected dev connections with their read-only tools on; the endpoint is read only. */
     READ_ONLY_DEV,
-    /** Every prod connection: reads on, tools that only change data off, runbooks through approval. */
+    /** Selected prod connections: reads on, tools that only change data off, runbooks through approval. */
     INCIDENT_RESPONSE;
 
     public static StartFrom of(String id) {
@@ -218,14 +218,21 @@ public class EndpointService {
 
   // ── Create, duplicate ───────────────────────────────────────────────────────────────────────────────────────
 
-  /** {@code POST /api/endpoints {slug, description?, startFrom}}. */
+  /** Creates an endpoint without connections. A preset alone never grants access to existing connections. */
   public Summary create(String slug, String description, StartFrom startFrom, String reason) {
+    return create(slug, description, startFrom, List.of(), reason);
+  }
+
+  /** {@code POST /api/endpoints {slug, description?, startFrom, connections?}}; only selected names are wired. */
+  public Summary create(String slug, String description, StartFrom startFrom, List<String> selectedConnections,
+      String reason) {
     checkSlug(slug);
     checkDescription(description);
     String id = writeTx.execute(s -> {
       if (endpoints.existsBySlug(slug)) {
         throw ProblemException.conflict("Slug in use", "An endpoint /mcp/" + slug + " already exists.");
       }
+      List<ConnectionConfigs.Stored> selected = selectedStartConnections(startFrom, selectedConnections);
       EndpointAccess access = startFrom == StartFrom.READ_ONLY_DEV ? EndpointAccess.READ_ONLY : EndpointAccess.STANDARD;
       Env env = startFrom == StartFrom.INCIDENT_RESPONSE ? Env.PROD : Env.DEV;
       EndpointEntity e = new EndpointEntity(slug, env, access, rows.map(defaultSettings()), clock.instant());
@@ -233,7 +240,7 @@ public class EndpointService {
       e = rows.save(e);
       wiring.ensureCoreTools(e, startFrom == StartFrom.EMPTY ? Mode.OFF : Mode.READ_ONLY);
       boolean readOnly = access == EndpointAccess.READ_ONLY;
-      for (ConnectionConfigs.Stored c : startConnections(startFrom)) {
+      for (ConnectionConfigs.Stored c : selected) {
         wiring.wire(e, c, registry.type(c.config().type()).orElseThrow().manifest(),
             offered -> startMode(startFrom, offered, readOnly));
       }
@@ -249,7 +256,7 @@ public class EndpointService {
   }
 
   /**
-   * What a start wires: the verified connections of its environment whose type is on — dev for Read-only dev, prod for
+   * What a start offers for selection: verified connections whose type is on — dev for Read-only dev, prod for
    * Incident response, none for Empty. External MCP servers join an endpoint only when the person adds them (the kit's
    * "6 dev connections" while github-mcp is installed): their tools all start in Approval, which a read-only endpoint
    * turns off, and an incident endpoint shouldn't call an outside server nobody chose for it.
@@ -270,6 +277,24 @@ public class EndpointService {
     return out;
   }
 
+  /** Rechecks the explicit selection at creation time, including connections changed since the preview. */
+  private List<ConnectionConfigs.Stored> selectedStartConnections(StartFrom startFrom, List<String> selected) {
+    if (selected == null || selected.isEmpty()) {
+      return List.of();
+    }
+    Set<String> names = new HashSet<>(selected);
+    if (names.contains(null) || names.size() != selected.size()) {
+      throw ProblemException.unprocessable("Invalid connections", "Select each connection only once.", "/connections");
+    }
+    List<ConnectionConfigs.Stored> available = startConnections(startFrom).stream()
+        .filter(c -> names.contains(c.name())).toList();
+    if (available.size() != names.size()) {
+      throw ProblemException.unprocessable("Connections unavailable",
+          "Some selected connections are no longer available for this preset. Review the selection.", "/connections");
+    }
+    return available;
+  }
+
   /** The mode a start gives an offered tool: the type's default, clamped on a read-only endpoint; incidents never write. */
   private static Mode startMode(StartFrom startFrom, ToolPairs.Offered offered, boolean readOnly) {
     Env wanted = startFrom == StartFrom.INCIDENT_RESPONSE ? Env.PROD : Env.DEV;
@@ -279,17 +304,16 @@ public class EndpointService {
   }
 
   /**
-   * One "Start from" card of New endpoint: what {@link #create} would make of a start now.
+   * One "Start from" card of New endpoint: the eligible connections and tool counts if all were selected.
    *
-   * @param connections the connections it would wire, in the order it wires them
-   * @param tools       its pairs by mode, the core tools included, as its list row counts them after Create
+   * @param connections the connections available for explicit selection, in wiring order
+   * @param tools       pairs by mode with all candidates selected, the core tools included
    */
   public record StartPreview(String startFrom, Env env, String access, List<String> connections, ToolCounts tools) {}
 
   /**
-   * {@link #create} without saving anything: the connections a start would wire and the modes their tools would get
-   * (the kit's "Read-only dev · 6 dev connections · 12 tools"). Every connection's tools are asked together, as they
-   * are once all of them are wired.
+   * Previews a preset with all eligible connections selected, without saving anything. Creation requires an
+   * explicit subset of these names; new or unselected connections never join implicitly.
    */
   public StartPreview previewStart(StartFrom startFrom) {
     boolean readOnly = startFrom == StartFrom.READ_ONLY_DEV;

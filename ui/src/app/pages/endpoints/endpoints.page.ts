@@ -90,14 +90,14 @@ const START_FROM: readonly { readonly id: StartFrom; readonly env: Env; readonly
     env: 'dev',
     icon: 'eye',
     title: 'Read-only dev',
-    description: 'All dev connections with their read-only tools on. Tools that change data stay off.',
+    description: 'Choose dev connections below. Their read-only tools start on; tools that change data stay off.',
   },
   {
     id: 'incident-response',
     env: 'prod',
     icon: 'siren',
     title: 'Incident response',
-    description: 'Prod replica and logs read only, runbooks on prod-vm after approval.',
+    description: 'Choose prod connections below. Read tools start on; tools that only change data stay off.',
   },
 ];
 
@@ -111,7 +111,7 @@ const START_FROM: readonly { readonly id: StartFrom; readonly env: Env; readonly
  *   health that names what is slow or unreachable; tools by mode; the clients; tokens (active, expired, one expiring
  *   soon); the approvals waiting; the compact risk callout with Review; View activity, Open in Playground, Configure.
  *   An endpoint changed outside GateRook says so and can be kept after review.
- * - Create asks for a slug (the URL shows as it is typed), a description and where to start, then opens the new
+ * - Create asks for a slug (the URL shows as it is typed), a description, a preset and explicit connections, then opens the new
  *   endpoint's page; Duplicate asks for the copy's slug; Disable acts at once with Undo in a toast; Delete asks in a
  *   `gw-dialog--danger` that names what stops working, Cancel has the focus.
  *
@@ -219,6 +219,8 @@ export class EndpointsPage {
   protected readonly createError = signal<string | null>(null);
   protected readonly startFromError = signal<string | null>(null);
   protected readonly startFromMeta = computed(() => startFromMeta(this.data.connections(), this.data.starts()));
+  protected readonly chosenConnections = signal<readonly string[]>([]);
+  protected readonly connectionChoices = computed(() => this.data.starts()?.find((s) => s.startFrom === this.createModel().startFrom)?.connections ?? null);
 
   // ── Duplicate ─────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -285,7 +287,13 @@ export class EndpointsPage {
 
   protected setStartFrom(id: StartFrom): void {
     this.createModel.update((m) => ({ ...m, startFrom: id }));
+    this.chosenConnections.set([]);
     this.startFromError.set(null);
+  }
+
+  protected toggleConnection(name: string, event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.chosenConnections.update((names) => checked ? [...names.filter((n) => n !== name), name] : names.filter((n) => n !== name));
   }
 
   protected async submitCreate(e: Event): Promise<void> {
@@ -297,14 +305,15 @@ export class EndpointsPage {
       action: async () => {
         const m = this.createModel();
         const slug = m.slug.trim();
+        const connections = this.chosenConnections();
         try {
-          await this.data.create(slug, m.description.trim() || null, m.startFrom);
+          await this.data.create(slug, m.description.trim() || null, m.startFrom, connections);
         } catch (err) {
           return this.createProblem(err);
         }
+        this.toast(createdToast(slug, connections.length));
         this.createDialog().close('create');
-        this.toast(createdToast(slug, m.startFrom));
-        // "You add connections and pick modes on the next page" (the dialog's own words): open it.
+        // Open the endpoint to review its tool modes or add connections.
         void this.router.navigate(['/endpoints', slug]);
         return undefined;
       },
@@ -333,6 +342,7 @@ export class EndpointsPage {
 
   private resetCreate(): void {
     this.createModel.set({ slug: '', description: '', startFrom: 'empty' });
+    this.chosenConnections.set([]);
     this.createForm().reset();
     this.createTried.set(false);
     this.createError.set(null);

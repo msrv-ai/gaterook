@@ -63,8 +63,8 @@ function setup(): EndpointsData {
       calls.push('list');
       return listAnswer();
     },
-    create: (r: { slug: string; startFrom: string }) => {
-      calls.push(`create ${r.slug} ${r.startFrom}`);
+    create: (r: { slug: string; startFrom: string; connections: readonly string[] }) => {
+      calls.push(`create ${r.slug} ${r.startFrom} ${JSON.stringify(r.connections)}`);
       return Promise.resolve({ ...row('dev'), slug: r.slug });
     },
     duplicate: (slug: string, newSlug: string) => {
@@ -283,7 +283,9 @@ describe('EndpointsData', () => {
     const data = setup();
     await data.start();
     await data.create('payments-dev', null, 'read-only-dev');
-    expect(calls).toContain('create payments-dev read-only-dev');
+    expect(calls).toContain('create payments-dev read-only-dev []');
+    await data.create('logs-dev', null, 'read-only-dev', ['app-logs']);
+    expect(calls).toContain('create logs-dev read-only-dev ["app-logs"]');
     await data.restoreRisk('dev');
     expect(calls).toContain('restore dev');
   });
