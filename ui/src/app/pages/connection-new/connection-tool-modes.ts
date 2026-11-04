@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { isApiError } from '../../core/api/api-error';
+import { ApiError, isApiError } from '../../core/api/api-error';
 import { ConnectionUsedBy } from '../../core/api/connections.api';
 import { EndpointsApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { ToolMode } from '../../core/api/types';
@@ -143,9 +143,16 @@ export class ConnectionToolModes {
     if (this.endpoints()[endpoint]?.saving) return;
     this.update(endpoint, { saving: true });
     try {
-      const groups = confirm
-        ? await this.api.confirmReadOnly(endpoint, { toolKey: tool.toolKey, connection, definitionHash: tool.definitionHash! })
-        : await this.api.setMode(endpoint, { toolKey: tool.toolKey, connection, mode, version: tool.version });
+      let version = tool.version;
+      if (confirm) {
+        // Confirmation records trust only. Save the chosen mode with the version that acknowledgement returns.
+        const confirmed = await this.api.confirmReadOnly(endpoint, { toolKey: tool.toolKey, connection, definitionHash: tool.definitionHash! });
+        if (generation !== this.generation) return;
+        const current = confirmed.find((group) => group.connection === connection)?.tools.find((row) => row.toolKey === tool.toolKey);
+        if (!current) throw new ApiError('conflict', 409, { detail: 'This tool is no longer available on the endpoint. Review its current tools.' });
+        version = current.version;
+      }
+      const groups = await this.api.setMode(endpoint, { toolKey: tool.toolKey, connection, mode, version });
       if (generation !== this.generation) return;
       this.apply(endpoint, connection, groups);
       this.toasts.show({ tone: 'success', title: `${tool.name}: ${MODES[mode].text} on ${endpoint}`, body: 'Applies from the next call.' });

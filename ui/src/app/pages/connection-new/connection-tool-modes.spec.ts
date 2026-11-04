@@ -30,13 +30,19 @@ describe('connection tool modes', () => {
         if (loadError) throw new Error('offline');
         return groups(slug);
       }),
-      setMode: vi.fn(async (slug: string, request: { toolKey: string; mode: ToolRow['mode']; version: number }) => {
+      setMode: vi.fn(async (slug: string, request: { toolKey: string; connection: string; mode: ToolRow['mode']; version: number }) => {
+        const current = request.connection === 'dev-db' ? stored[slug].find((row) => row.toolKey === request.toolKey) : undefined;
+        if (!current || current.version !== request.version) {
+          throw new ApiError('conflict', 409, { detail: 'The tool changed. Reload its current version.' });
+        }
         stored[slug] = stored[slug].map((row) => row.toolKey === request.toolKey
           ? { ...row, mode: request.mode, storedMode: request.mode, version: row.version + 1, bypassUntil: null } : row);
         return groups(slug);
       }),
-      confirmReadOnly: vi.fn(async (slug: string) => {
-        stored[slug] = stored[slug].map((row) => ({ ...row, mode: 'READ_ONLY', storedMode: 'READ_ONLY', readOnlyConfirmed: true }));
+      confirmReadOnly: vi.fn(async (slug: string, request: { toolKey: string; connection: string; definitionHash: string }) => {
+        // Confirmation records trust in the declaration; the saved mode stays unchanged until setMode.
+        stored[slug] = stored[slug].map((row) => request.connection === 'dev-db' && row.toolKey === request.toolKey
+          ? { ...row, readOnlyConfirmed: true, version: row.version + 1 } : row);
         return groups(slug);
       }),
     };
@@ -141,6 +147,12 @@ describe('connection tool modes', () => {
 
   it('requires an individual acknowledgement before trusting an external read-only declaration', async () => {
     const p = await render({ tool: { declaredBy: 'search-mcp', definitionHash: 'sha256-current' } });
+    const setMode = p.api.setMode.getMockImplementation()!;
+    let finishMode!: () => void;
+    p.api.setMode.mockImplementationOnce(async (...args) => {
+      await new Promise<void>((resolve) => { finishMode = resolve; });
+      return setMode(...args);
+    });
     await p.pick('READ_ONLY');
     const dialog = p.root.querySelector('dialog')!;
     const allow = dialog.querySelector<HTMLButtonElement>('.gw-btn--primary')!;
@@ -151,14 +163,101 @@ describe('connection tool modes', () => {
     expect(p.api.confirmReadOnly).not.toHaveBeenCalled();
     dialog.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click();
     await p.settle();
+    p.changed.mockClear();
     allow.click();
     await p.settle();
     expect(p.api.confirmReadOnly).toHaveBeenCalledExactlyOnceWith('dev', {
       toolKey: 'postgres/sql_query', connection: 'dev-db', definitionHash: 'sha256-current',
     });
-    expect(p.api.setMode).not.toHaveBeenCalled();
+    expect(p.api.setMode).toHaveBeenCalledExactlyOnceWith('dev', {
+      toolKey: 'postgres/sql_query', connection: 'dev-db', mode: 'READ_ONLY', version: 5,
+    });
+    expect(p.trigger().textContent).toContain('Approval');
+    expect(p.trigger().getAttribute('aria-disabled')).toBe('true');
+    expect(p.changed).not.toHaveBeenCalled();
+    expect(TestBed.inject(ToastService).toasts()).toEqual([]);
+    expect(p.stored['dev'][0]).toMatchObject({ storedMode: 'APPROVAL', readOnlyConfirmed: true, version: 5 });
+    finishMode();
+    await p.settle();
     expect(p.trigger().textContent).toContain('Read only');
+    expect(p.trigger().getAttribute('aria-disabled')).not.toBe('true');
+    expect(p.changed).toHaveBeenCalledOnce();
+    expect(p.stored['dev'][0]).toMatchObject({ storedMode: 'READ_ONLY', readOnlyConfirmed: true, version: 6 });
+    expect(p.stored['stage'][0]).toMatchObject({ storedMode: 'APPROVAL', readOnlyConfirmed: false, version: 8 });
+    expect(p.trigger('stage').textContent).toContain('Approval');
     expect(document.activeElement).toBe(p.trigger());
+  });
+
+  it('reloads the saved mode after confirmation succeeds but its mode change conflicts, then retries at the latest version', async () => {
+    const p = await render({ tool: { declaredBy: 'search-mcp', definitionHash: 'sha256-current' } });
+    p.api.setMode.mockImplementationOnce(async () => {
+      p.stored['dev'][0] = { ...p.stored['dev'][0], version: 7 };
+      throw new ApiError('conflict', 409, { detail: 'Another change updated this tool. Try again.' });
+    });
+    await p.pick('READ_ONLY');
+    const dialog = p.root.querySelector('dialog')!;
+    dialog.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click();
+    await p.settle();
+    dialog.querySelector<HTMLButtonElement>('.gw-btn--primary')!.click();
+    await p.settle();
+    expect(p.api.setMode).toHaveBeenCalledExactlyOnceWith('dev', {
+      toolKey: 'postgres/sql_query', connection: 'dev-db', mode: 'READ_ONLY', version: 5,
+    });
+    expect(p.trigger().textContent).toContain('Approval');
+    expect(p.stored['dev'][0]).toMatchObject({ storedMode: 'APPROVAL', readOnlyConfirmed: true, version: 7 });
+    expect(TestBed.inject(ToastService).toasts().map((toast) => toast.tone)).toEqual(['danger']);
+    expect(p.api.tools).toHaveBeenCalledTimes(3);
+
+    await p.pick('READ_ONLY');
+    expect(dialog.open).toBe(false);
+    expect(p.api.confirmReadOnly).toHaveBeenCalledOnce();
+    expect(p.api.setMode).toHaveBeenLastCalledWith('dev', {
+      toolKey: 'postgres/sql_query', connection: 'dev-db', mode: 'READ_ONLY', version: 7,
+    });
+    expect(p.trigger().textContent).toContain('Read only');
+  });
+
+  it('does not use another connection’s tool when the confirmation response no longer contains the selected pair', async () => {
+    const p = await render({ tool: { declaredBy: 'search-mcp', definitionHash: 'sha256-current' } });
+    p.api.confirmReadOnly.mockResolvedValueOnce([
+      { group: 'other-db', connection: 'other-db', env: 'dev', tools: [tool({ readOnlyConfirmed: true, version: 99 })] },
+    ]);
+    await p.pick('READ_ONLY');
+    const dialog = p.root.querySelector('dialog')!;
+    dialog.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click();
+    await p.settle();
+    dialog.querySelector<HTMLButtonElement>('.gw-btn--primary')!.click();
+    await p.settle();
+    expect(p.api.setMode).not.toHaveBeenCalled();
+    expect(p.trigger().textContent).toContain('Approval');
+    expect(TestBed.inject(ToastService).toasts().map((toast) => toast.tone)).toEqual(['danger']);
+    expect(p.api.tools).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not write the mode after switching connections while confirmation is pending', async () => {
+    const p = await render({ tool: { declaredBy: 'search-mcp', definitionHash: 'sha256-current' } });
+    const confirm = p.api.confirmReadOnly.getMockImplementation()!;
+    let finishConfirmation!: () => void;
+    p.api.confirmReadOnly.mockImplementationOnce(async (...args) => {
+      await new Promise<void>((resolve) => { finishConfirmation = resolve; });
+      return confirm(...args);
+    });
+    await p.pick('READ_ONLY');
+    const dialog = p.root.querySelector('dialog')!;
+    dialog.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click();
+    await p.settle();
+    dialog.querySelector<HTMLButtonElement>('.gw-btn--primary')!.click();
+    await p.settle();
+    expect(p.api.confirmReadOnly).toHaveBeenCalledOnce();
+    expect(p.api.setMode).not.toHaveBeenCalled();
+    p.fixture.componentRef.setInput('connection', 'other-db');
+    await p.settle();
+    p.changed.mockClear();
+    finishConfirmation();
+    await p.settle();
+    expect(p.api.setMode).not.toHaveBeenCalled();
+    expect(p.changed).not.toHaveBeenCalled();
+    expect(TestBed.inject(ToastService).toasts()).toEqual([]);
   });
 
   it('keeps undeclared external tools in Approval, Bypass or Off', async () => {
