@@ -343,11 +343,11 @@ export function deletedToast(slug: string, result: { readonly tokensRevoked: rea
   return { tone: 'success', title: `Endpoint ${slug} deleted`, body: `Its URL stops answering. The audit log keeps every call.${tail}` };
 }
 
-export function createdToast(slug: string, startFrom: StartFrom): ToastText {
+export function createdToast(slug: string, connections: number): ToastText {
   return {
     tone: 'success',
     title: `Endpoint ${slug} created`,
-    body: startFrom === 'empty' ? 'Add its connections and pick tool modes next.' : 'Check its connections and tool modes next.',
+    body: connections === 0 ? 'No connections added. Add connections and pick tool modes next.' : `${plural(connections, 'connection')} added. Review their tool modes next.`,
   };
 }
 
@@ -356,10 +356,8 @@ export function duplicatedToast(slug: string, source: string): ToastText {
 }
 
 /**
- * The meta line of each Start from card (kit: "6 dev connections · 12 tools"). The core's preview of each way to
- * start (`GET /api/endpoint-starts`, step API) gives the connections it would wire and the tools that would be on, as
- * the endpoint's card counts them after Create. Without it, the connections of the env are counted here and the tools
- * are left out: they depend on the core's rules for each connector.
+ * Each Start from card counts available candidates. Choosing a preset never selects its connections.
+ * The core's preview is authoritative; the connection list supplies an estimate while it loads.
  */
 export function startFromMeta(connections: readonly ConnectionRow[] | null, starts: readonly EndpointStart[] | null = null): Record<StartFrom, string> {
   const start = (id: StartFrom) => starts?.find((s) => s.startFrom === id) ?? null;
@@ -368,12 +366,10 @@ export function startFromMeta(connections: readonly ConnectionRow[] | null, star
   const dev = count('read-only-dev', 'dev');
   const prod = count('incident-response', 'prod');
   const of = (n: number | null, env: Env) =>
-    n === null ? `${env[0].toUpperCase()}${env.slice(1)} connections` : n === 0 ? `No ${env} connections yet` : plural(n, `${env} connection`);
-  const readOnly = start('read-only-dev');
-  const on = readOnly ? readOnly.tools.read + readOnly.tools.approval : null;
+    n === null ? `${env[0].toUpperCase()}${env.slice(1)} connections` : n === 0 ? `No ${env} connections available` : `${plural(n, `${env} connection`)} available`;
   return {
     empty: 'Start from scratch',
-    'read-only-dev': dev && on !== null ? `${of(dev, 'dev')} · ${plural(on, 'tool')}` : of(dev, 'dev'),
+    'read-only-dev': of(dev, 'dev'),
     'incident-response': `${of(prod, 'prod')} · stricter prod limits`,
   };
 }

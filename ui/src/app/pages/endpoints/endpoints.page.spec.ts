@@ -58,6 +58,7 @@ const RUNBOOKS: Template[] = [
 ];
 
 let calls: string[];
+let createRequests: Parameters<EndpointsApi['create']>[0][];
 let events: FakeEvents;
 let fragment: BehaviorSubject<string | null>;
 let rows: EndpointSummary[];
@@ -74,6 +75,7 @@ const byslug = (slug: string) => rows.find((r) => r.slug === slug)!;
 
 function setup(list: EndpointSummary[] = kitEndpoints()): void {
   calls = [];
+  createRequests = [];
   events = new FakeEvents();
   fragment = new BehaviorSubject<string | null>(null);
   rows = list;
@@ -92,8 +94,9 @@ function setup(list: EndpointSummary[] = kitEndpoints()): void {
       calls.push('list');
       return listAnswer();
     },
-    create: (r: { slug: string; description: string | null; startFrom: string }) => {
+    create: (r: Parameters<EndpointsApi['create']>[0]) => {
       calls.push(`create ${r.slug} ${r.description ?? '-'} ${r.startFrom}`);
+      createRequests.push(r);
       return createAnswer();
     },
     duplicate: (slug: string, newSlug: string) => {
@@ -311,7 +314,7 @@ describe('Endpoints page', () => {
     expect(el.querySelectorAll('article.gw-card')).toHaveLength(3);
   });
 
-  it("says how many tools each way to start turns on, as the core would start it now (step API)", async () => {
+  it("shows available connection counts without implying that selecting a preset adds them", async () => {
     startsAnswer = () =>
       Promise.resolve([
         { startFrom: 'empty', env: 'dev', access: 'standard', connections: [], tools: { read: 0, approval: 0, off: 0 } },
@@ -325,8 +328,8 @@ describe('Endpoints page', () => {
     expect(calls).toContain('starts');
     expect(Array.from(el.querySelectorAll('#ep-create .gw-choice-card__meta')).map(text)).toEqual([
       'Start from scratch',
-      '6 dev connections · 12 tools',
-      '3 prod connections · stricter prod limits',
+      '6 dev connections available',
+      '3 prod connections available · stricter prod limits',
     ]);
   });
 
@@ -344,8 +347,8 @@ describe('Endpoints page', () => {
     expect(text(dialog.querySelector('#ep-create-url'))).toBe('URL: http://127.0.0.1:7465/mcp/your-slug');
     expect(Array.from(dialog.querySelectorAll('.gw-choice-card__meta')).map(text)).toEqual([
       'Start from scratch',
-      '6 dev connections',
-      '3 prod connections · stricter prod limits',
+      '6 dev connections available',
+      '3 prod connections available · stricter prod limits',
     ]);
 
     // Nothing typed: no error yet; a try shows it at the field, with the focus there.
@@ -381,9 +384,64 @@ describe('Endpoints page', () => {
     click(dialog, 'button[type="submit"]');
     await settle(fixture);
     expect(calls).toContain('create payments-dev Payments service on dev incident-response');
+    expect(createRequests.at(-1)?.connections).toEqual([]);
     expect(dialog.open).toBe(false);
-    expect(toasts().at(-1)).toMatchObject({ tone: 'success', title: 'Endpoint payments-dev created', body: 'Check its connections and tool modes next.' });
+    expect(toasts().at(-1)).toMatchObject({ tone: 'success', title: 'Endpoint payments-dev created', body: 'No connections added. Add connections and pick tool modes next.' });
     expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/endpoints', 'payments-dev']);
+  });
+
+  it.each(['read-only-dev', 'incident-response'] as const)('creates %s without adding its available connections by default', async (preset) => {
+    startsAnswer = () => Promise.resolve([
+      { startFrom: preset, env: preset === 'read-only-dev' ? 'dev' : 'prod', access: 'standard', connections: ['database', 'logs'], tools: { read: 4, approval: 1, off: 2 } },
+    ]);
+    setup();
+    const { fixture, el } = await render();
+    click(el, '#ep-create-open');
+    await settle(fixture);
+    type(el.querySelector<HTMLInputElement>('#ep-create-slug')!, 'fresh-endpoint');
+    click(el, `input[name="ep-create-start"][value="${preset}"]`);
+    await settle(fixture);
+    const choices = Array.from(el.querySelectorAll<HTMLInputElement>('input[name="ep-create-connections"]'));
+    expect(choices.map((choice) => [choice.value, choice.checked])).toEqual([['database', false], ['logs', false]]);
+    expect(text(el.querySelector('#ep-create-connections-hint'))).toContain('Leave all unchecked to create an empty endpoint.');
+    click(el, '#ep-create button[type="submit"]');
+    await settle(fixture);
+    expect(createRequests).toEqual([{ slug: 'fresh-endpoint', description: null, startFrom: preset, connections: [] }]);
+  });
+
+  it('adds only checked connections and clears selection when changing presets or reopening Create', async () => {
+    startsAnswer = () => Promise.resolve([
+      { startFrom: 'read-only-dev', env: 'dev', access: 'read-only', connections: ['dev-db'], tools: { read: 2, approval: 0, off: 1 } },
+      { startFrom: 'incident-response', env: 'prod', access: 'standard', connections: ['prod-db', 'prod-logs'], tools: { read: 4, approval: 0, off: 2 } },
+    ]);
+    setup();
+    const { fixture, el } = await render();
+    click(el, '#ep-create-open');
+    await settle(fixture);
+    click(el, 'input[name="ep-create-start"][value="incident-response"]');
+    await settle(fixture);
+    click(el, 'input[name="ep-create-connections"][value="prod-db"]');
+    click(el, 'input[name="ep-create-start"][value="read-only-dev"]');
+    await settle(fixture);
+    expect(el.querySelector<HTMLInputElement>('input[name="ep-create-connections"]')!.checked).toBe(false);
+    click(el, 'input[name="ep-create-start"][value="incident-response"]');
+    await settle(fixture);
+    expect(el.querySelector<HTMLInputElement>('input[name="ep-create-connections"][value="prod-db"]')!.checked).toBe(false);
+    click(el, 'input[name="ep-create-connections"][value="prod-db"]');
+    click(el, '#ep-create .gw-dialog__footer button[type="button"]');
+    await settle(fixture);
+    click(el, '#ep-create-open');
+    await settle(fixture);
+    expect(el.querySelector<HTMLInputElement>('input[name="ep-create-start"][value="empty"]')!.checked).toBe(true);
+    click(el, 'input[name="ep-create-start"][value="incident-response"]');
+    await settle(fixture);
+    expect(el.querySelector<HTMLInputElement>('input[name="ep-create-connections"][value="prod-db"]')!.checked).toBe(false);
+    click(el, 'input[name="ep-create-connections"][value="prod-logs"]');
+    type(el.querySelector<HTMLInputElement>('#ep-create-slug')!, 'logs-review');
+    click(el, '#ep-create button[type="submit"]');
+    await settle(fixture);
+    expect(createRequests).toEqual([{ slug: 'logs-review', description: null, startFrom: 'incident-response', connections: ['prod-logs'] }]);
+    expect(toasts().at(-1)?.body).toBe('1 connection added. Review their tool modes next.');
   });
 
   it('shows a refusal that names no field in the dialog, and resets the form on close', async () => {

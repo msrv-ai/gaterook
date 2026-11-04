@@ -133,7 +133,7 @@
     {"slug": "stage-readonly", "description": "Stage data for claude.ai, read only. Nothing on it can change data.", "startFrom": "empty",
      "connections": ["stage-db", "aws-stage", "billing-api"], "access": "read-only", "reason": "claude.ai only reads"},
     {"slug": "incident-prod", "description": "Production incidents: read the replica and the logs, run approved runbooks on prod-vm.",
-     "startFrom": "incident-response"}
+     "startFrom": "incident-response", "connections": ["prod-replica", "prod-logs", "prod-vm"]}
   ],
   "tokens": [
     {"endpoint": "dev", "name": "inspector-debug", "ttlDays": 3},

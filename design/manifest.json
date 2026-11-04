@@ -2495,7 +2495,7 @@
     {
       "html": "pages/endpoints.html",
       "title": "Endpoints",
-      "purpose": "List of the 3 MCP endpoints (dev, stage-readonly, incident-prod). Each card shows at a glance: URL with Copy, connections count with env markers, connection health, tools by mode (read only / approval / off), the AI apps using it (client marks), active tokens with expiry warning, approvals waiting, and the risky-combination warning (compact). Create endpoint is the one primary action: a dialog with slug, live URL preview, optional description and a starting template with an environment marker beside its title (Empty: dev / Read-only dev: dev / Incident response: prod). Each card has View activity, Open in Playground, Configure and a More menu (Duplicate dialog, Disable with Undo toast — a disabled endpoint's menu offers Enable instead —, Delete with a danger confirm that names the endpoint).",
+      "purpose": "List of the 3 MCP endpoints (dev, stage-readonly, incident-prod). Each card shows at a glance: URL with Copy, connections count with env markers, connection health, tools by mode (read only / approval / off), the AI apps using it (client marks), active tokens with expiry warning, approvals waiting, and the risky-combination warning (compact). Create endpoint is the one primary action: a dialog with slug, live URL preview, optional description and a starting template with an environment marker beside its title (Empty: dev / Read-only dev: dev / Incident response: prod). Templates list eligible connections with unchecked checkboxes; only explicitly selected connections join the new endpoint. Changing the template or reopening the dialog clears that selection. Each card has View activity, Open in Playground, Configure and a More menu (Duplicate dialog, Disable with Undo toast — a disabled endpoint's menu offers Enable instead —, Delete with a danger confirm that names the endpoint).",
       "elements": [
         "risk-callout (--compact, present and partial states)"
       ],
@@ -2519,6 +2519,7 @@
         "gw-dialog (--md, --sm, --danger)",
         "gw-field / gw-input / gw-input-group",
         "gw-choice-card (--compact)",
+        "gw-checkbox",
         "gw-btn (--primary, --ghost, --danger, --icon, --link)",
         "gw-divider",
         "gw-toast via gwToast"

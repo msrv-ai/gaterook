@@ -72,14 +72,14 @@ export interface EndpointSettings {
 export type StartFrom = 'empty' | 'read-only-dev' | 'incident-response';
 
 /**
- * One "Start from" card of New endpoint (`GET /api/endpoint-starts`, step API): what the endpoint would start with
- * now, counted as its list row counts after Create ("Read-only dev · 6 dev connections · 12 tools").
+ * One "Start from" card of New endpoint (`GET /api/endpoint-starts`): eligible connections and the tool modes
+ * available if all candidates are explicitly selected.
  */
 export interface EndpointStart {
   readonly startFrom: StartFrom;
   readonly env: Env;
   readonly access: 'standard' | 'read-only';
-  /** The connections it would wire (external MCP servers never: the person adds those). */
+  /** Eligible connections; none join until explicitly selected. External MCP servers are added separately. */
   readonly connections: string[];
   /** Its pairs by mode, the core's own tools included (read + approval + bypass are on). */
   readonly tools: { readonly read: number; readonly approval: number; readonly off: number; readonly bypass?: number };
@@ -169,7 +169,7 @@ export class EndpointsApi {
     return this.api.get('/api/endpoints');
   }
 
-  create(request: { readonly slug: string; readonly description?: string | null; readonly startFrom: StartFrom } & WithReason): Promise<EndpointSummary> {
+  create(request: { readonly slug: string; readonly description?: string | null; readonly startFrom: StartFrom; readonly connections?: readonly string[] } & WithReason): Promise<EndpointSummary> {
     return this.api.post('/api/endpoints', request);
   }
 

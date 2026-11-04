@@ -140,8 +140,9 @@ class DemoWorldIT {
     endpoints.updateSettings("stage-readonly", new EndpointService.SettingsUpdate(null, "read-only", null, null, null,
         null, null), endpoints.get("stage-readonly").version(), "claude.ai only reads");
 
-    // incident-prod: Start from "Incident response" picks the prod connections.
-    endpoints.create("incident-prod", "On-call", EndpointService.StartFrom.INCIDENT_RESPONSE, null);
+    // incident-prod: explicitly select the production connections for the Incident response preset.
+    endpoints.create("incident-prod", "On-call", EndpointService.StartFrom.INCIDENT_RESPONSE,
+        List.of("prod-replica", "prod-logs", "prod-vm"), null);
 
     // Tokens of dev and the three pending requests of 14:30.
     TokenService tokens = core.getBean(TokenService.class);

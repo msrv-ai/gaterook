@@ -49,6 +49,7 @@ export class EndpointsData {
   private readonly runbooksSignal = signal<ReadonlyMap<string, number> | null>(null);
   private readonly busySignal = signal<ReadonlySet<string>>(new Set());
   private readonly startsSignal = signal<readonly EndpointStart[] | null>(null);
+  private readonly startsLoadingSignal = signal(false);
 
   /** The endpoints in the core's order; null until the first answer. */
   readonly rows = this.rowsSignal.asReadonly();
@@ -67,15 +68,20 @@ export class EndpointsData {
   readonly runbooks = this.runbooksSignal.asReadonly();
   /** Endpoints with an action in flight (Disable, Enable, Show warning): their items don't start a second one. */
   readonly busy = this.busySignal.asReadonly();
-  /** What each way to start a new endpoint would give now (step API); null until it answered, or from an older core. */
+  /** Available connections for each preset; null until the core answers or when the request fails. */
   readonly starts = this.startsSignal.asReadonly();
+  readonly startsLoading = this.startsLoadingSignal.asReadonly();
 
   /** Asks the core what each Start from card would give now (the Create dialog opens). */
   async loadStarts(): Promise<void> {
+    this.startsSignal.set(null);
+    this.startsLoadingSignal.set(true);
     try {
       this.startsSignal.set(await this.api.starts());
     } catch {
       this.startsSignal.set(null);
+    } finally {
+      this.startsLoadingSignal.set(false);
     }
   }
 
@@ -196,8 +202,8 @@ export class EndpointsData {
 
   // ── Actions ───────────────────────────────────────────────────────────────────────────────────────────────────
 
-  async create(slug: string, description: string | null, startFrom: StartFrom): Promise<EndpointSummary> {
-    const row = await this.api.create({ slug, description, startFrom });
+  async create(slug: string, description: string | null, startFrom: StartFrom, connections: readonly string[] = []): Promise<EndpointSummary> {
+    const row = await this.api.create({ slug, description, startFrom, connections });
     void this.refresh('full');
     return row;
   }
