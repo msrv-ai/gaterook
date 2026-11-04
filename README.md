@@ -15,13 +15,37 @@ On DEV and STAGE, you can temporarily bypass approval for a method on one connec
 
 Connect your services to GateRook, then choose which connections and tools each AI app can use. GateRook sits between your services and AI apps, keeps credentials local, and applies your access rules to tool calls.
 
-For HTTP APIs, [import an OpenAPI file or prepare one with your AI app](docs/http-api-import.md). Review the server, authentication, and selected operations before saving them as MCP tools.
-
-To put an MCP server behind GateRook, [find it in the MCP registry, add it by its URL or paste its configuration](docs/mcp-servers.md) as in Claude Desktop, Cursor or Codex. When it asks for a sign-in, you sign in in your browser, but the sign-in goes to GateRook, not the AI app. GateRook keeps it encrypted, renews it, and never hands it to an agent.
-
 Log queries have no maximum time range by default in any environment. To set one, open **Policies → Logs → Longest time range** and enter the number of hours; `0` means no time limit. Existing explicit limits remain in effect. Line counts, response sizes, and request deadlines still apply.
 
 ![Diagram showing MySQL, MongoDB, OpenSearch, and Redis connected through GateRook to Claude Desktop, Codex, Cursor, and Antigravity.](docs/images/gaterook-gateway.png)
+
+## Connectors
+
+Built-in connectors turn your services into MCP tools. Add a connection with its credentials and allowed resources, then choose the endpoints and tool modes that give AI apps access.
+
+| Service | Built-in support |
+| --- | --- |
+| SQL databases | PostgreSQL, MySQL/MariaDB, [Oracle Database](docs/oracle.md), and [SQL Server](docs/sql-server.md): inspect schemas, query data, and review changes before execution |
+| Document and key-value stores | MongoDB document queries and updates; Redis key inspection and reads |
+| Search engines | OpenSearch and Elasticsearch: discover indices, query documents, and review administrative requests |
+| Logs | [GCP Cloud Logging](docs/gcp-logs.md), AWS CloudWatch Logs, Loki, and [selected log files over SSH](docs/ssh-log-files.md): search and read logs within configured limits |
+| Infrastructure and cloud | SSH commands and runbooks; Kubernetes resources, events, pod logs, and reviewed changes; AWS and GCP resource inspection and metrics |
+| HTTP APIs | Scoped HTTP requests and selected operations imported from an OpenAPI specification |
+
+For HTTP APIs, [import an OpenAPI file or prepare one with your AI app](docs/http-api-import.md). Review the server, authentication, and selected operations before saving them as MCP tools.
+
+## External MCP servers and the Official MCP Registry
+
+Connect existing MCP servers through GateRook to apply endpoint access rules, tool modes, approvals, and audit history to their tools. GateRook supports remote servers over **Streamable HTTP** and local commands over **stdio**.
+
+Open **Connectors → MCP servers → Add MCP server** and choose how to add one:
+
+- **Official MCP Registry:** search the [Official MCP Registry](https://registry.modelcontextprotocol.io/) by server name. Select **Use** to fill in a remote URL or a local npm/PyPI command, pinned to the package version when the registry provides one. Review the settings and supply required credentials or values before connecting or starting it.
+- **Manual entry:** enter a server URL or local command, or paste a configuration from the server's documentation, including Claude Desktop/Cursor JSON, VS Code JSON, or Codex TOML.
+
+For servers that support OAuth, sign in through your browser. GateRook stores the sign-in encrypted, renews it, and keeps the credentials out of AI apps. After adding a server, choose which endpoints may use it; tools start in **Approval** mode on selected endpoints and remain **Off** elsewhere.
+
+See [the external MCP server guide](docs/mcp-servers.md) for setup, registry package support, cloud credentials, OAuth options, and troubleshooting.
 
 ## Application overview
 
@@ -94,7 +118,7 @@ For the full connector integration suite, follow [the Docker test-services guide
 | [Product decisions](docs/DECISIONS.md) | Accepted product and engineering decisions, with implementation caveats |
 | [Research](docs/research/README.md) | Protocol, client, connector, security, native-image, and plugin-host investigations |
 | [Development](docs/development.md) | Toolchains, build/run commands, tests, native builds, and troubleshooting |
-| [External MCP servers](docs/mcp-servers.md) | Finding servers in the MCP registry, adding them by URL or pasted configuration, OAuth sign-in, your own OAuth app, and troubleshooting |
+| [External MCP servers](docs/mcp-servers.md) | Official MCP Registry search, local and remote servers, pasted configurations, OAuth sign-in, cloud credentials, and troubleshooting |
 | [Oracle Database](docs/oracle.md) | Service connections, TLS, schema access, queries and Oracle-specific limits |
 | [SQL Server](docs/sql-server.md) | SQL authentication, database selection, permissions, and T-SQL limits |
 | [GCP logs](docs/gcp-logs.md) | Logs Explorer filters, GKE logs, credentials, scopes, and endpoint access |
