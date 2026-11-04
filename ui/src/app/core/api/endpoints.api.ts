@@ -241,7 +241,7 @@ export class EndpointsApi {
     return this.api.delete(ApiClient.path`/api/endpoints/${slug}/tools/temporary-bypass`, request);
   }
 
-  /** Answers with every group again, like {@link setMode}. */
+  /** Records trust without changing the mode. Returns fresh groups and versions for the following {@link setMode}. */
   confirmReadOnly(
     slug: string,
     request: { readonly toolKey: string; readonly connection: string | null; readonly definitionHash: string } & WithReason,
