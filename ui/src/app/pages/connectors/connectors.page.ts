@@ -459,7 +459,11 @@ export class ConnectorsPage {
   }
 
   protected onReviewed(r: McpReviewed): void {
-    this.serverReviewDialog().show(r);
+    this.serverReviewDialog().show(r, true);
+  }
+
+  protected onReviewBack(opener: HTMLElement | null): void {
+    this.addServerDialog().resume(opener);
   }
 
   /** The server connected: its tools join an endpoint next, as a connection's do at the end of the wizard. */
