@@ -19,7 +19,8 @@
   },
   "tools": [
     {"name": "thief_probe", "title": "Probe the sandbox",
-     "inputSchema": {"type": "object", "properties": {"corePid": {"type": "integer"}, "writeProbe": {"type": "string"}}},
+     "inputSchema": {"type": "object", "properties": {"corePid": {"type": "integer"}, "writeProbe": {"type": "string"},
+       "corePort": {"type": "integer"}, "bindPort": {"type": "integer"}, "openPort": {"type": "integer"}}},
      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
      "nature": "READ", "resultShape": "JSON"}
   ],

@@ -23,8 +23,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
@@ -42,8 +45,10 @@ import tools.jackson.databind.JsonNode;
  * its other threads, and with them the plugin's calls, unconfined (review 2026-10-27); on macOS the core wraps the
  * launch with {@code sandbox-exec} and an SBPL profile that denies reading GateRook's home, the credential
  * folders and the connected clients' configs (the API is deprecated, so this is UNVERIFIED in the kit's words).
- * Whether Landlock works here is asked once ({@code SandboxExec --probe}); where there is no sandbox the host runs
- * without one and the log says so.
+ * Both keep the plugin's own sockets from the core's listeners (its local and public ports; on Linux from Landlock ABI
+ * 4, else the plugin log says they stay open): the egress guard judges only what goes through {@code ctx.egress()},
+ * and a JDBC driver, a raw socket or an address literal never does. Whether Landlock works here is asked once
+ * ({@code SandboxExec --probe}); where there is no sandbox the host runs without one and the log says so.
  *
  * <p>The host's answers are untrusted once the plugin's code ran: a malformed {@code plugin/load} ends the process,
  * and the tools it reports must be the manifest's, by definition hash ("tools ⊆ manifest").
@@ -88,24 +93,28 @@ public final class HostLauncher {
   private final SealedHandles handles;
   private final AotCacheManager aot;
   private final HostPids pids;
+  /** The core's own listeners now: the local API, the tunnel's listener, the port it bound. */
+  private final Supplier<Set<Integer>> corePorts;
   private final java.time.Clock clock;
   private final String osName = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
   /** Whether {@code SandboxExec --probe} passed on this system: known after the first start on Linux. */
   private volatile Boolean landlock;
 
+  /** @param corePorts the core's listeners ({@code EgressClients.Settings.corePorts()}), read at each start */
   public HostLauncher(HostRuntimeLocator runtime, PluginPaths paths, SecretCallbackRegistry secrets,
-      SealedHandles handles, AotCacheManager aot, java.time.Clock clock) {
-    this(runtime, paths, secrets, handles, aot, new HostPids(paths.pidFile()), clock);
+      SealedHandles handles, AotCacheManager aot, Supplier<Set<Integer>> corePorts, java.time.Clock clock) {
+    this(runtime, paths, secrets, handles, aot, new HostPids(paths.pidFile()), corePorts, clock);
   }
 
   HostLauncher(HostRuntimeLocator runtime, PluginPaths paths, SecretCallbackRegistry secrets, SealedHandles handles,
-      AotCacheManager aot, HostPids pids, java.time.Clock clock) {
+      AotCacheManager aot, HostPids pids, Supplier<Set<Integer>> corePorts, java.time.Clock clock) {
     this.runtime = runtime;
     this.paths = paths;
     this.secrets = secrets;
     this.handles = handles;
     this.aot = aot;
     this.pids = pids;
+    this.corePorts = corePorts;
     this.clock = clock;
   }
 
@@ -343,7 +352,7 @@ public final class HostLauncher {
       argv.add("-p");
       argv.add(macProfile(spec, dataDir));
     } else if ("landlock".equals(sandbox)) {
-      argv.addAll(firstStage(java, hostJar, spec, dataDir, cache));
+      argv.addAll(firstStage(java, hostJar, spec, dataDir, cache, closedPorts()));
     }
     argv.add(java.toAbsolutePath().toString());
     cache.ifPresent(c -> argv.add("-XX:AOTCache=" + c));
@@ -376,12 +385,14 @@ public final class HostLauncher {
   }
 
   /**
-   * {@code java … -cp plugin-host.jar SandboxExec --ro … --rw … --}: the Linux first stage, which confines its main
-   * thread with Landlock and execs the host's JVM (the argv that follows). The host may read the JRE, its own JAR, the
-   * plugin's version folder and the AOT cache, and write only the plugin's data folder; the system paths are the
+   * {@code java … -cp plugin-host.jar SandboxExec --ro … --rw … --deny-tcp … --}: the Linux first stage, which confines
+   * its main thread with Landlock and execs the host's JVM (the argv that follows). The host may read the JRE, its own
+   * JAR, the plugin's version folder and the AOT cache, write only the plugin's data folder, and neither bind nor
+   * connect a TCP socket to the core's ports (from Landlock ABI 4; by port, so on any host); the system paths are the
    * stage's own (/usr, /etc, /proc/self, …).
    */
-  private List<String> firstStage(Path java, Path hostJar, Spec spec, Path dataDir, Optional<Path> cache) {
+  private List<String> firstStage(Path java, Path hostJar, Spec spec, Path dataDir, Optional<Path> cache,
+      Set<Integer> closedPorts) {
     List<String> argv = new ArrayList<>(List.of(java.toAbsolutePath().toString()));
     argv.addAll(firstStageFlags());
     argv.add("-Djava.io.tmpdir=" + dataDir.resolve("tmp"));
@@ -403,8 +414,23 @@ public final class HostLauncher {
       argv.add("--rw");
       argv.add(form);
     }
+    for (int port : closedPorts) {
+      argv.add("--deny-tcp");
+      argv.add(Integer.toString(port));
+    }
     argv.add("--");
     return argv;
+  }
+
+  /** The core's listeners as they are now, ascending: the TCP ports a plugin's sockets never bind or reach. */
+  Set<Integer> closedPorts() {
+    Set<Integer> ports = new TreeSet<>();
+    for (Integer port : corePorts.get()) {
+      if (port != null && port > 0 && port <= 65_535) {
+        ports.add(port);
+      }
+    }
+    return ports;
   }
 
   /** A small, quick JVM that writes nothing to stdout (the protocol channel of the host it becomes). */
@@ -439,8 +465,11 @@ public final class HostLauncher {
    * Antigravity's configs may hold a gateway token), and writing anywhere but the plugin's data folder and the devices
    * denied too (review 2026-10-27: a login item or a shell profile written from inside would run unconfined later).
    * Seatbelt compares a {@code subpath} with the canonical path only, so every denied path is written as given and as
-   * the kernel sees it ({@code /var} is {@code /private/var}). Still open (UNVERIFIED, like the deprecated API itself):
-   * the network, the rest of the person's files to read, and Mach services such as Launch Services.
+   * the kernel sees it ({@code /var} is {@code /private/var}). The network is open except the core's own listeners,
+   * which the plugin's sockets may neither connect to nor bind, on any address: a rule for {@code localhost} alone
+   * let {@code ::ffff:0.0.0.0} through, the IPv4-mapped wildcard that the kernel connects to {@code 127.0.0.1}
+   * (checked on macOS 27). Still open (UNVERIFIED, like the deprecated API itself): the rest of the person's files to
+   * read, and Mach services such as Launch Services.
    *
    * <p>Inside the denied home the host may read its plugin's version folder and the AOT cache, and read and write its
    * own data folder; and it may {@code stat} — metadata only, no listing, no content — the folders on the way to them:
@@ -481,6 +510,15 @@ public final class HostLauncher {
     if (!parents.isEmpty()) {
       b.append("(allow file-read-metadata");
       parents.forEach(a -> b.append(" (literal ").append(sbpl(a.toString())).append(')'));
+      b.append(")\n");
+    }
+    Set<Integer> ports = closedPorts();
+    if (!ports.isEmpty()) {
+      // Seatbelt takes only * or localhost as a host here, and localhost misses the mapped wildcard: every host.
+      b.append("(deny network-outbound");
+      ports.forEach(port -> b.append(" (remote ip \"*:").append(port).append("\")"));
+      b.append(")\n(deny network-bind");
+      ports.forEach(port -> b.append(" (local ip \"*:").append(port).append("\")"));
       b.append(")\n");
     }
     return b.toString();

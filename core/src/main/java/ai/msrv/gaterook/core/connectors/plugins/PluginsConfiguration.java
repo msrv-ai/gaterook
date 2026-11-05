@@ -56,10 +56,11 @@ class PluginsConfiguration {
     return new SecretCallbackRegistry();
   }
 
+  /** Hosts are kept from the core's own listeners: the ports the egress guard refuses ({@link EgressClients}). */
   @Bean
   HostLauncher hostLauncher(HostRuntimeLocator runtime, PluginPaths paths, SecretCallbackRegistry secrets,
-      SealedHandles handles, AotCacheManager aot, Clock clock) {
-    return new HostLauncher(runtime, paths, secrets, handles, aot, clock);
+      SealedHandles handles, AotCacheManager aot, EgressClients egress, Clock clock) {
+    return new HostLauncher(runtime, paths, secrets, handles, aot, egress.settings().corePorts(), clock);
   }
 
   @Bean
