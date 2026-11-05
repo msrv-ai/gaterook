@@ -60,7 +60,8 @@ import tools.jackson.databind.node.ObjectNode;
  * {@code WWW-Authenticate: Bearer realm="gaterook"}; nothing of an anonymous request's body is read or held), only
  * {@code application/json} (415, which also keeps cross-site forms out), a body of at most 1 MiB (413) and within the
  * principal's hourly budget ({@link RequestBudget}, 429), then one object (a batch is {@code -32600}). Other methods
- * are 405 with {@code Allow: GET, POST}. Host and Origin were checked by {@code LocalGuardFilter} already.
+ * are 405 with {@code Allow: GET, POST}. Host and Origin were checked already: by {@code LocalGuardFilter} on the
+ * local port, by {@code PublicIngressFilter} on the public one.
  */
 @RestController
 class McpHttpController {
