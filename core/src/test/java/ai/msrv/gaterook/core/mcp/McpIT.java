@@ -1037,6 +1037,31 @@ class McpIT {
   }
 
   @Test
+  void anApprovalWhoseWarningsOrEndpointWereChangedOutsideTheGatewayIsNotExecuted() {
+    FakeConnectors.EXECUTIONS.clear();
+    ApprovalView stripped = request("UPDATE orders SET status = 'paid' WHERE id = 32;");
+    // What the person reads beside the exact action, not what runs: the digest doesn't cover it, the MAC does.
+    core.jdbc().update("update approval set action = json_set(action, '$.warnings', json('[]'), '$.summary', "
+        + "'harmless') where id = ?", stripped.id());
+    ApprovalView moved = request("UPDATE orders SET status = 'paid' WHERE id = 33;");
+    String other = core.jdbc().queryForObject("select id from endpoint where slug <> ? and id <> ? limit 1",
+        String.class, moved.endpointSlug(), moved.endpointId());
+    core.jdbc().update("update approval set endpoint_id = ? where id = ?", other, moved.id());
+    for (ApprovalView a : List.of(stripped, moved)) {
+      try {
+        approvals.decide(a.id(), ApprovalService.Decision.APPROVE, "app", null, a.digest());
+      } catch (RuntimeException refusedEarly) {
+        // Refusing at the decision is as good as refusing at the execution.
+      }
+      TestCore.await(() -> approvals.find(a.id()).map(ApprovalView::terminal).orElse(true), "refusal");
+      ApprovalView after = approvals.find(a.id()).orElseThrow();
+      assertThat(after.status()).as(a.id()).isEqualTo("rejected");
+      assertThat(after.error()).isEqualTo("The request was changed outside GateRook. Not executed.");
+    }
+    assertThat(FakeConnectors.EXECUTIONS).isEmpty();
+  }
+
+  @Test
   void anApprovedRequestTheGatewayStopsIsDecidedByTheCoreAndKeepsThePersonsDecisionInItsFeed() {
     FakeConnectors.EXECUTIONS.clear();
     ApprovalView a = request("UPDATE orders SET status = 'shipped' WHERE id = 32;");

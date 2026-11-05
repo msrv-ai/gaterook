@@ -326,6 +326,11 @@ public class ApprovalExecutor implements DisposableBean {
       return Check.refused("Endpoint " + a.getEndpointSlug() + " was deleted. Not executed.");
     }
     EndpointSnapshot s = snapshot.get();
+    if (!s.slug().equals(a.getEndpointSlug())) {
+      // Slugs never change: another endpoint's id in the row was written outside the core.
+      alerts.report("approval", a.getId(), a.getId(), "approval row");
+      return Check.refused(changed);
+    }
     if (s.blocked()) {
       return Check.refused(s.slug() + " was changed outside GateRook. Not executed.");
     }
