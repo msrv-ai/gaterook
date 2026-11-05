@@ -9,9 +9,10 @@
 //
 // Only the dev UI's own requests are signed: a request another origin's page makes to this port (its Origin isn't
 // this server, or its fetch metadata says cross-site or same-site) is refused here with 403, since the signature
-// would otherwise vouch for it, and a preflight (OPTIONS) is never signed. A request without any browser metadata
-// (curl, another local program) is proxied as is: this is a development server on the loopback, not an admin
-// boundary.
+// would otherwise vouch for it, and a preflight (OPTIONS) is never signed. So is a request whose Host isn't a loopback
+// name: a page of another site whose name was made to point at this computer (DNS rebinding) is its own origin, and
+// only its Host shows it. A request without any browser metadata (curl, another local program) is proxied as is: this
+// is a development server on the loopback, not an admin boundary.
 //
 // Environment (ui/scripts/dev.mjs sets both): GW_CORE_PORT (default 7465), GW_DEV_INTERNAL_SECRET (the secret the
 // core was started with). Without a secret nothing is signed and the core answers 401.
@@ -31,10 +32,14 @@ export function sign(method, target, now = Date.now(), nonce = randomBytes(16).t
 
 const STRIP = ['origin', 'referer', 'cookie'];
 
+/** The names this server answers to on the loopback, with or without a port. */
+const LOOPBACK_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$/i;
+
 /** Whether a browser made this request from a page that isn't the dev UI served by this very server. */
 export function crossOrigin(headers) {
   const origin = headers.origin;
   const host = headers.host;
+  if (!host || !LOOPBACK_HOST.test(host)) return true;
   if (origin && origin !== `http://${host}` && origin !== `https://${host}`) return true;
   const site = headers['sec-fetch-site'];
   return site === 'cross-site' || site === 'same-site';
