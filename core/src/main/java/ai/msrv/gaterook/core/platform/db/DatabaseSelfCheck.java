@@ -133,6 +133,7 @@ final class DatabaseSelfCheck implements SmartInitializingSingleton, BeanFactory
     pragmas.put("synchronous", "2");
     pragmas.put("foreign_keys", "1");
     pragmas.put("secure_delete", "1");
+    pragmas.put("trusted_schema", "0");
     return Map.copyOf(pragmas);
   }
 }
