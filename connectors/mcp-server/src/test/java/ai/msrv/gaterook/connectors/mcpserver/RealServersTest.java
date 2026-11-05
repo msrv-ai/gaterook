@@ -2,6 +2,7 @@ package ai.msrv.gaterook.connectors.mcpserver;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.Connector;
@@ -14,22 +15,30 @@ import ai.msrv.gaterook.connectors.support.egress.GuardedEgress;
 import ai.msrv.gaterook.connectors.support.egress.HostResolver;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.GZIPOutputStream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
@@ -50,7 +59,13 @@ import tools.jackson.databind.node.ObjectNode;
  *   <li>{@code @modelcontextprotocol/server-everything} 2.0.0: over stdio, and over Streamable HTTP on this computer
  *       through the egress guard (allowed as the environment's private range), with a call; it serves both eras and is
  *       spoken to in 2026-07-28.</li>
+ *   <li>A package with an install script, served from this computer: {@code npm ci} runs it in the sandbox servers
+ *       start in, which lets it write its work folder and nothing else.</li>
  * </ul>
+ *
+ * <p>When this checkout's bridge is built ({@code bridge-cli/target/gw-bridge.jar}), the home gets the
+ * {@code bin/gw-bridge} launcher the core writes, so installs and servers run in the OS sandbox ({@code sandbox-exec}
+ * on macOS, Landlock on Linux) as they do in the app; without it they run unconfined, and the sandbox test is skipped.
  */
 @Tag("mcp-servers")
 class RealServersTest {
@@ -60,10 +75,13 @@ class RealServersTest {
   private static Fixtures.Host host;
   private static McpServers runtime;
   private static EgressClients clients;
+  /** Whether {@code home/bin/gw-bridge} runs this checkout's bridge. */
+  private static boolean bridge;
 
   @BeforeAll
   static void attach() throws IOException {
     Files.createDirectories(CACHE.resolve("home"));
+    bridge = installBridge(CACHE.resolve("home"));
     String node = System.getenv("MCP_NODE");
     String path = (node == null || node.isBlank() ? "" : Path.of(node).getParent() + ":")
         + System.getenv().getOrDefault("PATH", "/usr/bin:/bin");
@@ -86,9 +104,31 @@ class RealServersTest {
   }
 
   @AfterAll
-  static void close() {
+  static void close() throws IOException {
     runtime.close();
     clients.close();
+    // The cache outlives this checkout: no launcher is left pointing into it.
+    Files.deleteIfExists(CACHE.resolve("home/bin/gw-bridge"));
+  }
+
+  /**
+   * {@code <home>/bin/gw-bridge} as the core writes it ({@code BridgeShimInstaller}), running this checkout's bridge
+   * JAR: {@code false}, and no launcher, when it isn't built.
+   */
+  private static boolean installBridge(Path home) throws IOException {
+    Path shim = home.resolve("bin/gw-bridge");
+    Files.deleteIfExists(shim);
+    Path jar = Path.of("..", "..", "bridge-cli", "target", "gw-bridge.jar").toAbsolutePath().normalize();
+    if (!Files.isRegularFile(jar) || System.getProperty("os.name").startsWith("Windows")) {
+      return false;
+    }
+    Files.createDirectories(shim.getParent());
+    Path java = Path.of(System.getProperty("java.home"), "bin", "java");
+    Files.writeString(shim, "#!/bin/sh\nGW_HOME='" + home + "'; export GW_HOME\nexec '" + java + "' -XX:+UseSerialGC "
+        + "-XX:TieredStopAtLevel=1 -Xshare:auto -Xmx64m --enable-native-access=ALL-UNNAMED -jar '" + jar
+        + "' \"$@\"\n");
+    Files.setPosixFilePermissions(shim, PosixFilePermissions.fromString("rwx------"));
+    return true;
   }
 
   private static McpServerRuntime.NpmPackage pkg(String name, String version, String resource, String bin)
@@ -214,6 +254,117 @@ class RealServersTest {
       http.waitFor(5, TimeUnit.SECONDS);
       http.destroyForcibly();
     }
+  }
+
+  /**
+   * {@code npm ci} runs in the sandbox servers start in, install scripts included (a catalog entry may allow them):
+   * the package's script writes its own folder in the server's work folder, where npm keeps its cache too, and can
+   * write neither GateRook's home nor the person's. The package comes from a registry on this computer, by the
+   * lockfile's {@code resolved} URL, so the test needs no network.
+   */
+  @Test
+  void anInstallScriptWritesOnlyTheServersWorkFolder() throws Exception {
+    assumeTrue(bridge, "bridge-cli/target/gw-bridge.jar isn't built");
+    assertThat(runtime.launcher().sandbox()).as("gw-bridge sandbox-exec works here").isNotNull();
+    Path work = CACHE.resolve("home/mcp/sandbox-probe");
+    // In GateRook's home beside the work folders, and in the person's home outside GateRook's.
+    List<Path> outside = List.of(CACHE.resolve("home/planted.txt"), CACHE.resolve("planted.txt"));
+    for (Path p : outside) {
+      Files.deleteIfExists(p);
+    }
+    StringBuilder script = new StringBuilder("const fs = require('fs');\nconst seen = [];\n");
+    for (Path p : outside) {
+      String target = Texts.JSON.writeValueAsString(p.toString());
+      script.append("try { fs.writeFileSync(").append(target).append(", 'planted'); seen.push('WROTE ' + ")
+          .append(target).append("); } catch (e) { seen.push(e.code); }\n");
+    }
+    script.append("fs.writeFileSync('ran.txt', seen.join('\\n'));\n");
+    Map<String, String> files = new LinkedHashMap<>();
+    files.put("package/package.json", "{\"name\":\"gw-sandbox-probe\",\"version\":\"1.0.0\","
+        + "\"bin\":{\"gw-sandbox-probe\":\"index.js\"},\"scripts\":{\"install\":\"node install.js\"}}");
+    files.put("package/index.js", "#!/usr/bin/env node\n");
+    files.put("package/install.js", script.toString());
+    byte[] tarball = tgz(files);
+    String integrity = "sha512-" + Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-512")
+        .digest(tarball));
+
+    com.sun.net.httpserver.HttpServer registry = com.sun.net.httpserver.HttpServer.create(
+        new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+    registry.createContext("/gw-sandbox-probe/-/gw-sandbox-probe-1.0.0.tgz", exchange -> {
+      exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+      exchange.sendResponseHeaders(200, tarball.length);
+      exchange.getResponseBody().write(tarball);
+      exchange.close();
+    });
+    registry.start();
+    try {
+      String resolved = "http://127.0.0.1:" + registry.getAddress().getPort()
+          + "/gw-sandbox-probe/-/gw-sandbox-probe-1.0.0.tgz";
+      byte[] lock = ("{\"name\":\"mcp-gateway-server\",\"lockfileVersion\":3,\"requires\":true,\"packages\":{"
+          + "\"\":{\"name\":\"mcp-gateway-server\",\"dependencies\":{\"gw-sandbox-probe\":\"1.0.0\"}},"
+          + "\"node_modules/gw-sandbox-probe\":{\"version\":\"1.0.0\",\"resolved\":\"" + resolved + "\","
+          + "\"integrity\":\"" + integrity + "\",\"hasInstallScript\":true,"
+          + "\"bin\":{\"gw-sandbox-probe\":\"index.js\"}}}}").getBytes(StandardCharsets.UTF_8);
+      McpServerRuntime.NpmPackage pkg = new McpServerRuntime.NpmPackage("gw-sandbox-probe", "1.0.0", integrity, lock,
+          "gw-sandbox-probe", null, false);
+
+      McpServerRuntime.NpmInstall installed = runtime.install("sandbox-probe", pkg, Duration.ofMinutes(2));
+
+      assertThat(installed.command()).containsExactly("node", "node_modules/gw-sandbox-probe/index.js");
+      // The script ran, in its own folder, and was refused every write outside the work folder.
+      Path ran = work.resolve("node_modules/gw-sandbox-probe/ran.txt");
+      assertThat(ran).exists();
+      assertThat(Files.readAllLines(ran)).hasSize(outside.size()).noneMatch(line -> line.startsWith("WROTE"));
+      for (Path p : outside) {
+        assertThat(p).doesNotExist();
+      }
+      // npm's cache is the work folder's own.
+      assertThat(work.resolve(".npm/_cacache")).isDirectory();
+    } finally {
+      registry.stop(0);
+      for (Path p : outside) {
+        Files.deleteIfExists(p);
+      }
+    }
+  }
+
+  /** A gzipped ustar archive of {@code files} (name to text), as npm packs a package. */
+  private static byte[] tgz(Map<String, String> files) throws IOException {
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    try (GZIPOutputStream gz = new GZIPOutputStream(bytes)) {
+      for (Map.Entry<String, String> f : files.entrySet()) {
+        byte[] data = f.getValue().getBytes(StandardCharsets.UTF_8);
+        byte[] header = new byte[512];
+        field(header, 0, 100, f.getKey());
+        field(header, 100, 8, "0000644");
+        field(header, 108, 8, "0000000");
+        field(header, 116, 8, "0000000");
+        field(header, 124, 12, "%011o".formatted(data.length));
+        field(header, 136, 12, "%011o".formatted(1_700_000_000L));
+        Arrays.fill(header, 148, 156, (byte) ' ');
+        header[156] = '0';
+        field(header, 257, 6, "ustar");
+        field(header, 263, 2, "00");
+        int sum = 0;
+        for (byte b : header) {
+          sum += b & 0xff;
+        }
+        field(header, 148, 7, "%06o".formatted(sum));
+        gz.write(header);
+        gz.write(data);
+        gz.write(new byte[(512 - data.length % 512) % 512]);
+      }
+      gz.write(new byte[1024]);
+    }
+    return bytes.toByteArray();
+  }
+
+  /** {@code text} at {@code offset}, NUL-padded to {@code length}. */
+  private static void field(byte[] header, int offset, int length, String text) {
+    byte[] b = text.getBytes(StandardCharsets.US_ASCII);
+    int n = Math.min(b.length, length);
+    System.arraycopy(b, 0, header, offset, n);
+    Arrays.fill(header, offset + n, offset + length, (byte) 0);
   }
 
   private static String nodeCommand() {

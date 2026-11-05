@@ -10,6 +10,8 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.AfterEach;
@@ -22,7 +24,8 @@ import org.junit.jupiter.api.io.TempDir;
  * first stage, which confines the process before its JVM starts (Landlock confines threads; a host that restricted
  * itself left the plugin's calls unconfined), with the JRE, the host's JAR, the plugin's folder and the AOT cache to
  * read and only its data folder to write; on macOS with a profile that also keeps the connected clients' configs
- * (where a gateway token may be) away from a plugin, as {@code gw-bridge sandbox-exec} does for MCP servers.
+ * (where a gateway token may be) away from a plugin, as {@code gw-bridge sandbox-exec} does for MCP servers. Both keep
+ * the plugin's own sockets from the core's listeners, as they are when the host starts.
  */
 class HostLauncherTest {
 
@@ -34,6 +37,8 @@ class HostLauncherTest {
   private HostLauncher launcher;
   private Path hostJar;
   private Path java;
+  /** The core's listeners as the egress settings report them: the local API, the tunnel's, and the bound port. */
+  private final AtomicReference<Set<Integer>> corePorts = new AtomicReference<>(Set.of(7466, 7465, 0));
 
   @BeforeEach
   void setUp() throws Exception {
@@ -44,7 +49,8 @@ class HostLauncherTest {
     HostRuntimeLocator runtime = new HostRuntimeLocator(null, hostJar.toString());
     launcher = new HostLauncher(runtime, paths, new SecretCallbackRegistry(),
         new SealedHandles((purpose, data) -> new byte[32], GppJson.MAPPER, Clock.systemUTC()),
-        new AotCacheManager(runtime, paths, false), new HostPids(paths.pidFile()), Clock.systemUTC());
+        new AotCacheManager(runtime, paths, false), new HostPids(paths.pidFile()), corePorts::get,
+        Clock.systemUTC());
   }
 
   @AfterEach
@@ -71,6 +77,9 @@ class HostLauncherTest {
         hostJar.toRealPath().toString(), jar.getParent().toRealPath().toString());
     assertThat(pairs(rules, "--rw")).contains(data.toRealPath().toString())
         .allMatch(p -> Path.of(p).endsWith(Path.of("plugin-data", "jira-service-desk")));
+    // Neither bound nor connected to by the plugin's own sockets: the core's local and public ports (an unbound 0 is
+    // no port).
+    assertThat(pairs(rules, "--deny-tcp")).containsExactly("7465", "7466");
     // What it execs is the host itself, on the same JRE.
     List<String> host = argv.subList(split + 1, argv.size());
     assertThat(host.getFirst()).isEqualTo(java.toAbsolutePath().toString());
@@ -85,7 +94,26 @@ class HostLauncherTest {
     HostLauncher.Spec spec = new HostLauncher.Spec("x", "1.0.0", jar, "00", 256, Map.of(), List.of());
     List<String> argv = launcher.command(java, hostJar, spec, paths.dataDir("x"), false, null);
     assertThat(argv.getFirst()).isEqualTo(java.toAbsolutePath().toString());
-    assertThat(argv).doesNotContain(HostLauncher.SANDBOX_EXEC, "/usr/bin/sandbox-exec");
+    assertThat(argv).doesNotContain(HostLauncher.SANDBOX_EXEC, "/usr/bin/sandbox-exec", "--deny-tcp");
+  }
+
+  @Test
+  void theCoresPortsAreTheOnesItListensOnWhenTheHostStarts() throws Exception {
+    Path jar = Files.writeString(tmp.resolve("plugin.jar"), "plugin");
+    HostLauncher.Spec spec = new HostLauncher.Spec("x", "1.0.0", jar, "00", 256, Map.of(), List.of());
+    Path data = paths.dataDir("x");
+
+    // A core asked for any free port: the one its web server bound joins the bootstrap's.
+    corePorts.set(Set.of(7466, 51_234));
+    List<String> argv = launcher.command(java, hostJar, spec, data, false, "landlock");
+    assertThat(pairs(argv.subList(0, argv.indexOf("--")), "--deny-tcp")).containsExactly("7466", "51234");
+    assertThat(launcher.macProfile(spec, data)).contains("(remote ip \"*:51234\")", "(local ip \"*:51234\")")
+        .doesNotContain("*:7465");
+
+    // None known: nothing is closed, and the network isn't handled.
+    corePorts.set(Set.of());
+    assertThat(launcher.command(java, hostJar, spec, data, false, "landlock")).doesNotContain("--deny-tcp");
+    assertThat(launcher.macProfile(spec, data)).doesNotContain("(deny network");
   }
 
   @Test
@@ -114,6 +142,9 @@ class HostLauncherTest {
     // Inside the denied home: the plugin's data folder to write, its version folder to read.
     assertThat(profile.substring(allow)).contains(profilePath(paths.dataDir("jira-service-desk").toRealPath()),
         profilePath(jar.getParent().toRealPath()));
+    // The core's listeners, last, on every address: "localhost" alone lets ::ffff:0.0.0.0 reach 127.0.0.1.
+    assertThat(profile).endsWith("(deny network-outbound (remote ip \"*:7465\") (remote ip \"*:7466\"))\n"
+        + "(deny network-bind (local ip \"*:7465\") (local ip \"*:7466\"))\n");
   }
 
   @Test

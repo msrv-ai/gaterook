@@ -23,7 +23,8 @@ import java.util.stream.Stream;
  * addresses, but which private addresses it may reach can't be decided here: a lookup doesn't say which call it is for
  * (it runs on a library's thread, a pool refills between calls), address literals never reach a resolver, and the JDK
  * answers {@code localhost} itself when a resolver refuses it. The allowlist binds the client the SPI hands out
- * (report 16 §2).
+ * (report 16 §2). The core's own ports are closed to every socket of the host by the OS sandbox it starts in instead
+ * ({@link SandboxExec}'s {@code --deny-tcp} on Linux, the core's {@code sandbox-exec} profile on macOS).
  */
 public final class GuardedResolverProvider extends InetAddressResolverProvider {
 

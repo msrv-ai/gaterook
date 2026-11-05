@@ -15,6 +15,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.IntStream;
 
 /**
  * Landlock through FFM, for the OS sandbox of a plugin process on Linux (ARCHITECTURE.md §7.5, §9 "Signatures of
@@ -22,7 +24,15 @@ import java.util.Map;
  * system, the JRE, the host's JAR and the plugin's own folder, and writes only the plugin's data folder and devices;
  * the rest of {@code $HOME} — GateRook's database and master key, {@code ~/.ssh}, {@code ~/.aws} — can't be opened,
  * and Landlock's ptrace scoping keeps another process's {@code /proc/<pid>} (the core's environment) out of reach too.
- * The network isn't restricted here: a plugin talks to its service.
+ *
+ * <p><b>The network</b> stays open, since a plugin talks to its service, except the core's own listeners: from ABI 4
+ * (Linux 6.7) the ruleset handles TCP bind and connect and allows them on every port but the closed ones, so a
+ * plugin's own client (a JDBC driver, a raw socket, an address literal: nothing {@link GuardedResolverProvider} sees)
+ * can neither reach the core's local and public ports nor take them over. Landlock judges a TCP port, not an address:
+ * those ports are closed on every host. Its rules only allow, so this takes a rule per open port (65,534 with the two
+ * default ports closed), about 50 ms at start and 4.5 MB of kernel memory for the host's domain (measured on Linux
+ * 7.0). They judge TCP sockets only: UDP isn't judged, nor a protocol that carries TCP, such as MPTCP, which a kernel
+ * may offer to a plugin's native code.
  *
  * <p><b>A thread, not a process.</b> {@code landlock_restrict_self} and {@code PR_SET_NO_NEW_PRIVS} confine the calling
  * thread and the threads it creates afterwards, never the threads that already run. A JVM runs dozens before
@@ -51,11 +61,18 @@ final class Sandbox {
   static final long TRUNCATE = 1L << 14;
   static final long IOCTL_DEV = 1L << 15;
 
+  /** Landlock's network rights (ABI 4): binding a TCP socket to a port, connecting one to a port. */
+  static final long BIND_TCP = 1L;
+  static final long CONNECT_TCP = 1L << 1;
+  /** The first ABI with network rules. */
+  static final int NET_ABI = 4;
+
   private static final long SYS_LANDLOCK_CREATE_RULESET = 444;
   private static final long SYS_LANDLOCK_ADD_RULE = 445;
   private static final long SYS_LANDLOCK_RESTRICT_SELF = 446;
   private static final int LANDLOCK_CREATE_RULESET_VERSION = 1;
   private static final int LANDLOCK_RULE_PATH_BENEATH = 1;
+  private static final int LANDLOCK_RULE_NET_PORT = 2;
   private static final int PR_SET_NO_NEW_PRIVS = 38;
   private static final int O_PATH = 0x200000;
   private static final int O_CLOEXEC = 0x80000;
@@ -138,11 +155,26 @@ final class Sandbox {
   }
 
   /**
-   * Restricts <em>the calling thread</em> and every thread it creates from now on, for good: Landlock ruleset, no new
-   * privileges, restrict self. Missing paths are skipped. Only {@link SandboxExec} calls it, on its main thread, just
-   * before it execs the host.
+   * The TCP ports a ruleset of ABI {@code abi} opens when {@code closed} are to stay closed: every port but those
+   * (port 0 too, which binds an ephemeral port), from ABI 4; none before, when nothing is closed, and the network
+   * isn't handled then.
    */
-  static void restrict(int abi, List<String> readOnly, List<String> readWrite) {
+  static int[] openPorts(int abi, Set<Integer> closed) {
+    if (abi < NET_ABI || closed.isEmpty()) {
+      return new int[0];
+    }
+    return IntStream.rangeClosed(0, 65_535).filter(p -> !closed.contains(p)).toArray();
+  }
+
+  /**
+   * Restricts <em>the calling thread</em> and every thread it creates from now on, for good: Landlock ruleset, no new
+   * privileges, restrict self. Missing paths are skipped. From ABI 4 the TCP ports in {@code closedPorts} can be
+   * neither bound nor connected to; before it they stay open, which the caller says. Only {@link SandboxExec} calls
+   * it, on its main thread, just before it execs the host.
+   */
+  static void restrict(int abi, List<String> readOnly, List<String> readWrite, Set<Integer> closedPorts) {
+    int[] tcpPorts = openPorts(abi, closedPorts);
+    boolean net = tcpPorts.length > 0;
     try (Arena arena = Arena.ofConfined()) {
       MethodHandle create = handle("syscall", SYSCALL_CREATE, Linker.Option.firstVariadicArg(1),
           Linker.Option.captureCallState("errno"));
@@ -156,11 +188,16 @@ final class Sandbox {
           Linker.Option.captureCallState("errno"));
       MethodHandle close = handle("close", CLOSE);
       MemorySegment state = arena.allocate(STATE);
-      // struct landlock_ruleset_attr { __u64 handled_access_fs; } — ABI 1's size, which every later ABI accepts.
-      MemorySegment attr = arena.allocate(8, 8);
+      // struct landlock_ruleset_attr { __u64 handled_access_fs; __u64 handled_access_net; … }: ABI 1's size (which
+      // every later ABI accepts) when no port is closed, else up to handled_access_net (ABI 4).
+      long size = net ? 16 : 8;
+      MemorySegment attr = arena.allocate(size, 8);
       long handled = handledRights(abi);
       attr.set(ValueLayout.JAVA_LONG, 0, handled);
-      long fd = (long) create.invokeExact(state, SYS_LANDLOCK_CREATE_RULESET, attr, 8L, 0);
+      if (net) {
+        attr.set(ValueLayout.JAVA_LONG, 8, BIND_TCP | CONNECT_TCP);
+      }
+      long fd = (long) create.invokeExact(state, SYS_LANDLOCK_CREATE_RULESET, attr, size, 0);
       if (fd < 0) {
         throw new IllegalStateException("landlock_create_ruleset failed (errno " + errno(state) + ")");
       }
@@ -188,6 +225,17 @@ final class Sandbox {
           if (rc < 0) {
             throw new IllegalStateException("landlock_add_rule failed for " + p + " (errno " + errno(state) + ")");
           }
+        }
+      }
+      // struct landlock_net_port_attr { __u64 allowed_access; __u64 port; }: one per open port.
+      MemorySegment port = arena.allocate(16, 8);
+      port.set(ValueLayout.JAVA_LONG, 0, BIND_TCP | CONNECT_TCP);
+      for (int p : tcpPorts) {
+        port.set(ValueLayout.JAVA_LONG, 8, p);
+        long rc = (long) add.invokeExact(state, SYS_LANDLOCK_ADD_RULE, ruleset, LANDLOCK_RULE_NET_PORT, port, 0);
+        if (rc < 0) {
+          throw new IllegalStateException("landlock_add_rule failed for TCP port " + p + " (errno " + errno(state)
+              + ")");
         }
       }
       int rc = (int) prctl.invokeExact(state, PR_SET_NO_NEW_PRIVS, 1L, 0L, 0L, 0L);
