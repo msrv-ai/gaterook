@@ -78,6 +78,7 @@ public class Grants {
   private final OAuthGrantRepository grants;
   private final OAuthTokenRepository tokens;
   private final OAuthClientRepository clients;
+  private final OAuthRows macs;
   private final EndpointSnapshotService snapshots;
   private final ObjectProvider<EndpointRemovalParticipant> participants;
   private final ObjectProvider<SetupChangeRecorder> setupChanges;
@@ -89,13 +90,14 @@ public class Grants {
   private final Map<String, Instant> lastUsed = new ConcurrentHashMap<>();
   private final Map<String, Instant> lastUseEvents = new LinkedHashMap<>();
 
-  Grants(OAuthGrantRepository grants, OAuthTokenRepository tokens, OAuthClientRepository clients,
+  Grants(OAuthGrantRepository grants, OAuthTokenRepository tokens, OAuthClientRepository clients, OAuthRows macs,
       EndpointSnapshotService snapshots, ObjectProvider<EndpointRemovalParticipant> participants,
       ObjectProvider<SetupChangeRecorder> setupChanges, ApplicationEventPublisher publisher, EventBus events, Clock clock,
       PlatformTransactionManager transactions) {
     this.grants = grants;
     this.tokens = tokens;
     this.clients = clients;
+    this.macs = macs;
     this.snapshots = snapshots;
     this.participants = participants;
     this.setupChanges = setupChanges;
@@ -129,8 +131,9 @@ public class Grants {
       OAuthClientEntity c = clients.findById(client.rowId()).orElseThrow(() -> new IllegalStateException(
           "The client is gone"));
       Instant now = at;
-      OAuthGrantEntity g = grants.saveAndFlush(new OAuthGrantEntity(c, endpointId, resource, scope, now,
-          now.plus(GRANT_TTL)));
+      OAuthGrantEntity allowed = new OAuthGrantEntity(c, endpointId, resource, scope, now, now.plus(GRANT_TTL));
+      macs.sign(allowed);
+      OAuthGrantEntity g = grants.saveAndFlush(allowed);
       c.setLastUsedAt(now);
       if (record) {
         Optional<EndpointSnapshot> e = snapshots.get(endpointId);
@@ -149,7 +152,8 @@ public class Grants {
    */
   Optional<Issued> exchange(String grantId) {
     return writeTx.execute(s -> {
-      Optional<OAuthGrantEntity> found = grants.findById(grantId).filter(g -> live(g, clock.instant()));
+      Optional<OAuthGrantEntity> found = grants.findById(grantId).filter(g -> live(g, clock.instant())
+          && macs.verify(g));
       if (found.isEmpty()) {
         return Optional.<Issued>empty();
       }
@@ -169,8 +173,14 @@ public class Grants {
     String access = OAuthTokens.random(OAuthTokens.ACCESS);
     String refresh = OAuthTokens.random(OAuthTokens.REFRESH);
     Instant accessEnd = min(now.plus(ACCESS_TTL), g.getExpiresAt());
-    tokens.save(new OAuthTokenEntity(OAuthTokens.hash(access), g, OAuthTokenKind.ACCESS, now, accessEnd));
-    tokens.save(new OAuthTokenEntity(OAuthTokens.hash(refresh), g, OAuthTokenKind.REFRESH, now, g.getExpiresAt()));
+    OAuthTokenEntity accessRow = new OAuthTokenEntity(OAuthTokens.hash(access), g, OAuthTokenKind.ACCESS, now,
+        accessEnd);
+    OAuthTokenEntity refreshRow = new OAuthTokenEntity(OAuthTokens.hash(refresh), g, OAuthTokenKind.REFRESH, now,
+        g.getExpiresAt());
+    macs.sign(accessRow);
+    macs.sign(refreshRow);
+    tokens.save(accessRow);
+    tokens.save(refreshRow);
     g.setLastUsedAt(now);
     String id = g.getId();
     String endpoint = snapshots.get(g.getEndpointId()).map(EndpointSnapshot::slug).orElse(null);
@@ -202,6 +212,10 @@ public class Grants {
         return new Refresh(null, RefreshRefusal.UNKNOWN);
       }
       OAuthTokenEntity t = row.get();
+      if (!macs.verify(t)) {
+        // Inserted, or a used one revived, outside the core: no token of ours.
+        return new Refresh(null, RefreshRefusal.UNKNOWN);
+      }
       OAuthGrantEntity g = t.getGrant();
       if (g.getIngress() != ingress) {
         return new Refresh(null, RefreshRefusal.WRONG_SERVER);
@@ -220,11 +234,12 @@ public class Grants {
       if (resource != null && !OAuthUris.canonicalResource(resource).map(g.getResource()::equals).orElse(false)) {
         return new Refresh(null, RefreshRefusal.WRONG_RESOURCE);
       }
-      if (!live(g, clock.instant())) {
+      if (!live(g, clock.instant()) || !macs.verify(g) || !macs.verify(g.getClient())) {
         return new Refresh(null, RefreshRefusal.NOT_LIVE);
       }
       Issued issued = issueInTx(g);
       t.consume(clock.instant(), OAuthTokens.hash(issued.refreshToken()));
+      macs.sign(t);
       tokens.save(t);
       return new Refresh(issued, null);
     });
@@ -239,15 +254,18 @@ public class Grants {
     }
     String hash = OAuthTokens.hash(accessToken);
     Instant now = clock.instant();
+    // Each row as the core wrote it: the token, its sign-in and the client's registration.
     return readTx.execute(s -> tokens.findById(hash).filter(t -> t.getKind() == OAuthTokenKind.ACCESS
-        && t.getConsumedAt() == null && t.getExpiresAt().isAfter(now)).map(OAuthTokenEntity::getGrant)
-        .filter(g -> live(g, now)).map(Grants::live));
+        && t.getConsumedAt() == null && t.getExpiresAt().isAfter(now) && macs.verify(t))
+        .map(OAuthTokenEntity::getGrant).filter(g -> live(g, now) && macs.verify(g) && macs.verify(g.getClient()))
+        .map(Grants::live));
   }
 
   /** A grant the authorization code was issued for, if it is still live. */
   Optional<Live> live(String grantId) {
     Instant now = clock.instant();
-    return readTx.execute(s -> grants.findById(grantId).filter(g -> live(g, now)).map(Grants::live));
+    return readTx.execute(s -> grants.findById(grantId).filter(g -> live(g, now) && macs.verify(g))
+        .map(Grants::live));
   }
 
   private static boolean live(OAuthGrantEntity g, Instant now) {
@@ -262,8 +280,8 @@ public class Grants {
 
   /** Revoked, or never existed; an expired grant isn't revoked (the person's decisions about its calls stand). */
   boolean revoked(String grantId) {
-    return Boolean.TRUE.equals(readTx.execute(s -> grants.findById(grantId).map(g -> g.getRevokedAt() != null)
-        .orElse(true)));
+    return Boolean.TRUE.equals(readTx.execute(s -> grants.findById(grantId)
+        .map(g -> g.getRevokedAt() != null || !macs.verify(g)).orElse(true)));
   }
 
   boolean hasAny(String clientRowId) {
@@ -333,6 +351,7 @@ public class Grants {
         }
       } else if (t.getConsumedAt() == null) {
         t.consume(clock.instant(), null);
+        macs.sign(t);
         tokens.save(t);
       }
     }));
@@ -357,10 +376,12 @@ public class Grants {
   private void revokeInTx(OAuthGrantEntity g, String code, String reason) {
     Instant now = clock.instant();
     g.revoke(now, code.length() > 64 ? code.substring(0, 64) : code);
+    macs.sign(g);
     grants.save(g);
     for (OAuthTokenEntity t : tokens.findByGrantId(g.getId())) {
       if (t.getConsumedAt() == null) {
         t.consume(now, null);
+        macs.sign(t);
         tokens.save(t);
       }
     }
@@ -406,6 +427,7 @@ public class Grants {
         String grantHost = URI.create(g.getResource()).getHost();
         if (grantHost != null && !grantHost.equalsIgnoreCase(host)) {
           g.setState(OAuthGrantState.ADDRESS_CHANGED);
+          macs.sign(g);
           grants.save(g);
           changed++;
         }

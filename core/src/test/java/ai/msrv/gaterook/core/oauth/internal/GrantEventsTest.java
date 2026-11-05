@@ -2,6 +2,7 @@ package ai.msrv.gaterook.core.oauth.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -14,6 +15,7 @@ import ai.msrv.gaterook.core.oauth.internal.persistence.OAuthClientRepository;
 import ai.msrv.gaterook.core.oauth.internal.persistence.OAuthGrantEntity;
 import ai.msrv.gaterook.core.oauth.internal.persistence.OAuthGrantRepository;
 import ai.msrv.gaterook.core.oauth.internal.persistence.OAuthGrantState;
+import ai.msrv.gaterook.core.oauth.internal.persistence.OAuthTokenEntity;
 import ai.msrv.gaterook.core.oauth.internal.persistence.OAuthTokenRepository;
 import ai.msrv.gaterook.core.platform.EventBus;
 import ai.msrv.gaterook.core.platform.Ingress;
@@ -130,7 +132,11 @@ class GrantEventsTest {
     when(participants.orderedStream()).thenAnswer(call -> Stream.empty());
     ObjectProvider<SetupChangeRecorder> setup = mock(ObjectProvider.class);
     when(setup.getObject()).thenReturn(mock(SetupChangeRecorder.class));
-    return new Grants(rows, tokens, mock(OAuthClientRepository.class), snapshots, participants, setup,
+    OAuthRows macs = mock(OAuthRows.class);
+    when(macs.verify(any(OAuthGrantEntity.class))).thenReturn(true);
+    when(macs.verify(any(OAuthTokenEntity.class))).thenReturn(true);
+    when(macs.verify(any(OAuthClientEntity.class))).thenReturn(true);
+    return new Grants(rows, tokens, mock(OAuthClientRepository.class), macs, snapshots, participants, setup,
         mock(ApplicationEventPublisher.class), events, clock, transactions);
   }
 

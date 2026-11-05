@@ -50,18 +50,25 @@ class OAuthConfiguration {
   }
 
   @Bean
-  Grants oauthGrants(OAuthGrantRepository grants, OAuthTokenRepository tokens, OAuthClientRepository clients,
-      EndpointSnapshotService snapshots, ObjectProvider<EndpointRemovalParticipant> participants,
-      ObjectProvider<SetupChangeRecorder> setupChanges, ApplicationEventPublisher publisher, EventBus events, Clock clock,
-      PlatformTransactionManager transactions) {
-    return new Grants(grants, tokens, clients, snapshots, participants, setupChanges, publisher, events, clock, transactions);
+  OAuthRows oauthRows(RowMac rowMac, IntegrityAlerts alerts, OAuthGrantRepository grants,
+      OAuthTokenRepository tokens) {
+    return new OAuthRows(rowMac, alerts, grants, tokens);
   }
 
   @Bean
-  Clients oauthClients(OAuthClientRepository clients, CimdResolver cimd, RowMac rowMac, IntegrityAlerts alerts,
+  Grants oauthGrants(OAuthGrantRepository grants, OAuthTokenRepository tokens, OAuthClientRepository clients,
+      OAuthRows macs, EndpointSnapshotService snapshots, ObjectProvider<EndpointRemovalParticipant> participants,
+      ObjectProvider<SetupChangeRecorder> setupChanges, ApplicationEventPublisher publisher, EventBus events, Clock clock,
+      PlatformTransactionManager transactions) {
+    return new Grants(grants, tokens, clients, macs, snapshots, participants, setupChanges, publisher, events, clock,
+        transactions);
+  }
+
+  @Bean
+  Clients oauthClients(OAuthClientRepository clients, CimdResolver cimd, OAuthRows macs, IntegrityAlerts alerts,
       ObjectProvider<SetupChangeRecorder> setupChanges, Grants grants, Clock clock,
       PlatformTransactionManager transactions) {
-    return new Clients(clients, cimd, rowMac, alerts, setupChanges, grants, clock, transactions);
+    return new Clients(clients, cimd, macs, alerts, setupChanges, grants, clock, transactions);
   }
 
   @Bean(destroyMethod = "close")

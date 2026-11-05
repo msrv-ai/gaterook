@@ -5,7 +5,6 @@ import ai.msrv.gaterook.core.oauth.internal.persistence.OAuthClientKind;
 import ai.msrv.gaterook.core.oauth.internal.persistence.OAuthClientRepository;
 import ai.msrv.gaterook.core.platform.Ingress;
 import ai.msrv.gaterook.core.platform.IntegrityAlerts;
-import ai.msrv.gaterook.core.platform.RowMac;
 import ai.msrv.gaterook.core.platform.SetupChangeRecorder;
 import ai.msrv.gaterook.core.platform.SetupChangeRecorder.SetupChange;
 import java.time.Clock;
@@ -66,7 +65,7 @@ public class Clients {
 
   private final OAuthClientRepository clients;
   private final CimdResolver cimd;
-  private final RowMac rowMac;
+  private final OAuthRows macs;
   private final IntegrityAlerts alerts;
   private final ObjectProvider<SetupChangeRecorder> setupChanges;
   private final Grants grants;
@@ -76,12 +75,12 @@ public class Clients {
   private final RateWindow registrations;
   private final Map<String, Instant> lastUsed = new ConcurrentHashMap<>();
 
-  Clients(OAuthClientRepository clients, CimdResolver cimd, RowMac rowMac, IntegrityAlerts alerts,
+  Clients(OAuthClientRepository clients, CimdResolver cimd, OAuthRows macs, IntegrityAlerts alerts,
       ObjectProvider<SetupChangeRecorder> setupChanges, Grants grants, Clock clock,
       PlatformTransactionManager transactions) {
     this.clients = clients;
     this.cimd = cimd;
-    this.rowMac = rowMac;
+    this.macs = macs;
     this.alerts = alerts;
     this.setupChanges = setupChanges;
     this.grants = grants;
@@ -338,28 +337,11 @@ public class Clients {
   // ── Integrity ───────────────────────────────────────────────────────────────────────────────────────────────
 
   private void sign(OAuthClientEntity row) {
-    row.setMac(rowMac.sign("oauth_client", row.getId(), 0, fields(row)));
+    macs.sign(row);
   }
 
   private boolean verified(OAuthClientEntity row) {
-    boolean ok = rowMac.verify("oauth_client", row.getId(), 0, fields(row), row.getMac());
-    if (!ok) {
-      alerts.report("oauth_client", row.getId(), row.getClientName() == null ? row.getClientHost()
-          : row.getClientName(), "OAuth client row");
-    }
-    return ok;
-  }
-
-  private JsonNode fields(OAuthClientEntity row) {
-    ObjectNode f = rowMac.fields();
-    f.put("kind", row.getKind().name());
-    f.put("ingress", row.getIngress().name());
-    f.put("clientId", row.getClientId());
-    f.put("clientName", row.getClientName());
-    f.put("clientHost", row.getClientHost());
-    ArrayNode uris = f.putArray("redirectUris");
-    row.getRedirectUris().forEach(uris::add);
-    return f;
+    return macs.verify(row);
   }
 
   private static ObjectNode details(OAuthClientEntity row) {

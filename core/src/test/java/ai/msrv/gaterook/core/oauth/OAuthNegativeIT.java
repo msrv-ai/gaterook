@@ -304,6 +304,43 @@ class OAuthNegativeIT {
     assertThat(tunnel.mcp("stage-readonly", access, "tools/list").status()).isEqualTo(401);
   }
 
+  @Test
+  void signInsAndTokensMadeOrRevivedOutsideTheCoreLetNobodyIn() {
+    org.springframework.jdbc.core.JdbcTemplate db = new org.springframework.jdbc.core.JdbcTemplate(
+        world.bean(javax.sql.DataSource.class));
+    JsonNode tokens = tunnel.signIn(world.clientId(), REDIRECT, resource);
+    String access = tokens.path("access_token").asString();
+    assertThat(tunnel.mcp("stage-readonly", access, "tools/list").status()).isEqualTo(200);
+    String grant = db.queryForObject("select grant_id from oauth_token where hash = ?", String.class,
+        TokenService.hash(access));
+
+    // An access token row with the hash of a value someone knows, on that sign-in.
+    String forged = "gwo_" + "F".repeat(43);
+    long now = java.time.Instant.now().toEpochMilli();
+    db.update("insert into oauth_token (hash, grant_id, kind, created_at, expires_at) values (?, ?, 'ACCESS', ?, ?)",
+        TokenService.hash(forged), grant, now, now + 3_600_000L);
+    assertThat(tunnel.mcp("stage-readonly", forged, "tools/list").status()).isEqualTo(401);
+
+    // The sign-in edited (here its scope): its tokens stop.
+    db.update("update oauth_grant set scope = 'mcp admin' where id = ?", grant);
+    assertThat(tunnel.mcp("stage-readonly", access, "tools/list").status()).isEqualTo(401);
+
+    // A revocation undone.
+    JsonNode again = tunnel.signIn(world.clientId(), REDIRECT, resource);
+    String second = again.path("access_token").asString();
+    String secondGrant = db.queryForObject("select grant_id from oauth_token where hash = ?", String.class,
+        TokenService.hash(second));
+    assertThat(tunnel.mcp("stage-readonly", second, "tools/list").status()).isEqualTo(200);
+    assertThat(tunnel.post(TunnelWorld.CLAUDE, "/oauth/revoke", Map.of("Content-Type",
+        "application/x-www-form-urlencoded"), "token=" + again.path("refresh_token").asString()).status())
+        .isEqualTo(200);
+    assertThat(tunnel.mcp("stage-readonly", second, "tools/list").status()).isEqualTo(401);
+    db.update("update oauth_grant set state = 'active', revoked_at = null, revoke_reason = null where id = ?",
+        secondGrant);
+    db.update("update oauth_token set consumed_at = null where grant_id = ?", secondGrant);
+    assertThat(tunnel.mcp("stage-readonly", second, "tools/list").status()).as("signed revoked").isEqualTo(401);
+  }
+
   // ── Tokens on MCP calls ─────────────────────────────────────────────────────────────────────────────────────
 
   @Test

@@ -7,4 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface OAuthTokenRepository extends JpaRepository<OAuthTokenEntity, String> {
 
   List<OAuthTokenEntity> findByGrantId(String grantId);
+
+  /** Rows an older version wrote before the table had a MAC. */
+  List<OAuthTokenEntity> findByMacIsNull();
 }

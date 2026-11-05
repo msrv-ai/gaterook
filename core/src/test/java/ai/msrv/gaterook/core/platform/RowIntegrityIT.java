@@ -117,6 +117,8 @@ class RowIntegrityIT {
       s.execute("DELETE FROM flyway_schema_history WHERE version = '86'");
     }
     try (TestCore core = TestCore.reopen(home)) {
+      assertThat(core.context().getBeansOfType(LegacyRows.class).values()).extracting(LegacyRows::migration)
+          .as("access tokens, local secrets, OAuth sign-ins and their tokens").containsOnly("86").hasSize(3);
       assertThat(authenticate(core, issued.token())).as("signed by the upgrade").isPresent();
       assertThat(password(core.bean(SecretService.class), dev)).isEqualTo("pw-ri-up-db-0123");
       assertThat(core.bean(AuditQueries.class).changes("Rows from an older version", null, 10)).singleElement()

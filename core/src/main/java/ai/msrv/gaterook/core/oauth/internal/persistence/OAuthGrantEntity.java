@@ -15,6 +15,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.Instant;
 import java.util.Objects;
+import org.hibernate.annotations.OptimisticLock;
 
 /**
  * A person's consent ({@code og_…}): one client may call one endpoint through one ingress until {@code expiresAt}
@@ -69,6 +70,11 @@ public class OAuthGrantEntity {
   @Version
   @Column(name = "version", nullable = false)
   private long version;
+
+  /** {@code OAuthRows}: signed over what decides access, so writing it never bumps a version. */
+  @OptimisticLock(excluded = true)
+  @Column(name = "mac")
+  private byte[] mac;
 
   protected OAuthGrantEntity() {}
 
@@ -151,5 +157,13 @@ public class OAuthGrantEntity {
 
   public long getVersion() {
     return version;
+  }
+
+  public byte[] getMac() {
+    return mac;
+  }
+
+  public void setMac(byte[] mac) {
+    this.mac = mac;
   }
 }

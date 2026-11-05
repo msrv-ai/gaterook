@@ -12,4 +12,7 @@ public interface OAuthGrantRepository extends JpaRepository<OAuthGrantEntity, St
 
   List<OAuthGrantEntity> findByClient_IdAndEndpointIdAndState(String oauthClientId, String endpointId,
       OAuthGrantState state);
+
+  /** Rows an older version wrote before the table had a MAC. */
+  List<OAuthGrantEntity> findByMacIsNull();
 }
