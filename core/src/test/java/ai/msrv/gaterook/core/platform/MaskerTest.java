@@ -335,6 +335,31 @@ class MaskerTest {
     assertThat(masked.result().maskedCount()).isEqualTo(masked.outcome().fields()).isEqualTo(4);
   }
 
+  /** A column is masked whole when its name in the result or its origin ({@code schema.table.column}) matches. */
+  @Test
+  void tableColumnsMatchByTheirNameAndByTheirOrigin() {
+    ArrayNode rows = JsonNodeFactory.instance.arrayNode();
+    rows.addArray().add("v1").add("+1 555 0100").add("e1").add("n1").add("t1").add("s1").add("s2").add("s3");
+    ToolResult.Table table = new ToolResult.Table(List.of(
+        new ToolResult.Column("password", "text", "app", "settings", "val"),
+        new ToolResult.Column("phone", "text", "app", "people", "mobile"),
+        new ToolResult.Column("contact", "text", "app", "customers", "email"),
+        new ToolResult.Column("note", "text", "app", "customers", "note"),
+        new ToolResult.Column("token", "text", null, null, ""),
+        new ToolResult.Column("ssn", "text", "app", "people", "ssn"),
+        new ToolResult.Column("ssn", "text", "other", "people", "ssn"),
+        new ToolResult.Column("ssn", "text", null, "people", "ssn")), rows, null);
+    MaskPolicy policy = new MaskPolicy(false, Set.of(), List.of("*.phone", "customers.email", "app.people.ssn"));
+
+    ArrayNode out = masker.result(ToolResult.table(table, null), new Taint(), policy).result().table().rows();
+
+    List<String> cells = new ArrayList<>();
+    out.get(0).forEach(cell -> cells.add(cell.asString()));
+    // An alias that names a secret or a field of the policy, a blank origin, a known schema; not another schema's
+    // column, nor one whose schema is unknown to a three-part name.
+    assertThat(cells).containsExactly(MASK, MASK, MASK, "n1", MASK, MASK, "s2", "s3");
+  }
+
   @Test
   void personalDataOnlyWhereThePolicySaysSo() {
     String text = "mail ann.lee@example.com, call +49 30 1234 5678, card 4111 1111 1111 1111, iban DE89 3704 0044 "
@@ -481,8 +506,26 @@ class MaskerTest {
   @Test
   void credentialSpellingsThatAreNotCredentialsStay() {
     for (String text : List.of("pass: true, fail: false", "keyword: alpha", "compass=north", "bypass=1",
-        "<token>ab</token> is two chars", "mysql -u app -e 'select 1'", "the password rotation: weekly")) {
+        "<token>ab</token> is two chars", "mysql -u app -e 'select 1'", "the password rotation: weekly",
+        "mysql -h db -P3306 -u app app", "sshpass -P assword: -f pwfile ssh app@host")) {
       assertThat(masker.text(text, new Taint(), MaskPolicy.SECRETS_ONLY).text()).as(text).isEqualTo(text);
+    }
+  }
+
+  /** {@code -P} is MySQL's port and sshpass's prompt, and one command's match must not hide the next password. */
+  @Test
+  void passwordsOnACommandLineAreFoundBesideOtherFlagsAndCommands() {
+    for (String[] c : List.of(
+        new String[] {"mysql --password mysecret-1 -P3306 app", "mysql --password ‹masked› -P3306 app"},
+        new String[] {"mysql -h db -P3306 -u app -pmysecret-1 app", "mysql -h db -P3306 -u app -p‹masked› app"},
+        new String[] {"mysqldump -P 3306 -pmysecret-1 app", "mysqldump -P 3306 -p‹masked› app"},
+        new String[] {"mysql --password first-pw-1 -psecond-pw-2 app", "mysql --password ‹masked› -p‹masked› app"},
+        new String[] {"sshpass -p mysecret-1 ssh -p 2222 app@host", "sshpass -p ‹masked› ssh -p 2222 app@host"},
+        new String[] {"mysql -h db -u app app_db\nmongosh --username app --password pw-mongo-1\nmysql -h db2 -papp-pw-2",
+            "mysql -h db -u app app_db\nmongosh --username app --password ‹masked›\nmysql -h db2 -p‹masked›"})) {
+      Masker.MaskedText masked = masker.text(c[0], new Taint(), MaskPolicy.SECRETS_ONLY);
+      assertThat(masked.text()).as(c[0]).isEqualTo(c[1]);
+      assertThat(masked.outcome().byRule()).as(c[0]).containsKey("cli-password");
     }
   }
 
@@ -497,6 +540,22 @@ class MaskerTest {
     assertThat(masked.text()).isEqualTo("postgres://app:‹masked›@db/app DB_PASSWORD=‹masked› "
         + "token=‹masked› " + noise + "PGPASSWORD=‹masked›");
     assertThat(masked.outcome().byRule()).containsKeys("url-credentials", "kv-password", "bearer-token");
+  }
+
+  /** Forms are found in the text as it came: where two overlap, no part of either is left. */
+  @Test
+  void overlappingStoredSecretsAreMaskedAsOneRun() {
+    Taint two = new Taint();
+    two.add("cnry-first-ZZ81");
+    two.add("ZZ81-second-cnry-x");
+    assertThat(masker.text("x cnry-first-ZZ81-second-cnry-x y", two, MaskPolicy.SECRETS_ONLY).text())
+        .isEqualTo("x " + MASK + " y");
+    Taint one = new Taint();
+    one.add("abab-abab");
+    assertThat(masker.text("k abab-abab-abab k", one, MaskPolicy.SECRETS_ONLY).text()).as("a form overlapping itself")
+        .isEqualTo("k " + MASK + " k");
+    assertThat(masker.text("k abab-abab abab-abab k", one, MaskPolicy.SECRETS_ONLY).text())
+        .isEqualTo("k " + MASK + " " + MASK + " k");
   }
 
   @Test

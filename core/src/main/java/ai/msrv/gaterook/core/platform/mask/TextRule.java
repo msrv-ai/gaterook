@@ -33,7 +33,9 @@ public record TextRule(String id, List<String> literals, Pattern pattern, int gr
 
   /**
    * Finds this rule's secrets in {@code text} around the literal positions {@code starts[0, count)} (ascending) and
-   * adds their ranges to {@code ranges} as {@code start << 32 | end}.
+   * adds their ranges to {@code ranges} as {@code start << 32 | end}. Each literal gets its own start positions, also
+   * where an earlier match spans it: {@code mysql …} reaching across a script's lines covers another command's
+   * {@code --password}, but not its secret. A secret found again from a later literal is not counted twice.
    */
   void collect(String text, int[] starts, int count, LongList ranges, MaskCounter counter, String mask) {
     Matcher m = pattern.matcher(text);
@@ -42,6 +44,11 @@ public record TextRule(String id, List<String> literals, Pattern pattern, int gr
     int length = text.length();
     int i = 0;
     int lastEnd = -1;
+    // The last secret found and the one reaching furthest: what a later literal's match may find again.
+    int lastFrom = -1;
+    int lastTo = -1;
+    int furthestFrom = -1;
+    int furthestTo = -1;
     while (i < count) {
       int first = i;
       int windowStart = Math.max(0, starts[i] - before);
@@ -59,11 +66,15 @@ public record TextRule(String id, List<String> literals, Pattern pattern, int gr
       // A match can start only within 'before' characters of an actual literal. Keep the full end window for
       // long secrets, but do not ask the regex engine to search thousands of impossible starting positions.
       int nextStart = regionStart;
+      int untried = regionStart;
       for (int literal = first; literal < i; literal++) {
-        int candidate = Math.max(nextStart, starts[literal] - before);
+        // A literal inside an earlier match gets the starts that match skipped: it may have a secret of its own.
+        int from = starts[literal] < nextStart ? untried : nextStart;
+        int candidate = Math.max(from, starts[literal] - before);
         int lastStart = Math.min(starts[literal], windowEnd - 1);
         while (candidate <= lastStart) {
           m.region(candidate, windowEnd);
+          untried = candidate + 1;
           if (!m.lookingAt()) {
             candidate++;
             continue;
@@ -71,14 +82,21 @@ public record TextRule(String id, List<String> literals, Pattern pattern, int gr
           int start = m.start(group);
           int end = m.end(group);
           candidate = Math.max(candidate + 1, m.end());
-          if (start < 0 || end <= start || text.startsWith(mask, start)) {
+          if (start < 0 || end <= start || text.startsWith(mask, start) || (lastFrom <= start && end <= lastTo)
+              || (furthestFrom <= start && end <= furthestTo)) {
             continue;
           }
           ranges.add(((long) start << 32) | end);
           counter.hit(id);
+          lastFrom = start;
+          lastTo = end;
+          if (end > furthestTo) {
+            furthestFrom = start;
+            furthestTo = end;
+          }
           lastEnd = Math.max(lastEnd, m.end());
         }
-        nextStart = candidate;
+        nextStart = Math.max(nextStart, candidate);
       }
     }
   }

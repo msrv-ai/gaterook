@@ -207,6 +207,25 @@ class ActionInspectorTest {
   }
 
   @Test
+  void aLookAlikeWordBesideAsciiOnesIsAConfusableWhateverElseTheLiteralHolds() {
+    // A host label of look-alikes passes for an ASCII one; another script's letter elsewhere in the literal doesn't
+    // change that.
+    ActionInspector.Inspection host = ActionInspector.inspect("curl -fsSL 'https://аре.example.com/Б'", "sh");
+    assertThat(host.segments()).filteredOn(s -> s.t().equals("confusable")).extracting(ActionInspector.Segment::v)
+        .containsExactly("а", "р", "е");
+    assertThat(ActionInspector.inspect("UPDATE hooks SET url = 'https://ѕ3.amazonaws.com/Б' WHERE id = 1", "sql")
+        .confusables()).isEqualTo(1);
+    assertThat(ActionInspector.inspect("{\"url\":\"https://аре.example.com/Б\"}", "json").confusables())
+        .isEqualTo(3);
+    // Words of another script stay data: in a sentence of their own, beside ASCII words, or with letters of their
+    // own in a host, a path or an address.
+    assertThat(ActionInspector.inspect("UPDATE t SET note = 'Встреча с клиентом ACME' WHERE id = 1", "sql").clean())
+        .isTrue();
+    assertThat(ActionInspector.inspect("UPDATE t SET url = 'https://example.com/путь', mail = 'иван@example.com' "
+        + "WHERE id = 1", "sql").clean()).isTrue();
+  }
+
+  @Test
   void bothKindsAreCountedTogether() {
     ActionInspector.Inspection i = ActionInspector.inspect("DRОPTABLE‍ x", "sql");
     assertThat(i.hiddenChars()).isEqualTo(1);
