@@ -25,14 +25,17 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * {@code /.well-known/oauth-protected-resource[/mcp/<published>]} and
  * {@code /.well-known/oauth-authorization-server}. A raw path with {@code ;}, {@code %}, {@code ..}, {@code //}, a
  * trailing slash or another letter case is 404, as is every other path ({@code /api/**}, {@code /error},
- * Actuator). Bodies are at most 64 KiB (413, a chunked one too: it is cut off while read).
+ * Actuator). Bodies are at most 64 KiB (413, a chunked one too: it is cut off while read). A request a browser sent
+ * from a page of another origin ({@code Origin} other than the tunnel's own) is an empty 403: claude.ai's servers send
+ * none, and the sign-in page's own requests are the tunnel's origin.
  *
  * <p>Then the caller gate (Settings › Tunnel › Callers, {@link CallerGate}): server calls from outside Anthropic's
  * ranges get an empty 403, the browser pages of the sign-in never do. The caller's address is taken from the
  * provider's header only ({@code CF-Connecting-IP} behind cloudflared, the last {@code X-Forwarded-For} hop behind
  * ngrok — the one its edge appended), never from what the client could send itself through the edge, and what passes
- * carries it as {@code getRemoteAddr()} (audit, consent). What passes is marked for the local guard, which refuses
- * everything unmarked on this port.
+ * carries it as {@code getRemoteAddr()} (audit, consent) — {@code null} when the edge named none, never the address
+ * of the agent's own connection. What passes is marked for the local guard, which refuses everything unmarked on this
+ * port.
  *
  * <p>Requests on the local listener pass untouched: the local guard answers a tunnel hostname there with 421.
  */
@@ -73,6 +76,10 @@ public final class PublicIngressFilter extends OncePerRequestFilter {
       reject(response, HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
       return;
     }
+    if (!ownOrigin(publication, request.getHeaders("Origin"))) {
+      reject(response, HttpServletResponse.SC_FORBIDDEN);
+      return;
+    }
     String caller = callerAddress(publication.provider(), request);
     boolean browser = BROWSER.matcher(path).matches();
     if (!browser && publication.provider() != TunnelProvider.TEST
@@ -99,21 +106,40 @@ public final class PublicIngressFilter extends OncePerRequestFilter {
     }
   }
 
+  /** Whether every {@code Origin} line (none for a server's call or a navigation) is the tunnel's own origin. */
+  static boolean ownOrigin(TunnelPublication.Publication publication, Enumeration<String> origins) {
+    while (origins != null && origins.hasMoreElements()) {
+      if (!publication.origin().equalsIgnoreCase(origins.nextElement().strip())) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   /**
    * The address of whoever called through the edge: what the provider's edge says, or {@code null} when its header
-   * is missing, ambiguous or not an IPv4 or IPv6 literal (then the gate refuses a server call). Every line of the
-   * header counts, not only the first: a client's own line must never stand for the edge's. Cloudflare sets one
+   * is missing, ambiguous, not an IPv4 or IPv6 literal (then the gate refuses a server call), or this computer's own
+   * loopback or unspecified address, which no edge reports for a caller on the internet. Every line of the header
+   * counts, not only the first: a client's own line must never stand for the edge's. Cloudflare sets one
    * {@code CF-Connecting-IP} (two lines: whose is which is unknown, so nobody's); ngrok appends the caller to
    * {@code X-Forwarded-For}, so it is the last hop of the last line.
    */
   static String callerAddress(TunnelProvider provider, HttpServletRequest request) {
-    String value = switch (provider) {
-      case CLOUDFLARE_QUICK, CLOUDFLARE_NAMED -> only(request.getHeaders("CF-Connecting-IP"));
-      case NGROK -> lastHop(last(request.getHeaders("X-Forwarded-For")));
-      case TEST -> request.getHeader("CF-Connecting-IP") != null ? request.getHeader("CF-Connecting-IP")
-          : request.getRemoteAddr();
+    return switch (provider) {
+      case CLOUDFLARE_QUICK, CLOUDFLARE_NAMED -> edgeCaller(only(request.getHeaders("CF-Connecting-IP")));
+      case NGROK -> edgeCaller(lastHop(last(request.getHeaders("X-Forwarded-For"))));
+      case TEST -> literal(request.getHeader("CF-Connecting-IP") != null ? request.getHeader("CF-Connecting-IP")
+          : request.getRemoteAddr());
     };
-    return literal(value);
+  }
+
+  private static String edgeCaller(String value) {
+    String ip = literal(value);
+    if (ip == null) {
+      return null;
+    }
+    java.net.InetAddress a = java.net.InetAddress.ofLiteral(ip);
+    return a.isLoopbackAddress() || a.isAnyLocalAddress() ? null : ip;
   }
 
   /** The header's single line, or {@code null} for none or several. */
@@ -206,8 +232,9 @@ public final class PublicIngressFilter extends OncePerRequestFilter {
 
   /**
    * The request as the rest of the core sees it: the caller's address is the edge's ({@code getRemoteAddr()}, so
-   * Activity and the consent dialog show who called, not cloudflared), and the body is cut off at
-   * {@link #MAX_BODY} (a chunked body has no length to check up front).
+   * Activity and the consent dialog show who called, not cloudflared) or {@code null} — never the agent's loopback
+   * connection, which would pass for this computer's own browser — and the body is cut off at {@link #MAX_BODY} (a
+   * chunked body has no length to check up front).
    */
   private static final class TunnelRequest extends HttpServletRequestWrapper {
 
@@ -220,7 +247,7 @@ public final class PublicIngressFilter extends OncePerRequestFilter {
 
     @Override
     public String getRemoteAddr() {
-      return caller != null ? caller : super.getRemoteAddr();
+      return caller;
     }
 
     @Override

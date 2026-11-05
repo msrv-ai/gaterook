@@ -17,7 +17,11 @@ class ReadOnlySqlTest {
     List<String> selected = List.of("analytics", "archive", "numbers");
     for (String sql : List.of("SELECT * FROM analytics.events", "SELECT * FROM `archive`.`events`",
         "SELECT e.id FROM events e JOIN archive.events a ON e.id=a.id", "SELECT * FROM numbers(10)",
-        "WITH t AS (SELECT * FROM archive.events) SELECT * FROM t", "SELECT 'FROM private.users' FROM events")) {
+        "WITH t AS (SELECT * FROM archive.events) SELECT * FROM t", "SELECT 'FROM private.users' FROM events",
+        "SELECT * FROM events WHERE id IN (analytics.users)", "SELECT * FROM events WHERE id IN (1, 2, 3)",
+        "SELECT * FROM events WHERE id IN (col)", "SELECT * FROM analytics.events AS t, archive.events b",
+        "SELECT * FROM analytics.events t WINDOW w AS (ORDER BY id)",
+        "SELECT a, b FROM analytics.events GROUP BY a, b")) {
       assertThat(ReadOnlySql.databaseProblem(sql, selected)).as(sql).isEmpty();
     }
     for (String sql : List.of("SELECT * FROM private.users", "SELECT * FROM events, private.users",
@@ -25,10 +29,14 @@ class ReadOnlySqlTest {
         "SELECT * FROM analytics.events AS `GROUP`, private.users b",
         "SELECT * FROM analytics.events AS `)`, private.users b",
         "SELECT * FROM analytics.events AS WHERE, private.users b",
+        "SELECT * FROM analytics.events WINDOW, private.users b",
+        "SELECT * FROM analytics.events FORMAT, private.users b",
+        "SELECT * FROM analytics.events ORDER, private.users b",
         "SELECT * FROM analytics.events /* outer /* inner */ WHERE */ , private.users b",
         "SELECT * FROM analytics.events //WHERE\n, private.users b",
         "SELECT * FROM events JOIN private.users USING id", "SELECT * FROM (SELECT * FROM private.users)",
-        "SELECT * FROM events WHERE id IN private.users", "SELECT * FROM merge('private', '.*')",
+        "SELECT * FROM events WHERE id IN private.users", "SELECT * FROM events WHERE id IN (private.users)",
+        "SELECT * FROM merge('private', '.*')",
         "SELECT * FROM numbers.merge('private', '.*')", "SELECT dictGet('private.dict', 'value', 1)",
         "SELECT * FROM analytics.schema.events", "SHOW DATABASES")) {
       assertThat(ReadOnlySql.databaseProblem(sql, selected)).as(sql).isPresent();
@@ -71,7 +79,9 @@ class ReadOnlySqlTest {
         "SELECT * FROM s3 ('https://bucket/x.csv')", "SELECT * FROM remote('other:9000', db.t)",
         "SELECT * FROM `file`('/etc/passwd', LineAsString)", "DESCRIBE TABLE url('https://example.com/a.csv')",
         "SELECT * FROM mysql('db:3306', 'x', 't', 'u', 'p')", "SELECT * FROM postgresql('db', 'x', 't', 'u', 'p')",
-        "SELECT * FROM executable('id', TSV, 'x String')", "SELECT * FROM t INTO OUTFILE '/tmp/x'")) {
+        "SELECT * FROM executable('id', TSV, 'x String')", "SELECT * FROM executablePool('id', TSV, 'x String')",
+        "SELECT * FROM mysqlCluster('c', 'db', 't', 'u', 'p')", "SELECT * FROM s3Queue('https://bucket/x.csv')",
+        "SELECT * FROM t INTO OUTFILE '/tmp/x'")) {
       assertThat(ReadOnlySql.check(sql).ok()).as(sql).isFalse();
     }
     assertThat(ReadOnlySql.check("SELECT * FROM URL('http://x')").refusal()).contains("URL()");

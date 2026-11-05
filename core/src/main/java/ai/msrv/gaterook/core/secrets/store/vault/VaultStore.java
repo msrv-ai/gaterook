@@ -1,5 +1,6 @@
 package ai.msrv.gaterook.core.secrets.store.vault;
 
+import ai.msrv.gaterook.connectors.support.egress.HostResolver;
 import ai.msrv.gaterook.core.secrets.SecretStores;
 import ai.msrv.gaterook.core.secrets.internal.persistence.StoreKind;
 import ai.msrv.gaterook.core.secrets.store.RemoteValue;
@@ -11,9 +12,15 @@ import ai.msrv.gaterook.core.secrets.store.StoreCall;
 import ai.msrv.gaterook.core.secrets.store.StoreException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.PublicKey;
 import java.time.Clock;
 import java.time.Duration;
@@ -32,6 +39,7 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import tools.jackson.core.JsonGenerator;
 import tools.jackson.core.ObjectWriteContext;
 import tools.jackson.core.json.JsonFactory;
@@ -77,6 +85,10 @@ public final class VaultStore implements SecretStore {
   private static final int MAX_DISCOVERY_REFERENCES = 5000;
   private static final int MAX_DISCOVERY_DEPTH = 64;
   private static final int MAX_DISCOVERY_ISSUES = 100;
+  /** A role of the SSH engine, as its {@code sign/<role>} path names one: no separator, dot segment or escape. */
+  private static final Pattern SSH_ROLE = Pattern.compile("[A-Za-z0-9_](?:[A-Za-z0-9_.@-]{0,126}[A-Za-z0-9_])?");
+  /** The largest {@code ~/.vault-token} read; tokens are far shorter, batch tokens included. */
+  private static final int MAX_TOKEN_FILE = 16 * 1024;
 
   private final VaultSettings settings;
   private final SignIn signIn;
@@ -89,11 +101,17 @@ public final class VaultStore implements SecretStore {
   private Duration tokenTtl;
   private boolean renewable;
 
+  /** A client that doesn't know the core's ports (tests of the client alone). */
   public VaultStore(VaultSettings settings, SignIn signIn, Clock clock) {
+    this(settings, signIn, clock, Set.of());
+  }
+
+  /** @param corePorts the core's listeners: no request goes there, also when the store's name resolves there */
+  public VaultStore(VaultSettings settings, SignIn signIn, Clock clock, Set<Integer> corePorts) {
     this.settings = settings;
     this.signIn = signIn;
     this.clock = clock;
-    this.http = new VaultHttp(settings);
+    this.http = new VaultHttp(settings, corePorts, HostResolver.SYSTEM);
   }
 
   @Override
@@ -493,6 +511,9 @@ public final class VaultStore implements SecretStore {
    * allows it, while the form with a body needs broad access (report 12 §6, checked on 2.2.1).
    */
   public void revoke(String leaseId, StoreCall call) {
+    if (!leaseId(leaseId)) {
+      throw StoreException.invalid("Vault's lease ID can't be used in a request path; the lease ends at its TTL.");
+    }
     try (VaultHttp.Response r = authorized(t -> http.send("PUT", "sys/leases/revoke/" + leaseId, null, t, call),
         call)) {
       if (r.status() == 403) {
@@ -510,6 +531,23 @@ public final class VaultStore implements SecretStore {
     return last > 0 ? leaseId.substring(0, last) : leaseId;
   }
 
+  /**
+   * A lease ID as Vault issues it ({@code database/creds/<role>/<id>}, also with a namespace suffix): segments of a
+   * reference path, none of them {@code .} or {@code ..}. It comes from Vault and from the database's lease rows, and
+   * goes into a request path.
+   */
+  private static boolean leaseId(String id) {
+    if (id == null || id.isEmpty() || id.length() > SecretRef.MAX_LENGTH) {
+      return false;
+    }
+    for (String segment : id.split("/", -1)) {
+      if (segment.equals(".") || segment.equals("..") || !SecretRef.VAULT_SEGMENT.matcher(segment).matches()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   // ── SSH CA ──────────────────────────────────────────────────────────────────────────────────────────────────
 
   /**
@@ -519,6 +557,13 @@ public final class VaultStore implements SecretStore {
    */
   public Signed sign(String mount, String role, PublicKey key, String principal, Duration ttl, String keyId,
       Map<String, String> extensions, StoreCall call) {
+    // Both come from a connection's settings and become path segments of the request.
+    if (!VaultSettings.mountPath(mount)) {
+      throw StoreException.invalid("The SSH signer's mount is a Vault path like ssh-client-signer.");
+    }
+    if (role == null || !SSH_ROLE.matcher(role).matches()) {
+      throw StoreException.invalid("The SSH role is a Vault role name like gw-runbooks.");
+    }
     String openSsh;
     try {
       openSsh = SshPublicKeys.openSsh(key);
@@ -815,26 +860,78 @@ public final class VaultStore implements SecretStore {
         }
       }
       case TOKEN -> adopt(signIn.secret(VaultSettings.TOKEN), call);
-      case CLI_TOKEN -> {
-        byte[] file;
-        try {
-          file = Files.readAllBytes(settings.tokenFile());
-        } catch (NoSuchFileException e) {
-          throw StoreException.unavailable("There is no " + settings.tokenFile() + " on this computer: run vault login, "
-              + "then test again.", null);
-        } catch (IOException e) {
-          throw StoreException.unavailable("Can't read " + settings.tokenFile() + ": " + e.getMessage(), e);
-        }
-        int len = file.length;
-        while (len > 0 && Character.isWhitespace(file[len - 1])) {
-          len--;
-        }
-        char[] t = chars(Arrays.copyOf(file, len));
-        Arrays.fill(file, (byte) 0);
-        adopt(t, call);
-      }
+      case CLI_TOKEN -> adopt(cliToken(settings.tokenFile()), call);
       default -> throw new IllegalStateException();
     }
+  }
+
+  /**
+   * The token {@code vault login} wrote: a regular file, not a symbolic link, at most 16 KB, one token of visible
+   * ASCII characters around optional white space. Anything else is refused and never sent.
+   */
+  private static char[] cliToken(Path file) {
+    String again = ": run vault login, then test again.";
+    BasicFileAttributes attributes;
+    try {
+      attributes = Files.readAttributes(file, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+    } catch (NoSuchFileException e) {
+      throw StoreException.unavailable("There is no " + file + " on this computer" + again, null);
+    } catch (IOException e) {
+      throw StoreException.unavailable("Can't read " + file + ": " + e.getMessage(), e);
+    }
+    if (attributes.isSymbolicLink()) {
+      throw StoreException.unavailable(file + " is a symbolic link; GateRook reads only the file vault login writes"
+          + again, null);
+    }
+    if (!attributes.isRegularFile()) {
+      throw StoreException.unavailable(file + " isn't a regular file" + again, null);
+    }
+    if (attributes.size() > MAX_TOKEN_FILE) {
+      throw StoreException.unavailable(file + " is too large to hold a Vault token" + again, null);
+    }
+    byte[] bytes = new byte[MAX_TOKEN_FILE + 1];
+    try {
+      int length;
+      // No link is followed here either: the file may have been replaced since its attributes were read.
+      try (SeekableByteChannel in = Files.newByteChannel(file, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+        ByteBuffer buffer = ByteBuffer.wrap(bytes);
+        while (buffer.hasRemaining() && in.read(buffer) >= 0) {
+          // keep reading
+        }
+        length = buffer.position();
+      } catch (IOException e) {
+        throw StoreException.unavailable("Can't read " + file + ": " + e.getMessage(), e);
+      }
+      if (length > MAX_TOKEN_FILE) {
+        throw StoreException.unavailable(file + " is too large to hold a Vault token" + again, null);
+      }
+      int start = 0;
+      int end = length;
+      while (start < end && whiteSpace(bytes[start])) {
+        start++;
+      }
+      while (end > start && whiteSpace(bytes[end - 1])) {
+        end--;
+      }
+      char[] token = new char[end - start];
+      for (int i = start; i < end; i++) {
+        if (bytes[i] < 0x21 || bytes[i] > 0x7E) {
+          Arrays.fill(token, '\0');
+          throw StoreException.unavailable(file + " doesn't hold one Vault token" + again, null);
+        }
+        token[i - start] = (char) bytes[i];
+      }
+      if (token.length == 0) {
+        throw StoreException.unavailable(file + " doesn't hold one Vault token" + again, null);
+      }
+      return token;
+    } finally {
+      Arrays.fill(bytes, (byte) 0);
+    }
+  }
+
+  private static boolean whiteSpace(byte b) {
+    return b == ' ' || b == '\t' || b == '\n' || b == '\r';
   }
 
   /** A token given to the gateway: its TTL comes from {@code lookup-self}. */

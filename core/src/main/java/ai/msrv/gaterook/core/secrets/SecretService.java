@@ -8,6 +8,7 @@ import ai.msrv.gaterook.core.platform.SetupChangeRecorder;
 import ai.msrv.gaterook.core.platform.Taint;
 import ai.msrv.gaterook.core.platform.WalCheckpoint;
 import ai.msrv.gaterook.core.secrets.internal.crypto.Envelope;
+import ai.msrv.gaterook.core.secrets.internal.SecretRows;
 import ai.msrv.gaterook.core.secrets.internal.persistence.SecretEntity;
 import ai.msrv.gaterook.core.secrets.internal.persistence.SecretKind;
 import ai.msrv.gaterook.core.secrets.internal.persistence.SecretOwnerKind;
@@ -74,6 +75,7 @@ public class SecretService {
   private static final Logger log = LoggerFactory.getLogger(SecretService.class);
 
   private final SecretRepository secrets;
+  private final SecretRows rows;
   private final SecretVersionRepository versions;
   private final MasterKeyService masterKey;
   private final Map<SecretOwner.Kind, SecretOwners> owners;
@@ -119,8 +121,9 @@ public class SecretService {
   public SecretService(SecretRepository secrets, SecretVersionRepository versions, MasterKeyService masterKey,
       List<SecretOwners> owners, ObjectProvider<SetupChangeRecorder> setupChanges, ApplicationEventPublisher publisher,
       WalCheckpoint checkpoint, PlatformTransactionManager transactions, Clock clock, StoreBinding binding,
-      StoreResolution resolution, SecretCache cache, LeaseManager leases) {
+      StoreResolution resolution, SecretCache cache, LeaseManager leases, SecretRows rows) {
     this.secrets = secrets;
+    this.rows = rows;
     this.versions = versions;
     this.masterKey = masterKey;
     Map<SecretOwner.Kind, SecretOwners> byKind = new EnumMap<>(SecretOwner.Kind.class);
@@ -202,6 +205,7 @@ public class SecretService {
             clock.instant()));
         addVersion(secret, 1, SecretVersionState.CURRENT, value);
         secret.setCurrentVersion(1);
+        rows.sign(secret);
         return info(secret);
       }));
     } finally {
@@ -244,6 +248,7 @@ public class SecretService {
         }
         secret.setCurrentVersion(number);
         secret.setRotatedAt(now);
+        rows.sign(secret);
         return info(secret);
       }));
     } finally {
@@ -539,6 +544,11 @@ public class SecretService {
       if (masterKey.locked()) {
         return new Resolved(SecretKind.LOCAL, secret.getName(), "v" + number, null, masterKey.lockedMessage());
       }
+      if (!rows.verify(secret)) {
+        // Moved to another owner or field, or set back to an older version, outside the core.
+        return new Resolved(SecretKind.LOCAL, secret.getName(), null, null, secret.getName() + " was changed outside "
+            + "GateRook: replace it with a new value under Secrets.");
+      }
       SecretVersionEntity version = versions.findBySecretIdAndSecretVersion(secret.getId(), number).orElse(null);
       if (version == null || version.getWrappedDek() == null) {
         return new Resolved(SecretKind.LOCAL, secret.getName(), "v" + number, null, secret.getName() + " version "
@@ -785,6 +795,7 @@ public class SecretService {
     }
     secret.setCurrentVersion(number);
     secret.setRotatedAt(now);
+    rows.sign(secret);
     SetupChangeRecorder recorder = setupChanges.getIfAvailable();
     if (recorder == null) {
       throw new IllegalStateException("Setup changes can't be recorded: no recorder");

@@ -14,7 +14,8 @@ import java.util.Objects;
  *       ≤ {@value #TELEGRAM_MESSAGE_LIMIT}) and nothing of it was left out;</li>
  *   <li>the masker found nothing that looks like a secret in it;</li>
  *   <li>no hidden characters and no letters that pass for others ({@code ActionInspector}), and nothing beyond
- *       printable ASCII — in the action and in the details shown with it (its target, a template's values);</li>
+ *       printable ASCII — in the action and in the details shown with it (its target, a template's values, its
+ *       impact, the connector's warnings);</li>
  *   <li>no flood: more than {@value #FLOOD_PER_MINUTE} new requests a minute turn the channel into one digest message;</li>
  *   <li>the request still waits for a person.</li>
  * </ol>

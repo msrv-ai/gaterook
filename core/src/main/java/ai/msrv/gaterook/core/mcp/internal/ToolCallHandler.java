@@ -27,7 +27,6 @@ import ai.msrv.gaterook.core.platform.Ids;
 import ai.msrv.gaterook.core.platform.SchemaValidator;
 import ai.msrv.gaterook.core.policy.Decision;
 import ai.msrv.gaterook.core.policy.PolicyEngine;
-import ai.msrv.gaterook.core.policy.PolicyService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -59,7 +58,6 @@ public class ToolCallHandler {
   private final SchemaValidator validator;
   private final ConnectorRegistry registry;
   private final PolicyEngine engine;
-  private final PolicyService policies;
   private final ToolGuard guard;
   private final AuditWriter audit;
   private final ConnectorInvoker invoker;
@@ -75,7 +73,7 @@ public class ToolCallHandler {
   private final InFlight inFlight;
 
   public ToolCallHandler(ToolCatalog catalogs, SchemaValidator validator, ConnectorRegistry registry,
-      PolicyEngine engine, PolicyService policies, ToolGuard guard, AuditWriter audit, ConnectorInvoker invoker,
+      PolicyEngine engine, ToolGuard guard, AuditWriter audit, ConnectorInvoker invoker,
       ApprovalService approvals, ApprovalAnswers answers, ApprovalStatusTool statusTool, ApprovalDelivery delivery,
       RequestStateCodec states, CoreToolsHandler coreTools, Calls calls, ApprovalCards approvalCards,
       EndpointSnapshotService snapshots, InFlight inFlight) {
@@ -83,7 +81,6 @@ public class ToolCallHandler {
     this.validator = validator;
     this.registry = registry;
     this.engine = engine;
-    this.policies = policies;
     this.guard = guard;
     this.audit = audit;
     this.invoker = invoker;
@@ -390,7 +387,7 @@ public class ToolCallHandler {
   private ConnectorInvoker.Request request(McpRequest r, EndpointSnapshot.Pair pair, ToolCall call,
       Decision decision, Classification classification) {
     return new ConnectorInvoker.Request(call.callId(), pair.config(), call, decision.limits(),
-        policies.maskPolicy(pair.config().env()), r.span().traceId(), r.span().traceparent(),
+        decision.mask(), r.span().traceId(), r.span().traceparent(),
         () -> snapshots.requireAvailable(r.snapshot().id(), pair.connectionName())
             && (pair.bypassUntil() == null || temporaryBypassStillAllowed(r, pair, decision, classification)));
   }

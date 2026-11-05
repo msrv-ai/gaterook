@@ -205,6 +205,81 @@ class McpAuditIT {
     }
   }
 
+  @Test
+  void callsDeletedFromTheStartOfTheHistoryAreReported() {
+    try (TestCore a = world("audit-delete-start", "--gateway.audit.anchor-interval=200ms")) {
+      McpClient dev = client(a, "dev", "codex-laptop");
+      for (int i = 0; i < 4; i++) {
+        dev.legacyCall("sql_query", args("connection", "dev-db", "sql", "SELECT " + i));
+      }
+      awaitAnchoredHead(a);
+      IntegrityAlerts alerts = a.bean(IntegrityAlerts.class);
+      assertThat(alerts.has("audit", "chain")).isFalse();
+      long first = a.jdbc().queryForObject("select min(id) from tool_call", Long.class);
+      a.jdbc().execute("DROP TRIGGER tool_call_no_early_delete");
+      assertThat(a.jdbc().update("delete from tool_call where id < ?", first + 2)).isEqualTo(2);
+      a.jdbc().execute(NO_EARLY_DELETE);
+      TestCore.await(() -> alerts.has("audit", "chain"), "the integrity alert");
+      assertThat(a.bean(AuditQueries.class).changes("Audit history", null, 10)).singleElement()
+          .satisfies(ch -> assertThat(ch.reason()).contains("agent call rows before row " + (first + 2)
+              + " were removed"));
+    }
+  }
+
+  /**
+   * An anchor written before the start of the history carried its links trusts the first rows as they are once, then
+   * checks them: rows removed from the start afterwards are reported at the next start.
+   */
+  @Test
+  void anAnchorWithoutLinksTakesTheFirstRowsOnceThenChecksThem() throws Exception {
+    Path home;
+    try (TestCore a = world("audit-legacy-anchor", "--gateway.audit.anchor-interval=1h")) {
+      McpClient dev = client(a, "dev", "codex-laptop");
+      for (int i = 0; i < 4; i++) {
+        dev.legacyCall("sql_query", args("connection", "dev-db", "sql", "SELECT " + i));
+      }
+      home = a.home();
+    }
+    long kept;
+    try (TestCore b = TestCore.reopen(home, "--gateway.audit.anchor-interval=1h")) {
+      awaitAnchoredHead(b);
+      // An older version's retention removed the first row, and its anchor didn't name where the history starts.
+      long first = b.jdbc().queryForObject("select min(id) from tool_call", Long.class);
+      b.jdbc().execute("DROP TRIGGER tool_call_no_early_delete");
+      b.jdbc().update("delete from tool_call where id = ?", first);
+      b.jdbc().execute(NO_EARLY_DELETE);
+      kept = first + 1;
+      SettingStore settings = b.bean(SettingStore.class);
+      ObjectNode legacy = (ObjectNode) settings.find("audit.head-mac").orElseThrow().value().deepCopy();
+      legacy.remove("links");
+      legacy.remove("mac");
+      ((ObjectNode) legacy.get("verifiedFrom")).put("toolCall", 1).putNull("toolCallSha").put("setupChange", 1)
+          .putNull("setupChangeSha");
+      legacy.put("mac", java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(b.bean(
+          ai.msrv.gaterook.core.platform.HmacKeys.class).mac(ai.msrv.gaterook.core.platform.HmacKeys.Purpose.AUDIT_HEAD,
+          ai.msrv.gaterook.core.platform.CanonicalJson.bytes(legacy))));
+      settings.put("audit.head-mac", legacy, null);
+    }
+    try (TestCore c = TestCore.reopen(home, "--gateway.audit.anchor-interval=1h")) {
+      SettingStore settings = c.bean(SettingStore.class);
+      TestCore.await(() -> settings.find("audit.head-mac").orElseThrow().value().path("links").asBoolean(false),
+          "the anchor with links");
+      assertThat(c.bean(IntegrityAlerts.class).has("audit", "chain")).as("the first rows are trusted once").isFalse();
+      assertThat(settings.find("audit.head-mac").orElseThrow().value().at("/verifiedFrom/toolCall").asLong())
+          .isEqualTo(kept);
+      c.jdbc().execute("DROP TRIGGER tool_call_no_early_delete");
+      c.jdbc().update("delete from tool_call where id = ?", kept);
+      c.jdbc().execute(NO_EARLY_DELETE);
+    }
+    try (TestCore d = TestCore.reopen(home)) {
+      IntegrityAlerts alerts = d.bean(IntegrityAlerts.class);
+      TestCore.await(() -> alerts.has("audit", "chain"), "the integrity alert");
+      assertThat(d.bean(AuditQueries.class).changes("Audit history", null, 10)).singleElement()
+          .satisfies(ch -> assertThat(ch.reason()).contains("agent call rows before row " + (kept + 1)
+              + " were removed"));
+    }
+  }
+
   /**
    * A decision rewritten and every hash after it recomputed, so the chain links again from the genesis on — while the
    * core runs. Only the anchor can tell: the stop doesn't move it over the rewritten head, and the next start reports

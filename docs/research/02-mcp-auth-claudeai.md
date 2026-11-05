@@ -83,7 +83,7 @@ Canonicalize the resource consistently: lowercase scheme/host, remove a default 
 
 Generate a six-character comparison code from `23456789ABCDEFGHJKLMNPQRSTUVWXYZ`, shown as `XXX-XXX` (30 bits). Limit pending consents to three per endpoint and authorization attempts to ten per minute per browser IP. The browser receives a random HttpOnly, Secure, SameSite=Lax cookie scoped to `/oauth/authorize`; only that cookie can poll its request. Return a redirect location once after consent resolves.
 
-A new Allow replaces the previous active grant for the same client/endpoint pair. Consent is not a server-side authentication of the browser owner: the user must recognize the sign-in and match the code.
+A new sign-in replaces the previous active grant for the same client/endpoint pair once its authorization code is exchanged; one allowed but never completed leaves the working grant in place. Consent is not a server-side authentication of the browser owner: the user must recognize the sign-in and match the code.
 
 ### 4.3 Token exchange and revocation
 

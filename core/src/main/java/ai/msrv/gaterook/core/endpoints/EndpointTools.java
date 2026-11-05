@@ -4,6 +4,7 @@ import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.endpoints.internal.EndpointRows;
+import ai.msrv.gaterook.core.endpoints.internal.TemporaryBypass;
 import ai.msrv.gaterook.core.endpoints.internal.ToolPairs;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointEntity;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointRepository;
@@ -111,7 +112,7 @@ public class EndpointTools {
   /** Temporarily skips approval for exactly one tool on one connection; the base mode is preserved. */
   public void setTemporaryBypass(String slug, String toolKey, String connection, int durationMinutes,
       long version, String reason) {
-    if (!List.of(15, 30, 60, 180, 720, 1440).contains(durationMinutes)) {
+    if (!List.of(15, 30, 60, 180, 720, (int) TemporaryBypass.MAX.toMinutes()).contains(durationMinutes)) {
       throw ProblemException.unprocessable("Invalid bypass duration",
           "Choose 15 or 30 minutes, or 1, 3, 12 or 24 hours.", "/durationMinutes");
     }

@@ -324,7 +324,7 @@ final class RemoteConnector implements Connector {
   }
 
   /** The host of the connection, from a {@code baseUrl}/{@code url}/{@code endpoint} field, or a {@code host} field. */
-  private static String connectionHost(ConnectionConfig cfg) {
+  static String connectionHost(ConnectionConfig cfg) {
     for (String field : List.of("/baseUrl", "/url", "/endpoint", "/serverUrl")) {
       String value = cfg.string(field);
       if (value != null && !value.isBlank()) {
@@ -339,7 +339,12 @@ final class RemoteConnector implements Connector {
       }
     }
     String host = cfg.string("/host");
-    return host == null || host.isBlank() ? null : host.strip().toLowerCase(Locale.ROOT);
+    if (host == null || host.isBlank()) {
+      return null;
+    }
+    String h = host.strip().toLowerCase(Locale.ROOT);
+    // An IPv6 literal as a URL writes it ([::1]): a bare one before a ":port" of the manifest would read as a port.
+    return h.indexOf(':') >= 0 && !h.startsWith("[") ? "[" + h + "]" : h;
   }
 
   private Optional<ToolDefinition> tool(String name) {

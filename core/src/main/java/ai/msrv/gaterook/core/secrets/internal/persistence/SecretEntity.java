@@ -12,6 +12,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.Instant;
 import java.util.Objects;
+import org.hibernate.annotations.OptimisticLock;
 
 /**
  * One secret field of one owner ({@code dev-db/password}): its kind and, for references, where it lives. Values never
@@ -69,6 +70,11 @@ public class SecretEntity {
   @Version
   @Column(name = "version", nullable = false)
   private long version;
+
+  /** {@code SecretRows}: signed over the fields that decide whose value this is, so it never bumps the version. */
+  @OptimisticLock(excluded = true)
+  @Column(name = "mac")
+  private byte[] mac;
 
   protected SecretEntity() {}
 
@@ -161,5 +167,13 @@ public class SecretEntity {
 
   public long getVersion() {
     return version;
+  }
+
+  public byte[] getMac() {
+    return mac;
+  }
+
+  public void setMac(byte[] mac) {
+    this.mac = mac;
   }
 }

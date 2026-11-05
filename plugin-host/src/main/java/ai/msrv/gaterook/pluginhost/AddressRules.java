@@ -1,18 +1,18 @@
 package ai.msrv.gaterook.pluginhost;
 
-import java.net.Inet4Address;
-import java.net.Inet6Address;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
 /**
  * Which addresses a plugin may reach (ARCHITECTURE.md §9 SSRF, the host's side of it): never link-local and cloud
- * metadata (169.254.0.0/16, fe80::/10, fd00:ec2::/32, fd20:ce::254), "this network" or multicast; private and
- * loopback ranges only where the environment's policy allows them for the connection. The same rules as the core's
- * {@code AddressPolicy}, written again because the host sees none of the core's classes.
+ * metadata (169.254.0.0/16, fe80::/10, fd00:ec2::/32, fd20:ce::254, 100.100.100.200, 192.0.0.0/24), "this network",
+ * multicast, reserved, Teredo, documentation or discard-only ranges; private and loopback ranges only where the
+ * environment's policy allows them for the connection. An IPv6 address that carries an IPv4 address (mapped,
+ * compatible, NAT64 {@code 64:ff9b::/96}, 6to4 {@code 2002::/16}) is judged by the IPv4 address inside. The same rules
+ * as the core's {@code AddressPolicy}, written again because the host sees none of the core's classes.
  */
 final class AddressRules {
 
@@ -35,8 +35,7 @@ final class AddressRules {
       }
     }
 
-    boolean contains(InetAddress address) {
-      byte[] a = unmapped(address).getAddress();
+    boolean contains(byte[] a) {
       if (a.length != network.length) {
         return false;
       }
@@ -55,13 +54,31 @@ final class AddressRules {
     }
   }
 
-  static final List<Cidr> NEVER = List.of(Cidr.parse("169.254.0.0/16"), Cidr.parse("0.0.0.0/8"),
-      Cidr.parse("224.0.0.0/4"), Cidr.parse("240.0.0.0/4"), Cidr.parse("fe80::/10"), Cidr.parse("fd00:ec2::/32"),
-      Cidr.parse("fd20:ce::254/128"), Cidr.parse("ff00::/8"), Cidr.parse("::/128"));
+  static final List<Cidr> NEVER = cidrs(
+      "169.254.0.0/16",      // link-local: IMDS 169.254.169.254, ECS and EKS credentials
+      "fe80::/10",           // IPv6 link-local
+      "fd00:ec2::/32",       // AWS IMDS v6, EKS Pod Identity
+      "fd20:ce::254/128",    // GCP metadata v6; inside fc00::/7, so no allowed range may open it
+      "100.100.100.200/32",  // Alibaba Cloud metadata; inside 100.64.0.0/10
+      "0.0.0.0/8",           // "this network"
+      "::/128",              // unspecified
+      "224.0.0.0/4",         // multicast
+      "ff00::/8",            // IPv6 multicast
+      "240.0.0.0/4",         // reserved, including 255.255.255.255
+      "2001::/32",           // Teredo: tunnels to an IPv4 address that can't be judged here
+      "192.0.0.0/24",        // IETF protocol assignments (Oracle Cloud's legacy metadata 192.0.0.192)
+      "192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24", "2001:db8::/32", // documentation
+      "100::/64");           // discard-only
 
-  static final List<Cidr> PRIVATE = List.of(Cidr.parse("127.0.0.0/8"), Cidr.parse("10.0.0.0/8"),
-      Cidr.parse("172.16.0.0/12"), Cidr.parse("192.168.0.0/16"), Cidr.parse("100.64.0.0/10"),
-      Cidr.parse("198.18.0.0/15"), Cidr.parse("::1/128"), Cidr.parse("fc00::/7"));
+  static final List<Cidr> PRIVATE = cidrs(
+      "127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+      "100.64.0.0/10",   // CGNAT, Tailscale
+      "198.18.0.0/15",   // benchmarking
+      "fc00::/7",        // unique local
+      "fec0::/10",       // deprecated site-local
+      "64:ff9b:1::/48"); // local-use NAT64: may translate to private IPv4, so only its own range opens it
+
+  static final List<Cidr> LOOPBACK = cidrs("127.0.0.0/8", "::1/128");
 
   /** Names that point at cloud metadata services whatever they resolve to. */
   static final Set<String> METADATA_NAMES = Set.of("metadata", "metadata.google.internal", "metadata.goog",
@@ -71,23 +88,18 @@ final class AddressRules {
 
   /** Never reachable, whatever the policy. */
   static boolean forbidden(InetAddress address) {
-    InetAddress a = unmapped(address);
-    for (Cidr c : NEVER) {
-      if (c.contains(a)) {
-        return true;
-      }
-    }
-    return false;
+    byte[] bytes = address.getAddress();
+    byte[] judged = judged(bytes);
+    return inAny(NEVER, bytes) || (judged != bytes && inAny(NEVER, judged));
   }
 
   static boolean privateAddress(InetAddress address) {
-    InetAddress a = unmapped(address);
-    for (Cidr c : PRIVATE) {
-      if (c.contains(a)) {
-        return true;
-      }
-    }
-    return a.isSiteLocalAddress() || a.isLoopbackAddress();
+    return inAny(PRIVATE, judged(address.getAddress()));
+  }
+
+  /** This computer, in any form: where the core's own ports are. */
+  static boolean loopback(InetAddress address) {
+    return inAny(LOOPBACK, judged(address.getAddress()));
   }
 
   /** Whether {@code address} is reachable under {@code allowedPrivate}. */
@@ -95,16 +107,8 @@ final class AddressRules {
     if (forbidden(address)) {
       return false;
     }
-    if (!privateAddress(address)) {
-      return true;
-    }
-    InetAddress a = unmapped(address);
-    for (Cidr c : allowedPrivate) {
-      if (c.contains(a)) {
-        return true;
-      }
-    }
-    return false;
+    byte[] judged = judged(address.getAddress());
+    return !inAny(PRIVATE, judged) || inAny(allowedPrivate, judged);
   }
 
   static boolean metadataName(String host) {
@@ -115,22 +119,55 @@ final class AddressRules {
     return METADATA_NAMES.contains(h);
   }
 
-  /** An IPv4-mapped IPv6 address is judged as the IPv4 address it carries. */
-  static InetAddress unmapped(InetAddress address) {
-    if (address instanceof Inet6Address v6) {
-      byte[] b = v6.getAddress();
-      boolean mapped = true;
-      for (int i = 0; i < 10; i++) {
-        mapped &= b[i] == 0;
+  /**
+   * What an address is judged by: the IPv4 address an IPv6 address carries (mapped, compatible, the NAT64 well-known
+   * prefix, 6to4), or else {@code address} itself, the same array.
+   */
+  static byte[] judged(byte[] address) {
+    if (address.length != 16) {
+      return address;
+    }
+    boolean firstTenZero = true;
+    for (int i = 0; i < 10; i++) {
+      firstTenZero &= address[i] == 0;
+    }
+    // ::ffff:a.b.c.d (mapped). Java turns a mapped literal into an Inet4Address; a resolver's answer may stay IPv6.
+    if (firstTenZero && address[10] == (byte) 0xff && address[11] == (byte) 0xff) {
+      return Arrays.copyOfRange(address, 12, 16);
+    }
+    // ::a.b.c.d (deprecated "compatible"), but not :: and ::1.
+    if (firstTenZero && address[10] == 0 && address[11] == 0) {
+      boolean zeroOrOne = address[12] == 0 && address[13] == 0 && address[14] == 0
+          && (address[15] == 0 || address[15] == 1);
+      return zeroOrOne ? address : Arrays.copyOfRange(address, 12, 16);
+    }
+    // 64:ff9b::/96, the NAT64 well-known prefix.
+    if (address[0] == 0 && address[1] == 0x64 && address[2] == (byte) 0xff && address[3] == (byte) 0x9b) {
+      boolean zero = true;
+      for (int i = 4; i < 12; i++) {
+        zero &= address[i] == 0;
       }
-      if (mapped && b[10] == (byte) 0xff && b[11] == (byte) 0xff) {
-        try {
-          return Inet4Address.getByAddress(new byte[] {b[12], b[13], b[14], b[15]});
-        } catch (UnknownHostException e) {
-          return address;
-        }
+      if (zero) {
+        return Arrays.copyOfRange(address, 12, 16);
       }
     }
+    // 2002:AABB:CCDD::/48, 6to4.
+    if (address[0] == 0x20 && address[1] == 0x02) {
+      return Arrays.copyOfRange(address, 2, 6);
+    }
     return address;
+  }
+
+  private static boolean inAny(List<Cidr> ranges, byte[] address) {
+    for (Cidr c : ranges) {
+      if (c.contains(address)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static List<Cidr> cidrs(String... ranges) {
+    return Arrays.stream(ranges).map(Cidr::parse).toList();
   }
 }

@@ -2,24 +2,27 @@ package ai.msrv.gaterook.core.secrets.store;
 
 import ai.msrv.gaterook.connectors.support.egress.AddressPolicy;
 import ai.msrv.gaterook.connectors.support.egress.Cidr;
+import ai.msrv.gaterook.connectors.support.egress.HostResolver;
 import java.net.InetAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
- * Where a store may be reached (ARCHITECTURE.md §9 "SSRF": the person typed the address, so it is checked before any
- * resolution, not hop by hop like the egress guard). Vault usually lives on a private network, so private addresses
- * are fine; cloud metadata, link-local and the core's own ports never are, and a number in a non-standard form is
- * refused rather than interpreted. Plain {@code http://} to another computer requires explicit consent because
- * tokens and secrets cross the network unencrypted.
+ * Where a store may be reached (ARCHITECTURE.md §9 "SSRF": the person typed the address, so it is checked as written
+ * before any resolution, and what its name resolves to before each request, not hop by hop like the egress guard).
+ * Vault usually lives on a private network, so private addresses are fine; cloud metadata, link-local and the core's
+ * own ports never are, and a number in a non-standard form is refused rather than interpreted. Plain {@code http://}
+ * to another computer requires explicit consent because tokens and secrets cross the network unencrypted.
  */
 public final class StoreAddress {
 
-  private static final List<String> PRIVATE = List.of("127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12",
-      "192.168.0.0/16", "100.64.0.0/10", "198.18.0.0/15", "fc00::/7", "fec0::/10");
+  private static final List<Cidr> PRIVATE = Stream.of("127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12",
+      "192.168.0.0/16", "100.64.0.0/10", "198.18.0.0/15", "fc00::/7", "fec0::/10").map(Cidr::parse).toList();
 
   private StoreAddress() {}
 
@@ -62,13 +65,11 @@ public final class StoreAddress {
     Optional<InetAddress> literal = AddressPolicy.canonicalIp(host);
     boolean loopback = literal.map(InetAddress::isLoopbackAddress).orElse(host.equalsIgnoreCase("localhost"));
     if (literal.isPresent()) {
-      AddressPolicy policy = AddressPolicy.builder().allowPrivate(PRIVATE.stream().map(Cidr::parse).toList())
-          .corePorts(corePorts).build();
-      AddressPolicy.Verdict v = policy.check(host, literal.get(), port);
+      AddressPolicy.Verdict v = policy(corePorts).check(host, literal.get(), port);
       if (!v.allowed()) {
         throw StoreException.invalid(v.text());
       }
-    } else if (loopback && corePorts.contains(port)) {
+    } else if ((loopback || localhostName(host)) && corePorts.contains(port)) {
       throw StoreException.invalid("Port " + port + " on this computer is GateRook itself.");
     }
     if (scheme.equals("http") && !loopback && !allowPlainHttp) {
@@ -84,5 +85,49 @@ public final class StoreAddress {
     }
     return URI.create(scheme + "://" + (host.indexOf(':') >= 0 && !host.startsWith("[") ? "[" + host + "]" : host)
         + (uri.getPort() > 0 ? ":" + uri.getPort() : "") + path);
+  }
+
+  /**
+   * Judges what a store's address resolves to, right before a request: every address at the address's port, by the
+   * rules of {@link #check}, whatever the name. The JDK client resolves the name again when it connects, so this
+   * judges the name's answer rather than each connection (ARCHITECTURE.md §9, fixed human-configured clients); the
+   * JVM's address cache normally gives both the same answer. A name that doesn't resolve here is left to the client
+   * or the system proxy, which report it.
+   *
+   * @param address   an address {@link #check} returned
+   * @param corePorts the core's listeners
+   * @throws StoreException {@code INVALID} with the address that isn't allowed
+   */
+  public static void checkResolved(URI address, Set<Integer> corePorts, HostResolver resolver) {
+    String host = address.getHost();
+    int port = address.getPort() > 0 ? address.getPort() : "https".equalsIgnoreCase(address.getScheme()) ? 443 : 80;
+    Optional<InetAddress> literal = AddressPolicy.canonicalIp(host);
+    List<InetAddress> resolved;
+    try {
+      resolved = literal.isPresent() ? List.of(literal.get()) : resolver.resolve(host);
+    } catch (UnknownHostException e) {
+      return;
+    }
+    AddressPolicy policy = policy(corePorts);
+    for (InetAddress a : resolved == null ? List.<InetAddress>of() : resolved) {
+      AddressPolicy.Verdict v = policy.check(host, a, port);
+      if (!v.allowed()) {
+        throw StoreException.invalid(v.text());
+      }
+    }
+  }
+
+  /** Private addresses are fine; cloud metadata, link-local, reserved addresses and the core's ports never are. */
+  private static AddressPolicy policy(Set<Integer> corePorts) {
+    return AddressPolicy.builder().allowPrivate(PRIVATE).corePorts(corePorts).build();
+  }
+
+  /** {@code localhost} and the names under it (RFC 6761), with or without the final dot: this computer. */
+  private static boolean localhostName(String host) {
+    String name = host.toLowerCase(Locale.ROOT);
+    if (name.endsWith(".")) {
+      name = name.substring(0, name.length() - 1);
+    }
+    return name.equals("localhost") || name.endsWith(".localhost");
   }
 }

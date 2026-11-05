@@ -54,7 +54,8 @@ import tools.jackson.databind.node.ObjectNode;
  * <p>{@code callback_data} comes from the client and can be forged ("the message originated the query can contain no
  * callback buttons with this data"), so a click counts only from a linked account ({@code from.id}) in its linked chat
  * ({@code message.chat.id}) on a message we sent for that very request ({@code message_id}); everyone else gets an
- * alert. Approve takes two steps: Approve shows Confirm approve with a nonce good for 60 s. Every click is answered
+ * alert, and a message that no longer offers its buttons decides nothing (it still opens the app). Approve takes two
+ * steps: Approve shows Confirm approve with a nonce good for 60 s. Every click is answered
  * ({@code answerCallbackQuery}), or the client spins.
  */
 @Component
@@ -380,6 +381,12 @@ public class TelegramChannel implements ChatChannel, DisposableBean {
       if (delivery.isEmpty()) {
         answer = "This message isn't one GateRook sent for this request.";
         alert = true;
+        return;
+      }
+      if (!"o".equals(kind) && !delivery.get().open()) {
+        // Its request ended, or the bot that sent it went away (a new bot's chat numbers its own messages from the
+        // start): the message decides nothing more and keeps the buttons it has.
+        answer = rules.closed(id);
         return;
       }
       answer = switch (kind) {

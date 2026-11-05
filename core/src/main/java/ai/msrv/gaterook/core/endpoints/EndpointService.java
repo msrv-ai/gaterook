@@ -797,10 +797,13 @@ public class EndpointService {
    *
    * <p>What an ordinary change would refuse is not kept silently: limits and pair overrides that don't narrow or are
    * out of range, {@code protocol} or {@code approvalWait} that don't match {@link #SETTINGS_SCHEMA}, instructions over
-   * 4,000 characters answer 422 at their pointer with {@code confirm:"reset-invalid"}. An endpoint has no reset of its
-   * own, and an unverified one can't be edited, so repeating with that confirmation resets exactly those values to
-   * their defaults (a limit or override left out is the policy's again) and keeps the rest; the Setup change names
-   * them.
+   * 4,000 characters answer 422 at their pointer with {@code confirm:"reset-invalid"}. So do the rules that the
+   * endpoint's own changes keep: a connection on the other side of the prod line from the endpoint, a published prod
+   * endpoint, modes a read-only endpoint doesn't allow, and what skips a person's review that was set outside GateRook
+   * (Bypass, a temporary bypass, a Read only confirmation of a tool row that didn't verify). An endpoint has no reset of
+   * its own, and an unverified one can't be edited, so repeating with that confirmation resets exactly those values to
+   * their defaults (a limit or override left out is the policy's again; a connection across the prod line leaves the
+   * endpoint; Bypass becomes Approval) and keeps the rest; the Setup change names them.
    */
   public Summary confirmIntegrity(String slug, String reason) {
     return confirmIntegrity(slug, reason, null);
@@ -836,6 +839,13 @@ public class EndpointService {
    */
   private List<String> resetInvalid(EndpointEntity e, boolean reset) {
     List<String> out = new ArrayList<>();
+    // Before anything here changes a row: which tool rows are as the core signed them.
+    Set<String> unverifiedTools = new HashSet<>();
+    for (EndpointToolEntity t : tools.findByEndpointId(e.getId())) {
+      if (!rows.verify(t)) {
+        unverifiedTools.add(t.getId());
+      }
+    }
     JsonNode stored = rows.tree(e.getSettings());
     ObjectNode settings = stored.isObject() ? (ObjectNode) stored.deepCopy() : JsonNodeFactory.instance.objectNode();
     if (!stored.isObject()) {
@@ -899,7 +909,108 @@ public class EndpointService {
         out.add(Wiring.toolName(t.getToolKey()) + " overrides");
       }
     }
+    resetProdLine(e, reset, out);
+    resetUnreviewedGrants(e, unverifiedTools, reset, out);
+    if (e.getAccess() == EndpointAccess.READ_ONLY) {
+      resetReadOnlyModes(e, reset, out);
+    }
+    if (e.isPublished() && wiring.deriveEnv(e.getId(), e.getEnv()) == Env.PROD) {
+      invalid(reset, e.getSlug() + " has prod connections, and a prod endpoint is never published through the "
+          + "tunnel. Resetting withdraws it.", "/published");
+      e.setPublished(false);
+      out.add("published");
+    }
     return out;
+  }
+
+  /**
+   * Prod never mixes with dev or stage, and an endpoint doesn't cross between them ({@code EndpointUsage}): a
+   * connection on the other side of the line would carry the access made under one side's rules (named tokens,
+   * client grants, sign-ins) to the other. Resetting removes it from the endpoint, as removing it in GateRook would.
+   */
+  private void resetProdLine(EndpointEntity e, boolean reset, List<String> out) {
+    boolean prodEndpoint = e.getEnv() == Env.PROD;
+    for (EndpointConnectionEntity w : wiringRows.findByEndpointIdOrderByAddedAtAscIdAsc(e.getId())) {
+      Optional<ConnectionConfigs.Stored> c = connections.byId(w.getConnectionId());
+      if (c.isEmpty() || (c.get().config().env() == Env.PROD) == prodEndpoint) {
+        continue;
+      }
+      String name = c.get().name();
+      invalid(reset, name + " is a " + c.get().config().env().id() + " connection on " + e.getSlug() + ", a "
+          + e.getEnv().id() + " endpoint: prod never mixes with dev or stage. Resetting removes " + name + " from "
+          + e.getSlug() + ".", "/connections");
+      for (EndpointRemovalParticipant p : participants.orderedStream().toList()) {
+        p.onConnectionUnwiring(e.getId(), e.getSlug(), c.get().id(), name, "Changed outside GateRook");
+      }
+      wiring.unwire(e, c.get().id());
+      out.add(name + " removed");
+    }
+  }
+
+  /**
+   * What lets calls skip a person's review is set only in GateRook: on a tool row that didn't verify, Bypass becomes
+   * Approval, and a temporary bypass or a Read only confirmation is dropped (the person can set them again).
+   */
+  private void resetUnreviewedGrants(EndpointEntity e, Set<String> unverifiedTools, boolean reset, List<String> out) {
+    for (EndpointToolEntity t : tools.findByEndpointId(e.getId())) {
+      if (!unverifiedTools.contains(t.getId())) {
+        continue;
+      }
+      String tool = Wiring.toolName(t.getToolKey());
+      boolean changed = false;
+      if (t.getMode() == Mode.BYPASS) {
+        invalid(reset, tool + " was set to Bypass outside GateRook. Resetting sets it to Approval.", "/tools");
+        t.setMode(Mode.APPROVAL, clock.instant());
+        out.add(tool + " Bypass");
+        changed = true;
+      }
+      if (t.getTemporaryBypass() != null) {
+        invalid(reset, tool + " has a temporary bypass that was set outside GateRook. Resetting removes it.",
+            "/tools");
+        t.setTemporaryBypass(null, clock.instant());
+        out.add(tool + " temporary bypass");
+        changed = true;
+      }
+      if (t.getRoConfirmation() != null) {
+        invalid(reset, tool + " has a Read only confirmation that was set outside GateRook. Resetting removes it; "
+            + "confirm it again in GateRook.", "/tools");
+        t.setRoConfirmation(null, clock.instant());
+        out.add(tool + " Read only confirmation");
+        changed = true;
+      }
+      if (changed) {
+        tools.saveAndFlush(t);
+      }
+    }
+  }
+
+  /** A read-only endpoint keeps only the modes {@link ToolPairs#clampReadOnly} allows, as becoming read only does. */
+  private void resetReadOnlyModes(EndpointEntity e, boolean reset, List<String> out) {
+    EndpointSnapshot s = snapshots.uncached(e.getId()).orElseThrow(() -> notFound(e.getSlug()));
+    Map<String, Mode> clamped = new LinkedHashMap<>();
+    Map<String, String> names = new LinkedHashMap<>();
+    for (EndpointSnapshot.Pair p : s.pairs()) {
+      Mode mode = ToolPairs.clampReadOnly(p.tool(), p.storedMode());
+      if (p.rowId() != null && mode != p.storedMode()) {
+        clamped.put(p.rowId(), mode);
+        names.put(p.rowId(), p.tool().name() + " on " + p.connectionName());
+      }
+    }
+    for (EndpointSnapshot.CorePair c : s.coreTools()) {
+      Mode mode = ToolPairs.clampReadOnly(CoreTools.withMode(c.tool()), c.storedMode());
+      if (mode != c.storedMode()) {
+        clamped.put(c.rowId(), mode);
+        names.put(c.rowId(), c.tool());
+      }
+    }
+    for (Map.Entry<String, Mode> c : clamped.entrySet()) {
+      invalid(reset, e.getSlug() + " is read only: " + names.get(c.getKey()) + " can only be "
+          + ToolPairs.label(c.getValue()) + " there. Resetting sets it so.", "/tools");
+      EndpointToolEntity row = tools.findById(c.getKey()).orElseThrow();
+      row.setMode(c.getValue(), clock.instant());
+      tools.saveAndFlush(row);
+      out.add(names.get(c.getKey()) + " " + ToolPairs.label(c.getValue()));
+    }
   }
 
   /** Why one limit can't narrow ({@link PolicyService#checkNarrowing}), or empty. */

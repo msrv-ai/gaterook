@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.core.oauth.internal;
 
 import ai.msrv.gaterook.core.platform.EventBus;
+import ai.msrv.gaterook.core.platform.Ingress;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -21,9 +22,13 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * Sign-ins waiting for the person at this computer (report 02 §6.3), in memory only: a restart turns every one into
  * a refusal. Each has a code {@code XXX-XXX} shown on the browser page and in the app, and a cookie only the browser
- * that started it holds ({@code gw_ar}, HttpOnly). At most 3 wait per endpoint and 10 {@code authorize} a minute per
+ * that started it holds ({@code gw_ar_…}, HttpOnly). At most 3 wait per endpoint and 10 {@code authorize} a minute per
  * browser address; no answer in 5 minutes is a refusal. The decision comes only from the app's
  * {@code POST /api/oauth/consents/{id}}, never from Slack, Telegram or the browser.
+ *
+ * <p>A browser is its address on its listener: nothing that arrives through the tunnel counts against what a browser
+ * on this computer may open on the local port, and the tunnel's callers whose address its edge didn't give share one
+ * count of their own.
  */
 final class Consents {
 
@@ -161,9 +166,16 @@ final class Consents {
     this.expiredRecord = record;
   }
 
-  /** Whether a browser at {@code ip} (an IPv6 one by its /64) may start another sign-in now (counts this attempt). */
-  boolean admitBrowser(String ip) {
-    return perIp.tryAcquire(RateWindow.addressKey(ip));
+  /**
+   * Whether a browser at {@code ip} (an IPv6 one by its /64; {@code null} when unknown) may start another sign-in on
+   * {@code ingress} now (counts this attempt).
+   */
+  boolean admitBrowser(Ingress ingress, String ip) {
+    return perIp.tryAcquire(browserKey(ingress, ip));
+  }
+
+  private static String browserKey(Ingress ingress, String ip) {
+    return ingress + "|" + (ip == null ? "?" : RateWindow.addressKey(ip));
   }
 
   /** {@link #open} succeeded. */
@@ -177,7 +189,7 @@ final class Consents {
    */
   Room open(Pending p) {
     synchronized (openLock) {
-      String browser = RateWindow.addressKey(p.browserIp);
+      String browser = browserKey(p.server.ingress(), p.browserIp);
       long ofBrowser = 0;
       long ofEndpoint = 0;
       for (Pending o : pending.values()) {
@@ -185,7 +197,7 @@ final class Consents {
           continue;
         }
         ofEndpoint++;
-        if (RateWindow.addressKey(o.browserIp).equals(browser)) {
+        if (browserKey(o.server.ingress(), o.browserIp).equals(browser)) {
           ofBrowser++;
         }
       }

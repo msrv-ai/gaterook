@@ -10,6 +10,8 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -104,13 +106,28 @@ class HostLauncherTest {
     assertThat(allow).isGreaterThan(deny);
     String denied = profile.substring(deny, allow);
     assertThat(denied).contains("(subpath \"" + profilePath(gatewayPaths.home().toRealPath()) + "\")");
-    for (String p : List.of(".ssh", ".aws", ".kube", ".cursor", ".codex", ".gemini",
-        "Library/Application Support/Claude")) {
+    for (String p : List.of(".ssh", ".aws", ".kube", ".gnupg", ".config/gh", ".password-store", ".npmrc",
+        ".git-credentials", ".mcp-gateway", "Library/Application Support/GateRook", ".cursor", ".codex", ".gemini",
+        ".claude.json", "Library/Application Support/Claude", "Library/Application Support/Cursor")) {
       assertThat(denied).contains("(subpath \"" + profilePath(Path.of(user).resolve(p)) + "\")");
     }
     // Inside the denied home: the plugin's data folder to write, its version folder to read.
     assertThat(profile.substring(allow)).contains(profilePath(paths.dataDir("jira-service-desk").toRealPath()),
         profilePath(jar.getParent().toRealPath()));
+  }
+
+  @Test
+  void theHostDeniesWhatMcpServersAreDenied() throws Exception {
+    // gw-bridge sandbox-exec keeps the same paths from MCP servers; this module can't depend on it, so its source says.
+    Path sandbox = Path.of("..", "bridge-cli", "src", "main", "java", "ai", "msrv", "gaterook", "bridge",
+        "Sandbox.java");
+    String source = Files.readString(sandbox);
+    Matcher list = Pattern.compile("List<String> DENIED = List\\.of\\(([^;]*)\\);").matcher(source);
+    assertThat(list.find()).as("Sandbox.DENIED in " + sandbox).isTrue();
+    List<String> bridge = Pattern.compile("\"([^\"]*)\"").matcher(list.group(1)).results().map(m -> m.group(1))
+        .toList();
+    assertThat(bridge).hasSizeGreaterThan(10);
+    assertThat(HostLauncher.MAC_DENIED).containsExactlyElementsOf(bridge);
   }
 
   private static String profilePath(Path path) {

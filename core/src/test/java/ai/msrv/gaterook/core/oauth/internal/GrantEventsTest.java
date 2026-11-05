@@ -2,6 +2,7 @@ package ai.msrv.gaterook.core.oauth.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -13,6 +14,8 @@ import ai.msrv.gaterook.core.oauth.internal.persistence.OAuthClientKind;
 import ai.msrv.gaterook.core.oauth.internal.persistence.OAuthClientRepository;
 import ai.msrv.gaterook.core.oauth.internal.persistence.OAuthGrantEntity;
 import ai.msrv.gaterook.core.oauth.internal.persistence.OAuthGrantRepository;
+import ai.msrv.gaterook.core.oauth.internal.persistence.OAuthGrantState;
+import ai.msrv.gaterook.core.oauth.internal.persistence.OAuthTokenEntity;
 import ai.msrv.gaterook.core.oauth.internal.persistence.OAuthTokenRepository;
 import ai.msrv.gaterook.core.platform.EventBus;
 import ai.msrv.gaterook.core.platform.Ingress;
@@ -53,7 +56,7 @@ class GrantEventsTest {
     Grants grants = grants();
     transactions.beforeCommit = () -> assertThat(events.lastId()).isZero();
     try (EventBus.Subscription listener = events.subscribe(OptionalLong.empty())) {
-      grants.issue(grant.getId());
+      assertThat(grants.exchange(grant.getId())).isPresent();
       EventBus.GatewayEvent issued = listener.next(Duration.ZERO).orElseThrow();
       assertThat(issued.type()).isEqualTo("oauth.grant.changed");
       assertThat(issued.data().path("id").asString()).isEqualTo(grant.getId());
@@ -73,8 +76,30 @@ class GrantEventsTest {
   void aFailedTokenCommitPublishesNoConnectedEvidence() {
     Grants grants = grants();
     transactions.failCommit = true;
-    assertThatThrownBy(() -> grants.issue(grant.getId())).isInstanceOf(TransactionSystemException.class);
+    assertThatThrownBy(() -> grants.exchange(grant.getId())).isInstanceOf(TransactionSystemException.class);
     assertThat(events.lastId()).isZero();
+  }
+
+  @Test
+  void anExchangedSignInEndsOnlyTheClientsOlderOnesForItsEndpoint() {
+    Grants grants = grants();
+    OAuthGrantEntity older = new OAuthGrantEntity(client, "endpoint-id", grant.getResource(), grant.getScope(),
+        NOW.minusSeconds(600), NOW.plusSeconds(3600));
+    OAuthGrantEntity newer = new OAuthGrantEntity(client, "endpoint-id", grant.getResource(), grant.getScope(),
+        NOW.plusSeconds(1), NOW.plusSeconds(3600));
+    when(rows.findById(newer.getId())).thenReturn(Optional.of(newer));
+    when(rows.findByClient_IdAndEndpointIdAndState(client.getId(), "endpoint-id", OAuthGrantState.ACTIVE))
+        .thenAnswer(call -> Stream.of(older, grant, newer).filter(g -> g.getState() == OAuthGrantState.ACTIVE)
+            .toList());
+
+    assertThat(grants.exchange(grant.getId())).isPresent();
+    assertThat(older.getRevokedAt()).as("the sign-in it replaces").isNotNull();
+    assertThat(older.getRevokeReason()).isEqualTo("replaced by a new sign-in");
+    assertThat(newer.getRevokedAt()).as("one allowed meanwhile waits for its own exchange").isNull();
+
+    assertThat(grants.exchange(newer.getId())).isPresent();
+    assertThat(grant.getRevokedAt()).isNotNull();
+    assertThat(grants.exchange(grant.getId())).as("a revoked sign-in gets no tokens").isEmpty();
   }
 
   @Test
@@ -107,7 +132,11 @@ class GrantEventsTest {
     when(participants.orderedStream()).thenAnswer(call -> Stream.empty());
     ObjectProvider<SetupChangeRecorder> setup = mock(ObjectProvider.class);
     when(setup.getObject()).thenReturn(mock(SetupChangeRecorder.class));
-    return new Grants(rows, tokens, mock(OAuthClientRepository.class), snapshots, participants, setup,
+    OAuthRows macs = mock(OAuthRows.class);
+    when(macs.verify(any(OAuthGrantEntity.class))).thenReturn(true);
+    when(macs.verify(any(OAuthTokenEntity.class))).thenReturn(true);
+    when(macs.verify(any(OAuthClientEntity.class))).thenReturn(true);
+    return new Grants(rows, tokens, mock(OAuthClientRepository.class), macs, snapshots, participants, setup,
         mock(ApplicationEventPublisher.class), events, clock, transactions);
   }
 

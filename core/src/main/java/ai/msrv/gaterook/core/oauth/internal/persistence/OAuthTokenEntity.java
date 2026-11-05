@@ -11,6 +11,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.Objects;
+import org.hibernate.annotations.OptimisticLock;
 
 /**
  * An issued access or refresh token, by {@code b64url(sha256)} only. A refresh token is consumed on use and replaced;
@@ -43,6 +44,11 @@ public class OAuthTokenEntity {
 
   @Column(name = "replaced_by", length = 44)
   private String replacedBy;
+
+  /** {@code OAuthRows}: signed over what decides access, so writing it never bumps a version. */
+  @OptimisticLock(excluded = true)
+  @Column(name = "mac")
+  private byte[] mac;
 
   protected OAuthTokenEntity() {}
 
@@ -86,5 +92,13 @@ public class OAuthTokenEntity {
   public void consume(Instant now, String replacementHash) {
     this.consumedAt = Objects.requireNonNull(now, "now");
     this.replacedBy = replacementHash;
+  }
+
+  public byte[] getMac() {
+    return mac;
+  }
+
+  public void setMac(byte[] mac) {
+    this.mac = mac;
   }
 }

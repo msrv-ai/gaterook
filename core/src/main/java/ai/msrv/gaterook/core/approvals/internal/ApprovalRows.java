@@ -25,9 +25,11 @@ import tools.jackson.databind.node.ObjectNode;
  *   <li>The digest: SHA-256 over tool, connection, config version, arguments, template and version, the exact action
  *       with its payload, and {@code prepare}'s state. The executor computes it again before it runs anything.</li>
  *   <li>The MAC: over the columns fixed at creation (who asked, what for, which rule, until when, and the digest, which
- *       binds the rest). Signed as version 0: those columns never change, while every status CAS bumps the row's
- *       version; the status itself is guarded by the versioned CAS and the audit rows. The foreign keys are left out,
- *       as deleting the endpoint or connection nulls them for the history.</li>
+ *       binds the rest), and over what the person reads beside the exact action: its summary, target, fields, impact
+ *       and warnings, and the agent's note. Signed as version 0: those columns never change, while every status CAS
+ *       bumps the row's version; the status itself is guarded by the versioned CAS and the audit rows. The foreign keys
+ *       are left out, as deleting the endpoint or connection nulls them for the history; the executor checks that the
+ *       endpoint still has the signed slug.</li>
  * </ul>
  */
 @Component
@@ -108,14 +110,20 @@ public class ApprovalRows {
   }
 
   public void sign(ApprovalEntity a) {
-    a.setMac(mac.sign(TABLE, a.getId(), 0, fields(a)));
+    a.setMac(mac.sign(TABLE, a.getId(), 0, fields(a, true)));
   }
 
+  /**
+   * Whether the row is as the core created it. A row an older version signed, before the action's presentation and
+   * the agent's note were signed, verifies over the fields it was signed with: only the core signs, so a row signed
+   * over all of them never verifies over fewer.
+   */
   public boolean verify(ApprovalEntity a) {
-    return mac.verify(TABLE, a.getId(), 0, fields(a), a.getMac());
+    return mac.verify(TABLE, a.getId(), 0, fields(a, true), a.getMac())
+        || mac.verify(TABLE, a.getId(), 0, fields(a, false), a.getMac());
   }
 
-  private ObjectNode fields(ApprovalEntity a) {
+  private ObjectNode fields(ApprovalEntity a, boolean presentation) {
     ObjectNode f = mac.fields();
     f.put("callId", a.getCallId());
     f.put("endpointSlug", a.getEndpointSlug());
@@ -133,6 +141,10 @@ public class ApprovalRows {
     f.put("createdAt", a.getCreatedAt().toEpochMilli());
     f.put("expiresAt", a.getExpiresAt().toEpochMilli());
     f.put("traceContext", a.getTraceContext());
+    if (presentation) {
+      f.put("action", CanonicalJson.sha256Hex(mac.tree(a.getAction())));
+      f.put("agentNote", a.getAgentNote());
+    }
     return f;
   }
 

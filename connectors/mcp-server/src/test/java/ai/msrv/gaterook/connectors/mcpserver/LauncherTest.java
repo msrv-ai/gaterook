@@ -35,7 +35,7 @@ class LauncherTest {
   void theEnvironmentIsTheBasicsTheAllowedVariablesAndTheSecrets() {
     Map<String, String> core = Map.of("PATH", "/usr/bin:/bin", "HOME", "/home/me", "USER", "me",
         "HTTPS_PROXY", "http://proxy:3128", "AWS_SECRET_ACCESS_KEY", "core-secret", "SSH_AUTH_SOCK", "/tmp/agent");
-    Launcher l = new Launcher(core, "Linux", false, null);
+    Launcher l = new Launcher(core, "Linux", false, dir, null);
     ServerConfig s = server("""
         {"transport":"stdio","command":["node","x.js"],"inheritEnv":["HTTPS_PROXY"],"env":[{"name":"TOKEN"}]}""");
 
@@ -55,7 +55,8 @@ class LauncherTest {
   void whereTheSandboxWorksTheServerStartsInsideItWithItsOwnHome() throws Exception {
     // gw-bridge sandbox-exec [--ro p]… [--rw p]… -- cmd …: this stand-in only skips to "--" and runs the rest.
     Path shim = shim("shift; while [ \"$1\" != \"--\" ]; do shift; done; shift; exec \"$@\"");
-    Launcher l = new Launcher(Map.of("PATH", "/usr/bin:/bin", "HOME", dir.toString()), "Linux", false, shim);
+    Launcher l = new Launcher(Map.of("PATH", "/usr/bin:/bin", "HOME", dir.toString()), "Linux", false,
+        dir.resolve(".gaterook"), shim);
 
     assertThat(l.sandbox()).isEqualTo("landlock");
     Path work = dir.resolve("mcp/fs");
@@ -68,9 +69,50 @@ class LauncherTest {
   }
 
   @Test
+  void theSandboxReadsTheCommandsInstallationButNeverTheHomeNorGateRooksHome() throws Exception {
+    Path shim = shim("exit 0");
+    // As the kernel sees it: on macOS @TempDir is a link (/var is /private/var), and Landlock resolves links.
+    Path home = Files.createDirectories(dir.toRealPath().resolve("home"));
+    Path gateway = Files.createDirectories(home.resolve(".gaterook"));
+    Path work = gateway.resolve("mcp/fs");
+    Launcher l = new Launcher(Map.of("PATH", "/usr/bin:/bin", "HOME", home.toString()), "Linux", false, gateway, shim);
+    assertThat(l.sandbox()).isEqualTo("landlock");
+
+    // An nvm tree in the home: its lib/ beside bin/ (npm and npx live there).
+    Path nvm = home.resolve(".nvm/versions/node/v24.1.0");
+    assertThat(l.argv(executable(nvm.resolve("bin/node")), List.of(), work)).containsSequence("--ro", nvm.toString());
+    // A link into a tool's own tree: the tree it points into.
+    Path tool = home.resolve(".tools/srv");
+    Path link = home.resolve(".local/bin/srv");
+    Files.createDirectories(link.getParent());
+    Files.createSymbolicLink(link, executable(tool.resolve("bin/srv")));
+    assertThat(l.argv(link, List.of(), work)).containsSequence("--ro", tool.toString());
+    // The folder above ~/bin is the home, above the home its parent, above GateRook's bin GateRook's home: each holds
+    // GateRook's data and the credentials, so none is opened. A command in the work folder is read through --rw.
+    for (Path command : List.of(home.resolve("bin/my-server"), home.resolve("my-server"),
+        gateway.resolve("bin/gw-bridge"), work.resolve("node_modules/.bin/srv"))) {
+      assertThat(l.argv(executable(command), List.of(), work)).as(command.toString()).doesNotContain("--ro")
+          .containsSubsequence("--rw", work.toString(), "--", command.toString());
+    }
+    // A home given through a link is still the home.
+    Launcher linked = new Launcher(Map.of("PATH", "/usr/bin:/bin", "HOME", dir.resolve("home").toString()), "Linux",
+        false, gateway, shim);
+    assertThat(linked.argv(nvm.resolve("bin/node"), List.of(), work)).containsSequence("--ro", nvm.toString());
+    assertThat(linked.argv(home.resolve("bin/my-server"), List.of(), work)).doesNotContain("--ro");
+  }
+
+  private static Path executable(Path file) throws Exception {
+    Files.createDirectories(file.getParent());
+    Files.writeString(file, "#!/bin/sh\n");
+    Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rwx------"));
+    return file;
+  }
+
+  @Test
   void whereItDoesntTheServerRunsUnconfinedAndTheReviewSaysSo() throws Exception {
     Path shim = shim("exit 4");
-    Launcher l = new Launcher(Map.of("PATH", "/usr/bin:/bin", "HOME", dir.toString()), "Linux", false, shim);
+    Launcher l = new Launcher(Map.of("PATH", "/usr/bin:/bin", "HOME", dir.toString()), "Linux", false,
+        dir.resolve(".gaterook"), shim);
 
     assertThat(l.sandbox()).isNull();
     assertThat(l.argv(Path.of("/usr/bin/node"), List.of(), dir)).containsExactly("/usr/bin/node");
@@ -82,7 +124,8 @@ class LauncherTest {
     Path tool = bin.resolve("my-server");
     Files.writeString(tool, "#!/bin/sh\n");
     Files.setPosixFilePermissions(tool, PosixFilePermissions.fromString("rwx------"));
-    Launcher l = new Launcher(Map.of("PATH", bin + ":/usr/bin:/bin", "HOME", dir.toString()), "Linux", false, null);
+    Launcher l = new Launcher(Map.of("PATH", bin + ":/usr/bin:/bin", "HOME", dir.toString()), "Linux", false,
+        dir.resolve(".gaterook"), null);
 
     assertThat(l.resolve("my-server", dir)).contains(tool.toAbsolutePath());
     assertThat(l.resolve("no-such-server", dir)).isEmpty();

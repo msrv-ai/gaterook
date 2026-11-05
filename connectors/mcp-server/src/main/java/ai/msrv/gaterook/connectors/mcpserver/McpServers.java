@@ -488,7 +488,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
         if (l == null) {
           Path shim = home().resolve("bin").resolve(osName.toLowerCase(Locale.ROOT).startsWith("windows")
               ? "gw-bridge.cmd" : "gw-bridge");
-          l = new Launcher(coreEnv, osName, loginShellPath, shim);
+          l = new Launcher(coreEnv, osName, loginShellPath, home(), shim);
           launcher = l;
         }
       }

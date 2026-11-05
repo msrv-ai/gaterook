@@ -10,9 +10,9 @@ import org.junit.jupiter.api.Test;
 /**
  * Report 13 §6.2 as a table: Approve in Slack or Telegram only when every condition holds — decisions from linked
  * accounts, not prod, no comment required (then or now), not a plugin, the whole action fits and nothing of it was
- * left out, nothing looks like a secret, nothing hidden or look-alike and nothing beyond printable ASCII, no flood,
- * still pending. Every combination of
- * the conditions is tried; one failing condition is enough to drop Approve.
+ * left out, nothing looks like a secret, nothing hidden or look-alike and nothing beyond
+ * printable ASCII, no flood, still pending. Every combination of the conditions is tried; one failing condition is
+ * enough to drop Approve.
  */
 class EligibilityTest {
 

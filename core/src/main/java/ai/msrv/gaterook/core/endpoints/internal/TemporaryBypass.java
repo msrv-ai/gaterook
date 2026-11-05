@@ -5,6 +5,7 @@ import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointEntity;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointToolEntity;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.Map;
@@ -12,6 +13,10 @@ import java.util.Objects;
 
 /** Signed grants are limited to the reviewed definition, configuration and endpoint settings. */
 public final class TemporaryBypass {
+
+  /** The longest temporary bypass the admin API grants: a deadline further away was not set by it. */
+  public static final Duration MAX = Duration.ofHours(24);
+
   private TemporaryBypass() {}
 
   public static Instant activeUntil(EndpointToolEntity row, EndpointEntity endpoint, ConnectionConfig connection,
@@ -29,7 +34,7 @@ public final class TemporaryBypass {
     }
     try {
       Instant until = Instant.parse((String) grant.get("until"));
-      return now.isBefore(until) ? until : null;
+      return now.isBefore(until) && !until.isAfter(now.plus(MAX)) ? until : null;
     } catch (DateTimeParseException | ClassCastException | NullPointerException ignored) {
       return null;
     }

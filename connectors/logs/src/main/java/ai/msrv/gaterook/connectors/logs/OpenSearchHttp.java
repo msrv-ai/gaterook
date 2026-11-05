@@ -2,6 +2,7 @@ package ai.msrv.gaterook.connectors.logs;
 
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.ExecContext;
+import ai.msrv.gaterook.connectors.support.egress.EgressDenial;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,6 +37,8 @@ import org.apache.hc.core5.util.Timeout;
  * Shared OpenSearch and Elasticsearch REST transport with no retries, redirects, implicit authentication or
  * method/body rewriting. A request
  * may be an approved operation even when its method is GET, and a lost response must never trigger another request.
+ * Names resolve only through {@link BackendAddresses#dns()}: HttpClient connects to exactly the addresses it judged,
+ * so an agent's request path never reaches cloud metadata or the core's own listener.
  */
 final class OpenSearchHttp {
 
@@ -81,7 +84,7 @@ final class OpenSearchHttp {
       var tls = ClientTlsStrategyBuilder.create().setSslContext(ssl)
           .setHostnameVerifier(new DefaultHostnameVerifier()).buildClassic();
       manager = PoolingHttpClientConnectionManagerBuilder.create().setTlsSocketStrategy(tls)
-          .setMaxConnTotal(1).setMaxConnPerRoute(1)
+          .setDnsResolver(BackendAddresses.of(ctx).dns()).setMaxConnTotal(1).setMaxConnPerRoute(1)
           .setDefaultConnectionConfig(ConnectionConfig.custom().setConnectTimeout(timeout).setSocketTimeout(timeout)
               .build()).build();
       client = HttpClients.custom().setConnectionManager(manager)
@@ -113,6 +116,11 @@ final class OpenSearchHttp {
       return new BoundedResponse(response.getCode(), bytes.toString(StandardCharsets.UTF_8),
           contentType == null ? "" : contentType.getValue(), truncated);
     } catch (IOException e) {
+      EgressDenial denial = EgressDenial.find(e);
+      if (denial != null) {
+        // Refused before any connection: nothing was sent.
+        throw ConnectorException.denied(denial.verdict().text());
+      }
       if (expired.get() || ctx.cancelled() || e instanceof InterruptedIOException) {
         throw ConnectorException.timeout(service + " did not finish its response before the deadline or was "
             + "cancelled. The operation may still be running; inspect server state before retrying a change.");

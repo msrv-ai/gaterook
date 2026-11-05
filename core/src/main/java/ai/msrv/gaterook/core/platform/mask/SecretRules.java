@@ -68,9 +68,10 @@ public final class SecretRules {
               + "|refresh[_-]?token|private[_-]?key|token))>\\s*" + NOT_MASKED + "([^<\\s][^<]{2,}?)\\s*</\\1>", 2, 48, 4200,
           "password>", "passwd>", "pwd>", "secret>", "key>", "token>"),
       // Passwords on a command line: redis-cli -a, mysql -p (attached), sshpass -p, and --password with a space.
+      // Short options are case-sensitive: -P is MySQL's port and sshpass's prompt.
       TextRule.of("cli-password",
           "(?i)(?<![a-z0-9_-])(redis-cli(?:\\s+[^\\s;&|]+){0,20}?\\s+-a\\s+|mysql(?:admin|dump|sh)?(?:\\s+[^\\s;&|]+){0,20}?"
-              + "\\s+-p|sshpass\\s+-p\\s*|--password\\s+)" + NOT_MASKED + "([^\\s\"';&|]{3,})", 2, 0, 1200,
+              + "\\s+(?-i:-p)|sshpass\\s+(?-i:-p)\\s*|--password\\s+)" + NOT_MASKED + "([^\\s\"';&|]{3,})", 2, 0, 1200,
           "redis-cli", "mysql", "sshpass", "--password"),
       TextRule.of("sql-password",
           "(?i)(?<![a-z])(password|identified\\s+by)(\\s+|\\s*=\\s*)" + NOT_MASKED

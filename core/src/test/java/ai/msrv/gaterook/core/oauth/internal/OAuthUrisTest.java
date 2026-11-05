@@ -76,6 +76,23 @@ class OAuthUrisTest {
   }
 
   @Test
+  void aSignInReturnsOnlyToHttpsLoopbackOrAnAppsOwnScheme() {
+    for (String good : new String[] {"https://claude.ai/api/mcp/auth_callback", "https://claude.ai/cb?x=1",
+        "HTTPS://claude.ai/cb", "http://127.0.0.1/callback", "http://localhost:33418/cb", "http://[::1]:5000/cb",
+        "cursor://anysphere.cursor-mcp/oauth/callback", "com.example.app:/oauth2redirect/provider"}) {
+      assertThat(OAuthUris.usableRedirect(good)).as(good).isTrue();
+    }
+    for (String bad : new String[] {"javascript:alert(1)", "JavaScript://claude.ai/%0Aalert(1)", "vbscript:msgbox(1)",
+        "data:text/html;base64,PHA+", "file:///etc/hosts", "blob:https://claude.ai/1", "about:blank",
+        "view-source:https://claude.ai/", "wss://claude.ai/cb", "https://claude.ai/cb#x", "https://u@claude.ai/cb",
+        "http://claude.ai/cb", "http://10.0.0.5/cb", "http://127.0.0.1/cb#x", "https:///cb", "/cb", "cb",
+        " https://claude.ai/cb", "https://claude.ai/a b", "https://claude.ai/" + "a".repeat(600), ""}) {
+      assertThat(OAuthUris.usableRedirect(bad)).as(bad).isFalse();
+    }
+    assertThat(OAuthUris.usableRedirect(null)).isFalse();
+  }
+
+  @Test
   void queriesAreAppendedEncoded() {
     assertThat(OAuthUris.withQuery("https://claude.ai/api/mcp/auth_callback", "code", "gwa_a b", "state", null,
         "iss", "https://h")).isEqualTo("https://claude.ai/api/mcp/auth_callback?code=gwa_a+b&iss=https%3A%2F%2Fh");

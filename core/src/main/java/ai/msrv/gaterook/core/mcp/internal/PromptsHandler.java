@@ -13,7 +13,6 @@ import ai.msrv.gaterook.core.invocation.ToolGuard;
 import ai.msrv.gaterook.core.platform.Ids;
 import ai.msrv.gaterook.core.policy.Decision;
 import ai.msrv.gaterook.core.policy.PolicyEngine;
-import ai.msrv.gaterook.core.policy.PolicyService;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -46,18 +45,16 @@ public class PromptsHandler {
 
   private final ConnectorRegistry registry;
   private final PolicyEngine engine;
-  private final PolicyService policies;
   private final ToolGuard guard;
   private final AuditWriter audit;
   private final ConnectorInvoker invoker;
   private final Calls calls;
   private final EndpointSnapshotService snapshots;
 
-  public PromptsHandler(ConnectorRegistry registry, PolicyEngine engine, PolicyService policies, ToolGuard guard,
-      AuditWriter audit, ConnectorInvoker invoker, Calls calls, EndpointSnapshotService snapshots) {
+  public PromptsHandler(ConnectorRegistry registry, PolicyEngine engine, ToolGuard guard, AuditWriter audit,
+      ConnectorInvoker invoker, Calls calls, EndpointSnapshotService snapshots) {
     this.registry = registry;
     this.engine = engine;
-    this.policies = policies;
     this.guard = guard;
     this.audit = audit;
     this.invoker = invoker;
@@ -256,7 +253,7 @@ public class PromptsHandler {
       Decision decision) {
     return new ConnectorInvoker.Request(callId, s.config(), new ToolCall(callId, TOOL, s.name(),
         args == null ? JsonNodeFactory.instance.objectNode() : args, null), decision.limits(),
-        policies.maskPolicy(s.config().env()), r.span().traceId(), r.span().traceparent(),
+        decision.mask(), r.span().traceId(), r.span().traceparent(),
         () -> snapshots.requireAvailable(r.snapshot().id(), s.name()));
   }
 

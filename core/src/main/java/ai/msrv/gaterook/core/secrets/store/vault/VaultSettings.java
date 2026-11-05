@@ -3,6 +3,7 @@ package ai.msrv.gaterook.core.secrets.store.vault;
 import ai.msrv.gaterook.core.secrets.store.StoreAddress;
 import ai.msrv.gaterook.core.secrets.store.StoreException;
 import java.net.URI;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Set;
@@ -38,6 +39,8 @@ public record VaultSettings(URI address, String namespace, String caCert, Auth a
   public static final String SECRET_ID = "/auth/secretId";
   /** The secret field of a stored token. */
   public static final String TOKEN = "/auth/token";
+  /** Where {@code vault login} keeps its token: the only file {@link Auth#CLI_TOKEN} reads. */
+  public static final String TOKEN_FILE = "~/.vault-token";
 
   private static final Pattern MOUNT = Pattern.compile("[A-Za-z0-9._-]{1,64}(?:/[A-Za-z0-9._-]{1,64}){0,3}");
   private static final Pattern NAMESPACE = Pattern.compile("[A-Za-z0-9._/-]{1,256}");
@@ -65,18 +68,14 @@ public record VaultSettings(URI address, String namespace, String caCert, Auth a
       default -> throw StoreException.invalid("Sign in with approle, token or cli-token.");
     };
     String mount = text(auth, "mount") == null ? "approle" : text(auth, "mount");
-    if (!MOUNT.matcher(mount).matches()) {
+    if (!mountPath(mount)) {
       throw StoreException.invalid("The AppRole mount is a path like approle.");
     }
     String roleId = text(auth, "roleId");
     if (kind == Auth.APPROLE && (roleId == null || !ROLE_ID.matcher(roleId).matches())) {
       throw StoreException.invalid("Enter the role ID of the AppRole (vault read auth/approle/role/<name>/role-id).");
     }
-    Path file = null;
-    if (kind == Auth.CLI_TOKEN) {
-      String f = text(auth, "file") == null ? "~/.vault-token" : text(auth, "file");
-      file = f.startsWith("~/") ? Path.of(System.getProperty("user.home"), f.substring(2)) : Path.of(f);
-    }
+    Path file = kind == Auth.CLI_TOKEN ? tokenFile(text(auth, "file")) : null;
     Duration increment = duration(text(config, "renewIncrement") == null ? "1h" : text(config, "renewIncrement"));
     int ttl = config.path("cacheTtlSeconds").asInt(60);
     if (ttl < 0 || ttl > 300) {
@@ -84,6 +83,41 @@ public record VaultSettings(URI address, String namespace, String caCert, Auth a
     }
     return new VaultSettings(address, namespace, ca, kind, mount, roleId, file, increment, ttl,
         config.path("useSystemProxy").asBoolean(false));
+  }
+
+  /**
+   * The file of {@link Auth#CLI_TOKEN}: {@code ~/.vault-token}, where {@code vault login} keeps its token, also when a
+   * stored setting spells out its absolute path. No other file: the settings come from the renderer, which never names
+   * files the core reads (ARCHITECTURE.md §6), and the file's content goes to the store's address.
+   */
+  static Path tokenFile(String configured) {
+    Path standard = Path.of(System.getProperty("user.home"), ".vault-token");
+    if (configured == null || configured.equals(TOKEN_FILE)) {
+      return standard;
+    }
+    try {
+      Path given = Path.of(configured);
+      if (given.isAbsolute() && given.normalize().equals(standard.normalize())) {
+        return standard;
+      }
+    } catch (InvalidPathException e) {
+      // Refused below.
+    }
+    throw StoreException.invalid("Your vault login is read from " + TOKEN_FILE + " only. Remove the other token file "
+        + "from the store's settings.");
+  }
+
+  /** A mount path the gateway puts in a request: one to four plain segments, none of them {@code .} or {@code ..}. */
+  static boolean mountPath(String mount) {
+    if (mount == null || !MOUNT.matcher(mount).matches()) {
+      return false;
+    }
+    for (String segment : mount.split("/")) {
+      if (segment.equals(".") || segment.equals("..")) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /** {@code 90s}, {@code 30m}, {@code 1h} → a duration of 1 minute to 24 hours. */
