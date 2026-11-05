@@ -31,15 +31,16 @@ final class ReadOnlySql {
    * Table functions that read from (or write to) another system, the server's files or a process: the agent could
    * make the ClickHouse server fetch from anywhere it reaches.
    */
-  static final Set<String> OUTSIDE_FUNCTIONS = Set.of("url", "urlcluster", "s3", "s3cluster", "gcs", "oss", "cosn",
-      "azureblobstorage", "azureblobstoragecluster", "hdfs", "hdfscluster", "file", "filecluster", "remote",
-      "remotesecure", "cluster", "clusterallreplicas", "mysql", "postgresql", "mongodb", "redis", "sqlite", "jdbc",
-      "odbc", "executable", "input", "iceberg", "icebergs3", "icebergazure", "iceberghdfs", "iceberglocal",
-      "icebergcluster", "icebergs3cluster", "icebergazurecluster", "iceberghdfscluster", "deltalake", "deltalakes3",
-      "deltalakeazure", "deltalakelocal", "deltalakecluster", "hudi", "hudicluster", "paimon", "paimons3",
-      "paimonazure", "paimonhdfs", "paimonlocal", "hive", "fuzzjson", "fuzzquery", "dictionary", "mergetreeindex",
-      "mergetreeprojection", "arrowflight", "ytsaurus", "prometheusquery", "prometheusqueryrange", "timeseriesdata",
-      "timeseriesmetrics", "timeseriestags");
+  static final Set<String> OUTSIDE_FUNCTIONS = Set.of("url", "urlcluster", "s3", "s3cluster", "s3queue", "gcs", "oss",
+      "cosn", "azureblobstorage", "azureblobstoragecluster", "hdfs", "hdfscluster", "file", "filecluster", "remote",
+      "remotesecure", "cluster", "clusterallreplicas", "mysql", "mysqlcluster", "postgresql", "postgresqlcluster",
+      "mongodb", "mongodbcluster", "redis", "rediscluster", "sqlite", "sqlitecluster", "jdbc", "jdbccluster", "odbc",
+      "odbccluster", "executable", "executablepool", "input", "iceberg", "icebergs3", "icebergazure", "iceberghdfs",
+      "iceberglocal", "icebergcluster", "icebergs3cluster", "icebergazurecluster", "iceberghdfscluster", "deltalake",
+      "deltalakes3", "deltalakeazure", "deltalakelocal", "deltalakecluster", "hudi", "hudicluster", "paimon",
+      "paimons3", "paimonazure", "paimonhdfs", "paimonlocal", "hive", "fuzzjson", "fuzzquery", "dictionary",
+      "mergetreeindex", "mergetreeprojection", "arrowflight", "ytsaurus", "prometheusquery", "prometheusqueryrange",
+      "timeseriesdata", "timeseriesmetrics", "timeseriestags");
 
   /** A statement that may run, as ClickHouse will read it. */
   record Checked(String sql, String firstWord) {}
@@ -88,7 +89,12 @@ final class ReadOnlySql {
       }
       boolean keyword = token.kind == Kind.WORD;
       if (keyword && Set.of("WHERE", "PREWHERE", "GROUP", "HAVING", "ORDER", "LIMIT", "UNION", "SETTINGS", "FORMAT",
-          "QUALIFY", "WINDOW").contains(word)) from.remove(depth);
+          "QUALIFY", "WINDOW").contains(word)
+          // A keyword right before a comma is a table alias (FROM t WINDOW, u), not the start of its clause:
+          // dropping the FROM marker here would skip the table after the comma.
+          && !(i + 1 < code.size() && punctuation(code.get(i + 1), ","))) {
+        from.remove(depth);
+      }
       boolean source = keyword && (word.equals("FROM") || word.equals("JOIN"))
           || punctuation(token, ",") && from.contains(depth);
       if (keyword && word.equals("FROM")) from.add(depth);
@@ -96,6 +102,13 @@ final class ReadOnlySql {
       boolean inTable = keyword && word.equals("IN") && i + 1 < code.size() && identifier(code.get(i + 1));
       if (source || inTable) {
         String denied = tableProblem(code, i + 1, databases);
+        if (denied != null) return Optional.of(denied);
+      }
+      // A table may also be parenthesised on the right of IN (id IN (db.table)); a value list, a column or a
+      // SELECT subquery in the parentheses is read elsewhere, so only a qualified name is checked here.
+      if (keyword && word.equals("IN") && i + 3 < code.size() && code.get(i + 1).kind == Kind.OPEN
+          && identifier(code.get(i + 2)) && punctuation(code.get(i + 3), ".")) {
+        String denied = tableProblem(code, i + 2, databases);
         if (denied != null) return Optional.of(denied);
       }
     }
