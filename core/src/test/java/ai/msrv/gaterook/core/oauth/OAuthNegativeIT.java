@@ -254,6 +254,14 @@ class OAuthNegativeIT {
         "application/x-www-form-urlencoded"), "grant_type=refresh_token&refresh_token=a&refresh_token=b");
     assertThat(twice.status()).isEqualTo(400);
     assertThat(twice.json().path("error").asString()).isEqualTo("invalid_request");
+
+    // An OAuth 2.1 client sends no redirect_uri at all (draft-ietf-oauth-v2-1 §10.2): its verifier binds the code.
+    OAuthFlow.Pkce v21 = OAuthFlow.Pkce.create();
+    String code21 = tunnel.allow(tunnel.waiting(OAuthFlow.params(world.clientId(), REDIRECT, v21, resource,
+        "st-neg"))).get("code");
+    TunnelWorld.Answer oauth21 = tunnel.token(new LinkedHashMap<>(Map.of("grant_type", "authorization_code", "code",
+        code21, "client_id", world.clientId(), "code_verifier", v21.verifier())));
+    assertThat(oauth21.status()).as(oauth21.body()).isEqualTo(200);
   }
 
   /** A new code, exchanged with one field changed: the token endpoint's error. */
@@ -399,6 +407,44 @@ class OAuthNegativeIT {
     // The same address opens the sign-in page.
     OAuthFlow.Waiting w = tunnel.waiting(params(resource));
     assertThat(tunnel.decide(w, "deny").status()).isEqualTo(204);
+  }
+
+  @Test
+  void aPageOfAnotherSiteIsRefusedAndTheSignInPagesOwnPollPasses() {
+    for (String origin : List.of("https://evil.example", "null", "https://claude.ai", "http://" + host)) {
+      assertThat(tunnel.get(TunnelWorld.BROWSER, "/oauth/authorize?" + OAuthFlow.query(params(resource)),
+          Map.of("Origin", origin)).status()).as(origin).isEqualTo(403);
+      assertThat(tunnel.post(TunnelWorld.CLAUDE, "/oauth/token", Map.of("Content-Type",
+          "application/x-www-form-urlencoded", "Origin", origin), "grant_type=refresh_token&refresh_token=gwr_x")
+          .status()).as(origin).isEqualTo(403);
+      assertThat(world.edge(TunnelWorld.CLAUDE, "POST", "/mcp/stage-readonly", Map.of("Content-Type",
+          "application/json", "Origin", origin), "{}").status()).as(origin).isEqualTo(403);
+    }
+    assertThat(api.ok("/api/oauth/consents").size()).as("no sign-in was opened").isZero();
+
+    OAuthFlow.Waiting w = tunnel.waiting(params(resource));
+    assertThat(tunnel.get(TunnelWorld.BROWSER, "/oauth/authorize/status?rid=" + w.rid(), Map.of("Cookie", w.cookie(),
+        "Origin", "https://" + host)).json().path("status").asString()).isEqualTo("pending");
+    assertThat(tunnel.get(TunnelWorld.BROWSER, "/oauth/authorize/status?rid=" + w.rid(), Map.of("Cookie", w.cookie(),
+        "Origin", "https://evil.example")).status()).isEqualTo(403);
+    assertThat(tunnel.decide(w, "deny").status()).isEqualTo(204);
+  }
+
+  @Test
+  void aSignInTheEdgeGaveNoAddressForShowsNoneRatherThanThisComputers() {
+    // Straight to 7466 from a program on this computer, without the edge's header or with a forged loopback one.
+    for (Map<String, String> headers : List.of(Map.<String, String>of(), Map.of("CF-Connecting-IP", "127.0.0.1"))) {
+      TunnelWorld.Answer page = world.direct(world.publicPort(), host, "GET", "/oauth/authorize?"
+          + OAuthFlow.query(params(resource)), headers, null);
+      assertThat(page.status()).as(page.body()).isEqualTo(200);
+      String rid = page.body().replaceAll("(?s).*data-rid=\"(ar_[A-Za-z0-9]+)\".*", "$1");
+      JsonNode consent = StreamSupport.stream(api.ok("/api/oauth/consents").spliterator(), false)
+          .filter(c -> c.path("id").asString().equals(rid)).findFirst().orElseThrow();
+      JsonNode ip = consent.path("ip");
+      assertThat(ip.isNull() || ip.isMissingNode()).as(consent.toString()).isTrue();
+      assertThat(api.post("/api/oauth/consents/" + rid, JsonNodeFactory.instance.objectNode().put("decision", "deny"))
+          .status()).isEqualTo(204);
+    }
   }
 
   @Test

@@ -7,6 +7,8 @@ import ai.msrv.gaterook.core.admin.AdminMvc;
 import ai.msrv.gaterook.core.tunnel.TunnelWorld;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.AfterAll;
@@ -104,7 +106,7 @@ class ClaudeAiSignInIT {
     assertThat(w.page().header("x-frame-options")).isEqualTo("DENY");
     assertThat(w.page().header("referrer-policy")).isEqualTo("no-referrer");
     assertThat(w.page().header("cache-control")).isEqualTo("no-store");
-    assertThat(w.page().header("set-cookie")).startsWith("gw_ar=").contains("Path=/oauth/authorize")
+    assertThat(w.page().header("set-cookie")).startsWith("gw_" + w.rid() + "=").contains("Path=/oauth/authorize")
         .contains("Secure").contains("HttpOnly").contains("SameSite=Lax");
     assertThat(w.page().body()).contains(w.code()).contains("stage-readonly").doesNotContain("<form");
     TunnelWorld.Answer pending = claude.status(w);
@@ -112,7 +114,7 @@ class ClaudeAiSignInIT {
     assertThat(claude.get(TunnelWorld.BROWSER, "/oauth/authorize/status?rid=" + w.rid(), Map.of()).status())
         .as("another browser").isEqualTo(404);
     assertThat(claude.get(TunnelWorld.BROWSER, "/oauth/authorize/status?rid=" + w.rid(), Map.of("Cookie",
-        "gw_ar=forged")).status()).isEqualTo(404);
+        "gw_" + w.rid() + "=forged")).status()).isEqualTo(404);
 
     // 5. The app shows what the browser shows, and where it came from.
     JsonNode consent = claude.consent(w);
@@ -313,6 +315,56 @@ class ClaudeAiSignInIT {
         .isEqualTo(200);
     resource = newResource;
     host = world.host();
+  }
+
+  @Test
+  @Order(7)
+  void twoSignInsWaitingInOneBrowserEachGetTheirOwnAnswer() {
+    OAuthFlow browser = new OAuthFlow(world, true, () -> "203.0.113.61");
+    OAuthFlow.Waiting first = browser.waiting(OAuthFlow.params(world.clientId(), REDIRECT, OAuthFlow.Pkce.create(),
+        resource, "st-first"));
+    OAuthFlow.Waiting second = browser.waiting(OAuthFlow.params(world.clientId(), REDIRECT, OAuthFlow.Pkce.create(),
+        resource, "st-second"));
+    // What the browser sends after both pages: its cookie jar keeps one cookie of each name.
+    Map<String, String> jar = new LinkedHashMap<>();
+    for (OAuthFlow.Waiting w : List.of(first, second)) {
+      jar.put(w.cookie().substring(0, w.cookie().indexOf('=')), w.cookie());
+    }
+    Map<String, String> cookies = Map.of("Cookie", String.join("; ", jar.values()));
+    assertThat(poll(first, cookies).json().path("status").asString()).isEqualTo("pending");
+    assertThat(poll(second, cookies).json().path("status").asString()).isEqualTo("pending");
+    assertThat(browser.decide(first, "deny").status()).isEqualTo(204);
+    assertThat(browser.decide(second, "deny").status()).isEqualTo(204);
+    assertThat(OAuthFlow.queryOf(poll(first, cookies).json().path("location").asString()))
+        .containsEntry("error", "access_denied").containsEntry("state", "st-first");
+    assertThat(OAuthFlow.queryOf(poll(second, cookies).json().path("location").asString()))
+        .containsEntry("error", "access_denied").containsEntry("state", "st-second");
+  }
+
+  /** The waiting page's poll of {@code w}, with what the browser holds. */
+  private static TunnelWorld.Answer poll(OAuthFlow.Waiting w, Map<String, String> cookies) {
+    TunnelWorld.Answer a = claude.get(TunnelWorld.BROWSER, "/oauth/authorize/status?rid=" + w.rid(), cookies);
+    assertThat(a.status()).as("the poll of " + w.rid()).isEqualTo(200);
+    return a;
+  }
+
+  @Test
+  @Order(8)
+  void aNewSignInReplacesTheClientsOldOneOnlyOnceItsCodeIsExchanged() {
+    OAuthFlow browser = new OAuthFlow(world, true, () -> "203.0.113.62");
+    String old = browser.signIn(world.clientId(), REDIRECT, resource).path("access_token").asString();
+    OAuthFlow.Pkce pkce = OAuthFlow.Pkce.create();
+    OAuthFlow.Waiting again = browser.waiting(OAuthFlow.params(world.clientId(), REDIRECT, pkce, resource,
+        "st-again"));
+    String code = browser.allow(again).get("code");
+    // Allowed, but the browser never got back to the client (yet): the working sign-in stays.
+    assertThat(claude.mcp("stage-readonly", old, "tools/list").status()).isEqualTo(200);
+
+    TunnelWorld.Answer t = claude.exchange(world.clientId(), REDIRECT, code, pkce, resource);
+    assertThat(t.status()).as(t.body()).isEqualTo(200);
+    assertThat(claude.mcp("stage-readonly", t.json().path("access_token").asString(), "tools/list").status())
+        .isEqualTo(200);
+    assertThat(claude.mcp("stage-readonly", old, "tools/list").status()).as("replaced").isEqualTo(401);
   }
 
   private static JsonNode active() {

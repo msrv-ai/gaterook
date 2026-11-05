@@ -43,10 +43,10 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * Sign-ins the person allowed ({@code oauth_grant}, {@code og_…}) and their tokens ({@code oauth_token}, by hash
  * only; report 02 §6.4). A grant lives 184 days from Allow, and refreshing never extends it; one grant at a time per
- * client and endpoint (a new Allow revokes the previous one). Access tokens last until the grant expires; refresh
- * tokens rotate on every use, and presenting a used one revokes the whole grant (OAuth 2.1 §4.3.1). Every check reads
- * the database, so a Revoke takes effect on the next call. Revoking rejects what the grant still waits for and tells
- * the rest of the core ({@link PrincipalRevoked}), all in one transaction.
+ * client and endpoint (a new sign-in revokes the older ones once its code is exchanged). Access tokens last until the
+ * grant expires; refresh tokens rotate on every use, and presenting a used one revokes the whole grant (OAuth 2.1
+ * §4.3.1). Every check reads the database, so a Revoke takes effect on the next call. Revoking rejects what the grant
+ * still waits for and tells the rest of the core ({@link PrincipalRevoked}), all in one transaction.
  */
 public class Grants {
 
@@ -110,8 +110,8 @@ public class Grants {
   // ── Allow ───────────────────────────────────────────────────────────────────────────────────────────────────
 
   /**
-   * The person allowed a sign-in: a new grant for 184 days; the client's previous grant for the endpoint is revoked
-   * in the same transaction.
+   * The person allowed a sign-in: a new grant for 184 days. The client's previous grant for the endpoint stays until
+   * the new one's code is exchanged ({@link #exchange}): a sign-in that never completes leaves the working one alone.
    *
    * @param why the Setup change's reason ("Code 4F7-2KQ · from 203.0.113.24")
    */
@@ -128,10 +128,6 @@ public class Grants {
     return writeTx.execute(s -> {
       OAuthClientEntity c = clients.findById(client.rowId()).orElseThrow(() -> new IllegalStateException(
           "The client is gone"));
-      for (OAuthGrantEntity previous : grants.findByClient_IdAndEndpointIdAndState(c.getId(), endpointId,
-          OAuthGrantState.ACTIVE)) {
-        revokeInTx(previous, "replaced by a new sign-in", "Replaced by a new sign-in");
-      }
       Instant now = at;
       OAuthGrantEntity g = grants.saveAndFlush(new OAuthGrantEntity(c, endpointId, resource, scope, now,
           now.plus(GRANT_TTL)));
@@ -146,11 +142,25 @@ public class Grants {
     });
   }
 
-  /** Access and refresh token for a live grant (the code was exchanged). */
-  Issued issue(String grantId) {
+  /**
+   * Access and refresh token for the grant whose authorization code was just exchanged, while it is live (else
+   * empty). The client's older grants for the endpoint are revoked in the same transaction; a newer one, allowed
+   * meanwhile, stays for its own exchange.
+   */
+  Optional<Issued> exchange(String grantId) {
     return writeTx.execute(s -> {
-      OAuthGrantEntity g = grants.findById(grantId).orElseThrow(() -> new IllegalStateException("No grant"));
-      return issueInTx(g);
+      Optional<OAuthGrantEntity> found = grants.findById(grantId).filter(g -> live(g, clock.instant()));
+      if (found.isEmpty()) {
+        return Optional.<Issued>empty();
+      }
+      OAuthGrantEntity g = found.get();
+      for (OAuthGrantEntity previous : grants.findByClient_IdAndEndpointIdAndState(g.getClient().getId(),
+          g.getEndpointId(), OAuthGrantState.ACTIVE)) {
+        if (previous.getCreatedAt().isBefore(g.getCreatedAt())) {
+          revokeInTx(previous, "replaced by a new sign-in", "Replaced by a new sign-in");
+        }
+      }
+      return Optional.of(issueInTx(g));
     });
   }
 

@@ -50,7 +50,8 @@ import tools.jackson.databind.json.JsonMapper;
  *       address of the host outside the special-use ranges of RFC 6890 (the host allowlist closes the gap between
  *       that check and the connection).</li>
  *   <li>What: {@code client_id} equal to the URL byte for byte, a public client
- *       ({@code token_endpoint_auth_method} {@code none} or absent), its {@code redirect_uris}.</li>
+ *       ({@code token_endpoint_auth_method} {@code none} or absent), its {@code redirect_uris} — only those a sign-in
+ *       can return to ({@link OAuthUris#usableRedirect}); the others are left out.</li>
  *   <li>Cache: as {@code Cache-Control} says, bounded to 60 s … 24 h; failures aren't cached.</li>
  * </ul>
  * Tests of a non-release build may point it at a loopback HTTPS server: {@code gateway.test.oauth.cimd-ca} (a PEM
@@ -152,12 +153,12 @@ final class CimdResolver {
     List<String> redirects = new ArrayList<>();
     for (JsonNode r : doc.path("redirect_uris")) {
       String uri = r.asString("");
-      if (!uri.isBlank() && uri.length() <= 512 && redirects.size() < 10) {
+      if (OAuthUris.usableRedirect(uri) && redirects.size() < 10) {
         redirects.add(uri);
       }
     }
     if (redirects.isEmpty()) {
-      throw new CimdException("The client's metadata has no redirect_uris.");
+      throw new CimdException("The client's metadata has no redirect_uris a sign-in can return to.");
     }
     String name = ConsentPages.plain(doc.path("client_name").asString(host), 128);
     ClientMetadata meta = new ClientMetadata(clientId, host, name, List.copyOf(redirects),

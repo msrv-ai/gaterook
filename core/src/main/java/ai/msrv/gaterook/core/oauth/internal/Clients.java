@@ -191,7 +191,9 @@ public class Clients {
   /** The answer of {@code POST /oauth/register}: 201 with the client, or 400 with an RFC 7591 error. */
   record Registration(int status, ObjectNode body) {}
 
+  /** @param ip the caller's address, {@code null} when the tunnel's edge didn't say */
   Registration register(Issuers.Server server, JsonNode request, String ip, List<String> allowedHosts) {
+    String from = ip == null ? "an unknown address" : ip;
     if (!registrations.tryAcquire(server.ingress() + "|" + RateWindow.addressKey(ip))) {
       return error(429, "too_many_requests", "Too many registrations from this address. Try again in a minute.");
     }
@@ -227,7 +229,7 @@ public class Clients {
     Registration[] out = new Registration[1];
     writeTx.executeWithoutResult(s -> {
       if (clients.countByIngressAndKind(server.ingress(), OAuthClientKind.DCR) >= MAX_DCR_CLIENTS
-          && !makeRoom(server, ip)) {
+          && !makeRoom(server, from)) {
         out[0] = error(400, "invalid_client_metadata", "Too many clients are registered here. Revoke unused "
             + "sign-ins in GateRook, then try again.");
         return;
@@ -237,7 +239,7 @@ public class Clients {
       sign(row);
       clients.save(row);
       setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.OAUTH, "OAuth client registered · "
-          + label + (server.tunnel() ? " (tunnel)" : " (local)"), null, "Registered", "From " + ip, null, null,
+          + label + (server.tunnel() ? " (tunnel)" : " (local)"), null, "Registered", "From " + from, null, null,
           null, details(row)));
       ObjectNode body = JsonNodeFactory.instance.objectNode();
       body.put("client_id", row.getClientId());
@@ -260,7 +262,7 @@ public class Clients {
    * signed in (Cursor after a reinstall, an inspector's new session) would refuse every later registration. False when
    * every registered client holds a live sign-in — then revoking one in "Signed in" makes room.
    */
-  private boolean makeRoom(Issuers.Server server, String ip) {
+  private boolean makeRoom(Issuers.Server server, String from) {
     Optional<OAuthClientEntity> oldest = clients.findAll().stream()
         .filter(c -> c.getIngress() == server.ingress() && c.getKind() == OAuthClientKind.DCR)
         .filter(c -> !grants.hasLive(c.getId()))
@@ -275,7 +277,7 @@ public class Clients {
     clients.delete(c);
     setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.OAUTH, "OAuth client removed · "
         + (c.getClientName() == null ? c.getClientHost() : c.getClientName()) + (server.tunnel() ? " (tunnel)"
-            : " (local)"), "Registered", "Removed", "Made room for a registration from " + ip + ": it held no live "
+            : " (local)"), "Registered", "Removed", "Made room for a registration from " + from + ": it held no live "
             + "sign-in", null, null, null, details(c)));
     return true;
   }

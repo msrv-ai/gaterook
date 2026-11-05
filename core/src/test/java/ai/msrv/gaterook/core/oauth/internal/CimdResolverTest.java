@@ -144,6 +144,20 @@ class CimdResolverTest {
   }
 
   @Test
+  void aDocumentKeepsOnlyTheRedirectsASignInCanReturnTo() throws Exception {
+    String callback = "[\"https://claude.ai/api/mcp/auth_callback\"]";
+    // The consent page sends the browser to the chosen one: never a URL the browser would run or show itself.
+    serve(200, document(clientId).replace(callback, "[\"javascript:alert(document.domain)\",\"data:text/html,x\","
+        + "\"https://claude.ai/cb#x\",\"https://u@claude.ai/cb\",\"http://claude.ai/cb\",\"file:///etc/hosts\","
+        + "\"https://claude.ai/api/mcp/auth_callback\",\"http://127.0.0.1/callback\"]"), null);
+    assertThat(resolver().resolve(clientId).redirectUris()).containsExactly("https://claude.ai/api/mcp/auth_callback",
+        "http://127.0.0.1/callback");
+
+    serve(200, document(clientId).replace(callback, "[\"javascript:alert(1)\",\"vbscript:msgbox(1)\"]"), null);
+    assertThatThrownBy(() -> resolver().resolve(clientId)).hasMessageContaining("no redirect_uris");
+  }
+
+  @Test
   void onlyAllowedHostsAndPublicAddressesAreAsked() throws Exception {
     CimdResolver resolver = resolver();
     assertThat(resolver.accepts("https://evil.example/oauth/meta")).isFalse();

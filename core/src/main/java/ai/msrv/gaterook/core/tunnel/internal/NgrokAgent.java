@@ -26,6 +26,10 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>Inspection is off: by default the agent keeps every request and response it carries — claude.ai's bearer tokens,
  * the token endpoint's access and refresh tokens, MCP results — and hands them to anyone on this computer who asks its
  * local API ({@code /api/requests/http}), while the core keeps only their hashes (ARCHITECTURE.md §9).
+ *
+ * <p>The local API itself has no authentication (ngrok offers none) and stays up while the agent runs: any process on
+ * this computer that reaches its port can manage the tunnels of the agent's session. The core reads it only until the
+ * tunnel is listed.
  */
 public final class NgrokAgent implements TunnelAgent {
 

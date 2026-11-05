@@ -25,6 +25,13 @@ final class OAuthUris {
 
   private static final Set<String> LOOPBACK_HOSTS = Set.of("127.0.0.1", "localhost", "[::1]", "::1");
 
+  /**
+   * Schemes a browser opens itself (it would run, show or read the URL) instead of handing them to an app, and the
+   * URL standard's other special schemes: never where a sign-in returns to.
+   */
+  private static final Set<String> BROWSER_SCHEMES = Set.of("javascript", "vbscript", "data", "blob", "file",
+      "filesystem", "about", "view-source", "ftp", "ws", "wss");
+
   private OAuthUris() {}
 
   /**
@@ -90,6 +97,32 @@ final class OAuthUris {
       return "http".equalsIgnoreCase(u.getScheme()) && u.getHost() != null
           && LOOPBACK_HOSTS.contains(u.getHost().toLowerCase(Locale.ROOT)) && u.getRawUserInfo() == null
           && u.getRawFragment() == null;
+    } catch (URISyntaxException e) {
+      return false;
+    }
+  }
+
+  /**
+   * Whether {@code uri} can be a redirect URI at all (RFC 6749 §3.1.2, RFC 8252 §7): absolute, without fragment or
+   * userinfo; {@code https} with a host, {@code http} on loopback only, or an app's private-use scheme. The consent
+   * page sends the browser there with {@code location.replace}, so it is never a URL the browser would run or show
+   * itself ({@code javascript:}, {@code data:}, {@code file:}, …).
+   */
+  static boolean usableRedirect(String uri) {
+    if (uri == null || uri.isBlank() || uri.length() > 512) {
+      return false;
+    }
+    try {
+      URI u = new URI(uri);
+      if (u.getScheme() == null || u.getRawFragment() != null || u.getRawUserInfo() != null) {
+        return false;
+      }
+      String scheme = u.getScheme().toLowerCase(Locale.ROOT);
+      return switch (scheme) {
+        case "https" -> u.getHost() != null;
+        case "http" -> loopback(uri);
+        default -> !BROWSER_SCHEMES.contains(scheme);
+      };
     } catch (URISyntaxException e) {
       return false;
     }
