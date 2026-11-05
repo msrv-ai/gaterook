@@ -49,7 +49,8 @@ class LegacyRowSigning implements SmartInitializingSingleton {
   @Override
   public void afterSingletonsInstantiated() {
     List<LegacyRows> due = tables.stream().filter(t -> facts.migratedNow(t.migration())).toList();
-    if (due.isEmpty()) {
+    if (due.isEmpty() || facts.firstRun()) {
+      // A database this start created holds nothing an older version wrote.
       return;
     }
     if (!masterKey.keptAtStart()) {
