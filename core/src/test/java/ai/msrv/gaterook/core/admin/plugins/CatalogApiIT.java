@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.core.admin.AdminMvc;
 import ai.msrv.gaterook.core.mcpservers.McpServerCatalog;
+import ai.msrv.gaterook.core.platform.IntegrityAlerts;
 import ai.msrv.gaterook.core.platform.LocalListener;
+import ai.msrv.gaterook.core.platform.SettingStore;
 import ai.msrv.gaterook.core.platform.TestGateway;
 import ai.msrv.gaterook.testfixtures.TestCore;
 import java.io.ByteArrayOutputStream;
@@ -54,7 +56,8 @@ import tools.jackson.databind.node.ObjectNode;
  * its signature, a plugin JAR checked against the signed SHA-256 (and refused with a flipped byte), an MCP server's
  * pinned lockfile, a catalog template installed as templates without its read-only confirmations, the wizard's cards of
  * plugins that aren't installed, and the cache that keeps the Catalog working offline — refused signatures, an outage,
- * a restart — with "Checked … ago".
+ * a restart — with "Checked … ago". The cache and the sequence it reached are signed settings: an older index put in
+ * its place, or the cache deleted, neither installs nor lowers what counts as a rollback.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class CatalogApiIT {
@@ -358,7 +361,75 @@ class CatalogApiIT {
     assertThat(again.path("problem").asString()).contains("can't be reached");
   }
 
+  @Test
+  @Order(11)
+  void anOlderIndexPutInPlaceOfTheCacheInstallsNothingAndDoesntLowerTheSequence() throws Exception {
+    // Another program puts an older index of the catalog, validly signed, in place of the cached one (sequence 9).
+    byte[] older = index(5, Instant.now().plus(30, ChronoUnit.DAYS), List.of());
+    ObjectNode cached = JSON.createObjectNode().put("index", Base64.getEncoder().encodeToString(older))
+        .put("sig", Base64.getEncoder().encodeToString(signature(older))).put("source", indexUrl())
+        .put("checkedAt", Instant.now().toString());
+    assertThat(core.jdbc().update("update setting set value = ? where key = 'catalog.last-good'",
+        JSON.writeValueAsString(cached))).isEqualTo(1);
+    // And the catalog's server offers one between the two, as a replaying mirror would.
+    publish(index(7, Instant.now().plus(30, ChronoUnit.DAYS), List.of()));
+    reopen();
+
+    // Shown, not trusted: the first look checks again, and 9 is still the sequence to reach.
+    JsonNode c = api.ok("/api/catalog");
+    assertThat(c.path("signature").path("sequence").asLong()).as("the stored index").isEqualTo(5);
+    assertThat(c.path("signature").path("ok").asBoolean()).isFalse();
+    assertThat(c.path("problem").asString()).contains("changed outside GateRook").contains("sequence 7 < 9");
+    assertThat(core.bean(IntegrityAlerts.class).has(SettingStore.ALERT_KIND, "catalog.last-good")).isTrue();
+    JsonNode refused = api.expect(409, HttpMethod.POST, "/api/plugins/check", "{\"catalog\":\"clickhouse@0.6.1\"}");
+    assertThat(refused.path("title").asString()).isEqualTo("Catalog unavailable");
+    assertThat(refused.path("detail").asString()).contains("changed outside GateRook");
+
+    // A fresh index from the catalog is trusted again, and so is what it lists.
+    publish(index(10, Instant.now().plus(30, ChronoUnit.DAYS), List.of()));
+    JsonNode fresh = api.expect(200, HttpMethod.POST, "/api/catalog/refresh", null);
+    assertThat(fresh.path("signature").path("sequence").asLong()).isEqualTo(10);
+    assertThat(fresh.path("signature").path("ok").asBoolean()).isTrue();
+    assertThat(fresh.path("problem").isNull()).isTrue();
+    assertThat(core.bean(IntegrityAlerts.class).has(SettingStore.ALERT_KIND, "catalog.last-good")).isFalse();
+    api.expect(200, HttpMethod.POST, "/api/plugins/check", "{\"catalog\":\"clickhouse@0.6.1\"}");
+  }
+
+  @Test
+  @Order(12)
+  void aDeletedCacheDoesntLowerTheSequenceEither() throws Exception {
+    core.jdbc().update("delete from setting where key = 'catalog.last-good'");
+    publish(index(9, Instant.now().plus(30, ChronoUnit.DAYS), List.of()));
+    reopen();
+    JsonNode c = api.ok("/api/catalog");
+    assertThat(c.path("entries")).isEmpty();
+    assertThat(c.path("signature").path("ok").asBoolean()).isFalse();
+    assertThat(c.path("problem").asString()).contains("sequence 9 < 10");
+    assertThat(core.bean(IntegrityAlerts.class).has(SettingStore.ALERT_KIND, "catalog.last-good")).isTrue();
+    api.expect(409, HttpMethod.POST, "/api/plugins/check", "{\"catalog\":\"clickhouse@0.6.1\"}");
+
+    publish(index(11, Instant.now().plus(30, ChronoUnit.DAYS), List.of()));
+    JsonNode fresh = api.expect(200, HttpMethod.POST, "/api/catalog/refresh", null);
+    assertThat(fresh.path("signature").path("sequence").asLong()).isEqualTo(11);
+    assertThat(fresh.path("signature").path("ok").asBoolean()).isTrue();
+    assertThat(core.bean(IntegrityAlerts.class).current()).isEmpty();
+  }
+
   // ── Fixtures ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** The core again, on the same home, with the catalog's server reachable. */
+  private static void reopen() {
+    Path home = core.home();
+    core.close();
+    core = TestCore.reopen(home, "--gateway.plugins.catalog-url=https://127.0.0.1:" + server.getPort() + "/catalog/",
+        "--gateway.plugins.catalog-keys=test-k6=" + Base64.getUrlEncoder().withoutPadding().encodeToString(raw(key)),
+        "--gateway.test.catalog.ca=" + caFile, "--gateway.test.fake-connector=true");
+    api = new AdminMvc(core.context(), core.bean(LocalListener.class).port());
+  }
+
+  private static String indexUrl() {
+    return "https://127.0.0.1:" + server.getPort() + "/catalog/index.json";
+  }
 
   private static JsonNode card(JsonNode types, String group, String type) {
     for (JsonNode g : types.path("groups")) {

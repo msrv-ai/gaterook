@@ -8,12 +8,14 @@ import jakarta.persistence.Version;
 import java.time.Instant;
 import java.util.Objects;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.OptimisticLock;
 import org.hibernate.type.SqlTypes;
 
 /**
  * One row of {@code setting}: a key and any JSON document (an object for a Settings section, a string for
  * {@code core.instance-id}, an array for {@code activity.saved-views}). The value is kept as JSON text because a
- * {@code Map} column can't hold a top-level scalar or array; {@code SettingStore} parses it into a tree.
+ * {@code Map} column can't hold a top-level scalar or array; {@code SettingStore} parses it into a tree. The keys of
+ * {@code SettingStore.SIGNED} also carry a row MAC (V87).
  */
 @Entity
 @Table(name = "setting")
@@ -30,6 +32,14 @@ public class SettingEntity {
   @Version
   @Column(name = "version", nullable = false)
   private long version;
+
+  /**
+   * HMAC of the row ({@code platform.RowMac}) for a signed key, {@code null} for the others; excluded from optimistic
+   * locking, so that writing it after the flush that settled {@code version} doesn't bump the version it signs.
+   */
+  @OptimisticLock(excluded = true)
+  @Column(name = "mac")
+  private byte[] mac;
 
   @Column(name = "updated_at", nullable = false)
   private Instant updatedAt;
@@ -62,5 +72,13 @@ public class SettingEntity {
 
   public Instant getUpdatedAt() {
     return updatedAt;
+  }
+
+  public byte[] getMac() {
+    return mac;
+  }
+
+  public void setMac(byte[] mac) {
+    this.mac = mac;
   }
 }
