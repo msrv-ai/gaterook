@@ -438,6 +438,68 @@ class EndpointsIT {
   }
 
   @Test
+  void reviewingAnEditedEndpointKeepsTheRulesItsOwnChangesKeep() {
+    core.connection("xl-dev", "pgfake", Env.DEV, "db.test");
+    core.connection("xl-prod", "pgfake", Env.PROD, "db.test");
+    endpoints.create("xl-ep", null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add("xl-ep", "xl-dev", null);
+    endpoints.create("xl-prod-ep", null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add("xl-prod-ep", "xl-prod", null);
+    String id = endpoints.get("xl-ep").id();
+    // A prod connection's wiring moved onto the dev endpoint, and one of its tools set to Bypass, outside GateRook.
+    core.jdbc().update("update endpoint_connection set endpoint_id = ? where connection_id = (select id from "
+        + "connection where name = 'xl-prod')", id);
+    core.jdbc().update("update endpoint_tool set mode = 'BYPASS' where tool_key = 'sql_execute' and endpoint_id = ?",
+        id);
+    snapshots.invalidateAll();
+    assertThat(snapshots.bySlug("xl-ep").orElseThrow().blocked()).isTrue();
+
+    assertThatThrownBy(() -> endpoints.confirmIntegrity("xl-ep", "looked"))
+        .isInstanceOfSatisfying(ProblemException.class, e -> {
+          assertThat(e.kind()).isEqualTo(ProblemException.Kind.UNPROCESSABLE);
+          assertThat(e.getMessage()).contains("xl-prod is a prod connection on xl-ep");
+        });
+    assertThat(snapshots.bySlug("xl-ep").orElseThrow().blocked()).as("nothing signed").isTrue();
+    assertThat(endpoints.get("xl-ep").env()).isEqualTo(Env.DEV);
+
+    endpoints.confirmIntegrity("xl-ep", "looked", "reset-invalid");
+    EndpointSnapshot reviewed = snapshots.bySlug("xl-ep").orElseThrow();
+    assertThat(reviewed.blocked()).isFalse();
+    assertThat(reviewed.env()).as("dev tokens never reach a prod connection").isEqualTo(Env.DEV);
+    assertThat(reviewed.connections()).extracting(w -> w.config().name()).containsExactly("xl-dev");
+    assertThat(mode(reviewed, "sql_execute", "xl-dev")).as("Bypass is set only in GateRook")
+        .isEqualTo(Mode.APPROVAL);
+    assertThat(core.jdbc().queryForObject("select change_to from setup_change where subject = 'Endpoint xl-ep "
+        + "changed outside GateRook'", String.class)).contains("xl-prod removed", "sql_execute Bypass");
+
+    // A read-only endpoint keeps only the modes it allows.
+    core.connection("xl-ro-db", "pgfake", Env.DEV, "db.test");
+    endpoints.create("xl-ro-ep", null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add("xl-ro-ep", "xl-ro-db", null);
+    endpoints.updateSettings("xl-ro-ep", new EndpointService.SettingsUpdate(null, "read-only", null, null, null, null,
+        null), endpoints.get("xl-ro-ep").version(), "freeze");
+    core.jdbc().update("update endpoint_tool set mode = 'APPROVAL' where tool_key = 'sql_query' and endpoint_id = "
+        + "(select id from endpoint where slug = 'xl-ro-ep')");
+    assertThatThrownBy(() -> endpoints.confirmIntegrity("xl-ro-ep", "looked")).isInstanceOf(ProblemException.class)
+        .hasMessageContaining("xl-ro-ep is read only: sql_query on xl-ro-db can only be Off there");
+    endpoints.confirmIntegrity("xl-ro-ep", "looked", "reset-invalid");
+    EndpointSnapshot ro = snapshots.bySlug("xl-ro-ep").orElseThrow();
+    assertThat(ro.blocked()).isFalse();
+    assertThat(ro.pairs().stream().filter(p -> p.tool().name().equals("sql_query")).findFirst().orElseThrow()
+        .storedMode()).isEqualTo(Mode.OFF);
+
+    // A prod endpoint is never published.
+    core.connection("xl-pub-prod", "pgfake", Env.PROD, "db.test");
+    endpoints.create("xl-pub-ep", null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add("xl-pub-ep", "xl-pub-prod", null);
+    core.jdbc().update("update endpoint set published = true where slug = 'xl-pub-ep'");
+    assertThatThrownBy(() -> endpoints.confirmIntegrity("xl-pub-ep", "looked")).isInstanceOf(ProblemException.class)
+        .hasMessageContaining("never published");
+    endpoints.confirmIntegrity("xl-pub-ep", "looked", "reset-invalid");
+    assertThat(snapshots.bySlug("xl-pub-ep").orElseThrow().published()).isFalse();
+  }
+
+  @Test
   void newTemplateToolsJoinTheEndpointsOfTheirConnection() {
     core.connection("n-db", "pgfake", Env.DEV, "db.test");
     endpoints.create("n-ep", null, EndpointService.StartFrom.EMPTY, null);

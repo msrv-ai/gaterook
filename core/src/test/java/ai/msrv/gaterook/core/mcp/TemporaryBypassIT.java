@@ -17,6 +17,8 @@ import ai.msrv.gaterook.core.endpoints.EndpointSnapshot;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshotService;
 import ai.msrv.gaterook.core.endpoints.EndpointTools;
 import ai.msrv.gaterook.core.endpoints.TokenService;
+import ai.msrv.gaterook.core.endpoints.internal.EndpointRows;
+import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointToolRepository;
 import ai.msrv.gaterook.core.invocation.ConnectorInvoker;
 import ai.msrv.gaterook.core.mcp.internal.ToolCallHandler;
 import ai.msrv.gaterook.core.platform.LocalListener;
@@ -340,6 +342,33 @@ class TemporaryBypassIT {
     assertThatThrownBy(() -> tools.revokeTemporaryBypass("tampered-grant", "sql_execute",
         connection("tampered-grant"), before.rowVersion(), "Revoke modified grant"))
         .isInstanceOf(ProblemException.class).hasMessageContaining("changed outside GateRook");
+
+    // Reviewing it doesn't sign the grant again: it is removed, and the tool keeps its own mode.
+    assertThatThrownBy(() -> endpoints.confirmIntegrity("tampered-grant", "looked"))
+        .isInstanceOf(ProblemException.class).hasMessageContaining("temporary bypass that was set outside GateRook");
+    endpoints.confirmIntegrity("tampered-grant", "looked", "reset-invalid");
+    snapshots.invalidateAll();
+    assertThat(endpoints.snapshot("tampered-grant").blocked()).isFalse();
+    assertThat(pair("tampered-grant").mode()).isEqualTo(Mode.APPROVAL);
+    assertThat(pair("tampered-grant").bypassUntil()).isNull();
+    assertThat(core.jdbc().queryForObject("select temporary_bypass from endpoint_tool where id = ?", String.class,
+        before.rowId())).isNull();
+  }
+
+  @Test
+  void aSignedGrantBeyondTheLongestDurationNeverApplies() {
+    create("far-grant", Env.DEV);
+    grant("far-grant", 15);
+    var before = pair("far-grant");
+    core.jdbc().update("update endpoint_tool set temporary_bypass = json_set(temporary_bypass, '$.until', ?) "
+        + "where id = ?", NOW.plus(Duration.ofDays(100)).toString(), before.rowId());
+    // Signed as it is, as a deadline the admin API never grants would be after a review in an older version.
+    core.bean(EndpointRows.class).resign(core.bean(EndpointToolRepository.class).findById(before.rowId())
+        .orElseThrow());
+    snapshots.invalidateAll();
+    assertThat(endpoints.snapshot("far-grant").blocked()).isFalse();
+    assertThat(pair("far-grant").bypassUntil()).isNull();
+    assertThat(pair("far-grant").mode()).isEqualTo(Mode.APPROVAL);
   }
 
   @Test
