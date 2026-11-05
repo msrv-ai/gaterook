@@ -32,6 +32,7 @@ import { GwTitleStrategy } from './shell/title.strategy';
 interface NavLink {
   readonly label: string;
   readonly route: string;
+  readonly fragment?: string;
   readonly icon: string;
 }
 
@@ -57,7 +58,8 @@ const NAV: readonly NavGroup[] = [
     label: 'Resources',
     links: [
       { label: 'Connections', route: '/connections', icon: 'database' },
-      { label: 'Connectors', route: '/connectors', icon: 'puzzle' },
+      { label: 'Connectors', route: '/connectors', fragment: 'installed', icon: 'puzzle' },
+      { label: 'MCP servers', route: '/connectors', fragment: 'mcp-servers', icon: 'plug' },
       { label: 'Secrets', route: '/secrets', icon: 'key-round' },
     ],
   },
@@ -144,6 +146,14 @@ export class App {
 
   protected readonly nav = NAV;
   protected readonly mac = this.desktop.platform === 'darwin';
+  /** The MCP shortcut and Connectors share a route, but only one sidebar item is current. */
+  protected readonly mcpServersSelected = toSignal(
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      map(() => ['mcp-servers', 'tab-mcp'].includes(this.router.parseUrl(this.router.url).fragment ?? '')),
+    ),
+    { initialValue: false },
+  );
 
   /** The deepest route's data after each navigation: the titlebar title and the frame (null before the first). */
   private readonly routeData = toSignal(

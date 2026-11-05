@@ -323,7 +323,7 @@
   });
 
   // ───────────────────────── tabs ─────────────────────────
-  function selectTab(tab, focus) {
+  function selectTab(tab, focus, updateUrl) {
     var list = tab.closest('[role="tablist"]');
     list.querySelectorAll('[role="tab"]').forEach(function (t) {
       var on = t === tab;
@@ -332,11 +332,21 @@
       var panel = doc.getElementById(t.getAttribute("aria-controls"));
       if (panel) panel.hidden = !on;
     });
+    if (list.querySelector('[aria-controls="mcp-servers"]')) {
+      var panelId = tab.getAttribute("aria-controls");
+      var currentHref = "connectors.html#" + (panelId === "mcp-servers" ? "mcp-servers" : "installed");
+      doc.querySelectorAll('[data-gw-nav] a[href="connectors.html#installed"], [data-gw-nav] a[href="connectors.html#mcp-servers"]').forEach(function (link) {
+        if (link.getAttribute("href") === currentHref) link.setAttribute("aria-current", "page");
+        else link.removeAttribute("aria-current");
+      });
+      // Keep the sidebar shortcut usable after a manual tab change without adding a Back entry.
+      if (updateUrl) history.replaceState(history.state, "", "#" + panelId);
+    }
     if (focus) tab.focus();
   }
   doc.addEventListener("click", function (e) {
     var tab = e.target.closest('[role="tab"]');
-    if (tab && tab.getAttribute("aria-controls") && tab.getAttribute("aria-disabled") !== "true") selectTab(tab, false);
+    if (tab && tab.getAttribute("aria-controls") && tab.getAttribute("aria-disabled") !== "true") selectTab(tab, false, true);
   });
   doc.addEventListener("keydown", function (e) {
     var tab = e.target.closest && e.target.closest('[role="tab"]');
@@ -351,13 +361,19 @@
     if (e.key === prevKey) next = tabs[(i - 1 + tabs.length) % tabs.length];
     if (e.key === "Home") next = tabs[0];
     if (e.key === "End") next = tabs[tabs.length - 1];
-    if (next) { e.preventDefault(); selectTab(next, true); }
+    if (next) { e.preventDefault(); selectTab(next, true, true); }
   });
   // Deep links: #<id> of a tab, a tabpanel or anything inside a hidden tabpanel
   // selects that tab first, then scrolls the target into view.
   function tabFromHash() {
     var id = decodeURIComponent(location.hash.slice(1));
-    if (!id || !/^[A-Za-z][\w:.-]*$/.test(id)) return;
+    if (!id) {
+      // Back can return to the Connectors page before it had a tab fragment.
+      var installed = doc.getElementById("tab-installed");
+      if (installed && doc.getElementById("mcp-servers")) selectTab(installed, false);
+      return;
+    }
+    if (!/^[A-Za-z][\w:.-]*$/.test(id)) return;
     var target = doc.getElementById(id);
     if (!target) return;
     // every tabpanel around the target, innermost first, gets its tab selected

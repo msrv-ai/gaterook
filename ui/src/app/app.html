@@ -75,8 +75,8 @@
                 <p class="gw-nav__group-label" [id]="group.id">{{ group.label }}</p>
               }
               <ul class="gw-nav__list">
-                @for (link of group.links; track link.route) {
-                  <li><a class="gw-nav__item" [routerLink]="link.route" routerLinkActive ariaCurrentWhenActive="page"><svg [lucideIcon]="link.icon" class="gw-icon gw-nav__icon"></svg><span class="gw-nav__label">{{ link.label }}</span>@if (link.route === '/approvals' && pending() > 0) {<span class="gw-nav__counter gw-counter gw-counter--attention"><span class="gw-sr-only">, </span>{{ pending() }}<span class="gw-sr-only"> waiting</span></span>}</a></li>
+                @for (link of group.links; track link.label) {
+                  <li><a class="gw-nav__item" [routerLink]="link.route" [fragment]="link.fragment" routerLinkActive [ariaCurrentWhenActive]="link.route !== '/connectors' || (link.fragment === 'mcp-servers') === mcpServersSelected() ? 'page' : undefined"><svg [lucideIcon]="link.icon" class="gw-icon gw-nav__icon"></svg><span class="gw-nav__label">{{ link.label }}</span>@if (link.route === '/approvals' && pending() > 0) {<span class="gw-nav__counter gw-counter gw-counter--attention"><span class="gw-sr-only">, </span>{{ pending() }}<span class="gw-sr-only"> waiting</span></span>}</a></li>
                 }
               </ul>
             </div>

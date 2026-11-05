@@ -25,6 +25,7 @@ Approvals      Requests awaiting the user's decision
 Resources
   Connections  Configured databases, SSH, logs, clusters, clouds, and APIs
   Connectors   Built-in types, templates, plugins, and MCP servers
+  MCP servers  Quick access to the MCP servers tab in Connectors
   Secrets      Master key, stored secrets, and external secret stores
 Access
   Endpoints    URLs, tools, modes, and tokens
@@ -38,6 +39,8 @@ Settings       Appearance, authorization, notifications, network, and data
 ```
 
 The sidebar footer shows **Core running · Tunnel off · v0.4.0** in the shared demo.
+
+The **MCP servers** sidebar shortcut opens `connectors.html#mcp-servers`; **Connectors** opens `connectors.html#installed`. Only the MCP servers shortcut is current while that tab is selected; the other connector tabs keep Connectors current. Manual tab changes replace the URL fragment without adding browser history entries.
 
 | Settings group | Sections |
 | --- | --- |

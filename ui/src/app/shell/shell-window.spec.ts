@@ -13,6 +13,7 @@ import { DEMO_CONSENT as REMOTE_CONSENT } from '../dev/fixtures-clients';
 import { ACTIVATION_DELAY_MS } from '../kit/activation-guard';
 import { provideKitIcons } from '../kit/icons';
 import { ToastService } from '../kit/toast.service';
+import { ConnectorsPage } from '../pages/connectors/connectors.page';
 import { requestToast } from './desktop-notice-toasts';
 import { onboardingGuard, resetOnboardingGuard } from './onboarding.guard';
 
@@ -112,6 +113,56 @@ describe('titlebar navigation', () => {
     await fixture.whenStable();
     expect(text(el.querySelector('.gw-titlebar__title'))).toBe('Overview');
     expect(back.disabled).toBe(true);
+  });
+});
+
+describe('MCP servers sidebar shortcut', () => {
+  beforeEach(() => {
+    configure([
+      { path: 'overview', component: Page, data: { section: 'Overview' } },
+      { path: 'connectors', component: ConnectorsPage, data: { section: 'Connectors' } },
+    ]);
+    TestBed.configureTestingModule({ providers: [provideLocationMocks()] });
+  });
+
+  it('opens the MCP tab, stays reusable after switching tabs, and restores it with Back', async () => {
+    const { fixture, el } = await runningApp();
+    const router = TestBed.inject(Router);
+    router.setUpLocationChangeListener();
+    await router.navigateByUrl('/overview');
+    await fixture.whenStable();
+    const link = (label: string) => Array.from(el.querySelectorAll<HTMLAnchorElement>('.gw-nav__item')).find((a) => text(a) === label)!;
+    const expectSelection = async (tab: string, label: string) => {
+      await vi.waitFor(() => expect(el.querySelector(`#${tab}`)?.getAttribute('aria-selected')).toBe('true'));
+      await fixture.whenStable();
+      expect(Array.from(el.querySelectorAll('.gw-nav__item[aria-current="page"]')).map(text)).toEqual([label]);
+    };
+
+    link('MCP servers').click();
+    await expectSelection('tab-mcp', 'MCP servers');
+    expect(router.url).toBe('/connectors#mcp-servers');
+    expect(el.querySelector<HTMLElement>('#mcp-servers')!.hidden).toBe(false);
+
+    button(el, 'Catalog').click();
+    await expectSelection('tab-catalog', 'Connectors');
+    expect(router.url).toBe('/connectors#catalog');
+
+    link('MCP servers').click();
+    await expectSelection('tab-mcp', 'MCP servers');
+    link('Connectors').click();
+    await expectSelection('tab-installed', 'Connectors');
+
+    el.querySelector<HTMLButtonElement>('.gw-titlebar__drag button')!.click();
+    await vi.waitFor(() => expect(router.url).toBe('/connectors#mcp-servers'));
+    await expectSelection('tab-mcp', 'MCP servers');
+
+    await router.navigateByUrl('/connectors');
+    await expectSelection('tab-installed', 'Connectors');
+    link('MCP servers').click();
+    await expectSelection('tab-mcp', 'MCP servers');
+    el.querySelector<HTMLButtonElement>('.gw-titlebar__drag button')!.click();
+    await vi.waitFor(() => expect(router.url).toBe('/connectors'));
+    await expectSelection('tab-installed', 'Connectors');
   });
 });
 
