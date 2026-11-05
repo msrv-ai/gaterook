@@ -7,12 +7,15 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -42,6 +45,140 @@ class SandboxTest {
     assertThat(Sandbox.writeRights(5, false) & Sandbox.MAKE_DIR).isZero();
     assertThat(Sandbox.handledRights(1) & Sandbox.REFER).isZero();
     assertThat(Sandbox.handledRights(3) & Sandbox.TRUNCATE).isNotZero();
+  }
+
+  @Test
+  void theCoresPortsAreClosedWithDenyTcp() {
+    assertThat(Sandbox.parse(List.of("--", "node")).deniedPorts()).isEmpty();
+    Sandbox.Request r = Sandbox.parse(List.of("--deny-tcp", "7466", "--rw", "/w", "--deny-tcp", "7465", "--deny-tcp",
+        "7466", "--", "node"));
+    assertThat(r.deniedPorts()).containsExactly(7465, 7466);
+    assertThat(r.readWrite()).containsExactly("/w");
+    for (String bad : List.of("0", "65536", "-1", "+80", "80a", "123456", "", "--")) {
+      assertThatThrownBy(() -> Sandbox.parse(List.of("--deny-tcp", bad, "--", "node"))).as(bad)
+          .hasMessage("--deny-tcp needs a port from 1 to 65535");
+    }
+    assertThatThrownBy(() -> Sandbox.parse(List.of("--deny-tcp"))).hasMessage("--deny-tcp needs a port from 1 to 65535");
+
+    // Landlock's rules only allow: from ABI 4 every other port gets one (0 too: an ephemeral bind), before it none.
+    int[] open = Sandbox.openPorts(Sandbox.NET_ABI, Set.of(7465, 7466));
+    assertThat(open).hasSize(65_534).contains(0, 1, 7464, 7467, 65_535).doesNotContain(7465, 7466);
+    assertThat(Sandbox.openPorts(3, Set.of(7465))).isEmpty();
+    assertThat(Sandbox.openPorts(8, Set.of())).isEmpty();
+
+    // On macOS: last, every host ("localhost" lets ::ffff:0.0.0.0 reach 127.0.0.1), ascending whatever the order given.
+    Sandbox.Closed closed = closed(dir.resolve("home"), dir.resolve("home/.gaterook"));
+    assertThat(Sandbox.macProfile(closed, List.of(), new java.util.LinkedHashSet<>(List.of(7466, 7465))))
+        .endsWith("(deny network-outbound (remote ip \"*:7465\") (remote ip \"*:7466\"))\n"
+            + "(deny network-bind (local ip \"*:7465\") (local ip \"*:7466\"))\n");
+    assertThat(Sandbox.macProfile(closed, List.of(), Set.of())).doesNotContain("network");
+  }
+
+  /**
+   * The {@code --deny-tcp} ports (the core's listeners) can be neither reached nor bound by the command, on any address
+   * — {@code ::ffff:0.0.0.0}, which the kernel connects to {@code 127.0.0.1}, included — while another loopback port
+   * stays reachable and an ephemeral port bindable. The probe is Perl: its sockets are the kernel's, with no runtime
+   * mapping an address first. Every address it reaches unconfined must be refused inside the sandbox.
+   */
+  @Test
+  @DisabledOnOs(OS.WINDOWS)
+  void theCommandNeitherReachesNorBindsADeniedPort() throws Exception {
+    String os = System.getProperty("os.name");
+    assumeTrue(os.startsWith("Mac") && Files.isExecutable(Path.of("/usr/bin/sandbox-exec"))
+        || os.startsWith("Linux") && Sandbox.landlockAbi() >= Sandbox.NET_ABI,
+        "sandbox-exec on macOS, or Landlock ABI 4 (Linux 6.7) for its TCP rules");
+    Path perl = Sandbox.resolve("perl", System.getenv());
+    assumeTrue(perl != null, "perl is on the PATH");
+    InetAddress loopback = InetAddress.getByName("127.0.0.1");
+    try (ServerSocket core = new ServerSocket(0, 50, loopback); ServerSocket other = new ServerSocket(0, 50, loopback)) {
+      for (ServerSocket listener : List.of(core, other)) {
+        Thread.ofVirtual().start(() -> {
+          while (!listener.isClosed()) {
+            try {
+              listener.accept().close();
+            } catch (IOException e) {
+              // Closed at the end of the test.
+            }
+          }
+        });
+      }
+      int free;
+      try (ServerSocket probe = new ServerSocket(0, 1, loopback)) {
+        free = probe.getLocalPort();
+      }
+      List<String> args = List.of(perl.toString(), "-e", PORT_PROBE, Integer.toString(core.getLocalPort()),
+          Integer.toString(free), Integer.toString(other.getLocalPort()));
+
+      Map<String, String> unconfined = probe(new ProcessBuilder(args).redirectErrorStream(true).start());
+      List<String> sandboxed = new java.util.ArrayList<>(List.of("sandbox-exec", "--deny-tcp",
+          Integer.toString(core.getLocalPort()), "--deny-tcp", Integer.toString(free), "--"));
+      sandboxed.addAll(args);
+      BridgeProcess.Result r = BridgeProcess.run(sandboxed, Map.of("GW_HOME", dir.resolve("gateway-home").toString()),
+          "", Duration.ofSeconds(60));
+      assertThat(r.code()).as(r.err()).isZero();
+      Map<String, String> confined = lines(r.out());
+
+      // Unconfined, the core's listener is reached by its address, the mapped forms and the wildcard (which the kernel
+      // connects to 127.0.0.1), and the free port binds.
+      assertThat(unconfined).containsEntry("connect 127.0.0.1 core", "ok").containsEntry("connect ::ffff:0.0.0.0 core",
+          "ok").containsEntry("bind 127.0.0.1 free", "ok").containsEntry("connect 127.0.0.1 open", "ok");
+      unconfined.forEach((what, result) -> {
+        if (result.equals("ok") && (what.endsWith(" core") || what.endsWith(" free"))) {
+          assertThat(confined.get(what)).as(what + "\n" + r.out()).isNotNull().isNotEqualTo("ok");
+        }
+      });
+      // EPERM from Seatbelt, EACCES from Landlock: a refusal of the sandbox, not "connection refused".
+      assertThat(confined.get("connect ::ffff:0.0.0.0 core")).isIn("Operation not permitted", "Permission denied");
+      assertThat(confined).containsEntry("bind 127.0.0.1 0", "ok").containsEntry("connect 127.0.0.1 open", "ok");
+    }
+  }
+
+  /**
+   * {@code perl -e PORT_PROBE <core> <free> <open>}: connects to the core's port by every address form, binds the free
+   * one by each loopback form and an ephemeral one, connects to the open port; one {@code <what>: <ok|error>} line each.
+   */
+  private static final String PORT_PROBE = """
+      use strict; use warnings; use Socket qw(:all);
+      my ($core, $free, $open) = @ARGV;
+      sub attempt {
+        my ($what, $host, $port) = @_;
+        my ($family, $addr) = $host =~ /:/ ? (AF_INET6, pack_sockaddr_in6($port, inet_pton(AF_INET6, $host)))
+            : (AF_INET, pack_sockaddr_in($port, inet_aton($host)));
+        socket(my $s, $family, SOCK_STREAM, 0) or return "socket: $!";
+        my $ok = $what eq 'connect' ? connect($s, $addr) : bind($s, $addr);
+        my $result = $ok ? 'ok' : "$!";
+        close $s;
+        return $result;
+      }
+      $| = 1;
+      for my $h ('127.0.0.1', '0.0.0.0', '::ffff:127.0.0.1', '::ffff:0.0.0.0', '::1', '::') {
+        print "connect $h core: ", attempt('connect', $h, $core), "\\n";
+      }
+      for my $h ('127.0.0.1', '::ffff:127.0.0.1', '::1') {
+        print "bind $h free: ", attempt('bind', $h, $free), "\\n";
+      }
+      print "bind 127.0.0.1 0: ", attempt('bind', '127.0.0.1', 0), "\\n";
+      print "connect 127.0.0.1 open: ", attempt('connect', '127.0.0.1', $open), "\\n";
+      """;
+
+  private static Map<String, String> probe(Process p) throws Exception {
+    p.getOutputStream().close();
+    String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+    assertThat(p.waitFor(30, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+    assertThat(p.exitValue()).as(out).isZero();
+    return lines(out);
+  }
+
+  /** {@code <what>: <result>} lines, by what (an IPv6 address has no colon followed by a space). */
+  private static Map<String, String> lines(String out) {
+    Map<String, String> results = new java.util.LinkedHashMap<>();
+    for (String line : out.split("\n")) {
+      int colon = line.indexOf(": ");
+      if (colon > 0) {
+        results.put(line.substring(0, colon), line.substring(colon + 2).strip());
+      }
+    }
+    return results;
   }
 
   @Test
@@ -198,7 +335,7 @@ class SandboxTest {
     assertThat(r.code()).isZero();
     // The profile names both forms of each path; clients' configs and the credentials are closed too, and writes
     // outside the work folder, the temporary folders and the devices.
-    String profile = Sandbox.macProfile(Map.of("GW_HOME", gateway.toString()), List.of(own.toString()));
+    String profile = Sandbox.macProfile(Map.of("GW_HOME", gateway.toString()), List.of(own.toString()), Set.of());
     assertThat(profile).contains("(subpath \"" + gateway + "\")").contains("(subpath \"" + gateway.toRealPath() + "\")")
         .contains("/.cursor\")").contains("/.codex\")").contains("/Library/Application Support/Claude\")")
         .contains("/.config/gh\")").contains("/.npmrc\")").contains("/.git-credentials\")").contains("/.claude.json\")")

@@ -259,8 +259,9 @@ class RealServersTest {
   /**
    * {@code npm ci} runs in the sandbox servers start in, install scripts included (a catalog entry may allow them):
    * the package's script writes its own folder in the server's work folder, where npm keeps its cache too, and can
-   * write neither GateRook's home nor the person's. The package comes from a registry on this computer, by the
-   * lockfile's {@code resolved} URL, so the test needs no network.
+   * write neither GateRook's home nor the person's; nor can it connect to the core's ports, while npm reaches the
+   * registry on another port of this computer. The package comes from that registry, by the lockfile's
+   * {@code resolved} URL, so the test needs no network.
    */
   @Test
   void anInstallScriptWritesOnlyTheServersWorkFolder() throws Exception {
@@ -272,13 +273,29 @@ class RealServersTest {
     for (Path p : outside) {
       Files.deleteIfExists(p);
     }
+    // A listener standing in for the core's local API: the host names its port at the next start.
+    ServerSocket core = new ServerSocket(0, 50, InetAddress.getLoopbackAddress());
+    Thread.ofVirtual().start(() -> {
+      while (!core.isClosed()) {
+        try {
+          core.accept().close();
+        } catch (IOException e) {
+          // Closed at the end of the test.
+        }
+      }
+    });
+    host.corePorts = Set.of(core.getLocalPort());
     StringBuilder script = new StringBuilder("const fs = require('fs');\nconst seen = [];\n");
     for (Path p : outside) {
       String target = Texts.JSON.writeValueAsString(p.toString());
       script.append("try { fs.writeFileSync(").append(target).append(", 'planted'); seen.push('WROTE ' + ")
           .append(target).append("); } catch (e) { seen.push(e.code); }\n");
     }
-    script.append("fs.writeFileSync('ran.txt', seen.join('\\n'));\n");
+    script.append("const socket = require('net').connect(").append(core.getLocalPort()).append(", '127.0.0.1');\n")
+        .append("const done = what => { seen.push(what); socket.destroy(); ")
+        .append("fs.writeFileSync('ran.txt', seen.join('\\n')); };\n")
+        .append("socket.on('connect', () => done('REACHED the core'));\n")
+        .append("socket.on('error', e => done('core ' + e.code));\n");
     Map<String, String> files = new LinkedHashMap<>();
     files.put("package/package.json", "{\"name\":\"gw-sandbox-probe\",\"version\":\"1.0.0\","
         + "\"bin\":{\"gw-sandbox-probe\":\"index.js\"},\"scripts\":{\"install\":\"node install.js\"}}");
@@ -314,18 +331,37 @@ class RealServersTest {
       // The script ran, in its own folder, and was refused every write outside the work folder.
       Path ran = work.resolve("node_modules/gw-sandbox-probe/ran.txt");
       assertThat(ran).exists();
-      assertThat(Files.readAllLines(ran)).hasSize(outside.size()).noneMatch(line -> line.startsWith("WROTE"));
+      List<String> seen = Files.readAllLines(ran);
+      assertThat(seen).hasSize(outside.size() + 1).noneMatch(line -> line.startsWith("WROTE"));
       for (Path p : outside) {
         assertThat(p).doesNotExist();
+      }
+      // The core's port was refused by the sandbox (EPERM from Seatbelt, EACCES from Landlock), not unanswered: npm
+      // reached the registry's port on the same address. Linux before 6.7 (Landlock ABI 4) can't close a port.
+      if (portRules()) {
+        assertThat(seen.getLast()).isIn("core EPERM", "core EACCES");
       }
       // npm's cache is the work folder's own.
       assertThat(work.resolve(".npm/_cacache")).isDirectory();
     } finally {
       registry.stop(0);
+      host.corePorts = Set.of();
+      core.close();
       for (Path p : outside) {
         Files.deleteIfExists(p);
       }
     }
+  }
+
+  /** Whether this system's sandbox closes TCP ports: macOS, or Linux 6.7 and later (Landlock ABI 4). */
+  private static boolean portRules() {
+    if (!System.getProperty("os.name").startsWith("Linux")) {
+      return true;
+    }
+    java.util.regex.Matcher v = java.util.regex.Pattern.compile("^(\\d+)\\.(\\d+)")
+        .matcher(System.getProperty("os.version"));
+    return v.find() && (Integer.parseInt(v.group(1)) > 6
+        || Integer.parseInt(v.group(1)) == 6 && Integer.parseInt(v.group(2)) >= 7);
   }
 
   /** A gzipped ustar archive of {@code files} (name to text), as npm packs a package. */

@@ -29,8 +29,8 @@ import tools.jackson.databind.node.ObjectNode;
  * <p>{@code npm ci} runs in the sandbox the server will run in ({@link Launcher#argv}: {@code gw-bridge sandbox-exec}
  * where it works), with the work folder as its {@code HOME}, its npm cache and its temporary folder: an install script
  * writes nothing else, so nothing it plants (a login item, a shell profile, a package in a cache the person's own
- * tools share) runs outside the sandbox later. Where there is no sandbox it runs as the person's user, as the server
- * does, and the review says so.
+ * tools share) runs outside the sandbox later, and its sockets can't reach the core's own ports. Where there is no
+ * sandbox it runs as the person's user, as the server does, and the review says so.
  */
 final class NpmInstaller {
 

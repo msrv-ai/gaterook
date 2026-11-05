@@ -479,7 +479,10 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
     return supervisors.computeIfAbsent(connectionId, id -> new Supervisor(id, this));
   }
 
-  /** The launcher, made once: the login shell and the sandbox probe take a moment, so never at start-up. */
+  /**
+   * The launcher, made once: the login shell and the sandbox probe take a moment, so never at start-up. The core's
+   * ports it closes to the servers are asked of the host for every start.
+   */
   Launcher launcher() {
     Launcher l = launcher;
     if (l == null) {
@@ -488,12 +491,18 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
         if (l == null) {
           Path shim = home().resolve("bin").resolve(osName.toLowerCase(Locale.ROOT).startsWith("windows")
               ? "gw-bridge.cmd" : "gw-bridge");
-          l = new Launcher(coreEnv, osName, loginShellPath, home(), shim);
+          l = new Launcher(coreEnv, osName, loginShellPath, home(), shim, this::corePorts);
           launcher = l;
         }
       }
     }
     return l;
+  }
+
+  /** The core's own listeners as the host knows them now; none before it attached. */
+  private java.util.Set<Integer> corePorts() {
+    Host h = host;
+    return h == null ? java.util.Set.of() : h.corePorts();
   }
 
   private Handshake handshake(Session.Request request, Session s, List<ObjectNode> tools) {
