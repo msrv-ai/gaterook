@@ -45,11 +45,13 @@ public final class AgentProcess {
   private final Process process;
   private final Path logFile;
   private final Path pidFile;
+  private final long logStart;
 
-  private AgentProcess(Process process, Path logFile, Path pidFile) {
+  private AgentProcess(Process process, Path logFile, Path pidFile, long logStart) {
     this.process = process;
     this.logFile = logFile;
     this.pidFile = pidFile;
+    this.logStart = logStart;
   }
 
   /**
@@ -68,6 +70,8 @@ public final class AgentProcess {
       Files.writeString(logFile, "--- " + java.time.Instant.now() + " starting " + Path.of(argv.getFirst())
           .getFileName() + " ---\n", StandardCharsets.UTF_8, java.nio.file.StandardOpenOption.CREATE,
           java.nio.file.StandardOpenOption.APPEND);
+      // Where this run's output begins: what came before is an earlier run's.
+      long logStart = Files.size(logFile);
       ProcessBuilder pb = new ProcessBuilder(argv).directory(workDir.toFile()).redirectErrorStream(true)
           .redirectOutput(ProcessBuilder.Redirect.appendTo(logFile.toFile()))
           .redirectInput(ProcessBuilder.Redirect.PIPE);
@@ -87,7 +91,7 @@ public final class AgentProcess {
         destroyTree(p.toHandle());
         throw e;
       }
-      return new AgentProcess(p, logFile, pidFile);
+      return new AgentProcess(p, logFile, pidFile, logStart);
     } catch (IOException e) {
       throw new TunnelException("Can't start " + Path.of(argv.getFirst()).getFileName() + ": " + e.getMessage());
     }
@@ -201,6 +205,73 @@ public final class AgentProcess {
   /** The last lines of the agent's log (≤ 8 KiB), for an error the person can act on. */
   public List<String> logTail() {
     return tail(logFile);
+  }
+
+  /** What this run of the agent writes to its log, from its first byte on: never a line of an earlier run. */
+  public LogFollower followLog() {
+    return new LogFollower(logFile, logStart);
+  }
+
+  /**
+   * An agent's log as it grows: each {@link #next()} returns the lines completed since the previous one. A line the
+   * agent is still writing waits for its end; one longer than {@link #LINE_LIMIT} is skipped. For one thread.
+   */
+  public static final class LogFollower {
+
+    /** The most of the log one {@link #next()} reads; the rest waits for the next. */
+    static final int READ_LIMIT = 1024 * 1024;
+
+    /** No status line of an agent comes near this. */
+    static final int LINE_LIMIT = 64 * 1024;
+
+    private final Path file;
+    private final java.io.ByteArrayOutputStream partial = new java.io.ByteArrayOutputStream();
+    private long position;
+    private boolean overlong;
+
+    LogFollower(Path file, long position) {
+      this.file = file;
+      this.position = position;
+    }
+
+    /** The lines completed since the previous call, without their line ends; none while the log can't be read. */
+    public List<String> next() {
+      List<String> lines = new ArrayList<>();
+      byte[] chunk;
+      try (RandomAccessFile raf = new RandomAccessFile(file.toFile(), "r")) {
+        long length = raf.length();
+        if (length < position) {
+          // Emptied under the agent, which appends: it writes on from the new end.
+          position = 0;
+          partial.reset();
+          overlong = false;
+        }
+        chunk = new byte[(int) Math.min(length - position, READ_LIMIT)];
+        raf.seek(position);
+        raf.readFully(chunk);
+      } catch (IOException e) {
+        return lines;
+      }
+      position += chunk.length;
+      for (byte b : chunk) {
+        if (b == '\n') {
+          if (!overlong) {
+            String line = partial.toString(StandardCharsets.UTF_8);
+            lines.add(line.endsWith("\r") ? line.substring(0, line.length() - 1) : line);
+          }
+          partial.reset();
+          overlong = false;
+        } else if (!overlong) {
+          if (partial.size() < LINE_LIMIT) {
+            partial.write(b);
+          } else {
+            overlong = true;
+            partial.reset();
+          }
+        }
+      }
+      return lines;
+    }
   }
 
   static List<String> tail(Path file) {

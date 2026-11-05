@@ -23,8 +23,8 @@ import java.util.concurrent.TimeoutException;
 /**
  * A provider's agent (ARCHITECTURE.md §7.3): starts its process towards {@code http://127.0.0.1:<publicPort>} and
  * returns once the public hostname is known and the agent says it is connected to its edge — the URL is published
- * only then. Each agent reads its own state from its local HTTP interface (cloudflared's metrics server, ngrok's agent
- * API) on a loopback port of its own, without any proxy.
+ * only then. cloudflared reports both on its metrics server, a loopback port of its own read without any proxy;
+ * ngrok in its JSON log, since its local API has no authentication and stays off.
  */
 public interface TunnelAgent {
 

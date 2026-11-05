@@ -729,7 +729,7 @@
       <properties><it.tag.cloud>__enabled-cloud-it</it.tag.cloud></properties>
     </profile>
     <profile>
-      <!-- Real network: cloudflared up to a hostname (K3). -->
+      <!-- Real network: cloudflared up to a hostname, ngrok without its local API (K3). -->
       <id>network</id>
       <properties><it.tag.network>__enabled-network</it.tag.network></properties>
     </profile>
