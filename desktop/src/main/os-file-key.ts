@@ -1,5 +1,6 @@
 // Preserve the existing file key when moving from Electron safeStorage to the macOS unlock helper.
-// Windows keeps DPAPI and adds Windows Hello verification. Linux retains its existing Secret Service backend.
+// Windows keeps DPAPI and verifies the person first: with Windows Hello, or with the account password where Hello
+// isn't set up. Linux retains its existing Secret Service backend.
 import { randomBytes, randomUUID } from 'node:crypto';
 import { existsSync, lstatSync, readFileSync } from 'node:fs';
 import { writeFileAtomic } from './atomic-file.ts';
@@ -9,7 +10,7 @@ import { NativeUnlockError, type NativeCall } from './native-unlock.ts';
 
 const FORMAT = 'gaterook-native-key-v1';
 const ACCOUNT = /^[a-zA-Z0-9._-]{1,128}$/;
-export type UnlockAuthentication = 'touch-id' | 'windows-hello' | 'system';
+export type UnlockAuthentication = 'touch-id' | 'mac-password' | 'windows-hello' | 'windows-password' | 'system';
 interface Reference { format: typeof FORMAT; account: string }
 interface Options {
   home: string; platform: NodeJS.Platform; safe: SafeStorageLike; native: NativeCall;
@@ -50,12 +51,16 @@ export class OsFileKey {
   }
 
   details(): { authentication: UnlockAuthentication; keychainService?: string } {
-    if (this.o.platform === 'win32' && this.available) return { authentication: 'windows-hello' };
+    if (this.o.platform === 'win32') {
+      if (!this.initialized) return { authentication: 'system' };
+      return { authentication: this.available ? 'windows-hello' : 'windows-password' };
+    }
     if (this.o.platform === 'darwin') {
       let legacy = false;
       try { legacy = existsSync(oskPath(this.o.home)) && !reference(this.o.home); } catch { /* load reports the error */ }
       if (legacy || !this.available) return { authentication: 'system', keychainService: this.o.keychainService };
-      return { authentication: this.touchId ? 'touch-id' : 'system' };
+      // LocalAuthentication's device-owner policy falls back to the Mac password without Touch ID.
+      return { authentication: this.touchId ? 'touch-id' : 'mac-password' };
     }
     return { authentication: 'system' };
   }
@@ -97,9 +102,7 @@ export class OsFileKey {
       }
       return { fileKey: key, protection: 'os', note: null };
     }
-    if (platform === 'win32' && this.available) {
-      await native({ operation: 'verify', windowHandle: this.o.windowHandle() });
-    }
+    if (platform === 'win32') await this.verifyWindowsUser();
     if (platform !== 'darwin' || !this.available) return planFileKey(home, safe, platform);
 
     if (existsSync(oskPath(home))) {
@@ -120,6 +123,25 @@ export class OsFileKey {
       return { fileKey: null, protection: 'off', note: 'the master key file is encrypted, but its protected file key is missing' };
     }
     return this.create();
+  }
+
+  /**
+   * DPAPI opens the key for any process of the account, so main asks the person first: Windows Hello where it is
+   * set up, else the account password in the system credential dialog. Hello that has stopped being available falls
+   * back to the password, never to no check; a cancelled, denied or failed check leaves DPAPI unopened.
+   */
+  private async verifyWindowsUser(): Promise<void> {
+    const windowHandle = this.o.windowHandle();
+    if (this.available) {
+      try {
+        await this.o.native({ operation: 'verify', windowHandle });
+        return;
+      } catch (error) {
+        if (!(error instanceof NativeUnlockError) || error.code !== 'unavailable') throw error;
+        this.available = false;
+      }
+    }
+    await this.o.native({ operation: 'verify-password', windowHandle });
   }
 
   private async create(): Promise<FileKeyPlan> {

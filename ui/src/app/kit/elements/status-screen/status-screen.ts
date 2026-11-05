@@ -37,7 +37,7 @@ export type StatusScreenView =
       readonly kind: 'unlock-required';
       readonly unlocking: boolean;
       readonly error: string | null;
-      readonly authentication?: 'touch-id' | 'windows-hello' | 'system';
+      readonly authentication?: 'touch-id' | 'mac-password' | 'windows-hello' | 'windows-password' | 'system';
       readonly keychainService?: string;
     }
   | { readonly kind: 'starting'; readonly steps: readonly StatusStep[] }

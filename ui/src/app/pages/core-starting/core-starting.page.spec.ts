@@ -319,8 +319,12 @@ describe('OS-protected encryption key', () => {
   for (const mode of [
     { authentication: 'touch-id', explanation: 'Use Touch ID or your Mac password to unlock your saved credentials.',
       pending: 'Complete Touch ID or enter your Mac password in the system dialog to continue.' },
+    { authentication: 'mac-password', explanation: 'Enter your Mac password to unlock your saved credentials.',
+      pending: 'Enter your Mac password in the system dialog to continue.' },
     { authentication: 'windows-hello', explanation: 'Use Windows Hello to unlock your saved credentials with your face, fingerprint, or PIN.',
       pending: 'Complete Windows Hello in the system dialog to continue.' },
+    { authentication: 'windows-password', explanation: 'Enter your Windows password to unlock your saved credentials.',
+      pending: 'Enter your Windows password in the system dialog to continue.' },
   ] as const) {
     it(`explains ${mode.authentication} and keeps authentication in the OS dialog`, async () => {
       desktop.initialState = { kind: 'unlock-required', unlocking: false, error: null, authentication: mode.authentication };
