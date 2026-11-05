@@ -2,11 +2,13 @@ package ai.msrv.gaterook.core.tunnel.internal;
 
 import com.sun.net.httpserver.HttpServer;
 import java.io.InputStream;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -14,16 +16,16 @@ import java.util.regex.Pattern;
 /**
  * A stand-in for the ngrok agent (ARCHITECTURE.md §10 K3: "ngrok on a fake agent"): {@code ngrok http
  * 127.0.0.1:<port> --config <run>/ngrok.yml --log stdout --log-format json --inspect=false [--url https://<domain>]}.
- * It reads its local API address from the config the core wrote, lists one https tunnel at {@code GET /api/tunnels}
- * once "connected", logs JSON lines like the real agent and forwards from its edge with ngrok's
- * {@code X-Forwarded-For} ({@link FakeEdge}). Like the real agent it inspects by default: without
- * {@code --inspect=false} it keeps every exchange it carries and lists them at {@code GET /api/requests/http}.
+ * It logs JSON lines on stdout like the real agent, {@code "started tunnel"} with its {@code url} once "connected",
+ * and forwards from its edge with ngrok's {@code X-Forwarded-For} ({@link FakeEdge}). It refuses to start with a
+ * local API: the real agent's has no authentication, so the config must say {@code web_addr: false}.
  * Control file as {@link FakeCloudflared}'s; {@code mode} {@code ready}, {@code never-ready}, {@code wrong-domain},
- * {@code exit-at-once}.
+ * {@code exit-at-once}; {@code readyDelayMs} until it is connected (300), {@code splitLineMs} between the two halves of
+ * its "started tunnel" line (0: written at once).
  */
 public final class FakeNgrok {
 
-  private static final Pattern WEB_ADDR = Pattern.compile("web_addr:\\s*127\\.0\\.0\\.1:(\\d+)");
+  private static final Pattern WEB_ADDR = Pattern.compile("(?m)^\\s*web_addr:\\s*(\\S+)\\s*$");
 
   private FakeNgrok() {}
 
@@ -35,22 +37,24 @@ public final class FakeNgrok {
     }
     List<String> argv = List.of(args).subList(1, args.length);
     String mode = control.getProperty("mode", "ready");
-    String config = Files.readString(Path.of(FakeCloudflared.value(argv, "--config")));
-    Matcher m = WEB_ADDR.matcher(config);
-    if (!m.find() || !config.contains("update_check: false") || !argv.get(0).equals("http")) {
-      log("crit", "unexpected config or argv");
+    String configFile = FakeCloudflared.value(argv, "--config");
+    String config = Files.readString(Path.of(configFile));
+    Matcher web = WEB_ADDR.matcher(config);
+    if (!web.find() || !web.group(1).equals("false") || !config.contains("update_check: false")
+        || !argv.get(0).equals("http")) {
+      log("crit", "unexpected config or argv: without web_addr: false the agent serves its API to this computer");
       System.exit(2);
     }
+    log("info", "open config file", "path", configFile, "err", null);
     if (mode.equals("exit-at-once") || System.getenv("NGROK_AUTHTOKEN") == null) {
-      log("eror", "authentication failed: The authtoken you specified is invalid. ERR_NGROK_107");
+      log("eror", "authentication failed: The authtoken you specified is invalid. ERR_NGROK_107", "obj",
+          "tunnels.session");
       System.exit(1);
     }
     String url = FakeCloudflared.value(argv, "--url");
     String host = url != null && !mode.equals("wrong-domain") ? url.substring("https://".length())
         : control.getProperty("hostname", "fake-" + ProcessHandle.current().pid() + ".ngrok-free.app");
-    List<String> inspected = new java.util.concurrent.CopyOnWriteArrayList<>();
-    boolean inspect = !argv.contains("--inspect=false");
-    HttpServer edge = FakeEdge.start("http://" + argv.get(1), host, true, inspect ? inspected::add : null);
+    HttpServer edge = FakeEdge.start("http://" + argv.get(1), host, true);
 
     Path report = control.getProperty("report") == null ? null : Path.of(control.getProperty("report"));
     if (report != null) {
@@ -63,37 +67,51 @@ public final class FakeNgrok {
       FakeCloudflared.write(report, r);
     }
 
-    long readyAt = System.currentTimeMillis() + Long.parseLong(control.getProperty("readyDelayMs", "300"));
-    HttpServer api = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(),
-        Integer.parseInt(m.group(1))), 0);
-    api.createContext("/api/tunnels", ex -> {
-      boolean up = !mode.equals("never-ready") && System.currentTimeMillis() >= readyAt;
-      FakeCloudflared.answer(ex, 200, up ? "{\"tunnels\":[{\"name\":\"command_line\",\"public_url\":\"https://"
-          + host + "\",\"proto\":\"https\",\"config\":{\"addr\":\"http://" + argv.get(1) + "\"}}],\"uri\":"
-          + "\"/api/tunnels\"}" : "{\"tunnels\":[],\"uri\":\"/api/tunnels\"}");
-    });
-    api.createContext("/api/requests/http", ex -> {
-      // The fake runs on the test classes alone: no Jackson, the JSON by hand.
-      StringBuilder list = new StringBuilder("{\"requests\":[");
-      for (int i = 0; i < inspected.size(); i++) {
-        list.append(i == 0 ? "" : ",").append("{\"raw\":\"").append(inspected.get(i).replace("\\", "\\\\")
-            .replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r")).append("\"}");
-      }
-      FakeCloudflared.answer(ex, 200, list.append("]}").toString());
-    });
-    api.start();
-    log("info", "starting web service");
+    Thread.sleep(Long.parseLong(control.getProperty("readyDelayMs", "300")));
     if (mode.equals("never-ready")) {
-      log("eror", "failed to reconnect session: dial tcp: lookup connect.ngrok-agent.com: no such host");
-    } else {
-      log("info", "started tunnel");
+      while (true) {
+        log("eror", "failed to reconnect session", "obj", "tunnels.session", "err",
+            "dial tcp: lookup connect.ngrok-agent.com: no such host");
+        Thread.sleep(1000);
+      }
     }
+    log("info", "client session established", "obj", "tunnels.session");
+    String started = line("info", "started tunnel", "obj", "tunnels", "name", "command_line", "addr", "http://"
+        + argv.get(1), "url", "https://" + host);
+    long split = Long.parseLong(control.getProperty("splitLineMs", "0"));
+    if (split > 0) {
+      // The way a line can reach the log: in two writes, the end of it later.
+      System.out.print(started.substring(0, started.length() / 2));
+      System.out.flush();
+      Thread.sleep(split);
+      started = started.substring(started.length() / 2);
+    }
+    System.out.println(started);
+    System.out.flush();
     Thread.currentThread().join();
   }
 
-  private static void log(String level, String msg) {
-    System.out.println("{\"lvl\":\"" + level + "\",\"msg\":\"" + msg + "\",\"t\":\"" + java.time.Instant.now()
-        + "\"}");
+  private static void log(String level, String msg, String... fields) {
+    System.out.println(line(level, msg, fields));
     System.out.flush();
+  }
+
+  /**
+   * A line of ngrok's JSON log as 3.39.11 writes it: {@code t} (local time to the second, offset without a colon),
+   * {@code lvl}, {@code msg}, then the fields in the order given; a {@code null} value is JSON's.
+   */
+  private static String line(String level, String msg, String... fields) {
+    Map<String, String> entry = new LinkedHashMap<>();
+    entry.put("t", OffsetDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ")));
+    entry.put("lvl", level);
+    entry.put("msg", msg);
+    for (int i = 0; i + 1 < fields.length; i += 2) {
+      entry.put(fields[i], fields[i + 1]);
+    }
+    // The fake runs on the test classes alone: no Jackson, the JSON by hand.
+    StringBuilder out = new StringBuilder("{");
+    entry.forEach((k, v) -> out.append(out.length() == 1 ? "" : ",").append('"').append(k).append("\":")
+        .append(v == null ? "null" : '"' + v.replace("\\", "\\\\").replace("\"", "\\\"") + '"'));
+    return out.append('}').toString();
   }
 }
