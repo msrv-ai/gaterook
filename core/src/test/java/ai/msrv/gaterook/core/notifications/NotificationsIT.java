@@ -615,7 +615,7 @@ class NotificationsIT {
 
   @Test
   @Order(16)
-  void theConnectorsImpactFollowsTheActionAndItsWarningsKeepApproveInTheApp() {
+  void theConnectorsImpactAndWarningsFollowTheAction() {
     String id = w.dev.execute("dev-db", "UPDATE orders SET status = 'paid' WHERE id = 48213;");
     // The fake's estimate, which the app shows under Impact: the message has it too, after the target.
     FakeSlack.Call post = w.awaitSlackPost(id);
@@ -635,12 +635,16 @@ class NotificationsIT {
     assertThat(hidden.details()).filteredOn(d -> d.label().equals("Estimated rows")).singleElement()
         .satisfies(d -> assertThat(d.value()).isEqualTo("1‹U+200B› (from EXPLAIN)"));
     assertThat(verdict(hidden).reason()).isEqualTo("Contains 1 hidden character. Review in the app.");
-    // No channel shows the connector's warnings: an action with one is approved in the app.
+    // The connector's warnings go with the action too, inspected like it: the person reads them where they decide.
     ApprovalNotice warned = notices.of(withAction(a, a.action().withWarnings(List.of(
         "MySQL commits a schema change at once: it can't be rolled back."))));
-    assertThat(verdict(warned).approve()).isFalse();
-    assertThat(verdict(warned).deny()).isTrue();
-    assertThat(verdict(warned).reason()).isEqualTo("The action has 1 warning: review it in the app.");
+    assertThat(warned.details()).filteredOn(d -> d.label().equals("Warning")).singleElement()
+        .satisfies(d -> assertThat(d.value()).isEqualTo("MySQL commits a schema change at once: it can't be rolled "
+            + "back."));
+    assertThat(verdict(warned).approve()).isTrue();
+    ApprovalNotice hiddenWarning = notices.of(withAction(a, a.action().withWarnings(List.of(
+        "Commits at" + (char) 0x200B + " once."))));
+    assertThat(verdict(hiddenWarning).reason()).isEqualTo("Contains 1 hidden character. Review in the app.");
     approvals.decide(id, ApprovalService.Decision.DENY, "app", null, null);
   }
 

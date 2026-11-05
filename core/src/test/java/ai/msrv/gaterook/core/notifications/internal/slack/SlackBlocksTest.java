@@ -100,12 +100,13 @@ class SlackBlocksTest {
   }
 
   @Test
-  void anActionTheConnectorWarnsAboutIsShownWithoutApprove() {
-    ApprovalNotice n = NoticeFixtures.withWarnings(NoticeFixtures.dev(), 1);
+  void theConnectorsWarningsAreShownWithTheAction() {
+    ApprovalNotice n = NoticeFixtures.withDetails(NoticeFixtures.dev(), java.util.List.of(NoticeFixtures.detail(
+        "Warning", "MySQL commits a schema change at once: it can't be rolled back.")));
     ObjectNode msg = SlackBlocks.request(n, verdict(n, true), "ins_test0000001", "1", UTC, null);
     assertThat(msg.at("/blocks/2/elements/0/elements/0/text").asString()).isEqualTo(NoticeFixtures.SQL);
-    assertThat(actionIds(msg)).containsExactly("gw_deny", "gw_open");
-    assertThat(context(msg)).endsWith("The action has 1 warning: review it in the app.");
+    assertThat(msg.toString()).contains("*Warning*").contains("it can't be rolled back.");
+    assertThat(actionIds(msg)).containsExactly("gw_approve", "gw_deny", "gw_open");
   }
 
   @Test

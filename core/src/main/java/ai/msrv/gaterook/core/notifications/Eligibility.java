@@ -12,11 +12,10 @@ import java.util.Objects;
  *   <li>the tool isn't a plugin's (its signature can't be vouched for here);</li>
  *   <li>the whole action fits the message (Slack ≤ {@value #SLACK_ACTION_LIMIT} characters, Telegram's whole message
  *       ≤ {@value #TELEGRAM_MESSAGE_LIMIT}) and nothing of it was left out;</li>
- *   <li>the connector gives no warning about it: the app shows its warnings, no channel does;</li>
  *   <li>the masker found nothing that looks like a secret in it;</li>
  *   <li>no hidden characters and no letters that pass for others ({@code ActionInspector}), and nothing beyond
  *       printable ASCII — in the action and in the details shown with it (its target, a template's values, its
- *       impact);</li>
+ *       impact, the connector's warnings);</li>
  *   <li>no flood: more than {@value #FLOOD_PER_MINUTE} new requests a minute turn the channel into one digest message;</li>
  *   <li>the request still waits for a person.</li>
  * </ol>
@@ -109,10 +108,6 @@ public final class Eligibility {
     }
     if (a.partial()) {
       return "Part of the action is shown only in GateRook: approve in the app.";
-    }
-    if (n.warnings() > 0) {
-      return n.warnings() == 1 ? "The action has 1 warning: review it in the app."
-          : "The action has " + n.warnings() + " warnings: review them in the app.";
     }
     int hidden = a.hiddenChars() + n.detailsHiddenChars();
     if (hidden > 0) {

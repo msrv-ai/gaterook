@@ -79,8 +79,9 @@ public class Notices {
     String summary = external ? a.tool() + (a.connectionName() == null ? "" : " on " + a.connectionName())
         : p == null ? null : p.summary();
     // What the app shows with the text: the target (a multi-database connection's database), the connector's fields
-    // (a template's parameter values) and its impact (the estimated rows, the transaction). A plugin's or MCP server's
-    // fields are its own words: not carried.
+    // (a template's parameter values), its impact (the estimated rows, the transaction) and its warnings. A plugin's
+    // or MCP server's fields are its own words: not carried; the warnings are the connector's, also of an MCP server's
+    // tool, and a person approving from a message reads them there as in the app.
     List<ApprovalNotice.Detail> details = new ArrayList<>();
     if (!external && p != null) {
       if (p.target() != null && !p.target().isBlank()) {
@@ -89,13 +90,15 @@ public class Notices {
       details(details, p.fields(), mask);
       details(details, p.impact(), mask);
     }
-    // The connector's warnings, which only the app shows: a channel counts them and leaves Approve to the app.
-    int warnings = p == null || p.warnings() == null ? 0
-        : (int) p.warnings().stream().filter(w -> w != null && !w.isBlank()).count();
+    for (String warning : p == null || p.warnings() == null ? List.<String>of() : p.warnings()) {
+      if (warning != null && !warning.isBlank()) {
+        details.add(detail("Warning", warning, mask));
+      }
+    }
     return new ApprovalNotice(a.id(), mask(a.tool(), a.env()), toolKey, mask(a.connectionName(), a.env()), a.env(),
         mask(a.endpointSlug(), a.env()), client, mask(a.clientLabel(), a.env()), action,
         summary == null ? null : visible(mask(cut(summary, 120), a.env())), a.ruleId(), a.commentPolicy(),
-        a.createdAt(), a.expiresAt(), a.digest(), plugin, details, warnings);
+        a.createdAt(), a.expiresAt(), a.digest(), plugin, details);
   }
 
   private void details(List<ApprovalNotice.Detail> out, List<ActionPreview.Field> fields, MaskPolicy mask) {

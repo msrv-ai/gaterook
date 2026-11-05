@@ -16,20 +16,17 @@ import java.util.Objects;
  * @param action       the exact action as the channel may show it
  * @param summary      one line about the action (≤ 120 characters), masked
  * @param details      what runs besides the action's text, from the connector's preview: its target (the database of
- *                     a multi-database connection), its fields (a template's parameter values) and its impact (the
- *                     estimated rows, the transaction), masked and with their invisible characters as escapes, like
- *                     the action
+ *                     a multi-database connection), its fields (a template's parameter values), its impact (the
+ *                     estimated rows, the transaction) and its warnings, masked and with their invisible characters
+ *                     as escapes, like the action
  * @param commentPolicy {@code optional}, {@code recommended} or {@code required}: what Approve needs
  * @param digest       the request's digest; a button carries its first {@link #DIGEST_PREFIX} characters
  * @param plugin       the tool belongs to a plugin: the gateway can't vouch for its signature here, so no channel offers
  *                     Approve for it
- * @param warnings     how many warnings the connector's preview gives about the action (a statement it couldn't
- *                     analyze, a change that can't be rolled back): the app shows them and no channel does, so no
- *                     channel offers Approve for an action with any
  */
 public record ApprovalNotice(String id, String tool, String toolKey, String connection, Env env, String endpoint,
     String client, String clientLabel, Action action, String summary, String ruleId, String commentPolicy,
-    Instant createdAt, Instant expiresAt, String digest, boolean plugin, List<Detail> details, int warnings) {
+    Instant createdAt, Instant expiresAt, String digest, boolean plugin, List<Detail> details) {
 
   /** How much of the digest a button carries: what the person saw, checked again on the click. */
   public static final int DIGEST_PREFIX = 12;
@@ -48,12 +45,12 @@ public record ApprovalNotice(String id, String tool, String toolKey, String conn
     }
   }
 
-  /** A notice without details and without warnings. */
+  /** A notice without details. */
   public ApprovalNotice(String id, String tool, String toolKey, String connection, Env env, String endpoint,
       String client, String clientLabel, Action action, String summary, String ruleId, String commentPolicy,
       Instant createdAt, Instant expiresAt, String digest, boolean plugin) {
     this(id, tool, toolKey, connection, env, endpoint, client, clientLabel, action, summary, ruleId, commentPolicy,
-        createdAt, expiresAt, digest, plugin, List.of(), 0);
+        createdAt, expiresAt, digest, plugin, List.of());
   }
 
   /**
