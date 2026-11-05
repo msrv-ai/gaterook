@@ -85,7 +85,9 @@ class SandboxTest {
 
     Path node = home.resolve(".nvm/versions/node/v24.1.0/bin/node");
     assertThat(Sandbox.readable(Sandbox.parse(List.of("--", "node")), node, closed, err))
-        .contains(node.getParent().toString(), "/usr", "/etc").doesNotContain(home.toString());
+        .contains(node.getParent().toString(), "/usr", "/etc").doesNotContain(home.toString())
+        // Where /etc/resolv.conf links (Landlock judges a link's target): without it no name resolves.
+        .contains("/run/systemd/resolve", "/run/resolvconf", "/run/NetworkManager/resolv.conf");
     // A command in the home itself: the command, not the home.
     Path server = home.resolve("my-server");
     assertThat(Sandbox.readable(Sandbox.parse(List.of("--", "x")), server, closed, err)).contains(server.toString())

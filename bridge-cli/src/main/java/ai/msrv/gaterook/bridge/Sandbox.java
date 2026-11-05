@@ -28,12 +28,13 @@ import java.util.Map;
  * GateRook's data included, can't be opened. The network isn't restricted: MCP servers need it.
  *
  * <p>Defaults (unless {@code --no-defaults}): the system read-only ({@code /usr}, {@code /lib*}, {@code /bin},
- * {@code /sbin}, {@code /etc}, {@code /opt}, {@code /proc}, {@code /sys}, {@code /nix}), {@code /dev} for reading and
- * writing devices, and the command's own folder read-only (only the command itself where that folder holds more: a
- * command in the home). No path is opened that is or holds the person's home, GateRook's home or a {@link #DENIED}
- * path, nor a read-only path in one of them ({@link Closed}): such a {@code --ro} path is left out and said on
- * stderr, such a {@code --rw} path refused (exit 3) on every system. A writable path may lie in GateRook's home, where
- * the work folders are.
+ * {@code /sbin}, {@code /etc}, {@code /opt}, {@code /proc}, {@code /sys}, {@code /nix}, and the resolver's
+ * configuration in {@code /run}, where {@code /etc/resolv.conf} often links: without it no name resolves, and
+ * {@code npm ci} can't reach its registry), {@code /dev} for reading and writing devices, and the command's own folder
+ * read-only (only the command itself where that folder holds more: a command in the home). No path is opened that is
+ * or holds the person's home, GateRook's home or a {@link #DENIED} path, nor a read-only path in one of them
+ * ({@link Closed}): such a {@code --ro} path is left out and said on stderr, such a {@code --rw} path refused (exit 3)
+ * on every system. A writable path may lie in GateRook's home, where the work folders are.
  *
  * <p>On macOS the command runs under {@code sandbox-exec} with a profile that denies reading GateRook's home, the
  * usual credential folders and the configs of the connected clients, and denies writing anywhere but the {@code --rw}
@@ -81,8 +82,13 @@ final class Sandbox {
   private static final int O_PATH = 0x200000;
   private static final int O_CLOEXEC = 0x80000;
 
+  /**
+   * What any program reads. Landlock judges the file a link leads to, so {@code /etc/resolv.conf} needs its target as
+   * well: systemd-resolved's, resolvconf's or NetworkManager's in {@code /run} (as the plugin host's sandbox has it).
+   */
   static final List<String> SYSTEM_READ = List.of("/usr", "/lib", "/lib64", "/lib32", "/bin", "/sbin", "/etc", "/opt",
-      "/proc", "/sys", "/nix", "/run/current-system");
+      "/proc", "/sys", "/nix", "/run/current-system", "/run/systemd/resolve", "/run/resolvconf",
+      "/run/NetworkManager/resolv.conf");
   static final List<String> SYSTEM_WRITE = List.of("/dev");
 
   /** The parsed command line. */
