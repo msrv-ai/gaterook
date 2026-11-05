@@ -26,8 +26,8 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * The connector of one {@code mcp-server} connection: the tools of the person's reviewed snapshot, published under the
  * server's prefix, each call forwarded as {@code tools/call} to the server's process (or HTTP session) with the
- * upstream name (report 11 §3.1). The manifest's version is the server's own {@code serverInfo.version}: a Read only
- * confirmation binds to it, so a new server version asks again.
+ * upstream name (report 11 §3.1). The manifest's version is the server's own {@code serverInfo.version}, retained
+ * as the provenance of its tool definitions.
  *
  * <p>Before every call the definition the running server lists for the tool must hash as the snapshot does: a server
  * that changed a tool after it was reviewed (a rug pull) is refused until the core took the new list in, and an

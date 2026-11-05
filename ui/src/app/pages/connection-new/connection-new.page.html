@@ -599,7 +599,7 @@
               </table>
             </div>
           } @else {
-            <p class="gw-text-small gw-fg-muted">The tools come from the server once it runs. Each one starts in Approval; you change modes on the endpoint.</p>
+            <p class="gw-text-small gw-fg-muted">The tools come from the server once it runs. Declared reads start as Read only; other tools start as Approval. You can change all tool modes on the endpoint.</p>
           }
         </div>
       </section>
@@ -640,7 +640,7 @@
   <section class="gw-section" id="used-by" aria-labelledby="used-by-title">
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="used-by-title">Used by</h2>
-      <p class="gw-section__description">The endpoints that expose <span class="gw-mono">{{ name() }}</span> and the mode of each of its tools there. Choose a mode next to an endpoint to change it immediately. Changes apply from the next call.</p>
+      <p class="gw-section__description">The endpoints that expose <span class="gw-mono">{{ name() }}</span> and the mode of each of its tools there. Choose a mode for one tool, or use Set all to… to change all tools on the selected endpoints. Changes apply from the next call.</p>
     </header>
     @if (usedBy().length) {
       <gw-connection-tool-modes [connection]="name()!" [connectionVersion]="detail()!.version" [rows]="usedBy()" (changed)="toolModesChanged($event)" />

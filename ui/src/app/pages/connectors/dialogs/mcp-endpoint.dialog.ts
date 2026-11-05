@@ -30,7 +30,7 @@ export interface EndpointOutcome {
 }
 
 /**
- * The toast that ends adding an MCP server: where its tools went (each starts as Approval there), or that they are Off
+ * The toast that ends adding an MCP server: where its tools went (declared reads start as Read only there), or that they are Off
  * until it joins an endpoint.
  */
 export function connectedToast(
@@ -44,7 +44,7 @@ export function connectedToast(
     return {
       tone: 'warning',
       title: `MCP server ${s.name} ${verb}, not added to ${joinAnd(outcome.notAdded.map((n) => n.slug))}`,
-      body: [outcome.added.length ? `${tools} ${are} on ${joinAnd(outcome.added)} as Approval.` : null, ...outcome.notAdded.map((n) => n.why)]
+      body: [outcome.added.length ? `${tools} ${are} on ${joinAnd(outcome.added)} with their default modes.` : null, ...outcome.notAdded.map((n) => n.why)]
         .filter(Boolean)
         .join(' '),
     };
@@ -53,13 +53,13 @@ export function connectedToast(
     return {
       tone: 'success',
       title: `MCP server ${s.name} ${verb}`,
-      body: `${tools} ${are} on ${joinAnd(outcome.added)}, each as Approval. Change their modes on the endpoint.`,
+      body: `${tools} ${are} on ${joinAnd(outcome.added)}. Declared reads start as Read only; other tools start as Approval. Change their modes on the endpoint.`,
     };
   }
   return {
     tone: 'success',
     title: `MCP server ${s.name} ${verb}`,
-    body: `${tools} ${are} Off until you add them to an endpoint. There each starts as Approval.`,
+    body: `${tools} ${are} Off until you add them to an endpoint. Declared reads start as Read only; other tools start as Approval.`,
   };
 }
 
@@ -68,7 +68,7 @@ let nextId = 0;
 /**
  * `<dialog gwMcpEndpointDialog>`: the last step of adding an MCP server, as the connection wizard's Add to endpoint —
  * the endpoints its tools may join (the ones that can't take it with their reason, as in the wizard), the usual one
- * chosen, and each tool starting as Approval there. Add to endpoint asks the core again per endpoint
+ * chosen, and each tool starting in its default mode there. Add to endpoint asks the core again per endpoint
  * (`POST /api/endpoints/{slug}/connections/preview`) before `POST /api/endpoints/{slug}/connections/{name}`. Not now
  * leaves its tools Off everywhere. It opens once the endpoints loaded; initial focus is the first endpoint it may join.
  */
@@ -89,7 +89,7 @@ let nextId = 0;
         <header class="gw-dialog__header">
           <span class="gw-icon-tile"><svg lucideIcon="waypoints" class="gw-icon"></svg></span>
           <h2 class="gw-dialog__title" [id]="uid + '-t'">Add <span class="gw-mono">{{ s.name }}</span> to an endpoint</h2>
-          <p class="gw-dialog__description" [id]="uid + '-d'">AI apps reach its {{ s.tools === null ? 'tools' : plural(s.tools, 'tool') }} through an endpoint. There each starts as Approval; you change modes on the endpoint.</p>
+          <p class="gw-dialog__description" [id]="uid + '-d'">AI apps reach its {{ s.tools === null ? 'tools' : plural(s.tools, 'tool') }} through an endpoint. Declared reads start as Read only; other tools start as Approval. You can change all tool modes on the endpoint.</p>
           <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
         </header>
         <div class="gw-dialog__body">

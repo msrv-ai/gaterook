@@ -119,8 +119,11 @@
 //             because kit.js reverts any change to an aria-disabled radio.
 //           read-only subset: Read only stays available, __mode-note says what it
 //             allows ("Read only runs runbooks marked read only")
-//           external tool (MCP server, plugin): starts in Approval when added to an
-//             endpoint, whatever it declares. Declared read only: the Read only
+//           MCP server tool: declared reads start in Read only and are eligible
+//             for bulk mode changes; other tools start in Approval when added.
+//             Endpoint restrictions still apply, and saved modes are preserved.
+//           plugin tool: starts in Approval when added to an endpoint.
+//             Declared read only: the Read only
 //             option stays enabled, aria-describedby → __mode-note "Read only
 //             needs your confirmation for this tool" (info icon); picking it opens
 //             a per-tool gw-dialog--warning instead of taking the check (what the
@@ -130,7 +133,7 @@
 //             stays checked until Allow, which confirms and picks Read only. Not
 //             declared read only, or declared destructive: Read only natively
 //             disabled, like a built-in destructive tool ("Not declared read only:
-//             approval or off").
+//             approval, bypass or off").
 //           locked by the endpoint: <fieldset disabled> + __mode-note naming the
 //             read-only endpoint
 //           limits: toggle aria-expanded ↔ __limits [hidden]; overridden = filled input

@@ -46,7 +46,13 @@ public class ToolPairs {
 
     /** Tools whose Read only needs the person's confirmation per tool, bound to its definition and version. */
     public boolean needsReadOnlyConfirmation() {
-      return kind != ConnectorManifest.Kind.BUILT_IN;
+      return kind == ConnectorManifest.Kind.PLUGIN;
+    }
+
+    /** MCP tools explicitly declared read only start in Read only without a separate per-tool confirmation. */
+    public boolean automaticReadOnly() {
+      return kind == ConnectorManifest.Kind.MCP_SERVER && definition.readOnlyModeAllowed()
+          && Boolean.TRUE.equals(definition.annotations().readOnlyHint());
     }
   }
 
@@ -199,12 +205,14 @@ public class ToolPairs {
 
   /**
    * The mode a pair starts with (ARCHITECTURE.md §3 "Initial mode"): the manifest's default for the endpoint's
-   * environment; plugin and MCP server tools always Approval; on a read-only endpoint, no Approval and nothing that
-   * changes data.
+   * environment; plugins start in Approval, MCP tools use their read-only declaration; on a read-only endpoint,
+   * no Approval and nothing that changes data.
    */
   public static Mode initial(Offered t, Env endpointEnv, boolean readOnlyEndpoint) {
     Mode mode = endpointEnv == Env.PROD ? t.definition().prodDefaultMode() : t.definition().defaultMode();
-    if (t.kind() != ConnectorManifest.Kind.BUILT_IN || mode == Mode.BYPASS) {
+    if (t.kind() == ConnectorManifest.Kind.MCP_SERVER) {
+      mode = t.automaticReadOnly() ? Mode.READ_ONLY : Mode.APPROVAL;
+    } else if (t.kind() == ConnectorManifest.Kind.PLUGIN || mode == Mode.BYPASS) {
       mode = Mode.APPROVAL;
     }
     return readOnlyEndpoint ? clampReadOnly(t.definition(), mode) : mode;
@@ -224,7 +232,7 @@ public class ToolPairs {
   /**
    * Why {@code mode} can't be set on a pair, or empty when it can.
    *
-   * @param roConfirmed whether a plugin or MCP server tool has a current Read only confirmation
+   * @param roConfirmed whether a plugin tool has a current Read only confirmation
    */
   public static Optional<String> refusal(Offered t, Mode mode, boolean readOnlyEndpoint, boolean roConfirmed,
       String slug) {

@@ -298,8 +298,8 @@ export interface ToolPreview {
 
 /**
  * The modes a new connection's tools start in on an endpoint, by the core's rules (`endpoints.ToolPairs.initial`):
- * the manifest's default for the endpoint's env (prod has its own), Approval for every tool of a plugin or an MCP
- * server, and on a read-only endpoint nothing that changes data and nothing in Approval. The core decides again when
+ * the manifest's default for the endpoint's env (prod has its own), Approval for plugin tools, and Read only for
+ * declared MCP reads. On a read-only endpoint nothing changes data or runs in Approval. The core decides again when
  * the connection is added; this is what the person agrees to.
  */
 export function toolPreview(
@@ -308,10 +308,10 @@ export function toolPreview(
   dynamicTools: boolean,
   choice: EndpointChoice,
 ): ToolPreview {
-  const builtIn = kind === 'built-in';
   const rows = tools.map((t): PreviewRow => {
     let mode = toolMode(choice.env === 'prod' ? t.prodDefaultMode : t.defaultMode);
-    if (!builtIn || mode === 'BYPASS') mode = 'APPROVAL';
+    if ((kind !== 'built-in' && kind !== 'mcp-server') || mode === 'BYPASS') mode = 'APPROVAL';
+    if (kind === 'mcp-server') mode = readOnlyAllowed(t) && t.annotations.readOnlyHint && !t.annotations.destructiveHint ? 'READ_ONLY' : 'APPROVAL';
     if (choice.readOnly) {
       // ToolPairs.clampReadOnly: never Approval, never a tool that only changes data, Read only only where allowed.
       if ((t.nature ?? '').toLowerCase() === 'mutation' || mode === 'APPROVAL') mode = 'OFF';

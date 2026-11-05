@@ -7,6 +7,7 @@ import { ToolMode } from '../../core/api/types';
 import { TimeService } from '../../core/time/time.service';
 import { GwAriaDisabled } from '../../kit/aria-disabled';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
+import { GwToggle } from '../../kit/disclosure';
 import { MODES } from '../../kit/elements/shared/dictionaries';
 import { modeNote } from '../../kit/elements/tool-policy-list/tool-policy-view';
 import { GwIcon } from '../../kit/icons';
@@ -23,10 +24,19 @@ interface EndpointModes {
   readonly error: string | null;
 }
 
+type BulkMode = ToolMode | 'DEFAULT';
+
+interface BulkResult {
+  readonly endpoint: string;
+  readonly text: string;
+  readonly failed: boolean;
+  readonly skipped: readonly { readonly name: string; readonly reason: string }[];
+}
+
 /** The connection editor's tool table, composed from the kit's table, mode chips and menus. */
 @Component({
   selector: 'gw-connection-tool-modes',
-  imports: [RouterLink, GwIcon, GwMenu, GwMenuTrigger, GwAriaDisabled, GwDialog, GwDialogClose],
+  imports: [RouterLink, GwIcon, GwMenu, GwMenuTrigger, GwAriaDisabled, GwDialog, GwDialogClose, GwToggle],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './connection-tool-modes.html',
 })
@@ -47,6 +57,24 @@ export class ConnectionToolModes {
   protected readonly confirming = signal<{ endpoint: string; tool: ToolRow } | null>(null);
   protected readonly acknowledged = signal(false);
   private readonly confirmDialog = viewChild<GwDialog>('confirmDialog');
+  protected readonly bulkScope = signal('');
+  protected readonly bulkResults = signal<readonly BulkResult[]>([]);
+  protected readonly endpointSlugs = computed<readonly string[]>(() => JSON.parse(this.slugs()));
+  protected readonly bulkTargets = computed(() => this.endpointSlugs().filter((slug) => !this.bulkScope() || slug === this.bulkScope()));
+  protected readonly bulkBusy = computed(() => this.bulkTargets().some((slug) => this.endpoints()[slug]?.saving));
+  protected readonly bulkUnavailable = computed(() => {
+    for (const slug of this.bulkTargets()) {
+      const state = this.endpoints()[slug];
+      if (!state || state.loading) return `Loading modes on ${slug}…`;
+      if (state.saving) return `Saving modes on ${slug}…`;
+      if (state.error) return `Reload modes on ${slug} before changing all tools.`;
+      if (state.blocked) return `${slug}: ${state.blocked}`;
+      if (!state.tools.length) return `No tools are available on ${slug}.`;
+    }
+    return this.bulkTargets().length ? null : 'No endpoints are available.';
+  });
+  protected readonly bulkReadOnly = computed(() => this.bulkTargets().some((slug) => this.endpoints()[slug]?.readOnly));
+  protected readonly bulkCount = computed(() => this.bulkTargets().reduce((count, slug) => count + (this.endpoints()[slug]?.tools.length ?? 0), 0));
 
   protected readonly tools = computed(() => {
     const groups = new Map<string, ConnectionUsedBy[]>();
@@ -72,6 +100,8 @@ export class ConnectionToolModes {
       const generation = ++this.generation;
       untracked(() => {
         this.confirmDialog()?.close();
+        this.bulkScope.set('');
+        this.bulkResults.set([]);
         this.endpoints.set({});
         for (const slug of slugs) void this.load(slug, connection, generation);
       });
@@ -107,6 +137,46 @@ export class ConnectionToolModes {
     const tools = groups.filter((group) => group.connection === connection).flatMap((group) => group.tools);
     this.update(endpoint, { tools });
     this.changed.emit({ endpoint, tools });
+  }
+
+  protected async pickBulk(pick: MenuPick): Promise<void> {
+    const mode: BulkMode | undefined = pick.value === 'DEFAULT' ? 'DEFAULT' : this.modes.find((value) => value === pick.value);
+    if (!mode || this.bulkUnavailable() || (mode === 'BYPASS' && this.bulkReadOnly())) return;
+    const generation = this.generation;
+    const connection = this.connection();
+    const targets = [...this.bulkTargets()];
+    const label = mode === 'DEFAULT' ? 'Default modes' : MODES[mode].text;
+    this.bulkResults.set([]);
+    for (const endpoint of targets) this.update(endpoint, { saving: true });
+    try {
+      for (const endpoint of targets) {
+        if (generation !== this.generation) return;
+        try {
+          const result = await this.api.bulk(endpoint, { group: connection, mode });
+          if (generation !== this.generation) return;
+          const skipped = result.skipped.map((item) => ({ name: this.endpoints()[endpoint]?.tools.find((tool) => tool.toolKey === item.toolKey)?.name ?? item.toolKey, reason: item.reason }));
+          const text = `${result.changed.length} ${result.changed.length === 1 ? 'tool' : 'tools'} updated. ${skipped.length ? `${skipped.length} kept their saved mode.` : 'Applies from the next call.'}`;
+          this.bulkResults.update((results) => [...results, { endpoint, text, skipped, failed: false }]);
+          await this.load(endpoint, connection, generation);
+        } catch (error) {
+          if (generation !== this.generation) return;
+          this.bulkResults.update((results) => [...results, {
+            endpoint, failed: true, skipped: [],
+            text: isApiError(error) ? error.detail : "The core didn't answer. Review the current modes and try again.",
+          }]);
+          await this.load(endpoint, connection, generation);
+        }
+      }
+      if (generation !== this.generation) return;
+      const failed = this.bulkResults().filter((result) => result.failed).map((result) => result.endpoint);
+      this.toasts.show({
+        tone: failed.length ? 'danger' : 'success',
+        title: failed.length ? `Couldn't update all modes on ${failed.join(', ')}` : `${label} applied to ${connection}`,
+        body: failed.length ? 'Review the results above the tool list.' : 'Changes apply from the next call. Tools that cannot use this mode keep their saved mode.',
+      });
+    } finally {
+      if (generation === this.generation) for (const endpoint of targets) this.update(endpoint, { saving: false });
+    }
   }
 
   protected pick(endpoint: string, tool: ToolRow, pick: MenuPick, opener: HTMLElement): void {

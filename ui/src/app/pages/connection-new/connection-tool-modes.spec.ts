@@ -17,15 +17,16 @@ const tool = (patch: Partial<ToolRow> = {}): ToolRow => ({
 
 describe('connection tool modes', () => {
   afterEach(() => { document.body.innerHTML = ''; });
-  async function render(options: { tool?: Partial<ToolRow>; readOnly?: boolean; loadError?: boolean } = {}) {
-    const stored: Record<string, ToolRow[]> = { dev: [tool(options.tool)], stage: [tool({ ...options.tool, version: 8 })] };
+  async function render(options: { tool?: Partial<ToolRow>; tools?: readonly Partial<ToolRow>[]; readOnly?: boolean; readOnlyEndpoints?: readonly string[]; loadError?: boolean; blocked?: string } = {}) {
+    const initial = options.tools ?? [options.tool ?? {}];
+    const stored: Record<string, ToolRow[]> = { dev: initial.map((row) => tool(row)), stage: initial.map((row) => tool({ ...row, version: 8 })) };
     let loadError = options.loadError;
     const groups = (slug: string) => [
       { group: 'dev-db', connection: 'dev-db', env: 'dev' as const, tools: structuredClone(stored[slug]) },
       { group: 'other-db', connection: 'other-db', env: 'dev' as const, tools: [tool({ mode: 'OFF' })] },
     ];
     const api = {
-      get: vi.fn(async () => ({ endpoint: { access: options.readOnly ? 'read-only' : 'standard', blockedReason: null } })),
+      get: vi.fn(async (slug: string) => ({ endpoint: { access: options.readOnly || options.readOnlyEndpoints?.includes(slug) ? 'read-only' : 'standard', blockedReason: options.blocked ?? null } })),
       tools: vi.fn(async (slug: string) => {
         if (loadError) throw new Error('offline');
         return groups(slug);
@@ -39,10 +40,25 @@ describe('connection tool modes', () => {
           ? { ...row, mode: request.mode, storedMode: request.mode, version: row.version + 1, bypassUntil: null } : row);
         return groups(slug);
       }),
+      bulk: vi.fn(async (slug: string, request: { group: string; mode: ToolRow['mode'] | 'DEFAULT' }) => {
+        const changed: string[] = [];
+        const skipped: { toolKey: string; reason: string }[] = [];
+        if (request.group !== 'dev-db') throw new Error('Wrong connection');
+        stored[slug] = stored[slug].map((row) => {
+          if (request.mode === 'READ_ONLY' && !row.readOnlyAllowed) {
+            skipped.push({ toolKey: row.toolKey, reason: 'Not declared read only' });
+            return row;
+          }
+          const mode = request.mode === 'DEFAULT' ? row.readOnlyAllowed ? 'READ_ONLY' : 'APPROVAL' : request.mode;
+          changed.push(row.toolKey);
+          return { ...row, mode, storedMode: mode, version: row.version + 1, bypassUntil: null };
+        });
+        return { changed, skipped };
+      }),
       confirmReadOnly: vi.fn(async (slug: string, request: { toolKey: string; connection: string; definitionHash: string }) => {
         // Confirmation records trust in the declaration; the saved mode stays unchanged until setMode.
         stored[slug] = stored[slug].map((row) => request.connection === 'dev-db' && row.toolKey === request.toolKey
-          ? { ...row, readOnlyConfirmed: true, version: row.version + 1 } : row);
+          ? { ...row, readOnlyConfirmed: true, readOnlyAllowed: true, version: row.version + 1 } : row);
         return groups(slug);
       }),
     };
@@ -59,7 +75,7 @@ describe('connection tool modes', () => {
       await fixture.whenStable();
     };
     fixture.componentRef.setInput('connection', 'dev-db');
-    fixture.componentRef.setInput('rows', ['dev', 'stage'].map((endpoint): ConnectionUsedBy => ({ endpoint, tool: 'sql_query', mode: 'APPROVAL' })));
+    fixture.componentRef.setInput('rows', ['dev', 'stage'].flatMap((endpoint) => stored[endpoint].map((row): ConnectionUsedBy => ({ endpoint, tool: row.name, mode: row.storedMode }))));
     const changed = vi.fn();
     fixture.componentInstance.changed.subscribe(changed);
     fixture.detectChanges();
@@ -73,7 +89,20 @@ describe('connection tool modes', () => {
       option(mode, slug).click();
       await settle();
     };
-    return { fixture, settle, root, trigger, menu, option, pick, api, changed, stored, recover: () => { loadError = false; } };
+    const bulkTrigger = () => root.querySelector<HTMLButtonElement>('button[aria-label^="Set all "]')!;
+    const bulkOption = (mode: string) => root.querySelector<HTMLButtonElement>(`#connection-bulk-menu [data-value="${mode}"]`)!;
+    const scope = async (slug: string) => {
+      const select = root.querySelector<HTMLSelectElement>('#connection-bulk-endpoint')!;
+      select.value = slug;
+      select.dispatchEvent(new Event('change'));
+      await settle();
+    };
+    const pickBulk = async (mode: string) => {
+      if (bulkTrigger().getAttribute('aria-expanded') !== 'true') bulkTrigger().click();
+      bulkOption(mode).click();
+      await settle();
+    };
+    return { fixture, settle, root, trigger, menu, option, pick, bulkTrigger, bulkOption, pickBulk, scope, api, changed, stored, recover: () => { loadError = false; } };
   }
 
   it('groups endpoints under one tool and saves every mode to only the chosen pair with its latest version', async () => {
@@ -145,8 +174,8 @@ describe('connection tool modes', () => {
     expect(p.api.setMode).toHaveBeenLastCalledWith('dev', expect.objectContaining({ version: 12 }));
   });
 
-  it('requires an individual acknowledgement before trusting an external read-only declaration', async () => {
-    const p = await render({ tool: { declaredBy: 'search-mcp', definitionHash: 'sha256-current' } });
+  it('requires an individual acknowledgement before trusting a plugin read-only declaration', async () => {
+    const p = await render({ tool: { declaredBy: 'search-plugin', readOnlyAllowed: false, definitionHash: 'sha256-current' } });
     const setMode = p.api.setMode.getMockImplementation()!;
     let finishMode!: () => void;
     p.api.setMode.mockImplementationOnce(async (...args) => {
@@ -189,7 +218,7 @@ describe('connection tool modes', () => {
   });
 
   it('reloads the saved mode after confirmation succeeds but its mode change conflicts, then retries at the latest version', async () => {
-    const p = await render({ tool: { declaredBy: 'search-mcp', definitionHash: 'sha256-current' } });
+    const p = await render({ tool: { declaredBy: 'search-plugin', readOnlyAllowed: false, definitionHash: 'sha256-current' } });
     p.api.setMode.mockImplementationOnce(async () => {
       p.stored['dev'][0] = { ...p.stored['dev'][0], version: 7 };
       throw new ApiError('conflict', 409, { detail: 'Another change updated this tool. Try again.' });
@@ -218,7 +247,7 @@ describe('connection tool modes', () => {
   });
 
   it('does not use another connection’s tool when the confirmation response no longer contains the selected pair', async () => {
-    const p = await render({ tool: { declaredBy: 'search-mcp', definitionHash: 'sha256-current' } });
+    const p = await render({ tool: { declaredBy: 'search-plugin', readOnlyAllowed: false, definitionHash: 'sha256-current' } });
     p.api.confirmReadOnly.mockResolvedValueOnce([
       { group: 'other-db', connection: 'other-db', env: 'dev', tools: [tool({ readOnlyConfirmed: true, version: 99 })] },
     ]);
@@ -235,7 +264,7 @@ describe('connection tool modes', () => {
   });
 
   it('does not write the mode after switching connections while confirmation is pending', async () => {
-    const p = await render({ tool: { declaredBy: 'search-mcp', definitionHash: 'sha256-current' } });
+    const p = await render({ tool: { declaredBy: 'search-plugin', readOnlyAllowed: false, definitionHash: 'sha256-current' } });
     const confirm = p.api.confirmReadOnly.getMockImplementation()!;
     let finishConfirmation!: () => void;
     p.api.confirmReadOnly.mockImplementationOnce(async (...args) => {
@@ -302,5 +331,128 @@ describe('connection tool modes', () => {
     await p.settle();
     expect(p.changed).not.toHaveBeenCalled();
     expect(TestBed.inject(ToastService).toasts()).toEqual([]);
+  });
+
+  it('sets every tool on every endpoint in one request per endpoint and refreshes saved modes', async () => {
+    const p = await render({ tools: [{}, { toolKey: 'mcp:notes/update', name: 'update', readOnlyAllowed: false }] });
+    await p.pickBulk('BYPASS');
+    expect(p.api.bulk.mock.calls).toEqual([
+      ['dev', { group: 'dev-db', mode: 'BYPASS' }],
+      ['stage', { group: 'dev-db', mode: 'BYPASS' }],
+    ]);
+    expect(p.api.setMode).not.toHaveBeenCalled();
+    expect(p.api.confirmReadOnly).not.toHaveBeenCalled();
+    expect(Object.values(p.stored).flat().every((row) => row.storedMode === 'BYPASS')).toBe(true);
+    expect(p.trigger().textContent).toContain('Bypass');
+    expect(p.trigger('stage').textContent).toContain('Bypass');
+    expect(p.root.querySelector('[aria-label="Results of changing all tool modes"]')?.textContent).toContain('2 tools updated');
+  });
+
+  it('restores per-tool defaults only on the selected endpoint', async () => {
+    const p = await render({ tools: [
+      { storedMode: 'OFF', mode: 'OFF', declaredBy: 'notes-mcp' },
+      { toolKey: 'mcp:notes/update', name: 'update', storedMode: 'BYPASS', mode: 'BYPASS', readOnlyAllowed: false },
+    ] });
+    await p.scope('stage');
+    await p.pickBulk('DEFAULT');
+    expect(p.api.bulk).toHaveBeenCalledExactlyOnceWith('stage', { group: 'dev-db', mode: 'DEFAULT' });
+    expect(p.stored['stage'].map((row) => row.storedMode)).toEqual(['READ_ONLY', 'APPROVAL']);
+    expect(p.stored['dev'].map((row) => row.storedMode)).toEqual(['OFF', 'BYPASS']);
+    expect(p.stored['stage'][0].overrides).toEqual({ rowLimit: 25 });
+  });
+
+  it('sets eligible MCP reads without confirmation and reports tools that bulk Read only skipped', async () => {
+    const p = await render({ tools: [
+      { toolKey: 'mcp:notes/read', name: 'read', declaredBy: 'notes-mcp', readOnlyAllowed: true },
+      { toolKey: 'mcp:notes/update', name: 'update', declaredBy: 'notes-mcp', readOnlyAllowed: false },
+    ] });
+    await p.scope('dev');
+    await p.pickBulk('READ_ONLY');
+    expect(p.api.confirmReadOnly).not.toHaveBeenCalled();
+    expect(p.stored['dev'].map((row) => row.storedMode)).toEqual(['READ_ONLY', 'APPROVAL']);
+    expect(p.root.textContent).toContain('1 kept their saved mode');
+    expect(p.root.querySelector<HTMLElement>('#connection-bulk-skipped-0')?.hidden).toBe(true);
+    p.root.querySelector<HTMLButtonElement>('[aria-controls="connection-bulk-skipped-0"]')!.click();
+    expect(p.root.querySelector<HTMLElement>('#connection-bulk-skipped-0')?.hidden).toBe(false);
+    expect(p.root.textContent).toContain('update: Not declared read only');
+  });
+
+  it('changes an eligible MCP read directly without a per-tool confirmation', async () => {
+    const p = await render({ tool: { toolKey: 'mcp:notes/read', declaredBy: 'notes-mcp', readOnlyAllowed: true, readOnlyConfirmed: false } });
+    await p.pick('READ_ONLY');
+    expect(p.api.confirmReadOnly).not.toHaveBeenCalled();
+    expect(p.api.setMode).toHaveBeenCalledExactlyOnceWith('dev', expect.objectContaining({ toolKey: 'mcp:notes/read', mode: 'READ_ONLY' }));
+    expect(p.root.querySelector('dialog')?.open).toBe(false);
+  });
+
+  it('keeps bulk and individual changes unavailable while a bulk request is pending', async () => {
+    const p = await render();
+    let resolve!: (value: { changed: string[]; skipped: { toolKey: string; reason: string }[] }) => void;
+    p.api.bulk.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    await p.pickBulk('OFF');
+    expect(p.bulkTrigger().getAttribute('aria-disabled')).toBe('true');
+    expect(p.bulkTrigger().getAttribute('aria-busy')).toBe('true');
+    expect(p.root.querySelector<HTMLSelectElement>('#connection-bulk-endpoint')?.disabled).toBe(true);
+    expect(p.trigger().textContent).toContain('Approval');
+    await p.pick('BYPASS');
+    await p.pickBulk('APPROVAL');
+    expect(p.api.setMode).not.toHaveBeenCalled();
+    expect(p.api.bulk).toHaveBeenCalledOnce();
+    resolve({ changed: [], skipped: [] });
+    await p.settle();
+    expect(p.bulkTrigger().getAttribute('aria-disabled')).not.toBe('true');
+  });
+
+  it('retains successful endpoints and shows a failed endpoint when a multi-endpoint change partly fails', async () => {
+    const p = await render();
+    p.api.bulk.mockRejectedValueOnce(new ApiError('conflict', 409, { detail: 'The endpoint changed. Try again.' }));
+    await p.pickBulk('OFF');
+    expect(p.stored['dev'][0].storedMode).toBe('APPROVAL');
+    expect(p.stored['stage'][0].storedMode).toBe('OFF');
+    expect(p.root.textContent).toContain('dev: Could not update modes. The endpoint changed. Try again.');
+    expect(p.root.textContent).toContain('stage: 1 tool updated');
+    expect(TestBed.inject(ToastService).toasts().at(-1)?.tone).toBe('danger');
+  });
+
+  it('disables bulk Bypass if any selected endpoint is read only and allows choosing another endpoint', async () => {
+    const p = await render({ readOnlyEndpoints: ['dev'] });
+    expect(p.bulkOption('BYPASS').disabled).toBe(true);
+    await p.pickBulk('BYPASS');
+    expect(p.api.bulk).not.toHaveBeenCalled();
+    await p.scope('stage');
+    expect(p.bulkOption('BYPASS').disabled).toBe(false);
+    await p.pickBulk('BYPASS');
+    expect(p.api.bulk).toHaveBeenCalledExactlyOnceWith('stage', { group: 'dev-db', mode: 'BYPASS' });
+  });
+
+  it('does not offer bulk changes when endpoint details could not load or the endpoint is blocked', async () => {
+    const p = await render({ loadError: true });
+    expect(p.bulkTrigger().getAttribute('aria-disabled')).toBe('true');
+    await p.pickBulk('OFF');
+    expect(p.api.bulk).not.toHaveBeenCalled();
+    p.recover();
+    p.api.get.mockResolvedValue({ endpoint: { access: 'standard', blockedReason: 'Endpoint is unavailable' } });
+    [...p.root.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent?.includes('Retry'))!.click();
+    await p.settle();
+    await p.scope('dev');
+    expect(p.root.textContent).toContain('Endpoint is unavailable');
+    await p.pickBulk('OFF');
+    expect(p.api.bulk).not.toHaveBeenCalled();
+  });
+
+  it('does not continue a bulk request on another endpoint after switching connections', async () => {
+    const p = await render();
+    let resolve!: (value: { changed: string[]; skipped: { toolKey: string; reason: string }[] }) => void;
+    p.api.bulk.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    await p.pickBulk('OFF');
+    p.fixture.componentRef.setInput('connection', 'other-db');
+    await p.settle();
+    p.changed.mockClear();
+    resolve({ changed: ['postgres/sql_query'], skipped: [] });
+    await p.settle();
+    expect(p.api.bulk).toHaveBeenCalledOnce();
+    expect(p.changed).not.toHaveBeenCalled();
+    expect(TestBed.inject(ToastService).toasts()).toEqual([]);
+    expect(p.root.querySelector('[aria-label="Results of changing all tool modes"]')).toBeNull();
   });
 });

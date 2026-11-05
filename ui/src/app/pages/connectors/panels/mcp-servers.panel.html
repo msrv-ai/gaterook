@@ -114,7 +114,7 @@
         <svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg>
         <div class="gw-alert__content">
           <p class="gw-alert__title">The {{ s.tools !== null ? plural(s.tools, 'tool') : 'tools' }} of <span class="gw-mono">{{ s.name }}</span> are Off until you add them to an endpoint</p>
-          <p class="gw-alert__body">There each starts as Approval. Its annotations, such as read only or destructive, are declared by the server and the gateway can't verify them, so Read only needs your confirmation per tool.</p>
+          <p class="gw-alert__body">Declared reads start as Read only; other tools start as Approval. You can change all tool modes together. Annotations are declared by the server and the gateway can't verify them.</p>
         </div>
         <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" routerLink="/endpoints">Add to endpoint<span class="gw-sr-only"> {{ s.name }} tools</span></a></div>
       </div>

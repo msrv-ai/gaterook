@@ -912,7 +912,7 @@ describe('Connectors page: MCP servers', () => {
     });
     expect(review.open).toBe(false);
 
-    // The last step, as the connection wizard's: its tools join an endpoint, each as Approval.
+    // The last step, as the connection wizard's: its tools join an endpoint in their default modes.
     const step = el.querySelector<HTMLDialogElement>('dialog[gwMcpEndpointDialog]')!;
     expect(step.open).toBe(true);
     expect(text(step.querySelector('.gw-dialog__title'))).toBe('Add sentry-mcp to an endpoint');
@@ -930,7 +930,7 @@ describe('Connectors page: MCP servers', () => {
     expect(calls).not.toContain('add-to-endpoint incident-prod sentry-mcp');
     expect(step.open).toBe(false);
     expect(toasts().at(-1)?.title).toBe('MCP server sentry-mcp started');
-    expect(toasts().at(-1)?.body).toBe('Its 12 tools are on dev, each as Approval. Change their modes on the endpoint.');
+    expect(toasts().at(-1)?.body).toBe('Its 12 tools are on dev. Declared reads start as Read only; other tools start as Approval. Change their modes on the endpoint.');
     expect(toasts().at(-1)?.actions?.[0]?.label).toBe('Open endpoint dev');
   });
 
@@ -956,7 +956,7 @@ describe('Connectors page: MCP servers', () => {
     await settle(fixture);
     expect(step.open).toBe(false);
     expect(calls.filter((c) => c.startsWith('add-to-endpoint'))).toEqual([]);
-    expect(toasts().at(-1)?.body).toBe('Its 12 tools are Off until you add them to an endpoint. There each starts as Approval.');
+    expect(toasts().at(-1)?.body).toBe('Its 12 tools are Off until you add them to an endpoint. Declared reads start as Read only; other tools start as Approval.');
   });
 
   it('finds a server in the MCP registry, fills the form from it and reviews it like a typed one', async () => {

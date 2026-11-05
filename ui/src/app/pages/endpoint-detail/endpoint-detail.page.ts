@@ -452,11 +452,11 @@ export class EndpointDetailPage {
   }
 
   /** "Set all to…": tools that can't take the mode stay as they are, and the announcement names them (kit). */
-  protected async bulk(b: { readonly connection: string | null; readonly mode: ToolMode }): Promise<void> {
+  protected async bulk(b: { readonly connection: string | null; readonly mode: ToolMode | 'DEFAULT' }): Promise<void> {
     try {
       const result = await this.data.bulk(b.connection, b.mode);
       const names = result.skipped.map((s) => s.toolKey.split('/').at(-1) ?? s.toolKey);
-      const label = b.mode === 'READ_ONLY' ? 'Read only' : b.mode === 'APPROVAL' ? 'Approval' : b.mode === 'BYPASS' ? 'Bypass' : 'Off';
+      const label = b.mode === 'DEFAULT' ? 'default modes' : b.mode === 'READ_ONLY' ? 'Read only' : b.mode === 'APPROVAL' ? 'Approval' : b.mode === 'BYPASS' ? 'Bypass' : 'Off';
       this.announcer.announce(`Set to ${label}${names.length ? `. ${names.join(' and ')} kept ${names.length > 1 ? 'their modes' : 'its mode'}` : ''}`);
     } catch (e) {
       this.toast({ tone: 'danger', title: "The modes weren't changed", body: this.errorText(e) });

@@ -275,6 +275,14 @@ describe('Add connection: endpoints', () => {
     expect(toolMode('read-only')).toBe('READ_ONLY');
     expect(toolMode(null)).toBe('OFF');
   });
+
+  it('previews declared MCP reads as Read only, retaining Approval or Off for other tools', () => {
+    const [dev, stage] = endpointChoices(ENDPOINTS, { name: 'notes-mcp', env: 'dev' });
+    const definitions = [SQL_TOOLS[0], SQL_TOOLS[3], { ...SQL_TOOLS[0], name: 'conflicting', nature: 'mutation' }];
+    expect(toolPreview(definitions, 'mcp-server', true, dev).rows.map((row) => row.mode)).toEqual(['READ_ONLY', 'APPROVAL', 'APPROVAL']);
+    expect(toolPreview(definitions, 'mcp-server', true, stage).rows.map((row) => row.mode)).toEqual(['READ_ONLY', 'OFF', 'OFF']);
+    expect(toolPreview(SQL_TOOLS.slice(0, 1), 'custom-kind', false, dev).rows[0].mode).toBe('APPROVAL');
+  });
 });
 
 describe('Add connection: what prod turns on', () => {

@@ -1168,32 +1168,76 @@ class EndpointsIT {
   }
 
   @Test
-  void aReadOnlyConfirmationOfAnMcpServerToolIsBoundToTheServersVersion() {
-    ConnectionService connections = core.bean(ConnectionService.class);
-    core.connection("srv-mcp", "mcpfake", Env.DEV, "mcp.test");
+  void mcpReadsStartReadOnlyAndBulkModesKeepMutationsOutOfReadOnly() {
+    core.connection("srv-mcp", "mcpfake", Env.DEV, "modes.test");
     endpoints.create("srv-ep", null, EndpointService.StartFrom.EMPTY, null);
     EndpointSnapshot s = wiring.add("srv-ep", "srv-mcp", null);
     EndpointSnapshot.Pair search = pair(s, "gh_search");
     assertThat(search.toolKey()).isEqualTo("mcp:srv-mcp:gh_search");
-    assertThat(search.mode()).as("MCP server tools start in Approval").isEqualTo(Mode.APPROVAL);
-    assertThat(search.provenanceVersion()).as("the server's version, not the type card's 0.4.0").isEqualTo("1.0.0");
-    tools.confirmReadOnly("srv-ep", search.toolKey(), "srv-mcp",
-        ToolPairs.definitionHash(search.tool()), "only reads");
-    assertThat(core.jdbc().queryForObject("select json_extract(ro_confirmation, '$.version') from endpoint_tool "
-        + "where tool_key = 'mcp:srv-mcp:gh_search'", String.class)).isEqualTo("1.0.0");
-    EndpointSnapshot.Pair confirmed = pair(snapshots.bySlug("srv-ep").orElseThrow(), "gh_search");
-    tools.setMode("srv-ep", confirmed.toolKey(), "srv-mcp", Mode.READ_ONLY, null, confirmed.rowVersion(), null);
-    assertThat(pair(snapshots.bySlug("srv-ep").orElseThrow(), "gh_search").mode()).isEqualTo(Mode.READ_ONLY);
+    assertThat(search.mode()).isEqualTo(Mode.READ_ONLY);
+    assertThat(search.readOnlyConfirmed()).as("no per-tool confirmation is needed").isFalse();
+    assertThat(pair(s, "gh_write").mode()).isEqualTo(Mode.APPROVAL);
+    assertThat(tools.list("srv-ep").stream().flatMap(g -> g.tools().stream())
+        .filter(t -> t.name().equals("gh_search")).findFirst().orElseThrow().readOnlyAllowed()).isTrue();
+    assertThat(core.bean(PolicyEngine.class).decide(search.view(), search.config(), Classification.read()).outcome())
+        .isEqualTo(Decision.Outcome.ALLOW);
 
-    // The upstream server reports a new version: the confirmation no longer counts.
-    var config = TestCore.config("mcp.test");
+    assertThat(tools.bulk("srv-ep", "srv-mcp", "OFF", null).changed()).hasSize(2);
+    EndpointTools.BulkResult reads = tools.bulk("srv-ep", "srv-mcp", "READ_ONLY", null);
+    assertThat(reads.changed()).containsExactly(search.toolKey());
+    assertThat(reads.skipped()).extracting(EndpointTools.Skipped::toolKey).containsExactly("mcp:srv-mcp:gh_write");
+    assertThat(mode(snapshots.bySlug("srv-ep").orElseThrow(), "gh_write", "srv-mcp")).isEqualTo(Mode.OFF);
+    assertThat(tools.bulk("srv-ep", "srv-mcp", "DEFAULT", null).changed())
+        .containsExactly("mcp:srv-mcp:gh_write");
+    assertThat(mode(snapshots.bySlug("srv-ep").orElseThrow(), "gh_write", "srv-mcp")).isEqualTo(Mode.APPROVAL);
+
+    tools.bulk("srv-ep", "srv-mcp", "APPROVAL", null);
+    EndpointSnapshot.Pair approval = pair(snapshots.bySlug("srv-ep").orElseThrow(), "gh_search");
+    tools.setMode("srv-ep", approval.toolKey(), "srv-mcp", Mode.READ_ONLY, null, approval.rowVersion(), null);
+    assertThat(pair(snapshots.bySlug("srv-ep").orElseThrow(), "gh_search").mode()).isEqualTo(Mode.READ_ONLY);
+    assertThatThrownBy(() -> tools.setMode("srv-ep", "mcp:srv-mcp:gh_write", "srv-mcp", Mode.READ_ONLY,
+        null, 0, null)).isInstanceOf(ProblemException.class).hasMessageContaining("changes data");
+  }
+
+  @Test
+  void mcpRefreshPreservesChoicesDefaultsNewReadsAndDemotesToolsThatStartChangingData() {
+    ConnectionService connections = core.bean(ConnectionService.class);
+    core.connection("refresh-mcp", "mcpfake", Env.DEV, "modes.test");
+    Map<String, Mode> choices = Map.of("mcp-off", Mode.OFF, "mcp-approval", Mode.APPROVAL,
+        "mcp-bypass", Mode.BYPASS, "mcp-read", Mode.READ_ONLY, "mcp-read-endpoint", Mode.READ_ONLY);
+    for (var choice : choices.entrySet()) {
+      String slug = choice.getKey();
+      endpoints.create(slug, null, EndpointService.StartFrom.EMPTY, null);
+      if (slug.equals("mcp-read-endpoint")) {
+        endpoints.updateSettings(slug, new EndpointService.SettingsUpdate(null, "read-only", null, null,
+            null, null, null), endpoints.get(slug).version(), null);
+      }
+      EndpointSnapshot.Pair search = pair(wiring.add(slug, "refresh-mcp", null), "gh_search");
+      tools.setMode(slug, search.toolKey(), "refresh-mcp", choice.getValue(), null, search.rowVersion(), null);
+    }
+    var config = TestCore.config("modes.test");
     ((ObjectNode) config.get("connection")).put("note", "2.0.0");
-    connections.update("srv-mcp", Env.DEV, config, connections.get("srv-mcp").version(), "server upgraded", null);
-    TestCore.await(() -> {
-      EndpointSnapshot.Pair p = pair(snapshots.bySlug("srv-ep").orElseThrow(), "gh_search");
-      return !p.readOnlyConfirmed() && p.mode() == Mode.APPROVAL;
-    }, "the confirmation of the old server version to lapse");
-    assertThat(pair(snapshots.bySlug("srv-ep").orElseThrow(), "gh_search").provenanceVersion()).isEqualTo("2.0.0");
+    connections.update("refresh-mcp", Env.DEV, config, connections.get("refresh-mcp").version(), null, null);
+    TestCore.await(() -> choices.keySet().stream().allMatch(slug -> {
+      var pairs = snapshots.bySlug(slug).orElseThrow().pairs();
+      return pairs.size() == 4 && pairs.stream().filter(p -> p.tool().name().equals("gh_recent"))
+          .allMatch(p -> p.mode() == Mode.READ_ONLY);
+    }), "new declared reads to start in Read only");
+    for (var choice : choices.entrySet()) {
+      EndpointSnapshot s = snapshots.bySlug(choice.getKey()).orElseThrow();
+      assertThat(pair(s, "gh_search").storedMode()).isEqualTo(choice.getValue());
+      assertThat(pair(s, "gh_search").mode()).isEqualTo(choice.getValue());
+      assertThat(pair(s, "gh_new_write").mode()).isEqualTo(Mode.OFF);
+    }
+
+    ((ObjectNode) config.get("connection")).put("note", "3.0.0");
+    connections.update("refresh-mcp", Env.DEV, config, connections.get("refresh-mcp").version(), null, null);
+    TestCore.await(() -> pair(snapshots.bySlug("mcp-read").orElseThrow(), "gh_search").storedMode()
+        == Mode.APPROVAL && pair(snapshots.bySlug("mcp-read-endpoint").orElseThrow(), "gh_search").storedMode()
+        == Mode.OFF, "changed tools to require approval or stay Off on a read-only endpoint");
+    for (String slug : List.of("mcp-off", "mcp-approval", "mcp-bypass")) {
+      assertThat(pair(snapshots.bySlug(slug).orElseThrow(), "gh_search").storedMode()).isEqualTo(choices.get(slug));
+    }
   }
 
   @Test
