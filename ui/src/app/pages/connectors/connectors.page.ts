@@ -1,11 +1,12 @@
-import { ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
+import { DOCUMENT, ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { CoreStore } from '../../core/stores/core.store';
 import { Announcer } from '../../kit/announcer';
 import { GwHowItWorks, GwHowItWorksStep } from '../../kit/elements/how-it-works/how-it-works';
 import { GwIcon } from '../../kit/icons';
 import { GwMenu, GwMenuTrigger } from '../../kit/menu';
-import { GwTabs } from '../../kit/tabs';
+import { GwTabs, selectFromFragment } from '../../kit/tabs';
 import { ToastService } from '../../kit/toast.service';
 import { InstalledView, installedViews, plural, v } from './connectors-view';
 import { ConnectorsData } from './connectors.data';
@@ -81,6 +82,8 @@ export class ConnectorsPage {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly injector = inject(Injector);
+  private readonly doc = inject(DOCUMENT);
+  private readonly fragment = toSignal(this.route.fragment);
 
   /** `?add=mcp-server` (the connection wizard's External MCP server): Add MCP server opens on the MCP servers tab. */
   readonly add = input<string | null>(null);
@@ -119,6 +122,17 @@ export class ConnectorsPage {
 
   constructor() {
     void this.data.start();
+    // Back to a plain /connectors URL restores the default tab on the reused page.
+    let hadFragment = false;
+    effect(() => {
+      const fragment = this.fragment();
+      if (!fragment && hadFragment) {
+        afterNextRender(() => {
+          if (!this.route.snapshot.fragment) selectFromFragment(this.doc, 'installed');
+        }, { injector: this.injector });
+      }
+      hadFragment = !!fragment;
+    });
     const timer = setTimeout(() => this.slow.set(true), SKELETON_DELAY_MS);
     effect((onCleanup) => {
       if (this.installed()) clearTimeout(timer);
@@ -152,6 +166,12 @@ export class ConnectorsPage {
   }
 
   // ── Header menu ───────────────────────────────────────────────────────────────────────────────────────────────
+
+  protected onTabSelected(tab: string): void {
+    const fragment = tab === 'tab-mcp' ? 'mcp-servers' : tab.replace(/^tab-/, '');
+    // Keep sidebar shortcuts reusable after switching tabs, without adding a Back entry for each tab.
+    void this.router.navigate([], { relativeTo: this.route, fragment, queryParamsHandling: 'preserve', replaceUrl: true });
+  }
 
   protected openInstall(e: Event): void {
     this.installDialog().open(this.triggerOf(e));
