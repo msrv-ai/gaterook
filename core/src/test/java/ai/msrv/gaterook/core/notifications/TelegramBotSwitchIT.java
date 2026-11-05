@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ai.msrv.gaterook.core.approvals.ApprovalService;
 import ai.msrv.gaterook.testfixtures.TestCore;
+import java.util.List;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -75,6 +76,16 @@ class TelegramBotSwitchIT {
     w.telegram.nextMessageId(oldMessage);
     String second = w.dev.execute("dev-db", "UPDATE orders SET status = 'held' WHERE id = 48302;");
     assertThat(NotifyWorld.messageId(w.awaitTelegramMessage(second))).isEqualTo(oldMessage);
+    // A click on the new message that names the old request finds only the old bot's message of that number, which
+    // the switch closed: it decides nothing and changes no buttons.
+    String digest = approvals.find(first).orElseThrow().digest().substring(0, 12);
+    int markups = w.telegram.calls("editMessageReplyMarkup").size();
+    for (String data : List.of("a:" + first + ":" + digest, "d:" + first, "b:" + first)) {
+      assertThat(w.telegramClick(FakeTelegram.RAVI, FakeTelegram.RAVI, oldMessage, data).path("text").asString())
+          .as(data).isEqualTo("This message no longer takes decisions. Open the request in GateRook.");
+    }
+    assertThat(w.telegram.calls("editMessageReplyMarkup")).hasSize(markups);
+    assertThat(approvals.find(first).orElseThrow().status()).isEqualTo("pending");
     // The old request ends: its message is the old bot's, and the new bot's message of that number isn't touched.
     approvals.decide(first, ApprovalService.Decision.DENY, "app", null, null);
     Thread.sleep(1_000);

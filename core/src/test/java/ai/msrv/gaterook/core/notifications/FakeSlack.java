@@ -50,6 +50,8 @@ final class FakeSlack implements AutoCloseable {
   /** What the next hello says the app is; a test may make another app answer. */
   volatile String helloAppId = APP_ID;
   volatile boolean channelMember = true;
+  /** Slack refuses messages with a code block ({@code invalid_blocks}), as it does a language it doesn't know. */
+  volatile boolean refuseCodeBlocks;
   private final AtomicInteger ts = new AtomicInteger(1000);
   private final AtomicInteger tickets = new AtomicInteger();
   private final AtomicInteger envelopes = new AtomicInteger();
@@ -99,9 +101,19 @@ final class FakeSlack implements AutoCloseable {
       }
       case "apps.connections.open" -> out.put("url", "ws://127.0.0.1:" + server.getPort() + "/link/?ticket="
           + tickets.incrementAndGet());
-      case "chat.postMessage" -> out.put("channel", a.path("channel").asString()).put("ts", "1792672452."
-          + String.format("%06d", ts.incrementAndGet()));
-      case "chat.update" -> out.put("channel", a.path("channel").asString()).put("ts", a.path("ts").asString());
+      case "chat.postMessage" -> {
+        if (refuses(a)) {
+          return refused("invalid_blocks");
+        }
+        out.put("channel", a.path("channel").asString()).put("ts", "1792672452."
+            + String.format("%06d", ts.incrementAndGet()));
+      }
+      case "chat.update" -> {
+        if (refuses(a)) {
+          return refused("invalid_blocks");
+        }
+        out.put("channel", a.path("channel").asString()).put("ts", a.path("ts").asString());
+      }
       case "chat.postEphemeral" -> out.put("message_ts", "1792672452.999999");
       case "users.lookupByEmail" -> {
         String id = emails.get(a.path("email").asString());
@@ -128,6 +140,18 @@ final class FakeSlack implements AutoCloseable {
       }
     }
     return new Reply(out, null);
+  }
+
+  private boolean refuses(JsonNode message) {
+    if (!refuseCodeBlocks) {
+      return false;
+    }
+    for (JsonNode b : message.path("blocks")) {
+      if ("rich_text".equals(b.path("type").asString())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static Reply refused(String error) {

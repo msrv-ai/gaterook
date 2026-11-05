@@ -11,7 +11,9 @@ import ai.msrv.gaterook.core.approvals.ApprovalView;
 import ai.msrv.gaterook.core.audit.AuditWriter;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshot;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshotService;
+import ai.msrv.gaterook.core.notifications.internal.DeliveryStore;
 import ai.msrv.gaterook.core.notifications.internal.Notices;
+import ai.msrv.gaterook.core.notifications.internal.persistence.NotifyChannel;
 import ai.msrv.gaterook.core.platform.Caller;
 import ai.msrv.gaterook.core.platform.CanonicalJson;
 import ai.msrv.gaterook.core.platform.Ids;
@@ -521,6 +523,144 @@ class NotificationsIT {
         null, audit, AuditWriter.Delivery.HANDLE)).approval().id();
   }
 
+  // ── Slack can't show the action ─────────────────────────────────────────────────────────────────────────────
+
+  @Test
+  @Order(14)
+  void aMessageSlackRefusedIsSentAgainWithoutTheActionAndTakesNoApprove() {
+    FakeConnectors.EXECUTIONS.clear();
+    w.slack.refuseCodeBlocks = true;
+    try {
+      String id = w.dev.execute("dev-db", "UPDATE orders SET status = 'held' WHERE id = 48222;");
+      TestCore.await(() -> w.slackPosts(id).size() == 2, "the refused message and the one sent instead");
+      FakeSlack.Call refused = w.slackPosts(id).get(0);
+      FakeSlack.Call post = w.slackPosts(id).get(1);
+      assertThat(refused.answer().path("error").asString()).isEqualTo("invalid_blocks");
+      assertThat(NotifyWorld.actionIds(refused.args())).containsExactly("gw_approve", "gw_deny", "gw_open");
+      assertThat(post.answer().path("ok").asBoolean()).isTrue();
+      assertThat(post.args().toString()).doesNotContain("rich_text").doesNotContain("48222")
+          .contains("Slack couldn't show this action");
+      assertThat(NotifyWorld.actionIds(post.args())).containsExactly("gw_deny", "gw_open");
+      // Its buttons carry what Approve would have: only the message's delivery says that it offered none.
+      String value = NotifyWorld.buttonValue(post.args(), "gw_deny");
+      assertThat(value).isEqualTo(NotifyWorld.buttonValue(refused.args(), "gw_approve"));
+      long refusals = ephemerals(FakeSlack.RAVI, "Approve isn't available here.");
+      w.slackClick("gw_approve", value, FakeSlack.RAVI, post);
+      TestCore.await(() -> ephemerals(FakeSlack.RAVI, "Approve isn't available here.") > refusals
+          || !approvals.find(id).orElseThrow().pending(), "the answer to an Approve the message never offered");
+      assertThat(approvals.find(id).orElseThrow().status()).isEqualTo("pending");
+      String ref = post.args().path("channel").asString() + ":" + post.answer().path("ts").asString();
+      assertThat(w.core.bean(DeliveryStore.class).forApproval(id)).filteredOn(d -> ref.equals(d.externalRef()))
+          .singleElement().satisfies(d -> assertThat(d.offeredApprove()).isFalse());
+
+      // Deny works as offered, and the message shows the outcome, still without the action, and loses its buttons.
+      w.slackClick("gw_deny", value, FakeSlack.RAVI, post);
+      TestCore.await(() -> "rejected".equals(approvals.find(id).orElseThrow().status()), "denied from Slack");
+      String ts = post.answer().path("ts").asString();
+      TestCore.await(() -> w.slackUpdates(ts).stream().anyMatch(u -> u.answer().path("ok").asBoolean()),
+          "the outcome shown");
+      JsonNode shown = w.slackUpdates(ts).stream().filter(u -> u.answer().path("ok").asBoolean()).toList().getLast()
+          .args();
+      assertThat(shown.toString()).contains("Denied by you from Slack").doesNotContain("rich_text");
+      assertThat(NotifyWorld.actionIds(shown)).isEmpty();
+      assertThat(FakeConnectors.EXECUTIONS).isEmpty();
+    } finally {
+      w.slack.refuseCodeBlocks = false;
+    }
+  }
+
+  // ── A message that takes no more decisions ──────────────────────────────────────────────────────────────────
+
+  @Test
+  @Order(15)
+  void aClosedMessageDecidesNothingAndStillOpensTheRequest() {
+    FakeConnectors.EXECUTIONS.clear();
+    DeliveryStore deliveries = w.core.bean(DeliveryStore.class);
+    String id = w.dev.execute("dev-db", "UPDATE orders SET status = 'held' WHERE id = 48223;");
+    FakeSlack.Call post = w.awaitSlackPost(id);
+    String value = NotifyWorld.buttonValue(post.args(), "gw_approve");
+    String ref = post.args().path("channel").asString() + ":" + post.answer().path("ts").asString();
+    TestCore.await(() -> deliveries.forApproval(id).stream().anyMatch(d -> ref.equals(d.externalRef())),
+        "the Slack delivery");
+    // What Disconnect does to the messages of an app that went away (closeOpen): closed, and left as they are.
+    deliveries.forApproval(id).stream().filter(d -> ref.equals(d.externalRef()))
+        .forEach(d -> deliveries.resolved(d.id()));
+
+    String text = "This message no longer takes decisions. Open the request in GateRook.";
+    for (String action : List.of("gw_approve", "gw_deny")) {
+      long refusals = ephemerals(FakeSlack.RAVI, text);
+      w.slackClick(action, value, FakeSlack.RAVI, post);
+      TestCore.await(() -> ephemerals(FakeSlack.RAVI, text) > refusals || !approvals.find(id).orElseThrow().pending(),
+          "the answer to " + action);
+      assertThat(approvals.find(id).orElseThrow().status()).as(action).isEqualTo("pending");
+    }
+    assertThat(FakeConnectors.EXECUTIONS).isEmpty();
+    // Open in app only navigates, and it still does.
+    w.slackClick("gw_open", value, FakeSlack.RAVI, post);
+    w.awaitEvent("ui.open", e -> ("/approvals/" + id).equals(e.path("path").asString()), "ui.open");
+
+    // One reference, a closed delivery and an open one (another Telegram bot numbers its chat's messages from the
+    // start): the message is the open one's.
+    DeliveryStore.Delivery old = deliveries.start(id, NotifyChannel.TELEGRAM, "999001", true);
+    deliveries.sent(old.id(), "999001:777");
+    deliveries.resolved(old.id());
+    DeliveryStore.Delivery current = deliveries.start(id, NotifyChannel.TELEGRAM, "999001", false);
+    deliveries.sent(current.id(), "999001:777");
+    assertThat(deliveries.at(NotifyChannel.TELEGRAM, "999001:777", id).map(DeliveryStore.Delivery::id))
+        .hasValue(current.id());
+    approvals.decide(id, ApprovalService.Decision.DENY, "app", null, null);
+  }
+
+  // ── What the connector says besides the action ──────────────────────────────────────────────────────────────
+
+  @Test
+  @Order(16)
+  void theConnectorsImpactFollowsTheActionAndItsWarningsKeepApproveInTheApp() {
+    String id = w.dev.execute("dev-db", "UPDATE orders SET status = 'paid' WHERE id = 48213;");
+    // The fake's estimate, which the app shows under Impact: the message has it too, after the target.
+    FakeSlack.Call post = w.awaitSlackPost(id);
+    List<String> sections = new java.util.ArrayList<>();
+    post.args().path("blocks").forEach(b -> sections.add(b.path("text").path("text").asString("")));
+    assertThat(sections).contains("*Rows*\n`1 row (estimate)`");
+    assertThat(NotifyWorld.actionIds(post.args())).containsExactly("gw_approve", "gw_deny", "gw_open");
+    FakeTelegram.Call tg = w.awaitTelegramMessage(id);
+    assertThat(tg.args().path("text").asString()).contains("\nRows: 1 row (estimate)\n");
+
+    Notices notices = w.core.bean(Notices.class);
+    ApprovalView a = approvals.find(id).orElseThrow();
+    assertThat(verdict(notices.of(a)).approve()).isTrue();
+    // The impact is masked and inspected like the action.
+    ApprovalNotice hidden = notices.of(withAction(a, a.action().withImpact(List.of(new ActionPreview.Field(
+        "Estimated rows", "1" + (char) 0x200B + " (from EXPLAIN)")))));
+    assertThat(hidden.details()).filteredOn(d -> d.label().equals("Estimated rows")).singleElement()
+        .satisfies(d -> assertThat(d.value()).isEqualTo("1‹U+200B› (from EXPLAIN)"));
+    assertThat(verdict(hidden).reason()).isEqualTo("Contains 1 hidden character. Review in the app.");
+    // No channel shows the connector's warnings: an action with one is approved in the app.
+    ApprovalNotice warned = notices.of(withAction(a, a.action().withWarnings(List.of(
+        "MySQL commits a schema change at once: it can't be rolled back."))));
+    assertThat(verdict(warned).approve()).isFalse();
+    assertThat(verdict(warned).deny()).isTrue();
+    assertThat(verdict(warned).reason()).isEqualTo("The action has 1 warning: review it in the app.");
+    approvals.decide(id, ApprovalService.Decision.DENY, "app", null, null);
+  }
+
+  private static Eligibility.Verdict verdict(ApprovalNotice n) {
+    return Eligibility.evaluate(new Eligibility.Facts(Eligibility.Channel.SLACK, n, true, false, true, false, true));
+  }
+
+  private static ApprovalView withAction(ApprovalView a, ActionPreview action) {
+    return new ApprovalView(a.id(), a.callId(), a.endpointId(), a.endpointSlug(), a.connectionId(),
+        a.connectionName(), a.tool(), a.toolKey(), a.env(), a.principalKind(), a.principalId(), a.clientLabel(),
+        a.status(), a.digest(), action, a.actionSha256(), a.agentNote(), a.ruleId(), a.commentPolicy(), a.comment(),
+        a.decidedVia(), a.decidedAt(), a.createdAt(), a.expiresAt(), a.executedAt(), a.result(), a.resultExpiresAt(),
+        a.error(), a.traceContext(), a.call());
+  }
+
+  private static long ephemerals(String user, String text) {
+    return w.slack.calls("chat.postEphemeral").stream().filter(c -> user.equals(c.args().path("user").asString())
+        && c.args().path("text").asString().contains(text)).count();
+  }
+
   // ── Desktop ─────────────────────────────────────────────────────────────────────────────────────────────────
 
   @Test
@@ -626,8 +766,9 @@ class NotificationsIT {
     awaitState("slack", "connected");
     // Clicks arrive on the new connection.
     FakeSlack.Call post = w.slackPosts(devHandle).getFirst();
+    int opened = w.events("ui.open").size();
     w.slackClick("gw_open", NotifyWorld.buttonValue(post.args(), "gw_open"), FakeSlack.RAVI, post);
-    TestCore.await(() -> w.events("ui.open").size() >= 2, "a click on the new connection");
+    TestCore.await(() -> w.events("ui.open").size() > opened, "a click on the new connection");
 
     w.slack.disconnect("link_disabled");
     awaitState("slack", "stopped");

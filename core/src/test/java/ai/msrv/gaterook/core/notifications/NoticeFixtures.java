@@ -52,7 +52,14 @@ public final class NoticeFixtures {
   public static ApprovalNotice withDetails(ApprovalNotice n, java.util.List<ApprovalNotice.Detail> details) {
     return new ApprovalNotice(n.id(), n.tool(), n.toolKey(), n.connection(), n.env(), n.endpoint(), n.client(),
         n.clientLabel(), n.action(), n.summary(), n.ruleId(), n.commentPolicy(), n.createdAt(), n.expiresAt(),
-        n.digest(), n.plugin(), details);
+        n.digest(), n.plugin(), details, n.warnings());
+  }
+
+  /** A request whose connector gave {@code warnings} warnings about the action (the app shows them). */
+  public static ApprovalNotice withWarnings(ApprovalNotice n, int warnings) {
+    return new ApprovalNotice(n.id(), n.tool(), n.toolKey(), n.connection(), n.env(), n.endpoint(), n.client(),
+        n.clientLabel(), n.action(), n.summary(), n.ruleId(), n.commentPolicy(), n.createdAt(), n.expiresAt(),
+        n.digest(), n.plugin(), n.details(), warnings);
   }
 
   public static ApprovalNotice.Detail detail(String label, String value) {

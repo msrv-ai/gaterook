@@ -10,15 +10,15 @@ import org.junit.jupiter.api.Test;
 /**
  * Report 13 §6.2 as a table: Approve in Slack or Telegram only when every condition holds — decisions from linked
  * accounts, not prod, no comment required (then or now), not a plugin, the whole action fits and nothing of it was
- * left out, nothing looks like a secret, nothing hidden or look-alike and nothing beyond printable ASCII, no flood,
- * still pending. Every combination of
- * the conditions is tried; one failing condition is enough to drop Approve.
+ * left out, no warning of the connector, nothing looks like a secret, nothing hidden or look-alike and nothing beyond
+ * printable ASCII, no flood, still pending. Every combination of the conditions is tried; one failing condition is
+ * enough to drop Approve.
  */
 class EligibilityTest {
 
   @Test
   void approveNeedsEveryConditionInEveryCombination() {
-    int conditions = 11;
+    int conditions = 12;
     int checked = 0;
     for (int mask = 0; mask < (1 << conditions); mask++) {
       boolean linked = bit(mask, 0);
@@ -32,6 +32,7 @@ class EligibilityTest {
       boolean hidden = bit(mask, 8);
       boolean flood = bit(mask, 9);
       boolean pending = bit(mask, 10);
+      boolean warned = bit(mask, 11);
       ApprovalNotice n = NoticeFixtures.notice(prod ? Env.PROD : Env.DEV, "sql_execute", "dev-db",
           new ApprovalNotice.Action("sql", "sql", secret ? "" : NoticeFixtures.SQL, 57, secret, hidden ? 1 : 0, 0,
               partial));
@@ -39,10 +40,11 @@ class EligibilityTest {
       if (plugin) {
         n = NoticeFixtures.plugin(n);
       }
+      n = NoticeFixtures.withWarnings(n, warned ? 2 : 0);
       Eligibility.Verdict v = Eligibility.evaluate(new Eligibility.Facts(Eligibility.Channel.SLACK, n, linked,
           commentNow, fits, flood, pending));
       boolean expected = linked && !prod && !commentThen && !commentNow && !plugin && fits && !partial && !secret
-          && !hidden && !flood && pending;
+          && !hidden && !flood && pending && !warned;
       assertThat(v.approve()).as("mask %s", Integer.toBinaryString(mask)).isEqualTo(expected);
       // Deny stays for a linked account whenever decisions from linked accounts are allowed and the request waits.
       assertThat(v.deny()).as("deny, mask %s", Integer.toBinaryString(mask)).isEqualTo(linked && pending);
@@ -51,7 +53,7 @@ class EligibilityTest {
       assertThat(v.reason() == null).isEqualTo(expected);
       checked++;
     }
-    assertThat(checked).isEqualTo(2048);
+    assertThat(checked).isEqualTo(4096);
   }
 
   @Test
@@ -73,6 +75,8 @@ class EligibilityTest {
     reasons.add(reason(NoticeFixtures.withComment(dev, "required"), true, false, true, false, true));
     reasons.add(reason(NoticeFixtures.plugin(dev), true, false, true, false, true));
     reasons.add(reason(dev, true, false, false, false, true));
+    reasons.add(reason(NoticeFixtures.withWarnings(dev, 1), true, false, true, false, true));
+    reasons.add(reason(NoticeFixtures.withWarnings(dev, 2), true, false, true, false, true));
     reasons.add(reason(NoticeFixtures.with(dev, new ApprovalNotice.Action("sql", "sql", "DELETE‹U+202E›", 8, false,
         1, 0, false)), true, false, true, false, true));
     reasons.add(reason(NoticeFixtures.with(dev, new ApprovalNotice.Action("sql", "sql", "DЕLETE", 6, false, 0, 1,
@@ -86,6 +90,8 @@ class EligibilityTest {
         "A comment is required: approve in the app.",
         "A plugin's action: approve in the app.",
         "The action is too long for this message: approve in the app.",
+        "The action has 1 warning: review it in the app.",
+        "The action has 2 warnings: review them in the app.",
         "Contains 1 hidden character. Review in the app.",
         "Contains letters that look like others. Review in the app.",
         "Contains characters beyond plain ASCII. Review in the app.",
