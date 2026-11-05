@@ -37,7 +37,13 @@ final class EgressHttpClient implements ExecContext.Egress {
       "keep-alive", "transfer-encoding", "te", "trailer");
   private static final Duration MAX_TIMEOUT = Duration.ofSeconds(60);
 
+  /**
+   * Shared by every call of the process, so HTTP/1.1 only: it reuses a pooled connection only for the address a
+   * request has just resolved and checked, while HTTP/2 reuses one by host name — a call could then ride on a
+   * connection that another call's private ranges let through.
+   */
   private static final HttpClient CLIENT = HttpClient.newBuilder()
+      .version(HttpClient.Version.HTTP_1_1)
       .followRedirects(HttpClient.Redirect.NEVER)
       .proxy(HttpClient.Builder.NO_PROXY)
       .connectTimeout(Duration.ofSeconds(10))
@@ -68,11 +74,12 @@ final class EgressHttpClient implements ExecContext.Egress {
     }
     host = host.startsWith("[") && host.endsWith("]") ? host.substring(1, host.length() - 1) : host;
     int port = uri.getPort() >= 0 ? uri.getPort() : scheme.equals("https") ? 443 : 80;
-    if (!granted(host, port)) {
+    if (!granted(grant.hosts(), host, port)) {
       throw ConnectorException.denied("This plugin may only reach " + String.join(", ", grant.hosts())
           + " for this connection, not " + host + ":" + port);
     }
-    try (AutoCloseable ignored = GuardedResolverProvider.grant(host, allowedPrivate)) {
+    boolean corePort = grant.corePorts().contains(port);
+    try (AutoCloseable ignored = GuardedResolverProvider.grant(host, allowedPrivate, corePort)) {
       InetAddress[] addresses;
       try {
         addresses = InetAddress.getAllByName(host);
@@ -81,12 +88,12 @@ final class EgressHttpClient implements ExecContext.Egress {
       }
       boolean allPrivate = true;
       for (InetAddress a : addresses) {
+        if (corePort && AddressRules.loopback(a)) {
+          throw ConnectorException.denied("GateRook's own port " + port + " is never reachable from a plugin");
+        }
         if (!AddressRules.allowed(a, allowedPrivate)) {
           throw ConnectorException.denied(host + " resolves to " + a.getHostAddress() + ", which this plugin may not "
               + "reach. A private address needs http.allowedPrivateRanges in the environment's policy.");
-        }
-        if (a.isLoopbackAddress() && grant.corePorts().contains(port)) {
-          throw ConnectorException.denied("GateRook's own port " + port + " is never reachable from a plugin");
         }
         allPrivate &= AddressRules.privateAddress(a);
       }
@@ -101,13 +108,27 @@ final class EgressHttpClient implements ExecContext.Egress {
     }
   }
 
-  private boolean granted(String host, int port) {
-    for (String entry : grant.hosts()) {
-      int colon = entry.lastIndexOf(':');
-      String h = colon < 0 ? entry : entry.substring(0, colon);
-      String p = colon < 0 ? null : entry.substring(colon + 1);
-      if (h.startsWith("[") && h.endsWith("]")) {
-        h = h.substring(1, h.length() - 1);
+  /**
+   * Whether {@code host} (without brackets) on {@code port} is one of {@code entries}: {@code name}, {@code name:port},
+   * {@code [ipv6]} or {@code [ipv6]:port}, no port or {@code *} meaning any. Only a colon after the closing bracket
+   * separates a port; an entry with a bracket left open, or text after it, grants nothing.
+   */
+  static boolean granted(List<String> entries, String host, int port) {
+    for (String entry : entries) {
+      String h;
+      String p;
+      if (entry.startsWith("[")) {
+        int close = entry.indexOf(']');
+        String rest = close < 0 ? null : entry.substring(close + 1);
+        if (rest == null || !(rest.isEmpty() || rest.startsWith(":"))) {
+          continue;
+        }
+        h = entry.substring(1, close);
+        p = rest.isEmpty() ? null : rest.substring(1);
+      } else {
+        int colon = entry.lastIndexOf(':');
+        h = colon < 0 ? entry : entry.substring(0, colon);
+        p = colon < 0 ? null : entry.substring(colon + 1);
       }
       if (h.equalsIgnoreCase(host) && (p == null || p.equals("*") || p.equals(String.valueOf(port)))) {
         return true;
