@@ -47,8 +47,17 @@ public final class FakeNgrok {
     }
     log("info", "open config file", "path", configFile, "err", null);
     if (mode.equals("exit-at-once") || System.getenv("NGROK_AUTHTOKEN") == null) {
-      log("eror", "authentication failed: The authtoken you specified is invalid. ERR_NGROK_107", "obj",
-          "tunnels.session");
+      // As 3.39.11 refuses an authtoken: JSON entries, the error again on stderr a piece per line, a last entry.
+      String refused = "authentication failed: The authtoken you specified is properly formed, but it is invalid.\n"
+          + "Go to your ngrok dashboard and double check that your authtoken is correct:\n"
+          + "https://dashboard.ngrok.com/get-started/your-authtoken\r\n\r\nERR_NGROK_107\r\n";
+      log("eror", "failed to reconnect session", "obj", "tunnels.session", "err", refused);
+      log("crit", "command failed", "err", refused);
+      for (String piece : (refused + "https://ngrok.com/docs/errors/err_ngrok_107\n").split("\r?\n", -1)) {
+        System.err.println("ERROR:  " + piece);
+      }
+      System.err.flush();
+      log("info", "no more state changes", "obj", "tunnels.session");
       System.exit(1);
     }
     String url = FakeCloudflared.value(argv, "--url");
@@ -70,8 +79,8 @@ public final class FakeNgrok {
     Thread.sleep(Long.parseLong(control.getProperty("readyDelayMs", "300")));
     if (mode.equals("never-ready")) {
       while (true) {
-        log("eror", "failed to reconnect session", "obj", "tunnels.session", "err",
-            "dial tcp: lookup connect.ngrok-agent.com: no such host");
+        log("eror", "failed to reconnect session", "obj", "tunnels.session", "err", "failed to dial ngrok server "
+            + "with address \"connect.ngrok-agent.com:443\": dial tcp: lookup connect.ngrok-agent.com: no such host");
         Thread.sleep(1000);
       }
     }
@@ -111,7 +120,22 @@ public final class FakeNgrok {
     // The fake runs on the test classes alone: no Jackson, the JSON by hand.
     StringBuilder out = new StringBuilder("{");
     entry.forEach((k, v) -> out.append(out.length() == 1 ? "" : ",").append('"').append(k).append("\":")
-        .append(v == null ? "null" : '"' + v.replace("\\", "\\\\").replace("\"", "\\\"") + '"'));
+        .append(v == null ? "null" : '"' + escaped(v) + '"'));
     return out.append('}').toString();
+  }
+
+  private static String escaped(String v) {
+    StringBuilder out = new StringBuilder();
+    for (char c : v.toCharArray()) {
+      switch (c) {
+        case '\\' -> out.append("\\\\");
+        case '"' -> out.append("\\\"");
+        case '\n' -> out.append("\\n");
+        case '\r' -> out.append("\\r");
+        case '\t' -> out.append("\\t");
+        default -> out.append(c < 0x20 ? String.format("\\u%04x", (int) c) : String.valueOf(c));
+      }
+    }
+    return out.toString();
   }
 }

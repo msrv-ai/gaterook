@@ -182,10 +182,11 @@ class TunnelAgentsTest {
 
     assertThatThrownBy(() -> new NgrokAgent().start(request(TunnelProvider.NGROK, ngrok.executable(), null, null)))
         .isInstanceOf(TunnelException.class).hasMessageContaining("authtoken");
+    // ngrok's own words, not the bare "ERROR:" its stderr ends with.
     ngrok.control(Map.of("mode", "exit-at-once"));
     assertThatThrownBy(() -> new NgrokAgent().start(request(TunnelProvider.NGROK, ngrok.executable(), null, "bad")))
-        .isInstanceOf(TunnelException.class).hasMessageContaining("ngrok stopped (exit 1)")
-        .hasMessageContaining("ERR_NGROK_107");
+        .isInstanceOf(TunnelException.class).hasMessage("ngrok stopped (exit 1). Last log line: authentication "
+        + "failed: The authtoken you specified is properly formed, but it is invalid. (ERR_NGROK_107)");
     ngrok.control(Map.of("mode", "never-ready"));
     assertThatThrownBy(() -> new NgrokAgent(Duration.ofSeconds(2)).start(request(TunnelProvider.NGROK,
         ngrok.executable(), null, "tok"))).isInstanceOf(TunnelException.class)
@@ -300,6 +301,25 @@ class TunnelAgentsTest {
     assertThat(TunnelAgent.lastError(List.of("{\"lvl\":\"eror\",\"msg\":\"session closed\"}"))).contains("session");
     assertThat(TunnelAgent.lastError(List.of("INF all good"))).isNull();
     assertThat(TunnelAgent.lastError(List.of("2026-10-25T10:00:00Z ERR " + "x".repeat(400)))).hasSize(301);
+
+    // ngrok 3.39.11 refusing an authtoken: its JSON entries, then the same on stderr a piece per line.
+    String refused = "authentication failed: The authtoken you specified is properly formed, but it is invalid.\\n"
+        + "This usually happens when:\\n    - You reset your authtoken\\r\\n\\r\\nERR_NGROK_107\\r\\n";
+    assertThat(TunnelAgent.lastError(List.of(
+        "{\"t\":\"2026-11-05T15:59:11+0100\",\"lvl\":\"eror\",\"msg\":\"failed to reconnect session\",\"obj\":"
+            + "\"tunnels.session\",\"err\":\"" + refused + "\"}",
+        "{\"t\":\"2026-11-05T15:59:11+0100\",\"lvl\":\"info\",\"msg\":\"ERROR terminating with error obj=app\"}",
+        "{\"t\":\"2026-11-05T15:59:11+0100\",\"lvl\":\"crit\",\"msg\":\"command failed\",\"err\":\"" + refused + "\"}",
+        "ERROR:  authentication failed: The authtoken you specified is properly formed, but it is invalid.",
+        "ERROR:  ERR_NGROK_107", "ERROR:  https://ngrok.com/docs/errors/err_ngrok_107", "ERROR:  ",
+        "{\"t\":\"2026-11-05T15:59:11+0100\",\"lvl\":\"info\",\"msg\":\"no more state changes\",\"obj\":"
+            + "\"tunnels.session\"}"))).isEqualTo("authentication failed: The authtoken you specified is properly "
+        + "formed, but it is invalid. (ERR_NGROK_107)");
+    assertThat(TunnelAgent.lastError(List.of("{\"lvl\":\"crit\",\"msg\":\"command failed\",\"err\":\"ERR_NGROK_8012:"
+        + " upstream refused\"}"))).as("the code named once").isEqualTo("ERR_NGROK_8012: upstream refused");
+    assertThat(TunnelAgent.lastError(List.of("{\"lvl\":\"info\",\"msg\":\"no more state changes\"}"))).isNull();
+    assertThat(TunnelAgent.lastError(List.of("ERROR:  failed to start tunnel", "ERROR:  ")))
+        .isEqualTo("ERROR:  failed to start tunnel");
   }
 
   @Test
