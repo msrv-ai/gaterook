@@ -9,6 +9,7 @@ import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Nature;
+import ai.msrv.gaterook.core.platform.MaskPolicy;
 import ai.msrv.gaterook.core.policy.Decision.Outcome;
 import ai.msrv.gaterook.testfixtures.FakeConnectors;
 import java.time.Duration;
@@ -399,6 +400,29 @@ class PolicyEngineTest {
     assertThat(d.limits().maxResponseBytes()).isEqualTo(512 * 1024);
     assertThat(d.ratePerToken()).isEqualTo(120);
     assertThat(d.view().section().path("denyDdl").asBoolean()).as("stage default").isTrue();
+  }
+
+  @Test
+  void endpointAndPairMaskingNarrowsTheResultsOfTheCall() {
+    JsonNode endpoint = JSON.readTree("{\"pii\":[\"email\"],\"fields\":[\"users.ssn\"],\"rowLimit\":10}");
+    JsonNode pairOverrides = JSON.readTree("{\"pii\":[\"phone\"],\"fields\":[\"*.token\"],\"entropy\":false}");
+    PairView p = pair(Env.DEV, false, Env.DEV, Nature.READ, Mode.READ_ONLY, endpoint, pairOverrides);
+
+    Decision d = engine.decide(p, cfg(Env.DEV, null), Classification.read());
+    assertThat(d.mask().pii()).containsExactlyInAnyOrder(MaskPolicy.Pii.EMAIL, MaskPolicy.Pii.PHONE);
+    assertThat(d.mask().fields()).containsExactlyInAnyOrder("users.ssn", "*.token");
+    assertThat(d.mask().entropy()).as("or: an override can't switch entropy masking off").isTrue();
+    assertThat(engine.maskPolicy(p, cfg(Env.DEV, null))).isEqualTo(d.mask());
+    assertThat(engine.decide(p.withMode(Mode.OFF), cfg(Env.DEV, null), Classification.read()).mask())
+        .as("every outcome carries the masking").isEqualTo(d.mask());
+
+    PairView plain = pair(Env.DEV, false, Env.DEV, Nature.READ, Mode.READ_ONLY, null, null);
+    assertThat(engine.decide(plain, cfg(Env.DEV, null), Classification.read()).mask())
+        .as("without overrides: the environment's").isEqualTo(MaskPolicy.SECRETS_ONLY);
+    PairView prod = pair(Env.PROD, false, Env.PROD, Nature.READ, Mode.READ_ONLY,
+        JSON.readTree("{\"pii\":[]}"), null);
+    assertThat(engine.decide(prod, cfg(Env.PROD, null), Classification.read()).mask().pii())
+        .as("union: an empty list never removes prod's kinds").containsExactlyInAnyOrder(MaskPolicy.Pii.values());
   }
 
   @Test

@@ -21,7 +21,6 @@ import ai.msrv.gaterook.core.platform.MaskPolicy;
 import ai.msrv.gaterook.core.policy.Decision;
 import ai.msrv.gaterook.core.policy.PairView;
 import ai.msrv.gaterook.core.policy.PolicyEngine;
-import ai.msrv.gaterook.core.policy.PolicyService;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -70,18 +69,16 @@ public class ResourcesHandler {
 
   private final ConnectorRegistry registry;
   private final PolicyEngine engine;
-  private final PolicyService policies;
   private final ToolGuard guard;
   private final AuditWriter audit;
   private final ConnectorInvoker invoker;
   private final Calls calls;
   private final EndpointSnapshotService snapshots;
 
-  public ResourcesHandler(ConnectorRegistry registry, PolicyEngine engine, PolicyService policies, ToolGuard guard,
-      AuditWriter audit, ConnectorInvoker invoker, Calls calls, EndpointSnapshotService snapshots) {
+  public ResourcesHandler(ConnectorRegistry registry, PolicyEngine engine, ToolGuard guard, AuditWriter audit,
+      ConnectorInvoker invoker, Calls calls, EndpointSnapshotService snapshots) {
     this.registry = registry;
     this.engine = engine;
-    this.policies = policies;
     this.guard = guard;
     this.audit = audit;
     this.invoker = invoker;
@@ -154,7 +151,7 @@ public class ResourcesHandler {
   /** The list of one sharing connection, masked, with its name: {@code {"connection", "list"}}; {@code null}: none. */
   private JsonNode listOf(McpRequest r, Sharing.Shared s, boolean templates) {
     ConnectorInvoker.Outcome o = invoker.query(request(r, s.config(), s.view(), Ids.next("tc_"), TOOL, null,
-        policies.maskPolicy(s.config().env())), (c, cfg, secrets, ctx) -> {
+        engine.maskPolicy(s.view(), s.config())), (c, cfg, secrets, ctx) -> {
           JsonNode list = c.listResources(cfg, secrets, ctx, templates);
           return list == null ? null : ToolResult.json(list, null);
         });
@@ -181,7 +178,7 @@ public class ResourcesHandler {
     Optional<Sharing.Shared> shared = Sharing.forUri(r.snapshot(), registry, uri);
     if (shared.isPresent() && !uri.startsWith(ResourceDescriptor.appPrefix(shared.get().name()))) {
       Sharing.Shared s = shared.get();
-      return readThrough(r, uri, s.config(), s.view(), policies.maskPolicy(s.config().env()), "text/plain");
+      return readThrough(r, uri, s.config(), s.view(), engine.maskPolicy(s.view(), s.config()), "text/plain");
     }
     Optional<Offer> offer = offers(r.snapshot()).stream().filter(o -> o.template() == null
         ? o.descriptor().uri().equals(uri) : o.template().matcher(uri).matches()).findFirst();
@@ -190,7 +187,7 @@ public class ResourcesHandler {
     }
     EndpointSnapshot.Pair pair = offer.get().pair();
     String mime = offer.get().descriptor().mimeType() == null ? "text/plain" : offer.get().descriptor().mimeType();
-    return readThrough(r, uri, pair.config(), pair.view(), policies.maskPolicy(pair.config().env()), mime);
+    return readThrough(r, uri, pair.config(), pair.view(), engine.maskPolicy(pair.view(), pair.config()), mime);
   }
 
   private static McpException notFound(McpRequest r, String uri) {
