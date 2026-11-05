@@ -16,6 +16,8 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The gateway home ({@code ~/.gaterook}) and its layout. Opening it creates the directories owner-only (0700),
@@ -24,9 +26,13 @@ import java.util.Set;
  * instead of sharing the database with it.
  *
  * <p>On file systems without POSIX permissions (Windows) the permissions are left to the ACLs of the user profile
- * (owner-only ACLs: UNVERIFIED, report 12 §6).
+ * (owner-only ACLs: UNVERIFIED, report 12 §6). On Windows the home also gets a medium mandatory label with
+ * no-read-up, no-write-up and no-execute-up, inherited by everything in it ({@link NativeOs#closeToLowIntegrity}):
+ * plugin hosts and MCP servers run at low integrity there, and read only the folders labelled for them.
  */
 public final class GatewayPaths implements AutoCloseable {
+
+  private static final Logger log = LoggerFactory.getLogger(GatewayPaths.class);
 
   private static final Set<PosixFilePermission> OWNER_DIR = PosixFilePermissions.fromString("rwx------");
   private static final Set<PosixFilePermission> OWNER_FILE = PosixFilePermissions.fromString("rw-------");
@@ -54,6 +60,13 @@ public final class GatewayPaths implements AutoCloseable {
       for (Path dir : new Path[] {root, root.resolve("logs"), root.resolve("backups"), root.resolve("tmp"),
           root.resolve("run")}) {
         ownerOnlyDirectory(dir);
+      }
+      if (NativeOs.isWindows()) {
+        String why = NativeOs.closeToLowIntegrity(root);
+        if (why != null) {
+          log.warn("GateRook's home isn't closed to low integrity ({}): plugins and MCP servers sandboxed at low "
+              + "integrity can read it", why);
+        }
       }
       Path lockFile = root.resolve("core.lock");
       FileChannel channel = FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE);

@@ -37,7 +37,9 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>The OS sandbox is in place before this process runs a line of the plugin, and before it runs at all: on Linux
  * the core starts it through {@link SandboxExec} (Landlock confines threads, so a restriction made here would miss the
- * threads already running), on macOS through {@code sandbox-exec}. The load only reports which one it runs in.
+ * threads already running), on macOS through {@code sandbox-exec}. The load only reports which one it runs in. Windows
+ * is the exception: an integrity level belongs to the process token, which every thread shares, so the host drops to
+ * low integrity itself here ({@link WindowsIntegrity}), before PF4J reads the plugin.
  */
 final class PluginRegistry implements ConnectorEndpoint.Generations {
 
@@ -47,7 +49,10 @@ final class PluginRegistry implements ConnectorEndpoint.Generations {
 
   private final Map<String, LoadedPlugin> byGeneration = new ConcurrentHashMap<>();
   private final ClassLoader apiOnly = new ApiOnlyClassLoader(PluginRegistry.class.getClassLoader());
-  /** The sandbox this process was started in ({@code landlock}), or {@code null}; set by {@link SandboxExec}. */
+  /**
+   * The sandbox this process was started in ({@code landlock}, {@code sandbox-exec}, or {@code low-integrity}, which
+   * the host applies itself at load), or {@code null}; set by {@link SandboxExec} or the core.
+   */
   private final String sandboxKind;
 
   PluginRegistry() {
@@ -93,6 +98,18 @@ final class PluginRegistry implements ConnectorEndpoint.Generations {
     // A core that asks for a sandbox this process wasn't started in gets a refusal, not a plugin running without it.
     if (load.sandbox().enabled() && sandboxKind == null) {
       throw failed("sandbox", "This plugin host wasn't started in an OS sandbox.");
+    }
+    // On Windows the host drops to low integrity itself, now that it knows the plugin's paths and before it runs a
+    // line of the plugin.
+    if (WindowsIntegrity.KIND.equals(sandboxKind)) {
+      List<Path> readable = new java.util.ArrayList<>(List.of(jar.getParent()));
+      load.sandbox().readOnly().forEach(p -> readable.add(Path.of(p)));
+      List<Path> writable = new java.util.ArrayList<>(List.of(dataDir));
+      load.sandbox().readWrite().forEach(p -> writable.add(Path.of(p)));
+      String why = WindowsIntegrity.drop(readable, writable);
+      if (why != null) {
+        throw failed("sandbox", "Couldn't run the plugin at low integrity: " + why);
+      }
     }
     GatewayPluginManager manager = new GatewayPluginManager(jar.getParent(), apiOnly);
     String pluginId;

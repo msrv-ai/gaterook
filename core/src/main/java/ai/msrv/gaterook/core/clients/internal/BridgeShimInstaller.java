@@ -179,7 +179,22 @@ public final class BridgeShimInstaller {
       launcher = new Target(List.of(copy.toString()));
     }
     writeAtomically(shim, script(env, launcher).getBytes(StandardCharsets.UTF_8), true);
+    if (env.os() == Os.WINDOWS) {
+      // The bridge's own argv beside the shim: the core starts MCP servers through gw-bridge sandbox-exec with it,
+      // since a .cmd would hand the servers' arguments to cmd.exe to parse again.
+      Path argv = argvFile(shim);
+      if (launcher.present()) {
+        writeAtomically(argv, (String.join("\n", launcher.argv()) + "\n").getBytes(StandardCharsets.UTF_8), false);
+      } else {
+        Files.deleteIfExists(argv);
+      }
+    }
     return shim;
+  }
+
+  /** {@code gw-bridge.argv} beside the shim on Windows: the bridge's argv, one argument a line. */
+  public static Path argvFile(Path shim) {
+    return shim.resolveSibling("gw-bridge.argv");
   }
 
   /** Whether the shim exists and is executable (check step 1). */

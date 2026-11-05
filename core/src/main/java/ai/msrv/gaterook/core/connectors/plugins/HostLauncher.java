@@ -52,6 +52,12 @@ import tools.jackson.databind.JsonNode;
  * outside that domain, still stops it. Whether Landlock works here is asked once
  * ({@code SandboxExec --probe}); where there is no sandbox the host runs without one and the log says so.
  *
+ * <p>On Windows the host's sandbox is low integrity, which it applies itself at {@code plugin/load}: an integrity level
+ * belongs to the process token, which every thread shares, so a host that lowers its own token before it reads the
+ * plugin confines all of it ({@code pluginhost.WindowsIntegrity}). The core asks for it with
+ * {@code MCP_GATEWAY_SANDBOX=low-integrity} once {@code WindowsIntegrity --probe} worked here, and points the host's
+ * {@code TEMP} at the plugin's data folder, which the host labels low.
+ *
  * <p>The host's answers are untrusted once the plugin's code ran: a malformed {@code plugin/load} ends the process,
  * and the tools it reports must be the manifest's, by definition hash ("tools ⊆ manifest").
  */
@@ -88,6 +94,10 @@ public final class HostLauncher {
   static final String SANDBOX_EXEC = "ai.msrv.gaterook.pluginhost.SandboxExec";
   /** Set in a host's environment by its sandbox ({@code SandboxExec} on Linux, the core for sandbox-exec). */
   static final String SANDBOX_ENV = "MCP_GATEWAY_SANDBOX";
+  /** The Windows sandbox, which the host applies itself at load. */
+  static final String LOW_INTEGRITY = "low-integrity";
+  /** Its probe: {@code WindowsIntegrity --probe}. */
+  static final String WINDOWS_INTEGRITY = "ai.msrv.gaterook.pluginhost.WindowsIntegrity";
 
   private final HostRuntimeLocator runtime;
   private final PluginPaths paths;
@@ -101,6 +111,8 @@ public final class HostLauncher {
   private final String osName = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
   /** Whether {@code SandboxExec --probe} passed on this system: known after the first start on Linux. */
   private volatile Boolean landlock;
+  /** Whether {@code WindowsIntegrity --probe} passed: known after the first start on Windows. */
+  private volatile Boolean lowIntegrity;
 
   /** @param corePorts the core's listeners ({@code EgressClients.Settings.corePorts()}), read at each start */
   public HostLauncher(HostRuntimeLocator runtime, PluginPaths paths, SecretCallbackRegistry secrets,
@@ -127,8 +139,9 @@ public final class HostLauncher {
 
   /**
    * The sandbox hosts run in on this system: {@code landlock} where Linux confines a probe of the first stage,
-   * {@code sandbox-exec} on macOS, else {@code null} (the host runs as the person's user, unconfined). A Linux probe
-   * that couldn't tell (it didn't finish) answers {@code null} here and is asked again next time.
+   * {@code sandbox-exec} on macOS, {@code low-integrity} where a Windows probe dropped to it, else {@code null} (the host
+   * runs as the person's user, unconfined). A probe that couldn't tell (it didn't finish) answers {@code null} here and
+   * is asked again next time.
    */
   public String sandboxKind() {
     try {
@@ -160,7 +173,67 @@ public final class HostLauncher {
     if (osName.startsWith("mac") && Files.isExecutable(Path.of("/usr/bin/sandbox-exec"))) {
       return "sandbox-exec";
     }
+    if (osName.startsWith("windows")) {
+      Boolean known = lowIntegrity;
+      if (known == null) {
+        synchronized (this) {
+          if (lowIntegrity == null) {
+            Boolean probed = probeLowIntegrity();
+            if (probed == null) {
+              throw new HostStartException("sandbox", "Couldn't tell whether this system can sandbox plugins: the "
+                  + "probe didn't finish. Try again.");
+            }
+            lowIntegrity = probed;
+          }
+          known = lowIntegrity;
+        }
+      }
+      return known ? LOW_INTEGRITY : null;
+    }
     return null;
+  }
+
+  /**
+   * Runs {@code WindowsIntegrity --probe}: {@code TRUE} when the probe labelled a folder low, dropped to low integrity
+   * and wrote there, {@code FALSE} when it said it couldn't (exit 4) or there is no runtime to ask, {@code null} when it
+   * couldn't tell.
+   */
+  private Boolean probeLowIntegrity() {
+    Optional<Path> javaExe = runtime.javaExecutable();
+    Optional<Path> hostJar = runtime.hostJar();
+    if (javaExe.isEmpty() || hostJar.isEmpty()) {
+      return Boolean.FALSE;
+    }
+    List<String> argv = List.of(javaExe.get().toAbsolutePath().toString(), "-Xlog:disable", "-XX:+UseSerialGC",
+        "-XX:TieredStopAtLevel=1", "-Xmx32m", "--enable-native-access=ALL-UNNAMED", "-cp",
+        hostJar.get().toAbsolutePath().toString(), WINDOWS_INTEGRITY, "--probe");
+    try {
+      Process p = new ProcessBuilder(argv).redirectErrorStream(true).start();
+      p.getOutputStream().close();
+      if (!p.waitFor(20, java.util.concurrent.TimeUnit.SECONDS)) {
+        p.destroyForcibly();
+        log.warn("The plugin sandbox probe didn't finish in 20 s");
+        return null;
+      }
+      String said = new String(p.getInputStream().readNBytes(4096), StandardCharsets.UTF_8).strip();
+      return switch (p.exitValue()) {
+        case 0 -> Boolean.TRUE;
+        case 4 -> {
+          log.warn("Plugins run unconfined: they can't run at low integrity here ({})", said);
+          yield Boolean.FALSE;
+        }
+        default -> {
+          log.warn("The plugin sandbox probe failed (exit {}): {}", p.exitValue(), said);
+          yield null;
+        }
+      };
+    } catch (IOException e) {
+      log.warn("The plugin sandbox probe couldn't run: {}", e.getMessage());
+      return null;
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return null;
+    }
   }
 
   /**
@@ -235,6 +308,11 @@ public final class HostLauncher {
     if ("sandbox-exec".equals(sandbox)) {
       // On Linux only the first stage says so: a host started without it must not claim a sandbox.
       pb.environment().put(SANDBOX_ENV, sandbox);
+    } else if (LOW_INTEGRITY.equals(sandbox)) {
+      // The host drops to low integrity at load; from then on it writes only where it is labelled low.
+      pb.environment().put(SANDBOX_ENV, sandbox);
+      pb.environment().put("TEMP", dataDir.resolve("tmp").toString());
+      pb.environment().put("TMP", dataDir.resolve("tmp").toString());
     }
     Process process;
     try {

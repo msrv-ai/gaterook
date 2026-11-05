@@ -112,5 +112,19 @@ class BridgeShimInstallerTest {
     Files.writeString(source, "updated bridge bytes");
     BridgeShimInstaller.install(env, target);
     assertThat(Files.readString(env.bridgeExecutable())).isEqualTo("updated bridge bytes");
+    // The core starts MCP servers through the bridge's own argv, not the .cmd.
+    assertThat(Files.readString(BridgeShimInstaller.argvFile(shim))).isEqualTo(env.bridgeExecutable() + "\n");
+  }
+
+  @Test
+  void windowsWritesTheBridgesArgvBesideTheShimAndRemovesItWithoutABridge() throws IOException {
+    ClientEnvironment env = new ClientEnvironment(Os.WINDOWS, dir, dir.resolve("user home/.gaterook"),
+        null, Map.of(), true, "laptop");
+    Path shim = BridgeShimInstaller.install(env, new BridgeShimInstaller.Target(List.of("C:\\jre\\bin\\java.exe",
+        "-Xmx64m", "-jar", "C:\\app\\gw-bridge.jar")));
+    assertThat(Files.readAllLines(BridgeShimInstaller.argvFile(shim)))
+        .containsExactly("C:\\jre\\bin\\java.exe", "-Xmx64m", "-jar", "C:\\app\\gw-bridge.jar");
+    BridgeShimInstaller.install(env, new BridgeShimInstaller.Target(List.of()));
+    assertThat(BridgeShimInstaller.argvFile(shim)).doesNotExist();
   }
 }

@@ -236,12 +236,15 @@ class PluginSupervisorIT {
    * A plugin's own sockets (a JDBC driver, a raw socket, an address literal: nothing the egress client or the resolver
    * hook sees) can neither reach the core's listeners nor take one over, while a port the core doesn't own stays open
    * (a database the plugin serves). The OS sandbox the core starts the host in closes them: a profile for
-   * {@code sandbox-exec} on macOS, Landlock's TCP rules on Linux (ABI 4 or later).
+   * {@code sandbox-exec} on macOS, Landlock's TCP rules on Linux (ABI 4 or later). Windows' low integrity doesn't
+   * judge sockets: there the core refuses requests from a sandboxed process itself (SandboxedPeerFilterIT).
    */
   @Test
   void aPluginsOwnSocketsCantReachOrTakeTheCoresPorts() throws Exception {
     assumeTrue(fixtureJar("secret-thief") != null, "the secret-thief fixture isn't built");
     assumeTrue(launcher.sandboxKind() != null, "no OS sandbox on this system");
+    assumeFalse(HostLauncher.LOW_INTEGRITY.equals(launcher.sandboxKind()),
+        "low integrity doesn't judge sockets: the core refuses sandboxed peers itself");
     InetAddress loopback = InetAddress.getByName("127.0.0.1");
     try (ServerSocket core = new ServerSocket(0, 50, loopback);
         ServerSocket database = new ServerSocket(0, 50, loopback)) {

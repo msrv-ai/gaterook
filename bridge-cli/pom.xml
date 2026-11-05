@@ -102,6 +102,38 @@
       macOS: sandbox-exec replaces the bridge with /usr/bin/sandbox-exec through execve, the one downcall it makes there.
       Without this metadata the native gw-bridge exits 126 and MCP servers run unsandboxed (review K1-5).
     -->
+    <!--
+      Windows: sandbox-exec puts the bridge in a job, labels the writable paths low and lowers the process to low integrity
+      before it starts the command (WindowsSandbox). Without this metadata the native gw-bridge can't, and MCP servers
+      run unsandboxed.
+    -->
+    <profile>
+      <id>windows-ffm</id>
+      <activation>
+        <os><family>windows</family></os>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>build-helper-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>windows-native-metadata</id>
+                <goals><goal>add-resource</goal></goals>
+                <configuration>
+                  <resources>
+                    <resource>
+                      <directory>src/main/native-windows</directory>
+                    </resource>
+                  </resources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
     <profile>
       <id>mac-ffm</id>
       <activation>
