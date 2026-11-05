@@ -22,7 +22,7 @@
   <version>${revision}</version>
   <packaging>pom</packaging>
   <name>GateRook</name>
-  <description>Desktop gateway through which AI agents use infrastructure via MCP without seeing secrets.</description>
+  <description>Desktop MCP Firewall for AI access to production infrastructure with encrypted credentials, exact-action approvals, and tamper-evident audit logs.</description>
 
   <modules>
     <module>connector-api</module>

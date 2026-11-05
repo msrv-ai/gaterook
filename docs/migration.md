@@ -1,6 +1,6 @@
 # Application source scope and compatibility
 
-This repository contains the full desktop application source, canonical design kit, tests, fixtures, architecture, curated research, and local build inputs. Maven and npm manifests, lockfiles, code and asset generators, and development/test scripts are included so contributors can build from a clone.
+This repository contains the full GateRook MCP Firewall desktop application source, canonical design kit, tests, fixtures, architecture, curated research, and local build inputs. Maven and npm manifests, lockfiles, code and asset generators, and development/test scripts are included so contributors can build from a clone.
 
 Website page templates, marketing compositions, and website guide generators are outside the application design kit. Its reference pages demonstrate the desktop application and reusable UI.
 

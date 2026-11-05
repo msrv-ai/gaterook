@@ -1,6 +1,6 @@
 # Architecture research
 
-These reports preserve the technical research behind GateRook's desktop application. They cover protocol contracts, connector safety, credentials, the interface, and the runtime. They are curated reference documents, not an implementation progress log.
+These reports preserve the technical research behind GateRook's desktop MCP Firewall. They cover protocol contracts, connector safety, credentials, the interface, and the runtime. They are curated reference documents, not an implementation progress log. The current [security model](../security.md) describes the supported protection claims; historical gateway terminology and protocol identifiers below retain their original context.
 
 Most evidence was collected on **2026-10-23**. Version tables, benchmark figures, API observations, and unresolved questions are dated evidence. A report's description of a prototype is not a claim that the current application or every supported operating system has passed the same checks. Consult the [architecture](../ARCHITECTURE.md), [decisions](../DECISIONS.md), current source, and build manifests for the integrated implementation.
 

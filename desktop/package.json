@@ -3,7 +3,7 @@
   "productName": "GateRook",
   "version": "0.7.0",
   "private": true,
-  "description": "GateRook desktop app: Electron main and preload around the gateway core (ARCHITECTURE.md §7.1).",
+  "description": "GateRook MCP Firewall: encrypted credentials, scoped AI access, exact-action approvals, and tamper-evident audit logs.",
   "author": "GateRook",
   "homepage": "https://msrv.dev",
   "license": "Apache-2.0",

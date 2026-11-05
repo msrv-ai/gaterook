@@ -1,6 +1,6 @@
 # Repository layout
 
-GateRook is a single application source tree with Maven modules and npm workspaces. A local build does not require another repository.
+GateRook's desktop MCP Firewall lives in a single application source tree with Maven modules and npm workspaces. A local build does not require another repository.
 
 | Path | Responsibility |
 | --- | --- |
@@ -8,7 +8,7 @@ GateRook is a single application source tree with Maven modules and npm workspac
 | `package.json`, `package-lock.json`, `.nvmrc` | Node toolchain, workspace dependencies, and local commands |
 | `.gitattributes` | Portable source line endings and exact-byte preservation for golden fixtures, vendored schemas, and migrations |
 | `app/` | Executable Spring Boot application, native image configuration, process and end-to-end tests |
-| `core/` | Gateway modules: policy, approvals, audit, secrets, endpoints, MCP, OAuth, clients, notifications, and admin API |
+| `core/` | MCP Firewall modules: policy, approvals, audit, secrets, endpoints, MCP, OAuth, clients, notifications, and admin API |
 | `connector-api/` | Connector SPI and shared types |
 | `connectors/` | SQL, MongoDB, Redis, OpenSearch, Elasticsearch, SSH, logs, Kubernetes, GCP, AWS, HTTP, external MCP, and shared support |
 | `plugin-protocol/` | GPP/1 messages, framing, and protocol tests |
@@ -22,7 +22,7 @@ GateRook is a single application source tree with Maven modules and npm workspac
 | `third-party/` | Build-time adaptation of third-party dependencies |
 | `scripts/` | Asset synchronization, staging, native/AOT checks, and test helpers |
 | `test-services/` | Disposable Docker Compose integration-test services and public test credentials |
-| `docs/` | Architecture, product decisions, development guide, and curated research |
+| `docs/` | Security model, product messaging, architecture, product decisions, connector and development guides, and curated research |
 | `ai/` (ignored) | Internal scratch files, temporary research, experiments, and logs; never commit |
 
 Installed dependencies, runtime homes, build outputs, generated test keys, and editor state are ignored. Generated design assets needed by consumers remain versioned and are regenerated from canonical sources. The `/ai/` ignore rule is anchored at the root so Java packages under `src/main/java/ai/` and `src/test/java/ai/` remain application source.

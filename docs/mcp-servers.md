@@ -1,6 +1,8 @@
-# External MCP servers
+# Put external MCP servers behind the MCP Firewall
 
-GateRook can put an MCP server you already use behind its modes, approvals and audit: a command it starts on this computer, or a server at a URL. Its tools are published under the server's prefix (`linear_list_issues`) and start Off on every endpoint. See [the architecture](ARCHITECTURE.md#76-remote-mcp-server-sign-in) for the protocol details.
+GateRook's MCP Firewall applies per-tool modes, approvals, and audit to an MCP server you already use: a command it starts on this computer, or a server at a URL. Its tools are published under the server's prefix (`linear_list_issues`) and start Off on every endpoint. Stored header secrets and upstream OAuth tokens are encrypted, and GateRook supplies them to the server without handing them to the AI client. See [the security model](security.md) for protection boundaries and [the architecture](ARCHITECTURE.md#76-remote-mcp-server-sign-in) for protocol details.
+
+You choose the endpoints and tools an AI client can use. Approval mode holds a call for review; explicit Bypass runs it without human approval under the effective policy limits. A server's tool description or `readOnlyHint` is not proof that a tool is safe: enabling read-only access requires your attestation to the current definition, and a changed definition resets that trust. Review the server and its permissions as well as the exposed tools; GateRook's controls govern calls routed through it.
 
 ## Add a server
 
