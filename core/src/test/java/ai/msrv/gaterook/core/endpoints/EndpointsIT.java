@@ -11,6 +11,7 @@ import ai.msrv.gaterook.core.connections.ConnectionService;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.endpoints.internal.EndpointRows;
 import ai.msrv.gaterook.core.endpoints.internal.ToolPairs;
+import ai.msrv.gaterook.core.endpoints.internal.TokenRows;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.ApiTokenEntity;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.ApiTokenRepository;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.ClientGrantEntity;
@@ -303,8 +304,11 @@ class EndpointsIT {
     String signedGrant = core.bean(ClientGrants.class).create(null, "codex", "tok-ep", "codex-laptop", null).id();
     String grantId = new TransactionTemplate(core.bean(PlatformTransactionManager.class)).execute(s -> {
       ClientGrantEntity g = core.bean(ClientGrantRepository.class).findById(signedGrant).orElseThrow();
-      core.bean(ApiTokenRepository.class).save(ApiTokenEntity.bridge(g, TokenService.hash(bridge), Instant.now(),
-          Instant.now().plusSeconds(900)));
+      ApiTokenEntity t = ApiTokenEntity.bridge(g, TokenService.hash(bridge), Instant.now(),
+          Instant.now().plusSeconds(900));
+      // Token rows are signed too, as ClientGrants signs the ones it issues.
+      core.bean(TokenRows.class).sign(t);
+      core.bean(ApiTokenRepository.class).save(t);
       return g.getId();
     });
     assertThat(auth.authenticate(new Authenticator.Request(Ingress.LOCAL, "tok-ep", bridge, null)))
@@ -989,8 +993,11 @@ class EndpointsIT {
     String signedGrant = core.bean(ClientGrants.class).create(null, "codex", "v-ep", "codex-laptop", null).id();
     String grantId = new TransactionTemplate(core.bean(PlatformTransactionManager.class)).execute(s -> {
       ClientGrantEntity g = core.bean(ClientGrantRepository.class).findById(signedGrant).orElseThrow();
-      core.bean(ApiTokenRepository.class).save(ApiTokenEntity.bridge(g, TokenService.hash(bridge), Instant.now(),
-          Instant.now().plusSeconds(900)));
+      ApiTokenEntity t = ApiTokenEntity.bridge(g, TokenService.hash(bridge), Instant.now(),
+          Instant.now().plusSeconds(900));
+      // Token rows are signed too, as ClientGrants signs the ones it issues.
+      core.bean(TokenRows.class).sign(t);
+      core.bean(ApiTokenRepository.class).save(t);
       return g.getId();
     });
     String grants = core.pendingApproval(endpointId, "v-ep", dbId, "v-db", "sql_execute", grantId);

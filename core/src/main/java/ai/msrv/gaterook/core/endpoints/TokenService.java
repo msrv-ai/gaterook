@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.core.endpoints;
 
 import ai.msrv.gaterook.core.endpoints.internal.GrantRows;
+import ai.msrv.gaterook.core.endpoints.internal.TokenRows;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.ApiTokenEntity;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.ApiTokenRepository;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.ClientGrantEntity;
@@ -80,6 +81,7 @@ public class TokenService implements PrincipalStatus {
   private final ApiTokenRepository tokens;
   private final ClientGrantRepository grants;
   private final GrantRows grantRows;
+  private final TokenRows tokenRows;
   private final EndpointRepository endpoints;
   private final SettingStore settings;
   private final ObjectProvider<SetupChangeRecorder> setupChanges;
@@ -92,12 +94,13 @@ public class TokenService implements PrincipalStatus {
   private final Map<String, Instant> lastUsed = new ConcurrentHashMap<>();
 
   public TokenService(ApiTokenRepository tokens, ClientGrantRepository grants, GrantRows grantRows,
-      EndpointRepository endpoints, SettingStore settings, ObjectProvider<SetupChangeRecorder> setupChanges,
-      ObjectProvider<EndpointRemovalParticipant> participants, ApplicationEventPublisher publisher, Clock clock,
-      PlatformTransactionManager transactions) {
+      TokenRows tokenRows, EndpointRepository endpoints, SettingStore settings,
+      ObjectProvider<SetupChangeRecorder> setupChanges, ObjectProvider<EndpointRemovalParticipant> participants,
+      ApplicationEventPublisher publisher, Clock clock, PlatformTransactionManager transactions) {
     this.tokens = tokens;
     this.grants = grants;
     this.grantRows = grantRows;
+    this.tokenRows = tokenRows;
     this.endpoints = endpoints;
     this.settings = settings;
     this.setupChanges = setupChanges;
@@ -146,7 +149,9 @@ public class TokenService implements PrincipalStatus {
         throw new IllegalArgumentException("A token can't be issued in the future");
       }
       Instant from = issuedAt == null ? now : issuedAt;
-      ApiTokenEntity row = tokens.save(ApiTokenEntity.named(e, name, prefix, hash(token), from, from.plus(ttl)));
+      ApiTokenEntity named = ApiTokenEntity.named(e, name, prefix, hash(token), from, from.plus(ttl));
+      tokenRows.sign(named);
+      ApiTokenEntity row = tokens.save(named);
       setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.TOKEN,
           "Token " + name + " for " + slug, null, prefix + "… · expires " + row.getExpiresAt(), reason, e.getEnv(),
           slug, null, null));
@@ -168,6 +173,7 @@ public class TokenService implements PrincipalStatus {
         return 0;
       }
       t.revoke(clock.instant(), reason == null ? "revoked" : truncate(reason, 64));
+      tokenRows.sign(t);
       tokens.save(t);
       lastUsed.remove(tokenId);
       String name = t.getName() == null ? t.getId() : t.getName();
@@ -204,6 +210,7 @@ public class TokenService implements PrincipalStatus {
       for (ApiTokenEntity t : tokens.findByGrantId(grantId)) {
         if (t.getRevokedAt() == null) {
           t.revoke(now, "grant revoked");
+          tokenRows.sign(t);
         }
       }
       setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.GRANT,
@@ -226,7 +233,8 @@ public class TokenService implements PrincipalStatus {
   @Override
   public boolean revoked(Caller.Kind kind, String principalId) {
     return Boolean.TRUE.equals(readTx.execute(s -> switch (kind) {
-      case LOCAL_TOKEN -> tokens.findById(principalId).map(t -> t.getRevokedAt() != null).orElse(true);
+      case LOCAL_TOKEN -> tokens.findById(principalId).map(t -> t.getRevokedAt() != null || !tokenRows.verify(t))
+          .orElse(true);
       case BRIDGE -> grants.findById(principalId).map(ClientGrantEntity::isRevoked).orElse(true);
       case PLAYGROUND, OAUTH -> false;
     }));

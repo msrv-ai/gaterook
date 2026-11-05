@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.core.endpoints;
 
 import ai.msrv.gaterook.core.endpoints.internal.GrantRows;
+import ai.msrv.gaterook.core.endpoints.internal.TokenRows;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.ApiTokenRepository;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.ClientGrantEntity;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.TokenKind;
@@ -34,15 +35,17 @@ public class TokenAuthenticator implements Authenticator, ApplicationListener<Ap
   private final ApiTokenRepository tokens;
   private final TokenService service;
   private final GrantRows grantRows;
+  private final TokenRows tokenRows;
   private final Clock clock;
   private final TransactionTemplate readTx;
   private ScheduledExecutorService flusher;
 
-  public TokenAuthenticator(ApiTokenRepository tokens, TokenService service, GrantRows grantRows, Clock clock,
-      PlatformTransactionManager transactions) {
+  public TokenAuthenticator(ApiTokenRepository tokens, TokenService service, GrantRows grantRows,
+      TokenRows tokenRows, Clock clock, PlatformTransactionManager transactions) {
     this.tokens = tokens;
     this.service = service;
     this.grantRows = grantRows;
+    this.tokenRows = tokenRows;
     this.clock = clock;
     this.readTx = new TransactionTemplate(transactions);
     this.readTx.setReadOnly(true);
@@ -67,6 +70,10 @@ public class TokenAuthenticator implements Authenticator, ApplicationListener<Ap
         return Optional.empty();
       }
       if (named != (t.getKind() == TokenKind.NAMED)) {
+        return Optional.empty();
+      }
+      // A row the core didn't write, or one changed since (a hash someone knows, a revocation undone), is no token.
+      if (!tokenRows.verify(t)) {
         return Optional.empty();
       }
       if (t.getKind() == TokenKind.NAMED) {

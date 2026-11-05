@@ -18,6 +18,7 @@ import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.FlywayException;
 import org.flywaydb.core.api.MigrationInfoService;
 import org.flywaydb.core.api.MigrationVersion;
+import org.flywaydb.core.api.output.MigrateResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.flyway.autoconfigure.FlywayMigrationStrategy;
@@ -72,7 +73,9 @@ final class GatewayMigrationStrategy implements FlywayMigrationStrategy {
       backUp(flyway, info.current() == null ? null : info.current().getVersion());
     }
     try {
-      int applied = flyway.migrate().migrationsExecuted;
+      MigrateResult result = flyway.migrate();
+      facts.migrated(result.migrations.stream().map(m -> m.version).toList());
+      int applied = result.migrationsExecuted;
       if (applied > 0) {
         log.info("Gateway database migrated: {} migration(s) applied, schema version {}", applied,
             flyway.info().current().getVersion());

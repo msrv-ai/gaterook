@@ -17,6 +17,7 @@ import ai.msrv.gaterook.core.platform.boot.GatewayLauncher;
 import ai.msrv.gaterook.core.secrets.internal.crypto.Envelope;
 import ai.msrv.gaterook.core.secrets.internal.crypto.KeysetFile;
 import ai.msrv.gaterook.core.secrets.internal.crypto.Keysets;
+import ai.msrv.gaterook.core.secrets.internal.SecretRows;
 import ai.msrv.gaterook.core.secrets.internal.persistence.SecretEntity;
 import ai.msrv.gaterook.core.secrets.internal.persistence.SecretKind;
 import ai.msrv.gaterook.core.secrets.internal.persistence.SecretOwnerKind;
@@ -278,6 +279,7 @@ class SecretsIT {
             version.seal(value.ciphertext(), value.wrappedDek(), value.keyId());
             versions.save(version);
             saved.setCurrentVersion(1);
+            core.getBean(SecretRows.class).sign(saved);
           });
           return null;
         });

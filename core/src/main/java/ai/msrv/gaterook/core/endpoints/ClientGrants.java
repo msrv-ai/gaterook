@@ -2,6 +2,7 @@ package ai.msrv.gaterook.core.endpoints;
 
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.core.endpoints.internal.GrantRows;
+import ai.msrv.gaterook.core.endpoints.internal.TokenRows;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.ApiTokenEntity;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.ApiTokenRepository;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.ClientGrantEntity;
@@ -140,6 +141,7 @@ public class ClientGrants implements DisposableBean {
   private final ApiTokenRepository tokens;
   private final EndpointRepository endpoints;
   private final GrantRows rows;
+  private final TokenRows tokenRows;
   private final TokenService tokenService;
   private final LocalListener listener;
   private final EventBus events;
@@ -156,13 +158,14 @@ public class ClientGrants implements DisposableBean {
   private ScheduledExecutorService purger;
 
   public ClientGrants(ClientGrantRepository grants, ApiTokenRepository tokens, EndpointRepository endpoints,
-      GrantRows rows, TokenService tokenService, LocalListener listener, EventBus events,
+      GrantRows rows, TokenRows tokenRows, TokenService tokenService, LocalListener listener, EventBus events,
       ObjectProvider<SetupChangeRecorder> setupChanges, Clock clock, PlatformTransactionManager transactions,
       Environment environment) {
     this.grants = grants;
     this.tokens = tokens;
     this.endpoints = endpoints;
     this.rows = rows;
+    this.tokenRows = tokenRows;
     this.tokenService = tokenService;
     this.listener = listener;
     this.events = events;
@@ -305,14 +308,18 @@ public class ClientGrants implements DisposableBean {
         .filter(t -> t.isLive(now)).sorted(Comparator.comparing(ApiTokenEntity::getCreatedAt)).toList());
     while (live.size() >= MAX_LIVE_TOKENS) {
       // A bridge that asks for a fifth token has usually dropped an older one; the oldest goes.
-      live.removeFirst().revoke(now, "superseded");
+      ApiTokenEntity oldest = live.removeFirst();
+      oldest.revoke(now, "superseded");
+      tokenRows.sign(oldest);
     }
     byte[] random = new byte[32];
     RANDOM.nextBytes(random);
     String token = TokenService.BRIDGE_PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(random);
     java.util.Arrays.fill(random, (byte) 0);
     Instant expires = now.plus(bridgeTtl);
-    tokens.save(ApiTokenEntity.bridge(g, TokenService.hash(token), now, expires));
+    ApiTokenEntity issued = ApiTokenEntity.bridge(g, TokenService.hash(token), now, expires);
+    tokenRows.sign(issued);
+    tokens.save(issued);
     // The version shows which bridge the client runs: a Claude Desktop extension keeps the one it was built with.
     g.tokenIssued(now, r.pid(), r.bridge());
     rows.saveSigned(g);

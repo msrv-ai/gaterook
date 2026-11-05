@@ -220,8 +220,7 @@ public final class FullBackupDatabase {
         disablePlugins(c, mac, now);
         stopAutomaticMcp(c, mac, now);
         disableLoginStartup(c, now);
-        update(c, "UPDATE api_token SET revoked_at=?, revoke_reason='Full backup restored', version=version+1 "
-            + "WHERE revoked_at IS NULL", now);
+        revokeTokens(c, mac, now);
         update(c, "UPDATE oauth_grant SET state='revoked', revoked_at=?, revoke_reason='Full backup restored', "
             + "version=version+1 WHERE revoked_at IS NULL", now);
         update(c, "DELETE FROM oauth_token");
@@ -254,6 +253,28 @@ public final class FullBackupDatabase {
         f.put("revokedAt", now);
         update(c, "UPDATE client_grant SET revoked_at=?, version=version+1, mac=? WHERE id=?", now,
             mac.sign("client_grant", r.getString("id"), r.getLong("version") + 1, f), r.getString("id"));
+      }
+    }
+  }
+
+  /**
+   * Revokes every access token and signs it revoked (the fields of {@code TokenRows}): a revocation that left the
+   * issuing MAC in place could be undone by clearing {@code revoked_at} in the restored file.
+   */
+  private static void revokeTokens(Connection c, RowMac mac, long now) throws SQLException {
+    try (Statement s = c.createStatement(); ResultSet r = s.executeQuery("SELECT * FROM api_token WHERE revoked_at IS NULL")) {
+      while (r.next()) {
+        ObjectNode f = mac.fields();
+        f.put("kind", r.getString("kind"));
+        f.put("endpointId", r.getString("endpoint_id"));
+        f.put("grantId", r.getString("grant_id"));
+        f.put("name", r.getString("name"));
+        f.put("hash", r.getString("hash"));
+        f.put("createdAt", r.getLong("created_at"));
+        f.put("expiresAt", r.getLong("expires_at"));
+        f.put("revokedAt", now);
+        update(c, "UPDATE api_token SET revoked_at=?, revoke_reason='Full backup restored', version=version+1, "
+            + "mac=? WHERE id=?", now, mac.sign("api_token", r.getString("id"), 0, f), r.getString("id"));
       }
     }
   }

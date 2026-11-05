@@ -26,6 +26,9 @@ public interface SecretRepository extends JpaRepository<SecretEntity, String> {
 
   List<SecretEntity> findAllByOrderByNameAsc();
 
+  /** Local secrets an older version stored before {@code secret} had a MAC. */
+  List<SecretEntity> findByKindAndMacIsNull(SecretKind kind);
+
   /** A new master key in locked mode: every local secret needs a value again. */
   @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query("update versioned SecretEntity s set s.currentVersion = null where s.kind = :kind")

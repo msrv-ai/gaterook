@@ -19,6 +19,9 @@ public interface ApiTokenRepository extends JpaRepository<ApiTokenEntity, String
 
   long countByGrantIdAndRevokedAtIsNullAndExpiresAtAfter(String grantId, Instant now);
 
+  /** Rows an older version wrote before {@code api_token} had a MAC. */
+  List<ApiTokenEntity> findByKindAndMacIsNull(TokenKind kind);
+
   /** Bridge tokens are short-lived and not audit: rows past their expiry plus a day are purged. */
   @Modifying(clearAutomatically = true)
   @Query("delete from ApiTokenEntity t where t.kind = :kind and t.expiresAt < :before")
