@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, it } from 'node:test';
@@ -11,7 +11,7 @@ const homes: string[] = [];
 afterEach(() => { for (const home of homes.splice(0)) rmSync(home, { recursive: true, force: true }); });
 const key = Buffer.alloc(32, 71);
 
-function setup(platform: NodeJS.Platform = 'darwin', available = true) {
+function setup(platform: NodeJS.Platform = 'darwin', available = true, touchId = available && platform === 'darwin') {
   const home = mkdtempSync(join(tmpdir(), 'gaterook-native-key-'));
   homes.push(home);
   const calls: NativeRequest[] = [];
@@ -28,8 +28,8 @@ function setup(platform: NodeJS.Platform = 'darwin', available = true) {
     calls.push(request);
     if (failure?.operation === request.operation) throw new NativeUnlockError(failure.code);
     switch (request.operation) {
-      case 'check': return { ok: true, available, touchId: available && platform === 'darwin' };
-      case 'verify': return { ok: true };
+      case 'check': return { ok: true, available, touchId };
+      case 'verify': case 'verify-password': return { ok: true };
       case 'delete': saved.delete(request.account!); return { ok: true };
       case 'store': case 'create': saved.set(request.account!, request.key!); return { ok: true };
       case 'get': {
@@ -163,13 +163,56 @@ describe('native startup file keys', () => {
     assert.deepEqual(s.safeCalls, [], 'no DPAPI access after cancelled Hello');
   });
 
-  it('retains OS protection when biometric authentication is not configured', async () => {
+  it('asks for the Windows password before releasing the DPAPI key when Hello is not set up', async () => {
     const s = setup('win32', false);
     writeFileSync(oskPath(s.home), 'safe:' + key.toString('base64'));
     await s.manager.initialize();
-    assert.deepEqual(s.manager.details(), { authentication: 'system' });
+    assert.deepEqual(s.manager.details(), { authentication: 'windows-password' });
     assert.deepEqual((await s.manager.load()).fileKey, key);
-    assert.deepEqual(s.calls, [{ operation: 'check' }]);
+    assert.deepEqual(s.calls, [{ operation: 'check' }, { operation: 'verify-password', windowHandle: '1234' }]);
+    assert.deepEqual(s.safeCalls, ['decrypt']);
+    for (const code of ['cancelled', 'denied', 'unavailable', 'failed']) {
+      s.safeCalls.length = 0;
+      s.fail('verify-password', code);
+      await assert.rejects(s.manager.load(), (error: unknown) => error instanceof NativeUnlockError && error.code === code);
+      assert.deepEqual(s.safeCalls, [], `no DPAPI access after a ${code} password check`);
+    }
+  });
+
+  it('creates a Windows key only after the password check', async () => {
+    const s = setup('win32', false);
+    s.fail('verify-password', 'cancelled');
+    await s.manager.initialize();
+    await assert.rejects(s.manager.load(), NativeUnlockError);
+    assert.deepEqual(s.safeCalls, []);
+    assert.equal(existsSync(oskPath(s.home)), false);
+  });
+
+  it('falls back to the Windows password when Hello stops being available, never to no check', async () => {
+    const s = setup('win32');
+    writeFileSync(oskPath(s.home), 'safe:' + key.toString('base64'));
+    await s.manager.initialize();
+    s.fail('verify', 'unavailable');
+    assert.deepEqual((await s.manager.load()).fileKey, key);
+    assert.deepEqual(s.calls.map((c) => c.operation), ['check', 'verify', 'verify-password']);
+    assert.deepEqual(s.manager.details(), { authentication: 'windows-password' });
+  });
+
+  it('does not offer the password after Windows Hello is cancelled or denied', async () => {
+    for (const code of ['cancelled', 'denied']) {
+      const s = setup('win32');
+      writeFileSync(oskPath(s.home), 'safe:' + key.toString('base64'));
+      s.fail('verify', code);
+      await assert.rejects(s.manager.load(), NativeUnlockError);
+      assert.deepEqual(s.calls.map((c) => c.operation), ['check', 'verify']);
+      assert.deepEqual(s.safeCalls, []);
+    }
+  });
+
+  it('names the Mac password when there is no Touch ID', async () => {
+    const s = setup('darwin', true, false);
+    await s.manager.initialize();
+    assert.deepEqual(s.manager.details(), { authentication: 'mac-password' });
   });
 
   it('does not downgrade Windows authentication when the helper fails its capability check', async () => {

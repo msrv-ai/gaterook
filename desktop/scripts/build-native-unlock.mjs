@@ -56,7 +56,9 @@ export function buildNativeUnlock({ root = defaultRoot, dist = join(root, 'dist'
         }
         run('cl.exe', ['/nologo', '/std:c++20', '/EHsc', '/O2', '/MT', '/DUNICODE', '/D_UNICODE',
           '/DWIN32_LEAN_AND_MEAN', '/DNOMINMAX', source, `/Fe:${built}`, `/Fo:${join(temporary, 'unlock.obj')}`,
-          '/link', 'windowsapp.lib', 'user32.lib', '/DYNAMICBASE', '/NXCOMPAT'], { cwd: temporary });
+          // credui and advapi32: the account-password check (CredUI, LogonUser) where Windows Hello isn't set up.
+          '/link', 'windowsapp.lib', 'user32.lib', 'credui.lib', 'advapi32.lib', 'ole32.lib', '/DYNAMICBASE',
+          '/NXCOMPAT'], { cwd: temporary });
       }
       try { renameSync(temporary, destination); }
       catch (error) { if (!existsSync(executable)) throw error; }

@@ -37,7 +37,7 @@ export interface CoreState {
   readonly firstRun: boolean;
   /** OS key access is requested only by the unlock action, before the core is started. */
   readonly unlocking?: boolean;
-  readonly authentication?: 'touch-id' | 'windows-hello' | 'system';
+  readonly authentication?: 'touch-id' | 'mac-password' | 'windows-hello' | 'windows-password' | 'system';
   readonly keychainService?: string;
 }
 
