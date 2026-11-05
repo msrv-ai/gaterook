@@ -31,8 +31,19 @@ import java.util.stream.IntStream;
  * can neither reach the core's local and public ports nor take them over. Landlock judges a TCP port, not an address:
  * those ports are closed on every host. Its rules only allow, so this takes a rule per open port (65,534 with the two
  * default ports closed), about 50 ms at start and 4.5 MB of kernel memory for the host's domain (measured on Linux
- * 7.0). They judge TCP sockets only: UDP isn't judged, nor a protocol that carries TCP, such as MPTCP, which a kernel
- * may offer to a plugin's native code.
+ * 7.0). They judge genuine TCP only: since Landlock's erratum 1 the bind and connect hooks fire only for a
+ * {@code sk_is_tcp} socket, so UDP and a stream protocol that falls back to TCP — MPTCP ({@code IPPROTO_MPTCP}), SCTP —
+ * slip past the port rules. A plugin's native code can open an MPTCP socket, which the core's plain-TCP listener
+ * answers as TCP, and so reach a closed port. Only a seccomp filter on the socket protocol would close that (§7.5).
+ *
+ * <p><b>Scoping</b> (Landlock ABI 6, Linux 6.12) closes two more ways out of the process's own domain, the same ones
+ * {@code gw-bridge sandbox-exec} closes for MCP servers. The host can't connect to the session's abstract Unix sockets
+ * (the D-Bus session bus, and through it the Secret Service keyring; X11) or signal the person's other processes; it
+ * still signals its own threads, which share its domain, so the JVM runs. Pathname Unix sockets are a residual through
+ * ABI 8: Landlock mediates opening a file, not {@code connect(2)} to a socket, so native code can reach a listener by
+ * its path — a database's socket, which a plugin may need, but also {@code /run/user/<uid>/bus}. The file rules keep
+ * the credentials on disk unreadable either way. ABI 9's {@code LANDLOCK_ACCESS_FS_RESOLVE_UNIX} would govern that
+ * connect, at the cost of a plugin's own Unix-socket databases (§7.5).
  *
  * <p><b>A thread, not a process.</b> {@code landlock_restrict_self} and {@code PR_SET_NO_NEW_PRIVS} confine the calling
  * thread and the threads it creates afterwards, never the threads that already run. A JVM runs dozens before
@@ -66,6 +77,16 @@ final class Sandbox {
   static final long CONNECT_TCP = 1L << 1;
   /** The first ABI with network rules. */
   static final int NET_ABI = 4;
+
+  /**
+   * {@code landlock_ruleset_attr.scoped} (ABI 6, Linux 6.12): what the domain's processes can't reach outside it — the
+   * session's abstract Unix sockets and the signals of the person's other processes. {@code bridge-cli}'s sandbox uses
+   * the same two.
+   */
+  static final long SCOPE_ABSTRACT_UNIX_SOCKET = 1L;
+  static final long SCOPE_SIGNAL = 1L << 1;
+  /** The first ABI with {@code scoped}. */
+  static final int SCOPE_ABI = 6;
 
   private static final long SYS_LANDLOCK_CREATE_RULESET = 444;
   private static final long SYS_LANDLOCK_ADD_RULE = 445;
@@ -175,6 +196,7 @@ final class Sandbox {
   static void restrict(int abi, List<String> readOnly, List<String> readWrite, Set<Integer> closedPorts) {
     int[] tcpPorts = openPorts(abi, closedPorts);
     boolean net = tcpPorts.length > 0;
+    boolean scope = abi >= SCOPE_ABI;
     try (Arena arena = Arena.ofConfined()) {
       MethodHandle create = handle("syscall", SYSCALL_CREATE, Linker.Option.firstVariadicArg(1),
           Linker.Option.captureCallState("errno"));
@@ -188,14 +210,20 @@ final class Sandbox {
           Linker.Option.captureCallState("errno"));
       MethodHandle close = handle("close", CLOSE);
       MemorySegment state = arena.allocate(STATE);
-      // struct landlock_ruleset_attr { __u64 handled_access_fs; __u64 handled_access_net; … }: ABI 1's size (which
-      // every later ABI accepts) when no port is closed, else up to handled_access_net (ABI 4).
-      long size = net ? 16 : 8;
+      // struct landlock_ruleset_attr { __u64 handled_access_fs; __u64 handled_access_net; __u64 scoped; }: ABI 1's
+      // size (8 bytes, which every later ABI accepts) when only the filesystem is handled, up to handled_access_net
+      // (ABI 4) when a port is closed, and the whole 24 bytes from ABI 6 for scoped. handled_access_net stays at
+      // offset 8 for the --deny-tcp rules; it is 0 when no port is closed, so the network isn't handled then.
+      long size = scope ? 24 : (net ? 16 : 8);
       MemorySegment attr = arena.allocate(size, 8);
       long handled = handledRights(abi);
       attr.set(ValueLayout.JAVA_LONG, 0, handled);
-      if (net) {
-        attr.set(ValueLayout.JAVA_LONG, 8, BIND_TCP | CONNECT_TCP);
+      if (size >= 16) {
+        attr.set(ValueLayout.JAVA_LONG, 8, net ? BIND_TCP | CONNECT_TCP : 0L);
+      }
+      if (scope) {
+        // The host only ever signals its own threads, which share its domain, so SCOPE_SIGNAL doesn't stop the JVM.
+        attr.set(ValueLayout.JAVA_LONG, 16, SCOPE_ABSTRACT_UNIX_SOCKET | SCOPE_SIGNAL);
       }
       long fd = (long) create.invokeExact(state, SYS_LANDLOCK_CREATE_RULESET, attr, size, 0);
       if (fd < 0) {
