@@ -15,17 +15,28 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.IntStream;
 
 /**
- * {@code gw-bridge sandbox-exec [--ro <path>]… [--rw <path>]… [--no-defaults] [--allow-unsandboxed] -- <command> [args…]}
- * (ARCHITECTURE.md §7.5): starts an MCP server, or anything the core runs on the person's behalf, confined to what it
- * needs. On Linux (Landlock, kernel 5.13 or later) the bridge restricts itself — {@code PR_SET_NO_NEW_PRIVS}, a
- * Landlock ruleset that reads only the {@code --ro} paths and writes only the {@code --rw} paths — and then
- * {@code execve}s the command, which inherits the restriction and can't lift it. The rest of {@code $HOME},
- * GateRook's data included, can't be opened. The network isn't restricted: MCP servers need it.
+ * {@code gw-bridge sandbox-exec [--ro <path>]… [--rw <path>]… [--deny-tcp <port>]… [--no-defaults]
+ * [--allow-unsandboxed] -- <command> [args…]} (ARCHITECTURE.md §7.5): starts an MCP server, or anything the core runs
+ * on the person's behalf, confined to what it needs. On Linux (Landlock, kernel 5.13 or later) the bridge restricts
+ * itself — {@code PR_SET_NO_NEW_PRIVS}, a Landlock ruleset that reads only the {@code --ro} paths and writes only the
+ * {@code --rw} paths — and then {@code execve}s the command, which inherits the restriction and can't lift it. The
+ * rest of {@code $HOME}, GateRook's data included, can't be opened.
+ *
+ * <p>The network stays open, since MCP servers need it, except the {@code --deny-tcp} ports: the core passes its own
+ * listeners (its local API and the tunnel's listener), which the command's sockets may neither connect to nor bind,
+ * on any address. On Linux that takes Landlock ABI 4 (Linux 6.7), whose rules only allow: the ruleset handles TCP bind
+ * and connect and allows every other port, one rule each (port 0 included, which binds an ephemeral port). Landlock
+ * judges TCP ports, not addresses, and TCP alone (not UDP, nor MPTCP). With an older ABI the ports stay open, which is
+ * said on stderr. On macOS the profile denies them on every host ({@link #macProfile}).
  *
  * <p>Defaults (unless {@code --no-defaults}): the system read-only ({@code /usr}, {@code /lib*}, {@code /bin},
  * {@code /sbin}, {@code /etc}, {@code /opt}, {@code /proc}, {@code /sys}, {@code /nix}, and the resolver's
@@ -73,11 +84,18 @@ final class Sandbox {
   static final long SCOPE_ABSTRACT_UNIX_SOCKET = 1L;
   static final long SCOPE_SIGNAL = 1L << 1;
 
+  /** Landlock's network rights (ABI 4): binding a TCP socket to a port, connecting one to a port. */
+  static final long BIND_TCP = 1L;
+  static final long CONNECT_TCP = 1L << 1;
+  /** The first ABI with network rules. */
+  static final int NET_ABI = 4;
+
   private static final long SYS_LANDLOCK_CREATE_RULESET = 444;
   private static final long SYS_LANDLOCK_ADD_RULE = 445;
   private static final long SYS_LANDLOCK_RESTRICT_SELF = 446;
   private static final int LANDLOCK_CREATE_RULESET_VERSION = 1;
   private static final int LANDLOCK_RULE_PATH_BENEATH = 1;
+  private static final int LANDLOCK_RULE_NET_PORT = 2;
   private static final int PR_SET_NO_NEW_PRIVS = 38;
   private static final int O_PATH = 0x200000;
   private static final int O_CLOEXEC = 0x80000;
@@ -91,15 +109,16 @@ final class Sandbox {
       "/run/NetworkManager/resolv.conf");
   static final List<String> SYSTEM_WRITE = List.of("/dev");
 
-  /** The parsed command line. */
-  record Request(List<String> readOnly, List<String> readWrite, boolean defaults, boolean allowUnsandboxed,
-      List<String> command) {}
+  /** The parsed command line; {@code deniedPorts} ascending. */
+  record Request(List<String> readOnly, List<String> readWrite, Set<Integer> deniedPorts, boolean defaults,
+      boolean allowUnsandboxed, List<String> command) {}
 
   private Sandbox() {}
 
   static Request parse(List<String> args) {
     List<String> ro = new ArrayList<>();
     List<String> rw = new ArrayList<>();
+    Set<Integer> ports = new TreeSet<>();
     boolean defaults = true;
     boolean allow = false;
     int i = 0;
@@ -111,13 +130,21 @@ final class Sandbox {
           if (command.isEmpty()) {
             throw new IllegalArgumentException("sandbox-exec needs a command after --");
           }
-          return new Request(List.copyOf(ro), List.copyOf(rw), defaults, allow, command);
+          return new Request(List.copyOf(ro), List.copyOf(rw), Collections.unmodifiableSet(ports), defaults, allow,
+              command);
         }
         case "--ro", "--rw" -> {
           if (i + 1 >= args.size()) {
             throw new IllegalArgumentException(a + " needs a path");
           }
           (a.equals("--ro") ? ro : rw).add(args.get(++i));
+        }
+        case "--deny-tcp" -> {
+          String port = i + 1 < args.size() ? args.get(++i) : "";
+          if (!port.matches("[0-9]{1,5}") || Integer.parseInt(port) < 1 || Integer.parseInt(port) > 65_535) {
+            throw new IllegalArgumentException("--deny-tcp needs a port from 1 to 65535");
+          }
+          ports.add(Integer.parseInt(port));
         }
         case "--no-defaults" -> defaults = false;
         case "--allow-unsandboxed" -> allow = true;
@@ -133,8 +160,8 @@ final class Sandbox {
       r = parse(args);
     } catch (IllegalArgumentException e) {
       err.println(e.getMessage());
-      err.println("usage: gw-bridge sandbox-exec [--ro <path>]… [--rw <path>]… [--no-defaults] [--allow-unsandboxed] "
-          + "-- <command> [args…]");
+      err.println("usage: gw-bridge sandbox-exec [--ro <path>]… [--rw <path>]… [--deny-tcp <port>]… [--no-defaults] "
+          + "[--allow-unsandboxed] -- <command> [args…]");
       return 3;
     }
     Closed closed = Closed.of(env);
@@ -166,8 +193,12 @@ final class Sandbox {
         if (r.defaults()) {
           rw.addAll(SYSTEM_WRITE);
         }
+        if (!r.deniedPorts().isEmpty() && abi < NET_ABI) {
+          err.println("gw-bridge: Landlock ABI " + abi + " can't close TCP ports (ABI 4, Linux 6.7, can): the "
+              + "command can still reach GateRook's ports " + r.deniedPorts());
+        }
         try {
-          restrict(abi, readable(r, executable, closed, err), rw);
+          restrict(abi, readable(r, executable, closed, err), rw, r.deniedPorts());
         } catch (IllegalStateException e) {
           err.println("gw-bridge: " + e.getMessage());
           return NO_SANDBOX;
@@ -186,7 +217,7 @@ final class Sandbox {
             + "GateRook's data and the credentials");
       }
       List<String> wrapped = new ArrayList<>(List.of("/usr/bin/sandbox-exec", "-p", macProfile(closed,
-          r.readWrite())));
+          r.readWrite(), r.deniedPorts())));
       wrapped.addAll(argv);
       return exec(wrapped, env, err);
     }
@@ -346,8 +377,9 @@ final class Sandbox {
   }
 
   // The native image links only the downcalls its metadata lists (src/main/native-linux/.../reachability-metadata.json,
-  // in this order: the ABI probe, create_ruleset, add_rule, restrict_self, prctl, open, close, execve; on macOS
-  // src/main/native-mac/…: execve alone): a descriptor or option changed here must change there too.
+  // in this order: the ABI probe, create_ruleset, add_rule (path and port rules alike), restrict_self, prctl, open,
+  // close, execve; on macOS src/main/native-mac/…: execve alone): a descriptor or option changed here must change
+  // there too.
   private static final FunctionDescriptor SYSCALL_CREATE = FunctionDescriptor.of(ValueLayout.JAVA_LONG,
       ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT);
   private static final FunctionDescriptor SYSCALL_ADD = FunctionDescriptor.of(ValueLayout.JAVA_LONG,
@@ -402,8 +434,26 @@ final class Sandbox {
     return directory ? all : all & fileOnly;
   }
 
-  /** Restricts this process: Landlock ruleset, no new privileges, restrict self. Missing paths are skipped. */
-  static void restrict(int abi, List<String> readOnly, List<String> readWrite) {
+  /**
+   * The TCP ports a ruleset of ABI {@code abi} opens when {@code closed} are to stay closed: every port but those
+   * (port 0 too, which binds an ephemeral port), from ABI 4; none before, when nothing is closed, and the network
+   * isn't handled then.
+   */
+  static int[] openPorts(int abi, Set<Integer> closed) {
+    if (abi < NET_ABI || closed.isEmpty()) {
+      return new int[0];
+    }
+    return IntStream.rangeClosed(0, 65_535).filter(p -> !closed.contains(p)).toArray();
+  }
+
+  /**
+   * Restricts this process: Landlock ruleset, no new privileges, restrict self. Missing paths are skipped. From ABI 4
+   * the TCP ports in {@code closedPorts} can be neither bound nor connected to; before it they stay open, which the
+   * caller says.
+   */
+  static void restrict(int abi, List<String> readOnly, List<String> readWrite, Set<Integer> closedPorts) {
+    int[] tcpPorts = openPorts(abi, closedPorts);
+    boolean net = tcpPorts.length > 0;
     try (Arena arena = Arena.ofConfined()) {
       MethodHandle create = handle("syscall", SYSCALL_CREATE, Linker.Option.firstVariadicArg(1),
           Linker.Option.captureCallState("errno"));
@@ -418,15 +468,18 @@ final class Sandbox {
       MethodHandle close = handle("close", CLOSE);
       MemorySegment state = arena.allocate(ERRNO.layout);
       // struct landlock_ruleset_attr { __u64 handled_access_fs; __u64 handled_access_net; __u64 scoped; }: the
-      // size of ABI 1 (8 bytes, which every later ABI accepts) up to ABI 5; from ABI 6 the whole struct, with the
-      // process scoped out of the abstract Unix sockets (the session bus, X11) and the signals of the rest of the
-      // session. The network isn't handled: MCP servers need it.
-      long size = abi >= 6 ? 24 : 8;
+      // size of ABI 1 (8 bytes, which every later ABI accepts) up to ABI 5, or up to handled_access_net (16 bytes,
+      // ABI 4) when ports are closed; from ABI 6 the whole struct, with the process scoped out of the abstract Unix
+      // sockets (the session bus, X11) and the signals of the rest of the session. The network is handled only to
+      // close ports: MCP servers need the rest of it.
+      long size = abi >= 6 ? 24 : net ? 16 : 8;
       MemorySegment attr = arena.allocate(size, 8);
       long handled = handledRights(abi);
       attr.set(ValueLayout.JAVA_LONG, 0, handled);
+      if (size >= 16) {
+        attr.set(ValueLayout.JAVA_LONG, 8, net ? BIND_TCP | CONNECT_TCP : 0L);
+      }
       if (abi >= 6) {
-        attr.set(ValueLayout.JAVA_LONG, 8, 0L);
         attr.set(ValueLayout.JAVA_LONG, 16, SCOPE_ABSTRACT_UNIX_SOCKET | SCOPE_SIGNAL);
       }
       long fd = (long) create.invokeExact(state, SYS_LANDLOCK_CREATE_RULESET, attr, size, 0);
@@ -457,6 +510,17 @@ final class Sandbox {
           if (rc < 0) {
             throw new IllegalStateException("landlock_add_rule failed for " + p + " (errno " + errno(state) + ")");
           }
+        }
+      }
+      // struct landlock_net_port_attr { __u64 allowed_access; __u64 port; }: one per open port.
+      MemorySegment port = arena.allocate(16, 8);
+      port.set(ValueLayout.JAVA_LONG, 0, BIND_TCP | CONNECT_TCP);
+      for (int p : tcpPorts) {
+        port.set(ValueLayout.JAVA_LONG, 8, p);
+        long rc = (long) add.invokeExact(state, SYS_LANDLOCK_ADD_RULE, ruleset, LANDLOCK_RULE_NET_PORT, port, 0);
+        if (rc < 0) {
+          throw new IllegalStateException("landlock_add_rule failed for TCP port " + p + " (errno " + errno(state)
+              + ")");
         }
       }
       int rc = (int) prctl.invokeExact(state, PR_SET_NO_NEW_PRIVS, 1L, 0L, 0L, 0L);
@@ -536,12 +600,17 @@ final class Sandbox {
    * {@code --rw} path that would reopen a denied one is refused before ({@link Closed#refusal}). Seatbelt compares
    * {@code subpath} with the canonical path only — a rule for {@code /tmp/x} doesn't stop reading
    * {@code /private/tmp/x} — so every path is written as given and as the kernel sees it.
+   *
+   * <p>The network is open but for the {@code --deny-tcp} ports, which the command may neither connect to nor bind,
+   * on every host: Seatbelt takes only {@code *} or {@code localhost} as a host, and a rule for {@code localhost} lets
+   * {@code ::ffff:0.0.0.0} through, the IPv4-mapped wildcard that the kernel connects to {@code 127.0.0.1} (checked
+   * on macOS 27).
    */
-  static String macProfile(Map<String, String> env, List<String> readWrite) {
-    return macProfile(Closed.of(env), readWrite);
+  static String macProfile(Map<String, String> env, List<String> readWrite, Set<Integer> deniedPorts) {
+    return macProfile(Closed.of(env), readWrite, deniedPorts);
   }
 
-  static String macProfile(Closed closed, List<String> readWrite) {
+  static String macProfile(Closed closed, List<String> readWrite, Set<Integer> deniedPorts) {
     StringBuilder b = new StringBuilder("(version 1)\n(allow default)\n(deny file-write* (subpath \"/\"))\n");
     List<Path> writable = new ArrayList<>(List.of(Path.of("/dev"), Path.of("/tmp"), Path.of("/private/tmp")));
     String tmp = System.getenv("TMPDIR");
@@ -581,6 +650,15 @@ final class Sandbox {
       for (String p : above) {
         b.append("  (literal ").append(sbplString(p)).append(")\n");
       }
+      b.append(")\n");
+    }
+    if (!deniedPorts.isEmpty()) {
+      // Several filters in one rule are OR'ed; "*" is every host, the mapped wildcard included.
+      Set<Integer> ports = new TreeSet<>(deniedPorts);
+      b.append("(deny network-outbound");
+      ports.forEach(p -> b.append(" (remote ip \"*:").append(p).append("\")"));
+      b.append(")\n(deny network-bind");
+      ports.forEach(p -> b.append(" (local ip \"*:").append(p).append("\")"));
       b.append(")\n");
     }
     return b.toString();

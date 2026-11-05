@@ -18,7 +18,8 @@ import java.util.regex.Pattern;
  *   <li>{@code headers --endpoint <slug> --grant <gr_…>}: Codex's {@code http_headers_helper} ({@link Headers});</li>
  *   <li>{@code stdio --endpoint <slug> --grant <gr_…> [--client <client>]}: stdin/stdout ⇄ {@code POST /mcp/<slug>}
  *       ({@link StdioBridge});</li>
- *   <li>{@code sandbox-exec [--ro p]… [--rw p]… -- <command>}: runs an MCP server under Landlock ({@link Sandbox}).</li>
+ *   <li>{@code sandbox-exec [--ro p]… [--rw p]… [--deny-tcp port]… -- <command>}: runs an MCP server under Landlock
+ *       or {@code sandbox-exec} ({@link Sandbox}).</li>
  * </ul>
  * Nothing it prints or logs carries a token; the grant id only as its prefix in {@code bridge.log}.
  */

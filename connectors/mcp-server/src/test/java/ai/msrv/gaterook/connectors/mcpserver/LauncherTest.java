@@ -1,13 +1,21 @@
 package ai.msrv.gaterook.connectors.mcpserver;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.msrv.gaterook.connector.api.Env;
+import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -66,6 +74,60 @@ class LauncherTest {
         work);
     assertThat(env).containsEntry("HOME", work.toString()).containsEntry("TMPDIR", work.resolve("tmp").toString())
         .containsEntry("npm_config_cache", work.resolve(".npm").toString());
+  }
+
+  @Test
+  void theSandboxClosesTheCoresPortsAsTheyAreAtEachStart() throws Exception {
+    Path shim = shim("exit 0");
+    AtomicReference<Set<Integer>> core = new AtomicReference<>(Set.of(7466, 7465));
+    Launcher l = new Launcher(Map.of("PATH", "/usr/bin:/bin", "HOME", dir.toString()), "Linux", false,
+        dir.resolve(".gaterook"), shim, core::get);
+    Path work = dir.resolve(".gaterook/mcp/fs");
+
+    // The bridge's options, ascending, before the command: its sockets neither reach nor bind the local API and the
+    // tunnel's listener.
+    assertThat(l.argv(Path.of("/usr/bin/node"), List.of("x.js"), work)).containsExactly(shim.toString(),
+        "sandbox-exec", "--rw", work.toString(), "--deny-tcp", "7465", "--deny-tcp", "7466", "--", "/usr/bin/node",
+        "x.js");
+    // Asked at each start: the port a web server bound later counts; what isn't a port (0: not bound yet) is left out.
+    core.set(new HashSet<>(Arrays.asList(51_234, 7466, 0, -1, 65_536, null)));
+    List<String> argv = l.argv(Path.of("/usr/bin/node"), List.of(), work);
+    assertThat(argv.subList(argv.indexOf("--rw"), argv.indexOf("--"))).containsExactly("--rw", work.toString(),
+        "--deny-tcp", "7466", "--deny-tcp", "51234");
+    // None known: none closed.
+    core.set(Set.of());
+    assertThat(l.argv(Path.of("/usr/bin/node"), List.of(), work)).doesNotContain("--deny-tcp");
+
+    // Where the sandbox doesn't work there is nothing to close them with: the command runs as it is.
+    Launcher unconfined = new Launcher(Map.of("PATH", "/usr/bin:/bin", "HOME", dir.toString()), "Linux", false,
+        dir.resolve(".gaterook"), shim("exit 4"), () -> Set.of(7465, 7466));
+    assertThat(unconfined.argv(Path.of("/usr/bin/node"), List.of(), work)).containsExactly("/usr/bin/node");
+  }
+
+  @Test
+  void npmCiRunsWithTheSameClosedPorts() throws Exception {
+    // A sandbox that works, then records what it was asked to run and fails it: no Node is needed.
+    Path record = dir.resolve("argv.txt");
+    Path shim = dir.resolve("gw-bridge");
+    Files.writeString(shim, "#!/bin/sh\nif [ \"$2\" = \"--\" ]; then exit 0; fi\nprintf '%s\\n' \"$@\" > '" + record
+        + "'\nexit 9\n");
+    Files.setPosixFilePermissions(shim, PosixFilePermissions.fromString("rwx------"));
+    Path bin = Files.createDirectories(dir.resolve("bin"));
+    Path npm = executable(bin.resolve("npm"));
+    Launcher l = new Launcher(Map.of("PATH", bin + ":/usr/bin:/bin", "HOME", dir.toString()), "Linux", false,
+        dir.resolve(".gaterook"), shim, () -> Set.of(7466, 7465));
+    assertThat(l.sandbox()).isEqualTo("landlock");
+    byte[] lock = """
+        {"lockfileVersion":3,"packages":{"":{"dependencies":{"srv":"1.0.0"}},
+         "node_modules/srv":{"version":"1.0.0","integrity":"sha512-abc=="}}}""".getBytes(StandardCharsets.UTF_8);
+    Path work = dir.resolve(".gaterook/mcp/srv");
+
+    assertThatThrownBy(() -> new NpmInstaller(l).install(work, new McpServerRuntime.NpmPackage("srv", "1.0.0",
+        "sha512-abc==", lock, "srv", null, true), Duration.ofSeconds(30), l.installEnvironment(work)))
+        .hasMessageContaining("npm ci failed with exit code 9");
+    assertThat(Files.readAllLines(record)).containsExactly("sandbox-exec", "--rw", work.toString(), "--deny-tcp",
+        "7465", "--deny-tcp", "7466", "--", npm.toString(), "ci", "--no-audit", "--no-fund", "--loglevel=error",
+        "--ignore-scripts");
   }
 
   @Test

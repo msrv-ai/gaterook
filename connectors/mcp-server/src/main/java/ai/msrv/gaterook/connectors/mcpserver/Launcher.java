@@ -12,10 +12,13 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -25,8 +28,9 @@ import java.util.stream.Stream;
  * pass and the values of the server's secrets. Where {@code gw-bridge sandbox-exec} works (Landlock on Linux,
  * {@code sandbox-exec} on macOS) the process reads the system and the home minus GateRook's data and the credential
  * folders, and writes only its work folder and the temporary folders; its work folder is its {@code HOME}, so the
- * package managers keep their caches there, apart from those the person's own tools use. Elsewhere it runs as the
- * person's user and the review says so.
+ * package managers keep their caches there, apart from those the person's own tools use. Its sockets can neither
+ * connect to nor bind the core's own listeners ({@code --deny-tcp}, as they are at each start; on Linux from Landlock
+ * ABI 4, else the server's log says they stay open). Elsewhere it runs as the person's user and the review says so.
  */
 final class Launcher {
 
@@ -45,16 +49,26 @@ final class Launcher {
   private final Path gatewayHome;
   private final String path;
   private final Path sandboxLauncher;
+  private final Supplier<Set<Integer>> corePorts;
   private final String sandbox;
   private final Map<String, Optional<String>> nodeVersions = new ConcurrentHashMap<>();
+
+  /** A launcher that closes no port to the servers (tests). */
+  Launcher(Map<String, String> coreEnv, String osName, boolean loginShellPath, Path gatewayHome,
+      Path sandboxLauncher) {
+    this(coreEnv, osName, loginShellPath, gatewayHome, sandboxLauncher, Set::of);
+  }
 
   /**
    * @param loginShellPath whether to ask {@code $SHELL -ilc} for the PATH a terminal would have (off in tests)
    * @param gatewayHome GateRook's home ({@code ~/.gaterook}), where the servers' work folders are
    * @param sandboxLauncher {@code ~/.gaterook/bin/gw-bridge}, used when its {@code sandbox-exec} works here
+   * @param corePorts the core's own listeners ({@code McpServerRuntime.Host.corePorts()}), read for every argv: the
+   *                  sandbox closes them to the process
    */
   Launcher(Map<String, String> coreEnv, String osName, boolean loginShellPath, Path gatewayHome,
-      Path sandboxLauncher) {
+      Path sandboxLauncher, Supplier<Set<Integer>> corePorts) {
+    this.corePorts = Objects.requireNonNull(corePorts, "corePorts");
     this.coreEnv = Map.copyOf(coreEnv);
     String os = osName.toLowerCase(Locale.ROOT);
     this.windows = os.startsWith("windows");
@@ -179,7 +193,10 @@ final class Launcher {
     return env;
   }
 
-  /** argv as it starts: the resolved command, wrapped by {@code gw-bridge sandbox-exec} where it works. */
+  /**
+   * argv as it starts: the resolved command, wrapped by {@code gw-bridge sandbox-exec} where it works, which closes
+   * the core's ports as they are now to the process ({@code --deny-tcp}, ascending).
+   */
   List<String> argv(Path command, List<String> args, Path workDir) {
     List<String> out = new ArrayList<>();
     if (sandbox != null) {
@@ -197,11 +214,26 @@ final class Launcher {
         out.add("--ro");
         out.add(tree.toString());
       }
+      for (int port : closedPorts()) {
+        out.add("--deny-tcp");
+        out.add(Integer.toString(port));
+      }
       out.add("--");
     }
     out.add(command.toString());
     out.addAll(args);
     return out;
+  }
+
+  /** The core's listeners as they are now, ascending; what isn't a port (0: a web server not bound yet) is left out. */
+  private Set<Integer> closedPorts() {
+    Set<Integer> ports = new TreeSet<>();
+    for (Integer port : corePorts.get()) {
+      if (port != null && port > 0 && port <= 65_535) {
+        ports.add(port);
+      }
+    }
+    return ports;
   }
 
   // ── Internals ───────────────────────────────────────────────────────────────────────────────────────────────

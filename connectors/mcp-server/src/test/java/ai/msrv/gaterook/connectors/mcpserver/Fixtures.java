@@ -327,6 +327,8 @@ final class Fixtures {
     /** What the servers said outside any call: a changed list ({@code resources}, {@code prompts}) or an update. */
     final List<String> notices = new CopyOnWriteArrayList<>();
     final Set<String> reserved = new LinkedHashSet<>(List.of("sql_query", "approval_status"));
+    /** The core's listeners a test says it has: closed to sandboxed servers at their next start. */
+    volatile Set<Integer> corePorts = Set.of();
 
     Host(Path home) {
       this.home = home;
@@ -335,6 +337,11 @@ final class Fixtures {
     @Override
     public Path home() {
       return home;
+    }
+
+    @Override
+    public Set<Integer> corePorts() {
+      return corePorts;
     }
 
     @Override
