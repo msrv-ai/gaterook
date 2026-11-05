@@ -40,7 +40,7 @@
           <p class="gw-card__description">@if (endpointDisabled()) {Saved configuration: }{{ g.description }}</p>
         </div>
       </div>
-      @if (!endpointDisabled() && !picker() && !g.external && !g.builtIn) {
+      @if (!endpointDisabled() && !picker() && (!g.external || g.source.type === 'mcp-server') && !g.builtIn) {
         <div class="gw-card__actions">
           <div class="gw-menu-host">
             <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="menu" aria-expanded="false" [gwMenuTrigger]="bulkMenu">Set all to…<span class="gw-sr-only"> for {{ g.title }} tools</span><svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm"></svg></button>
@@ -49,6 +49,8 @@
               <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-value="READ_ONLY"><svg lucideIcon="eye" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Read only<span class="gw-menu__hint">{{ g.hints.read }}</span></span></button>
               <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-value="APPROVAL"><svg lucideIcon="user-check" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Approval<span class="gw-menu__hint">{{ g.hints.approval }}</span></span></button>
               <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-value="BYPASS" [disabled]="readOnly()"><svg lucideIcon="shield-off" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Bypass<span class="gw-menu__hint">{{ g.hints.bypass }}</span></span></button>
+              <div class="gw-menu__divider" role="separator"></div>
+              <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-value="DEFAULT"><svg lucideIcon="rotate-ccw" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Restore defaults<span class="gw-menu__hint">Use each tool's default mode; endpoint restrictions still apply</span></span></button>
             </div>
           </div>
         </div>

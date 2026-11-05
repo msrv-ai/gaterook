@@ -357,7 +357,7 @@ export class EndpointDetailData {
     }
   }
 
-  async bulk(connection: string | null, mode: ToolMode): Promise<{ readonly changed: string[]; readonly skipped: { readonly toolKey: string; readonly reason: string }[] }> {
+  async bulk(connection: string | null, mode: ToolMode | 'DEFAULT'): Promise<{ readonly changed: string[]; readonly skipped: { readonly toolKey: string; readonly reason: string }[] }> {
     const slug = this.requireSlug();
     try {
       return await this.endpoints.bulk(slug, { group: connection as string, mode });

@@ -206,6 +206,25 @@ public class FakeConnectors {
     if ("share.internal".equals(cfg.string("/connection/host"))) {
       return new SharingMcp(cfg, version);
     }
+    if ("modes.test".equals(cfg.string("/connection/host"))) {
+      List<ToolDefinition> tools = new java.util.ArrayList<>();
+      boolean changedToMutation = version.equals("3.0.0");
+      tools.add(ToolDefinition.builder("gh_search").inputSchema(input("query"))
+          .annotations(changedToMutation ? Annotations.write(true) : Annotations.read())
+          .nature(changedToMutation ? Nature.MUTATION : Nature.READ)
+          .defaultMode(Mode.APPROVAL, Mode.APPROVAL).build());
+      tools.add(ToolDefinition.builder("gh_write").inputSchema(input("query"))
+          .annotations(Annotations.write(true)).nature(Nature.MUTATION)
+          .defaultMode(Mode.APPROVAL, Mode.APPROVAL).build());
+      if (!version.equals("1.0.0")) {
+        tools.add(ToolDefinition.builder("gh_recent").inputSchema(input("query")).build());
+        tools.add(ToolDefinition.builder("gh_new_write").inputSchema(input("query"))
+            .annotations(Annotations.write(true)).nature(Nature.MUTATION)
+            .defaultMode(Mode.APPROVAL, Mode.APPROVAL).build());
+      }
+      return new Fake(ConnectorManifest.builder("mcpfake", version, ConnectorManifest.Kind.MCP_SERVER)
+          .name("FakeMCP").configSchema(config()).dynamicTools(true).tools(tools).build(), false);
+    }
     return new Fake(ConnectorManifest.builder("mcpfake", version, ConnectorManifest.Kind.MCP_SERVER).name("FakeMCP")
         .group("HTTP and MCP").description("An MCP server for tests.").configSchema(config()).dynamicTools(true)
         .tools(List.of(ToolDefinition.builder("gh_search").title("Search code").description("Searches the code.")

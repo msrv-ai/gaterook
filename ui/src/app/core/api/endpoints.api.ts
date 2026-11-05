@@ -249,7 +249,7 @@ export class EndpointsApi {
     return this.api.post(ApiClient.path`/api/endpoints/${slug}/tools/confirm-read-only`, request);
   }
 
-  /** "Set all to…": `DEFAULT` restores defaults; mutating and "Declared by" tools are skipped for Read only. */
+  /** "Set all to…": `DEFAULT` restores defaults; ineligible reads and unconfirmed plugin tools are skipped for Read only. */
   bulk(slug: string, request: { readonly group: string; readonly mode: ToolMode | 'DEFAULT' } & WithReason): Promise<{ readonly changed: string[]; readonly skipped: { readonly toolKey: string; readonly reason: string }[] }> {
     return this.api.post(ApiClient.path`/api/endpoints/${slug}/tools/bulk`, request);
   }

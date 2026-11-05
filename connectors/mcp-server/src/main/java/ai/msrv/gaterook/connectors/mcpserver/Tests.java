@@ -96,7 +96,7 @@ final class Tests {
         : TestResult.failure(code, message.substring(0, nl), message.substring(nl + 1));
   }
 
-  /** "Tools listed again: 2 new (Off), 1 changed, 1 gone." against the snapshot; {@code null} when the same. */
+  /** Tool changes against the snapshot; {@code null} when the same. */
   static String diff(List<JsonNode> before, List<JsonNode> after) {
     Set<String> had = new java.util.HashSet<>();
     java.util.Map<String, String> hashes = new java.util.HashMap<>();
@@ -127,10 +127,10 @@ final class Tests {
     }
     List<String> parts = new ArrayList<>();
     if (added > 0) {
-      parts.add(added + " new (Off on every endpoint)");
+      parts.add(added + " new (declared reads start in Read only; other tools stay Off)");
     }
     if (changed > 0) {
-      parts.add(changed + " changed (Read only asks again)");
+      parts.add(changed + " changed (read-only eligibility is checked again)");
     }
     if (gone > 0) {
       parts.add(gone + " gone");

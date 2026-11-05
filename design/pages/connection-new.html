@@ -1047,8 +1047,28 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
       <section class="gw-section" id="used-by" aria-labelledby="used-by-title" data-mode-show="edit" hidden>
         <header class="gw-section__header">
           <h2 class="gw-section__title" id="used-by-title">Used by</h2>
-          <p class="gw-section__description">The endpoints that expose <span class="gw-mono" data-slot="name">dev-db</span> and the mode of each of its tools there. Choose a mode next to an endpoint to change it immediately. Changes apply from the next call.</p>
+          <p class="gw-section__description">The endpoints that expose <span class="gw-mono" data-slot="name">dev-db</span> and the mode of each of its tools there. Choose a mode for one tool, or use Set all to… to change all tools on the selected endpoints. Changes apply from the next call.</p>
         </header>
+        <div class="gw-toolbar" aria-label="Change all tool modes">
+          <div class="gw-toolbar__start">
+            <label class="gw-text-ui" for="connection-bulk-endpoint">Endpoint</label>
+            <select class="gw-select" id="connection-bulk-endpoint"><option value="dev">dev</option></select>
+            <span class="gw-text-caption gw-fg-muted" id="connection-bulk-status" role="status">4 tools on 1 endpoint. Changes apply from the next call.</span>
+          </div>
+          <div class="gw-toolbar__end">
+            <span class="gw-menu-host">
+              <button class="gw-btn gw-btn--sm" type="button" id="connection-bulk-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="connection-bulk-menu" aria-describedby="connection-bulk-status" aria-label="Set all dev-db tools to a mode">Set all to… <i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+              <div class="gw-menu gw-menu--right gw-menu--wide" id="connection-bulk-menu" role="menu" aria-label="Mode for all tools" hidden>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-connection-bulk="off"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off<span class="gw-menu__hint">Agents can't call any of these tools</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-connection-bulk="read"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only<span class="gw-menu__hint">Only eligible read tools change; other tools keep their mode</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-connection-bulk="approval"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval<span class="gw-menu__hint">Every call waits for your decision; locked tools stay off</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-connection-bulk="bypass"><i class="gw-icon gw-menu__icon" data-lucide="shield-off"></i><span class="gw-menu__label">Bypass<span class="gw-menu__hint" data-connection-bypass-hint>Calls run without approval, including changes to data; policy limits still apply</span></span></button>
+                <div class="gw-menu__divider" role="separator"></div>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-connection-bulk="default"><i class="gw-icon gw-menu__icon" data-lucide="rotate-ccw"></i><span class="gw-menu__label">Restore defaults<span class="gw-menu__hint">Use each tool's default mode; MCP reads use Read only, other MCP tools use Approval</span></span></button>
+              </div>
+            </span>
+          </div>
+        </div>
         <div class="gw-table-wrap" role="region" aria-labelledby="used-by-cap" tabindex="0">
           <table class="gw-table">
             <caption class="gw-sr-only" id="used-by-cap">Tools of <span data-slot="name">dev-db</span> by endpoint, with their modes</caption>
@@ -1816,6 +1836,8 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
     // Used by
     var body = doc.querySelector("[data-used-by]");
     body.textContent = "";
+    var modeControls = [];
+    function isReadOnlyEndpoint(slug) { return slug === "stage-readonly" || slug === "incident-prod"; }
     var toolRows = new Map();
     c.eps.forEach(function (ep) {
       ep[1].forEach(function (t) {
@@ -1852,16 +1874,26 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
         menu.setAttribute("role", "menu");
         menu.setAttribute("aria-label", "Mode of " + tool + " on " + use.endpoint);
         menu.hidden = true;
-        var readOnly = use.endpoint === "stage-readonly" || use.endpoint === "incident-prod";
+        var readOnly = isReadOnlyEndpoint(use.endpoint);
         var mutates = ["sql_execute", "http_request", "ssh_exec", "k8s_rollout_restart", "k8s_apply"].indexOf(tool) !== -1;
         trigger.disabled = readOnly && mutates;
+        function setMode(mode) {
+          use.tool[1] = mode;
+          trigger.replaceChild(modeChip(mode), trigger.querySelector(".gw-mode"));
+          trigger.setAttribute("aria-label", MODES[mode][1] + ": " + tool + " on " + use.endpoint);
+          menu.querySelectorAll("[data-mode]").forEach(function (option) { option.setAttribute("aria-checked", String(option.dataset.mode === mode)); });
+          if (window.gwIcons) window.gwIcons(trigger);
+        }
+        var defaultMode = ["ssh_exec", "k8s_logs", "k8s_apply", "loki_tail", "gcp_logging_tail"].indexOf(tool) !== -1 ? "off" : mutates ? "approval" : "read";
+        modeControls.push({ use: use, mutates: mutates, readOnly: readOnly, set: setMode, defaultMode: readOnly && defaultMode === "approval" ? "off" : defaultMode });
         ["off", "read", "approval", "bypass"].forEach(function (mode) {
           var option = el("button", "gw-menu__item");
           option.type = "button";
           option.setAttribute("role", "menuitemradio");
           option.setAttribute("tabindex", "-1");
           option.setAttribute("aria-checked", String(mode === use.tool[1]));
-          option.disabled = (mode === "read" && mutates) || (mode === "bypass" && readOnly);
+          option.dataset.mode = mode;
+          option.disabled = (mode === "read" && mutates) || ((mode === "bypass" || mode === "approval") && readOnly);
           var icon = el("i", "gw-icon gw-menu__icon");
           icon.setAttribute("data-lucide", MODES[mode][0]);
           option.appendChild(icon);
@@ -1874,10 +1906,7 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
           option.appendChild(check);
           option.addEventListener("click", function () {
             if (option.disabled) return;
-            use.tool[1] = mode;
-            trigger.replaceChild(modeChip(mode), trigger.querySelector(".gw-mode"));
-            trigger.setAttribute("aria-label", MODES[mode][1] + ": " + tool + " on " + use.endpoint);
-            if (window.gwIcons) window.gwIcons(trigger);
+            setMode(mode);
             toast({ tone: "success", title: tool + ": " + MODES[mode][1] + " on " + use.endpoint, body: "Applies from the next call." });
           });
           menu.appendChild(option);
@@ -1898,6 +1927,45 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
       body.appendChild(tr);
     });
     if (window.gwIcons) window.gwIcons(body);
+    var bulkEndpoint = doc.getElementById("connection-bulk-endpoint");
+    bulkEndpoint.textContent = "";
+    if (c.eps.length > 1) {
+      var all = el("option", "", "All endpoints");
+      all.value = "all";
+      bulkEndpoint.appendChild(all);
+    }
+    c.eps.forEach(function (ep) {
+      var option = el("option", "", ep[0]);
+      option.value = ep[0];
+      bulkEndpoint.appendChild(option);
+    });
+    doc.getElementById("connection-bulk-trigger").setAttribute("aria-label", "Set all " + name + " tools to a mode");
+    function selectedControls() { return modeControls.filter(function (control) { return bulkEndpoint.value === "all" || control.use.endpoint === bulkEndpoint.value; }); }
+    function syncBulkSelection() {
+      var selected = selectedControls();
+      var count = new Set(selected.map(function (control) { return control.use.endpoint; })).size;
+      var readOnly = selected.some(function (control) { return control.readOnly; });
+      doc.getElementById("connection-bulk-status").textContent = selected.length + " tools on " + count + (count === 1 ? " endpoint" : " endpoints") + ". Changes apply from the next call.";
+      doc.querySelector('[data-connection-bulk="bypass"]').disabled = readOnly;
+      doc.querySelector("[data-connection-bypass-hint]").textContent = readOnly ? "Unavailable: the selection includes a read-only endpoint. Choose another endpoint." : "Calls run without approval, including changes to data; policy limits still apply";
+    }
+    bulkEndpoint.addEventListener("change", syncBulkSelection);
+    syncBulkSelection();
+    doc.querySelectorAll("[data-connection-bulk]").forEach(function (option) {
+      option.addEventListener("click", function () {
+        if (option.disabled) return;
+        var changed = 0;
+        var skipped = 0;
+        selectedControls().forEach(function (control) {
+          var target = option.dataset.connectionBulk === "default" ? control.defaultMode : option.dataset.connectionBulk;
+          if ((target === "read" && control.mutates) || (control.readOnly && (target === "approval" || target === "bypass"))) { skipped++; return; }
+          if (control.use.tool[1] !== target) { control.set(target); changed++; }
+        });
+        var outcome = changed + " tool modes changed" + (skipped ? "; " + skipped + " skipped because the mode is unavailable" : "") + ". Applies from the next call.";
+        doc.getElementById("connection-bulk-status").textContent = outcome;
+        toast({ tone: skipped ? "warning" : "success", title: option.dataset.connectionBulk === "default" ? "Defaults restored" : "Tool modes updated", body: outcome });
+      });
+    });
 
     // Delete confirmation
     var dlg = doc.getElementById("dlg-delete-connection");

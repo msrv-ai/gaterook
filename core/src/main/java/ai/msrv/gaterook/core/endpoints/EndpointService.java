@@ -340,8 +340,8 @@ public class EndpointService {
 
   /**
    * {@code POST /api/endpoints/{slug}/duplicate {slug}}: connections, modes, limits and settings; no tokens, no
-   * clients. Plugin and MCP server tools start in Approval again (their Read only confirmations stay with the
-   * original).
+   * clients. Plugin tools in Read only return to Approval (their confirmations stay with the original); MCP
+   * server tools retain their saved modes subject to the target endpoint's restrictions.
    */
   public Summary duplicate(String slug, String newSlug, String reason) {
     checkSlug(newSlug);

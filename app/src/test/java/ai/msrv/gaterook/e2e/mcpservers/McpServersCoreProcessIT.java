@@ -26,7 +26,7 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * An external MCP server on the assembled core, started as Electron starts it (ARCHITECTURE.md §7.5, C10): the review
  * shows the command as it will run, Add starts it once with the typed secret before anything is saved, its tools join
- * an endpoint in Approval, Read only needs the person's confirmation and is refused for a tool that may change data,
+ * an endpoint in Read only for declared reads and Approval otherwise; mutations cannot use Read only,
  * agents see the prefixed names without a {@code connection} argument, a read runs, an approved call returns with the
  * server's echo of its secret masked, Stop stops the process, and Delete leaves nothing. With
  * {@code -Dgateway.core.binary} the same runs against the native executable (the MCP SDK's records in the image).
@@ -118,23 +118,23 @@ class McpServersCoreProcessIT {
 
   @Test
   @Order(2)
-  void itsToolsJoinAnEndpointInApprovalAndReadOnlyNeedsAConfirmation() throws Exception {
+  void declaredReadsJoinAnEndpointInReadOnlyWithoutPerToolConfirmation() throws Exception {
     json(admin("POST", "/api/endpoints", "{\"slug\":\"notes\",\"startFrom\":\"empty\"}"), 201);
     json(admin("POST", "/api/endpoints/notes/connections/notes-mcp", "{}"), 200);
     List<JsonNode> rows = rows();
     assertThat(rows).extracting(t -> t.path("name").asString())
         .containsExactlyInAnyOrder("notes_search", "notes_create_note", "notes_whoami");
-    assertThat(rows).allSatisfy(t -> assertThat(t.path("mode").asString()).isEqualTo("APPROVAL"));
+    assertThat(row("notes_search").path("mode").asString()).isEqualTo("READ_ONLY");
+    assertThat(row("notes_whoami").path("mode").asString()).isEqualTo("READ_ONLY");
+    assertThat(row("notes_create_note").path("mode").asString()).isEqualTo("APPROVAL");
+    assertThat(row("notes_search").path("readOnlyAllowed").asBoolean()).isTrue();
+    assertThat(row("notes_search").path("readOnlyConfirmed").asBoolean()).isFalse();
 
-    JsonNode search = row("notes_search");
-    Answer unconfirmed = admin("PUT", "/api/endpoints/notes/tools", mode(search, "READ_ONLY"));
-    assertThat(unconfirmed.status()).as(unconfirmed.body()).isIn(409, 422);
-    assertThat(unconfirmed.body()).contains("Confirm that notes_search only reads");
-    json(admin("POST", "/api/endpoints/notes/tools/confirm-read-only", "{\"toolKey\":\"" + search.path("toolKey")
-        .asString() + "\",\"connection\":\"notes-mcp\",\"definitionHash\":\"" + search.path("definitionHash")
-        .asString() + "\"}"), 200);
+    json(admin("PUT", "/api/endpoints/notes/tools", mode(row("notes_search"), "APPROVAL")), 200);
     json(admin("PUT", "/api/endpoints/notes/tools", mode(row("notes_search"), "READ_ONLY")), 200);
     assertThat(row("notes_search").path("mode").asString()).isEqualTo("READ_ONLY");
+    // Keep explicit approval coverage for the secret-masking call below.
+    json(admin("PUT", "/api/endpoints/notes/tools", mode(row("notes_whoami"), "APPROVAL")), 200);
 
     Answer mutation = admin("PUT", "/api/endpoints/notes/tools", mode(row("notes_create_note"), "READ_ONLY"));
     assertThat(mutation.status()).isIn(409, 422);

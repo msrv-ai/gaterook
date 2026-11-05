@@ -91,10 +91,14 @@ export const DEMO_TOOL_GROUPS_PROD: ToolPolicyGroup[] = [
   },
 ];
 
-const declared = (name: string, annotations: ToolAnnotations): ToolRow =>
-  tool(name, 'APPROVAL', annotations, { declaredBy: 'github-mcp', readOnlyAllowed: false, reason: null });
+const declared = (name: string, annotations: ToolAnnotations): ToolRow => {
+  const readOnly = !!annotations.readOnlyHint && !annotations.destructiveHint;
+  return tool(name, readOnly ? 'READ_ONLY' : 'APPROVAL', annotations, {
+    toolKey: `mcp:github-mcp/${name}`, declaredBy: 'github-mcp', readOnlyAllowed: readOnly, reason: null,
+  });
+};
 
-/** github-mcp just added to endpoint dev: 4 of its 26 tools, all in Approval. */
+/** github-mcp just added to endpoint dev: declared reads use Read only; other tools use Approval. */
 export const DEMO_TOOL_GROUPS_EXTERNAL: ToolPolicyGroup[] = [
   {
     type: 'mcp-server',

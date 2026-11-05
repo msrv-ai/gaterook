@@ -111,13 +111,13 @@ export function modeNote(t: ToolRow, endpoint: { readonly slug: string; readonly
       text: 'Bypass runs without approval, including changes to data. Policy limits still apply.',
       locked: false,
       readOnlyDisabled,
-      needsConfirmation: !!t.declaredBy && !readOnlyDisabled && !t.readOnlyConfirmed,
+      needsConfirmation: !!t.declaredBy && !readOnlyDisabled && !t.readOnlyAllowed && !t.readOnlyConfirmed,
     };
   }
   if (t.declaredBy) {
     if (t.annotations.destructiveHint) return lock('Declared destructive: approval, bypass or off');
     if (!t.annotations.readOnlyHint) return lock('Not declared read only: approval, bypass or off');
-    if (!t.readOnlyConfirmed) {
+    if (!t.readOnlyAllowed && !t.readOnlyConfirmed) {
       return { icon: 'info', text: 'Read only needs your confirmation for this tool', locked: false, readOnlyDisabled: false, needsConfirmation: true };
     }
     return null;
@@ -138,7 +138,8 @@ export function bulkHints(
   endpoint: { readonly readOnly: boolean },
 ): { readonly off: string; readonly read: string; readonly approval: string; readonly bypass: string } {
   const changing = tools.filter((t) => mutates(t)).map((t) => t.name);
-  const unconfirmed = tools.filter((t) => t.declaredBy && !mutates(t) && !t.readOnlyConfirmed).map((t) => t.name);
+  const unconfirmed = tools.filter((t) => t.declaredBy && t.annotations.readOnlyHint && !mutates(t) && !t.readOnlyAllowed && !t.readOnlyConfirmed).map((t) => t.name);
+  const undeclared = tools.filter((t) => t.declaredBy && !t.annotations.readOnlyHint && !mutates(t)).map((t) => t.name);
   const names = (list: readonly string[]) =>
     list.length <= 1 ? list.join('') : `${list.slice(0, -1).join(', ')} and ${list.at(-1)}`;
   let read = 'Calls run at once and can\'t change data';
@@ -150,6 +151,7 @@ export function bulkHints(
     read = `${names(changing)} ${changing.length === 1 ? 'stays as it is: it changes' : 'stay as they are: they change'} data`;
   }
   if (unconfirmed.length) read += `; ${names(unconfirmed)} ${unconfirmed.length === 1 ? 'needs' : 'need'} your confirmation first`;
+  if (undeclared.length) read += `; ${names(undeclared)} ${undeclared.length === 1 ? 'stays as it is: it is' : 'stay as they are: they are'} not declared read only`;
   return { off: `Agents can't call any ${connection} tool`, read, approval, bypass: endpoint.readOnly ? 'Unavailable: the endpoint is read only' : 'Calls run without approval, including changes to data; policy limits still apply' };
 }
 

@@ -287,7 +287,8 @@ public class EndpointConnections {
       ToolDefinition d = offered.definition();
       if (row == null) {
         boolean freshTemplate = offered.template() != null && offered.template().version() == 1;
-        Mode mode = freshTemplate ? ToolPairs.initial(offered, e.getEnv(), readOnly) : Mode.OFF;
+        Mode mode = freshTemplate || offered.automaticReadOnly()
+            ? ToolPairs.initial(offered, e.getEnv(), readOnly) : Mode.OFF;
         rows.save(new EndpointToolEntity(e, c.id(), offered.toolKey(), mode, clock.instant()));
         changed = true;
       } else if (row.getMode() == Mode.READ_ONLY && !d.readOnlyModeAllowed()) {

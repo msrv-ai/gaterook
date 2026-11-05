@@ -477,19 +477,19 @@ describe('MCP server review', () => {
 describe('MCP server endpoint step', () => {
   const linear = { name: 'linear-mcp', http: true, tools: 23 };
 
-  it('says where the tools went, that they start as Approval, or that they are Off', () => {
+  it('says where the tools went, their default modes, or that they are Off', () => {
     expect(connectedToast(linear, { added: ['dev'], notAdded: [] })).toEqual({
       tone: 'success',
       title: 'MCP server linear-mcp connected',
-      body: 'Its 23 tools are on dev, each as Approval. Change their modes on the endpoint.',
+      body: 'Its 23 tools are on dev. Declared reads start as Read only; other tools start as Approval. Change their modes on the endpoint.',
     });
     expect(connectedToast({ ...linear, tools: 1 }, { added: ['dev', 'stage'], notAdded: [] }).body).toBe(
-      'Its tool is on dev and stage, each as Approval. Change their modes on the endpoint.',
+      'Its tool is on dev and stage. Declared reads start as Read only; other tools start as Approval. Change their modes on the endpoint.',
     );
     expect(connectedToast({ name: 'notes-mcp', http: false, tools: null }, { added: [], notAdded: [] })).toEqual({
       tone: 'success',
       title: 'MCP server notes-mcp started',
-      body: 'Its tools are Off until you add them to an endpoint. There each starts as Approval.',
+      body: 'Its tools are Off until you add them to an endpoint. Declared reads start as Read only; other tools start as Approval.',
     });
   });
 
@@ -497,7 +497,7 @@ describe('MCP server endpoint step', () => {
     expect(connectedToast(linear, { added: ['dev'], notAdded: [{ slug: 'shared', why: 'Live tokens would cross the prod line.' }] })).toEqual({
       tone: 'warning',
       title: 'MCP server linear-mcp connected, not added to shared',
-      body: 'Its 23 tools are on dev as Approval. Live tokens would cross the prod line.',
+      body: 'Its 23 tools are on dev with their default modes. Live tokens would cross the prod line.',
     });
   });
 });

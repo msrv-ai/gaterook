@@ -1407,7 +1407,7 @@ LIMIT 200</textarea>
                 <!-- ARCHITECTURE §7.5: where the OS has no sandbox for the process, the review says so. -->
                 <div class="gw-kv__row" data-mcp="runs-row"><dt class="gw-kv__key">Runs as</dt><dd class="gw-kv__value">Your user, without a shell or a sandbox, from <span class="gw-mono">~/.gaterook/mcp/<span data-mcp="name">sentry-mcp</span></span>. Not sandboxed on this system: it can read everything your account can, including GateRook's data.</dd></div>
                 <div class="gw-kv__row"><dt class="gw-kv__key">Secrets passed</dt><dd class="gw-kv__value" data-mcp="secrets"><span class="gw-mono">SENTRY_AUTH_TOKEN</span> from the secret <span class="gw-mono">sentry-mcp/token</span></dd></div>
-                <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value">Listed after the start and Off everywhere. On an endpoint each starts as Approval: the server declares its own annotations and the gateway can't verify them.</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value">Listed after the start and Off until you add the server to an endpoint. Tools declared read only and not destructive start in Read only; other tools start in Approval. The server declares these annotations; the gateway can't verify them.</dd></div>
               </dl>
               <label class="gw-checkbox">
                 <input class="gw-checkbox__input" type="checkbox" id="ack-mcp" required>
@@ -1761,7 +1761,7 @@ LIMIT 200</textarea>
     var name = part("name").textContent;
     // after the dialog closes, so the toast lands on the page and not inside the closing dialog
     setTimeout(function () {
-      toast({ tone: "success", title: "MCP server " + name + (part("verb").textContent === "Connect" ? " connected" : " started"), body: "Its tools are listed and Off until you add them to an endpoint. There each starts as Approval." });
+      toast({ tone: "success", title: "MCP server " + name + (part("verb").textContent === "Connect" ? " connected" : " started"), body: "Its tools are listed and Off until you add them to an endpoint. Declared read-only tools start in Read only; other tools start in Approval." });
     }, 0);
   });
 

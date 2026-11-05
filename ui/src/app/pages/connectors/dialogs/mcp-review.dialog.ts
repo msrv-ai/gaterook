@@ -259,7 +259,7 @@ let nextId = 0;
                   {{ a.registration === 'metadata-document' ? 'GateRook signs in there as GateRook, with the client details it publishes.' : a.registration === 'dynamic' ? 'GateRook registers itself there as GateRook.' : a.registration === 'app' ? 'As your OAuth app.' : '' }}
                 </dd></div>
               }
-              <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value">Listed after the {{ w.http ? 'connection' : 'start' }} and Off everywhere. On an endpoint each starts as Approval: the server declares its own annotations and the gateway can't verify them.</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value">Listed after the {{ w.http ? 'connection' : 'start' }} and Off everywhere. On an endpoint, declared reads start as Read only and other tools start as Approval. The server declares its own annotations; the gateway can't verify them.</dd></div>
             </dl>
             @for (warning of w.warnings; track $index) {
               <div class="gw-alert gw-alert--warning gw-alert--compact">

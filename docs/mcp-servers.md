@@ -37,7 +37,11 @@ Some servers take their key in the URL, as their docs give it: `https://mcp.exam
 
 For a server on Google Cloud or AWS, the review also offers to sign in with that cloud's credentials. See [Servers on Google Cloud](#servers-on-google-cloud) and [Servers on AWS](#servers-on-aws).
 
-Adding a server ends as adding a connection does: GateRook offers the endpoints its tools may join, the usual one chosen. There each tool starts as Approval, and you change modes on the endpoint. **Not now** leaves the tools Off until you add the server to an endpoint later.
+Adding a server ends as adding a connection does: GateRook offers the endpoints its tools may join, the usual one chosen. Tools declared read only (`readOnlyHint: true`, without `destructiveHint: true`) start as **Read only**. Other tools start as **Approval**, or **Off** where the endpoint only permits reads. **Not now** leaves the tools Off until you add the server to an endpoint later.
+
+To change all of a server's tools together, open its connection and use **Set all to…** in **Used by**. Choose an endpoint, or all endpoints, and select Off, Read only, Approval, Bypass or Restore defaults. Read only skips tools that are not declared read only; endpoint restrictions still apply. Restore defaults applies the read-only/approval defaults to existing tools. Refreshing a server preserves saved modes; newly discovered read-only tools start as Read only, while other newly discovered tools stay Off until enabled. A tool that stops declaring read-only behavior can no longer run in Read only.
+
+Read-only annotations come from the server and remain labeled **Declared by …, not verified**. GateRook does not infer read-only behavior from a tool's name. Plugin tools keep their separate per-tool read-only confirmation.
 
 The server is then listed in **Connections** with the other connections, where you test, edit or delete it. In **Connectors › MCP servers** you can also restart it, sign in to it again or sign out.
 

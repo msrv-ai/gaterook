@@ -25,10 +25,9 @@ import tools.jackson.databind.node.ObjectNode;
  * Snapshot entries of an MCP server's tools (one JSON object per tool, stored by the core in
  * {@code mcp_server.tools_snapshot}) and the {@link ToolDefinition}s published from them.
  *
- * <p>What the server declared is not trusted (report 11 §3.1): a tool is a READ only if it declares
- * {@code readOnlyHint: true} and not {@code destructiveHint: true}, and even then the endpoint runs it without
- * approval only after the person confirmed Read only for that tool and its definition; everything else is a
- * mutation. Unset annotations take the protocol's pessimistic defaults (destructive, not idempotent, open world).
+ * <p>A tool is a READ only if it declares {@code readOnlyHint: true} and not {@code destructiveHint: true}; it
+ * starts in Read only on an endpoint. Everything else is a mutation and starts in Approval. The declarations
+ * remain unverified. Unset annotations take the protocol's pessimistic defaults (destructive, not idempotent, open world).
  * Every tool counts as private data, untrusted content and a channel out for the risk callout: the gateway can't see
  * what a server does with what it is given.
  */
@@ -45,7 +44,7 @@ final class Snapshots {
   /**
    * The entries of what a server lists now, under {@code prefix}, in its order. Each tool is read as the MCP Java
    * SDK's {@code Tool}, the type its definition hash has always been taken over: a tool the server didn't change keeps
-   * its hash, and with it the person's Read only confirmation.
+   * its hash, keeping definition-change detection stable.
    */
   static Mapped fromJson(String prefix, List<ObjectNode> listed, Function<String, Optional<String>> reserved) {
     List<McpSchema.Tool> tools = new ArrayList<>();
@@ -204,8 +203,7 @@ final class Snapshots {
         .title(Texts.str(entry.path("title"), original))
         .description(description)
         .inputSchema(entry.path("inputSchema").deepCopy())
-        // Every call of an external tool starts in Approval on an endpoint whatever is declared (ToolPairs.initial).
-        .defaultMode(Mode.APPROVAL, Mode.APPROVAL)
+        .defaultMode(read ? Mode.READ_ONLY : Mode.APPROVAL, read ? Mode.READ_ONLY : Mode.APPROVAL)
         .resultShape(ResultShape.JSON)
         .risk(new Risk(true, true, Egress.CHANNEL));
     JsonNode ui = entry.path("ui");
