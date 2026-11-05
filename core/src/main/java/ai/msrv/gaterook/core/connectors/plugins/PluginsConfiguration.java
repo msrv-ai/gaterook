@@ -3,6 +3,8 @@ package ai.msrv.gaterook.core.connectors.plugins;
 import ai.msrv.gaterook.connectors.support.egress.EgressClients;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.platform.BuildFlags;
+import ai.msrv.gaterook.core.platform.IntegrityAlerts;
+import ai.msrv.gaterook.core.platform.MasterKeyLock;
 import ai.msrv.gaterook.core.platform.SealedHandles;
 import ai.msrv.gaterook.core.platform.SettingStore;
 import java.io.IOException;
@@ -24,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.transaction.PlatformTransactionManager;
 
 /**
  * Wiring of the plugin subsystem (ARCHITECTURE.md §7.5). The runtime locator and the host launcher find the JRE and
@@ -84,8 +87,9 @@ class PluginsConfiguration {
 
   @Bean
   PluginCatalog pluginCatalog(CatalogVerifier verifier, SettingStore settings, CatalogDownloads downloads,
-      @Value("${gateway.plugins.catalog-url:}") String baseUrl, Clock clock) {
-    return new PluginCatalog(verifier, settings, downloads, baseUrl, clock);
+      @Value("${gateway.plugins.catalog-url:}") String baseUrl, IntegrityAlerts alerts, MasterKeyLock lock,
+      PlatformTransactionManager transactions, Clock clock) {
+    return new PluginCatalog(verifier, settings, downloads, baseUrl, alerts, lock, transactions, clock);
   }
 
   @Bean

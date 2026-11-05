@@ -1,5 +1,6 @@
 package ai.msrv.gaterook.core.settings;
 
+import ai.msrv.gaterook.core.platform.IntegrityAlerts;
 import ai.msrv.gaterook.core.platform.JsonMergePatch;
 import ai.msrv.gaterook.core.platform.ProblemException;
 import ai.msrv.gaterook.core.platform.SchemaValidator;
@@ -32,6 +33,11 @@ import tools.jackson.databind.node.ObjectNode;
  * <p>Other modules read their section through the same keys ({@code authorization.tokenTtlDays} by tokens,
  * {@code audit.retentionYears} by the retention job, {@code local-api.allowedOrigins} by the local guard); a value
  * they don't find falls back to the same default as here.
+ *
+ * <p>A section of {@link SettingStore#SIGNED} ({@code audit}) is a signed row that exists from V87 on
+ * ({@link SignedSections}): one that doesn't verify, or is missing, was changed outside GateRook, and what acts on it
+ * refuses to (retention removes nothing) until the person saves the section again. That save writes the section even
+ * when it changes nothing, signs it and resolves the integrity alert.
  */
 @Service
 public class SettingsService {
@@ -55,22 +61,27 @@ public class SettingsService {
   /**
    * One section as the form shows it.
    *
-   * @param values  defaults overlaid with what is stored
-   * @param version the stored row's version; {@code 0} while nothing was saved
+   * @param values   defaults overlaid with what is stored
+   * @param version  the stored row's version; {@code 0} while nothing was saved
+   * @param verified whether the section is stored as GateRook wrote it: {@code false} for a signed section whose row
+   *     doesn't verify or is missing, until it is saved again
    */
-  public record Section(String name, ObjectNode values, long version, Instant updatedAt) {}
+  public record Section(String name, ObjectNode values, long version, Instant updatedAt, boolean verified) {}
 
   private final SettingStore store;
   private final SchemaValidator validator;
   private final ObjectProvider<SetupChangeRecorder> setupChanges;
+  private final IntegrityAlerts alerts;
   private final TransactionTemplate writeTx;
   private final TransactionTemplate readTx;
 
   public SettingsService(SettingStore store, SchemaValidator validator,
-      ObjectProvider<SetupChangeRecorder> setupChanges, PlatformTransactionManager transactions) {
+      ObjectProvider<SetupChangeRecorder> setupChanges, IntegrityAlerts alerts,
+      PlatformTransactionManager transactions) {
     this.store = store;
     this.validator = validator;
     this.setupChanges = setupChanges;
+    this.alerts = alerts;
     this.writeTx = new TransactionTemplate(transactions);
     this.readTx = new TransactionTemplate(transactions);
     this.readTx.setReadOnly(true);
@@ -95,6 +106,8 @@ public class SettingsService {
 
   /**
    * {@code PUT /api/settings/{section}}: merges {@code patch} into the section, validates the result and stores it.
+   * A signed section that isn't stored as GateRook wrote it is written even when nothing changed: saving it is the
+   * person's review, which signs it again (Setup change) and resolves its integrity alert.
    *
    * @param version the version the form read ({@code 0} for a section never saved)
    * @throws ProblemException 422 at the field the schema refuses; 404 for an unknown section
@@ -105,7 +118,7 @@ public class SettingsService {
     if (patch == null || !patch.isObject()) {
       throw ProblemException.unprocessable("Invalid settings", "Send the section's fields as an object.", "");
     }
-    return writeTx.execute(s -> {
+    Section saved = writeTx.execute(s -> {
       Optional<SettingStore.Setting> stored = store.find(name);
       long current = stored.map(SettingStore.Setting::version).orElse(0L);
       if (current != version) {
@@ -121,17 +134,28 @@ public class SettingsService {
       }
       ObjectNode after = (ObjectNode) merged;
       List<String> changed = changedKeys(before, after);
-      if (changed.isEmpty()) {
+      boolean review = !intact(name, stored);
+      if (changed.isEmpty() && !review) {
         return read(name);
       }
-      SettingStore.Setting saved = store.put(name, after, version);
+      SettingStore.Setting written = store.put(name, after, version);
       SetupChangeRecorder recorder = setupChanges.getObject();
+      if (review) {
+        recorder.record(new SetupChange(SetupChangeRecorder.What.SETTINGS, "Settings › " + title(name)
+            + " changed outside GateRook", "Unverified", changed.isEmpty() ? "Kept as stored" : "Saved", reason, null,
+            null, null, null));
+      }
       for (String key : changed) {
         recorder.record(new SetupChange(SetupChangeRecorder.What.SETTINGS, "Settings › " + title(name) + " · " + key,
             text(before.get(key)), text(after.get(key)), reason, null, null, null, null));
       }
-      return new Section(name, effective(schema, saved.value()), saved.version(), saved.updatedAt());
+      return new Section(name, effective(schema, written.value()), written.version(), written.updatedAt(),
+          written.verified());
     });
+    if (SettingStore.signed(name)) {
+      alerts.resolve(SettingStore.ALERT_KIND, name);
+    }
+    return saved;
   }
 
   /** The value of one key as the section reads it (stored or default); for the modules that act on a setting. */
@@ -144,7 +168,17 @@ public class SettingsService {
     Optional<SettingStore.Setting> stored = store.find(name);
     return new Section(name, effective(schema, stored.map(SettingStore.Setting::value).orElse(null)),
         stored.map(SettingStore.Setting::version).orElse(0L), stored.map(SettingStore.Setting::updatedAt)
-            .orElse(null));
+            .orElse(null), intact(name, stored));
+  }
+
+  /** A signed section's row exists from V87 on and verifies; any other section is as stored. */
+  private static boolean intact(String name, Optional<SettingStore.Setting> stored) {
+    return !SettingStore.signed(name) || stored.map(SettingStore.Setting::verified).orElse(false);
+  }
+
+  /** The values of a section nobody saved: its schema's defaults. */
+  static ObjectNode defaults(String name) {
+    return effective(requireSection(name), null);
   }
 
   /**
@@ -202,7 +236,7 @@ public class SettingsService {
     return schema;
   }
 
-  private static String title(String section) {
+  static String title(String section) {
     return switch (section) {
       case "general" -> "General";
       case "appearance" -> "Appearance";

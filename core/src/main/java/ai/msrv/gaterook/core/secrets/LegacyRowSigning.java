@@ -25,6 +25,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <p>Rows written before the upgrade are trusted as they are: an edit made in {@code gateway.db} before it, or a
  * database rolled back to an older schema, is signed with them. That stays inside the OS-account boundary of
  * ARCHITECTURE.md §9.
+ *
+ * <p>A database this start created holds nothing an older version wrote. It only gets the rows that must exist from
+ * a migration on ({@link LegacyRows#signNewDatabase}), signed with the key this start made; if that fails, they stay
+ * missing, which their owners refuse like an edit.
  */
 @Component
 class LegacyRowSigning implements SmartInitializingSingleton {
@@ -49,8 +53,16 @@ class LegacyRowSigning implements SmartInitializingSingleton {
   @Override
   public void afterSingletonsInstantiated() {
     List<LegacyRows> due = tables.stream().filter(t -> facts.migratedNow(t.migration())).toList();
-    if (due.isEmpty() || facts.firstRun()) {
-      // A database this start created holds nothing an older version wrote.
+    if (due.isEmpty()) {
+      return;
+    }
+    if (facts.firstRun()) {
+      try {
+        writeTx.executeWithoutResult(s -> due.forEach(LegacyRows::signNewDatabase));
+      } catch (RuntimeException e) {
+        log.warn("The new database's signed rows couldn't be written ({}): what needs them stays off until it is "
+            + "saved again", e.toString());
+      }
       return;
     }
     if (!masterKey.keptAtStart()) {

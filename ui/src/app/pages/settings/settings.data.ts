@@ -48,7 +48,7 @@ export type Sections = { readonly [name: string]: SettingsSection };
  * Each part loads on its own: one that fails, or that this core doesn't have, leaves the others working. Reloads are
  * coalesced (one in flight, one more after it). Live: `tunnel.state`, `notify.state` / `notify.link.updated`,
  * `oauth.consent.resolved` / `oauth.grant.changed`, the end of a master-key rotation, and an integrity alert on a policy (Approval rules
- * shows the policies' approval settings).
+ * shows the policies' approval settings) or on a signed section (Audit & retention changed outside GateRook).
  *
  * Values a person types for a secret (a bot token, a passphrase) go out in one request and are never kept here.
  */
@@ -146,9 +146,10 @@ export class SettingsData {
       on('master-key.rotation', (e) => {
         if (e.state === 'done' || e.state === 'failed') void this.reloadPart(this.masterKeySignal, () => this.masterKeyApi.status());
       }),
-      // Approval rules shows the policies' approval settings: a policy row that failed its check changes them.
+      // Approval rules shows the policies' approval settings: a policy row that failed its check changes them. A signed
+      // section that failed its check (kind `setting`) asks for a review in its own form.
       on('integrity.alert', (e) => {
-        if (e.kind === 'policy') void this.reloadSettings();
+        if (e.kind === 'policy' || e.kind === 'setting') void this.reloadSettings();
       }),
     );
     return this.refresh();

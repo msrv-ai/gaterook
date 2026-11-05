@@ -757,8 +757,11 @@ class AdminApiIT {
     assertThat(general.path("version").asLong()).isPositive();
     assertThat(api.expect(409, HttpMethod.PUT, "/api/settings/general", "{\"autoUpdate\":true,\"version\":0}")
         .path("title").asString()).isEqualTo("Changed meanwhile");
-    assertThat(api.expect(422, HttpMethod.PUT, "/api/settings/audit", "{\"retentionYears\":4,\"version\":0}")
-        .path("field").asString()).isEqualTo("/retentionYears");
+    // The audit retention is a signed row from the first start on (V87), not a default read in its place.
+    assertThat(all.path("audit").path("version").asLong()).isPositive();
+    assertThat(all.path("audit").path("verified").asBoolean()).isTrue();
+    assertThat(api.expect(422, HttpMethod.PUT, "/api/settings/audit", "{\"retentionYears\":4,\"version\":%d}"
+        .formatted(all.path("audit").path("version").asLong())).path("field").asString()).isEqualTo("/retentionYears");
     assertThat(api.expect(422, HttpMethod.PUT, "/api/settings/appearance", "{\"theme\":\"pink\",\"version\":0}")
         .path("field").asString()).isEqualTo("/theme");
     assertThat(api.expect(422, HttpMethod.PUT, "/api/settings/general", "{\"autoUpdate\":true}").path("field")

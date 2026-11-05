@@ -930,6 +930,22 @@ describe('Settings page: Audit & retention', () => {
     expect(control(a, 'Export now').getAttribute('aria-disabled')).toBe('true');
   });
 
+  it('a retention changed outside GateRook says that nothing is removed, and Keep saves the stored period', async () => {
+    const sections = kitSections({ audit: { retentionYears: 2 } });
+    world.sections = () => Promise.resolve({ ...sections, audit: { ...sections['audit']!, verified: false } });
+    const el = await render();
+    const a = $('#settings-audit', el)!;
+    const changed = $('#st-retention-changed', a)!;
+    expect(text(changed)).toContain('Retention was changed outside GateRook');
+    expect(text(changed)).toContain('Nothing is removed from the log until you review it.');
+    // Nothing was edited here: the review is the Keep action, not the Save bar.
+    expect(calls).not.toContain('put audit');
+    await click(control(changed, 'Keep 2 years'));
+    expect(bodies['audit']).toEqual({ retentionYears: 2, version: 3 });
+    expect(toasts()).toContain('Retention saved');
+    expect($('#st-retention-changed', a)).toBeNull();
+  });
+
   it('with K5: one card per destination, a failing one with Retry and its error under a disclosure', async () => {
     world.exports = () => Promise.resolve(kitExports());
     const el = await render();

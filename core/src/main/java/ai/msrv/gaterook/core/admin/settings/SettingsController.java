@@ -43,8 +43,12 @@ import tools.jackson.databind.node.ObjectNode;
     DatabaseBackupJob.Copy.class})
 class SettingsController {
 
-  /** {@code values} as the form shows them, {@code version} to send back with the change ({@code 0}: never saved). */
-  record Section(String name, ObjectNode values, long version, Instant updatedAt) {}
+  /**
+   * {@code values} as the form shows them, {@code version} to send back with the change ({@code 0}: never saved),
+   * {@code verified} whether the section is stored as GateRook wrote it ({@code false}: changed outside GateRook, the
+   * form saves it again even unchanged).
+   */
+  record Section(String name, ObjectNode values, long version, Instant updatedAt, boolean verified) {}
 
   record BackupRequest(String saveToken) {}
 
@@ -178,7 +182,7 @@ class SettingsController {
       }
       default -> { }
     }
-    return new Section(s.name(), values, s.version(), s.updatedAt());
+    return new Section(s.name(), values, s.version(), s.updatedAt(), s.verified());
   }
 
   /** The prod policy's comment rule: {@code required}, or {@code optional} when the person turns the rule off. */
