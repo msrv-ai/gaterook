@@ -37,7 +37,8 @@ import tools.jackson.databind.node.ObjectNode;
  * {@code java.home} running {@code plugin-host.jar}, GPP/1 over its stdin/stdout, env cleared, a per-instance data
  * dir. With the sandbox on, the launch is confined before the host's JVM starts, as the core does it: on macOS
  * through {@code sandbox-exec} and an SBPL that denies GateRook's home, on Linux through the host's first stage
- * {@code SandboxExec} (Landlock on its main thread, then exec), where Landlock works here. The test drives the host
+ * {@code SandboxExec} (Landlock on its main thread, then exec), where Landlock works here. On Windows the home gets
+ * the core's medium no-read-up label and the host drops to low integrity itself at load. The test drives the host
  * directly over the protocol and answers its {@code secrets/*} and {@code log} callbacks itself.
  */
 final class Harness implements AutoCloseable {
@@ -110,6 +111,9 @@ final class Harness implements AutoCloseable {
     if (os.startsWith("mac")) {
       return Files.isExecutable(Path.of("/usr/bin/sandbox-exec")) ? "sandbox-exec" : null;
     }
+    if (os.startsWith("windows")) {
+      return "low-integrity";
+    }
     if (!os.startsWith("linux")) {
       return null;
     }
@@ -171,9 +175,24 @@ final class Harness implements AutoCloseable {
     pb.environment().put("TMPDIR", dataDir.resolve("tmp").toString());
     if (!os.startsWith("win")) {
       pb.environment().put("PATH", "/usr/bin:/bin");
+    } else {
+      // What a JVM needs on Windows, as the core's HostLauncher passes it.
+      for (String key : List.of("SystemRoot", "SystemDrive", "TEMP", "TMP", "USERPROFILE", "APPDATA",
+          "LOCALAPPDATA")) {
+        String value = System.getenv(key);
+        if (value != null) {
+          pb.environment().put(key, value);
+        }
+      }
     }
     if ("sandbox-exec".equals(sandbox)) {
       pb.environment().put("MCP_GATEWAY_SANDBOX", sandbox);
+    } else if ("low-integrity".equals(sandbox)) {
+      // The core closes its home to low integrity when it opens it; the host drops at load.
+      WindowsLabels.closeToLowIntegrity(home);
+      pb.environment().put("MCP_GATEWAY_SANDBOX", sandbox);
+      pb.environment().put("TEMP", dataDir.resolve("tmp").toString());
+      pb.environment().put("TMP", dataDir.resolve("tmp").toString());
     }
     return pb.start();
   }

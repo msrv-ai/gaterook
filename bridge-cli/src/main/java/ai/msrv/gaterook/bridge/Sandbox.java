@@ -221,6 +221,21 @@ final class Sandbox {
       wrapped.addAll(argv);
       return exec(wrapped, env, err);
     }
+    if (os.startsWith("windows")) {
+      // Low integrity, set on this process and inherited by the command (WindowsSandbox); the core refuses the
+      // command's connections to its own ports itself, so --deny-tcp needs nothing here.
+      String why = WindowsSandbox.confine(r.readWrite().stream().map(Path::of).toList(), env);
+      if (why == null) {
+        return spawn(argv, err);
+      }
+      if (!r.allowUnsandboxed()) {
+        err.println("gw-bridge: the command can't run at low integrity here: " + why);
+        return NO_SANDBOX;
+      }
+      err.println("gw-bridge: not sandboxed on this system (" + why + "): the command can read everything your "
+          + "account can");
+      return spawn(argv, err);
+    }
     if (r.allowUnsandboxed()) {
       err.println("gw-bridge: not sandboxed on this system: the command can read everything your account can");
       return spawn(argv, err);
@@ -231,21 +246,58 @@ final class Sandbox {
 
   /** A command name looked up in {@code PATH}, or an existing path; {@code null} when there is none. */
   static Path resolve(String command, Map<String, String> env) {
-    if (command.contains("/")) {
+    return resolve(command, env, System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows"));
+  }
+
+  /**
+   * {@link #resolve(String, Map)} for one system. On Windows a path has a drive or a backslash, {@code PATH} (any case)
+   * is split at {@code ;}, and a name without an extension is tried with each of {@code PATHEXT}'s.
+   */
+  static Path resolve(String command, Map<String, String> env, boolean windows) {
+    if (command.contains("/") || (windows && (command.contains("\\") || command.contains(":")))) {
       Path p = Path.of(command).toAbsolutePath();
-      return Files.isExecutable(p) ? p : null;
+      return Files.isRegularFile(p) && (windows || Files.isExecutable(p)) ? p : null;
     }
-    String path = env.getOrDefault("PATH", "/usr/local/bin:/usr/bin:/bin");
-    for (String dir : path.split(java.io.File.pathSeparator)) {
-      if (dir.isEmpty()) {
+    String path = windows ? variable(env, "PATH", "") : env.getOrDefault("PATH", "/usr/local/bin:/usr/bin:/bin");
+    List<String> names = List.of(command);
+    if (windows && !command.contains(".")) {
+      names = new ArrayList<>();
+      for (String ext : variable(env, "PATHEXT", ".COM;.EXE;.BAT;.CMD").split(";")) {
+        if (!ext.isBlank()) {
+          names.add(command + ext.strip().toLowerCase(Locale.ROOT));
+        }
+      }
+    }
+    for (String dir : path.split(windows ? ";" : ":")) {
+      if (dir.isBlank()) {
         continue;
       }
-      Path p = Path.of(dir, command);
-      if (Files.isRegularFile(p) && Files.isExecutable(p)) {
-        return p.toAbsolutePath();
+      for (String name : names) {
+        try {
+          Path p = Path.of(dir.strip(), name);
+          if (Files.isRegularFile(p) && (windows || Files.isExecutable(p))) {
+            return p.toAbsolutePath();
+          }
+        } catch (java.nio.file.InvalidPathException e) {
+          // A PATH entry that isn't a path on this system.
+        }
       }
     }
     return null;
+  }
+
+  /** An environment variable whose name matches in any case, as Windows reads them. */
+  private static String variable(Map<String, String> env, String name, String otherwise) {
+    String exact = env.get(name);
+    if (exact != null) {
+      return exact;
+    }
+    for (Map.Entry<String, String> e : env.entrySet()) {
+      if (e.getKey().equalsIgnoreCase(name)) {
+        return e.getValue();
+      }
+    }
+    return otherwise;
   }
 
   // ── What no grant opens ─────────────────────────────────────────────────────────────────────────────────────

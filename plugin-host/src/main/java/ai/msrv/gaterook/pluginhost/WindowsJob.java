@@ -14,8 +14,8 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * What the host holds itself to on Windows, before any plugin code runs (ARCHITECTURE.md §7.5). Windows has no plugin
- * sandbox yet; this keeps a headless plugin to what it needs:
+ * What the host holds itself to on Windows, before any plugin code runs (ARCHITECTURE.md §7.5), besides the low
+ * integrity it drops to at load ({@link WindowsIntegrity}): what a headless plugin needs and no more.
  *
  * <ul>
  *   <li>a job object the host joins and never closes, so when the host ends, crashed or killed, every process a plugin
@@ -27,8 +27,7 @@ import java.util.Locale;
  *   or with a low integrity label.</li>
  * </ul>
  *
- * <p>None of this keeps a plugin from the account's files, the network or DPAPI. A step that fails is reported on
- * stderr, and the host runs without it, as it did before.
+ * <p>A step that fails is reported on stderr, and the host runs without it.
  */
 final class WindowsJob {
 

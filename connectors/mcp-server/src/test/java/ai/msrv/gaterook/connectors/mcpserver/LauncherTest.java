@@ -193,4 +193,44 @@ class LauncherTest {
     assertThat(l.resolve("no-such-server", dir)).isEmpty();
     assertThat(l.resolve("./bin/my-server", dir)).contains(tool);
   }
+
+  /**
+   * On Windows the bridge is started from its own argv ({@code gw-bridge.argv}), never through the {@code .cmd} shim,
+   * and the server's work folder becomes its profile. {@code true} stands in for the bridge, so its probe passes here.
+   */
+  @Test
+  @DisabledOnOs(OS.WINDOWS)
+  void onWindowsServersRunThroughTheBridgesOwnArgvAtLowIntegrity(@TempDir Path home) throws Exception {
+    Path bin = Files.createDirectories(home.resolve("bin"));
+    Path shim = bin.resolve("gw-bridge.cmd");
+    Files.writeString(shim, "@echo off\r\n");
+    Files.writeString(bin.resolve("gw-bridge.argv"), "/usr/bin/true\n--fake-flag\n");
+    Launcher l = new Launcher(Map.of("SystemRoot", "C:\\Windows", "USERPROFILE", "C:\\Users\\p",
+        "HOMEDRIVE", "C:", "HOMEPATH", "\\Users\\p", "APPDATA", "C:\\Users\\p\\AppData\\Roaming"),
+        "Windows 11", false, home, shim);
+    assertThat(l.sandbox()).isEqualTo("low-integrity");
+
+    Path work = home.resolve("mcp-servers").resolve("fs");
+    Path command = Path.of("C:\\Program Files\\nodejs\\npx.cmd");
+    assertThat(l.argv(command, List.of("-y", "pkg&x"), work)).containsExactly("/usr/bin/true", "--fake-flag",
+        "sandbox-exec", "--rw", work.toString(), "--", command.toString(), "-y", "pkg&x");
+
+    Map<String, String> env = l.environment(server("{\"transport\":\"stdio\",\"command\":[\"npx\"]}"),
+        Map.of(), work);
+    assertThat(env).containsEntry("USERPROFILE", work.toString())
+        .containsEntry("APPDATA", work.resolve("AppData").resolve("Roaming").toString())
+        .containsEntry("LOCALAPPDATA", work.resolve("AppData").resolve("Local").toString())
+        .containsEntry("TEMP", work.resolve("tmp").toString()).containsEntry("TMP", work.resolve("tmp").toString())
+        .doesNotContainKeys("HOMEDRIVE", "HOMEPATH");
+  }
+
+  @Test
+  void onWindowsWithoutTheBridgesArgvServersRunUnconfined(@TempDir Path home) throws Exception {
+    Path shim = Files.createDirectories(home.resolve("bin")).resolve("gw-bridge.cmd");
+    Files.writeString(shim, "@echo off\r\n");
+    Launcher l = new Launcher(Map.of("SystemRoot", "C:\\Windows"), "Windows 11", false, home, shim);
+    assertThat(l.sandbox()).isNull();
+    Path command = Path.of("C:\\Program Files\\nodejs\\node.exe");
+    assertThat(l.argv(command, List.of("server.js"), home)).containsExactly(command.toString(), "server.js");
+  }
 }

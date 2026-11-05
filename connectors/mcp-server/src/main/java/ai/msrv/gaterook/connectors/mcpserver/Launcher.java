@@ -30,7 +30,12 @@ import java.util.stream.Stream;
  * folders, and writes only its work folder and the temporary folders; its work folder is its {@code HOME}, so the
  * package managers keep their caches there, apart from those the person's own tools use. Its sockets can neither
  * connect to nor bind the core's own listeners ({@code --deny-tcp}, as they are at each start; on Linux from Landlock
- * ABI 4, else the server's log says they stay open). Elsewhere it runs as the person's user and the review says so.
+ * ABI 4, else the server's log says they stay open). On Windows the bridge runs the process at low integrity: it
+ * writes only its work folder, which is also its profile ({@code USERPROFILE}, {@code APPDATA}, {@code LOCALAPPDATA},
+ * {@code TEMP}), and reads nothing of GateRook's home; the core refuses its connections to the core's own ports. The
+ * bridge is started from its own argv ({@code gw-bridge.argv} beside the shim), not through {@code gw-bridge.cmd},
+ * so a server's arguments never go through {@code cmd.exe}. Elsewhere it runs as the person's user and the review
+ * says so.
  */
 final class Launcher {
 
@@ -49,6 +54,8 @@ final class Launcher {
   private final Path gatewayHome;
   private final String path;
   private final Path sandboxLauncher;
+  /** On Windows, the bridge's own argv from {@code gw-bridge.argv}; empty elsewhere or without one. */
+  private final List<String> windowsBridge;
   private final Supplier<Set<Integer>> corePorts;
   private final String sandbox;
   private final Map<String, Optional<String>> nodeVersions = new ConcurrentHashMap<>();
@@ -78,14 +85,29 @@ final class Launcher {
     this.gatewayHome = gatewayHome;
     this.path = computePath(loginShellPath);
     this.sandboxLauncher = sandboxLauncher;
+    this.windowsBridge = windows ? windowsBridge(sandboxLauncher) : List.of();
     this.sandbox = probeSandbox();
+  }
+
+  /** The bridge's own argv ({@code gw-bridge.argv} beside the shim, one argument a line), or empty. */
+  private static List<String> windowsBridge(Path shim) {
+    if (shim == null) {
+      return List.of();
+    }
+    try {
+      List<String> argv = Files.readAllLines(shim.resolveSibling("gw-bridge.argv"), StandardCharsets.UTF_8).stream()
+          .filter(a -> !a.isEmpty()).toList();
+      return !argv.isEmpty() && Files.isRegularFile(Path.of(argv.getFirst())) ? argv : List.of();
+    } catch (IOException | RuntimeException e) {
+      return List.of();
+    }
   }
 
   String path() {
     return path;
   }
 
-  /** {@code landlock}, {@code sandbox-exec}, or {@code null} where servers run unconfined. */
+  /** {@code landlock}, {@code sandbox-exec}, {@code low-integrity}, or {@code null} where servers run unconfined. */
   String sandbox() {
     return sandbox;
   }
@@ -187,6 +209,17 @@ final class Launcher {
       env.put("HOME", workDir.toString());
       env.put("TMPDIR", workDir.resolve("tmp").toString());
       env.put("npm_config_cache", workDir.resolve(".npm").toString());
+      if (windows && sandbox != null) {
+        // At low integrity the process writes only its work folder: it is its profile there too, as HOME is on
+        // Unix. The bridge creates these folders before it drops.
+        env.put("USERPROFILE", workDir.toString());
+        env.put("APPDATA", workDir.resolve("AppData").resolve("Roaming").toString());
+        env.put("LOCALAPPDATA", workDir.resolve("AppData").resolve("Local").toString());
+        env.put("TEMP", workDir.resolve("tmp").toString());
+        env.put("TMP", workDir.resolve("tmp").toString());
+        env.remove("HOMEDRIVE");
+        env.remove("HOMEPATH");
+      }
     }
     // Last: a secret's variable is what the person configured, even if a basic one has the same name.
     env.putAll(secrets);
@@ -199,7 +232,11 @@ final class Launcher {
    */
   List<String> argv(Path command, List<String> args, Path workDir) {
     List<String> out = new ArrayList<>();
-    if (sandbox != null) {
+    if (sandbox != null && windows) {
+      // Low integrity: the work folder is all it writes; the core refuses its connections to the core's ports.
+      out.addAll(windowsBridge);
+      out.addAll(List.of("sandbox-exec", "--rw", workDir.toString(), "--"));
+    } else if (sandbox != null) {
       out.add(sandboxLauncher.toString());
       out.add("sandbox-exec");
       out.add("--rw");
@@ -303,23 +340,36 @@ final class Launcher {
 
   /** Whether {@code gw-bridge sandbox-exec} confines a process on this system: one probe at start. */
   private String probeSandbox() {
-    if (sandboxLauncher == null || !Files.isExecutable(sandboxLauncher) || windows) {
-      return null;
-    }
-    Optional<Path> truth = resolve("true", userHome);
-    if (truth.isEmpty()) {
-      return null;
+    List<String> probe;
+    if (windows) {
+      if (windowsBridge.isEmpty()) {
+        return null;
+      }
+      String root = coreEnv.getOrDefault("SystemRoot", coreEnv.getOrDefault("SYSTEMROOT", "C:\\Windows"));
+      probe = new ArrayList<>(windowsBridge);
+      probe.addAll(List.of("sandbox-exec", "--", Path.of(root, "System32", "cmd.exe").toString(), "/c", "exit", "0"));
+    } else {
+      if (sandboxLauncher == null || !Files.isExecutable(sandboxLauncher)) {
+        return null;
+      }
+      Optional<Path> truth = resolve("true", userHome);
+      if (truth.isEmpty()) {
+        return null;
+      }
+      probe = List.of(sandboxLauncher.toString(), "sandbox-exec", "--", truth.get().toString());
     }
     try {
-      Process p = new ProcessBuilder(sandboxLauncher.toString(), "sandbox-exec", "--", truth.get().toString())
-          .redirectErrorStream(true).start();
+      Process p = new ProcessBuilder(probe).redirectErrorStream(true).start();
       p.getOutputStream().close();
       if (!p.waitFor(10, TimeUnit.SECONDS)) {
         p.destroyForcibly();
         return null;
       }
       p.getInputStream().readAllBytes();
-      return p.exitValue() == 0 ? (mac ? "sandbox-exec" : "landlock") : null;
+      if (p.exitValue() != 0) {
+        return null;
+      }
+      return windows ? "low-integrity" : mac ? "sandbox-exec" : "landlock";
     } catch (IOException e) {
       return null;
     } catch (InterruptedException e) {

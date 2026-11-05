@@ -20,8 +20,8 @@ import java.util.List;
  * <p>{@code --protocol 1} is required and must match: the core and the host ship together, a mismatch is a build bug
  * ("Plugin runtime mismatch", exit 64). {@code --train} runs the built-in AOT training workload ({@link Train}). On
  * Linux the core starts this class through {@link SandboxExec}, which confines the process before it starts. On
- * Windows, which has no plugin sandbox yet, the host joins a job object with UI limits and turns process mitigations
- * on before it reads the first request ({@link WindowsJob}).
+ * Windows the host joins a job object with UI limits and turns process mitigations on before it reads the first
+ * request ({@link WindowsJob}), and drops to low integrity at load ({@link WindowsIntegrity}).
  */
 public final class Main {
 

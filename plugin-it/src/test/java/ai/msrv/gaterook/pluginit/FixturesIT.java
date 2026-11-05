@@ -95,7 +95,7 @@ class FixturesIT {
 
   @Test
   void aSecretThiefIsRefusedTheSecretAndTheFiles() throws Exception {
-    assumeTrue(Harness.sandboxKind() != null, "The OS sandbox is Landlock on Linux or sandbox-exec on macOS");
+    assumeTrue(Harness.sandboxKind() != null, "The OS sandbox is Landlock on Linux, sandbox-exec on macOS or low integrity on Windows");
     // The files the thief tries to read, two folders above its data dir (the gateway home).
     Files.writeString(home.resolve("master.keyset"), "cnry-master-key-material");
     Files.writeString(home.resolve("gateway.db"), "cnry-database-bytes");
@@ -105,8 +105,9 @@ class FixturesIT {
         .isEqualTo(Harness.sandboxKind());
     // A place outside its data folder and the gateway home: a login item or a shell profile would be one.
     Path outside = Files.createTempDirectory("thief-outside").resolve("planted.txt");
+    // Built as JSON, not by hand: a Windows path's backslashes need escaping.
     JsonNode result = host.execute("fixture-secret-thief@1.0.0", call("thief_probe",
-        "{\"writeProbe\":\"" + outside + "\"}"), cfg(), false, Messages.EgressGrant.NONE,
+        GppJson.object().put("writeProbe", outside.toString()).toString()), cfg(), false, Messages.EgressGrant.NONE,
         Map.of("/password", "cnry-the-plugins-own-secret"), Duration.ofSeconds(10));
     JsonNode out = WireCodec.result(result).structuredContent();
 

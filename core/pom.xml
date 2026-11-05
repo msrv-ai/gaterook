@@ -309,5 +309,36 @@
         </plugins>
       </build>
     </profile>
+    <!--
+      FFM metadata of NativeOs's mandatory labels (advapi32, kernel32) only for a Windows native image: the home closed
+      to low integrity, where plugin hosts and MCP servers are sandboxed (ARCHITECTURE.md §7.5).
+    -->
+    <profile>
+      <id>windows-ffm</id>
+      <activation>
+        <os><family>windows</family></os>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>build-helper-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>windows-native-metadata</id>
+                <goals><goal>add-resource</goal></goals>
+                <configuration>
+                  <resources>
+                    <resource>
+                      <directory>src/main/native-windows</directory>
+                    </resource>
+                  </resources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
   </profiles>
 </project>
