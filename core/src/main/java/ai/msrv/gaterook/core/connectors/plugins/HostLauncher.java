@@ -47,7 +47,9 @@ import tools.jackson.databind.JsonNode;
  * folders and the connected clients' configs (the API is deprecated, so this is UNVERIFIED in the kit's words).
  * Both keep the plugin's own sockets from the core's listeners (its local and public ports; on Linux from Landlock ABI
  * 4, else the plugin log says they stay open): the egress guard judges only what goes through {@code ctx.egress()},
- * and a JDBC driver, a raw socket or an address literal never does. Whether Landlock works here is asked once
+ * and a JDBC driver, a raw socket or an address literal never does. On Linux, from Landlock ABI 6, the host is also
+ * scoped out of the session's abstract Unix sockets and the signals of other processes, as MCP servers are; the core,
+ * outside that domain, still stops it. Whether Landlock works here is asked once
  * ({@code SandboxExec --probe}); where there is no sandbox the host runs without one and the log says so.
  *
  * <p>The host's answers are untrusted once the plugin's code ran: a malformed {@code plugin/load} ends the process,
@@ -388,8 +390,9 @@ public final class HostLauncher {
    * {@code java … -cp plugin-host.jar SandboxExec --ro … --rw … --deny-tcp … --}: the Linux first stage, which confines
    * its main thread with Landlock and execs the host's JVM (the argv that follows). The host may read the JRE, its own
    * JAR, the plugin's version folder and the AOT cache, write only the plugin's data folder, and neither bind nor
-   * connect a TCP socket to the core's ports (from Landlock ABI 4; by port, so on any host); the system paths are the
-   * stage's own (/usr, /etc, /proc/self, …).
+   * connect a TCP socket to the core's ports (from Landlock ABI 4; by port, so on any host), and from ABI 6 it is
+   * scoped out of abstract Unix sockets and other processes' signals; the system paths are the stage's own (/usr,
+   * /etc, /proc/self, …).
    */
   private List<String> firstStage(Path java, Path hostJar, Spec spec, Path dataDir, Optional<Path> cache,
       Set<Integer> closedPorts) {
