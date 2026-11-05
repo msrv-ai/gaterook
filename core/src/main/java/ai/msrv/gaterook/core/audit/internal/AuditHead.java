@@ -60,6 +60,11 @@ import tools.jackson.databind.node.ObjectNode;
  * chained) Setup changes. One found at stop leaves the anchor where it was instead: the next start finds the same break
  * and raises its alert there. A missing anchor on a database that already has rows (an older dev build, or a deleted
  * setting) is treated the same way. {@code DROP TRIGGER} followed by an edit shows up here, not in the triggers.
+ *
+ * <p>The anchor also names where the verified history starts ({@code verifiedFrom}): the first row of each table and
+ * the hash it links to. Every check compares that row's link, so rows removed from the start of the history are a
+ * break too. Only retention moves the start, after the same checks, to the first row it kept. An anchor from before
+ * this field had trusted links ({@code links} absent) is moved to the first rows once, at the first check.
  */
 @Component
 public class AuditHead implements DisposableBean {
@@ -99,6 +104,11 @@ public class AuditHead implements DisposableBean {
   private ScheduledExecutorService timer;
   /** The heads the stored anchor vouches for; {@code null} until a check passed (a locked master key at start). */
   private volatile Heads anchored;
+  /**
+   * Where the verified history starts: per table the first row's id and the hash it must link to ({@code null}: its
+   * link is trusted, as anchors without {@code links} did).
+   */
+  private volatile Heads from;
 
   AuditHead(ToolCallRepository calls, SetupChangeRepository changes, SettingStore settings, HmacKeys keys,
       SetupChangeRecorder recorder, IntegrityAlerts alerts, Clock clock, PlatformTransactionManager tx,
@@ -166,15 +176,20 @@ public class AuditHead implements DisposableBean {
         return broken("the stored head of the audit chain didn't verify");
       }
       Heads at = headsOf(anchor.path("heads"));
-      Look look = readTx.execute(s -> look(at));
+      boolean linked = anchor.path("links").asBoolean(false);
+      Heads start = linked ? headsOf(anchor.path("verifiedFrom")) : trusting(headsOf(anchor.path("verifiedFrom")));
+      Look look = readTx.execute(s -> look(at, start));
       if (look.problem().isPresent()) {
         return broken(look.problem().get());
       }
       anchored = at;
-      Heads from = headsOf(anchor.path("verifiedFrom"));
-      Thread.ofVirtual().name("audit-chain-check").start(() -> fullCheck(from));
-      if (!look.heads().equals(at)) {
-        anchor(look.heads(), from);
+      from = start;
+      Thread.ofVirtual().name("audit-chain-check").start(() -> fullCheck(start));
+      if (!linked) {
+        // The first check after an upgrade: from now on the start of the history is checked too.
+        anchor(look.heads(), readTx.execute(s -> rebase(start)));
+      } else if (!look.heads().equals(at)) {
+        anchor(look.heads(), start);
       }
       return true;
     }
@@ -222,11 +237,12 @@ public class AuditHead implements DisposableBean {
     try {
       synchronized (lock) {
         Heads at = anchored;
+        Heads start = from;
         if (at == null) {
           // Not checked yet (the master key was locked at start): verify() anchors once it could check.
           return;
         }
-        Look look = readTx.execute(s -> look(at));
+        Look look = readTx.execute(s -> look(at, start));
         if (look.problem().isPresent()) {
           if (report) {
             broken(look.problem().get());
@@ -237,7 +253,7 @@ public class AuditHead implements DisposableBean {
           return;
         }
         if (!look.heads().equals(at)) {
-          anchor(look.heads(), verifiedFrom());
+          anchor(look.heads(), start);
         }
       }
     } catch (RuntimeException e) {
@@ -259,18 +275,21 @@ public class AuditHead implements DisposableBean {
     synchronized (lock) {
       for (int attempt = 0; ; attempt++) {
         Heads at = anchored;
+        Heads start = from;
         if (at == null) {
           throw new IllegalStateException("The audit history isn't checked yet");
         }
         Retained<T> done = writeTx.execute(s -> {
-          Look look = look(at);
+          Look look = look(at, start);
           if (look.problem().isPresent()) {
             return new Retained<T>(null, look.problem().get());
           }
           T result = delete.get();
           Heads now = heads();
-          if (!now.equals(at)) {
-            anchor(now, verifiedFrom());
+          // The start follows what retention removed, and only that: it was checked just above.
+          Heads kept = rebase(start);
+          if (!now.equals(at) || !kept.equals(start)) {
+            anchor(now, kept);
           }
           return new Retained<>(result, null);
         });
@@ -289,6 +308,7 @@ public class AuditHead implements DisposableBean {
     ObjectNode body = JsonNodeFactory.instance.objectNode();
     body.set("heads", json(heads));
     body.set("verifiedFrom", json(verifiedFrom));
+    body.put("links", true);
     body.put("at", clock.instant().toEpochMilli());
     body.put("mac", B64.encodeToString(keys.mac(HmacKeys.Purpose.AUDIT_HEAD, CanonicalJson.bytes(unsigned(body)))));
     settings.put(KEY, body, null);
@@ -298,17 +318,57 @@ public class AuditHead implements DisposableBean {
         @Override
         public void afterCommit() {
           anchored = heads;
+          from = verifiedFrom;
         }
       });
     } else {
       anchored = heads;
+      from = verifiedFrom;
     }
   }
 
-  /** Where the last re-anchoring started the verified history ({@link #fullCheck} walks from there). */
-  private Heads verifiedFrom() {
-    return settings.find(KEY).map(s -> s.value().path("verifiedFrom")).filter(JsonNode::isObject)
-        .map(AuditHead::headsOf).orElse(new Heads(1, null, 1, null));
+  /** A start whose first rows' links are trusted: what an anchor without {@code links} vouched for. */
+  private static Heads trusting(Heads start) {
+    return new Heads(start.toolCallId(), null, start.setupChangeId(), null);
+  }
+
+  /**
+   * The start moved to the first row each table has from {@code start} on, and the hash that row links to; for a table
+   * with no such row, past its last row and linking to its head. Inside the transaction that checked {@code start}.
+   */
+  private Heads rebase(Heads start) {
+    Heads head = heads();
+    Optional<ToolCallEntity> call = calls.findByIdGreaterThanOrderByIdAsc(Math.max(0, start.toolCallId() - 1),
+        PageRequest.ofSize(1)).stream().findFirst();
+    Optional<SetupChangeEntity> change = changes.findByIdGreaterThanOrderByIdAsc(
+        Math.max(0, start.setupChangeId() - 1), PageRequest.ofSize(1)).stream().findFirst();
+    return new Heads(
+        call.map(ToolCallEntity::getId).orElse(Math.max(start.toolCallId(), head.toolCallId() + 1)),
+        call.map(ToolCallEntity::getPrevSha256).orElse(head.toolCallSha()),
+        change.map(SetupChangeEntity::getId).orElse(Math.max(start.setupChangeId(), head.setupChangeId() + 1)),
+        change.map(SetupChangeEntity::getPrevSha256).orElse(head.setupChangeSha()));
+  }
+
+  /** Whether the first row of the verified history still links where the start says. */
+  private Optional<String> startProblem(Heads start) {
+    if (start == null) {
+      return Optional.empty();
+    }
+    if (start.toolCallSha() != null) {
+      Optional<ToolCallEntity> first = calls.findByIdGreaterThanOrderByIdAsc(Math.max(0, start.toolCallId() - 1),
+          PageRequest.ofSize(1)).stream().findFirst();
+      if (first.isPresent() && !start.toolCallSha().equals(first.get().getPrevSha256())) {
+        return Optional.of("agent call rows before row " + first.get().getId() + " were removed");
+      }
+    }
+    if (start.setupChangeSha() != null) {
+      Optional<SetupChangeEntity> first = changes.findByIdGreaterThanOrderByIdAsc(
+          Math.max(0, start.setupChangeId() - 1), PageRequest.ofSize(1)).stream().findFirst();
+      if (first.isPresent() && !start.setupChangeSha().equals(first.get().getPrevSha256())) {
+        return Optional.of("setup change rows before row " + first.get().getId() + " were removed");
+      }
+    }
+    return Optional.empty();
   }
 
   /** {@code null}: the keys are locked, no answer. */
@@ -337,7 +397,9 @@ public class AuditHead implements DisposableBean {
             "verified", "not verified before this point", "GateRook found that " + detail + ".", null, null, null,
             null));
         Heads now = heads();
-        anchor(now, new Heads(now.toolCallId() + 1, null, now.setupChangeId(), null));
+        // Verified from here: the next agent call links to the head, and the Setup change just written stays first.
+        String marker = changes.findById(now.setupChangeId()).map(SetupChangeEntity::getPrevSha256).orElse(null);
+        anchor(now, new Heads(now.toolCallId() + 1, now.toolCallSha(), now.setupChangeId(), marker));
       });
     } catch (RuntimeException e) {
       log.warn("Couldn't re-anchor the audit chain: {}", e.toString());
@@ -350,8 +412,12 @@ public class AuditHead implements DisposableBean {
    * The heads now and, when they moved since {@code at}, the first problem of the anchored rows or of the tail after
    * them. Runs inside one transaction, so the heads and the walk see the same rows.
    */
-  private Look look(Heads at) {
+  private Look look(Heads at, Heads start) {
     Heads now = heads();
+    Optional<String> removed = startProblem(start);
+    if (removed.isPresent()) {
+      return new Look(now, removed);
+    }
     if (now.equals(at)) {
       return new Look(now, Optional.empty());
     }
@@ -398,17 +464,18 @@ public class AuditHead implements DisposableBean {
   }
 
   /**
-   * Background check of everything since the last re-anchoring; the first row there is trusted for its link. A page
+   * Background check of everything since the last re-anchoring; the first row there links where the start says (or is
+   * trusted for its link, for a start from before {@code links}). A page
    * per read transaction: a year of calls never sits in one persistence context, and rows only ever join at the end.
    */
   private void fullCheck(Heads from) {
     try {
-      Optional<String> problem = walk(from.toolCallId() - 1, null,
+      Optional<String> problem = walk(from.toolCallId() - 1, from.toolCallSha(),
           after -> readTx.execute(s -> calls.findByIdGreaterThanOrderByIdAsc(after, PageRequest.ofSize(PAGE))),
           ToolCallEntity::getId, ToolCallEntity::getPrevSha256, ToolCallEntity::getRowSha256, ChainHash::ofStored,
           "agent call");
       if (problem.isEmpty()) {
-        problem = walk(from.setupChangeId() - 1, null,
+        problem = walk(from.setupChangeId() - 1, from.setupChangeSha(),
             after -> readTx.execute(s -> changes.findByIdGreaterThanOrderByIdAsc(after, PageRequest.ofSize(PAGE))),
             SetupChangeEntity::getId, SetupChangeEntity::getPrevSha256, SetupChangeEntity::getRowSha256,
             ChainHash::of, "setup change");
