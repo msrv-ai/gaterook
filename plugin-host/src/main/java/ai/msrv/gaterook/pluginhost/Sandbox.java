@@ -188,6 +188,35 @@ final class Sandbox {
   }
 
   /**
+   * {@code struct landlock_ruleset_attr} as ABI {@code abi} takes it: {@code handled_access_fs} (the rights of
+   * {@link #handledRights}); from ABI 4 {@code handled_access_net}, the TCP rights when a port is to be closed and
+   * else 0, so the network isn't handled; from ABI 6 {@code scoped}. The size says which fields are there: ABI 1's 8
+   * bytes, which every later ABI accepts, when only the filesystem is handled; 16 with the network; the whole 24 with
+   * scoping, whether or not a port is closed.
+   */
+  record RulesetAttr(long size, long handledFs, long handledNet, long scoped) {
+
+    static RulesetAttr of(int abi, boolean closesPorts) {
+      boolean scope = abi >= SCOPE_ABI;
+      boolean net = closesPorts && abi >= NET_ABI;
+      long size = scope ? 24 : net ? 16 : 8;
+      return new RulesetAttr(size, handledRights(abi), net ? BIND_TCP | CONNECT_TCP : 0L,
+          scope ? SCOPE_ABSTRACT_UNIX_SOCKET | SCOPE_SIGNAL : 0L);
+    }
+
+    /** Fills {@code attr}, a zeroed segment of at least {@link #size} bytes, with the fields the size covers. */
+    void write(MemorySegment attr) {
+      attr.set(ValueLayout.JAVA_LONG, 0, handledFs);
+      if (size >= 16) {
+        attr.set(ValueLayout.JAVA_LONG, 8, handledNet);
+      }
+      if (size >= 24) {
+        attr.set(ValueLayout.JAVA_LONG, 16, scoped);
+      }
+    }
+  }
+
+  /**
    * Restricts <em>the calling thread</em> and every thread it creates from now on, for good: Landlock ruleset, no new
    * privileges, restrict self. Missing paths are skipped. From ABI 4 the TCP ports in {@code closedPorts} can be
    * neither bound nor connected to; before it they stay open, which the caller says. Only {@link SandboxExec} calls
@@ -195,8 +224,7 @@ final class Sandbox {
    */
   static void restrict(int abi, List<String> readOnly, List<String> readWrite, Set<Integer> closedPorts) {
     int[] tcpPorts = openPorts(abi, closedPorts);
-    boolean net = tcpPorts.length > 0;
-    boolean scope = abi >= SCOPE_ABI;
+    RulesetAttr spec = RulesetAttr.of(abi, tcpPorts.length > 0);
     try (Arena arena = Arena.ofConfined()) {
       MethodHandle create = handle("syscall", SYSCALL_CREATE, Linker.Option.firstVariadicArg(1),
           Linker.Option.captureCallState("errno"));
@@ -210,22 +238,13 @@ final class Sandbox {
           Linker.Option.captureCallState("errno"));
       MethodHandle close = handle("close", CLOSE);
       MemorySegment state = arena.allocate(STATE);
-      // struct landlock_ruleset_attr { __u64 handled_access_fs; __u64 handled_access_net; __u64 scoped; }: ABI 1's
-      // size (8 bytes, which every later ABI accepts) when only the filesystem is handled, up to handled_access_net
-      // (ABI 4) when a port is closed, and the whole 24 bytes from ABI 6 for scoped. handled_access_net stays at
-      // offset 8 for the --deny-tcp rules; it is 0 when no port is closed, so the network isn't handled then.
-      long size = scope ? 24 : (net ? 16 : 8);
-      MemorySegment attr = arena.allocate(size, 8);
-      long handled = handledRights(abi);
-      attr.set(ValueLayout.JAVA_LONG, 0, handled);
-      if (size >= 16) {
-        attr.set(ValueLayout.JAVA_LONG, 8, net ? BIND_TCP | CONNECT_TCP : 0L);
-      }
-      if (scope) {
-        // The host only ever signals its own threads, which share its domain, so SCOPE_SIGNAL doesn't stop the JVM.
-        attr.set(ValueLayout.JAVA_LONG, 16, SCOPE_ABSTRACT_UNIX_SOCKET | SCOPE_SIGNAL);
-      }
-      long fd = (long) create.invokeExact(state, SYS_LANDLOCK_CREATE_RULESET, attr, size, 0);
+      // The attr as this ABI takes it (RulesetAttr): handled_access_net stays at offset 8 for the --deny-tcp rules,
+      // scoped at 16. The host only ever signals its own threads, which share its domain, so SCOPE_SIGNAL doesn't
+      // stop the JVM; the core, outside the domain, can still stop the host.
+      MemorySegment attr = arena.allocate(spec.size(), 8);
+      spec.write(attr);
+      long handled = spec.handledFs();
+      long fd = (long) create.invokeExact(state, SYS_LANDLOCK_CREATE_RULESET, attr, spec.size(), 0);
       if (fd < 0) {
         throw new IllegalStateException("landlock_create_ruleset failed (errno " + errno(state) + ")");
       }

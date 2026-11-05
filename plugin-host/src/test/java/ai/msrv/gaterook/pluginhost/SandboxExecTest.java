@@ -3,6 +3,9 @@ package ai.msrv.gaterook.pluginhost;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -29,6 +32,53 @@ class SandboxExecTest {
     // Before ABI 4 Landlock has no network rules, and with no port to close the network isn't handled at all.
     assertThat(Sandbox.openPorts(3, r.deniedPorts())).isEmpty();
     assertThat(Sandbox.openPorts(8, Set.of())).isEmpty();
+  }
+
+  /**
+   * The ruleset's attr grows with the ABI, and each field keeps its offset: {@code handled_access_net} at 8 for the
+   * port rules, {@code scoped} at 16 (abstract Unix sockets and signals, from ABI 6, with or without a closed port).
+   */
+  @Test
+  void theRulesetAttrGrowsWithTheAbiAndKeepsItsOffsets() {
+    Sandbox.RulesetAttr scopedWithPorts = Sandbox.RulesetAttr.of(8, true);
+    assertThat(scopedWithPorts.size()).isEqualTo(24);
+    assertThat(scopedWithPorts.handledFs()).isEqualTo(Sandbox.handledRights(8));
+    assertThat(scopedWithPorts.handledNet()).isEqualTo(Sandbox.BIND_TCP | Sandbox.CONNECT_TCP);
+    assertThat(scopedWithPorts.scoped()).isEqualTo(Sandbox.SCOPE_ABSTRACT_UNIX_SOCKET | Sandbox.SCOPE_SIGNAL);
+    // --probe, or no port to close: still scoped, the network not handled.
+    Sandbox.RulesetAttr scopedOnly = Sandbox.RulesetAttr.of(6, false);
+    assertThat(scopedOnly.size()).isEqualTo(24);
+    assertThat(scopedOnly.handledNet()).isZero();
+    assertThat(scopedOnly.scoped()).isEqualTo(Sandbox.SCOPE_ABSTRACT_UNIX_SOCKET | Sandbox.SCOPE_SIGNAL);
+    // ABI 4 and 5 close ports but can't scope.
+    Sandbox.RulesetAttr portsOnly = Sandbox.RulesetAttr.of(5, true);
+    assertThat(portsOnly.size()).isEqualTo(16);
+    assertThat(portsOnly.handledNet()).isEqualTo(Sandbox.BIND_TCP | Sandbox.CONNECT_TCP);
+    assertThat(portsOnly.scoped()).isZero();
+    // Before ABI 4 only the filesystem, whatever was asked: ABI 1's 8 bytes.
+    assertThat(Sandbox.RulesetAttr.of(3, true)).isEqualTo(new Sandbox.RulesetAttr(8, Sandbox.handledRights(3), 0, 0));
+    assertThat(Sandbox.RulesetAttr.of(4, false).size()).isEqualTo(8);
+    assertThat(Sandbox.RulesetAttr.of(1, false).handledFs() & Sandbox.REFER).isZero();
+    assertThat(Sandbox.RulesetAttr.of(5, false).handledFs() & Sandbox.IOCTL_DEV).isNotZero();
+
+    try (Arena arena = Arena.ofConfined()) {
+      MemorySegment attr = arena.allocate(24, 8);
+      scopedWithPorts.write(attr);
+      assertThat(attr.get(ValueLayout.JAVA_LONG, 0)).isEqualTo(Sandbox.handledRights(8));
+      assertThat(attr.get(ValueLayout.JAVA_LONG, 8)).isEqualTo(Sandbox.BIND_TCP | Sandbox.CONNECT_TCP);
+      assertThat(attr.get(ValueLayout.JAVA_LONG, 16)).isEqualTo(Sandbox.SCOPE_ABSTRACT_UNIX_SOCKET
+          | Sandbox.SCOPE_SIGNAL);
+      // A 16-byte attr writes nothing past the network, an 8-byte one nothing past the filesystem.
+      MemorySegment sixteen = arena.allocate(24, 8);
+      portsOnly.write(sixteen);
+      assertThat(sixteen.get(ValueLayout.JAVA_LONG, 8)).isEqualTo(Sandbox.BIND_TCP | Sandbox.CONNECT_TCP);
+      assertThat(sixteen.get(ValueLayout.JAVA_LONG, 16)).isZero();
+      MemorySegment eight = arena.allocate(24, 8);
+      Sandbox.RulesetAttr.of(3, true).write(eight);
+      assertThat(eight.get(ValueLayout.JAVA_LONG, 0)).isEqualTo(Sandbox.handledRights(3));
+      assertThat(eight.get(ValueLayout.JAVA_LONG, 8)).isZero();
+      assertThat(eight.get(ValueLayout.JAVA_LONG, 16)).isZero();
+    }
   }
 
   @Test

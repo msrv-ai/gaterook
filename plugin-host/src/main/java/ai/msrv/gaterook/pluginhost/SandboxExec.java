@@ -18,10 +18,11 @@ import java.util.TreeSet;
  * threads before {@code main}. So this small JVM confines its own main thread — no new privileges, a ruleset that
  * reads the system and the {@code --ro} paths, writes the {@code --rw} paths and devices, and neither binds nor
  * connects a TCP socket to a {@code --deny-tcp} port (the core's own listeners: Landlock ABI 4 or later, else said on
- * stderr) — and then {@code execve}s the command on that thread: the host's JVM starts inside the domain, every thread
- * it ever makes is confined, and nothing in it can lift the restriction. The pid and the pipes stay the same, so the
- * core sees one process. The command gets the environment it was given plus {@code MCP_GATEWAY_SANDBOX=landlock},
- * which the host reports back in {@code plugin/load}.
+ * stderr), and from ABI 6 is scoped out of the session's abstract Unix sockets and the signals of other processes
+ * (else said on stderr too) — and then {@code execve}s the command on that thread: the host's JVM starts inside the
+ * domain, every thread it ever makes is confined, and nothing in it can lift the restriction. The pid and the pipes
+ * stay the same, so the core sees one process. The command gets the environment it was given plus
+ * {@code MCP_GATEWAY_SANDBOX=landlock}, which the host reports back in {@code plugin/load}.
  *
  * <p>{@code --probe} confines this process and exits 0 when that works: the core asks once whether this system can
  * sandbox a plugin. Without Landlock (another OS, a kernel before 5.13, the LSM off) it exits 4 and never runs the
@@ -72,6 +73,10 @@ public final class SandboxExec {
     if (!request.deniedPorts().isEmpty() && abi < Sandbox.NET_ABI) {
       System.err.println("plugin-host sandbox: Landlock ABI " + abi + " can't close TCP ports (ABI 4, Linux 6.7, "
           + "can): the plugin can still reach GateRook's ports " + request.deniedPorts());
+    }
+    if (abi < Sandbox.SCOPE_ABI) {
+      System.err.println("plugin-host sandbox: Landlock ABI " + abi + " can't scope the plugin out of abstract Unix "
+          + "sockets and signals (ABI 6, Linux 6.12, can): the session's services stay reachable");
     }
     try {
       Sandbox.restrict(abi, readOnly, readWrite, request.deniedPorts());
