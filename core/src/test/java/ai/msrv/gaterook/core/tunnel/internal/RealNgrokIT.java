@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.core.tunnel.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import ai.msrv.gaterook.core.platform.TestGateway;
 import ai.msrv.gaterook.core.tunnel.TunnelProvider;
@@ -20,9 +21,11 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -30,26 +33,68 @@ import org.junit.jupiter.api.Test;
  * The real ngrok agent 3.39.11 (profile {@code network}): the pinned release downloaded and hash-checked into
  * {@code ~/.cache/mcp-gateway-test/k3-ngrok} as the app installs it, started with our config and argv. It must take
  * {@code web_addr: false} and serve no local API: no {@code "starting web service"} in its log, no listening socket
- * while it runs (checked with {@code lsof}, {@code netstat} on Windows). With an authtoken in
- * {@code GW_TEST_NGROK_AUTHTOKEN} — and the account's reserved domain in {@code GW_TEST_NGROK_DOMAIN}, if it is to be
- * used — its {@code "started tunnel"} line must bring the public URL, which then reaches a server of this test on
- * the loopback port. Without one, ngrok refuses a made-up authtoken (ERR_NGROK_107) and the start fails.
+ * while it runs (checked with {@code lsof}, {@code netstat} on Windows).
+ *
+ * <p>A made-up authtoken it refuses in its own words (ERR_NGROK_107), which the start's error repeats. The live
+ * tunnel needs an authtoken in {@code GW_TEST_NGROK_AUTHTOKEN} — and the account's reserved domain in
+ * {@code GW_TEST_NGROK_DOMAIN}, if it is to be used: its {@code "started tunnel"} line must bring the public URL,
+ * which then reaches a server of this test on the loopback port. Without the variable that test is skipped, never
+ * passed; set but empty, it fails.
  */
 @Tag("network")
 class RealNgrokIT {
 
   private static final String MADE_UP = "2fakeNgrokAuthtoken_0123456789abcdefghij";
 
-  @Test
-  void theRealAgentTellsItsUrlInItsLogAndListensOnNothing() throws Exception {
+  private static Path binary;
+
+  /** What one start of the agent showed: the tunnel's host or the start's error, what the edge answered, the log. */
+  private record Run(String host, String failure, String reached, String log, Set<String> listening) {}
+
+  @BeforeAll
+  static void install() throws Exception {
     Path cache = Path.of(System.getProperty("user.home"), ".cache", "mcp-gateway-test", "k3-ngrok");
     TunnelBinaries binaries = new TunnelBinaries(cache, "", "");
-    Path binary = binaries.installNgrok();
+    binary = binaries.installNgrok();
     assertThat(binaries.ngrokStatus().sha256Ok()).isTrue();
-    String token = System.getenv("GW_TEST_NGROK_AUTHTOKEN");
-    boolean live = token != null && !token.isBlank();
-    String domain = live ? System.getenv("GW_TEST_NGROK_DOMAIN") : null;
+  }
 
+  @Test
+  void aMadeUpAuthtokenIsRefusedInNgroksOwnWordsWithNoLocalApi() throws Exception {
+    Run run = start(MADE_UP, null);
+    assertThat(run.host()).isNull();
+    assertThat(run.failure()).isEqualTo("ngrok stopped (exit 1). Last log line: authentication failed: The authtoken "
+        + "you specified is properly formed, but it is invalid. (ERR_NGROK_107)");
+    assertThat(run.log()).contains("\"msg\":\"open config file\"").contains("ERR_NGROK_107")
+        .doesNotContain("starting web service");
+    assertThat(run.listening()).as("sockets the agent listened on").isEmpty();
+  }
+
+  @Test
+  void aLiveTunnelTellsItsUrlInItsLogAndListensOnNothing() throws Exception {
+    String token = System.getenv("GW_TEST_NGROK_AUTHTOKEN");
+    assumeTrue(token != null, "GW_TEST_NGROK_AUTHTOKEN isn't set: no live tunnel");
+    assertThat(token.isBlank()).as("GW_TEST_NGROK_AUTHTOKEN is set but empty").isFalse();
+    String domain = System.getenv("GW_TEST_NGROK_DOMAIN");
+    domain = domain == null || domain.isBlank() ? null : domain.strip().toLowerCase(Locale.ROOT);
+
+    Run run = start(token.strip(), domain);
+    assertThat(run.failure()).as("the start").isNull();
+    assertThat(TunnelPublication.validHost(run.host())).isTrue();
+    if (domain != null) {
+      assertThat(run.host()).isEqualTo(domain);
+    }
+    assertThat(run.reached()).as("the public URL reaches this computer").isEqualTo("reached");
+    assertThat(run.log()).contains("\"msg\":\"started tunnel\"").doesNotContain("starting web service");
+    assertThat(run.log().contains(token.strip())).as("the log holds the authtoken").isFalse();
+    assertThat(run.listening()).as("sockets the agent listened on").isEmpty();
+  }
+
+  /**
+   * Starts the agent with {@code token} towards a loopback server of this test, sees which sockets it listens on
+   * meanwhile, asks the public URL for a path only that server answers, and stops it all again.
+   */
+  private static Run start(String token, String domain) throws Exception {
     Path home = TestGateway.newHome("real-ngrok");
     Path run = Files.createDirectories(home.resolve("run"));
     Path logs = Files.createDirectories(home.resolve("logs"));
@@ -68,19 +113,17 @@ class RealNgrokIT {
     Thread watcher = Thread.ofVirtual().start(() -> watchSockets(config, listening));
     TunnelAgent.Started started = null;
     String failure = null;
+    String reached = null;
     try {
       try {
         started = new NgrokAgent().start(new TunnelAgent.StartRequest(TunnelProvider.NGROK, binary,
-            origin.getAddress().getPort(), domain, (live ? token : MADE_UP).toCharArray(), run, logs));
+            origin.getAddress().getPort(), domain, token.toCharArray(), run, logs));
       } catch (TunnelException e) {
         failure = e.getMessage();
       }
       if (started != null) {
-        assertThat(TunnelPublication.validHost(started.host())).isTrue();
-        if (domain != null && !domain.isBlank()) {
-          assertThat(started.host()).isEqualTo(domain.toLowerCase(java.util.Locale.ROOT));
-        }
-        assertThat(throughTheEdge(started.host(), nonce)).as("the public URL reaches this computer").isEqualTo(nonce);
+        String answer = throughTheEdge(started.host(), nonce);
+        reached = nonce.equals(answer) ? "reached" : answer;
         listening.addAll(listeners(started.process().pid()));
       }
     } finally {
@@ -91,21 +134,11 @@ class RealNgrokIT {
       }
       origin.stop(0);
     }
-
-    String log = Files.readString(logs.resolve("ngrok.log"));
-    assertThat(log).contains("\"msg\":\"open config file\"").doesNotContain("starting web service");
-    assertThat(listening).as("sockets the agent listened on").isEmpty();
-    if (live) {
-      assertThat(failure).as("the start").isNull();
-      assertThat(log).contains("\"msg\":\"started tunnel\"");
-      assertThat(log.contains(token)).as("the log holds the authtoken").isFalse();
-    } else {
-      assertThat(failure).contains("ngrok stopped (exit 1)");
-      assertThat(log).contains("ERR_NGROK_107");
-    }
     assertThat(run.resolve("tunnel.pid")).doesNotExist();
     assertThat(ProcessHandle.allProcesses().filter(h -> h.info().arguments().map(a -> Arrays.asList(a)
         .contains(config)).orElse(false))).as("no agent of this test left").isEmpty();
+    return new Run(started == null ? null : started.host(), failure, reached,
+        Files.readString(logs.resolve("ngrok.log")), listening);
   }
 
   /** Until interrupted: the listening sockets of every process started with our config. */
