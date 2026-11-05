@@ -6,8 +6,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import ai.msrv.gaterook.core.secrets.SecretStores;
 import ai.msrv.gaterook.core.secrets.store.vault.VaultSettings;
 import ai.msrv.gaterook.core.secrets.store.vault.VaultStore;
+import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.KeyPairGenerator;
 import java.security.PublicKey;
 import java.time.Clock;
@@ -23,6 +26,7 @@ import mockwebserver3.RecordedRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -476,6 +480,135 @@ class VaultStoreTest {
     assertThatThrownBy(() -> VaultSettings.of(config, Set.of())).isInstanceOf(StoreException.class);
     config.put("allowPlainHttp", true);
     assertThat(VaultSettings.of(config, Set.of()).address()).hasToString("http://vault.acme.internal:8200");
+  }
+
+  @Test
+  void localhostNamesOnACorePortAreRefusedWhenSaved() {
+    for (String address : List.of("http://localhost.:7777", "http://vault.localhost:7777", "https://LOCALHOST.:7777",
+        "https://a.b.localhost.:7777")) {
+      assertThatThrownBy(() -> StoreAddress.check(address, Set.of(7777), true)).as(address)
+          .isInstanceOf(StoreException.class).hasMessageContaining("GateRook itself");
+    }
+    assertThat(StoreAddress.check("https://vault.localhost:8200", Set.of(7777)))
+        .hasToString("https://vault.localhost:8200");
+  }
+
+  @Test
+  void requestsNeverGoToTheCoreItselfByAddressOrByName() {
+    int port = URI.create(vault.address()).getPort();
+    for (String address : List.of(vault.address(), "http://localhost:" + port)) {
+      try (VaultStore core = new VaultStore(settings(address), f -> FakeVault.SECRET_ID.toCharArray(), clock,
+          Set.of(port))) {
+        assertThatThrownBy(() -> core.read(SecretRef.parse("vault://kv/stage/db#password"), call())).as(address)
+            .isInstanceOfSatisfying(StoreException.class, e -> {
+              assertThat(e.reason()).isEqualTo(StoreException.Reason.INVALID);
+              assertThat(e.getMessage()).contains("is GateRook itself");
+            });
+      }
+    }
+    assertThat(vault.requests).isEmpty();
+  }
+
+  @Test
+  void signingRefusesMountsAndRolesThatAreNotPlainVaultNames() throws Exception {
+    PublicKey key = KeyPairGenerator.getInstance("Ed25519").generateKeyPair().getPublic();
+    List<List<String>> unsafe = List.of(
+        List.of("ssh-client-signer", "../../sys/policies/acl/gw"), List.of("ssh-client-signer", "gw-runbooks/../x"),
+        List.of("ssh-client-signer", "gw-runbooks?x=1"), List.of("ssh-client-signer", "gw-runbooks#x"),
+        List.of("ssh-client-signer", "gw%2Frunbooks"), List.of("ssh-client-signer", ".."),
+        List.of("ssh-client-signer", ""), List.of("../sys", "gw-runbooks"), List.of("ssh/../../sys", "gw-runbooks"),
+        List.of("ssh-client-signer/.", "gw-runbooks"), List.of("/ssh-client-signer", "gw-runbooks"),
+        List.of("ssh%2F..", "gw-runbooks"), List.of("ssh-client-signer?x=", "gw-runbooks"));
+    for (List<String> p : unsafe) {
+      assertThatThrownBy(() -> store.sign(p.get(0), p.get(1), key, "deploy", Duration.ofMinutes(5), null, Map.of(),
+          call())).as(String.join(" ", p)).isInstanceOfSatisfying(StoreException.class,
+              e -> assertThat(e.reason()).isEqualTo(StoreException.Reason.INVALID));
+    }
+    assertThat(vault.requests).isEmpty();
+
+    // Nested mounts and dotted role names stay valid Vault names: this one just doesn't exist.
+    assertThatThrownBy(() -> store.sign("team-a/ssh", "gw_runbooks.v2", key, "deploy", Duration.ofMinutes(5), null,
+        Map.of(), call())).isInstanceOfSatisfying(StoreException.class,
+            e -> assertThat(e.reason()).isEqualTo(StoreException.Reason.NOT_FOUND));
+  }
+
+  @Test
+  void revokingRefusesLeaseIdsThatLeaveTheirPath() {
+    for (String id : List.of("database/creds/r/../../../sys/seal", "../sys/seal", "database/creds/r/x?y=1",
+        "database/creds/r/x#y", "database/creds/r/%2e%2e", "database/creds//x", "/database/creds/r/x",
+        "database/creds/r/x\\y", "database/creds/r/ x", "")) {
+      assertThatThrownBy(() -> store.revoke(id, call())).as(id).isInstanceOfSatisfying(StoreException.class,
+          e -> assertThat(e.reason()).isEqualTo(StoreException.Reason.INVALID));
+    }
+    assertThat(vault.to("sys/leases/revoke")).isEmpty();
+  }
+
+  @Test
+  void theVaultLoginIsReadFromTheVaultTokenFileOnly() {
+    Path standard = Path.of(System.getProperty("user.home"), ".vault-token");
+    for (String file : new String[] {null, "~/.vault-token", standard.toString()}) {
+      assertThat(VaultSettings.of(cliConfig(file), Set.of()).tokenFile()).as(String.valueOf(file)).isEqualTo(standard);
+    }
+    for (String file : List.of("/etc/passwd", "~/.ssh/id_ed25519", "~/.gaterook/master.keyset", ".vault-token",
+        "~/../other/.vault-token", "~/.vault-token/../.ssh/id_ed25519", "~/./.vault-token")) {
+      assertThatThrownBy(() -> VaultSettings.of(cliConfig(file), Set.of())).as(file)
+          .isInstanceOfSatisfying(StoreException.class, e -> {
+            assertThat(e.reason()).isEqualTo(StoreException.Reason.INVALID);
+            assertThat(e.getMessage()).contains("~/.vault-token");
+          });
+    }
+  }
+
+  @Test
+  void theVaultLoginTokenFileMustBeOneTokenInARegularFile(@TempDir Path dir) throws Exception {
+    Path good = Files.writeString(dir.resolve("vault-token"), vault.token(7) + "\n");
+    Path link = dir.resolve("link");
+    try {
+      Files.createSymbolicLink(link, good);
+    } catch (UnsupportedOperationException | IOException e) {
+      link = null;
+    }
+    Map<Path, String> refused = new java.util.LinkedHashMap<>();
+    if (link != null) {
+      refused.put(link, "symbolic link");
+    }
+    refused.put(Files.createDirectory(dir.resolve("folder")), "regular file");
+    refused.put(Files.write(dir.resolve("large"), "a".repeat(16 * 1024 + 1).getBytes(StandardCharsets.US_ASCII)),
+        "too large");
+    refused.put(Files.writeString(dir.resolve("lines"), vault.token(7) + "\nsecond line\n"), "one Vault token");
+    refused.put(Files.writeString(dir.resolve("spaced"), "user:" + vault.token(7) + " x"), "one Vault token");
+    refused.put(Files.writeString(dir.resolve("empty"), "\n"), "one Vault token");
+    for (Map.Entry<Path, String> e : refused.entrySet()) {
+      try (VaultStore cli = cliStore(e.getKey())) {
+        assertThatThrownBy(() -> cli.read(SecretRef.parse("vault://kv/stage/db#password"), call()))
+            .as(e.getKey().getFileName().toString()).isInstanceOf(StoreException.class)
+            .hasMessageContaining(e.getValue());
+      }
+    }
+    assertThat(vault.requests).as("no part of a refused file is sent").isEmpty();
+
+    try (VaultStore cli = cliStore(good); RemoteValue v = cli.read(SecretRef.parse("vault://kv/stage/db#password"),
+        call())) {
+      assertThat(new String(v.value(), StandardCharsets.UTF_8)).isEqualTo(FakeVault.DB_PASSWORD);
+    }
+    assertThat(vault.to("auth/token/lookup-self").getFirst().getHeaders().get("X-Vault-Token"))
+        .isEqualTo(vault.token(7));
+  }
+
+  private VaultStore cliStore(Path tokenFile) {
+    return new VaultStore(new VaultSettings(URI.create(vault.address()), null, null, VaultSettings.Auth.CLI_TOKEN,
+        "approle", null, tokenFile, Duration.ofHours(1), 60, false), f -> {
+          throw new AssertionError("The vault login needs no stored secret");
+        }, clock);
+  }
+
+  private static tools.jackson.databind.node.ObjectNode cliConfig(String file) {
+    var config = JsonMapper.builder().build().createObjectNode().put("address", "https://vault.acme.internal");
+    var auth = config.putObject("auth").put("method", "cli-token");
+    if (file != null) {
+      auth.put("file", file);
+    }
+    return config;
   }
 
   /** A clock the test moves. */

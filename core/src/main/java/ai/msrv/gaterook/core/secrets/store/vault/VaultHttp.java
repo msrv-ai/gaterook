@@ -2,7 +2,9 @@ package ai.msrv.gaterook.core.secrets.store.vault;
 
 import ai.msrv.gaterook.connectors.support.Pem;
 import ai.msrv.gaterook.connectors.support.TrustStores;
+import ai.msrv.gaterook.connectors.support.egress.HostResolver;
 import ai.msrv.gaterook.core.secrets.store.SecretJson;
+import ai.msrv.gaterook.core.secrets.store.StoreAddress;
 import ai.msrv.gaterook.core.secrets.store.StoreCall;
 import ai.msrv.gaterook.core.secrets.store.StoreException;
 import java.io.IOException;
@@ -18,14 +20,16 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import javax.net.ssl.SSLException;
 import tools.jackson.databind.JsonNode;
 
 /**
  * The HTTP side of a Vault/OpenBao store (report 12 §6, §7.5): {@code java.net.http}, no redirects (a 307 from a
  * standby would carry the token to another host), no proxy unless the store says so, the store's own CA, the headers
- * {@code X-Vault-Request} and {@code X-Vault-Namespace}. Bodies are byte arrays the caller zeroes; error texts come
- * from Vault's {@code errors} list, which names paths, never values.
+ * {@code X-Vault-Request} and {@code X-Vault-Namespace}. Before each request, what the store's name resolves to is
+ * judged ({@link StoreAddress#checkResolved}). Bodies are byte arrays the caller zeroes; error texts come from Vault's
+ * {@code errors} list, which names paths, never values.
  */
 final class VaultHttp implements AutoCloseable {
 
@@ -54,10 +58,18 @@ final class VaultHttp implements AutoCloseable {
   }
 
   private final VaultSettings settings;
+  private final Set<Integer> corePorts;
+  private final HostResolver resolver;
   private final HttpClient client;
 
-  VaultHttp(VaultSettings settings) {
+  /**
+   * @param corePorts the core's listeners: never reached, also when the store's name resolves to this computer
+   * @param resolver  resolves the store's name for that check; tests substitute it
+   */
+  VaultHttp(VaultSettings settings, Set<Integer> corePorts, HostResolver resolver) {
     this.settings = settings;
+    this.corePorts = Set.copyOf(corePorts);
+    this.resolver = resolver;
     HttpClient.Builder b = HttpClient.newBuilder()
         .followRedirects(HttpClient.Redirect.NEVER)
         .version(HttpClient.Version.HTTP_1_1)
@@ -78,9 +90,11 @@ final class VaultHttp implements AutoCloseable {
    * long as the request).
    *
    * @param body JSON or {@code null}; the caller zeroes it
-   * @throws StoreException {@code UNAVAILABLE} when Vault can't be reached or answers from a standby node
+   * @throws StoreException {@code UNAVAILABLE} when Vault can't be reached or answers from a standby node,
+   *                        {@code INVALID} when the store's name resolves to an address the core never reaches
    */
   Response send(String method, String path, byte[] body, char[] token, StoreCall call) {
+    StoreAddress.checkResolved(settings.address(), corePorts, resolver);
     URI uri = URI.create(settings.address() + "/v1/" + path);
     HttpRequest.Builder r = HttpRequest.newBuilder(uri).timeout(call.requestTimeout())
         .header("X-Vault-Request", "true")

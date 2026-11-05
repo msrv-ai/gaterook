@@ -21,9 +21,10 @@ import javax.net.ssl.SSLException;
 
 /**
  * The HTTP side of Loki, Cloud Logging and OpenSearch on {@code java.net.http} (ARCHITECTURE.md §1 table, §9 "SSRF":
- * the person typed the address, so it is checked before the connection, not by the egress guard). Every request runs
- * against the call's deadline; answers are read up to a size cap; redirects are never followed (a token must not
- * travel to another host); the reason a request failed is told in words the agent and the person can act on.
+ * the person typed the address, so {@link BackendAddresses} checks it before each request, not the egress guard).
+ * Every request runs against the call's deadline; answers are read up to a size cap; redirects are never followed (a
+ * token must not travel to another host); the reason a request failed is told in words the agent and the person can
+ * act on.
  */
 final class Http {
 
@@ -60,7 +61,8 @@ final class Http {
    * Sends {@code request} with the time the call has left.
    *
    * @throws ConnectorException {@code TIMEOUT} at the deadline, {@code RESOURCE_UNAVAILABLE} when the host can't be
-   *                            reached or the TLS handshake fails, {@code RESOURCE_ERROR} for an oversized answer
+   *                            reached or the TLS handshake fails, {@code RESOURCE_ERROR} for an oversized answer,
+   *                            {@code DENIED} when the host is or resolves to an address the connector never reaches
    */
   static Response send(HttpClient client, HttpRequest.Builder request, ExecContext ctx, String what)
       throws ConnectorException {
@@ -69,6 +71,7 @@ final class Http {
       throw ConnectorException.timeout(what + " didn't answer in time.");
     }
     HttpRequest built = request.timeout(left.compareTo(MAX_REQUEST) > 0 ? MAX_REQUEST : left).build();
+    BackendAddresses.of(ctx).check(built.uri());
     try {
       HttpResponse<InputStream> r = client.send(built, HttpResponse.BodyHandlers.ofInputStream());
       try (InputStream in = r.body()) {

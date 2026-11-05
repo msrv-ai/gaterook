@@ -311,9 +311,10 @@ sealed interface Settings permits Settings.Loki, Settings.Gcp, Settings.CloudWat
   }
 
   /**
-   * A base URL a person typed: http(s), a canonical host, no credentials or query; never a cloud metadata address
-   * nor the gateway's own listener. The address is checked here, before any resolution (ARCHITECTURE.md §9 "SSRF":
-   * the person chose it); Loki and OpenSearch commonly live on private networks, so private ranges stay allowed.
+   * A base URL a person typed: http(s), a canonical host, no credentials or query, and no IP literal of a cloud
+   * metadata or reserved address (ARCHITECTURE.md §9 "SSRF": the person chose it). Loki and OpenSearch commonly live
+   * on private networks, so private ranges stay allowed. What a name resolves to and the gateway's own listener are
+   * judged when a request is sent ({@link BackendAddresses}), where the core's ports are known.
    */
   static URI baseUrl(String url, boolean pathAllowed) {
     if (url == null) {
