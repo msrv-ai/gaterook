@@ -1,4 +1,6 @@
-# Oracle Database
+# Control AI access to Oracle Database
+
+Put Oracle access behind GateRook's MCP Firewall to scope schemas and tools, bound reads, and review database changes before execution by default. Stored connection passwords are encrypted in GateRook, and calls pass through its shared [execution controls and audit protection](security.md). Use database grants and verified TLS alongside these controls.
 
 The built-in **Oracle Database** connector uses JDBC Thin to connect to Oracle Database 19c and later. It exposes the same tools as MySQL: `sql_list_schemas`, `sql_describe_table`, `sql_query` and `sql_execute`, plus parameterized SQL query templates.
 
@@ -10,7 +12,7 @@ Under **Advanced**, select the transport that matches the listener. The default,
 
 The default schema is the authenticated user's schema. Set **Default schema** to use another permitted schema. Unquoted Oracle identifiers use uppercase; double-quote case-sensitive names. Restrict accessible schemas with the connection's schema allowlist and the endpoint's SQL policy. When an external credential provider supplies the username, set an explicit default schema or qualify table names for schema introspection.
 
-## Query and change data
+## Bound reads and review database changes
 
 `sql_query` runs one analyzed read in an explicit read-only transaction and rolls it back when finished. Row, response-size and timeout limits apply. Oracle statement timeouts use JDBC cancellation rounded up to whole seconds. `sql_list_schemas` lists accessible tables and views within the allowlist; `sql_describe_table` returns their columns and constraints. SQL query templates bind parameter values through JDBC; boolean parameters use `1` and `0` for compatibility with Oracle 19c.
 

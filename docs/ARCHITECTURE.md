@@ -1,6 +1,8 @@
-# GateRook desktop architecture
+# GateRook MCP Firewall architecture
 
-GateRook runs an Angular renderer inside Electron and a separate Java/Spring Boot core on loopback. The core owns credentials, policy, approvals, execution, and audit. A development build runs the core on JVM 25; the native-image build uses the same source. Dynamic Java extensions run in isolated JVM plugin hosts.
+GateRook is a desktop MCP Firewall that controls AI access to connected infrastructure. It runs an Angular renderer inside Electron and a separate Java/Spring Boot core on loopback. The core owns encrypted credentials, policy enforcement, exact-action approvals, execution, and tamper-evident audit. A development build runs the core on JVM 25; the native-image build uses the same source. Dynamic Java extensions run in isolated JVM plugin hosts.
+
+The [security model](security.md) explains these controls and their production boundaries. MCP Firewall describes the application-level enforcement on calls routed through GateRook; it does not imply an OS-wide network firewall or protection of alternate access paths. Existing gateway identifiers remain compatibility contracts.
 
 This document describes the imported application and its architectural contracts. [Product decisions](DECISIONS.md) take precedence over exploratory [research](research/README.md). Research findings retain their original evidence dates and unresolved questions; they are not fresh compatibility certifications. Runtime contracts live in the source, schemas, migrations, and tests linked below. Implementation progress logs are intentionally excluded.
 

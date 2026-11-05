@@ -1,4 +1,8 @@
-# SQL Server
+# Control AI access to SQL Server
+
+GateRook's MCP Firewall scopes AI access to selected SQL Server databases and tools, enforces query limits, and requires review of writes by default. Stored login passwords are encrypted in GateRook. The [security model](security.md) explains execution controls, explicit Bypass, and the append-only, tamper-evident audit trail.
+
+## Connect with restricted credentials and verified TLS
 
 The built-in **SQL Server** connector (`sqlserver`) uses Microsoft's JDBC driver over TCP with SQL authentication.
 Create a connection with its host, TCP port (default **1433**), SQL login and password, then load and select the
@@ -11,6 +15,8 @@ private CA. **require** encrypts without validating the certificate; it is suita
 permissions and TLS status; if a restricted login cannot inspect TLS metadata, the UI reports what the connection
 settings establish or leaves the status unknown. It does not require granting server-state permissions to a reader.
 
+## Bound reads and review exact SQL
+
 The connector provides the same tools as MySQL: `sql_list_schemas`, `sql_describe_table`, `sql_query` and `sql_execute`.
 It also supports SQL query templates with bound parameters, response limits, cancellation and pooled connections.
 Calls must provide `database` when several databases are selected; approvals retain the selected database and exact
@@ -21,7 +27,7 @@ SQL Server does not provide JDBC read-only transactions. GateRook therefore admi
 login with only the required `SELECT` grants for server-enforced protection. Reads calling unknown functions remain
 refused even with approval. Transactions, session commands, temporary objects, stored procedures, sequence advancement,
 `OUTPUT` clauses and external rowsets cannot run through this connector. Views and computed expressions retain
-the permissions and behavior configured on the server; gateway table rules are not a replacement for database grants.
+the permissions and behavior configured on the server; GateRook's table rules are not a replacement for database grants.
 
 Writes use `sql_execute`, require approval by default, and run one analyzed statement in a transaction. Existing
 DDL and table policies still apply. Before requesting approval, GateRook estimates DML impact using
@@ -31,8 +37,10 @@ because their additional write targets cannot be verified.
 
 Set **Default schema** to the user's actual database default (normally `dbo`). GateRook verifies this when borrowing
 a connection. With a restricted table allowlist and a different default schema, qualify table names explicitly to
-avoid SQL Server's fallback lookup in `dbo`. Identifier comparisons in gateway allowlists are exact, even when the
+avoid SQL Server's fallback lookup in `dbo`. Identifier comparisons in GateRook's allowlists are exact, even when the
 server uses a case-insensitive collation.
+
+## Verify with a disposable database
 
 For local verification, use the opt-in [SQL Server test service](../test-services/README.md#sql-server).
 JVM checks and database integration tests do not establish native-image or installer compatibility.
