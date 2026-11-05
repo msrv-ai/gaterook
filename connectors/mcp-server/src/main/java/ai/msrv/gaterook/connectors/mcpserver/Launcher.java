@@ -24,7 +24,8 @@ import java.util.stream.Stream;
  * Homebrew, nvm and Volta aren't), and an environment of only the basic user variables, the ones the person chose to
  * pass and the values of the server's secrets. Where {@code gw-bridge sandbox-exec} works (Landlock on Linux,
  * {@code sandbox-exec} on macOS) the process reads the system and the home minus GateRook's data and the credential
- * folders, and writes only its work folder, the temporary folders and the package caches; elsewhere it runs as the
+ * folders, and writes only its work folder and the temporary folders; its work folder is its {@code HOME}, so the
+ * package managers keep their caches there, apart from those the person's own tools use. Elsewhere it runs as the
  * person's user and the review says so.
  */
 final class Launcher {
@@ -41,6 +42,7 @@ final class Launcher {
   private final boolean windows;
   private final boolean mac;
   private final Path userHome;
+  private final Path gatewayHome;
   private final String path;
   private final Path sandboxLauncher;
   private final String sandbox;
@@ -48,15 +50,18 @@ final class Launcher {
 
   /**
    * @param loginShellPath whether to ask {@code $SHELL -ilc} for the PATH a terminal would have (off in tests)
+   * @param gatewayHome GateRook's home ({@code ~/.gaterook}), where the servers' work folders are
    * @param sandboxLauncher {@code ~/.gaterook/bin/gw-bridge}, used when its {@code sandbox-exec} works here
    */
-  Launcher(Map<String, String> coreEnv, String osName, boolean loginShellPath, Path sandboxLauncher) {
+  Launcher(Map<String, String> coreEnv, String osName, boolean loginShellPath, Path gatewayHome,
+      Path sandboxLauncher) {
     this.coreEnv = Map.copyOf(coreEnv);
     String os = osName.toLowerCase(Locale.ROOT);
     this.windows = os.startsWith("windows");
     this.mac = os.startsWith("mac");
     String home = coreEnv.getOrDefault(windows ? "USERPROFILE" : "HOME", System.getProperty("user.home"));
     this.userHome = Path.of(home);
+    this.gatewayHome = gatewayHome;
     this.path = computePath(loginShellPath);
     this.sandboxLauncher = sandboxLauncher;
     this.sandbox = probeSandbox();
@@ -182,12 +187,15 @@ final class Launcher {
       out.add("sandbox-exec");
       out.add("--rw");
       out.add(workDir.toString());
-      // The command's installation (an nvm or Volta tree in the home folder): its lib/ beside bin/.
-      Path real = realPath(command);
-      Path bin = real.getParent();
-      if (bin != null && bin.getParent() != null && real.startsWith(userHome)) {
+      // The command's installation (an nvm or Volta tree in the home folder): its lib/ beside bin/. Landlock opens
+      // all of a --ro path, so never the home or a folder above it (a command in ~/bin or in the home itself), nor
+      // GateRook's home or a folder in it: they hold GateRook's data and the credentials.
+      Path bin = realPath(command).getParent();
+      Path tree = bin == null ? null : bin.getParent();
+      if (tree != null && within(tree, userHome) && !within(userHome, tree) && !within(tree, gatewayHome)
+          && !within(gatewayHome, tree)) {
         out.add("--ro");
-        out.add(bin.getParent().toString());
+        out.add(tree.toString());
       }
       out.add("--");
     }
@@ -292,7 +300,14 @@ final class Launcher {
     try {
       return p.toRealPath();
     } catch (IOException e) {
-      return p.toAbsolutePath();
+      return p.toAbsolutePath().normalize();
     }
+  }
+
+  /** Whether {@code path} is {@code folder} or lies in it, as given or as the file system resolves either. */
+  private static boolean within(Path path, Path folder) {
+    Path p = path.toAbsolutePath().normalize();
+    Path f = folder.toAbsolutePath().normalize();
+    return p.startsWith(f) || realPath(p).startsWith(realPath(f));
   }
 }

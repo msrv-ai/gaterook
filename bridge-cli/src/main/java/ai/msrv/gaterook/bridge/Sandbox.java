@@ -29,15 +29,22 @@ import java.util.Map;
  *
  * <p>Defaults (unless {@code --no-defaults}): the system read-only ({@code /usr}, {@code /lib*}, {@code /bin},
  * {@code /sbin}, {@code /etc}, {@code /opt}, {@code /proc}, {@code /sys}, {@code /nix}), {@code /dev} for reading and
- * writing devices, and the command's own folder read-only. On macOS the command runs under {@code sandbox-exec} with
- * a profile that denies reading GateRook's home, the usual credential folders and the configs of the connected
- * clients, and denies writing anywhere but the {@code --rw} paths, the temporary folders, the devices and the
- * package managers' caches (the API is deprecated, but works on macOS 27): a login item or a shell profile written
- * from inside would run unconfined later. On Linux with Landlock ABI 6 or later the command is also kept from
- * abstract Unix sockets and signals outside its own tree. Elsewhere, or when Landlock is unavailable, it refuses
- * with exit 4, unless
- * {@code --allow-unsandboxed} says to run it as it is (the core then shows "Not sandboxed on this system").
- * Exit codes: 3 wrong arguments, 4 no sandbox, 126/127 the command can't run.
+ * writing devices, and the command's own folder read-only (only the command itself where that folder holds more: a
+ * command in the home). No path is opened that is or holds the person's home, GateRook's home or a {@link #DENIED}
+ * path, nor a read-only path in one of them ({@link Closed}): such a {@code --ro} path is left out and said on
+ * stderr, such a {@code --rw} path refused (exit 3) on every system. A writable path may lie in GateRook's home, where
+ * the work folders are.
+ *
+ * <p>On macOS the command runs under {@code sandbox-exec} with a profile that denies reading GateRook's home, the
+ * usual credential folders and the configs of the connected clients, and denies writing anywhere but the {@code --rw}
+ * paths, the temporary folders and the devices (the API is deprecated, but works on macOS 27): a login item, a shell
+ * profile or a package in a cache shared with the person's own tools, written from inside, would run unconfined later.
+ * The core gives a server its work folder as {@code HOME}, so {@code npx} and {@code uvx} keep their caches there.
+ * Reading is open there except for the denied paths, so {@code --ro} adds nothing; {@code --no-defaults} can't be
+ * honored and is refused with exit 4 unless {@code --allow-unsandboxed}. On Linux with Landlock ABI 6 or later the
+ * command is also kept from abstract Unix sockets and signals outside its own tree. Elsewhere, or when Landlock is
+ * unavailable, it refuses with exit 4, unless {@code --allow-unsandboxed} says to run it as it is (the core then shows
+ * "Not sandboxed on this system"). Exit codes: 3 wrong arguments, 4 no sandbox, 126/127 the command can't run.
  */
 final class Sandbox {
 
@@ -124,6 +131,14 @@ final class Sandbox {
           + "-- <command> [args…]");
       return 3;
     }
+    Closed closed = Closed.of(env);
+    for (String rw : r.readWrite()) {
+      String why = closed.refusal(Path.of(rw), true);
+      if (why != null) {
+        err.println("gw-bridge: --rw " + why + ": it can't be opened to the command");
+        return 3;
+      }
+    }
     Path executable = resolve(r.command().getFirst(), env);
     if (executable == null) {
       err.println("gw-bridge: " + r.command().getFirst() + ": command not found");
@@ -141,18 +156,12 @@ final class Sandbox {
         }
         err.println("gw-bridge: not sandboxed on this system: the command can read everything your account can");
       } else {
-        List<String> ro = new ArrayList<>(r.readOnly());
         List<String> rw = new ArrayList<>(r.readWrite());
         if (r.defaults()) {
-          ro.addAll(SYSTEM_READ);
           rw.addAll(SYSTEM_WRITE);
-          Path parent = executable.getParent();
-          if (parent != null) {
-            ro.add(parent.toString());
-          }
         }
         try {
-          restrict(abi, ro, rw);
+          restrict(abi, readable(r, executable, closed, err), rw);
         } catch (IllegalStateException e) {
           err.println("gw-bridge: " + e.getMessage());
           return NO_SANDBOX;
@@ -161,7 +170,17 @@ final class Sandbox {
       return exec(argv, env, err);
     }
     if (os.startsWith("mac")) {
-      List<String> wrapped = new ArrayList<>(List.of("/usr/bin/sandbox-exec", "-p", macProfile(env, r.readWrite())));
+      if (!r.defaults()) {
+        if (!r.allowUnsandboxed()) {
+          err.println("gw-bridge: --no-defaults can't be honored on macOS: its sandbox can't keep the command to its "
+              + "--ro paths");
+          return NO_SANDBOX;
+        }
+        err.println("gw-bridge: on macOS the command reads more than its --ro paths: the system and the home, minus "
+            + "GateRook's data and the credentials");
+      }
+      List<String> wrapped = new ArrayList<>(List.of("/usr/bin/sandbox-exec", "-p", macProfile(closed,
+          r.readWrite())));
       wrapped.addAll(argv);
       return exec(wrapped, env, err);
     }
@@ -190,6 +209,117 @@ final class Sandbox {
       }
     }
     return null;
+  }
+
+  // ── What no grant opens ─────────────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Under the person's home, what the command may neither read nor write: GateRook's earlier home and its desktop
+   * app's storage, the credentials of tools and registries, and the configs of the AI apps (GateRook's clients hold a
+   * gateway token or name its grants; Claude Code's, Cursor's and Antigravity's own sign-ins). The plugin host's
+   * profile on macOS denies the same list ({@code HostLauncher.MAC_DENIED}).
+   */
+  static final List<String> DENIED = List.of(".mcp-gateway", "Library/Application Support/GateRook",
+      ".config/GateRook", ".ssh", ".aws", ".config/gcloud", ".kube", "Library/Keychains", ".docker", ".netrc",
+      ".gnupg", ".config/gh", ".config/op", ".vault-token", ".pgpass", ".my.cnf", ".mylogin.cnf", ".azure", ".oci",
+      ".password-store", ".npmrc", ".pypirc", ".git-credentials", ".config/git/credentials", ".cargo/credentials",
+      ".cargo/credentials.toml", ".gem/credentials", ".m2/settings.xml", ".m2/settings-security.xml",
+      ".gradle/gradle.properties", ".terraform.d/credentials.tfrc.json", ".cloudflared", ".config/ngrok", ".ngrok2",
+      "Library/Application Support/ngrok", ".codex", ".cursor", ".gemini", ".claude", ".claude.json",
+      ".config/github-copilot", "Library/Application Support/Claude", ".config/Claude",
+      "Library/Application Support/Cursor", ".config/Cursor", "Library/Application Support/Antigravity",
+      ".config/Antigravity");
+
+  /**
+   * What no grant may open: the person's home (from the account, not {@code HOME}, which the core sets to the work
+   * folder), GateRook's home ({@code GW_HOME}, which its shim exports) and the {@link #DENIED} paths in the home.
+   */
+  record Closed(Path home, Path gateway, List<Path> credentials) {
+
+    static Closed of(Map<String, String> env) {
+      Path home = Path.of(System.getProperty("user.home"));
+      return new Closed(home, BrokerClient.home(env), DENIED.stream().map(home::resolve).toList());
+    }
+
+    /** GateRook's home, then the credential paths: what the command may neither read nor write. */
+    List<Path> denied() {
+      List<Path> all = new ArrayList<>(List.of(gateway));
+      all.addAll(credentials);
+      return all;
+    }
+
+    /**
+     * Why {@code path} can't be opened to the command, or {@code null}. It may not be or hold the home or a denied
+     * path: Landlock opens all of a path, and in SBPL a later allow reopens what an earlier deny closed. Nor may it lie
+     * in a denied path, except a writable path in GateRook's home: the servers' work folders are there.
+     */
+    String refusal(Path path, boolean writable) {
+      List<Path> forms = forms(path);
+      if (within(forms(home), forms)) {
+        return path + " holds the home folder";
+      }
+      for (Path d : denied()) {
+        if (within(forms(d), forms)) {
+          return path + " holds " + d;
+        }
+      }
+      if (!writable && within(forms, forms(gateway))) {
+        return path + " is in " + gateway;
+      }
+      for (Path c : credentials) {
+        if (within(forms, forms(c))) {
+          return path + " is in " + c;
+        }
+      }
+      return null;
+    }
+
+    private static List<Path> forms(Path p) {
+      return canonicalForms(p).stream().map(Path::of).toList();
+    }
+
+    /** Whether some form of {@code inner} is some form of {@code outer} or lies in it. */
+    private static boolean within(List<Path> inner, List<Path> outer) {
+      for (Path i : inner) {
+        for (Path o : outer) {
+          if (i.startsWith(o)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+  }
+
+  /**
+   * What Landlock lets the command read: the {@code --ro} paths and the defaults (the system, the command's folder —
+   * only the command where its folder holds more), minus each one that would open what {@code closed} keeps closed,
+   * which is said on {@code err}.
+   */
+  static List<String> readable(Request r, Path executable, Closed closed, PrintStream err) {
+    List<String> wanted = new ArrayList<>(r.readOnly());
+    if (r.defaults()) {
+      wanted.addAll(SYSTEM_READ);
+    }
+    List<String> out = new ArrayList<>();
+    for (String p : wanted) {
+      String why = closed.refusal(Path.of(p), false);
+      if (why == null) {
+        out.add(p);
+      } else {
+        err.println("gw-bridge: not readable to the command: " + why);
+      }
+    }
+    if (r.defaults()) {
+      // Nothing in GateRook's home: a command in a work folder is read through its --rw path.
+      Path parent = executable.getParent();
+      if (parent != null && closed.refusal(parent, false) == null) {
+        out.add(parent.toString());
+      } else if (closed.refusal(executable, false) == null) {
+        out.add(executable.toString());
+      }
+    }
+    return out;
   }
 
   // ── Linux: Landlock ─────────────────────────────────────────────────────────────────────────────────────────
@@ -389,30 +519,28 @@ final class Sandbox {
   // ── macOS: sandbox-exec ─────────────────────────────────────────────────────────────────────────────────────
 
   /**
-   * SBPL: reading as usual, except GateRook's home, the credential folders and the configs of the clients GateRook
-   * connects (Cursor's and Antigravity's may hold a token, Codex's and Claude's name grants); writing nowhere but the
-   * {@code --rw} paths, the temporary folders, the devices and the package managers' caches ({@link #MAC_WRITABLE}:
-   * {@code npx} and {@code uvx} fetch into them). The rest of the home stays closed to writes: a login item, a shell
-   * profile, another app's settings or a repository's hooks planted from inside would run unconfined later. The
-   * folders above a {@code --rw} path may be stat-ed, not read: GateRook's home is closed, yet the work folders of its
-   * MCP servers live in it. Later rules win in SBPL. Seatbelt compares {@code subpath} with the canonical path only — a
-   * rule for {@code /tmp/x} doesn't stop reading {@code /private/tmp/x} — so every path is written as given and as the
-   * kernel sees it.
+   * SBPL: reading as usual, except GateRook's home and the {@link #DENIED} paths (the credentials and the configs of
+   * the AI apps: Cursor's and Antigravity's may hold a token, Codex's and Claude's name grants); writing nowhere but
+   * the {@code --rw} paths, the temporary folders and the devices. The rest of the home stays closed to writes, the
+   * caches the person's own tools share included: a login item, a shell profile, another app's settings, a
+   * repository's hooks or a package planted from inside would run unconfined later. The core gives a server its work
+   * folder as {@code HOME}, so {@code npx} and {@code uvx} cache there. The folders above a {@code --rw} path may be
+   * stat-ed, not read: GateRook's home is closed, yet the work folders of its MCP servers live in it. Later rules win
+   * in SBPL, whichever is narrower, so the allows that reopen the work folders come after the denial, and a
+   * {@code --rw} path that would reopen a denied one is refused before ({@link Closed#refusal}). Seatbelt compares
+   * {@code subpath} with the canonical path only — a rule for {@code /tmp/x} doesn't stop reading
+   * {@code /private/tmp/x} — so every path is written as given and as the kernel sees it.
    */
   static String macProfile(Map<String, String> env, List<String> readWrite) {
-    Path home = Path.of(System.getProperty("user.home"));
-    List<Path> denied = new ArrayList<>(List.of(BrokerClient.home(env)));
-    for (String p : MAC_DENIED) {
-      denied.add(home.resolve(p));
-    }
+    return macProfile(Closed.of(env), readWrite);
+  }
+
+  static String macProfile(Closed closed, List<String> readWrite) {
     StringBuilder b = new StringBuilder("(version 1)\n(allow default)\n(deny file-write* (subpath \"/\"))\n");
     List<Path> writable = new ArrayList<>(List.of(Path.of("/dev"), Path.of("/tmp"), Path.of("/private/tmp")));
     String tmp = System.getenv("TMPDIR");
-    if (tmp != null && !tmp.isBlank()) {
+    if (tmp != null && !tmp.isBlank() && closed.refusal(Path.of(tmp), true) == null) {
       writable.add(Path.of(tmp));
-    }
-    for (String p : MAC_WRITABLE) {
-      writable.add(home.resolve(p));
     }
     for (Path p : writable) {
       for (String form : canonicalForms(p)) {
@@ -420,7 +548,7 @@ final class Sandbox {
       }
     }
     b.append("(deny file-read* file-write*\n");
-    for (Path p : denied) {
+    for (Path p : closed.denied()) {
       for (String form : canonicalForms(p)) {
         b.append("  (subpath ").append(sbplString(form)).append(")\n");
       }
@@ -451,14 +579,6 @@ final class Sandbox {
     }
     return b.toString();
   }
-
-  /** Under the person's home, what the command may not read: GateRook's data, credentials, connected clients' configs. */
-  static final List<String> MAC_DENIED = List.of(".ssh", ".aws", ".config/gcloud", ".kube", "Library/Keychains",
-      ".docker", ".netrc", ".gnupg", ".config/gh", ".config/op", ".vault-token", ".pgpass", ".my.cnf", ".azure",
-      ".password-store", ".codex", ".cursor", ".gemini", "Library/Application Support/Claude");
-
-  /** Under the person's home, where the command may write besides its {@code --rw} paths: the package caches. */
-  static final List<String> MAC_WRITABLE = List.of(".npm", ".cache", "Library/Caches");
 
   /** {@code p} absolute, and its canonical form when that differs (a path not there yet: via its deepest parent). */
   static List<String> canonicalForms(Path p) {

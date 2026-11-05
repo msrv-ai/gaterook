@@ -486,9 +486,21 @@ public final class HostLauncher {
     return b.toString();
   }
 
-  /** Under the person's home, what a plugin host on macOS may not read (as {@code gw-bridge sandbox-exec}). */
-  static final List<String> MAC_DENIED = List.of(".ssh", ".aws", ".config/gcloud", ".kube", "Library/Keychains",
-      ".docker", ".netrc", ".codex", ".cursor", ".gemini", "Library/Application Support/Claude");
+  /**
+   * Under the person's home, what a plugin host on macOS may not read: GateRook's earlier home and its desktop app's
+   * storage, the credentials of tools and registries, and the configs of the AI apps. The same list as
+   * {@code gw-bridge sandbox-exec} ({@code Sandbox.DENIED}, which this module can't depend on; a test compares them).
+   */
+  static final List<String> MAC_DENIED = List.of(".mcp-gateway", "Library/Application Support/GateRook",
+      ".config/GateRook", ".ssh", ".aws", ".config/gcloud", ".kube", "Library/Keychains", ".docker", ".netrc",
+      ".gnupg", ".config/gh", ".config/op", ".vault-token", ".pgpass", ".my.cnf", ".mylogin.cnf", ".azure", ".oci",
+      ".password-store", ".npmrc", ".pypirc", ".git-credentials", ".config/git/credentials", ".cargo/credentials",
+      ".cargo/credentials.toml", ".gem/credentials", ".m2/settings.xml", ".m2/settings-security.xml",
+      ".gradle/gradle.properties", ".terraform.d/credentials.tfrc.json", ".cloudflared", ".config/ngrok", ".ngrok2",
+      "Library/Application Support/ngrok", ".codex", ".cursor", ".gemini", ".claude", ".claude.json",
+      ".config/github-copilot", "Library/Application Support/Claude", ".config/Claude",
+      "Library/Application Support/Cursor", ".config/Cursor", "Library/Application Support/Antigravity",
+      ".config/Antigravity");
 
   /** {@code p} absolute, and its canonical form when that differs (a path not there yet: through its deepest parent). */
   static List<String> forms(Path p) {
