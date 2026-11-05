@@ -214,6 +214,11 @@ class LauncherTest {
     Path command = Path.of("C:\\Program Files\\nodejs\\npx.cmd");
     assertThat(l.argv(command, List.of("-y", "pkg&x"), work)).containsExactly("/usr/bin/true", "--fake-flag",
         "sandbox-exec", "--rw", work.toString(), "--", command.toString(), "-y", "pkg&x");
+    // A server kept off this computer: the same bridge, in an AppContainer.
+    assertThat(l.argv(command, List.of("-y", "pkg"), work, true)).containsExactly("/usr/bin/true", "--fake-flag",
+        "sandbox-exec", "--rw", work.toString(), "--appcontainer", "--", command.toString(), "-y", "pkg");
+    assertThat(l.sandbox(true)).isEqualTo("appcontainer");
+    assertThat(l.sandbox(false)).isEqualTo("low-integrity");
 
     Map<String, String> env = l.environment(server("{\"transport\":\"stdio\",\"command\":[\"npx\"]}"),
         Map.of(), work);

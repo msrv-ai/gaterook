@@ -248,7 +248,8 @@ final class Session {
       Path resolved = launcher.resolve(command, workDir).orElseThrow(() -> ConnectorException.unavailable(
           command + " isn't on the PATH GateRook gives servers (" + launcher.path() + "). Install it, or use an "
               + "absolute path.", null));
-      List<String> argv = launcher.argv(resolved, server.command().subList(1, server.command().size()), workDir);
+      List<String> argv = launcher.argv(resolved, server.command().subList(1, server.command().size()), workDir,
+          server.offThisComputer());
       Map<String, String> env = launcher.environment(server, values, workDir);
       stdio = new GatewayStdioTransport(argv, env, workDir, MAX_MESSAGE, log::line, log::mask);
       try {

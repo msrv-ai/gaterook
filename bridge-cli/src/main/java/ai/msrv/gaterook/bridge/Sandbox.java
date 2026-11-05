@@ -25,8 +25,8 @@ import java.util.stream.IntStream;
 
 /**
  * {@code gw-bridge sandbox-exec [--ro <path>]… [--rw <path>]… [--deny-tcp <port>]… [--no-defaults]
- * [--allow-unsandboxed] -- <command> [args…]} (ARCHITECTURE.md §7.5): starts an MCP server, or anything the core runs
- * on the person's behalf, confined to what it needs. On Linux (Landlock, kernel 5.13 or later) the bridge restricts
+ * [--allow-unsandboxed] [--appcontainer] -- <command> [args…]} (ARCHITECTURE.md §7.5): starts an MCP server, or
+ * anything the core runs on the person's behalf, confined to what it needs. On Linux (Landlock, kernel 5.13 or later) the bridge restricts
  * itself — {@code PR_SET_NO_NEW_PRIVS}, a Landlock ruleset that reads only the {@code --ro} paths and writes only the
  * {@code --rw} paths — and then {@code execve}s the command, which inherits the restriction and can't lift it. The
  * rest of {@code $HOME}, GateRook's data included, can't be opened.
@@ -54,9 +54,13 @@ import java.util.stream.IntStream;
  * The core gives a server its work folder as {@code HOME}, so {@code npx} and {@code uvx} keep their caches there.
  * Reading is open there except for the denied paths, so {@code --ro} adds nothing; {@code --no-defaults} can't be
  * honored and is refused with exit 4 unless {@code --allow-unsandboxed}. On Linux with Landlock ABI 6 or later the
- * command is also kept from abstract Unix sockets and signals outside its own tree. Elsewhere, or when Landlock is
- * unavailable, it refuses with exit 4, unless {@code --allow-unsandboxed} says to run it as it is (the core then shows
- * "Not sandboxed on this system"). Exit codes: 3 wrong arguments, 4 no sandbox, 126/127 the command can't run.
+ * command is also kept from abstract Unix sockets and signals outside its own tree. On Windows the command runs at
+ * low integrity in a job that ends it with the bridge ({@link WindowsSandbox}), or, with {@code --appcontainer}, in an
+ * AppContainer of its work folder that the bridge creates it in ({@link WindowsAppContainer}); {@code --ro} and
+ * {@code --deny-tcp} need nothing there (the core refuses its sandboxed processes' connections itself). Elsewhere, or
+ * when Landlock is unavailable, it refuses with exit 4, unless {@code --allow-unsandboxed} says to run it as it is (the
+ * core then shows "Not sandboxed on this system"). Exit codes: 3 wrong arguments, 4 no sandbox, 126/127 the command
+ * can't run.
  */
 final class Sandbox {
 
@@ -109,9 +113,12 @@ final class Sandbox {
       "/run/NetworkManager/resolv.conf");
   static final List<String> SYSTEM_WRITE = List.of("/dev");
 
-  /** The parsed command line; {@code deniedPorts} ascending. */
+  /**
+   * The parsed command line; {@code deniedPorts} ascending. {@code appContainer}: on Windows, the command in an
+   * AppContainer instead of at low integrity ({@link WindowsAppContainer}); ignored elsewhere.
+   */
   record Request(List<String> readOnly, List<String> readWrite, Set<Integer> deniedPorts, boolean defaults,
-      boolean allowUnsandboxed, List<String> command) {}
+      boolean allowUnsandboxed, boolean appContainer, List<String> command) {}
 
   private Sandbox() {}
 
@@ -121,6 +128,7 @@ final class Sandbox {
     Set<Integer> ports = new TreeSet<>();
     boolean defaults = true;
     boolean allow = false;
+    boolean appContainer = false;
     int i = 0;
     for (; i < args.size(); i++) {
       String a = args.get(i);
@@ -131,7 +139,7 @@ final class Sandbox {
             throw new IllegalArgumentException("sandbox-exec needs a command after --");
           }
           return new Request(List.copyOf(ro), List.copyOf(rw), Collections.unmodifiableSet(ports), defaults, allow,
-              command);
+              appContainer, command);
         }
         case "--ro", "--rw" -> {
           if (i + 1 >= args.size()) {
@@ -148,6 +156,7 @@ final class Sandbox {
         }
         case "--no-defaults" -> defaults = false;
         case "--allow-unsandboxed" -> allow = true;
+        case "--appcontainer" -> appContainer = true;
         default -> throw new IllegalArgumentException("unexpected " + a);
       }
     }
@@ -160,8 +169,8 @@ final class Sandbox {
       r = parse(args);
     } catch (IllegalArgumentException e) {
       err.println(e.getMessage());
-      err.println("usage: gw-bridge sandbox-exec [--ro <path>]… [--rw <path>]… [--deny-tcp <port>]… [--no-defaults] "
-          + "[--allow-unsandboxed] -- <command> [args…]");
+      err.println("usage: gw-bridge sandbox-exec [--ro <path>]… [--rw <path>]… [--deny-tcp <port>]… "
+          + "[--no-defaults] [--allow-unsandboxed] [--appcontainer] -- <command> [args…]");
       return 3;
     }
     Closed closed = Closed.of(env);
@@ -222,8 +231,12 @@ final class Sandbox {
       return exec(wrapped, env, err);
     }
     if (os.startsWith("windows")) {
-      // Low integrity, set on this process and inherited by the command (WindowsSandbox); the core refuses the
-      // command's connections to its own ports itself, so --deny-tcp needs nothing here.
+      // Low integrity, set on this process and inherited by the command (WindowsSandbox), or an AppContainer the
+      // bridge starts the command in (WindowsAppContainer); the core refuses the command's connections to its own
+      // ports itself, so --deny-tcp needs nothing here.
+      if (r.appContainer()) {
+        return WindowsAppContainer.run(argv, r.readWrite().stream().map(Path::of).toList(), env, err);
+      }
       String why = WindowsSandbox.confine(r.readWrite().stream().map(Path::of).toList(), env);
       if (why == null) {
         return spawn(argv, err);
