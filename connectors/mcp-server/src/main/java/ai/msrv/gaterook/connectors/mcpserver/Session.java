@@ -547,7 +547,8 @@ final class Session {
     throw ConnectorException.badInput("Use an https:// URL, or http://127.0.0.1 for a server on this computer.");
   }
 
-  private static void prepare(Path workDir) throws ConnectorException {
+  /** The work folder, its {@code tmp} ({@code TMPDIR}) and the folder of all work folders, owner-only when new. */
+  static void prepare(Path workDir) throws ConnectorException {
     try {
       for (Path dir : List.of(workDir.getParent(), workDir, workDir.resolve("tmp"))) {
         if (!Files.isDirectory(dir)) {
