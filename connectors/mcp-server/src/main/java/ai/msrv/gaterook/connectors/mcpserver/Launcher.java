@@ -107,6 +107,14 @@ final class Launcher {
     return path;
   }
 
+  /**
+   * The sandbox of a server the person keeps off this computer: an AppContainer on Windows where the bridge works,
+   * else the sandbox every server gets.
+   */
+  String sandbox(boolean offThisComputer) {
+    return windows && sandbox != null && offThisComputer ? "appcontainer" : sandbox;
+  }
+
   /** {@code landlock}, {@code sandbox-exec}, {@code low-integrity}, or {@code null} where servers run unconfined. */
   String sandbox() {
     return sandbox;
@@ -231,11 +239,23 @@ final class Launcher {
    * the core's ports as they are now to the process ({@code --deny-tcp}, ascending).
    */
   List<String> argv(Path command, List<String> args, Path workDir) {
+    return argv(command, args, workDir, false);
+  }
+
+  /**
+   * {@link #argv(Path, List, Path)} for a server the person may keep off this computer: an AppContainer on Windows.
+   */
+  List<String> argv(Path command, List<String> args, Path workDir, boolean offThisComputer) {
     List<String> out = new ArrayList<>();
     if (sandbox != null && windows) {
-      // Low integrity: the work folder is all it writes; the core refuses its connections to the core's ports.
+      // Low integrity, or an AppContainer: the work folder is all it writes; the core refuses its connections to
+      // the core's ports.
       out.addAll(windowsBridge);
-      out.addAll(List.of("sandbox-exec", "--rw", workDir.toString(), "--"));
+      out.addAll(List.of("sandbox-exec", "--rw", workDir.toString()));
+      if (offThisComputer) {
+        out.add("--appcontainer");
+      }
+      out.add("--");
     } else if (sandbox != null) {
       out.add(sandboxLauncher.toString());
       out.add("sandbox-exec");

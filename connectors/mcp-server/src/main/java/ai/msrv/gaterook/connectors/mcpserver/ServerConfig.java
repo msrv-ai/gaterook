@@ -22,11 +22,13 @@ import tools.jackson.databind.node.MissingNode;
  * @param shareResources  whether the person lets agents read the server's resources and resource templates
  *                        ({@code share.resources})
  * @param sharePrompts    whether the person lets agents get the server's prompts ({@code share.prompts})
+ * @param offThisComputer whether the person keeps a stdio server off this computer: an AppContainer on Windows
+ *                        ({@code offThisComputer})
  */
 record ServerConfig(String name, String transport, List<String> command, String url, List<Binding> env,
     List<Binding> headers, List<String> inheritEnv, boolean startWithCore, Duration idleStop, Duration startTimeout,
     Duration callTimeout, int maxInFlight, String catalogEntry, String toolPrefix, String auth,
-    boolean shareResources, boolean sharePrompts) {
+    boolean shareResources, boolean sharePrompts, boolean offThisComputer) {
 
   static final String STDIO = "stdio";
   static final String HTTP = "http";
@@ -71,7 +73,8 @@ record ServerConfig(String name, String transport, List<String> command, String 
         Math.clamp(c.path("maxInFlight").asInt(4), 1, 16), Texts.str(c.path("catalogEntry"), null),
         prefix != null && PREFIX.matcher(prefix).matches() ? prefix : defaultPrefix(cfg.name()),
         HTTP.equals(transport) && auth.isObject() ? Texts.JSON.writeValueAsString(Texts.canonical(auth)) : null,
-        c.path("share").path("resources").asBoolean(false), c.path("share").path("prompts").asBoolean(false));
+        c.path("share").path("resources").asBoolean(false), c.path("share").path("prompts").asBoolean(false),
+        !HTTP.equals(transport) && c.path("offThisComputer").asBoolean(false));
   }
 
   boolean http() {

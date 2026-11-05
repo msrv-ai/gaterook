@@ -50,4 +50,14 @@ class ConfigAndCommandsTest {
     assertThat(Commands.notPinned(List.of("uvx", "mcp-server-fetch==2025.4.7"))).isFalse();
     assertThat(Commands.notPinned(List.of("node", "dist/index.js"))).isFalse();
   }
+
+  @Test
+  void onlyAStdioServerIsKeptOffThisComputer() {
+    assertThat(ServerConfig.of(Fixtures.cfg("c1", "fs", Env.DEV, 1, Fixtures.object("""
+        {"transport":"stdio","command":["node"],"offThisComputer":true}"""))).offThisComputer()).isTrue();
+    assertThat(ServerConfig.of(Fixtures.cfg("c1", "fs", Env.DEV, 1, Fixtures.object("""
+        {"transport":"stdio","command":["node"]}"""))).offThisComputer()).isFalse();
+    assertThat(ServerConfig.of(Fixtures.cfg("c1", "fs", Env.DEV, 1, Fixtures.object("""
+        {"transport":"http","url":"https://mcp.example.com","offThisComputer":true}"""))).offThisComputer()).isFalse();
+  }
 }

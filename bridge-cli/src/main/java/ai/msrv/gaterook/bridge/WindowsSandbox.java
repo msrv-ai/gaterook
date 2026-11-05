@@ -116,6 +116,30 @@ final class WindowsSandbox {
    * is half done that matters: a failure before the drop leaves the process as it was).
    */
   static String confine(List<Path> readWrite, Map<String, String> env) {
+    String prepared = prepare(readWrite, env);
+    if (prepared != null) {
+      return prepared;
+    }
+    try (Arena arena = Arena.ofConfined()) {
+      Calls c = new Calls();
+      MemorySegment self = (MemorySegment) c.currentProcess.invokeExact();
+      String why = c.lower(arena, self);
+      if (why != null) {
+        return why;
+      }
+      int level = c.level(arena, self);
+      return level == LOW_RID ? null : "the process is at integrity level 0x" + Integer.toHexString(level);
+    } catch (Throwable t) {
+      return t.toString();
+    }
+  }
+
+  /**
+   * What both Windows sandboxes need before the command starts: the folders its environment names inside a
+   * {@code --rw} path, this process in a job that ends the command with it, and each {@code --rw} path labelled low
+   * (an AppContainer's token is low integrity too). Null when all of it worked, else why not.
+   */
+  static String prepare(List<Path> readWrite, Map<String, String> env) {
     try {
       for (Path folder : foldersToCreate(env, readWrite)) {
         Files.createDirectories(folder);
@@ -150,12 +174,7 @@ final class WindowsSandbox {
           return why;
         }
       }
-      String why = c.lower(arena, self);
-      if (why != null) {
-        return why;
-      }
-      int level = c.level(arena, self);
-      return level == LOW_RID ? null : "the process is at integrity level 0x" + Integer.toHexString(level);
+      return null;
     } catch (Throwable t) {
       return t.toString();
     }

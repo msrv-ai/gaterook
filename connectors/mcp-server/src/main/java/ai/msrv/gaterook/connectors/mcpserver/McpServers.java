@@ -128,7 +128,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
       Optional<Path> p = l.resolve(argv.getFirst(), workDir);
       if (p.isPresent()) {
         resolved = p.get().toString();
-        runs = l.argv(p.get(), argv.subList(1, argv.size()), workDir);
+        runs = l.argv(p.get(), argv.subList(1, argv.size()), workDir, server.offThisComputer());
       } else {
         warnings.add(argv.getFirst() + " isn't on the PATH GateRook gives servers: " + l.path());
       }
@@ -147,8 +147,8 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
           + "runs.");
     }
     List<String> inherited = server.inheritEnv().stream().filter(Launcher.INHERITABLE::contains).toList();
-    return new Review(ServerConfig.STDIO, runs, resolved, node, null, variables, inherited, notPinned, l.sandbox(),
-        workDir.toString(), logFile(cfg.name()).toString(), warnings);
+    return new Review(ServerConfig.STDIO, runs, resolved, node, null, variables, inherited, notPinned,
+        l.sandbox(server.offThisComputer()), workDir.toString(), logFile(cfg.name()).toString(), warnings);
   }
 
   @Override
