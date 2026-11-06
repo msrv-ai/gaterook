@@ -842,3 +842,114 @@ describe('connection form: x-confirm and the prod locks', () => {
     expect(host.form().value().config['connection']).toMatchObject({ tls: true, tlsVerify: 'full' });
   });
 });
+
+describe('connection form: several Vaults and a user from the store', () => {
+  const vaults = [
+    { id: 'local', label: 'Encrypted here', available: true, reason: null },
+    { id: 'vault', label: 'HashiCorp Vault', available: true, reason: null, store: 'vault-prod', detail: 'https://vault.prod.example.test' },
+    { id: 'vault', label: 'HashiCorp Vault', available: true, reason: null, store: 'vault-stage', detail: 'https://vault.stage.example.test' },
+    { id: 'gcp-sm', label: 'GCP Secret Manager', available: false, reason: 'Connect GCP Secret Manager in Secrets first.' },
+  ];
+  const nodeAt = (form: GwConnectionForm, pointer: string) => form.state().compiled.all.find((n) => n.pointer === pointer)!;
+  const submit = async (el: HTMLElement, settle: () => Promise<void>) => {
+    el.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+  };
+
+  it('offers each connected Vault as a source of its own and sends references to the one chosen', async () => {
+    const { el, host, settle } = await render();
+    host.spec.set({ ...spec('redis'), secretSources: vaults });
+    host.config.set({ connection: { host: '127.0.0.1' } });
+    await settle();
+    const radios = () => [...el.querySelectorAll<HTMLInputElement>('input[name="cf-src"]')];
+    expect(radios().map((input) => input.value)).toEqual(['local', 'vault:vault-prod', 'vault:vault-stage', 'gcp']);
+    const titles = [...el.querySelectorAll('.gw-choice-card__title')].map((t) => t.textContent?.trim());
+    expect(titles).toEqual(expect.arrayContaining(['Vault · vault-prod', 'Vault · vault-stage']));
+    expect(el.textContent).toContain('https://vault.stage.example.test');
+
+    radios()[2].click();
+    await settle();
+    const state = host.form().state();
+    expect(state.source()).toBe('vault');
+    expect(state.vaultStore()).toBe('vault-stage');
+    expect(radios()[2].checked).toBe(true);
+    expect(radios()[1].checked).toBe(false);
+    state.setSecret(nodeAt(host.form(), '/credentials/password'), 'kv/stage/cache#password');
+    await submit(el, settle);
+    expect(host.saved.at(-1)!.secrets).toEqual({
+      '/credentials/password': { source: 'reference', ref: 'vault://kv/stage/cache#password', store: 'vault-stage' },
+    });
+  });
+
+  it('keeps the kit title for the only Vault', async () => {
+    const { el, host, settle } = await render();
+    host.spec.set({ ...spec('redis'), secretSources: vaults.slice(0, 2) });
+    await settle();
+    const titles = [...el.querySelectorAll('.gw-choice-card__title')].map((t) => t.textContent?.trim());
+    expect(titles).toContain('HashiCorp Vault or OpenBao');
+  });
+
+  it('reads the login user from the chosen Vault with the password, and sends no typed user', async () => {
+    const { el, host, settle } = await render();
+    host.spec.set({ ...spec('redis'), secretSources: vaults });
+    host.config.set({ connection: { host: '127.0.0.1' } });
+    await settle();
+    // Encrypted here: the user is typed, and there is nothing to read it from.
+    expect(el.querySelector('#cf-credentials-user-from-store')).toBeNull();
+    el.querySelector<HTMLInputElement>('input[value="vault:vault-prod"]')!.click();
+    await settle();
+    const checkbox = el.querySelector<HTMLInputElement>('#cf-credentials-user-from-store')!;
+    expect(checkbox.checked).toBe(false);
+    expect(el.querySelector(`label[for="cf-credentials-user-from-store"]`)!.textContent).toContain('Read the ACL user from Vault');
+    const user = el.querySelector<HTMLInputElement>('#cf-credentials-user')!;
+    user.value = 'typed-user';
+    user.dispatchEvent(new Event('input', { bubbles: true }));
+    checkbox.click();
+    await settle();
+
+    const state = host.form().state();
+    expect(state.userFromStore(nodeAt(host.form(), '/credentials/user'))).toBe(true);
+    // The reference has the picker of the password: the same Vault, its paths and keys.
+    expect(el.querySelector('#cf-credentials-user')!.closest('gw-vault-picker')).not.toBeNull();
+    await submit(el, settle);
+    expect(host.saved).toHaveLength(0);
+    expect(el.textContent).toContain('Enter the reference of the ACL user');
+    expect(el.textContent).toContain('Enter the secret reference.');
+
+    state.setSecret(nodeAt(host.form(), '/credentials/user'), 'kv/prod/cache#username');
+    state.setSecret(nodeAt(host.form(), '/credentials/password'), 'kv/prod/cache#password');
+    await submit(el, settle);
+    expect(host.saved).toHaveLength(1);
+    expect(host.saved[0].secrets).toEqual({
+      '/credentials/user': { source: 'reference', ref: 'vault://kv/prod/cache#username', store: 'vault-prod' },
+      '/credentials/password': { source: 'reference', ref: 'vault://kv/prod/cache#password', store: 'vault-prod' },
+    });
+    expect(host.saved[0].config['credentials'] ?? {}).not.toHaveProperty('user');
+
+    // Back to a typed user: the reference goes, the typed one returns.
+    el.querySelector<HTMLInputElement>('#cf-credentials-user-from-store')!.click();
+    await settle();
+    expect(state.secretInputs()).not.toHaveProperty('/credentials/user');
+    expect(el.querySelector<HTMLInputElement>('#cf-credentials-user')!.value).toBe('typed-user');
+  });
+
+  it('an edited connection shows a user stored as a reference and offers no switch', async () => {
+    const { el, host, settle } = await render();
+    host.spec.set({ ...spec('redis'), secretSources: vaults });
+    host.mode.set('edit');
+    host.stored.set([
+      { field: '/credentials/user', secretId: 's-user', name: 'cache/user', state: 'reference', version: null, source: 'vault', store: 'vault-stage' },
+      { field: '/credentials/password', secretId: 's-pass', name: 'cache/password', state: 'reference', version: null, source: 'vault', store: 'vault-stage' },
+    ]);
+    host.config.set({ connection: { host: '127.0.0.1' } });
+    await settle();
+    const state = host.form().state();
+    expect(state.vaultStore()).toBe('vault-stage');
+    expect(el.querySelector<HTMLInputElement>('input[value="vault:vault-stage"]')!.checked).toBe(true);
+    expect(el.querySelector('#cf-credentials-user-from-store')).toBeNull();
+    expect(state.userFromStore(nodeAt(host.form(), '/credentials/user'))).toBe(true);
+    await submit(el, settle);
+    expect(host.saved).toHaveLength(1);
+    expect(host.saved[0].config['credentials'] ?? {}).not.toHaveProperty('user');
+  });
+});

@@ -4827,6 +4827,7 @@ legend.gw-field__label {
   font-weight: var(--gw-type-small-weight);
   letter-spacing: var(--gw-type-small-tracking);
   color: var(--gw-color-text-muted);
+  overflow-wrap: anywhere;
 }
 .gw-choice-card__meta {
   grid-column: -2;

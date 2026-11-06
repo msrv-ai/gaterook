@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, forwardRef, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DOCUMENT, DestroyRef, Injector, afterNextRender, forwardRef, inject, input, signal } from '@angular/core';
 import { FieldTree, FormField } from '@angular/forms/signals';
 import { LucideDynamicIcon } from '@lucide/angular';
 import { GwCodeEditor } from '../code/code-editor';
@@ -33,6 +33,8 @@ const join = (...ids: (string | null | undefined)[]) => ids.filter(Boolean).join
 export class GwSchemaField {
   protected readonly desktop = inject(DesktopBridge);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
+  private readonly doc = inject(DOCUMENT);
   readonly form = input.required<SchemaForm>();
   readonly node = input.required<SchemaNode>();
   protected readonly join = join;
@@ -236,10 +238,25 @@ export class GwSchemaField {
     if (input.value !== value) input.value = value;
   }
 
+  /** The store a login's user is read from, as the checkbox names it. */
+  protected storeWord(): string {
+    const source = this.form().source();
+    return source === 'vault' ? 'Vault' : source === 'gcp-sm' ? 'GCP Secret Manager' : 'AWS Secrets Manager';
+  }
+
+  protected setUserFromStore(on: boolean): void {
+    this.form().setUserFromStore(this.node(), on);
+    // The control the person used is replaced by the other one: keep the keyboard on the checkbox.
+    const id = `${this.form().id(this.node())}-from-store`;
+    afterNextRender(() => this.doc.getElementById(id)?.focus(), { injector: this.injector });
+  }
+
+  /** A reference typed now, else the stored one's URI (its secret name only when the URI isn't known). */
   protected testReference(): void {
     const ref = this.form().secretReference(this.node());
     const store = this.form().secretStore(this.node());
-    this.form().emit({ kind: 'test', node: this.node(), ref: ref || (this.storedSecret()?.name ?? ''), ...(store ? { store } : {}) });
+    const stored = this.storedSecret();
+    this.form().emit({ kind: 'test', node: this.node(), ref: ref || stored?.ref || (stored?.name ?? ''), ...(store ? { store } : {}) });
   }
 
   protected saveSecret(value: string): void {

@@ -8,8 +8,9 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * The login of one call (report 05 §6 "Secrets"): the form's user and the stored password, or both from a short-lived
- * login (Vault's database engine: {@code SecretResolver.meta(...).source() == "dynamic"}). Resolving the password put
+ * The login of one call (report 05 §6 "Secrets"): the form's user and the stored password, or both from a store — a
+ * short-lived login (Vault's database engine: {@code SecretResolver.meta(...).source() == "dynamic"}) or a user read
+ * from a store with its password (the user is then a secret field of the connection). Resolving the password put
  * every form of it into the call's taint, so an echo of it in a document is masked. The password here is a copy that
  * {@link #close()} zeroes.
  *
@@ -26,7 +27,7 @@ record MongoLogin(String user, char[] password, String version, Instant notAfter
       return new MongoLogin(s.user(), new char[0], "none", null);
     }
     SecretResolver.Meta meta = secrets.meta(field);
-    if ("dynamic".equals(meta.source())) {
+    if ("dynamic".equals(meta.source()) || secrets.isSet(MongoSettings.USER)) {
       try (SecretResolver.Login login = secrets.login(field)) {
         return new MongoLogin(login.username(), login.password().chars().clone(), login.version(),
             login.notAfter());

@@ -12,6 +12,7 @@ import ai.msrv.gaterook.core.admin.AdminMvc;
 import ai.msrv.gaterook.core.connections.ConnectionConfigs;
 import ai.msrv.gaterook.core.connectors.EnvironmentPolicies;
 import ai.msrv.gaterook.core.invocation.ConnectorInvoker;
+import ai.msrv.gaterook.core.platform.FileGrants;
 import ai.msrv.gaterook.core.platform.LocalListener;
 import ai.msrv.gaterook.core.platform.MaskPolicy;
 import ai.msrv.gaterook.core.platform.Taint;
@@ -419,6 +420,147 @@ class ExternalStoresIT {
 
   @Test
   @Order(10)
+  void aSecondVaultIsASourceOfItsOwnAndReferencesGoToTheOneChosen() {
+    ObjectNode body = JSON.createObjectNode().put("kind", "vault").put("name", "vault-stage");
+    body.set("config", vaultConfig(vault.address()));
+    body.putObject("secrets").put("/auth/secretId", FakeVault.SECRET_ID);
+    String second = api.expect(201, HttpMethod.POST, "/api/secret-stores", body).path("id").asString();
+    assertThat(second).isNotEqualTo(storeId);
+
+    // Each Vault is a source of its own, with the address that tells it apart.
+    List<JsonNode> vaults = StreamSupport.stream(api.ok("/api/connector-types/pgfake/form").path("secretSources")
+        .spliterator(), false).filter(s -> s.path("id").asString().equals("vault")).toList();
+    assertThat(vaults).extracting(s -> s.path("store").asString()).containsExactly("vault-2", "vault-stage");
+    assertThat(vaults).allSatisfy(s -> {
+      assertThat(s.path("available").asBoolean()).isTrue();
+      assertThat(s.path("detail").asString()).isEqualTo(vault.address());
+    });
+
+    // Two Vaults could hold vault://kv/…: the person chooses, the reference is bound to that one.
+    String unchosen = """
+        {"name":"orders-db","type":"pgfake","env":"dev","config":{"connection":{"host":"db.test","port":5432},
+         "credentials":{"user":"app"}},"secrets":{"/credentials/password":{"source":"reference",
+         "ref":"vault://kv/stage/db#password"}}}""";
+    JsonNode refused = api.expect(422, HttpMethod.POST, "/api/connections", unchosen);
+    assertThat(refused.toString()).contains("vault-2, vault-stage");
+    api.expect(201, HttpMethod.POST, "/api/connections", unchosen.replace("\"ref\"",
+        "\"store\":\"vault-stage\",\"ref\""));
+    assertThat(secretRow("orders-db/password").path("store").asString()).isEqualTo("vault-stage");
+    assertThat(secretRow("stage-db/password").path("store").asString()).isEqualTo("vault-2");
+    JsonNode tested = api.expect(200, HttpMethod.POST, "/api/connections/orders-db/test", null);
+    assertThat(tested.path("ok").asBoolean()).as(tested.toString()).isTrue();
+  }
+
+  @Test
+  @Order(11)
+  void aVaultTokenIsReadFromTheFileThePersonChose() throws Exception {
+    java.nio.file.Path file = java.nio.file.Files.createTempFile("gw-agent-token", "");
+    try {
+      java.nio.file.Files.writeString(file, vault.token(41) + "\n");
+      FileGrants grants = core.bean(FileGrants.class);
+      ObjectNode body = JSON.createObjectNode().put("kind", "vault").put("name", "vault-agent");
+      ObjectNode config = JSON.createObjectNode().put("address", vault.address());
+      // A path the request names itself is never read.
+      config.putObject("auth").put("method", "token-file").put("file", "/etc/passwd");
+      body.set("config", config);
+      JsonNode missing = api.expect(422, HttpMethod.POST, "/api/secret-stores", body);
+      assertThat(missing.toString()).contains("Choose the file that holds the Vault token", "/files/~1auth~1file");
+
+      body.putObject("files").put("/auth/file", grants.grant(file, FileGrants.Purpose.OPENAPI));
+      assertThat(api.expect(422, HttpMethod.POST, "/api/secret-stores", body).toString())
+          .contains("chosen for something else");
+
+      // A store refused for another reason keeps the file choice for the next try.
+      String grant = grants.grant(file, FileGrants.Purpose.VAULT_TOKEN);
+      body.putObject("files").put("/auth/file", grant);
+      body.put("name", "Vault Agent");
+      api.expect(422, HttpMethod.POST, "/api/secret-stores", body);
+      body.put("name", "vault-agent");
+      JsonNode created = api.expect(201, HttpMethod.POST, "/api/secret-stores", body);
+      String id = created.path("id").asString();
+      assertThat(created.path("config").path("auth").path("method").asString()).isEqualTo("token-file");
+      assertThat(created.path("config").path("auth").path("file").asString()).isEqualTo(file.toString());
+      assertThat(created.path("signIn")).as("nothing of the token is stored").isEmpty();
+      assertThat(api.expect(422, HttpMethod.POST, "/api/secret-stores", body.put("name", "vault-agent-2"))
+          .toString()).as("the choice is used once").contains("expired");
+
+      JsonNode test = api.expect(200, HttpMethod.POST, "/api/secret-stores/" + id + "/test", null);
+      assertThat(test.path("ok").asBoolean()).as(test.toString()).isTrue();
+      assertThat(test.path("identity").path("auth").asString()).isEqualTo("token-file");
+      assertThat(vault.to("auth/token/lookup-self").getLast().getHeaders().get("X-Vault-Token"))
+          .isEqualTo(vault.token(41));
+
+      // An edit keeps the chosen file whatever the request names.
+      ObjectNode edit = JSON.createObjectNode().put("version", api.ok("/api/secret-stores/" + id).path("version")
+          .asLong());
+      edit.set("config", config);
+      JsonNode edited = api.expect(200, HttpMethod.PUT, "/api/secret-stores/" + id, edit);
+      assertThat(edited.path("config").path("auth").path("file").asString()).isEqualTo(file.toString());
+      api.expect(200, HttpMethod.DELETE, "/api/secret-stores/" + id, "{\"confirmName\":\"vault-agent\"}");
+    } finally {
+      java.nio.file.Files.deleteIfExists(file);
+    }
+  }
+
+  @Test
+  @Order(12)
+  void theUserOfALoginCanBeReadFromVaultWithThePassword() throws Exception {
+    String both = """
+        {"name":"users-db","type":"pgfake","env":"dev","config":{"connection":{"host":"db.test","port":5432}},
+         "secrets":{"/credentials/user":%s,"/credentials/password":%s}}""";
+    String userRef = "{\"source\":\"reference\",\"store\":\"vault-stage\",\"ref\":\"vault://kv/stage/db#user\"}";
+    String passwordRef = "{\"source\":\"reference\",\"store\":\"vault-stage\","
+        + "\"ref\":\"vault://kv/stage/db#password\"}";
+    // A user is typed or read from a store, never stored here; and only next to a password a store holds.
+    assertThat(api.expect(422, HttpMethod.POST, "/api/connections", both.formatted(
+        "{\"source\":\"local\",\"value\":\"app\"}", passwordRef)).toString()).contains("Type the user");
+    assertThat(api.expect(422, HttpMethod.POST, "/api/connections", both.formatted(userRef,
+        "{\"source\":\"local\",\"value\":\"pw-typed-here-1\"}")).toString())
+        .contains("read the password from one as well");
+    assertThat(api.expect(422, HttpMethod.POST, "/api/connections", """
+        {"name":"users-db","type":"pgfake","env":"dev","config":{"connection":{"host":"db.test","port":5432}},
+         "secrets":{"/credentials/user":%s}}""".formatted(userRef)).toString())
+        .contains("read the password from one as well");
+
+    JsonNode draft = api.expect(200, HttpMethod.POST, "/api/connections/test", both.formatted(userRef, passwordRef));
+    assertThat(draft.path("ok").asBoolean()).as(draft.toString()).isTrue();
+    api.expect(201, HttpMethod.POST, "/api/connections", both.formatted(userRef, passwordRef));
+
+    JsonNode user = secretRow("users-db/user");
+    assertThat(user.path("source").asString()).isEqualTo("vault");
+    assertThat(user.path("ref").asString()).isEqualTo("vault://kv/stage/db#user");
+    assertThat(user.path("store").asString()).isEqualTo("vault-stage");
+    JsonNode detail = api.ok("/api/connections/users-db");
+    assertThat(detail.path("config").path("credentials").has("user")).isFalse();
+    assertThat(detail.path("secrets").toString()).contains("/credentials/user", "/credentials/password");
+
+    ConnectionConfig cfg = cfg("users-db");
+    assertThat(cfg.string("/credentials/user")).isNull();
+    Taint taint = new Taint();
+    try (ScopedSecretResolver r = core.bean(SecretService.class).resolver(cfg, taint)) {
+      assertThat(r.isSet("/credentials/user")).isTrue();
+      SecretResolver.Login login = r.login("/credentials/password");
+      assertThat(login.username()).isEqualTo("app");
+      assertThat(new String(login.password().chars())).isEqualTo(FakeVault.DB_PASSWORD);
+      assertThat(login.version()).isEqualTo("v4");
+      assertThat(login.notAfter()).isNull();
+    }
+    // The user isn't a secret: an agent may see it; the password stays masked.
+    String masked = ai.msrv.gaterook.core.platform.Masker.standard().text("user app, password "
+        + FakeVault.DB_PASSWORD, taint, MaskPolicy.SECRETS_ONLY).text();
+    assertThat(masked).contains("user app").doesNotContain(FakeVault.DB_PASSWORD);
+
+    // An edit keeps where the user comes from.
+    api.expect(200, HttpMethod.PUT, "/api/connections/users-db", """
+        {"env":"dev","version":%d,"config":{"connection":{"host":"db.test","port":5433},"credentials":{"user":"x"}}}"""
+        .formatted(detail.path("version").asLong()));
+    try (ScopedSecretResolver r = core.bean(SecretService.class).resolver(cfg("users-db"), new Taint())) {
+      assertThat(r.login("/credentials/password").username()).isEqualTo("app");
+    }
+  }
+
+  @Test
+  @Order(20)
   void noAnswerCarriesAValueOrAToken() {
     List<String> canaries = List.of(FakeVault.DB_PASSWORD, FakeVault.SECRET_ID, FakeVault.DYNAMIC_PASSWORD_PREFIX,
         "hvs.cnry-token-");

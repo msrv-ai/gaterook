@@ -56,7 +56,13 @@ let calls: string[];
 let requests: unknown[];
 let world: World;
 let events: FakeEvents;
-let desktop: { available: boolean; platform: string; saveFile: (purpose: string) => Promise<string | null> };
+let desktop: {
+  available: boolean;
+  platform: string;
+  saveFile: (purpose: string) => Promise<string | null>;
+  vaultTokenPickerAvailable?: boolean;
+  chooseVaultTokenFile?: () => Promise<{ readonly token: string; readonly path: string } | null>;
+};
 const now = signal(NOW);
 
 const fakeTime: Partial<TimeService> = {
@@ -548,6 +554,87 @@ describe('Secrets page: external stores', () => {
     expect($<HTMLInputElement>('#vault-address')!.value).toBe('');
     expect(warning.open).toBe(false);
     close.mockRestore();
+  });
+
+  it('a connected Vault is followed by a card for another one, which gets a name of its own', async () => {
+    const el = await render();
+    expect(text($('#store-vault', el))).toContain('https://vault.acme.internal');
+    const another = $('#store-vault-another', el)!;
+    expect(another.classList).toContain('gw-card--dashed');
+    // The cards keep the kit's order: the Vaults, then GCP and AWS.
+    const ids = $$('#external-stores article', el).map((a) => a.id);
+    expect(ids.indexOf('store-vault-another')).toBe(ids.indexOf('store-vault') + 1);
+    expect(ids.indexOf('store-gcp')).toBeGreaterThan(ids.indexOf('store-vault-another'));
+
+    await click(control(another, 'Connect another Vault'));
+    const name = $<HTMLInputElement>('#vault-name')!;
+    expect(name.value).toBe('vault-2');
+    await type(name, 'vault');
+    await type($<HTMLInputElement>('#vault-address')!, 'https://vault.stage.acme.internal');
+    await type($<HTMLSelectElement>('#vault-method')!, 'token');
+    $<HTMLInputElement>('#vault-token')!.value = 'stage-token';
+    await submit('#dlg-connect-store');
+    expect(text($('#vault-name-err'))).toBe('A store named vault already exists. Choose another name.');
+    expect(document.activeElement).toBe(name);
+    expect(calls.some((c) => c.startsWith('create'))).toBe(false);
+
+    await type(name, 'Vault Stage');
+    await submit('#dlg-connect-store');
+    expect(text($('#vault-name-err'))).toContain("isn't a store name");
+
+    await type(name, 'vault-stage');
+    await submit('#dlg-connect-store');
+    expect(calls).toContain('create vault vault-stage');
+    expect(requests.at(-1)).toEqual({
+      kind: 'vault', name: 'vault-stage',
+      config: { address: 'https://vault.stage.acme.internal', auth: { method: 'token' } },
+      secrets: { '/auth/token': 'stage-token' },
+    });
+  });
+
+  it('several Vaults are named in their titles', async () => {
+    const [vault] = kitStores();
+    world.stores = () => Promise.resolve([...kitStores(), {
+      ...vault, id: 'st-vault-stage', name: 'vault-stage', references: [], issues: 0,
+      config: { address: 'https://vault.stage.acme.internal', auth: { method: 'approle', roleId: 'gaterook' } },
+    }]);
+    const el = await render();
+    const titles = $$('#external-stores .gw-card__title', el).map((t) => text(t));
+    expect(titles).toEqual(expect.arrayContaining(['HashiCorp Vault · vault', 'HashiCorp Vault · vault-stage', 'Another Vault']));
+    expect(text($('#store-vault-vault-stage', el))).toContain('https://vault.stage.acme.internal');
+  });
+
+  it('a Vault token can be read from a file the desktop app chooses: the request carries its grant, never the path', async () => {
+    const path = '/Users/you/.vault-agent/token';
+    desktop = { ...desktop, available: true, vaultTokenPickerAvailable: true, chooseVaultTokenFile: () => Promise.resolve({ token: 'ft_granted', path }) };
+    await openVault('https://vault.acme.internal');
+    await click($<HTMLInputElement>('#vault-token-file')!);
+    expect($('#vault-token')).toBeNull();
+    await submit('#dlg-connect-store');
+    expect(text($('#vault-token-path-err'))).toBe('Choose the file that holds the Vault token.');
+    expect(calls.some((c) => c.startsWith('create'))).toBe(false);
+
+    await click($<HTMLButtonElement>('#vault-token-choose')!);
+    expect($<HTMLInputElement>('#vault-token-path')!.value).toBe(path);
+    expect($<HTMLInputElement>('#vault-token-path')!.readOnly).toBe(true);
+    expect($('#vault-token-path-err')).toBeNull();
+    await submit('#dlg-connect-store');
+    expect(requests.at(-1)).toEqual({
+      kind: 'vault', name: 'vault',
+      config: { address: 'https://vault.acme.internal', auth: { method: 'token-file' } },
+      files: { '/auth/file': 'ft_granted' },
+    });
+    expect(JSON.stringify(requests.at(-1))).not.toContain(path);
+  });
+
+  it('outside the desktop app, choosing a token file says why it is not available', async () => {
+    await openVault('https://vault.acme.internal');
+    await click($<HTMLInputElement>('#vault-token-file')!);
+    const choose = $<HTMLButtonElement>('#vault-token-choose')!;
+    expect(choose.getAttribute('aria-disabled')).toBe('true');
+    expect(text($('#vault-token-path-hint'))).toContain('available in the desktop app');
+    await click($<HTMLInputElement>('#vault-token-stored')!);
+    expect($('#vault-token')).not.toBeNull();
   });
 
   it('HTTP confirmation cannot submit the same connection twice while the request is pending', async () => {

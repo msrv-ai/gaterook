@@ -47,6 +47,9 @@ const gwDesktop = {
   choosePrivateKeyFile(): Promise<string | null> {
     return ipcRenderer.invoke(IPC.choosePrivateKeyFile);
   },
+  chooseVaultTokenFile(): Promise<{ readonly token: string; readonly path: string } | null> {
+    return ipcRenderer.invoke(IPC.chooseVaultTokenFile);
+  },
   signInToGoogle(): Promise<void> {
     return ipcRenderer.invoke(IPC.signInToGoogle);
   },

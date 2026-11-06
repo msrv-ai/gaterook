@@ -19,15 +19,6 @@
     }
   </div>
 </div>
-@if (stores().length > 1 || (stores().length === 1 && !selectedStore())) {
-  <div class="gw-field">
-    <label class="gw-field__label" [for]="id() + '-store'">Vault store</label>
-    <select class="gw-select" [id]="id() + '-store'" [value]="store()" (change)="chooseStore($any($event.target).value)">
-      <option value="" disabled>Choose a Vault store</option>
-      @for (store of stores(); track store.id) {<option [value]="store.id">{{ store.name }}</option>}
-    </select>
-  </div>
-}
 <p [class]="error() ? 'gw-field__error' : 'gw-field__hint'" [id]="id() + '-status'" role="status">{{ status() }}</p>
 @if (result(); as loaded) {
   @if (loaded.issues.length) {

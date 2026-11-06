@@ -48,17 +48,22 @@ import {
   waitingFor,
   waitingText,
 } from './secrets-view';
-import { AWS_REGIONS, ConnectModel, FIELD_POINTERS, SecretKey, connectRequest, emptyConnectModel, externalId, fieldProblem, isPlainHttp, storeName } from './store-connect';
+import { AWS_REGIONS, ChosenFile, ConnectModel, FIELD_POINTERS, SecretKey, connectRequest, emptyConnectModel, externalId, fieldProblem, isPlainHttp, storeName } from './store-connect';
+import { DesktopBridge, desktopErrorText } from '../../core/desktop/desktop-bridge';
 
 const NO_ANSWER = 'The core didn’t answer. Try again.';
 
-/** One card of External stores: a connected store, or the dashed card of a kind that has none. */
+/**
+ * One card of External stores: a connected store, the dashed card of a kind that has none, or the dashed card that
+ * connects another Vault (prod and stage often have their own).
+ */
 interface StoreCard {
   readonly key: string;
   readonly anchor: string;
   readonly info: StoreKindInfo;
   readonly store: SecretStore | null;
   readonly title: string;
+  readonly another?: boolean;
 }
 
 /**
@@ -110,20 +115,26 @@ export class GwExternalStores {
   protected readonly stores = computed(() => this.data.stores().value);
   protected readonly summary = computed(() => storesSummary(this.stores() ?? []));
 
-  /** Kit order: Vault, GCP SM, AWS SM; each store of a kind, or one dashed card for a kind without any. */
+  /**
+   * Kit order: Vault, GCP SM, AWS SM; each store of a kind, or one dashed card for a kind without any. Connected Vaults
+   * are followed by a dashed card for another one, and are named in their titles once there are several or one has a
+   * name of its own.
+   */
   protected readonly cards = computed<StoreCard[]>(() => {
     const stores = this.stores() ?? [];
     const anchors = storeAnchors(stores);
     return STORE_KINDS.flatMap((info): StoreCard[] => {
       const mine = stores.filter((s) => s.kind === info.kind);
       if (!mine.length) return [{ key: info.kind, anchor: `store-${info.kind.replace(/-sm$/, '')}`, info, store: null, title: info.title }];
-      return mine.map((s) => ({
+      const cards: StoreCard[] = mine.map((s) => ({
         key: s.id,
         anchor: anchors.get(s.name) ?? s.id,
         info,
         store: s,
-        title: mine.length > 1 ? `${info.title} · ${s.name}` : info.title,
+        title: mine.length > 1 || (info.kind === 'vault' && s.name !== 'vault') ? `${info.title} · ${s.name}` : info.title,
       }));
+      if (info.kind === 'vault') cards.push({ key: 'vault-another', anchor: 'store-vault-another', info, store: null, title: info.title, another: true });
+      return cards;
     });
   });
 
@@ -174,13 +185,47 @@ export class GwExternalStores {
       for (const key of Object.keys(emptyConnectModel()) as (keyof ConnectModel)[]) {
         validate(p[key], () => {
           const kind = this.connecting()?.kind;
-          const problem = kind ? fieldProblem(kind, key, this.model()) : null;
+          const taken = (this.stores() ?? []).map((s) => s.name);
+          const problem = kind ? fieldProblem(kind, key, this.model(), taken) : null;
           return problem ? { kind: 'invalid', message: problem } : null;
         });
       }
     },
     { injector: this.injector },
   );
+
+  // ── Vault token file ──────────────────────────────────────────────────────────────────────────────────────────
+
+  protected readonly desktop = inject(DesktopBridge);
+  /** The token file chosen in the desktop app's dialog: its grant goes with the store, its path is only shown. */
+  protected readonly tokenFile = signal<ChosenFile | null>(null);
+  protected readonly choosingTokenFile = signal(false);
+  protected readonly tokenFileError = signal<string | null>(null);
+
+  protected setTokenSource(source: ConnectModel['tokenSource']): void {
+    this.model.update((m) => ({ ...m, tokenSource: source }));
+    this.secretErrors.set({});
+    if (source === 'stored') this.tokenFileError.set(null);
+  }
+
+  protected async chooseTokenFile(): Promise<void> {
+    if (!this.desktop.vaultTokenPickerAvailable || this.choosingTokenFile() || this.connectBusy()) return;
+    this.choosingTokenFile.set(true);
+    this.tokenFileError.set(null);
+    try {
+      const chosen = await this.desktop.chooseVaultTokenFile();
+      // The dialog may outlive the connect dialog.
+      if (chosen && this.connecting()?.kind === 'vault') {
+        this.tokenFile.set(chosen);
+        this.secretErrors.update((e) => { const next = { ...e }; delete next['tokenFile']; return next; });
+        this.serverErrors.update((e) => { const next = { ...e }; delete next['tokenFile']; return next; });
+      }
+    } catch (err) {
+      this.tokenFileError.set(desktopErrorText(err, 'Could not open the file dialog. Try again.'));
+    } finally {
+      this.choosingTokenFile.set(false);
+    }
+  }
 
   /** A field's error once the person tried to send (or the core named it). */
   protected fieldError(key: keyof ConnectModel | SecretKey): string | null {
@@ -198,7 +243,15 @@ export class GwExternalStores {
     // AWS: the region a waiting reference names (aws-sm://eu-central-1/…), so the store resolves it at once.
     const waitingRef = rows.find((r) => r.state === 'not-connected' && kindOfRef(r.ref) === info.kind)?.ref ?? null;
     const region = waitingRef && info.kind === 'aws-sm' ? (/^aws-sm:\/\/([a-z0-9-]+)\//.exec(waitingRef)?.[1] ?? null) : null;
-    this.model.set({ ...emptyConnectModel(), region: region && AWS_REGIONS.includes(region) ? region : 'us-east-1', externalId: externalId() });
+    const taken = (this.stores() ?? []).map((s) => s.name);
+    this.model.set({
+      ...emptyConnectModel(),
+      name: info.kind === 'vault' ? storeName('vault', emptyConnectModel(), taken) : '',
+      region: region && AWS_REGIONS.includes(region) ? region : 'us-east-1',
+      externalId: externalId(),
+    });
+    this.tokenFile.set(null);
+    this.tokenFileError.set(null);
     this.connecting.set(info);
     this.connectBusy.set(false);
     this.connectError.set(null);
@@ -234,13 +287,14 @@ export class GwExternalStores {
       return;
     }
     const taken = (this.stores() ?? []).map((s) => s.name);
-    const request: SecretStoreCreate = connectRequest(info.kind, storeName(info.kind, this.model(), taken), this.model(), secrets, plainHttp);
+    const request: SecretStoreCreate = connectRequest(info.kind, storeName(info.kind, this.model(), taken), this.model(), secrets, plainHttp, this.tokenFile());
     this.connectBusy.set(true);
     try {
       const { store, test } = await this.data.connectStore(request);
       this.clearSecrets();
       this.connectDialog().close('connected');
-      this.toast(connectedToast(info.title, store, test));
+      // Several Vaults: the toast names the one connected.
+      this.toast(connectedToast(info.kind === 'vault' ? `${info.title} · ${store.name}` : info.title, store, test));
     } catch (err) {
       this.applyError(err);
     } finally {
@@ -264,6 +318,8 @@ export class GwExternalStores {
     this.plainHttpDialog().close();
     this.pendingHttpAddress.set(null);
     this.clearSecrets();
+    this.tokenFile.set(null);
+    this.tokenFileError.set(null);
     this.connecting.set(null);
   }
 
@@ -279,7 +335,8 @@ export class GwExternalStores {
     };
     if (kind === 'aws-sm' && m.awsSource === 'accessKey') take('secretAccessKey', '/credentials/secretAccessKey', this.awsSecret()?.nativeElement, 'Enter the secret access key.');
     if (kind === 'vault' && m.method === 'approle') take('secretId', '/auth/secretId', this.vaultSecretId()?.nativeElement, 'Enter the AppRole secret ID.');
-    if (kind === 'vault' && m.method === 'token') take('token', '/auth/token', this.vaultToken()?.nativeElement, 'Enter the Vault token.');
+    if (kind === 'vault' && m.method === 'token' && m.tokenSource === 'stored') take('token', '/auth/token', this.vaultToken()?.nativeElement, 'Enter the Vault token.');
+    if (kind === 'vault' && m.method === 'token' && m.tokenSource === 'file' && !this.tokenFile()) errors['tokenFile'] = 'Choose the file that holds the Vault token.';
     if (kind === 'gcp-sm' && m.gcpSource === 'serviceAccountKey') take('serviceAccountKey', '/credentials/serviceAccountKey', this.gcpKey()?.nativeElement, 'Paste the service account key (JSON).');
     this.secretErrors.set(errors);
     return out;

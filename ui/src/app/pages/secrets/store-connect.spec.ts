@@ -1,4 +1,4 @@
-import { addressProblem, connectRequest, emptyConnectModel, externalId, fieldProblem, isPlainHttp, storeName } from './store-connect';
+import { addressProblem, connectRequest, emptyConnectModel, externalId, fieldProblem, isPlainHttp, storeName, storeNameProblem } from './store-connect';
 
 describe('connect a store', () => {
   const m = emptyConnectModel();
@@ -89,5 +89,33 @@ describe('connect a store', () => {
     const gcp = connectRequest('gcp-sm', 'gcp-acme-stage', { ...m, project: 'acme-stage', impersonate: 'gw-secrets@acme-stage.iam.gserviceaccount.com' }, {});
     expect(gcp.config).toEqual({ project: 'acme-stage', credentials: { source: 'adc', impersonate: 'gw-secrets@acme-stage.iam.gserviceaccount.com' } });
     expect('secrets' in gcp).toBe(false);
+  });
+});
+
+describe('Vault names and token files', () => {
+  it('a name follows the core rule and is not taken', () => {
+    expect(storeNameProblem('', [])).toBe('Name the store, for example vault-prod.');
+    expect(storeNameProblem('Vault Prod', [])).toContain("isn't a store name");
+    expect(storeNameProblem('vault--prod', [])).toContain("isn't a store name");
+    expect(storeNameProblem('vault', ['vault'])).toBe('A store named vault already exists. Choose another name.');
+    expect(storeNameProblem('vault-prod', ['vault'])).toBeNull();
+    expect(fieldProblem('vault', 'name', { ...emptyConnectModel(), name: 'vault' }, ['vault'])).toMatch(/already exists/);
+    expect(fieldProblem('aws-sm', 'name', emptyConnectModel(), ['vault'])).toBeNull();
+  });
+
+  it('a new Vault starts as vault, then vault-2; the name the person typed wins', () => {
+    expect(storeName('vault', emptyConnectModel(), [])).toBe('vault');
+    expect(storeName('vault', emptyConnectModel(), ['vault'])).toBe('vault-2');
+    expect(storeName('vault', { ...emptyConnectModel(), name: ' vault-stage ' }, ['vault'])).toBe('vault-stage');
+  });
+
+  it('a token read from a file is the token-file method with the grant, and no stored token', () => {
+    const m = { ...emptyConnectModel(), address: 'https://vault.acme.internal/', method: 'token' as const, tokenSource: 'file' as const };
+    expect(connectRequest('vault', 'vault', m, {}, false, { token: 'ft_1', path: '/Users/you/.vault-agent/token' })).toEqual({
+      kind: 'vault', name: 'vault', config: { address: 'https://vault.acme.internal', auth: { method: 'token-file' } }, files: { '/auth/file': 'ft_1' },
+    });
+    expect(connectRequest('vault', 'vault', { ...m, tokenSource: 'stored' }, { '/auth/token': 't' })).toEqual({
+      kind: 'vault', name: 'vault', config: { address: 'https://vault.acme.internal', auth: { method: 'token' } }, secrets: { '/auth/token': 't' },
+    });
   });
 });

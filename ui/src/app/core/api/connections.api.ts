@@ -79,6 +79,8 @@ export interface StoredSecret {
   readonly version: number | null;
   readonly source: string | null;
   readonly store?: string | null;
+  /** Where a reference points (`vault://kv/prod/db#password`), from `GET /api/secrets`; not a secret. */
+  readonly ref?: string | null;
   /**
    * What `GET /api/secrets` adds to the row of the same secret (the connection's detail doesn't carry it): when the
    * current version was set, and whether Rotate can issue a new value at the source (else why not).

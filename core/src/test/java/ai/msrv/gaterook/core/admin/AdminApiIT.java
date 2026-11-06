@@ -181,9 +181,14 @@ class AdminApiIT {
     assertThat(api.get("/api/connections").json().path("total").asInt()).as("a draft saves nothing").isZero();
 
     JsonNode wrongField = api.expect(422, HttpMethod.POST, "/api/connections/test", """
-        {"type":"pgfake","env":"dev","config":%s,"secrets":{"/credentials/user":{"source":"local","value":"x"}}}"""
+        {"type":"pgfake","env":"dev","config":%s,"secrets":{"/connection/host":{"source":"local","value":"x"}}}"""
         .formatted(draft("db.test")));
     assertThat(wrongField.path("title").asString()).isEqualTo("Not a secret field");
+    // A login's user is typed, or read from a store with a reference; it is never stored here.
+    JsonNode typedUser = api.expect(422, HttpMethod.POST, "/api/connections/test", """
+        {"type":"pgfake","env":"dev","config":%s,"secrets":{"/credentials/user":{"source":"local","value":"x"}}}"""
+        .formatted(draft("db.test")));
+    assertThat(typedUser.path("title").asString()).isEqualTo("Type the user");
 
     JsonNode files = api.expect(200, HttpMethod.POST, "/api/connections/browse-files", """
         {"type":"pgfake","env":"dev","config":%s,"path":"/var/log",

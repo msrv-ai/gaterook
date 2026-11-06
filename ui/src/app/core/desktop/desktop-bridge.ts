@@ -102,6 +102,11 @@ export interface GwDesktop {
   openFile(purpose: string): Promise<string | null>;
   /** Shows the native picker and returns the selected private key path, without reading its contents. */
   choosePrivateKeyFile(): Promise<string | null>;
+  /**
+   * Shows the native picker for a Vault token file and grants it to the core: the one-time token to send with the store
+   * (`files: {"/auth/file": token}`) and the chosen path to show. The renderer never reads the file.
+   */
+  chooseVaultTokenFile?(): Promise<{ readonly token: string; readonly path: string } | null>;
   /** Runs the fixed Google ADC sign-in flow in main; no command, token or credential crosses IPC. */
   signInToGoogle(): Promise<void>;
   openMcpb(linkId: string): Promise<void>;
@@ -170,6 +175,7 @@ export class DesktopBridge {
 
   /** Also false when a browser UI connects to an older desktop shell. */
   readonly privateKeyPickerAvailable = typeof this.desktop?.choosePrivateKeyFile === 'function';
+  readonly vaultTokenPickerAvailable = typeof this.desktop?.chooseVaultTokenFile === 'function';
   readonly aiPromptAvailable = typeof this.desktop?.openAiPrompt === 'function';
   readonly googleSignInAvailable = typeof this.desktop?.signInToGoogle === 'function';
   readonly fullBackupAvailable = typeof this.desktop?.createFullBackup === 'function' && typeof this.desktop?.restoreFullBackup === 'function';
@@ -203,6 +209,11 @@ export class DesktopBridge {
 
   async choosePrivateKeyFile(): Promise<string | null> {
     return this.desktop?.choosePrivateKeyFile?.() ?? null;
+  }
+
+  async chooseVaultTokenFile(): Promise<{ readonly token: string; readonly path: string } | null> {
+    if (!this.desktop?.chooseVaultTokenFile) throw new Error('Choosing a token file needs the GateRook desktop app. Paste the token instead.');
+    return this.desktop.chooseVaultTokenFile();
   }
 
   async signInToGoogle(): Promise<void> {

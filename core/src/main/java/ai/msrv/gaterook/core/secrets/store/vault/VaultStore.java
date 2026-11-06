@@ -649,6 +649,7 @@ public final class VaultStore implements SecretStore {
       identity.put("auth", switch (settings.auth()) {
         case APPROLE -> "approle";
         case TOKEN -> "token";
+        case TOKEN_FILE -> "token-file";
         case CLI_TOKEN -> "cli-token";
       });
       if (self.path("meta").path("role_name").isString()) {
@@ -661,6 +662,7 @@ public final class VaultStore implements SecretStore {
       checks.add(new SecretStores.Check("sign-in", true, ms(s), switch (settings.auth()) {
         case APPROLE -> "Signed in with AppRole " + identity.path("role").asString(settings.roleId());
         case TOKEN -> "The stored token works";
+        case TOKEN_FILE -> "The token in " + settings.tokenFile() + " works";
         case CLI_TOKEN -> "The token of vault login works";
       }));
       if (settings.auth() == VaultSettings.Auth.CLI_TOKEN) {
@@ -860,17 +862,21 @@ public final class VaultStore implements SecretStore {
         }
       }
       case TOKEN -> adopt(signIn.secret(VaultSettings.TOKEN), call);
-      case CLI_TOKEN -> adopt(cliToken(settings.tokenFile()), call);
+      case TOKEN_FILE -> adopt(tokenFile(settings.tokenFile(), ": put a valid token there or choose another file, "
+          + "then test again."), call);
+      case CLI_TOKEN -> adopt(tokenFile(settings.tokenFile(), ": run vault login, then test again."), call);
       default -> throw new IllegalStateException();
     }
   }
 
   /**
-   * The token {@code vault login} wrote: a regular file, not a symbolic link, at most 16 KB, one token of visible
-   * ASCII characters around optional white space. Anything else is refused and never sent.
+   * The token in {@code file} ({@code vault login}'s, or the one the person chose): a regular file, not a symbolic
+   * link, at most 16 KB, one token of visible ASCII characters around optional white space. Anything else is refused
+   * and never sent.
+   *
+   * @param again what to do about a refused file, after a colon: "{@code : run vault login, then test again.}"
    */
-  private static char[] cliToken(Path file) {
-    String again = ": run vault login, then test again.";
+  private static char[] tokenFile(Path file, String again) {
     BasicFileAttributes attributes;
     try {
       attributes = Files.readAttributes(file, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
@@ -880,7 +886,7 @@ public final class VaultStore implements SecretStore {
       throw StoreException.unavailable("Can't read " + file + ": " + e.getMessage(), e);
     }
     if (attributes.isSymbolicLink()) {
-      throw StoreException.unavailable(file + " is a symbolic link; GateRook reads only the file vault login writes"
+      throw StoreException.unavailable(file + " is a symbolic link; GateRook reads a token only from a regular file"
           + again, null);
     }
     if (!attributes.isRegularFile()) {
