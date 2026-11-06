@@ -9,6 +9,7 @@ import ai.msrv.gaterook.connector.api.Limits;
 import ai.msrv.gaterook.connector.api.TemplateKind;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
+import ai.msrv.gaterook.core.connections.ConnectionService;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.connectors.EnvironmentPolicies;
 import ai.msrv.gaterook.core.platform.CanonicalJson;
@@ -87,6 +88,7 @@ public class ToolPairs {
   public Map<String, List<Offered>> offered(List<Member> members, String slug, Env env) {
     Map<String, List<Member>> groups = new LinkedHashMap<>();
     for (Member m : members) {
+      if (ConnectionService.needsSetup(m.config())) continue;
       groups.computeIfAbsent(groupKey(m), k -> new ArrayList<>()).add(m);
     }
     Map<String, List<Offered>> byConnection = new HashMap<>();
@@ -95,7 +97,7 @@ public class ToolPairs {
     }
     Map<String, List<Offered>> out = new LinkedHashMap<>();
     for (Member m : members) {
-      out.put(m.config().id(), byConnection.get(m.config().id()));
+      out.put(m.config().id(), byConnection.getOrDefault(m.config().id(), List.of()));
     }
     return out;
   }
@@ -114,8 +116,10 @@ public class ToolPairs {
     if (self == null) {
       throw new IllegalArgumentException(cfg.name() + " is not among the endpoint's connections");
     }
+    if (ConnectionService.needsSetup(cfg)) return List.of();
     String key = groupKey(self);
-    List<Member> group = members.stream().filter(m -> groupKey(m).equals(key)).toList();
+    List<Member> group = members.stream().filter(m -> !ConnectionService.needsSetup(m.config()))
+        .filter(m -> groupKey(m).equals(key)).toList();
     return offeredByGroup(group, slug, env).get(cfg.id());
   }
 

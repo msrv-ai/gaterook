@@ -69,7 +69,7 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
 
   /** Tools of the core itself (ARCHITECTURE.md §3): no connector, plugin, MCP server or template may take these. */
   public static final Set<String> CORE_TOOLS = Set.of("list_connections", "describe_connection", "approval_status",
-      "approval_card", "approval_card_action");
+      "approval_card", "approval_card_action", "connection_import_schema", "submit_connection_import", "open_connection_import");
 
   private static final Pattern TOOL_NAME = Pattern.compile("^[a-z][a-z0-9_]{0,63}$");
   private static final Pattern TYPE_ID = Pattern.compile("^[a-z][a-z0-9-]{0,47}$");

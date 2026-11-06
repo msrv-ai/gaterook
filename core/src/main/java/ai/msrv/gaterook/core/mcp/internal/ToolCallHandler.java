@@ -71,12 +71,13 @@ public class ToolCallHandler {
   private final ApprovalCards approvalCards;
   private final EndpointSnapshotService snapshots;
   private final InFlight inFlight;
+  private final ConnectionImportTools connectionImports;
 
   public ToolCallHandler(ToolCatalog catalogs, SchemaValidator validator, ConnectorRegistry registry,
       PolicyEngine engine, ToolGuard guard, AuditWriter audit, ConnectorInvoker invoker,
       ApprovalService approvals, ApprovalAnswers answers, ApprovalStatusTool statusTool, ApprovalDelivery delivery,
       RequestStateCodec states, CoreToolsHandler coreTools, Calls calls, ApprovalCards approvalCards,
-      EndpointSnapshotService snapshots, InFlight inFlight) {
+      EndpointSnapshotService snapshots, InFlight inFlight, ConnectionImportTools connectionImports) {
     this.catalogs = catalogs;
     this.validator = validator;
     this.registry = registry;
@@ -94,6 +95,7 @@ public class ToolCallHandler {
     this.approvalCards = approvalCards;
     this.snapshots = snapshots;
     this.inFlight = inFlight;
+    this.connectionImports = connectionImports;
   }
 
   public ObjectNode call(McpRequest r) {
@@ -133,6 +135,10 @@ public class ToolCallHandler {
       }
       return ResultWriter.callToolResult(env,
           approvalCards.call(r, args, CoreTools.APPROVAL_CARD_ACTION.equals(name)), null, r.span().traceId(), null);
+    }
+    if (CoreTools.CONNECTION_IMPORT_SCHEMA.equals(name) || CoreTools.SUBMIT_CONNECTION_IMPORT.equals(name)
+        || "open_connection_import".equals(name)) {
+      return connectionImports.call(r, name, args);
     }
     if (published.core()) {
       return coreTools.call(r, published, args);

@@ -41,6 +41,7 @@
     </div>
     @if (summary(); as s) {
       <div class="gw-page-header__actions">
+        <a class="gw-btn" routerLink="/connection-import" [queryParams]="{ endpoint: s.slug }"><svg lucideIcon="download" class="gw-icon"></svg> Import with AI</a>
         <a class="gw-btn gw-btn--ghost" routerLink="/activity" [queryParams]="{ q: 'endpoint:' + s.slug }"><svg lucideIcon="activity" class="gw-icon"></svg> View activity<span class="gw-sr-only"> of endpoint {{ s.slug }}</span></a>
         <a class="gw-btn" routerLink="/playground" [queryParams]="{ endpoint: s.slug }"><svg lucideIcon="flask-conical" class="gw-icon"></svg> Open in Playground</a>
         <div class="gw-menu-host">

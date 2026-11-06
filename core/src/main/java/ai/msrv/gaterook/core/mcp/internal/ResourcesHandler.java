@@ -99,7 +99,10 @@ public class ResourcesHandler {
     ObjectNode out = JsonNodeFactory.instance.objectNode();
     ArrayNode items = out.putArray(templates ? "resourceTemplates" : "resources");
     boolean ui = r.env().supportsUi();
-    if (!templates && !r.snapshot().blocked() && ui) items.add(McpAppResource.descriptor());
+    if (!templates && !r.snapshot().blocked() && ui) {
+      items.add(McpAppResource.descriptor());
+      items.add(ConnectionImportCards.descriptor());
+    }
     Set<String> listed = new LinkedHashSet<>();
     for (Offer o : offers(r.snapshot())) {
       if ((o.template() != null) != templates || decide(o.pair().view(), o.pair().config()).outcome()
@@ -170,6 +173,7 @@ public class ResourcesHandler {
       throw McpException.invalidParams("params.uri is required");
     }
     if (McpAppResource.URI.equals(uri) && !r.snapshot().blocked()) return McpAppResource.read();
+    if (ConnectionImportCards.URI.equals(uri) && !r.snapshot().blocked()) return ConnectionImportCards.read();
     Optional<App> app = apps(r.snapshot()).stream().filter(a -> a.uri().equals(uri)).findFirst();
     if (app.isPresent()) {
       return readThrough(r, uri, app.get().pair().config(), app.get().view(), APP_MASK,

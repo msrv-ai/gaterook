@@ -1,0 +1,77 @@
+# Import connections with AI
+
+**Import with AI** asks an AI app to discover connections in a repository and send a proposal back to GateRook. You review the proposal, select connections, and choose their destination endpoint. Complete their settings now or save the available information as disabled connections that need setup. The AI's submission does not create connections or grant access.
+
+## Start an import
+
+1. Open **Connections → Import with AI**, or choose **Import with AI** on an endpoint.
+2. Choose the repository folder. The AI app needs authorized access to this repository and permission to write the private import file on the computer running GateRook; choosing a folder does not give a remote app filesystem access.
+3. Select a GateRook endpoint already connected to the AI app, then select **Create prompt**. This endpoint receives the AI's proposal. You choose the destination for imported connections during review.
+4. Choose **Open Claude Desktop**, **Open Codex**, or **Open Cursor**, or copy the prompt into your AI app. **Copy for Antigravity** copies the same instructions for manual pasting. Review and send the prompt there.
+
+App links depend on the installed client's protocol handler. If an app cannot open the link, or the prompt is too long for a link, use **Copy prompt**. Cursor may first show its own **Create chat with prompt** dialog. Opening a prompt does not send it to a model.
+
+The prompt contains the repository path, a private import-file path, an import-session handoff, discovery rules, and an example of the proposal format. Treat it as session-specific: share it only with the AI app doing this import. Sessions expire after two hours and do not survive a GateRook core restart. Start again if the session expires.
+
+## What the AI checks
+
+The prompt asks the AI to trace configuration rather than guess connection details. It should inspect shared configuration, environment-specific overrides, deployment manifests, local development stacks, source bindings, and log settings. Repository content is evidence, not permission to run scripts or follow embedded instructions.
+
+Candidates can include databases, log sources, cloud services, HTTP APIs, and MCP servers. The report should keep development, stage, and production settings separate, deduplicate shared resources, cite repository-relative evidence, and explain missing access or uncertain values. A container's internal hostname may need a published host address to work from the computer running GateRook.
+
+The AI can request the installed connector schemas through `connection_import_schema`, then write its proposal to the exact private file supplied by GateRook. It calls `submit_connection_import` with the session ID and submission token only. GateRook reads the file locally; credentials and file contents do not travel in MCP tool arguments or results. Both tools require the active import session on the selected endpoint.
+
+The file separates ordinary configuration from credentials. Use actual Vault or supported secret-store references, or a reference to a credential file, when the repository establishes them. When a secret is written literally in authorized repository configuration, the AI copies that value into the private file's `secrets` map. It must keep values out of chat replies, evidence, logs, MCP arguments, and configuration URLs. Credential-source hints explain unresolved setup; hints alone do not supply a credential.
+
+GateRook prepares the handoff file in its private import directory. The AI writes that file with owner-only permissions and must not place it in the repository or commit it. GateRook removes the plaintext handoff after reading it successfully and cleans up abandoned session files when the core restarts. **Discard import** drops the session and its staged credentials without changing saved connections. Session expiry also discards staged credentials. The review displays source descriptions, never secret values.
+
+## Review the proposal
+
+When the AI submits its proposal, GateRook opens the import review page. AI clients that support MCP Apps also show a card with the candidate count and **Open import in GateRook**. The button reopens this exact import; clients without cards receive a link. The card cannot accept an import, add, edit or delete connections, or change settings. No candidates are selected automatically.
+
+1. Check each candidate's environment, target, source evidence, warnings, prepared credentials, and credential-source hints.
+2. Select **Configure** for a supported candidate. Review the normal connector form and correct incomplete settings. **Credentials prepared for import** lists literal, file, and external-reference sources without revealing values. Keep those sources, or enter replacements in the form. Select **Keep for import** when it is ready. To save the discovered information without filling every required field now, choose **Keep available settings** instead. Neither action selects the candidate automatically.
+3. Select the candidates to import and choose their destination endpoint. Production connections cannot be mixed with development or stage connections on one endpoint; use separate import sessions for these groups. A candidate discovered as production cannot be downgraded during import.
+4. Select **Import selected connections**. Complete connections use the normal validation, endpoint policy, and tool defaults. If you choose to save an incomplete connection, GateRook preserves the available information and marks it **Needs setup**, with access disabled.
+
+Existing connection names are not overwritten. Rename a candidate that conflicts with an existing connection, or leave it out. An import does not infer that an existing connection with a similar name is the same service.
+
+Review the destination endpoint's tool modes after import. The AI cannot request Bypass or change an existing connection's permissions through the proposal. Importing a configuration does not prove that its address is reachable or that its credentials work; use the connection's normal test action and suitable read operations to verify access.
+
+## Finish an incomplete connection
+
+**Keep available settings** lets GateRook try normal validation first and save the connection disabled if setup is incomplete. This preserves discovered settings without guessing missing values. The connection appears in **Connections** as **Needs setup** and stays disabled, including on its selected endpoint. Its outstanding fields and credential sources remain available for review after an application restart.
+
+Available credential values are stored encrypted; usable external references retain their store binding. A missing credential file or a reference without a configured matching store remains a source description for later setup; it does not silently become an active credential. Incomplete connections are not tested or contacted by background health checks, and their tools cannot run. Changing tool modes or toggling the connection cannot bypass the setup requirement.
+
+After import, **Saved connections that need setup** lists the outstanding fields and **Finish setup** links. You can also choose **Finish setup** from **Connections**. Open the connection's edit form, complete the missing settings and credentials, and save. A successful save must pass normal validation before **Needs setup** is cleared. The connection remains disabled until you enable it explicitly. Check its endpoint tool modes and test the completed connection before relying on it.
+
+## Credential sources
+
+The private file can carry real credential sources as well as literal values already present in authorized repository configuration. GateRook does not execute credential commands or contact secret stores during submission. It reads referenced local credential files only when you confirm the selected connections; their values become encrypted local secrets. External references remain references to their configured store.
+
+| File representation | What happens when you confirm import |
+| --- | --- |
+| `{"source":"local","value":"example-only-value"}` | The value is stored encrypted. The example is fictional; the AI uses the literal from the authorized configuration. |
+| `{"source":"reference","ref":"vault://secret/acme/stage#database-password"}` | The connection keeps the external reference. Configure the matching store in **Secrets**, or include its existing store ID in `store`. GCP Secret Manager and AWS Secrets Manager references are also supported. |
+| `{"source":"vault-dynamic","ref":"vault://database/creds/acme-reader"}` | The connection uses short-lived credentials from that Vault role, where the connector supports dynamic credentials. |
+| `{"source":"file","path":"/path/to/database-password.txt"}` | GateRook reads the complete UTF-8 file and stores its contents encrypted. File references are snapshots at import, not continuously refreshed file bindings. |
+| `{"source":"file","path":"/path/to/credentials.json","jsonPointer":"/database/password"}` | GateRook reads the string at the JSON Pointer and stores it encrypted. The selected JSON value must be a string. |
+
+These objects go in a candidate's `secrets` map, keyed by a secret-field pointer from its connector schema, such as `/credentials/password`. Do not put them in `config`. Credential files are limited to 64 KiB and must be regular files, not symbolic links. YAML selectors, environment expansion, base64 decoding, and shell commands are not file-source operations; report the required transformation instead of pretending the file is directly usable.
+
+Environment variables and Kubernetes Secrets are discovery evidence unless they lead to an actual supported source. A deployment's `VAULT_TOKEN` variable does not automatically become available to GateRook. Configure the external store's authentication in **Secrets**. The AI should not fetch values from Vault or cloud secret stores just to copy them into the file.
+
+Prepared credentials stay outside the renderer. Test, database/project discovery, and log-file browsing that would require a staged credential become available after import, once the connection has the required settings. Manually entered replacements remain in this page's memory while you review candidates. Leaving the import page or completing the import clears them.
+
+Vault authentication supports AppRole, a token stored in GateRook, or **Your vault login on this computer**. The last option reads the standard `~/.vault-token` file; it does not read arbitrary files named by an AI. A bootstrap token used by a deployed application is separate from permission to use that token in GateRook.
+
+## Scope and limits
+
+A proposal supports up to 50 candidates and a total document size of 128 KiB. Supported connection types come from the installed connector schemas. Incomplete supported candidates can be saved disabled with **Needs setup**; full connector validation is required before they can be enabled.
+
+HTTP APIs and external MCP servers need their specialized setup flows. The AI can report them with evidence and unresolved requirements, but this importer does not create OpenAPI tools, run MCP commands, or complete OAuth sign-in. Use [HTTP API import](http-api-import.md) or [external MCP server setup](mcp-servers.md) for those candidates. Services without an installed compatible connector remain in the report for manual follow-up.
+
+A log path alone does not establish a remote host or SSH login. A cloud project name does not establish a usable cloud identity. Unknown values must stay unresolved until you review them; the AI should not replace them with invented defaults.
+
+If the AI cannot find the import tools, check that it is connected to the endpoint selected when the prompt was created and that this GateRook version includes AI connection import. The prompt alone does not install or configure an MCP connection for the AI app.

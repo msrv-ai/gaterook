@@ -210,8 +210,8 @@ class McpIT {
     assertThat(modern.result().path("ttlMs").asLong()).isEqualTo(30_000);
     assertThat(modern.result().path("cacheScope").asString()).isEqualTo("private");
     for (JsonNode list : List.of(legacy.result(), modern.result())) {
-      assertThat(names(list.path("tools"))).containsExactly("approval_card", "approval_status", "describe_connection",
-          "list_connections", "sql_execute", "sql_query");
+      assertThat(names(list.path("tools"))).containsExactly("approval_card", "approval_status", "connection_import_schema",
+          "describe_connection", "list_connections", "sql_execute", "sql_query", "submit_connection_import");
       JsonNode query = tool(list, "sql_query");
       assertThat(query.path("outputSchema").isObject()).isTrue();
       // Named in the description, not as an enum: a client that keeps this list accepts connections added later.

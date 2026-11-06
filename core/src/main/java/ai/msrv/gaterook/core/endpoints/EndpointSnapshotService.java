@@ -6,6 +6,7 @@ import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.connections.ConnectionChanged;
 import ai.msrv.gaterook.core.connections.ConnectionConfigs;
 import ai.msrv.gaterook.core.connections.ConnectionRemoved;
+import ai.msrv.gaterook.core.connections.ConnectionService;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.connectors.ConnectorType;
 import ai.msrv.gaterook.core.connectors.ConnectorTypeChanged;
@@ -268,6 +269,8 @@ public class EndpointSnapshotService {
       }
       ConnectorManifest manifest = type.manifest();
       String problem = !stored.get().verified() ? stored.get().name() + " was changed outside GateRook"
+          : ConnectionService.needsSetup(stored.get().config()) ? "Needs setup: complete " + stored.get().name()
+              + " in GateRook before enabling access"
           : !type.usable() ? manifest.name() + " is switched off" : null;
       wired.add(new EndpointSnapshot.Wired(stored.get().config(), manifest, problem, stored.get().enabled()));
       members.add(new ToolPairs.Member(stored.get().config(), manifest, problem == null));
@@ -276,6 +279,7 @@ public class EndpointSnapshotService {
     Map<String, List<ToolPairs.Offered>> offeredById = pairs.offered(members, e.getSlug(), e.getEnv());
     List<EndpointSnapshot.Pair> out = new ArrayList<>();
     for (EndpointSnapshot.Wired w : wired) {
+      if (ConnectionService.needsSetup(w.config())) continue;
       ConnectorManifest manifest = w.manifest();
       String problem = w.problem();
       String connectionId = w.config().id();

@@ -53,6 +53,17 @@ describe('deep links: navigation only, strictly by allowlist (§7.1)', () => {
     expect(uiOpenUrl({ path: 42 } as never)).toBeNull();
     expect(uiOpenUrl(null)).toBeNull();
   });
+
+  it('opens AI import review only, never import actions or token-bearing links', () => {
+    const path = '/connection-import/ci_0123456789ab';
+    expect(uiOpenUrl({ path })).toBe(path);
+    expect(deepLinkUrl(`gaterook:/${path}`)).toBe(path);
+    for (const suffix of ['/commit', '?endpoint=prod', '?submissionToken=secret', '#import', '/../../settings']) {
+      expect(uiOpenUrl({ path: path + suffix })).toBeNull();
+    }
+    expect(deepLinkUrl('gaterook://connection-import/ci_short')).toBeNull();
+    expect(deepLinkUrl('gaterook://connection-import/new')).toBeNull();
+  });
 });
 
 describe('the shell routes what comes from outside and follows core restarts', () => {

@@ -178,6 +178,7 @@ export class GwSchemaField {
 
   protected secretLabel(state: string): string {
     const n = this.node();
+    if (this.storedSecret()?.staged) return state === 'editing' ? `New ${lowerFirst(n.title)}` : n.title;
     if (this.reference()) return sourceCopy(this.form().source()).label ?? 'Secret reference';
     return state === 'editing' ? `New ${lowerFirst(n.title)}` : n.title;
   }
@@ -185,6 +186,9 @@ export class GwSchemaField {
   protected secretHint(state: string): string {
     const n = this.node();
     const stored = this.storedSecret();
+    if (stored?.staged && (state === 'stored' || state === 'reference')) return state === 'reference'
+      ? 'Prepared reference. GateRook uses its configured secret store only after you confirm the import.'
+      : 'Prepared for import. GateRook saves this credential encrypted only after you confirm the import.';
     if (state === 'stored') return 'Decrypted inside the connector only for the duration of a call. Nobody can view it, here or in the API.';
     if (state === 'editing') {
       return stored?.version != null

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="{{CSP}}">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GateRook connection import</title>
+  <style>{{KIT_CSS}}</style>
+</head>
+<body>
+  <main class="gw-card" aria-labelledby="card-title" id="connection-import-card">
+    <header class="gw-card__header">
+      <div class="gw-card__heading">
+        <h1 class="gw-card__title" id="card-title">Connection import</h1>
+        <p class="gw-card__description" id="card-status" role="status">Connecting to this chat…</p>
+      </div>
+    </header>
+    <div class="gw-card__body gw-stack">
+      <p id="card-explanation">Choose connections and their destination endpoint in GateRook.</p>
+      <div class="gw-alert gw-alert--danger" id="card-error" role="alert" hidden>
+        <div class="gw-alert__content"><p class="gw-alert__body" id="error-message"></p></div>
+      </div>
+    </div>
+    <footer class="gw-card__footer gw-card__actions">
+      <button class="gw-btn gw-btn--primary" id="open-import" type="button" disabled>Open import in GateRook</button>
+    </footer>
+  </main>
+  <script type="module">{{APP_JS}}</script>
+</body>
+</html>

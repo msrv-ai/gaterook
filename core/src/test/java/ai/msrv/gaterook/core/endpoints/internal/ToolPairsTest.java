@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
@@ -94,6 +96,32 @@ class ToolPairsTest {
   }
 
   @Test
+  void incompleteConnectionsHaveNoToolsAndNeverReachConnectorOrTemplateDiscovery() {
+    ConnectionConfig incomplete = incomplete();
+    List<ToolPairs.Member> members = List.of(new ToolPairs.Member(incomplete, manifest, false));
+
+    assertThat(pairs.offered(members, "dev", Env.DEV).get(incomplete.id())).isEmpty();
+    assertThat(pairs.offeredFor(incomplete, members, "dev", Env.DEV)).isEmpty();
+    verifyNoInteractions(registry, templates);
+  }
+
+  @Test
+  void incompleteConfigurationCannotInfluenceAnotherConnectionsSharedToolSchema() {
+    Connector connector = connector();
+    ConnectionConfig complete = connection("complete", "opensearch");
+    ConnectionConfig incomplete = incomplete();
+    List<ToolPairs.Member> members = List.of(member(complete), member(incomplete));
+
+    assertThat(pairs.offered(members, "dev", Env.DEV).get(incomplete.id())).isEmpty();
+    pairs.offeredFor(complete, members, "dev", Env.DEV);
+
+    ArgumentCaptor<EndpointView> view = ArgumentCaptor.forClass(EndpointView.class);
+    verify(connector, times(2)).tools(view.capture());
+    for (EndpointView offered : view.getAllValues()) assertThat(offered.connections()).containsExactly(complete);
+    verify(templates, never()).compiledFor(incomplete.id());
+  }
+
+  @Test
   void mcpDefaultsUseExplicitReadDeclarationsInEveryEnvironmentWhilePluginsStillRequireConfirmation() {
     ToolDefinition read = ToolDefinition.builder("search").defaultMode(Mode.APPROVAL, Mode.APPROVAL).build();
     ToolDefinition undeclared = ToolDefinition.builder("get_status")
@@ -138,5 +166,11 @@ class ToolPairsTest {
   private static ConnectionConfig connection(String id, String backend) {
     return new ConnectionConfig(id, id, "logs", Env.DEV, 1,
         JsonNodeFactory.instance.objectNode().put("backend", backend), Set.of(), null);
+  }
+
+  private static ConnectionConfig incomplete() {
+    return new ConnectionConfig("incomplete", "incomplete", "logs", Env.DEV, 1,
+        JsonNodeFactory.instance.objectNode(), Set.of(),
+        JsonNodeFactory.instance.objectNode().put("setupRequired", true));
   }
 }

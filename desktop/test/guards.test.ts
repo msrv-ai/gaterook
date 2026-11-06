@@ -96,6 +96,18 @@ describe('deep links', () => {
     assert.equal(deepLinkInArgv(['app']), null);
   });
 
+  it('opens staged import review without accepting an import action or credentials', () => {
+    const path = 'connection-import/ci_0123456789ab';
+    assert.equal(deepLinkRoute(`gaterook://${path}`), path);
+    assert.equal(uiOpenRoute({ path: `/${path}` }), path);
+    for (const suffix of ['/commit', '?endpoint=prod', '?submissionToken=secret', '#import', '/../../settings']) {
+      assert.equal(deepLinkRoute(`gaterook://${path}${suffix}`), null);
+      assert.equal(uiOpenRoute({ path: `/${path}${suffix}` }), null);
+    }
+    assert.equal(deepLinkRoute('gaterook://connection-import/ci_short'), null);
+    assert.equal(deepLinkRoute('gaterook://connection-import/new'), null);
+  });
+
   it('a notification may also open the queue', () => {
     assert.equal(noticeRoute('/approvals'), 'approvals');
     assert.equal(noticeRoute('/approvals/ap_0123456789ab'), 'approvals/ap_0123456789ab');

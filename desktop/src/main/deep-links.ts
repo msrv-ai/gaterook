@@ -1,5 +1,5 @@
 // `gaterook://` links (ARCHITECTURE.md §7.1 "deep links use a strict regex and allow navigation only"): a link from outside
-// the app only ever opens one of a few screens — a request, an Activity event, a Settings section, the queue — and
+// the app only ever opens one of a few screens — a request, an Activity event, an import review, Settings, the queue — and
 // never acts. Main checks the shape here; the UI checks again against its own lists (ui/src/app/shell/deep-links.ts)
 // before it navigates.
 
@@ -8,6 +8,7 @@ export const SCHEME = 'gaterook';
 const ROUTES: readonly RegExp[] = [
   /^approvals\/ap_[a-z0-9]{12}$/,
   /^activity\/events\/[0-9]{1,18}$/,
+  /^connection-import\/ci_[a-z0-9]{12}$/,
   /^settings\/[a-z][a-z-]{0,39}$/,
 ];
 

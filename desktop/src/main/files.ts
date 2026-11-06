@@ -10,6 +10,7 @@ import { clientId, defaultFileName, filePurpose, linkId, openableConfig, reveala
 import type { Logger } from './log.ts';
 import type { CoreEndpoint } from './proxy.ts';
 import { choosePrivateKeyPath } from './private-key-picker.ts';
+import { chooseRepositoryPath } from './repository-picker.ts';
 
 export interface FilesOptions {
   readonly home: string;
@@ -22,6 +23,12 @@ export interface FilesOptions {
 export async function choosePrivateKeyFile(o: FilesOptions): Promise<string | null> {
   const win = o.window();
   return choosePrivateKeyPath((options) => win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options));
+}
+
+/** Returns the chosen repository folder without scanning it or requiring Git metadata. */
+export async function chooseRepository(o: FilesOptions): Promise<string | null> {
+  const win = o.window();
+  return chooseRepositoryPath((options) => win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options));
 }
 
 function requireCore(o: FilesOptions): CoreEndpoint {
