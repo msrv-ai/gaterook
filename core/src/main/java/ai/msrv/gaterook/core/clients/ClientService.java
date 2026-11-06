@@ -52,6 +52,7 @@ import ai.msrv.gaterook.core.platform.ProblemException;
 import ai.msrv.gaterook.core.platform.SetupChangeRecorder;
 import ai.msrv.gaterook.core.platform.SetupChangeRecorder.SetupChange;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -64,6 +65,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -126,7 +128,10 @@ public class ClientService {
   /** A previewed change, held until Confirm or ten minutes. */
   private record Plan(String id, PlanKind kind, ClientKind client, String slug, String endpointId, Env env,
       LinkMethod method, String grantId, String grantLabel, String entryName, Snapshot snapshot, String content,
-      String linkId, TokenOptions token, McpbBuilder.Spec mcpb, String backupId, Instant expiresAt) {}
+      String linkId, TokenOptions token, McpbBuilder.Spec mcpb, String backupId, List<String> consolidatedLinks,
+      Instant expiresAt) {}
+
+  private record EntryChoice(String name, boolean replacement, List<String> duplicates) {}
 
   private final ClientLinkRepository links;
   private final ClientGrants grants;
@@ -434,8 +439,9 @@ public class ClientService {
           ? "Use the bridge or sign-in for prod: a token in a file outlives the incident."
           : "Sign-in through the browser isn't offered for prod endpoints: use the bridge.", "/method");
     }
-    Optional<ClientLinkEntity> existing = readTx.execute(s -> links.findByClientAndRemovedAtIsNull(client).stream()
-        .filter(l -> l.getEndpointId().equals(e.id())).findFirst());
+    List<ClientLinkEntity> managed = readTx.execute(s -> links.findByClientAndRemovedAtIsNull(client).stream()
+        .filter(l -> l.getEndpointId().equals(e.id())).toList());
+    Optional<ClientLinkEntity> existing = managed.stream().findFirst();
     existing.ifPresent(this::guardLinkMutation);
     boolean repair = existing.isPresent();
     String grantId = null;
@@ -484,16 +490,33 @@ public class ClientService {
     Snapshot snapshot = ConfigFileWriter.read(file);
     storePolicy.snapshot(snapshot);
     String before = snapshot.exists() ? snapshot.content() : "";
-    String name = existing.map(ClientLinkEntity::getEntryName).orElseGet(() -> entryName(client, before, e.slug()));
+    EntryChoice choice = chooseEntry(client, before, e.slug(), url, existing);
+    String name = choice.name();
+    repair = repair || choice.replacement();
     EntryValues values = new EntryValues(e.slug(), url, grantId, method == LinkMethod.TOKEN
         ? ClientAdapter.TOKEN_PLACEHOLDER : null, approvalMode, toolTimeout);
     Entry entry = a.entry(env, method, name, values);
     String after;
     try {
-      after = edit(client, before, entry, repair);
+      String base = before;
+      for (String duplicate : choice.duplicates()) {
+        base = client == ClientKind.CODEX ? TomlBlockEditor.remove(base, duplicate)
+            : JsonEntryEditor.remove(base, "mcpServers", duplicate);
+      }
+      after = edit(client, base, entry, repair);
     } catch (ConfigEditException ex) {
       throw ex.fragment() != null ? ex : ex.withFragment(fragment(entry));
     }
+    if (choice.replacement()) notes.add("Replaces existing entry " + name + ".");
+    if (!choice.duplicates().isEmpty()) notes.add("Removes duplicate entries for this endpoint: "
+        + String.join(", ", choice.duplicates()) + ".");
+    List<String> consolidatedLinks = managed.stream()
+        .filter(l -> existing.isEmpty() || !l.getId().equals(existing.get().getId()))
+        .filter(l -> l.getEntryName() != null && (l.getEntryName().equals(name)
+            || choice.duplicates().contains(l.getEntryName())))
+        .filter(l -> l.getConfigPath() != null && Path.of(l.getConfigPath()).toAbsolutePath().normalize()
+            .equals(snapshot.realPath()))
+        .peek(this::guardLinkMutation).map(ClientLinkEntity::getId).toList();
     String modeChange = null;
     if (a.tokenInFile(method)) {
       notes.add("Token " + token.name() + " · expires in " + token.ttlDays() + (token.ttlDays() == 1 ? " day" : " days")
@@ -514,7 +537,7 @@ public class ClientService {
         snapshot.exists() ? env.display(snapshot.realPath()) + ".bak-" + java.time.LocalDate.now(clock.withZone(
             java.time.ZoneId.systemDefault())) : null, modeChange);
     Plan plan = new Plan(Ids.uuid(), PlanKind.CONNECT, client, e.slug(), e.id(), e.env(), method, grantId, label, name,
-        snapshot, after, existing.map(ClientLinkEntity::getId).orElse(null), token, null, null,
+        snapshot, after, existing.map(ClientLinkEntity::getId).orElse(null), token, null, null, consolidatedLinks,
         clock.instant().plus(PREVIEW_TTL));
     keep(plan);
     return new Preview(plan.id(), client.id(), e.slug(), e.env().id(), KebabCase.of(method), repair, List.of(change),
@@ -535,7 +558,7 @@ public class ClientService {
     FileChange change = new FileChange(target.toString(), env.display(target), target.toString(),
         Files.exists(target), "mcpb", diff(null, manifest), null, null);
     Plan plan = new Plan(Ids.uuid(), PlanKind.CONNECT, a.kind(), e.slug(), e.id(), e.env(), LinkMethod.MCPB, grantId,
-        label, null, null, null, existing.map(ClientLinkEntity::getId).orElse(null), null, spec, null,
+        label, null, null, null, existing.map(ClientLinkEntity::getId).orElse(null), null, spec, null, List.of(),
         clock.instant().plus(PREVIEW_TTL));
     keep(plan);
     return new Preview(plan.id(), a.kind().id(), e.slug(), e.env().id(), "mcpb", repair, List.of(change),
@@ -591,7 +614,12 @@ public class ClientService {
         revokeQuietly(issued);
         throw e;
       }
-      content = withToken(plan.snapshot().exists() ? plan.snapshot().content() : "", content, issued.token());
+      try {
+        content = withToken(content, plan.entryName(), issued.token());
+      } catch (RuntimeException ex) {
+        revokeQuietly(issued);
+        throw ex;
+      }
     }
     ConfigFileWriter.Written written;
     try {
@@ -688,6 +716,14 @@ public class ClientService {
     link.setGrantId(plan.grantId());
     link.setTokenId(tokenId);
     ClientLinkEntity saved = links.save(link);
+    for (String id : plan.consolidatedLinks()) {
+      links.findById(id).filter(l -> l.getRemovedAt() == null).ifPresent(duplicate -> {
+        duplicate.setStatus("removed");
+        duplicate.removed(clock.instant());
+        links.save(duplicate);
+        revokeOld(duplicate, plan.grantId());
+      });
+    }
     ObjectNode details = JsonNodeFactory.instance.objectNode();
     details.put("method", KebabCase.of(plan.method()));
     details.put("file", env.display(Path.of(configPath)));
@@ -819,7 +855,7 @@ public class ClientService {
         ? "The access is revoked: the current token stops on its next call, and no new one is issued." : "The "
         + "client's sign-in is no longer offered.");
     Plan plan = new Plan(Ids.uuid(), PlanKind.DISCONNECT, l.getClient(), slug, l.getEndpointId(), envOf,
-        l.getMethod(), l.getGrantId(), null, l.getEntryName(), snapshot, after, l.getId(), null, null, null,
+        l.getMethod(), l.getGrantId(), null, l.getEntryName(), snapshot, after, l.getId(), null, null, null, List.of(),
         clock.instant().plus(PREVIEW_TTL));
     keep(plan);
     return new Preview(plan.id(), l.getClient().id(), slug, envOf == null ? null : envOf.id(),
@@ -1115,7 +1151,7 @@ public class ClientService {
         snapshot.exists() ? env.display(snapshot.realPath()) + ".bak-" + java.time.LocalDate.now(clock.withZone(
             java.time.ZoneId.systemDefault())) : null, null);
     Plan plan = new Plan(Ids.uuid(), PlanKind.RESTORE, client, null, null, null, null, null, null, null, snapshot,
-        content, null, null, null, backupId, clock.instant().plus(PREVIEW_TTL));
+        content, null, null, null, backupId, List.of(), clock.instant().plus(PREVIEW_TTL));
     keep(plan);
     List<String> notes = List.of("Entries GateRook wrote after this copy are gone after the restore; their "
         + "access stays until you disconnect them.");
@@ -1362,7 +1398,102 @@ public class ClientService {
     return entry.tomlBlock() != null ? entry.tomlBlock() : JsonEntryEditor.pretty(entry.name(), entry.json());
   }
 
-  /** {@code gaterook-<slug>}, or {@code gaterook-<slug>-2}, … when the name belongs to an entry that isn't ours. */
+  /** Reconnect a generated entry for this exact address; preserve aliases and entries for another address. */
+  private EntryChoice chooseEntry(ClientKind client, String content, String slug, String url,
+      Optional<ClientLinkEntity> managed) {
+    String base = "gaterook-" + slug;
+    List<String> names = client == ClientKind.CODEX ? TomlBlockEditor.names(content)
+        : List.copyOf(JsonEntryEditor.names(content, "mcpServers"));
+    List<String> matching = names.stream().filter(name -> generatedEntryName(base, name))
+        .filter(name -> configEntry(client, content, name).filter(entry -> sameEndpoint(entry, url)).isPresent())
+        .sorted(Comparator.comparingInt(String::length).thenComparing(Comparator.naturalOrder())).toList();
+    Optional<String> reusable = managed.map(ClientLinkEntity::getEntryName).filter(name -> {
+      Optional<JsonNode> entry = configEntry(client, content, name);
+      return entry.isEmpty() || sameEndpoint(entry.get(), url)
+          || sameManagedHelper(entry.get(), client, slug, url, managed.get().getGrantId())
+          || sameBridge(entry.get(), client, slug, managed.get().getGrantId());
+    });
+    String selected = matching.contains(base) ? base : reusable.orElseGet(() -> matching.isEmpty()
+        ? entryName(client, content, slug) : matching.getFirst());
+    if (selected.length() > 49) throw ProblemException.unprocessable("Name too long",
+        "The endpoint's slug is too long for a client entry.", "/endpoint");
+    return new EntryChoice(selected, names.contains(selected), matching.stream()
+        .filter(name -> !name.equals(selected)).toList());
+  }
+
+  private static boolean generatedEntryName(String base, String name) {
+    if (name.equals(base)) return true;
+    if (!name.startsWith(base + "-")) return false;
+    String suffix = name.substring(base.length() + 1);
+    return !suffix.equals("1") && suffix.matches("[1-9][0-9]*");
+  }
+
+  private static Optional<JsonNode> configEntry(ClientKind client, String content, String name) {
+    return client == ClientKind.CODEX ? TomlBlockEditor.table(content, name)
+        : JsonEntryEditor.entry(content, "mcpServers", name);
+  }
+
+  /** A direct URL proves identity; a command, credentials, query or conflicting URL cannot stand in for it. */
+  private static boolean sameEndpoint(JsonNode entry, String url) {
+    if (!entry.isObject() || entry.has("command") || entry.has("args")) return false;
+    boolean found = false;
+    for (String key : List.of("url", "serverUrl")) {
+      if (!entry.has(key)) continue;
+      JsonNode value = entry.get(key);
+      if (!value.isString() || !sameEndpointUrl(value.asString(), url)) return false;
+      found = true;
+    }
+    return found;
+  }
+
+  private static boolean sameEndpointUrl(String value, String expected) {
+    return sameEndpointUrl(value, expected, false);
+  }
+
+  private static boolean sameEndpointUrl(String value, String expected, boolean portMayHaveChanged) {
+    try {
+      URI actual = URI.create(value);
+      URI target = URI.create(expected);
+      return actual.getHost() != null && actual.getScheme() != null
+          && actual.getRawUserInfo() == null && actual.getRawQuery() == null && actual.getRawFragment() == null
+          && actual.getScheme().equalsIgnoreCase(target.getScheme())
+          && actual.getHost().equalsIgnoreCase(target.getHost())
+          && (portMayHaveChanged || effectivePort(actual) == effectivePort(target))
+          && java.util.Objects.equals(actual.getRawPath(), target.getRawPath());
+    } catch (IllegalArgumentException ex) {
+      return false;
+    }
+  }
+
+  private static int effectivePort(URI uri) {
+    if (uri.getPort() >= 0) return uri.getPort();
+    return "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
+  }
+
+  /** A known Codex grant's exact helper proves ownership when only the local listener port drifted. */
+  private boolean sameManagedHelper(JsonNode entry, ClientKind client, String slug, String url, String grant) {
+    return client == ClientKind.CODEX && grant != null && entry.isObject()
+        && !entry.has("command") && !entry.has("args") && !entry.has("serverUrl")
+        && entry.path("url").isString() && sameEndpointUrl(entry.path("url").asString(), url, true)
+        && env.helperCommand("headers", "--endpoint", slug, "--grant", grant)
+            .equals(entry.path("http_headers_helper").asString());
+  }
+
+  /** Only a managed bridge with the exact current executable and generated arguments can be repaired in place. */
+  private boolean sameBridge(JsonNode entry, ClientKind client, String slug, String grant) {
+    if (grant == null || !entry.isObject() || !env.bridgeExecutable().toString().equals(entry.path("command").asString())
+        || entry.propertyNames().stream().anyMatch(name -> !Set.of("type", "command", "args").contains(name))
+        || entry.has("type") && !"stdio".equals(entry.path("type").asString())) return false;
+    JsonNode args = entry.path("args");
+    List<String> expected = List.of("stdio", "--endpoint", slug, "--grant", grant, "--client", client.id());
+    if (!args.isArray() || args.size() != expected.size()) return false;
+    for (int i = 0; i < expected.size(); i++) {
+      if (!args.get(i).isString() || !expected.get(i).equals(args.get(i).asString())) return false;
+    }
+    return true;
+  }
+
+  /** {@code gaterook-<slug>}, or {@code gaterook-<slug>-2}, … when the name belongs to a different entry. */
   private static String entryName(ClientKind client, String content, String slug) {
     Set<String> taken = new java.util.HashSet<>(client == ClientKind.CODEX ? TomlBlockEditor.names(content)
         : JsonEntryEditor.names(content, "mcpServers"));
@@ -1399,24 +1530,16 @@ public class ClientService {
     return null;
   }
 
-  /**
-   * {@code after} with {@code token} in place of {@code ‹new token›} inside the text our edit wrote only (between the
-   * parts {@code before} and {@code after} share at either end): a placeholder the person's own file already held —
-   * pasted from an "add it by hand" fragment — stays as it is.
-   */
-  static String withToken(String before, String after, String token) {
-    int max = Math.min(before.length(), after.length());
-    int head = 0;
-    while (head < max && before.charAt(head) == after.charAt(head)) {
-      head++;
+  /** Fill only the selected entry: consolidating duplicates must not replace a placeholder in an untouched alias. */
+  static String withToken(String content, String name, String token) {
+    JsonNode selected = JsonEntryEditor.entry(content, "mcpServers", name).orElseThrow();
+    if (!selected.isObject() || !("Bearer " + ClientAdapter.TOKEN_PLACEHOLDER)
+        .equals(selected.path("headers").path("Authorization").asString())) {
+      throw ProblemException.conflict("Check the change again", "The previewed entry no longer has its token placeholder.");
     }
-    int tail = 0;
-    while (tail < max - head && before.charAt(before.length() - 1 - tail) == after.charAt(after.length() - 1 - tail)) {
-      tail++;
-    }
-    return after.substring(0, head)
-        + after.substring(head, after.length() - tail).replace(ClientAdapter.TOKEN_PLACEHOLDER, token)
-        + after.substring(after.length() - tail);
+    ObjectNode entry = (ObjectNode) selected.deepCopy();
+    ((ObjectNode) entry.get("headers")).put("Authorization", "Bearer " + token);
+    return JsonEntryEditor.upsert(content, "mcpServers", name, entry);
   }
 
   /** {@code cursor://anysphere.cursor-deeplink/mcp/install?name=…&config=…}: the URL only, never a token. */

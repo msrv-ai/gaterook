@@ -2069,7 +2069,69 @@ function sshLogs() {
       logs: { root: '/var/log', allowedFiles: ['app.log'] } } };
 }
 
+const SSH_LOG_KEY = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG4q5cLnwuK6nh3KekSjpSxn3RUE8TATPm0X+fK02R8D';
+const firstSshLogHost = (host = 'logs.example.test') => outcome({
+  confirmationId: 'cf_ssh_first',
+  needsConfirmation: { kind: 'host-key', text: `First connection to ${host}:22.`, data: {
+    kind: 'host-key', host, port: 22, bastion: false, keyType: 'ssh-ed25519',
+    fingerprint: 'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', publicKey: SSH_LOG_KEY,
+  } },
+});
+
 describe('connection-new: SSH remote files', () => {
+  it('automatically pins the first browsed host only in the draft until Save changes', async () => {
+    sshLogs();
+    const p = await open('/connections/dev-db');
+    let finish!: (value: TestConfirmed) => void;
+    core.pendingConfirm = new Promise((resolve) => { finish = resolve; });
+    core.nextFiles = firstSshLogHost();
+    p.button('Browse folders').click(); await p.settle();
+    expect(TestBed.inject(ConnectionsApi).confirmDraft).toHaveBeenCalledExactlyOnceWith('cf_ssh_first');
+    expect(text(p.q('#cf-form'))).not.toContain('Trust host key and browse');
+    core.nextFiles = outcome({ ok: true, details: { path: '/var/log', parent: '/var', entries: [], truncated: false } });
+    finish({ kind: 'host-key', config: { ...(core.detail as ConnectionDetail).config, hostKeys: { pinned: [SSH_LOG_KEY] } }, retest: null });
+    await p.settle();
+    expect(core.fileRequests).toHaveLength(2);
+    expect(core.fileRequests[1].config['hostKeys']).toEqual({ pinned: [SSH_LOG_KEY] });
+    expect(p.page().form()!.value().config['hostKeys']).toEqual({ pinned: [SSH_LOG_KEY] });
+    expect((core.detail as ConnectionDetail).config['hostKeys']).toBeUndefined();
+    expect(core.updates).toEqual([]);
+    expect(core.created).toEqual([]);
+
+    p.button('Save changes').click(); await p.settle();
+    expect(core.updates).toHaveLength(1);
+    expect(core.updates[0].config['hostKeys']).toEqual({ pinned: [SSH_LOG_KEY] });
+  });
+
+  it.each(['ssh.host-key-changed', 'ssh.host-key-revoked'])('does not automatically trust %s while browsing', async (code) => {
+    sshLogs();
+    const p = await open('/connections/dev-db');
+    core.nextFiles = outcome({ error: { code, message: 'The previously trusted host key is no longer accepted.', technical: null } });
+    p.button('Browse folders').click(); await p.settle();
+    expect(TestBed.inject(ConnectionsApi).confirmDraft).not.toHaveBeenCalled();
+    expect(core.fileRequests).toHaveLength(1);
+    expect(core.updates).toEqual([]);
+    expect(p.page().form()!.value().config).not.toHaveProperty('hostKeys.pinned');
+    expect(text(p.q('#cf-form'))).toContain('previously trusted host key');
+  });
+
+  it('discards a late automatic host pin when the connection target changes', async () => {
+    sshLogs();
+    const p = await open('/connections/dev-db');
+    let finish!: (value: TestConfirmed) => void;
+    core.pendingConfirm = new Promise((resolve) => { finish = resolve; });
+    core.nextFiles = firstSshLogHost();
+    p.button('Browse folders').click(); await p.settle();
+    expect(TestBed.inject(ConnectionsApi).confirmDraft).toHaveBeenCalledExactlyOnceWith('cf_ssh_first');
+    await p.type('cf-connection-host', 'another.example.test');
+    finish({ kind: 'host-key', config: { ...(core.detail as ConnectionDetail).config, hostKeys: { pinned: [SSH_LOG_KEY] } }, retest: null });
+    await p.settle();
+    expect(p.page().form()!.value().config['connection']).toMatchObject({ host: 'another.example.test' });
+    expect(p.page().form()!.value().config).not.toHaveProperty('hostKeys.pinned');
+    expect(core.fileRequests).toHaveLength(1);
+    expect(core.updates).toEqual([]);
+  });
+
   it('uses stored credentials for edits and retries browsing only after consent to a changed host', async () => {
     sshLogs();
     const p = await open('/connections/dev-db');
@@ -2095,14 +2157,17 @@ describe('connection-new: SSH remote files', () => {
     await p.type('cf-connection-host', 'other.example.test');
     core.nextFiles = new ApiError('conflict', 409, { title: 'Send the stored password?', detail: 'The host changed.', confirm: 'send-secret-to-new-host' });
     p.button('Browse folders').click(); await p.settle();
-    core.nextFiles = HOST_KEY;
+    core.nextFiles = firstSshLogHost('other.example.test');
+    let finish!: (value: TestConfirmed) => void;
+    core.pendingConfirm = new Promise((resolve) => { finish = resolve; });
     p.button('Send and browse folders', p.q('#dlg-new-host')!).click(); await p.settle();
-    core.pendingConfirm = Promise.resolve({ kind: 'host-key', config: { hostKeys: { pinned: ['ssh-ed25519 AAAA'] } }, retest: OK });
+    expect(TestBed.inject(ConnectionsApi).confirmDraft).toHaveBeenCalledExactlyOnceWith('cf_ssh_first');
     core.nextFiles = outcome({ ok: true, details: { path: '/var/log', parent: '/var', entries: [], truncated: false } });
-    p.button('Trust host key and browse').click(); await p.settle();
+    finish({ kind: 'host-key', config: { hostKeys: { pinned: [SSH_LOG_KEY] } }, retest: null });
+    await p.settle();
     expect(core.fileRequests).toHaveLength(3);
     expect(core.fileRequests[2]).toMatchObject({ confirm: 'send-secret-to-new-host',
-      config: { connection: { host: 'other.example.test' }, hostKeys: { pinned: ['ssh-ed25519 AAAA'] } } });
+      config: { connection: { host: 'other.example.test' }, hostKeys: { pinned: [SSH_LOG_KEY] } } });
     await p.type('cf-connection-host', 'different.example.test');
     p.button('Browse folders').click(); await p.settle();
     expect(core.fileRequests[3].confirm).toBeUndefined();
@@ -2111,17 +2176,17 @@ describe('connection-new: SSH remote files', () => {
   it('does not restore file permissions removed while host-key confirmation is in flight', async () => {
     sshLogs();
     const p = await open('/connections/dev-db');
-    core.nextFiles = HOST_KEY;
-    p.button('Browse folders').click(); await p.settle();
+    core.nextFiles = firstSshLogHost();
     let finish!: (value: TestConfirmed) => void;
     core.pendingConfirm = new Promise((resolve) => { finish = resolve; });
-    p.button('Trust host key and browse').click(); await p.settle();
+    p.button('Browse folders').click(); await p.settle();
+    expect(TestBed.inject(ConnectionsApi).confirmDraft).toHaveBeenCalledExactlyOnceWith('cf_ssh_first');
     p.q<HTMLButtonElement>('button[aria-label="Remove allowed file app.log"]')!.click(); await p.settle();
     core.nextFiles = outcome({ ok: true, details: { path: '/var/log', parent: '/var', entries: [], truncated: false } });
-    finish({ kind: 'host-key', config: { ...(core.detail as ConnectionDetail).config, hostKeys: { pinned: ['ssh-ed25519 AAAA'] } }, retest: OK });
+    finish({ kind: 'host-key', config: { ...(core.detail as ConnectionDetail).config, hostKeys: { pinned: [SSH_LOG_KEY] } }, retest: null });
     await p.settle();
     expect(p.page().form()!.files()!.selected()).toEqual([]);
-    expect(p.page().form()!.value().config['hostKeys']).toEqual({ pinned: ['ssh-ed25519 AAAA'] });
+    expect(p.page().form()!.value().config['hostKeys']).toEqual({ pinned: [SSH_LOG_KEY] });
     expect(core.fileRequests).toHaveLength(2);
     expect(core.fileRequests[1].config['logs']).toMatchObject({ root: '/var/log' });
     expect(core.fileRequests[1].config['logs']).not.toHaveProperty('allowedFiles');

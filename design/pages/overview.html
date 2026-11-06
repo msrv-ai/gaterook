@@ -141,7 +141,7 @@
           in use     Waiting for your approval (quick access, only while requests wait; a quiet line when none)
                      → Your connections (endpoint groups with AI apps, all connection tiles shown, problems first)
                      → AI apps (status-tile, 2 × 2) → one line about Activity
-          first-run  nothing set up: a gw-stepper --guide card, 1 Add a connection · 2 Connect your AI app · 3 Check that it works
+          first-run  no connections yet, an empty dev endpoint exists: a gw-stepper --guide card, 1 Add a connection · 2 Connect your AI app · 3 Check that it works; endpoints=none shows the missing-endpoint state
           setup      a connection exists, no AI app yet: step 1 done, step 2 current
         Blocks carry data-ov-show with their states; the page script removes the blocks of the other states
         before kit.js starts (no hidden timers, no duplicate headings). Demo data: BLUEPRINT §9, "now" is 14:30.
@@ -153,8 +153,9 @@
             <p class="gw-page-header__description" data-ov-show="in-use">What waits for your approval and what is connected.</p>
             <p class="gw-page-header__description" data-ov-show="first-run setup" hidden>Let your AI apps use your databases and servers without ever seeing a password.</p>
           </div>
-          <div class="gw-page-header__actions" data-ov-show="in-use">
-            <a class="gw-btn" href="connection-new.html"><i class="gw-icon" data-lucide="plus"></i> Add connection</a>
+          <div class="gw-page-header__actions">
+            <a class="gw-btn gw-btn--primary" href="/connection-import"><i class="gw-icon" data-lucide="lightbulb"></i> Import with AI</a>
+            <a class="gw-btn" href="connection-new.html" data-ov-show="in-use"><i class="gw-icon" data-lucide="plus"></i> Add connection</a>
           </div>
         </div>
       </header>
@@ -518,7 +519,14 @@
 
       <p class="gw-text-small gw-fg-muted" data-ov-show="in-use"><i class="gw-icon gw-icon--sm" data-lucide="activity"></i> 1,287 calls from your AI apps in the last 24 hours, 17 denied by policy. Each one is in <a class="gw-link" href="activity.html">Activity</a>.</p>
 
-      <!-- ═══════════════ FIRST RUN: nothing set up yet ═══════════════ -->
+      <!-- ═══════════════ FIRST RUN: no connections yet ═══════════════ -->
+      <div class="gw-alert gw-alert--brand" data-ov-show="first-run" hidden>
+        <i class="gw-icon gw-alert__icon" data-lucide="lightbulb"></i>
+        <div class="gw-alert__content">
+          <p class="gw-alert__title">The easiest way to set up your environment</p>
+          <p class="gw-alert__body" id="ov-ai-import-hint">Choose Import with AI and let your AI app find databases, logs and other connections in your repository. GateRook helps you connect the app, then you review what to import and choose the endpoint. You can also follow the manual setup steps below.</p>
+        </div>
+      </div>
       <section class="gw-card" aria-labelledby="ov-first-title" data-ov-show="first-run" hidden>
         <header class="gw-card__header">
           <div class="gw-card__heading">
@@ -533,7 +541,10 @@
               <h3 class="gw-stepper__label">Add your first connection</h3>
               <p class="gw-stepper__description">A connection is something your AI can work with: a database, a server, logs or an API. Choose its type, for example PostgreSQL, enter its address and password, and test it.</p>
               <div class="gw-stepper__content gw-stack gw-stack--sm">
-                <div><a class="gw-btn gw-btn--primary" href="connection-new.html?state=first-run"><i class="gw-icon" data-lucide="plus"></i> Add connection</a></div>
+                <div class="gw-stepper__actions">
+                  <a class="gw-btn" href="connection-new.html?state=first-run"><i class="gw-icon" data-lucide="plus"></i> Add connection</a>
+                  <a class="gw-btn gw-btn--primary" href="/connection-import" aria-describedby="ov-ai-import-hint"><i class="gw-icon" data-lucide="lightbulb"></i> Import with AI</a>
+                </div>
                 <p class="gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="shield-check"></i> Your AI can read right away. Anything that changes data waits for your approval.</p>
               </div>
             </li>
@@ -551,7 +562,7 @@
                     </div>
                     <div class="gw-status-tile__end">
                       <span class="gw-status gw-status--info"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not connected</span></span>
-                      <button class="gw-btn gw-btn--sm" type="button" aria-disabled="true" aria-describedby="ov-first-why">Connect<span class="gw-sr-only"> Claude Desktop</span></button>
+                      <a class="gw-btn gw-btn--sm" href="clients.html?state=first-run#cl-cd-t" data-ov-first-connect>Connect<span class="gw-sr-only"> Claude Desktop</span></a>
                     </div>
                   </li>
                   <li class="gw-card gw-status-tile">
@@ -562,7 +573,7 @@
                     </div>
                     <div class="gw-status-tile__end">
                       <span class="gw-status gw-status--info"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not connected</span></span>
-                      <button class="gw-btn gw-btn--sm" type="button" aria-disabled="true" aria-describedby="ov-first-why">Connect<span class="gw-sr-only"> Codex</span></button>
+                      <a class="gw-btn gw-btn--sm" href="clients.html?state=first-run#cl-cx-t" data-ov-first-connect>Connect<span class="gw-sr-only"> Codex</span></a>
                     </div>
                   </li>
                   <li class="gw-card gw-status-tile">
@@ -573,7 +584,7 @@
                     </div>
                     <div class="gw-status-tile__end">
                       <span class="gw-status gw-status--info"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not connected</span></span>
-                      <button class="gw-btn gw-btn--sm" type="button" aria-disabled="true" aria-describedby="ov-first-why">Connect<span class="gw-sr-only"> Cursor</span></button>
+                      <a class="gw-btn gw-btn--sm" href="clients.html?state=first-run#cl-cu-t" data-ov-first-connect>Connect<span class="gw-sr-only"> Cursor</span></a>
                     </div>
                   </li>
                   <li class="gw-card gw-status-tile">
@@ -588,7 +599,7 @@
                     </div>
                   </li>
                 </ul>
-                <p class="gw-text-caption gw-fg-muted" id="ov-first-why"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i> Add a connection first: your AI app needs something to work with.</p>
+                <p class="gw-text-caption gw-fg-muted" id="ov-first-why" hidden><i class="gw-icon gw-icon--xs" data-lucide="lock"></i> <a class="gw-link" href="endpoints.html">Create an endpoint</a> before connecting your AI app.</p>
               </div>
             </li>
             <li class="gw-stepper__step" data-state="upcoming">
@@ -686,7 +697,8 @@
       <!-- Demo only: the other states of this page. Not part of the app. -->
       <p class="gw-text-caption gw-fg-muted">Demo only, this page in other states:
         <a class="gw-link" href="overview.html" data-ov-ref="in-use">In use</a> ·
-        <a class="gw-link" href="overview.html?state=first-run" data-ov-ref="first-run">Nothing set up yet</a> ·
+        <a class="gw-link" href="overview.html?state=first-run" data-ov-ref="first-run">No connections, empty endpoint</a> ·
+        <a class="gw-link" href="overview.html?state=first-run&amp;endpoints=none" data-ov-ref="first-run" data-ov-endpoints="none">No endpoint yet</a> ·
         <a class="gw-link" href="overview.html?state=setup" data-ov-ref="setup">One connection, no AI app</a>
       </p>
 
@@ -822,7 +834,7 @@
    1. Reference states: overview.html?state=first-run | setup. The page removes the blocks of the other
       states before kit.js starts (the app renders one state), so no hidden countdown runs and no heading is
       doubled. Outside "in use" nothing waits yet: the shell's approval counters go, and the command palette
-      offers only what exists (nothing in first run; dev-db and endpoint dev in setup).
+      offers only what exists (the empty dev endpoint in first run, none with endpoints=none; dev-db and endpoint dev in setup).
    2. Quick access follows the queue: a request that expires (kit.js gw-countdown-end) leaves the list, the
       counters and names follow, and after the last one the quiet "Nothing waits" line takes its place.
    3. Test again (billing-api): the button is busy (aria-busy + aria-disabled + spinner, label kept) and the
@@ -831,20 +843,39 @@
   "use strict";
   var doc = document;
   var STATES = ["in-use", "first-run", "setup"];
-  var state = new URLSearchParams(window.location.search).get("state");
+  var params = new URLSearchParams(window.location.search);
+  var state = params.get("state");
   if (STATES.indexOf(state) < 0) state = "in-use";
+  var noEndpoints = state === "first-run" && params.get("endpoints") === "none";
 
   doc.querySelectorAll("[data-ov-show]").forEach(function (el) {
     if (el.getAttribute("data-ov-show").split(/\s+/).indexOf(state) < 0) el.remove();
     else if (el.id !== "ov-wait-none") el.hidden = false;
   });
   doc.querySelectorAll("[data-ov-ref]").forEach(function (a) {
-    if (a.getAttribute("data-ov-ref") !== state) return;
+    if (a.getAttribute("data-ov-ref") !== state || (a.getAttribute("data-ov-endpoints") === "none") !== noEndpoints) return;
     var current = doc.createElement("span");
     current.setAttribute("aria-current", "page");
     current.textContent = a.textContent;
     a.replaceWith(current);
   });
+
+  if (noEndpoints) {
+    doc.querySelectorAll("[data-ov-first-connect]").forEach(function (a) {
+      var button = doc.createElement("button");
+      button.className = a.className;
+      button.type = "button";
+      button.setAttribute("aria-disabled", "true");
+      button.setAttribute("aria-describedby", "ov-first-why");
+      button.innerHTML = a.innerHTML;
+      a.replaceWith(button);
+    });
+    var missingEndpoint = doc.getElementById("ov-first-why");
+    if (missingEndpoint) missingEndpoint.hidden = false;
+    doc.querySelectorAll('a[href^="clients.html?state=first-run#"]').forEach(function (a) {
+      a.setAttribute("href", a.getAttribute("href").replace("state=first-run#", "state=first-run&endpoints=none#"));
+    });
+  }
 
   function setWaiting(n) {
     doc.querySelectorAll(".gw-titlebar .gw-counter, .gw-nav__counter, #cmdk .gw-counter").forEach(function (c) {
@@ -857,8 +888,8 @@
 
   if (state !== "in-use") {
     setWaiting(0);
-    // only what exists: nothing in first run; dev-db and endpoint dev in setup (the same rule as on AI apps)
-    var keep = state === "setup" ? ["cmdk-o-dev-db", "cmdk-o-ep-dev"] : [];
+    // Only what exists: an empty dev endpoint in first run unless absent; dev-db and dev in setup.
+    var keep = state === "setup" ? ["cmdk-o-dev-db", "cmdk-o-ep-dev"] : noEndpoints ? [] : ["cmdk-o-ep-dev"];
     ["cmdk-g-connections", "cmdk-g-endpoints"].forEach(function (id) {
       var group = doc.querySelector('#cmdk [aria-labelledby="' + id + '"]');
       if (!group) return;
@@ -866,7 +897,7 @@
       if (!group.querySelector(".gw-menu__item")) group.remove();
     });
     if (state === "first-run") {
-      ["cmdk-o-copy-dev", "cmdk-o-issue-token"].forEach(function (id) { var o = doc.getElementById(id); if (o) o.remove(); });
+      if (noEndpoints) ["cmdk-o-copy-dev", "cmdk-o-issue-token"].forEach(function (id) { var o = doc.getElementById(id); if (o) o.remove(); });
       ["#cmdk-o-add-connection", "#cmdk .gw-empty__actions a"].forEach(function (sel) { var a = doc.querySelector(sel); if (a) a.setAttribute("href", "connection-new.html?state=first-run"); });
     }
   }

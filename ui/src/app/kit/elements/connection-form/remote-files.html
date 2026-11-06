@@ -5,6 +5,7 @@
   <header class="gw-form__section-header">
     <h3 class="gw-form__legend" [id]="p + '-files-title'">Remote log files</h3>
     <p class="gw-form__description">Browse the server, choose a log folder, then select the files agents may read. Only selected files are allowed; new files are not added automatically.</p>
+    @if (type() === 'ssh-logs') { <p class="gw-field__hint">Browsing trusts the first SSH host key for this draft. Changed or revoked keys still stop the connection.</p> }
   </header>
   <div class="gw-form__rows">
     <div class="gw-field">
@@ -19,7 +20,7 @@
         </button>
       </div>
       <p class="gw-field__hint" [id]="p + '-files-status'" role="status">
-        @if (busy()) {Connecting and loading the remote folder…}
+        @if (busy()) {@if (trustingFirstKey()) {Trusting the first SSH host key and loading the remote folder…} @else {Connecting and loading the remote folder…}}
         @else if (listing) { {{ listing.entries.length }} entries · {{ selected().length }} files allowed }
         @else {Enter the SSH server and credentials above, then browse an absolute folder path.}
       </p>
@@ -39,7 +40,7 @@
           <dl class="gw-kv gw-kv--dense">
             @for (fact of facts(); track fact.key) {<div class="gw-kv__row"><dt class="gw-kv__key">{{ fact.label }}</dt><dd class="gw-kv__value gw-mono">{{ fact.value }}</dd></div>}
           </dl>
-          @if (state!.outcome?.confirmationId) {<div class="gw-alert__actions"><button class="gw-btn" type="button" (click)="confirm()">Trust host key and browse</button></div>}
+          @if (state!.outcome?.confirmationId) {<div class="gw-alert__actions"><button class="gw-btn" type="button" (click)="confirm()">{{ state!.outcome!.needsConfirmation!.kind === 'host-key' ? 'Trust host key and browse' : 'Confirm and browse' }}</button></div>}
         </div>
       </div>
     }

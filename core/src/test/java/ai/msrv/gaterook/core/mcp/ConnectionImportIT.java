@@ -8,6 +8,7 @@ import ai.msrv.gaterook.core.connections.ConnectionService;
 import ai.msrv.gaterook.core.endpoints.EndpointService;
 import ai.msrv.gaterook.core.endpoints.TokenService;
 import ai.msrv.gaterook.core.platform.LocalListener;
+import ai.msrv.gaterook.core.secrets.store.FakeVault;
 import ai.msrv.gaterook.testfixtures.TestCore;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,6 +26,7 @@ class ConnectionImportIT {
   private static AdminMvc admin;
   private static McpClient agent;
   private static McpClient other;
+  private static FakeVault vault;
 
   @BeforeAll static void start() {
     core = TestCore.start("connection-import");
@@ -39,7 +41,10 @@ class ConnectionImportIT {
     admin = new AdminMvc(core.context(), port);
   }
 
-  @AfterAll static void stop() { if (core != null) core.close(); }
+  @AfterAll static void stop() throws Exception {
+    if (core != null) core.close();
+    if (vault != null) vault.close();
+  }
 
   @Test void fileHandoffKeepsLiteralsPrivateAndOnlyThePersonCanCreateTheSelectedConnections() throws Exception {
     JsonNode session = session();
@@ -100,6 +105,49 @@ class ConnectionImportIT {
     assertThat(other.legacyCall("open_connection_import", args("sessionId", session.path("id").asString()))
         .result().path("isError").asBoolean()).isTrue();
     assertThat(core.bean(EndpointService.class).snapshot("import-source").connections()).isEmpty();
+  }
+
+  @Test void storeUserReferencesStageWithoutReadingTheStoreAndCommitOnlyWithAStorePassword() throws Exception {
+    vault = new FakeVault();
+    ObjectNode store = args("kind", "vault", "name", "import-login-store");
+    ObjectNode storeConfig = store.putObject("config").put("address", vault.address()).put("allowPlainHttp", true);
+    storeConfig.putObject("auth").put("method", "approle").put("roleId", FakeVault.ROLE_ID);
+    store.putObject("secrets").put("/auth/secretId", FakeVault.SECRET_ID);
+    admin.expect(201, HttpMethod.POST, "/api/secret-stores", store);
+
+    JsonNode session = session();
+    ObjectNode manifest = manifest("imported-store-login");
+    ObjectNode candidate = (ObjectNode) manifest.path("connections").get(0);
+    ((ObjectNode) candidate.path("config")).putObject("credentials");
+    candidate.putObject("secrets").putObject("/credentials/user").put("source", "reference")
+        .put("ref", "vault://kv/stage/db#username").put("store", "import-login-store");
+    Files.writeString(Path.of(session.path("importFile").asString()), manifest.toString());
+    long count = core.jdbc().queryForObject("select count(*) from connection", Long.class);
+    int reads = vault.requests.size();
+    JsonNode result = agent.legacyCall("submit_connection_import", capability(session)).result();
+    assertThat(result.path("isError").asBoolean()).as(result.toString()).isFalse();
+    assertThat(vault.requests).hasSize(reads);
+    assertThat(core.jdbc().queryForObject("select count(*) from connection", Long.class)).isEqualTo(count);
+    assertThat(admin.ok(path(session)).at("/manifest/connections/0/secretSources/0/field").asString())
+        .isEqualTo("/credentials/user");
+
+    ObjectNode request = commit("database", "imported-store-login");
+    ObjectNode selection = (ObjectNode) request.path("selections").get(0);
+    ((ObjectNode) selection.path("config")).putObject("credentials");
+    for (boolean localPassword : new boolean[] {false, true}) {
+      if (localPassword) selection.putObject("secrets").putObject("/credentials/password")
+          .put("source", "local").put("value", "fixture-literal-password");
+      JsonNode refused = admin.expect(422, HttpMethod.POST, path(session) + "/commit", request);
+      assertThat(refused.path("title").asString()).isEqualTo("Read the password from the store too");
+      assertThat(vault.requests).hasSize(reads);
+      assertThat(core.jdbc().queryForObject("select count(*) from connection", Long.class)).isEqualTo(count);
+    }
+    selection.putObject("secrets").putObject("/credentials/password").put("source", "reference")
+        .put("ref", "vault://kv/stage/db#password").put("store", "import-login-store");
+    admin.expect(200, HttpMethod.POST, path(session) + "/commit", request);
+    var saved = core.bean(ConnectionService.class).get("imported-store-login");
+    assertThat(saved.secrets()).extracting(secret -> secret.field()).containsExactlyInAnyOrder(
+        "/credentials/user", "/credentials/password");
   }
 
   @Test void capableChatsReceiveANavigationOnlyImportCardWithoutAnImportAction() {

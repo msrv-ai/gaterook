@@ -2,7 +2,7 @@
 <!--
   Three states, as on Overview, from the core's own facts (kit clients.html ?state=): in use (below, the default);
   setup — a connection, no AI app yet: the apps are quiet rows, Overview's Connect (#cl-<app>-t) opens that app's
-  Connect review on top; first run — nothing set up: the same rows, Connect unavailable with the reason.
+  Connect review on top; first run — no connections yet: the same rows, Connect waits only for an endpoint.
 -->
 <header class="gw-page-header">
   <div class="gw-page-header__row">
@@ -30,7 +30,7 @@
     <div class="gw-page-header__actions">
       <button class="gw-btn" type="button" [attr.aria-busy]="data.scanning() === 'page' ? 'true' : null" [attr.aria-disabled]="data.scanning() ? 'true' : null" (click)="scan('page')">@if (data.scanning() === 'page') {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="refresh-cw" class="gw-icon"></svg>} Scan again</button>
       @if (st === 'first-run') {
-        <!-- First run: the page's only primary; Connect waits for a connection. -->
+        <!-- Connections can be added before or after connecting an AI app. -->
         <a class="gw-btn gw-btn--primary" routerLink="/connections/new"><svg lucideIcon="plus" class="gw-icon"></svg> Add connection</a>
       }
     </div>
@@ -152,8 +152,8 @@
 <!--
   Setup and first run (kit clients.html ?state=setup | first-run): the app Overview's guide named (#cl-<app>-t) opens as
   one full-width Connect review on top, its heading focused, never its primary; apps with entries keep their cards (with
-  "Check that it works" once connected here); every other app is a quiet row. First run: only the rows, Connect
-  unavailable with the reason.
+  "Check that it works" once connected here); every other app is a quiet row. Connect requires an endpoint,
+  which may have no connections yet.
 -->
 <ng-template #quietApps>
   @let sl = setup();
@@ -161,7 +161,7 @@
   <div class="gw-stack">
     @if (sl.review; as c) {
       @let s = data.connectState(c.client);
-      <article gwInlineConnectCard review [anchor]="anchorBase(c.client) + '-s'" [uses]="endpoints().length === 1 ? usesTpl : null" [attr.data-client]="c.client" [card]="c" [defaultTtlDays]="data.defaultTokenTtlDays()" [endpoints]="endpoints()" [preview]="s.preview" [loading]="s.loading" [failure]="s.failure" [connecting]="connecting() === c.client" [canOpenConfig]="desktopApp" (previewRequest)="onPreview(c, $event)" (connect)="onConnect(c, $event.previewId, $event.request)" (openConfig)="onOpenConfig(c.client)"></article>
+      <article gwInlineConnectCard review [anchor]="anchorBase(c.client) + '-s'" [uses]="data.first() && endpoints().length === 1 ? usesTpl : null" [attr.data-client]="c.client" [card]="c" [defaultTtlDays]="data.defaultTokenTtlDays()" [endpoints]="endpoints()" [preview]="s.preview" [loading]="s.loading" [failure]="s.failure" [connecting]="connecting() === c.client" [canOpenConfig]="desktopApp" (previewRequest)="onPreview(c, $event)" (connect)="onConnect(c, $event.previewId, $event.request)" (openConfig)="onOpenConfig(c.client)"></article>
     }
     @for (c of sl.kept; track c.client) {
       <ng-container [ngTemplateOutlet]="card" [ngTemplateOutletContext]="{ $implicit: c }" />
@@ -207,7 +207,7 @@
                   @if (c.status === 'not-installed') {
                     <a class="gw-btn gw-btn--link gw-btn--sm" [href]="installUrl(c)" target="_blank" rel="noopener noreferrer">How to install<span class="gw-sr-only"> {{ c.name }} (opens in your browser)</span><svg lucideIcon="external-link" class="gw-icon gw-icon--sm"></svg></a>
                     <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" [attr.aria-busy]="data.scanning() === c.client ? 'true' : null" [attr.aria-disabled]="data.scanning() ? 'true' : null" (click)="scan(c)">@if (data.scanning() === c.client) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg>}Check again<span class="gw-sr-only"> for {{ c.name }}</span></button>
-                  } @else if (st === 'first-run') {
+                  } @else if (!canConnect()) {
                     <button class="gw-btn gw-btn--sm" type="button" aria-disabled="true" aria-describedby="cl-first-why"><svg lucideIcon="plug-zap" class="gw-icon gw-icon--sm"></svg>Connect<span class="gw-sr-only"> {{ c.name }}</span></button>
                   } @else {
                     <a class="gw-btn gw-btn--sm" routerLink="/clients" [fragment]="base + '-t'" (click)="openReview(c, $event)"><svg lucideIcon="plug-zap" class="gw-icon gw-icon--sm"></svg>Connect<span class="gw-sr-only"> {{ c.name }}</span></a>
@@ -217,8 +217,8 @@
             </li>
           }
         </ul>
-        @if (st === 'first-run') {
-          <p class="gw-text-caption gw-fg-muted" id="cl-first-why"><svg lucideIcon="lock" class="gw-icon gw-icon--xs"></svg> Add a connection first: your AI app needs something to work with.</p>
+        @if (!canConnect()) {
+          <p class="gw-text-caption gw-fg-muted" id="cl-first-why"><svg lucideIcon="lock" class="gw-icon gw-icon--xs"></svg> {{ connectUnavailable() }} <a class="gw-link" routerLink="/endpoints">Open endpoints</a></p>
         }
       </div>
     }
@@ -245,8 +245,8 @@
   }
 </ng-template>
 
-<!-- ─────────────── Manual setup: Inspector and anything else (none in first run; collapsed initially) ─────────────── -->
-@if (st !== 'first-run') {
+<!-- ─────────────── Manual setup: Inspector and anything else (requires an endpoint; collapsed initially) ─────────────── -->
+@if (st !== 'first-run' || canConnect()) {
 <section class="gw-section" aria-labelledby="cl-manual-t">
   <header class="gw-section__header">
     <h2 class="gw-section__title" id="cl-manual-t">Manual setup</h2>

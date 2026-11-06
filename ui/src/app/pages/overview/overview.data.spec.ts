@@ -9,6 +9,7 @@ import { Overview, OverviewApi } from '../../core/api/overview.api';
 import { EventStream } from '../../core/events/event-stream';
 import { ROWS, browserSignedIn, clientsBrowserSignedIn, clientsFound, clientsInUse, devDb, firstRun, overview, setup } from './overview.fixtures';
 import { OverviewData } from './overview.data';
+import { endpoint } from '../endpoints/endpoints.fixtures';
 
 /** OverviewData: what it loads for each state, how it coalesces refreshes, and what it leaves out when a part fails. */
 
@@ -156,18 +157,21 @@ describe('OverviewData', () => {
     const done = data.refresh();
     gets[0].resolve(setup());
     await done;
-    expect(calls.sort()).toEqual(['clients', 'connection dev-db']);
+    expect(calls.sort()).toEqual(['clients', 'connection dev-db', 'endpoints']);
     expect(data.first()?.name).toBe('dev-db');
     expect(data.connections()).toBeNull();
-    expect(data.endpoints()).toBeNull();
+    expect(data.endpoints()).toEqual([]);
   });
 
-  it('first run: only the AI apps of this computer', async () => {
+  it('first run: loads AI apps and empty endpoints before any connection exists', async () => {
     const data = make();
+    endpointsAnswer = () => Promise.resolve([endpoint('dev')]);
     const done = data.refresh();
     gets[0].resolve(firstRun());
     await done;
-    expect(calls).toEqual(['clients']);
+    expect(calls).toEqual(['clients', 'endpoints']);
+    expect(data.endpoints()).toEqual([endpoint('dev')]);
+    expect(data.connections()).toBeNull();
   });
 
   it('a core without the clients area leaves the apps out and is not asked again', async () => {
@@ -180,7 +184,7 @@ describe('OverviewData', () => {
     done = data.refresh();
     gets[1].resolve(firstRun());
     await done;
-    expect(calls).toEqual(['clients']);
+    expect(calls).toEqual(['clients', 'endpoints', 'endpoints']);
   });
 
   it('marks app links unavailable when their reload fails instead of claiming stale access is current', async () => {

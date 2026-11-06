@@ -186,7 +186,7 @@ export interface TestOutcome {
 export interface TestConfirmed {
   readonly kind: string;
   readonly config: JsonObject;
-  readonly retest: TestOutcome;
+  readonly retest: TestOutcome | null;
 }
 
 export interface TestDraftRequest {

@@ -1,0 +1,106 @@
+@if (endpoint(); as endpoint) {
+  <section class="gw-stack" aria-labelledby="import-app-title">
+    <h2 class="gw-section__title" id="import-app-title">AI app for <span class="gw-mono">{{ endpoint.slug }}</span></h2>
+    @if (checking()) {
+      <p class="gw-text-small" role="status" aria-busy="true">Checking AI app connections…</p>
+    }
+    @if (failed()) {
+      <div class="gw-alert gw-alert--warning" role="alert"><svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content">
+        <p class="gw-alert__title">AI app connections could not be checked</p>
+        <p class="gw-alert__body">Refresh the app connections before sending an import prompt.</p>
+      </div></div>
+    } @else if (!checking() && !connectedCount() && !ready()) {
+      <div class="gw-alert gw-alert--info"><svg lucideIcon="plug" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content">
+        <p class="gw-alert__title">Connect an AI app to this endpoint first</p>
+        <p class="gw-alert__body">No app has a verified connection to <span class="gw-mono">{{ endpoint.slug }}</span>. Choose an app below and connect it, or confirm an existing manual connection.</p>
+      </div></div>
+    }
+    @if (cards().length) {
+      @if (cardsMode()) {
+        <p class="gw-text-small gw-fg-muted">Start with an app connected to this endpoint, or connect one below. The app needs access to your repository.</p>
+        @if (startDisabledReason(); as reason) { <p class="gw-text-small" id="import-app-start-reason">{{ reason }}</p> }
+        <div class="gw-grid gw-grid--2">
+          @for (app of cards(); track app.client) {
+            <article class="gw-card" [class.gw-card--selected]="app.client === client()" [attr.aria-current]="app.client === client() ? 'true' : null" [attr.aria-labelledby]="'import-app-card-' + app.client">
+              <div class="gw-card__body gw-stack gw-stack--sm">
+                <h3 class="gw-card__title" [id]="'import-app-card-' + app.client"><span [gwClientMark]="app.client" size="sm"></span> {{ app.name }}</h3>
+                <span class="gw-status" [class.gw-status--success]="hasConnectedLink(app)" [class.gw-status--warning]="pendingSetup(app)"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ status(app) }}</span></span>
+                <div class="gw-card__actions">
+                  @if (hasConnectedLink(app) || pendingSetup(app) || (app.client === client() && acknowledgedManual())) {
+                    <button class="gw-btn gw-btn--primary" type="button" [disabled]="!canStart(app)" [attr.aria-label]="'Start import with ' + app.name" [attr.aria-describedby]="startDisabledReason() ? 'import-app-start-reason' : null" (click)="startApp(app)">Start</button>
+                  }
+                  @if (!hasConnectedLink(app)) {
+                    <button class="gw-btn" type="button" [disabled]="disabled() || connecting() || checking() || failed()" [attr.aria-label]="(pendingSetup(app) ? 'Continue setup in ' : app.detected && app.methods.length ? 'Connect ' : 'Set up ') + app.name" (click)="setupApp(app)">{{ pendingSetup(app) ? 'Continue setup' : app.detected && app.methods.length ? 'Connect' : 'Set up' }}</button>
+                  }
+                </div>
+              </div>
+            </article>
+          }
+        </div>
+      } @else {
+        <div class="gw-field">
+        <label class="gw-field__label" for="import-ai-app">AI app</label>
+        <select class="gw-select" id="import-ai-app" [disabled]="disabled() || connecting() || checking()" (change)="select($any($event.target).value)" aria-describedby="import-app-hint">
+          <option value="" [selected]="!card()">Choose an AI app</option>
+          @for (app of cards(); track app.client) { <option [value]="app.client" [selected]="app.client === client()">{{ app.name }} · {{ status(app) }}</option> }
+        </select>
+        <p class="gw-field__hint" id="import-app-hint">Statuses apply only to this endpoint. The selected app also needs access to your repository.</p>
+        </div>
+      }
+    } @else if (!checking() && !failed()) {
+      <p class="gw-text-small">No supported AI apps were found. <a class="gw-link" routerLink="/clients" [queryParams]="{ endpoint: endpoint.slug }">Open AI app setup</a>, install an app, then check again.</p>
+    }
+    @if (card(); as app) {
+      @if (error()) { <p class="gw-text-small gw-fg-danger" role="alert">{{ error() }}</p> }
+      @if (message()) { <p class="gw-text-small" role="status">{{ message() }}</p> }
+      @if (!reviewing()) {
+        <div class="gw-card gw-card--muted" id="import-selected-app" tabindex="-1"><div class="gw-card__body gw-stack gw-stack--sm">
+          <h3 class="gw-text-ui"><span [gwClientMark]="app.client" size="sm"></span> {{ app.name }}</h3>
+          @if (connected()) {
+            <p class="gw-text-small"><strong>Connected to {{ endpoint.slug }}</strong>. Use this app to send the import prompt.</p>
+          } @else if (restart(); as link) {
+            @if (link.method === 'mcpb') {
+              <p class="gw-text-small">Finish installing and enabling the extension in Claude Desktop. GateRook is waiting for the app to connect to this endpoint.</p>
+            } @else {
+              <p class="gw-text-small">The connection is configured. Fully quit and restart {{ app.name }}, then open a new chat so the import tools are available.</p>
+              <label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" [checked]="acknowledgedRestart()" [disabled]="disabled() || connecting()" (change)="acknowledge('restart', $any($event.target).checked)"><span class="gw-checkbox__control" aria-hidden="true"></span><span class="gw-checkbox__label">I restarted {{ app.name }} for this endpoint</span></label>
+              @if (acknowledgedRestart()) { <p class="gw-text-caption gw-fg-muted">Restart confirmed by you. GateRook has not yet observed a new request.</p> }
+            }
+          } @else if (isPending()) {
+            <p class="gw-text-small">Waiting for {{ app.name }}. Complete the app's installation or browser sign-in, then check the connection.</p>
+          } @else {
+            @if (links().length) { <p class="gw-text-small">This endpoint's connection needs attention. Review and reconnect it before continuing.</p> }
+            @else { <p class="gw-text-small">{{ app.name }} is not connected to this endpoint in GateRook's records.</p> }
+            <div class="gw-card__actions">
+              @if (app.detected && app.methods.length) { <button class="gw-btn" type="button" [disabled]="disabled() || checking() || failed()" (click)="openReview()">Connect {{ app.name }}</button> }
+              @if (!app.detected) { <a class="gw-btn" [href]="installUrl()" target="_blank" rel="noopener noreferrer">How to install {{ app.name }}<svg lucideIcon="external-link" class="gw-icon"></svg></a> }
+              @if (manualAllowed()) { <button class="gw-btn gw-btn--ghost" type="button" [disabled]="disabled() || checking() || failed()" (click)="manual.set(!manual())" [attr.aria-expanded]="manual()" aria-controls="import-manual-app">Use an existing connection</button> }
+            </div>
+          }
+          @if ((isPending() || restart()?.method === 'mcpb') && !connected()) {
+            <div class="gw-card__actions">
+              @if (desktop.available) { <button class="gw-btn" type="button" [disabled]="disabled() || connecting()" (click)="continueSetup()">Continue setup in {{ app.name }}</button> }
+              @else if (pendingBrowserUrl(); as url) { <a class="gw-btn" [href]="url" target="_blank" rel="noopener noreferrer">Continue in Cursor<svg lucideIcon="external-link" class="gw-icon"></svg></a> }
+            </div>
+          }
+          @if (manualAllowed() && (manual() || acknowledgedManual())) {
+            <div class="gw-stack gw-stack--sm" id="import-manual-app">
+              <p class="gw-text-small">For a manually configured app, check its MCP settings against this exact URL. Enable <span class="gw-mono">connection_import_schema</span> and <span class="gw-mono">submit_connection_import</span>, then fully restart the app and open a new chat.</p>
+              <div class="gw-copy-field" role="group" aria-label="MCP endpoint URL"><code class="gw-copy-field__value" id="import-app-url">{{ endpoint.url }}</code><button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" gwCopyFrom="#import-app-url"><span class="gw-copy-field__copy"><svg lucideIcon="copy" class="gw-icon gw-icon--sm"></svg> Copy<span class="gw-sr-only"> MCP endpoint URL</span></span><span class="gw-copy-field__copied"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Copied</span></button></div>
+              <label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" [checked]="acknowledgedManual()" [disabled]="disabled() || connecting() || checking() || failed()" (change)="acknowledge('manual', $any($event.target).checked)"><span class="gw-checkbox__control" aria-hidden="true"></span><span class="gw-checkbox__label">I connected this endpoint in {{ app.name }}</span></label>
+              @if (acknowledgedManual()) { <p class="gw-text-caption gw-fg-muted">Manually confirmed by you. GateRook has not verified this app connection.</p> }
+            </div>
+          }
+        </div></div>
+      }
+      @if (reviewing() && scopedCard(); as scoped) {
+        @for (scope of [key()]; track scope) {
+          @let state = data.connectState(app.client);
+          <article gwInlineConnectCard review anchor="import-app-connect" [card]="scoped" [endpoints]="connectEndpoints()" [defaultTtlDays]="data.defaultTokenTtlDays()" [preview]="preview()" [loading]="state.loading" [failure]="state.failure" [connecting]="connecting()" [canOpenConfig]="desktop.available" (previewRequest)="previewRequest(scoped, $event)" (connect)="connect(scoped, $event.previewId, $event.request)" (openConfig)="openConfig()"></article>
+        }
+        <div class="gw-card__actions"><button class="gw-btn gw-btn--ghost" type="button" [disabled]="connecting()" (click)="closeReview()">Cancel connection setup</button></div>
+      }
+    }
+    <div class="gw-card__actions"><button class="gw-btn gw-btn--sm" type="button" [disabled]="disabled() || checking() || connecting()" (click)="refresh()">Check app connections</button></div>
+  </section>
+}

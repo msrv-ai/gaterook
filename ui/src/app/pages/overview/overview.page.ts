@@ -45,9 +45,8 @@ export const SKELETON_DELAY_MS = 300;
  *   Your connections grouped by endpoint with its AI apps and all connection status tiles, problems first
  *   (Test again on an unreachable one); AI apps as tiles (an app found and not connected first, with Connect);
  *   one line about Activity.
- * - **First run** — no connection yet: a three-step guide (`gw-stepper --guide`): Add your first connection (the
- *   page's one primary), Connect your AI app (the apps of this computer; Connect waits, `aria-disabled` with the
- *   reason), Check that it works.
+ * - **First run** — no connection yet: a three-step guide (`gw-stepper --guide`): Add your first connection,
+ *   Connect your AI app (available as soon as an endpoint exists, including an empty one), Check that it works.
  * - **Setup** — a connection, no AI app yet: step 1 done with that connection, step 2 current, its Connect leading to
  *   the app's review on AI apps (`/clients#cl-<app>-t`), step 3 waiting for the first request.
  *
@@ -124,6 +123,7 @@ export class OverviewPage {
   /** The four AI apps of this computer, as the guide shows them (the core's order: Claude Desktop, Codex, Cursor, Antigravity). */
   protected readonly guideApps = computed<AppTile[]>(() => (this.data.clients()?.clients ?? []).map(guideAppTile));
   protected readonly anyConnect = computed(() => this.guideApps().some((a) => a.action === 'connect'));
+  protected readonly canConnectApps = computed(() => (this.data.endpoints()?.length ?? 0) > 0);
 
   /** Setup: the connection step 1 names (the core's first connection), with its live health. */
   protected readonly first = computed(() => {

@@ -173,7 +173,7 @@ describe('Overview page', () => {
     expect(href(link)).toBe('/connection-import');
     expect(link.classList).toContain('gw-btn--primary');
     expect(link.querySelector('svg[lucideIcon="lightbulb"]')).not.toBeNull();
-    expect(el.querySelectorAll('.gw-btn--primary')).toHaveLength(1);
+    expect(el.querySelectorAll('.gw-page-header__actions .gw-btn--primary')).toHaveLength(1);
 
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
@@ -493,7 +493,14 @@ describe('Overview page', () => {
       setupPage(() => Promise.resolve(firstRun()), () => Promise.resolve(clientsFound()));
       const { el } = await render();
       expect(text(el.querySelector('.gw-page-header__description'))).toBe('Let your AI apps use your databases and servers without ever seeing a password.');
-      expect(href(byText(el, '.gw-page-header__actions a', 'Import with AI'))).toBe('/connection-import');
+      const importAction = byText(el, '.gw-page-header__actions a', 'Import with AI')!;
+      expect(href(importAction)).toBe('/connection-import');
+      const importHint = el.querySelector(`#${importAction.getAttribute('aria-describedby')}`)!;
+      expect(text(importHint.closest('.gw-alert--brand')?.querySelector('.gw-alert__title')))
+        .toBe('The easiest way to set up your environment');
+      expect(text(importHint)).toContain('GateRook helps you connect the app');
+      expect(text(importHint)).toContain('you review what to import and choose the endpoint');
+      expect(text(importHint)).toContain('manual setup steps below');
       const card = el.querySelector('section[aria-labelledby="ov-first-title"]')!;
       expect(text(card.querySelector('h2'))).toBe('Get started');
       expect(text(card.querySelector('.gw-card__description'))).toBe(
@@ -509,33 +516,35 @@ describe('Overview page', () => {
       ]);
       expect(steps.map((s) => text(s.querySelector('.gw-stepper__marker')))).toEqual(['1', '2', '3']);
 
-      const primaries = el.querySelectorAll('.gw-btn--primary');
+      const primaries = card.querySelectorAll('.gw-btn--primary');
       expect(primaries).toHaveLength(1);
       expect(text(primaries[0])).toBe('Import with AI');
+      expect(href(primaries[0])).toBe('/connection-import');
+      expect(steps[0].querySelector('.gw-stepper__actions')?.contains(primaries[0])).toBe(true);
       expect(href(byText(steps[0], 'a', 'Add connection'))).toBe('/connections/new');
       expect(text(steps[2].querySelector('.gw-stepper__description'))).toBe(
         'Restart your AI app if GateRook says so, then ask it: “Show me the tables in my database”. Its first request shows up here.',
       );
     });
 
-    it('shows the AI apps of this computer ahead; Connect waits and says why, How to install leads to the app', async () => {
+    it('allows AI app setup on an empty endpoint before adding the first connection', async () => {
       setupPage(() => Promise.resolve(firstRun()), () => Promise.resolve(clientsFound()));
-      const { fixture, el } = await render();
+      endpointsAnswer = () => Promise.resolve([endpoint('dev')]);
+      const { el } = await render();
       const step = el.querySelectorAll<HTMLElement>('ol.gw-stepper--guide > li')[1];
       const list = step.querySelector('ul')!;
       expect(list.getAttribute('aria-label')).toBe('AI apps on this computer');
       expect(Array.from(list.querySelectorAll('h4')).map(text)).toEqual(['Claude Desktop', 'Codex', 'Cursor', 'Antigravity']);
-      const connect = byText<HTMLButtonElement>(tile(list, 'Claude Desktop')!, 'button', 'Connect')!;
+      const connect = byText<HTMLAnchorElement>(tile(list, 'Claude Desktop')!, 'a', 'Connect')!;
       expect(text(connect)).toBe('Connect Claude Desktop');
-      expect(connect.getAttribute('aria-disabled')).toBe('true');
-      expect(connect.getAttribute('aria-describedby')).toBe('ov-first-why');
-      expect(text(el.querySelector('#ov-first-why'))).toBe('Add a connection first: your AI app needs something to work with.');
-      // aria-disabled: it stays in the Tab order and does nothing.
+      expect(href(connect)).toBe('/clients#cl-cd-t');
+      expect(connect.getAttribute('aria-disabled')).toBeNull();
+      expect(el.querySelector('#ov-first-why')).toBeNull();
       const router = TestBed.inject(Router);
-      const go = vi.spyOn(router, 'navigateByUrl');
+      const go = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
       connect.click();
-      fixture.detectChanges();
-      expect(go).not.toHaveBeenCalled();
+      expect(go).toHaveBeenCalledOnce();
+      expect(String(go.mock.calls[0][0])).toBe('/clients#cl-cd-t');
 
       const antigravity = tile(list, 'Antigravity')!;
       expect(text(antigravity.querySelector('.gw-status'))).toBe('Not installed');
@@ -543,6 +552,46 @@ describe('Overview page', () => {
       const install = byText(antigravity, 'a', 'How to install')!;
       expect(install.classList).toContain('gw-btn--link');
       expect(href(install)).toBe('/clients#cl-ag-t');
+    });
+
+    it.each(['missing', 'unavailable'] as const)('explains why AI app setup waits when endpoints are %s', async (state) => {
+      setupPage(() => Promise.resolve(firstRun()), () => Promise.resolve(clientsFound()));
+      endpointsAnswer = state === 'missing' ? () => Promise.resolve([]) : () => Promise.reject(new Error('Unavailable'));
+      const { fixture, el } = await render();
+      const connect = byText<HTMLButtonElement>(tile(el, 'Claude Desktop')!, 'button', 'Connect')!;
+      expect(connect.getAttribute('aria-disabled')).toBe('true');
+      expect(connect.getAttribute('aria-describedby')).toBe('ov-first-why');
+      const reason = el.querySelector('#ov-first-why')!;
+      expect(text(reason)).toBe(state === 'missing'
+        ? 'Create an endpoint before connecting your AI app.'
+        : 'Endpoints could not be loaded. Open Endpoints to try again.');
+      expect(href(reason.querySelector('a'))).toBe('/endpoints');
+      const go = vi.spyOn(TestBed.inject(Router), 'navigateByUrl');
+      connect.click(); fixture.detectChanges();
+      expect(go).not.toHaveBeenCalled();
+      expect(href(byText(tile(el, 'Antigravity')!, 'a', 'How to install'))).toBe('/clients#cl-ag-t');
+    });
+
+    it('waits for endpoint data before offering first-run Connect links', async () => {
+      setupPage(() => Promise.resolve(firstRun()), () => Promise.resolve(clientsFound()));
+      const endpoints = deferred<EndpointSummary[]>();
+      endpointsAnswer = () => endpoints.promise;
+      const { fixture, el } = await render();
+      expect(byText(el, 'a', 'Connect')).toBeNull();
+      endpoints.resolve([endpoint('dev')]);
+      await settle(fixture);
+      expect(href(byText(tile(el, 'Claude Desktop')!, 'a', 'Connect'))).toBe('/clients#cl-cd-t');
+    });
+
+    it('keeps connected apps linked to their cards when no connection exists yet', async () => {
+      setupPage(() => Promise.resolve(firstRun()), () => Promise.resolve(clientsInUse()));
+      endpointsAnswer = () => Promise.resolve([endpoint('dev')]);
+      const { el } = await render();
+      const connected = tile(el, 'Codex')!;
+      expect(text(connected.querySelector('.gw-status'))).toBe('Connected');
+      expect(href(connected.querySelector('.gw-status-tile__title a'))).toBe('/clients#cl-cx-t');
+      expect(byText(connected, 'a, button', 'Connect')).toBeNull();
+      expect(href(byText(tile(el, 'Cursor')!, 'a', 'Connect'))).toBe('/clients#cl-cu-t');
     });
 
     it('leaves the apps out when this core has no clients area', async () => {
