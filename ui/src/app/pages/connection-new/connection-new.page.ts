@@ -47,7 +47,7 @@ import { literalParts } from '../../kit/elements/shared/literals';
 import { GwIcon } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
 import { getAt, setAt } from '../../schema-form/compile';
-import { SecretAction } from '../../schema-form/schema-form';
+import { SecretAction, storedReference } from '../../schema-form/schema-form';
 import {
   EndpointChoice,
   HealthStat,
@@ -133,6 +133,14 @@ export function errorText(e: ApiError | null): string {
  *
  * Step changes move focus to the step's heading and announce "Step 2 of 4: Configure", as the kit's page script does.
  */
+/** A stored reference a Save points elsewhere: a new URI, another store, or both. */
+interface ReferenceChange {
+  readonly secretId: string;
+  readonly field: string;
+  readonly uri: string;
+  readonly store: string | null;
+}
+
 @Component({
   selector: 'gw-connection-new-page',
   imports: [
@@ -451,14 +459,22 @@ export class ConnectionNewPage {
   protected readonly confirmTitle = computed(() => testConfirmTitle(this.editConfirm(), this.host()));
   protected readonly confirmFacts = computed(() => testFacts(this.editConfirm()?.needsConfirmation?.data));
   /** The core asked before sending the stored secret to a new host (409 `send-secret-to-new-host`). */
-  protected readonly newHost = signal<{ readonly title: string; readonly detail: string; readonly value: ConnectionFormValue; readonly discoveryKey?: string; readonly fileRequest?: FileBrowseRequest; readonly projectRequest?: ProjectDiscoveryRequest } | null>(null);
+  protected readonly newHost = signal<{ readonly title: string; readonly detail: string; readonly value: ConnectionFormValue; readonly discoveryKey?: string; readonly fileRequest?: FileBrowseRequest; readonly projectRequest?: ProjectDiscoveryRequest; readonly reason?: string | null } | null>(null);
   /** A prod save the core stopped for the rights of the connection's user (409 `confirm: danger`). */
   protected readonly dangerDialog = viewChild<GwDialog>('dangerDialog');
   protected readonly danger = signal<{ readonly title: string; readonly detail: string; readonly retry: () => void } | null>(null);
   /** The secret waiting for Rotate's confirmation. */
   protected readonly rotating = signal<{ readonly secretId: string; readonly word: string; readonly version: number | null; readonly key: string } | null>(null);
   /** A prod secret's new value waiting for its comment (the core keeps one with every prod secret change). */
-  protected readonly replacingProd = signal<{ readonly secretId: string; readonly word: string; readonly value: string } | null>(null);
+  /**
+   * What waits for the comment a prod secret's change keeps: a new value (Replace), or the references a Save changes
+   * (Change, another Vault).
+   */
+  protected readonly replacingProd = signal<
+    | { readonly kind: 'value'; readonly secretId: string; readonly word: string; readonly value: string; readonly plural?: false }
+    | { readonly kind: 'references'; readonly word: string; readonly plural: boolean; readonly value: ConnectionFormValue; readonly confirm: string | null }
+    | null
+  >(null);
   protected readonly comment = signal('');
   protected readonly commentError = signal<string | null>(null);
 
@@ -1255,13 +1271,70 @@ export class ConnectionNewPage {
     }
   }
 
-  private async saveEdit(value: ConnectionFormValue, confirm: string | null = null): Promise<void> {
+  /**
+   * What Save changes among the stored references, which the settings never carry: a reference typed over a stored one
+   * (Change), and the stored Vault references when another Vault was chosen for the connection.
+   */
+  private referenceChanges(value: ConnectionFormValue): ReferenceChange[] {
+    const stored = this.stored().filter((s) => !!s.secretId && storedReference(s));
+    const out: ReferenceChange[] = [];
+    for (const [field, input] of Object.entries(value.secrets)) {
+      const s = input.source === 'local' ? undefined : stored.find((x) => x.field === field);
+      if (!s || input.source === 'local') continue;
+      const store = input.store ?? s.store ?? null;
+      if (input.ref === s.ref && store === (s.store ?? null)) continue;
+      out.push({ secretId: s.secretId!, field, uri: input.ref, store });
+    }
+    if (value.vaultStore) {
+      for (const s of stored) {
+        // Short-lived credentials are issued by their own Vault role; only stored values move.
+        if (s.source !== 'vault' || s.state === 'short-lived' || !s.ref || s.store === value.vaultStore) continue;
+        if (!out.some((c) => c.field === s.field)) out.push({ secretId: s.secretId!, field: s.field, uri: s.ref, store: value.vaultStore });
+      }
+    }
+    return out;
+  }
+
+  /** Points each changed reference to where it now reads from; the ones the core refused, with its reason. */
+  private async applyReferenceChanges(changes: readonly ReferenceChange[], reason: string | null): Promise<{ readonly field: string; readonly detail: string }[]> {
+    const failed: { field: string; detail: string }[] = [];
+    for (const c of changes) {
+      try {
+        await this.secretsApi.setReference(c.secretId, c.uri, c.store, reason);
+      } catch (e) {
+        failed.push({ field: c.field, detail: isApiError(e) ? e.detail : "The core didn't answer." });
+      }
+    }
+    return failed;
+  }
+
+  private async saveEdit(value: ConnectionFormValue, confirm: string | null = null, reason: string | null = null): Promise<void> {
     const name = this.name()!;
     if (this.saving() || this.accessBusy() || this.accessSyncError()) return;
+    const changes = this.referenceChanges(value);
+    const changed = new Set(changes.map((c) => c.field));
+    // A value typed where a reference is stored can't become a stored value: say so rather than drop it.
+    const storedReferences = new Set(this.stored().filter((s) => !!s.secretId && storedReference(s)).map((s) => s.field));
+    if (Object.entries(value.secrets).some(([field, input]) => input.source === 'local' && storedReferences.has(field))) {
+      this.formProblem.set({ title: 'Keep the secret in its store',
+        message: 'A secret read from a store can\'t be turned into a value stored here. Choose its store as the source again and change the reference, or delete the connection and add it again.' });
+      afterNextRender(() => this.doc.getElementById('connection-form-error')?.focus(), { injector: this.injector });
+      return;
+    }
+    if (changes.length && reason === null && value.env === 'prod') {
+      // The core keeps a comment with every change of a prod secret, references included: ask for it first.
+      const fields = this.spec()?.secretFields ?? [];
+      this.replacingProd.set({ kind: 'references', value, confirm, plural: changes.length > 1,
+        word: changes.length > 1 ? 'references' : `${secretWord(fields, changes[0].field)} reference` });
+      this.comment.set('');
+      this.commentError.set(null);
+      this.commentDialog()?.openAfterRender();
+      return;
+    }
     const completingSetup = this.detail()?.setupRequired === true;
     if (completingSetup) {
       const existingFields = new Set(this.stored().filter(secret => !!secret.secretId).map(secret => secret.field));
-      if (Object.keys(value.secrets).some(field => existingFields.has(field))) {
+      if (Object.keys(value.secrets).some(field => existingFields.has(field) && !changed.has(field))) {
         this.formProblem.set({ title: 'Save credential replacements first',
           message: 'Use the Save control beside an existing credential to replace its value. For an existing reference, use Replace reference in Secrets. Your typed values have not been discarded. Missing credentials are saved with the completed settings.' });
         afterNextRender(() => this.doc.getElementById('connection-form-error')?.focus(), { injector: this.injector });
@@ -1270,21 +1343,34 @@ export class ConnectionNewPage {
     }
     this.saving.set(true);
     try {
+      const secrets = Object.fromEntries(Object.entries(value.secrets).filter(([field]) => !changed.has(field)));
       await this.connections.update(name, { config: value.config, env: value.env, version: this.version, confirm,
-        ...(completingSetup ? { secrets: value.secrets } : {}) });
-      this.toasts.show({
-        tone: 'success',
-        title: `Connection ${name} saved`,
-        body: completingSetup ? 'Setup is complete. Access stays off until you enable this connection.'
-          : 'The new settings apply from the next call. Calls in flight finish with the old ones.',
-      });
+        ...(completingSetup ? { secrets } : {}) });
+      // The settings are saved first: a reference the core refuses then leaves them as saved, and says why.
+      const failed = await this.applyReferenceChanges(changes, reason);
+      if (failed.length) {
+        const fields = this.spec()?.secretFields ?? [];
+        this.toasts.show({
+          tone: 'danger',
+          title: `The ${secretWord(fields, failed[0].field)} reference of ${name} didn't change`,
+          body: `${failed[0].detail} The other settings are saved.`,
+        });
+      } else {
+        this.toasts.show({
+          tone: 'success',
+          title: `Connection ${name} saved`,
+          body: completingSetup ? 'Setup is complete. Access stays off until you enable this connection.'
+            : changes.length ? 'The new settings and references apply from the next call. Calls in flight finish with the old ones.'
+            : 'The new settings apply from the next call. Calls in flight finish with the old ones.',
+        });
+      }
       await this.reloadDetail();
     } catch (e) {
       const err = isApiError(e) ? e : null;
       if (err?.kind === 'conflict' && err.confirm === 'danger') {
-        this.askDanger(err.title, err.detail, () => void this.saveEdit(value, withConfirm(confirm, 'danger')));
+        this.askDanger(err.title, err.detail, () => void this.saveEdit(value, withConfirm(confirm, 'danger'), reason));
       } else if (err?.kind === 'conflict' && err.confirm === 'send-secret-to-new-host') {
-        this.newHost.set({ title: err.title, detail: err.detail, value });
+        this.newHost.set({ title: err.title, detail: err.detail, value, reason });
         this.hostDialog()?.openAfterRender();
       } else if (err?.kind === 'conflict') {
         this.toasts.show({ tone: 'warning', title: `${name} changed meanwhile`, body: `${err.detail} Its current settings are shown again.` });
@@ -1305,7 +1391,7 @@ export class ConnectionNewPage {
     if (pending?.fileRequest) void this.browseFiles(pending.fileRequest, 'send-secret-to-new-host');
     else if (pending?.projectRequest) void this.loadProjects(pending.projectRequest, 'send-secret-to-new-host');
     else if (pending?.discoveryKey) void this.loadDatabases({ key: pending.discoveryKey, value: pending.value }, 'send-secret-to-new-host');
-    else if (pending) void this.saveEdit(pending.value, 'send-secret-to-new-host');
+    else if (pending) void this.saveEdit(pending.value, 'send-secret-to-new-host', pending.reason ?? null);
   }
 
   private askDanger(title: string, detail: string, retry: () => void): void {
@@ -1401,7 +1487,7 @@ export class ConnectionNewPage {
       if (!action.secretId) return;
       if (this.current().env === 'prod') {
         // The core keeps a comment with every change of a prod secret (Setup changes): ask for it first.
-        this.replacingProd.set({ secretId: action.secretId, word, value: action.value });
+        this.replacingProd.set({ kind: 'value', secretId: action.secretId, word, value: action.value });
         this.comment.set('');
         this.commentError.set(null);
         this.commentDialog()?.openAfterRender();
@@ -1434,7 +1520,8 @@ export class ConnectionNewPage {
       return;
     }
     this.commentDialog()?.close('replace');
-    void this.replaceSecret(pending.secretId, pending.word, pending.value, text);
+    if (pending.kind === 'value') void this.replaceSecret(pending.secretId, pending.word, pending.value, text);
+    else void this.saveEdit(pending.value, pending.confirm, text);
   }
 
   private async replaceSecret(id: string, word: string, value: string, reason: string | null): Promise<void> {

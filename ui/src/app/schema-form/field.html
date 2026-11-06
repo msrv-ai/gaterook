@@ -49,6 +49,7 @@
           [canRotate]="false"
           [provider]="f.source()"
           [ref]="stored?.name ?? ''"
+          [refNoun]="lowerFirst(n.title) + ' reference'"
           changeable
           (changeRef)="f.replace(n, true)"
           (testReference)="testReference()"
