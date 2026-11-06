@@ -1177,6 +1177,7 @@ LIMIT 200</textarea>
                       <div class="gw-menu-host">
                         <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="More actions for github-mcp" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-github-mcp"><i class="gw-icon" data-lucide="ellipsis"></i></button>
                         <div class="gw-menu gw-menu--right" id="menu-github-mcp" role="menu" aria-label="More actions for github-mcp" hidden>
+                          <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="drawer-mcp-runtime"><i class="gw-icon gw-menu__icon" data-lucide="info"></i><span class="gw-menu__label">How it runs</span></button>
                           <a class="gw-menu__item" role="menuitem" tabindex="-1" href="activity.html?q=tool:github_*"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">tool:github_*</span></span></a>
                           <a class="gw-menu__item" role="menuitem" tabindex="-1" href="endpoint-detail.html?endpoint=dev"><i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label">Add tools to an endpoint</span></a>
                           <div class="gw-menu__divider" role="separator"></div>
@@ -1197,35 +1198,31 @@ LIMIT 200</textarea>
               </div>
               <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" href="endpoint-detail.html?endpoint=dev">Add to endpoint<span class="gw-sr-only"> github-mcp tools</span></a></div>
             </div>
-
-            <section class="gw-card gw-card--muted" aria-labelledby="mcp-proc-title">
-              <header class="gw-card__header">
-                <div class="gw-card__heading">
-                  <h3 class="gw-card__title" id="mcp-proc-title">How <span class="gw-mono">github-mcp</span> runs</h3>
-                  <p class="gw-card__description">Process, variables, logs and protocol.</p>
-                </div>
-                <div class="gw-card__actions">
-                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" data-gw-toggle aria-expanded="false" aria-controls="mcp-proc-body" aria-labelledby="mcp-proc-title"><i class="gw-icon" data-lucide="chevron-down"></i></button>
-                </div>
-              </header>
-              <div class="gw-card__body" id="mcp-proc-body" hidden>
-                <dl class="gw-kv">
-                  <div class="gw-kv__row"><dt class="gw-kv__key">Package</dt><dd class="gw-kv__value"><span class="gw-mono">@modelcontextprotocol/server-github@0.6.2</span>, pinned. npm checks its integrity hash against the signed catalog entry on every start.</dd></div>
-                  <div class="gw-kv__row"><dt class="gw-kv__key">Trust</dt><dd class="gw-kv__value">The signature says which package this is, not that its code was reviewed. It runs as your user, without a sandbox: it can reach the network and the files your account can.</dd></div>
-                  <div class="gw-kv__row"><dt class="gw-kv__key">Process</dt><dd class="gw-kv__value">Started by the core on the first call, stopped after 15 min without calls. Running for 2 h. A crash never stops the core.</dd></div>
-                  <div class="gw-kv__row"><dt class="gw-kv__key">Working directory</dt><dd class="gw-kv__value gw-mono">~/.gaterook/mcp/github-mcp</dd></div>
-                  <div class="gw-kv__row"><dt class="gw-kv__key">Variables passed</dt><dd class="gw-kv__value"><span class="gw-mono">GITHUB_PERSONAL_ACCESS_TOKEN</span> from the secret <a class="gw-link gw-mono" href="secrets.html#stored-secrets">github-mcp/token</a>, and <span class="gw-mono">PATH</span>, <span class="gw-mono">HOME</span> and basic user variables. Nothing else from your shell. The process keeps them in its environment while it runs.</dd></div>
-                  <div class="gw-kv__row"><dt class="gw-kv__key">Tool names</dt><dd class="gw-kv__value">Prefixed with <code class="gw-code">github_</code>, for example <code class="gw-code">github_search_issues</code></dd></div>
-                  <div class="gw-kv__row"><dt class="gw-kv__key">Protocol</dt><dd class="gw-kv__value">MCP <span class="gw-mono">2025-11-25</span></dd></div>
-                  <div class="gw-kv__row"><dt class="gw-kv__key">Log</dt><dd class="gw-kv__value gw-mono">~/.gaterook/logs/mcp/github-mcp.log</dd></div>
-                </dl>
-              </div>
-            </section>
           </div>
         </div>
       </div>
 
       <!-- ───────────────────────── Dialogs ───────────────────────── -->
+
+      <dialog class="gw-drawer gw-drawer--lg" id="drawer-mcp-runtime" aria-labelledby="drawer-mcp-runtime-title" aria-describedby="drawer-mcp-runtime-description">
+        <header class="gw-drawer__header">
+          <h2 class="gw-drawer__title" id="drawer-mcp-runtime-title">How <span class="gw-mono">github-mcp</span> runs</h2>
+          <p class="gw-drawer__description" id="drawer-mcp-runtime-description">Process, variables and logs.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-drawer__close" type="button" aria-label="Close" data-gw-dialog-close autofocus><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-drawer__body">
+          <dl class="gw-kv">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Package</dt><dd class="gw-kv__value"><span class="gw-mono">@modelcontextprotocol/server-github@0.6.2</span>, pinned. npm checks its integrity hash against the signed catalog entry on every start.</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Trust</dt><dd class="gw-kv__value">The signature says which package this is, not that its code was reviewed. It runs as your user, without a sandbox: it can reach the network and the files your account can.</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Process</dt><dd class="gw-kv__value">Started by the core on the first call, stopped after 15 min without calls. Running for 2 h. A crash never stops the core.</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Working directory</dt><dd class="gw-kv__value gw-mono">~/.gaterook/mcp/github-mcp</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Variables passed</dt><dd class="gw-kv__value"><span class="gw-mono">GITHUB_PERSONAL_ACCESS_TOKEN</span> from the secret <a class="gw-link gw-mono" href="secrets.html#stored-secrets">github-mcp/token</a>, and <span class="gw-mono">PATH</span>, <span class="gw-mono">HOME</span> and basic user variables. Nothing else from your shell. The process keeps them in its environment while it runs.</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Tool names</dt><dd class="gw-kv__value">Prefixed with <code class="gw-code">github_</code>, for example <code class="gw-code">github_search_issues</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Protocol</dt><dd class="gw-kv__value">MCP <span class="gw-mono">2025-11-25</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Log</dt><dd class="gw-kv__value gw-mono">~/.gaterook/logs/mcp/github-mcp.log</dd></div>
+          </dl>
+        </div>
+      </dialog>
 
       <!-- Install plugin, step 1: a JAR file or a URL. "Check plugin" opens the check result (demo: the RabbitMQ JAR, unsigned). -->
       <dialog class="gw-dialog gw-dialog--md" id="dlg-install-plugin" aria-labelledby="dlg-install-plugin-t" aria-describedby="dlg-install-plugin-d" data-gw-static>

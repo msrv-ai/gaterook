@@ -90,6 +90,7 @@
                 <div class="gw-menu-host">
                   <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [attr.aria-label]="'More actions for ' + s.name" aria-haspopup="menu" [gwMenuTrigger]="menu"><svg lucideIcon="ellipsis" class="gw-icon"></svg></button>
                   <div class="gw-menu gw-menu--right" gwMenu #menu="gwMenu" [id]="menuId(s)" role="menu" [attr.aria-label]="'More actions for ' + s.name" hidden>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" aria-haspopup="dialog" aria-controls="mcp-runtime" (click)="showRuntime(s, $event, runtime)"><svg lucideIcon="info" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">How it runs</span></button>
                     <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/activity" [queryParams]="{ q: activityQuery(s) }"><svg lucideIcon="activity" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">{{ activityQuery(s) }}</span></span></a>
                     <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/endpoints"><svg lucideIcon="waypoints" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Add tools to an endpoint</span></a>
                     @if (s.oauth) {
@@ -119,40 +120,36 @@
         <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" routerLink="/endpoints">Add to endpoint<span class="gw-sr-only"> {{ s.name }} tools</span></a></div>
       </div>
     }
-
-    @for (s of servers(); track s.name) {
-      @let p = paths(s.name);
-      <section class="gw-card gw-card--muted" [attr.aria-labelledby]="'mcp-proc-title-' + s.name">
-        <header class="gw-card__header">
-          <div class="gw-card__heading">
-            <h3 class="gw-card__title" [id]="'mcp-proc-title-' + s.name">How <span class="gw-mono">{{ s.name }}</span> runs</h3>
-            <p class="gw-card__description">Process, variables and logs.</p>
-          </div>
-          <div class="gw-card__actions">
-            <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" gwToggle [attr.aria-controls]="'mcp-proc-body-' + s.name" [attr.aria-labelledby]="'mcp-proc-title-' + s.name"><svg lucideIcon="chevron-down" class="gw-icon"></svg></button>
-          </div>
-        </header>
-        <div class="gw-card__body" [id]="'mcp-proc-body-' + s.name" hidden>
-          <dl class="gw-kv">
-            @if (s.transport === 'stdio' && s.catalogEntry) {
-              <div class="gw-kv__row"><dt class="gw-kv__key">Package</dt><dd class="gw-kv__value">@if (s.packageName) {<span class="gw-mono">{{ s.packageName }}</span>} @else {Catalog entry <span class="gw-mono">{{ s.catalogEntry }}</span>}, pinned. npm checks its integrity hash against the signed catalog entry on every start.</dd></div>
-            } @else if (s.transport === 'stdio' && s.pinned !== null) {
-              <div class="gw-kv__row"><dt class="gw-kv__key">Package</dt><dd class="gw-kv__value">@if (s.pinned) {<span class="gw-mono">{{ s.packageName }}</span>, pinned. npm checks the package integrity on every start.} @else {<span class="gw-mono">{{ s.packageName }}</span>, not pinned: npx can fetch new code on every start, with these secrets.}</dd></div>
-            }
-            <div class="gw-kv__row"><dt class="gw-kv__key">Trust</dt><dd class="gw-kv__value">@if (s.signed) {The signature says which package this is, not that its code was reviewed. } @else {Nobody has verified this code. }@if (s.transport === 'http') {Every call sends its secrets to <span class="gw-mono">{{ s.url }}</span>.} @else {It runs as your user, without a sandbox: it can reach the network and the files your account can.}</dd></div>
-            @if (s.transport === 'stdio') {
-              <div class="gw-kv__row"><dt class="gw-kv__key">Process</dt><dd class="gw-kv__value">{{ processText(s) }}</dd></div>
-              <div class="gw-kv__row"><dt class="gw-kv__key">Working directory</dt><dd class="gw-kv__value gw-mono">{{ p.workdir }}</dd></div>
-            }
-            <!-- Decision 10 (ARCHITECTURE §8.6.5): the process also gets HOME and basic user variables, not only PATH. -->
-            <div class="gw-kv__row"><dt class="gw-kv__key">{{ s.transport === 'http' ? 'Headers passed' : 'Variables passed' }}</dt><dd class="gw-kv__value">@for (sec of s.secrets; track sec.name; let i = $index) {@if (i > 0) {, }<span class="gw-mono">{{ sec.name }}</span>@if (sec.secret) { from the secret <a class="gw-link gw-mono" routerLink="/secrets" fragment="stored-secrets">{{ sec.secret }}</a>}}@if (s.transport === 'stdio') {@if (s.secrets.length) {, and }@if (s.inherited.length) {<span class="gw-mono">{{ joinAnd(s.inherited) }}</span>, }<span class="gw-mono">PATH</span>, <span class="gw-mono">HOME</span> and basic user variables. Nothing else from your shell. The process keeps them in its environment while it runs.} @else {@if (!s.secrets.length) {None}}</dd></div>
-            <div class="gw-kv__row"><dt class="gw-kv__key">Tool names</dt><dd class="gw-kv__value">Prefixed with <code class="gw-code">{{ s.toolPrefix }}</code></dd></div>
-            @if (s.transport === 'stdio') {
-              <div class="gw-kv__row"><dt class="gw-kv__key">Log</dt><dd class="gw-kv__value gw-mono">{{ p.log }}</dd></div>
-            }
-          </dl>
-        </div>
-      </section>
-    }
   }
 </div>
+
+<dialog class="gw-drawer gw-drawer--lg" gwDialog #runtime="gwDialog" id="mcp-runtime" aria-labelledby="mcp-runtime-title" aria-describedby="mcp-runtime-desc" (closed)="selectedServer.set(null)">
+  @if (selectedServer(); as s) {
+    @let p = paths(s.name);
+    <header class="gw-drawer__header">
+      <h2 class="gw-drawer__title" id="mcp-runtime-title">How <span class="gw-mono">{{ s.name }}</span> runs</h2>
+      <p class="gw-drawer__description" id="mcp-runtime-desc">Process, variables and logs.</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-drawer__close" type="button" aria-label="Close" gwDialogClose autofocus><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-drawer__body">
+      <dl class="gw-kv">
+        @if (s.transport === 'stdio' && s.catalogEntry) {
+          <div class="gw-kv__row"><dt class="gw-kv__key">Package</dt><dd class="gw-kv__value">@if (s.packageName) {<span class="gw-mono">{{ s.packageName }}</span>} @else {Catalog entry <span class="gw-mono">{{ s.catalogEntry }}</span>}, pinned. npm checks its integrity hash against the signed catalog entry on every start.</dd></div>
+        } @else if (s.transport === 'stdio' && s.pinned !== null) {
+          <div class="gw-kv__row"><dt class="gw-kv__key">Package</dt><dd class="gw-kv__value">@if (s.pinned) {<span class="gw-mono">{{ s.packageName }}</span>, pinned. npm checks the package integrity on every start.} @else {<span class="gw-mono">{{ s.packageName }}</span>, not pinned: npx can fetch new code on every start, with these secrets.}</dd></div>
+        }
+        <div class="gw-kv__row"><dt class="gw-kv__key">Trust</dt><dd class="gw-kv__value">@if (s.signed) {The signature says which package this is, not that its code was reviewed. } @else {Nobody has verified this code. }@if (s.transport === 'http') {Every call sends its secrets to <span class="gw-mono">{{ s.url }}</span>.} @else {It runs as your user, without a sandbox: it can reach the network and the files your account can.}</dd></div>
+        @if (s.transport === 'stdio') {
+          <div class="gw-kv__row"><dt class="gw-kv__key">Process</dt><dd class="gw-kv__value">{{ processText(s) }}</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key">Working directory</dt><dd class="gw-kv__value gw-mono">{{ p.workdir }}</dd></div>
+        }
+        <!-- Decision 10 (ARCHITECTURE §8.6.5): the process also gets HOME and basic user variables, not only PATH. -->
+        <div class="gw-kv__row"><dt class="gw-kv__key">{{ s.transport === 'http' ? 'Headers passed' : 'Variables passed' }}</dt><dd class="gw-kv__value">@for (sec of s.secrets; track sec.name; let i = $index) {@if (i > 0) {, }<span class="gw-mono">{{ sec.name }}</span>@if (sec.secret) { from the secret <a class="gw-link gw-mono" routerLink="/secrets" fragment="stored-secrets" (click)="runtime.close()">{{ sec.secret }}</a>}}@if (s.transport === 'stdio') {@if (s.secrets.length) {, and }@if (s.inherited.length) {<span class="gw-mono">{{ joinAnd(s.inherited) }}</span>, }<span class="gw-mono">PATH</span>, <span class="gw-mono">HOME</span> and basic user variables. Nothing else from your shell. The process keeps them in its environment while it runs.} @else {@if (!s.secrets.length) {None}}</dd></div>
+        <div class="gw-kv__row"><dt class="gw-kv__key">Tool names</dt><dd class="gw-kv__value">Prefixed with <code class="gw-code">{{ s.toolPrefix }}</code></dd></div>
+        @if (s.transport === 'stdio') {
+          <div class="gw-kv__row"><dt class="gw-kv__key">Log</dt><dd class="gw-kv__value gw-mono">{{ p.log }}</dd></div>
+        }
+      </dl>
+    </div>
+  }
+</dialog>
