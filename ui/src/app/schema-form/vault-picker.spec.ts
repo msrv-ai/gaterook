@@ -127,6 +127,37 @@ async function setup(options: {
 }
 
 describe('Vault reference autocomplete', () => {
+  it.each(['user', 'password'])('keeps the caret when editing a %s reference without available suggestions', async fieldName => {
+    const view = await setup({
+      schema: { ...SCHEMA, properties: { ...SCHEMA['properties'] as JsonObject, user: { type: 'string', title: 'User' } } },
+      configure: api => api.vaultReferences.mockResolvedValue({ references: [], complete: false, issues: [] }),
+    });
+    const node = view.form.compiled.all.find(node => node.pointer === `/${fieldName}`)!;
+    view.form.setFieldText(node, 'vault://kv/dev/orders#username');
+    await view.settle();
+    const input = view.el.querySelector<HTMLInputElement>(`#secret-${fieldName}`)!;
+    input.focus();
+    const position = 'vault://kv/'.length;
+    input.setSelectionRange(position, position);
+    input.setRangeText('p', position, position, 'end');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await view.settle();
+    expect(document.activeElement).toBe(input);
+    expect(input.value).toBe('vault://kv/pdev/orders#username');
+    expect(input.selectionStart).toBe(position + 1);
+    expect(input.selectionEnd).toBe(position + 1);
+
+    input.setRangeText('', position, position + 1, 'end');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.setSelectionRange(position, position + 3, 'backward');
+    await view.settle();
+    expect(input.value).toBe('vault://kv/dev/orders#username');
+    expect(input.selectionStart).toBe(position);
+    expect(input.selectionEnd).toBe(position + 3);
+    expect(input.selectionDirection).toBe('backward');
+    expect(view.form.fieldText(node)).toBe(input.value);
+  });
+
   it('loads all reference suggestions automatically, filters locally and inserts a complete selected reference', async () => {
     const view = await setup();
     expect(view.api.stores).toHaveBeenCalledTimes(1);
