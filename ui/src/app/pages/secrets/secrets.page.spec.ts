@@ -11,6 +11,7 @@ import { CoreStore } from '../../core/stores/core.store';
 import { absoluteTime, isoLocal, relativeTime, shortDate } from '../../core/time/time-format';
 import { TimeService } from '../../core/time/time.service';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
+import { ClipboardWriter } from '../../kit/clipboard';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
 import { ENVS, NOW, kitMasterKey, kitSecrets, kitShortLived, kitStores } from './secrets.fixtures';
@@ -207,7 +208,9 @@ describe('Secrets page: what it shows', () => {
 
     expect(text($('#external-stores .gw-section__description', el))).toContain('2 of 3 connected.');
     expect(text($('#store-vault', el))).toContain('https://vault.acme.internal');
-    expect(text($('#store-vault', el))).toContain('stage-db/password from vault://kv/stage/db#password');
+    expect(text($('#store-vault-references summary', el))).toBe('1 reference');
+    expect($<HTMLDetailsElement>('#store-vault-references', el)!.open).toBe(false);
+    expect($<HTMLInputElement>('#store-vault-reference-0', el)!.value).toBe('vault://kv/stage/db#password');
     expect(text($('#store-gcp', el))).toContain('Connected');
     const aws = $('#store-aws', el)!;
     expect(aws.classList).toContain('gw-card--dashed');
@@ -451,6 +454,41 @@ describe('Secrets page: Replace and Rotate', () => {
 });
 
 describe('Secrets page: external stores', () => {
+  it('collapses reference lists and preserves full, selectable and copyable URIs when expanded', async () => {
+    const references = [
+      { secretId: 'id-analytics-password', name: 'analytics-db/password', ref: 'vault://kv/team/development/analytics/database/readonly#password', kind: 'reference' as const, owner: 'analytics-db' },
+      { secretId: 'id-analytics-user', name: 'analytics-db/username', ref: 'vault://kv/team/development/analytics/database/readonly#username', kind: 'reference' as const, owner: 'analytics-db' },
+      { secretId: 'id-cache-token', name: 'cache/token', ref: 'vault://kv/team/development/cache/service#token', kind: 'reference' as const, owner: 'cache' },
+    ];
+    world.stores = async () => [{ ...kitStores()[0], references }];
+    const el = await render();
+    const details = $<HTMLDetailsElement>('#store-vault-references', el)!;
+    const summary = $('summary', details)!;
+    expect(details.open).toBe(false);
+    expect(text(summary)).toBe('3 references');
+    await click(summary);
+    expect(details.open).toBe(true);
+    const inputs = $$<HTMLInputElement>('input[readonly]', details);
+    expect(inputs.map((input) => input.value)).toEqual(references.map((r) => r.ref));
+    expect(inputs.map((input) => input.labels?.[0].textContent?.trim())).toEqual(references.map((r) => r.name));
+    inputs[0].focus();
+    inputs[0].select();
+    expect(document.activeElement).toBe(inputs[0]);
+    expect(inputs[0].selectionEnd).toBe(references[0].ref.length);
+    const write = vi.spyOn(TestBed.inject(ClipboardWriter), 'write').mockResolvedValue(true);
+    await click(control(details, 'Copy reference for analytics-db/password'));
+    expect(write).toHaveBeenCalledExactlyOnceWith(references[0].ref);
+    await click(summary);
+    expect(details.open).toBe(false);
+  });
+
+  it('shows a compact empty reference state without an empty disclosure', async () => {
+    world.stores = async () => [{ ...kitStores()[0], references: [] }];
+    const el = await render();
+    expect($('#store-vault-references', el)).toBeNull();
+    expect(text($('#store-vault', el))).toContain('No references yet');
+  });
+
   async function openVault(address: string): Promise<HTMLInputElement> {
     world.stores = () => Promise.resolve([]);
     await render();
