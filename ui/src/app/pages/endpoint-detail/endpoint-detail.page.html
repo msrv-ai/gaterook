@@ -41,13 +41,14 @@
     </div>
     @if (summary(); as s) {
       <div class="gw-page-header__actions">
-        <button class="gw-btn" type="button" aria-haspopup="dialog" [attr.aria-disabled]="!shareDialog.available() ? 'true' : null" [attr.title]="shareDialog.unavailableReason()" (click)="shareDialog.open($event)"><svg lucideIcon="upload" class="gw-icon"></svg> Share endpoint</button>
-        <a class="gw-btn gw-btn--primary" routerLink="/connection-import" [queryParams]="{ endpoint: s.slug }"><svg lucideIcon="lightbulb" class="gw-icon"></svg> Import with AI</a>
         <a class="gw-btn gw-btn--ghost" routerLink="/activity" [queryParams]="{ q: 'endpoint:' + s.slug }"><svg lucideIcon="activity" class="gw-icon"></svg> View activity<span class="gw-sr-only"> of endpoint {{ s.slug }}</span></a>
-        <a class="gw-btn" routerLink="/playground" [queryParams]="{ endpoint: s.slug }"><svg lucideIcon="flask-conical" class="gw-icon"></svg> Open in Playground</a>
         <div class="gw-menu-host">
           <button class="gw-btn gw-btn--ghost gw-btn--icon" type="button" [attr.aria-label]="'More actions for endpoint ' + s.slug" aria-haspopup="menu" [gwMenuTrigger]="epMenu"><svg lucideIcon="ellipsis" class="gw-icon"></svg></button>
           <div class="gw-menu gw-menu--right" gwMenu #epMenu="gwMenu" id="ep-menu" role="menu" [attr.aria-label]="'Actions for endpoint ' + s.slug" hidden>
+            <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" aria-haspopup="dialog" [attr.aria-disabled]="!shareDialog.available() ? 'true' : null" [attr.title]="shareDialog.unavailableReason()" (click)="shareDialog.open($event)"><svg lucideIcon="upload" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Share endpoint</span></button>
+            <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/connection-import" [queryParams]="{ endpoint: s.slug }"><svg lucideIcon="lightbulb" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Import with AI</span></a>
+            <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/playground" [queryParams]="{ endpoint: s.slug }"><svg lucideIcon="flask-conical" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Open in Playground</span></a>
+            <div class="gw-menu__divider" role="separator"></div>
             <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" aria-haspopup="dialog" (click)="askDuplicate($event)"><svg lucideIcon="copy-plus" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Duplicate</span></button>
             @if (s.status === 'disabled') {
               <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" [attr.aria-disabled]="toggling() ? 'true' : null" (click)="enable()"><svg lucideIcon="play" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Enable</span></button>
