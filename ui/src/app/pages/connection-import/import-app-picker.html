@@ -1,4 +1,17 @@
-@if (endpoint(); as endpoint) {
+@if (handoffMode()) {
+  @if (card(); as app) {
+    <div class="gw-stack gw-stack--sm">
+      <p class="gw-text-ui"><span [gwClientMark]="app.client" size="sm"></span> {{ app.name }}</p>
+      @if (checking()) {
+        <p class="gw-text-small gw-fg-muted" role="status">Checking the app connection…</p>
+      } @else if (!ready()) {
+        <p class="gw-text-small gw-fg-warning" role="status">Go back to finish connecting {{ app.name }} to this endpoint.</p>
+      }
+    </div>
+  } @else {
+    <p class="gw-text-small" role="status">Go back to choose an AI app for this import.</p>
+  }
+} @else if (endpoint(); as endpoint) {
   <section class="gw-stack" aria-labelledby="import-app-title">
     <h2 class="gw-section__title" id="import-app-title">AI app for <span class="gw-mono">{{ endpoint.slug }}</span></h2>
     @if (checking()) {

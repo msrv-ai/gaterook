@@ -79,6 +79,9 @@ class ConnectionImportIT {
     assertThat(core.jdbc().queryForObject("select count(*) from connection", Long.class)).isEqualTo(count);
     JsonNode imported = admin.expect(200, HttpMethod.POST, path(session) + "/commit", commit);
     assertThat(imported.path("connections").toString()).isEqualTo("[\"imported-example\"]");
+    assertThat(imported.path("endpoint").asString()).isEqualTo("import-destination");
+    assertThat(imported.path("destinations").toString())
+        .isEqualTo("[{\"connection\":\"imported-example\",\"endpoint\":\"import-destination\"}]");
     assertThat(core.bean(EndpointService.class).snapshot("import-destination").connections())
         .extracting(c -> c.config().name()).contains("imported-example");
     assertThat(core.bean(ConnectionService.class).get("imported-example").secrets()).hasSize(1);
@@ -208,6 +211,74 @@ class ConnectionImportIT {
     admin.expect(422, HttpMethod.POST, path(session) + "/commit", request);
     assertThat(core.jdbc().queryForObject("select count(*) from connection", Long.class)).isEqualTo(before);
     assertThat(core.jdbc().queryForObject("select count(*) from connection where name like 'rollback-%'", Long.class)).isZero();
+    assertThat(admin.ok(path(session)).path("status").asString()).isEqualTo("review");
+  }
+
+  @Test void eachReviewedConnectionCanChooseItsOwnEndpointIncludingIncompleteDiscoveries() throws Exception {
+    EndpointService endpoints = core.bean(EndpointService.class);
+    endpoints.create("routed-development", null, EndpointService.StartFrom.EMPTY, null);
+    endpoints.create("routed-production", null, EndpointService.StartFrom.EMPTY, null);
+    JsonNode session = session();
+    ObjectNode discovered = manifest("routed-incomplete");
+    ObjectNode first = (ObjectNode) discovered.path("connections").get(0);
+    ObjectNode second = first.deepCopy().put("id", "production").put("name", "routed-complete").put("env", "prod");
+    ((tools.jackson.databind.node.ArrayNode) discovered.path("connections")).add(second);
+    first.putObject("config");
+    for (JsonNode candidate : discovered.path("connections")) {
+      ((ObjectNode) candidate).putObject("secrets").putObject("/credentials/password")
+          .put("source", "local").put("value", "routing-fixture-password");
+    }
+    Files.writeString(Path.of(session.path("importFile").asString()), discovered.toString());
+    assertThat(agent.legacyCall("submit_connection_import", capability(session)).result().path("isError").asBoolean()).isFalse();
+
+    ObjectNode request = JsonNodeFactory.instance.objectNode();
+    var selections = request.putArray("selections");
+    selections.addObject().put("candidateId", "database").put("name", "routed-incomplete").put("env", "dev")
+        .put("endpoint", "routed-development").put("allowIncomplete", true).putObject("config");
+    selections.addObject().put("candidateId", "production").put("name", "routed-complete").put("env", "prod")
+        .put("endpoint", "routed-production").put("confirm", "danger").set("config", config());
+    JsonNode imported = admin.expect(200, HttpMethod.POST, path(session) + "/commit", request);
+    assertThat(imported.path("endpoint").isNull()).isTrue();
+    assertThat(imported.path("destinations").toString()).isEqualTo("""
+        [{"connection":"routed-incomplete","endpoint":"routed-development"},{"connection":"routed-complete","endpoint":"routed-production"}]""");
+    assertThat(imported.path("needsSetup").get(0).path("name").asString()).isEqualTo("routed-incomplete");
+    assertThat(admin.ok("/api/connections/routed-incomplete").path("enabled").asBoolean()).isFalse();
+    assertThat(endpoints.snapshot("routed-development").connections()).extracting(c -> c.config().name())
+        .containsExactly("routed-incomplete");
+    assertThat(endpoints.snapshot("routed-production").connections()).extracting(c -> c.config().name())
+        .containsExactly("routed-complete");
+    assertThat(endpoints.snapshot("routed-production").env()).isEqualTo(ai.msrv.gaterook.connector.api.Env.PROD);
+    assertThat(endpoints.snapshot("import-source").connections()).isEmpty();
+  }
+
+  @Test void aRefusedPerConnectionDestinationRollsBackEveryEndpointAndReportsTheSelection() {
+    EndpointService endpoints = core.bean(EndpointService.class);
+    endpoints.create("routed-rollback-a", null, EndpointService.StartFrom.EMPTY, null);
+    endpoints.create("routed-rollback-b", null, EndpointService.StartFrom.EMPTY, null);
+    core.bean(TokenService.class).issue("routed-rollback-b", "development-access", 7, null);
+    JsonNode session = session();
+    ObjectNode discovered = manifest("routed-rollback-first");
+    ObjectNode second = ((ObjectNode) discovered.path("connections").get(0)).deepCopy()
+        .put("id", "production").put("name", "routed-rollback-second").put("env", "prod");
+    ((tools.jackson.databind.node.ArrayNode) discovered.path("connections")).add(second);
+    ObjectNode submit = capability(session);
+    submit.set("manifest", discovered);
+    assertThat(agent.legacyCall("submit_connection_import", submit).result().path("isError").asBoolean()).isFalse();
+    ObjectNode request = commit("database", "routed-rollback-first");
+    request.put("endpoint", "routed-rollback-a");
+    ObjectNode first = (ObjectNode) request.path("selections").get(0);
+    first.putObject("secrets").putObject("/credentials/password").put("source", "local").put("value", "routing-rollback-password");
+    ObjectNode production = first.deepCopy().put("candidateId", "production").put("name", "routed-rollback-second")
+        .put("env", "prod").put("confirm", "danger").put("endpoint", "routed-rollback-b");
+    ((tools.jackson.databind.node.ArrayNode) request.path("selections")).add(production);
+    long connectionsBefore = core.jdbc().queryForObject("select count(*) from connection", Long.class);
+    long secretsBefore = core.jdbc().queryForObject("select count(*) from secret", Long.class);
+    JsonNode refused = admin.expect(422, HttpMethod.POST, path(session) + "/commit", request);
+    assertThat(refused.path("field").asString()).isEqualTo("/selections/1/endpoint");
+    assertThat(core.jdbc().queryForObject("select count(*) from connection", Long.class)).isEqualTo(connectionsBefore);
+    assertThat(core.jdbc().queryForObject("select count(*) from secret", Long.class)).isEqualTo(secretsBefore);
+    assertThat(endpoints.snapshot("routed-rollback-a").connections()).isEmpty();
+    assertThat(endpoints.snapshot("routed-rollback-b").connections()).isEmpty();
     assertThat(admin.ok(path(session)).path("status").asString()).isEqualTo("review");
   }
 

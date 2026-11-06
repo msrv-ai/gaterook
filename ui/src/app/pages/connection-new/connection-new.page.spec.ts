@@ -1541,6 +1541,56 @@ describe('Connection: edit view', () => {
     expect(TestBed.inject(ConnectionsApi).setEnabled).not.toHaveBeenCalled();
   });
 
+  it('restores unresolved imported login references as drafts and sends them only after the user saves', async () => {
+    core.spec = { ...structuredClone(SPEC), secretSources: [
+      ...SPEC.secretSources,
+      { id: 'vault', label: 'Vault', store: 'vault-dev', available: true, reason: null },
+    ] };
+    core.detail = { ...structuredClone(DETAIL), enabled: false, setupRequired: true,
+      config: { connection: structuredClone(DETAIL.config['connection']) }, secrets: [],
+      setupMissingFields: ['/credentials/user', '/credentials/password'],
+      setupSources: [
+        { field: '/credentials/user', source: 'reference', reference: 'vault://kv/dev/example#user', store: 'vault-dev' },
+        { field: '/credentials/password', source: 'reference', reference: 'vault://kv/dev/example#password', store: 'vault-dev' },
+      ] };
+    const p = await open('/connections/dev-db');
+    expect(p.q<HTMLInputElement>('#cf-credentials-user')!.value).toBe('vault://kv/dev/example#user');
+    expect(p.q<HTMLInputElement>('#cf-credentials-password')!.value).toBe('vault://kv/dev/example#password');
+    expect(p.page().form()!.state().stored.size).toBe(0);
+    expect(core.updates).toEqual([]);
+    expect(core.tests).toEqual([]);
+    expect(core.references).toEqual([]);
+    p.button('Load databases').click();
+    await p.settle();
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates[0]?.secrets).toEqual({
+      '/credentials/user': { source: 'reference', ref: 'vault://kv/dev/example#user', store: 'vault-dev' },
+      '/credentials/password': { source: 'reference', ref: 'vault://kv/dev/example#password', store: 'vault-dev' },
+    });
+    expect(core.updates[0]?.config['credentials'] ?? {}).toEqual({});
+    expect(TestBed.inject(ConnectionsApi).setEnabled).not.toHaveBeenCalled();
+  });
+
+  it('keeps an absent imported host empty and requires the missing reference store before finishing setup', async () => {
+    core.detail = { ...structuredClone(DETAIL), enabled: false, setupRequired: true, config: {}, secrets: [],
+      setupMissingFields: ['/connection/host', '/credentials/password'],
+      setupSources: [
+        { field: '/credentials/user', source: 'reference', reference: 'vault://kv/dev/example#user', store: 'vault-unavailable' },
+        { field: '/credentials/password', source: 'reference', reference: 'vault://kv/dev/example#password', store: 'vault-unavailable' },
+        { field: '/connection/host', source: 'reference', reference: 'vault://kv/dev/example#host' },
+      ] };
+    const p = await open('/connections/dev-db');
+    expect(p.q<HTMLInputElement>('#cf-connection-host')!.value).toBe('');
+    expect(text(p.q('#cf-credentials-password-src'))).toBe('vault-unavailable');
+    expect(p.el.textContent).toContain('vault-unavailable is not connected');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates).toEqual([]);
+    expect(core.references).toEqual([]);
+    expect(TestBed.inject(ConnectionsApi).setEnabled).not.toHaveBeenCalled();
+  });
+
   it('does not send an unsaved existing credential replacement through setup completion', async () => {
     core.detail = { ...structuredClone(DETAIL), enabled: false, setupRequired: true,
       setupMissingFields: ['/connection/host'] };

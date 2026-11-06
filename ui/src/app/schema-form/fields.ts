@@ -172,7 +172,7 @@ export class GwSchemaField {
   protected sourceLabel(): string {
     const src = this.form().fieldSource(this.node());
     if (!src) return 'Text';
-    return src.store && this.form().storesOf(src.kind).length > 1 ? src.store : SHORT_KINDS[src.kind] ?? src.kind;
+    return src.store && (this.form().storesOf(src.kind).length > 1 || !src.available) ? src.store : SHORT_KINDS[src.kind] ?? src.kind;
   }
 
   protected optionValue(option: StoreOption): string {
@@ -233,6 +233,8 @@ export class GwSchemaField {
     const kind = f.fieldKind(n);
     if (!kind) return '';
     const title = kindTitle(kind);
+    const source = f.fieldSource(n);
+    if (source && !source.available) return source.reason ?? `Connect ${source.title} in Secrets or choose another source.`;
     const all = f.storesOf(kind);
     const store = f.fieldStore(n);
     if (!all.length) return `No ${title} is connected yet: connect one in Secrets, or the ${lowerFirst(n.title)} can't be read.`;

@@ -6,7 +6,7 @@ import { ConnectionFormSpec } from '../../../core/api/connector-types.api';
 import { StoredSecret, TestOutcome } from '../../../core/api/connections.api';
 import { Env, JsonObject } from '../../../core/api/types';
 import { provideKitIcons } from '../../icons';
-import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm } from './connection-form';
+import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm, InitialCredentialReference } from './connection-form';
 
 /** The form spec the core serves for a type (`GET /api/connector-types/{type}/form`), from the stored schemas. */
 function spec(type: string): ConnectionFormSpec {
@@ -25,7 +25,7 @@ function spec(type: string): ConnectionFormSpec {
 
 @Component({
   imports: [GwConnectionForm],
-  template: `<form gwConnectionForm idPrefix="cf" aria-label="New connection" [spec]="spec()" [mode]="mode()" [stored]="stored()" name="dev-cluster" [env]="env()" [config]="config()" (save)="saved.push($event)" (discoverDatabases)="discoveries.push($event)"></form>`,
+  template: `<form gwConnectionForm idPrefix="cf" aria-label="New connection" [spec]="spec()" [mode]="mode()" [stored]="stored()" [initialReferences]="references()" name="dev-cluster" [env]="env()" [config]="config()" (save)="saved.push($event)" (discoverDatabases)="discoveries.push($event)"></form>`,
 })
 class Host {
   readonly spec = signal(spec('kubernetes'));
@@ -33,6 +33,7 @@ class Host {
   readonly config = signal<JsonObject | null>(null);
   readonly mode = signal<'create' | 'edit'>('create');
   readonly stored = signal<readonly StoredSecret[]>([]);
+  readonly references = signal<readonly InitialCredentialReference[]>([]);
   readonly saved: ConnectionFormValue[] = [];
   readonly discoveries: DatabaseDiscoveryRequest[] = [];
   readonly form = viewChild.required(GwConnectionForm);
@@ -880,6 +881,70 @@ describe('connection form: where each credential comes from', () => {
     input.dispatchEvent(new Event('input', { bubbles: true }));
     await settle();
   };
+
+  it('keeps unresolved named references editable and never substitutes another connected store', async () => {
+    const { el, host, settle } = await render();
+    host.spec.set({ ...spec('redis'), secretSources: vaults });
+    host.mode.set('edit');
+    host.config.set({ connection: { host: 'cache.example.test' } });
+    host.references.set([
+      { field: '/credentials/user', ref: 'vault://kv/dev/cache#user', store: 'vault-missing' },
+      { field: '/credentials/password', ref: 'vault://kv/dev/cache#password', store: 'vault-missing' },
+    ]);
+    await settle();
+    for (const key of ['user', 'password']) {
+      expect(el.querySelector<HTMLInputElement>(`#cf-credentials-${key}`)!.value).toBe(`vault://kv/dev/cache#${key}`);
+      expect(sourceMenu(el, `credentials-${key}`).trigger().textContent?.trim()).toBe('vault-missing');
+      expect(sourceMenu(el, `credentials-${key}`).option('Vault · vault-missing').getAttribute('aria-disabled')).toBe('true');
+    }
+    expect(host.form().state().stored.size).toBe(0);
+    expect(host.form().value().secrets).toEqual({
+      '/credentials/user': { source: 'reference', ref: 'vault://kv/dev/cache#user', store: 'vault-missing' },
+      '/credentials/password': { source: 'reference', ref: 'vault://kv/dev/cache#password', store: 'vault-missing' },
+    });
+    await submit(el, settle);
+    expect(host.saved).toEqual([]);
+    expect(el.querySelector('#cf-credentials-password-err')?.textContent).toContain('vault-missing is not connected');
+    await pickSource(el, settle, 'credentials-user', 'Vault · vault-stage');
+    await pickSource(el, settle, 'credentials-password', 'Vault · vault-stage');
+    await submit(el, settle);
+    expect(host.saved[0]?.secrets['/credentials/password']).toEqual({ source: 'reference', ref: 'vault://kv/dev/cache#password', store: 'vault-stage' });
+    host.form().reset();
+    await settle();
+    expect(host.form().value().secrets['/credentials/password']).toEqual({ source: 'reference', ref: 'vault://kv/dev/cache#password', store: 'vault-missing' });
+  });
+
+  it('explains a discovered reference whose provider has no connected store', async () => {
+    const { el, host, settle } = await render();
+    host.spec.set(spec('redis'));
+    host.config.set({ connection: { host: 'cache.example.test' } });
+    host.references.set([{ field: '/credentials/password', ref: 'aws-sm://eu-west-1/dev/cache#password' }]);
+    await settle();
+    expect(sourceMenu(el, 'credentials-password').trigger().textContent?.trim()).toBe('AWS');
+    expect(el.textContent).toContain('No AWS Secrets Manager is connected');
+    await submit(el, settle);
+    expect(host.saved).toEqual([]);
+    expect(el.querySelector<HTMLInputElement>('#cf-credentials-password')!.value).toBe('aws-sm://eu-west-1/dev/cache#password');
+  });
+
+  it('does not replace saved values, stored credentials or target addresses with setup hints', async () => {
+    const { el, host, settle } = await render();
+    host.spec.set(spec('redis'));
+    host.mode.set('edit');
+    host.config.set({ connection: { host: 'cache.example.test' }, credentials: { user: 'saved-user' } });
+    host.stored.set([{ field: '/credentials/password', secretId: 'sec-1', name: 'cache/password', state: 'stored', version: 1, source: 'local' }]);
+    host.references.set([
+      { field: '/credentials/user', ref: 'vault://kv/dev/cache#user' },
+      { field: '/credentials/password', ref: 'vault://kv/dev/cache#password' },
+      { field: '/connection/host', ref: 'vault://kv/dev/cache#host' },
+      { field: '/unknown', ref: 'vault://kv/dev/cache#unknown' },
+    ]);
+    await settle();
+    expect(el.querySelector<HTMLInputElement>('#cf-credentials-user')!.value).toBe('saved-user');
+    expect(el.querySelector<HTMLInputElement>('#cf-connection-host')!.value).toBe('cache.example.test');
+    expect(host.form().value().secrets).toEqual({});
+    expect(host.form().state().stored.get('/credentials/password')?.secretId).toBe('sec-1');
+  });
 
   it("offers Text and each connected store in a field's menu, and binds the reference to the Vault picked", async () => {
     const { el, host, settle } = await render();

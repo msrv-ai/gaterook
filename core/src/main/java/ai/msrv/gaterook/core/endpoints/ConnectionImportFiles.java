@@ -82,6 +82,7 @@ public class ConnectionImportFiles {
   /** Reads only the predetermined file, removes values from the review manifest, then deletes the plaintext file. */
   public Prepared read(String id) {
     Map<String, Map<String, StagedSecret>> staged = new LinkedHashMap<>();
+    Map<String, Map<String, StagedSecret>> stores = new LinkedHashMap<>();
     byte[] bytes = null;
     try {
       requireDirectory();
@@ -117,13 +118,45 @@ public class ConnectionImportFiles {
         }
         if (!summaries.isEmpty()) candidate.set("secretSources", summaries);
       }
+      if (manifest.has("stores")) {
+        if (!manifest.path("stores").isArray() || manifest.path("stores").size() > ConnectionImportService.MAX_STORES) {
+          throw invalid("Provide at most 16 discovered secret stores.");
+        }
+        for (JsonNode node : manifest.path("stores")) {
+          if (!(node instanceof ObjectNode candidate) || !candidate.path("id").isString()
+              || stores.containsKey(candidate.path("id").asString()) || candidate.has("secretSources")) {
+            throw invalid("Use unique store ids and put bootstrap credentials only in secrets.");
+          }
+          Map<String, StagedSecret> fields = new LinkedHashMap<>();
+          stores.put(candidate.path("id").asString(), fields);
+          JsonNode secrets = candidate.remove("secrets");
+          ArrayNode summaries = JsonNodeFactory.instance.arrayNode();
+          if (secrets != null) {
+            if (!secrets.isObject() || secrets.size() > 2) throw invalid("Use only the Vault token or AppRole secret id.");
+            for (Map.Entry<String, JsonNode> entry : secrets.properties()) {
+              if (!Set.of("/auth/token", "/auth/secretId").contains(entry.getKey())) {
+                throw invalid("Use only the Vault token or AppRole secret id.");
+              }
+              StagedSecret secret = parse(entry.getValue());
+              fields.put(entry.getKey(), secret);
+              if (!Set.of("local", "file").contains(secret.source())) {
+                throw invalid("Store bootstrap credentials must be a local value or a file, never another store reference.");
+              }
+              summaries.add(secret.summary(entry.getKey()));
+            }
+          }
+          if (!summaries.isEmpty()) candidate.set("secretSources", summaries);
+        }
+      }
       Files.delete(path(id));
-      return new Prepared(manifest, staged);
+      return new Prepared(manifest, staged, stores);
     } catch (ProblemException e) {
       clear(staged);
+      clear(stores);
       throw e;
     } catch (RuntimeException | IOException e) {
       clear(staged);
+      clear(stores);
       // Parser exceptions can include source snippets, paths and values. Never propagate them.
       throw invalid("The import file could not be read. Use valid UTF-8 JSON within the import size limit.");
     } finally {
@@ -140,7 +173,11 @@ public class ConnectionImportFiles {
     }
   }
 
-  public record Prepared(ObjectNode manifest, Map<String, Map<String, StagedSecret>> secrets) implements AutoCloseable {
+  public record Prepared(ObjectNode manifest, Map<String, Map<String, StagedSecret>> secrets,
+      Map<String, Map<String, StagedSecret>> storeSecrets) implements AutoCloseable {
+    public Prepared(ObjectNode manifest, Map<String, Map<String, StagedSecret>> secrets) {
+      this(manifest, secrets, Map.of());
+    }
     public Map<String, SecretInput> resolve(String candidateId) {
       Map<String, SecretInput> resolved = new LinkedHashMap<>();
       try {
@@ -154,7 +191,7 @@ public class ConnectionImportFiles {
       }
     }
 
-    @Override public void close() { clear(secrets); }
+    @Override public void close() { clear(secrets); clear(storeSecrets); }
     @Override public String toString() { return "Prepared[credentials redacted]"; }
   }
 

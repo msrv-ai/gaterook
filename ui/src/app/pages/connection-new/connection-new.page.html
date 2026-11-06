@@ -294,6 +294,7 @@
         [env]="startEnv()"
         [config]="startConfig()"
         [stored]="stored()"
+        [initialReferences]="setupReferences()"
         [metadata]="detail()?.metadata ?? null"
         [parts]="['connection', 'credentials', 'safety', 'advanced']"
         [policyDefaults]="prodLines()"

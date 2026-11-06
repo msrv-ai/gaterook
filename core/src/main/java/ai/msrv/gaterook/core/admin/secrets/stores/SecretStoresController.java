@@ -3,6 +3,7 @@ package ai.msrv.gaterook.core.admin.secrets.stores;
 import ai.msrv.gaterook.core.admin.ApiRequestException;
 import ai.msrv.gaterook.core.admin.Reasons;
 import ai.msrv.gaterook.core.platform.FileGrants;
+import ai.msrv.gaterook.core.endpoints.ConnectionImportService;
 import ai.msrv.gaterook.core.secrets.SecretInfo;
 import ai.msrv.gaterook.core.secrets.SecretStores;
 import java.net.URI;
@@ -10,6 +11,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
 import org.springframework.http.ResponseEntity;
@@ -31,7 +33,7 @@ import tools.jackson.databind.JsonNode;
  * prefix of a value.
  */
 @RestController
-@RegisterReflectionForBinding({SecretStoresController.Create.class, SecretStoresController.Update.class,
+@RegisterReflectionForBinding({SecretStoresController.ImportCreate.class, SecretStoresController.Create.class, SecretStoresController.Update.class,
     SecretStoresController.Delete.class, SecretStoresController.Reason.class, SecretStoresController.RefTestRequest.class,
     SecretStoresController.ReplaceReference.class, SecretStoresController.Reference.class,
     SecretStoresController.VaultBrowseRequest.class, SecretStores.VaultBrowse.class, SecretStores.VaultEntry.class,
@@ -56,6 +58,12 @@ class SecretStoresController {
     public String toString() {
       return "Create[" + kind + " " + name + ", " + (secrets == null ? 0 : secrets.size()) + " secret(s)]";
     }
+  }
+
+  /** Prepared credentials are used only when the person selects their field before Connect. */
+  record ImportCreate(String name, JsonNode config, Map<String, char[]> secrets, Map<String, String> files,
+      List<String> preparedFields, String existingStore, String reason) {
+    @Override public String toString() { return "ImportCreate[credentials redacted]"; }
   }
 
   /**
@@ -88,10 +96,12 @@ class SecretStoresController {
 
   private final SecretStores stores;
   private final FileGrants grants;
+  private final ConnectionImportService imports;
 
-  SecretStoresController(SecretStores stores, FileGrants grants) {
+  SecretStoresController(SecretStores stores, FileGrants grants, ConnectionImportService imports) {
     this.stores = stores;
     this.grants = grants;
+    this.imports = imports;
   }
 
   @GetMapping("/api/secret-stores")
@@ -132,6 +142,58 @@ class SecretStoresController {
       zero(secrets);
       zero(request.secrets());
     }
+  }
+
+  /** AI tools only stage these proposals; connecting one requires a signed local admin request. */
+  @PostMapping("/api/connection-imports/{sessionId}/stores/{proposalId}/connect")
+  SecretStores.StoreInfo connectImport(@PathVariable String sessionId, @PathVariable String proposalId,
+      @RequestBody ImportCreate request) {
+    try {
+      String storeId;
+      if (request.existingStore() != null) {
+        if (request.name() != null || request.config() != null || request.secrets() != null
+            || request.files() != null || request.preparedFields() != null) {
+          throw ApiRequestException.unprocessable("Choose one store action", "Choose an existing store or configure a new one.", "/existingStore");
+        }
+        storeId = imports.connectStore(sessionId, proposalId, null, null, null, (proposal, values) -> {
+          SecretStores.StoreInfo existing = stores.get(request.existingStore());
+          if (!"vault".equals(existing.kind()) || !existing.verified()) {
+            throw ApiRequestException.unprocessable("Choose a verified Vault store", "Review the selected store before using it.", "/existingStore");
+          }
+          VaultIdentity expected = vaultIdentity(proposal.path("config"));
+          if (expected == null || !expected.equals(vaultIdentity(existing.config()))) {
+            throw ApiRequestException.unprocessable("Vault address changed", "The existing store no longer matches the discovered address and namespace. Refresh and review it again.", "/existingStore");
+          }
+          return existing.id();
+        });
+      } else {
+        String method = request.config() == null ? "approle" : request.config().path("auth").path("method").asString("approle");
+        storeId = imports.connectStore(sessionId, proposalId, method, request.preparedFields(), request.secrets(), (proposal, values) -> {
+          Map<String, Path> files = chosen(request.files());
+          SecretStores.StoreInfo created = stores.create("vault", request.name(), request.config(), values, files,
+              Reasons.check(request.reason()));
+          redeem(request.files());
+          return created.id();
+        });
+      }
+      return stores.get(storeId);
+    } finally { zero(request.secrets()); }
+  }
+
+  private record VaultIdentity(String scheme, String host, int port, String path, String namespace) {}
+
+  /** Same authority, base path and case-sensitive namespace as the import UI, without DNS or secret reads. */
+  private static VaultIdentity vaultIdentity(JsonNode config) {
+    try {
+      URI uri = URI.create(config.path("address").asString("").strip()).normalize();
+      String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+      if (!(scheme.equals("https") || scheme.equals("http")) || uri.getHost() == null
+          || uri.getRawUserInfo() != null || uri.getRawQuery() != null || uri.getRawFragment() != null) return null;
+      int port = uri.getPort() < 0 ? scheme.equals("https") ? 443 : 80 : uri.getPort();
+      String path = uri.getRawPath() == null ? "" : uri.getRawPath().replaceAll("/+$", "");
+      String namespace = config.path("namespace").asString("").strip().replaceAll("^/+|/+$", "");
+      return new VaultIdentity(scheme, uri.getHost().toLowerCase(Locale.ROOT), port, path, namespace);
+    } catch (IllegalArgumentException e) { return null; }
   }
 
   @PutMapping("/api/secret-stores/{id}")

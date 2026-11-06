@@ -72,6 +72,48 @@ class ConnectionImportFilesTest {
   }
 
   @Test
+  void storeBootstrapLiteralsAreRedactedAndFilesStayUnreadUntilExplicitResolution() throws Exception {
+    try (GatewayPaths paths = GatewayPaths.open(temporary.resolve("home"))) {
+      ConnectionImportFiles files = new ConnectionImportFiles(paths, JSON);
+      ObjectNode manifest = JSON.createObjectNode().put("version", 1);
+      manifest.putArray("connections");
+      ObjectNode store = manifest.putArray("stores").addObject().put("id", "vault-discovery");
+      ObjectNode secrets = store.putObject("secrets");
+      secrets.putObject("/auth/token").put("source", "local").put("value", "store-bootstrap-value");
+      secrets.putObject("/auth/secretId").put("source", "file").put("path", temporary.resolve("missing-file").toString());
+      Path file = Path.of(files.create(ID));
+      Files.writeString(file, manifest.toString());
+      var prepared = files.read(ID);
+      assertThat(prepared.manifest().toString()).contains("secretSources", "missing-file").doesNotContain("store-bootstrap-value", "\"secrets\"");
+      var token = prepared.storeSecrets().get("vault-discovery").get("/auth/token");
+      var value = token.resolve();
+      assertThat(new String(value.value())).isEqualTo("store-bootstrap-value");
+      value.clear();
+      prepared.close();
+      var cleared = token.resolve();
+      assertThat(cleared.value()).containsOnly('\0');
+      cleared.clear();
+    }
+  }
+
+  @Test
+  void storeBootstrapRejectsExternalReferencesAndUnknownCredentialFields() throws Exception {
+    try (GatewayPaths paths = GatewayPaths.open(temporary.resolve("home"))) {
+      ConnectionImportFiles files = new ConnectionImportFiles(paths, JSON);
+      for (String field : new String[] {"/auth/token", "/auth/other"}) {
+        ObjectNode manifest = JSON.createObjectNode().put("version", 1);
+        manifest.putArray("connections");
+        manifest.putArray("stores").addObject().put("id", "vault-discovery").putObject("secrets")
+            .putObject(field).put("source", "reference").put("ref", "vault://kv/bootstrap#token");
+        Path file = Path.of(files.create(ID));
+        Files.writeString(file, manifest.toString());
+        assertThatThrownBy(() -> files.read(ID)).isInstanceOf(ProblemException.class);
+        files.delete(ID);
+      }
+    }
+  }
+
+  @Test
   void vaultKeysArePreservedAsReferencesWithoutResolvingThem() throws Exception {
     try (GatewayPaths paths = GatewayPaths.open(temporary.resolve("home"))) {
       ConnectionImportFiles files = new ConnectionImportFiles(paths, JSON);

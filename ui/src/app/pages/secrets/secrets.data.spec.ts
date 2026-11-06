@@ -78,6 +78,14 @@ function setup(): SecretsData {
 }
 
 describe('SecretsData', () => {
+  it('loads only store metadata for import setup', async () => {
+    const data = setup();
+    await data.refreshStores();
+    expect(calls).toEqual(['stores']);
+    expect(data.stores().value?.map(store => store.name)).toEqual(['vault', 'gcp-acme-stage']);
+    expect(data.masterKey().value).toBeNull();
+    expect(data.rows().value).toBeNull();
+  });
   it('loads every part, with each connection’s env', async () => {
     const data = setup();
     answers.list = () => Promise.resolve([
