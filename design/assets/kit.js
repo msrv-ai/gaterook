@@ -99,12 +99,14 @@
  *                default on) turns single-key shortcuts on / off: data-gw-single-keys="off" on
  *                <html>, remembered in localStorage "gw-single-keys"
  * Toasts and announcements go into the open modal <dialog> when there is one (body is inert then).
+ * Only toasts created during that opening are visible there; earlier notifications keep their normal lifetime.
  * Helpers: window.gwAnnounce(text, { assertive }), window.gwToast({ title, body, tone, icon, timeout, actions: [{ label, onClick }] }),
- *          window.gwIcons(root). data-gw-countdown-announce="…" is read out once (assertive) when the last minute starts.
+ *          window.gwIcons(root), window.gwShowDialog(dialog). data-gw-countdown-announce="…" is read out once (assertive) when the last minute starts.
  */
 (function () {
   "use strict";
   var doc = document;
+  var modalStack = [];
 
   // ───────────────────────── live region ─────────────────────────
   var live = doc.createElement("div");
@@ -114,7 +116,10 @@
   var liveAlert = doc.createElement("div");
   liveAlert.className = "gw-sr-only";
   liveAlert.setAttribute("role", "alert");
-  function topLayer() { return doc.querySelector("dialog[open]:modal") || doc.body; }
+  function topLayer() {
+    modalStack = modalStack.filter(function (d) { return d.open && d.isConnected; });
+    return modalStack[modalStack.length - 1] || doc.querySelector("dialog[open]:modal") || doc.body;
+  }
   function announce(text, opts) {
     var region = opts && opts.assertive ? liveAlert : live;
     var host = topLayer();
@@ -402,9 +407,20 @@
     if (openMenu && openMenu.panel.contains(opener)) return openMenu.trigger;
     return opener;
   }
+  function showDialog(d) {
+    if (d.open) return;
+    d._gwToastScope = {};
+    d.showModal();
+    modalStack = modalStack.filter(function (other) { return other !== d; });
+    modalStack.push(d);
+    syncToastRegion();
+  }
+  window.gwShowDialog = showDialog;
   doc.addEventListener("close", function (e) {
     var d = e.target;
     if (!d || d.tagName !== "DIALOG") return;
+    modalStack = modalStack.filter(function (other) { return other !== d; });
+    syncToastRegion();
     var back = d._gwReturn;
     d._gwReturn = null;
     if (!back || !back.isConnected || typeof back.focus !== "function") return;
@@ -420,7 +436,7 @@
       if (dlg && typeof dlg.showModal === "function" && !dlg.open) {
         dlg._gwReturn = returnTarget(opener);
         closeMenu(false);
-        dlg.showModal();
+        showDialog(dlg);
         icons(dlg);
       }
       return;
@@ -516,24 +532,43 @@
       select.value = String(toastDurationSeconds);
     });
   }
-  function toastRegion() {
-    var host = topLayer();
-    var region = host.querySelector(":scope > .gw-toast-region");
-    if (!region) {
-      region = doc.createElement("section");
-      region.className = "gw-toast-region";
-      region.setAttribute("aria-label", "Notifications");
-      region.setAttribute("aria-live", "polite");
-      region.setAttribute("aria-relevant", "additions");
-      host.appendChild(region);
+  var activeToastRegion = null, toastHome = null;
+  function syncToastRegion() {
+    if (!activeToastRegion) return;
+    var modal = topLayer();
+    if (modal === doc.body) {
+      toastHome.parent.insertBefore(activeToastRegion, toastHome.next);
+    } else if (activeToastRegion.parentNode !== modal) {
+      modal.appendChild(activeToastRegion);
     }
-    return region;
+    Array.prototype.forEach.call(activeToastRegion.children, function (el) {
+      el.hidden = modal !== doc.body && el._gwToastScope !== modal._gwToastScope;
+      if (el.hidden && el._gwResumeHidden) el._gwResumeHidden();
+    });
+  }
+  function toastRegion() {
+    if (!activeToastRegion) {
+      activeToastRegion = doc.querySelector(".gw-toast-region");
+      if (!activeToastRegion) {
+        activeToastRegion = doc.createElement("section");
+        activeToastRegion.className = "gw-toast-region";
+        activeToastRegion.setAttribute("aria-label", "Notifications");
+        activeToastRegion.setAttribute("aria-live", "polite");
+        activeToastRegion.setAttribute("aria-relevant", "additions");
+        doc.body.appendChild(activeToastRegion);
+      }
+      toastHome = { parent: activeToastRegion.parentNode, next: activeToastRegion.nextSibling };
+    }
+    syncToastRegion();
+    return activeToastRegion;
   }
   function toast(opts) {
     opts = opts || {};
     var tone = opts.tone || "neutral";
     var iconName = opts.icon || { success: "circle-check", warning: "triangle-alert", danger: "circle-x", info: "info", neutral: "bell", brand: "bell" }[tone] || "bell";
     var el = doc.createElement("div");
+    var modal = topLayer();
+    el._gwToastScope = modal === doc.body ? null : modal._gwToastScope;
     el.className = "gw-toast gw-toast--" + tone;
     if (tone === "danger") el.setAttribute("role", "alert"); // the region is polite; failures interrupt once
     el.innerHTML =
@@ -580,6 +615,7 @@
       el.addEventListener("focusout", function (ev) {
         if (!el.contains(ev.relatedTarget)) { focused = false; start(); }
       });
+      el._gwResumeHidden = function () { hovered = false; focused = false; start(); };
       start();
     }
     return el;
@@ -877,7 +913,7 @@
     // the chain hands its first opener on, so the last step returns focus there
     next._gwReturn = current ? current._gwReturn : returnTarget(from);
     if (current) { current._gwReturn = null; current.close("next"); }
-    next.showModal();
+    showDialog(next);
     icons(next);
   }
   doc.addEventListener("submit", function (e) {
@@ -1033,7 +1069,7 @@
     e.preventDefault();
     palette._gwReturn = returnTarget(doc.activeElement);
     closeMenu(false);
-    palette.showModal();
+    showDialog(palette);
     icons(palette);
   });
 

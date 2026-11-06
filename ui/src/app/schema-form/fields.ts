@@ -235,7 +235,7 @@ export class GwSchemaField {
     const title = kindTitle(kind);
     const source = f.fieldSource(n);
     if (source && !source.available) return source.reason ?? `Connect ${source.title} in Secrets or choose another source.`;
-    const all = f.storesOf(kind);
+    const all = f.storesOf(kind).filter(option => option.available);
     const store = f.fieldStore(n);
     if (!all.length) return `No ${title} is connected yet: connect one in Secrets, or the ${lowerFirst(n.title)} can't be read.`;
     if (store) return `Read from ${store} at call time.`;

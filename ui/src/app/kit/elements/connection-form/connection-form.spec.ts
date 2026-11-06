@@ -904,7 +904,7 @@ describe('connection form: where each credential comes from', () => {
     });
     await submit(el, settle);
     expect(host.saved).toEqual([]);
-    expect(el.querySelector('#cf-credentials-password-err')?.textContent).toContain('vault-missing is not connected');
+    expect(el.querySelector('#cf-credentials-password-err')?.textContent).toContain('The reference names vault-missing, but no connected store matches this name.');
     await pickSource(el, settle, 'credentials-user', 'Vault · vault-stage');
     await pickSource(el, settle, 'credentials-password', 'Vault · vault-stage');
     await submit(el, settle);
@@ -912,6 +912,44 @@ describe('connection form: where each credential comes from', () => {
     host.form().reset();
     await settle();
     expect(host.form().value().secrets['/credentials/password']).toEqual({ source: 'reference', ref: 'vault://kv/dev/cache#password', store: 'vault-missing' });
+  });
+
+  it('keeps an unresolved password binding separate from a generic username and changes it only when another store is chosen', async () => {
+    const { el, host, settle } = await render();
+    const actions = vi.fn();
+    host.form().secretAction.subscribe(actions);
+    host.spec.set({ ...spec('redis'), secretSources: [vaults[0], { ...vaults[1], store: 'vault-public' }] });
+    host.mode.set('edit');
+    host.config.set({ connection: { host: 'cache.example.test' } });
+    host.references.set([
+      { field: '/credentials/user', ref: 'vault://kv/dev/cache#user' },
+      { field: '/credentials/password', ref: 'vault://kv/dev/cache#password', store: 'vault-private' },
+    ]);
+    await settle();
+    const originalUser = { source: 'reference', ref: 'vault://kv/dev/cache#user' };
+    expect(host.form().value().secrets['/credentials/user']).toEqual(originalUser);
+    expect(host.form().value().secrets['/credentials/password']).toEqual({ source: 'reference', ref: 'vault://kv/dev/cache#password', store: 'vault-private' });
+    expect(el.querySelector('#cf-credentials-user-hint')?.textContent).not.toContain('vault-private');
+    expect(el.querySelector('#cf-credentials-user-hint')?.textContent).not.toContain('asked in turn');
+    expect(el.querySelector('#cf-credentials-password-hint')?.textContent).toContain('The reference names vault-private, but no connected store matches this name.');
+    expect(sourceMenu(el, 'credentials-password').option('Vault · vault-private').getAttribute('aria-disabled')).toBe('true');
+    expect(actions).not.toHaveBeenCalled();
+    await submit(el, settle);
+    expect(host.saved).toEqual([]);
+    await pickSource(el, settle, 'credentials-password', 'HashiCorp Vault or OpenBao');
+    expect(sourceMenu(el, 'credentials-password').trigger().textContent?.trim()).toBe('vault-public');
+    expect(el.querySelector<HTMLInputElement>('#cf-credentials-password')!.value).toBe('vault://kv/dev/cache#password');
+    expect(el.querySelector('#cf-credentials-password-hint')?.textContent).toBe('Read from vault-public at call time.');
+    expect(el.querySelector('#cf-credentials-password-err')).toBeNull();
+    expect(actions).not.toHaveBeenCalled();
+    const picker = el.querySelector('#cf-credentials-password')!.closest('gw-vault-picker')!;
+    Array.from(picker.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.trim() === 'Test reference')!.click();
+    expect(actions).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ kind: 'test', ref: 'vault://kv/dev/cache#password', store: 'vault-public' }));
+    await submit(el, settle);
+    expect(host.saved.at(-1)?.secrets).toEqual({
+      '/credentials/user': originalUser,
+      '/credentials/password': { source: 'reference', ref: 'vault://kv/dev/cache#password', store: 'vault-public' },
+    });
   });
 
   it('explains a discovered reference whose provider has no connected store', async () => {
@@ -1035,12 +1073,15 @@ describe('connection form: where each credential comes from', () => {
 
   it('a user typed with a Vault scheme by hand is read from the first Vault that has it', async () => {
     const { el, host, settle } = await render();
-    host.spec.set({ ...spec('redis'), secretSources: vaults });
+    host.spec.set({ ...spec('redis'), secretSources: [...vaults,
+      { id: 'vault', label: 'HashiCorp Vault', available: false, reason: 'This store is unavailable.', store: 'vault-offline' },
+    ] });
     host.config.set({ connection: { host: '127.0.0.1' } });
     await settle();
     await type(el, settle, 'credentials-user', 'vault://kv/prod/cache#username');
     expect(sourceMenu(el, 'credentials-user').trigger().textContent?.trim()).toBe('Vault');
     expect(el.textContent).toContain('asked in turn: vault-prod, then vault-stage');
+    expect(el.querySelector('#cf-credentials-user-hint')?.textContent).not.toContain('vault-offline');
     await submit(el, settle);
     expect(host.saved.at(-1)!.secrets).toEqual({
       '/credentials/user': { source: 'reference', ref: 'vault://kv/prod/cache#username' },

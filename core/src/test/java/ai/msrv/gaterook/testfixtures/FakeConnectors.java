@@ -70,6 +70,9 @@ public class FakeConnectors {
        "truncatedReason":{"type":["string","null"],"enum":["row_limit","size_limit","timeout",null]},
        "elapsedMs":{"type":"integer"},"masked":{"type":"array","items":{"type":"string"}}}}""";
 
+  /** Privilege probes against the two warning fixtures, for explicit batch-consent tests. */
+  public static final List<String> DANGER_TESTS = new CopyOnWriteArrayList<>();
+
   /** Every resource read that reached a fake connector: the URI, for the tests that check nothing was read. */
   public static final List<String> RESOURCE_READS = new CopyOnWriteArrayList<>();
 
@@ -551,6 +554,14 @@ public class FakeConnectors {
           case "fail.test" -> {
             String password = secrets.secret("/credentials/password").unsafeString();
             return TestResult.failure("auth", "password authentication failed: " + password + " was refused", null);
+          }
+          case "danger-one.test", "danger-two.test" -> {
+            DANGER_TESTS.add(host);
+            return TestResult.success(3, "Fake 1.0", "app", null)
+                .withHint(new TestResult.Hint(TestResult.Severity.DANGER, "fake-broad-rights", null,
+                    "This user has broad database rights."))
+                .withHint(new TestResult.Hint(TestResult.Severity.DANGER, "fake-admin-rights", null,
+                    "This user can administer database users."));
           }
           case "slow.test" -> {
             Thread.sleep(30_000);

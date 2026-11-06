@@ -131,6 +131,18 @@ describe('AI connection import review', () => {
     return fixture.nativeElement.querySelector('#import-create-endpoint') as HTMLDialogElement;
   }
 
+  function destinationSelect(candidate: ImportCandidate): HTMLSelectElement {
+    return fixture.nativeElement.querySelector(`#import-destination-${candidate.id}`);
+  }
+
+  function candidateCard(candidate: ImportCandidate): HTMLElement {
+    return fixture.nativeElement.querySelector(`section[aria-labelledby="candidate-${candidate.id}"]`);
+  }
+
+  async function renderReview(): Promise<void> {
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+  }
+
   async function sshEditor(staged = false) {
     const candidate = { ...sshCandidate, ...(staged ? { secretSources: [{ field: '/credentials/password', source: 'local' as const }] } : {}) };
     vi.mocked(TestBed.inject(ConnectorTypesApi).form).mockResolvedValueOnce(sshSpec);
@@ -392,7 +404,7 @@ describe('AI connection import review', () => {
     await loadReview({ ...review, manifest: { version: 1, connections: [candidate, second, skipped], warnings: [] } });
     page.setDestination(second, 'production');
     const select = fixture.nativeElement.querySelector(`#import-destination-${skipped.id}`) as HTMLSelectElement;
-    const skip = Array.from(select.options).find(option => option.textContent === 'Do not add to endpoint')!;
+    const skip = Array.from(select.options).find(option => option.textContent === 'Skip import')!;
     expect(skip).toBeDefined();
     select.value = skip.value;
     select.dispatchEvent(new Event('change', { bubbles: true }));
@@ -692,6 +704,129 @@ describe('AI connection import review', () => {
     page.confirmImport();
     await fixture.whenStable();
     expect(api.commit).toHaveBeenLastCalledWith(review.id, [{ candidateId: candidate.id, ...draft, confirm: 'danger', endpoint: 'default' }], undefined);
+  });
+
+  it('maps a rejected request index past skipped candidates to its destination error and focus', async () => {
+    const second = { ...candidate, id: 'other-db', name: 'other-dev-db' };
+    const affected = { ...candidate, id: 'affected-db', name: 'affected-dev-db' };
+    await loadReview({ ...review, manifest: { version: 1, connections: [candidate, second, affected], warnings: [] } });
+    page.setDestination(candidate, '');
+    const detail = 'A production connection requires a production endpoint.';
+    api.commit.mockRejectedValueOnce(new ApiError('unprocessable', 422, { title: 'Incompatible endpoint', detail, field: '/selections/1/endpoint' }));
+    await page.commit(); await renderReview();
+    expect(api.commit.mock.calls[0][1].map((selection: { candidateId: string }) => selection.candidateId)).toEqual([second.id, affected.id]);
+    const select = destinationSelect(affected);
+    expect(select.getAttribute('aria-invalid')).toBe('true');
+    expect(candidateCard(affected).classList.contains('gw-card--invalid')).toBe(true);
+    expect(candidateCard(second).classList.contains('gw-card--invalid')).toBe(false);
+    expect(destinationSelect(candidate).getAttribute('aria-invalid')).not.toBe('true');
+    expect(destinationSelect(second).getAttribute('aria-invalid')).not.toBe('true');
+    const descriptions = (select.getAttribute('aria-describedby') ?? '').split(/\s+/).map(id => document.getElementById(id));
+    const error = descriptions.find(element => element?.textContent?.includes(detail));
+    expect(error).toBeDefined();
+    expect(candidateCard(affected).contains(error!)).toBe(true);
+    expect(candidateCard(second).textContent).not.toContain(detail);
+    expect(document.activeElement).toBe(select);
+    expect(page.error()).toBe('');
+    expect(page.confirmation()).toBeNull();
+    expect(page.drafts().get(affected.id)?.config).toEqual(affected.config);
+  });
+
+  it('keeps an endpoint error on its candidate until that destination is corrected or skipped', async () => {
+    const second = { ...candidate, id: 'other-db', name: 'other-dev-db' };
+    await loadReview({ ...review, manifest: { version: 1, connections: [candidate, second], warnings: [] } });
+    const detail = 'Choose a compatible endpoint for this connection.';
+    api.commit.mockRejectedValueOnce(new ApiError('unprocessable', 422, { title: 'Incompatible endpoint', detail, field: '/selections/1/endpoint' }));
+    await page.commit(); await renderReview();
+    page.setDestination(candidate, 'production'); await renderReview();
+    expect(destinationSelect(second).getAttribute('aria-invalid')).toBe('true');
+    expect(candidateCard(second).textContent).toContain(detail);
+    page.setDestination(second, 'production'); await renderReview();
+    expect(destinationSelect(second).getAttribute('aria-invalid')).not.toBe('true');
+    expect(candidateCard(second).textContent).not.toContain(detail);
+    api.commit.mockRejectedValueOnce(new ApiError('unprocessable', 422, { title: 'Incompatible endpoint', detail, field: '/selections/1/endpoint' }));
+    await page.commit(); await renderReview();
+    expect(destinationSelect(second).getAttribute('aria-invalid')).toBe('true');
+    page.setDestination(second, ''); await renderReview();
+    expect(destinationSelect(second).getAttribute('aria-invalid')).not.toBe('true');
+    expect(candidateCard(second).textContent).not.toContain(detail);
+    expect(page.selected().has(second.id)).toBe(false);
+    expect(page.error()).toBe('');
+  });
+
+  it.each(['/selections/99/endpoint', '/selections/not-an-index/endpoint', '/reason'])('keeps an unmappable error at %s in the global recovery message', async field => {
+    await loadReview();
+    api.commit.mockRejectedValueOnce(new ApiError('unprocessable', 422, { title: 'Import could not finish', detail: 'Review the import and try again.', field, confirm: 'danger' }));
+    await page.commit(); await renderReview();
+    const error = fixture.nativeElement.querySelector('#import-error') as HTMLElement;
+    expect(error.textContent).toContain('Import could not finish');
+    expect(error.textContent).toContain('Review the import and try again.');
+    expect(document.activeElement).toBe(error);
+    expect(destinationSelect(candidate).getAttribute('aria-invalid')).not.toBe('true');
+    expect(page.confirmation()).toBeNull();
+    expect(api.commit).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows every permission warning on its candidate and imports them together only after explicit confirmation', async () => {
+    const second = { ...candidate, id: 'other-db', name: 'other-dev-db' };
+    const third = { ...candidate, id: 'third-db', name: 'third-dev-db' };
+    await loadReview({ ...review, manifest: { version: 1, connections: [candidate, second, third], warnings: [] } });
+    page.setDestination(candidate, '');
+    const secondDraft = { ...draft, name: second.name };
+    const thirdDraft = { ...draft, name: third.name };
+    await page.configure(second); page.keep(secondDraft);
+    await page.configure(third); page.keep(thirdDraft);
+    const secondWarning = 'The first database account can modify schema.';
+    const thirdWarning = 'The second database account can manage database users.';
+    api.commit.mockRejectedValueOnce(new ApiError('conflict', 409, {
+      title: 'Review permissions', detail: 'Review the elevated permissions before importing.', field: '/selections/0', confirm: 'danger',
+      errors: [{ field: '/selections/0', message: secondWarning }, { field: '/selections/1', message: thirdWarning }],
+    }));
+    await page.commit(); await renderReview();
+    for (const [item, text] of [[second, secondWarning], [third, thirdWarning]] as const) {
+      const issue = candidateCard(item).querySelector(`#import-candidate-issue-${item.id}`)!;
+      expect(issue.textContent).toContain(text);
+      expect(candidateCard(item).querySelector('.gw-alert--warning')).not.toBeNull();
+      expect(destinationSelect(item).getAttribute('aria-invalid')).not.toBe('true');
+      expect(destinationSelect(item).getAttribute('aria-describedby')).not.toContain(`import-candidate-issue-${item.id}`);
+      expect(Array.from(candidateCard(item).querySelectorAll('button')).some(button => button.textContent?.trim() === 'Review settings')).toBe(true);
+    }
+    expect(candidateCard(candidate).textContent).not.toContain(secondWarning);
+    expect(candidateCard(candidate).textContent).not.toContain(thirdWarning);
+    expect(page.error()).toBe('');
+    expect(page.drafts().get(second.id)?.secrets).toEqual(secondDraft.secrets);
+    expect(page.drafts().get(third.id)?.secrets).toEqual(thirdDraft.secrets);
+    expect(api.commit).toHaveBeenCalledTimes(1);
+    const confirm = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>).find(button => button.textContent?.trim() === 'Import with warnings')!;
+    expect(confirm).toBeDefined();
+    confirm.click();
+    await vi.waitFor(() => expect(api.commit).toHaveBeenCalledTimes(2));
+    expect(api.commit).toHaveBeenLastCalledWith(review.id, [
+      { candidateId: second.id, ...secondDraft, endpoint: 'default', confirm: 'danger' },
+      { candidateId: third.id, ...thirdDraft, endpoint: 'default', confirm: 'danger' },
+    ], undefined);
+  });
+
+  it('reviews only the settings named by a permission warning and clears remaining warnings when skipped', async () => {
+    const second = { ...candidate, id: 'other-db', name: 'other-dev-db' };
+    await loadReview({ ...review, manifest: { version: 1, connections: [candidate, second], warnings: [] } });
+    api.commit.mockRejectedValueOnce(new ApiError('conflict', 409, {
+      title: 'Review permissions', detail: 'Elevated permissions require confirmation.', field: '/selections/0', confirm: 'danger',
+      errors: [{ field: '/selections/0', message: 'The first account can modify schema.' }, { field: '/selections/1', message: 'The second account can manage users.' }],
+    }));
+    await page.commit(); await renderReview();
+    Array.from(candidateCard(candidate).querySelectorAll('button')).find(button => button.textContent?.trim() === 'Review settings')!.click();
+    await vi.waitFor(() => expect(page.active()?.id).toBe(candidate.id));
+    await renderReview();
+    expect(page.editorValue()?.config).toEqual(candidate.config);
+    page.keep(draft); await renderReview();
+    expect(candidateCard(candidate).querySelector(`#import-candidate-issue-${candidate.id}`)).toBeNull();
+    expect(candidateCard(second).querySelector(`#import-candidate-issue-${second.id}`)?.textContent).toContain('The second account can manage users.');
+    page.setDestination(second, ''); await renderReview();
+    expect(candidateCard(second).querySelector(`#import-candidate-issue-${second.id}`)).toBeNull();
+    expect(Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>).some(button => button.textContent?.trim() === 'Import with warnings')).toBe(false);
+    expect(page.drafts().get(candidate.id)?.confirm).toBeUndefined();
+    expect(api.commit).toHaveBeenCalledTimes(1);
   });
 
   it('invalidates permission confirmation while keeping reviewed credentials when configuration is reopened', async () => {

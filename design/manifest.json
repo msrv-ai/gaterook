@@ -163,7 +163,8 @@
         "interactive",
         "selected",
         "dashed",
-        "muted"
+        "muted",
+        "invalid"
       ],
       "subparts": [
         "__header",
@@ -176,7 +177,10 @@
         "__footer--split",
         "__link"
       ],
-      "a11y": "section[aria-labelledby] → the title heading. Interactive cards use one stretched link; selected pairs with aria-current/aria-checked."
+      "states": [
+        "invalid: danger border and inset retained on hover; only for blocking errors, with a visible explanation and correction action"
+      ],
+      "a11y": "section[aria-labelledby] → the title heading. Interactive cards use one stretched link; selected pairs with aria-current/aria-checked. Invalid cards use aria-describedby for their visible error; warnings use an inline warning alert without the invalid variant."
     },
     {
       "name": "gw-shell",
@@ -1071,7 +1075,8 @@
       ],
       "states": [
         "enter: fade; rise inside gw-motion",
-        "auto-dismiss after 6 s (kit.js; timeout: 0 keeps it)"
+        "auto-dismiss after the saved duration (15 s initially); hover or focus pauses the timer; timeout: 0 and actions keep it",
+        "inside a modal, only feedback from that opening is visible; earlier toasts keep their normal lifetime and persistent actions return after close"
       ],
       "a11y": "Region <section aria-label=\"Notifications\"> (kit.js creates one if missing and appends to the first one). Toasts are role=status, role=alert only for danger. Tone is backed by an icon and words. Do not auto-dismiss a toast whose actions the user must reach."
     },

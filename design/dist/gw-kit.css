@@ -1641,6 +1641,10 @@ table {
   border-color: var(--gw-color-border-subtle);
   box-shadow: none;
 }
+.gw-card--invalid, .gw-card--invalid:hover {
+  border-color: var(--gw-color-danger-fg);
+  box-shadow: inset 0 0 0 var(--gw-border-width-default) var(--gw-color-danger-fg);
+}
 
 .gw-stack {
   display: flex;

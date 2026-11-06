@@ -103,6 +103,7 @@ export class ConnectionImportPage {
   readonly result = signal<ConnectionImportResult | null>(null);
   readonly reason = signal('');
   readonly confirmation = signal<{ candidateId: string; name: string; text: string; confirm: string } | null>(null);
+  readonly candidateIssues = signal<ReadonlyMap<string, { name: string; text: string; field: 'endpoint' | 'settings'; warning: boolean; confirm?: string }>>(new Map());
   readonly candidates = computed(() => this.session()?.manifest?.connections ?? []);
   readonly supportedCandidates = computed(() => this.candidates().filter(candidate => candidate.supported));
   readonly needsVaultSetup = computed(() => !!this.session()?.manifest?.stores?.length || this.candidates().some(candidate =>
@@ -195,6 +196,7 @@ export class ConnectionImportPage {
     this.editorSecrets.set({});
     this.destinations.set(new Map());
     this.preparedReview = null;
+    this.candidateIssues.set(new Map()); this.confirmation.set(null);
     this.result.set(null);
     this.session.set(null);
     this.endpointDialog()?.close();
@@ -312,7 +314,7 @@ export class ConnectionImportPage {
       this.preparedReview = null;
       this.drafts.set(new Map()); this.editorSecrets.set({}); this.editorValue.set(null);
       this.destinations.set(new Map()); this.active.set(null); this.spec.set(null);
-      this.confirmation.set(null); this.notice.set('Import discarded. No saved connections were changed.');
+      this.candidateIssues.set(new Map()); this.confirmation.set(null); this.notice.set('Import discarded. No saved connections were changed.');
       await this.router.navigate(['/connection-import']);
     } catch (e) { this.fail(e); }
     finally { this.busy.set(false); }
@@ -347,6 +349,7 @@ export class ConnectionImportPage {
   private prepareReview(session: ConnectionImportSession): void {
     if (session.status !== 'review' || !session.manifest || this.preparedReview === session.id) return;
     this.preparedReview = session.id;
+    this.candidateIssues.set(new Map()); this.confirmation.set(null);
     const names = new Map<string, number>();
     for (const candidate of session.manifest.connections) names.set(candidate.name, (names.get(candidate.name) ?? 0) + 1);
     const drafts = new Map<string, ImportSelection>();
@@ -362,7 +365,7 @@ export class ConnectionImportPage {
 
   setDestination(candidate: ImportCandidate, endpoint: string): void {
     if (this.busy() || !candidate.supported || this.expired() || (endpoint && !this.eligibleEndpointSlugs().has(endpoint))) return;
-    this.confirmation.set(null);
+    this.clearCandidateIssue(candidate.id);
     const destinations = new Map(this.destinations());
     if (endpoint) destinations.set(candidate.id, endpoint); else destinations.delete(candidate.id);
     this.destinations.set(destinations);
@@ -427,7 +430,7 @@ export class ConnectionImportPage {
     this.error.set('');
     this.active.set(null);
     this.spec.set(null);
-    this.confirmation.set(null);
+    this.clearCandidateIssue(candidate.id);
     this.testState.set('idle');
     this.editorSecrets.set({});
     this.editorSecretVersions.set({});
@@ -485,6 +488,7 @@ export class ConnectionImportPage {
     const drafts = new Map(this.drafts());
     drafts.set(candidate.id, { candidateId: candidate.id, ...this.withEditorSecrets(value) });
     this.drafts.set(drafts);
+    this.clearCandidateIssue(candidate.id);
     this.closeEditor();
   }
 
@@ -503,7 +507,7 @@ export class ConnectionImportPage {
     drafts.set(candidate.id, { candidateId: candidate.id, name, env,
       config: current?.config ?? previous?.config ?? candidate.config, secrets, allowIncomplete: true });
     this.drafts.set(drafts);
-    this.confirmation.set(null);
+    this.clearCandidateIssue(candidate.id);
     if (this.active()?.id === candidate.id) this.closeEditor();
     this.notice.set('Available settings kept. Review the import selection; if required setup is missing, it will be saved disabled for you to finish later.');
   }
@@ -632,37 +636,72 @@ export class ConnectionImportPage {
 
   async commit(): Promise<void> {
     if (this.busy() || !this.ready()) return;
+    const sessionId = this.session()!.id;
+    const submitted = this.selectedDrafts();
     this.busy.set(true);
     this.error.set('');
+    this.candidateIssues.set(new Map()); this.confirmation.set(null);
     try {
-      const result = await this.api.commit(this.session()!.id, this.selectedDrafts(), this.reason().trim() || undefined);
-      if (this.destroy.destroyed) return;
+      const result = await this.api.commit(sessionId, submitted, this.reason().trim() || undefined);
+      if (this.destroy.destroyed || this.session()?.id !== sessionId) return;
       this.result.set(result);
       this.notice.set('');
       this.session.update(s => s ? { ...s, status: 'imported', submissionToken: '' } : s);
       this.drafts.set(new Map());
       this.destinations.set(new Map());
-      this.confirmation.set(null);
       this.focus('#import-complete-title');
     } catch (e) {
-      this.fail(e);
-      if (isApiError(e) && e.confirm === 'danger') {
-        const index = /^\/selections\/(\d+)(?:\/|$)/.exec(e.field ?? '');
-        const draft = index ? this.selectedDrafts()[Number(index[1])] : null;
-        if (draft) this.confirmation.set({ candidateId: draft.candidateId, name: draft.name, text: e.detail, confirm: e.confirm });
-      }
+      if (this.destroy.destroyed || this.session()?.id !== sessionId) return;
+      if (!this.showCandidateIssues(e, submitted)) this.fail(e);
     } finally { this.busy.set(false); }
+  }
+
+  private showCandidateIssues(error: unknown, submitted: readonly ImportSelection[]): boolean {
+    if (!isApiError(error)) return false;
+    const fields = [...error.errors];
+    if (error.field && !fields.some(item => item.field === error.field)) fields.unshift({ field: error.field, message: error.detail });
+    const issues = new Map<string, { name: string; text: string; field: 'endpoint' | 'settings'; warning: boolean; confirm?: string }>();
+    for (const item of fields) {
+      const match = /^\/selections\/(0|[1-9]\d*)(\/.*)?$/.exec(item.field);
+      const draft = match ? submitted[Number(match[1])] : undefined;
+      if (!draft) continue;
+      const field = match![2] === '/endpoint' ? 'endpoint' : 'settings';
+      const warning = error.confirm === 'danger' && field !== 'endpoint';
+      const previous = issues.get(draft.candidateId);
+      issues.set(draft.candidateId, { name: draft.name, text: previous ? previous.text + '\n' + item.message : item.message,
+        field: previous?.field === 'endpoint' ? 'endpoint' : field, warning,
+        confirm: warning ? 'danger' : undefined });
+    }
+    if (!issues.size) return false;
+    this.candidateIssues.set(issues);
+    this.updateConfirmation();
+    const [id, first] = issues.entries().next().value!;
+    this.focus(first.field === 'endpoint' ? '#import-destination-' + id : '#import-candidate-issue-' + id);
+    return true;
+  }
+
+  private clearCandidateIssue(id: string): void {
+    this.candidateIssues.update(current => { const next = new Map(current); next.delete(id); return next; });
+    if (this.confirmation()?.candidateId === id || this.candidateIssues().size) this.updateConfirmation();
+  }
+
+  private updateConfirmation(): void {
+    const entry = [...this.candidateIssues()].find(([, issue]) => !!issue.confirm);
+    this.confirmation.set(entry ? { candidateId: entry[0], name: entry[1].name, text: entry[1].text, confirm: entry[1].confirm! } : null);
   }
 
   confirmImport(): void {
     const confirmation = this.confirmation();
-    if (!confirmation || this.busy()) return;
-    const draft = this.drafts().get(confirmation.candidateId);
-    if (!draft || draft.name !== confirmation.name) return;
+    if (!confirmation || this.busy() || !this.ready()) return;
     const drafts = new Map(this.drafts());
-    drafts.set(draft.candidateId, { ...draft, confirm: confirmation.confirm });
+    const warnings = [...this.candidateIssues()].filter(([, issue]) => !!issue.confirm);
+    if (!warnings.length) warnings.push([confirmation.candidateId, { ...confirmation, warning: true, field: 'settings' }]);
+    for (const [id, issue] of warnings) {
+      const draft = drafts.get(id);
+      if (!draft || draft.name !== issue.name || !this.destinations().has(id)) return;
+      drafts.set(id, { ...draft, confirm: issue.confirm });
+    }
     this.drafts.set(drafts);
-    this.confirmation.set(null);
     void this.commit();
   }
 

@@ -2003,7 +2003,7 @@
   exec.addEventListener("change", function () {
     if (!exec.checked) return;
     exec.checked = false;
-    dlg.showModal();
+    window.gwShowDialog(dlg);
     if (window.gwIcons) window.gwIcons(dlg);
   });
   dlg.addEventListener("close", function () {

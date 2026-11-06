@@ -41,6 +41,18 @@
       <div class="gw-card gw-card--muted">
         <div class="gw-card__body gw-text-small">Muted card for secondary information inside a page.</div>
       </div>
+      <section class="gw-card gw-card--invalid" aria-labelledby="sc-card-invalid" aria-describedby="sc-card-invalid-error">
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" id="sc-card-invalid">Import dev-db</h3>
+            <p class="gw-card__description">A blocking error needs attention before this connection can be imported.</p>
+          </div>
+          <div class="gw-card__actions"><button class="gw-btn gw-btn--sm" type="button" aria-label="Configure dev-db">Configure</button></div>
+        </header>
+        <div class="gw-card__body">
+          <p class="gw-field__error" id="sc-card-invalid-error"><i class="gw-icon gw-icon--sm" data-lucide="circle-alert"></i>Host is required. Configure the connection and enter its database host.</p>
+        </div>
+      </section>
     </div>
   </div>
 </section>

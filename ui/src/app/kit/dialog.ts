@@ -7,18 +7,21 @@ import { MenuService } from './menu.service';
  */
 @Injectable({ providedIn: 'root' })
 export class DialogStack {
-  private readonly stack = signal<readonly HTMLDialogElement[]>([]);
+  private readonly stack = signal<readonly { element: HTMLDialogElement; scope: number }[]>([]);
+  private nextScope = 1;
 
   /** The open modal dialog on top, or null. */
-  readonly top = (): HTMLDialogElement | null => this.stack().at(-1) ?? null;
+  readonly top = (): HTMLDialogElement | null => this.stack().at(-1)?.element ?? null;
+  /** A fresh identity for each opening, including reopening the same dialog element. */
+  readonly scope = (): number | null => this.stack().at(-1)?.scope ?? null;
   readonly openCount = (): number => this.stack().length;
 
   push(d: HTMLDialogElement): void {
-    this.stack.update((s) => [...s.filter((x) => x !== d), d]);
+    this.stack.update((s) => [...s.filter((x) => x.element !== d), { element: d, scope: this.nextScope++ }]);
   }
 
   remove(d: HTMLDialogElement): void {
-    this.stack.update((s) => s.filter((x) => x !== d));
+    this.stack.update((s) => s.filter((x) => x.element !== d));
   }
 }
 

@@ -411,6 +411,7 @@ public class ConnectionImportService {
         List<Selection> reviewed = new ArrayList<>();
         Map<String, List<String>> incomplete = new LinkedHashMap<>();
         Map<String, ArrayNode> pendingSources = new LinkedHashMap<>();
+        List<ProblemException> warnings = new ArrayList<>();
         try {
           for (int index = 0; index < routed.size(); index++) {
             Selection selection = routed.get(index);
@@ -479,9 +480,21 @@ public class ConnectionImportService {
                 pendingSources.put(selection.candidateId(), sources);
               }
             } catch (ProblemException e) {
-              throw new ProblemException(e.kind(), e.title(), e.getMessage(),
+              ProblemException indexed = new ProblemException(e.kind(), e.title(), e.getMessage(),
                   "/selections/" + index + (e.field() == null ? "" : e.field()), e.confirm());
+              if (e.kind() == ProblemException.Kind.CONFLICT && ConnectionService.CONFIRM_DANGER.equals(e.confirm())) {
+                warnings.add(indexed);
+              } else throw indexed;
             }
+          }
+          if (!warnings.isEmpty()) {
+            ProblemException first = warnings.getFirst();
+            throw new ProblemException(ProblemException.Kind.CONFLICT,
+                warnings.size() == 1 ? first.title() : "Review production access warnings",
+                warnings.size() == 1 ? first.getMessage() : "Review the warnings for " + warnings.size()
+                    + " connections. You can import with these rights after confirming the warnings.",
+                first.field(), ConnectionService.CONFIRM_DANGER, warnings.stream()
+                    .map(warning -> new ProblemException.FieldError(warning.field(), warning.getMessage())).toList());
           }
           List<Destination> imported = writeTx.execute(status -> {
             // A pause, integrity change or replacement during preflight must not change the reviewed destination.

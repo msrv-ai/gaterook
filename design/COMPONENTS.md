@@ -17,7 +17,7 @@ Read [DESIGN.md](DESIGN.md) for product-wide behavior and [AGENTS.md](AGENTS.md)
 - Menus use the top layer through manual popovers, follow their trigger while scrolling, and flip above when needed. A radio popover focuses the selected radio.
 - Tables show scroll shadows, hide optional columns first, and may keep the final action cell sticky. Long literals either wrap or use explicit truncation with the full value available.
 - Screen-reader data tables belong inside a visually hidden wrapper, not on a table with a clipping class.
-- Native dialogs define initial focus and restore the opener. Toasts and announcements are rendered inside the active modal so they remain reachable.
+- Native dialogs define initial focus and restore the opener. Announcements and new toast feedback remain reachable inside the active modal. Earlier toasts are hidden during that opening so they cannot cover a new decision.
 - Shared hooks cover pressed states, search clearing, dialog transitions/guards, conditional enabling, remembered disclosure, reveal, menu closing, countdown announcements, tab anchors, histogram keyboard navigation, and the command palette. Do not add competing per-page behavior.
 
 ## Component API inventory
@@ -72,11 +72,15 @@ The one container: header (title, description, actions), body, footer. gw-stack 
 
 [SCSS](scss/components/_card.scss)
 
-**Variants:** flush; interactive; selected; dashed; muted.
+**Variants:** flush; interactive; selected; dashed; muted; invalid.
 
 **Parts:** __header; __heading; __title; __description; __actions; __body; __footer; __footer--split; __link.
 
-**Accessibility:** section[aria-labelledby] → the title heading. Interactive cards use one stretched link; selected pairs with aria-current/aria-checked.
+**States and behavior:**
+
+- invalid: danger border and inset retained on hover; only for blocking errors, with a visible explanation and correction action
+
+**Accessibility:** section[aria-labelledby] → the title heading. Interactive cards use one stretched link; selected pairs with aria-current/aria-checked. Invalid cards use aria-describedby for their visible error; warnings use an inline warning alert without the invalid variant.
 
 ### `gw-shell`
 
@@ -790,6 +794,7 @@ Native <dialog> opened with showModal(). gw-dialog is centred and holds one ques
 - [open] (native; closed = UA display: none)
 - ::backdrop = bg.backdrop
 - data-gw-static: backdrop click does not close (forms with input)
+- reference-page scripts open dialogs through `window.gwShowDialog(dialog)` so each opening receives a fresh feedback scope
 
 **Accessibility:** Focus trap, Esc, inert page and focus return come from showModal(). aria-labelledby → title, aria-describedby → description. EVERY gw-dialog names its initial focus in the markup: autofocus on the first field (or the first control when there are no fields), or on Cancel in a confirmation (Deny in the OAuth sign-in consent). Motion: the dialog fades, rises and scales; the drawer slides from the inline-end edge (RTL-aware). Reduced motion: fade only.
 
@@ -809,6 +814,8 @@ Short-lived feedback in the bottom-end corner: the result of an action (Token re
 - auto-dismiss after 15 s by default; Settings → Notifications → Display duration selects 5 / 10 / 15 / 30 / 60 / 120 seconds for new notifications (kit.js reference: `select[data-gw-toast-duration]`, remembered locally)
 - pause while hovered or focused; resume the remaining time only after both end
 - explicit `timeout` overrides the default in milliseconds; `timeout: 0` and toasts with actions stay until dismissed
+- while a modal is open, show only toasts created during that opening, including its failure feedback; reopening the same dialog starts a fresh scope
+- earlier toasts stay hidden with their normal timers running; persistent actions and notices that have not expired return when all dialogs close
 
 **Accessibility:** Region <section aria-label="Notifications"> (kit.js creates one if missing and appends to the first one). Toasts are role=status, role=alert only for danger. Tone is backed by an icon and words. Do not auto-dismiss a toast whose actions the user must reach.
 
