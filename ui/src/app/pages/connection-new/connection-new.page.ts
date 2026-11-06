@@ -1273,7 +1273,7 @@ export class ConnectionNewPage {
 
   /**
    * What Save changes among the stored references, which the settings never carry: a reference typed over a stored one
-   * (Change), and the stored Vault references when another Vault was chosen for the connection.
+   * (Change), or the same one in another store picked in its field's menu.
    */
   private referenceChanges(value: ConnectionFormValue): ReferenceChange[] {
     const stored = this.stored().filter((s) => !!s.secretId && storedReference(s));
@@ -1284,13 +1284,6 @@ export class ConnectionNewPage {
       const store = input.store ?? s.store ?? null;
       if (input.ref === s.ref && store === (s.store ?? null)) continue;
       out.push({ secretId: s.secretId!, field, uri: input.ref, store });
-    }
-    if (value.vaultStore) {
-      for (const s of stored) {
-        // Short-lived credentials are issued by their own Vault role; only stored values move.
-        if (s.source !== 'vault' || s.state === 'short-lived' || !s.ref || s.store === value.vaultStore) continue;
-        if (!out.some((c) => c.field === s.field)) out.push({ secretId: s.secretId!, field: s.field, uri: s.ref, store: value.vaultStore });
-      }
     }
     return out;
   }
@@ -1317,7 +1310,7 @@ export class ConnectionNewPage {
     const storedReferences = new Set(this.stored().filter((s) => !!s.secretId && storedReference(s)).map((s) => s.field));
     if (Object.entries(value.secrets).some(([field, input]) => input.source === 'local' && storedReferences.has(field))) {
       this.formProblem.set({ title: 'Keep the secret in its store',
-        message: 'A secret read from a store can\'t be turned into a value stored here. Choose its store as the source again and change the reference, or delete the connection and add it again.' });
+        message: 'A secret read from a store can\'t be turned into a value stored here. Keep a reference in its field (vault://…) and change it there, or delete the connection and add it again.' });
       afterNextRender(() => this.doc.getElementById('connection-form-error')?.focus(), { injector: this.injector });
       return;
     }
@@ -1332,8 +1325,8 @@ export class ConnectionNewPage {
       return;
     }
     const completingSetup = this.detail()?.setupRequired === true;
+    const existingFields = new Set(this.stored().filter(secret => !!secret.secretId).map(secret => secret.field));
     if (completingSetup) {
-      const existingFields = new Set(this.stored().filter(secret => !!secret.secretId).map(secret => secret.field));
       if (Object.keys(value.secrets).some(field => existingFields.has(field) && !changed.has(field))) {
         this.formProblem.set({ title: 'Save credential replacements first',
           message: 'Use the Save control beside an existing credential to replace its value. For an existing reference, use Replace reference in Secrets. Your typed values have not been discarded. Missing credentials are saved with the completed settings.' });
@@ -1343,9 +1336,11 @@ export class ConnectionNewPage {
     }
     this.saving.set(true);
     try {
-      const secrets = Object.fromEntries(Object.entries(value.secrets).filter(([field]) => !changed.has(field)));
+      // New secrets and fields read from a store go with the settings; a stored one changes through its own control.
+      const secrets = Object.fromEntries(Object.entries(value.secrets).filter(([field]) => !changed.has(field)
+        && !existingFields.has(field)));
       await this.connections.update(name, { config: value.config, env: value.env, version: this.version, confirm,
-        ...(completingSetup ? { secrets } : {}) });
+        ...(Object.keys(secrets).length ? { secrets } : {}) });
       // The settings are saved first: a reference the core refuses then leaves them as saved, and says why.
       const failed = await this.applyReferenceChanges(changes, reason);
       if (failed.length) {

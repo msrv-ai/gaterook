@@ -10,6 +10,7 @@ import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.SecretResolver;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
+import ai.msrv.gaterook.core.connections.ConnectionTexts;
 import ai.msrv.gaterook.core.connectors.CallContext;
 import ai.msrv.gaterook.core.connectors.CallContexts;
 import ai.msrv.gaterook.core.connectors.CallListener;
@@ -18,6 +19,7 @@ import ai.msrv.gaterook.core.invocation.internal.ApprovedContext;
 import ai.msrv.gaterook.core.platform.MaskPolicy;
 import ai.msrv.gaterook.core.platform.Masker;
 import ai.msrv.gaterook.core.platform.Taint;
+import ai.msrv.gaterook.core.secrets.ScopedSecretResolver;
 import ai.msrv.gaterook.core.secrets.SecretService;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -193,7 +195,7 @@ public class ConnectorInvoker {
       PreparedAction action = guard.run(r.cfg().id(), r.cfg().name(), connector.maxConcurrency(), PREPARE_TIMEOUT,
           ctx, () -> {
             checkExecutionAllowed(r);
-            return connector.prepare(r.call(), r.cfg(), resolver, ctx);
+            return connector.prepare(r.call(), forCall(r, resolver), resolver, ctx);
           });
       if (action == null) {
         action = PreparedAction.approval(connector.describeAction(r.call(), r.cfg()), null);
@@ -245,9 +247,10 @@ public class ConnectorInvoker {
       ToolResult raw = guard.run(r.cfg().id(), r.cfg().name(), connector.maxConcurrency(), timeout, call, () -> {
         // Check after waiting for connector capacity, immediately before any resource operation.
         checkExecutionAllowed(r);
+        ConnectionConfig cfg = forCall(r, resolver);
         resource.start();
         try {
-          return invoke(connector, kind, argument, query, r, resolver, ctx);
+          return invoke(connector, kind, argument, query, r, cfg, resolver, ctx);
         } finally {
           resource.stop();
         }
@@ -314,17 +317,22 @@ public class ConnectorInvoker {
         : r.limits().toolTimeout();
   }
 
+  /** The connection's config for this call: its text fields read from a store filled in ({@link ConnectionTexts}). */
+  private ConnectionConfig forCall(Request r, ScopedSecretResolver resolver) throws ConnectorException {
+    return ConnectionTexts.fill(r.cfg(), registry.manifest(r.cfg().type()).orElse(null), resolver);
+  }
+
   private static ToolResult invoke(Connector connector, Kind kind, String argument, Query query, Request r,
-      SecretResolver resolver, ExecContext ctx) throws ConnectorException {
+      ConnectionConfig cfg, SecretResolver resolver, ExecContext ctx) throws ConnectorException {
     return switch (kind) {
-      case EXECUTE -> connector.execute(r.call(), r.cfg(), resolver, ctx);
+      case EXECUTE -> connector.execute(r.call(), cfg, resolver, ctx);
       case DESCRIBE -> {
-        Optional<JsonNode> d = connector.describe(r.cfg(), resolver, ctx, argument);
+        Optional<JsonNode> d = connector.describe(cfg, resolver, ctx, argument);
         yield d.isEmpty() ? null : ToolResult.json(d.get(), null);
       }
-      case READ_RESOURCE -> connector.readResource(argument, r.cfg(), resolver, ctx);
+      case READ_RESOURCE -> connector.readResource(argument, cfg, resolver, ctx);
       case QUERY -> {
-        ToolResult answer = query.run(connector, r.cfg(), resolver, ctx);
+        ToolResult answer = query.run(connector, cfg, resolver, ctx);
         yield answer == null ? ToolResult.json(tools.jackson.databind.node.JsonNodeFactory.instance.objectNode(),
             null) : answer;
       }

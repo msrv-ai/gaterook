@@ -152,6 +152,34 @@ public final class ScopedSecretResolver implements SecretResolver, AutoCloseable
     return login;
   }
 
+  /** The longest text a field read from a store may hold: a CA certificate fits, a whole kubeconfig too. */
+  private static final int MAX_TEXT = 65_536;
+
+  /**
+   * The value of a text field read from a store ({@code vault://kv/prod/db#username}), for the config the core hands
+   * the connector: not a secret by the field's schema, so it isn't tainted (the core's call, never a connector's).
+   * Leading and trailing whitespace is dropped (a value written from a file ends with a newline).
+   *
+   * @throws SecretUnavailableException when the store can't answer, or holds no text such a field can take
+   */
+  public String text(String field) throws SecretUnavailableException {
+    SecretService.Resolved resolved = resolve(field);
+    byte[] bytes = resolved.plaintext();
+    String text;
+    try {
+      text = StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString().strip();
+    } catch (CharacterCodingException e) {
+      throw new SecretUnavailableException(resolved.name() + " is not text", null);
+    } finally {
+      Arrays.fill(bytes, (byte) 0);
+    }
+    if (text.isEmpty() || text.length() > MAX_TEXT
+        || text.chars().anyMatch(c -> (c < 0x20 && c != '\t' && c != '\n' && c != '\r') || c == 0x7f)) {
+      throw new SecretUnavailableException(resolved.name() + " is not text this field can take", null);
+    }
+    return text;
+  }
+
   @Override
   public boolean isSet(String field) {
     if (!fields.contains(field)) {

@@ -343,6 +343,15 @@ public class ConnectionImportService {
               throw e;
             }
             JsonNode available = selection.allowIncomplete() ? ConnectionService.availableImportConfig(selection.config()) : selection.config();
+            // Several stores of a kind are asked in turn here, before the batch transaction opens.
+            try {
+              Map<String, SecretInput> located = connections.withStores(merged);
+              merged.clear();
+              merged.putAll(located);
+            } catch (RuntimeException e) {
+              merged.values().forEach(SecretInput::clear);
+              throw e;
+            }
             Selection ready = new Selection(selection.candidateId(), selection.name(), selection.env(), available, merged, selection.confirm(), selection.allowIncomplete());
             reviewed.add(ready);
             // Run production credential/privilege checks before opening the batch transaction.
@@ -623,8 +632,15 @@ public class ConnectionImportService {
       ObjectNode union = JsonNodeFactory.instance.objectNode();
       union.putArray("anyOf").addAll(items);
       for (JsonNode child : value) validateConfig(child, union, root, path + "/*", depth + 1);
+    } else if (value.isString() && STORE_REFERENCE.matcher(value.asString()).lookingAt()) {
+      // A reference in a field reads that store at call time: only a person chooses one, in the connection form.
+      throw invalid("Secret references belong in credentialHints, never config.", "/manifest");
     }
   }
+
+  /** How a reference into a connected store starts ({@code vault://kv/prod/db#username}). */
+  private static final java.util.regex.Pattern STORE_REFERENCE = java.util.regex.Pattern.compile(
+      "\\s*(?:vault|gcp-sm|aws-sm)://", java.util.regex.Pattern.CASE_INSENSITIVE);
 
   private static List<JsonNode> propertySchemas(JsonNode schema, JsonNode root, String key, Set<String> refs, int depth) {
     List<JsonNode> out = new ArrayList<>();

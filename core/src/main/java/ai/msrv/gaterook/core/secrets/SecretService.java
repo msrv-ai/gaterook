@@ -286,13 +286,60 @@ public class SecretService {
     SecretRef ref = checkedReference(uri, dynamic, "/secrets");
     return Boolean.TRUE.equals(readTx.execute(s -> {
       try {
-        ExternalStoreEntity store = binding.storeFor(ref, storeName, "/secrets");
-        return store != null && binding.integrity().verifyStore(store);
+        List<ExternalStoreEntity> candidates = binding.candidates(ref, storeName, "/secrets");
+        // Several stores are asked in turn for a value; short-lived credentials need the one chosen.
+        return !(dynamic && candidates.size() > 1) && candidates.stream().anyMatch(binding.integrity()::verifyStore);
       } catch (ProblemException e) {
-        // Missing, ambiguous or mismatched store choices are setup work; malformed references failed above.
+        // Missing or mismatched store choices are setup work; malformed references failed above.
         return false;
       }
     }));
+  }
+
+  /**
+   * The store a reference reads from, by name, before it is stored: the one the person chose, the natural or only
+   * one of its kind, or with several connected the first, by name, that has it — each is asked in turn, and the
+   * value it answers is zeroed at once. {@code null} when none of its kind is connected (the reference then waits for
+   * one). Call it outside a transaction: it may ask the stores.
+   *
+   * @param dynamic short-lived credentials: several stores could issue them, so one must be chosen
+   * @param pointer JSON pointer of the request field, for a 422
+   * @throws ProblemException 422 when no connected store has it, or several could issue short-lived credentials
+   */
+  public String storeHolding(String uri, boolean dynamic, String storeName, String pointer) {
+    SecretRef ref = checkedReference(uri, dynamic, pointer);
+    List<String[]> candidates = readTx.execute(s -> binding.candidates(ref, storeName, pointer).stream()
+        .map(store -> new String[] {store.getId(), store.getName()}).toList());
+    if (candidates.isEmpty()) {
+      return null;
+    }
+    if (candidates.size() == 1) {
+      return candidates.getFirst()[1];
+    }
+    if (dynamic) {
+      throw ProblemException.unprocessable("Choose the store", "Several " + StoreResolution.title(ref.kind())
+          + " stores could issue " + ref.uri() + ": choose one of " + String.join(", ", candidates.stream()
+          .map(c -> c[1]).toList()) + ".", pointer);
+    }
+    List<String> answers = new java.util.ArrayList<>();
+    for (String[] candidate : candidates) {
+      Taint scratch = new Taint();
+      try (RemoteValue _ = resolution.readFresh(candidate[0], ref, call(scratch))) {
+        return candidate[1];
+      } catch (StoreException e) {
+        answers.add(answer(candidate[1], e));
+      } finally {
+        scratch.clear();
+      }
+    }
+    throw ProblemException.unprocessable("Not found in the stores", ref.uri() + " isn't in a connected "
+        + StoreResolution.title(ref.kind()) + ": " + String.join("; ", answers) + ".", pointer);
+  }
+
+  /** What one store said when it was asked for a reference in turn: "vault-prod doesn't have it". */
+  private static String answer(String store, StoreException e) {
+    return e.reason() == StoreException.Reason.NOT_FOUND || e.reason() == StoreException.Reason.GONE
+        ? store + " doesn't have it" : store + ": " + e.getMessage();
   }
 
   private static SecretRef checkedReference(String uri, boolean dynamic, String pointer) {
@@ -601,20 +648,34 @@ public class SecretService {
     }
   }
 
-  /** A draft's reference, read now through the store it binds to. */
+  /**
+   * A draft's reference, read now through the store it binds to; with several stores of its kind and none chosen,
+   * from the first, by name, that has it.
+   */
   Resolved resolveDraft(String field, DraftReference d, Taint taint) {
     try {
       SecretRef ref = StoreBinding.parse(d.uri(), "/secrets");
-      String storeId = readTx.execute(s -> {
-        ExternalStoreEntity store = binding.storeFor(ref, d.store(), "/secrets");
-        return store == null ? null : store.getId();
-      });
-      if (storeId == null) {
+      List<String[]> candidates = readTx.execute(s -> binding.candidates(ref, d.store(), "/secrets").stream()
+          .map(store -> new String[] {store.getId(), store.getName()}).toList());
+      if (candidates.isEmpty()) {
         return new Resolved(SecretKind.REFERENCE, field, null, null, field + " can't be resolved: "
             + StoreResolution.title(ref.kind()) + " isn't connected.");
       }
-      RemoteValue v = resolution.readFresh(storeId, ref, call(taint));
-      return new Resolved(SecretKind.REFERENCE, field, label(v.version()), v.value(), null);
+      if (candidates.size() == 1) {
+        RemoteValue v = resolution.readFresh(candidates.getFirst()[0], ref, call(taint));
+        return new Resolved(SecretKind.REFERENCE, field, label(v.version()), v.value(), null);
+      }
+      List<String> answers = new java.util.ArrayList<>();
+      for (String[] candidate : candidates) {
+        try {
+          RemoteValue v = resolution.readFresh(candidate[0], ref, call(taint));
+          return new Resolved(SecretKind.REFERENCE, field, label(v.version()), v.value(), null);
+        } catch (StoreException e) {
+          answers.add(answer(candidate[1], e));
+        }
+      }
+      return new Resolved(SecretKind.REFERENCE, field, null, null, field + " can't be resolved: "
+          + String.join("; ", answers) + ".");
     } catch (StoreException | ai.msrv.gaterook.core.platform.ProblemException e) {
       return new Resolved(SecretKind.REFERENCE, field, null, null, field + " can't be resolved: " + e.getMessage());
     }

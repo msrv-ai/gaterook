@@ -17,14 +17,13 @@ import {
 } from '@angular/core';
 import { FormField, form, readonly, required, validate } from '@angular/forms/signals';
 import { RouterLink } from '@angular/router';
-import { ConnectionFormSpec, EnvChange, SecretSourceOption } from '../../../core/api/connector-types.api';
+import { ConnectionFormSpec, EnvChange } from '../../../core/api/connector-types.api';
 import { SecretInputs, StoredSecret, TestOutcome } from '../../../core/api/connections.api';
 import { Env, JsonObject, JsonValue } from '../../../core/api/types';
 import { SchemaNode, getAt, rootSection } from '../../../schema-form/compile';
 import { GwSchemaSection } from '../../../schema-form/section';
-import { ConfirmChange, REFERENCE_SOURCES, SchemaForm, SecretAction, createSchemaForm, storedReference } from '../../../schema-form/schema-form';
+import { ConfirmChange, SchemaForm, SecretAction, StoreOption, createSchemaForm, kindTitle, storedReference } from '../../../schema-form/schema-form';
 import { GwDialog, GwDialogClose } from '../../dialog';
-import { GwToggle } from '../../disclosure';
 import { secretSourceId, sourceCopy } from '../../../schema-form/secret-sources';
 import { GwIcon } from '../../icons';
 import { literalParts } from '../shared/literals';
@@ -36,16 +35,14 @@ import { GwCloudProjects, ProjectDiscoveryRequest } from './cloud-projects';
 import { mongodbFormConfig } from './mongodb-configuration';
 
 /** What Save (and Test) hand to the page: the request members of `POST /api/connections` / `/test`. */
+/** How a menu names one of several stores of a kind: "Vault · vault-stage". */
+const SHORT_TITLES: Readonly<Record<string, string>> = { vault: 'Vault', 'gcp-sm': 'GCP', 'aws-sm': 'AWS' };
+
 export interface ConnectionFormValue {
   readonly name: string;
   readonly env: Env;
   readonly config: JsonObject;
   readonly secrets: SecretInputs;
-  /**
-   * Another Vault chosen for an edited connection: its stored Vault references move there on Save. Absent when the
-   * choice didn't change.
-   */
-  readonly vaultStore?: string | null;
 }
 
 export interface DatabaseDiscoveryRequest {
@@ -163,7 +160,7 @@ let nextId = 0;
  */
 @Component({
   selector: 'form[gwConnectionForm]',
-  imports: [NgTemplateOutlet, GwIcon, RouterLink, FormField, GwSchemaSection, GwConnectionTest, GwDialog, GwDialogClose, GwToggle, GwRemoteFiles, GwCloudProjects],
+  imports: [NgTemplateOutlet, GwIcon, RouterLink, FormField, GwSchemaSection, GwConnectionTest, GwDialog, GwDialogClose, GwRemoteFiles, GwCloudProjects],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class: 'gw-form gw-connection-form',
@@ -276,12 +273,11 @@ export class GwConnectionForm {
         // The env it opens for: a new prod connection starts with the prod defaults (x-env-default).
         env: this.common().env,
         metadata: this.metadata(),
-        // A new connection sends its secrets with it, so its login's user may come from the store too.
-        readUserFromStore: this.mode() !== 'edit',
         pointerPrefix: '/config',
         stricterBadges: false,
         injector: this.injector,
       });
+      state.stores.set(this.storeOptions());
       this.databaseBaselines.set(state, this.databaseFingerprint(state));
       return state;
     });
@@ -308,8 +304,6 @@ export class GwConnectionForm {
   protected readonly envCards = computed(() =>
     this.beginner() ? ENV_CARDS.map((c) => (c.env === 'dev' ? { ...c, description: BEGINNER_DEV } : c)) : ENV_CARDS,
   );
-  /** First run: the secret sources wait behind "Use a secret manager instead" until opened. */
-  protected readonly sourcesOpen = signal(false);
   /** "password", "private key": the connector's first secret, as the beginner's lines name it. */
   protected readonly secretWord = computed(() => (this.spec().secretFields[0]?.title ?? 'secret').toLowerCase());
   /** First run: the Connection section in a beginner's words (where the core connects from). */
@@ -325,8 +319,6 @@ export class GwConnectionForm {
   }
 
   protected readonly placeholderName = '<name>';
-  protected readonly sourceCopy = sourceCopy;
-  protected readonly sourceId = secretSourceId;
   protected readonly literalParts = literalParts;
 
   /** Options belong to the exact server, authentication and TLS settings that discovered them. */
@@ -340,7 +332,7 @@ export class GwConnectionForm {
       if (selection.legacyPath) config = removeConfigPath(config, selection.legacyPath);
     }
     // Environment labels do not change the server's database list; changed TLS defaults still change config.
-    return JSON.stringify([this.spec().type, config, state.secretInputs(), state.source(),
+    return JSON.stringify([this.spec().type, config, state.secretInputs(), state.source(), state.fieldStores(),
       this.stored().map((secret) => [secret.field, secret.version, secret.state, secret.source])]);
   }
   protected readonly databaseDiscovery = linkedSignal(() => {
@@ -526,24 +518,24 @@ export class GwConnectionForm {
   }
 
   /**
-   * The sources the form offers. An edited connection whose secrets are read from a store keeps them there: the core
-   * can't turn a reference into a value stored here, so Encrypted here says so instead of being picked.
+   * The connected stores each field's menu offers ({@link StoreOption}): the form spec's sources but Encrypted here
+   * (the menu's Text) and short-lived credentials (kept as stored, never offered). Several Vaults: one each, named.
    */
-  protected readonly secretSources = computed(() => {
-    const sources = this.spec().secretSources.filter((source) => secretSourceId(source.id) !== 'dynamic');
-    if (this.mode() !== 'edit' || ![...this.state().stored.values()].some(storedReference)) return sources;
-    return sources.map((source) => secretSourceId(source.id) === 'local' && source.available
-      ? { ...source, available: false, reason: 'Secrets read from a store stay there. Change their reference instead.' }
-      : source);
+  protected readonly storeOptions = computed<readonly StoreOption[]>(() => {
+    const sources = this.spec().secretSources.filter((src) => !['local', 'dynamic'].includes(secretSourceId(src.id)));
+    const many = (kind: string) => sources.filter((src) => secretSourceId(src.id) === kind).length > 1;
+    return sources.map((src) => {
+      const kind = secretSourceId(src.id);
+      return {
+        kind,
+        store: src.store ?? null,
+        title: src.store && many(kind) ? `${SHORT_TITLES[kind] ?? kindTitle(kind)} · ${src.store}` : sourceCopy(src.id, src.label).title,
+        detail: src.detail ?? null,
+        available: src.available,
+        reason: src.reason ?? null,
+      };
+    });
   });
-
-  /** Existing dynamic credentials stay configured, but their controls are not exposed. */
-  protected readonly showSources = computed(() => {
-    if (this.secretSources().length < 2 || this.state().source() === 'dynamic') return false;
-    if (this.mode() !== 'edit') return true;
-    return [...this.state().stored.values()].some(storedReference);
-  });
-
   protected readonly credentialsText = computed(() => {
     const custom = this.credentialsDescription();
     if (custom) return custom;
@@ -551,10 +543,10 @@ export class GwConnectionForm {
     if (this.beginner()) return `Your AI never sees these. GateRook uses them only to sign in to ${signInTarget(this.spec().type)}.`;
     const node = this.secretSection();
     if (node?.description) return node.description;
-    if (this.mode() === 'edit' && !this.showSources()) {
+    if (this.mode() === 'edit' && ![...this.state().stored.values()].some(storedReference)) {
       return 'Stored and encrypted here with the master key. Replace it with a new value; nobody can view the current one.';
     }
-    return 'The agent never sees these. The core decrypts or fetches the secret only for the duration of a call.';
+    return 'The agent never sees these. Type a value, or pick a store in a field\'s menu to read it from there at call time.';
   });
 
   /** The page's copy names the connection first ("stage-db reads its password from Vault…"). */
@@ -563,41 +555,6 @@ export class GwConnectionForm {
     const text = this.credentialsDescription();
     return !!name && !!text && text.startsWith(`${name} `);
   });
-
-  /** Several Vaults: one card each, named; the card of the only Vault keeps the kit's title. */
-  private readonly vaultSources = computed(() => this.secretSources().filter((src) => secretSourceId(src.id) === 'vault' && !!src.store).length);
-
-  protected sourceTitle(src: SecretSourceOption, title: string): string {
-    return src.store && this.vaultSources() > 1 ? `Vault · ${src.store}` : title;
-  }
-
-  /** A Vault card says which server it reads from; the other cards keep the kit's words. */
-  protected sourceDescription(src: SecretSourceOption, description: string): string {
-    return src.store && src.detail ? `Resolve vault:// references from ${src.detail} at call time.` : description;
-  }
-
-  /** The card of the source in use: for a Vault, the Vault the connection's references read from. */
-  protected chosen(src: SecretSourceOption): boolean {
-    const s = this.state();
-    if (s.source() !== secretSourceId(src.id)) return false;
-    if (!src.store) return true;
-    const vaults = this.secretSources().filter((x) => secretSourceId(x.id) === 'vault' && x.store);
-    const current = s.vaultStore();
-    // One Vault, or references stored without one: the first Vault card stands for them.
-    return current ? current === src.store : vaults[0] === src;
-  }
-
-  protected setSource(src: SecretSourceOption, event: Event): void {
-    if (!src.available || secretSourceId(src.id) === 'dynamic') {
-      // aria-disabled cards stay focusable and say why; they never become the choice.
-      event.preventDefault();
-      (event.target as HTMLInputElement).checked = false;
-      return;
-    }
-    const s = this.state();
-    s.source.set(secretSourceId(src.id));
-    if (src.store) s.vaultStore.set(src.store);
-  }
 
   // ─── Name ───
 
@@ -656,9 +613,8 @@ export class GwConnectionForm {
     const t = timeout ? getAt(m, timeout.path) : null;
     return {
       address: typeof h === 'string' && h ? (p !== null ? `${h}:${p}` : h) : null,
-      // Short-lived credentials and a user read from the store: the store names the user at call time.
-      user: (REFERENCE_SOURCES.has(s.source()) && s.source() === 'dynamic') || (user && s.userFromStore(user)) ? null
-        : typeof u === 'string' && u ? u : null,
+      // Short-lived credentials and a user read from a store: the store names the user at call time.
+      user: s.source() === 'dynamic' || (user && s.fieldKind(user)) ? null : typeof u === 'string' && u ? u : null,
       timeoutMs: typeof t === 'number' ? t : null,
     };
   });
@@ -700,8 +656,7 @@ export class GwConnectionForm {
     const selection = this.databaseSelection();
     let config = s.value();
     if (selection?.legacyPath) config = removeConfigPath(config, selection.legacyPath);
-    const vaultStore = s.movedVaultStore();
-    return { name: this.common().name, env: this.common().env as Env, config, secrets: s.secretInputs(), ...(vaultStore ? { vaultStore } : {}) };
+    return { name: this.common().name, env: this.common().env as Env, config, secrets: s.secretInputs() };
   }
 
   protected onSubmit(event: Event): void {

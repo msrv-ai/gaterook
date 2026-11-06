@@ -9057,25 +9057,22 @@ th[aria-sort=descending] .gw-table__sort .gw-table__sort-icon--desc {
 .gw-connection-form {
   min-width: 0;
 }
-.gw-connection-form__sources {
-  --gw-grid-min: calc(var(--gw-size-control-lg) * 5);
-}
-.gw-connection-form__credentials:has(.gw-connection-form__sources input[value=local]:checked) .gw-connection-form__secret:not([data-source=local]) {
+.gw-connection-form__credentials[data-source=local] .gw-connection-form__secret[data-source]:not([data-source=local]) {
   display: none;
 }
-.gw-connection-form__credentials:has(.gw-connection-form__sources input[value=vault]:checked) .gw-connection-form__secret:not([data-source=vault]) {
+.gw-connection-form__credentials[data-source=vault] .gw-connection-form__secret[data-source]:not([data-source=vault]) {
   display: none;
 }
-.gw-connection-form__credentials:has(.gw-connection-form__sources input[value=gcp]:checked) .gw-connection-form__secret:not([data-source=gcp]) {
+.gw-connection-form__credentials[data-source=gcp] .gw-connection-form__secret[data-source]:not([data-source=gcp]) {
   display: none;
 }
-.gw-connection-form__credentials:has(.gw-connection-form__sources input[value=aws]:checked) .gw-connection-form__secret:not([data-source=aws]) {
+.gw-connection-form__credentials[data-source=aws] .gw-connection-form__secret[data-source]:not([data-source=aws]) {
   display: none;
 }
-.gw-connection-form__credentials:has(.gw-connection-form__sources input[value=dynamic]:checked) .gw-connection-form__secret:not([data-source=dynamic]) {
+.gw-connection-form__credentials[data-source=dynamic] .gw-connection-form__secret[data-source]:not([data-source=dynamic]) {
   display: none;
 }
-.gw-connection-form__credentials:has(.gw-connection-form__sources input[value=dynamic]:checked) .gw-connection-form__user {
+.gw-connection-form__credentials[data-source=dynamic] .gw-connection-form__user {
   display: none;
 }
 .gw-connection-form__safety:not(:has(input[value=prod]:checked)) .gw-connection-form__prod-defaults {

@@ -396,17 +396,52 @@ public final class StoreAdmin implements SecretOwners {
    */
   public SecretStores.RefTest testReference(String uri, String storeName) {
     SecretRef ref = StoreBinding.parse(uri, "/uri");
-    ExternalStoreEntity store = readTx.execute(s -> binding.storeFor(ref, storeName, "/store"));
+    boolean creds = ref instanceof SecretRef.Vault v && v.credsPath();
+    // Short-lived credentials come from the one store chosen; a value from the first of several that has it.
+    List<ExternalStoreEntity> candidates = readTx.execute(s -> {
+      if (!creds) {
+        return binding.candidates(ref, storeName, "/store");
+      }
+      ExternalStoreEntity store = binding.storeFor(ref, storeName, "/store");
+      return store == null ? List.<ExternalStoreEntity>of() : List.of(store);
+    });
     List<SecretStores.Hint> hints = new ArrayList<>();
-    if (!ref.pinned() && !(ref instanceof SecretRef.Vault v && v.credsPath())) {
+    if (!ref.pinned() && !creds) {
       hints.add(new SecretStores.Hint("info", "ref.unpinned", "This follows the newest version. Pin a version for "
           + "prod, so a change in the store needs a new reference."));
     }
-    if (store == null) {
+    if (candidates.isEmpty()) {
       String text = StoreResolution.title(ref.kind()) + " isn't connected: connect it in Secrets › External stores.";
       return new SecretStores.RefTest(false, ref.uri(), null, null, null, null, List.of(), 0, text, "not-connected",
           hints);
     }
+    if (candidates.size() == 1) {
+      return testIn(candidates.getFirst(), ref, hints);
+    }
+    long t0 = System.nanoTime();
+    List<String> answers = new ArrayList<>();
+    for (ExternalStoreEntity store : candidates) {
+      SecretStores.RefTest test = testIn(store, ref, new ArrayList<>(hints));
+      if (test.found()) {
+        if (!answers.isEmpty()) {
+          List<SecretStores.Hint> found = new ArrayList<>(test.hints());
+          found.add(new SecretStores.Hint("info", "ref.tried", "Found in " + store.getName() + ", asked after "
+              + String.join("; ", answers) + "."));
+          return new SecretStores.RefTest(true, test.uri(), test.store(), test.resolvedVersion(), test.created(),
+              test.type(), test.keys(), ms(t0), null, null, found);
+        }
+        return test;
+      }
+      answers.add("not-found".equals(test.reason()) || "gone".equals(test.reason())
+          ? store.getName() + " doesn't have it" : store.getName() + ": " + test.error());
+    }
+    return new SecretStores.RefTest(false, ref.uri(), null, null, null, null, List.of(), ms(t0), ref.uri()
+        + " isn't in a connected " + StoreResolution.title(ref.kind()) + ": " + String.join("; ", answers) + ".",
+        "not-found", hints);
+  }
+
+  /** Test reference in one store. */
+  private SecretStores.RefTest testIn(ExternalStoreEntity store, SecretRef ref, List<SecretStores.Hint> hints) {
     long t0 = System.nanoTime();
     Taint scratch = new Taint();
     StoreCall call = StoreCall.within(scratch::add, TEST_BUDGET, clock);
@@ -479,6 +514,9 @@ public final class StoreAdmin implements SecretOwners {
   /** Replace reference ({@code PUT /api/secrets/{id}/reference}). */
   public SecretInfo replaceReference(String secretId, String uri, String storeName, String reason) {
     SecretRef ref = StoreBinding.parse(uri, "/uri");
+    // Without a choice, several stores of its kind are asked in turn before the write: the first that has it.
+    String chosen = storeName != null && !storeName.isBlank() ? storeName : secretService.getObject().storeHolding(uri,
+        ref instanceof SecretRef.Vault v && v.credsPath(), null, "/store");
     String[] old = new String[2];
     writeTx.executeWithoutResult(s -> {
       SecretEntity secret = secrets.findById(secretId).orElseThrow(() -> ProblemException.notFound("Secret not found",
@@ -501,7 +539,7 @@ public final class StoreAdmin implements SecretOwners {
         throw ProblemException.unprocessable("Comment required", "Add a comment: it is required to change a secret "
             + "on prod.", "/reason");
       }
-      ExternalStoreEntity store = binding.storeFor(ref, storeName, "/store");
+      ExternalStoreEntity store = binding.storeFor(ref, chosen, "/store");
       old[0] = secret.getRefUri();
       old[1] = secret.getStore() == null ? null : secret.getStore().getId();
       binding.point(secret, dynamic, ref, store);

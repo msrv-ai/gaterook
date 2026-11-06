@@ -5,12 +5,14 @@ import { LucideDynamicIcon } from '@lucide/angular';
 import { GwCodeEditor } from '../code/code-editor';
 import { JsonValue } from '../core/api/types';
 import { DesktopBridge, desktopErrorText } from '../core/desktop/desktop-bridge';
+import { GwMenu, GwMenuTrigger } from '../kit/menu';
+import { GwReveal } from '../kit/reveal';
 import { GwSecret } from '../kit/secret';
 import { literalParts } from '../kit/elements/shared/literals';
 import { SchemaNode, getAt, sameJson, tagNoun } from './compile';
 import { lowerFirst } from './messages';
-import { REFERENCE_SOURCES, SchemaForm } from './schema-form';
-import { referencePlaceholder, sourceCopy } from './secret-sources';
+import { SchemaForm, StoreOption, kindTitle, storedReference } from './schema-form';
+import { REFERENCE_SCHEMES, referencePlaceholder } from './secret-sources';
 import { GwTagsInput } from './tags-input';
 import { GwVaultPicker } from './vault-picker';
 
@@ -26,7 +28,8 @@ const join = (...ids: (string | null | undefined)[]) => ids.filter(Boolean).join
  */
 @Component({
   selector: 'gw-schema-field',
-  imports: [NgTemplateOutlet, FormField, LucideDynamicIcon, GwSecret, GwTagsInput, GwCodeEditor, GwVaultPicker, forwardRef(() => GwSchemaFields)],
+  imports: [NgTemplateOutlet, FormField, LucideDynamicIcon, GwMenu, GwMenuTrigger, GwReveal, GwSecret, GwTagsInput, GwCodeEditor,
+    GwVaultPicker, forwardRef(() => GwSchemaFields)],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './field.html',
 })
@@ -40,7 +43,6 @@ export class GwSchemaField {
   protected readonly join = join;
   protected readonly lowerFirst = lowerFirst;
   protected readonly String = String;
-  protected readonly sourceCopy = sourceCopy;
   protected readonly choosingFile = signal(false);
   protected readonly filePickerError = signal<string | null>(null);
 
@@ -164,14 +166,103 @@ export class GwSchemaField {
     return /pem|certificate|private key|public key/i.test(`${n.title} ${n.description ?? ''}`);
   }
 
-  // ─── Secrets ───
+  // ─── Where a value comes from ───
 
-  protected reference(): boolean {
-    return REFERENCE_SOURCES.has(this.form().source());
+  /** The word on a field's menu button: Text, or the store its reference reads from (Vault; vault-stage of several). */
+  protected sourceLabel(): string {
+    const src = this.form().fieldSource(this.node());
+    if (!src) return 'Text';
+    return src.store && this.form().storesOf(src.kind).length > 1 ? src.store : SHORT_KINDS[src.kind] ?? src.kind;
   }
+
+  protected optionValue(option: StoreOption): string {
+    return `${option.kind}/${option.store ?? ''}`;
+  }
+
+  protected schemeOf(kind: string): string {
+    return REFERENCE_SCHEMES[kind] ?? '';
+  }
+
+  /** Why Text can't be picked: a stored secret read from a store stays there, as the core can't make it a value. */
+  protected textReason(): string | null {
+    const stored = this.storedSecret();
+    return this.node().kind === 'secret' && stored && storedReference(stored)
+      ? 'A secret read from a store stays there: change its reference instead.' : null;
+  }
+
+  protected textHint(): string {
+    if (this.node().kind !== 'secret') return 'Typed into this form';
+    return this.form().beginner() ? 'Encrypted on this computer' : 'Encrypted here with the master key';
+  }
+
+  /** A pick in a field's menu: Text, or a store, whose scheme goes in front of the value. */
+  protected pickSource(value: string): void {
+    const f = this.form();
+    const option = value === 'text' ? null : f.stores().find((o) => this.optionValue(o) === value);
+    if (option === undefined || (option && !option.available) || (!option && this.textReason())) return;
+    f.chooseSource(this.node(), option);
+    this.keepFocus(true);
+  }
+
+  /**
+   * The keyboard stays in the field, after its value, when its control changed under it (a typed scheme turned a
+   * password field into a reference) or a store was picked in its menu.
+   */
+  protected keepFocus(always = false): void {
+    afterNextRender(
+      () => {
+        const el = this.doc.getElementById(this.form().id(this.node()));
+        if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return;
+        const active = this.doc.activeElement;
+        if (!always && active && active !== this.doc.body && active !== el) return;
+        el.focus();
+        try {
+          el.setSelectionRange(el.value.length, el.value.length);
+        } catch {
+          // Not every input keeps a caret.
+        }
+      },
+      { injector: this.injector },
+    );
+  }
+
+  /** Where a typed reference is read from, and when. */
+  protected referenceHint(): string {
+    const f = this.form();
+    const n = this.node();
+    const kind = f.fieldKind(n);
+    if (!kind) return '';
+    const title = kindTitle(kind);
+    const all = f.storesOf(kind);
+    const store = f.fieldStore(n);
+    if (!all.length) return `No ${title} is connected yet: connect one in Secrets, or the ${lowerFirst(n.title)} can't be read.`;
+    if (store) return `Read from ${store} at call time.`;
+    if (all.length > 1) return `Read at call time from the first ${title} that has it, asked in turn: ${all.map((s) => s.store ?? s.title).join(', then ')}.`;
+    return `Read from ${title} at call time.`;
+  }
+
+  /** The hint of a text field next to a secret: its description, or where its reference is read from. */
+  protected referenceFieldHint(): string | null {
+    const f = this.form();
+    const n = this.node();
+    if (f.textState(n) === 'reference') return 'Read from its store at call time.';
+    return f.fieldKind(n) ? this.referenceHint() : n.description ?? null;
+  }
+
+  protected referencePlaceholder(): string {
+    const f = this.form();
+    return referencePlaceholder(f.fieldKind(this.node()) ?? 'vault', f.env(), f.subject(), this.node().key);
+  }
+
+  // ─── Secrets ───
 
   protected secretTyped(): string {
     return this.form().secrets()[this.node().pointer] ?? '';
+  }
+
+  protected typeSecret(event: Event): void {
+    this.form().setSecret(this.node(), (event.target as HTMLInputElement | HTMLTextAreaElement).value);
+    this.keepFocus();
   }
 
   protected storedSecret() {
@@ -180,8 +271,6 @@ export class GwSchemaField {
 
   protected secretLabel(state: string): string {
     const n = this.node();
-    if (this.storedSecret()?.staged) return state === 'editing' ? `New ${lowerFirst(n.title)}` : n.title;
-    if (this.reference()) return sourceCopy(this.form().source()).label ?? 'Secret reference';
     return state === 'editing' ? `New ${lowerFirst(n.title)}` : n.title;
   }
 
@@ -197,70 +286,28 @@ export class GwSchemaField {
         ? `Saving creates version ${stored.version + 1}. There is no way to view either version.`
         : 'Saving replaces the stored value. There is no way to view either one.';
     }
-    if (state === 'reference') {
-      return 'Resolved at call time.';
-    }
-    if (this.reference()) return sourceCopy(this.form().source()).hint;
+    if (state === 'reference') return 'Resolved at call time.';
+    if (this.form().fieldKind(n)) return this.referenceHint();
     // A first connection: where the value goes, in a beginner's words (kit connection-new ?state=first-run).
     if (this.form().beginner()) return 'Encrypted on this computer when you save.';
-    return n.description ?? sourceCopy('local').hint;
+    return n.description ?? 'Encrypted with the master key on save. Nobody can view it afterwards: Replace or Rotate only. Or pick a store in its menu to read it from there.';
   }
 
   /** What a multi-line secret takes: a PEM block, base64, or the pasted document (kubeconfig, a JSON key). */
   protected multilinePlaceholder(): string {
     const n = this.node();
     if (n.secret === 'pem') return '-----BEGIN …-----';
-    if (n.secret === 'binary') return 'Paste the value as base64';
-    return `Paste the ${lowerFirst(n.title)}`;
-  }
-
-  protected referencePlaceholder(): string {
-    const f = this.form();
-    return referencePlaceholder(f.source(), f.env(), f.subject(), this.node().key).slice(this.referencePrefix()?.length ?? 0);
-  }
-
-  /** A pasted URI for another store stays visible in full so validation can explain the mismatch. */
-  protected referencePrefix(): string | null {
-    const typed = this.secretTyped().trim();
-    const scheme = sourceCopy(this.form().source()).scheme;
-    return scheme && (!typed.includes('://') || typed.startsWith(scheme)) ? scheme : null;
-  }
-
-  protected referenceText(): string {
-    const typed = this.secretTyped();
-    const prefix = this.referencePrefix();
-    return prefix && typed.trim().startsWith(prefix) ? typed.trim().slice(prefix.length) : typed;
-  }
-
-  protected setReference(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const scheme = sourceCopy(this.form().source()).scheme;
-    const typed = input.value.trim();
-    const value = scheme && typed.startsWith(scheme) ? typed.slice(scheme.length) : input.value;
-    this.form().setSecret(this.node(), value);
-    // A paste may normalize to the previous model value, so also update the native control.
-    if (input.value !== value) input.value = value;
-  }
-
-  /** The store a login's user is read from, as the checkbox names it. */
-  protected storeWord(): string {
-    const source = this.form().source();
-    return source === 'vault' ? 'Vault' : source === 'gcp-sm' ? 'GCP Secret Manager' : 'AWS Secrets Manager';
-  }
-
-  protected setUserFromStore(on: boolean): void {
-    this.form().setUserFromStore(this.node(), on);
-    // The control the person used is replaced by the other one: keep the keyboard on the checkbox.
-    const id = `${this.form().id(this.node())}-from-store`;
-    afterNextRender(() => this.doc.getElementById(id)?.focus(), { injector: this.injector });
+    if (n.secret === 'binary') return 'Paste the value as base64, or a vault:// reference';
+    return `Paste the ${lowerFirst(n.title)}, or a vault:// reference`;
   }
 
   /** A reference typed now, else the stored one's URI (its secret name only when the URI isn't known). */
   protected testReference(): void {
-    const ref = this.form().secretReference(this.node());
-    const store = this.form().secretStore(this.node());
+    const f = this.form();
+    const typed = f.fieldReference(this.node());
     const stored = this.storedSecret();
-    this.form().emit({ kind: 'test', node: this.node(), ref: ref || stored?.ref || (stored?.name ?? ''), ...(store ? { store } : {}) });
+    const store = typed ? f.fieldStore(this.node()) : stored?.store ?? undefined;
+    f.emit({ kind: 'test', node: this.node(), ref: typed || stored?.ref || (stored?.name ?? ''), ...(store ? { store } : {}) });
   }
 
   protected saveSecret(value: string): void {
@@ -271,6 +318,9 @@ export class GwSchemaField {
     this.form().emit({ kind: 'rotate', node: this.node(), secretId: this.storedSecret()?.secretId ?? null });
   }
 }
+
+/** How a field's menu button names a kind of store. */
+const SHORT_KINDS: Readonly<Record<string, string>> = { vault: 'Vault', 'gcp-sm': 'GCP', 'aws-sm': 'AWS' };
 
 /**
  * The fields of an object node in rows: a run of short fields shares one `gw-form__row` (Host · Port · Database),

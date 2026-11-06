@@ -54,6 +54,43 @@ public final class SecretFields {
     return collect(schema, s -> s.path(KEY_ALLOWED).asBoolean(false));
   }
 
+  /** How a reference into a connected store starts. */
+  private static final List<String> REFERENCE_SCHEMES = List.of("vault://", "gcp-sm://", "aws-sm://");
+
+  /** Whether a value names a value kept in a store ({@code vault://kv/prod/db#username}) instead of being one. */
+  public static boolean looksLikeReference(String value) {
+    if (value == null) {
+      return false;
+    }
+    String start = value.stripLeading().toLowerCase(java.util.Locale.ROOT);
+    return REFERENCE_SCHEMES.stream().anyMatch(start::startsWith);
+  }
+
+  /**
+   * Pointer templates of every text field: a {@code string} property that isn't secret, isn't a choice of values
+   * ({@code enum}, {@code const}) and isn't an item of a list. Its value is typed, or read from a store at call time
+   * with a reference ({@code vault://kv/prod/db#username}); a value read from a store lives in the secrets module behind
+   * a placeholder, like a secret field's reference. Not the fields that say where the credentials go ({@code host},
+   * {@code url}, {@link ConnectionTargets}): whoever can write such a value in the store could send them elsewhere.
+   */
+  public static List<String> textTemplates(JsonNode schema) {
+    List<String> out = new ArrayList<>();
+    for (String template : collect(schema, SecretFields::text)) {
+      String key = unescape(template.substring(template.lastIndexOf('/') + 1));
+      if (!"*".equals(key) && !ConnectionTargets.isTargetKey(key)) {
+        out.add(template);
+      }
+    }
+    return List.copyOf(out);
+  }
+
+  private static boolean text(JsonNode schema) {
+    JsonNode type = schema.path("type");
+    boolean string = type.isArray() ? java.util.stream.StreamSupport.stream(type.spliterator(), false)
+        .anyMatch(t -> "string".equals(t.asString(""))) : "string".equals(type.asString(""));
+    return string && !schema.path("writeOnly").asBoolean(false) && !schema.has("enum") && !schema.has("const");
+  }
+
   /** The user property of a login: {@code user}, {@code username} or {@code login}. */
   private static final java.util.regex.Pattern LOGIN_USER = java.util.regex.Pattern.compile("(?i)user|username|login");
 
@@ -311,11 +348,11 @@ public final class SecretFields {
     return out.isEmpty() ? "secret" : out.toString();
   }
 
-  static String escape(String name) {
+  public static String escape(String name) {
     return name.replace("~", "~0").replace("/", "~1");
   }
 
-  static String unescape(String part) {
+  public static String unescape(String part) {
     return part.replace("~1", "/").replace("~0", "~");
   }
 }

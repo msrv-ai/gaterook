@@ -107,7 +107,7 @@ class ConnectionImportIT {
     assertThat(core.bean(EndpointService.class).snapshot("import-source").connections()).isEmpty();
   }
 
-  @Test void storeUserReferencesStageWithoutReadingTheStoreAndCommitOnlyWithAStorePassword() throws Exception {
+  @Test void storeUserReferencesStageWithoutReadingTheStoreAndCommitOnlyWithAPassword() throws Exception {
     vault = new FakeVault();
     ObjectNode store = args("kind", "vault", "name", "import-login-store");
     ObjectNode storeConfig = store.putObject("config").put("address", vault.address()).put("allowPlainHttp", true);
@@ -134,17 +134,16 @@ class ConnectionImportIT {
     ObjectNode request = commit("database", "imported-store-login");
     ObjectNode selection = (ObjectNode) request.path("selections").get(0);
     ((ObjectNode) selection.path("config")).putObject("credentials");
-    for (boolean localPassword : new boolean[] {false, true}) {
-      if (localPassword) selection.putObject("secrets").putObject("/credentials/password")
-          .put("source", "local").put("value", "fixture-literal-password");
-      JsonNode refused = admin.expect(422, HttpMethod.POST, path(session) + "/commit", request);
-      assertThat(refused.path("title").asString()).isEqualTo("Read the password from the store too");
-      assertThat(vault.requests).hasSize(reads);
-      assertThat(core.jdbc().queryForObject("select count(*) from connection", Long.class)).isEqualTo(count);
-    }
-    selection.putObject("secrets").putObject("/credentials/password").put("source", "reference")
-        .put("ref", "vault://kv/stage/db#password").put("store", "import-login-store");
+    // A user read from a store doesn't stand in for the password the connector requires.
+    JsonNode refused = admin.expect(422, HttpMethod.POST, path(session) + "/commit", request);
+    assertThat(refused.path("title").asString()).isEqualTo("Check the settings");
+    assertThat(vault.requests).hasSize(reads);
+    assertThat(core.jdbc().queryForObject("select count(*) from connection", Long.class)).isEqualTo(count);
+    // Each credential has its own source: the password may be typed next to a user read from a store.
+    selection.putObject("secrets").putObject("/credentials/password").put("source", "local")
+        .put("value", "fixture-literal-password");
     admin.expect(200, HttpMethod.POST, path(session) + "/commit", request);
+    assertThat(vault.requests).as("committing binds the chosen store without reading it").hasSize(reads);
     var saved = core.bean(ConnectionService.class).get("imported-store-login");
     assertThat(saved.secrets()).extracting(secret -> secret.field()).containsExactlyInAnyOrder(
         "/credentials/user", "/credentials/password");

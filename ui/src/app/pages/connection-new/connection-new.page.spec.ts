@@ -1330,13 +1330,23 @@ describe('Connection: edit view with references', () => {
     ]);
   }
 
-  it('Change saves the new reference after the settings, in the Vault chosen for the connection', async () => {
+  /** Picks where a field's value comes from in its menu (Text, a store), as the person does. */
+  async function pick(p: Awaited<ReturnType<typeof open>>, field: string, value: string) {
+    p.q<HTMLButtonElement>(`#cf-${field}-src`)!.click();
+    await p.settle();
+    p.q<HTMLElement>(`#cf-${field}-src-menu [data-value="${value}"]`)!.click();
+    await p.settle();
+  }
+
+  it('Change opens the stored reference in its Vault and saves the new one after the settings', async () => {
     cacheWithReference();
     const p = await open('/connections/cache');
-    expect(p.q<HTMLInputElement>('input[value="vault:vault-dev"]')!.checked).toBe(true);
+    expect(p.q('input[name="cf-src"]')).toBeNull();
     p.q<HTMLButtonElement>('button[aria-label^="Change reference"]')!.click();
     await p.settle();
-    await p.type('cf-credentials-password', 'kv/dev/cache-v2#password');
+    expect(p.q<HTMLInputElement>('#cf-credentials-password')!.value).toBe('vault://kv/dev/cache#password');
+    expect(text(p.q('#cf-credentials-password-src'))).toBe('vault-dev');
+    await p.type('cf-credentials-password', 'vault://kv/dev/cache-v2#password');
     p.button('Save changes').click();
     await p.settle();
     expect(core.updates).toHaveLength(1);
@@ -1344,11 +1354,13 @@ describe('Connection: edit view with references', () => {
     expect(core.references).toEqual([{ id: 'sec-1', uri: 'vault://kv/dev/cache-v2#password', store: 'vault-dev', reason: null }]);
   });
 
-  it('choosing another Vault moves the stored references there, with the same paths', async () => {
+  it("picking another Vault in the field's menu moves the stored reference there, with the same path", async () => {
     cacheWithReference();
     const p = await open('/connections/cache');
-    p.q<HTMLInputElement>('input[value="vault:vault-stage"]')!.click();
+    p.q<HTMLButtonElement>('button[aria-label^="Change reference"]')!.click();
     await p.settle();
+    await pick(p, 'credentials-password', 'vault/vault-stage');
+    expect(p.q<HTMLInputElement>('#cf-credentials-password')!.value).toBe('vault://kv/dev/cache#password');
     p.button('Save changes').click();
     await p.settle();
     expect(core.updates).toHaveLength(1);
@@ -1370,7 +1382,7 @@ describe('Connection: edit view with references', () => {
     const p = await open('/connections/cache');
     p.q<HTMLButtonElement>('button[aria-label^="Change reference"]')!.click();
     await p.settle();
-    await p.type('cf-credentials-password', 'kv/prod/cache#password');
+    await p.type('cf-credentials-password', 'vault://kv/prod/cache#password');
     p.button('Save changes').click();
     await p.settle();
     const dialog = document.getElementById('dlg-comment') as HTMLDialogElement;
@@ -1392,7 +1404,7 @@ describe('Connection: edit view with references', () => {
     const p = await open('/connections/cache');
     p.q<HTMLButtonElement>('button[aria-label^="Change reference"]')!.click();
     await p.settle();
-    await p.type('cf-credentials-password', 'kv/missing#password');
+    await p.type('cf-credentials-password', 'vault://kv/missing#password');
     p.button('Save changes').click();
     await p.settle();
     expect(core.updates).toHaveLength(1);
@@ -1401,17 +1413,38 @@ describe('Connection: edit view with references', () => {
     expect(toasts.at(-1)!.body).toContain('kv/missing is not a KV path.');
   });
 
-  it('a stored reference stays in its store: Encrypted here says why instead of being chosen', async () => {
+  it('a stored reference stays in its store: Text in its menu says why instead of being picked', async () => {
     cacheWithReference();
     const p = await open('/connections/cache');
-    const local = p.q<HTMLInputElement>('input[value="local"]')!;
-    expect(local.getAttribute('aria-disabled')).toBe('true');
-    const reason = local.getAttribute('aria-describedby')!.split(' ').map((id) => text(document.getElementById(id))).join(' ');
-    expect(reason).toContain('Secrets read from a store stay there. Change their reference instead.');
-    local.click();
+    p.q<HTMLButtonElement>('button[aria-label^="Change reference"]')!.click();
     await p.settle();
-    expect(p.q<HTMLInputElement>('input[value="vault:vault-dev"]')!.checked).toBe(true);
-    expect(local.checked).toBe(false);
+    const option = p.q<HTMLElement>('#cf-credentials-password-src-menu [data-value="text"]')!;
+    expect(option.getAttribute('aria-disabled')).toBe('true');
+    expect(text(option)).toContain('A secret read from a store stays there: change its reference instead.');
+    await pick(p, 'credentials-password', 'text');
+    expect(p.q<HTMLInputElement>('#cf-credentials-password')!.value).toBe('vault://kv/dev/cache#password');
+  });
+
+  it('a user typed in place of a stored reference goes with the settings, and a new reference with them too', async () => {
+    cacheWithReference();
+    const detail = core.detail as ConnectionDetail;
+    core.detail = { ...detail, secrets: [...detail.secrets,
+      { field: '/credentials/user', secretId: 'sec-2', name: 'cache/user', state: 'reference', version: null, source: 'vault' }] } as ConnectionDetail;
+    vi.mocked(TestBed.inject(SecretsApi).list).mockResolvedValue([
+      { id: 'sec-1', ref: 'vault://kv/dev/cache#password', store: 'vault-dev', canRotate: false } as SecretRow,
+      { id: 'sec-2', ref: 'vault://kv/dev/cache#username', store: 'vault-dev', canRotate: false } as SecretRow,
+    ]);
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Change ACL user reference"]')!.click();
+    await p.settle();
+    await pick(p, 'credentials-user', 'text');
+    await p.type('cf-credentials-user', 'app');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates).toHaveLength(1);
+    expect(core.updates[0]).toMatchObject({ config: { credentials: { user: 'app' } } });
+    expect(core.updates[0]).not.toHaveProperty('secrets');
+    expect(core.references).toEqual([]);
   });
 
   it('a value typed where a reference is stored is refused instead of dropped', async () => {
@@ -1879,7 +1912,7 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     expect(p.steps()).toEqual(['current:1 Choose type', 'upcoming:2 Configure', 'upcoming:3 Test', 'upcoming:4 Create endpoint']);
   });
 
-  it('Configure in plain words; the secret stays encrypted here, the secret managers wait behind their disclosure', async () => {
+  it("Configure in plain words; the secret stays encrypted here unless its field's menu picks a store", async () => {
     core.spec = {
       ...core.spec,
       secretSources: [
@@ -1898,18 +1931,15 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     expect(descriptions).toContain('Pick dev for your own work and test data. Prod turns on stricter rules.');
     expect(text(p.q('#cf-env-dev-d'))).toBe('Local work and test data. Changes to data still wait for your approval.');
     expect(text(p.q('#cf-credentials-password-hint'))).toBe('Encrypted on this computer when you save.');
-    const lock = () => Array.from(p.el.querySelectorAll('#cf-form .gw-text-small.gw-fg-secondary')).map(text);
-    expect(lock()).toEqual(['The password is stored encrypted on this computer. Nobody can view it afterwards, not even you.']);
-    const toggle = p.button('Use a secret manager instead (Vault, GCP, AWS)', p.q('#cf-form')!);
-    const sources = document.getElementById('cf-src-field')!;
-    expect([toggle.getAttribute('aria-expanded'), toggle.getAttribute('aria-controls'), sources.hidden]).toEqual(['false', 'cf-src-field', true]);
-    toggle.click();
+    // The secret is encrypted here unless a store is picked in its field's menu: no form-wide source to choose.
+    expect(p.q('#cf-src-field')).toBeNull();
+    expect(text(p.q('#cf-credentials-password-src'))).toBe('Text');
+    p.q<HTMLButtonElement>('#cf-credentials-password-src')!.click();
     await p.settle();
-    expect([toggle.getAttribute('aria-expanded'), sources.hidden]).toEqual(['true', false]);
-    // Every line about the secret follows the source picked.
-    sources.querySelector<HTMLInputElement>('input[value="vault"]')!.click();
+    expect(text(p.q('#cf-credentials-password-src-menu [data-value="text"]'))).toContain('Encrypted on this computer');
+    p.q<HTMLElement>('#cf-credentials-password-src-menu [data-value="vault/"]')!.click();
     await p.settle();
-    expect(lock()).toEqual(['The secret stays in your secret manager. GateRook reads it only when a call needs it.']);
+    expect(text(p.q('#cf-credentials-password-hint'))).toBe('Read from Vault at call time.');
   });
 
   it('step 4 shows the endpoint Save creates, named after the environment, and what the AI apps can do there', async () => {

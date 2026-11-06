@@ -14,7 +14,8 @@ import java.util.Objects;
  * its kind — the Vault address, the GCP project, the AWS region or account — and its {@code store_id} is kept next to
  * it"). A reference names no store, so: the store the person chose; else the one store of its kind whose project
  * (GCP) or region (AWS) matches; else the only store of its kind; none — "not connected" until one is; several
- * without a match — the person chooses. Everything here runs in the caller's transaction.
+ * without a match — the first, by name, that has it ({@link #candidates}: asked in turn before the reference is
+ * stored, so it is bound to the store that answered). Everything here runs in the caller's transaction.
  */
 public final class StoreBinding {
 
@@ -72,6 +73,23 @@ public final class StoreBinding {
     throw ProblemException.unprocessable("Choose the store", "Several " + StoreResolution.title(ref.kind())
         + " stores could resolve " + ref.uri() + ": choose one of " + String.join(", ", candidates.stream()
         .map(ExternalStoreEntity::getName).sorted().toList()) + ".", pointer);
+  }
+
+  /**
+   * The stores that may hold {@code ref}, in the order they are asked: the one the person chose; else the natural
+   * one (GCP project, AWS region) or the only one of its kind; else every connected store of its kind, by name, each
+   * asked in turn until one has it. Empty when none of its kind is connected.
+   *
+   * @throws ProblemException 422 when the chosen store doesn't exist or is of another kind
+   */
+  public List<ExternalStoreEntity> candidates(SecretRef ref, String storeName, String pointer) {
+    if (storeName != null && !storeName.isBlank()) {
+      return List.of(storeFor(ref, storeName, pointer));
+    }
+    List<ExternalStoreEntity> all = stores.findAll().stream().filter(s -> s.getKind() == ref.kind())
+        .sorted(java.util.Comparator.comparing(ExternalStoreEntity::getName)).toList();
+    List<ExternalStoreEntity> matching = all.stream().filter(s -> matches(s, ref)).toList();
+    return matching.size() == 1 ? matching : all;
   }
 
   /** Whether {@code store} is the natural one for {@code ref}: same GCP project, same AWS region. */

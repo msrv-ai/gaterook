@@ -20,11 +20,25 @@ import {
   sameJson,
   setAt,
 } from './compile';
-import { jsonProblem, lowerFirst, requiredMessage, valueProblem } from './messages';
-import { completeReference, secretSourceId } from './secret-sources';
+import { jsonProblem, requiredMessage, valueProblem } from './messages';
+import { REFERENCE_SCHEMES, isTargetKey, referenceKind, secretSourceId } from './secret-sources';
 
-/** Sources whose secret is a reference the core resolves at call time (the value never passes through here). */
-export const REFERENCE_SOURCES: ReadonlySet<string> = new Set(['vault', 'gcp-sm', 'aws-sm', 'dynamic']);
+/**
+ * A connected store a field's value may be read from, as the field's menu offers it: one per store, from the form
+ * spec's `secretSources` (several Vaults: one each, named).
+ */
+export interface StoreOption {
+  /** `vault`, `gcp-sm`, `aws-sm`. */
+  readonly kind: string;
+  /** The store's name, which the reference is bound to; `null` for a store the core picks itself. */
+  readonly store: string | null;
+  /** "HashiCorp Vault", or "Vault · vault-stage" with several. */
+  readonly title: string;
+  /** Its address ("https://vault.stage.example.test"), when known. */
+  readonly detail: string | null;
+  readonly available: boolean;
+  readonly reason: string | null;
+}
 
 /** A saved reference remains configured while its store is disconnected or its credentials are leased. */
 export function storedReference(secret: StoredSecret): boolean {
@@ -57,11 +71,6 @@ export interface SchemaFormOptions {
   readonly env?: string | null;
   /** The connection's metadata the core found (`x-options-from: metadata.kubeconfigContexts`), if any. */
   readonly metadata?: JsonObject | null;
-  /**
-   * Whether a login's user may be read from the store that holds its password: a new connection sends its secrets
-   * with it. An edited connection keeps how its user is stored.
-   */
-  readonly readUserFromStore?: boolean;
   readonly injector?: Injector;
 }
 
@@ -97,22 +106,23 @@ export class SchemaForm {
   readonly tree: FieldTree<Record<string, unknown>>;
   /** Errors show after the first Save (kit "Validation after submit"), then follow the input live. */
   readonly submitted = signal(false);
-  /** The chosen secret source (`local`, `vault`, `gcp-sm`, `aws-sm`, `dynamic`). */
+  /**
+   * `dynamic` for a connection whose stored login is short-lived Vault credentials: they stay as stored and their
+   * controls are hidden. `local` otherwise: each field says where its own value comes from ({@link fieldKind}).
+   */
   readonly source = signal('local');
   /**
-   * What is typed into each secret field: a value (`local`) or a reference URI / role; and the reference of a login's
-   * user read from the store ({@link userFromStore}).
+   * What is typed into each secret field: a value, or a reference (`vault://kv/prod/db#password`) — a value that starts
+   * with a store's scheme is read from that store at call time. Never in the model.
    */
   readonly secrets = signal<Readonly<Record<string, string>>>({});
+  /** The connected stores the fields' menus offer ({@link StoreOption}): the page sets them from the form spec. */
+  readonly stores = signal<readonly StoreOption[]>([]);
   /**
-   * The Vault the connection's references read from, by name: one of the connected Vaults, chosen with the secret
-   * source. `null` with a single Vault, or before a choice.
+   * The store chosen in a field's menu, by field pointer: its reference is bound to that one. A field without one
+   * reads from the only store of its kind, or from the first of several, asked in turn, that has it.
    */
-  readonly vaultStore = signal<string | null>(null);
-  /** Login users (field pointers) the person reads from the store too, instead of typing them. */
-  readonly storeUsers = signal<ReadonlySet<string>>(new Set());
-  /** Whether a login's user may be read from the store ({@link SchemaFormOptions.readUserFromStore}). */
-  readonly readUserFromStore: boolean;
+  readonly fieldStores = signal<Readonly<Record<string, string>>>({});
   /** Stored secrets the user chose to replace (their field shows the editing state). */
   readonly replacing = signal<ReadonlySet<string>>(new Set());
   /** Collapsed sections (`x-collapsed`) the user, or an error inside, opened. */
@@ -145,8 +155,6 @@ export class SchemaForm {
   readonly metadata = signal<JsonObject | null>(null);
   /** The model the form opened with: what an `x-confirm` change is measured against. */
   private readonly initial: JsonObject;
-  /** The Vault of the stored references, what Discard goes back to. */
-  private readonly initialVaultStore: string | null;
   /** The values came from a stored config (edit, duplicate): an env change only tightens them. */
   private readonly fromStored: boolean;
   private readonly listeners = new Set<(action: SecretAction) => void>();
@@ -169,12 +177,9 @@ export class SchemaForm {
     this.stricterBadges = options.stricterBadges ?? true;
     this.expanded.set(new Set(options.expanded ?? []));
     this.replacing.set(new Set(options.replacing ?? []));
-    const firstRef = (options.stored ?? []).find(storedReference);
-    if (firstRef?.source) this.source.set(firstRef.state === 'short-lived' ? 'dynamic' : secretSourceId(firstRef.source));
-    // An edited connection's references keep reading through their Vault; a new reference goes to the same one.
-    this.initialVaultStore = firstRef?.source === 'vault' ? firstRef.store ?? null : null;
-    this.vaultStore.set(this.initialVaultStore);
-    this.readUserFromStore = options.readUserFromStore ?? false;
+    // Short-lived Vault credentials, also while their Vault is disconnected, stay as stored.
+    if ((options.stored ?? []).some((s) => storedReference(s)
+      && (s.state === 'short-lived' || secretSourceId(s.source ?? '') === 'dynamic'))) this.source.set('dynamic');
     const env = options.env ?? 'dev';
     this.envState.set(env);
     this.metadata.set(options.metadata ?? null);
@@ -183,7 +188,8 @@ export class SchemaForm {
     this.model = signal(this.blankText(initialValue(schema, options.current ?? null, options.current ? null : env)));
     this.initial = this.model();
     this.tree = form(this.model as unknown as WritableSignal<Record<string, unknown>>, (p) => this.rules(p), { injector: options.injector });
-    this.value = computed(() => cleanValue(this.compiled, this.withoutStoreUsers(this.model()), this.filled()));
+    // A text field read from a store has its reference in `secrets`, not in the config (the core keeps it there).
+    this.value = computed(() => cleanValue(this.compiled, this.withoutTextReferences(this.model()), this.filled()));
     this.enforceLocks(env);
   }
 
@@ -232,52 +238,115 @@ export class SchemaForm {
     return this.loginField(node) && node.kind === 'text' && (node.key === 'user' || node.key === 'username');
   }
 
+  // ─── Values read from a store ───
+
+  /** Whether a field may be read from a store: a secret, or a text field ({@link textReferable}). */
+  referable(node: SchemaNode): boolean {
+    return node.kind === 'secret' || this.textReferable(node);
+  }
+
   /**
-   * Whether a login's user is read from the store with its password (`vault://kv/prod/db#username`) instead of typed:
-   * chosen for a new connection, or stored so. Only with a store as the secret source; short-lived Vault credentials
-   * bring their own user.
+   * A text field a reference may fill (`vault://kv/prod/db#username`), as the core reads them: not a field with a
+   * unit, a list of options or a file picker, and never one that says where the credentials go (a host, a URL).
    */
-  userFromStore(node: SchemaNode): boolean {
-    if (!this.loginUsername(node) || !REFERENCE_SOURCES.has(this.source()) || this.source() === 'dynamic') return false;
-    const stored = this.stored.get(node.pointer);
-    return (!!stored && storedReference(stored)) || (this.readUserFromStore && this.storeUsers().has(node.pointer));
+  textReferable(node: SchemaNode): boolean {
+    return node.kind === 'text' && !node.unit && !node.optionsFrom && !isTargetKey(node.key)
+      && node.schema['x-file-picker'] === undefined;
   }
 
-  /** The person may choose to read this login's user from the store: a new connection whose source is a store. */
-  canReadUserFromStore(node: SchemaNode): boolean {
-    return this.readUserFromStore && this.loginUsername(node) && REFERENCE_SOURCES.has(this.source())
-      && this.source() !== 'dynamic' && !this.stored.has(node.pointer);
-  }
-
-  setUserFromStore(node: SchemaNode, on: boolean): void {
-    this.storeUsers.update((users) => {
-      const next = new Set(users);
-      if (on) next.add(node.pointer);
-      else next.delete(node.pointer);
-      return next;
-    });
-    if (!on) this.secrets.update((typed) => omit(typed, node.pointer));
-  }
-
-  /** How a login's user read from the store shows: its stored reference, or a reference typed now. */
-  userState(node: SchemaNode): 'reference' | 'empty' {
-    const stored = this.stored.get(node.pointer);
-    return stored && storedReference(stored) && !this.replacing().has(node.pointer) ? 'reference' : 'empty';
-  }
-
-  /** The password of a login whose user is read from the store: then the store must hold the password too. */
-  private passwordOfStoreUser(node: SchemaNode): boolean {
-    if (node.kind !== 'secret') return false;
+  /**
+   * A field with the menu of where its value comes from ("Text" or a connected store): each secret, and each text
+   * field next to one (a login's user, a client ID). Any other text field takes a reference typed into it too.
+   */
+  credential(node: SchemaNode): boolean {
+    if (node.kind === 'secret') return true;
+    if (!this.textReferable(node)) return false;
     const parent = node.path.slice(0, -1);
-    return this.compiled.all.some((n) => n !== node && n.path.length === node.path.length
-      && parent.every((part, i) => part === n.path[i]) && this.userFromStore(n));
+    return this.compiled.all.some((n) => n.kind === 'secret' && n.path.length === node.path.length
+      && parent.every((part, i) => part === n.path[i]));
   }
 
-  /** The config without the users read from the store: their place in the stored config is the core's. */
-  private withoutStoreUsers(model: JsonObject): JsonObject {
+  /** What is typed into a field: a secret's value or reference, a text field's value. */
+  fieldText(node: SchemaNode): string {
+    if (node.kind === 'secret') return this.secrets()[node.pointer] ?? '';
+    const v = getAt(this.model(), node.path);
+    return typeof v === 'string' ? v : '';
+  }
+
+  setFieldText(node: SchemaNode, text: string): void {
+    if (node.kind === 'secret') this.setSecret(node, text);
+    else this.set(node, text);
+  }
+
+  /** The kind of store a field's typed reference reads from (`vault`), or `null` while a value is typed. */
+  fieldKind(node: SchemaNode): string | null {
+    return this.referable(node) ? referenceKind(this.fieldText(node)) : null;
+  }
+
+  /** The reference typed into a field, as the core gets it; empty while a value is typed or only a scheme is. */
+  fieldReference(node: SchemaNode): string {
+    const kind = this.fieldKind(node);
+    const typed = this.fieldText(node).trim();
+    return kind && typed.length > REFERENCE_SCHEMES[kind].length ? typed : '';
+  }
+
+  /**
+   * The store a field's typed reference is bound to, by name: the one chosen in its menu. `undefined` leaves it to
+   * the core: the only store of its kind, or the first of several, asked in turn, that has it.
+   */
+  fieldStore(node: SchemaNode): string | undefined {
+    const kind = this.fieldKind(node);
+    const chosen = this.fieldStores()[node.pointer];
+    return kind && chosen && this.stores().some((s) => s.kind === kind && s.store === chosen) ? chosen : undefined;
+  }
+
+  /** The connected stores of a kind, as a field's menu lists them. */
+  storesOf(kind: string): readonly StoreOption[] {
+    return this.stores().filter((s) => s.kind === kind);
+  }
+
+  /** Where a field's value comes from, for its menu: `null` for Text, else the store option it reads from. */
+  fieldSource(node: SchemaNode): StoreOption | null {
+    const kind = this.fieldKind(node);
+    if (!kind) return null;
+    const store = this.fieldStore(node);
+    const options = this.storesOf(kind);
+    return options.find((o) => o.store === (store ?? null)) ?? (!store && options.length === 1 ? options[0] : null)
+      ?? { kind, store: null, title: kindTitle(kind), detail: null, available: true, reason: null };
+  }
+
+  /**
+   * The person picked where a field's value comes from in its menu: Text empties a typed reference; a store puts
+   * its scheme in front (`vault://`), in place of another store's. A typed secret is never kept in a reference,
+   * where it would show.
+   */
+  chooseSource(node: SchemaNode, option: StoreOption | null): void {
+    const text = this.fieldText(node);
+    const kind = referenceKind(text);
+    const stores = { ...untracked(this.fieldStores) };
+    if (option?.store) stores[node.pointer] = option.store;
+    else delete stores[node.pointer];
+    this.fieldStores.set(stores);
+    if (!option) {
+      if (kind) this.setFieldText(node, '');
+      return;
+    }
+    if (kind === option.kind) return;
+    const rest = kind ? text.trimStart().slice(REFERENCE_SCHEMES[kind].length) : node.kind === 'secret' ? '' : text.trim();
+    this.setFieldText(node, REFERENCE_SCHEMES[option.kind] + rest);
+  }
+
+  /** How a text field read from a store shows: its stored reference, or the field to type a value or reference in. */
+  textState(node: SchemaNode): 'reference' | 'input' {
+    const stored = this.stored.get(node.pointer);
+    return stored && storedReference(stored) && !this.replacing().has(node.pointer) ? 'reference' : 'input';
+  }
+
+  /** The model without the text fields read from a store: their place in the stored config is the core's. */
+  private withoutTextReferences(model: JsonObject): JsonObject {
     let out = model;
     for (const node of this.compiled.all) {
-      if (this.userFromStore(node)) out = setAt(out, node.path, null);
+      if (this.textReferable(node) && referenceKind(stringAt(out, node.path))) out = setAt(out, node.path, null);
     }
     return out;
   }
@@ -302,7 +371,7 @@ export class SchemaForm {
   /** The message under a field: the core's (until the value changes), else the first rule it breaks after Save. */
   error(node: SchemaNode): string | null {
     if (node.kind === 'object' || !this.visible(node)) return null;
-    const value = node.kind === 'secret' || this.userFromStore(node) ? (this.secrets()[node.pointer] ?? '') : getAt(this.model(), node.path);
+    const value = node.kind === 'secret' ? (this.secrets()[node.pointer] ?? '') : getAt(this.model(), node.path);
     const server = this.serverErrors().find((e) => e.pointer === node.pointer && e.value === value);
     return server ? server.message : this.problem(node);
   }
@@ -311,7 +380,8 @@ export class SchemaForm {
   private problem(node: SchemaNode): string | null {
     if (node.kind === 'object' || !this.visible(node) || !this.submitted()) return null;
     if (node.kind === 'secret') return this.secretProblem(node);
-    if (this.userFromStore(node)) return this.userReferenceProblem(node);
+    const kind = this.fieldKind(node);
+    if (kind) return this.referenceProblem(node, this.fieldText(node), kind);
     return this.field(node)().errors()[0]?.message ?? null;
   }
 
@@ -422,11 +492,12 @@ export class SchemaForm {
   /** How a secret field shows: a new value, the stored version, its replacement, a reference. */
   secretState(node: SchemaNode): 'empty' | 'stored' | 'editing' | 'reference' {
     const stored = this.stored.get(node.pointer);
-    // An import can stage different providers per field; changing the form-wide source must not erase them.
-    if (stored?.staged && !this.replacing().has(node.pointer)) return storedReference(stored) ? 'reference' : 'stored';
-    if (REFERENCE_SOURCES.has(this.source())) return stored && storedReference(stored)
-      && !this.replacing().has(node.pointer) ? 'reference' : 'empty';
-    if (stored?.state === 'stored') return this.replacing().has(node.pointer) ? 'editing' : 'stored';
+    const replacing = this.replacing().has(node.pointer);
+    // An import stages its own provider per field: the well shows it until the person changes it.
+    if (stored?.staged && !replacing) return storedReference(stored) ? 'reference' : 'stored';
+    // Change on a stored reference opens the field with it, to point elsewhere.
+    if (stored && storedReference(stored)) return replacing ? 'empty' : 'reference';
+    if (stored?.state === 'stored') return replacing ? 'editing' : 'stored';
     return 'empty';
   }
 
@@ -434,35 +505,17 @@ export class SchemaForm {
     this.secrets.update((s) => ({ ...s, [node.pointer]: value }));
   }
 
-  /** The secret fields something is typed into (a value or a reference), by pointer. */
-  private readonly filled = computed<ReadonlySet<string>>(() =>
-    new Set(Object.entries(this.secrets()).filter(([, typed]) => typed.trim()).map(([pointer]) => pointer)));
-
-  /** The typed reference with the selected store's scheme, shared by validation, testing and saving. */
-  secretReference(node: SchemaNode): string {
-    return completeReference(this.source(), this.secrets()[node.pointer] ?? '');
-  }
-
   /**
-   * Another Vault chosen for an edited connection than the one its stored references read from: Save moves the stored
-   * Vault references to it. `null` when the choice is unchanged or the source isn't Vault.
+   * The fields something is in that the config doesn't carry, by pointer: a typed secret (a value or a reference), a
+   * text field read from a store. Their objects stay in the config.
    */
-  movedVaultStore(): string | null {
-    const store = this.vaultStore();
-    return this.source() === 'vault' && store && store !== this.initialVaultStore ? store : null;
-  }
-
-  /**
-   * The Vault a field's reference reads through: a stored reference keeps its own; a new one (typed, or replacing the
-   * stored one) goes to the Vault chosen for the connection.
-   */
-  secretStore(node: SchemaNode): string | undefined {
-    if (this.source() !== 'vault') return undefined;
-    const stored = this.stored.get(node.pointer);
-    const storedStore = stored?.source === 'vault' ? stored.store ?? undefined : undefined;
-    const keeps = !!stored && storedReference(stored) && !this.replacing().has(node.pointer);
-    return keeps ? storedStore ?? this.vaultStore() ?? undefined : this.vaultStore() ?? storedStore;
-  }
+  private readonly filled = computed<ReadonlySet<string>>(() => {
+    const out = new Set(Object.entries(this.secrets()).filter(([, typed]) => typed.trim()).map(([pointer]) => pointer));
+    for (const node of this.compiled.all) {
+      if (this.textReferable(node) && (this.fieldReference(node) || this.textState(node) === 'reference')) out.add(node.pointer);
+    }
+    return out;
+  });
 
   /**
    * The stored secrets after the page changed one (a replaced value is version N+1, a new reference): the fields
@@ -484,6 +537,17 @@ export class SchemaForm {
       for (const f of changed) delete out[f];
       return out;
     });
+    this.fieldStores.update((s) => {
+      const out = { ...s };
+      for (const f of changed) delete out[f];
+      return out;
+    });
+    // A text field read from a store held its new reference while it was changed: the stored one stands for it now.
+    let model = untracked(this.model);
+    for (const n of this.compiled.all) {
+      if (changed.includes(n.pointer) && this.textReferable(n) && referenceKind(stringAt(model, n.path))) model = setAt(model, n.path, '');
+    }
+    this.model.set(model);
   }
 
   replace(node: SchemaNode, on: boolean): void {
@@ -493,7 +557,12 @@ export class SchemaForm {
       else next.delete(node.pointer);
       return next;
     });
-    if (!on) this.setSecret(node, '');
+    const stored = this.stored.get(node.pointer);
+    if (on && stored && storedReference(stored)) {
+      // Change: the field opens with the reference it reads, in its store, to be pointed elsewhere.
+      if (stored.store) this.fieldStores.update((f) => ({ ...f, [node.pointer]: stored.store! }));
+      this.setFieldText(node, stored.ref ?? REFERENCE_SCHEMES[secretSourceId(stored.source ?? '')] ?? '');
+    } else if (!on) this.setFieldText(node, '');
     this.focusSecret(node, on);
   }
 
@@ -515,26 +584,21 @@ export class SchemaForm {
   }
 
   /**
-   * The `secrets` member of the request: one entry per filled secret field, never an empty one; and the reference of
-   * each login user read from the store.
+   * The `secrets` member of the request: each filled secret field (a value, or a reference that starts with a store's
+   * scheme), never an empty one; and each text field read from a store, by its reference.
    */
   readonly secretInputs = computed<SecretInputs>(() => {
     const out: Record<string, SecretInputs[string]> = {};
-    const reference = REFERENCE_SOURCES.has(this.source());
     for (const node of this.compiled.all) {
-      if (this.userFromStore(node) && this.userState(node) === 'empty' && this.visible(node)) {
-        const typed = this.secrets()[node.pointer]?.trim() ?? '';
-        const store = this.secretStore(node);
-        if (typed) out[node.pointer] = { source: 'reference', ref: this.secretReference(node), ...(store ? { store } : {}) };
-        continue;
-      }
-      if (node.kind !== 'secret' || !this.visible(node)) continue;
-      const typed = this.secrets()[node.pointer]?.trim() ?? '';
-      if (!typed) continue;
-      out[node.pointer] = reference
-        ? { source: this.source() === 'dynamic' ? 'vault-dynamic' : 'reference', ref: this.secretReference(node),
-          ...(this.secretStore(node) ? { store: this.secretStore(node) } : {}) }
-        : { source: 'local', value: this.secrets()[node.pointer] };
+      if (!this.visible(node) || !this.referable(node)) continue;
+      const typed = this.fieldText(node);
+      if (!typed.trim()) continue;
+      const store = this.fieldStore(node);
+      // A scheme alone (vault://, just picked in the menu) names nothing yet.
+      const ref = this.fieldReference(node);
+      if (this.fieldKind(node)) {
+        if (ref) out[node.pointer] = { source: 'reference', ref, ...(store ? { store } : {}) };
+      } else if (node.kind === 'secret') out[node.pointer] = { source: 'local', value: typed };
     }
     return out;
   });
@@ -552,27 +616,19 @@ export class SchemaForm {
   private secretProblem(node: SchemaNode): string | null {
     const state = this.secretState(node);
     if (state === 'stored' || state === 'reference') return null;
-    const typed = this.secrets()[node.pointer]?.trim() ?? '';
-    if (REFERENCE_SOURCES.has(this.source())) {
-      const dynamicLogin = this.source() === 'dynamic' && this.loginField(node);
-      if (!typed && !this.needed(node) && state !== 'editing' && !dynamicLogin && !this.passwordOfStoreUser(node)) return null;
-      if (!typed) return this.source() === 'dynamic' ? 'Enter the Vault role.' : 'Enter the secret reference.';
-      const scheme = this.source() === 'dynamic' ? 'vault://' : `${this.source()}://`;
-      if (!this.secretReference(node).startsWith(scheme)) return `A reference starts with ${scheme}. Copy it from the store.`;
-      return null;
-    }
-    if (!typed && (this.needed(node) || state === 'editing')) return `${node.title} is required.`;
+    const typed = this.secrets()[node.pointer] ?? '';
+    const kind = referenceKind(typed);
+    if (kind) return this.referenceProblem(node, typed, kind);
+    if (!typed.trim() && (this.needed(node) || state === 'editing')) return `${node.title} is required.`;
     return null;
   }
 
-  /** A login user read from the store needs its reference, in the selected store's scheme. */
-  private userReferenceProblem(node: SchemaNode): string | null {
-    if (this.userState(node) === 'reference') return null;
-    const typed = this.secrets()[node.pointer]?.trim() ?? '';
-    const scheme = `${this.source()}://`;
-    if (!typed) return `Enter the reference of the ${lowerFirst(node.title)}, such as ${scheme === 'vault://' ? 'vault://kv/prod/db#username' : `${scheme}…`}.`;
-    if (!this.secretReference(node).startsWith(scheme)) return `A reference starts with ${scheme}. Copy it from the store.`;
-    return null;
+  /** A reference names a path after its store's scheme (`vault://kv/prod/db#password`). */
+  private referenceProblem(node: SchemaNode, typed: string, kind: string): string | null {
+    const scheme = REFERENCE_SCHEMES[kind];
+    if (typed.trim().length > scheme.length) return null;
+    const example = kind === 'vault' ? `vault://kv/${this.env()}/db#${node.key}` : `${scheme}…`;
+    return `Enter where ${kindTitle(kind)} keeps the ${node.title.toLowerCase()} after ${scheme}, such as ${example}.`;
   }
 
   // ─── JSON fields ───
@@ -682,8 +738,7 @@ export class SchemaForm {
   reset(current: JsonObject | null, schema: JsonObject): void {
     this.model.set(this.blankText(initialValue(schema, current, current ? null : untracked(this.envState))));
     this.secrets.set({});
-    this.vaultStore.set(this.initialVaultStore);
-    this.storeUsers.set(new Set());
+    this.fieldStores.set({});
     this.replacing.set(new Set());
     this.jsonText.set({});
     this.jsonErrors.set({});
@@ -709,15 +764,16 @@ export class SchemaForm {
       const node = nodes[0];
       let sp: unknown = p;
       for (const k of node.path) sp = (sp as Record<string, unknown>)[k];
-      hidden(sp as SchemaPath<JsonValue>, () => !nodes.some((n) => this.visible(n) && !this.userFromStore(n)));
+      hidden(sp as SchemaPath<JsonValue>, () => !nodes.some((n) => this.visible(n)));
     }
     for (const node of this.compiled.all) {
       if (node.kind === 'object' || node.kind === 'secret') continue;
       let sp: unknown = p;
       for (const k of node.path) sp = (sp as Record<string, unknown>)[k];
       const path = sp as SchemaPath<JsonValue>;
-      // A login user read from the store has no value in the model: its reference is checked as a secret's.
-      const active = () => this.visible(node) && !this.userFromStore(node);
+      // A text field read from a store holds its reference, or keeps the stored one: checked as a reference, not as
+      // the field's value.
+      const active = () => this.visible(node) && !this.fieldKind(node) && this.textState(node) !== 'reference';
       if (node.required && node.kind === 'tags') {
         // An empty list is a value to `required`; "at least one" is the rule here.
         validate(path, ({ value }) => {
@@ -733,6 +789,14 @@ export class SchemaForm {
         const problem = node.kind === 'json' ? (this.jsonErrors()[node.pointer] ?? null) : valueProblem(node, value());
         return problem ? { kind: 'schema', message: problem } : null;
       });
+      if (node.kind === 'text' && !this.textReferable(node)) {
+        // Where the credentials go is typed: the core refuses a reference there.
+        validate(path, ({ value }) => this.visible(node) && referenceKind(typeof value() === 'string' ? value() as string : '')
+          ? { kind: 'reference', message: isTargetKey(node.key)
+            ? `Type the ${node.title.toLowerCase()}: where a connection sends its credentials is never read from a store.`
+            : `Type the ${node.title.toLowerCase()}: this field isn't read from a store.` }
+          : null);
+      }
       if (node.forbiddenEnv.length || Object.keys(node.forbiddenValues).length) {
         // The core's EnvLocks rule, said before Save: a locked value can't reach it from these controls, but a JSON
         // or text field can still hold one.
@@ -764,6 +828,16 @@ function metadataOptions(v: JsonValue): FieldOption[] {
     }
   }
   return out;
+}
+
+/** "HashiCorp Vault" for `vault`: how a field's menu and hints name a kind of store. */
+export function kindTitle(kind: string): string {
+  return kind === 'vault' ? 'Vault' : kind === 'gcp-sm' ? 'GCP Secret Manager' : kind === 'aws-sm' ? 'AWS Secrets Manager' : kind;
+}
+
+function stringAt(model: JsonObject, path: readonly string[]): string {
+  const v = getAt(model, path);
+  return typeof v === 'string' ? v : '';
 }
 
 function omit<T>(o: Readonly<Record<string, T>>, key: string): Record<string, T> {
