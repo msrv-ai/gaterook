@@ -444,6 +444,15 @@ export class SchemaForm {
   }
 
   /**
+   * Another Vault chosen for an edited connection than the one its stored references read from: Save moves the stored
+   * Vault references to it. `null` when the choice is unchanged or the source isn't Vault.
+   */
+  movedVaultStore(): string | null {
+    const store = this.vaultStore();
+    return this.source() === 'vault' && store && store !== this.initialVaultStore ? store : null;
+  }
+
+  /**
    * The Vault a field's reference reads through: a stored reference keeps its own; a new one (typed, or replacing the
    * stored one) goes to the Vault chosen for the connection.
    */
