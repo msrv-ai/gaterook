@@ -195,7 +195,7 @@
     }
 
     @case ('first-run') {
-      <!-- ═══════════════ FIRST RUN: nothing set up yet ═══════════════ -->
+      <!-- ═══════════════ FIRST RUN: no connections yet ═══════════════ -->
       <div class="gw-alert gw-alert--brand">
         <svg lucideIcon="lightbulb" class="gw-icon gw-alert__icon"></svg>
         <div class="gw-alert__content">
@@ -228,11 +228,11 @@
                 <div class="gw-stepper__content gw-stack gw-stack--sm">
                   <ul class="gw-grid gw-grid--2" role="list" aria-label="AI apps on this computer">
                     @for (a of guideApps(); track a.client) {
-                      <ng-container *ngTemplateOutlet="appTile; context: { $implicit: a, level: 4, wait: true }" />
+                      <ng-container *ngTemplateOutlet="appTile; context: { $implicit: a, level: 4, wait: !canConnectApps() }" />
                     }
                   </ul>
-                  @if (anyConnect()) {
-                    <p class="gw-text-caption gw-fg-muted" id="ov-first-why"><svg lucideIcon="lock" class="gw-icon gw-icon--xs"></svg> Add a connection first: your AI app needs something to work with.</p>
+                  @if (anyConnect() && !canConnectApps()) {
+                    <p class="gw-text-caption gw-fg-muted" id="ov-first-why"><svg lucideIcon="lock" class="gw-icon gw-icon--xs"></svg> @if (data.endpoints() === null) {Endpoints could not be loaded. <a class="gw-link" routerLink="/endpoints">Open Endpoints</a> to try again.} @else {<a class="gw-link" routerLink="/endpoints">Create an endpoint</a> before connecting your AI app.}</p>
                   }
                 </div>
               }
@@ -313,8 +313,8 @@
 
   <!--
     An AI app as a tile. Connect and How to install lead to the app's card on AI apps (/clients#cl-<app>-t); in the
-    first run Connect waits, a button with aria-disabled and the visible reason (never a link: a middle click would
-    get past it). A connected app's tile opens its card.
+    first run Connect waits only when no endpoint is available, a button with aria-disabled and the visible reason
+    (never a link: a middle click would get past it). A connected app's tile opens its card.
   -->
   <ng-template #appTile let-a let-level="level" let-wait="wait">
     <li gwStatusTile [level]="level" [name]="a.name" [client]="a.client" [meta]="a.meta" [endpoints]="a.endpoints" [state]="a.state" [link]="a.linked ? '/clients' : null" [fragment]="a.linked ? appAnchor(a.client) : null">

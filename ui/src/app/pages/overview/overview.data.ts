@@ -20,7 +20,7 @@ const DELAY = { approval: 150, health: 1_000, call: 5_000, clients: 1_000 } as c
  * the merged areas:
  * - the AI apps of this computer (`/api/clients`: the guide's tiles in every state, the home screen's in use);
  * - in use, the connections with the endpoints that use them (`/api/connections`): what each connected app can use;
- * - in use, every endpoint (`/api/endpoints`), including empty or disabled ones, for the connection groups;
+ * - every endpoint (`/api/endpoints`), including empty or disabled ones, for AI app setup and connection groups;
  * - in setup, the first connection (`/api/connections/{name}`): its tool modes and where its secret is;
  * - the exact action of each waiting request (`/api/approvals/{id}`: the compact row shows its first line).
  *
@@ -58,7 +58,7 @@ export class OverviewData {
   readonly clients = this.clientsSignal.asReadonly();
   /** The connections with the endpoints that use them (in use only); null when not loaded. */
   readonly connections = this.connectionsSignal.asReadonly();
-  /** All endpoints, including empty ones (in use only); null when their list did not load. */
+  /** All endpoints, including empty ones; null when their list did not load. */
   readonly endpoints = this.endpointsSignal.asReadonly();
   /** The first connection's detail (setup only): its tool modes on endpoints, where its secret is. */
   readonly first = this.firstSignal.asReadonly();
@@ -168,7 +168,7 @@ export class OverviewData {
       this.loadActions(overview.waiting),
       this.loadClients(),
       state === 'in-use' ? this.connectionsApi.list().then((l) => l.items, () => null) : Promise.resolve(null),
-      state === 'in-use' ? this.endpointsApi.list().catch(() => null) : Promise.resolve(null),
+      this.endpointsApi.list().catch(() => null),
       state === 'setup' && typeof firstName === 'string' ? this.connectionsApi.get(firstName).catch(() => null) : Promise.resolve(null),
     ]);
     if (this.stopped) return;

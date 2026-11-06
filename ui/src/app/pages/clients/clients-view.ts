@@ -113,7 +113,7 @@ export function firstConnection(o: Overview): FirstConnection | null {
  * The header's description outside "in use" (kit): first run names the apps already found and says what comes first;
  * setup names the connection the app will read.
  */
-export function stageDescription(stage: 'first-run' | 'setup', cards: readonly ClientCard[], first: FirstConnection | null): { readonly text: string; readonly literals: readonly string[] } {
+export function stageDescription(stage: 'first-run' | 'setup', cards: readonly ClientCard[], first: FirstConnection | null, hasEndpoint = false): { readonly text: string; readonly literals: readonly string[] } {
   if (stage === 'setup') {
     const reading = first ? `, and it can start reading ${first.name}` : '';
     return {
@@ -123,9 +123,11 @@ export function stageDescription(stage: 'first-run' | 'setup', cards: readonly C
   }
   const found = cards.filter((c) => c.detected).map((c) => c.name);
   const lead = found.length ? `${andList(found)} ${found.length === 1 ? 'is' : 'are'} already on this computer. ` : '';
-  const them = found.length === 1 ? 'it has' : found.length ? 'they have' : 'your AI app has';
+  const next = hasEndpoint
+    ? 'Connect your AI app to an endpoint to import connections with AI, or add connections later.'
+    : 'Create an endpoint first, then connect your AI app.';
   return {
-    text: `${lead}Add a connection first, so ${them} something to work with. Connect then shows the exact change before anything is written.`,
+    text: `${lead}${next} Connect shows the exact change before anything is written.`,
     literals: [],
   };
 }

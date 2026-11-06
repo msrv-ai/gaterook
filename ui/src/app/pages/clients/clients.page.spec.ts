@@ -745,11 +745,11 @@ describe('Clients page: first run and setup (kit ?state=first-run | setup)', () 
     return render();
   }
 
-  it('first run: the apps found are quiet rows whose Connect waits for a connection, and says why', async () => {
+  it('first run: the apps found are quiet rows whose Connect waits for an endpoint, and says why', async () => {
     firstRun();
     const el = await render();
     expect(text($('.gw-page-header__description', el))).toBe(
-      'Claude Desktop, Codex and Cursor are already on this computer. Add a connection first, so they have something to work with. Connect then shows the exact change before anything is written.',
+      'Claude Desktop, Codex and Cursor are already on this computer. Create an endpoint first, then connect your AI app. Connect shows the exact change before anything is written.',
     );
     expect($$('.gw-page-header__meta .gw-status__label', el).map(text)).toEqual(['3 detected, not connected', '1 not installed']);
     // The header's Add connection is the page's only primary; nothing explains Connect yet, nothing to set up by hand.
@@ -767,7 +767,7 @@ describe('Clients page: first run and setup (kit ?state=first-run | setup)', () 
     ]);
     const connect = control($('#cl-cx-row', el)!, 'Connect Codex');
     expect([connect.tagName, connect.getAttribute('aria-disabled'), connect.getAttribute('aria-describedby')]).toEqual(['BUTTON', 'true', 'cl-first-why']);
-    expect(text($('#cl-first-why', el))).toBe('Add a connection first: your AI app needs something to work with.');
+    expect(text($('#cl-first-why', el))).toBe('Create an endpoint first to connect your AI app. Open endpoints');
     await click(connect);
     expect(calls.filter((c) => c.startsWith('preview'))).toEqual([]);
     const ag = $('#cl-ag-row', el)!;
@@ -782,6 +782,51 @@ describe('Clients page: first run and setup (kit ?state=first-run | setup)', () 
     await arrive('cl-ag-t');
     await settle();
     expect(document.activeElement?.id).toBe('cl-ag-row-t');
+  });
+
+  it('first run: an empty endpoint enables Connect and waits for confirmation before writing', async () => {
+    firstRun();
+    world.endpoints = async () => setupEndpoints().map((endpoint) => ({ ...endpoint, connections: { total: 0, byEnv: {} }, tools: { read: 0, approval: 0, off: 0 } }));
+    const el = await render();
+    expect($('#cl-first-why', el)).toBeNull();
+    expect(text($('.gw-page-header__description', el))).toContain('Connect your AI app to an endpoint to import connections with AI');
+    for (const app of ['Claude Desktop', 'Codex', 'Cursor']) {
+      expect(control(el, `Connect ${app}`).getAttribute('aria-disabled')).toBeNull();
+    }
+    expect($('#cl-manual-t', el)).not.toBeNull();
+    await click(control($('#cl-cx-row', el)!, 'Connect Codex'));
+    const review = $('article[aria-labelledby="cl-cx-s-t"]', el)!;
+    expect(review).not.toBeNull();
+    expect(text(review)).not.toContain('dev-db');
+    expect(calls).toContain('preview codex dev helper');
+    expect(calls.some((call) => call.startsWith('connect '))).toBe(false);
+    await click(control(review, 'Connect Codex'));
+    expect(calls).toContain('connect codex pv_codex_dev_helper');
+  });
+
+  it('first run: an Overview link waits for endpoints, then opens the empty endpoint review', async () => {
+    firstRun();
+    let finish!: (endpoints: EndpointSummary[]) => void;
+    world.endpoints = () => new Promise((resolve) => { finish = resolve; });
+    const el = await arrive('cl-cx-t');
+    expect(control(el, 'Connect Codex').getAttribute('aria-disabled')).toBe('true');
+    expect(text($('#cl-first-why', el))).toContain('Loading endpoints');
+    expect(calls.some((call) => call.startsWith('preview '))).toBe(false);
+    finish(setupEndpoints().map((endpoint) => ({ ...endpoint, connections: { total: 0, byEnv: {} } })));
+    await settle();
+    expect($('article[aria-labelledby="cl-cx-s-t"]', el)).not.toBeNull();
+    expect(calls).toContain('preview codex dev helper');
+    expect(document.activeElement?.id).toBe('cl-cx-s-t');
+  });
+
+  it('first run: a failed endpoint load explains why Connect is unavailable', async () => {
+    firstRun();
+    world.endpoints = () => Promise.reject(problem(503, { status: 503, detail: 'Try again later.' }));
+    const el = await arrive('cl-cx-t');
+    expect(control(el, 'Connect Codex').getAttribute('aria-disabled')).toBe('true');
+    expect(text($('#cl-first-why', el))).toContain("Endpoints couldn't be loaded");
+    expect(control(el, 'Open endpoints').getAttribute('href')).toBe('/endpoints');
+    expect(calls.some((call) => call.startsWith('preview '))).toBe(false);
   });
 
   it('setup: Overview’s Connect (#cl-cx-t) opens Codex’s review on top, heading focused, with what it can use', async () => {
@@ -969,7 +1014,7 @@ describe('Microsoft Store client setup', () => {
     expect(toasts().some((toast) => toast.title === 'Claude Desktop connected to dev')).toBe(false);
   });
 
-  it('keeps first-run client choices unavailable until a connection exists', async () => {
+  it('keeps first-run client choices unavailable until an endpoint exists', async () => {
     storeEdition();
     world.overview = () => Promise.resolve(firstRunOverview());
     world.list = () => Promise.resolve(foundClients());
