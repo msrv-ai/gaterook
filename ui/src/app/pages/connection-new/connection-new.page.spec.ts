@@ -358,6 +358,7 @@ beforeEach(() => {
   const policies: Partial<PoliciesApi> = { all: vi.fn(async () => POLICIES), schema: vi.fn(async () => structuredClone(POLICY_SCHEMA)) };
   const secrets: Partial<SecretsApi> = {
     list: vi.fn(async () => [{ id: 'sec-1', rotatedAt: '2026-10-20T09:14:00Z', canRotate: false, rotateReason: "This connector can't issue a new value for itself." } as SecretRow]),
+    testReference: vi.fn(async () => ({ found: true, resolvedVersion: '4', created: null, type: 'string', keys: [] })),
     setReference: vi.fn(async (id: string, uri: string, store?: string | null, reason?: string | null) => {
       core.references.push({ id, uri, store, reason });
       const fail = core.referenceFails.shift();
@@ -1337,6 +1338,60 @@ describe('Connection: edit view with references', () => {
     p.q<HTMLElement>(`#cf-${field}-src-menu [data-value="${value}"]`)!.click();
     await p.settle();
   }
+
+  it.each([
+    { reason: 'not-found', error: 'No secret at kv/dev/cache.', title: 'Reference of cache not found' },
+    { reason: 'not-found', error: 'kv/dev/cache has no key "password". Keys: username, credential.', title: 'Reference of cache not found' },
+    { reason: 'denied', error: "The gateway's token can't read kv/data/dev/cache.", title: 'Access to reference of cache denied' },
+    { reason: 'unavailable', error: 'The Vault token has expired. Sign in again.', title: 'Secret store unavailable' },
+    { reason: 'unavailable', error: 'Vault could not be reached. Check network access.', title: 'Secret store unavailable' },
+    { reason: 'gone', error: 'Version 3 of kv/dev/cache is destroyed.', title: 'Reference of cache is no longer available' },
+    { reason: 'invalid', error: 'Vault cannot use this reference with the configured engine.', title: 'Reference of cache is invalid' },
+    { reason: 'not-connected', error: "HashiCorp Vault isn't connected: connect it in Secrets › External stores.", title: 'Secret store is not connected' },
+  ])('reference test shows the $reason diagnostic: $error', async ({ reason, error, title }) => {
+    cacheWithReference();
+    vi.mocked(TestBed.inject(SecretsApi).testReference).mockResolvedValue({
+      found: false, resolvedVersion: null, created: null, type: null, keys: [], reason, error,
+    });
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Test reference"]')!.click();
+    await p.settle();
+    expect(TestBed.inject(SecretsApi).testReference).toHaveBeenCalledExactlyOnceWith('vault://kv/dev/cache#password', 'vault-dev');
+    expect(TestBed.inject(ToastService).toasts().at(-1)).toMatchObject({ tone: 'danger', title, body: error });
+    expect(core.updates).toEqual([]);
+    expect(core.references).toEqual([]);
+  });
+
+  it.each([
+    { reason: 'denied', error: null, title: 'Access to reference of cache denied', body: 'permission to read this secret' },
+    { reason: 'unavailable', error: ' ', title: 'Secret store unavailable', body: 'network access and sign-in' },
+    { reason: null, error: null, title: "Couldn't test the reference of cache", body: 'Check the selected store connection' },
+    { reason: 'future-reason', error: 'The reference test did not finish.', title: "Couldn't test the reference of cache", body: 'The reference test did not finish.' },
+  ])('reference test handles absent or unknown diagnostics without claiming a missing path ($reason)', async ({ reason, error, title, body }) => {
+    cacheWithReference();
+    vi.mocked(TestBed.inject(SecretsApi).testReference).mockResolvedValue({
+      found: false, resolvedVersion: null, created: null, type: null, keys: [], reason, error,
+    });
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Test reference"]')!.click();
+    await p.settle();
+    const toast = TestBed.inject(ToastService).toasts().at(-1)!;
+    expect(toast.title).toBe(title);
+    expect(toast.body).toContain(body);
+    expect(toast.title).not.toContain('not found');
+  });
+
+  it('reference test success shows version metadata without adding secret details', async () => {
+    cacheWithReference();
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Test reference"]')!.click();
+    await p.settle();
+    expect(TestBed.inject(ToastService).toasts().at(-1)).toMatchObject({
+      tone: 'success', title: 'Reference of cache works', body: 'Found version 4. The value was neither shown nor kept.',
+    });
+    expect(core.references).toEqual([]);
+    expect(core.replaced).toEqual([]);
+  });
 
   it('Change opens the stored reference in its Vault and saves the new one after the settings', async () => {
     cacheWithReference();
