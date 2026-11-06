@@ -2,8 +2,12 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { FileKeyAccessError } from './file-key.ts';
 
-export type NativeRequest = { operation: 'check' | 'verify' | 'verify-password' | 'get' | 'store' | 'create' | 'delete'; account?: string; key?: string; windowHandle?: string };
-export interface NativeReply { ok: true; available?: boolean; touchId?: boolean; key?: string }
+export type NativeRequest = {
+  operation: 'check' | 'verify' | 'verify-password' | 'get' | 'store' | 'create' | 'delete'
+    | 'hello-key-create' | 'hello-key-sign' | 'hello-key-delete';
+  account?: string; key?: string; windowHandle?: string; challenge?: string;
+};
+export interface NativeReply { ok: true; available?: boolean; touchId?: boolean; key?: string; signature?: string }
 export type NativeCall = (request: NativeRequest) => Promise<NativeReply>;
 
 export class NativeUnlockError extends FileKeyAccessError {
@@ -29,9 +33,11 @@ export function nativeReply(bytes: Buffer): NativeReply {
     }
     if (reply['ok'] !== true || (reply['available'] !== undefined && typeof reply['available'] !== 'boolean')
         || (reply['touchId'] !== undefined && typeof reply['touchId'] !== 'boolean')
-        || (reply['key'] !== undefined && typeof reply['key'] !== 'string')) throw new Error();
+        || (reply['key'] !== undefined && typeof reply['key'] !== 'string')
+        || (reply['signature'] !== undefined && typeof reply['signature'] !== 'string')) throw new Error();
     return { ok: true, available: reply['available'] as boolean | undefined,
-      touchId: reply['touchId'] as boolean | undefined, key: reply['key'] as string | undefined };
+      touchId: reply['touchId'] as boolean | undefined, key: reply['key'] as string | undefined,
+      signature: reply['signature'] as string | undefined };
   } catch (error) {
     if (error instanceof NativeUnlockError) throw error;
     throw new NativeUnlockError('failed');
