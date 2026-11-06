@@ -15,6 +15,8 @@ On DEV and STAGE, you can temporarily bypass approval for a method on one connec
 
 Connect your services to GateRook, then choose which connections and tools each AI app can use. GateRook sits between your services and AI apps, keeps credentials local, and applies your access rules to tool calls.
 
+To discover connections in a repository, [import connections with AI](docs/ai-connection-import.md). Your AI app prepares configurations and credentials in a private import file; you review the connections and choose their destination endpoint in GateRook. You can save incomplete discoveries disabled and finish their setup later.
+
 For HTTP APIs, [import an OpenAPI file or prepare one with your AI app](docs/http-api-import.md). Review the server, authentication, and selected operations before saving them as MCP tools.
 
 To put an MCP server behind GateRook, [find it in the MCP registry, add it by its URL or paste its configuration](docs/mcp-servers.md) as in Claude Desktop, Cursor or Codex. When it asks for a sign-in, you sign in in your browser, but the sign-in goes to GateRook, not the AI app. GateRook keeps it encrypted, renews it, and never hands it to an agent.

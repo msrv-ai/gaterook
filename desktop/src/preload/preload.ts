@@ -1,7 +1,7 @@
 // `window.gwDesktop` (ARCHITECTURE.md §7.1 "Preload"; the UI's contract: ui/src/app/core/desktop/desktop-bridge.ts).
 // A sandboxed preload: only `electron` can be required, and only `contextBridge` and `ipcRenderer` are used. The page
 // gets plain functions and structured-cloned data — never `ipcRenderer`, an IPC event (its `sender` would be
-// `ipcRenderer` itself) or a secret. The private-key picker returns only the explicitly chosen path. Arguments are
+// `ipcRenderer` itself) or a secret. File and repository pickers return only explicitly chosen paths. Arguments are
 // coerced to the types main expects; main checks them again,
 // and checks that the call comes from this window's top frame on app://gw/.
 import { contextBridge, ipcRenderer } from 'electron';
@@ -46,6 +46,9 @@ const gwDesktop = {
   },
   choosePrivateKeyFile(): Promise<string | null> {
     return ipcRenderer.invoke(IPC.choosePrivateKeyFile);
+  },
+  chooseRepository(): Promise<string | null> {
+    return ipcRenderer.invoke(IPC.chooseRepository);
   },
   chooseVaultTokenFile(): Promise<{ readonly token: string; readonly path: string } | null> {
     return ipcRenderer.invoke(IPC.chooseVaultTokenFile);

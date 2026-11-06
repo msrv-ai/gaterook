@@ -87,7 +87,7 @@ class ConnectionsController {
       String reason, String confirm) {}
 
   /** {@code PUT /api/connections/{name}}: settings and env; secrets stay as stored. */
-  record Update(JsonNode config, String env, Long version, String reason, String confirm) {}
+  record Update(JsonNode config, String env, Long version, String reason, String confirm, Map<String, SecretSource> secrets) {}
 
   record Delete(String confirmName, String reason) {}
 
@@ -129,7 +129,8 @@ class ConnectionsController {
    */
   record Row(String name, String type, String typeName, String env, String host, List<String> badges,
       String secretSource, Health health, List<String> usedBy, boolean verified, long version, String typeLabel,
-      String variant, String serverVersion, boolean enabled) {}
+      String variant, String serverVersion, boolean enabled, boolean setupRequired, List<String> setupMissingFields,
+      List<JsonNode> setupSources) {}
 
   /** A stored secret field: never its value, length or hash. {@code state}: {@code stored}, {@code needs-value}, … */
   record StoredSecret(String field, String secretId, String name, String state, Integer version, String source) {}
@@ -145,7 +146,8 @@ class ConnectionsController {
   record Detail(String name, String type, String typeName, String env, JsonNode config, long version,
       List<StoredSecret> secrets, Health health, List<Long> spark24h, List<UsedBy> usedBy, boolean verified,
       JsonNode metadata, String host, String typeLabel, String variant, String serverVersion,
-      long healthIntervalSeconds, boolean enabled) {}
+      long healthIntervalSeconds, boolean enabled, boolean setupRequired, List<String> setupMissingFields,
+      List<JsonNode> setupSources) {}
 
   /** {@code ?duplicate=}: settings to start from; {@code notice} is the kit's info alert. */
   record Draft(String type, String env, JsonNode config, List<String> emptySecretFields, String notice) {}
@@ -323,12 +325,14 @@ class ConnectionsController {
     ConnectionService.Summary s = connections.summary(name);
     ConnectorManifest manifest = registry.manifest(d.type()).orElse(null);
     String typeName = manifest == null ? d.type() : manifest.name();
+    JsonNode setup = configs.byName(name).map(c -> c.config().metadata()).orElse(null);
     return new Detail(d.name(), d.type(), typeName, d.env().id(), d.config(), d.version(),
         d.secrets().stream().map(f -> new StoredSecret(f.field(), f.secretId(), f.name(), f.state(), f.version(),
             f.source())).toList(), health(d.health()), List.of(),
         d.usedBy().stream().map(u -> new UsedBy(u.tool(), u.endpoint(), Modes.id(u.mode()))).toList(), d.verified(),
         formMetadata(manifest, configs.byName(name).map(c -> c.config().metadata()).orElse(null)), s.target(),
-        s.typeLabel(), s.variant(), s.serverVersion(), health.interval().toSeconds(), s.enabled());
+        s.typeLabel(), s.variant(), s.serverVersion(), health.interval().toSeconds(), s.enabled(),
+        setup != null && setup.path("setupRequired").asBoolean(false), setupMissing(setup), setupSources(setup));
   }
 
   /**
@@ -358,10 +362,14 @@ class ConnectionsController {
     String reason = Reasons.check(request.reason());
     // An external MCP server is checked as adding one checks it: its sign-in, prefix and catalog entry.
     boolean server = configs.byName(name).map(c -> McpServerService.TYPE.equals(c.config().type())).orElse(false);
-    ConnectionService.Summary s = server
-        ? mcpServers.update(name, env, request.config(), request.version(), reason, request.confirm())
-        : connections.update(name, env, request.config(), request.version(), reason, request.confirm());
-    return row(s, configs.byId(s.id()).orElse(null));
+    Map<String, SecretInput> secrets = secrets(request.secrets());
+    try {
+      if (server && !secrets.isEmpty()) throw ApiRequestException.unprocessable("Use secret replacement", "Use the MCP server's secret controls.", "/secrets");
+      ConnectionService.Summary s = server
+          ? mcpServers.update(name, env, request.config(), request.version(), reason, request.confirm())
+          : connections.update(name, env, request.config(), request.version(), reason, request.confirm(), secrets);
+      return row(s, configs.byId(s.id()).orElse(null));
+    } finally { clear(secrets, request.secrets()); }
   }
 
   @DeleteMapping("/api/connections/{name}")
@@ -472,6 +480,9 @@ class ConnectionsController {
   private Row row(ConnectionService.Summary s, ConnectionConfigs.Stored stored) {
     List<String> badges = new ArrayList<>();
     ConnectorManifest manifest = registry.manifest(s.type()).orElse(null);
+    JsonNode setup = stored == null ? null : stored.config().metadata();
+    boolean setupRequired = stored != null && ConnectionService.needsSetup(stored.config());
+    if (setupRequired) badges.add("Needs setup");
     if (stored != null && manifest != null && manifest.configSchema() != null) {
       collectBadges(manifest.configSchema(), "", stored.config().config(), s.env(), badges);
     }
@@ -481,7 +492,20 @@ class ConnectionsController {
       badges.add("Read replica");
     }
     return new Row(s.name(), s.type(), s.typeName(), s.env().id(), s.target(), List.copyOf(badges), s.secretSource(),
-        health(s.health()), s.usedBy(), s.verified(), s.version(), s.typeLabel(), s.variant(), s.serverVersion(), s.enabled());
+        health(s.health()), s.usedBy(), s.verified(), s.version(), s.typeLabel(), s.variant(), s.serverVersion(), s.enabled(),
+        setupRequired, setupMissing(setup), setupSources(setup));
+  }
+
+  private static List<String> setupMissing(JsonNode metadata) {
+    List<String> out = new ArrayList<>();
+    if (metadata != null) metadata.path("setupMissingFields").forEach(v -> out.add(v.asString()));
+    return List.copyOf(out);
+  }
+
+  private static List<JsonNode> setupSources(JsonNode metadata) {
+    List<JsonNode> out = new ArrayList<>();
+    if (metadata != null) metadata.path("setupSources").forEach(v -> out.add(v.deepCopy()));
+    return List.copyOf(out);
   }
 
   private boolean mcpServer(String type) {
@@ -549,7 +573,7 @@ class ConnectionsController {
   }
 
   /** The form's secret fields as the connections module takes them; a reference is bound to its store there. */
-  private static Map<String, SecretInput> secrets(Map<String, SecretSource> given) {
+  static Map<String, SecretInput> secrets(Map<String, SecretSource> given) {
     Map<String, SecretInput> out = new LinkedHashMap<>();
     if (given == null) {
       return out;

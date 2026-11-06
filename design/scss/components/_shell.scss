@@ -14,7 +14,7 @@
 //     <header class="gw-titlebar">                     (+ gw-titlebar--mac on macOS)
 //       <div class="gw-titlebar__drag">…Back button with a leading arrow…</div>
 //       <span class="gw-titlebar__title">Overview</span>
-//       <div class="gw-titlebar__actions">…search, approvals, appearance…</div>
+//       <div class="gw-titlebar__actions">…search, approvals, bug report, appearance…</div>
 //     </header>
 //     <div class="gw-sidebar" id="gw-sidebar">
 //       <div class="gw-sidebar__header">
@@ -180,7 +180,7 @@
   @include gw-drag-region;
 
   // Anything you can click must opt out of the drag region, or Electron eats the click.
-  :is(a, button, input, select, textarea, label, summary, [tabindex], .gw-menu, .gw-popover) {
+  :is(a, button, input, select, textarea, label, summary, [tabindex], .gw-menu, .gw-popover, .gw-tooltip) {
     @include gw-no-drag;
   }
 

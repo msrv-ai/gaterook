@@ -89,7 +89,7 @@ export interface FullBackupResult {
   readonly fileName?: string;
 }
 
-/** What Electron's preload exposes as `window.gwDesktop` (§7.1): no secrets; paths only from an explicit key selection. */
+/** What Electron's preload exposes as `window.gwDesktop` (§7.1): no secrets; paths only from explicit selection. */
 export interface GwDesktop {
   readonly platform: 'darwin' | 'win32' | 'linux';
   /** True for MSIX packages whose startup and updates are managed by Windows. */
@@ -102,6 +102,8 @@ export interface GwDesktop {
   openFile(purpose: string): Promise<string | null>;
   /** Shows the native picker and returns the selected private key path, without reading its contents. */
   choosePrivateKeyFile(): Promise<string | null>;
+  /** Selects the repository folder for an AI prompt without reading its files. */
+  chooseRepository?(): Promise<string | null>;
   /**
    * Shows the native picker for a Vault token file and grants it to the core: the one-time token to send with the store
    * (`files: {"/auth/file": token}`) and the chosen path to show. The renderer never reads the file.
@@ -175,6 +177,7 @@ export class DesktopBridge {
 
   /** Also false when a browser UI connects to an older desktop shell. */
   readonly privateKeyPickerAvailable = typeof this.desktop?.choosePrivateKeyFile === 'function';
+  readonly repositoryPickerAvailable = typeof this.desktop?.chooseRepository === 'function';
   readonly vaultTokenPickerAvailable = typeof this.desktop?.chooseVaultTokenFile === 'function';
   readonly aiPromptAvailable = typeof this.desktop?.openAiPrompt === 'function';
   readonly googleSignInAvailable = typeof this.desktop?.signInToGoogle === 'function';
@@ -209,6 +212,10 @@ export class DesktopBridge {
 
   async choosePrivateKeyFile(): Promise<string | null> {
     return this.desktop?.choosePrivateKeyFile?.() ?? null;
+  }
+
+  async chooseRepository(): Promise<string | null> {
+    return this.desktop?.chooseRepository?.() ?? null;
   }
 
   async chooseVaultTokenFile(): Promise<{ readonly token: string; readonly path: string } | null> {

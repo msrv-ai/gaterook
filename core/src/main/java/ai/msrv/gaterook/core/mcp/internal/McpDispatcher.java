@@ -380,7 +380,8 @@ public class McpDispatcher {
     boolean ui = r.env().supportsUi();
     boolean tasks = r.env().era() == Era.LEGACY && Era.LEGACY_VERSION.equals(r.env().version());
     List<ToolCatalog.PublishedTool> all = r.catalog().tools().stream()
-        .filter(t -> ui || (!CoreTools.APPROVAL_CARD_ACTION.equals(t.name()) && !t.appOnly())).toList();
+        .filter(t -> ui || (!CoreTools.APPROVAL_CARD_ACTION.equals(t.name())
+            && !CoreTools.OPEN_CONNECTION_IMPORT.equals(t.name()) && !t.appOnly())).toList();
     String listHash = r.catalog().listHash() + (ui ? ":ui" : ":text");
     int offset = cursor(r.env(), listHash);
     ObjectNode out = JsonNodeFactory.instance.objectNode();
@@ -414,7 +415,10 @@ public class McpDispatcher {
     }
     if (ui && CoreTools.APPROVAL_CARD.equals(t.name())) {
       n.putObject("_meta").putObject("ui").put("resourceUri", McpAppResource.URI);
-    } else if (ui && CoreTools.APPROVAL_CARD_ACTION.equals(t.name())) {
+    } else if (ui && CoreTools.SUBMIT_CONNECTION_IMPORT.equals(t.name())) {
+      n.putObject("_meta").putObject("ui").put("resourceUri", ConnectionImportCards.URI);
+    } else if (ui && (CoreTools.APPROVAL_CARD_ACTION.equals(t.name())
+        || CoreTools.OPEN_CONNECTION_IMPORT.equals(t.name()))) {
       n.putObject("_meta").putObject("ui").putArray("visibility").add("app");
     } else if (ui && t.meta() != null && t.meta().path("ui").isObject()) {
       // An MCP server's app, by the URI the endpoint publishes it under: read through the gateway like any resource.

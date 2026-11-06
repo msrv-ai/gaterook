@@ -177,6 +177,8 @@ export class GwConnectionForm {
   readonly name = input('');
   readonly env = input<Env | null>(null);
   readonly config = input<JsonObject | null>(null);
+  /** Reviewed repository imports can preserve an unchanged, explicit database allowlist without a network call. */
+  readonly allowKnownDatabaseSelection = input(false, { transform: booleanAttribute });
   /** The connection's metadata the core found (kubeconfig contexts for `x-options-from`); null until it has any. */
   readonly metadata = input<JsonObject | null>(null);
   readonly stored = input<readonly StoredSecret[]>([]);
@@ -366,8 +368,8 @@ export class GwConnectionForm {
     if (!selection) return null;
     const selected = this.selectedDatabases();
     const previous = initialDatabases(this.config(), selection);
-    // Existing connections can keep or narrow their saved scope without contacting an offline server.
-    if (this.mode() === 'edit' && this.databaseKey() === this.databaseBaselines.get(this.state())
+    // Existing connections and explicit imported allowlists can keep or narrow scope without a network call.
+    if ((this.mode() === 'edit' || (this.allowKnownDatabaseSelection() && previous.length > 0)) && this.databaseKey() === this.databaseBaselines.get(this.state())
       && (selected.length || !previous.length) && selected.every((name) => previous.includes(name))) return null;
     const discovery = this.databaseDiscovery();
     if (discovery?.state !== 'ready') return 'Load databases with the current connection settings before continuing.';
@@ -528,9 +530,9 @@ export class GwConnectionForm {
   });
 
   protected readonly credentialsText = computed(() => {
-    if (this.state().source() === 'dynamic') return 'Saved credentials are kept when you update the connection.';
     const custom = this.credentialsDescription();
     if (custom) return custom;
+    if (this.state().source() === 'dynamic') return 'Saved credentials are kept when you update the connection.';
     if (this.beginner()) return `Your AI never sees these. GateRook uses them only to sign in to ${signInTarget(this.spec().type)}.`;
     const node = this.secretSection();
     if (node?.description) return node.description;

@@ -422,6 +422,8 @@ export class SchemaForm {
   /** How a secret field shows: a new value, the stored version, its replacement, a reference. */
   secretState(node: SchemaNode): 'empty' | 'stored' | 'editing' | 'reference' {
     const stored = this.stored.get(node.pointer);
+    // An import can stage different providers per field; changing the form-wide source must not erase them.
+    if (stored?.staged && !this.replacing().has(node.pointer)) return storedReference(stored) ? 'reference' : 'stored';
     if (REFERENCE_SOURCES.has(this.source())) return stored && storedReference(stored)
       && !this.replacing().has(node.pointer) ? 'reference' : 'empty';
     if (stored?.state === 'stored') return this.replacing().has(node.pointer) ? 'editing' : 'stored';

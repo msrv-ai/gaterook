@@ -94,7 +94,7 @@ const WARNING_ICONS: Record<string, string> = {
 
 /**
  * The window (pages/_shell.html, copied 1:1): skip link, titlebar (Back, section name, Search ⌘K, the approvals bell,
- * Appearance), the sidebar with the live approvals counter and core status, and main with the app-wide
+ * Report a bug, Appearance), the sidebar with the live approvals counter and core status, and main with the app-wide
  * banners, the page and the command palette. While the core isn't running the status screen is the whole window
  * (core-starting); Welcome uses the no-sidebar variant; the dev gallery has no frame at all.
  *
@@ -193,6 +193,7 @@ export class App {
 
   constructor() {
     this.core.start();
+    effect(() => this.toasts.setDuration(this.settings.section('general')?.values['toastDurationSeconds']));
     // Live data starts once the core answers. start() only subscribes once; every later return to running (the core
     // was away or restarted) reloads what the frame keeps, so the counter and the banner aren't stale until the
     // next event.

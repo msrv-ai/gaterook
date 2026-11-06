@@ -5,6 +5,8 @@ import { Title } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { App } from './app';
 import { provideKitIcons } from './kit/icons';
+import { ToastService } from './kit/toast.service';
+import { SettingsStore } from './core/stores/settings.store';
 
 describe('App', () => {
   beforeEach(() => {
@@ -27,6 +29,20 @@ describe('App', () => {
     expect(screen.id).toBe('main');
     expect(document.getElementById(screen.getAttribute('aria-labelledby')!)?.tagName).toBe('H1');
     expect(TestBed.inject(Title).getTitle()).toBe('Core starting · GateRook');
+    TestBed.inject(HttpTestingController).match(() => true);
+    fixture.destroy();
+  });
+
+  it('applies the loaded notification duration and later saved changes', async () => {
+    const settings = TestBed.inject(SettingsStore);
+    settings.put({ name: 'general', values: { toastDurationSeconds: 30 }, version: 1, updatedAt: null });
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    const toasts = TestBed.inject(ToastService);
+    expect(toasts.show({ title: 'Saved' }).timeout).toBe(30000);
+    settings.put({ name: 'general', values: { toastDurationSeconds: 60 }, version: 2, updatedAt: null });
+    await fixture.whenStable();
+    expect(toasts.show({ title: 'Saved again' }).timeout).toBe(60000);
     TestBed.inject(HttpTestingController).match(() => true);
     fixture.destroy();
   });

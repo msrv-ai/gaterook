@@ -18,9 +18,9 @@ import { Toast, ToastService, ToastTone } from './toast.service';
 @Directive({
   selector: '[gwToastTimer]',
   host: {
-    '(mouseenter)': 'pause()',
-    '(mouseleave)': 'start()',
-    '(focusin)': 'pause()',
+    '(mouseenter)': 'onMouseEnter()',
+    '(mouseleave)': 'onMouseLeave()',
+    '(focusin)': 'onFocusIn()',
     '(focusout)': 'onFocusOut($event)',
   },
 })
@@ -31,6 +31,8 @@ export class GwToastTimer implements OnDestroy {
   private remaining = -1;
   private started = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private hovered = false;
+  private focused = false;
 
   constructor() {
     effect(() => {
@@ -42,26 +44,45 @@ export class GwToastTimer implements OnDestroy {
     });
   }
 
-  start(): void {
-    if (this.remaining <= 0) return;
+  private start(): void {
+    if (this.remaining < 0 || this.hovered || this.focused || this.timer !== null) return;
     this.started = Date.now();
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.toasts.dismiss(this.gwToastTimer().id), this.remaining);
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      this.remaining = -1;
+      this.toasts.dismiss(this.gwToastTimer().id);
+    }, this.remaining);
   }
 
-  pause(): void {
-    if (!this.timer) return;
+  private pause(): void {
+    if (this.timer === null) return;
     clearTimeout(this.timer);
     this.timer = null;
-    this.remaining -= Date.now() - this.started;
+    this.remaining = Math.max(0, this.remaining - (Date.now() - this.started));
+  }
+
+  protected onMouseEnter(): void {
+    this.hovered = true;
+    this.pause();
+  }
+
+  protected onMouseLeave(): void {
+    this.hovered = false;
+    this.start();
+  }
+
+  protected onFocusIn(): void {
+    this.focused = true;
+    this.pause();
   }
 
   protected onFocusOut(e: FocusEvent): void {
-    if (!this.el.contains(e.relatedTarget as Node | null)) this.start();
+    this.focused = this.el.contains(e.relatedTarget as Node | null);
+    this.start();
   }
 
   ngOnDestroy(): void {
-    if (this.timer) clearTimeout(this.timer);
+    if (this.timer !== null) clearTimeout(this.timer);
   }
 }
 

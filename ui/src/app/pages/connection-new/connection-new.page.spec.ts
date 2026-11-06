@@ -1355,6 +1355,51 @@ describe('Connection: edit view', () => {
     expect(core.updates).toEqual([]);
   });
 
+  it('shows the incomplete import checklist and blocks enabling access until setup is completed', async () => {
+    core.detail = { ...structuredClone(DETAIL), enabled: false, setupRequired: true,
+      setupMissingFields: ['/connection/host', '/credentials/password'],
+      setupSources: [{ field: '/credentials/password', source: 'reference', reference: 'vault://secret/example/dev#password', instructions: 'The deployment obtains DB_PASSWORD from this secret.' }] };
+    const p = await open('/connections/dev-db');
+    expect(text(p.q('#finish-setup-title'))).toContain('Finish setup for dev-db');
+    expect(p.el.textContent).toContain('/connection/host');
+    expect(p.el.textContent).toContain('vault://secret/example/dev#password');
+    expect(p.el.textContent).toContain('DB_PASSWORD');
+    expect(text(p.q('.gw-page-header__meta .gw-status'))).toBe('Needs setup');
+    p.q<HTMLInputElement>('gw-access-switch input')!.click();
+    await p.settle();
+    expect(TestBed.inject(ConnectionsApi).setEnabled).not.toHaveBeenCalled();
+  });
+
+  it('includes newly entered missing credentials when finishing an imported connection', async () => {
+    core.detail = { ...structuredClone(DETAIL), enabled: false, setupRequired: true,
+      setupMissingFields: ['/credentials/password'], secrets: [] };
+    const p = await open('/connections/dev-db');
+    await p.type('cf-credentials-password', 'fixture-completion-password');
+    p.button('Load databases').click();
+    await p.settle();
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates[0]?.secrets).toEqual({ '/credentials/password': { source: 'local', value: 'fixture-completion-password' } });
+    expect(TestBed.inject(ConnectionsApi).setEnabled).not.toHaveBeenCalled();
+  });
+
+  it('does not send an unsaved existing credential replacement through setup completion', async () => {
+    core.detail = { ...structuredClone(DETAIL), enabled: false, setupRequired: true,
+      setupMissingFields: ['/connection/host'] };
+    const p = await open('/connections/dev-db');
+    const form = p.page().form()!;
+    const node = form.state().compiled.all.find(field => field.pointer === '/credentials/password')!;
+    form.state().replace(node, true);
+    form.state().setSecret(node, 'fixture-replacement-password');
+    await p.settle();
+    p.button('Load databases').click();
+    await p.settle();
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates).toEqual([]);
+    expect(text(p.q('#connection-form-error'))).toContain('Save credential replacements first');
+  });
+
   it('changes access immediately without losing draft fields and saves with the refreshed version', async () => {
     const p = await open('/connections/dev-db');
     await p.type('cf-credentials-user', 'draft_user');

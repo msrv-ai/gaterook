@@ -1707,7 +1707,7 @@ table {
   app-region: drag;
   user-select: none;
 }
-.gw-titlebar :is(a, button, input, select, textarea, label, summary, [tabindex], .gw-menu, .gw-popover) {
+.gw-titlebar :is(a, button, input, select, textarea, label, summary, [tabindex], .gw-menu, .gw-popover, .gw-tooltip) {
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }

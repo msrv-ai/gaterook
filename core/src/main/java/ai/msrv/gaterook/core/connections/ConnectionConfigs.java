@@ -41,6 +41,10 @@ public class ConnectionConfigs {
   public record Stored(ConnectionConfig config, boolean verified, Health health, Instant createdAt,
       Instant updatedAt, Map<String, String> secretIds, boolean enabled) {
 
+    public Stored {
+      enabled = enabled && !ConnectionService.needsSetup(config);
+    }
+
     public Stored(ConnectionConfig config, boolean verified, Health health, Instant createdAt,
         Instant updatedAt, Map<String, String> secretIds) {
       this(config, verified, health, createdAt, updatedAt, secretIds, true);

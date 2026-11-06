@@ -41,8 +41,8 @@ const PROVIDERS: Record<string, { readonly name: string; readonly icon: string }
   template: `
     @switch (state()) {
       @case ('stored') {
-        <span class="gw-secret__status"><svg lucideIcon="lock-keyhole" class="gw-icon"></svg>Encrypted</span>
-        @if (version() !== null || updatedAt()) {
+        <span class="gw-secret__status"><svg lucideIcon="lock-keyhole" class="gw-icon"></svg>{{ prepared() ? 'Prepared' : 'Encrypted' }}</span>
+        @if (!prepared() && (version() !== null || updatedAt())) {
           <span class="gw-secret__meta"
             >@if (version() !== null) {version <span class="gw-mono">{{ version() }}</span>}@if (version() !== null && updatedAt()) { · }@if (updatedAt()) {updated <time [attr.datetime]="iso()" [attr.title]="absolute()">{{ relative() }}</time>}</span
           >
@@ -65,9 +65,11 @@ const PROVIDERS: Record<string, { readonly name: string; readonly icon: string }
         <span class="gw-secret__status"><svg [lucideIcon]="providerInfo().icon" class="gw-icon"></svg>{{ providerInfo().name }}</span>
         <code class="gw-secret__ref">{{ ref() }}</code>
         <span class="gw-secret__actions">
-          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" [attr.aria-label]="'Test ' + refNoun() + ' for ' + subject()" (click)="testReference.emit()">
-            Test {{ refNoun() }}
-          </button>
+          @if (!prepared()) {
+            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" [attr.aria-label]="'Test ' + refNoun() + ' for ' + subject()" (click)="testReference.emit()">
+              Test {{ refNoun() }}
+            </button>
+          }
           @if (changeable()) {
             <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" [attr.aria-label]="'Change ' + refNoun() + ' for ' + subject()" (click)="changeRef.emit()">
               Change
@@ -165,6 +167,8 @@ export class GwSecret implements FormValueControl<string> {
   readonly revealable = input(true, { transform: booleanAttribute });
 
   readonly version = input<number | null>(null);
+  /** An import draft has no persisted secret yet, even though its value stays outside the renderer. */
+  readonly prepared = input(false, { transform: booleanAttribute });
   readonly updatedAt = input<string | null>(null);
   readonly canRotate = input(true, { transform: booleanAttribute });
   /** Id of the visible reason Rotate is unavailable (`aria-describedby`). */

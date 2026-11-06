@@ -80,7 +80,11 @@ public record EndpointSnapshot(String id, String slug, String description, Env e
   public String disabledReason(String connection) {
     if (!enabled) return "Endpoint " + slug + " is disabled by the user. Ask the user to enable it in GateRook "
         + "before retrying. Nothing ran.";
-    return connection(connection).filter(w -> !w.enabled()).map(w -> "Connection " + connection
+    Optional<Wired> configured = connection(connection);
+    if (configured.filter(w -> ai.msrv.gaterook.core.connections.ConnectionService.needsSetup(w.config())).isPresent()) {
+      return "Connection " + connection + " needs setup. Complete its settings in GateRook before enabling access. Nothing ran.";
+    }
+    return configured.filter(w -> !w.enabled()).map(w -> "Connection " + connection
         + " is disabled by the user across all endpoints. Ask the user to enable it in GateRook before retrying. "
         + "Nothing ran.").orElse(null);
   }

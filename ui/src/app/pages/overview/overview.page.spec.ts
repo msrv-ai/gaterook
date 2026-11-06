@@ -162,6 +162,26 @@ const tile = (root: ParentNode, name: string) => Array.from(root.querySelectorAl
 const href = (a: Element | null) => a?.getAttribute('href') ?? null;
 
 describe('Overview page', () => {
+  it.each([
+    ['first run', firstRun],
+    ['setup', setup],
+    ['in use', overview],
+  ] as const)('opens AI import from the highlighted header action during %s', async (_state, answer) => {
+    setupPage(() => Promise.resolve(answer()));
+    const { el } = await render();
+    const link = byText<HTMLAnchorElement>(el, '.gw-page-header__actions a', 'Import with AI')!;
+    expect(href(link)).toBe('/connection-import');
+    expect(link.classList).toContain('gw-btn--primary');
+    expect(link.querySelector('svg[lucideIcon="lightbulb"]')).not.toBeNull();
+    expect(el.querySelectorAll('.gw-btn--primary')).toHaveLength(1);
+
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    link.click();
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(String(navigate.mock.calls[0][0])).toBe('/connection-import');
+  });
+
   it('leads Store users to the selected client setup card', async () => {
     setupPage(() => Promise.resolve(setup()));
     Object.assign(TestBed.inject(DesktopBridge), { windowsStore: true });
@@ -190,9 +210,9 @@ describe('Overview page', () => {
       setupPage();
       const { el } = await render();
       expect(text(el.querySelector('.gw-page-header__description'))).toBe('What waits for your approval and what is connected.');
-      // The page's one action is a plain button: nothing on this screen is a primary.
+      // AI import is highlighted; manual setup remains available beside it.
       expect(byText(el, '.gw-page-header__actions a', 'Add connection')!.classList.contains('gw-btn--primary')).toBe(false);
-      expect(el.querySelector('.gw-btn--primary')).toBeNull();
+      expect(text(el.querySelector('.gw-btn--primary'))).toBe('Import with AI');
 
       const wait = el.querySelector('#ov-wait')!;
       expect(text(wait.querySelector('h2'))).toBe('Waiting for your approval , 3 requests');
@@ -469,11 +489,11 @@ describe('Overview page', () => {
   });
 
   describe('first run', () => {
-    it('is a three-step guide: Add your first connection is current and the one primary', async () => {
+    it('is a three-step guide with manual setup alongside the AI import action', async () => {
       setupPage(() => Promise.resolve(firstRun()), () => Promise.resolve(clientsFound()));
       const { el } = await render();
       expect(text(el.querySelector('.gw-page-header__description'))).toBe('Let your AI apps use your databases and servers without ever seeing a password.');
-      expect(el.querySelector('.gw-page-header__actions')).toBeNull();
+      expect(href(byText(el, '.gw-page-header__actions a', 'Import with AI'))).toBe('/connection-import');
       const card = el.querySelector('section[aria-labelledby="ov-first-title"]')!;
       expect(text(card.querySelector('h2'))).toBe('Get started');
       expect(text(card.querySelector('.gw-card__description'))).toBe(
@@ -491,8 +511,8 @@ describe('Overview page', () => {
 
       const primaries = el.querySelectorAll('.gw-btn--primary');
       expect(primaries).toHaveLength(1);
-      expect(text(primaries[0])).toBe('Add connection');
-      expect(href(primaries[0])).toBe('/connections/new');
+      expect(text(primaries[0])).toBe('Import with AI');
+      expect(href(byText(steps[0], 'a', 'Add connection'))).toBe('/connections/new');
       expect(text(steps[2].querySelector('.gw-stepper__description'))).toBe(
         'Restart your AI app if GateRook says so, then ask it: “Show me the tables in my database”. Its first request shows up here.',
       );
@@ -553,7 +573,7 @@ describe('Overview page', () => {
       const connect = byText(tile(steps[1], 'Codex')!, 'a', 'Connect')!;
       expect(href(connect)).toBe('/clients#cl-cx-t');
       expect(connect.classList.contains('gw-btn--primary')).toBe(false);
-      expect(el.querySelector('.gw-btn--primary')).toBeNull();
+      expect(text(el.querySelector('.gw-btn--primary'))).toBe('Import with AI');
       expect(text(steps[2].querySelector('.gw-stepper__description'))).toBe(
         'Restart your AI app if GateRook says so, then ask it: “Show me the tables in dev-db”. Its first request shows up here.',
       );

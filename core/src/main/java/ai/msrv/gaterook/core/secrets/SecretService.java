@@ -268,6 +268,34 @@ public class SecretService {
    */
   public SecretInfo createReference(SecretOwner owner, String field, String name, String uri, boolean dynamic,
       String storeName, String pointer) {
+    SecretRef ref = checkedReference(uri, dynamic, pointer);
+    return writeTx.execute(s -> {
+      ExternalStoreEntity store = binding.storeFor(ref, storeName, pointer);
+      SecretEntity secret = new SecretEntity(name, dynamic ? SecretKind.DYNAMIC : SecretKind.REFERENCE, kind(owner),
+          owner.id(), field, clock.instant());
+      binding.point(secret, dynamic, ref, store);
+      return info(secrets.save(secret));
+    });
+  }
+
+  /**
+   * Whether a reference has one configured, integrity-verified store. This checks local metadata only: it never
+   * contacts the store, reads its credentials or proves that remote authentication and access will succeed.
+   */
+  public boolean referenceConnected(String uri, boolean dynamic, String storeName) {
+    SecretRef ref = checkedReference(uri, dynamic, "/secrets");
+    return Boolean.TRUE.equals(readTx.execute(s -> {
+      try {
+        ExternalStoreEntity store = binding.storeFor(ref, storeName, "/secrets");
+        return store != null && binding.integrity().verifyStore(store);
+      } catch (ProblemException e) {
+        // Missing, ambiguous or mismatched store choices are setup work; malformed references failed above.
+        return false;
+      }
+    }));
+  }
+
+  private static SecretRef checkedReference(String uri, boolean dynamic, String pointer) {
     SecretRef ref = StoreBinding.parse(uri, pointer);
     boolean creds = ref instanceof SecretRef.Vault v && v.credsPath();
     if (dynamic && !creds) {
@@ -280,13 +308,7 @@ public class SecretService {
           + " cannot be used as a secret reference. Use a Vault KV path and key, such as "
           + "vault://kv/dev/db#password.", pointer);
     }
-    return writeTx.execute(s -> {
-      ExternalStoreEntity store = binding.storeFor(ref, storeName, pointer);
-      SecretEntity secret = new SecretEntity(name, dynamic ? SecretKind.DYNAMIC : SecretKind.REFERENCE, kind(owner),
-          owner.id(), field, clock.instant());
-      binding.point(secret, dynamic, ref, store);
-      return info(secrets.save(secret));
-    });
+    return ref;
   }
 
   /**

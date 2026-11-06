@@ -24,15 +24,26 @@
       <div class="gw-titlebar__actions">
         @if (frame() === 'app') {
           <!-- Opens the command palette (#cmdk at the end of main). -->
-          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Search and commands" aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" (click)="openPalette($event)"><svg lucideIcon="search" class="gw-icon"></svg> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
-          <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" routerLink="/approvals" [attr.aria-label]="approvalsLabel()"><svg lucideIcon="bell" class="gw-icon"></svg>@if (pending() > 0) {<span class="gw-counter gw-counter--attention" aria-hidden="true">{{ pending() }}</span>}</a>
+          <span class="gw-tooltip gw-tooltip--bottom gw-tooltip--end">
+            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-labelledby="gw-titlebar-search-tip" aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" (click)="openPalette($event)"><svg lucideIcon="search" class="gw-icon"></svg> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
+            <span class="gw-tooltip__bubble" role="tooltip" id="gw-titlebar-search-tip">Search and commands</span>
+          </span>
+          <span class="gw-tooltip gw-tooltip--bottom gw-tooltip--end">
+            <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" routerLink="/approvals" aria-labelledby="gw-titlebar-approvals-tip"><svg lucideIcon="bell" class="gw-icon"></svg>@if (pending() > 0) {<span class="gw-counter gw-counter--attention" aria-hidden="true">{{ pending() }}</span>}</a>
+            <span class="gw-tooltip__bubble" role="tooltip" id="gw-titlebar-approvals-tip">{{ approvalsLabel() }}</span>
+          </span>
+          <span class="gw-tooltip gw-tooltip--bottom gw-tooltip--end">
+            <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" href="https://github.com/msrv-ai/gaterook/issues" target="_blank" rel="noopener noreferrer" aria-labelledby="gw-titlebar-bug-tip"><svg lucideIcon="bug" class="gw-icon"></svg></a>
+            <span class="gw-tooltip__bubble" role="tooltip" id="gw-titlebar-bug-tip">Report a bug on GitHub</span>
+          </span>
         }
         <!--
           Appearance popover. The <form method="dialog"> scopes the radio groups (Settings › Appearance has its own
           gw-theme radios) and never submits outside a <dialog>; GwThemeControl binds them to window.gwTheme.
         -->
-        <div class="gw-menu-host">
-          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Appearance" [gwMenuTrigger]="appearance"><svg lucideIcon="sun-moon" class="gw-icon"></svg></button>
+        <div class="gw-menu-host gw-tooltip gw-tooltip--bottom gw-tooltip--end">
+          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-haspopup="dialog" aria-expanded="false" aria-labelledby="gw-titlebar-appearance-tip" [gwMenuTrigger]="appearance"><svg lucideIcon="sun-moon" class="gw-icon"></svg></button>
+          <span class="gw-tooltip__bubble" role="tooltip" id="gw-titlebar-appearance-tip">Appearance</span>
           <div class="gw-popover gw-popover--right" id="gw-appearance" role="dialog" aria-labelledby="gw-appearance-title" hidden gwMenu #appearance="gwMenu">
             <div class="gw-popover__header">
               <p class="gw-popover__title" id="gw-appearance-title">Appearance</p>

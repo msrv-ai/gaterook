@@ -186,6 +186,8 @@ Show relative time in lists and absolute ISO time in details and `title`. Agent 
 
 Desktop notifications default on. Slack setup identifies the workspace, delivery destination, visibility, and latest delivery. Telegram setup identifies the bot and chat; its stored token is write-only.
 
+In-app notifications dismiss after 15 seconds by default. Settings → Notifications → Display duration offers 5, 10, 15, 30, 60, or 120 seconds and applies to new notifications. Pause the countdown while either hover or keyboard focus is within a notification. Notifications with actions or an explicit persistent timeout stay until dismissed.
+
 Use `gw-empty` with an explanation and one next action, a button spinner for short work, a skeleton for section loading, and indeterminate progress for longer unknown durations. Errors explain what happened and how to proceed, with expandable technical details. Server permission states explain the required role and who can grant it.
 
 Keep labels visible. Link hints/errors to fields, show errors after attempted submission, and focus the first invalid field. Immediate settings use switches; validated forms use Save and an Unsaved changes action bar. Test connections before saving and show detected account permissions.

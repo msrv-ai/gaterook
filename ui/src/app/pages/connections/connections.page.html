@@ -16,7 +16,8 @@
       }
     </div>
     <div class="gw-page-header__actions">
-      <a class="gw-btn gw-btn--primary" routerLink="/connections/new"><svg lucideIcon="plus" class="gw-icon"></svg> Add connection</a>
+      <a class="gw-btn gw-btn--primary" routerLink="/connection-import"><svg lucideIcon="lightbulb" class="gw-icon"></svg> Import with AI</a>
+      <a class="gw-btn" routerLink="/connections/new"><svg lucideIcon="plus" class="gw-icon"></svg> Add connection</a>
     </div>
   </div>
 </header>
@@ -158,6 +159,7 @@
                 @if (v.row.host) {
                   <div class="gw-text-code-sm gw-fg-muted gw-truncate" [title]="v.row.host">{{ v.row.host }}</div>
                 }
+                @if (v.row.setupRequired) { <div><a class="gw-link gw-text-small" [routerLink]="['/connections', v.row.name]">Finish setup<span class="gw-sr-only"> for {{ v.row.name }}</span></a></div> }
               </th>
               <td class="gw-table__cell--optional"><svg [lucideIcon]="connectorIcon(v.row.type)" class="gw-icon gw-icon--sm"></svg> {{ typeText(v.row) }}@for (b of v.row.badges; track b) { <span class="gw-badge gw-badge--outline gw-badge--sm">{{ b }}</span>}</td>
               <td class="gw-table__cell--optional gw-table__cell--truncate">
@@ -190,7 +192,7 @@
                   <span class="gw-text-small gw-fg-muted">No endpoint</span>
                 }
               </td>
-              <td><gw-access-switch kind="connection" [name]="v.row.name" [enabled]="v.row.enabled !== false" [blocked]="v.row.verified ? null : 'Review the change outside GateRook first.'" (changed)="data.refresh()" /></td>
+              <td><gw-access-switch kind="connection" [name]="v.row.name" [enabled]="v.row.enabled !== false" [blocked]="v.row.setupRequired ? 'Finish this connection’s setup before enabling access.' : v.row.verified ? null : 'Review the change outside GateRook first.'" (changed)="data.refresh()" /></td>
               <td class="gw-table__cell--actions">
                 <div class="gw-menu-host">
                   <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [attr.aria-label]="'Actions for connection ' + v.row.name" aria-haspopup="menu" [gwMenuTrigger]="rowMenu"><svg lucideIcon="ellipsis" class="gw-icon"></svg></button>
