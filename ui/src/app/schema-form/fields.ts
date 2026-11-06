@@ -206,7 +206,7 @@ export class GwSchemaField {
 
   /**
    * The keyboard stays in the field, after its value, when its control changed under it (a typed scheme turned a
-   * password field into a reference) or a store was picked in its menu.
+   * password field into a reference) or a store was picked in its menu. An unchanged focused control keeps its selection.
    */
   protected keepFocus(always = false): void {
     afterNextRender(
@@ -214,6 +214,7 @@ export class GwSchemaField {
         const el = this.doc.getElementById(this.form().id(this.node()));
         if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return;
         const active = this.doc.activeElement;
+        if (!always && active === el) return;
         if (!always && active && active !== this.doc.body && active !== el) return;
         el.focus();
         try {

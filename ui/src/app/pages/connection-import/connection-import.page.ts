@@ -360,7 +360,12 @@ export class ConnectionImportPage {
         config: structuredClone(candidate.config), secrets: {}, allowIncomplete: true });
     }
     this.drafts.set(drafts);
-    this.destinations.set(new Map([...drafts.keys()].map(id => [id, session.endpoint])));
+    const productionEndpoints = this.eligibleEndpoints().filter(endpoint => endpoint.env === 'prod');
+    const productionEndpoint = productionEndpoints.find(endpoint => endpoint.slug === session.endpoint)
+      ?? productionEndpoints[0];
+    this.destinations.set(new Map([...drafts].map(([id, draft]) => [id,
+      draft.env === 'prod' ? productionEndpoint?.slug ?? session.endpoint : session.endpoint,
+    ])));
   }
 
   setDestination(candidate: ImportCandidate, endpoint: string): void {

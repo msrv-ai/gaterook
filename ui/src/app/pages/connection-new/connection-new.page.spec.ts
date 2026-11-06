@@ -1583,7 +1583,7 @@ describe('Connection: edit view', () => {
     const p = await open('/connections/dev-db');
     expect(p.q<HTMLInputElement>('#cf-connection-host')!.value).toBe('');
     expect(text(p.q('#cf-credentials-password-src'))).toBe('vault-unavailable');
-    expect(p.el.textContent).toContain('vault-unavailable is not connected');
+    expect(p.el.textContent).toContain('The reference names vault-unavailable, but no connected store matches this name.');
     p.button('Save changes').click();
     await p.settle();
     expect(core.updates).toEqual([]);
