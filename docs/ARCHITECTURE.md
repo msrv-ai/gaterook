@@ -293,6 +293,8 @@ Google ADC recovery uses a dedicated desktop sign-in operation with no renderer-
 
 OS safe storage protects the master-key file only when an appropriate backend is available; `basic_text` is not encryption. The fallback file mode and residual risk are visible. Approval and OAuth consent screens use content protection and a 700 ms activation delay; Enter does not approve. These are mitigations, not a proof that a human rather than same-account automation clicked.
 
+Installed application update checks use the site metadata feed with a persistent random 16-character installation ID, scoped to the Electron application data directory. Only metadata requests carry the ID; GitHub payload and blockmap URLs do not. The existing automatic-update preference controls scheduled checks, and signed update installation still requires an explicit action. Store builds only read Store metadata and delegate installation to Microsoft Store. The count describes installations that checked within the last 30 days; it is separate from gateway traces and metrics. See [update checks and installation identity](development.md#update-checks-and-installation-identity).
+
 ### 7.2 Broker and clients
 
 The [broker](../bridge/README.md) runs in Electron main. Bridges connect through a random Unix-domain socket or Windows named pipe described by a restricted `broker.json`. The core checks grant, client, endpoint, revocation, and confirmation before issuing a 15-minute bridge token. Tokens are cached briefly by the helper, refreshed on expiry/401, and bound to the current core instance.

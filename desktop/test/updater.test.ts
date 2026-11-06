@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it, type TestContext } from 'node:test';
 import { setImmediate } from 'node:timers/promises';
@@ -21,6 +21,8 @@ class FakeUpdater extends EventEmitter implements UpdateDriver {
   autoInstallOnAppQuit = true;
   allowPrerelease = true;
   allowDowngrade = true;
+  feed: Parameters<UpdateDriver['setFeedURL']>[0] | null = null;
+  setFeedURL(options: Parameters<UpdateDriver['setFeedURL']>[0]): void { this.feed = options; }
   checks = 0;
   downloads = 0;
   installs = 0;
@@ -58,7 +60,8 @@ function fixture(t: TestContext, overrides: Partial<UpdatesOptions> = {}) {
   let prepares = 0;
   let loads = 0;
   const updates = new Updates({
-    packaged: true, resourcesPath: temp.dir, platform: 'win32', log: () => undefined,
+    packaged: true, resourcesPath: temp.dir, userDataPath: join(temp.dir, 'profile'), platform: 'win32', arch: 'x64', log: () => undefined,
+    storeMetadataCheck: async () => undefined,
     autoUpdate: async () => true, push: (state) => states.push(state),
     loadUpdater: async () => { loads++; return driver; },
     prepareInstall: async () => { prepares++; updates.stop(); },
@@ -66,7 +69,7 @@ function fixture(t: TestContext, overrides: Partial<UpdatesOptions> = {}) {
     ...overrides,
   });
   t.after(() => updates.stop());
-  return { updates, driver, states, failures, prepares: () => prepares, loads: () => loads };
+  return { updates, driver, states, failures, identityPath: join(temp.dir, 'profile', 'install-id'), prepares: () => prepares, loads: () => loads };
 }
 
 describe('explicit desktop updates', () => {
@@ -83,6 +86,34 @@ describe('explicit desktop updates', () => {
     assert.match((f.updates.current() as { message: string }).message, /Microsoft Store manages updates/);
   });
 
+  it('checks Store metadata with a persistent identity without loading an external installer', async (t) => {
+    const requests: string[] = [];
+    const f = fixture(t, { windowsStore: true, storeMetadataCheck: async (url) => { requests.push(url); } });
+    await f.updates.check();
+    await f.updates.check();
+    assert.equal(requests.length, 2);
+    assert.equal(requests[0], requests[1]);
+    const url = new URL(requests[0]!);
+    assert.equal(url.origin, 'https://msrv.dev');
+    assert.equal(url.pathname, '/api/updates/win32/x64/store.json');
+    assert.equal(url.searchParams.get('install_id'), readFileSync(f.identityPath, 'utf8').trim());
+    assert.equal(f.loads(), 0);
+    await f.updates.install();
+    assert.equal(f.driver.installs, 0);
+  });
+
+  it('redacts installation IDs from updater logs and user-facing errors', async (t) => {
+    const logs: string[] = [];
+    const f = fixture(t, { log: (message) => logs.push(message) });
+    await f.updates.check();
+    const id = readFileSync(f.identityPath, 'utf8').trim();
+    const message = `Cannot request https://msrv.dev/api/updates/win32/x64/latest.yml?install_id=${id}`;
+    f.driver.logger?.error(message);
+    f.driver.emit('error', new Error(message));
+    assert.equal(logs.join('\n').includes(id), false);
+    assert.equal(JSON.stringify(f.updates.current()).includes(id), false);
+  });
+
   it('checks metadata without downloading or installing and retains signed stable release restrictions', async (t) => {
     const f = fixture(t);
     await Promise.all([f.updates.check(), f.updates.check()]);
@@ -96,6 +127,9 @@ describe('explicit desktop updates', () => {
     assert.equal(f.driver.autoInstallOnAppQuit, false);
     assert.equal(f.driver.allowPrerelease, false);
     assert.equal(f.driver.allowDowngrade, false);
+    assert.equal(typeof f.driver.feed, 'object');
+    assert.equal((f.driver.feed as { url: string }).url, 'https://msrv.dev/api/updates/win32/x64/');
+    assert.equal((f.driver.feed as unknown as { installId: string }).installId, readFileSync(f.identityPath, 'utf8').trim());
   });
 
   it('downloads once per click sequence, reports progress, and waits for shutdown before installing', async (t) => {
@@ -201,6 +235,7 @@ describe('explicit desktop updates', () => {
     await dev.updates.check();
     await dev.updates.install();
     assert.equal(dev.loads(), 0);
+    assert.equal(existsSync(dev.identityPath), false);
     assert.equal(dev.updates.current()?.state, 'error');
     const installed = fixture(t);
     await installed.updates.install();
@@ -294,6 +329,25 @@ describe('automatic update checks', () => {
     answer.resolve(true);
     await setImmediate();
     assert.equal(f.driver.checks, 1);
+  });
+
+  it('checks Store metadata daily and respects the automatic update preference', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+    let wanted = false;
+    let checks = 0;
+    const f = fixture(t, { windowsStore: true, autoUpdate: async () => wanted,
+      storeMetadataCheck: async () => { checks++; } });
+    f.updates.schedule();
+    await ticks(t, 60);
+    assert.equal(checks, 0);
+    wanted = true;
+    await ticks(t);
+    assert.equal(checks, 1);
+    await ticks(t, 24 * 60 - 1);
+    assert.equal(checks, 1);
+    await ticks(t);
+    assert.equal(checks, 2);
+    assert.equal(f.loads(), 0);
   });
 
   it('checks once a day on Windows and asks hourly while the setting is off', async (t) => {

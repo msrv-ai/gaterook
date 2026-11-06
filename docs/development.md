@@ -200,6 +200,16 @@ npm run smoke -w desktop -- --only real
 
 Linux without a display needs `xvfb-run -a`. Native image and OS-specific sandbox checks have additional requirements.
 
+## Update checks and installation identity
+
+On first launch, an installed app creates a cryptographically random 16-character ASCII letter/digit ID in `install-id` inside its Electron application data directory. Updates retain the file. The ID is independent of account information, hardware, gateway settings and credentials. It is not part of gateway backup archives; deleting the application data directory creates a new ID on the next launch. A missing or unreadable identity never blocks opening the app; an invalid or unwritable identity prevents update checks until the local file issue is resolved.
+
+Update checks send `install_id` to `https://msrv.dev/api/updates/{platform}/{arch}/latest-mac.yml` on macOS or `latest.yml` for supported standalone Windows builds. Metadata contains versioned GitHub release download URLs with the updater's hashes, sizes and blockmap information. The request parameter is added only to metadata requests and is redacted from updater logs and errors; it is not attached to GitHub downloads or blockmaps. Packaging retains its GitHub publish configuration so release metadata remains compatible, while the installed app selects the site metadata provider at runtime.
+
+Automatic checks run one minute after launch, then hourly on macOS and daily on Windows, when **Settings → General → Check for updates automatically** is enabled. **Check now** performs an explicit check regardless of that preference. Microsoft Store builds read `store.json` at the Windows metadata path for the same activity count; they never load an external installer, and Microsoft Store remains responsible for all installation and updates. Development builds never make these requests. Linux automatic updates remain unavailable.
+
+The ID measures distinct installations that checked for updates within a rolling 30-day window, not a lifetime installation count or the number of people. Offline apps and apps with automatic checks disabled are not counted unless they make a successful manual check. No connection configuration, credentials, queries or gateway activity are included in these requests. Existing signature verification, explicit download/install actions and rollback restrictions remain in force.
+
 ## Native binaries and local packaging
 
 Use a compatible GraalVM JDK 25 with `native-image` on `PATH` and the platform's native compiler/linker toolchain. The native build can require substantial RAM. The research documents describe the original toolchain validation; check current manifests before selecting a release toolchain.
