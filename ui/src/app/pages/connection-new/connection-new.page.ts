@@ -26,6 +26,7 @@ import { Policies, PoliciesApi } from '../../core/api/policies.api';
 import { MasterKeyApi, SecretRow, SecretsApi } from '../../core/api/secrets.api';
 import { Env, JsonObject, JsonValue, ToolMode } from '../../core/api/types';
 import { EventStream } from '../../core/events/event-stream';
+import { compactReferenceError } from '../../core/secret-reference-feedback';
 import { CoreStore } from '../../core/stores/core.store';
 import { PRODUCT } from '../../shell/title.strategy';
 import { TimeService } from '../../core/time/time.service';
@@ -1589,14 +1590,14 @@ export class ConnectionNewPage {
         };
         const failure = failures[r.reason ?? ''] ?? { title: `Couldn't test the reference of ${name}`, body: 'Check the selected store connection and test again.' };
         // RefTest.error is a safe store diagnostic, never a secret value or an upstream response body.
-        this.toasts.show({ tone: 'danger', title: failure.title, body: r.error?.trim() || failure.body });
+        this.toasts.show({ tone: 'danger', title: failure.title, body: compactReferenceError(r.error, failure.body) });
       }
     } catch (e) {
       const err = isApiError(e) ? e : null;
       this.toasts.show(
         err?.kind === 'not-available'
           ? { tone: 'neutral', title: 'Testing references is not available yet', body: 'This build of the core has no external secret stores.' }
-          : { tone: 'danger', title: "Couldn't test the reference", body: err?.detail ?? "The core didn't answer." },
+          : { tone: 'danger', title: "Couldn't test the reference", body: compactReferenceError(err?.detail, "The reference test failed. Check the store connection and try again.") },
       );
     }
   }

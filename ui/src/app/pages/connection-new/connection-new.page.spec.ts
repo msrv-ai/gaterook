@@ -1341,7 +1341,7 @@ describe('Connection: edit view with references', () => {
 
   it.each([
     { reason: 'not-found', error: 'No secret at kv/dev/cache.', title: 'Reference of cache not found' },
-    { reason: 'not-found', error: 'kv/dev/cache has no key "password". Keys: username, credential.', title: 'Reference of cache not found' },
+    { reason: 'not-found', error: 'Key "password" was not found in this secret. Check the key after # in the reference.', title: 'Reference of cache not found' },
     { reason: 'denied', error: "The gateway's token can't read kv/data/dev/cache.", title: 'Access to reference of cache denied' },
     { reason: 'unavailable', error: 'The Vault token has expired. Sign in again.', title: 'Secret store unavailable' },
     { reason: 'unavailable', error: 'Vault could not be reached. Check network access.', title: 'Secret store unavailable' },
@@ -1360,6 +1360,38 @@ describe('Connection: edit view with references', () => {
     expect(TestBed.inject(ToastService).toasts().at(-1)).toMatchObject({ tone: 'danger', title, body: error });
     expect(core.updates).toEqual([]);
     expect(core.references).toEqual([]);
+  });
+
+  it('reference test omits a large sibling-key list returned by an older core', async () => {
+    cacheWithReference();
+    const keys = Array.from({ length: 1000 }, (_, i) => `service-${i}.credential`).join(', ');
+    vi.mocked(TestBed.inject(SecretsApi).testReference).mockResolvedValue({
+      found: false, resolvedVersion: null, created: null, type: null, keys: [], reason: 'not-found',
+      error: `kv/dev/cache has no key "password". Keys: ${keys}`,
+    });
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Test reference"]')!.click();
+    await p.settle();
+    expect(TestBed.inject(ToastService).toasts().at(-1)).toMatchObject({
+      tone: 'danger', title: 'Reference of cache not found',
+      body: 'kv/dev/cache has no key "password". Check the key after # in the reference.',
+    });
+    expect(core.updates).toEqual([]);
+  });
+
+  it('reference test keeps an oversized permission error actionable and compact', async () => {
+    cacheWithReference();
+    vi.mocked(TestBed.inject(SecretsApi).testReference).mockResolvedValue({
+      found: false, resolvedVersion: null, created: null, type: null, keys: [], reason: 'denied',
+      error: `The gateway's token cannot read ${'long/path/'.repeat(500)}.`,
+    });
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Test reference"]')!.click();
+    await p.settle();
+    expect(TestBed.inject(ToastService).toasts().at(-1)).toMatchObject({
+      tone: 'danger', title: 'Access to reference of cache denied',
+      body: 'Check the selected store identity and its permission to read this secret.',
+    });
   });
 
   it.each([
