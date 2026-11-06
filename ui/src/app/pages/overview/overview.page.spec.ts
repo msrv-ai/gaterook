@@ -173,7 +173,7 @@ describe('Overview page', () => {
     expect(href(link)).toBe('/connection-import');
     expect(link.classList).toContain('gw-btn--primary');
     expect(link.querySelector('svg[lucideIcon="lightbulb"]')).not.toBeNull();
-    expect(el.querySelectorAll('.gw-btn--primary')).toHaveLength(1);
+    expect(el.querySelectorAll('.gw-page-header__actions .gw-btn--primary')).toHaveLength(1);
 
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
@@ -516,9 +516,11 @@ describe('Overview page', () => {
       ]);
       expect(steps.map((s) => text(s.querySelector('.gw-stepper__marker')))).toEqual(['1', '2', '3']);
 
-      const primaries = el.querySelectorAll('.gw-btn--primary');
+      const primaries = card.querySelectorAll('.gw-btn--primary');
       expect(primaries).toHaveLength(1);
       expect(text(primaries[0])).toBe('Import with AI');
+      expect(href(primaries[0])).toBe('/connection-import');
+      expect(steps[0].querySelector('.gw-stepper__actions')?.contains(primaries[0])).toBe(true);
       expect(href(byText(steps[0], 'a', 'Add connection'))).toBe('/connections/new');
       expect(text(steps[2].querySelector('.gw-stepper__description'))).toBe(
         'Restart your AI app if GateRook says so, then ask it: “Show me the tables in my database”. Its first request shows up here.',
