@@ -102,6 +102,37 @@ describe('explicit desktop updates', () => {
     assert.equal(f.driver.installs, 0);
   });
 
+  it('checks updates without counting when the identity is corrupt or cannot be persisted', async (t) => {
+    for (const invalid of ['corrupt', 'unwritable']) {
+      const temp = tempDir(`identity-${invalid}`);
+      t.after(() => temp.remove());
+      const path = invalid === 'corrupt' ? join(temp.dir, 'install-id') : join(temp.dir, 'profile-is-a-file');
+      writeFileSync(path, 'preserve this file');
+      const logs: string[] = [];
+      const f = fixture(t, { userDataPath: invalid === 'corrupt' ? temp.dir : path, log: (message) => logs.push(message) });
+      await f.updates.check();
+      assert.equal(f.driver.checks, 1);
+      assert.equal(f.updates.current()?.state, 'available');
+      assert.equal((f.driver.feed as unknown as { installId?: string }).installId, undefined);
+      assert.equal(readFileSync(path, 'utf8'), 'preserve this file');
+      assert.match(logs.join('\n'), /continue without activity counting/);
+    }
+  });
+
+  it('still checks Store metadata without a valid local installation identity', async (t) => {
+    const temp = tempDir('store-invalid-identity');
+    t.after(() => temp.remove());
+    writeFileSync(join(temp.dir, 'install-id'), 'corrupt');
+    const requests: string[] = [];
+    const f = fixture(t, { windowsStore: true, userDataPath: temp.dir,
+      storeMetadataCheck: async (url) => { requests.push(url); } });
+    await f.updates.check();
+    assert.equal(requests.length, 1);
+    assert.equal(new URL(requests[0]!).searchParams.has('install_id'), false);
+    assert.equal(f.loads(), 0);
+    assert.match((f.updates.current() as { message: string }).message, /Microsoft Store manages/);
+  });
+
   it('redacts installation IDs from updater logs and user-facing errors', async (t) => {
     const logs: string[] = [];
     const f = fixture(t, { log: (message) => logs.push(message) });
@@ -348,6 +379,24 @@ describe('automatic update checks', () => {
     await ticks(t);
     assert.equal(checks, 2);
     assert.equal(f.loads(), 0);
+    assert.deepEqual(f.states, [], 'background Store metadata checks must stay silent');
+    await f.updates.check();
+    assert.match((f.updates.current() as { message: string }).message, /Microsoft Store manages/);
+  });
+
+  it('explains Store ownership for a manual check sharing an in-flight background check', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+    const result = deferred();
+    let checks = 0;
+    const f = fixture(t, { windowsStore: true, storeMetadataCheck: async () => { checks++; await result.promise; } });
+    f.updates.schedule();
+    await ticks(t);
+    const manual = f.updates.check();
+    assert.deepEqual(f.states, []);
+    result.resolve();
+    await manual;
+    assert.equal(checks, 1);
+    assert.match((f.updates.current() as { message: string }).message, /Microsoft Store manages/);
   });
 
   it('checks once a day on Windows and asks hourly while the setting is off', async (t) => {

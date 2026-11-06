@@ -79,7 +79,7 @@ export class Updates {
     let identity: string | null = null;
     if (o.packaged) {
       try { identity = installId(o.userDataPath); }
-      catch { o.log('Could not load the installation identity; update checks are unavailable.'); }
+      catch { o.log('Could not load the installation identity; update checks will continue without activity counting.'); }
     }
     this.identity = identity;
     this.unavailable = updatesUnavailable(o.packaged, this.platform, o.packaged ? updateConfig(o.resourcesPath) : null,
@@ -92,7 +92,12 @@ export class Updates {
 
   /** "Check now" in Settings › General. */
   check(): Promise<void> {
-    return this.checkFrom(Date.now());
+    const checking = this.checkFrom(Date.now());
+    if (!this.storeMetadata) return checking;
+    // A manual check still explains Store ownership, including when it shares an in-flight background request.
+    return checking.then(() => {
+      if (!this.closed) this.set({ state: 'error', message: this.unavailable!, ...this.checkedAt() });
+    });
   }
 
   /**
@@ -114,15 +119,13 @@ export class Updates {
 
   private async checkStore(): Promise<void> {
     try {
-      if (!this.identity) throw new Error('The installation identity is unavailable.');
       const url = new URL('store.json', updateFeedUrl(this.platform, this.o.arch ?? process.arch));
-      url.searchParams.set('install_id', this.identity);
+      if (this.identity) url.searchParams.set('install_id', this.identity);
       await (this.o.storeMetadataCheck ?? checkStoreMetadata)(url.href);
     } catch {
       // Metadata availability never changes Microsoft Store's update authority or exposes a request URL.
       this.o.log('Store update metadata check unavailable.');
     }
-    if (!this.closed) this.set({ state: 'error', message: this.unavailable!, lastCheckedAt: this.lastCheckedAt! });
   }
 
   private async checkNow(): Promise<void> {
@@ -245,7 +248,6 @@ export class Updates {
   }
 
   private async loadOnce(): Promise<UpdateDriver> {
-    if (!this.identity) throw new Error('The installation identity is unavailable. Restart GateRook and try again.');
     const autoUpdater = this.o.loadUpdater ? await this.o.loadUpdater() : (await import('electron-updater')).autoUpdater;
     autoUpdater.logger = {
       info: (m: unknown) => this.o.log(`updater: ${redactInstallId(m, this.identity)}`),

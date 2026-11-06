@@ -37,6 +37,21 @@ describe('site update provider', () => {
     });
   }
 
+  it('checks metadata anonymously if the local installation identity is unavailable', async () => {
+    const requests: RequestOptions[] = [];
+    const provider = new SiteUpdateProvider(siteUpdateOptions('darwin', 'arm64', null),
+      { channel: null, isAddNoCacheQuery: true } as unknown as AppUpdater,
+      { platform: 'darwin', executor: { request: async (options: RequestOptions) => {
+        requests.push(options);
+        return `version: 0.7.0\nfiles:\n  - url: ${ZIP}\n    sha512: digest\n    size: 10\n`;
+      } } } as ProviderRuntimeOptions);
+    const info = await provider.getLatestVersion();
+    const request = new URL(requests[0]!.path!, 'https://msrv.dev');
+    assert.equal(request.pathname, '/api/updates/darwin/arm64/latest-mac.yml');
+    assert.equal(request.searchParams.has('install_id'), false);
+    assert.equal(provider.resolveFiles(info)[0]!.url.href, ZIP);
+  });
+
   it('preserves a payload URL query without attaching the identity', async () => {
     const { provider } = fixture('darwin');
     const info = await provider.getLatestVersion();
