@@ -7,6 +7,7 @@ import ai.msrv.gaterook.core.audit.AuditWriter;
 import ai.msrv.gaterook.core.endpoints.ConnectionImportService;
 import ai.msrv.gaterook.core.endpoints.CoreTools;
 import ai.msrv.gaterook.core.invocation.ToolGuard;
+import ai.msrv.gaterook.core.platform.CanonicalJson;
 import ai.msrv.gaterook.core.platform.Ids;
 import ai.msrv.gaterook.core.platform.ProblemException;
 import ai.msrv.gaterook.core.policy.PolicyEngine;
@@ -59,8 +60,9 @@ public class ConnectionImportTools {
               request.snapshot().id(), request.caller().principalId(), arguments.get("manifest"))
           : imports.schema(arguments.path("sessionId").asString(), arguments.path("submissionToken").asString(),
               request.snapshot().id(), arguments.path("type").asString(null));
+      // Some clients expose only text content to their model, so it must contain the complete schema too.
       result = submit || open ? ConnectionImportCards.result(data)
-          : ToolResult.json(data, "Use these connector schemas to prepare the user's import. Never include credentials in config.");
+          : ToolResult.json(data, CanonicalJson.text(data));
     } catch (ProblemException e) { result = ToolResult.error(e.getMessage()); }
     long elapsed = (System.nanoTime() - started) / 1_000_000;
     String preview = result.isError() ? "Discovery request refused." : submit ? "Discovery staged for review."

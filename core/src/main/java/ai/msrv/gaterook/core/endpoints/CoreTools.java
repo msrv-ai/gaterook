@@ -171,9 +171,10 @@ public final class CoreTools {
 
   public static ToolDefinition connectionImportSchema() {
     ObjectNode input = importInput();
-    ((ObjectNode) input.get("properties")).putObject("type").put("type", "string").put("maxLength", 48);
+    ((ObjectNode) input.get("properties")).putObject("type").put("type", "string").put("maxLength", 48)
+        .put("description", "Omit for the compact connector catalog. Set to one returned type ID to get its full configSchema, secretFields and referenceOnlyFields.");
     return ToolDefinition.builder(CONNECTION_IMPORT_SCHEMA).title("Get connection import schemas")
-        .description("For an import started by the user in GateRook: list installed connector types, or get one type's config schema. Requires the session ID and submission token from that import's prompt. Does not inspect repositories, read secrets or contact services.")
+        .description("For a user-started import: omit type to list installed connectors and storeKinds; set type to a returned ID for its full configSchema, secretFields and referenceOnlyFields. The complete JSON is returned in text and structuredContent. Requires the session ID and submission token from the import prompt. Does not inspect repositories, read secrets or contact services.")
         .inputSchema(input).annotations(Annotations.read()).nature(Nature.READ)
         .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY).resultShape(ResultShape.JSON)
         .risk(new Risk(false, false, Egress.NONE)).build();
