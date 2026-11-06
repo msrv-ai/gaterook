@@ -228,6 +228,38 @@ describe('kit.js parity: dialogs', () => {
     host.d().close();
     expect(host.closed).toEqual(['delete', '']);
   });
+
+  it.each(['open', 'closing'] as const)('removes a destroyed %s dialog from the stack without removing another dialog', async (state) => {
+    const underlying = await render(Host);
+    const current = await render(Host);
+    const stack = TestBed.inject(DialogStack);
+    underlying.host.d().open();
+    current.host.d().open();
+    const underlyingDialog = q<HTMLDialogElement>(underlying.el, 'dialog');
+    const currentDialog = q<HTMLDialogElement>(current.el, 'dialog');
+    expect(stack.top()).toBe(currentDialog);
+    expect(stack.openCount()).toBe(2);
+
+    if (state === 'closing') {
+      // Native close events are asynchronous; the jsdom shim otherwise hides navigation-before-close races.
+      vi.spyOn(currentDialog, 'close').mockImplementation(() => {
+        currentDialog.removeAttribute('open');
+        queueMicrotask(() => currentDialog.dispatchEvent(new Event('close')));
+      });
+      current.host.d().close();
+    }
+    current.fixture.destroy();
+    await Promise.resolve();
+
+    expect(stack.top()).toBe(underlyingDialog);
+    expect(stack.openCount()).toBe(1);
+    expect(underlyingDialog.open).toBe(true);
+    expect(current.host.closed).toEqual([]);
+
+    underlying.fixture.destroy();
+    expect(stack.top()).toBeNull();
+    expect(stack.openCount()).toBe(0);
+  });
 });
 
 describe('kit.js parity: disclosure and View raw', () => {

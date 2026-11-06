@@ -1,4 +1,4 @@
-import { DOCUMENT, Directive, ElementRef, Injectable, Injector, afterNextRender, booleanAttribute, inject, input, output, signal } from '@angular/core';
+import { DOCUMENT, Directive, ElementRef, Injectable, Injector, OnDestroy, afterNextRender, booleanAttribute, inject, input, output, signal } from '@angular/core';
 import { MenuService } from './menu.service';
 
 /**
@@ -41,7 +41,7 @@ export class DialogStack {
     '(click)': 'onClick($event)',
   },
 })
-export class GwDialog {
+export class GwDialog implements OnDestroy {
   readonly element: HTMLDialogElement = inject(ElementRef<HTMLDialogElement>).nativeElement;
   private readonly doc = inject(DOCUMENT);
   private readonly menus = inject(MenuService);
@@ -57,6 +57,11 @@ export class GwDialog {
   readonly opened = output<void>();
 
   readonly isOpen = signal(false);
+
+  ngOnDestroy(): void {
+    // Routing can destroy the dialog before the native asynchronous close event reaches its listener.
+    this.stack.remove(this.element);
+  }
 
   /** Opens the dialog modally; `opener` is where focus returns (default: the focused element). */
   open(opener?: HTMLElement | null): void {

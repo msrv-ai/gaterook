@@ -3,6 +3,7 @@ import { GwAccessSwitch } from '../../../kit/access-switch';
 import { RouterLink } from '@angular/router';
 import { GwCodeBlock } from '../../../code/code-block';
 import { Announcer } from '../../../kit/announcer';
+import { GwDialog, GwDialogClose } from '../../../kit/dialog';
 import { GwToggle } from '../../../kit/disclosure';
 import { GwIcon } from '../../../kit/icons';
 import { GwMenu, GwMenuTrigger } from '../../../kit/menu';
@@ -24,13 +25,13 @@ export interface McpServerAction {
 /**
  * `<div gwMcpServersPanel>` — Connectors › MCP servers (kit `#mcp-servers`): every external MCP server behind the
  * gateway — a connection of the `mcp-server` type — with how it runs (stdio command or HTTP URL), the secrets it
- * gets (by name, linked to Secrets), its tool count and process state. Restart re-lists its tools; the row menu goes
- * to Activity (`tool:github_*`), to an endpoint to add its tools, and removes it. Under the table: the reminder that
- * its tools are Off until added to an endpoint, and "How github-mcp runs" (process, variables, logs, protocol).
+ * gets (by name, linked to Secrets), its tool count and process state. Restart re-lists its tools; the row menu opens
+ * runtime details in a drawer, goes to Activity (`tool:github_*`) or an endpoint to add its tools, and removes it.
+ * Under the table: the reminder that its tools are Off until added to an endpoint.
  */
 @Component({
   selector: 'div[gwMcpServersPanel]',
-  imports: [GwAccessSwitch, RouterLink, GwIcon, GwMenu, GwMenuTrigger, GwToggle, GwCodeBlock],
+  imports: [GwAccessSwitch, RouterLink, GwIcon, GwMenu, GwMenuTrigger, GwToggle, GwCodeBlock, GwDialog, GwDialogClose],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-tabs__panel', role: 'tabpanel', id: 'mcp-servers', 'aria-labelledby': 'tab-mcp', tabindex: '0' },
   templateUrl: './mcp-servers.panel.html',
@@ -44,6 +45,7 @@ export class GwMcpServersPanel {
   readonly action = output<McpServerAction>();
 
   protected readonly restarting = signal<string | null>(null);
+  protected readonly selectedServer = signal<McpServerView | null>(null);
   protected readonly servers = computed(() => (this.data.connections.value() ? this.data.servers() : null));
   /** Servers whose tools are on no endpoint: the kit's reminder under the table. */
   protected readonly unused = computed(() => (this.servers() ?? []).filter((s) => !s.usedBy.length));
@@ -65,6 +67,11 @@ export class GwMcpServersPanel {
     this.fromMenu('remove', s, e);
   }
 
+  protected showRuntime(s: McpServerView, e: Event, drawer: GwDialog): void {
+    this.selectedServer.set(s);
+    drawer.openAfterRender(this.menuOpener(e));
+  }
+
   /** Sign in again (the row's button, or its menu): the page opens the sign-in dialog. */
   protected signIn(s: McpServerView, e: Event): void {
     this.fromMenu('sign-in', s, e);
@@ -76,9 +83,13 @@ export class GwMcpServersPanel {
 
   /** A menu item's dialog returns focus to the menu's trigger: the item itself is hidden once the menu closes. */
   private fromMenu(type: McpServerAction['type'], s: McpServerView, e: Event): void {
+    this.action.emit({ type, server: s, opener: this.menuOpener(e) });
+  }
+
+  private menuOpener(e: Event): HTMLElement | null {
     const target = e.currentTarget as HTMLElement | null;
     const trigger = target?.closest('.gw-menu-host')?.querySelector<HTMLElement>('[aria-haspopup="menu"]') ?? null;
-    this.action.emit({ type, server: s, opener: trigger ?? target });
+    return trigger ?? target;
   }
 
   /** Restart (kit: a toast "Tools listed again: 26, same as before."). */

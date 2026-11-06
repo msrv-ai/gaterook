@@ -822,6 +822,80 @@ describe('Connectors page: Templates', () => {
 });
 
 describe('Connectors page: MCP servers', () => {
+  it('opens runtime details from the server menu and returns focus when the drawer closes', async () => {
+    setup();
+    const { fixture, el } = await render();
+    el.querySelector<HTMLButtonElement>('#tab-mcp')!.click();
+    await settle(fixture);
+    const panel = el.querySelector('#mcp-servers')!;
+    expect(panel.querySelector('[aria-labelledby^="mcp-proc-title-"]')).toBeNull();
+    const drawer = el.querySelector<HTMLDialogElement>('#mcp-runtime')!;
+    expect(drawer.open).toBe(false);
+
+    const trigger = panel.querySelector<HTMLButtonElement>('[aria-label="More actions for github-mcp"]')!;
+    trigger.click();
+    const menu = el.querySelector<HTMLElement>('#menu-mcp-github-mcp')!;
+    button(menu, 'How it runs').click();
+    await settle(fixture);
+
+    expect(menu.hidden).toBe(true);
+    expect(drawer.open).toBe(true);
+    expect(text(drawer.querySelector('.gw-drawer__title'))).toBe('How github-mcp runs');
+    const rows = Object.fromEntries(Array.from(drawer.querySelectorAll('.gw-kv__row')).map((r) => [text(r.querySelector('dt')), text(r.querySelector('dd'))]));
+    expect(rows['Package']).toContain('github@0.6.2');
+    expect(rows['Process']).toBe('Started by the core on the first call, stopped after 15 min without calls. A crash never stops the core.');
+    expect(rows['Working directory']).toBe('~/.gaterook/mcp/github-mcp');
+    expect(rows['Variables passed']).toContain('GITHUB_PERSONAL_ACCESS_TOKEN from the secret github-mcp/token');
+    expect(rows['Log']).toBe('~/.gaterook/logs/mcp/github-mcp.log');
+    const close = drawer.querySelector<HTMLButtonElement>('.gw-drawer__close')!;
+    expect(document.activeElement).toBe(close);
+    close.click();
+    await settle(fixture);
+    expect(drawer.open).toBe(false);
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('reopens the runtime drawer with the selected HTTP server instead of the previous process', async () => {
+    setup({
+      rows: () => [
+        ...connectionRows(),
+        { ...connectionRows().find((r) => r.name === 'github-mcp')!, name: 'remote-mcp', host: 'https://mcp.example.com/mcp' },
+      ],
+    });
+    vi.spyOn(TestBed.inject(ConnectionsApi), 'get').mockImplementation((name) => Promise.resolve(name === 'remote-mcp' ? {
+      ...serverDetail(name),
+      config: { transport: 'http', url: 'https://mcp.example.com/mcp', headers: [{ name: 'Authorization', secretRef: 'secret:s2' }], toolPrefix: 'remote_' },
+      secrets: [{ field: '/headers/0/secretRef', secretId: 's2', name: 'remote-mcp/token', state: 'stored', version: 1, source: 'encrypted' }],
+    } : serverDetail(name)));
+    const { fixture, el } = await render();
+    el.querySelector<HTMLButtonElement>('#tab-mcp')!.click();
+    await settle(fixture);
+    el.querySelector<HTMLButtonElement>('[aria-label="More actions for github-mcp"]')!.click();
+    button(el.querySelector('#menu-mcp-github-mcp'), 'How it runs').click();
+    await settle(fixture);
+    const drawer = el.querySelector<HTMLDialogElement>('#mcp-runtime')!;
+    drawer.querySelector<HTMLButtonElement>('.gw-drawer__close')!.click();
+    await settle(fixture);
+
+    const trigger = el.querySelector<HTMLButtonElement>('[aria-label="More actions for remote-mcp"]')!;
+    trigger.click();
+    button(el.querySelector('#menu-mcp-remote-mcp'), 'How it runs').click();
+    await settle(fixture);
+    expect(drawer.open).toBe(true);
+    expect(text(drawer.querySelector('.gw-drawer__title'))).toBe('How remote-mcp runs');
+    const rows = Object.fromEntries(Array.from(drawer.querySelectorAll('.gw-kv__row')).map((r) => [text(r.querySelector('dt')), text(r.querySelector('dd'))]));
+    expect(rows['Trust']).toContain('Every call sends its secrets to https://mcp.example.com/mcp.');
+    expect(rows['Headers passed']).toBe('Authorization from the secret remote-mcp/token');
+    expect(rows['Tool names']).toBe('Prefixed with remote_');
+    expect(rows['Process']).toBeUndefined();
+    expect(rows['Working directory']).toBeUndefined();
+    expect(rows['Log']).toBeUndefined();
+    expect(text(drawer)).not.toContain('github-mcp');
+    drawer.querySelector<HTMLButtonElement>('.gw-drawer__close')!.click();
+    await settle(fixture);
+    expect(document.activeElement).toBe(trigger);
+  });
+
   it('lists the server with its command, secrets and tools; Restart says what came back', async () => {
     setup();
     const { fixture, el } = await render();
