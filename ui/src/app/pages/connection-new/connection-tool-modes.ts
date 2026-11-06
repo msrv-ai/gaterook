@@ -36,6 +36,7 @@ interface BulkResult {
 /** The connection editor's tool table, composed from the kit's table, mode chips and menus. */
 @Component({
   selector: 'gw-connection-tool-modes',
+  host: { class: 'gw-section' },
   imports: [RouterLink, GwIcon, GwMenu, GwMenuTrigger, GwAriaDisabled, GwDialog, GwDialogClose, GwToggle],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './connection-tool-modes.html',
