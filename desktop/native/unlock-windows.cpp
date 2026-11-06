@@ -1,12 +1,18 @@
-// Windows Hello, or the account password where Hello isn't set up, is an application verification gate. DPAPI
-// remains the storage boundary, matching Electron safeStorage; neither check creates a TPM-bound key.
+// Windows Hello, or the account password where Hello isn't set up, is an application verification gate where DPAPI
+// remains the storage boundary, matching Electron safeStorage. A file key first made on a computer with Hello is bound
+// to a Hello key instead (hello-key-*): main derives the key that wraps it from that key's signature of the vault's
+// own challenge, which takes the person's Hello gesture.
 #include <windows.h>
 #include <wincred.h>
 #include <objbase.h>
 #include <UserConsentVerifierInterop.h>
 #include <winrt/Windows.Data.Json.h>
 #include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.Security.Credentials.h>
 #include <winrt/Windows.Security.Credentials.UI.h>
+#include <winrt/Windows.Security.Cryptography.h>
+#include <winrt/Windows.Storage.Streams.h>
+#include <atomic>
 #include <charconv>
 #include <cstdint>
 #include <iostream>
@@ -17,7 +23,10 @@
 using namespace winrt;
 using namespace Windows::Data::Json;
 using namespace Windows::Foundation;
+using namespace Windows::Security::Credentials;
 using namespace Windows::Security::Credentials::UI;
+using namespace Windows::Security::Cryptography;
+using namespace Windows::Storage::Streams;
 
 static void reply(const char* result) {
     std::cout << result << '\n';
@@ -37,6 +46,82 @@ static HWND ownerWindow(const JsonObject& request) {
     }
     const auto window = reinterpret_cast<HWND>(number);
     return IsWindow(window) ? window : nullptr;
+}
+
+// ── The Hello key of a vault ─────────────────────────────────────────────────────────────────────────────────
+
+// While a Hello key operation waits for the person, its dialog is raised above the app's window: KeyCredentialManager
+// has no window interop for a desktop app, and its dialog would otherwise open behind. This helper, started by the app
+// in the foreground, may set the foreground window.
+static std::atomic<bool> helloWaiting{false};
+
+static void raiseHelloDialog() {
+    for (int i = 0; i < 300 && helloWaiting; ++i) {
+        const HWND dialog = FindWindowW(L"Credential Dialog Xaml Host", nullptr);
+        if (dialog) {
+            SetForegroundWindow(dialog);
+            return;
+        }
+        Sleep(100);
+    }
+}
+
+static bool validAccount(const hstring& account) {
+    if (account.empty() || account.size() > 128) return false;
+    for (const wchar_t c : account) {
+        if (!((c >= L'a' && c <= L'z') || (c >= L'A' && c <= L'Z') || (c >= L'0' && c <= L'9') || c == L'.' || c == L'_'
+              || c == L'-')) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static const char* statusCode(KeyCredentialStatus status) {
+    switch (status) {
+    case KeyCredentialStatus::UserCanceled: return "cancelled";
+    case KeyCredentialStatus::NotFound: return "missing";
+    case KeyCredentialStatus::UserPrefersPassword: return "denied";
+    case KeyCredentialStatus::SecurityDeviceLocked: return "unavailable";
+    default: return "failed";
+    }
+}
+
+// hello-key-create makes the vault's Hello key (replacing one of that name) and signs the challenge with it;
+// hello-key-sign signs it with the existing key. Either way the reply is the signature, which only the person's
+// gesture releases.
+static void helloSign(const JsonObject& request, bool create) {
+    const hstring account = request.GetNamedString(L"account", L"");
+    const hstring challenge = request.GetNamedString(L"challenge", L"");
+    if (!validAccount(account) || challenge.empty() || challenge.size() > 64) { failed("invalid-request"); return; }
+    const IBuffer data = CryptographicBuffer::DecodeFromBase64String(challenge);
+    if (data.Length() != 32) { failed("invalid-request"); return; }
+    if (!KeyCredentialManager::IsSupportedAsync().get()) { failed("unavailable"); return; }
+    helloWaiting = true;
+    std::thread raise(raiseHelloDialog);
+    const char* error = nullptr;
+    hstring signature;
+    try {
+        const KeyCredentialRetrievalResult key = create
+            ? KeyCredentialManager::RequestCreateAsync(account, KeyCredentialCreationOption::ReplaceExisting).get()
+            : KeyCredentialManager::OpenAsync(account).get();
+        if (key.Status() != KeyCredentialStatus::Success) {
+            error = statusCode(key.Status());
+        } else {
+            const KeyCredentialOperationResult signing = key.Credential().RequestSignAsync(data).get();
+            if (signing.Status() != KeyCredentialStatus::Success) {
+                error = statusCode(signing.Status());
+            } else {
+                signature = CryptographicBuffer::EncodeToBase64String(signing.Result());
+            }
+        }
+    } catch (...) {
+        error = "failed";
+    }
+    helloWaiting = false;
+    raise.join();
+    if (error) { failed(error); return; }
+    std::cout << "{\"ok\":true,\"signature\":\"" << to_string(signature) << "\"}\n";
 }
 
 // ── The account password ─────────────────────────────────────────────────────────────────────────────────────
@@ -227,6 +312,21 @@ int main() {
                 // password instead, so no answer here leaves the key without a check.
                 reply("{\"ok\":true,\"available\":false,\"touchId\":false}"); break;
             }
+            return 0;
+        }
+        if (operation == L"hello-key-create" || operation == L"hello-key-sign") {
+            helloSign(request, operation == L"hello-key-create");
+            return 0;
+        }
+        if (operation == L"hello-key-delete") {
+            const hstring account = request.GetNamedString(L"account", L"");
+            if (!validAccount(account)) { failed("invalid-request"); return 0; }
+            try {
+                KeyCredentialManager::DeleteAsync(account).get();
+            } catch (const hresult_error&) {
+                // Gone already: nothing to delete.
+            }
+            reply("{\"ok\":true}");
             return 0;
         }
         if (operation == L"verify-password") {
