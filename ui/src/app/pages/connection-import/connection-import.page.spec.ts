@@ -25,6 +25,7 @@ const candidate: ImportCandidate = {
   evidence: ['config/application-dev.yml: datasource'], warnings: [], credentialHints: [],
   supported: true, unsupportedReason: null,
 };
+const productionCandidate: ImportCandidate = { ...candidate, id: 'prod-db', name: 'example-prod-db', env: 'prod' };
 const awaiting: ConnectionImportSession = {
   id: 'ci_abcdefgh1234', repository: '/workspace/example', endpoint: 'default',
   endpointUrl: 'http://127.0.0.1:18475/mcp/default',
@@ -396,6 +397,62 @@ describe('AI connection import review', () => {
     expect(api.commit).not.toHaveBeenCalled();
     expect(connections.create).not.toHaveBeenCalled();
     expect(connections.testDraft).not.toHaveBeenCalled();
+  });
+
+  it('defaults production candidates to a production endpoint and submits that destination', async () => {
+    const stageCandidate: ImportCandidate = { ...candidate, id: 'stage-db', name: 'example-stage-db', env: 'stage' };
+    await loadReview({ ...review, manifest: { version: 1, connections: [candidate, stageCandidate, productionCandidate], warnings: [] } });
+    expect(destinationSelect(candidate).value).toBe('default');
+    expect(destinationSelect(stageCandidate).value).toBe('default');
+    expect(destinationSelect(productionCandidate).value).toBe('production');
+    expect(api.commit).not.toHaveBeenCalled();
+
+    await page.commit();
+    expect(api.commit).toHaveBeenCalledWith(review.id, [
+      expect.objectContaining({ candidateId: candidate.id, endpoint: 'default' }),
+      expect.objectContaining({ candidateId: stageCandidate.id, endpoint: 'default' }),
+      expect.objectContaining({ candidateId: productionCandidate.id, env: 'prod', endpoint: 'production', allowIncomplete: true }),
+    ], undefined);
+  });
+
+  it('keeps the source endpoint when it is production even if another production endpoint comes first', async () => {
+    vi.mocked(TestBed.inject(EndpointsApi).list).mockResolvedValue([
+      ...endpoints, { ...endpoints[1], slug: 'incident-response' },
+    ]);
+    await loadReview({ ...review, endpoint: 'incident-response', manifest: { version: 1, connections: [productionCandidate], warnings: [] } });
+    expect(destinationSelect(productionCandidate).value).toBe('incident-response');
+  });
+
+  it.each([true, false])('ignores disabled and blocked production endpoints (eligible alternative: %s)', async available => {
+    vi.mocked(TestBed.inject(EndpointsApi).list).mockResolvedValue([
+      endpoints[0],
+      { ...endpoints[1], slug: 'disabled-production', status: 'disabled' },
+      { ...endpoints[1], slug: 'blocked-production', blockedReason: 'Review external changes.' },
+      ...(available ? [endpoints[1]] : []),
+    ]);
+    await loadReview({ ...review, manifest: { version: 1, connections: [productionCandidate], warnings: [] } });
+    expect(destinationSelect(productionCandidate).value).toBe(available ? 'production' : 'default');
+  });
+
+  it('preserves production destination overrides and skips after defaults are prepared by polling', async () => {
+    vi.mocked(TestBed.inject(EndpointsApi).list).mockResolvedValue([
+      ...endpoints, { ...endpoints[1], slug: 'incident-response' },
+    ]);
+    const skipped = { ...productionCandidate, id: 'skipped-prod-db', name: 'skipped-prod-db' };
+    await loadReview(awaiting);
+    api.get.mockResolvedValue({ ...review, manifest: { version: 1, connections: [productionCandidate, skipped], warnings: [] } });
+    await page.refresh(false);
+    await renderReview();
+    expect(destinationSelect(productionCandidate).value).toBe('production');
+    expect(destinationSelect(skipped).value).toBe('production');
+
+    page.setDestination(productionCandidate, 'incident-response');
+    page.setDestination(skipped, '');
+    await page.refresh(false);
+    await renderReview();
+    expect(destinationSelect(productionCandidate).value).toBe('incident-response');
+    expect(destinationSelect(skipped).value).toBe('');
+    expect(api.commit).not.toHaveBeenCalled();
   });
 
   it('imports each selected connection into its own endpoint and reports all destinations', async () => {
