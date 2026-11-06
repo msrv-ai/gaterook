@@ -14,11 +14,22 @@
     <!-- Nothing is left to skip once every step is done: the last step's card leads to Overview. -->
     @if (!complete()) {
       <div class="gw-page-header__actions">
+        <a class="gw-btn gw-btn--primary" routerLink="/connection-import" aria-describedby="ob-ai-import-hint"><svg lucideIcon="lightbulb" class="gw-icon"></svg> Import with AI</a>
         <a class="gw-btn gw-btn--ghost" routerLink="/overview" (click)="skip()">Skip setup</a>
       </div>
     }
   </div>
 </header>
+
+@if (!complete()) {
+  <div class="gw-alert gw-alert--brand">
+    <svg lucideIcon="lightbulb" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content">
+      <p class="gw-alert__title">The easiest way to set up your environment</p>
+      <p class="gw-alert__body" id="ob-ai-import-hint">Choose Import with AI and let your AI app find databases, logs and other connections in your repository. GateRook helps you connect the app, then you review what to import and choose the endpoint. You can also follow the manual setup steps below.</p>
+    </div>
+  </div>
+}
 
 <ul class="gw-grid gw-grid--auto" aria-label="What GateRook guarantees">
   <li class="gw-card gw-card--muted">

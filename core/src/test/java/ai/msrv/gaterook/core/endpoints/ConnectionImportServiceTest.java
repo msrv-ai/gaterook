@@ -59,7 +59,7 @@ class ConnectionImportServiceTest {
     when(files.create(anyString())).thenAnswer(i -> "/private-imports/" + i.getArgument(0) + ".json");
     when(transactions.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
     ObjectNode schema = (ObjectNode) json.readTree("""
-        {"type":"object","properties":{"host":{"type":"string"},"credentials":{"type":"object",
+        {"type":"object","properties":{"host":{"type":"string"},"credentials":{"type":"object","x-gateway-secret":"login",
         "properties":{"username":{"type":"string"},"password":{"type":"string","writeOnly":true}}},
         "replicas":{"type":"array","items":{"type":"object","properties":{"host":{"type":"string"}}}}}}
         """);
@@ -101,6 +101,11 @@ class ConnectionImportServiceTest {
         .isInstanceOf(ProblemException.class).hasMessageContaining("unavailable");
     assertThat(service.schema(session.id(), session.submissionToken(), "ep-source", "pgfake")
         .path("secretFields").get(0).asString()).isEqualTo("/credentials/password");
+    assertThat(service.schema(session.id(), session.submissionToken(), "ep-source", "pgfake")
+        .path("referenceOnlyFields")).isEqualTo(json.readTree("""
+        [{"pointer":"/credentials/username","kind":"login-user","allowedSources":["reference"],
+          "passwordFields":["/credentials/password"]}]
+        """));
     verifyNoInteractions(connections, wiring, events);
   }
 
@@ -225,6 +230,36 @@ class ConnectionImportServiceTest {
     verify(staged).clear();
     verify(staged, never()).resolve();
     assertThat(service.get(session.id()).status()).isEqualTo("awaiting");
+  }
+
+  @Test
+  void loginUserReferencesStageWithoutResolvingOrCreatingAnything() {
+    var session = start();
+    ConnectionImportFiles.StagedSecret staged = mock(ConnectionImportFiles.StagedSecret.class);
+    when(staged.source()).thenReturn("reference");
+    when(files.read(session.id())).thenReturn(new ConnectionImportFiles.Prepared(manifest(),
+        Map.of("db", Map.of("/credentials/username", staged))));
+    service.submit(session.id(), session.submissionToken(), "ep-source", "caller", null);
+    assertThat(service.get(session.id()).status()).isEqualTo("review");
+    verify(staged, never()).resolve();
+    verifyNoInteractions(connections, wiring);
+  }
+
+  @Test
+  void loginUsersCannotStageLiteralsFilesOrDynamicCredentials() {
+    for (String source : List.of("local", "file", "vault-dynamic")) {
+      var session = start();
+      ConnectionImportFiles.StagedSecret staged = mock(ConnectionImportFiles.StagedSecret.class);
+      when(staged.source()).thenReturn(source);
+      when(files.read(session.id())).thenReturn(new ConnectionImportFiles.Prepared(manifest(),
+          Map.of("db", Map.of("/credentials/username", staged))));
+      assertThatThrownBy(() -> service.submit(session.id(), session.submissionToken(), "ep-source", "caller", null))
+          .isInstanceOf(ProblemException.class).hasMessageContaining("only an external-store reference");
+      assertThat(service.get(session.id()).status()).isEqualTo("awaiting");
+      verify(staged, never()).resolve();
+      verify(staged).clear();
+    }
+    verifyNoInteractions(connections, wiring);
   }
 
   @Test

@@ -211,8 +211,16 @@ public class ConnectionImportService {
             ConnectorManifest connector = registry.manifest(candidate.path("type").asString()).orElse(null);
             List<ConnectionForms.SecretField> allowed = connector == null ? List.of()
                 : ConnectionForms.secretFields(connector.configSchema());
-            for (String field : prepared.secrets().getOrDefault(candidate.path("id").asString(), Map.of()).keySet()) {
-              if (allowed.stream().noneMatch(s -> pointerMatches(s.pointer(), field))) {
+            List<ConnectionForms.LoginUserReference> referenceOnly = connector == null ? List.of()
+                : ConnectionForms.loginUserReferences(connector.configSchema());
+            for (var entry : prepared.secrets().getOrDefault(candidate.path("id").asString(), Map.of()).entrySet()) {
+              String field = entry.getKey();
+              if (allowed.stream().anyMatch(s -> pointerMatches(s.pointer(), field))) continue;
+              if (referenceOnly.stream().anyMatch(s -> pointerMatches(s.pointer(), field))) {
+                if (!"reference".equals(entry.getValue().source())) {
+                  throw invalid("A login user accepts only an external-store reference; type literal users in config.", "/manifest");
+                }
+              } else {
                 throw invalid("A staged credential does not match a connector secret field.", "/manifest");
               }
             }
@@ -451,6 +459,13 @@ public class ConnectionImportService {
       out.set("configSchema", connector.manifest().configSchema().deepCopy());
       ArrayNode fields = out.putArray("secretFields");
       ConnectionForms.secretFields(connector.manifest().configSchema()).forEach(f -> fields.add(f.pointer()));
+      ArrayNode references = out.putArray("referenceOnlyFields");
+      for (ConnectionForms.LoginUserReference field : ConnectionForms.loginUserReferences(connector.manifest().configSchema())) {
+        ObjectNode reference = references.addObject().put("pointer", field.pointer()).put("kind", "login-user");
+        reference.putArray("allowedSources").add("reference");
+        ArrayNode passwords = reference.putArray("passwordFields");
+        field.passwordFields().forEach(passwords::add);
+      }
     }
     return out;
   }

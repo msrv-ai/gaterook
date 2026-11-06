@@ -493,7 +493,14 @@ describe('Overview page', () => {
       setupPage(() => Promise.resolve(firstRun()), () => Promise.resolve(clientsFound()));
       const { el } = await render();
       expect(text(el.querySelector('.gw-page-header__description'))).toBe('Let your AI apps use your databases and servers without ever seeing a password.');
-      expect(href(byText(el, '.gw-page-header__actions a', 'Import with AI'))).toBe('/connection-import');
+      const importAction = byText(el, '.gw-page-header__actions a', 'Import with AI')!;
+      expect(href(importAction)).toBe('/connection-import');
+      const importHint = el.querySelector(`#${importAction.getAttribute('aria-describedby')}`)!;
+      expect(text(importHint.closest('.gw-alert--brand')?.querySelector('.gw-alert__title')))
+        .toBe('The easiest way to set up your environment');
+      expect(text(importHint)).toContain('GateRook helps you connect the app');
+      expect(text(importHint)).toContain('you review what to import and choose the endpoint');
+      expect(text(importHint)).toContain('manual setup steps below');
       const card = el.querySelector('section[aria-labelledby="ov-first-title"]')!;
       expect(text(card.querySelector('h2'))).toBe('Get started');
       expect(text(card.querySelector('.gw-card__description'))).toBe(

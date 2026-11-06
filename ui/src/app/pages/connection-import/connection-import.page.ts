@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, DOCUMENT, DestroyRef, Injector, afterNextRender, computed, effect, inject, input, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DOCUMENT, DestroyRef, Injector, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
 import { ConnectionImportsApi, ConnectionImportResult, ConnectionImportSession, ImportCandidate, ImportSelection } from '../../core/api/connection-imports.api';
+import { ClientId } from '../../core/api/clients.api';
 import { ConnectionsApi, SecretInputs, StoredSecret, TestOutcome } from '../../core/api/connections.api';
 import { ConnectionFormSpec, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointsApi, EndpointSummary } from '../../core/api/endpoints.api';
@@ -19,7 +20,10 @@ import { removeConfigPath } from '../../kit/elements/connection-form/database-se
 import { getAt, setAt } from '../../schema-form/compile';
 import { SecretAction } from '../../schema-form/schema-form';
 import { GwIcon } from '../../kit/icons';
+import { GwToggle } from '../../kit/disclosure';
 import { connectionImportPrompt } from './connection-import-prompt';
+import { ClientsData } from '../clients/clients.data';
+import { ImportAppConsent, ImportAppPicker, ImportAppSelection } from './import-app-picker';
 
 function mergeConfig(base: JsonValue, patch: JsonValue): JsonValue {
   if (!base || !patch || typeof base !== 'object' || typeof patch !== 'object' || Array.isArray(base) || Array.isArray(patch)) return patch;
@@ -30,7 +34,8 @@ function mergeConfig(base: JsonValue, patch: JsonValue): JsonValue {
 
 @Component({
   selector: 'gw-connection-import-page',
-  imports: [RouterLink, GwIcon, GwCodeBlock, GwConnectionForm, GwConnectionTest],
+  imports: [RouterLink, GwIcon, GwToggle, GwCodeBlock, GwConnectionForm, GwConnectionTest, ImportAppPicker],
+  providers: [ClientsData],
   templateUrl: './connection-import.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-page gw-page--narrow' },
@@ -48,8 +53,14 @@ export class ConnectionImportPage {
   private readonly doc = inject(DOCUMENT);
   private readonly injector = inject(Injector);
   private readonly destroy = inject(DestroyRef);
+  private readonly clients = inject(ClientsData);
   readonly id = input<string | null>(null);
   readonly endpoint = input<string | null>(null);
+  readonly app = input<ClientId | null>(null);
+  readonly selectedClient = signal<ClientId | null>(null);
+  readonly appConsent = signal<ImportAppConsent | null>(null);
+  readonly appSelection = signal<ImportAppSelection | null>(null);
+  readonly appConnecting = signal(false);
   readonly form = viewChild(GwConnectionForm);
   readonly loading = signal(false);
   readonly busy = signal(false);
@@ -78,6 +89,12 @@ export class ConnectionImportPage {
   readonly prompt = computed(() => this.session()?.status === 'awaiting' ? connectionImportPrompt(this.session()!) : '');
   readonly expired = computed(() => !!this.session() && this.session()!.status !== 'imported' && this.time.secondsUntil(this.session()!.expiresAt) <= 0);
   readonly eligibleEndpoints = computed(() => this.endpoints().filter(e => !e.blockedReason && e.status === 'running'));
+  readonly appEndpoint = computed(() => {
+    const session = this.session();
+    const endpoint = this.eligibleEndpoints().find(e => e.slug === (session?.endpoint ?? this.sourceEndpoint()));
+    const manual = this.clients.manual().value;
+    return endpoint ? { ...endpoint, url: session?.endpointUrl ?? (manual?.endpoint === endpoint.slug ? manual.url : '') } : null;
+  });
   readonly selectedDrafts = computed(() => [...this.selected()].map(id => this.drafts().get(id)).filter((d): d is ImportSelection => !!d));
   readonly incompleteAllowed = computed(() => this.selectedDrafts().filter(d => d.allowIncomplete).length);
   readonly ready = computed(() => this.selected().size > 0 && this.selectedDrafts().length === this.selected().size && !!this.targetEndpoint() && !this.active() && !this.expired());
@@ -85,12 +102,14 @@ export class ConnectionImportPage {
     const sources = new Map<string, StoredSecret>((this.active()?.secretSources ?? []).map(source => [source.field, {
       field: source.field, secretId: null, staged: true,
       name: source.reference ?? 'Credential prepared for import',
+      ref: source.reference ?? null,
       state: source.source === 'vault-dynamic' ? 'short-lived' : source.source === 'reference' ? 'reference' : 'stored', version: null,
       source: source.reference?.split('://')[0] ?? 'encrypted', store: source.store,
       canRotate: false, rotateReason: 'This credential is staged for import. It has not been saved yet.',
     }]));
     for (const [field, secret] of Object.entries(this.editorSecrets())) sources.set(field, {
       field, secretId: null, staged: true, name: secret.source === 'local' ? 'Replacement prepared for import' : secret.ref,
+      ref: secret.source === 'local' ? null : secret.ref,
       state: secret.source === 'local' ? 'stored' : secret.source === 'vault-dynamic' ? 'short-lived' : 'reference',
       version: this.editorSecretVersions()[field] ?? 0,
       source: secret.source === 'local' ? 'encrypted' : secret.ref.split('://')[0],
@@ -102,8 +121,21 @@ export class ConnectionImportPage {
   private generation = 0;
   private editing = 0;
   private refreshing = false;
+  private preparedReview: string | null = null;
 
   constructor() {
+    const choice = this.router.currentNavigation()?.extras.state?.['importAppChoice'] as { client?: ClientId; consent?: ImportAppConsent } | undefined;
+    if (choice?.client && ['claude-desktop', 'codex', 'cursor', 'antigravity'].includes(choice.client)) this.selectedClient.set(choice.client);
+    if (choice?.consent && ['manual', 'restart'].includes(choice.consent.kind) && typeof choice.consent.key === 'string') this.appConsent.set(choice.consent);
+    void this.clients.start();
+    effect(() => {
+      const endpoint = this.session()?.endpoint ?? this.sourceEndpoint();
+      untracked(() => this.clients.selectManualEndpoint(endpoint || null));
+    });
+    effect(() => {
+      const app = this.app();
+      if (app && ['claude-desktop', 'codex', 'cursor', 'antigravity'].includes(app)) this.selectedClient.set(app);
+    });
     effect(() => { void this.load(this.id(), this.endpoint()); });
     const timer = setInterval(() => {
       if (this.session()?.status === 'awaiting' && !this.expired() && !this.unavailable() && !this.loading() && !this.busy()) void this.refresh(false);
@@ -124,6 +156,7 @@ export class ConnectionImportPage {
     this.drafts.set(new Map());
     this.editorSecrets.set({});
     this.selected.set(new Set());
+    this.preparedReview = null;
     this.result.set(null);
     this.session.set(null);
     try {
@@ -134,6 +167,7 @@ export class ConnectionImportPage {
       this.endpoints.set(endpoints);
       this.existingNames.set(new Set(connections.items.map(c => c.name)));
       this.session.set(session);
+      if (session) this.prepareReview(session);
       this.sourceEndpoint.set(session?.endpoint ?? endpoint ?? endpoints.find(e => e.slug === 'default')?.slug ?? endpoints[0]?.slug ?? '');
       this.targetEndpoint.set(session?.endpoint ?? endpoint ?? '');
       if (session) this.repository.set(session.repository);
@@ -146,6 +180,12 @@ export class ConnectionImportPage {
 
   value(event: Event): string { return (event.target as HTMLInputElement).value; }
 
+  sourceChanged(endpoint: string): void {
+    if (this.busy() || this.appConnecting()) return;
+    this.sourceEndpoint.set(endpoint);
+    this.selectedClient.set(null); this.appConsent.set(null); this.appSelection.set(null);
+  }
+
   async chooseRepository(): Promise<void> {
     if (this.busy()) return;
     try { const path = await this.desktop.chooseRepository(); if (path) this.repository.set(path); }
@@ -154,33 +194,43 @@ export class ConnectionImportPage {
 
   async start(event?: Event): Promise<void> {
     event?.preventDefault();
-    if (this.busy()) return;
+    if (this.busy() || this.appConnecting()) return;
     this.error.set('');
     if (!this.repository().trim() || !this.sourceEndpoint()) { this.fail(new Error('Choose a repository and the endpoint your AI app is connected to.')); return; }
+    if (!this.appSelection()?.ready || !this.appEndpoint()) { this.fail(new Error('Choose an AI app and connect it to this endpoint before creating the prompt.')); return; }
     this.busy.set(true);
     try {
       const session = await this.api.start(this.repository().trim(), this.sourceEndpoint());
       if (this.destroy.destroyed) return;
       this.session.set(session);
       this.targetEndpoint.set(session.endpoint);
-      await this.router.navigate(['/connection-import', session.id]);
+      await this.router.navigate(['/connection-import', session.id], { queryParams: { app: this.selectedClient() }, state: { importAppChoice: { client: this.selectedClient(), consent: this.appConsent() } } });
     } catch (e) { this.fail(e); }
     finally { this.busy.set(false); }
   }
 
   async handoff(client: 'claude' | 'codex' | 'cursor' | 'copy' | 'antigravity'): Promise<void> {
     if (!this.prompt() || this.expired()) return;
+    const selected = this.appSelection();
+    const launch = selected?.client === 'claude-desktop' ? 'claude' : selected?.client;
+    if (!selected?.ready || (client !== 'copy' && client !== launch)) { this.fail(new Error('Choose a connected AI app for this endpoint before sending the prompt.')); return; }
     this.error.set('');
     try {
       if (client === 'copy' || client === 'antigravity') {
         this.notice.set(await this.clipboard.write(this.prompt())
-          ? `Prompt copied. Paste it into ${client === 'antigravity' ? 'Antigravity' : 'your AI app'} with repository access and GateRook connected.`
+          ? `Prompt copied. Paste it into ${selected.name} with repository access and GateRook connected.`
           : 'Could not copy. Select the prompt below and copy it.');
       } else {
         await this.desktop.openAiPrompt(client, this.prompt());
         this.notice.set('Review and send the prompt in your AI app. GateRook will open the results when they arrive.');
       }
     } catch (e) { this.fail(e); this.notice.set('Use Copy prompt and paste it into your AI app.'); }
+  }
+
+  async handoffSelected(): Promise<void> {
+    const app = this.appSelection();
+    if (!app?.ready) return;
+    await this.handoff(!this.desktop.aiPromptAvailable ? 'copy' : app.client === 'claude-desktop' ? 'claude' : app.client);
   }
 
   async discard(): Promise<void> {
@@ -192,6 +242,7 @@ export class ConnectionImportPage {
       await this.api.cancel(session.id);
       if (this.destroy.destroyed) return;
       this.session.set(null);
+      this.preparedReview = null;
       this.drafts.set(new Map()); this.editorSecrets.set({}); this.editorValue.set(null);
       this.selected.set(new Set()); this.active.set(null); this.spec.set(null);
       this.confirmation.set(null); this.notice.set('Import discarded. No saved connections were changed.');
@@ -207,15 +258,38 @@ export class ConnectionImportPage {
     try {
       const session = await this.api.get(current.id);
       if (this.destroy.destroyed || this.session()?.id !== current.id) return;
+      if (session.status === 'review' && this.preparedReview !== session.id) {
+        const connections = await this.connections.list();
+        if (this.destroy.destroyed || this.session()?.id !== current.id) return;
+        this.existingNames.set(new Set(connections.items.map(c => c.name)));
+      }
       this.session.set(session);
+      this.prepareReview(session);
       if (current.status === 'awaiting' && session.status === 'review') {
-        this.notice.set('The AI analysis is ready. Choose and configure the connections to import.');
+        this.notice.set('The AI analysis is ready. Available settings are prepared for import. Review the selection and use Settings to make changes.');
         this.focus('#import-review-title');
       }
     } catch (e) {
       if (isApiError(e) && ['not-found', 'bad-request'].includes(e.kind)) { this.unavailable.set(true); this.fail(e); }
       else if (showError) this.fail(e);
     } finally { this.refreshing = false; }
+  }
+
+  /** Prepare defaults once; subsequent polls must retain the person's choices and edited credentials. */
+  private prepareReview(session: ConnectionImportSession): void {
+    if (session.status !== 'review' || !session.manifest || this.preparedReview === session.id) return;
+    this.preparedReview = session.id;
+    const names = new Map<string, number>();
+    for (const candidate of session.manifest.connections) names.set(candidate.name, (names.get(candidate.name) ?? 0) + 1);
+    const drafts = new Map<string, ImportSelection>();
+    for (const candidate of session.manifest.connections) {
+      if (!candidate.supported || this.existingNames().has(candidate.name) || names.get(candidate.name) !== 1
+        || !/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(candidate.name) || candidate.name.length > 64) continue;
+      drafts.set(candidate.id, { candidateId: candidate.id, name: candidate.name, env: candidate.env,
+        config: structuredClone(candidate.config), secrets: {}, allowIncomplete: true });
+    }
+    this.drafts.set(drafts);
+    this.selected.set(new Set(drafts.keys()));
   }
 
   toggle(candidate: ImportCandidate, checked: boolean): void {
@@ -265,7 +339,7 @@ export class ConnectionImportPage {
     if ([...this.drafts().values()].some(d => d.candidateId !== candidate.id && d.name === value.name)) { this.fail(new Error('Two selected drafts have the same name. Choose a unique name for each connection.')); return; }
     if (candidate.env === 'prod' && value.env !== 'prod') { this.fail(new Error('This candidate was discovered as production. Keep its production environment.')); return; }
     const drafts = new Map(this.drafts());
-    drafts.set(candidate.id, { candidateId: candidate.id, ...value, secrets: { ...this.editorSecrets(), ...value.secrets } });
+    drafts.set(candidate.id, { candidateId: candidate.id, ...this.withEditorSecrets(value) });
     this.drafts.set(drafts);
     this.closeEditor();
   }
@@ -277,17 +351,17 @@ export class ConnectionImportPage {
     const name = current?.name ?? previous?.name ?? candidate.name;
     const env = current?.env ?? previous?.env ?? candidate.env;
     if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(name) || name.length > 64) { this.fail(new Error('Choose a connection name using lowercase letters, numbers and hyphens.')); return; }
-    if (this.existingNames().has(name)) { this.fail(new Error(`A connection named ${name} already exists. Open Configure and choose a new name.`)); return; }
+    if (this.existingNames().has(name)) { this.fail(new Error(`A connection named ${name} already exists. Open Settings and choose a new name.`)); return; }
     if ([...this.drafts().values()].some(d => d.candidateId !== candidate.id && d.name === name)) { this.fail(new Error('Choose a unique name for each connection.')); return; }
     if (candidate.env === 'prod' && env !== 'prod') { this.fail(new Error('This candidate was discovered as production. Keep its production environment.')); return; }
-    const secrets = current ? { ...this.editorSecrets(), ...current.secrets } : previous?.secrets ?? {};
+    const secrets = current ? this.withEditorSecrets(current).secrets : previous?.secrets ?? {};
     const drafts = new Map(this.drafts());
     drafts.set(candidate.id, { candidateId: candidate.id, name, env,
       config: current?.config ?? previous?.config ?? candidate.config, secrets, allowIncomplete: true });
     this.drafts.set(drafts);
     this.confirmation.set(null);
     if (this.active()?.id === candidate.id) this.closeEditor();
-    this.notice.set('Available settings kept. Select the connection for import; if required setup is missing, it will be saved disabled for you to finish later.');
+    this.notice.set('Available settings kept. Review the import selection; if required setup is missing, it will be saved disabled for you to finish later.');
   }
 
   closeEditor(): void {
@@ -307,7 +381,7 @@ export class ConnectionImportPage {
     const candidate = this.active();
     const current = value ?? form?.value();
     if (!candidate || !current || this.busy()) return;
-    const draft = { ...current, secrets: { ...this.editorSecrets(), ...current.secrets } };
+    const draft = this.withEditorSecrets(current);
     if (this.needsRetainedSecrets(draft)) { this.fail(new Error('This draft uses staged credentials. Import it first, then test the saved connection.')); return; }
     this.busy.set(true);
     this.testState.set('testing');
@@ -384,7 +458,11 @@ export class ConnectionImportPage {
         return patched;
       });
       picker.reset();
-      afterNextRender(() => { if (form === this.form()) picker.load(event.request.path, request => void this.browseFiles(request)); }, { injector: this.injector });
+      const trustedDraft = this.fileDraftKey(form);
+      afterNextRender(() => {
+        if (this.destroy.destroyed || form !== this.form() || trustedDraft !== this.fileDraftKey(form)) return;
+        picker.load(event.request.path, request => void this.browseFiles(request));
+      }, { injector: this.injector });
     } catch (e) { if (form === this.form()) picker.complete(event.request, null, this.message(e)); }
   }
 
@@ -447,7 +525,28 @@ export class ConnectionImportPage {
   }
 
   private needsRetainedSecrets(draft: ConnectionFormValue): boolean { return (this.active()?.secretSources ?? []).some(source => !draft.secrets[source.field]); }
-  private withEditorSecrets(draft: ConnectionFormValue): ConnectionFormValue { return { ...draft, secrets: { ...this.editorSecrets(), ...draft.secrets } }; }
+  private withEditorSecrets(draft: ConnectionFormValue): ConnectionFormValue {
+    const { vaultStore, ...value } = draft;
+    const secrets: Record<string, SecretInputs[string]> = { ...this.editorSecrets(), ...draft.secrets };
+    if (vaultStore) {
+      // Import creates new secrets, so a store change becomes explicit references rather than an edit-only flag.
+      for (const source of this.active()?.secretSources ?? []) {
+        if (!secrets[source.field] && source.source === 'reference' && source.reference?.startsWith('vault://')) {
+          secrets[source.field] = { source: 'reference', ref: source.reference, store: vaultStore };
+        }
+      }
+      for (const [field, secret] of Object.entries(secrets)) {
+        if (secret.source === 'reference' && secret.ref.startsWith('vault://')) secrets[field] = { ...secret, store: vaultStore };
+      }
+    }
+    return { ...value, secrets };
+  }
+  /** In-memory comparison only; the effective draft includes credentials and must never be logged. */
+  private fileDraftKey(form: GwConnectionForm): string {
+    const draft = form.value();
+    const value = this.withEditorSecrets(draft);
+    return JSON.stringify([this.active()?.id, this.active()?.type, value.env, value.config, value.secrets, draft.vaultStore ?? null]);
+  }
   private message(error: unknown): string { return isApiError(error) ? `${error.title}. ${error.detail}` : desktopErrorText(error, 'GateRook could not complete this action. Try again.'); }
   private fail(error: unknown): void { if (this.destroy.destroyed) return; this.error.set(this.message(error)); this.focus('#import-error'); }
   private focus(selector: string): void { afterNextRender(() => this.doc.querySelector<HTMLElement>(selector)?.focus(), { injector: this.injector }); }

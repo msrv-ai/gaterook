@@ -4,10 +4,13 @@
 
 ## Start an import
 
-1. Choose **Import with AI** on **Overview**, **Connections**, or an endpoint. The highlighted button uses a lightbulb icon.
+1. Choose **Import with AI** on the first-run welcome screen, **Overview**, **Connections**, or an endpoint. The highlighted button uses a lightbulb icon; the welcome screen recommends it as the easiest way to set up your environment.
 2. Choose the repository folder. The AI app needs authorized access to this repository and permission to write the private import file on the computer running GateRook; choosing a folder does not give a remote app filesystem access.
-3. Select a GateRook endpoint already connected to the AI app, then select **Create prompt**. Check the exact MCP URL shown with the prompt: multiple GateRook instances can have endpoints with the same name. This endpoint receives the AI's proposal. You choose the destination for imported connections during review.
-4. Choose **Open Claude Desktop**, **Open Codex**, or **Open Cursor**, or copy the prompt into your AI app. **Copy for Antigravity** copies the same instructions for manual pasting. Review and send the prompt there.
+3. Select a GateRook endpoint, then choose an AI app connected to that endpoint. The picker shows each app's status for this endpoint. If none is connected, connect an app from the same page: review the proposed setup and confirm **Connect**, or complete the offered browser sign-in. An endpoint does not need existing connections to accept an AI import.
+4. Complete any installation or restart steps. If you configured the app manually, check the exact MCP URL and explicitly confirm that you connected this endpoint. Manual confirmation is not a detected connection. Select **Create prompt** when the chosen app is ready. This endpoint receives the AI's proposal; you choose the destination for imported connections during review.
+5. Open the selected app or copy the prompt into it. Antigravity uses manual pasting. Review and send the prompt there.
+
+Check the exact MCP URL shown with the prompt: multiple GateRook instances can have endpoints with the same name. A connected status records successful setup or authenticated usage; it does not guarantee that the AI app has refreshed its tool list. If GateRook was updated, restart the AI app and start a new chat. Refresh the app statuses in the import page without losing the repository choice or current import.
 
 App links depend on the installed client's protocol handler. If an app cannot open the link, or the prompt is too long for a link, use **Copy prompt**. Cursor may first show its own **Create chat with prompt** dialog. Opening a prompt does not send it to a model.
 
@@ -27,11 +30,15 @@ GateRook prepares the handoff file in its private import directory. The AI write
 
 ## Review the proposal
 
-When the AI submits its proposal, GateRook opens the import review page. AI clients that support MCP Apps also show a card with the candidate count and **Open import in GateRook**. The button reopens this exact import; clients without cards receive a link. The card cannot accept an import, add, edit or delete connections, or change settings. No candidates are selected automatically.
+When the AI submits its proposal, GateRook opens the import review page. AI clients that support MCP Apps also show a card with the candidate count and **Open import in GateRook**. The button reopens this exact import; clients without cards receive a link. The card cannot accept an import, add, edit or delete connections, or change settings. Supported candidates with unused names are selected with their available settings prepared. Nothing is saved until you confirm the final import.
+
+**Analysis notes** starts collapsed in a highlighted strip showing the number of notes. Select **Show details** to read all findings; **Hide details** restores the compact view without changing the proposal.
+
+Each candidate's **Evidence** row also starts collapsed with a source count. Select it to expand or collapse that candidate's repository evidence independently.
 
 1. Check each candidate's environment, target, source evidence, warnings, prepared credentials, and credential-source hints.
-2. Select **Configure** for a supported candidate. Review the normal connector form and correct incomplete settings. **Credentials prepared for import** lists literal, file, and external-reference sources without revealing values. Keep those sources, or enter replacements in the form. Select **Keep for import** when it is ready. To save the discovered information without filling every required field now, choose **Keep available settings** instead. Neither action selects the candidate automatically.
-3. Select the candidates to import and choose their destination endpoint. Production connections cannot be mixed with development or stage connections on one endpoint; use separate import sessions for these groups. A candidate discovered as production cannot be downgraded during import.
+2. Use a candidate's settings icon, labeled **Edit settings**, to change its name or configuration. Review the normal connector form and correct incomplete settings. **Credentials prepared for import** lists literal, file, and external-reference sources without revealing values. Keep those sources, or enter replacements in the form. Select **Keep for import** when it is ready. **Keep available settings** retains incomplete information for later setup, as the initial proposal does by default. Editing a candidate preserves whether you selected it.
+3. Clear **Import** for candidates you want to skip and choose the destination endpoint. Conflicting names and unsupported candidates are not selected by default. Rename a conflicting candidate in settings, keep it, then select it. Production connections cannot be mixed with development or stage connections on one endpoint; use separate import sessions for these groups. A candidate discovered as production cannot be downgraded during import.
 4. Select **Import selected connections**. Complete connections use the normal validation, endpoint policy, and tool defaults. If you choose to save an incomplete connection, GateRook preserves the available information and marks it **Needs setup**, with access disabled.
 
 Existing connection names are not overwritten. Rename a candidate that conflicts with an existing connection, or leave it out. An import does not infer that an existing connection with a similar name is the same service.
@@ -59,6 +66,8 @@ The private file can carry real credential sources as well as literal values alr
 | `{"source":"file","path":"/path/to/credentials.json","jsonPointer":"/database/password"}` | GateRook reads the string at the JSON Pointer and stores it encrypted. The selected JSON value must be a string. |
 
 These objects go in a candidate's `secrets` map, keyed by a secret-field pointer from its connector schema, such as `/credentials/password`. Do not put them in `config`. Credential files are limited to 64 KiB and must be regular files, not symbolic links. YAML selectors, environment expansion, base64 decoding, and shell commands are not file-source operations; report the required transformation instead of pretending the file is directly usable.
+
+Some connectors also expose `referenceOnlyFields` for a login user stored externally. Each entry names its `pointer`, allows only `reference`, and lists the `passwordFields` it must accompany. Put a user reference in `secrets` only when a listed password also uses an ordinary external-store reference. Local values, files and dynamic roles are not accepted for these user pointers; ordinary literal usernames stay in `config`. In the import editor, selecting another Vault updates the prepared Vault references for this import without changing existing saved secrets.
 
 Environment variables and Kubernetes Secrets are discovery evidence unless they lead to an actual supported source. A deployment's `VAULT_TOKEN` variable does not automatically become available to GateRook. Configure the external store's authentication in **Secrets**. The AI should not fetch values from Vault or cloud secret stores just to copy them into the file.
 

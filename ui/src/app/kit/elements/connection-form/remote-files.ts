@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, linkedSignal, output, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, linkedSignal, output, signal, untracked } from '@angular/core';
 import { StoredSecret, TestOutcome } from '../../../core/api/connections.api';
 import { getAt, setAt } from '../../../schema-form/compile';
 import { SchemaForm } from '../../../schema-form/schema-form';
@@ -107,6 +107,9 @@ export class GwRemoteFiles {
   });
   readonly facts = computed(() => testFacts(this.result()?.outcome?.needsConfirmation?.data));
   readonly confirmationTitle = computed(() => testConfirmTitle(this.result()?.outcome ?? null, null));
+  readonly trustingFirstKey = signal(false);
+  /** Retained through a trusted draft patch and reset: a retry must never trust another key in a loop. */
+  private readonly firstKeyAttempts = new WeakMap<SchemaForm, Set<string>>();
 
   current(request: FileBrowseRequest): boolean {
     return request.key === this.key() && request === this.result()?.request;
@@ -116,6 +119,7 @@ export class GwRemoteFiles {
     if (this.busy() || !path.trim()) return;
     const selection = this.selection();
     if (!this.form().submit([selection.rootPointer, selection.pointer])) return;
+    this.trustingFirstKey.set(false);
     this.address.set(path);
     const request = { key: this.key(), path, value: this.value() };
     this.start(request);
@@ -130,10 +134,42 @@ export class GwRemoteFiles {
 
   complete(request: FileBrowseRequest, outcome: TestOutcome | null, error: string | null = null): boolean {
     if (!this.current(request)) return false;
+    this.trustingFirstKey.set(false);
     const directory = directoryOf(outcome);
     this.result.set({ request, state: directory ? 'ready' : outcome?.needsConfirmation ? 'confirmation' : 'error', directory, outcome,
       message: error ?? outcome?.error?.message ?? outcome?.needsConfirmation?.text ?? (directory ? null : 'The server did not return a folder. Try again.') });
+    const target = !error ? this.firstKeyTarget(request, outcome) : null;
+    if (target) {
+      const form = this.form();
+      const attempted = this.firstKeyAttempts.get(form) ?? new Set<string>();
+      if (!attempted.has(target)) {
+        attempted.add(target);
+        this.firstKeyAttempts.set(form, attempted);
+        this.trustingFirstKey.set(true);
+        this.confirm();
+      }
+    }
     return true;
+  }
+
+  /** Only the built-in SSH log browser's first-use result may enter its existing draft trust flow. */
+  private firstKeyTarget(request: FileBrowseRequest, outcome: TestOutcome | null): string | null {
+    const confirmation = outcome?.needsConfirmation;
+    const data = confirmation?.data;
+    if (this.type() !== 'ssh-logs' || outcome?.ok !== false || outcome.error || confirmation?.kind !== 'host-key'
+      || typeof outcome.confirmationId !== 'string' || !outcome.confirmationId.trim()
+      || !data || typeof data !== 'object' || Array.isArray(data) || data['kind'] !== 'host-key'
+      || typeof data['bastion'] !== 'boolean' || typeof data['host'] !== 'string'
+      || typeof data['port'] !== 'number' || !Number.isInteger(data['port']) || data['port'] < 1 || data['port'] > 65535
+      || typeof data['keyType'] !== 'string' || !/^[A-Za-z0-9@._+-]{1,128}$/.test(data['keyType'])
+      || typeof data['fingerprint'] !== 'string' || !/^SHA256:[A-Za-z0-9+/]{43}=?$/.test(data['fingerprint'])
+      || typeof data['publicKey'] !== 'string' || !data['publicKey'].startsWith(data['keyType'] + ' ')
+      || !/^[A-Za-z0-9+/]{16,16384}={0,2}$/.test(data['publicKey'].slice(data['keyType'].length + 1))) return null;
+    const path = data['bastion'] ? ['jump'] : ['connection'];
+    const host = getAt(request.value.config, [...path, 'host']);
+    const port = getAt(request.value.config, [...path, 'port']) ?? 22;
+    if (typeof host !== 'string' || host.trim().toLowerCase() !== data['host'] || port !== data['port']) return null;
+    return JSON.stringify([data['bastion'], data['host'], data['port']]);
   }
 
   confirm(): void {
