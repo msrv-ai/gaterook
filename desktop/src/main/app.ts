@@ -294,6 +294,7 @@ export class Desktop {
     this.updates = new Updates({
       packaged: app.isPackaged,
       resourcesPath: process.resourcesPath,
+      userDataPath: app.getPath('userData'),
       log: this.log,
       push: (state) => this.send(IPC.updateStatePush, state),
       autoUpdate: async () => {

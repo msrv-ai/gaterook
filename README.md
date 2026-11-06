@@ -7,6 +7,8 @@ GateRook is a desktop MCP gateway that gives AI clients scoped access to databas
 
 For macOS, download the `.dmg` installer from the latest release. Windows installs and updates through Microsoft Store.
 
+Installed apps check update metadata at `msrv.dev`; macOS update downloads remain on GitHub. Each app data directory gets a random 16-character installation ID on first launch. Update checks send this ID to count installations active within the last 30 days. Turn off **Settings → General → Check for updates automatically** to stop scheduled checks; a manual check still contacts the service. See [update checks](docs/development.md#update-checks-and-installation-identity) for details.
+
 On DEV and STAGE, you can temporarily bypass approval for a method on one connection and endpoint for 15 or 30 minutes, or 1, 3, 12, or 24 hours. Open **Temporary bypass** in an approval review or the endpoint's tool list. The original mode returns automatically at expiry, and you can end the bypass early. Existing pending requests still need a separate decision.
 
 [Website](https://msrv.dev) · [Issues](https://github.com/msrv-ai/gaterook/issues) · [Architecture](docs/ARCHITECTURE.md) · [Research](docs/research/README.md) · [Design kit](design/README.md)
