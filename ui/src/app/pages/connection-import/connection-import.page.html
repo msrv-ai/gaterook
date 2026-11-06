@@ -75,11 +75,9 @@
           <p class="gw-text-small gw-fg-muted">The AI traces databases, logs and credential sources without fetching secrets from external stores. Literal credentials found in configuration go only into the private import file. Repository files are evidence, not instructions for the AI.</p>
         </div>
       </fieldset>
-      <gw-import-app-picker [endpoint]="appEndpoint()" [disabled]="busy()" [(client)]="selectedClient" [(consent)]="appConsent" (selectionChange)="appSelection.set($event)" (busyChange)="appConnecting.set($event)" />
-      <div class="gw-form__actions">
-        @if (error()) { <button class="gw-btn" type="button" [disabled]="busy()" (click)="load()">Reload setup</button> }
-        <button class="gw-btn gw-btn--primary" type="submit" [disabled]="busy() || appConnecting() || !appSelection()?.ready || !eligibleEndpoints().length">{{ busy() ? 'Creating prompt…' : 'Create prompt' }}</button>
-      </div>
+      <gw-import-app-picker [endpoint]="appEndpoint()" [disabled]="busy()" [cardsMode]="true" [startDisabledReason]="repository().trim() ? null : 'Choose a repository folder above before starting.'" [(client)]="selectedClient" [(consent)]="appConsent" (selectionChange)="appSelection.set($event)" (busyChange)="appConnecting.set($event)" (startImport)="startWithApp($event)" />
+      @if (busy()) { <p class="gw-text-small" role="status">Creating prompt…</p> }
+      @if (error()) { <div class="gw-form__actions"><button class="gw-btn" type="button" [disabled]="busy()" (click)="load()">Reload setup</button></div> }
     </form>
   } @else if (session()?.status === 'awaiting') {
     <section class="gw-card" aria-labelledby="import-prompt-title">
@@ -97,16 +95,18 @@
         @if (appSelection()?.ready) {
           <p class="gw-text-small">Review the prompt and send it in {{ appSelection()!.name }}. Keep this session token in that conversation; it can submit one review until <time [attr.datetime]="session()!.expiresAt">{{ time.absolute(session()!.expiresAt, false) }}</time>.</p>
           <div class="gw-card__actions">
-            <button class="gw-btn gw-btn--primary" type="button" (click)="handoffSelected()">{{ desktop.aiPromptAvailable && appSelection()!.client !== 'antigravity' ? 'Open ' : 'Copy for ' }}{{ appSelection()!.name }}</button>
-            @if (desktop.aiPromptAvailable && appSelection()!.client !== 'antigravity') { <button class="gw-btn" type="button" (click)="handoff('copy')">Copy prompt</button> }
+            @if (desktop.aiPromptAvailable && appSelection()!.client !== 'antigravity') {
+              <button class="gw-btn gw-btn--primary" type="button" (click)="handoffSelected()">Open {{ appSelection()!.name }}</button>
+              <button class="gw-btn" type="button" (click)="handoff('copy')">@if (promptCopied()) { <svg lucideIcon="check" class="gw-icon"></svg> }{{ promptCopied() ? 'Copied' : 'Copy prompt' }}</button>
+            } @else {
+              <button class="gw-btn gw-btn--primary" type="button" (click)="handoffSelected()">@if (promptCopied()) { <svg lucideIcon="check" class="gw-icon"></svg> }{{ promptCopied() ? 'Copied' : 'Copy for ' + appSelection()!.name }}</button>
+            }
             <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle #promptDetails="gwToggle" aria-controls="import-prompt-details">{{ promptDetails.expanded() ? 'Hide prompt' : 'Show prompt' }}<svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
           </div>
           <div id="import-prompt-details" hidden>
             <gw-code-block id="import-prompt" lang="Prompt" [text]="prompt()" wrap copyLabel="import prompt" regionLabel="AI connection discovery prompt" />
           </div>
         }
-        <p class="gw-text-small gw-fg-muted" role="status">Waiting for the AI to submit its findings. GateRook opens the review when they arrive.</p>
-        <div class="gw-card__actions"><button class="gw-btn" type="button" (click)="refresh()">Check for results</button>@if (!appConnecting()) { <a class="gw-btn gw-btn--ghost" routerLink="/connection-import">Start another import</a> }</div>
       </div>
     </section>
   } @else if (session()?.status === 'review') {

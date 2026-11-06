@@ -90,7 +90,7 @@ describe('AI connection import review', () => {
       scanning: signal(null), scan: vi.fn(async () => ({ scannedAt: null, clients: clientCards() })),
       resetConnect: vi.fn(), connectState: () => ({ preview: null, loading: false, failure: null, written: false }),
       selectManualEndpoint: vi.fn(slug => manual.set({ value: { ...kitManual(), endpoint: slug ?? 'default', url: `http://127.0.0.1:18475/mcp/${slug ?? 'default'}` }, error: null, unavailable: false })),
-      refresh: vi.fn(async () => undefined),
+      refresh: vi.fn(async () => undefined), reloadClients: vi.fn(async () => undefined),
     };
     await TestBed.configureTestingModule({ imports: [ConnectionImportPage], providers: [
       provideRouter([]), provideHttpClient(), provideKitIcons(),
@@ -154,6 +154,46 @@ describe('AI connection import review', () => {
     expect(connections.create).not.toHaveBeenCalled();
   });
 
+  it('starts from an app card only with a repository and the app selected by that card', async () => {
+    await vi.waitFor(() => expect(page.loading()).toBe(false));
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const startCodex = root.querySelector<HTMLButtonElement>('[aria-label="Start import with Codex"]')!;
+    expect(root.querySelector('#import-ai-app')).toBeNull();
+    expect(root.textContent).not.toContain('Create prompt');
+    expect(startCodex.disabled).toBe(true);
+    expect(root.querySelector('#import-app-start-reason')?.textContent).toContain('Choose a repository');
+    await page.chooseRepository(); fixture.detectChanges(); await fixture.whenStable();
+    await page.startWithApp({ client: 'codex', name: 'Codex', ready: true });
+    expect(api.start).not.toHaveBeenCalled();
+    startCodex.click(); await fixture.whenStable();
+    expect(page.selectedClient()).toBe('codex');
+    expect(api.start).toHaveBeenCalledWith('/workspace/chosen', 'default');
+    expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/connection-import', awaiting.id], expect.objectContaining({ queryParams: { app: 'codex' } }));
+    expect(connections.create).not.toHaveBeenCalled();
+  });
+
+  it('checks pending app activity before a session exists and clears the timer on destruction', async () => {
+    fixture.destroy();
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      clientCards.update(cards => cards.map(card => card.client === 'codex'
+        ? { ...card, status: 'needs-restart', links: card.links.map(link => ({ ...link, status: 'needs-restart' })) } : card));
+      fixture = TestBed.createComponent(ConnectionImportPage);
+      page = fixture.componentInstance;
+      page.selectedClient.set('codex');
+      fixture.detectChanges(); await fixture.whenStable();
+      fixture.detectChanges(); await fixture.whenStable();
+      expect(page.session()).toBeNull();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(clientData.reloadClients).toHaveBeenCalledTimes(1);
+      expect(api.start).not.toHaveBeenCalled();
+      fixture.destroy();
+      await vi.advanceTimersByTimeAsync(10000);
+      expect(clientData.reloadClients).toHaveBeenCalledTimes(1);
+    } finally { vi.useRealTimers(); }
+  });
+
   it('copies a private-file prompt for Antigravity without inventing a launch URI', async () => {
     page.session.set(awaiting);
     page.selectedClient.set('antigravity');
@@ -162,6 +202,39 @@ describe('AI connection import review', () => {
     expect(copy).toHaveBeenCalledWith(connectionImportPrompt(awaiting));
     expect(open).not.toHaveBeenCalled();
     expect(page.notice()).toContain('Antigravity');
+  });
+
+  it.each([
+    { client: 'cursor' as const, native: true, label: 'Copy prompt' },
+    { client: 'cursor' as const, native: false, label: 'Copy for Cursor' },
+    { client: 'antigravity' as const, native: true, label: 'Copy for Antigravity' },
+  ])('shows successful copy feedback for $label (native handoff: $native)', async ({ client, native, label }) => {
+    Object.assign(TestBed.inject(DesktopBridge), { aiPromptAvailable: native });
+    page.session.set(awaiting); page.selectedClient.set(client);
+    fixture.detectChanges(); await fixture.whenStable();
+    const button = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.trim() === label)!;
+    let complete!: (copied: boolean) => void;
+    copy.mockReturnValueOnce(new Promise<boolean>(resolve => { complete = resolve; }));
+    button.click(); fixture.detectChanges();
+    expect(button.textContent?.trim()).toBe(label);
+    complete(true); await fixture.whenStable(); fixture.detectChanges();
+    expect(button.textContent?.trim()).toBe('Copied');
+    expect(button.querySelector('svg[lucideIcon="check"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[role="status"]')?.textContent).toContain('Prompt copied');
+    expect(copy).toHaveBeenCalledWith(connectionImportPrompt(awaiting));
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('keeps the copy action unchanged when the clipboard write fails', async () => {
+    page.session.set(awaiting); fixture.detectChanges(); await fixture.whenStable();
+    copy.mockResolvedValueOnce(false);
+    const button = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.trim() === 'Copy prompt')!;
+    button.click(); await fixture.whenStable(); fixture.detectChanges();
+    expect(button.textContent?.trim()).toBe('Copy prompt');
+    expect(page.promptCopied()).toBe(false);
+    expect(page.notice()).toContain('Could not copy');
   });
 
   it('shows the session URL and recovery guidance when another instance has the same endpoint name', async () => {
@@ -191,6 +264,9 @@ describe('AI connection import review', () => {
     const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>('button'));
     const copyPrompt = buttons.find(button => button.textContent?.trim() === 'Copy prompt')!;
     const openApp = buttons.find(button => button.textContent?.trim() === 'Open Cursor')!;
+    expect(root.textContent).not.toContain('Waiting for the AI to submit its findings');
+    expect(buttons.some(button => button.textContent?.trim() === 'Check for results')).toBe(false);
+    expect(root.textContent).not.toContain('Start another import');
     expect(disclosure.type).toBe('button');
     expect(disclosure.getAttribute('aria-expanded')).toBe('false');
     expect(disclosure.textContent).toContain('Show prompt');

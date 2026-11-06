@@ -16,14 +16,37 @@
       </div></div>
     }
     @if (cards().length) {
-      <div class="gw-field">
+      @if (cardsMode()) {
+        <p class="gw-text-small gw-fg-muted">Start with an app connected to this endpoint, or connect one below. The app needs access to your repository.</p>
+        @if (startDisabledReason(); as reason) { <p class="gw-text-small" id="import-app-start-reason">{{ reason }}</p> }
+        <div class="gw-grid gw-grid--2">
+          @for (app of cards(); track app.client) {
+            <article class="gw-card" [class.gw-card--selected]="app.client === client()" [attr.aria-current]="app.client === client() ? 'true' : null" [attr.aria-labelledby]="'import-app-card-' + app.client">
+              <div class="gw-card__body gw-stack gw-stack--sm">
+                <h3 class="gw-card__title" [id]="'import-app-card-' + app.client"><span [gwClientMark]="app.client" size="sm"></span> {{ app.name }}</h3>
+                <span class="gw-status" [class.gw-status--success]="hasConnectedLink(app)" [class.gw-status--warning]="pendingSetup(app)"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ status(app) }}</span></span>
+                <div class="gw-card__actions">
+                  @if (hasConnectedLink(app) || pendingSetup(app) || (app.client === client() && acknowledgedManual())) {
+                    <button class="gw-btn gw-btn--primary" type="button" [disabled]="!canStart(app)" [attr.aria-label]="'Start import with ' + app.name" [attr.aria-describedby]="startDisabledReason() ? 'import-app-start-reason' : null" (click)="startApp(app)">Start</button>
+                  }
+                  @if (!hasConnectedLink(app)) {
+                    <button class="gw-btn" type="button" [disabled]="disabled() || connecting() || checking() || failed()" [attr.aria-label]="(pendingSetup(app) ? 'Continue setup in ' : app.detected && app.methods.length ? 'Connect ' : 'Set up ') + app.name" (click)="setupApp(app)">{{ pendingSetup(app) ? 'Continue setup' : app.detected && app.methods.length ? 'Connect' : 'Set up' }}</button>
+                  }
+                </div>
+              </div>
+            </article>
+          }
+        </div>
+      } @else {
+        <div class="gw-field">
         <label class="gw-field__label" for="import-ai-app">AI app</label>
         <select class="gw-select" id="import-ai-app" [disabled]="disabled() || connecting() || checking()" (change)="select($any($event.target).value)" aria-describedby="import-app-hint">
           <option value="" [selected]="!card()">Choose an AI app</option>
           @for (app of cards(); track app.client) { <option [value]="app.client" [selected]="app.client === client()">{{ app.name }} · {{ status(app) }}</option> }
         </select>
         <p class="gw-field__hint" id="import-app-hint">Statuses apply only to this endpoint. The selected app also needs access to your repository.</p>
-      </div>
+        </div>
+      }
     } @else if (!checking() && !failed()) {
       <p class="gw-text-small">No supported AI apps were found. <a class="gw-link" routerLink="/clients" [queryParams]="{ endpoint: endpoint.slug }">Open AI app setup</a>, install an app, then check again.</p>
     }
@@ -31,7 +54,7 @@
       @if (error()) { <p class="gw-text-small gw-fg-danger" role="alert">{{ error() }}</p> }
       @if (message()) { <p class="gw-text-small" role="status">{{ message() }}</p> }
       @if (!reviewing()) {
-        <div class="gw-card gw-card--muted"><div class="gw-card__body gw-stack gw-stack--sm">
+        <div class="gw-card gw-card--muted" id="import-selected-app" tabindex="-1"><div class="gw-card__body gw-stack gw-stack--sm">
           <h3 class="gw-text-ui"><span [gwClientMark]="app.client" size="sm"></span> {{ app.name }}</h3>
           @if (connected()) {
             <p class="gw-text-small"><strong>Connected to {{ endpoint.slug }}</strong>. Use this app to send the import prompt.</p>
