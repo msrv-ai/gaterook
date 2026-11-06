@@ -37,6 +37,13 @@ extraResources:
 protocols:
   - name: GateRook
     schemes: [gaterook]
+fileAssociations:
+  - ext: grshare
+    name: GateRook endpoint share
+    description: Encrypted GateRook endpoint and connection settings
+    mimeType: application/x-gaterook-share
+    role: Viewer
+    rank: Owner
 electronLanguages: [en, en-US, en_GB]
 electronFuses:                        # §7.1 "fuses"
   runAsNode: false

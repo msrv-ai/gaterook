@@ -111,6 +111,12 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/endpoints/endpoints.page').then((m) => m.EndpointsPage),
       },
       {
+        path: 'endpoint-import',
+        title: 'Import shared endpoint',
+        data: data('Endpoints'),
+        loadComponent: () => import('./pages/endpoint-import/endpoint-import.page').then((m) => m.EndpointImportPage),
+      },
+      {
         path: 'endpoints/:slug',
         title: param('slug', 'Endpoint'),
         data: data('Endpoints'),

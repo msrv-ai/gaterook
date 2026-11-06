@@ -341,6 +341,37 @@ class HttpCoreProcessIT {
   }
 
   @Test
+  @Order(7)
+  void sharedHttpEndpointsKeepOpenApiDefinitionsAndDoNotContactTheService() throws Exception {
+    SEEN.clear();
+    JsonNode bundle = json(admin("POST", "/internal/endpoint-shares/export",
+        "{\"endpointSlug\":\"billing\",\"connectionNames\":[\"billing-api\"],\"includeSecrets\":true}"), 200);
+    assertThat(bundle.path("connections").get(0).path("templates")).hasSize(1);
+    ObjectNode inspect = CoreProcess.JSON.createObjectNode();
+    inspect.set("bundle", bundle);
+    JsonNode preview = json(admin("POST", "/internal/endpoint-shares/preview", inspect.toString()), 200);
+    assertThat(preview.toString()).doesNotContain(TOKEN, token);
+    assertThat(preview.path("connections").get(0).path("templateCount").asInt()).isEqualTo(1);
+    ObjectNode request = inspect.deepCopy().put("includeEndpoint", true).put("includeSecrets", true)
+        .put("endpointSlug", "billing-shared");
+    request.putArray("connectionIds").add("billing-api");
+    JsonNode imported = json(admin("POST", "/internal/endpoint-shares/import", request.toString()), 200);
+    assertThat(imported.path("endpointSlug").asString()).isEqualTo("billing-shared");
+    String name = imported.path("connections").get(0).path("name").asString();
+    assertThat(name).isEqualTo("billing-api-2");
+    JsonNode connection = json(admin("GET", "/api/connections/" + name, null), 200);
+    assertThat(connection.path("config")).isEqualTo(bundle.path("connections").get(0).path("config"));
+    JsonNode endpoint = json(admin("GET", "/api/endpoints/billing-shared", null), 200);
+    assertThat(endpoint.at("/endpoint/status").asString()).isEqualTo("disabled");
+    JsonNode listed = json(admin("GET", "/api/templates", null), 200);
+    var copy = java.util.stream.StreamSupport.stream(listed.spliterator(), false)
+        .filter(t -> name.equals(t.path("connection").asString())).findFirst().orElseThrow();
+    assertThat(copy.path("id").asString()).isNotEqualTo(templateId);
+    assertThat(copy.path("kind").asString()).isEqualTo("openapi");
+    assertThat(SEEN).as("import is a local configuration operation").isEmpty();
+  }
+
+  @Test
   @Order(40)
   void connectionSavesMergeExactUrlsOnlyIntoTheirEnvironmentAndRepairOlderConnections() throws Exception {
     String first = base + "/secondary";

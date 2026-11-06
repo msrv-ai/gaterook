@@ -73,6 +73,22 @@ class VaultStoreTest {
   }
 
   @Test
+  void dottedCredentialKeysResolveFromBothKvVersionsWithoutChangingTheirPath() {
+    vault.responses.put("kv/data/stage/db", "{\"data\":{\"data\":{\"database.password\":\"cnry-pass\","
+        + "\"database.username\":\"app\"},\"metadata\":{\"version\":4}}}");
+    vault.responses.put("kv1/app", "{\"data\":{\"database.password\":\"cnry-pass\",\"database.username\":\"app\"}}");
+    for (String path : List.of("kv/stage/db", "kv1/app")) {
+      try (RemoteValue password = read("vault://" + path + "#database.password");
+          RemoteValue username = read("vault://" + path + "#database.username")) {
+        assertThat(password.value()).isEqualTo("cnry-pass".getBytes(StandardCharsets.UTF_8));
+        assertThat(username.value()).isEqualTo("app".getBytes(StandardCharsets.UTF_8));
+      }
+    }
+    assertThat(vault.to("kv/data/stage/db")).hasSize(2);
+    assertThat(vault.to("kv1/app")).hasSize(2);
+  }
+
+  @Test
   void browsesKvMountsAndOneFolderWithoutReadingValues() {
     assertThat(store.browse("", call()).entries()).containsExactly(
         new SecretStores.VaultEntry("kv", "kv", true), new SecretStores.VaultEntry("kv1", "kv1", true));

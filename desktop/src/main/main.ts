@@ -20,8 +20,21 @@ if (refused.length > 0) {
   process.exit(REFUSED_EXIT_CODE);
 }
 
+// macOS can send open-file before the dynamic app module is ready. Keep only paths until Desktop validates them.
+const earlyFiles: string[] = [];
+let openSharedFile: ((path: string) => void) | null = null;
+app.on('open-file', (event, path) => {
+  event.preventDefault();
+  if (openSharedFile) openSharedFile(path);
+  else if (earlyFiles.length < 8) earlyFiles.push(path);
+});
+
 void import('./app.ts').then(async (m) => {
   const desktop = m.main();
+  if (desktop) {
+    openSharedFile = (path) => desktop.openShareFile(path);
+    for (const path of earlyFiles.splice(0)) openSharedFile(path);
+  }
   // The development smoke (scripts/smoke.mjs); a release bundle doesn't contain it (build.mjs folds DEV_BUILD).
   if (__GW_DEV_BUILD__ && desktop && !app.isPackaged && process.env['GW_SMOKE']) {
     const smoke = await import('./smoke.ts');
