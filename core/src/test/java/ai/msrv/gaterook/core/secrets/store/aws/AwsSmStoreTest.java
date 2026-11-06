@@ -170,6 +170,22 @@ class AwsSmStoreTest {
   }
 
   @Test
+  void missingKeysDoNotEnumerateOtherFieldsFromLargePayloads() {
+    var payload = tools.jackson.databind.json.JsonMapper.builder().build().createObjectNode();
+    for (int i = 0; i < 1000; i++) payload.put("sibling-key-" + i, "cnry-hidden-" + i);
+    put("stage/many-keys", payload.toString());
+    assertThatThrownBy(() -> store.read(SecretRef.parse("aws-sm://eu-central-1/stage/many-keys#missing"), call()))
+        .isInstanceOfSatisfying(StoreException.class, error -> {
+          assertThat(error.reason()).isEqualTo(StoreException.Reason.NOT_FOUND);
+          assertThat(error.getMessage()).hasSizeLessThan(120).contains("\"missing\"", "key after #")
+              .doesNotContain("sibling-key-", "cnry-hidden-", "Keys:");
+        });
+    try (RemoteValue value = store.read(SecretRef.parse("aws-sm://eu-central-1/stage/many-keys#sibling-key-0"), call())) {
+      assertThat(value.keys()).hasSize(1000).contains("sibling-key-999");
+    }
+  }
+
+  @Test
   void testNamesTheAssumedRoleAndReadsTheFirstReference() {
     put("stage/billing-api", "{\"webhook_secret\":\"cnry-webhook-secret\"}");
     SecretStores.TestResult result = store.test(List.of(SecretRef.parse(

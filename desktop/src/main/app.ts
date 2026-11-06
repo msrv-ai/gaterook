@@ -36,6 +36,7 @@ import { canBind, findFreePort } from './ports.ts';
 import { mayUnlock, proxyToCore } from './proxy.ts';
 import { ShutdownSequence } from './shutdown.ts';
 import { createFullBackup, restoreFullBackup, type FullBackupHost, type RestoreContext } from './full-backup.ts';
+import { EndpointShares, endpointShareInArgv } from './endpoint-shares.ts';
 import { recoverFullRestore } from './full-backup-restore.ts';
 import { privateDirectory } from './full-backup-files.ts';
 import { findDangerousSwitches } from './switches.ts';
@@ -97,6 +98,8 @@ export function main(): Desktop | null {
   // clients, behind a dialog nobody may be there to close).
   process.on('uncaughtException', (e) => log(`uncaught: ${e.stack ?? e.message}`));
   process.on('unhandledRejection', (e) => log(`unhandled rejection: ${e instanceof Error ? e.stack ?? e.message : String(e)}`));
+  const shareFile = endpointShareInArgv(process.argv);
+  if (shareFile) desktop.openShareFile(shareFile);
   const first = deepLinkInArgv(process.argv);
   if (first) desktop.deepLink(first);
   app.whenReady().then(async () => {
@@ -143,6 +146,8 @@ export class Desktop {
   private shutdown: ShutdownSequence | null = null;
   private resetting = false;
   private fullBackupBusy = false;
+  private readonly endpointShares: EndpointShares;
+  private endpointSharesSubscribed = false;
   /** A development smoke run (smoke.ts): no focus stealing, no notifications on screen. */
   private readonly smoke: boolean;
   private readonly smokeConsole: string[] = [];
@@ -150,6 +155,11 @@ export class Desktop {
   constructor(layout: Layout, log: Logger) {
     this.layout = layout;
     this.log = log;
+    this.endpointShares = new EndpointShares({
+      home: layout.home, core: () => this.supervisor.endpoint(),
+      saveDialog: (options) => this.window ? dialog.showSaveDialog(this.window.win, options) : dialog.showSaveDialog(options),
+      openDialog: (options) => this.window ? dialog.showOpenDialog(this.window.win, options) : dialog.showOpenDialog(options),
+    });
     this.smoke = layout.dev && !!process.env['GW_SMOKE'];
     this.config = readDesktopConfig(layout.home).config;
     this.nativeUnlock = new NativeUnlockClient(join(app.isPackaged ? process.resourcesPath : join(app.getAppPath(), 'dist'),
@@ -236,6 +246,8 @@ export class Desktop {
       this.log(`page loaded: ${safeUrl(url)}`);
       this.rendererSubscribed = false;
       this.deepLinksSubscribed = false;
+      this.endpointSharesSubscribed = false;
+      this.endpointShares.invalidateReview();
       this.readyDeliveredFor = null;
       this.relayEvents = false;
     });
@@ -282,6 +294,7 @@ export class Desktop {
     this.updates = new Updates({
       packaged: app.isPackaged,
       resourcesPath: process.resourcesPath,
+      userDataPath: app.getPath('userData'),
       log: this.log,
       push: (state) => this.send(IPC.updateStatePush, state),
       autoUpdate: async () => {
@@ -323,6 +336,7 @@ export class Desktop {
   }
 
   private onCoreState(state: DesktopCoreState): void {
+    this.endpointShares.coreChanged();
     if (this.resetting) return;
     if (!(this.fullBackupBusy && state.kind === 'starting')) this.send(IPC.coreStatePush, state);
     // A hidden login launch may finish loading before the broker starts and the unlock gate is published.
@@ -567,6 +581,17 @@ export class Desktop {
     this.openRoute(route);
   }
 
+  /** Opening a shared file only presents the import screen; decryption and writes need explicit UI actions. */
+  openShareFile(path: string): void {
+    const file = this.endpointShares.openFile(path);
+    if (!file) return;
+    if (this.window) {
+      this.showWindow();
+      this.window.gate.rearm();
+      if (this.endpointSharesSubscribed) this.window.win.webContents.send(IPC.endpointSharePush, file);
+    }
+  }
+
   secondInstance(argv: string[]): void {
     // The other process checked its own switches before it got here; a launch that carries dangerous ones is
     // ignored all the same (only the deep link would be used, never the switches).
@@ -574,6 +599,8 @@ export class Desktop {
       this.log('ignored a second launch with dangerous switches');
       return;
     }
+    const shareFile = endpointShareInArgv(argv);
+    if (shareFile) { this.openShareFile(shareFile); return; }
     const link = deepLinkInArgv(argv);
     if (link) this.deepLink(link);
     else this.showWindow();
@@ -687,6 +714,15 @@ export class Desktop {
       this.pendingLink = null;
       return link;
     });
+    handle(IPC.pendingEndpointShare, () => {
+      this.endpointSharesSubscribed = true;
+      return this.endpointShares.selectedFile();
+    });
+    handle(IPC.createEndpointShare, (options, passphrase) => this.endpointShares.create(options, passphrase));
+    handle(IPC.chooseEndpointShare, () => this.endpointShares.choose());
+    handle(IPC.previewEndpointShare, (passphrase) => this.endpointShares.preview(passphrase));
+    handle(IPC.importEndpointShare, (options) => this.endpointShares.import(options));
+    handle(IPC.discardEndpointShare, (handle) => this.endpointShares.discard(handle));
     handle(IPC.updateState, () => this.updates?.current() ?? null);
     handle(IPC.openExternal, async (url) => {
       const allowed = allowedExternalUrl(url);
@@ -732,6 +768,8 @@ export class Desktop {
     handle(IPC.restoreFullBackup, (passphrase, confirmation) => this.fullBackup(true, passphrase, confirmation));
     handle(IPC.resetApplication, (confirmation) => {
       if (this.quitting) throw new Error('GateRook is closing.');
+      if (this.endpointShares.isBusy()) throw new Error('Wait for the endpoint share operation to finish.');
+      this.endpointShares.discard();
       requestApplicationReset(this.resetPaths(), confirmation, this.supervisor.pid());
       return this.finishReset();
     });
@@ -823,6 +861,8 @@ export class Desktop {
 
   private async fullBackup(restore: boolean, passphrase: unknown, confirmation?: unknown): Promise<{ cancelled: boolean; fileName?: string }> {
     if (this.fullBackupBusy) throw new Error('A full backup or restore is already running.');
+    if (this.endpointShares.isBusy()) throw new Error('Wait for the endpoint share operation to finish.');
+    this.endpointShares.discard();
     this.fullBackupBusy = true;
     let stopped = false;
     const host: FullBackupHost = {
@@ -929,6 +969,7 @@ export class Desktop {
   beforeQuit(event: { preventDefault(): void }): void {
     if (this.resetting || this.fullBackupBusy) { event.preventDefault(); return; }
     this.quitting = true;
+    this.endpointShares.discard();
     if (this.stopped || this.shutdown?.completed) return;
     event.preventDefault();
     // Repeated quit events must not bypass an in-flight shutdown, including an update's shutdown.

@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { EndpointShareExport, EndpointShareImport, EndpointShareResult, EndpointShareReview } from './endpoint-share';
 
 /**
  * A progress line of the core's start (stdout protocol, ARCHITECTURE.md §7.1). Main adds `runtime` itself (the
@@ -131,6 +132,12 @@ export interface GwDesktop {
   resetApplication(confirmation: string): Promise<void>;
   createFullBackup(passphrase: string): Promise<FullBackupResult>;
   restoreFullBackup(passphrase: string, confirmation: string): Promise<FullBackupResult>;
+  createEndpointShare?(options: EndpointShareExport, passphrase: string): Promise<FullBackupResult>;
+  chooseEndpointShare?(): Promise<{ readonly fileName: string } | null>;
+  previewEndpointShare?(passphrase: string): Promise<EndpointShareReview>;
+  importEndpointShare?(options: EndpointShareImport): Promise<EndpointShareResult>;
+  discardEndpointShare?(handle?: string): Promise<void>;
+  onEndpointShareFile?(cb: (file: { readonly fileName: string }) => void): () => void;
   /**
    * Writes `desktop.json` and restarts the core on `port` — a number moves the local API, `{ publicPort }` the tunnel's
    * public listener (or both at once); rejects with a reason main can't use it (taken, reserved).
@@ -182,6 +189,9 @@ export class DesktopBridge {
   readonly aiPromptAvailable = typeof this.desktop?.openAiPrompt === 'function';
   readonly googleSignInAvailable = typeof this.desktop?.signInToGoogle === 'function';
   readonly fullBackupAvailable = typeof this.desktop?.createFullBackup === 'function' && typeof this.desktop?.restoreFullBackup === 'function';
+  readonly endpointShareAvailable = typeof this.desktop?.createEndpointShare === 'function'
+    && typeof this.desktop?.chooseEndpointShare === 'function' && typeof this.desktop?.previewEndpointShare === 'function'
+    && typeof this.desktop?.importEndpointShare === 'function' && typeof this.desktop?.discardEndpointShare === 'function';
 
   /** The OS, for `gw-titlebar--mac`; `web` in a browser. */
   readonly platform: GwDesktop['platform'] | 'web' = this.desktop?.platform ?? 'web';
@@ -291,6 +301,34 @@ export class DesktopBridge {
 
   async unlock(): Promise<void> {
     await this.desktop?.unlock();
+  }
+
+  async createEndpointShare(options: EndpointShareExport, passphrase: string): Promise<FullBackupResult> {
+    if (!this.endpointShareAvailable) throw new Error('Sharing endpoints requires an up-to-date GateRook desktop app.');
+    return this.desktop!.createEndpointShare!(options, passphrase);
+  }
+
+  async chooseEndpointShare(): Promise<{ readonly fileName: string } | null> {
+    if (!this.endpointShareAvailable) throw new Error('Importing shared endpoints requires an up-to-date GateRook desktop app.');
+    return this.desktop!.chooseEndpointShare!();
+  }
+
+  async previewEndpointShare(passphrase: string): Promise<EndpointShareReview> {
+    if (!this.endpointShareAvailable) throw new Error('Importing shared endpoints requires an up-to-date GateRook desktop app.');
+    return this.desktop!.previewEndpointShare!(passphrase);
+  }
+
+  async importEndpointShare(options: EndpointShareImport): Promise<EndpointShareResult> {
+    if (!this.endpointShareAvailable) throw new Error('Importing shared endpoints requires an up-to-date GateRook desktop app.');
+    return this.desktop!.importEndpointShare!(options);
+  }
+
+  async discardEndpointShare(handle?: string): Promise<void> {
+    await this.desktop?.discardEndpointShare?.(handle);
+  }
+
+  onEndpointShareFile(cb: (file: { readonly fileName: string }) => void): () => void {
+    return this.desktop?.onEndpointShareFile?.(cb) ?? NOOP;
   }
 
   async usePort(port: number | DesktopPorts): Promise<void> {

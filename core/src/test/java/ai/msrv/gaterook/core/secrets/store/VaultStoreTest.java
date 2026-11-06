@@ -73,6 +73,22 @@ class VaultStoreTest {
   }
 
   @Test
+  void dottedCredentialKeysResolveFromBothKvVersionsWithoutChangingTheirPath() {
+    vault.responses.put("kv/data/stage/db", "{\"data\":{\"data\":{\"database.password\":\"cnry-pass\","
+        + "\"database.username\":\"app\"},\"metadata\":{\"version\":4}}}");
+    vault.responses.put("kv1/app", "{\"data\":{\"database.password\":\"cnry-pass\",\"database.username\":\"app\"}}");
+    for (String path : List.of("kv/stage/db", "kv1/app")) {
+      try (RemoteValue password = read("vault://" + path + "#database.password");
+          RemoteValue username = read("vault://" + path + "#database.username")) {
+        assertThat(password.value()).isEqualTo("cnry-pass".getBytes(StandardCharsets.UTF_8));
+        assertThat(username.value()).isEqualTo("app".getBytes(StandardCharsets.UTF_8));
+      }
+    }
+    assertThat(vault.to("kv/data/stage/db")).hasSize(2);
+    assertThat(vault.to("kv1/app")).hasSize(2);
+  }
+
+  @Test
   void browsesKvMountsAndOneFolderWithoutReadingValues() {
     assertThat(store.browse("", call()).entries()).containsExactly(
         new SecretStores.VaultEntry("kv", "kv", true), new SecretStores.VaultEntry("kv1", "kv1", true));
@@ -301,9 +317,27 @@ class VaultStoreTest {
             e -> assertThat(e.reason()).isEqualTo(StoreException.Reason.NOT_FOUND))
         .hasMessage("No secret at kv/stage/missing.");
     assertThatThrownBy(() -> read("vault://kv/stage/db#pasword"))
-        .hasMessageStartingWith("kv/stage/db has no key \"pasword\". Keys: ")
-        .hasMessageContainingAll("password", "user")
+        .hasMessage("Key \"pasword\" was not found in this secret. Check the key after # in the reference.")
         .hasMessageNotContaining(FakeVault.DB_PASSWORD);
+  }
+
+  @Test
+  void missingKeysKeepDiagnosticsSmallWhileSuccessfulReadsKeepKeyMetadata() {
+    var payload = JsonMapper.builder().build().createObjectNode();
+    for (int i = 0; i < 1000; i++) payload.put("sibling-key-" + i, "cnry-hidden-" + i);
+    vault.responses.put("kv/data/stage/db", "{\"data\":{\"data\":" + payload + ",\"metadata\":{\"version\":4}}}");
+    vault.responses.put("kv1/app", "{\"data\":" + payload + "}");
+    for (String path : List.of("kv/stage/db", "kv1/app")) {
+      assertThatThrownBy(() -> read("vault://" + path + "#missing"))
+          .isInstanceOfSatisfying(StoreException.class, error -> {
+            assertThat(error.reason()).isEqualTo(StoreException.Reason.NOT_FOUND);
+            assertThat(error.getMessage()).hasSizeLessThan(120).contains("\"missing\"", "key after #")
+                .doesNotContain("sibling-key-", "cnry-hidden-", "Keys:");
+          });
+      try (RemoteValue value = read("vault://" + path + "#sibling-key-0")) {
+        assertThat(value.keys()).hasSize(1000).contains("sibling-key-999");
+      }
+    }
   }
 
   @Test

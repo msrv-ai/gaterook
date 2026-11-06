@@ -26,6 +26,7 @@ import { Policies, PoliciesApi } from '../../core/api/policies.api';
 import { MasterKeyApi, SecretRow, SecretsApi } from '../../core/api/secrets.api';
 import { Env, JsonObject, JsonValue, ToolMode } from '../../core/api/types';
 import { EventStream } from '../../core/events/event-stream';
+import { compactReferenceError } from '../../core/secret-reference-feedback';
 import { CoreStore } from '../../core/stores/core.store';
 import { PRODUCT } from '../../shell/title.strategy';
 import { TimeService } from '../../core/time/time.service';
@@ -1576,17 +1577,27 @@ export class ConnectionNewPage {
     }
     try {
       const r = await this.secretsApi.testReference(ref, store);
-      this.toasts.show(
-        r.found
-          ? { tone: 'success', title: `Reference of ${name} works`, body: `Found${r.resolvedVersion ? ` version ${r.resolvedVersion}` : ''}. The value was neither shown nor kept.` }
-          : { tone: 'danger', title: `Reference of ${name} not found`, body: 'Check the path and the key in the store.' },
-      );
+      if (r.found) {
+        this.toasts.show({ tone: 'success', title: `Reference of ${name} works`, body: `Found${r.resolvedVersion ? ` version ${r.resolvedVersion}` : ''}. The value was neither shown nor kept.` });
+      } else {
+        const failures: Record<string, { title: string; body: string }> = {
+          'not-found': { title: `Reference of ${name} not found`, body: 'Check the secret path, version and key in the selected store.' },
+          gone: { title: `Reference of ${name} is no longer available`, body: 'The referenced secret version was deleted, disabled or destroyed. Choose an available version.' },
+          denied: { title: `Access to reference of ${name} denied`, body: 'Check the selected store identity and its permission to read this secret.' },
+          unavailable: { title: 'Secret store unavailable', body: 'Check the store connection, network access and sign-in, then test again.' },
+          invalid: { title: `Reference of ${name} is invalid`, body: 'Check the reference format and the selected store settings.' },
+          'not-connected': { title: 'Secret store is not connected', body: 'Connect the selected store in Secrets → External stores, then test again.' },
+        };
+        const failure = failures[r.reason ?? ''] ?? { title: `Couldn't test the reference of ${name}`, body: 'Check the selected store connection and test again.' };
+        // RefTest.error is a safe store diagnostic, never a secret value or an upstream response body.
+        this.toasts.show({ tone: 'danger', title: failure.title, body: compactReferenceError(r.error, failure.body) });
+      }
     } catch (e) {
       const err = isApiError(e) ? e : null;
       this.toasts.show(
         err?.kind === 'not-available'
           ? { tone: 'neutral', title: 'Testing references is not available yet', body: 'This build of the core has no external secret stores.' }
-          : { tone: 'danger', title: "Couldn't test the reference", body: err?.detail ?? "The core didn't answer." },
+          : { tone: 'danger', title: "Couldn't test the reference", body: compactReferenceError(err?.detail, "The reference test failed. Check the store connection and try again.") },
       );
     }
   }

@@ -1,0 +1,122 @@
+<header class="gw-page-header">
+  <nav class="gw-breadcrumb gw-page-header__breadcrumb" aria-label="Breadcrumb"><ol><li><a routerLink="/endpoints">Endpoints</a></li><li><svg lucideIcon="chevron-right" class="gw-icon"></svg><span aria-current="page">Import shared endpoint</span></li></ol></nav>
+  <div class="gw-page-header__row">
+    <div class="gw-page-header__heading">
+      <h1 class="gw-page-header__title">Import shared endpoint</h1>
+      <p class="gw-page-header__description">Unlock a .grshare file, review its contents, then choose what to import.</p>
+    </div>
+  </div>
+</header>
+
+<div class="gw-stack gw-stack--lg">
+  @if (error()) {
+    <div class="gw-alert gw-alert--danger" role="alert" id="share-import-error"><svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content"><p class="gw-alert__body">{{ error() }}</p></div></div>
+  }
+  @if (!desktop.endpointShareAvailable) {
+    <section class="gw-card"><div class="gw-empty"><span class="gw-empty__icon"><svg lucideIcon="monitor" class="gw-icon"></svg></span><h2 class="gw-empty__title">Open GateRook desktop</h2><p class="gw-empty__text">Importing shared endpoints is available in an up-to-date GateRook desktop app.</p></div></section>
+  } @else if (result(); as saved) {
+    <section class="gw-card"><div class="gw-card__body gw-stack">
+      <h2 class="gw-section__title" id="share-import-complete" tabindex="-1">Selected items imported</h2>
+      <p>{{ saved.connections.length }} {{ saved.connections.length === 1 ? 'connection' : 'connections' }} imported@if (saved.endpointSlug) { with endpoint <span class="gw-mono">{{ saved.endpointSlug }}</span>}.</p>
+      <p class="gw-text-small gw-fg-secondary">Imported endpoints and connections are disabled. Review their settings, complete missing credentials and test connections before enabling access.</p>
+      @if (saved.connections.length) {
+        <ul class="gw-stack gw-stack--sm">@for (connection of saved.connections; track connection.id) {<li><a class="gw-link gw-mono" [routerLink]="['/connections', connection.name]">{{ connection.name }}</a>@if (connection.needsSetup) { <span class="gw-badge gw-badge--warning">Needs setup</span>}</li>}</ul>
+      }
+      @for (warning of saved.warnings; track $index) {<p class="gw-text-small gw-fg-secondary">{{ warning }}</p>}
+      <div class="gw-form__actions">
+        @if (saved.endpointSlug) {<a class="gw-btn gw-btn--primary" [routerLink]="['/endpoints', saved.endpointSlug]">Review endpoint</a>}
+        @else {<a class="gw-btn gw-btn--primary" routerLink="/connections">Review connections</a>}
+        <button class="gw-btn" type="button" [attr.aria-disabled]="busy() ? 'true' : null" (click)="choose()">Choose another file</button>
+      </div>
+    </div></section>
+  } @else if (review(); as current) {
+    @let preview = current.preview;
+    <section class="gw-card" aria-labelledby="share-review-title"><div class="gw-card__body gw-stack">
+      <h2 class="gw-section__title" id="share-review-title" tabindex="-1">Review {{ files.selected()?.fileName }}</h2>
+      <div class="gw-alert gw-alert--info gw-alert--compact"><svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content"><p class="gw-alert__body">Import creates new, disabled items. Existing items are kept. Review settings and tool access before enabling them. Shared Bypass modes become Approval.</p></div></div>
+      @for (warning of preview.warnings; track $index) {<p class="gw-text-small gw-fg-secondary">{{ warning }}</p>}
+      <label class="gw-checkbox">
+        <input id="share-import-endpoint" class="gw-checkbox__input" type="checkbox" [checked]="includeEndpoint()" [disabled]="busy()" (change)="includeEndpoint.set($any($event.target).checked)">
+        <span class="gw-checkbox__control" aria-hidden="true"></span>
+        <span class="gw-checkbox__label">Import endpoint {{ preview.endpoint.slug }}</span>
+        <span class="gw-checkbox__hint">Include its settings and tool modes for the connections selected below. Clear this to import connections only.</span>
+      </label>
+      @if (includeEndpoint()) {
+        <div class="gw-field">
+          <label class="gw-field__label" for="share-import-slug">New endpoint name</label>
+          <input id="share-import-slug" class="gw-input gw-input--mono" [value]="endpointSlug()" maxlength="40" [disabled]="busy()" (input)="endpointSlug.set($any($event.target).value)" [attr.aria-invalid]="invalid() === 'slug' ? 'true' : null" aria-describedby="share-import-slug-hint share-import-error">
+          <p class="gw-field__hint" id="share-import-slug-hint">A suggested name avoids existing endpoints. You can choose another unused name.</p>
+        </div>
+        <div class="gw-stack gw-stack--sm">
+          <button class="gw-btn gw-btn--ghost" type="button" gwToggle aria-controls="share-endpoint-details">Endpoint settings and core tools <svg lucideIcon="chevron-down" class="gw-icon gw-btn__chevron"></svg></button>
+          <div id="share-endpoint-details" class="gw-stack gw-stack--sm" hidden>
+            @if (preview.endpoint.description) {<p class="gw-text-small">{{ preview.endpoint.description }}</p>}
+            <p class="gw-text-small">Access: {{ preview.endpoint.access === 'read-only' ? 'Read only' : 'Standard' }}</p>
+            @if (preview.endpoint.instructions) {<gw-code-block id="share-import-instructions" lang="Instructions" [text]="preview.endpoint.instructions" wrap regionLabel="Shared endpoint instructions" />}
+            <gw-code-block id="share-import-settings" lang="JSON" [text]="json(preview.endpoint.settings)" wrap regionLabel="Shared endpoint settings" />
+            @if (preview.coreTools.length) {<ul class="gw-stack gw-stack--sm">@for (tool of preview.coreTools; track tool.toolKey) {<li class="gw-text-small"><code>{{ tool.toolKey }}</code> · {{ mode(tool.mode) }}</li>}</ul>}
+          </div>
+        </div>
+      }
+    </div></section>
+
+    <section class="gw-card" aria-labelledby="share-connections-title"><div class="gw-card__body gw-stack">
+      <h2 class="gw-section__title" id="share-connections-title">Connections to import</h2>
+      <p class="gw-text-small gw-fg-secondary">Unchecked connections and their secrets are skipped. Names may receive a suffix to keep existing connections.</p>
+      @for (connection of preview.connections; track connection.id; let index = $index) {
+        <div class="gw-stack gw-stack--sm">
+          <label class="gw-checkbox">
+            <input class="gw-checkbox__input" type="checkbox" [attr.data-connection-id]="connection.id" [checked]="picked().has(connection.id)" [disabled]="busy() || !connection.supported" (change)="toggle(connection.id, $any($event.target).checked)">
+            <span class="gw-checkbox__control" aria-hidden="true"></span>
+            <span class="gw-checkbox__label"><span class="gw-mono">{{ connection.name }}</span> <span [class]="'gw-env gw-env--' + connection.env">{{ connection.env }}</span></span>
+            <span class="gw-checkbox__hint">{{ connection.type }} · {{ connection.tools.length }} tools · {{ connection.templateCount }} templates · {{ connection.secretCount }} stored secrets@if (connection.name !== connection.suggestedName) { · Imports as {{ connection.suggestedName }}}</span>
+          </label>
+          @if (!connection.supported) {<p class="gw-text-small gw-fg-secondary">This connection requires local setup and cannot be imported from this file.</p>}
+          @if (connection.omittedSecretFields.length) {<p class="gw-text-small gw-fg-secondary">Secrets not included: {{ connection.omittedSecretFields.join(', ') }}. Add these after import.</p>}
+          @for (warning of connection.warnings; track $index) {<p class="gw-text-small gw-fg-secondary">{{ warning }}</p>}
+          <div class="gw-stack gw-stack--sm"><button class="gw-btn gw-btn--ghost" type="button" gwToggle [attr.aria-controls]="'share-config-details-' + index">Configuration for {{ connection.name }} <svg lucideIcon="chevron-down" class="gw-icon gw-btn__chevron"></svg></button><div [id]="'share-config-details-' + index" hidden><gw-code-block [id]="'share-connection-' + index" lang="JSON" [text]="json(connection.config)" wrap [regionLabel]="'Configuration for ' + connection.name" /></div></div>
+          @if (connection.tools.length) {
+            <div class="gw-stack gw-stack--sm"><button class="gw-btn gw-btn--ghost" type="button" gwToggle [attr.aria-controls]="'share-tool-details-' + index">Tool modes for {{ connection.name }} <svg lucideIcon="chevron-down" class="gw-icon gw-btn__chevron"></svg></button><div class="gw-stack gw-stack--sm" [id]="'share-tool-details-' + index" hidden>
+              @for (tool of connection.tools; track tool.toolKey; let toolIndex = $index) {
+                <p class="gw-text-small"><code>{{ tool.toolKey }}</code> · {{ mode(tool.mode) }}</p>
+                @if (tool.overrides) {<gw-code-block [id]="'share-tool-' + index + '-' + toolIndex" lang="JSON" [text]="json(tool.overrides)" wrap [regionLabel]="'Overrides for ' + tool.toolKey" />}
+              }
+            </div></div>
+          }
+        </div>
+      } @empty {<p class="gw-text-small gw-fg-secondary">This file contains endpoint settings only.</p>}
+    </div></section>
+
+    <section class="gw-card" aria-labelledby="share-secrets-title"><div class="gw-card__body gw-stack">
+      <h2 class="gw-section__title" id="share-secrets-title">Secrets</h2>
+      <label class="gw-checkbox">
+        <input id="share-import-secrets" class="gw-checkbox__input" type="checkbox" [checked]="includeSecrets() && secretCount() > 0" [disabled]="busy() || secretCount() === 0" (change)="includeSecrets.set($any($event.target).checked)">
+        <span class="gw-checkbox__control" aria-hidden="true"></span>
+        <span class="gw-checkbox__label">Import {{ secretCount() }} stored secrets for selected connections</span>
+        <span class="gw-checkbox__hint">Secrets stay hidden and are encrypted in this GateRook vault. Leave this unchecked to enter your own credentials after import.</span>
+      </label>
+      @if (secretCount() === 0) {<p class="gw-text-small gw-fg-secondary">No stored secrets are available for the selected connections.</p>}
+    </div></section>
+    <div class="gw-form__actions">
+      <button class="gw-btn" type="button" [attr.aria-disabled]="busy() ? 'true' : null" (click)="cancel()">Cancel import</button>
+      <button class="gw-btn gw-btn--primary" type="button" [attr.aria-disabled]="!canImport() ? 'true' : null" [attr.aria-busy]="busy() ? 'true' : null" (click)="importSelected()">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Import selected items</button>
+    </div>
+    <p class="gw-text-small gw-fg-secondary" role="status">{{ includeEndpoint() ? '1 endpoint' : 'No endpoint' }}, {{ selectedConnections().length }} connections and {{ includeSecrets() ? secretCount() : 0 }} secrets selected.</p>
+  } @else {
+    <section class="gw-card"><div class="gw-card__body gw-stack">
+      <h2 class="gw-section__title">Shared file</h2>
+      <p class="gw-text-small gw-fg-secondary">Choose a file sent by someone you trust. Opening it does not import or enable anything.</p>
+      <div class="gw-form__actions"><button class="gw-btn" [class.gw-btn--primary]="!files.selected()" type="button" [attr.aria-disabled]="busy() ? 'true' : null" (click)="choose()"><svg lucideIcon="folder-open" class="gw-icon"></svg>Choose .grshare file</button>@if (files.selected(); as file) {<span class="gw-text-small gw-mono">{{ file.fileName }}</span>}</div>
+      @if (files.selected()) {
+        <form class="gw-form" novalidate (submit)="unlock($event)">
+          <div class="gw-field">
+            <label class="gw-field__label" for="share-import-pass">Passphrase</label>
+            <input #pass id="share-import-pass" class="gw-input" type="password" autocomplete="off" maxlength="1024" [disabled]="busy()" [attr.aria-invalid]="invalid() === 'pass' ? 'true' : null" aria-describedby="share-import-pass-hint share-import-error">
+            <p class="gw-field__hint" id="share-import-pass-hint">Enter the passphrase provided by the sender. The next step shows what you can import.</p>
+          </div>
+          <div class="gw-form__actions"><button class="gw-btn" type="button" [attr.aria-disabled]="busy() ? 'true' : null" (click)="cancel()">Cancel import</button><button class="gw-btn gw-btn--primary" type="submit" [attr.aria-disabled]="busy() ? 'true' : null" [attr.aria-busy]="busy() ? 'true' : null">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Unlock and review</button></div>
+        </form>
+      }
+    </div></section>
+  }
+</div>

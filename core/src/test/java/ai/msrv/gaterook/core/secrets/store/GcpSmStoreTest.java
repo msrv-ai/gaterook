@@ -138,13 +138,29 @@ class GcpSmStoreTest {
       assertThat(v.keys()).containsExactlyInAnyOrder("username", "password");
     }
     assertThatThrownBy(() -> store.read(SecretRef.parse("gcp-sm://projects/acme-stage/secrets/billing-db#pass"),
-        call())).hasMessageStartingWith("billing-db has no key \"pass\". Keys: ")
+        call())).hasMessage("Key \"pass\" was not found in this secret. Check the key after # in the reference.")
         .hasMessageNotContaining("cnry-json-password");
 
     byte[] plain = "not json".getBytes(StandardCharsets.UTF_8);
     put("plain", "1", plain, null);
     assertThatThrownBy(() -> store.read(SecretRef.parse("gcp-sm://projects/acme-stage/secrets/plain#k"), call()))
         .hasMessage("plain isn't JSON, so it has no key \"k\". Remove #k from the reference.");
+  }
+
+  @Test
+  void missingKeysDoNotEnumerateOtherFieldsFromLargePayloads() {
+    var payload = tools.jackson.databind.json.JsonMapper.builder().build().createObjectNode();
+    for (int i = 0; i < 1000; i++) payload.put("sibling-key-" + i, "cnry-hidden-" + i);
+    put("many-keys", "1", payload.toString().getBytes(StandardCharsets.UTF_8), null);
+    assertThatThrownBy(() -> store.read(SecretRef.parse("gcp-sm://projects/acme-stage/secrets/many-keys#missing"), call()))
+        .isInstanceOfSatisfying(StoreException.class, error -> {
+          assertThat(error.reason()).isEqualTo(StoreException.Reason.NOT_FOUND);
+          assertThat(error.getMessage()).hasSizeLessThan(120).contains("\"missing\"", "key after #")
+              .doesNotContain("sibling-key-", "cnry-hidden-", "Keys:");
+        });
+    try (RemoteValue value = store.read(SecretRef.parse("gcp-sm://projects/acme-stage/secrets/many-keys#sibling-key-0"), call())) {
+      assertThat(value.keys()).hasSize(1000).contains("sibling-key-999");
+    }
   }
 
   @Test
