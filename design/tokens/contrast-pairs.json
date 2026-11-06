@@ -116,6 +116,7 @@
    "fg": "color.success.fg",
    "on": [
     "color.success.subtle",
+    "color.brand.subtle",
     "color.bg.surface",
     "color.bg.raised",
     "color.bg.overlay",

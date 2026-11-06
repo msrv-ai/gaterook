@@ -1011,7 +1011,7 @@ A composition combines existing primitives and adds layout only. Its demo demons
 
 ### `setup-map`
 
-Light visualisation of what to configure and how it connects, in SETUP order: Secrets & resources → Connections (where tools run; the secret is injected here, and a side note says so) → Policies (decides each call: mode, limits, approval) → Endpoints (one MCP URL, token or OAuth) → AI apps, left to right (top to bottom when stacked), matching getting-started and the onboarding stepper. A caption under the map (aria-hidden) and the list's aria-describedby sentence say: "Set it up left to right. An agent's call travels the other way: AI app → endpoint → policy → connection, where the secret is injected." Each node shows its icon tile, title, what it does, a one-line status with counts (a todo status says what it waits for or 'start here'), a state badge (done / attention / todo) and a Configure link to its page. Decorative arrows join the nodes and take their state from the two nodes they connect. The --wiring variant for endpoint-detail is unchanged: the AI apps that call the endpoint (client marks + status) → the endpoint (URL copy field, sign-in badges, mode summary '6 read only · 3 approval · 5 off', policy) → its connections (type tile, name + env marker, health).
+Light visualisation of what to configure and how it connects, in SETUP order: Secrets & resources → Connections (where tools run; the secret is injected here, and a side note says so) → Policies (decides each call: mode, limits, approval) → Endpoints (one MCP URL, token or OAuth) → AI apps, left to right (top to bottom when stacked), matching getting-started and the onboarding stepper. A caption under the map (aria-hidden) and the list's aria-describedby sentence say: "Set it up left to right. An agent's call travels the other way: AI app → endpoint → policy → connection, where the secret is injected." Each node shows its icon tile, title, what it does, a one-line status with counts (a todo status says what it waits for or 'start here'), a state badge (done / attention / todo) and a Configure link to its page. Decorative arrows join the nodes and take their state from the two nodes they connect. The --wiring variant groups real services and AI apps around an endpoint. Endpoint detail follows request order: AI apps → endpoint → connections. Overview follows setup order: services → GateRook with visible endpoint choices → AI apps. Its native radio choices select an endpoint and update both sides together, with an exact URL copy field and contextual Add service, Add endpoint and Connect AI app actions. Each screen states its direction in the caption and accessible description; the decorative arrows never imply broader access. The `--network` alternative is a compact application canvas with independent service and AI app cards around a composite GateRook hub. A small product header sits above distinct endpoint cards, each with visible input and output ports. Curved SVG paths follow the actual node bounds; the side groups have no enclosing panels. The canvas uses a restrained dot grid, canonical card surfaces and no decorative halo.
 
 [SCSS](elements/_setup-map.scss) · [Interactive demo](elements/setup-map.html)
 
@@ -1030,6 +1030,15 @@ Light visualisation of what to configure and how it connects, in SETUP order: Se
 - gw-mode
 - gw-code
 - gw-text-* / gw-fg-* / gw-mono utilities
+- gw-logo
+- gw-choice-card
+- gw-alert
+- gw-empty
+- gw-switch
+- gw-tooltip
+- gw-search
+
+**Network parts:** `__network-side`, `__network-grid`, `__network-node`, `__network-label`, `__network-service`, `__network-app`, `__network-toggle`, `__network-hub`, `__network-brand`, `__network-endpoints`, `__network-endpoint`, `__network-health`, `__network-mcp`, `__network-add`, `__network-caption`, `__network-wires`, `__network-path`, `__network-pulse` (a single example request), `__network-port` (`data-side="in|out"`), `__network-mark` (a retained vendor asset).
 
 **States and behavior:**
 
@@ -1039,13 +1048,27 @@ Light visualisation of what to configure and how it connects, in SETUP order: Se
 - connector done→done: brand-fg solid; a todo on either side: border-strong dashed; otherwise: border-strong solid; arrows centred between the cards
 - layout: compact vertical below md, one row per node md–lg, horizontal chain from lg (equal columns, arrows in the gap, the note in a shared second row)
 - --vertical: always stacked with compact nodes, for narrow columns
-- --wiring: AI apps → endpoint → Connections (endpoint-detail); names truncate with title, the status column is capped at 128px and wraps. When the endpoint is disabled, its effective tool summary counts every tool as Off; omit empty Read only and Approval chips. Saved modes remain unchanged.
+- --wiring: request order on endpoint-detail, setup order on Overview; names and statuses retain their existing responsive layout. When the endpoint is disabled, count every effective tool as Off while retaining saved modes. Omit empty Read only and Approval chips.
 - demo: all set up, first run (only the master key done), needs attention (billing-api unreachable, Cursor needs restart), wiring, narrow column
 - setup order: Secrets & resources → Connections → Policies → Endpoints → AI apps; 'start here' sits on the first todo node (usually Secrets & resources)
 - caption + aria-describedby: 'Set it up left to right. An agent's call travels the other way: AI app → endpoint → policy → connection, where the secret is injected.'
+- Overview: endpoint radio choices filter services and app access together; empty and unavailable data are stated explicitly, and preview actions reset on reload.
+- `--network`: independent service nodes use a two-column grid from sm; the GateRook hub and app nodes form a three-column graph from lg. Below lg the groups stack in setup order and decorative SVG paths are hidden. The same connection names, status text and endpoint membership remain available without the drawing.
+- Show path highlights one example request route and plays a single token-timed marker from the AI app through the endpoint to the service. It sends no request, stops at completion, and skips the marker for reduced motion.
+- Network canvas: add `gw-card` to the root for its canonical surface. The compact hub uses `gw-surface`, a horizontal brand header and separate endpoint choice cards. Their decorative ports reflect selection without replacing native radio indicators. Approved vendor marks use `__network-mark` and retain their source notices.
+- Network nodes are native buttons with visible keyboard focus; `aria-pressed` identifies a selected node. Endpoint choices retain native radio semantics. Selecting a node highlights its path and opens or updates its details; it does not grant access.
+- Network AI app cards use `__network-app` around sibling inspect and setup controls. The node button only inspects the app. A separate, visibly labeled Connect button opens setup review; apps that are not installed provide Install instead. Actions are never nested in the inspect button. The app wrapper carries `data-selected` and the selection edge, while each control keeps its own focus ring. The action sits beside the node from sm and below it on narrow viewports.
+- Network service cards use `__network-service` around sibling inspect buttons and `__network-toggle` controls. Their On/Off switches apply to the connection across all endpoints, preserve settings, and state that scope visibly and in their accessible names. A paused endpoint shows effective Off with an explained `aria-disabled` switch while retaining the saved connection setting. Unreachable enabled services use `gw-card--invalid` and explicit status text; `data-selected` adds the usual selection edge only when it would not replace an error edge.
+- Network endpoint health actions live in `__network-health` beside the radio label inside `__network-endpoint`, never inside the label. A danger badge counts enabled Unreachable connections on an enabled endpoint; Slow, disabled and unavailable services are excluded. Its tooltip names the count and endpoint. Clicking the native button selects that endpoint, filters the left column to its unreachable connections and sets `aria-pressed`; Show all clears the filter. Endpoint changes or pausing clear the filter. Turning off a filtered problem connection restores the expanded list so its switch stays available.
+- Network connection search uses `gw-search --sm` and matches service type or connection name across every connection on the selected endpoint, including nodes hidden by the initial four-card limit. Search combines with the unreachable filter and retains explicit result counts and an empty state. Health badges clear the query before revealing problems; Show all clears both filters. Endpoint choices retain the search query while changing its scope. Unknown connection data disables search instead of presenting zero results.
+- The network hub's Protected access shield opens the existing explanation of local credentials, access rules and Activity. Paused and unavailable states have explicit labels; protection never asserts that a service is reachable. Add service opens source choices before the installed-service review; the installed GitHub MCP chip opens that review directly. Choosing a source does not grant access; external catalog and connection-wizard routes review their own endpoint scope.
+- Network paths use `data-active` for emphasis, `data-pending` for dashed pending setup, and `data-muted` for paused access. Unshared services and unconnected apps have no active access path. Wires are `aria-hidden`, pointer-inert and never the sole indication of membership.
+- Network add controls are dashed cards using existing buttons, cards, icons and tokens. Add dialogs review the affected endpoint before changing preview state. Empty, loading and error states explain their next action. Highlighting is user-triggered; the static graph makes no claim of live traffic.
 
 **Reference screens:**
 
+- [pages/overview.html](pages/overview.html)
+- [pages/overview-map.html](pages/overview-map.html)
 - [pages/onboarding.html](pages/onboarding.html)
 - [pages/endpoint-detail.html](pages/endpoint-detail.html)
 
@@ -1400,7 +1423,7 @@ Cursor browser sign-in enables OAuth for the selected local endpoint and opens i
 
 - connected (View activity, Open config and Disconnect for managed file entries; Manage sign-in for browser-installed OAuth access)
 - detected, not connected (Open config + Connect)
-- not installed (How to install, external + Check again)
+- not installed (Install, external + Check again)
 - needs restart (full warning alert, clears on first call)
 - older bridge (Claude Desktop): a warning alert names the endpoint's extension, the bridge version it runs and GateRook's, and what Reinstall keeps (the access; on prod your Allow), with Reinstall extension (the same access, the .mcpb rebuilt in GateRook's folder and opened in Claude Desktop, busy while it builds); a compact row adds a warning caption and Reinstall extension first; a current extension says nothing
 - error: config not writable (nothing written, fix command with Copy, Try again)
@@ -1767,7 +1790,7 @@ Stands in for the whole window while the gateway core is unavailable: fixed, z s
 
 ### `status-tile`
 
-One compact card that names one thing (a connection, an AI app) and says its state in words, with an optional access switch and one action (Connect, Test again, How to install). For pages that answer 'what is connected and is it working' at a glance; sets of tiles sit in a gw-grid --3 list (--2 for the fixed set of four AI apps), problems first. The title links to the thing's page; when the action is the tile's only destination the title is plain text and the tile is not interactive.
+One compact card that names one thing (a connection, an AI app) and says its state in words, with an optional access switch and one action (Connect, Test again, Install). For pages that answer 'what is connected and is it working' at a glance; sets of tiles sit in a gw-grid --3 list (--2 for the fixed set of four AI apps), problems first. The title links to the thing's page; when the action is the tile's only destination the title is plain text and the tile is not interactive.
 
 Connection tiles may place a `gw-switch` in `__end` above the stretched link. Its accessible name identifies the connection and global scope. Repeat appearances of a shared connection use the same value and pending state. Off means agent access is disabled by the user; it preserves tool modes and credentials. Endpoint switches affect access through that endpoint only. Disabling either keeps discovery visible and returns an explanation asking the agent to request user enablement. Show On/Off in text, keep the control busy during saving, and report save failures.
 
@@ -1798,7 +1821,7 @@ AI app tiles show their endpoint slugs below the metadata as neutral small badge
 - unreachable (danger) + Test again
 - busy: Test again aria-busy + aria-disabled, state gw-status--checking (role=status)
 - found, not connected (info) + Connect
-- not installed (neutral) + How to install (gw-btn--link)
+- not installed (neutral) + Install (gw-btn--link)
 - action unavailable: <button aria-disabled> + aria-describedby to a visible reason (never a link)
 - narrow tile (content box < 280px, about 314px outer): state and action under the text on one row
 

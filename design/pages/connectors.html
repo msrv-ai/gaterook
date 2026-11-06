@@ -1710,8 +1710,28 @@ LIMIT 200</textarea>
       http.hidden = !isHttp;
       doc.getElementById("mcp-command").disabled = isHttp;
       doc.getElementById("mcp-url").disabled = !isHttp;
+      doc.getElementById("dlg-add-mcp-d").textContent = isHttp ? "Connect this service by URL. GateRook checks access and records tool calls." : "Put any MCP server behind the gateway. It runs as its own process; its tools get modes, approvals and audit.";
+      var reviewButton = doc.querySelector('#dlg-add-mcp button[type="submit"]');
+      reviewButton.lastChild.textContent = isHttp ? " Review connection" : " Review and start";
     });
   });
+  // The Overview service chooser can open the existing URL setup directly.
+  var setupQuery = new URLSearchParams(location.search);
+  if (setupQuery.get("add") === "mcp") {
+    var transport = doc.querySelector('input[name="mcp-transport"][value="' + (setupQuery.get("transport") === "http" ? "http" : "stdio") + '"]');
+    transport.checked = true;
+    transport.dispatchEvent(new Event("change", { bubbles: true }));
+    function openUrlSetup() {
+      var setupDialog = doc.getElementById("dlg-add-mcp");
+      setupDialog._gwReturn = doc.querySelector('#mcp-servers [data-gw-dialog-open="dlg-add-mcp"]');
+      setupDialog._gwReturn.focus();
+      window.gwShowDialog(setupDialog);
+      doc.getElementById("mcp-name").focus();
+    }
+    // Wait for initial fragment navigation before placing focus in the dialog.
+    if (doc.readyState === "complete") requestAnimationFrame(openUrlSetup);
+    else window.addEventListener("load", function () { requestAnimationFrame(openUrlSetup); }, { once: true });
+  }
   var review = doc.getElementById("dlg-review-mcp");
   function put(key, text) { review.querySelectorAll('[data-mcp="' + key + '"]').forEach(function (n) { n.textContent = text; }); }
   function part(key) { return review.querySelector('[data-mcp="' + key + '"]'); }

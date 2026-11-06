@@ -638,8 +638,70 @@
     <p class="gw-text-caption gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--xs" data-lucide="arrow-up-down"></i> Set it up top to bottom. An agent's call travels the other way: AI app, endpoint, policy, connection, where the secret is injected.</p>
   </section>
 
+  <section class="gw-section" aria-labelledby="sm-network-title">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="sm-network-title">Network map</h2>
+      <p class="gw-section__description">A desktop canvas with independent service and app nodes around a compact GateRook group. Its endpoint is a separate card with connection ports. Select a service to highlight its path; all meaning remains in the text when the narrow layout hides the decorative wires.</p>
+      <div class="gw-section__actions"><a class="gw-btn gw-btn--sm" href="../pages/overview-map.html">Open interactive Overview</a></div>
+    </header>
+    <p class="gw-sr-only" id="sm-network-description">Two of endpoint dev's eight services are shown. Claude Desktop is connected to dev. AI requests travel through GateRook to the chosen service.</p>
+    <div class="gw-card gw-setup-map gw-setup-map--network" id="sm-network" aria-describedby="sm-network-description">
+      <svg class="gw-setup-map__network-wires" aria-hidden="true" focusable="false"><path class="gw-setup-map__network-path" data-sm-wire="sm-network-db"></path><path class="gw-setup-map__network-path" data-sm-wire="sm-network-mongo"></path><path class="gw-setup-map__network-path" data-sm-wire="sm-network-client"></path></svg>
+      <div class="gw-setup-map__network-side">
+        <h3 class="gw-text-overline gw-fg-muted">Your services</h3>
+        <ul class="gw-setup-map__network-grid" aria-label="Sample services on dev">
+          <li><button class="gw-card gw-card--interactive gw-setup-map__network-node" type="button" id="sm-network-db" aria-pressed="false"><span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span><span class="gw-setup-map__network-label"><strong class="gw-text-h3">PostgreSQL</strong><span class="gw-text-caption gw-mono">dev-db</span><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></span></button></li>
+          <li><button class="gw-card gw-card--interactive gw-setup-map__network-node" type="button" id="sm-network-mongo" aria-pressed="false"><span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span><span class="gw-setup-map__network-label"><strong class="gw-text-h3">MongoDB</strong><span class="gw-text-caption gw-mono">orders-mongo</span><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></span></button></li>
+        </ul>
+        <p class="gw-text-caption gw-fg-muted">Two of eight services shown</p>
+      </div>
+      <div class="gw-setup-map__network-hub" id="sm-network-hub">
+        <div class="gw-setup-map__network-brand"><h3 class="gw-logo gw-logo--lg"><img class="gw-logo__mark" src="../assets/logo-mark.svg" alt=""><span class="gw-logo__name">GateRook</span></h3><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Running</span></span></div>
+        <fieldset class="gw-setup-map__network-endpoints"><legend class="gw-sr-only">Endpoint</legend><label class="gw-choice-card gw-choice-card--compact"><input class="gw-choice-card__input" type="radio" name="sm-network-endpoint" checked aria-labelledby="sm-network-dev-label" aria-describedby="sm-network-dev-description"><span class="gw-choice-card__title" id="sm-network-dev-label"><span class="gw-mono">dev</span></span><span class="gw-choice-card__description" id="sm-network-dev-description">8 services · Claude Desktop and Codex</span><span class="gw-choice-card__meta">Changes require approval by default</span><span class="gw-setup-map__network-port" data-side="in" aria-hidden="true"></span><span class="gw-setup-map__network-port" data-side="out" aria-hidden="true"></span></label></fieldset>
+      </div>
+      <div class="gw-setup-map__network-side">
+        <h3 class="gw-text-overline gw-fg-muted">Your AI apps</h3>
+        <ul class="gw-stack" aria-label="Sample app on dev"><li><button class="gw-card gw-card--interactive gw-setup-map__network-node" type="button" id="sm-network-client" aria-pressed="false"><span class="gw-client-mark gw-client-mark--claude" aria-hidden="true">CD</span><span class="gw-setup-map__network-label"><strong class="gw-text-h3">Claude Desktop</strong><span class="gw-text-caption">Endpoint dev</span><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Connected</span></span></span></button></li></ul>
+        <a class="gw-card gw-card--dashed gw-setup-map__network-add" href="../pages/overview-map.html"><i class="gw-icon" data-lucide="plus"></i> Connect another app</a>
+      </div>
+    </div>
+    <p class="gw-text-small gw-fg-muted" role="status" id="sm-network-status">Select a node to inspect its connection path.</p>
+  </section>
+
 </main>
 <script src="../vendor/lucide/lucide.min.js"></script>
 <script src="../assets/kit.js"></script>
+<script>
+// Geometry is measured from real nodes; the SVG never owns interactive content.
+(function () {
+  const map = document.getElementById("sm-network");
+  const hub = document.getElementById("sm-network-hub");
+  const wires = map.querySelector("svg");
+  function draw() {
+    const bounds = map.getBoundingClientRect();
+    const center = hub.getBoundingClientRect();
+    wires.setAttribute("viewBox", `0 0 ${bounds.width} ${bounds.height}`);
+    map.querySelectorAll("[data-sm-wire]").forEach((path) => {
+      const node = document.getElementById(path.dataset.smWire).getBoundingClientRect();
+      const left = node.left < center.left;
+      const startX = (left ? node.right : center.right) - bounds.left;
+      const endX = (left ? center.left : node.left) - bounds.left;
+      const startY = (left ? node.top + node.height / 2 : center.top + center.height / 2) - bounds.top;
+      const endY = (left ? center.top + center.height / 2 : node.top + node.height / 2) - bounds.top;
+      const bend = (endX - startX) / 2;
+      path.setAttribute("d", `M ${startX} ${startY} C ${startX + bend} ${startY}, ${endX - bend} ${endY}, ${endX} ${endY}`);
+    });
+  }
+  map.querySelectorAll("button.gw-setup-map__network-node").forEach((button) => {
+    button.addEventListener("click", () => {
+      map.querySelectorAll("button.gw-setup-map__network-node").forEach((node) => node.setAttribute("aria-pressed", String(node === button)));
+      map.querySelectorAll("[data-sm-wire]").forEach((path) => path.dataset.active = String(path.dataset.smWire === button.id || path.dataset.smWire === "sm-network-client"));
+      document.getElementById("sm-network-status").textContent = `${button.querySelector("strong").textContent} uses endpoint dev through GateRook. The highlighted lines show configured access, not live traffic.`;
+    });
+  });
+  new ResizeObserver(draw).observe(map);
+  document.fonts.ready.then(draw);
+})();
+</script>
 </body>
 </html>

@@ -18,20 +18,25 @@
 // <ol> is described by, and as a caption under the map:
 //   "Set it up left to right. An agent's call travels the other way: AI app,
 //    endpoint, policy, connection, where the secret is injected."
-// (--vertical: "top to bottom"). --wiring is a different picture: one
-// endpoint's call path, AI apps → the endpoint → Connections.
+// (--vertical: "top to bottom"). --wiring groups services and AI apps
+// around an endpoint. Endpoint detail follows request order: AI apps →
+// endpoint → Connections. Overview follows setup order: Your services →
+// GateRook with endpoint choices → Your AI apps. Its caption states that
+// AI requests travel the other way; selection filters both sides together.
 //
 // Each node is a gw-card with its section's icon tile, a title, one line on
 // what it does in the path, a one-line status with counts, a state badge
 // and a "Configure" link to its page. State lives in data-state on the step.
 //
 // Where   onboarding (preview, --vertical beside the stepper), endpoint-detail
-//         (--wiring). Not on Overview: its first run is a gw-stepper --guide.
+//         (--wiring request path), Overview (--wiring setup and access map).
 // Composes gw-card (--dashed for todo), gw-icon-tile (--brand --warning
 //         --neutral, --sm), gw-icon, gw-badge (--success --warning --neutral +
 //         __icon), gw-btn--link, gw-text-* / gw-fg-* utilities, gw-mono.
 //         --wiring adds gw-client-mark --sm, gw-status, gw-env --sm,
 //         gw-copy-field, gw-kv--dense, gw-mode, gw-badge--outline, gw-code.
+//         Overview also composes gw-logo, gw-choice-card, gw-alert and gw-empty
+//         for visible endpoint choices, setup actions and explicit empty states.
 //
 // Usage (chain)
 //   <p class="gw-sr-only" id="flow">Set it up left to right: secrets and resources, then
@@ -101,7 +106,8 @@
 //                     centred on the cards; the note drops into a shared second row
 //   --vertical        always the vertical chain with compact nodes: narrow columns
 //                     (onboarding preview, side panels)
-//   --wiring          endpoint-detail: three columns, AI apps → the endpoint → Connections.
+//   --wiring          three columns; endpoint-detail follows request order,
+//                     Overview follows services → GateRook endpoint → AI apps.
 //                     Each __node is a full gw-card (header, body with a __list of
 //                     __item rows, footer). Same connector rules and breakpoints. Names
 //                     truncate (full value in title); the status column is capped and
@@ -242,7 +248,7 @@
   &__state  { grid-area: state; justify-self: end; }
   &__action { grid-area: action; justify-self: start; margin-top: var(--gw-space-1-5); }
 
-  // ─── Wiring parts (endpoint-detail) ───
+  // ─── Wiring parts (endpoint-detail and Overview) ───
   // The rail follows the 24px tile in the card title instead of the 32px one.
   &--wiring {
     --gw-setup-map-rail: calc(var(--gw-space-5) + var(--gw-size-icon-xl) / 2);
@@ -374,4 +380,306 @@
       > .gw-setup-map__action { margin-top: var(--gw-space-2); }
     }
   }
+}
+
+// ─── Network variant: independent nodes around the GateRook hub ───
+// Desktop access canvas, not a website template. Existing card surfaces,
+// choice-card endpoint radios and button semantics remain canonical. SVG wires
+// are decorative and derive their geometry from the rendered node bounds.
+// State: data-active highlights a selected path, data-pending uses dashes,
+// data-muted preserves the visible boundary of a paused path. Text on each node
+// carries the meaning without relying on the SVG or its color. Below lg the
+// groups stack in setup order and the wires disappear; membership text remains.
+// Parts: __network-side, __network-grid, __network-node, __network-label,
+// __network-service, __network-app, __network-toggle, __network-hub, __network-brand,
+// __network-endpoints, __network-endpoint, __network-health, __network-mcp,
+// __network-add, __network-caption, __network-wires, __network-path,
+// __network-port (data-side=in|out), __network-mark (vendor asset).
+// Raw: grid ratios are unitless layout proportions; no new visual tokens.
+.gw-setup-map.gw-setup-map--network {
+  position: relative;
+  isolation: isolate;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: none;
+  grid-auto-flow: row;
+  grid-auto-columns: auto;
+  align-items: center;
+  gap: var(--gw-space-8);
+  padding: var(--gw-space-6);
+  border-radius: var(--gw-radius-lg);
+  background-color: var(--gw-color-bg-canvas);
+  background-image: radial-gradient(var(--gw-color-border-subtle) var(--gw-space-px), transparent var(--gw-space-px));
+  background-size: var(--gw-space-4) var(--gw-space-4);
+
+  .gw-setup-map__network-side,
+  .gw-setup-map__network-hub {
+    position: relative;
+    z-index: var(--gw-z-raised);
+    min-width: 0;
+  }
+
+  .gw-setup-map__network-side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-4);
+  }
+
+  .gw-setup-map__network-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--gw-space-3);
+    min-width: 0;
+  }
+
+  .gw-setup-map__network-node {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--gw-space-3);
+    width: 100%;
+    min-height: calc(var(--gw-space-16) + var(--gw-space-2));
+    padding: var(--gw-space-3);
+    color: var(--gw-color-text-primary);
+    text-align: start;
+    text-decoration: none;
+    @include gw-focus-ring;
+
+    > :is(.gw-icon-tile, .gw-client-mark, .gw-setup-map__network-mark) { flex: none; }
+
+    &[aria-pressed="true"] {
+      border-color: var(--gw-color-brand-fg);
+      box-shadow: inset 0 0 0 var(--gw-border-width-default) var(--gw-color-brand-fg);
+    }
+  }
+
+  .gw-setup-map__network-label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-0-5);
+    min-width: 0;
+    overflow-wrap: anywhere;
+
+    > .gw-status { margin-top: var(--gw-space-1); }
+  }
+
+  // A service's inspect button and immediate global access switch are siblings.
+  // Keep the error edge when selected; focus and aria-pressed identify selection.
+  .gw-setup-map__network-service,
+  .gw-setup-map__network-app {
+    height: 100%;
+
+    &:not(.gw-card--invalid):has(> .gw-setup-map__network-node:hover) {
+      border-color: var(--gw-color-border-strong);
+    }
+
+    &[data-selected="true"]:not(.gw-card--invalid) {
+      border-color: var(--gw-color-brand-fg);
+      box-shadow: inset 0 0 0 var(--gw-border-width-default) var(--gw-color-brand-fg);
+    }
+
+    > .gw-setup-map__network-node {
+      flex: 1;
+      border: 0;
+      border-radius: var(--gw-radius-md) var(--gw-radius-md) 0 0;
+      background: transparent;
+      box-shadow: none;
+    }
+  }
+
+  // App inspection and setup are distinct native controls. Keep the explicit
+  // action beside the node on desktop and below it on narrow viewports.
+  .gw-setup-map__network-app {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: center;
+
+    > .gw-setup-map__network-node {
+      min-width: 0;
+      border-radius: var(--gw-radius-md);
+    }
+
+    > .gw-btn {
+      justify-self: end;
+      margin: 0 var(--gw-space-3) var(--gw-space-3);
+    }
+
+    @include gw-bp-up(sm) {
+      grid-template-columns: minmax(0, 1fr) auto;
+
+      > .gw-btn { margin-block-end: 0; }
+    }
+  }
+
+  .gw-setup-map__network-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gw-space-2);
+    padding: var(--gw-space-1-5) var(--gw-space-3);
+    border-top: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
+
+    > .gw-tooltip { flex: none; }
+  }
+
+  .gw-setup-map__network-hub {
+    @include gw-surface;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    border-color: var(--gw-color-brand-border);
+  }
+
+  .gw-setup-map__network-brand {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gw-space-2);
+    padding: var(--gw-space-4);
+    border-radius: var(--gw-radius-md) var(--gw-radius-md) 0 0;
+    background: var(--gw-color-brand-subtle);
+    text-align: start;
+  }
+
+  .gw-setup-map__network-endpoints {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-3);
+    padding: var(--gw-space-4);
+    min-width: 0;
+
+    .gw-choice-card { min-height: calc(var(--gw-space-16) + var(--gw-space-3)); }
+
+    .gw-choice-card:has(> .gw-choice-card__input:checked) .gw-setup-map__network-port {
+      background: var(--gw-color-brand-fg);
+      border-color: var(--gw-color-brand-fg);
+    }
+  }
+
+  // Keep the health action outside the choice-card label and its stretched
+  // native radio. Reserve only the title row so descriptions keep their width.
+  .gw-setup-map__network-endpoint {
+    position: relative;
+    min-width: 0;
+
+    .gw-choice-card__title { min-height: var(--gw-size-control-sm); }
+
+    &:has(> .gw-setup-map__network-health) .gw-choice-card__title {
+      padding-inline-end: calc(var(--gw-size-control-md) + var(--gw-space-6));
+    }
+  }
+
+  .gw-setup-map__network-health {
+    position: absolute;
+    z-index: var(--gw-z-raised);
+    inset-block-start: var(--gw-space-1);
+    inset-inline-end: calc(var(--gw-space-3) + var(--gw-size-icon-md) + var(--gw-space-2));
+
+    > .gw-btn { padding-inline: var(--gw-space-1); }
+  }
+
+  .gw-setup-map__network-port {
+    position: absolute;
+    inset-block-start: calc(50% - var(--gw-space-1));
+    width: var(--gw-space-2);
+    height: var(--gw-space-2);
+    border: var(--gw-border-width-strong) solid var(--gw-color-border-strong);
+    border-radius: var(--gw-radius-full);
+    background: var(--gw-color-bg-surface);
+    pointer-events: none;
+
+    &[data-side="in"] { inset-inline-start: calc(-1 * var(--gw-space-1)); }
+    &[data-side="out"] { inset-inline-end: calc(-1 * var(--gw-space-1)); }
+  }
+
+  .gw-setup-map__network-mark {
+    display: block;
+    width: var(--gw-size-icon-2xl);
+    height: var(--gw-size-icon-2xl);
+    object-fit: contain;
+  }
+
+  .gw-setup-map__network-mcp {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-2);
+    min-width: 0;
+
+    > .gw-card__header { padding: var(--gw-space-3) var(--gw-space-3) 0; }
+    > .gw-card__body { padding: var(--gw-space-3); }
+    > .gw-card__footer { padding: var(--gw-space-2) var(--gw-space-3); }
+  }
+
+  .gw-setup-map__network-add {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: var(--gw-space-2);
+    min-height: var(--gw-size-control-lg);
+    width: 100%;
+    padding: var(--gw-space-3);
+    color: var(--gw-color-text-link);
+    text-decoration: none;
+    @include gw-type(ui);
+    @include gw-focus-ring;
+  }
+
+  .gw-setup-map__network-caption {
+    margin: 0;
+    text-align: center;
+    @include gw-type(small);
+    color: var(--gw-color-text-secondary);
+  }
+
+  .gw-setup-map__network-wires {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+    display: none;
+  }
+
+  .gw-setup-map__network-path {
+    fill: none;
+    stroke: var(--gw-color-border-strong);
+    stroke-width: var(--gw-border-width-default);
+    vector-effect: non-scaling-stroke;
+
+    &[data-active="true"] {
+      stroke: var(--gw-color-brand-fg);
+      stroke-width: var(--gw-border-width-strong);
+    }
+
+    &[data-pending="true"] {
+      stroke-dasharray: var(--gw-space-1) var(--gw-space-1-5);
+    }
+
+    &[data-muted="true"] { stroke: var(--gw-color-border-strong); }
+  }
+
+  // One user-triggered example request. The page removes it at completion and
+  // never creates it when the user prefers reduced motion.
+  .gw-setup-map__network-pulse {
+    r: var(--gw-space-1);
+    fill: var(--gw-color-brand-fg);
+    stroke: var(--gw-color-bg-surface);
+    stroke-width: var(--gw-border-width-strong);
+  }
+
+  @include gw-bp-up(sm) {
+    .gw-setup-map__network-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  @include gw-bp-up(lg) {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 0.95fr);
+    column-gap: var(--gw-space-8);
+
+    .gw-setup-map__network-wires { display: block; }
+  }
+
+  @include gw-bp-up(xl) { column-gap: var(--gw-space-12); }
 }
