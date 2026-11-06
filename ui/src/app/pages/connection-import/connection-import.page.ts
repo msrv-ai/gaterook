@@ -102,12 +102,14 @@ export class ConnectionImportPage {
     const sources = new Map<string, StoredSecret>((this.active()?.secretSources ?? []).map(source => [source.field, {
       field: source.field, secretId: null, staged: true,
       name: source.reference ?? 'Credential prepared for import',
+      ref: source.reference ?? null,
       state: source.source === 'vault-dynamic' ? 'short-lived' : source.source === 'reference' ? 'reference' : 'stored', version: null,
       source: source.reference?.split('://')[0] ?? 'encrypted', store: source.store,
       canRotate: false, rotateReason: 'This credential is staged for import. It has not been saved yet.',
     }]));
     for (const [field, secret] of Object.entries(this.editorSecrets())) sources.set(field, {
       field, secretId: null, staged: true, name: secret.source === 'local' ? 'Replacement prepared for import' : secret.ref,
+      ref: secret.source === 'local' ? null : secret.ref,
       state: secret.source === 'local' ? 'stored' : secret.source === 'vault-dynamic' ? 'short-lived' : 'reference',
       version: this.editorSecretVersions()[field] ?? 0,
       source: secret.source === 'local' ? 'encrypted' : secret.ref.split('://')[0],
@@ -337,7 +339,7 @@ export class ConnectionImportPage {
     if ([...this.drafts().values()].some(d => d.candidateId !== candidate.id && d.name === value.name)) { this.fail(new Error('Two selected drafts have the same name. Choose a unique name for each connection.')); return; }
     if (candidate.env === 'prod' && value.env !== 'prod') { this.fail(new Error('This candidate was discovered as production. Keep its production environment.')); return; }
     const drafts = new Map(this.drafts());
-    drafts.set(candidate.id, { candidateId: candidate.id, ...value, secrets: { ...this.editorSecrets(), ...value.secrets } });
+    drafts.set(candidate.id, { candidateId: candidate.id, ...this.withEditorSecrets(value) });
     this.drafts.set(drafts);
     this.closeEditor();
   }
@@ -352,7 +354,7 @@ export class ConnectionImportPage {
     if (this.existingNames().has(name)) { this.fail(new Error(`A connection named ${name} already exists. Open Settings and choose a new name.`)); return; }
     if ([...this.drafts().values()].some(d => d.candidateId !== candidate.id && d.name === name)) { this.fail(new Error('Choose a unique name for each connection.')); return; }
     if (candidate.env === 'prod' && env !== 'prod') { this.fail(new Error('This candidate was discovered as production. Keep its production environment.')); return; }
-    const secrets = current ? { ...this.editorSecrets(), ...current.secrets } : previous?.secrets ?? {};
+    const secrets = current ? this.withEditorSecrets(current).secrets : previous?.secrets ?? {};
     const drafts = new Map(this.drafts());
     drafts.set(candidate.id, { candidateId: candidate.id, name, env,
       config: current?.config ?? previous?.config ?? candidate.config, secrets, allowIncomplete: true });
@@ -379,7 +381,7 @@ export class ConnectionImportPage {
     const candidate = this.active();
     const current = value ?? form?.value();
     if (!candidate || !current || this.busy()) return;
-    const draft = { ...current, secrets: { ...this.editorSecrets(), ...current.secrets } };
+    const draft = this.withEditorSecrets(current);
     if (this.needsRetainedSecrets(draft)) { this.fail(new Error('This draft uses staged credentials. Import it first, then test the saved connection.')); return; }
     this.busy.set(true);
     this.testState.set('testing');
@@ -523,11 +525,27 @@ export class ConnectionImportPage {
   }
 
   private needsRetainedSecrets(draft: ConnectionFormValue): boolean { return (this.active()?.secretSources ?? []).some(source => !draft.secrets[source.field]); }
-  private withEditorSecrets(draft: ConnectionFormValue): ConnectionFormValue { return { ...draft, secrets: { ...this.editorSecrets(), ...draft.secrets } }; }
+  private withEditorSecrets(draft: ConnectionFormValue): ConnectionFormValue {
+    const { vaultStore, ...value } = draft;
+    const secrets: Record<string, SecretInputs[string]> = { ...this.editorSecrets(), ...draft.secrets };
+    if (vaultStore) {
+      // Import creates new secrets, so a store change becomes explicit references rather than an edit-only flag.
+      for (const source of this.active()?.secretSources ?? []) {
+        if (!secrets[source.field] && source.source === 'reference' && source.reference?.startsWith('vault://')) {
+          secrets[source.field] = { source: 'reference', ref: source.reference, store: vaultStore };
+        }
+      }
+      for (const [field, secret] of Object.entries(secrets)) {
+        if (secret.source === 'reference' && secret.ref.startsWith('vault://')) secrets[field] = { ...secret, store: vaultStore };
+      }
+    }
+    return { ...value, secrets };
+  }
   /** In-memory comparison only; the effective draft includes credentials and must never be logged. */
   private fileDraftKey(form: GwConnectionForm): string {
-    const value = this.withEditorSecrets(form.value());
-    return JSON.stringify([this.active()?.id, this.active()?.type, value.env, value.config, value.secrets]);
+    const draft = form.value();
+    const value = this.withEditorSecrets(draft);
+    return JSON.stringify([this.active()?.id, this.active()?.type, value.env, value.config, value.secrets, draft.vaultStore ?? null]);
   }
   private message(error: unknown): string { return isApiError(error) ? `${error.title}. ${error.detail}` : desktopErrorText(error, 'GateRook could not complete this action. Try again.'); }
   private fail(error: unknown): void { if (this.destroy.destroyed) return; this.error.set(this.message(error)); this.focus('#import-error'); }

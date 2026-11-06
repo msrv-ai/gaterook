@@ -501,6 +501,82 @@ describe('AI connection import review', () => {
     expect(page.drafts().get(candidate.id)?.secrets).toEqual({});
   });
 
+  it.each(['keep', 'available'])('preserves a changed Vault store through %s, reopening and final import', async mode => {
+    const ref = 'vault://kv/dev/example#password';
+    const staged: ImportCandidate = { ...candidate, secretSources: [{ field: '/credentials/password', source: 'reference', reference: ref, store: 'vault-original' }] };
+    await loadReview({ ...review, manifest: { version: 1, connections: [staged], warnings: [] } });
+    await page.configure(staged); fixture.detectChanges(); await fixture.whenStable();
+    const form = page.form()!;
+    expect(page.retainedSecrets()[0]).toMatchObject({ ref, store: 'vault-original', staged: true });
+    form.state().vaultStore.set('vault-chosen');
+    expect(form.value().vaultStore).toBe('vault-chosen');
+    if (mode === 'keep') page.keep(form.value());
+    else page.keepAvailable(staged);
+    const expected = { '/credentials/password': { source: 'reference', ref, store: 'vault-chosen' } };
+    expect(page.drafts().get(staged.id)?.secrets).toEqual(expected);
+    expect(page.drafts().get(staged.id)).not.toHaveProperty('vaultStore');
+    expect(staged.secretSources![0].store).toBe('vault-original');
+    expect(api.commit).not.toHaveBeenCalled();
+
+    await page.configure(staged); fixture.detectChanges(); await fixture.whenStable();
+    expect(page.retainedSecrets()[0]).toMatchObject({ ref, store: 'vault-chosen', staged: true });
+    expect(page.form()!.state().vaultStore()).toBe('vault-chosen');
+    if (mode === 'keep') page.keep(page.form()!.value());
+    else page.keepAvailable(staged);
+    await page.commit();
+    const sent = api.commit.mock.calls[0][2][0];
+    expect(sent.secrets).toEqual(expected);
+    expect(sent).not.toHaveProperty('vaultStore');
+  });
+
+  it('leaves untouched references staged when a Vault choice is reset or discarded', async () => {
+    const staged: ImportCandidate = { ...candidate, secretSources: [{ field: '/credentials/password', source: 'reference', reference: 'vault://kv/dev/example#password', store: 'vault-original' }] };
+    await loadReview({ ...review, manifest: { version: 1, connections: [staged], warnings: [] } });
+    await page.configure(staged); fixture.detectChanges(); await fixture.whenStable();
+    page.form()!.state().vaultStore.set('vault-other');
+    page.closeEditor();
+    fixture.detectChanges(); await fixture.whenStable();
+    expect(page.drafts().get(staged.id)?.secrets).toEqual({});
+    await page.configure(staged); fixture.detectChanges(); await fixture.whenStable();
+    const form = page.form()!;
+    expect(form.state().vaultStore()).toBe('vault-original');
+    form.state().vaultStore.set('vault-other');
+    form.state().vaultStore.set('vault-original');
+    expect(form.value().vaultStore).toBeUndefined();
+    page.keep(form.value());
+    expect(page.drafts().get(staged.id)?.secrets).toEqual({});
+    expect(page.drafts().get(staged.id)).not.toHaveProperty('vaultStore');
+  });
+
+  it('moves kept Vault replacements without reverting their URI or changing other credential providers', async () => {
+    const staged: ImportCandidate = { ...candidate, secretSources: [{ field: '/credentials/password', source: 'reference', reference: 'vault://kv/dev/original#password', store: 'vault-original' }] };
+    await loadReview({ ...review, manifest: { version: 1, connections: [staged], warnings: [] } });
+    await page.configure(staged);
+    const secrets = {
+      '/credentials/password': { source: 'reference' as const, ref: 'vault://kv/dev/replacement#password', store: 'vault-original' },
+      '/credentials/user': { source: 'reference' as const, ref: 'gcp-sm://projects/example/secrets/user' },
+      '/jump/credentials/password': { source: 'vault-dynamic' as const, ref: 'vault://database/creds/reader', store: 'vault-lease' },
+      '/credentials/passphrase': { source: 'local' as const, value: 'draft-only-passphrase' },
+    };
+    page.keep({ ...draft, secrets });
+    await page.configure(staged);
+    expect(page.retainedSecrets().find(s => s.field === '/credentials/password')?.ref).toBe(secrets['/credentials/password'].ref);
+    page.keep({ ...draft, secrets: {}, vaultStore: 'vault-chosen' });
+    expect(page.drafts().get(staged.id)?.secrets).toEqual({ ...secrets,
+      '/credentials/password': { ...secrets['/credentials/password'], store: 'vault-chosen' },
+    });
+    expect(page.drafts().get(staged.id)).not.toHaveProperty('vaultStore');
+  });
+
+  it('keeps staged dynamic Vault credentials in their original store when another Vault is chosen', async () => {
+    const staged: ImportCandidate = { ...candidate, secretSources: [{ field: '/credentials/password', source: 'vault-dynamic', reference: 'vault://database/creds/reader', store: 'vault-lease' }] };
+    await loadReview({ ...review, manifest: { version: 1, connections: [staged], warnings: [] } });
+    await page.configure(staged);
+    page.keep({ ...draft, secrets: {}, vaultStore: 'vault-chosen' });
+    expect(page.drafts().get(staged.id)?.secrets).toEqual({});
+    expect(staged.secretSources![0].store).toBe('vault-lease');
+  });
+
   it('pins a matching first-use SSH key only in the import draft and resumes browsing without importing', async () => {
     connections.browseFiles.mockResolvedValueOnce(firstHostKey);
     const { form, picker } = await sshEditor();
@@ -530,7 +606,7 @@ describe('AI connection import review', () => {
     expect(api.commit).not.toHaveBeenCalled();
   });
 
-  it.each(['host', 'credential'])('does not retry an import browse when the %s changes after draft trust but before rendering', async (changed) => {
+  it.each(['host', 'credential', 'vault'])('does not retry an import browse when the %s changes after draft trust but before rendering', async (changed) => {
     const manual = { ...firstHostKey, needsConfirmation: { ...firstHostKey.needsConfirmation!, data: {} } };
     connections.browseFiles.mockResolvedValueOnce(manual);
     const { form, password, picker } = await sshEditor();
@@ -542,7 +618,8 @@ describe('AI connection import review', () => {
     if (changed === 'host') {
       const host = form.state().compiled.all.find(n => n.pointer === '/connection/host')!;
       form.state().set(host, 'other.example.test');
-    } else form.state().setSecret(password, 'changed-draft-password');
+    } else if (changed === 'credential') form.state().setSecret(password, 'changed-draft-password');
+    else { form.state().source.set('vault'); form.state().vaultStore.set('vault-chosen'); }
     await settleFileBrowser();
     expect(connections.confirmDraft).toHaveBeenCalledExactlyOnceWith(firstHostKey.confirmationId);
     expect(connections.browseFiles).toHaveBeenCalledTimes(1);

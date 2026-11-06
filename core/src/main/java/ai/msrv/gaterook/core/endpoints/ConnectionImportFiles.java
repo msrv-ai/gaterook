@@ -178,6 +178,9 @@ public class ConnectionImportFiles {
       this.json = json;
     }
 
+    /** Inert provenance used to validate a staged field without reading its value. */
+    public String source() { return source; }
+
     /** Called only after the person confirms the selected connection and its displayed sources in the admin UI. */
     public SecretInput resolve() {
       if (value != null) return SecretInput.local(value.clone());
