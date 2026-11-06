@@ -29,9 +29,12 @@ export class ImportAppPicker {
   private readonly destroy = inject(DestroyRef);
   readonly endpoint = input<EndpointSummary | null>(null);
   readonly disabled = input(false);
+  readonly cardsMode = input(false);
+  readonly startDisabledReason = input<string | null>(null);
   readonly client = model<ClientId | null>(null);
   readonly consent = model<ImportAppConsent | null>(null);
   readonly selectionChange = output<ImportAppSelection | null>();
+  readonly startImport = output<ImportAppSelection>();
   readonly busyChange = output<boolean>();
   readonly connecting = signal(false);
   readonly reviewing = signal(false);
@@ -71,6 +74,7 @@ export class ImportAppPicker {
   readonly connectEndpoints = computed(() => this.endpoint() ? [this.endpoint()!] : []);
   readonly installUrl = computed(() => this.client() ? INSTALL_URL[this.client()!] : '');
   private context = '';
+  private pendingRefresh: Promise<void> | null = null;
 
   constructor() {
     effect(() => {
@@ -97,9 +101,45 @@ export class ImportAppPicker {
     const links = card.links.filter(l => l.endpoint === this.endpoint()?.slug);
     if (links.some(l => l.status === 'connected')) return 'Connected';
     const restart = links.find(l => l.status === 'needs-restart');
-    if (restart) return restart.method === 'mcpb' ? 'Finish installation in Claude Desktop' : 'Restart required';
+    if (restart) {
+      if (restart.method === 'mcpb') return 'Finish installation in Claude Desktop';
+      return card.client === this.client() && this.acknowledgedRestart() ? 'Restart confirmed by you' : 'Restart required';
+    }
     if (links.length) return 'Connection needs attention';
     return card.detected ? 'Not connected here' : 'Not detected';
+  }
+
+  hasConnectedLink(card: ClientCard): boolean {
+    return card.links.some(link => link.endpoint === this.endpoint()?.slug && link.status === 'connected');
+  }
+
+  pendingSetup(card: ClientCard): boolean {
+    return card.links.some(link => link.endpoint === this.endpoint()?.slug && link.status === 'needs-restart')
+      || (this.pending()?.client === card.client && this.pending()?.endpoint === this.endpoint()?.slug);
+  }
+
+  canStart(card: ClientCard): boolean {
+    return !!this.endpoint() && !this.startDisabledReason() && !this.disabled() && !this.connecting() && !this.checking()
+      && !this.failed() && !this.reviewing() && (this.hasConnectedLink(card) || (card.client === this.client() && this.ready()));
+  }
+
+  startApp(card: ClientCard): void {
+    if (!this.canStart(card)) return;
+    if (card.client !== this.client()) this.select(card.client);
+    if (!this.ready()) return;
+    this.startImport.emit({ client: card.client, name: card.name, ready: true });
+  }
+
+  setupApp(card: ClientCard): void {
+    if (this.disabled() || this.connecting() || this.checking() || this.failed()) return;
+    if (card.client !== this.client()) this.select(card.client);
+    const context = this.key();
+    afterNextRender(() => {
+      if (this.destroy.destroyed || context !== this.key()) return;
+      if (this.pendingSetup(card) || !card.detected || !card.methods.length) {
+        this.doc.getElementById('import-selected-app')?.focus();
+      } else this.openReview();
+    }, { injector: this.injector });
   }
 
   select(value: string): void {
@@ -198,6 +238,21 @@ export class ImportAppPicker {
     catch (error) {
       if (!this.destroy.destroyed) { this.checkFailed.set(true); this.error.set(desktopErrorText(error, 'App connections could not be checked.')); }
     }
+  }
+
+  /** The import page's timer checks only setup awaiting app activity; it never scans or writes configuration. */
+  async refreshPending(): Promise<void> {
+    if (this.destroy.destroyed || this.disabled() || this.connecting() || this.reviewing() || this.checking() || this.failed()
+      || this.connected() || (!this.restart() && !this.isPending())) return;
+    if (this.pendingRefresh) return this.pendingRefresh;
+    const context = this.key();
+    this.pendingRefresh = this.data.reloadClients().catch(error => {
+      if (!this.destroy.destroyed && context === this.key()) {
+        this.checkFailed.set(true);
+        this.error.set(desktopErrorText(error, 'App connections could not be checked.'));
+      }
+    }).finally(() => { this.pendingRefresh = null; });
+    return this.pendingRefresh;
   }
 
   async openConfig(): Promise<void> {

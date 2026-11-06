@@ -11,6 +11,7 @@ import { JsonObject, JsonValue } from '../../core/api/types';
 import { DesktopBridge, desktopErrorText } from '../../core/desktop/desktop-bridge';
 import { TimeService } from '../../core/time/time.service';
 import { ClipboardWriter } from '../../kit/clipboard';
+import { COPIED_MS } from '../../kit/copy';
 import { GwCodeBlock } from '../../code/code-block';
 import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm } from '../../kit/elements/connection-form/connection-form';
 import { GwConnectionTest, TestState } from '../../kit/elements/connection-form/connection-test';
@@ -61,11 +62,14 @@ export class ConnectionImportPage {
   readonly appConsent = signal<ImportAppConsent | null>(null);
   readonly appSelection = signal<ImportAppSelection | null>(null);
   readonly appConnecting = signal(false);
+  readonly appPicker = viewChild(ImportAppPicker);
   readonly form = viewChild(GwConnectionForm);
   readonly loading = signal(false);
   readonly busy = signal(false);
   readonly error = signal('');
   readonly notice = signal('');
+  private readonly copiedPrompt = signal<{ text: string; client: ClientId } | null>(null);
+  readonly promptCopied = computed(() => this.copiedPrompt()?.text === this.prompt() && this.copiedPrompt()?.client === this.selectedClient());
   readonly unavailable = signal(false);
   readonly repository = signal('');
   readonly sourceEndpoint = signal('');
@@ -122,6 +126,7 @@ export class ConnectionImportPage {
   private editing = 0;
   private refreshing = false;
   private preparedReview: string | null = null;
+  private copyTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     const choice = this.router.currentNavigation()?.extras.state?.['importAppChoice'] as { client?: ClientId; consent?: ImportAppConsent } | undefined;
@@ -138,10 +143,12 @@ export class ConnectionImportPage {
     });
     effect(() => { void this.load(this.id(), this.endpoint()); });
     const timer = setInterval(() => {
+      if (!this.loading() && !this.busy()) void this.appPicker()?.refreshPending();
       if (this.session()?.status === 'awaiting' && !this.expired() && !this.unavailable() && !this.loading() && !this.busy()) void this.refresh(false);
     }, 5000);
     this.destroy.onDestroy(() => {
       clearInterval(timer); this.generation++; this.editing++;
+      if (this.copyTimer) clearTimeout(this.copyTimer);
       this.drafts.set(new Map()); this.editorSecrets.set({}); this.editorValue.set(null);
     });
   }
@@ -209,6 +216,14 @@ export class ConnectionImportPage {
     finally { this.busy.set(false); }
   }
 
+  async startWithApp(selection: ImportAppSelection): Promise<void> {
+    const picker = this.appPicker();
+    if (!selection.ready || !picker?.ready() || picker.client() !== selection.client || picker.startDisabledReason()) return;
+    this.selectedClient.set(selection.client);
+    this.appSelection.set(selection);
+    await this.start();
+  }
+
   async handoff(client: 'claude' | 'codex' | 'cursor' | 'copy' | 'antigravity'): Promise<void> {
     if (!this.prompt() || this.expired()) return;
     const selected = this.appSelection();
@@ -217,9 +232,17 @@ export class ConnectionImportPage {
     this.error.set('');
     try {
       if (client === 'copy' || client === 'antigravity') {
-        this.notice.set(await this.clipboard.write(this.prompt())
-          ? `Prompt copied. Paste it into ${selected.name} with repository access and GateRook connected.`
-          : 'Could not copy. Select the prompt below and copy it.');
+        const text = this.prompt();
+        this.copiedPrompt.set(null);
+        if (this.copyTimer) clearTimeout(this.copyTimer);
+        const copied = await this.clipboard.write(text);
+        if (this.destroy.destroyed || text !== this.prompt() || selected.client !== this.selectedClient()) return;
+        if (copied) {
+          this.copiedPrompt.set({ text, client: selected.client });
+          this.copyTimer = setTimeout(() => this.copiedPrompt.set(null), COPIED_MS);
+        }
+        this.notice.set(copied ? `Prompt copied. Paste it into ${selected.name} with repository access and GateRook connected.`
+          : 'Could not copy. Expand the prompt and copy its text.');
       } else {
         await this.desktop.openAiPrompt(client, this.prompt());
         this.notice.set('Review and send the prompt in your AI app. GateRook will open the results when they arrive.');

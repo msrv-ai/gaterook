@@ -124,6 +124,91 @@ describe('Import AI app picker', () => {
     expect(clients.connect).not.toHaveBeenCalled();
   });
 
+  it('offers app cards that start a connected app or open reviewed connection setup', async () => {
+    setLinks('cursor', [link('cursor')]);
+    await data.refresh();
+    fixture.componentRef.setInput('cardsMode', true);
+    fixture.componentRef.setInput('startDisabledReason', 'Choose a repository folder above before starting.');
+    const start = vi.fn(); picker.startImport.subscribe(start);
+    await settle();
+    const root = fixture.nativeElement as HTMLElement;
+    const startCursor = root.querySelector<HTMLButtonElement>('[aria-label="Start import with Cursor"]')!;
+    expect(root.querySelector('#import-ai-app')).toBeNull();
+    expect(startCursor.disabled).toBe(true);
+    expect(startCursor.getAttribute('aria-describedby')).toBe('import-app-start-reason');
+    picker.startApp(card('cursor'));
+    expect(start).not.toHaveBeenCalled();
+
+    fixture.componentRef.setInput('startDisabledReason', null); await settle();
+    startCursor.click(); await settle();
+    expect(picker.client()).toBe('cursor');
+    expect(start).toHaveBeenCalledWith({ client: 'cursor', name: 'Cursor', ready: true });
+    expect(clients.connect).not.toHaveBeenCalled();
+    root.querySelector<HTMLButtonElement>('[aria-label="Connect Codex"]')!.click(); await settle();
+    expect(picker.client()).toBe('codex');
+    expect(picker.reviewing()).toBe(true);
+    expect(clients.connectPreview).toHaveBeenCalledWith('codex', expect.objectContaining({ endpoint: first.slug }));
+    expect(clients.connect).not.toHaveBeenCalled();
+  });
+
+  it('keeps Codex selected when Cursor is connected and labels a restart acknowledgement honestly', async () => {
+    setLinks('cursor', [link('cursor')]);
+    setLinks('codex', [link('codex', first.slug, 'needs-restart', 'helper')], 'needs-restart');
+    await data.refresh(); await choose('codex');
+    const select = fixture.nativeElement.querySelector('#import-ai-app') as HTMLSelectElement;
+    expect(select.value).toBe('codex');
+    expect(select.selectedOptions[0].textContent).toContain('Codex · Restart required');
+    expect(picker.connected()).toBeNull();
+    expect(picker.ready()).toBe(false);
+    picker.acknowledge('restart', true); await settle();
+    expect(select.selectedOptions[0].textContent).toContain('Codex · Restart confirmed by you');
+    expect(select.querySelector('option[value="cursor"]')?.textContent).toContain('Cursor · Connected');
+    expect(picker.ready()).toBe(true);
+    expect(picker.connected()).toBeNull();
+    expect(content(fixture.nativeElement)).toContain('GateRook has not yet observed a new request');
+    await choose('cursor');
+    expect(picker.connected()?.client).toBe('cursor');
+    expect(select.value).toBe('cursor');
+  });
+
+  it('coalesces pending status refreshes and stops after an observed connection', async () => {
+    setLinks('cursor', [link('cursor', first.slug, 'needs-restart')], 'needs-restart');
+    await data.refresh(); await choose('cursor');
+    clients.list.mockClear();
+    const answer = deferred<ClientsView>(); clients.list.mockReturnValueOnce(answer.promise);
+    const firstRefresh = picker.refreshPending();
+    const nextRefresh = picker.refreshPending();
+    expect(clients.list).toHaveBeenCalledTimes(1);
+    setLinks('cursor', [link('cursor')]);
+    answer.resolve(view); await Promise.all([firstRefresh, nextRefresh]); await settle();
+    expect(picker.connected()?.client).toBe('cursor');
+    await picker.refreshPending();
+    expect(clients.list).toHaveBeenCalledTimes(1);
+    expect(clients.scan).not.toHaveBeenCalled();
+    expect(clients.connect).not.toHaveBeenCalled();
+  });
+
+  it('refreshes pending handoffs only until the app or endpoint changes or the picker is destroyed', async () => {
+    await choose('cursor'); clients.list.mockClear();
+    await picker.refreshPending();
+    expect(clients.list).not.toHaveBeenCalled();
+    picker.pending.set({ client: 'cursor', endpoint: first.slug, method: 'oauth' });
+    await picker.refreshPending();
+    expect(clients.list).toHaveBeenCalledTimes(1);
+    await choose('codex'); await picker.refreshPending();
+    expect(clients.list).toHaveBeenCalledTimes(1);
+    await choose('claude-desktop');
+    picker.pending.set({ client: 'claude-desktop', endpoint: first.slug, method: 'mcpb' });
+    await picker.refreshPending();
+    expect(clients.list).toHaveBeenCalledTimes(2);
+    fixture.componentRef.setInput('endpoint', second); await settle();
+    await picker.refreshPending();
+    expect(clients.list).toHaveBeenCalledTimes(2);
+    picker.pending.set({ client: 'claude-desktop', endpoint: second.slug, method: 'mcpb' });
+    fixture.destroy(); await picker.refreshPending();
+    expect(clients.list).toHaveBeenCalledTimes(2);
+  });
+
   it('previews the exact selected endpoint and writes only after the inline Connect click', async () => {
     await choose('cursor');
     picker.openReview(); await settle();
