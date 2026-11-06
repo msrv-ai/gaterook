@@ -97,7 +97,7 @@ Window frame of every app page: a CSS grid with the titlebar across the top, the
 
 ### `gw-titlebar`
 
-Electron frameless titlebar (bg canvas, subtle bottom rule, --gw-layout-titlebar-height): a centered, truncating section name, a leading drag area with Back, and trailing actions (search with ⌘K, approvals bell with an attention counter, appearance popover). The whole bar is a drag region; links, buttons, inputs, labels, [tabindex], menus and popovers inside opt out (no-drag) automatically.
+Electron frameless titlebar (bg canvas, subtle bottom rule, --gw-layout-titlebar-height): a centered, truncating section name, a leading drag area with Back, and trailing actions (search with ⌘K, approvals bell with an attention counter, GitHub bug-report link, appearance popover). The whole bar is a drag region; links, buttons, inputs, labels, [tabindex], menus, popovers and tooltip wrappers inside opt out (no-drag) automatically.
 
 [SCSS](scss/components/_shell.scss)
 
@@ -110,7 +110,7 @@ Electron frameless titlebar (bg canvas, subtle bottom rule, --gw-layout-titlebar
 - Back is a text button with a leading arrow, native-disabled until a previous application page exists; the renderer owns navigation history. Reference pages show the initial disabled state.
 - a gw-counter inside an icon button in __actions is pinned as a corner badge ringed in the canvas colour
 
-**Accessibility:** The <header> is the banner landmark. Back uses its visible label as its accessible name and a title explaining its disabled state. Icon buttons carry aria-label ("Approvals, 3 waiting" with an aria-hidden counter; "Appearance"). The Search button's name starts with its visible text ("Search and commands") and its ⌘K kbd is aria-hidden. Overlays at the window edge use gw-menu--right / gw-popover--right. Popover titles are <p>, not headings, because they precede the page h1.
+**Accessibility:** The <header> is the banner landmark. Back uses its visible label as its accessible name and a title explaining its disabled state. Trailing actions use gw-tooltip--bottom and --end with aria-labelledby pointing to their tooltip; the approvals name includes the waiting count and its counter is aria-hidden. The bug-report link opens GitHub Issues in the browser. Appearance keeps its trigger directly inside gw-menu-host, which also acts as the tooltip wrapper. The Search button's name starts with its visible text ("Search and commands") and its ⌘K kbd is aria-hidden. Overlays at the window edge use gw-menu--right / gw-popover--right. Popover titles are <p>, not headings, because they precede the page h1.
 
 ### `gw-sidebar`
 
