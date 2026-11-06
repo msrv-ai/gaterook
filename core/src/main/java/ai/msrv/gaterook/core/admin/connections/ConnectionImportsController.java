@@ -23,11 +23,11 @@ import tools.jackson.databind.JsonNode;
 /** Only the local, signed admin API starts discovery and commits the person's reviewed selections. */
 @RestController
 @RegisterReflectionForBinding({ConnectionImportService.Session.class, ConnectionImportService.Imported.class,
-    ConnectionImportService.NeedsSetup.class})
+    ConnectionImportService.NeedsSetup.class, ConnectionImportService.Destination.class})
 class ConnectionImportsController {
   record Start(String repository, String endpoint) {}
   record Selection(String candidateId, String name, String env, JsonNode config,
-      Map<String, ConnectionsController.SecretSource> secrets, String confirm, Boolean allowIncomplete) {}
+      Map<String, ConnectionsController.SecretSource> secrets, String confirm, Boolean allowIncomplete, String endpoint) {}
   record Commit(String endpoint, List<Selection> selections, String reason) {}
 
   private final ConnectionImportService imports;
@@ -59,7 +59,7 @@ class ConnectionImportsController {
         if (selection == null) throw ProblemException.unprocessable("Choose connections", "Invalid selection.", "/selections");
         Map<String, SecretInput> secrets = ConnectionsController.secrets(selection.secrets());
         selections.add(new ConnectionImportService.Selection(selection.candidateId(), selection.name(), selection.env(),
-            selection.config(), secrets, selection.confirm(), Boolean.TRUE.equals(selection.allowIncomplete())));
+            selection.config(), secrets, selection.confirm(), Boolean.TRUE.equals(selection.allowIncomplete()), selection.endpoint()));
       }
       return imports.commit(id, request.endpoint(), selections, Reasons.check(request.reason()));
     } finally {

@@ -108,6 +108,16 @@ export class SecretsData {
     this.unsubscribe.splice(0).forEach((u) => u());
   }
 
+  /** Import setup needs store metadata only, without loading the rest of the Secrets page. */
+  async refreshStores(): Promise<void> {
+    try {
+      const value = await this.secretsApi.stores();
+      if (!this.stopped) this.storesSignal.set({ value, error: null, unavailable: false });
+    } catch (error) {
+      if (!this.stopped) this.storesSignal.set({ value: this.storesSignal().value, error, unavailable: isNotAvailable(error) });
+    }
+  }
+
   /** Reloads every part now; while one runs, one more follows it (a change that came meanwhile is in neither). */
   refresh(): Promise<void> {
     if (this.inFlight) {

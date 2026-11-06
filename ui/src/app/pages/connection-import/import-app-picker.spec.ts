@@ -124,6 +124,23 @@ describe('Import AI app picker', () => {
     expect(clients.connect).not.toHaveBeenCalled();
   });
 
+  it('keeps the handoff compact while preserving endpoint-scoped readiness', async () => {
+    setLinks('cursor', [link('cursor')]);
+    await data.refresh(); await choose('cursor');
+    fixture.componentRef.setInput('handoffMode', true); await settle();
+    expect(picker.ready()).toBe(true);
+    expect(content(fixture.nativeElement)).toContain('Cursor');
+    expect(content(fixture.nativeElement)).not.toContain('Connect');
+    expect(fixture.nativeElement.querySelector('select')).toBeNull();
+    expect(fixture.nativeElement.querySelector('button')).toBeNull();
+
+    setLinks('cursor', [link('cursor', second.slug)]);
+    await data.refresh(); await settle();
+    expect(picker.ready()).toBe(false);
+    expect(content(fixture.nativeElement)).toContain('Go back to finish connecting Cursor');
+    expect(clients.connect).not.toHaveBeenCalled();
+  });
+
   it('offers app cards that start a connected app or open reviewed connection setup', async () => {
     setLinks('cursor', [link('cursor')]);
     await data.refresh();

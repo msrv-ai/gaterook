@@ -19,12 +19,14 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
 import org.springframework.stereotype.Service;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -46,6 +48,7 @@ public class ConnectionImportService {
   public static final Duration LIFETIME = Duration.ofHours(2);
   public static final int MAX_SESSIONS = 16;
   public static final int MAX_CONNECTIONS = 50;
+  public static final int MAX_STORES = 16;
   public static final int MAX_BYTES = 128 * 1024;
   private static final Set<String> SPECIALIZED = Set.of("http", "mcp-server");
   private static final Set<String> CANDIDATE_FIELDS = Set.of("id", "name", "type", "env", "config", "evidence",
@@ -59,13 +62,17 @@ public class ConnectionImportService {
 
   /** Reviewed input from the admin UI; the connector type is always taken from the staged candidate. */
   public record Selection(String candidateId, String name, String env, JsonNode config,
-      Map<String, SecretInput> secrets, String confirm, boolean allowIncomplete) {
+      Map<String, SecretInput> secrets, String confirm, boolean allowIncomplete, String endpoint) {
     public Selection(String candidateId, String name, String env, JsonNode config, Map<String, SecretInput> secrets,
-        String confirm) { this(candidateId, name, env, config, secrets, confirm, false); }
+        String confirm) { this(candidateId, name, env, config, secrets, confirm, false, null); }
+    public Selection(String candidateId, String name, String env, JsonNode config, Map<String, SecretInput> secrets,
+        String confirm, boolean allowIncomplete) { this(candidateId, name, env, config, secrets, confirm, allowIncomplete, null); }
   }
 
   public record NeedsSetup(String name, List<String> missingFields) {}
-  public record Imported(List<String> connections, String endpoint, String status, List<NeedsSetup> needsSetup) {}
+  public record Destination(String connection, String endpoint) {}
+  public record Imported(List<String> connections, String endpoint, String status, List<NeedsSetup> needsSetup,
+      List<Destination> destinations) {}
 
   private static final class Pending {
     final String id = Ids.next("ci_");
@@ -81,6 +88,7 @@ public class ConnectionImportService {
     String digest;
     ObjectNode manifest;
     ConnectionImportFiles.Prepared prepared;
+    final Map<String, String> storeConnections = new LinkedHashMap<>();
     Instant lastOpened = Instant.EPOCH;
 
     Pending(String repository, EndpointSnapshot endpoint, String endpointUrl, Instant expiresAt, ConnectionImportFiles files) {
@@ -161,7 +169,8 @@ public class ConnectionImportService {
     synchronized (pending) {
       requireActive(pending);
       ObjectNode out = JsonNodeFactory.instance.objectNode().put("version", 1);
-      out.put("maxConnections", MAX_CONNECTIONS).put("maxBytes", MAX_BYTES);
+      out.put("maxConnections", MAX_CONNECTIONS).put("maxStores", MAX_STORES).put("maxBytes", MAX_BYTES);
+      out.putArray("storeKinds").add(storeDescriptor());
       if (type == null || type.isBlank()) {
         ArrayNode types = out.putArray("types");
         for (ConnectorType connector : registry.types()) {
@@ -198,6 +207,7 @@ public class ConnectionImportService {
         if (raw == null || !raw.isObject()) throw invalid("Provide an import manifest object.", "/manifest");
         ObjectNode toValidate = (ObjectNode) raw.deepCopy();
         Map<String, JsonNode> sources = new LinkedHashMap<>();
+        Map<String, JsonNode> storeSources = new LinkedHashMap<>();
         if (prepared != null) {
           for (JsonNode candidate : toValidate.path("connections")) {
             if (candidate.isObject() && candidate.has("secretSources")) {
@@ -205,7 +215,18 @@ public class ConnectionImportService {
             }
           }
         }
+        if (prepared != null) {
+          for (JsonNode store : toValidate.path("stores")) {
+            if (store.isObject() && store.has("secretSources")) {
+              storeSources.put(store.path("id").asString(), ((ObjectNode) store).remove("secretSources"));
+            }
+          }
+        }
         normalized = validateManifest(toValidate);
+        for (JsonNode store : normalized.path("stores")) {
+          JsonNode summaries = storeSources.get(store.path("id").asString());
+          if (summaries != null) ((ObjectNode) store).set("secretSources", summaries);
+        }
         for (JsonNode candidate : normalized.path("connections")) {
           if (prepared != null) {
             ConnectorManifest connector = registry.manifest(candidate.path("type").asString()).orElse(null);
@@ -253,7 +274,7 @@ public class ConnectionImportService {
     return JsonNodeFactory.instance.objectNode().put("sessionId", pending.id).put("status", "review")
         .put("count", pending.manifest.path("connections").size())
         .put("reviewUrl", "gaterook://connection-import/" + pending.id)
-        .put("message", "Discovery is ready for review in GateRook. Nothing has been imported. The user chooses connections and the destination endpoint.");
+        .put("message", "Discovery is ready for review in GateRook. Nothing has been imported. The user reviews stores and chooses each connection's destination endpoint.");
   }
 
   /** Navigation only: a card cannot import, select, modify or delete connections or settings. */
@@ -274,6 +295,82 @@ public class ConnectionImportService {
     events.publish("ui.open", JsonNodeFactory.instance.objectNode().put("path", "/connection-import/" + pending.id));
   }
 
+  /** Only the signed admin route calls this after the person chooses Connect or Use existing. */
+  public String connectStore(String id, String proposalId, String authMethod, List<String> preparedFields,
+      Map<String, char[]> overrides, BiFunction<JsonNode, Map<String, char[]>, String> connect) {
+    Pending pending = pending(id);
+    synchronized (pending) {
+      requireActive(pending);
+      if (!"review".equals(pending.status)) {
+        throw ProblemException.conflict("Import not ready", "Review the discovered store before connecting it.");
+      }
+      ObjectNode proposal = null;
+      for (JsonNode store : pending.manifest.path("stores")) {
+        if (store.path("id").asString().equals(proposalId)) proposal = (ObjectNode) store;
+      }
+      if (proposal == null) throw invalid("Choose a store from this import.", "/store");
+      String connected = pending.storeConnections.get(proposalId);
+      if (connected != null) return connected;
+      String field = switch (authMethod == null ? "" : authMethod) {
+        case "token" -> "/auth/token";
+        case "approle" -> "/auth/secretId";
+        default -> "";
+      };
+      List<String> selected = preparedFields == null ? List.of() : preparedFields;
+      Map<String, ConnectionImportFiles.StagedSecret> staged = pending.prepared == null ? Map.of()
+          : pending.prepared.storeSecrets().getOrDefault(proposalId, Map.of());
+      if (selected.size() > 1 || selected.stream().anyMatch(f -> !field.equals(f) || !staged.containsKey(f))) {
+        throw invalid("Choose only the prepared credential for the selected sign-in method.", "/preparedFields");
+      }
+      if (overrides != null && overrides.keySet().stream().anyMatch(key -> !field.equals(key))) {
+        throw invalid("Provide only the credential for the selected sign-in method.", "/secrets");
+      }
+      Map<String, char[]> values = new LinkedHashMap<>();
+      try {
+        if (overrides != null) overrides.forEach((key, value) -> values.put(key, value == null ? new char[0] : value.clone()));
+        for (String key : selected) {
+          if (values.containsKey(key)) continue;
+          SecretInput source = staged.get(key).resolve();
+          try {
+            if (!source.isLocal()) throw invalid("A store sign-in needs a local credential or selected file.", "/preparedFields");
+            // Vault bootstrap files conventionally end with a line break; database password files stay byte-exact.
+            char[] value = source.value();
+            int from = 0;
+            int to = value.length;
+            if ("file".equals(staged.get(key).source())) {
+              while (from < to && Character.isWhitespace(value[from])) from++;
+              while (to > from && Character.isWhitespace(value[to - 1])) to--;
+            }
+            values.put(key, Arrays.copyOfRange(value, from, to));
+          } finally { source.clear(); }
+        }
+        connected = connect.apply(proposal.deepCopy(), values);
+        pending.storeConnections.put(proposalId, connected);
+        staged.values().forEach(ConnectionImportFiles.StagedSecret::clear);
+        proposal.put("connectedStore", connected);
+        String name = proposal.path("name").asString();
+        for (JsonNode candidate : pending.manifest.path("connections")) {
+          for (JsonNode source : candidate.path("secretSources")) {
+            String store = source.path("store").asString("");
+            if (store.equals(proposalId) || store.equals(name)) ((ObjectNode) source).put("store", connected);
+          }
+        }
+        return connected;
+      } finally { values.values().forEach(value -> Arrays.fill(value, '\0')); }
+    }
+  }
+
+  private static SecretInput mappedStore(Pending pending, SecretInput input) {
+    if (input.isLocal() || input.store() == null) return input;
+    for (JsonNode proposal : pending.manifest.path("stores")) {
+      if (input.store().equals(proposal.path("id").asString()) || input.store().equals(proposal.path("name").asString())) {
+        String actual = pending.storeConnections.get(proposal.path("id").asString());
+        if (actual != null) return new SecretInput(null, input.reference(), input.dynamic(), actual);
+      }
+    }
+    return input;
+  }
+
   public Imported commit(String id, String endpoint, List<Selection> selections, String reason) {
     Pending pending = pending(id);
     try {
@@ -285,31 +382,40 @@ public class ConnectionImportService {
         if (selections == null || selections.isEmpty() || selections.size() > MAX_CONNECTIONS) {
           throw invalid("Choose between 1 and 50 connections.", "/selections");
         }
-        checkEndpoint(endpoint);
-        EndpointSnapshot destination = endpoints.snapshot(endpoint);
-        if (destination.blocked() || !destination.enabled()) {
-          throw invalid("Choose an enabled, verified destination endpoint.", "/endpoint");
-        }
         Map<String, JsonNode> candidates = new LinkedHashMap<>();
         pending.manifest.path("connections").forEach(c -> candidates.put(c.path("id").asString(), c));
         Set<String> selected = new HashSet<>();
         Set<String> names = new HashSet<>();
+        List<Selection> routed = new ArrayList<>();
+        Map<String, String> destinationIds = new LinkedHashMap<>();
+        // Reject every invalid destination before resolving credentials or probing any selected connection.
+        for (int index = 0; index < selections.size(); index++) {
+          Selection selection = selections.get(index);
+          if (selection == null || !selected.add(selection.candidateId()) || !names.add(selection.name())) {
+            throw invalid("Each candidate and connection name must be selected only once.", "/selections/" + index);
+          }
+          JsonNode candidate = candidates.get(selection.candidateId());
+          if (candidate == null) throw invalid("Choose a candidate from this import.", "/selections/" + index);
+          if (!supported(candidate.path("type").asString())) {
+            throw invalid("Use the dedicated setup flow for this connector.", "/selections/" + index);
+          }
+          if ("prod".equals(candidate.path("env").asString()) && !"prod".equals(selection.env())) {
+            throw invalid("Production discoveries must retain the production environment.", "/selections/" + index + "/env");
+          }
+          String target = selection.endpoint() == null ? endpoint : selection.endpoint();
+          EndpointSnapshot destination = destination(target, index);
+          destinationIds.putIfAbsent(target, destination.id());
+          routed.add(new Selection(selection.candidateId(), selection.name(), selection.env(), selection.config(),
+              selection.secrets(), selection.confirm(), selection.allowIncomplete(), target));
+        }
         List<Selection> reviewed = new ArrayList<>();
         Map<String, List<String>> incomplete = new LinkedHashMap<>();
         Map<String, ArrayNode> pendingSources = new LinkedHashMap<>();
         try {
-          for (int index = 0; index < selections.size(); index++) {
-            Selection selection = selections.get(index);
-            if (selection == null || !selected.add(selection.candidateId()) || !names.add(selection.name())) {
-              throw invalid("Each candidate and connection name must be selected only once.", "/selections");
-            }
+          for (int index = 0; index < routed.size(); index++) {
+            Selection selection = routed.get(index);
             JsonNode candidate = candidates.get(selection.candidateId());
-            if (candidate == null) throw invalid("Choose a candidate from this import.", "/selections");
             String type = candidate.path("type").asString();
-            if (!supported(type)) throw invalid("Use the dedicated setup flow for this connector.", "/selections");
-            if ("prod".equals(candidate.path("env").asString()) && !"prod".equals(selection.env())) {
-              throw invalid("Production discoveries must retain the production environment.", "/selections/" + index + "/env");
-            }
             Map<String, SecretInput> merged = new LinkedHashMap<>();
             List<String> missing = new ArrayList<>();
             ArrayNode sources = JsonNodeFactory.instance.arrayNode();
@@ -318,7 +424,7 @@ public class ConnectionImportService {
               if (pending.prepared != null) {
                 for (var entry : pending.prepared.secrets().getOrDefault(selection.candidateId(), Map.of()).entrySet()) {
                   if (!merged.containsKey(entry.getKey())) {
-                    try { merged.put(entry.getKey(), entry.getValue().resolve()); }
+                    try { merged.put(entry.getKey(), mappedStore(pending, entry.getValue().resolve())); }
                     catch (ProblemException e) {
                       if (!selection.allowIncomplete()) throw e;
                       sources.add(entry.getValue().summary(entry.getKey()));
@@ -352,7 +458,8 @@ public class ConnectionImportService {
               merged.values().forEach(SecretInput::clear);
               throw e;
             }
-            Selection ready = new Selection(selection.candidateId(), selection.name(), selection.env(), available, merged, selection.confirm(), selection.allowIncomplete());
+            Selection ready = new Selection(selection.candidateId(), selection.name(), selection.env(), available,
+                merged, selection.confirm(), selection.allowIncomplete(), selection.endpoint());
             reviewed.add(ready);
             // Run production credential/privilege checks before opening the batch transaction.
             try {
@@ -376,27 +483,46 @@ public class ConnectionImportService {
                   "/selections/" + index + (e.field() == null ? "" : e.field()), e.confirm());
             }
           }
-          List<String> imported = writeTx.execute(status -> {
-            List<String> created = new ArrayList<>();
-            for (Selection selection : reviewed) {
+          List<Destination> imported = writeTx.execute(status -> {
+            // A pause, integrity change or replacement during preflight must not change the reviewed destination.
+            for (int index = 0; index < reviewed.size(); index++) {
+              String target = reviewed.get(index).endpoint();
+              if (!destination(target, index).id().equals(destinationIds.get(target))) {
+                throw invalid("The destination endpoint changed. Review it again.", "/selections/" + index + "/endpoint");
+              }
+            }
+            List<Destination> created = new ArrayList<>();
+            for (int index = 0; index < reviewed.size(); index++) {
+              Selection selection = reviewed.get(index);
               String type = candidates.get(selection.candidateId()).path("type").asString();
               // preflightCreate above checked the exact reviewed input; avoid repeating resource I/O in this transaction.
-              ConnectionService.Summary connection = incomplete.containsKey(selection.candidateId())
-                  ? connections.createImportDraft(selection.name(), type, env(selection.env()), selection.config(),
-                      selection.secrets(), incomplete.get(selection.candidateId()), pendingSources.get(selection.candidateId()), reason)
-                  : connections.create(selection.name(), type, env(selection.env()), selection.config(), selection.secrets(),
-                      reason, ConnectionService.CONFIRM_DANGER);
-              wiring.add(endpoint, connection.name(), reason);
-              created.add(connection.name());
+              ConnectionService.Summary connection;
+              try {
+                connection = incomplete.containsKey(selection.candidateId())
+                    ? connections.createImportDraft(selection.name(), type, env(selection.env()), selection.config(),
+                        selection.secrets(), incomplete.get(selection.candidateId()), pendingSources.get(selection.candidateId()), reason)
+                    : connections.create(selection.name(), type, env(selection.env()), selection.config(), selection.secrets(),
+                        reason, ConnectionService.CONFIRM_DANGER);
+              } catch (ProblemException e) {
+                throw new ProblemException(e.kind(), e.title(), e.getMessage(),
+                    "/selections/" + index + (e.field() == null ? "" : e.field()), e.confirm());
+              }
+              try { wiring.add(selection.endpoint(), connection.name(), reason); }
+              catch (ProblemException e) {
+                throw new ProblemException(e.kind(), e.title(), e.getMessage(), "/selections/" + index + "/endpoint", e.confirm());
+              }
+              created.add(new Destination(connection.name(), selection.endpoint()));
             }
             return List.copyOf(created);
           });
           pending.status = "imported";
           if (pending.prepared != null) { pending.prepared.close(); pending.prepared = null; }
           files.delete(pending.id);
-          return new Imported(imported, endpoint, pending.status, reviewed.stream()
+          List<String> targets = imported.stream().map(Destination::endpoint).distinct().toList();
+          return new Imported(imported.stream().map(Destination::connection).toList(),
+              targets.size() == 1 ? targets.getFirst() : null, pending.status, reviewed.stream()
               .filter(s -> incomplete.containsKey(s.candidateId()))
-              .map(s -> new NeedsSetup(s.name(), incomplete.get(s.candidateId()))).toList());
+              .map(s -> new NeedsSetup(s.name(), incomplete.get(s.candidateId()))).toList(), imported);
         } finally {
           reviewed.forEach(s -> s.secrets().values().forEach(SecretInput::clear));
         }
@@ -404,6 +530,19 @@ public class ConnectionImportService {
     } finally {
       if (selections != null) selections.stream().filter(s -> s != null && s.secrets() != null)
           .forEach(s -> s.secrets().values().forEach(SecretInput::clear));
+    }
+  }
+
+  private EndpointSnapshot destination(String endpoint, int index) {
+    try {
+      checkEndpoint(endpoint);
+      EndpointSnapshot destination = endpoints.uncachedSnapshot(endpoint);
+      if (destination.blocked() || !destination.enabled()) {
+        throw invalid("Choose an enabled, verified destination endpoint.", "/endpoint");
+      }
+      return destination;
+    } catch (ProblemException e) {
+      throw new ProblemException(e.kind(), e.title(), e.getMessage(), "/selections/" + index + "/endpoint", e.confirm());
     }
   }
 
@@ -490,13 +629,72 @@ public class ConnectionImportService {
     return "This connector is unavailable for repository import. Configure it through its dedicated setup flow.";
   }
 
+  private static ObjectNode storeDescriptor() {
+    ObjectNode descriptor = JsonNodeFactory.instance.objectNode().put("kind", "vault");
+    descriptor.putArray("secretFields").add("/auth/token").add("/auth/secretId");
+    descriptor.putArray("secretSources").add("local").add("file");
+    ObjectNode schema = descriptor.putObject("configSchema").put("type", "object").put("additionalProperties", false);
+    ObjectNode properties = schema.putObject("properties");
+    properties.putObject("address").put("type", "string").put("maxLength", 2048);
+    properties.putObject("namespace").put("type", "string").put("maxLength", 256);
+    ObjectNode auth = properties.putObject("auth").put("type", "object").put("additionalProperties", false).putObject("properties");
+    auth.putObject("method").put("type", "string").putArray("enum")
+        .add("approle").add("token").add("cli-token").add("token-file");
+    auth.putObject("roleId").put("type", "string").put("maxLength", 1024);
+    return descriptor;
+  }
+
+  private ArrayNode validateStores(JsonNode stores) {
+    ArrayNode out = JsonNodeFactory.instance.arrayNode();
+    if (stores.isMissingNode()) return out;
+    if (!stores.isArray() || stores.size() > MAX_STORES) throw invalid("Provide at most 16 discovered stores.", "/manifest/stores");
+    Set<String> aliases = new HashSet<>();
+    for (JsonNode store : stores) {
+      fields(store, Set.of("id", "kind", "name", "config", "evidence", "warnings", "credentialHints"));
+      String id = text(store.path("id"), 64);
+      String name = text(store.path("name"), 64);
+      if (!id.matches("[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}") || !name.matches("[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
+          || !aliases.add(id) || (!id.equals(name) && !aliases.add(name))) {
+        throw invalid("Use unique store identifiers and lowercase names with hyphens.", "/manifest/stores");
+      }
+      if (!"vault".equals(text(store.path("kind"), 32))) throw invalid("Only Vault and OpenBao store proposals are supported.", "/manifest/stores");
+      JsonNode config = store.path("config");
+      fields(config, Set.of("address", "namespace", "auth"));
+      if (config.has("address")) {
+        String address = text(config.path("address"), 2048);
+        try {
+          java.net.URI uri = java.net.URI.create(address);
+          if (!("https".equalsIgnoreCase(uri.getScheme()) || "http".equalsIgnoreCase(uri.getScheme()))
+              || uri.getHost() == null || uri.getRawUserInfo() != null || uri.getRawQuery() != null || uri.getRawFragment() != null) {
+            throw new IllegalArgumentException();
+          }
+        } catch (IllegalArgumentException e) { throw invalid("Use an HTTP or HTTPS Vault address without credentials.", "/manifest/stores"); }
+      }
+      if (config.has("namespace")) text(config.path("namespace"), 256);
+      if (config.has("auth")) {
+        JsonNode auth = config.path("auth");
+        fields(auth, Set.of("method", "roleId"));
+        if (auth.has("method") && !Set.of("approle", "token", "cli-token", "token-file").contains(text(auth.path("method"), 32))) {
+          throw invalid("Choose a supported Vault sign-in method.", "/manifest/stores");
+        }
+        if (auth.has("roleId")) text(auth.path("roleId"), 1024);
+      }
+      ObjectNode entry = (ObjectNode) store.deepCopy();
+      entry.set("evidence", texts(store.path("evidence"), 20, 512));
+      entry.set("warnings", texts(store.path("warnings"), 20, 512));
+      entry.set("credentialHints", hints(store.path("credentialHints")));
+      out.add(entry);
+    }
+    return out;
+  }
+
   private ObjectNode validateManifest(JsonNode manifest) {
     if (manifest == null || !manifest.isObject()) throw invalid("Provide an import manifest object.", "/manifest");
     bounded(manifest, 0, new int[] {0});
     if (manifest.toString().getBytes(StandardCharsets.UTF_8).length > MAX_BYTES) {
       throw invalid("The discovery manifest must be at most 128 KiB.", "/manifest");
     }
-    fields(manifest, Set.of("version", "connections", "warnings"));
+    fields(manifest, Set.of("version", "connections", "stores", "warnings"));
     if (!manifest.path("version").isInt() || manifest.path("version").asInt() != 1) {
       throw invalid("Use import manifest version 1.", "/manifest/version");
     }
@@ -506,6 +704,7 @@ public class ConnectionImportService {
     }
     ObjectNode normalized = (ObjectNode) manifest.deepCopy();
     normalized.set("warnings", texts(manifest.path("warnings"), 30, 512));
+    normalized.set("stores", validateStores(manifest.path("stores")));
     ArrayNode out = normalized.putArray("connections");
     Set<String> ids = new HashSet<>();
     for (JsonNode candidate : connections) {

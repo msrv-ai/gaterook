@@ -15,6 +15,7 @@ import { provideKitIcons } from '../../kit/icons';
 import { ConnectionImportPage } from './connection-import.page';
 import { connectionImportPrompt } from './connection-import-prompt';
 import { ClientsData } from '../clients/clients.data';
+import { SecretsApi } from '../../core/api/secrets.api';
 import { kitClients, kitManual, kitEndpoints } from '../clients/clients.fixtures';
 import { ClientCard, ClientId } from '../../core/api/clients.api';
 
@@ -96,8 +97,9 @@ describe('AI connection import review', () => {
       provideRouter([]), provideHttpClient(), provideKitIcons(),
       { provide: ConnectionImportsApi, useValue: api },
       { provide: ConnectionsApi, useValue: connections },
+      { provide: SecretsApi, useValue: { stores: vi.fn(async () => []) } },
       { provide: ConnectorTypesApi, useValue: { form: vi.fn(async () => spec) } },
-      { provide: EndpointsApi, useValue: { list: vi.fn(async () => endpoints) } },
+      { provide: EndpointsApi, useValue: { list: vi.fn(async () => endpoints), create: vi.fn(async () => ({ ...endpoints[0], slug: 'project-dev' })) } },
       { provide: DesktopBridge, useValue: { available: false, aiPromptAvailable: true, repositoryPickerAvailable: true, chooseRepository: async () => '/workspace/chosen', openAiPrompt: open } },
       { provide: ClipboardWriter, useValue: { write: copy } },
     ] }).overrideComponent(ConnectionImportPage, { set: { providers: [{ provide: ClientsData, useValue: clientData }] } }).compileComponents();
@@ -118,6 +120,15 @@ describe('AI connection import review', () => {
     await fixture.whenStable();
     await vi.waitFor(() => expect(page.loading()).toBe(false));
     fixture.detectChanges();
+  }
+
+  async function openEndpointDialog(candidate: ImportCandidate): Promise<HTMLDialogElement> {
+    fixture.detectChanges();
+    const select = fixture.nativeElement.querySelector(`#import-destination-${candidate.id}`) as HTMLSelectElement;
+    select.value = '__create';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    return fixture.nativeElement.querySelector('#import-create-endpoint') as HTMLDialogElement;
   }
 
   async function sshEditor(staged = false) {
@@ -237,13 +248,42 @@ describe('AI connection import review', () => {
     expect(page.notice()).toContain('Could not copy');
   });
 
-  it('shows the session URL and recovery guidance when another instance has the same endpoint name', async () => {
+  it('shows a compact app handoff and keeps technical instructions inside the collapsed prompt', async () => {
     page.session.set(awaiting);
-    fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain(awaiting.endpointUrl);
-    expect(fixture.nativeElement.textContent).toContain('restart the AI app and open a new chat');
-    expect(fixture.nativeElement.querySelector('gw-import-app-picker')).not.toBeNull();
+    fixture.detectChanges(); await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('#import-ai-app')).toBeNull();
+    expect(root.textContent).toContain('Cursor will inspect your repository');
+    expect(root.textContent).toContain('Connections are saved only after your confirmation');
+    expect(root.textContent).not.toContain("Check your AI app's connection");
+    expect(root.textContent).not.toContain('Check app connections');
+    expect(root.querySelector('#import-prompt-details')?.textContent).toContain(awaiting.endpointUrl);
     expect(api.commit).not.toHaveBeenCalled();
+  });
+
+  it('returns to setup without discarding the session and reuses its prompt for the same repository and endpoint', async () => {
+    await loadReview(awaiting);
+    page.backToSetup(); fixture.detectChanges(); await fixture.whenStable();
+    expect(page.setupVisible()).toBe(true);
+    expect(page.repository()).toBe(awaiting.repository);
+    expect(fixture.nativeElement.querySelector('#import-repository')).not.toBeNull();
+    expect(api.cancel).not.toHaveBeenCalled();
+    await page.start(); fixture.detectChanges(); await fixture.whenStable();
+    expect(page.setupVisible()).toBe(false);
+    expect(page.session()?.id).toBe(awaiting.id);
+    expect(api.start).not.toHaveBeenCalled();
+    expect(page.prompt()).toBe(connectionImportPrompt(awaiting));
+  });
+
+  it('checks the newly chosen source endpoint when returning from the handoff', async () => {
+    await loadReview(awaiting);
+    page.backToSetup();
+    page.sourceChanged('production'); fixture.detectChanges(); await fixture.whenStable();
+    expect(page.appEndpoint()?.slug).toBe('production');
+    expect(page.appEndpoint()?.url).toBe('http://127.0.0.1:18475/mcp/production');
+    expect(page.selectedClient()).toBeNull();
+    expect(api.cancel).not.toHaveBeenCalled();
+    expect(api.start).not.toHaveBeenCalled();
   });
 
   it('offers copy fallback when an AI app link cannot carry the prompt', async () => {
@@ -337,10 +377,93 @@ describe('AI connection import review', () => {
     expect(page.drafts().get(candidate.id)).toEqual({ candidateId: candidate.id, name: candidate.name, env: candidate.env,
       config: candidate.config, secrets: {}, allowIncomplete: true });
     expect(page.ready()).toBe(true);
+    expect(page.destinations().get(candidate.id)).toBe('default');
+    expect(fixture.nativeElement.querySelector(`#import-destination-${candidate.id}`).value).toBe('default');
+    expect(fixture.nativeElement.querySelector('#import-target-endpoint')).toBeNull();
     expect(fixture.nativeElement.textContent).toContain('config/application-dev.yml: datasource');
     expect(api.commit).not.toHaveBeenCalled();
     expect(connections.create).not.toHaveBeenCalled();
     expect(connections.testDraft).not.toHaveBeenCalled();
+  });
+
+  it('imports each selected connection into its own endpoint and reports all destinations', async () => {
+    const second = { ...candidate, id: 'other-db', name: 'other-dev-db' };
+    const skipped = { ...candidate, id: 'skipped-db', name: 'skipped-dev-db' };
+    await loadReview({ ...review, manifest: { version: 1, connections: [candidate, second, skipped], warnings: [] } });
+    page.setDestination(second, 'production');
+    page.setDestination(skipped, '');
+    await page.configure(second); page.keep({ ...draft, name: second.name });
+    expect(page.destinations().get(second.id)).toBe('production');
+    const destinations = [{ connection: candidate.name, endpoint: 'default' }, { connection: second.name, endpoint: 'production' }];
+    api.commit.mockResolvedValueOnce({ connections: destinations.map(item => item.connection), destinations, endpoint: null, status: 'imported' });
+    await page.commit(); fixture.detectChanges();
+    expect(api.commit).toHaveBeenCalledWith(review.id, [
+      expect.objectContaining({ candidateId: candidate.id, endpoint: 'default', allowIncomplete: true }),
+      expect.objectContaining({ candidateId: second.id, endpoint: 'production', secrets: draft.secrets }),
+    ], undefined);
+    expect(fixture.nativeElement.textContent).toContain('into 2 endpoints');
+    expect(fixture.nativeElement.querySelector('a[href="/endpoints/default"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('a[href="/endpoints/production"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('a[href="/connections/skipped-dev-db"]')).toBeNull();
+  });
+
+  it('cancels endpoint creation without changing the candidate destination or saving anything', async () => {
+    await loadReview(); page.setDestination(candidate, 'production');
+    const dialog = await openEndpointDialog(candidate);
+    expect(dialog.open).toBe(true);
+    expect(fixture.nativeElement.querySelector(`#import-destination-${candidate.id}`).value).toBe('production');
+    expect(TestBed.inject(EndpointsApi).create).not.toHaveBeenCalled();
+    Array.from(dialog.querySelectorAll('button')).find(button => button.textContent?.trim() === 'Cancel')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(dialog.open).toBe(false);
+    expect(page.endpointCandidate()).toBeNull();
+    expect(page.destinations().get(candidate.id)).toBe('production');
+    expect(api.commit).not.toHaveBeenCalled();
+  });
+
+  it('creates an empty endpoint only on submit and selects it only for its triggering candidate', async () => {
+    const second = { ...candidate, id: 'other-db', name: 'other-dev-db' };
+    await loadReview({ ...review, manifest: { version: 1, connections: [candidate, second], warnings: [] } });
+    await page.configure(candidate); page.keep(structuredClone(draft));
+    const dialog = await openEndpointDialog(second);
+    page.endpointSlug.set('project-dev'); page.endpointDescription.set('Project analysis');
+    expect(TestBed.inject(EndpointsApi).create).not.toHaveBeenCalled();
+    dialog.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(TestBed.inject(EndpointsApi).create).toHaveBeenCalledWith({ slug: 'project-dev', description: 'Project analysis', startFrom: 'empty', connections: [] });
+    expect(page.destinations().get(second.id)).toBe('project-dev');
+    expect(page.destinations().get(candidate.id)).toBe('default');
+    expect(page.drafts().get(candidate.id)?.secrets).toEqual(draft.secrets);
+    expect(dialog.open).toBe(false);
+    expect(api.commit).not.toHaveBeenCalled();
+    expect(page.notice()).toContain('only when you import');
+  });
+
+  it('keeps the previous destination and dialog inputs after endpoint creation fails', async () => {
+    await loadReview();
+    vi.mocked(TestBed.inject(EndpointsApi).create).mockRejectedValueOnce(new ApiError('conflict', 409, { title: 'Endpoint exists', detail: 'Choose another endpoint slug.', field: '/slug' }));
+    const dialog = await openEndpointDialog(candidate);
+    page.endpointSlug.set('project-dev');
+    await page.createEndpoint(); fixture.detectChanges();
+    expect(dialog.open).toBe(true);
+    expect(page.endpointSlug()).toBe('project-dev');
+    expect(page.endpointSlugError()).toContain('Choose another endpoint slug');
+    expect(page.destinations().get(candidate.id)).toBe('default');
+    expect(api.commit).not.toHaveBeenCalled();
+  });
+
+  it('ignores an endpoint creation result after a different import session is opened', async () => {
+    await loadReview(); await openEndpointDialog(candidate);
+    let complete!: (endpoint: EndpointSummary) => void;
+    vi.mocked(TestBed.inject(EndpointsApi).create).mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+    page.endpointSlug.set('project-dev');
+    const creating = page.createEndpoint();
+    const next = { ...candidate, id: 'next-db', name: 'next-dev-db' };
+    await loadReview({ ...review, id: 'ci_zyxwvuts4321', manifest: { version: 1, connections: [next], warnings: [] } });
+    complete({ ...endpoints[0], slug: 'project-dev' }); await creating;
+    expect([...page.destinations()]).toEqual([[next.id, 'default']]);
+    expect(page.endpoints().some(endpoint => endpoint.slug === 'project-dev')).toBe(false);
+    expect(api.commit).not.toHaveBeenCalled();
   });
 
   it('keeps analysis notes compact until explicitly expanded without changing the import', async () => {
@@ -392,16 +515,16 @@ describe('AI connection import review', () => {
 
   it('lets the user edit prepared settings and requires final import before saving', async () => {
     await loadReview();
-    page.toggle(candidate, true);
+    page.setDestination(candidate, 'default');
     expect(page.ready()).toBe(true);
     await page.configure(candidate);
     expect(page.ready()).toBe(false);
     page.keep(structuredClone(draft));
     expect(api.commit).not.toHaveBeenCalled();
-    page.targetChanged('production');
+    page.setDestination(candidate, 'production');
     expect(page.ready()).toBe(true);
     await page.commit();
-    expect(api.commit).toHaveBeenCalledWith(review.id, 'production', [{ candidateId: candidate.id, ...draft }], undefined);
+    expect(api.commit).toHaveBeenCalledWith(review.id, [{ candidateId: candidate.id, ...draft, endpoint: 'production' }], undefined);
     expect(page.drafts().size).toBe(0);
     expect(page.prompt()).toBe('');
     expect(page.result()?.connections).toEqual([candidate.name]);
@@ -409,7 +532,7 @@ describe('AI connection import review', () => {
 
   it('keeping a configuration does not silently select it', async () => {
     await loadReview();
-    page.toggle(candidate, false);
+    page.setDestination(candidate, '');
     await page.configure(candidate);
     page.keep(structuredClone(draft));
     expect(page.selected().size).toBe(0);
@@ -419,15 +542,17 @@ describe('AI connection import review', () => {
   it('lets the user explicitly keep partial settings and reports saved connections that need setup', async () => {
     const partial = { ...candidate, config: {}, warnings: ['Database host and credentials are unresolved.'] };
     await loadReview({ ...review, manifest: { version: 1, connections: [partial], warnings: [] } });
-    page.toggle(partial, false);
+    expect(fixture.nativeElement.querySelector(`#candidate-${partial.id}`)).not.toBeNull();
+    expect(fixture.nativeElement.querySelector(`#import-destination-${partial.id}`)).not.toBeNull();
+    page.setDestination(partial, '');
     page.keepAvailable(partial);
     expect(page.selected().size).toBe(0);
     expect(page.drafts().get(partial.id)?.allowIncomplete).toBe(true);
     expect(api.commit).not.toHaveBeenCalled();
-    page.toggle(partial, true);
+    page.setDestination(partial, 'default');
     api.commit.mockResolvedValueOnce({ connections: [partial.name], endpoint: 'default', status: 'imported', needsSetup: [{ name: partial.name, missingFields: ['/connection/host', '/credentials/password'] }] });
     await page.commit();
-    expect(api.commit).toHaveBeenCalledWith(review.id, 'default', [{ candidateId: partial.id, name: partial.name, env: 'dev', config: {}, secrets: {}, allowIncomplete: true }], undefined);
+    expect(api.commit).toHaveBeenCalledWith(review.id, [{ candidateId: partial.id, name: partial.name, env: 'dev', config: {}, secrets: {}, allowIncomplete: true, endpoint: 'default' }], undefined);
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Saved connections that need setup');
     expect(fixture.nativeElement.textContent).toContain('disabled and provide no tools');
@@ -458,31 +583,32 @@ describe('AI connection import review', () => {
     await page.configure(duplicate);
     page.keep({ ...structuredClone(draft), name: 'renamed-db' });
     expect([...page.selected()]).toEqual([candidate.id]);
-    page.toggle(duplicate, true);
+    page.setDestination(duplicate, 'default');
     expect(page.selectedDrafts().map(d => d.name)).toEqual([candidate.name, 'renamed-db']);
     expect(api.commit).not.toHaveBeenCalled();
     expect(connections.create).not.toHaveBeenCalled();
   });
 
-  it('preserves deselections, edited settings and the chosen destination through repeated polling', async () => {
-    await loadReview();
-    page.toggle(candidate, false);
+  it('preserves skipped candidates, edited settings and individual destinations through repeated polling', async () => {
+    const second = { ...candidate, id: 'other-db', name: 'other-dev-db' };
+    await loadReview({ ...review, manifest: { version: 1, connections: [candidate, second], warnings: [] } });
+    page.setDestination(candidate, '');
     await page.configure(candidate);
     page.keep({ ...structuredClone(draft), name: 'reviewed-name' });
-    page.targetChanged('production');
+    page.setDestination(second, 'production');
     const prepared = structuredClone([...page.drafts()]);
     await page.refresh(false);
     await page.refresh(false);
-    expect(page.selected().size).toBe(0);
+    expect([...page.selected()]).toEqual([second.id]);
     expect([...page.drafts()]).toEqual(prepared);
-    expect(page.targetEndpoint()).toBe('production');
-    expect(page.ready()).toBe(false);
+    expect(page.destinations().get(second.id)).toBe('production');
+    expect(page.ready()).toBe(true);
     expect(api.commit).not.toHaveBeenCalled();
   });
 
   it('resets defaults when a different review session is opened', async () => {
     await loadReview();
-    page.toggle(candidate, false);
+    page.setDestination(candidate, '');
     await page.configure(candidate);
     page.keep(structuredClone(draft));
     const next = { ...candidate, id: 'next-db', name: 'next-dev-db' };
@@ -496,7 +622,7 @@ describe('AI connection import review', () => {
 
   it('discards only the current import after the user requests it and clears credential overrides', async () => {
     await loadReview();
-    page.toggle(candidate, true);
+    page.setDestination(candidate, 'default');
     await page.configure(candidate);
     page.keep(draft);
     expect(api.cancel).not.toHaveBeenCalled();
@@ -508,14 +634,29 @@ describe('AI connection import review', () => {
     expect(TestBed.inject(Router).navigate).toHaveBeenLastCalledWith(['/connection-import']);
   });
 
-  it('shows unsupported services but cannot select or configure them', async () => {
+  it('hides unsupported services from import controls while retaining their original discovery', async () => {
     const unsupported = { ...candidate, type: 'mcp-server', supported: false, unsupportedReason: 'Review and sign in through Add MCP server.' };
     await loadReview({ ...review, manifest: { version: 1, connections: [unsupported], warnings: [] } });
-    page.toggle(unsupported, true);
+    page.setDestination(unsupported, 'default');
     await page.configure(unsupported);
     expect(page.active()).toBeNull();
     expect(page.selected().size).toBe(0);
-    expect(fixture.nativeElement.textContent).toContain(unsupported.unsupportedReason);
+    expect(fixture.nativeElement.textContent).not.toContain(unsupported.unsupportedReason);
+    expect(fixture.nativeElement.querySelector(`#candidate-${unsupported.id}`)).toBeNull();
+    expect(fixture.nativeElement.querySelector(`#import-destination-${unsupported.id}`)).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('No importable connections');
+    expect(page.session()?.manifest?.connections).toEqual([unsupported]);
+    expect(api.commit).not.toHaveBeenCalled();
+  });
+
+  it('keeps the import session while a Vault setup action is pending', async () => {
+    await loadReview(); page.vaultBusy.set(true); fixture.detectChanges();
+    const discard = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.trim() === 'Discard import')!;
+    expect(discard.disabled).toBe(true);
+    await page.discard();
+    expect(api.cancel).not.toHaveBeenCalled();
+    expect(page.session()?.id).toBe(review.id);
   });
 
   it('blocks existing names and production downgrades without discarding the editor', async () => {
@@ -535,7 +676,7 @@ describe('AI connection import review', () => {
 
   it('retains reviewed settings after a failed commit and confirms only the named production candidate', async () => {
     await loadReview();
-    page.toggle(candidate, true);
+    page.setDestination(candidate, 'default');
     await page.configure(candidate);
     page.keep(draft);
     api.commit.mockRejectedValueOnce(new ApiError('conflict', 409, { title: 'Review permissions', detail: 'The database account has elevated privileges.', field: '/selections/0', confirm: 'danger' }));
@@ -545,12 +686,12 @@ describe('AI connection import review', () => {
     expect(api.commit).toHaveBeenCalledTimes(1);
     page.confirmImport();
     await fixture.whenStable();
-    expect(api.commit).toHaveBeenLastCalledWith(review.id, 'default', [{ candidateId: candidate.id, ...draft, confirm: 'danger' }], undefined);
+    expect(api.commit).toHaveBeenLastCalledWith(review.id, [{ candidateId: candidate.id, ...draft, confirm: 'danger', endpoint: 'default' }], undefined);
   });
 
   it('invalidates permission confirmation while keeping reviewed credentials when configuration is reopened', async () => {
     await loadReview();
-    page.toggle(candidate, true);
+    page.setDestination(candidate, 'default');
     page.drafts.set(new Map([[candidate.id, { candidateId: candidate.id, ...draft, confirm: 'danger' }]]));
     page.confirmation.set({ candidateId: candidate.id, name: candidate.name, text: 'Elevated permissions', confirm: 'danger' });
     await page.configure(candidate);
@@ -565,13 +706,13 @@ describe('AI connection import review', () => {
   it('retains a user replacement across reopening instead of reverting to the staged original', async () => {
     const staged: ImportCandidate = { ...candidate, secretSources: [{ field: '/credentials/password', source: 'local' }] };
     await loadReview({ ...review, manifest: { version: 1, connections: [staged], warnings: [] } });
-    page.toggle(staged, true);
+    page.setDestination(staged, 'default');
     await page.configure(staged);
     page.keep(draft);
     await page.configure(staged);
     page.keep({ ...draft, secrets: {} });
     await page.commit();
-    expect(api.commit).toHaveBeenCalledWith(review.id, 'default', [{ candidateId: candidate.id, ...draft }], undefined);
+    expect(api.commit).toHaveBeenCalledWith(review.id, [{ candidateId: candidate.id, ...draft, endpoint: 'default' }], undefined);
   });
 
   it('invalidates database discovery when a prepared credential is replaced inside the form', async () => {
@@ -612,6 +753,29 @@ describe('AI connection import review', () => {
     expect(page.drafts().get(candidate.id)?.secrets).toEqual({});
   });
 
+  it('refreshes Vault credential choices without losing edited configuration, credentials or destinations', async () => {
+    const staged: ImportCandidate = { ...candidate, secretSources: [{ field: '/credentials/password', source: 'local' }],
+      credentialHints: [{ field: '/credentials/password', source: 'vault', instructions: 'Connect the discovered Vault before using references.' }] };
+    await loadReview({ ...review, manifest: { version: 1, connections: [staged], warnings: [] } });
+    page.setDestination(staged, 'production');
+    await page.configure(staged); fixture.detectChanges(); await fixture.whenStable();
+    const state = page.form()!.state();
+    state.model.update(model => ({ ...model, connection: { host: 'reviewed.example.test', port: 3306, databases: ['example'] } }));
+    const password = state.compiled.all.find(node => node.pointer === '/credentials/password')!;
+    state.replace(password, true); state.setSecret(password, 'reviewed-fixture-password');
+    const refreshed = { ...spec, secretSources: [...spec.secretSources, { id: 'vault', label: 'Vault', available: true, reason: null }] };
+    vi.mocked(TestBed.inject(ConnectorTypesApi).form).mockResolvedValueOnce(refreshed);
+    await page.vaultConnected(); fixture.detectChanges(); await fixture.whenStable();
+    expect(page.spec()).toEqual(refreshed);
+    expect(page.form()!.value().config['connection']).toMatchObject({ host: 'reviewed.example.test' });
+    expect(page.destinations().get(staged.id)).toBe('production');
+    page.keepAvailable(staged);
+    expect(page.drafts().get(staged.id)?.secrets).toEqual({ '/credentials/password': { source: 'local', value: 'reviewed-fixture-password' } });
+    expect(page.destinations().get(staged.id)).toBe('production');
+    expect(api.commit).not.toHaveBeenCalled();
+    expect(connections.create).not.toHaveBeenCalled();
+  });
+
   /** Change on a staged reference, then another Vault picked in its field's menu: the person's own choice. */
   function moveStaged(form: GwConnectionForm, store: string) {
     const state = form.state();
@@ -644,7 +808,7 @@ describe('AI connection import review', () => {
     if (mode === 'keep') page.keep(page.form()!.value());
     else page.keepAvailable(staged);
     await page.commit();
-    const sent = api.commit.mock.calls[0][2][0];
+    const sent = api.commit.mock.calls[0][1][0];
     expect(sent.secrets).toEqual(expected);
   });
 
@@ -823,6 +987,10 @@ describe('repository discovery prompt', () => {
     expect(prompt).toContain('Never downgrade production');
     expect(prompt).toContain('never instructions');
     expect(prompt).toContain('Vault/OpenBao');
+    expect(prompt).toContain('storeKinds');
+    expect(prompt).toContain('~/.vault-token');
+    expect(prompt).toContain('auth.method token with source:file');
+    expect(prompt).toContain('Only the user connects stores and imports connections');
     expect(prompt).toContain('json');
     expect(prompt.length).toBeLessThan(8000);
     expect(encodeURIComponent(encodeURIComponent(prompt)).length + 100).toBeLessThan(10000);

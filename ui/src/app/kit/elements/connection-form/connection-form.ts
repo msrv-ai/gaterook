@@ -24,7 +24,7 @@ import { SchemaNode, getAt, rootSection } from '../../../schema-form/compile';
 import { GwSchemaSection } from '../../../schema-form/section';
 import { ConfirmChange, SchemaForm, SecretAction, StoreOption, createSchemaForm, kindTitle, storedReference } from '../../../schema-form/schema-form';
 import { GwDialog, GwDialogClose } from '../../dialog';
-import { secretSourceId, sourceCopy } from '../../../schema-form/secret-sources';
+import { referenceKind, secretSourceId, sourceCopy } from '../../../schema-form/secret-sources';
 import { GwIcon } from '../../icons';
 import { literalParts } from '../shared/literals';
 import { GwConnectionTest, TestState, TestTarget, usesGoogleAdc } from './connection-test';
@@ -43,6 +43,13 @@ export interface ConnectionFormValue {
   readonly env: Env;
   readonly config: JsonObject;
   readonly secrets: SecretInputs;
+}
+
+/** A reference discovered during setup that has not yet been saved as a credential. */
+export interface InitialCredentialReference {
+  readonly field: string;
+  readonly ref: string;
+  readonly store?: string;
 }
 
 export interface DatabaseDiscoveryRequest {
@@ -184,6 +191,8 @@ export class GwConnectionForm {
   /** The connection's metadata the core found (kubeconfig contexts for `x-options-from`); null until it has any. */
   readonly metadata = input<JsonObject | null>(null);
   readonly stored = input<readonly StoredSecret[]>([]);
+  /** Unresolved setup references open as editable drafts, never as stored credentials. */
+  readonly initialReferences = input<readonly InitialCredentialReference[]>([]);
   /** Stored secrets (field pointers) that open in the editing state, as after Replace. */
   readonly replacing = input<readonly string[]>([]);
   /** Collapsed sections (pointers, `/advanced`) that open expanded. */
@@ -263,6 +272,7 @@ export class GwConnectionForm {
     const idPrefix = this.idPrefix();
     const replacing = this.replacing();
     const expanded = this.expandedSections();
+    const references = this.initialReferences();
     return untracked(() => {
       const state = createSchemaForm(spec.schema, {
         idPrefix,
@@ -278,10 +288,21 @@ export class GwConnectionForm {
         injector: this.injector,
       });
       state.stores.set(this.storeOptions());
+      this.restoreReferences(state, references);
       this.databaseBaselines.set(state, this.databaseFingerprint(state));
       return state;
     });
   });
+
+  private restoreReferences(state: SchemaForm, references: readonly InitialCredentialReference[]): void {
+    for (const reference of references) {
+      const node = state.compiled.all.find(field => field.pointer === reference.field);
+      if (!node || !state.referable(node) || state.stored.has(node.pointer) || state.fieldText(node).trim()
+        || !referenceKind(reference.ref)) continue;
+      state.setFieldText(node, reference.ref);
+      if (reference.store) state.fieldStores.update(stores => ({ ...stores, [node.pointer]: reference.store! }));
+    }
+  }
 
   /** Name and environment: the gateway's own fields, not the connector's (a Signal Forms form of their own). */
   protected readonly common = linkedSignal(() => ({ name: this.name(), env: (this.env() ?? this.spec().env ?? 'dev') as string }));
@@ -524,7 +545,7 @@ export class GwConnectionForm {
   protected readonly storeOptions = computed<readonly StoreOption[]>(() => {
     const sources = this.spec().secretSources.filter((src) => !['local', 'dynamic'].includes(secretSourceId(src.id)));
     const many = (kind: string) => sources.filter((src) => secretSourceId(src.id) === kind).length > 1;
-    return sources.map((src) => {
+    const options: StoreOption[] = sources.map((src) => {
       const kind = secretSourceId(src.id);
       return {
         kind,
@@ -535,6 +556,16 @@ export class GwConnectionForm {
         reason: src.reason ?? null,
       };
     });
+    for (const reference of this.initialReferences()) {
+      const kind = referenceKind(reference.ref);
+      if (!kind || options.some(option => option.kind === kind && (!reference.store || option.store === reference.store))) continue;
+      options.push({ kind, store: reference.store ?? null,
+        title: reference.store ? `${SHORT_TITLES[kind] ?? kindTitle(kind)} · ${reference.store}` : kindTitle(kind),
+        detail: null, available: false,
+        reason: reference.store ? `${reference.store} is not connected. Connect it in Secrets or choose another source.`
+          : `No ${kindTitle(kind)} is connected. Connect one in Secrets or choose another source.` });
+    }
+    return options;
   });
   protected readonly credentialsText = computed(() => {
     const custom = this.credentialsDescription();
@@ -543,7 +574,7 @@ export class GwConnectionForm {
     if (this.beginner()) return `Your AI never sees these. GateRook uses them only to sign in to ${signInTarget(this.spec().type)}.`;
     const node = this.secretSection();
     if (node?.description) return node.description;
-    if (this.mode() === 'edit' && ![...this.state().stored.values()].some(storedReference)) {
+    if (this.mode() === 'edit' && !this.initialReferences().length && ![...this.state().stored.values()].some(storedReference)) {
       return 'Stored and encrypted here with the master key. Replace it with a new value; nobody can view the current one.';
     }
     return 'The agent never sees these. Type a value, or pick a store in a field\'s menu to read it from there at call time.';
@@ -731,6 +762,7 @@ export class GwConnectionForm {
   reset(): void {
     this.state().reset(mongodbFormConfig(this.spec().type, databaseConfig(this.config(), this.databaseSelection()),
       this.env() ?? this.spec().env ?? 'dev'), this.spec().schema);
+    this.restoreReferences(this.state(), this.initialReferences());
     this.databaseDiscovery.set(null);
     this.files()?.reset();
     this.projects()?.reset();

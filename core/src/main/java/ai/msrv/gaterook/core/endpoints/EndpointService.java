@@ -207,6 +207,11 @@ public class EndpointService {
     return snapshots.bySlug(slug).orElseThrow(() -> notFound(slug));
   }
 
+  /** Fresh state for a reviewed multi-endpoint write, also callable inside its transaction. */
+  EndpointSnapshot uncachedSnapshot(String slug) {
+    return snapshots.uncached(require(slug).getId()).orElseThrow(() -> notFound(slug));
+  }
+
   public RiskAnalyzer.Report risk(String slug) {
     return risks.analyze(snapshot(slug));
   }

@@ -625,6 +625,8 @@ export class SchemaForm {
 
   /** A reference names a path after its store's scheme (`vault://kv/prod/db#password`). */
   private referenceProblem(node: SchemaNode, typed: string, kind: string): string | null {
+    const source = this.fieldSource(node);
+    if (source && !source.available) return source.reason ?? `Connect ${source.title} in Secrets or choose another source.`;
     const scheme = REFERENCE_SCHEMES[kind];
     if (typed.trim().length > scheme.length) return null;
     const example = kind === 'vault' ? `vault://kv/${this.env()}/db#${node.key}` : `${scheme}…`;

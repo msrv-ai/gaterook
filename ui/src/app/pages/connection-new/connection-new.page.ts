@@ -34,7 +34,7 @@ import { AccessChanges, GwAccessSwitch } from '../../kit/access-switch';
 import { GwAriaDisabled } from '../../kit/aria-disabled';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
 import { GwToggle } from '../../kit/disclosure';
-import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm, ProdDefault, signInTarget } from '../../kit/elements/connection-form/connection-form';
+import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm, InitialCredentialReference, ProdDefault, signInTarget } from '../../kit/elements/connection-form/connection-form';
 import { FileBrowseRequest, FileBrowseTrust } from '../../kit/elements/connection-form/remote-files';
 import { ProjectDiscoveryRequest } from '../../kit/elements/connection-form/cloud-projects';
 import { databaseSelection, removeConfigPath } from '../../kit/elements/connection-form/database-selection';
@@ -48,6 +48,7 @@ import { GwIcon } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
 import { getAt, setAt } from '../../schema-form/compile';
 import { SecretAction, storedReference } from '../../schema-form/schema-form';
+import { referenceKind } from '../../schema-form/secret-sources';
 import {
   EndpointChoice,
   HealthStat,
@@ -234,6 +235,21 @@ export class ConnectionNewPage {
   protected readonly startName = signal('');
   protected readonly startEnv = signal<Env | null>(null);
   protected readonly stored = signal<StoredSecret[]>([]);
+  protected readonly setupReferences = computed<readonly InitialCredentialReference[]>(() => {
+    const detail = this.detail();
+    if (!detail?.setupRequired) return [];
+    const fields = new Set(detail.secrets.map(secret => secret.field));
+    return (detail.setupSources ?? []).flatMap(source => {
+      const field = source['field'];
+      const ref = source['reference'];
+      const store = source['store'];
+      if (typeof field !== 'string' || fields.has(field) || typeof ref !== 'string' || !referenceKind(ref)
+        || ['local', 'file', 'vault-dynamic'].includes(String(source['source']))) return [];
+      fields.add(field);
+      return [{ field, ref, ...(typeof store === 'string' && store ? { store } : {}) }];
+    });
+  }, { equal: (before, after) => before.length === after.length && before.every((reference, index) =>
+    reference.field === after[index].field && reference.ref === after[index].ref && reference.store === after[index].store) });
   protected readonly nameProblem = signal<{ readonly name: string; readonly message: string } | null>(null);
   protected readonly formProblem = signal<{ readonly title: string; readonly message: string } | null>(null);
   private readonly policies = signal<{ readonly all: Policies; readonly schema: JsonObject | null } | null>(null);

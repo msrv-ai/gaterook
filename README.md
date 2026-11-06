@@ -15,7 +15,7 @@ On DEV and STAGE, you can temporarily bypass approval for a method on one connec
 
 Connect your services to GateRook, then choose which connections and tools each AI app can use. GateRook sits between your services and AI apps, keeps credentials local, and applies your access rules to tool calls.
 
-To discover connections in a repository, [import connections with AI](docs/ai-connection-import.md). Your AI app prepares configurations and credentials in a private import file; you review the connections and choose their destination endpoint in GateRook. You can save incomplete discoveries disabled and finish their setup later.
+To discover connections in a repository, [import connections with AI](docs/ai-connection-import.md). Your AI app prepares configurations and credentials in a private import file; you review the connections and choose an endpoint for each in GateRook. You can save incomplete discoveries disabled and finish their setup later.
 
 For HTTP APIs, [import an OpenAPI file or prepare one with your AI app](docs/http-api-import.md). Review the server, authentication, and selected operations before saving them as MCP tools.
 

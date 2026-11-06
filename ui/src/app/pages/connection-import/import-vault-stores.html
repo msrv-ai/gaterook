@@ -1,0 +1,41 @@
+<section class="gw-stack gw-stack--sm" aria-labelledby="import-vault-title">
+  <h2 class="gw-section__title" id="import-vault-title">Vault credentials</h2>
+  <p class="gw-text-small gw-fg-muted">Connect discovered Vault or OpenBao stores before importing their references. Review the address and authentication first; only Test and connect saves and contacts a new store.</p>
+  @if (loading()) { <p class="gw-text-small" role="status">Loading configured Vault stores…</p> }
+  @else if (!available()) { <div class="gw-alert gw-alert--warning"><svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content"><p class="gw-alert__body">Configured stores could not be checked.</p><div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="refresh()">Try again</button></div></div></div> }
+  @if (error()) { <p class="gw-text-small gw-fg-danger" role="alert">{{ error() }}</p> }
+  @for (proposal of proposals(); track proposal.id) {
+    <article class="gw-card" [attr.aria-labelledby]="'import-vault-' + proposal.id">
+      <div class="gw-card__body gw-stack gw-stack--sm">
+        <h3 class="gw-card__title" [id]="'import-vault-' + proposal.id"><svg lucideIcon="vault" class="gw-icon"></svg>{{ proposal.name }}</h3>
+        <p class="gw-text-small gw-mono">{{ address(proposal) || 'Address needs configuration' }}@if (namespace(proposal)) { · {{ namespace(proposal) }} }</p>
+        @if (match(proposal); as existing) {
+          @let status = storeStatus(existing);
+          <p class="gw-text-small"><span class="gw-status" [class]="'gw-status--' + status.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ status.label }}</span></span> · <span class="gw-mono">{{ existing.name }}</span></p>
+          @if (existing.lastError) { <p class="gw-text-small gw-fg-warning">{{ existing.lastError }} <a class="gw-link" routerLink="/secrets" fragment="external-stores">Review store</a></p> }
+          @if (existing.verified === false) { <p class="gw-text-small">This store changed outside GateRook. Review it in <a class="gw-link" routerLink="/secrets" fragment="external-stores">Secrets</a> before using it.</p> }
+          @else if (selected(proposal)) { <p class="gw-text-small">Selected for this import.</p> }
+          @else { <div class="gw-card__actions"><button class="gw-btn gw-btn--sm" type="button" [disabled]="disabled() || !!busy() || !available()" (click)="useExisting(proposal)">Use existing {{ existing.name }}</button></div> }
+        } @else if (hasSelection(proposal)) {
+          <p class="gw-text-small">The selected Vault is no longer available. Review its setup in <a class="gw-link" routerLink="/secrets" fragment="external-stores">Secrets</a> or start a new import.</p>
+        } @else {
+          <div class="gw-card__actions"><button class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" [disabled]="disabled() || !!busy() || !available()" (click)="open(proposal, $event)">Connect Vault<span class="gw-sr-only"> {{ proposal.name }}</span></button></div>
+        }
+        @if (proposal.evidence.length || proposal.warnings.length || proposal.credentialHints.length) {
+          <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [attr.aria-controls]="'import-vault-details-' + proposal.id">Discovery details <span class="gw-counter">{{ proposal.evidence.length + proposal.warnings.length + proposal.credentialHints.length }}</span><svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button></div>
+          <div class="gw-stack gw-stack--sm" [id]="'import-vault-details-' + proposal.id" hidden>
+            @if (proposal.evidence.length) { <ul class="gw-text-small">@for (item of proposal.evidence; track $index) { <li>{{ item }}</li> }</ul> }
+            @if (proposal.warnings.length) { <ul class="gw-text-small gw-fg-warning">@for (item of proposal.warnings; track $index) { <li>{{ item }}</li> }</ul> }
+            @for (hint of proposal.credentialHints; track $index) { <p class="gw-text-small">{{ hint.instructions }}</p> }
+          </div>
+        }
+      </div>
+    </article>
+  }
+  @if (!proposals().length) {
+    @for (store of stores(); track store.id) { @let status = storeStatus(store); <p class="gw-text-small"><span class="gw-mono">{{ store.name }}</span> · {{ status.label }}</p> }
+    <p class="gw-text-small">Vault references were found without a store address. Enter the address and authentication in the connection form.</p>
+    <div class="gw-card__actions"><button class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" [disabled]="disabled() || !!busy() || !available()" (click)="open(null, $event)">Connect Vault</button></div>
+  }
+</section>
+<section gwExternalStores [dialogsOnly]="true" [preventDuplicateVault]="true" [submitOverride]="submit"></section>

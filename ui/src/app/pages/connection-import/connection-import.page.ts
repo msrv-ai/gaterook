@@ -22,9 +22,12 @@ import { getAt, setAt } from '../../schema-form/compile';
 import { SecretAction } from '../../schema-form/schema-form';
 import { GwIcon } from '../../kit/icons';
 import { GwToggle } from '../../kit/disclosure';
+import { GwDialog, GwDialogClose } from '../../kit/dialog';
+import { DESCRIPTION_MAX, SLUG_MAX, slugError } from '../endpoints/endpoints-view';
 import { connectionImportPrompt } from './connection-import-prompt';
 import { ClientsData } from '../clients/clients.data';
 import { ImportAppConsent, ImportAppPicker, ImportAppSelection } from './import-app-picker';
+import { ImportVaultStores } from './import-vault-stores';
 
 function mergeConfig(base: JsonValue, patch: JsonValue): JsonValue {
   if (!base || !patch || typeof base !== 'object' || typeof patch !== 'object' || Array.isArray(base) || Array.isArray(patch)) return patch;
@@ -35,7 +38,7 @@ function mergeConfig(base: JsonValue, patch: JsonValue): JsonValue {
 
 @Component({
   selector: 'gw-connection-import-page',
-  imports: [RouterLink, GwIcon, GwToggle, GwCodeBlock, GwConnectionForm, GwConnectionTest, ImportAppPicker],
+  imports: [RouterLink, GwIcon, GwToggle, GwDialog, GwDialogClose, GwCodeBlock, GwConnectionForm, GwConnectionTest, ImportAppPicker, ImportVaultStores],
   providers: [ClientsData],
   templateUrl: './connection-import.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -62,6 +65,8 @@ export class ConnectionImportPage {
   readonly appConsent = signal<ImportAppConsent | null>(null);
   readonly appSelection = signal<ImportAppSelection | null>(null);
   readonly appConnecting = signal(false);
+  readonly vaultBusy = signal(false);
+  readonly setupVisible = signal(false);
   readonly appPicker = viewChild(ImportAppPicker);
   readonly form = viewChild(GwConnectionForm);
   readonly loading = signal(false);
@@ -73,10 +78,19 @@ export class ConnectionImportPage {
   readonly unavailable = signal(false);
   readonly repository = signal('');
   readonly sourceEndpoint = signal('');
-  readonly targetEndpoint = signal('');
+  readonly destinations = signal<ReadonlyMap<string, string>>(new Map());
   readonly endpoints = signal<readonly EndpointSummary[]>([]);
   readonly session = signal<ConnectionImportSession | null>(null);
-  readonly selected = signal<ReadonlySet<string>>(new Set());
+  readonly selected = computed<ReadonlySet<string>>(() => new Set(this.destinations().keys()));
+  readonly endpointDialog = viewChild<GwDialog>('endpointDialog');
+  readonly endpointCandidate = signal<ImportCandidate | null>(null);
+  readonly endpointSlug = signal('');
+  readonly endpointDescription = signal('');
+  readonly endpointError = signal('');
+  readonly endpointSlugError = signal<string | null>(null);
+  readonly creatingEndpoint = signal(false);
+  readonly endpointSlugMax = SLUG_MAX;
+  readonly endpointDescriptionMax = DESCRIPTION_MAX;
   readonly drafts = signal<ReadonlyMap<string, ImportSelection>>(new Map());
   readonly active = signal<ImportCandidate | null>(null);
   readonly spec = signal<ConnectionFormSpec | null>(null);
@@ -90,18 +104,33 @@ export class ConnectionImportPage {
   readonly reason = signal('');
   readonly confirmation = signal<{ candidateId: string; name: string; text: string; confirm: string } | null>(null);
   readonly candidates = computed(() => this.session()?.manifest?.connections ?? []);
+  readonly supportedCandidates = computed(() => this.candidates().filter(candidate => candidate.supported));
+  readonly needsVaultSetup = computed(() => !!this.session()?.manifest?.stores?.length || this.candidates().some(candidate =>
+    candidate.secretSources?.some(source => source.reference?.startsWith('vault://') || source.source === 'vault-dynamic')
+    || candidate.credentialHints.some(hint => hint.reference?.startsWith('vault://') || /vault|openbao/i.test(hint.source))));
   readonly prompt = computed(() => this.session()?.status === 'awaiting' ? connectionImportPrompt(this.session()!) : '');
   readonly expired = computed(() => !!this.session() && this.session()!.status !== 'imported' && this.time.secondsUntil(this.session()!.expiresAt) <= 0);
   readonly eligibleEndpoints = computed(() => this.endpoints().filter(e => !e.blockedReason && e.status === 'running'));
   readonly appEndpoint = computed(() => {
-    const session = this.session();
+    const session = this.setupVisible() ? null : this.session();
     const endpoint = this.eligibleEndpoints().find(e => e.slug === (session?.endpoint ?? this.sourceEndpoint()));
     const manual = this.clients.manual().value;
     return endpoint ? { ...endpoint, url: session?.endpointUrl ?? (manual?.endpoint === endpoint.slug ? manual.url : '') } : null;
   });
-  readonly selectedDrafts = computed(() => [...this.selected()].map(id => this.drafts().get(id)).filter((d): d is ImportSelection => !!d));
+  readonly eligibleEndpointSlugs = computed(() => new Set(this.eligibleEndpoints().map(endpoint => endpoint.slug)));
+  readonly selectedDrafts = computed(() => [...this.destinations()].flatMap(([id, endpoint]) => {
+    const draft = this.drafts().get(id);
+    return draft ? [{ ...draft, endpoint }] : [];
+  }));
   readonly incompleteAllowed = computed(() => this.selectedDrafts().filter(d => d.allowIncomplete).length);
-  readonly ready = computed(() => this.selected().size > 0 && this.selectedDrafts().length === this.selected().size && !!this.targetEndpoint() && !this.active() && !this.expired());
+  readonly ready = computed(() => this.selected().size > 0 && this.selectedDrafts().length === this.selected().size
+    && this.selectedDrafts().every(draft => this.eligibleEndpointSlugs().has(draft.endpoint))
+    && !this.active() && !this.endpointCandidate() && !this.vaultBusy() && !this.expired());
+  readonly importedDestinations = computed(() => {
+    const result = this.result();
+    return result?.destinations ?? (result?.endpoint ? result.connections.map(connection => ({ connection, endpoint: result.endpoint! })) : []);
+  });
+  readonly importedEndpoints = computed(() => [...new Set(this.importedDestinations().map(destination => destination.endpoint))]);
   readonly retainedSecrets = computed<readonly StoredSecret[]>(() => {
     const sources = new Map<string, StoredSecret>((this.active()?.secretSources ?? []).map(source => [source.field, {
       field: source.field, secretId: null, staged: true,
@@ -134,7 +163,7 @@ export class ConnectionImportPage {
     if (choice?.consent && ['manual', 'restart'].includes(choice.consent.kind) && typeof choice.consent.key === 'string') this.appConsent.set(choice.consent);
     void this.clients.start();
     effect(() => {
-      const endpoint = this.session()?.endpoint ?? this.sourceEndpoint();
+      const endpoint = this.setupVisible() ? this.sourceEndpoint() : this.session()?.endpoint ?? this.sourceEndpoint();
       untracked(() => this.clients.selectManualEndpoint(endpoint || null));
     });
     effect(() => {
@@ -156,16 +185,20 @@ export class ConnectionImportPage {
   async load(id: string | null = this.id(), endpoint: string | null = this.endpoint()): Promise<void> {
     const generation = ++this.generation;
     this.loading.set(true);
+    this.vaultBusy.set(false);
+    this.setupVisible.set(false);
     this.error.set('');
     this.unavailable.set(false);
     this.active.set(null);
     this.spec.set(null);
     this.drafts.set(new Map());
     this.editorSecrets.set({});
-    this.selected.set(new Set());
+    this.destinations.set(new Map());
     this.preparedReview = null;
     this.result.set(null);
     this.session.set(null);
+    this.endpointDialog()?.close();
+    this.endpointCandidate.set(null);
     try {
       const [endpoints, connections, session] = await Promise.all([
         this.endpointsApi.list(), this.connections.list(), id ? this.api.get(id) : Promise.resolve(null),
@@ -176,7 +209,6 @@ export class ConnectionImportPage {
       this.session.set(session);
       if (session) this.prepareReview(session);
       this.sourceEndpoint.set(session?.endpoint ?? endpoint ?? endpoints.find(e => e.slug === 'default')?.slug ?? endpoints[0]?.slug ?? '');
-      this.targetEndpoint.set(session?.endpoint ?? endpoint ?? '');
       if (session) this.repository.set(session.repository);
     } catch (e) {
       if (generation !== this.generation) return;
@@ -207,10 +239,14 @@ export class ConnectionImportPage {
     if (!this.appSelection()?.ready || !this.appEndpoint()) { this.fail(new Error('Choose an AI app and connect it to this endpoint before creating the prompt.')); return; }
     this.busy.set(true);
     try {
-      const session = await this.api.start(this.repository().trim(), this.sourceEndpoint());
+      const previous = this.session();
+      const reusable = previous?.status === 'awaiting' && previous.repository === this.repository().trim()
+        && previous.endpoint === this.sourceEndpoint() && !this.expired();
+      const session = reusable ? previous : await this.api.start(this.repository().trim(), this.sourceEndpoint());
       if (this.destroy.destroyed) return;
       this.session.set(session);
-      this.targetEndpoint.set(session.endpoint);
+      this.setupVisible.set(false);
+      this.notice.set('');
       await this.router.navigate(['/connection-import', session.id], { queryParams: { app: this.selectedClient() }, state: { importAppChoice: { client: this.selectedClient(), consent: this.appConsent() } } });
     } catch (e) { this.fail(e); }
     finally { this.busy.set(false); }
@@ -256,9 +292,17 @@ export class ConnectionImportPage {
     await this.handoff(!this.desktop.aiPromptAvailable ? 'copy' : app.client === 'claude-desktop' ? 'claude' : app.client);
   }
 
+  backToSetup(): void {
+    if (this.busy() || this.session()?.status !== 'awaiting') return;
+    this.setupVisible.set(true);
+    this.notice.set('');
+    this.error.set('');
+    this.focus('#import-repository');
+  }
+
   async discard(): Promise<void> {
     const session = this.session();
-    if (!session || session.status === 'imported' || this.busy()) return;
+    if (!session || session.status === 'imported' || this.busy() || this.vaultBusy()) return;
     this.busy.set(true);
     this.error.set('');
     try {
@@ -267,7 +311,7 @@ export class ConnectionImportPage {
       this.session.set(null);
       this.preparedReview = null;
       this.drafts.set(new Map()); this.editorSecrets.set({}); this.editorValue.set(null);
-      this.selected.set(new Set()); this.active.set(null); this.spec.set(null);
+      this.destinations.set(new Map()); this.active.set(null); this.spec.set(null);
       this.confirmation.set(null); this.notice.set('Import discarded. No saved connections were changed.');
       await this.router.navigate(['/connection-import']);
     } catch (e) { this.fail(e); }
@@ -289,6 +333,7 @@ export class ConnectionImportPage {
       this.session.set(session);
       this.prepareReview(session);
       if (current.status === 'awaiting' && session.status === 'review') {
+        this.setupVisible.set(false);
         this.notice.set('The AI analysis is ready. Available settings are prepared for import. Review the selection and use Settings to make changes.');
         this.focus('#import-review-title');
       }
@@ -312,15 +357,67 @@ export class ConnectionImportPage {
         config: structuredClone(candidate.config), secrets: {}, allowIncomplete: true });
     }
     this.drafts.set(drafts);
-    this.selected.set(new Set(drafts.keys()));
+    this.destinations.set(new Map([...drafts.keys()].map(id => [id, session.endpoint])));
   }
 
-  toggle(candidate: ImportCandidate, checked: boolean): void {
-    if (this.busy() || !candidate.supported) return;
+  setDestination(candidate: ImportCandidate, endpoint: string): void {
+    if (this.busy() || !candidate.supported || this.expired() || (endpoint && !this.eligibleEndpointSlugs().has(endpoint))) return;
     this.confirmation.set(null);
-    const selected = new Set(this.selected());
-    if (checked) selected.add(candidate.id); else selected.delete(candidate.id);
-    this.selected.set(selected);
+    const destinations = new Map(this.destinations());
+    if (endpoint) destinations.set(candidate.id, endpoint); else destinations.delete(candidate.id);
+    this.destinations.set(destinations);
+    const draft = this.drafts().get(candidate.id);
+    if (draft?.confirm) {
+      const { confirm: _confirm, ...reviewed } = draft;
+      this.drafts.update(drafts => new Map(drafts).set(candidate.id, reviewed));
+    }
+  }
+
+  destinationChanged(candidate: ImportCandidate, event: Event): void {
+    const select = event.target as HTMLSelectElement;
+    if (select.value === '__create') {
+      select.value = this.destinations().get(candidate.id) ?? '';
+      if (this.busy() || !candidate.supported || this.expired()) return;
+      this.endpointCandidate.set(candidate);
+      this.endpointSlug.set(''); this.endpointDescription.set('');
+      this.endpointError.set(''); this.endpointSlugError.set(null);
+      this.endpointDialog()?.openAfterRender(select);
+    } else {
+      this.setDestination(candidate, select.value);
+      select.value = this.destinations().get(candidate.id) ?? '';
+    }
+  }
+
+  closeEndpointDialog(): void {
+    if (this.creatingEndpoint()) return;
+    this.endpointCandidate.set(null);
+    this.endpointError.set(''); this.endpointSlugError.set(null);
+  }
+
+  async createEndpoint(event?: Event): Promise<void> {
+    event?.preventDefault();
+    const candidate = this.endpointCandidate();
+    const sessionId = this.session()?.id;
+    if (!candidate || !sessionId || this.creatingEndpoint() || this.expired()) return;
+    const slug = this.endpointSlug().trim();
+    const validation = slugError(slug);
+    this.endpointSlugError.set(validation); this.endpointError.set('');
+    if (validation) { this.doc.getElementById('import-create-endpoint-slug')?.focus(); return; }
+    if (this.endpointDescription().length > DESCRIPTION_MAX) { this.endpointError.set(`Use at most ${DESCRIPTION_MAX} characters in the description.`); return; }
+    this.creatingEndpoint.set(true);
+    try {
+      const endpoint = await this.endpointsApi.create({ slug, description: this.endpointDescription().trim() || null, startFrom: 'empty', connections: [] });
+      if (this.destroy.destroyed || this.session()?.id !== sessionId || this.endpointCandidate()?.id !== candidate.id) return;
+      this.endpoints.update(endpoints => [...endpoints.filter(known => known.slug !== endpoint.slug), endpoint]);
+      this.setDestination(candidate, endpoint.slug);
+      this.notice.set(`Endpoint ${endpoint.slug} created and selected for ${this.drafts().get(candidate.id)?.name ?? candidate.name}. The connection will be added only when you import.`);
+      this.endpointDialog()?.close('created');
+      this.endpointCandidate.set(null);
+    } catch (error) {
+      if (this.destroy.destroyed || this.session()?.id !== sessionId) return;
+      if (isApiError(error) && (error.kind === 'conflict' || error.field === '/slug')) this.endpointSlugError.set(this.message(error));
+      else this.endpointError.set(this.message(error));
+    } finally { this.creatingEndpoint.set(false); }
   }
 
   async configure(candidate: ImportCandidate): Promise<void> {
@@ -353,6 +450,30 @@ export class ConnectionImportPage {
       this.focus('#import-configure-title');
     } catch (e) { this.fail(e); }
     finally { if (editing === this.editing) this.busy.set(false); }
+  }
+
+  async vaultConnected(): Promise<void> {
+    const sessionId = this.session()?.id;
+    const candidateId = this.active()?.id;
+    await this.refresh(false);
+    if (this.destroy.destroyed || this.session()?.id !== sessionId || this.session()?.status !== 'review') return;
+    this.notice.set('Vault setup updated. Review the credential sources before importing.');
+    if (!candidateId || this.active()?.id !== candidateId) return;
+    const form = this.form();
+    const candidate = this.candidates().find(candidate => candidate.id === candidateId);
+    if (!form || !candidate) return;
+    try {
+      const env = form.value().env;
+      const spec = await this.types.form(candidate.type, env);
+      if (this.destroy.destroyed || this.session()?.id !== sessionId || this.form() !== form || this.active()?.id !== candidateId || form.value().env !== env) return;
+      const value = form.value();
+      const secrets = this.withEditorSecrets(value).secrets;
+      this.editorValue.set({ name: value.name, env: value.env, config: value.config, secrets: {} });
+      this.editorSecrets.set(secrets);
+      this.active.set(candidate);
+      this.spec.set(spec);
+      this.confirmation.set(null); this.testState.set('idle'); this.testResult.set(null);
+    } catch (error) { if (!this.destroy.destroyed && this.session()?.id === sessionId) this.fail(error); }
   }
 
   keep(value: ConnectionFormValue): void {
@@ -489,8 +610,6 @@ export class ConnectionImportPage {
     } catch (e) { if (form === this.form()) picker.complete(event.request, null, this.message(e)); }
   }
 
-  targetChanged(endpoint: string): void { this.targetEndpoint.set(endpoint); this.confirmation.set(null); }
-
   async secretAction(action: SecretAction): Promise<void> {
     const form = this.form();
     if (!form || this.busy()) return;
@@ -516,13 +635,13 @@ export class ConnectionImportPage {
     this.busy.set(true);
     this.error.set('');
     try {
-      const result = await this.api.commit(this.session()!.id, this.targetEndpoint(), this.selectedDrafts(), this.reason().trim() || undefined);
+      const result = await this.api.commit(this.session()!.id, this.selectedDrafts(), this.reason().trim() || undefined);
       if (this.destroy.destroyed) return;
       this.result.set(result);
       this.notice.set('');
       this.session.update(s => s ? { ...s, status: 'imported', submissionToken: '' } : s);
       this.drafts.set(new Map());
-      this.selected.set(new Set());
+      this.destinations.set(new Map());
       this.confirmation.set(null);
       this.focus('#import-complete-title');
     } catch (e) {

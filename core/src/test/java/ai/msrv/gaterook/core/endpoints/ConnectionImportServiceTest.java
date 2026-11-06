@@ -25,6 +25,7 @@ import ai.msrv.gaterook.core.platform.ProblemException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,6 +57,8 @@ class ConnectionImportServiceTest {
     when(endpoint.slug()).thenReturn("dev");
     when(endpoint.enabled()).thenReturn(true);
     when(endpoints.snapshot(anyString())).thenReturn(endpoint);
+    when(endpoints.uncachedSnapshot(anyString())).thenReturn(endpoint);
+    when(connections.withStores(any())).thenAnswer(call -> new LinkedHashMap<>(call.<Map<String, SecretInput>>getArgument(0)));
     when(files.create(anyString())).thenAnswer(i -> "/private-imports/" + i.getArgument(0) + ".json");
     when(transactions.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
     ObjectNode schema = (ObjectNode) json.readTree("""
@@ -107,6 +110,85 @@ class ConnectionImportServiceTest {
           "passwordFields":["/credentials/password"]}]
         """));
     verifyNoInteractions(connections, wiring, events);
+  }
+
+  @Test
+  void storeCatalogAndProposalsAreSafeMetadataWithoutAnyAutomaticConnect() {
+    var session = start();
+    assertThat(service.schema(session.id(), session.submissionToken(), "ep-source", null)
+        .path("storeKinds").get(0).path("secretFields").toString()).isEqualTo("[\"/auth/token\",\"/auth/secretId\"]");
+    ObjectNode proposal = manifest();
+    store(proposal);
+    submit(session, proposal);
+    assertThat(service.get(session.id()).manifest().path("stores").size()).isEqualTo(1);
+    verifyNoInteractions(connections, wiring);
+    for (String bad : List.of("{\"auth\":{\"token\":\"private-value\"}}", "{\"auth\":{\"file\":\"/tmp/token\"}}",
+        "{\"address\":\"https://user:password@vault.test\"}", "{\"allowPlainHttp\":true}")) {
+      var rejected = start();
+      ObjectNode input = manifest();
+      store(input).set("config", json.readTree(bad));
+      assertThatThrownBy(() -> submit(rejected, input)).isInstanceOf(ProblemException.class);
+      assertThat(service.get(rejected.id()).status()).isEqualTo("awaiting");
+    }
+  }
+
+  @Test
+  void storeConnectConsumesOnlyExplicitMatchingPreparedFieldsAndRetryReturnsTheSameStore() {
+    var session = start();
+    ObjectNode input = manifest();
+    store(input);
+    var token = mock(ConnectionImportFiles.StagedSecret.class);
+    var unused = mock(ConnectionImportFiles.StagedSecret.class);
+    when(token.resolve()).thenReturn(SecretInput.local("prepared-vault-value".toCharArray()));
+    when(files.read(session.id())).thenReturn(new ConnectionImportFiles.Prepared(input, Map.of(),
+        Map.of("vault-discovery", Map.of("/auth/token", token, "/auth/secretId", unused))));
+    service.submit(session.id(), session.submissionToken(), "ep-source", "caller", null);
+    verifyNoInteractions(token, unused);
+    assertThatThrownBy(() -> service.connectStore(session.id(), "vault-discovery", "token",
+        List.of("/auth/secretId"), null, (proposal, values) -> { throw new AssertionError(); })).isInstanceOf(ProblemException.class);
+    assertThatThrownBy(() -> service.connectStore(session.id(), "vault-discovery", "token",
+        List.of(), Map.of("/auth/secretId", "unused-value".toCharArray()), (proposal, values) -> { throw new AssertionError(); }))
+        .isInstanceOf(ProblemException.class);
+    char[][] captured = new char[1][];
+    assertThat(service.connectStore(session.id(), "vault-discovery", "token", List.of("/auth/token"), null, (proposal, values) -> {
+      captured[0] = values.get("/auth/token");
+      assertThat(new String(captured[0])).isEqualTo("prepared-vault-value");
+      return "store-connected";
+    })).isEqualTo("store-connected");
+    assertThat(captured[0]).containsOnly('\0');
+    assertThat(service.connectStore(session.id(), "vault-discovery", "token", List.of("/auth/token"), null,
+        (proposal, values) -> { throw new AssertionError("A retry must not create or resolve again"); })).isEqualTo("store-connected");
+    verify(token, times(1)).resolve();
+    verify(unused, never()).resolve();
+    verify(unused).clear();
+    assertThat(service.get(session.id()).manifest().at("/stores/0/connectedStore").asString()).isEqualTo("store-connected");
+  }
+
+  @Test
+  void reviewedStoreOverrideDoesNotReadTheOriginalSourceFile() {
+    var session = start();
+    ObjectNode input = manifest();
+    store(input);
+    var source = mock(ConnectionImportFiles.StagedSecret.class);
+    when(files.read(session.id())).thenReturn(new ConnectionImportFiles.Prepared(input, Map.of(),
+        Map.of("vault-discovery", Map.of("/auth/token", source))));
+    service.submit(session.id(), session.submissionToken(), "ep-source", "caller", null);
+    char[] override = "person-entered-token".toCharArray();
+    service.connectStore(session.id(), "vault-discovery", "token", List.of("/auth/token"),
+        Map.of("/auth/token", override), (proposal, values) -> {
+          assertThat(new String(values.get("/auth/token"))).isEqualTo("person-entered-token");
+          return "store-connected";
+        });
+    verify(source, never()).resolve();
+    verify(source).clear();
+    assertThat(new String(override)).isEqualTo("person-entered-token");
+  }
+
+  private ObjectNode store(ObjectNode input) {
+    ObjectNode store = input.putArray("stores").addObject().put("id", "vault-discovery").put("kind", "vault")
+        .put("name", "discovered-vault");
+    store.putObject("config").put("address", "https://vault.example.test").putObject("auth").put("method", "token");
+    return store;
   }
 
   @Test
@@ -296,6 +378,47 @@ class ConnectionImportServiceTest {
         selection.config(), Map.of("/credentials/password", SecretInput.local("replacement".toCharArray())), null);
     service.commit(session.id(), "dev", List.of(replacement), null);
     verify(original, never()).resolve();
+  }
+
+  @Test
+  void everyDestinationMustBeUsableBeforeAnyConnectionPreflight() {
+    for (String target : List.of("disabled", "unverified", "missing", "")) {
+      var session = start();
+      ObjectNode manifest = manifest();
+      ObjectNode second = ((ObjectNode) manifest.path("connections").get(0)).deepCopy()
+          .put("id", "db-two").put("name", "example-db-two");
+      ((tools.jackson.databind.node.ArrayNode) manifest.path("connections")).add(second);
+      submit(session, manifest);
+      EndpointSnapshot unavailable = mock(EndpointSnapshot.class);
+      when(unavailable.enabled()).thenReturn(!target.equals("disabled"));
+      when(unavailable.blocked()).thenReturn(target.equals("unverified"));
+      if (target.equals("missing")) when(endpoints.uncachedSnapshot(target))
+          .thenThrow(ProblemException.notFound("Endpoint not found", "There is no such endpoint."));
+      else when(endpoints.uncachedSnapshot(target)).thenReturn(unavailable);
+      var secondSelection = new ConnectionImportService.Selection("db-two", "reviewed-db-two", "dev",
+          json.createObjectNode(), Map.of(), null, false, target);
+      assertThatThrownBy(() -> service.commit(session.id(), "dev", List.of(selection("dev"), secondSelection), null))
+          .isInstanceOfSatisfying(ProblemException.class, error -> assertThat(error.field()).isEqualTo("/selections/1/endpoint"));
+      assertThat(service.get(session.id()).status()).isEqualTo("review");
+    }
+    verifyNoInteractions(connections, wiring);
+  }
+
+  @Test
+  void anEndpointPausedDuringPreflightIsRejectedBeforeCreatingAnything() {
+    var session = start();
+    submit(session, manifest());
+    EndpointSnapshot enabled = mock(EndpointSnapshot.class);
+    when(enabled.id()).thenReturn("ep-destination");
+    when(enabled.enabled()).thenReturn(true);
+    EndpointSnapshot paused = mock(EndpointSnapshot.class);
+    when(endpoints.uncachedSnapshot("dev")).thenReturn(enabled, paused);
+    assertThatThrownBy(() -> service.commit(session.id(), "dev", List.of(selection("dev")), null))
+        .isInstanceOfSatisfying(ProblemException.class, error -> assertThat(error.field()).isEqualTo("/selections/0/endpoint"));
+    verify(connections).preflightCreate(anyString(), eq("pgfake"), eq(Env.DEV), any(), any(), any());
+    verify(connections, never()).create(anyString(), anyString(), any(), any(), any(), any(), any());
+    verifyNoInteractions(wiring);
+    assertThat(service.get(session.id()).status()).isEqualTo("review");
   }
 
   private ConnectionImportService.Session start() { return service.start("/repositories/example", "dev"); }
