@@ -10,6 +10,7 @@ import {
   ShortLivedCredential,
 } from '../../core/api/secrets.api';
 import { Env, JsonObject, JsonValue } from '../../core/api/types';
+import { compactReferenceError } from '../../core/secret-reference-feedback';
 import { isVaultDynamicCredential } from '../../core/secret-visibility';
 import { duration, relativeTime, shortDate } from '../../core/time/time-format';
 
@@ -384,7 +385,7 @@ export function rotateStartedToast(s: SecretSubject): ToastText {
 
 export function refTestToast(name: string, t: SecretRefTest): ToastText {
   if (!t.found) {
-    return { tone: 'danger', title: `Reference ${name} doesn't resolve`, body: t.error ?? 'The store didn\'t find it. Check the reference, then test again.' };
+    return { tone: 'danger', title: `Reference ${name} doesn't resolve`, body: compactReferenceError(t.error, 'Check the reference and the selected store access, then test again.') };
   }
   const took = t.latencyMs !== null && t.latencyMs !== undefined ? ` in ${duration(t.latencyMs)}` : '';
   const version = t.resolvedVersion ? `Version ${t.resolvedVersion.replace(/^(\d+)$/, 'v$1')}. ` : '';
@@ -393,7 +394,7 @@ export function refTestToast(name: string, t: SecretRefTest): ToastText {
 
 /** The reference field's own result line in the Replace reference dialog. */
 export function refTestLine(t: SecretRefTest): { readonly ok: boolean; readonly text: string } {
-  if (!t.found) return { ok: false, text: t.error ?? 'The store didn\'t find it. Check the reference.' };
+  if (!t.found) return { ok: false, text: compactReferenceError(t.error, 'Check the reference and the selected store access, then test again.') };
   const parts = ['Found'];
   if (t.resolvedVersion) parts.push(t.resolvedVersion.replace(/^(\d+)$/, 'v$1'));
   if (t.keys?.length) parts.push(`keys ${t.keys.join(', ')}`);

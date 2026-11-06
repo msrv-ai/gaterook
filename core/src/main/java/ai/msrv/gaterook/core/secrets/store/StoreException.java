@@ -41,6 +41,11 @@ public final class StoreException extends RuntimeException {
     return new StoreException(Reason.NOT_FOUND, message);
   }
 
+  /** A missing selection names only the requested key, never the secret's other fields. */
+  public static StoreException missingKey(String key) {
+    return notFound("Key \"" + key + "\" was not found in this secret. Check the key after # in the reference.");
+  }
+
   public static StoreException gone(String message) {
     return new StoreException(Reason.GONE, message);
   }

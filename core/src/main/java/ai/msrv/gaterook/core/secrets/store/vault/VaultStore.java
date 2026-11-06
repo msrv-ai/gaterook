@@ -392,8 +392,7 @@ public final class VaultStore implements SecretStore {
         throw StoreException.notFound("No secret at " + ref.path() + ".");
       }
       if (picked.value() == null) {
-        throw StoreException.notFound(ref.path() + " has no key \"" + ref.key() + "\". Keys: "
-            + String.join(", ", picked.keys()));
+        throw StoreException.missingKey(ref.key());
       }
       String version = kv2 && meta.path("version").isNumber() ? String.valueOf(meta.path("version").asInt()) : null;
       return new RemoteValue(picked.value(), version, instant(meta.path("created_time").asString(null)),

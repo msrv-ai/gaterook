@@ -188,6 +188,18 @@ describe('row dialogs', () => {
     expect(refTestToast('stage-db/password', missing)).toMatchObject({ tone: 'danger', title: "Reference stage-db/password doesn't resolve", body: 'No secret at kv/stage/dbx.' });
     expect(refTestLine(missing)).toEqual({ ok: false, text: 'No secret at kv/stage/dbx.' });
   });
+  it('keeps missing-key feedback compact in both the toast and the reference dialog', () => {
+    const missing = {
+      found: false, resolvedVersion: null, created: null, type: null, keys: [], reason: 'not-found',
+      error: `kv/stage/db has no key "password". Keys: ${Array.from({ length: 1000 }, (_, i) => `service-${i}.credential`).join(', ')}`,
+    };
+    const message = 'kv/stage/db has no key "password". Check the key after # in the reference.';
+    expect(refTestToast('stage-db/password', missing).body).toBe(message);
+    expect(refTestLine(missing)).toEqual({ ok: false, text: message });
+    const oversized = { ...missing, error: `Store unavailable: ${'diagnostic '.repeat(1000)}` };
+    expect(refTestToast('stage-db/password', oversized).body).toBe('Check the reference and the selected store access, then test again.');
+    expect(refTestLine(oversized)).toEqual({ ok: false, text: 'Check the reference and the selected store access, then test again.' });
+  });
 });
 
 describe('master key', () => {
