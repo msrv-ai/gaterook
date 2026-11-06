@@ -1,10 +1,11 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { computed, signal } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { Router, provideRouter } from '@angular/router';
 import { CONNECTOR_FORMS } from '../../../testing/connector-schemas';
 import { ApiError } from '../../core/api/api-error';
 import { ConnectionImportsApi, ConnectionImportSession, ImportCandidate } from '../../core/api/connection-imports.api';
-import { ConnectionsApi } from '../../core/api/connections.api';
+import { ConnectionsApi, TestOutcome } from '../../core/api/connections.api';
 import { ConnectionFormSpec, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointsApi, EndpointSummary } from '../../core/api/endpoints.api';
 import { DesktopBridge } from '../../core/desktop/desktop-bridge';
@@ -13,6 +14,9 @@ import { ConnectionFormValue } from '../../kit/elements/connection-form/connecti
 import { provideKitIcons } from '../../kit/icons';
 import { ConnectionImportPage } from './connection-import.page';
 import { connectionImportPrompt } from './connection-import-prompt';
+import { ClientsData } from '../clients/clients.data';
+import { kitClients, kitManual, kitEndpoints } from '../clients/clients.fixtures';
+import { ClientCard, ClientId } from '../../core/api/clients.api';
 
 const candidate: ImportCandidate = {
   id: 'dev-db', name: 'example-dev-db', type: 'mysql', env: 'dev',
@@ -28,9 +32,9 @@ const awaiting: ConnectionImportSession = {
 };
 const review: ConnectionImportSession = { ...awaiting, status: 'review', manifest: { version: 1, connections: [candidate], warnings: [] } };
 const endpoints: EndpointSummary[] = [
-  { slug: 'default', env: 'dev', status: 'running', blockedReason: null },
-  { slug: 'production', env: 'prod', status: 'running', blockedReason: null },
-] as EndpointSummary[];
+  { ...kitEndpoints()[0], slug: 'default', url: 'http://127.0.0.1:17465/mcp/default', env: 'dev', status: 'running', blockedReason: null },
+  { ...kitEndpoints()[0], slug: 'production', url: 'http://127.0.0.1:17465/mcp/production', env: 'prod', status: 'running', blockedReason: null },
+];
 const spec: ConnectionFormSpec = {
   type: 'mysql', name: 'MySQL', env: 'dev', schema: CONNECTOR_FORMS['mysql'], common: {},
   secretFields: [{ pointer: '/credentials/password', kind: 'value', title: 'Password' }],
@@ -38,14 +42,30 @@ const spec: ConnectionFormSpec = {
   envDefaults: { prod: [], stage: [] }, variants: [],
 };
 const draft: ConnectionFormValue = { name: candidate.name, env: 'dev', config: candidate.config, secrets: { '/credentials/password': { source: 'local', value: 'fixture-password' } } };
+const sshCandidate: ImportCandidate = { ...candidate, id: 'ssh-logs', name: 'example-logs', type: 'ssh-logs',
+  config: { connection: { host: 'logs.example.test', username: 'reader' }, credentials: { method: 'password' },
+    logs: { root: '/var/log', allowedFiles: [] } } };
+const sshSpec: ConnectionFormSpec = { ...spec, type: 'ssh-logs', name: 'SSH log files', schema: CONNECTOR_FORMS['ssh-logs'] };
+const sshKey = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG4q5cLnwuK6nh3KekSjpSxn3RUE8TATPm0X+fK02R8D';
+const folder: TestOutcome = { ok: true, latencyMs: 1, serverVersion: null, identity: null, permissions: null,
+  hints: [], checks: [], error: null, needsConfirmation: null, confirmationId: null, suggestedPolicyChange: null,
+  details: { path: '/var/log', parent: '/var', entries: [], truncated: false } };
+const firstHostKey: TestOutcome = { ...folder, ok: false, details: null, confirmationId: 'tc_example_host',
+  needsConfirmation: { kind: 'host-key', text: 'This server has not been seen before.', data: {
+    kind: 'host-key', host: 'logs.example.test', port: 22, bastion: false, keyType: 'ssh-ed25519',
+    fingerprint: 'SHA256:' + 'A'.repeat(43), publicKey: sshKey,
+  } } };
 
 describe('AI connection import review', () => {
   let fixture: ComponentFixture<ConnectionImportPage>;
   let page: ConnectionImportPage;
   let api: { start: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn>; commit: ReturnType<typeof vi.fn>; cancel: ReturnType<typeof vi.fn> };
-  let connections: { list: ReturnType<typeof vi.fn>; testDraft: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> };
+  let connections: { list: ReturnType<typeof vi.fn>; testDraft: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn>;
+    browseFiles: ReturnType<typeof vi.fn>; confirmDraft: ReturnType<typeof vi.fn> };
   let copy: ReturnType<typeof vi.fn>;
   let open: ReturnType<typeof vi.fn>;
+  let clientCards: ReturnType<typeof signal<ClientCard[]>>;
+  let clientData: Partial<ClientsData>;
 
   beforeEach(async () => {
     api = {
@@ -54,9 +74,24 @@ describe('AI connection import review', () => {
       commit: vi.fn(async () => ({ connections: [candidate.name], endpoint: 'production', status: 'imported' })),
       cancel: vi.fn(async () => undefined),
     };
-    connections = { list: vi.fn(async () => ({ items: [] })), testDraft: vi.fn(), create: vi.fn() };
+    connections = { list: vi.fn(async () => ({ items: [] })), testDraft: vi.fn(), create: vi.fn(),
+      browseFiles: vi.fn(async () => folder),
+      confirmDraft: vi.fn(async () => ({ kind: 'host-key', config: { hostKeys: { pinned: [sshKey] } }, retest: null })),
+    };
     copy = vi.fn(async () => true);
     open = vi.fn(async () => undefined);
+    const known = kitClients().clients;
+    clientCards = signal(known.map(card => ({ ...card, detected: true, status: 'connected', links: [{ ...known[1].links[0], client: card.client, endpoint: 'default', status: 'connected' }] })));
+    const manual = signal({ value: { ...kitManual(), endpoint: 'default', url: awaiting.endpointUrl }, error: null, unavailable: false });
+    clientData = {
+      start: vi.fn(async () => undefined), cards: clientCards,
+      clients: computed(() => ({ value: { scannedAt: null, clients: clientCards() }, error: null, unavailable: false })),
+      loaded: signal(true), refreshing: signal(false), stale: signal(null), defaultTokenTtlDays: signal(184), manual,
+      scanning: signal(null), scan: vi.fn(async () => ({ scannedAt: null, clients: clientCards() })),
+      resetConnect: vi.fn(), connectState: () => ({ preview: null, loading: false, failure: null, written: false }),
+      selectManualEndpoint: vi.fn(slug => manual.set({ value: { ...kitManual(), endpoint: slug ?? 'default', url: `http://127.0.0.1:18475/mcp/${slug ?? 'default'}` }, error: null, unavailable: false })),
+      refresh: vi.fn(async () => undefined),
+    };
     await TestBed.configureTestingModule({ imports: [ConnectionImportPage], providers: [
       provideRouter([]), provideHttpClient(), provideKitIcons(),
       { provide: ConnectionImportsApi, useValue: api },
@@ -65,9 +100,12 @@ describe('AI connection import review', () => {
       { provide: EndpointsApi, useValue: { list: vi.fn(async () => endpoints) } },
       { provide: DesktopBridge, useValue: { available: false, aiPromptAvailable: true, repositoryPickerAvailable: true, chooseRepository: async () => '/workspace/chosen', openAiPrompt: open } },
       { provide: ClipboardWriter, useValue: { write: copy } },
-    ] }).compileComponents();
+    ] }).overrideComponent(ConnectionImportPage, { set: { providers: [{ provide: ClientsData, useValue: clientData }] } }).compileComponents();
     fixture = TestBed.createComponent(ConnectionImportPage);
     page = fixture.componentInstance;
+    page.selectedClient.set('cursor');
+    fixture.detectChanges();
+    await fixture.whenStable();
     fixture.detectChanges();
     await fixture.whenStable();
     vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
@@ -82,9 +120,33 @@ describe('AI connection import review', () => {
     fixture.detectChanges();
   }
 
+  async function sshEditor(staged = false) {
+    const candidate = { ...sshCandidate, ...(staged ? { secretSources: [{ field: '/credentials/password', source: 'local' as const }] } : {}) };
+    vi.mocked(TestBed.inject(ConnectorTypesApi).form).mockResolvedValueOnce(sshSpec);
+    await loadReview({ ...review, manifest: { version: 1, connections: [candidate], warnings: [] } });
+    await page.configure(candidate);
+    fixture.detectChanges(); await fixture.whenStable();
+    const form = page.form()!;
+    const password = form.state().compiled.all.find(n => n.pointer === '/credentials/password')!;
+    if (!staged) form.state().setSecret(password, 'draft-only-password');
+    fixture.detectChanges(); await fixture.whenStable();
+    return { form, password, picker: form.files()! };
+  }
+
+  async function settleFileBrowser(): Promise<void> {
+    for (let i = 0; i < 4; i++) {
+      await new Promise<void>(resolve => setTimeout(resolve));
+      fixture.detectChanges();
+    }
+    await fixture.whenStable();
+  }
+
   it('starts only after the user chooses a repository and endpoint, without creating connections', async () => {
     expect(api.start).not.toHaveBeenCalled();
     await page.chooseRepository();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(page.appSelection()).toEqual({ client: 'cursor', name: 'Cursor', ready: true });
     await page.start();
     expect(api.start).toHaveBeenCalledWith('/workspace/chosen', 'default');
     expect(page.prompt()).toContain(awaiting.importFile);
@@ -94,6 +156,8 @@ describe('AI connection import review', () => {
 
   it('copies a private-file prompt for Antigravity without inventing a launch URI', async () => {
     page.session.set(awaiting);
+    page.selectedClient.set('antigravity');
+    fixture.detectChanges(); await fixture.whenStable();
     await page.handoff('antigravity');
     expect(copy).toHaveBeenCalledWith(connectionImportPrompt(awaiting));
     expect(open).not.toHaveBeenCalled();
@@ -105,32 +169,122 @@ describe('AI connection import review', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain(awaiting.endpointUrl);
     expect(fixture.nativeElement.textContent).toContain('restart the AI app and open a new chat');
-    expect(fixture.nativeElement.querySelector('a[href="/clients"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('gw-import-app-picker')).not.toBeNull();
     expect(api.commit).not.toHaveBeenCalled();
   });
 
   it('offers copy fallback when an AI app link cannot carry the prompt', async () => {
     page.session.set(awaiting);
+    fixture.detectChanges(); await fixture.whenStable();
     open.mockRejectedValue(new Error('Prompt is too long for an app link.'));
     await page.handoff('cursor');
     expect(page.notice()).toContain('Copy prompt');
     expect(page.error()).toContain('too long');
   });
 
-  it('loads a review without selecting or importing any candidate', async () => {
+  it('requires app selection for the chosen endpoint and exposes only that app handoff', async () => {
+    page.selectedClient.set(null);
+    fixture.detectChanges(); await fixture.whenStable();
+    page.repository.set('/workspace/example');
+    await page.start();
+    expect(api.start).not.toHaveBeenCalled();
+    expect(page.error()).toContain('Choose an AI app');
+    page.selectedClient.set('cursor');
+    page.session.set(awaiting);
+    fixture.detectChanges(); await fixture.whenStable();
+    const labels = Array.from(fixture.nativeElement.querySelectorAll('button'), (button: any) => button.textContent.trim());
+    expect(labels).toContain('Open Cursor');
+    expect(labels).not.toContain('Open Codex');
+    expect(labels).not.toContain('Open Claude Desktop');
+    await page.handoff('codex');
+    expect(open).not.toHaveBeenCalled();
+    await page.handoffSelected();
+    expect(open).toHaveBeenCalledWith('cursor', connectionImportPrompt(awaiting));
+  });
+
+  it('resets the app choice on endpoint change and uses the live manual URL before a session exists', async () => {
+    expect(page.appEndpoint()?.url).toBe(awaiting.endpointUrl);
+    expect(page.appEndpoint()?.url).not.toBe(endpoints[0].url);
+    page.repository.set('/workspace/keep');
+    page.sourceChanged('production');
+    fixture.detectChanges(); await fixture.whenStable();
+    expect(page.selectedClient()).toBeNull();
+    expect(page.appSelection()).toBeNull();
+    expect(page.repository()).toBe('/workspace/keep');
+    expect(clientData.selectManualEndpoint).toHaveBeenCalledWith('production');
+    expect(page.appEndpoint()?.url).toBe('http://127.0.0.1:18475/mcp/production');
+    page.selectedClient.set('cursor');
+    fixture.detectChanges(); await fixture.whenStable();
+    expect(page.appSelection()?.ready).toBe(false);
+    await page.start();
+    expect(api.start).not.toHaveBeenCalled();
+  });
+
+  it('prepares and selects available settings by default without importing any candidate', async () => {
     await loadReview();
-    expect(page.selected().size).toBe(0);
-    expect(page.ready()).toBe(false);
+    expect([...page.selected()]).toEqual([candidate.id]);
+    expect(page.drafts().get(candidate.id)).toEqual({ candidateId: candidate.id, name: candidate.name, env: candidate.env,
+      config: candidate.config, secrets: {}, allowIncomplete: true });
+    expect(page.ready()).toBe(true);
     expect(fixture.nativeElement.textContent).toContain('config/application-dev.yml: datasource');
-    await page.commit();
+    expect(api.commit).not.toHaveBeenCalled();
+    expect(connections.create).not.toHaveBeenCalled();
+    expect(connections.testDraft).not.toHaveBeenCalled();
+  });
+
+  it('keeps analysis notes compact until explicitly expanded without changing the import', async () => {
+    const warnings = ['A shared profile needs environment review.', 'A credential file needs configuration.'];
+    await loadReview({ ...review, manifest: { ...review.manifest!, warnings } });
+    const root = fixture.nativeElement as HTMLElement;
+    const selected = [...page.selected()];
+    const drafts = [...page.drafts()];
+    const button = root.querySelector<HTMLButtonElement>('[aria-controls="import-analysis-notes"]')!;
+    const details = root.querySelector<HTMLElement>('#import-analysis-notes')!;
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+    expect(details.hidden).toBe(true);
+    expect(root.querySelector('#import-notes-title .gw-counter')?.textContent).toBe('2');
+    button.click(); fixture.detectChanges();
+    expect(button.getAttribute('aria-expanded')).toBe('true');
+    expect(button.textContent).toContain('Hide details');
+    expect(details.hidden).toBe(false);
+    expect(Array.from(details.querySelectorAll('li'), li => li.textContent?.trim())).toEqual(warnings);
+    button.click(); fixture.detectChanges();
+    expect(details.hidden).toBe(true);
+    expect([...page.selected()]).toEqual(selected);
+    expect([...page.drafts()]).toEqual(drafts);
+    expect(api.commit).not.toHaveBeenCalled();
+    expect(connections.create).not.toHaveBeenCalled();
+  });
+
+  it('expands evidence independently without changing the prepared selection or settings', async () => {
+    const second = { ...candidate, id: 'other-db', name: 'other-dev-db', evidence: ['config/other.yml: datasource'] };
+    await loadReview({ ...review, manifest: { ...review.manifest!, connections: [candidate, second] } });
+    const root = fixture.nativeElement as HTMLElement;
+    const selected = [...page.selected()];
+    const drafts = [...page.drafts()];
+    const first = root.querySelector<HTMLElement>('#import-evidence-dev-db')!;
+    const other = root.querySelector<HTMLElement>('#import-evidence-other-db')!;
+    const button = root.querySelector<HTMLButtonElement>('[aria-controls="import-evidence-dev-db"]')!;
+    expect(first.hidden).toBe(true);
+    expect(other.hidden).toBe(true);
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+    button.click(); fixture.detectChanges();
+    expect(first.hidden).toBe(false);
+    expect(first.textContent).toContain(candidate.evidence[0]);
+    expect(other.hidden).toBe(true);
+    button.click(); fixture.detectChanges();
+    expect(first.hidden).toBe(true);
+    expect([...page.selected()]).toEqual(selected);
+    expect([...page.drafts()]).toEqual(drafts);
     expect(api.commit).not.toHaveBeenCalled();
   });
 
-  it('requires explicit selection, reviewed configuration and final import; then clears entered secrets', async () => {
+  it('lets the user edit prepared settings and requires final import before saving', async () => {
     await loadReview();
     page.toggle(candidate, true);
-    expect(page.ready()).toBe(false);
+    expect(page.ready()).toBe(true);
     await page.configure(candidate);
+    expect(page.ready()).toBe(false);
     page.keep(structuredClone(draft));
     expect(api.commit).not.toHaveBeenCalled();
     page.targetChanged('production');
@@ -144,6 +298,7 @@ describe('AI connection import review', () => {
 
   it('keeping a configuration does not silently select it', async () => {
     await loadReview();
+    page.toggle(candidate, false);
     await page.configure(candidate);
     page.keep(structuredClone(draft));
     expect(page.selected().size).toBe(0);
@@ -153,6 +308,7 @@ describe('AI connection import review', () => {
   it('lets the user explicitly keep partial settings and reports saved connections that need setup', async () => {
     const partial = { ...candidate, config: {}, warnings: ['Database host and credentials are unresolved.'] };
     await loadReview({ ...review, manifest: { version: 1, connections: [partial], warnings: [] } });
+    page.toggle(partial, false);
     page.keepAvailable(partial);
     expect(page.selected().size).toBe(0);
     expect(page.drafts().get(partial.id)?.allowIncomplete).toBe(true);
@@ -168,13 +324,63 @@ describe('AI connection import review', () => {
   });
 
   it('does not allow a partial draft to overwrite an existing name or import unsupported services', async () => {
+    connections.list.mockResolvedValue({ items: [{ name: candidate.name }] });
     await loadReview();
-    page.existingNames.set(new Set([candidate.name]));
+    expect(page.selected().size).toBe(0);
+    expect(page.drafts().size).toBe(0);
     page.keepAvailable(candidate);
     expect(page.drafts().size).toBe(0);
+    expect(api.commit).not.toHaveBeenCalled();
     page.existingNames.set(new Set());
     page.keepAvailable({ ...candidate, supported: false });
     expect(page.drafts().size).toBe(0);
+  });
+
+  it('excludes existing and duplicate names from defaults until the user renames and selects them', async () => {
+    const existing = { ...candidate, id: 'existing-db', name: 'already-saved' };
+    const duplicate = { ...candidate, id: 'duplicate-one', name: 'shared-name' };
+    const other = { ...duplicate, id: 'duplicate-two' };
+    connections.list.mockResolvedValue({ items: [{ name: existing.name }] });
+    await loadReview({ ...review, manifest: { version: 1, connections: [candidate, existing, duplicate, other], warnings: [] } });
+    expect([...page.selected()]).toEqual([candidate.id]);
+    expect([...page.drafts().keys()]).toEqual([candidate.id]);
+    await page.configure(duplicate);
+    page.keep({ ...structuredClone(draft), name: 'renamed-db' });
+    expect([...page.selected()]).toEqual([candidate.id]);
+    page.toggle(duplicate, true);
+    expect(page.selectedDrafts().map(d => d.name)).toEqual([candidate.name, 'renamed-db']);
+    expect(api.commit).not.toHaveBeenCalled();
+    expect(connections.create).not.toHaveBeenCalled();
+  });
+
+  it('preserves deselections, edited settings and the chosen destination through repeated polling', async () => {
+    await loadReview();
+    page.toggle(candidate, false);
+    await page.configure(candidate);
+    page.keep({ ...structuredClone(draft), name: 'reviewed-name' });
+    page.targetChanged('production');
+    const prepared = structuredClone([...page.drafts()]);
+    await page.refresh(false);
+    await page.refresh(false);
+    expect(page.selected().size).toBe(0);
+    expect([...page.drafts()]).toEqual(prepared);
+    expect(page.targetEndpoint()).toBe('production');
+    expect(page.ready()).toBe(false);
+    expect(api.commit).not.toHaveBeenCalled();
+  });
+
+  it('resets defaults when a different review session is opened', async () => {
+    await loadReview();
+    page.toggle(candidate, false);
+    await page.configure(candidate);
+    page.keep(structuredClone(draft));
+    const next = { ...candidate, id: 'next-db', name: 'next-dev-db' };
+    await loadReview({ ...review, id: 'ci_zyxwvuts4321', manifest: { version: 1, connections: [next], warnings: [] } });
+    expect([...page.selected()]).toEqual([next.id]);
+    expect([...page.drafts().keys()]).toEqual([next.id]);
+    expect(page.drafts().get(next.id)?.secrets).toEqual({});
+    expect(page.drafts().get(next.id)?.allowIncomplete).toBe(true);
+    expect(api.commit).not.toHaveBeenCalled();
   });
 
   it('discards only the current import after the user requests it and clears credential overrides', async () => {
@@ -203,6 +409,7 @@ describe('AI connection import review', () => {
 
   it('blocks existing names and production downgrades without discarding the editor', async () => {
     await loadReview();
+    const prepared = page.drafts().get(candidate.id);
     await page.configure(candidate);
     page.existingNames.set(new Set([candidate.name]));
     page.keep(draft);
@@ -212,7 +419,7 @@ describe('AI connection import review', () => {
     await page.configure({ ...candidate, env: 'prod' });
     page.keep(draft);
     expect(page.error()).toContain('production environment');
-    expect(page.drafts().size).toBe(0);
+    expect(page.drafts().get(candidate.id)).toEqual(prepared);
   });
 
   it('retains reviewed settings after a failed commit and confirms only the named production candidate', async () => {
@@ -294,6 +501,55 @@ describe('AI connection import review', () => {
     expect(page.drafts().get(candidate.id)?.secrets).toEqual({});
   });
 
+  it('pins a matching first-use SSH key only in the import draft and resumes browsing without importing', async () => {
+    connections.browseFiles.mockResolvedValueOnce(firstHostKey);
+    const { form, picker } = await sshEditor();
+    picker.load();
+    await settleFileBrowser();
+    expect(connections.confirmDraft).toHaveBeenCalledExactlyOnceWith(firstHostKey.confirmationId);
+    expect(page.error()).toBe('');
+    expect(form.value().config['hostKeys']).toEqual({ pinned: [sshKey] });
+    expect(connections.browseFiles).toHaveBeenCalledTimes(2);
+    expect(connections.browseFiles.mock.calls[1][0]).toMatchObject({ type: 'ssh-logs', path: '/var/log',
+      config: { connection: { host: 'logs.example.test' }, hostKeys: { pinned: [sshKey] } },
+      secrets: { '/credentials/password': { source: 'local', value: 'draft-only-password' } } });
+    expect(form.value().config['hostKeys']).toEqual({ pinned: [sshKey] });
+    expect(picker.directory()?.path).toBe('/var/log');
+    expect(page.drafts().get(sshCandidate.id)?.config).not.toHaveProperty('hostKeys');
+    expect(api.commit).not.toHaveBeenCalled();
+    expect(connections.create).not.toHaveBeenCalled();
+  });
+
+  it('blocks SSH browsing with retained staged credentials before any draft host trust request', async () => {
+    const { picker } = await sshEditor(true);
+    picker.load();
+    await settleFileBrowser();
+    expect(picker.result()?.message).toContain('Browse files after importing the staged credentials');
+    expect(connections.browseFiles).not.toHaveBeenCalled();
+    expect(connections.confirmDraft).not.toHaveBeenCalled();
+    expect(api.commit).not.toHaveBeenCalled();
+  });
+
+  it.each(['host', 'credential'])('does not retry an import browse when the %s changes after draft trust but before rendering', async (changed) => {
+    const manual = { ...firstHostKey, needsConfirmation: { ...firstHostKey.needsConfirmation!, data: {} } };
+    connections.browseFiles.mockResolvedValueOnce(manual);
+    const { form, password, picker } = await sshEditor();
+    picker.load();
+    await settleFileBrowser();
+    expect(connections.confirmDraft).not.toHaveBeenCalled();
+    const request = picker.result()!.request;
+    await page.trustFiles({ request, confirmationId: firstHostKey.confirmationId! });
+    if (changed === 'host') {
+      const host = form.state().compiled.all.find(n => n.pointer === '/connection/host')!;
+      form.state().set(host, 'other.example.test');
+    } else form.state().setSecret(password, 'changed-draft-password');
+    await settleFileBrowser();
+    expect(connections.confirmDraft).toHaveBeenCalledExactlyOnceWith(firstHostKey.confirmationId);
+    expect(connections.browseFiles).toHaveBeenCalledTimes(1);
+    expect(api.commit).not.toHaveBeenCalled();
+    expect(connections.create).not.toHaveBeenCalled();
+  });
+
   it('preserves mixed staged credentials by field and labels external references accurately', async () => {
     const staged: ImportCandidate = { ...candidate, config: {}, secretSources: [
       { field: '/credentials/password', source: 'local' },
@@ -335,10 +591,27 @@ describe('AI connection import review', () => {
   });
 
   it('refreshes a waiting session into review without importing', async () => {
-    page.session.set(awaiting);
+    await loadReview(awaiting);
+    await page.refresh(false);
+    expect(page.selected().size).toBe(0);
+    expect(page.drafts().size).toBe(0);
+    api.get.mockResolvedValue(structuredClone(review));
     await page.refresh();
     expect(page.session()?.status).toBe('review');
     expect(page.prompt()).toBe('');
+    expect([...page.selected()]).toEqual([candidate.id]);
+    expect(page.drafts().get(candidate.id)?.allowIncomplete).toBe(true);
+    expect(api.commit).not.toHaveBeenCalled();
+  });
+
+  it('checks for names saved during analysis before selecting newly arrived candidates', async () => {
+    await loadReview(awaiting);
+    connections.list.mockResolvedValue({ items: [{ name: candidate.name }] });
+    api.get.mockResolvedValue(structuredClone(review));
+    await page.refresh(false);
+    expect(page.session()?.status).toBe('review');
+    expect(page.selected().size).toBe(0);
+    expect(page.drafts().size).toBe(0);
     expect(api.commit).not.toHaveBeenCalled();
   });
 });

@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { ApiError } from '../../core/api/api-error';
 import { ClientsApi, ClientsView } from '../../core/api/clients.api';
 import { Onboarding, OverviewApi } from '../../core/api/overview.api';
@@ -154,6 +154,28 @@ const button = (root: ParentNode, name: string) =>
   Array.from(root.querySelectorAll<HTMLElement>('button, a')).find((b) => text(b) === name || text(b).startsWith(`${name} `)) ?? null;
 
 describe('Welcome page', () => {
+  it('recommends AI import without changing the master-key or skip state', async () => {
+    setup();
+    const { el } = await render();
+    const link = button(el.querySelector('.gw-page-header__actions')!, 'Import with AI')!;
+    expect(link.classList).toContain('gw-btn--primary');
+    expect(link.querySelector('svg[lucideIcon="lightbulb"]')).not.toBeNull();
+    expect(link.getAttribute('href')).toBe('/connection-import');
+    const hint = el.querySelector(`#${link.getAttribute('aria-describedby')}`)!;
+    expect(text(hint.closest('.gw-alert--brand')?.querySelector('.gw-alert__title')))
+      .toBe('The easiest way to set up your environment');
+    expect(text(hint)).toContain('you review what to import and choose the endpoint');
+    expect(visiblePanel(el)).toEqual(['ob-panel-1']);
+
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    calls = [];
+    link.click();
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(String(navigate.mock.calls[0][0])).toBe('/connection-import');
+    expect(calls).toEqual([]);
+    expect(visiblePanel(el)).toEqual(['ob-panel-1']);
+  });
+
   it('offers automatic client setup for the Store edition', async () => {
     setup();
     Object.assign(TestBed.inject(DesktopBridge), { windowsStore: true });
@@ -170,8 +192,8 @@ describe('Welcome page', () => {
     const { el } = await render();
 
     expect(text(el.querySelector('h1'))).toBe('Welcome to GateRook');
-    expect(text(el.querySelector('.gw-page-header__actions'))).toBe('Skip setup');
-    expect(el.querySelector('.gw-page-header__actions a')?.getAttribute('href')).toBe('/overview');
+    expect(text(el.querySelector('.gw-page-header__actions'))).toBe('Import with AI Skip setup');
+    expect(button(el, 'Skip setup')?.getAttribute('href')).toBe('/overview');
     expect(Array.from(el.querySelectorAll('ul[aria-label="What GateRook guarantees"] .gw-text-h3')).map(text)).toEqual([
       'Your agent never sees secrets',
       'You approve every change',

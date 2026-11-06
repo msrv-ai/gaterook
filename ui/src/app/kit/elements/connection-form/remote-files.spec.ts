@@ -15,6 +15,12 @@ const SPEC: ConnectionFormSpec = { type: 'ssh-logs', name: 'SSH log files', env:
   secretFields: [], secretSources: [], envDefaults: { prod: [], stage: [] }, variants: [] };
 const OUTCOME: TestOutcome = { ok: true, latencyMs: 1, serverVersion: null, identity: null, permissions: null,
   hints: [], checks: [], error: null, needsConfirmation: null, confirmationId: null, suggestedPolicyChange: null, details: null };
+const FIRST_KEY: TestOutcome = { ...OUTCOME, ok: false, confirmationId: 'cf_ssh_first', needsConfirmation: {
+  kind: 'host-key', text: 'First connection to logs.example.test.', data: {
+    kind: 'host-key', host: 'logs.example.test', port: 22, bastion: false, keyType: 'ssh-ed25519',
+    fingerprint: 'SHA256:' + 'A'.repeat(43), publicKey: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG4q5cLnwuK6nh3KekSjpSxn3RUE8TATPm0X+fK02R8D',
+  },
+} };
 const listing = (path = '/var/log', names = ['app.log'], dirs: string[] = [], truncated = false): TestOutcome => ({ ...OUTCOME,
   details: { path, parent: path === '/' ? null : path.slice(0, path.lastIndexOf('/')) || '/', truncated,
     entries: [...dirs.map((name) => ({ name, path: `${path}/${name}`, type: 'directory', size: 0 })),
@@ -22,7 +28,7 @@ const listing = (path = '/var/log', names = ['app.log'], dirs: string[] = [], tr
 
 @Component({ imports: [GwConnectionForm], template: `<form gwConnectionForm idPrefix="cf" name="remote-logs" [spec]="spec" [config]="config()" (save)="saved.push($event)" (browseFiles)="requests.push($event)" (trustFiles)="trusts.push($event)"></form>` })
 class Host {
-  readonly spec = SPEC;
+  spec = SPEC;
   readonly config = signal<JsonObject>({ connection: { host: 'logs.example.test', username: 'reader' }, credentials: { method: 'privateKeyFile', privateKeyPath: '/example/keys/reader' }, logs: { root: '/var/log', allowedFiles: [] } });
   readonly requests: FileBrowseRequest[] = [];
   readonly trusts: FileBrowseTrust[] = [];
@@ -202,6 +208,98 @@ describe('remote log file selection', () => {
     expect(v.host.trusts).toHaveLength(1);
     expect(v.host.trusts[0].confirmationId).toBe('key-1');
     expect(v.picker().busy()).toBe(true);
+  });
+
+  it('trusts the first SSH log host key only after Browse returns the matching first-use challenge', async () => {
+    const v = await render();
+    expect(v.host.trusts).toHaveLength(0);
+    expect(v.host.requests).toHaveLength(0);
+    v.button('Browse folders').click(); await v.settle();
+    expect(v.host.trusts).toHaveLength(0);
+    const request = v.host.requests[0];
+    expect(v.picker().complete(request, FIRST_KEY)).toBe(true);
+    await v.settle();
+    expect(v.host.trusts).toEqual([{ request, confirmationId: 'cf_ssh_first' }]);
+    expect(v.picker().busy()).toBe(true);
+    expect(v.el.textContent).toContain('Trusting the first SSH host key');
+    expect(v.button('Trust host key and browse')).toBeUndefined();
+    expect(v.host.saved).toHaveLength(0);
+  });
+
+  it('does not automatically trust another key for the same target after a trust retry resets the picker', async () => {
+    const v = await render();
+    await v.load('/var/log', FIRST_KEY);
+    expect(v.host.trusts).toHaveLength(1);
+    v.picker().reset();
+    await v.load('/var/log', { ...FIRST_KEY, confirmationId: 'cf_ssh_repeat' });
+    expect(v.host.trusts).toHaveLength(1);
+    expect(v.picker().busy()).toBe(false);
+    expect(v.el.textContent).toContain('First connection to logs.example.test');
+    v.button('Trust host key and browse').click(); await v.settle();
+    expect(v.host.trusts).toHaveLength(2);
+    expect(v.host.trusts[1].confirmationId).toBe('cf_ssh_repeat');
+  });
+
+  it.each(['ssh.host-key-changed', 'ssh.host-key-revoked'])('keeps %s errors blocked without requesting trust', async code => {
+    const v = await render();
+    await v.load('/var/log', { ...OUTCOME, ok: false, error: { code, message: 'The host key cannot be trusted.', technical: null }, details: FIRST_KEY.needsConfirmation!.data });
+    expect(v.host.trusts).toHaveLength(0);
+    expect(v.picker().busy()).toBe(false);
+    expect(v.el.textContent).toContain('The host key cannot be trusted.');
+    expect(v.button('Trust host key and browse')).toBeUndefined();
+  });
+
+  it.each(['tls', 'readonly-command', 'exec'])('leaves %s confirmations manual', async kind => {
+    const v = await render();
+    await v.load('/var/log', { ...FIRST_KEY, needsConfirmation: { ...FIRST_KEY.needsConfirmation!, kind } });
+    expect(v.host.trusts).toHaveLength(0);
+    expect(v.picker().result()?.state).toBe('confirmation');
+    expect(v.button('Confirm and browse')).toBeDefined();
+  });
+
+  it.each([
+    { host: 'other.example.test' }, { port: 2222 }, { bastion: true }, { fingerprint: 'SHA256:short' },
+    { publicKey: 'ssh-rsa AAAA' }, { kind: 'tls' }, { bastion: null },
+  ] as JsonObject[])('does not auto-trust incomplete or mismatched challenge fields: %j', async patch => {
+    const v = await render();
+    await v.load('/var/log', { ...FIRST_KEY, needsConfirmation: { ...FIRST_KEY.needsConfirmation!, data: { ...FIRST_KEY.needsConfirmation!.data as JsonObject, ...patch } } });
+    expect(v.host.trusts).toHaveLength(0);
+    expect(v.picker().result()?.state).toBe('confirmation');
+  });
+
+  it('does not automatically confirm for another connector or without a confirmation capability', async () => {
+    const v = await render();
+    v.host.spec = { ...SPEC, type: 'custom-ssh-logs' }; await v.settle();
+    await v.load('/var/log', FIRST_KEY);
+    expect(v.host.trusts).toHaveLength(0);
+    v.host.spec = SPEC; await v.settle();
+    await v.load('/var/log', { ...FIRST_KEY, confirmationId: null });
+    expect(v.host.trusts).toHaveLength(0);
+  });
+
+  it('ignores a first-use confirmation after the draft host or requested folder changes', async () => {
+    const v = await render();
+    v.picker().load(); await v.settle();
+    const request = v.host.requests[0];
+    v.picker().address.set('/srv/logs'); await v.settle();
+    expect(v.picker().complete(request, FIRST_KEY)).toBe(false);
+    expect(v.host.trusts).toHaveLength(0);
+    v.picker().load(); await v.settle();
+    const current = v.host.requests[1];
+    const host = v.el.querySelector<HTMLInputElement>('#cf-connection-host')!;
+    host.value = 'other.example.test'; host.dispatchEvent(new Event('input', { bubbles: true })); await v.settle();
+    expect(v.picker().complete(current, FIRST_KEY)).toBe(false);
+    expect(v.host.trusts).toHaveLength(0);
+  });
+
+  it('trusts a matching first-use bastion separately from the target host', async () => {
+    const v = await render();
+    v.host.config.update(config => ({ ...config, jump: { host: 'bastion.example.test', port: 2222, username: 'reader' } })); await v.settle();
+    await v.load('/var/log', { ...FIRST_KEY, needsConfirmation: { ...FIRST_KEY.needsConfirmation!, data: { ...FIRST_KEY.needsConfirmation!.data as JsonObject, host: 'bastion.example.test', port: 2222, bastion: true } } });
+    expect(v.host.trusts).toHaveLength(1);
+    v.picker().reset();
+    await v.load('/var/log', FIRST_KEY);
+    expect(v.host.trusts).toHaveLength(2);
   });
 
   it('shows empty, partial and error states and resets pending navigation on discard', async () => {
