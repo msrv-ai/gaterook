@@ -806,7 +806,9 @@ Short-lived feedback in the bottom-end corner: the result of an action (Token re
 **States and behavior:**
 
 - enter: fade; rise inside gw-motion
-- auto-dismiss after 6 s (kit.js; timeout: 0 keeps it)
+- auto-dismiss after 15 s by default; Settings → Notifications → Display duration selects 5 / 10 / 15 / 30 / 60 / 120 seconds for new notifications (kit.js reference: `select[data-gw-toast-duration]`, remembered locally)
+- pause while hovered or focused; resume the remaining time only after both end
+- explicit `timeout` overrides the default in milliseconds; `timeout: 0` and toasts with actions stay until dismissed
 
 **Accessibility:** Region <section aria-label="Notifications"> (kit.js creates one if missing and appends to the first one). Toasts are role=status, role=alert only for danger. Tone is backed by an icon and words. Do not auto-dismiss a toast whose actions the user must reach.
 

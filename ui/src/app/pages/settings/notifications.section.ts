@@ -10,7 +10,7 @@ import { GwNotificationCard, GwNotificationPreview } from '../../kit/elements/ap
 import { GwIcon } from '../../kit/icons';
 import { GwReveal } from '../../kit/reveal';
 import { GwTabs } from '../../kit/tabs';
-import { ToastService } from '../../kit/toast.service';
+import { TOAST_DURATION_SECONDS, ToastService, normalizeToastDurationSeconds } from '../../kit/toast.service';
 import { SettingsData } from './settings.data';
 import {
   channelOf,
@@ -36,7 +36,8 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
 type Preview = { readonly kind: 'none' } | { readonly kind: 'failed' } | { readonly kind: 'ready'; readonly request: ApprovalDetail };
 
 /**
- * Settings › Notifications (design/pages/settings.html `#settings-notifications`): where approval requests reach you.
+ * Settings › Notifications (design/pages/settings.html `#settings-notifications`): in-app feedback and where approval
+ * requests reach you. The in-app display duration is a General preference and applies to new toasts at once.
  * Every channel setting applies at once (`PUT /api/notifications/{desktop|slack|telegram}` with the changed fields
  * flat, as K2's `ChannelBody` takes them, and the channel's `version`). Telegram and Slack connect through a dialog
  * that takes the new tokens once: they leave the page in that one request, the core tests them before it saves
@@ -54,8 +55,8 @@ type Preview = { readonly kind: 'none' } | { readonly kind: 'failed' } | { reado
  * to post one to every channel that is on, and says what each did.
  *
  * Without K2 the core has no `/api/notifications` (404): the section keeps its layout, says the channels aren't
- * available in this build, and every control that would act is `aria-disabled` with that reason. The preview still
- * works: it needs only a request.
+ * available in this build, and channel controls are `aria-disabled` with that reason. In-app duration remains
+ * available. The preview still works: it needs only a request.
  */
 @Component({
   selector: 'section[gwNotificationsSettings]',
@@ -70,6 +71,13 @@ export class GwNotificationsSettings {
   private readonly toasts = inject(ToastService);
   private readonly announcer = inject(Announcer);
 
+  protected readonly durationOptions = TOAST_DURATION_SECONDS;
+  protected readonly duration = computed(() => normalizeToastDurationSeconds(this.data.section('general')?.values['toastDurationSeconds']));
+  protected readonly durationUnavailable = computed(() => !this.data.section('general'));
+  protected readonly durationBusy = signal(false);
+  protected readonly durationError = signal<string | null>(null);
+  protected readonly durationText = (seconds: number): string => seconds < 60 ? `${seconds} seconds` : `${seconds / 60} ${seconds === 60 ? 'minute' : 'minutes'}`;
+
   private readonly previewDialog = viewChild.required<GwDialog>('previewDialog');
   private readonly slackDisconnectDialog = viewChild.required<GwDialog>('slackDisconnectDialog');
   private readonly telegramDialog = viewChild.required<GwDialog>('telegramDialog');
@@ -82,7 +90,7 @@ export class GwNotificationsSettings {
   protected readonly unavailable = computed(() => this.data.notifications().unavailable);
   /** The channels didn't load (an error other than "not in this build"). */
   protected readonly failed = computed(() => !!this.data.notifications().error && !this.unavailable());
-  /** Nothing here may act: not in this build, or not loaded. */
+  /** Channel controls cannot act: not in this build, or not loaded. */
   protected readonly off = computed(() => this.unavailable() || !this.data.notifications().value);
   protected readonly channels = computed(() => this.data.notifications().value?.channels ?? null);
   protected readonly desktop = computed(() => channelOf(this.channels(), 'desktop'));
@@ -141,6 +149,27 @@ export class GwNotificationsSettings {
   protected readonly slackMissing = signal<{ readonly bot: boolean; readonly app: boolean }>({ bot: false, app: false });
   protected readonly slackBusy = signal(false);
   protected readonly slackError = signal<string | null>(null);
+
+  protected async setDuration(e: Event): Promise<void> {
+    const select = e.target as HTMLSelectElement;
+    const seconds = Number(select.value);
+    if (this.durationUnavailable() || this.durationBusy() || !this.durationOptions.some((option) => option === seconds)) {
+      select.value = String(this.duration());
+      return;
+    }
+    this.durationBusy.set(true);
+    this.durationError.set(null);
+    try {
+      const saved = await this.data.save('general', { toastDurationSeconds: seconds });
+      this.toasts.setDuration(saved.values['toastDurationSeconds']);
+      this.toasts.show(savedToast('In-app notification duration', this.durationText(this.duration())));
+    } catch (err) {
+      select.value = String(this.duration());
+      this.durationError.set(isApiError(err) ? err.detail : NO_ANSWER);
+    } finally {
+      this.durationBusy.set(false);
+    }
+  }
 
   // ── Channel settings apply at once ────────────────────────────────────────────────────────────────────────────
 

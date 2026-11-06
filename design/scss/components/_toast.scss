@@ -31,7 +31,8 @@
 //                   approvals) · danger circle-x · info info · neutral / brand bell
 // Behaviour (assets/kit.js): window.gwToast({ title, body, tone, timeout }) or
 //   [data-gw-toast="body"] [data-gw-toast-title] [data-gw-toast-tone] on a button.
-//   Auto-dismiss after 6 s (timeout: 0 keeps it); the close button removes it.
+//   Auto-dismiss after 15 s by default (configurable in Notifications); timeout: 0
+//   keeps it. Hover or focus pauses the timer; the close button removes it.
 //   kit.js appends to the FIRST .gw-toast-region in the document (and creates one
 //   when there is none): never give a static, in-page demo that class. Toasts with
 //   __actions are built by the app (gwToast renders title + body only).

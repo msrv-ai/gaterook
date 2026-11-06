@@ -193,6 +193,7 @@ export class App {
 
   constructor() {
     this.core.start();
+    effect(() => this.toasts.setDuration(this.settings.section('general')?.values['toastDurationSeconds']));
     // Live data starts once the core answers. start() only subscribes once; every later return to running (the core
     // was away or restarted) reloads what the frame keeps, so the counter and the banner aren't stale until the
     // next event.
