@@ -8,7 +8,10 @@ import ai.msrv.gaterook.core.platform.Taint;
 import ai.msrv.gaterook.core.secrets.internal.persistence.SecretKind;
 import ai.msrv.gaterook.core.secrets.store.LeaseManager;
 import ai.msrv.gaterook.core.secrets.store.StoreResolution;
+import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -82,9 +85,10 @@ public final class ScopedSecretResolver implements SecretResolver, AutoCloseable
   }
 
   /**
-   * A login: Vault dynamic credentials (a lease shared by this connection's calls), or a value stored as
-   * {@code {"username": …, "password": …}} — here or in a store. The username is not secret, the password is (and
-   * both the password and {@code Base64(user:password)} go into the taint).
+   * A login: Vault dynamic credentials (a lease shared by this connection's calls); the password of {@code field} with
+   * the user its login reads from a store ({@code /credentials/user} next to {@code /credentials/password}); or a value
+   * stored as {@code {"username": …, "password": …}} — here or in a store. The username is not secret, the password is
+   * (and both the password and {@code Base64(user:password)} go into the taint).
    */
   @Override
   public Login login(String field) throws SecretUnavailableException {
@@ -106,6 +110,10 @@ public final class ScopedSecretResolver implements SecretResolver, AutoCloseable
       Login login = new Login(lease.username(), password, lease.version(), lease.notAfter());
       remember(login);
       return login;
+    }
+    String userField = userFieldOf(field);
+    if (userField != null) {
+      return storedUserLogin(field, userField);
     }
     SecretService.Resolved resolved = resolve(field);
     byte[] json = resolved.plaintext();
@@ -241,6 +249,53 @@ public final class ScopedSecretResolver implements SecretResolver, AutoCloseable
       throw new SecretUnavailableException(resolved.unavailable(), null);
     }
     return resolved;
+  }
+
+  /** The user names a login's user field may have, next to its password. */
+  private static final List<String> USER_NAMES = List.of("user", "username", "login");
+
+  /**
+   * The user field of {@code field}'s login when its value is read from a store too (a field of this connection, set
+   * as a reference): {@code /credentials/user} for {@code /credentials/password}; {@code null} for a typed user.
+   */
+  private String userFieldOf(String field) {
+    int slash = field.lastIndexOf('/');
+    if (slash < 0) {
+      return null;
+    }
+    for (String name : USER_NAMES) {
+      String candidate = field.substring(0, slash + 1) + name;
+      if (!candidate.equals(field) && fields.contains(candidate) && isSet(candidate)) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  /** The password of {@code field} with the user read from {@code userField}: both from where they are kept. */
+  private Login storedUserLogin(String field, String userField) throws SecretUnavailableException {
+    SecretService.Resolved user = resolve(userField);
+    String username;
+    byte[] name = user.plaintext();
+    try {
+      username = StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(name)).toString().strip();
+    } catch (CharacterCodingException e) {
+      throw new SecretUnavailableException(user.name() + " is not a user name", null);
+    } finally {
+      Arrays.fill(name, (byte) 0);
+    }
+    if (username.isEmpty() || username.length() > 256 || username.chars().anyMatch(c -> c < 0x20 || c == 0x7f)) {
+      throw new SecretUnavailableException(user.name() + " is not a user name", null);
+    }
+    SecretService.Resolved password = resolve(field);
+    LocalSecretValue secret = new LocalSecretValue(password.plaintext(), password.version());
+    taint.addLogin(username, CharBuffer.wrap(secret.chars()));
+    SecretFingerprints.process().learnLogin(username, CharBuffer.wrap(secret.chars()));
+    String version = java.util.Objects.equals(password.version(), user.version()) ? password.version()
+        : password.version() + "+" + user.version();
+    Login login = new Login(username, secret, version, null);
+    remember(login);
+    return login;
   }
 
   private void remember(AutoCloseable value) {

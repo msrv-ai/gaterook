@@ -595,6 +595,72 @@ class VaultStoreTest {
         .isEqualTo(vault.token(7));
   }
 
+  @Test
+  void aChosenTokenFileIsAnAbsolutePathTheCoreWrote() {
+    var config = cliConfig(null);
+    ((tools.jackson.databind.node.ObjectNode) config.path("auth")).put("method", "token-file");
+    assertThatThrownBy(() -> VaultSettings.of(config, Set.of())).isInstanceOfSatisfying(StoreException.class,
+        e -> assertThat(e.getMessage()).contains("Choose the file that holds the Vault token"));
+    for (String file : List.of("vault-token", "~/.vault-agent/token", "/var/run/../etc/passwd", "/var/run/./token")) {
+      ((tools.jackson.databind.node.ObjectNode) config.path("auth")).put("file", file);
+      assertThatThrownBy(() -> VaultSettings.of(config, Set.of())).as(file)
+          .isInstanceOfSatisfying(StoreException.class, e -> assertThat(e.getMessage()).contains("absolute path"));
+    }
+    Path chosen = Path.of(System.getProperty("java.io.tmpdir")).toAbsolutePath().normalize().resolve("agent-token");
+    ((tools.jackson.databind.node.ObjectNode) config.path("auth")).put("file", chosen.toString());
+    VaultSettings settings = VaultSettings.of(config, Set.of());
+    assertThat(settings.auth()).isEqualTo(VaultSettings.Auth.TOKEN_FILE);
+    assertThat(settings.tokenFile()).isEqualTo(chosen);
+    assertThat(settings.secretFields()).as("nothing of a token file is stored").isEmpty();
+  }
+
+  @Test
+  void aChosenTokenFileIsReadAtEverySignIn(@TempDir Path dir) throws Exception {
+    Path file = Files.writeString(dir.resolve("agent-token"), vault.token(8) + "\n");
+    try (VaultStore store = tokenFileStore(file);
+        RemoteValue v = store.read(SecretRef.parse("vault://kv/stage/db#password"), call())) {
+      assertThat(new String(v.value(), StandardCharsets.UTF_8)).isEqualTo(FakeVault.DB_PASSWORD);
+    }
+    assertThat(vault.to("auth/token/lookup-self").getFirst().getHeaders().get("X-Vault-Token"))
+        .isEqualTo(vault.token(8));
+    assertThat(vault.to("auth/approle")).isEmpty();
+
+    // Vault Agent wrote a new token there: the next sign-in reads it, nothing was copied.
+    Files.writeString(file, vault.token(9) + "\n");
+    try (VaultStore store = tokenFileStore(file);
+        RemoteValue v = store.read(SecretRef.parse("vault://kv/stage/db#password"), call())) {
+      assertThat(v.value()).isNotEmpty();
+    }
+    assertThat(vault.to("auth/token/lookup-self").getLast().getHeaders().get("X-Vault-Token"))
+        .isEqualTo(vault.token(9));
+
+    Files.delete(file);
+    try (VaultStore store = tokenFileStore(file)) {
+      assertThatThrownBy(() -> store.read(SecretRef.parse("vault://kv/stage/db#password"), call()))
+          .isInstanceOf(StoreException.class).hasMessageContaining("choose another file");
+    }
+  }
+
+  @Test
+  void aChosenTokenFileIsTestedAsSuch(@TempDir Path dir) throws Exception {
+    Path file = Files.writeString(dir.resolve("agent-token"), vault.token(8));
+    try (VaultStore store = tokenFileStore(file)) {
+      SecretStores.TestResult result = store.test(List.of(), call());
+      assertThat(result.ok()).as(String.valueOf(result.error())).isTrue();
+      assertThat(result.identity().path("auth").asString()).isEqualTo("token-file");
+      assertThat(result.checks()).anySatisfy(c -> assertThat(c.detail()).isEqualTo("The token in " + file
+          + " works"));
+      assertThat(result.hints()).noneSatisfy(h -> assertThat(h.code()).isEqualTo("store.personal-token"));
+    }
+  }
+
+  private VaultStore tokenFileStore(Path tokenFile) {
+    return new VaultStore(new VaultSettings(URI.create(vault.address()), null, null, VaultSettings.Auth.TOKEN_FILE,
+        "approle", null, tokenFile, Duration.ofHours(1), 60, false), f -> {
+          throw new AssertionError("A token file needs no stored secret");
+        }, clock);
+  }
+
   private VaultStore cliStore(Path tokenFile) {
     return new VaultStore(new VaultSettings(URI.create(vault.address()), null, null, VaultSettings.Auth.CLI_TOKEN,
         "approle", null, tokenFile, Duration.ofHours(1), 60, false), f -> {

@@ -9,7 +9,9 @@ import java.util.Optional;
 /**
  * Secrets of one connection for one call, closed by the core.
  *
- * <p>Only {@code writeOnly} fields of this connection resolve. Every value handed out is tainted: raw, Base64,
+ * <p>Only {@code writeOnly} fields of this connection resolve, and the user of a login ({@code x-gateway-secret:
+ * login}) when a store holds it with the password: then {@code isSet} of the user field is {@code true}, the form's
+ * config has no user, and {@link #login} of the password gives both. Every value handed out is tainted: raw, Base64,
  * URL-encoded and JSON-escaped echoes of it get masked. Plugins get the same API over GPP/1.
  */
 public interface SecretResolver {
@@ -17,7 +19,10 @@ public interface SecretResolver {
   /** A value, a PEM or a binary. */
   Secret secret(String field) throws SecretUnavailableException;
 
-  /** A static login, a reference or Vault dynamic credentials. */
+  /**
+   * A static login, a reference or Vault dynamic credentials; the password of {@code field} with the user its login
+   * reads from a store.
+   */
   Login login(String field) throws SecretUnavailableException;
 
   boolean isSet(String field);

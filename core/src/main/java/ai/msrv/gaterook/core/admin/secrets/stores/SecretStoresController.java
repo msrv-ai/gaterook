@@ -2,9 +2,11 @@ package ai.msrv.gaterook.core.admin.secrets.stores;
 
 import ai.msrv.gaterook.core.admin.ApiRequestException;
 import ai.msrv.gaterook.core.admin.Reasons;
+import ai.msrv.gaterook.core.platform.FileGrants;
 import ai.msrv.gaterook.core.secrets.SecretInfo;
 import ai.msrv.gaterook.core.secrets.SecretStores;
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -45,16 +47,23 @@ class SecretStoresController {
    * @param kind    {@code vault}, {@code gcp-sm}, {@code aws-sm}
    * @param config  the settings of the kind's form ({@code GET /api/secret-stores/form?kind=})
    * @param secrets its sign-in values by JSON pointer ({@code /auth/secretId}), encrypted here and zeroed
+   * @param files   files the person chose in GateRook's file dialog, by settings pointer: the one-time token of each
+   *                ({@code /auth/file} of a Vault token file); the API takes no raw path
    */
-  record Create(String kind, String name, JsonNode config, Map<String, char[]> secrets, String reason) {
+  record Create(String kind, String name, JsonNode config, Map<String, char[]> secrets, Map<String, String> files,
+      String reason) {
     @Override
     public String toString() {
       return "Create[" + kind + " " + name + ", " + (secrets == null ? 0 : secrets.size()) + " secret(s)]";
     }
   }
 
-  /** {@code PUT /api/secret-stores/{id}}: sign-in fields left out keep their stored values. */
-  record Update(String name, JsonNode config, Map<String, char[]> secrets, Long version, String reason) {
+  /**
+   * {@code PUT /api/secret-stores/{id}}: sign-in fields left out keep their stored values, a token file not chosen
+   * again stays the stored one.
+   */
+  record Update(String name, JsonNode config, Map<String, char[]> secrets, Map<String, String> files, Long version,
+      String reason) {
     @Override
     public String toString() {
       return "Update[" + name + ", " + (secrets == null ? 0 : secrets.size()) + " secret(s)]";
@@ -78,9 +87,11 @@ class SecretStoresController {
       String remoteVersion, String state) {}
 
   private final SecretStores stores;
+  private final FileGrants grants;
 
-  SecretStoresController(SecretStores stores) {
+  SecretStoresController(SecretStores stores, FileGrants grants) {
     this.stores = stores;
+    this.grants = grants;
   }
 
   @GetMapping("/api/secret-stores")
@@ -112,8 +123,10 @@ class SecretStoresController {
   ResponseEntity<SecretStores.StoreInfo> create(@RequestBody Create request) {
     Map<String, char[]> secrets = copy(request.secrets());
     try {
+      Map<String, Path> files = chosen(request.files());
       SecretStores.StoreInfo created = stores.create(request.kind(), request.name(), request.config(), secrets,
-          Reasons.check(request.reason()));
+          files, Reasons.check(request.reason()));
+      redeem(request.files());
       return ResponseEntity.created(URI.create("/api/secret-stores/" + created.id())).body(created);
     } finally {
       zero(secrets);
@@ -128,11 +141,46 @@ class SecretStoresController {
       if (request.version() == null) {
         throw ApiRequestException.unprocessable("Version missing", "Send the version you edited.", "/version");
       }
-      return stores.update(id, request.name(), request.config(), secrets, request.version(),
-          Reasons.check(request.reason()));
+      Map<String, Path> files = chosen(request.files());
+      SecretStores.StoreInfo updated = stores.update(id, request.name(), request.config(), secrets, files,
+          request.version(), Reasons.check(request.reason()));
+      redeem(request.files());
+      return updated;
     } finally {
       zero(secrets);
       zero(request.secrets());
+    }
+  }
+
+  /**
+   * The paths of the file tokens, still valid afterwards: a store refused for another reason (its address) can be
+   * sent again without choosing the file again.
+   */
+  private Map<String, Path> chosen(Map<String, String> files) {
+    Map<String, Path> out = new LinkedHashMap<>();
+    if (files != null) {
+      files.forEach((pointer, token) -> {
+        try {
+          out.put(pointer, grants.peek(token, FileGrants.Purpose.VAULT_TOKEN));
+        } catch (IllegalArgumentException e) {
+          throw ApiRequestException.unprocessable("Choose the file again", e.getMessage(), "/files/"
+              + pointer.replace("~", "~0").replace("/", "~1"));
+        }
+      });
+    }
+    return out;
+  }
+
+  /** Each file token is used once: by the store it was chosen for. */
+  private void redeem(Map<String, String> files) {
+    if (files != null) {
+      files.values().forEach(token -> {
+        try {
+          grants.take(token, FileGrants.Purpose.VAULT_TOKEN);
+        } catch (IllegalArgumentException alreadyUsed) {
+          // Another request with the same choice won: the store has the path either way.
+        }
+      });
     }
   }
 

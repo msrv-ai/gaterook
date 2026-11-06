@@ -23,7 +23,8 @@
 //   __icon         optional 32px tile (24px in --compact); turns brand when checked
 //   __title        what the option is; may hold a gw-env marker (then the marker
 //                  sits on its own line above the name) or a gw-badge
-//   __description  one or two lines: what choosing it means
+//   __description  one or two lines: what choosing it means; a long literal in it
+//                  (a Vault's address) wraps rather than overflowing the card
 //   __meta         caption line: defaults, requirements ("Strict defaults")
 // Variants
 //   --compact      tighter padding, smaller title and icon (dense lists, dialogs)
@@ -164,6 +165,7 @@
     margin-block-start: var(--gw-space-0-5);
     @include gw-type(small);
     color: var(--gw-color-text-muted);
+    overflow-wrap: anywhere;
   }
 
   &__meta {

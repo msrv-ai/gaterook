@@ -24,7 +24,7 @@ import { planFileKey } from './file-key.ts';
 import { FileKeyUnlock } from './file-key-unlock.ts';
 import { NativeUnlockClient } from './native-unlock.ts';
 import { OsFileKey } from './os-file-key.ts';
-import { chooseFile, choosePrivateKeyFile, chooseRepository, openClientConfig, openMcpb, reveal, type FilesOptions } from './files.ts';
+import { chooseFile, choosePrivateKeyFile, chooseRepository, chooseVaultTokenFile, openClientConfig, openMcpb, reveal, type FilesOptions } from './files.ts';
 import { mcpSignInPage, signInEnded } from './mcp-sign-in.ts';
 import { isTrustedSender } from './ipc-guard.ts';
 import { GoogleSignIn } from './google-sign-in.ts';
@@ -702,6 +702,10 @@ export class Desktop {
     handle(IPC.chooseRepository, (...args) => {
       if (args.length) throw new Error('Repository selection does not accept arguments.');
       return chooseRepository(files);
+    });
+    handle(IPC.chooseVaultTokenFile, (...args) => {
+      if (args.length) throw new Error('Choosing a Vault token file does not accept arguments.');
+      return chooseVaultTokenFile(files);
     });
     handle(IPC.signInToGoogle, (...args) => {
       if (args.length) throw new Error('Google sign-in does not accept arguments.');

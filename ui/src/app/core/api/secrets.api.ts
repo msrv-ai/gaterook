@@ -148,6 +148,11 @@ export interface SecretStoreCreate extends WithReason {
   readonly name: string;
   readonly config: JsonObject;
   readonly secrets?: { readonly [pointer: string]: string };
+  /**
+   * Files chosen in the desktop app's file dialog, by settings pointer (`/auth/file` of a Vault token file): the
+   * one-time token of each choice. The core writes the path; the request never names one.
+   */
+  readonly files?: { readonly [pointer: string]: string };
 }
 
 /** `POST /api/secret-stores/{id}/test` (S1 `SecretStores.TestResult`): no values, never a length, hash or prefix. */

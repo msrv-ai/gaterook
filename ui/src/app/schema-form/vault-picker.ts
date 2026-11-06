@@ -29,9 +29,15 @@ export class GwVaultPicker {
   readonly id = computed(() => `${this.fieldId()}-vault`);
   readonly field = viewChild<ElementRef<HTMLInputElement>>('field');
   readonly panel = viewChild<ElementRef<HTMLElement>>('panel');
+  /** The Vault chosen with the connection's secret source (or the field's stored one); the only Vault without one. */
   readonly store = computed(() => this.form().secretStore(this.node()) ?? '');
   readonly stores = signal<readonly SecretStore[]>([]);
-  readonly selectedStore = computed(() => this.stores().find((store) => store.id === this.store() || store.name === this.store()) ?? null);
+  readonly selectedStore = computed(() => {
+    const stores = this.stores();
+    const chosen = this.store();
+    if (!chosen) return stores.length === 1 ? stores[0] : null;
+    return stores.find((store) => store.id === chosen || store.name === chosen) ?? null;
+  });
   readonly storesBusy = signal(false);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
@@ -55,7 +61,7 @@ export class GwVaultPicker {
     if (this.storesBusy()) return 'Loading Vault stores…';
     if (this.error()) return this.error()!;
     if (!this.stores().length) return 'Connect Vault or OpenBao in Secrets to load reference suggestions.';
-    if (!this.selectedStore()) return 'Choose a Vault store to load its keys.';
+    if (!this.selectedStore()) return this.store() ? `${this.store()} isn't connected. Choose a connected Vault above.` : 'Choose the Vault above to load its keys.';
     if (this.loading()) return 'Loading Vault paths and key names…';
     const result = this.result();
     if (!result) return 'Reference suggestions are not loaded. Refresh the list to try again.';
@@ -102,7 +108,8 @@ export class GwVaultPicker {
   }
 
   private current(form: SchemaForm, node: SchemaNode): boolean {
-    return !this.destroyRef.destroyed && this.form() === form && this.node() === node && form.source() === 'vault' && form.visible(node);
+    return !this.destroyRef.destroyed && this.form() === form && this.node() === node && form.source() === 'vault'
+      && form.visible(node) && (node.kind === 'secret' || form.userFromStore(node));
   }
 
   private async loadStores(form: SchemaForm, node: SchemaNode, refresh = false): Promise<void> {
@@ -114,9 +121,6 @@ export class GwVaultPicker {
     try {
       const stores = await this.catalog.stores(refresh);
       if (!this.current(form, node) || request !== this.storesRequest) return;
-      const selected = stores.find((store) => store.id === this.store() || store.name === this.store());
-      const next = selected ?? (!this.store() && stores.length === 1 ? stores[0] : null);
-      if (next) form.vaultStores.update((choices) => ({ ...choices, [node.pointer]: next.id }));
       this.stores.set(stores);
     } catch (error) {
       if (this.current(form, node) && request === this.storesRequest) this.error.set(isApiError(error) ? error.detail : 'Could not load Vault stores. Refresh the list to try again.');
@@ -151,12 +155,6 @@ export class GwVaultPicker {
     const store = this.selectedStore();
     if (store) void this.loadReferences(store, this.form(), this.node(), true);
     else void this.loadStores(this.form(), this.node(), true);
-  }
-
-  chooseStore(id: string): void {
-    if (this.store() === id || !this.stores().some((store) => store.id === id)) return;
-    this.close();
-    this.form().vaultStores.update((choices) => ({ ...choices, [this.node().pointer]: id }));
   }
 
   onInput(input: HTMLInputElement): void {
@@ -213,7 +211,7 @@ export class GwVaultPicker {
   }
 
   testReference(): void {
-    const store = this.form().secretStore(this.node());
+    const store = this.form().secretStore(this.node()) ?? this.selectedStore()?.name;
     this.form().emit({ kind: 'test', node: this.node(), ref: this.form().secretReference(this.node()), ...(store ? { store } : {}) });
   }
 }

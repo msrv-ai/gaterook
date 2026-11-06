@@ -233,6 +233,8 @@ class FakeCore {
   spec: ConnectionFormSpec = structuredClone(SPEC);
   catalog: ConnectorCatalog | ApiError = structuredClone(CATALOG);
   replaced: { id: string; value: string; reason: string | null | undefined }[] = [];
+  references: { id: string; uri: string; store: string | null | undefined; reason: string | null | undefined }[] = [];
+  referenceFails: ApiError[] = [];
   /** Nothing set up yet: no connection, no endpoint (Add connection's first run). */
   empty = false;
   endpointsCreated: { slug: string; startFrom: string }[] = [];
@@ -356,6 +358,12 @@ beforeEach(() => {
   const policies: Partial<PoliciesApi> = { all: vi.fn(async () => POLICIES), schema: vi.fn(async () => structuredClone(POLICY_SCHEMA)) };
   const secrets: Partial<SecretsApi> = {
     list: vi.fn(async () => [{ id: 'sec-1', rotatedAt: '2026-10-20T09:14:00Z', canRotate: false, rotateReason: "This connector can't issue a new value for itself." } as SecretRow]),
+    setReference: vi.fn(async (id: string, uri: string, store?: string | null, reason?: string | null) => {
+      core.references.push({ id, uri, store, reason });
+      const fail = core.referenceFails.shift();
+      if (fail) throw fail;
+      return { id, name: 'cache/password', owner: 'cache', field: '/credentials/password', source: 'vault', ref: uri, store: store ?? null, remoteVersion: null, state: 'reference' };
+    }),
     replace: vi.fn(async (id: string, r: { value: string; reason?: string | null }) => {
       core.replaced.push({ id, value: r.value, reason: r.reason });
       return { id, version: 4, state: 'stored', tested: null, testMessage: null };
@@ -1299,6 +1307,123 @@ describe('Add connection: duplicate', () => {
     expect((document.getElementById('cf-connection-host') as HTMLInputElement).value).toBe('db.dev.internal');
     expect((document.getElementById('cf-credentials-password') as HTMLInputElement).value).toBe('');
     expect(p.steps()[0]).toBe('complete:Choose type, completed PostgreSQL');
+  });
+});
+
+describe('Connection: edit view with references', () => {
+  const VAULTS = [
+    { id: 'local', label: 'Encrypted here', available: true, reason: null },
+    { id: 'vault', label: 'HashiCorp Vault', available: true, reason: null, store: 'vault-dev', detail: 'https://vault.dev.example.test' },
+    { id: 'vault', label: 'HashiCorp Vault', available: true, reason: null, store: 'vault-stage', detail: 'https://vault.stage.example.test' },
+  ];
+
+  /** A Redis connection whose password is a reference into vault-dev (no database discovery to redo). */
+  function cacheWithReference(env: 'dev' | 'prod' = 'dev') {
+    core.spec = { ...structuredClone(SPEC), type: 'redis', name: 'Redis', schema: CONNECTOR_FORMS['redis'], secretSources: VAULTS };
+    core.detail = {
+      ...structuredClone(DETAIL), name: 'cache', type: 'redis', typeName: 'Redis', env,
+      config: { connection: { host: 'cache.dev.internal', port: 6379 } },
+      secrets: [{ field: '/credentials/password', secretId: 'sec-1', name: 'cache/password', state: 'reference', version: null, source: 'vault' }],
+    } as ConnectionDetail;
+    vi.mocked(TestBed.inject(SecretsApi).list).mockResolvedValue([
+      { id: 'sec-1', ref: 'vault://kv/dev/cache#password', store: 'vault-dev', canRotate: false } as SecretRow,
+    ]);
+  }
+
+  it('Change saves the new reference after the settings, in the Vault chosen for the connection', async () => {
+    cacheWithReference();
+    const p = await open('/connections/cache');
+    expect(p.q<HTMLInputElement>('input[value="vault:vault-dev"]')!.checked).toBe(true);
+    p.q<HTMLButtonElement>('button[aria-label^="Change reference"]')!.click();
+    await p.settle();
+    await p.type('cf-credentials-password', 'kv/dev/cache-v2#password');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates).toHaveLength(1);
+    expect(core.updates[0]).not.toHaveProperty('secrets');
+    expect(core.references).toEqual([{ id: 'sec-1', uri: 'vault://kv/dev/cache-v2#password', store: 'vault-dev', reason: null }]);
+  });
+
+  it('choosing another Vault moves the stored references there, with the same paths', async () => {
+    cacheWithReference();
+    const p = await open('/connections/cache');
+    p.q<HTMLInputElement>('input[value="vault:vault-stage"]')!.click();
+    await p.settle();
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates).toHaveLength(1);
+    expect(core.references).toEqual([{ id: 'sec-1', uri: 'vault://kv/dev/cache#password', store: 'vault-stage', reason: null }]);
+  });
+
+  it('saving without a change of reference sends none', async () => {
+    cacheWithReference();
+    const p = await open('/connections/cache');
+    await p.type('cf-connection-host', 'cache2.dev.internal');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates).toHaveLength(1);
+    expect(core.references).toEqual([]);
+  });
+
+  it('on prod the changed reference waits for a comment, which goes with it', async () => {
+    cacheWithReference('prod');
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Change reference"]')!.click();
+    await p.settle();
+    await p.type('cf-credentials-password', 'kv/prod/cache#password');
+    p.button('Save changes').click();
+    await p.settle();
+    const dialog = document.getElementById('dlg-comment') as HTMLDialogElement;
+    expect(dialog.open).toBe(true);
+    expect(text(dialog.querySelector('#dlg-comment-t'))).toBe('Save the new password reference of cache?');
+    expect(core.updates).toEqual([]);
+    const area = dialog.querySelector<HTMLTextAreaElement>('#dlg-comment-text')!;
+    area.value = 'moved to the prod path';
+    area.dispatchEvent(new Event('input', { bubbles: true }));
+    dialog.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await p.settle();
+    expect(core.updates).toHaveLength(1);
+    expect(core.references).toEqual([{ id: 'sec-1', uri: 'vault://kv/prod/cache#password', store: 'vault-dev', reason: 'moved to the prod path' }]);
+  });
+
+  it('a reference the core refuses leaves the saved settings and says why', async () => {
+    cacheWithReference();
+    core.referenceFails = [new ApiError('unprocessable', 422, { title: 'Check the reference', detail: 'kv/missing is not a KV path.' })];
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Change reference"]')!.click();
+    await p.settle();
+    await p.type('cf-credentials-password', 'kv/missing#password');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates).toHaveLength(1);
+    const toasts = TestBed.inject(ToastService).toasts();
+    expect(toasts.at(-1)).toMatchObject({ tone: 'danger', title: "The password reference of cache didn't change" });
+    expect(toasts.at(-1)!.body).toContain('kv/missing is not a KV path.');
+  });
+
+  it('a stored reference stays in its store: Encrypted here says why instead of being chosen', async () => {
+    cacheWithReference();
+    const p = await open('/connections/cache');
+    const local = p.q<HTMLInputElement>('input[value="local"]')!;
+    expect(local.getAttribute('aria-disabled')).toBe('true');
+    const reason = local.getAttribute('aria-describedby')!.split(' ').map((id) => text(document.getElementById(id))).join(' ');
+    expect(reason).toContain('Secrets read from a store stay there. Change their reference instead.');
+    local.click();
+    await p.settle();
+    expect(p.q<HTMLInputElement>('input[value="vault:vault-dev"]')!.checked).toBe(true);
+    expect(local.checked).toBe(false);
+  });
+
+  it('a value typed where a reference is stored is refused instead of dropped', async () => {
+    cacheWithReference();
+    const p = await open('/connections/cache');
+    const page = p.page() as unknown as { saveEdit(value: unknown): Promise<void> };
+    await page.saveEdit({ name: 'cache', env: 'dev', config: { connection: { host: 'cache.dev.internal', port: 6379 } },
+      secrets: { '/credentials/password': { source: 'local', value: 'typed-here' } } });
+    await p.settle();
+    expect(text(p.q('#connection-form-error'))).toContain("can't be turned into a value stored here");
+    expect(core.updates).toEqual([]);
+    expect(core.references).toEqual([]);
   });
 });
 

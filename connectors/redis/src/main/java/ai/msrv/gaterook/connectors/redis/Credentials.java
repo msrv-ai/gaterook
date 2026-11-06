@@ -8,8 +8,9 @@ import java.util.Objects;
 import redis.clients.jedis.RedisCredentials;
 
 /**
- * The login of one call: the form's ACL user and the stored password, or both from a short-lived login (Vault's Redis
- * database engine: {@code SecretResolver.meta(...).source() == "dynamic"}). The password is a copy the pool owns and
+ * The login of one call: the form's ACL user and the stored password, or both from a store — a short-lived login
+ * (Vault's Redis database engine: {@code SecretResolver.meta(...).source() == "dynamic"}) or an ACL user read from a
+ * store with its password (the user is then a secret field of the connection). The password is a copy the pool owns and
  * {@link #close()} zeroes; resolving it put every form of it into the call's taint, so an echo of it is masked.
  *
  * <p>Jedis asks {@link #asRedisCredentials()} on every physical connection, which is why the pool keeps a copy: the
@@ -28,7 +29,7 @@ record Credentials(String user, char[] password, String version, Instant notAfte
       return new Credentials(s.user(), new char[0], "none", null);
     }
     SecretResolver.Meta meta = secrets.meta(field);
-    if ("dynamic".equals(meta.source())) {
+    if ("dynamic".equals(meta.source()) || secrets.isSet(RedisSettings.USER)) {
       try (SecretResolver.Login login = secrets.login(field)) {
         return new Credentials(login.username(), login.password().chars().clone(), login.version(),
             login.notAfter());

@@ -31,6 +31,8 @@ record MongoSettings(Env env, String uri, MongoUri parsed, boolean tls, boolean 
     List<Problem> problems) {
 
   static final String PASSWORD = "/credentials/password";
+  /** The login's user: typed into the form, or a secret field too when a store holds it with the password. */
+  static final String USER = "/credentials/user";
   static final String DEFAULT_AUTH_SOURCE = "admin";
 
   /** What is wrong with one field. */

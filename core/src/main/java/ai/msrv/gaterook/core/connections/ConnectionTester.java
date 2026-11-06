@@ -160,26 +160,20 @@ public class ConnectionTester implements DisposableBean {
       }
       ObjectNode draft = (ObjectNode) config.deepCopy();
       java.util.List<String> templates = SecretFields.templates(manifest.configSchema());
-      if (typed != null) {
-        typed.forEach((field, input) -> {
-          if (!SecretFields.matches(templates, field)) {
-            throw ProblemException.unprocessable("Not a secret field", field + " is not a secret field of this "
-                + "connector.", "/secrets");
-          }
-          if (input == null || (!input.isLocal() && (input.reference() == null || input.reference().isBlank()))) {
-            throw ProblemException.unprocessable("Secret missing", "Enter a value for " + field + ".", "/secrets");
-          }
-          if (input.isLocal()) {
-            values.put(field, input.value().clone());
-          } else {
-            // Read through its store for this one test (dynamic: leased and revoked when the test ends).
-            references.put(field, new SecretService.DraftReference(input.reference(), input.dynamic(),
-                input.store()));
-          }
-        });
-      }
       ConnectionConfigs.Stored stored = existing == null ? null : configs.byName(existing).orElseThrow(() ->
           ProblemException.notFound("Connection not found", "There is no connection " + existing + "."));
+      Set<String> storedReferences = stored == null ? Set.of() : connections.referenceSecretFields(
+          stored.secretIds());
+      ConnectionService.checkSecrets(manifest.configSchema(), templates, typed, storedReferences::contains)
+          .forEach((field, input) -> {
+            if (input.isLocal()) {
+              values.put(field, input.value().clone());
+            } else {
+              // Read through its store for this one test (dynamic: leased and revoked when the test ends).
+              references.put(field, new SecretService.DraftReference(input.reference(), input.dynamic(),
+                  input.store()));
+            }
+          });
       Set<String> present = new LinkedHashSet<>(values.keySet());
       present.addAll(references.keySet());
       Set<String> dynamic = new LinkedHashSet<>();
