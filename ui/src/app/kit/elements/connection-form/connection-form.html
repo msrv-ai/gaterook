@@ -50,24 +50,25 @@
     <fieldset class="gw-field" [id]="p + '-src-field'" [hidden]="beginner() && !sourcesOpen()">
       <legend class="gw-field__label">Secret source</legend>
       <div class="gw-grid gw-grid--auto gw-connection-form__sources">
-        @for (src of secretSources(); track src.id) {
+        @for (src of secretSources(); track src.id + '/' + (src.store ?? '')) {
           @let copy = sourceCopy(src.id, src.label);
-          @let base = p + '-src-' + copy.kit;
+          @let base = p + '-src-' + copy.kit + (src.store ? '-' + src.store : '');
+          @let description = sourceDescription(src, copy.description);
           <label class="gw-choice-card gw-choice-card--compact">
             <input
               class="gw-choice-card__input"
               type="radio"
               [name]="p + '-src'"
-              [value]="copy.kit"
-              [checked]="s.source() === sourceId(src.id)"
+              [value]="copy.kit + (src.store ? ':' + src.store : '')"
+              [checked]="chosen(src)"
               [attr.aria-disabled]="src.available ? null : 'true'"
               [attr.aria-labelledby]="base + '-t'"
               [attr.aria-describedby]="base + '-d' + (src.available ? '' : ' ' + base + '-r')"
-              (change)="setSource(src.id, src.available, $event)"
+              (change)="setSource(src, $event)"
             />
             <span class="gw-choice-card__icon"><svg [lucideIcon]="copy.icon" class="gw-icon"></svg></span>
-            <span class="gw-choice-card__title" [id]="base + '-t'">{{ copy.title }}</span>
-            <span class="gw-choice-card__description" [id]="base + '-d'">@for (part of literalParts(copy.description, [copy.scheme]); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {<ng-container>{{ part.text }}</ng-container>}}</span>
+            <span class="gw-choice-card__title" [id]="base + '-t'">{{ sourceTitle(src, copy.title) }}</span>
+            <span class="gw-choice-card__description" [id]="base + '-d'">@for (part of literalParts(description, [copy.scheme, src.detail ?? null]); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {<ng-container>{{ part.text }}</ng-container>}}</span>
             @if (!src.available && src.reason) {
               <span class="gw-choice-card__meta" [id]="base + '-r'">{{ src.reason }}</span>
             } @else if (copy.meta) {

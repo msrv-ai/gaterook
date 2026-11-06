@@ -99,6 +99,7 @@ export const IPC = {
   openFile: 'gw:open-file',
   choosePrivateKeyFile: 'gw:choose-private-key-file',
   chooseRepository: 'gw:choose-repository',
+  chooseVaultTokenFile: 'gw:choose-vault-token-file',
   signInToGoogle: 'gw:sign-in-to-google',
   openMcpb: 'gw:open-mcpb',
   openMcpSignIn: 'gw:open-mcp-sign-in',

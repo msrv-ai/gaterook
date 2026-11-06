@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.core.secrets;
 
 import ai.msrv.gaterook.core.secrets.store.StoreAdmin;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -79,8 +80,19 @@ public class SecretStores {
   public record Issued(String connection, String mechanism, String identity, Instant lastIssuedAt,
       long lifetimeSeconds, String principal) {}
 
-  /** A source of a connection's secret field in the form, and why it can't be chosen yet. */
-  public record Source(String id, String title, boolean available, String reason) {}
+  /**
+   * A source of a connection's secret field in the form, and why it can't be chosen yet.
+   *
+   * @param store  the connected store this source reads from (each Vault is a source of its own), or {@code null} for
+   *               a kind whose references pick their store
+   * @param detail what tells the store apart in the form: a Vault's address, or {@code null}
+   */
+  public record Source(String id, String title, boolean available, String reason, String store, String detail) {
+
+    public Source(String id, String title, boolean available, String reason) {
+      this(id, title, available, reason, null, null);
+    }
+  }
 
   private final StoreAdmin admin;
 
@@ -111,10 +123,25 @@ public class SecretStores {
     return admin.create(kind, name, config, secrets, reason);
   }
 
+  /**
+   * The same with files the person chose in a native dialog, by settings pointer ({@code /auth/file}: the token file of
+   * a Vault that signs in with one).
+   */
+  public StoreInfo create(String kind, String name, JsonNode config, Map<String, char[]> secrets,
+      Map<String, Path> files, String reason) {
+    return admin.create(kind, name, config, secrets, files, reason);
+  }
+
   /** New settings (and optionally new sign-in values); the store's clients and cached values are dropped. */
   public StoreInfo update(String idOrName, String name, JsonNode config, Map<String, char[]> secrets, long version,
       String reason) {
     return admin.update(idOrName, name, config, secrets, version, reason);
+  }
+
+  /** The same with files chosen again; a token file not chosen again stays the stored one. */
+  public StoreInfo update(String idOrName, String name, JsonNode config, Map<String, char[]> secrets,
+      Map<String, Path> files, long version, String reason) {
+    return admin.update(idOrName, name, config, secrets, files, version, reason);
   }
 
   /** Disconnect: its leases are revoked, its sign-in secrets destroyed, its references left "not connected". */

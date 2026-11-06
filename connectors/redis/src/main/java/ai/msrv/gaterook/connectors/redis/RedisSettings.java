@@ -31,6 +31,8 @@ record RedisSettings(String host, int port, int database, List<Integer> database
 
   /** The JSON pointer of the password; the user is a plain field next to it. */
   static final String PASSWORD = "/credentials/password";
+  /** The ACL user: typed into the form, or a secret field too when a store holds it with the password. */
+  static final String USER = "/credentials/user";
   static final int MAX_PATTERN = 256;
   /** The metadata field Test connection writes: {@code signed} or {@code unsigned} ({@link RedisGlob.Chars}). */
   static final String GLOB_CHARS = "globChars";

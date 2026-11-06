@@ -54,6 +54,46 @@ public final class SecretFields {
     return collect(schema, s -> s.path(KEY_ALLOWED).asBoolean(false));
   }
 
+  /** The user property of a login: {@code user}, {@code username} or {@code login}. */
+  private static final java.util.regex.Pattern LOGIN_USER = java.util.regex.Pattern.compile("(?i)user|username|login");
+
+  /**
+   * Pointer templates of the user of every login ({@code x-gateway-secret: login}, such as {@code /credentials/user}):
+   * not a secret, but a reference may read it from the store that holds the login's password. Its value then lives in
+   * the secrets module like a reference of a secret field, behind a placeholder.
+   */
+  public static List<String> loginUserTemplates(JsonNode schema) {
+    Set<String> out = new LinkedHashSet<>();
+    for (SchemaPointers.Located login : SchemaPointers.collect(schema,
+        node -> "login".equals(node.path("x-gateway-secret").asString("")))) {
+      for (Map.Entry<String, JsonNode> property : login.schema().path("properties").properties()) {
+        JsonNode p = property.getValue();
+        if (LOGIN_USER.matcher(property.getKey()).matches() && "string".equals(p.path("type").asString(""))
+            && !p.path("writeOnly").asBoolean(false)) {
+          out.add(login.template() + "/" + escape(property.getKey()));
+        }
+      }
+    }
+    return List.copyOf(out);
+  }
+
+  /**
+   * The secret fields of the login a user field belongs to: {@code /credentials/user} → {@code /credentials/password}.
+   *
+   * @param secretTemplates the type's secret fields ({@link #templates})
+   */
+  public static List<String> loginSecretsOf(List<String> secretTemplates, String userField) {
+    String parent = userField.substring(0, userField.lastIndexOf('/'));
+    List<String> out = new ArrayList<>();
+    for (String template : secretTemplates) {
+      String candidate = parent + template.substring(template.lastIndexOf('/'));
+      if (!candidate.equals(userField) && match(template, candidate)) {
+        out.add(candidate);
+      }
+    }
+    return out;
+  }
+
   /** A leased login supplies its own user. Only the validation copy gets a stand-in; saved settings never do. */
   public static void dynamicLoginUsers(JsonNode schema, ObjectNode probe, Set<String> dynamicFields) {
     if (dynamicFields.isEmpty()) return;

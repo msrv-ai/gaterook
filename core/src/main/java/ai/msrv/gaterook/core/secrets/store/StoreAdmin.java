@@ -22,6 +22,7 @@ import ai.msrv.gaterook.core.secrets.internal.persistence.SecretRepository;
 import ai.msrv.gaterook.core.secrets.internal.persistence.StoreKind;
 import ai.msrv.gaterook.core.secrets.store.gcp.GcpSmStore;
 import ai.msrv.gaterook.core.secrets.store.vault.VaultStore;
+import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
@@ -162,10 +163,19 @@ public final class StoreAdmin implements SecretOwners {
 
   public SecretStores.StoreInfo create(String kindId, String name, JsonNode config, Map<String, char[]> values,
       String reason) {
+    return create(kindId, name, config, values, Map.of(), reason);
+  }
+
+  /**
+   * @param files files the person chose in a native dialog, by settings pointer ({@code /auth/file} of a Vault token
+   *              file): only the core writes their paths into the settings
+   */
+  public SecretStores.StoreInfo create(String kindId, String name, JsonNode config, Map<String, char[]> values,
+      Map<String, Path> files, String reason) {
     try {
       StoreKind kind = kind(kindId, "/kind");
       checkName(name);
-      ObjectNode cleaned = settings(kind, config);
+      ObjectNode cleaned = settings(kind, chosenFiles(kind, config, files, null));
       generateExternalId(kind, cleaned);
       Map<String, char[]> given = signInValues(kind, values);
       requiredSignIn(kind, cleaned, given.keySet(), Set.of());
@@ -202,11 +212,17 @@ public final class StoreAdmin implements SecretOwners {
 
   public SecretStores.StoreInfo update(String idOrName, String newName, JsonNode config, Map<String, char[]> values,
       long version, String reason) {
+    return update(idOrName, newName, config, values, Map.of(), version, reason);
+  }
+
+  /** @param files files the person chose again; a Vault token file not chosen again stays the stored one */
+  public SecretStores.StoreInfo update(String idOrName, String newName, JsonNode config, Map<String, char[]> values,
+      Map<String, Path> files, long version, String reason) {
     try {
       ExternalStoreEntity current = readTx.execute(s -> find(idOrName));
       StoreKind kind = current.getKind();
-      ObjectNode cleaned = settings(kind, config);
       JsonNode before = json.valueToTree(current.getConfig());
+      ObjectNode cleaned = settings(kind, chosenFiles(kind, config, files, before));
       if (!cleaned.has("credentials") || !cleaned.path("credentials").has("externalId")) {
         // An ExternalId the gateway made stays: the role's trust policy names it.
         JsonNode old = before.path("credentials").path("externalId");
@@ -524,20 +540,35 @@ public final class StoreAdmin implements SecretOwners {
     return out;
   }
 
+  /**
+   * Encrypted here, then every connected Vault on its own (a person with a prod and a stage Vault picks the one that
+   * holds the password; its references are bound to it), then each other kind once: GCP and AWS references name their
+   * project or region, which picks the store.
+   */
   public List<SecretStores.Source> sources() {
-    Set<StoreKind> connected = readTx.execute(s -> {
-      Set<StoreKind> k = java.util.EnumSet.noneOf(StoreKind.class);
-      stores.findAll().forEach(e -> k.add(e.getKind()));
-      return k;
-    });
+    record Connected(StoreKind kind, String name, String address, boolean verified) {}
+    List<Connected> connected = readTx.execute(s -> stores.findAll().stream()
+        .sorted(Comparator.comparing(ExternalStoreEntity::getName))
+        .map(e -> new Connected(e.getKind(), e.getName(), e.getKind() == StoreKind.VAULT && e.getConfig()
+            .get("address") instanceof String a ? a : null, binding.integrity().verifyStore(e))).toList());
     List<SecretStores.Source> out = new ArrayList<>();
     out.add(new SecretStores.Source("local", "Encrypted here", true, null));
     for (StoreKind k : StoreKind.values()) {
-      boolean on = connected.contains(k);
-      out.add(new SecretStores.Source(StoreSchemas.id(k), StoreResolution.title(k), on, on ? null : "Connect "
-          + StoreResolution.title(k) + " in Secrets first."));
+      String id = StoreSchemas.id(k);
+      String title = StoreResolution.title(k);
+      List<Connected> mine = connected.stream().filter(c -> c.kind() == k).toList();
+      if (mine.isEmpty()) {
+        out.add(new SecretStores.Source(id, title, false, "Connect " + title + " in Secrets first."));
+      } else if (k == StoreKind.VAULT) {
+        for (Connected c : mine) {
+          out.add(new SecretStores.Source(id, title, c.verified(), c.verified() ? null : c.name() + " was changed "
+              + "outside GateRook: review it in Secrets first.", c.name(), c.address()));
+        }
+      } else {
+        out.add(new SecretStores.Source(id, title, true, null));
+      }
     }
-    boolean vault = connected.contains(StoreKind.VAULT);
+    boolean vault = connected.stream().anyMatch(c -> c.kind() == StoreKind.VAULT);
     out.add(new SecretStores.Source("vault-dynamic", "Short-lived (Vault dynamic credentials)", vault, vault ? null
         : "Connect HashiCorp Vault in Secrets first."));
     return out;
@@ -600,6 +631,52 @@ public final class StoreAdmin implements SecretOwners {
       }
     }
     return bound;
+  }
+
+  /** The settings pointer of a Vault token file ({@code auth.method: token-file}). */
+  static final String TOKEN_FILE = "/auth/file";
+
+  /**
+   * A copy of {@code config} with the files the person chose (ARCHITECTURE.md §6: the core accepts no raw file paths
+   * from the UI). A Vault token file comes from {@code files}, or stays the one stored before when an edit doesn't
+   * choose another; a path the request itself names there is never used.
+   *
+   * @param before the stored settings of an edited store, or {@code null}
+   */
+  private static JsonNode chosenFiles(StoreKind kind, JsonNode config, Map<String, Path> files, JsonNode before) {
+    Map<String, Path> given = files == null ? Map.of() : files;
+    boolean tokenFile = kind == StoreKind.VAULT && config != null
+        && "token-file".equals(config.path("auth").path("method").asString(""));
+    for (String pointer : given.keySet()) {
+      if (!tokenFile || !TOKEN_FILE.equals(pointer)) {
+        throw ProblemException.unprocessable("Not a file field", pointer + " doesn't take a file here.",
+            "/files/" + pointer.replace("~", "~0").replace("/", "~1"));
+      }
+    }
+    if (kind == StoreKind.VAULT && !tokenFile && config != null && config.path("auth") instanceof ObjectNode auth
+        && auth.has("file") && !"cli-token".equals(auth.path("method").asString(""))) {
+      // A sign-in without a file keeps none in its settings: a later switch to a token file must choose one.
+      ObjectNode copy = (ObjectNode) config.deepCopy();
+      ((ObjectNode) copy.path("auth")).remove("file");
+      return copy;
+    }
+    if (!tokenFile || !(config.path("auth") instanceof ObjectNode)) {
+      return config;
+    }
+    ObjectNode copy = (ObjectNode) config.deepCopy();
+    ObjectNode auth = (ObjectNode) copy.path("auth");
+    Path chosen = given.get(TOKEN_FILE);
+    JsonNode stored = before == null ? null : before.path("auth");
+    if (chosen != null) {
+      auth.put("file", chosen.toString());
+    } else if (stored != null && "token-file".equals(stored.path("method").asString(""))
+        && stored.path("file").isString()) {
+      auth.put("file", stored.path("file").asString());
+    } else {
+      throw ProblemException.unprocessable("Token file missing", "Choose the file that holds the Vault token.",
+          "/files/~1auth~1file");
+    }
+    return copy;
   }
 
   /** The settings as stored: validated by the kind's schema and its own reader, without secret values. */
@@ -705,7 +782,9 @@ public final class StoreAdmin implements SecretOwners {
   private static String describe(StoreKind kind, JsonNode config) {
     return switch (kind) {
       case VAULT -> config.path("address").asString("") + (config.path("namespace").isString() ? " · namespace "
-          + config.path("namespace").asString() : "") + " · " + config.path("auth").path("method").asString("approle");
+          + config.path("namespace").asString() : "") + " · " + config.path("auth").path("method").asString("approle")
+          + ("token-file".equals(config.path("auth").path("method").asString("")) ? " " + config.path("auth")
+          .path("file").asString("") : "");
       case GCP_SM -> "project " + config.path("project").asString("") + (config.path("credentials")
           .path("impersonate").isString() ? " · impersonates " + config.path("credentials").path("impersonate")
           .asString() : "");
@@ -748,8 +827,8 @@ public final class StoreAdmin implements SecretOwners {
 
   private static void checkName(String name) {
     if (name == null || name.length() > 64 || !NAME.matcher(name).matches()) {
-      throw ProblemException.unprocessable("Invalid name", "Use lower-case letters, digits and hyphens, like vault.",
-          "/name");
+      throw ProblemException.unprocessable("Invalid name", "Use lower-case letters, digits and hyphens, like "
+          + "vault-prod.", "/name");
     }
   }
 

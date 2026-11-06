@@ -17,7 +17,7 @@ import {
 } from '@angular/core';
 import { FormField, form, readonly, required, validate } from '@angular/forms/signals';
 import { RouterLink } from '@angular/router';
-import { ConnectionFormSpec, EnvChange } from '../../../core/api/connector-types.api';
+import { ConnectionFormSpec, EnvChange, SecretSourceOption } from '../../../core/api/connector-types.api';
 import { SecretInputs, StoredSecret, TestOutcome } from '../../../core/api/connections.api';
 import { Env, JsonObject, JsonValue } from '../../../core/api/types';
 import { SchemaNode, getAt, rootSection } from '../../../schema-form/compile';
@@ -271,6 +271,8 @@ export class GwConnectionForm {
         // The env it opens for: a new prod connection starts with the prod defaults (x-env-default).
         env: this.common().env,
         metadata: this.metadata(),
+        // A new connection sends its secrets with it, so its login's user may come from the store too.
+        readUserFromStore: this.mode() !== 'edit',
         pointerPrefix: '/config',
         stricterBadges: false,
         injector: this.injector,
@@ -547,14 +549,39 @@ export class GwConnectionForm {
     return !!name && !!text && text.startsWith(`${name} `);
   });
 
-  protected setSource(id: string, available: boolean, event: Event): void {
-    if (!available || secretSourceId(id) === 'dynamic') {
+  /** Several Vaults: one card each, named; the card of the only Vault keeps the kit's title. */
+  private readonly vaultSources = computed(() => this.secretSources().filter((src) => secretSourceId(src.id) === 'vault' && !!src.store).length);
+
+  protected sourceTitle(src: SecretSourceOption, title: string): string {
+    return src.store && this.vaultSources() > 1 ? `Vault · ${src.store}` : title;
+  }
+
+  /** A Vault card says which server it reads from; the other cards keep the kit's words. */
+  protected sourceDescription(src: SecretSourceOption, description: string): string {
+    return src.store && src.detail ? `Resolve vault:// references from ${src.detail} at call time.` : description;
+  }
+
+  /** The card of the source in use: for a Vault, the Vault the connection's references read from. */
+  protected chosen(src: SecretSourceOption): boolean {
+    const s = this.state();
+    if (s.source() !== secretSourceId(src.id)) return false;
+    if (!src.store) return true;
+    const vaults = this.secretSources().filter((x) => secretSourceId(x.id) === 'vault' && x.store);
+    const current = s.vaultStore();
+    // One Vault, or references stored without one: the first Vault card stands for them.
+    return current ? current === src.store : vaults[0] === src;
+  }
+
+  protected setSource(src: SecretSourceOption, event: Event): void {
+    if (!src.available || secretSourceId(src.id) === 'dynamic') {
       // aria-disabled cards stay focusable and say why; they never become the choice.
       event.preventDefault();
       (event.target as HTMLInputElement).checked = false;
       return;
     }
-    this.state().source.set(secretSourceId(id));
+    const s = this.state();
+    s.source.set(secretSourceId(src.id));
+    if (src.store) s.vaultStore.set(src.store);
   }
 
   // ─── Name ───
@@ -614,7 +641,9 @@ export class GwConnectionForm {
     const t = timeout ? getAt(m, timeout.path) : null;
     return {
       address: typeof h === 'string' && h ? (p !== null ? `${h}:${p}` : h) : null,
-      user: REFERENCE_SOURCES.has(s.source()) && s.source() === 'dynamic' ? null : typeof u === 'string' && u ? u : null,
+      // Short-lived credentials and a user read from the store: the store names the user at call time.
+      user: (REFERENCE_SOURCES.has(s.source()) && s.source() === 'dynamic') || (user && s.userFromStore(user)) ? null
+        : typeof u === 'string' && u ? u : null,
       timeoutMs: typeof t === 'number' ? t : null,
     };
   });

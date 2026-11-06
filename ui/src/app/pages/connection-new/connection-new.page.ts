@@ -683,7 +683,7 @@ export class ConnectionNewPage {
   private enrich(secrets: readonly StoredSecret[], rows: readonly SecretRow[]): StoredSecret[] {
     return secrets.map((s) => {
       const row = rows.find((r) => r.id === s.secretId);
-      return row ? { ...s, store: row.store, updatedAt: row.rotatedAt, canRotate: row.canRotate, rotateReason: row.rotateReason } : s;
+      return row ? { ...s, store: row.store, ref: row.ref, updatedAt: row.rotatedAt, canRotate: row.canRotate, rotateReason: row.rotateReason } : s;
     });
   }
 

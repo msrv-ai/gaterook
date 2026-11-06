@@ -103,8 +103,13 @@ class ConnectorTypesController {
   /** A secret field of the form and the kind of secret it takes ({@code value}, {@code login}, {@code pem}, …). */
   record SecretField(String pointer, String kind, String title) {}
 
-  /** Where a secret can come from; external stores arrive with S1 and stay unavailable until one is connected. */
-  record SecretSource(String id, String label, boolean available, String reason) {}
+  /**
+   * Where a secret can come from; external stores stay unavailable until one is connected.
+   *
+   * @param store  the connected store it reads from (each Vault is a source of its own), or {@code null}
+   * @param detail a Vault's address, or {@code null}
+   */
+  record SecretSource(String id, String label, boolean available, String reason, String store, String detail) {}
 
   record EnvChange(String pointer, String title, JsonNode from, JsonNode to) {}
 
@@ -227,7 +232,8 @@ class ConnectorTypesController {
         .map(f -> new SecretField(f.pointer(), f.kind(), f.title())).toList();
     // Where a secret field's value can come from: here, or a connected store (S1).
     List<SecretSource> sources = stores.sources().stream()
-        .map(src -> new SecretSource(src.id(), src.title(), src.available(), src.reason())).toList();
+        .map(src -> new SecretSource(src.id(), src.title(), src.available(), src.reason(), src.store(),
+            src.detail())).toList();
     return new Form(m.id(), m.name(), env, m.configSchema(), common, secrets, sources,
         new EnvDefaults(envChanges(m, Env.PROD), envChanges(m, Env.STAGE)), variants(m));
   }

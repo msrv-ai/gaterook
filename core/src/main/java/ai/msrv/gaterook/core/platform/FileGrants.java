@@ -26,7 +26,7 @@ public final class FileGrants {
   /** What a granted path may be used for. */
   public enum Purpose {
     MASTER_KEY_BACKUP(true), MASTER_KEY_RESTORE(false), DB_BACKUP(true), AUDIT_EXPORT(true), PLUGIN(false),
-    OPENAPI(false);
+    OPENAPI(false), VAULT_TOKEN(false);
 
     private final boolean save;
 
@@ -84,6 +84,23 @@ public final class FileGrants {
     String token = "ft_" + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     grants.put(token, new Grant(normalized, purpose, clock.instant().plus(TTL)));
     return token;
+  }
+
+  /**
+   * The path of a token without redeeming it: a request that may still be refused (a Vault store whose address is
+   * wrong) checks the file choice first and {@link #take}s it only once it succeeds, so a retry needs no new dialog.
+   *
+   * @throws IllegalArgumentException when the token is unknown, used, expired or granted for another purpose
+   */
+  public Path peek(String token, Purpose purpose) {
+    Grant grant = token == null ? null : grants.get(token);
+    if (grant == null || grant.expires().isBefore(clock.instant())) {
+      throw new IllegalArgumentException("The file choice expired. Choose the file again.");
+    }
+    if (grant.purpose() != purpose) {
+      throw new IllegalArgumentException("This file was chosen for something else. Choose the file again.");
+    }
+    return grant.path();
   }
 
   /**

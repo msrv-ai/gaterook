@@ -690,6 +690,7 @@ export function storeSignIn(s: SecretStore): TextPart[] {
       return name ? [{ text: 'A token stored here: ' }, { text: name, mono: true }] : [{ text: 'A token stored here' }];
     }
     if (method === 'cli-token') return [{ text: 'Your ' }, { text: 'vault login', mono: true }, { text: ' on this computer (' }, { text: stringAt(s.config, 'auth.file') ?? '~/.vault-token', mono: true }, { text: ')' }];
+    if (method === 'token-file') return [{ text: 'A token read from ' }, { text: stringAt(s.config, 'auth.file') ?? 'a file', mono: true }, { text: ' each time it signs in. It isn’t stored here.' }];
     const role = stringAt(s.config, 'auth.roleId');
     const parts: TextPart[] = [{ text: 'AppRole ' }];
     if (role) parts.push({ text: role, mono: true }, { text: ' ' });

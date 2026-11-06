@@ -20,7 +20,7 @@ import {
   sameJson,
   setAt,
 } from './compile';
-import { jsonProblem, requiredMessage, valueProblem } from './messages';
+import { jsonProblem, lowerFirst, requiredMessage, valueProblem } from './messages';
 import { completeReference, secretSourceId } from './secret-sources';
 
 /** Sources whose secret is a reference the core resolves at call time (the value never passes through here). */
@@ -57,6 +57,11 @@ export interface SchemaFormOptions {
   readonly env?: string | null;
   /** The connection's metadata the core found (`x-options-from: metadata.kubeconfigContexts`), if any. */
   readonly metadata?: JsonObject | null;
+  /**
+   * Whether a login's user may be read from the store that holds its password: a new connection sends its secrets
+   * with it. An edited connection keeps how its user is stored.
+   */
+  readonly readUserFromStore?: boolean;
   readonly injector?: Injector;
 }
 
@@ -94,10 +99,20 @@ export class SchemaForm {
   readonly submitted = signal(false);
   /** The chosen secret source (`local`, `vault`, `gcp-sm`, `aws-sm`, `dynamic`). */
   readonly source = signal('local');
-  /** What is typed into each secret field: a value (`local`) or a reference URI / role. */
+  /**
+   * What is typed into each secret field: a value (`local`) or a reference URI / role; and the reference of a login's
+   * user read from the store ({@link userFromStore}).
+   */
   readonly secrets = signal<Readonly<Record<string, string>>>({});
-  /** Explicit Vault store choices, separate from reference text and from secret values. */
-  readonly vaultStores = signal<Readonly<Record<string, string>>>({});
+  /**
+   * The Vault the connection's references read from, by name: one of the connected Vaults, chosen with the secret
+   * source. `null` with a single Vault, or before a choice.
+   */
+  readonly vaultStore = signal<string | null>(null);
+  /** Login users (field pointers) the person reads from the store too, instead of typing them. */
+  readonly storeUsers = signal<ReadonlySet<string>>(new Set());
+  /** Whether a login's user may be read from the store ({@link SchemaFormOptions.readUserFromStore}). */
+  readonly readUserFromStore: boolean;
   /** Stored secrets the user chose to replace (their field shows the editing state). */
   readonly replacing = signal<ReadonlySet<string>>(new Set());
   /** Collapsed sections (`x-collapsed`) the user, or an error inside, opened. */
@@ -130,6 +145,8 @@ export class SchemaForm {
   readonly metadata = signal<JsonObject | null>(null);
   /** The model the form opened with: what an `x-confirm` change is measured against. */
   private readonly initial: JsonObject;
+  /** The Vault of the stored references, what Discard goes back to. */
+  private readonly initialVaultStore: string | null;
   /** The values came from a stored config (edit, duplicate): an env change only tightens them. */
   private readonly fromStored: boolean;
   private readonly listeners = new Set<(action: SecretAction) => void>();
@@ -154,6 +171,10 @@ export class SchemaForm {
     this.replacing.set(new Set(options.replacing ?? []));
     const firstRef = (options.stored ?? []).find(storedReference);
     if (firstRef?.source) this.source.set(firstRef.state === 'short-lived' ? 'dynamic' : secretSourceId(firstRef.source));
+    // An edited connection's references keep reading through their Vault; a new reference goes to the same one.
+    this.initialVaultStore = firstRef?.source === 'vault' ? firstRef.store ?? null : null;
+    this.vaultStore.set(this.initialVaultStore);
+    this.readUserFromStore = options.readUserFromStore ?? false;
     const env = options.env ?? 'dev';
     this.envState.set(env);
     this.metadata.set(options.metadata ?? null);
@@ -162,7 +183,7 @@ export class SchemaForm {
     this.model = signal(this.blankText(initialValue(schema, options.current ?? null, options.current ? null : env)));
     this.initial = this.model();
     this.tree = form(this.model as unknown as WritableSignal<Record<string, unknown>>, (p) => this.rules(p), { injector: options.injector });
-    this.value = computed(() => cleanValue(this.compiled, this.model(), this.filled()));
+    this.value = computed(() => cleanValue(this.compiled, this.withoutStoreUsers(this.model()), this.filled()));
     this.enforceLocks(env);
   }
 
@@ -211,6 +232,56 @@ export class SchemaForm {
     return this.loginField(node) && node.kind === 'text' && (node.key === 'user' || node.key === 'username');
   }
 
+  /**
+   * Whether a login's user is read from the store with its password (`vault://kv/prod/db#username`) instead of typed:
+   * chosen for a new connection, or stored so. Only with a store as the secret source; short-lived Vault credentials
+   * bring their own user.
+   */
+  userFromStore(node: SchemaNode): boolean {
+    if (!this.loginUsername(node) || !REFERENCE_SOURCES.has(this.source()) || this.source() === 'dynamic') return false;
+    const stored = this.stored.get(node.pointer);
+    return (!!stored && storedReference(stored)) || (this.readUserFromStore && this.storeUsers().has(node.pointer));
+  }
+
+  /** The person may choose to read this login's user from the store: a new connection whose source is a store. */
+  canReadUserFromStore(node: SchemaNode): boolean {
+    return this.readUserFromStore && this.loginUsername(node) && REFERENCE_SOURCES.has(this.source())
+      && this.source() !== 'dynamic' && !this.stored.has(node.pointer);
+  }
+
+  setUserFromStore(node: SchemaNode, on: boolean): void {
+    this.storeUsers.update((users) => {
+      const next = new Set(users);
+      if (on) next.add(node.pointer);
+      else next.delete(node.pointer);
+      return next;
+    });
+    if (!on) this.secrets.update((typed) => omit(typed, node.pointer));
+  }
+
+  /** How a login's user read from the store shows: its stored reference, or a reference typed now. */
+  userState(node: SchemaNode): 'reference' | 'empty' {
+    const stored = this.stored.get(node.pointer);
+    return stored && storedReference(stored) && !this.replacing().has(node.pointer) ? 'reference' : 'empty';
+  }
+
+  /** The password of a login whose user is read from the store: then the store must hold the password too. */
+  private passwordOfStoreUser(node: SchemaNode): boolean {
+    if (node.kind !== 'secret') return false;
+    const parent = node.path.slice(0, -1);
+    return this.compiled.all.some((n) => n !== node && n.path.length === node.path.length
+      && parent.every((part, i) => part === n.path[i]) && this.userFromStore(n));
+  }
+
+  /** The config without the users read from the store: their place in the stored config is the core's. */
+  private withoutStoreUsers(model: JsonObject): JsonObject {
+    let out = model;
+    for (const node of this.compiled.all) {
+      if (this.userFromStore(node)) out = setAt(out, node.path, null);
+    }
+    return out;
+  }
+
   /** Login providers supply the username, but other fields such as MongoDB's authSource remain editable. */
   private loginField(node: SchemaNode): boolean {
     return this.compiled.all.some((parent) => parent.secret === 'login' && parent.kind === 'object'
@@ -231,7 +302,7 @@ export class SchemaForm {
   /** The message under a field: the core's (until the value changes), else the first rule it breaks after Save. */
   error(node: SchemaNode): string | null {
     if (node.kind === 'object' || !this.visible(node)) return null;
-    const value = node.kind === 'secret' ? (this.secrets()[node.pointer] ?? '') : getAt(this.model(), node.path);
+    const value = node.kind === 'secret' || this.userFromStore(node) ? (this.secrets()[node.pointer] ?? '') : getAt(this.model(), node.path);
     const server = this.serverErrors().find((e) => e.pointer === node.pointer && e.value === value);
     return server ? server.message : this.problem(node);
   }
@@ -240,6 +311,7 @@ export class SchemaForm {
   private problem(node: SchemaNode): string | null {
     if (node.kind === 'object' || !this.visible(node) || !this.submitted()) return null;
     if (node.kind === 'secret') return this.secretProblem(node);
+    if (this.userFromStore(node)) return this.userReferenceProblem(node);
     return this.field(node)().errors()[0]?.message ?? null;
   }
 
@@ -371,10 +443,16 @@ export class SchemaForm {
     return completeReference(this.source(), this.secrets()[node.pointer] ?? '');
   }
 
+  /**
+   * The Vault a field's reference reads through: a stored reference keeps its own; a new one (typed, or replacing the
+   * stored one) goes to the Vault chosen for the connection.
+   */
   secretStore(node: SchemaNode): string | undefined {
     if (this.source() !== 'vault') return undefined;
     const stored = this.stored.get(node.pointer);
-    return this.vaultStores()[node.pointer] ?? (stored?.source === 'vault' ? stored.store ?? undefined : undefined);
+    const storedStore = stored?.source === 'vault' ? stored.store ?? undefined : undefined;
+    const keeps = !!stored && storedReference(stored) && !this.replacing().has(node.pointer);
+    return keeps ? storedStore ?? this.vaultStore() ?? undefined : this.vaultStore() ?? storedStore;
   }
 
   /**
@@ -397,11 +475,6 @@ export class SchemaForm {
       for (const f of changed) delete out[f];
       return out;
     });
-    this.vaultStores.update((stores) => {
-      const next = { ...stores };
-      for (const field of changed) delete next[field];
-      return next;
-    });
   }
 
   replace(node: SchemaNode, on: boolean): void {
@@ -411,10 +484,7 @@ export class SchemaForm {
       else next.delete(node.pointer);
       return next;
     });
-    if (!on) {
-      this.setSecret(node, '');
-      this.vaultStores.update((stores) => omit(stores, node.pointer));
-    }
+    if (!on) this.setSecret(node, '');
     this.focusSecret(node, on);
   }
 
@@ -435,11 +505,20 @@ export class SchemaForm {
     );
   }
 
-  /** The `secrets` member of the request: one entry per filled secret field, never an empty one. */
+  /**
+   * The `secrets` member of the request: one entry per filled secret field, never an empty one; and the reference of
+   * each login user read from the store.
+   */
   readonly secretInputs = computed<SecretInputs>(() => {
     const out: Record<string, SecretInputs[string]> = {};
     const reference = REFERENCE_SOURCES.has(this.source());
     for (const node of this.compiled.all) {
+      if (this.userFromStore(node) && this.userState(node) === 'empty' && this.visible(node)) {
+        const typed = this.secrets()[node.pointer]?.trim() ?? '';
+        const store = this.secretStore(node);
+        if (typed) out[node.pointer] = { source: 'reference', ref: this.secretReference(node), ...(store ? { store } : {}) };
+        continue;
+      }
       if (node.kind !== 'secret' || !this.visible(node)) continue;
       const typed = this.secrets()[node.pointer]?.trim() ?? '';
       if (!typed) continue;
@@ -467,13 +546,23 @@ export class SchemaForm {
     const typed = this.secrets()[node.pointer]?.trim() ?? '';
     if (REFERENCE_SOURCES.has(this.source())) {
       const dynamicLogin = this.source() === 'dynamic' && this.loginField(node);
-      if (!typed && !this.needed(node) && state !== 'editing' && !dynamicLogin) return null;
+      if (!typed && !this.needed(node) && state !== 'editing' && !dynamicLogin && !this.passwordOfStoreUser(node)) return null;
       if (!typed) return this.source() === 'dynamic' ? 'Enter the Vault role.' : 'Enter the secret reference.';
       const scheme = this.source() === 'dynamic' ? 'vault://' : `${this.source()}://`;
       if (!this.secretReference(node).startsWith(scheme)) return `A reference starts with ${scheme}. Copy it from the store.`;
       return null;
     }
     if (!typed && (this.needed(node) || state === 'editing')) return `${node.title} is required.`;
+    return null;
+  }
+
+  /** A login user read from the store needs its reference, in the selected store's scheme. */
+  private userReferenceProblem(node: SchemaNode): string | null {
+    if (this.userState(node) === 'reference') return null;
+    const typed = this.secrets()[node.pointer]?.trim() ?? '';
+    const scheme = `${this.source()}://`;
+    if (!typed) return `Enter the reference of the ${lowerFirst(node.title)}, such as ${scheme === 'vault://' ? 'vault://kv/prod/db#username' : `${scheme}…`}.`;
+    if (!this.secretReference(node).startsWith(scheme)) return `A reference starts with ${scheme}. Copy it from the store.`;
     return null;
   }
 
@@ -584,7 +673,8 @@ export class SchemaForm {
   reset(current: JsonObject | null, schema: JsonObject): void {
     this.model.set(this.blankText(initialValue(schema, current, current ? null : untracked(this.envState))));
     this.secrets.set({});
-    this.vaultStores.set({});
+    this.vaultStore.set(this.initialVaultStore);
+    this.storeUsers.set(new Set());
     this.replacing.set(new Set());
     this.jsonText.set({});
     this.jsonErrors.set({});
@@ -610,14 +700,15 @@ export class SchemaForm {
       const node = nodes[0];
       let sp: unknown = p;
       for (const k of node.path) sp = (sp as Record<string, unknown>)[k];
-      hidden(sp as SchemaPath<JsonValue>, () => !nodes.some((n) => this.visible(n)));
+      hidden(sp as SchemaPath<JsonValue>, () => !nodes.some((n) => this.visible(n) && !this.userFromStore(n)));
     }
     for (const node of this.compiled.all) {
       if (node.kind === 'object' || node.kind === 'secret') continue;
       let sp: unknown = p;
       for (const k of node.path) sp = (sp as Record<string, unknown>)[k];
       const path = sp as SchemaPath<JsonValue>;
-      const active = () => this.visible(node);
+      // A login user read from the store has no value in the model: its reference is checked as a secret's.
+      const active = () => this.visible(node) && !this.userFromStore(node);
       if (node.required && node.kind === 'tags') {
         // An empty list is a value to `required`; "at least one" is the rule here.
         validate(path, ({ value }) => {
