@@ -15,6 +15,8 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpMethod;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.JsonNodeFactory;
@@ -108,6 +110,54 @@ class ConnectionImportIT {
     assertThat(other.legacyCall("open_connection_import", args("sessionId", session.path("id").asString()))
         .result().path("isError").asBoolean()).isTrue();
     assertThat(core.bean(EndpointService.class).snapshot("import-source").connections()).isEmpty();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2025-11-25", "2026-07-28"})
+  void contentOnlyClientsCanReadTheCatalogAndCompleteConnectorSchema(String revision) {
+    JsonNode session = session();
+    long before = core.jdbc().queryForObject("select count(*) from connection", Long.class);
+    for (String type : new String[] {"", "pgfake"}) {
+      ObjectNode request = capability(session);
+      if (!type.isEmpty()) request.put("type", type);
+      JsonNode response = (revision.equals(McpClient.MODERN)
+          ? agent.modernCall("connection_import_schema", request, false)
+          : agent.legacyCall("connection_import_schema", request)).result();
+      assertThat(response.path("isError").asBoolean()).as(response.toString()).isFalse();
+      SpecSchemas.assertValid(revision, "CallToolResult", response);
+      assertThat(response.path("content").size()).isEqualTo(1);
+      assertThat(response.at("/content/0/type").asString()).isEqualTo("text");
+      JsonNode textOnly = McpClient.JSON.readTree(response.at("/content/0/text").asString());
+      assertThat(textOnly).isEqualTo(response.path("structuredContent"));
+      assertThat(textOnly.path("version").asInt()).isEqualTo(1);
+      assertThat(response.toString()).doesNotContain(session.path("submissionToken").asString(),
+          session.path("importFile").asString());
+      JsonNode vault = textOnly.path("storeKinds").get(0);
+      assertThat(vault.path("kind").asString()).isEqualTo("vault");
+      assertThat(vault.path("configSchema").isObject()).isTrue();
+      assertThat(vault.path("secretFields")).isEqualTo(McpClient.JSON.readTree("[\"/auth/token\",\"/auth/secretId\"]"));
+      if (type.isEmpty()) {
+        assertThat(textOnly.path("types").isArray()).isTrue();
+        boolean found = false;
+        for (JsonNode connector : textOnly.path("types")) {
+          if (connector.path("type").asString().equals("pgfake")) {
+            found = true;
+            assertThat(connector.path("supported").asBoolean()).isTrue();
+          }
+        }
+        assertThat(found).as("the text catalog includes the installed connector").isTrue();
+      } else {
+        assertThat(textOnly.path("type").asString()).isEqualTo("pgfake");
+        assertThat(textOnly.at("/configSchema/properties/connection/properties/host/type").asString()).isEqualTo("string");
+        assertThat(textOnly.path("secretFields")).isEqualTo(McpClient.JSON.readTree("[\"/credentials/password\"]"));
+        assertThat(textOnly.path("referenceOnlyFields")).isEqualTo(McpClient.JSON.readTree("""
+            [{"pointer":"/credentials/user","kind":"login-user","allowedSources":["reference"],
+              "passwordFields":["/credentials/password"]}]
+            """));
+      }
+    }
+    assertThat(admin.ok(path(session)).path("status").asString()).isEqualTo("awaiting");
+    assertThat(core.jdbc().queryForObject("select count(*) from connection", Long.class)).isEqualTo(before);
   }
 
   @Test void storeUserReferencesStageWithoutReadingTheStoreAndCommitOnlyWithAPassword() throws Exception {
