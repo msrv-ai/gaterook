@@ -99,8 +99,8 @@ export const SPLIT_FRAGMENT = 'ep-dlg-split';
  * URL a client calls, and everything that decides what an agent can do through it.
  *
  * - The header: slug, what it is for, Running or Disabled, the URL to copy, the MCP revisions it answers, how
- *   clients sign in, the requests waiting for approval; View activity, Open in Playground and a menu (Duplicate,
- *   Disable with Undo, Delete).
+ *   clients sign in, the requests waiting for approval; View activity and a menu (Share endpoint, Import with AI,
+ *   Open in Playground, Duplicate, Disable with Undo, Delete).
  * - The risk callout (present / partial, limited / contained, dismissed) with Split endpoint and Dismiss.
  * - How it connects: clients → endpoint → connections (setup-map wiring), each card leading to its tab.
  * - Tabs, mirrored in `?tab=`: Tools & policies (tool-policy-list), Connections (unreachable ones first, Add and

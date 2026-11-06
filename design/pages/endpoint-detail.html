@@ -170,10 +170,11 @@
           </div>
           <div class="gw-page-header__actions">
             <a class="gw-btn gw-btn--ghost" href="activity.html?q=endpoint:dev"><i class="gw-icon" data-lucide="activity"></i> View activity<span class="gw-sr-only"> of endpoint dev</span></a>
-            <a class="gw-btn" href="playground.html?endpoint=dev"><i class="gw-icon" data-lucide="flask-conical"></i> Open in Playground</a>
             <div class="gw-menu-host">
               <button class="gw-btn gw-btn--ghost gw-btn--icon" type="button" aria-label="More actions for endpoint dev" aria-haspopup="menu" aria-expanded="false" aria-controls="ep-menu"><i class="gw-icon" data-lucide="ellipsis"></i></button>
               <div class="gw-menu gw-menu--right" id="ep-menu" role="menu" aria-label="Actions for endpoint dev" hidden>
+                <a class="gw-menu__item" role="menuitem" tabindex="-1" href="playground.html?endpoint=dev"><i class="gw-icon gw-menu__icon" data-lucide="flask-conical"></i><span class="gw-menu__label">Open in Playground</span></a>
+                <div class="gw-menu__divider" role="separator"></div>
                 <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="ep-dev-duplicate"><i class="gw-icon gw-menu__icon" data-lucide="copy-plus"></i><span class="gw-menu__label">Duplicate</span></button>
                 <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ep-disable="dev" data-ep-status="ep-status" data-ep-disable-body="Claude Desktop and Codex get an error on their next call. Tokens and settings are kept."><i class="gw-icon gw-menu__icon" data-lucide="circle-pause"></i><span class="gw-menu__label">Disable</span></button>
                 <div class="gw-menu__divider" role="separator"></div>
