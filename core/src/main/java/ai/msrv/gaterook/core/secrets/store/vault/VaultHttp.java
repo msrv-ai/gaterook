@@ -21,6 +21,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import javax.net.ssl.SSLException;
 import tools.jackson.databind.JsonNode;
 
@@ -113,7 +116,23 @@ final class VaultHttp implements AutoCloseable {
     }
     HttpResponse<byte[]> response;
     try {
-      response = client.send(r.build(), HttpResponse.BodyHandlers.ofByteArray());
+      var pending = client.sendAsync(r.build(), HttpResponse.BodyHandlers.ofByteArray());
+      try {
+        // HttpRequest's timer ends when headers arrive; bound receipt of the complete body as well.
+        response = pending.get(call.requestTimeout().toNanos(), TimeUnit.NANOSECONDS);
+      } catch (TimeoutException e) {
+        pending.cancel(true);
+        throw new HttpTimeoutException("The complete Vault response did not arrive in time.");
+      } catch (InterruptedException | RuntimeException e) {
+        pending.cancel(true);
+        throw e;
+      } catch (ExecutionException e) {
+        Throwable cause = e.getCause();
+        if (cause instanceof IOException io) throw io;
+        if (cause instanceof RuntimeException runtime) throw runtime;
+        if (cause instanceof Error error) throw error;
+        throw new IOException("The Vault request failed.", cause);
+      }
     } catch (HttpConnectTimeoutException | ConnectException e) {
       throw StoreException.unavailable("Can't reach Vault at " + settings.address() + ". Check the address and the "
           + "VPN, then test again.", e);
