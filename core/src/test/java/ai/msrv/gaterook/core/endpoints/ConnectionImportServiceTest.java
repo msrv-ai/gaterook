@@ -19,6 +19,7 @@ import ai.msrv.gaterook.core.connections.SecretInput;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.connectors.ConnectorType;
 import ai.msrv.gaterook.core.platform.EventBus;
+import ai.msrv.gaterook.core.platform.LocalListener;
 import ai.msrv.gaterook.core.platform.Masker;
 import ai.msrv.gaterook.core.platform.ProblemException;
 import java.time.Clock;
@@ -45,7 +46,7 @@ class ConnectionImportServiceTest {
   private final ConnectionImportFiles files = mock(ConnectionImportFiles.class);
   private final PlatformTransactionManager transactions = mock(PlatformTransactionManager.class);
   private final ConnectionImportService service = new ConnectionImportService(endpoints, wiring, connections,
-      registry, events, Masker.standard(), clock, transactions, files);
+      registry, events, Masker.standard(), clock, transactions, files, new LocalListener(() -> 18475));
 
   @BeforeEach
   void setup() {
@@ -73,12 +74,14 @@ class ConnectionImportServiceTest {
   @Test
   void discoveryOnlyStagesDefensiveCopiesAndDoesNotTouchConnections() {
     var session = start();
+    assertThat(session.endpointUrl()).isEqualTo("http://127.0.0.1:18475/mcp/dev");
     ObjectNode manifest = manifest();
     ObjectNode result = submit(session, manifest);
     assertThat(result.path("count").asInt()).isEqualTo(1);
     assertThat(result.toString()).doesNotContain(session.submissionToken(), "credentials", "private-imports");
     manifest.put("version", 99);
     var reviewed = service.get(session.id());
+    assertThat(reviewed.endpointUrl()).isEqualTo(session.endpointUrl());
     assertThat(reviewed.status()).isEqualTo("review");
     assertThat(reviewed.manifest().path("version").asInt()).isEqualTo(1);
     ((ObjectNode) reviewed.manifest()).put("version", 98);

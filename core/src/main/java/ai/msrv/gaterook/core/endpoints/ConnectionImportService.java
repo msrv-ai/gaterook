@@ -10,6 +10,7 @@ import ai.msrv.gaterook.core.connectors.ConnectorType;
 import ai.msrv.gaterook.core.platform.CanonicalJson;
 import ai.msrv.gaterook.core.platform.EventBus;
 import ai.msrv.gaterook.core.platform.Ids;
+import ai.msrv.gaterook.core.platform.LocalListener;
 import ai.msrv.gaterook.core.platform.Masker;
 import ai.msrv.gaterook.core.platform.ProblemException;
 import java.nio.charset.StandardCharsets;
@@ -51,7 +52,7 @@ public class ConnectionImportService {
       "credentialHints", "warnings");
 
   /** The capability is shown only to the local admin UI, which puts it in the user's chosen AI prompt. */
-  public record Session(String id, String repository, String endpoint, Instant expiresAt, String status,
+  public record Session(String id, String repository, String endpoint, String endpointUrl, Instant expiresAt, String status,
       JsonNode manifest, String submissionToken, String importFile) {
     @Override public String toString() { return "Session[id=" + id + ", status=" + status + ", capability=redacted]"; }
   }
@@ -72,6 +73,7 @@ public class ConnectionImportService {
     final String repository;
     final String endpointId;
     final String endpoint;
+    final String endpointUrl;
     final Instant expiresAt;
     final String importFile;
     String status = "awaiting";
@@ -81,16 +83,17 @@ public class ConnectionImportService {
     ConnectionImportFiles.Prepared prepared;
     Instant lastOpened = Instant.EPOCH;
 
-    Pending(String repository, EndpointSnapshot endpoint, Instant expiresAt, ConnectionImportFiles files) {
+    Pending(String repository, EndpointSnapshot endpoint, String endpointUrl, Instant expiresAt, ConnectionImportFiles files) {
       this.repository = repository;
       this.endpointId = endpoint.id();
       this.endpoint = endpoint.slug();
+      this.endpointUrl = endpointUrl;
       this.expiresAt = expiresAt;
       this.importFile = files.create(id);
     }
 
     Session view() {
-      return new Session(id, repository, endpoint, expiresAt, status,
+      return new Session(id, repository, endpoint, endpointUrl, expiresAt, status,
           manifest == null ? null : manifest.deepCopy(), token, importFile);
     }
   }
@@ -105,10 +108,11 @@ public class ConnectionImportService {
   private final Clock clock;
   private final TransactionTemplate writeTx;
   private final ConnectionImportFiles files;
+  private final LocalListener listener;
 
   public ConnectionImportService(EndpointService endpoints, EndpointConnections wiring, ConnectionService connections,
       ConnectorRegistry registry, EventBus events, Masker masker, Clock clock, PlatformTransactionManager transactions,
-      ConnectionImportFiles files) {
+      ConnectionImportFiles files, LocalListener listener) {
     this.endpoints = endpoints;
     this.wiring = wiring;
     this.connections = connections;
@@ -118,6 +122,7 @@ public class ConnectionImportService {
     this.clock = clock;
     this.writeTx = new TransactionTemplate(transactions);
     this.files = files;
+    this.listener = listener;
   }
 
   public synchronized Session start(String repository, String endpoint) {
@@ -133,7 +138,8 @@ public class ConnectionImportService {
     if (sessions.size() >= MAX_SESSIONS) {
       throw ProblemException.conflict("Too many imports", "Cancel an import or wait for an existing session to expire.");
     }
-    Pending pending = new Pending(repository.strip(), source, clock.instant().plus(LIFETIME), files);
+    Pending pending = new Pending(repository.strip(), source, listener.origin() + "/mcp/" + source.slug(),
+        clock.instant().plus(LIFETIME), files);
     sessions.put(pending.id, pending);
     return pending.view();
   }

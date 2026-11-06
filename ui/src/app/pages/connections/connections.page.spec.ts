@@ -173,6 +173,10 @@ describe('Connections page', () => {
     expect(Array.from(el.querySelectorAll('.gw-page-header__meta .gw-status')).map(text)).toEqual(['10 healthy', '1 slow', '1 unreachable']);
     expect(text(el.querySelector('.gw-page-header__meta .gw-text-small'))).toBe('Last checked rel 12:29:42');
     expect(el.querySelectorAll('.gw-page-header .gw-btn--primary')).toHaveLength(1);
+    const importLink = el.querySelector('.gw-page-header a[href="/connection-import"]')!;
+    expect(text(importLink)).toBe('Import with AI');
+    expect(importLink.classList).toContain('gw-btn--primary');
+    expect(importLink.querySelector('svg[lucideIcon="lightbulb"]')).not.toBeNull();
     // how-it-works is folded when there are connections.
     expect(el.querySelector('.gw-how-it-works__toggle')?.getAttribute('aria-expanded')).toBe('false');
     expect(text(el.querySelector('#conn-count'))).toBe('12 connections');

@@ -87,6 +87,11 @@
         <p class="gw-card__description">Repository: <span class="gw-mono">{{ session()!.repository }}</span>. Waiting for analysis through <span class="gw-mono">{{ session()!.endpoint }}</span>.</p>
       </div></header>
       <div class="gw-card__body gw-stack">
+        <div class="gw-alert gw-alert--info"><svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content">
+          <p class="gw-alert__title">Check your AI app's connection</p>
+          <p class="gw-alert__body">Use this exact MCP URL: <span class="gw-mono">{{ session()!.endpointUrl }}</span>. Another GateRook instance can have an endpoint with the same name.</p>
+          <p class="gw-alert__body">If the AI cannot see <span class="gw-mono">connection_import_schema</span> or <span class="gw-mono">submit_connection_import</span>, check that these tools are enabled, restart the AI app and open a new chat. <a class="gw-link" routerLink="/clients">Review AI app connections</a>.</p>
+        </div></div>
         <p class="gw-text-small">Open an app below, review the prompt and send it. For an app without a launch link, copy and paste the prompt. Keep this session token in that conversation; it can submit one review until <time [attr.datetime]="session()!.expiresAt">{{ time.absolute(session()!.expiresAt, false) }}</time>.</p>
         <div class="gw-card__actions">
           @if (desktop.aiPromptAvailable) {

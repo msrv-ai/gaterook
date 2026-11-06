@@ -29,6 +29,7 @@ export interface ConnectionImportSession {
   readonly id: string;
   readonly repository: string;
   readonly endpoint: string;
+  readonly endpointUrl: string;
   readonly submissionToken: string;
   readonly importFile: string;
   readonly expiresAt: string;

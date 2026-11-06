@@ -165,8 +165,11 @@ class ConnectionImportIT {
   }
 
   private static JsonNode session() {
-    return admin.expect(201, HttpMethod.POST, "/api/connection-imports",
+    JsonNode session = admin.expect(201, HttpMethod.POST, "/api/connection-imports",
         args("repository", core.home().resolve("example-repository").toString(), "endpoint", "import-source"));
+    assertThat(session.path("endpointUrl").asString())
+        .isEqualTo(core.bean(LocalListener.class).origin() + "/mcp/import-source");
+    return session;
   }
 
   private static String path(JsonNode session) { return "/api/connection-imports/" + session.path("id").asString(); }

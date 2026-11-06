@@ -22,6 +22,7 @@ const candidate: ImportCandidate = {
 };
 const awaiting: ConnectionImportSession = {
   id: 'ci_abcdefgh1234', repository: '/workspace/example', endpoint: 'default',
+  endpointUrl: 'http://127.0.0.1:18475/mcp/default',
   submissionToken: 'short-lived-import-capability', importFile: '/private/imports/ci_abcdefgh1234.json',
   expiresAt: '2099-01-01T12:00:00Z', status: 'awaiting', manifest: null,
 };
@@ -97,6 +98,15 @@ describe('AI connection import review', () => {
     expect(copy).toHaveBeenCalledWith(connectionImportPrompt(awaiting));
     expect(open).not.toHaveBeenCalled();
     expect(page.notice()).toContain('Antigravity');
+  });
+
+  it('shows the session URL and recovery guidance when another instance has the same endpoint name', async () => {
+    page.session.set(awaiting);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain(awaiting.endpointUrl);
+    expect(fixture.nativeElement.textContent).toContain('restart the AI app and open a new chat');
+    expect(fixture.nativeElement.querySelector('a[href="/clients"]')).not.toBeNull();
+    expect(api.commit).not.toHaveBeenCalled();
   });
 
   it('offers copy fallback when an AI app link cannot carry the prompt', async () => {
@@ -337,6 +347,8 @@ describe('repository discovery prompt', () => {
   it('uses a private manifest file, schemas and review-only submission, with no credential tool arguments', () => {
     const prompt = connectionImportPrompt(awaiting);
     expect(prompt).toContain('connection_import_schema');
+    expect(prompt).toContain(JSON.stringify(awaiting.endpointUrl));
+    expect(prompt).toContain('endpoint names can repeat');
     expect(prompt).toContain('submit_connection_import');
     expect(prompt).toContain('without manifest or credentials in tool arguments');
     expect(prompt).toContain('0600');

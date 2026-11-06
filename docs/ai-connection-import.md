@@ -4,9 +4,9 @@
 
 ## Start an import
 
-1. Open **Connections → Import with AI**, or choose **Import with AI** on an endpoint.
+1. Choose **Import with AI** on **Overview**, **Connections**, or an endpoint. The highlighted button uses a lightbulb icon.
 2. Choose the repository folder. The AI app needs authorized access to this repository and permission to write the private import file on the computer running GateRook; choosing a folder does not give a remote app filesystem access.
-3. Select a GateRook endpoint already connected to the AI app, then select **Create prompt**. This endpoint receives the AI's proposal. You choose the destination for imported connections during review.
+3. Select a GateRook endpoint already connected to the AI app, then select **Create prompt**. Check the exact MCP URL shown with the prompt: multiple GateRook instances can have endpoints with the same name. This endpoint receives the AI's proposal. You choose the destination for imported connections during review.
 4. Choose **Open Claude Desktop**, **Open Codex**, or **Open Cursor**, or copy the prompt into your AI app. **Copy for Antigravity** copies the same instructions for manual pasting. Review and send the prompt there.
 
 App links depend on the installed client's protocol handler. If an app cannot open the link, or the prompt is too long for a link, use **Copy prompt**. Cursor may first show its own **Create chat with prompt** dialog. Opening a prompt does not send it to a model.
@@ -74,4 +74,4 @@ HTTP APIs and external MCP servers need their specialized setup flows. The AI ca
 
 A log path alone does not establish a remote host or SSH login. A cloud project name does not establish a usable cloud identity. Unknown values must stay unresolved until you review them; the AI should not replace them with invented defaults.
 
-If the AI cannot find the import tools, check that it is connected to the endpoint selected when the prompt was created and that this GateRook version includes AI connection import. The prompt alone does not install or configure an MCP connection for the AI app.
+If the AI cannot find `connection_import_schema` or `submit_connection_import`, compare its configured MCP URL with the exact URL in the prompt, including the port. Check that these tools are enabled in the AI app. After updating GateRook, the AI app may retain an older tool list; restart the AI app and open a new chat before retrying the prompt. The current import can still be used until it expires, provided GateRook has not restarted. The prompt alone does not install or configure an MCP connection for the AI app; use **AI apps** in the intended GateRook instance when a connection needs setup.

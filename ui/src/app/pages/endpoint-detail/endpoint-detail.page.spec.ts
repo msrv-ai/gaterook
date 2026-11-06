@@ -426,8 +426,12 @@ describe('Endpoint detail page', () => {
     expect(text(el.querySelector('a[href="/approvals"]'))).toBe('3 waiting for approval');
     expect(el.querySelector('a[href="/activity?q=endpoint:dev"]')).not.toBeNull();
     expect(el.querySelector('a[href="/playground?endpoint=dev"]')).not.toBeNull();
-    // One primary per level: none in the header.
-    expect(el.querySelectorAll('.gw-page-header .gw-btn--primary')).toHaveLength(0);
+    // AI import keeps this endpoint selected and is the header's one primary action.
+    expect(el.querySelectorAll('.gw-page-header .gw-btn--primary')).toHaveLength(1);
+    const importLink = el.querySelector('.gw-page-header a[href="/connection-import?endpoint=dev"]')!;
+    expect(text(importLink)).toBe('Import with AI');
+    expect(importLink.classList).toContain('gw-btn--primary');
+    expect(importLink.querySelector('svg[lucideIcon="lightbulb"]')).not.toBeNull();
 
     expect(text(el.querySelector('#ep-map-title'))).toBe('How dev connects');
     expect(text(el.querySelector('.gw-setup-map--wiring'))).toContain('120 calls per min per token · 512 KB per result, from the dev policy');
