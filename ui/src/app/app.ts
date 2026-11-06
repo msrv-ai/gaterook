@@ -6,6 +6,7 @@ import { filter, map } from 'rxjs';
 import { GwRouteData } from './app.routes';
 import { isApiError } from './core/api/api-error';
 import { DesktopBridge } from './core/desktop/desktop-bridge';
+import { EndpointShareFiles } from './core/desktop/endpoint-share';
 import { EventStream } from './core/events/event-stream';
 import { ApprovalsStore } from './core/stores/approvals.store';
 import { ConsentStore } from './core/stores/consent.store';
@@ -234,6 +235,11 @@ export class App {
 
     const destroy = inject(DestroyRef);
     destroy.onDestroy(this.desktop.onDeepLink((link) => this.openFromOutside(deepLinkUrl(link))));
+    const shareFiles = inject(EndpointShareFiles);
+    if (this.desktop.endpointShareAvailable) destroy.onDestroy(this.desktop.onEndpointShareFile((file) => {
+      shareFiles.select(file);
+      this.openFromOutside('/endpoint-import');
+    }));
     // "Open in app" from a chat: in the desktop app main brings the window forward on the path and hands it over as a
     // deep link (the queue as its first waiting request); a browser has no main, so the window opens it itself.
     destroy.onDestroy(

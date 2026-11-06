@@ -135,6 +135,26 @@ To recover, use the same GateRook version, open **Settings → Backup → Restor
 
 GateRook closes when restoration succeeds. Reopen it, review the restored configuration and reconnect your AI apps: previous client access is revoked. Restored plugins are disabled, external MCP servers start on first use, and tunnels stay off until enabled. This computer's listener ports are retained, and startup at login is disabled. The restored master key uses the destination's local protection; the source computer's OS key-store credentials are not transferred.
 
+## Endpoint sharing
+
+Open an endpoint and choose **Share endpoint**. Select the connections to include, choose whether to include their stored local secrets, and enter and repeat a passphrase of 12–1,024 characters. Secrets are excluded by default. Save the `.grshare` file outside the GateRook data folder and send it to the recipient; communicate its passphrase separately. Sharing does not stop the gateway or change the source endpoint.
+
+Open **Endpoints → Import shared endpoint** to select a file. Installed desktop packages also register `.grshare` as a GateRook document type; opening one brings up the same import review. Enter its passphrase to see the endpoint, connections, tool modes and warnings. Select or skip individual connections, choose whether to create the endpoint, and choose whether to import any included secrets. Nothing is created until **Import selected** is confirmed. An incorrect passphrase, modified file or unsupported format is rejected before review.
+
+Imports create new copies with new internal identifiers. Existing connections and endpoints are preserved; colliding names receive a numeric suffix. Imported connections and endpoints start disabled. Review their configuration and credentials before enabling them, and connect AI apps separately. Source client grants, bearer tokens, OAuth sign-ins, master keys, audit history, global settings and external secret stores are never shared. External credentials and local file/profile references must be configured on the destination computer. Plugin connections require the same connector to be installed and enabled locally; plugin code is not included. Unavailable connector types cannot be selected for import. External MCP servers use their separate installation and sign-in review and cannot be transferred in a share.
+
+Active SQL query, SSH runbook and OpenAPI template definitions travel with their selected connection. The destination compiles them again and remaps their tool identifiers. Read-only confirmations do not transfer: imported SSH runbooks and HTTP operations other than GET/HEAD require approval. Bypass modes become Approval, and temporary bypass windows do not transfer. Review warnings for excluded templates and credentials.
+
+The share envelope uses the full-backup encryption implementation with a distinct format header: scrypt derives a key from the passphrase, and AES-256-GCM encrypts and authenticates the payload and header using a new random salt and nonce for every export. This protects confidentiality and detects changes; it does not certify the sender's identity. The encrypted file limit is 8 MiB, with at most 6 MiB of portable JSON data. Decrypted data stays in desktop main-process memory during review, is not written to a temporary file or returned to the renderer, and expires after 15 minutes or a core restart. Only sanitized review metadata reaches the UI.
+
+For local verification, run `npm test -w desktop`, `npm test -w ui`, and the focused Java checks:
+
+```bash
+mvn -B -ntp -pl app -am verify -Dtest=TemplateSharesTest,ModularityTests -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=EndpointShareIT,HttpCoreProcessIT -Dit.failIfNoSpecifiedTests=false
+```
+
+File-association unit tests and packaging metadata checks do not replace opening a file with the installed application on each supported operating system.
+
 ## Browser development
 
 ```bash

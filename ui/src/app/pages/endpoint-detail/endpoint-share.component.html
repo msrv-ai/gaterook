@@ -1,0 +1,50 @@
+@if (showTrigger()) {<button class="gw-btn" type="button" aria-haspopup="dialog" [attr.aria-disabled]="!available() ? 'true' : null" [attr.title]="unavailableReason()" (click)="open($event)"><svg lucideIcon="upload" class="gw-icon"></svg> Share endpoint</button>}
+
+<dialog class="gw-dialog gw-dialog--lg" gwDialog gwDialogStatic #shareDialog="gwDialog" id="ep-share-dialog" aria-labelledby="ep-share-title" aria-describedby="ep-share-description" (closed)="clear()" (cancel)="guardCancel($event)">
+  <form novalidate (submit)="save($event)">
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg lucideIcon="upload" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" id="ep-share-title">Share {{ slug() }}</h2>
+      <p class="gw-dialog__description" id="ep-share-description">Choose what to include in an encrypted .grshare file. The recipient reviews its contents before importing.</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" [attr.aria-disabled]="busy() ? 'true' : null" (click)="cancel()"><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-dialog__body">
+      <div class="gw-stack">
+        <fieldset class="gw-field" [disabled]="busy()">
+          <legend class="gw-field__label">Connections to share</legend>
+          <p class="gw-field__hint">Endpoint settings and tool modes are included. Unchecked connections are left out. You can share endpoint settings without any connections.</p>
+          @for (connection of connections(); track connection.name) {
+            <label class="gw-checkbox">
+              <input class="gw-checkbox__input" type="checkbox" [checked]="picked().has(connection.name)" [disabled]="!supported(connection)" (change)="toggle(connection.name, $any($event.target).checked)">
+              <span class="gw-checkbox__control" aria-hidden="true"></span>
+              <span class="gw-checkbox__label"><span class="gw-mono">{{ connection.name }}</span> <span [class]="'gw-env gw-env--' + connection.env">{{ connection.env }}</span></span>
+              <span class="gw-checkbox__hint">{{ connection.typeName }}@if (!supported(connection)) { · Set up this external MCP server separately on the recipient's computer. It cannot be shared in this file.}</span>
+            </label>
+          } @empty {
+            <p class="gw-text-small gw-fg-secondary">This endpoint has no connections. You can share its settings.</p>
+          }
+        </fieldset>
+        <label class="gw-checkbox">
+          <input class="gw-checkbox__input" type="checkbox" [checked]="includeSecrets()" [disabled]="busy()" (change)="includeSecrets.set($any($event.target).checked)">
+          <span class="gw-checkbox__control" aria-hidden="true"></span>
+          <span class="gw-checkbox__label">Include stored secrets</span>
+          <span class="gw-checkbox__hint">Anyone with the file and passphrase can use these credentials. External secret stores, local files, client tokens and the master key are not transferred.</span>
+        </label>
+        <div class="gw-field">
+          <label class="gw-field__label" for="ep-share-pass">Passphrase</label>
+          <input #pass id="ep-share-pass" class="gw-input" type="password" autocomplete="new-password" maxlength="1024" autofocus [disabled]="busy()" [attr.aria-invalid]="invalid() === 'pass' ? 'true' : null" aria-describedby="ep-share-pass-hint ep-share-error">
+          <p class="gw-field__hint" id="ep-share-pass-hint">Use 12–1,024 characters. Send this passphrase separately from the file.</p>
+        </div>
+        <div class="gw-field">
+          <label class="gw-field__label" for="ep-share-repeat">Repeat passphrase</label>
+          <input #repeat id="ep-share-repeat" class="gw-input" type="password" autocomplete="new-password" maxlength="1024" [disabled]="busy()" [attr.aria-invalid]="invalid() === 'repeat' ? 'true' : null" aria-describedby="ep-share-error">
+        </div>
+        <p class="gw-field__error" id="ep-share-error" role="alert">{{ error() }}</p>
+      </div>
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" [attr.aria-disabled]="busy() ? 'true' : null" (click)="cancel()">Cancel</button>
+      <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-disabled]="busy() ? 'true' : null" [attr.aria-busy]="busy() ? 'true' : null">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Save share file</button>
+    </footer>
+  </form>
+</dialog>

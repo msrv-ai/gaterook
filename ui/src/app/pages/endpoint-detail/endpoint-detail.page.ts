@@ -82,6 +82,7 @@ import {
   withTargets,
 } from './endpoint-detail-view';
 import { GwEndpointSettings } from './endpoint-settings';
+import { GwEndpointShare } from './endpoint-share.component';
 
 /** The first render waits this long before it shows placeholders (kit: "when it takes longer than 300 ms"). */
 export const SKELETON_DELAY_MS = 300;
@@ -132,6 +133,7 @@ export const SPLIT_FRAGMENT = 'ep-dlg-split';
     GwTokenIssueDialog,
     GwEndpointSettings,
     GwEndpointClients,
+    GwEndpointShare,
   ],
   providers: [EndpointDetailData],
   changeDetection: ChangeDetectionStrategy.OnPush,

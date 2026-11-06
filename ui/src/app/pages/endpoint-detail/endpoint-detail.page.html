@@ -41,6 +41,7 @@
     </div>
     @if (summary(); as s) {
       <div class="gw-page-header__actions">
+        <button class="gw-btn" type="button" aria-haspopup="dialog" [attr.aria-disabled]="!shareDialog.available() ? 'true' : null" [attr.title]="shareDialog.unavailableReason()" (click)="shareDialog.open($event)"><svg lucideIcon="upload" class="gw-icon"></svg> Share endpoint</button>
         <a class="gw-btn gw-btn--primary" routerLink="/connection-import" [queryParams]="{ endpoint: s.slug }"><svg lucideIcon="lightbulb" class="gw-icon"></svg> Import with AI</a>
         <a class="gw-btn gw-btn--ghost" routerLink="/activity" [queryParams]="{ q: 'endpoint:' + s.slug }"><svg lucideIcon="activity" class="gw-icon"></svg> View activity<span class="gw-sr-only"> of endpoint {{ s.slug }}</span></a>
         <a class="gw-btn" routerLink="/playground" [queryParams]="{ endpoint: s.slug }"><svg lucideIcon="flask-conical" class="gw-icon"></svg> Open in Playground</a>
@@ -541,3 +542,4 @@
 </dialog>
 
 @if (temporaryBypassMounted()) {<gw-temporary-bypass-dialog #temporaryBypassDialog (changed)="temporaryBypassChanged($event)" />}
+<gw-endpoint-share #shareDialog [slug]="slug" [connections]="wired()" [blocked]="!!summary()?.blockedReason" [showTrigger]="false" />
