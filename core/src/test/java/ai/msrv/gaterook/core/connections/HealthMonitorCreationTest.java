@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.node.JsonNodeFactory;
 
 class HealthMonitorCreationTest {
 
@@ -100,6 +101,27 @@ class HealthMonitorCreationTest {
     }
     verify(configs, timeout(1_000).times(3)).byId("new-id");
     verify(registry).usable("pgfake");
+  }
+
+  @Test
+  void incompleteConnectionsAreSkippedByInitialHealthRoundsAndTestAll() throws Exception {
+    ConnectionConfig config = new ConnectionConfig("new-id", "new-db", "pgfake", Env.DEV, 1,
+        JsonNodeFactory.instance.objectNode(), Set.of(),
+        JsonNodeFactory.instance.objectNode().put("setupRequired", true));
+    ConnectionConfigs.Stored incomplete = new ConnectionConfigs.Stored(config, true, null, null, null, Map.of(), true);
+    when(configs.byId("new-id")).thenReturn(Optional.of(incomplete));
+    when(configs.all()).thenReturn(java.util.List.of(incomplete));
+    HealthMonitor monitor = monitor(Duration.ofDays(1), "false");
+    try {
+      assertThat(monitor.checkAll()).isZero();
+      assertThat(monitor.testAll()).isZero();
+      monitor.onConnectionCreated(new ConnectionCreated("new-id"));
+      verify(configs, timeout(1_000)).byId("new-id");
+      verify(monitor, after(100).never()).check(any());
+      verifyNoInteractions(registry);
+    } finally {
+      monitor.destroy();
+    }
   }
 
   private HealthMonitor monitor(Duration interval, String demo) {

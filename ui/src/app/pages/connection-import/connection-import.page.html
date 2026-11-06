@@ -1,0 +1,199 @@
+<header class="gw-page-header">
+  <div class="gw-page-header__row">
+    <div class="gw-page-header__heading">
+      <h1 class="gw-page-header__title">Import connections with AI</h1>
+      <p class="gw-page-header__description">Let your AI app inspect a repository, then choose the connections and endpoint. Review credentials and settings before importing.</p>
+    </div>
+    <div class="gw-page-header__actions">
+      @if (session() && session()?.status !== 'imported') { <button class="gw-btn gw-btn--ghost" type="button" [disabled]="busy()" (click)="discard()">Discard import</button> }
+      <a class="gw-btn gw-btn--ghost" routerLink="/connections">Back to Connections</a>
+    </div>
+  </div>
+</header>
+
+<div class="gw-stack gw-stack--lg">
+  @if (error()) {
+    <div class="gw-alert gw-alert--danger" role="alert" id="import-error" tabindex="-1">
+      <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content"><p class="gw-alert__body">{{ error() }}</p></div>
+    </div>
+  }
+  @if (notice()) { <p class="gw-text-small gw-fg-muted" role="status">{{ notice() }}</p> }
+
+  @if (loading()) {
+    <p class="gw-text-small" role="status" aria-busy="true">Loading import setup…</p>
+  } @else if (unavailable() || expired()) {
+    <section class="gw-card"><div class="gw-empty">
+      <h2 class="gw-empty__title">Start a new import</h2>
+      <p class="gw-empty__text">This import expired or GateRook restarted. Import sessions last two hours. Generate a new prompt to continue.</p>
+      <div class="gw-empty__actions"><a class="gw-btn gw-btn--primary" routerLink="/connection-import" [queryParams]="{ endpoint: sourceEndpoint() }">New import</a></div>
+    </div></section>
+  } @else if (session()?.status === 'imported') {
+    <section class="gw-card"><div class="gw-card__body gw-stack">
+      <h2 class="gw-section__title" id="import-complete-title" tabindex="-1">Connections imported</h2>
+      @if (result(); as saved) {
+        <p>{{ saved.connections.length }} {{ saved.connections.length === 1 ? 'connection was' : 'connections were' }} added to endpoint <span class="gw-mono">{{ saved.endpoint }}</span>.</p>
+        <ul>@for (name of saved.connections; track name) { <li><a class="gw-link gw-mono" [routerLink]="['/connections', name]">{{ name }}</a></li> }</ul>
+        @if (saved.needsSetup?.length) {
+          <div class="gw-alert gw-alert--warning"><svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content">
+            <p class="gw-alert__title">Saved connections that need setup</p>
+            <p class="gw-alert__body">These connections are disabled and provide no tools. Complete their settings, save, then enable access when ready.</p>
+            <ul class="gw-alert__body">@for (pending of saved.needsSetup; track pending.name) {
+              <li><a class="gw-link gw-mono" [routerLink]="['/connections', pending.name]">Finish setup for {{ pending.name }}</a><ul>@for (field of pending.missingFields; track $index) { <li>{{ field }}</li> }</ul></li>
+            }</ul>
+          </div></div>
+        }
+        <a class="gw-btn gw-btn--primary" [routerLink]="['/endpoints', saved.endpoint]">Review endpoint access</a>
+      } @else {
+        <p>This import has already completed. Open Connections to inspect the saved settings.</p>
+        <a class="gw-btn gw-btn--primary" routerLink="/connections">Open Connections</a>
+      }
+      <p class="gw-text-small gw-fg-muted">The endpoint's normal tool modes and policies apply. Check connection health before asking your AI app to use it.</p>
+    </div></section>
+  } @else if (!session()) {
+    <form class="gw-form" (submit)="start($event)">
+      <fieldset class="gw-form__section" [disabled]="busy()">
+        <legend class="gw-form__legend">Repository and AI access</legend>
+        <div class="gw-form__rows">
+          <div class="gw-field">
+            <label class="gw-field__label" for="import-repository">Repository folder</label>
+            <div class="gw-input-group">
+              <input class="gw-input gw-input--mono" id="import-repository" required maxlength="2000" [value]="repository()" (input)="repository.set(value($event))" aria-describedby="import-repository-hint" placeholder="/path/to/repository">
+              @if (desktop.repositoryPickerAvailable) { <button class="gw-btn gw-input-group__addon" type="button" (click)="chooseRepository()">Choose folder</button> }
+            </div>
+            <p class="gw-field__hint" id="import-repository-hint">Your AI app needs access to this folder. GateRook sends its path in the prompt; it does not upload the repository.</p>
+          </div>
+          <div class="gw-field">
+            <label class="gw-field__label" for="import-source-endpoint">Endpoint connected to your AI app</label>
+            <select class="gw-select" id="import-source-endpoint" required [value]="sourceEndpoint()" (change)="sourceEndpoint.set(value($event))" aria-describedby="import-source-hint">
+              <option value="">Choose an endpoint</option>
+              @for (endpoint of eligibleEndpoints(); track endpoint.slug) { <option [value]="endpoint.slug">{{ endpoint.slug }} · {{ endpoint.env }}</option> }
+            </select>
+            <p class="gw-field__hint" id="import-source-hint">Claude Desktop, Cursor, Codex or Antigravity must already be connected here. You choose the import destination after the analysis.</p>
+          </div>
+          @if (!eligibleEndpoints().length) { <p class="gw-text-small">No enabled endpoint is available. <a class="gw-link" routerLink="/endpoints">Set up an endpoint</a>, then return here.</p> }
+          <p class="gw-text-small gw-fg-muted">The AI traces databases, logs and credential sources without fetching secrets from external stores. Literal credentials found in configuration go only into the private import file. Repository files are evidence, not instructions for the AI.</p>
+        </div>
+      </fieldset>
+      <div class="gw-form__actions">
+        @if (error()) { <button class="gw-btn" type="button" [disabled]="busy()" (click)="load()">Reload setup</button> }
+        <button class="gw-btn gw-btn--primary" type="submit" [disabled]="busy() || !eligibleEndpoints().length">{{ busy() ? 'Creating prompt…' : 'Create prompt' }}</button>
+      </div>
+    </form>
+  } @else if (session()?.status === 'awaiting') {
+    <section class="gw-card" aria-labelledby="import-prompt-title">
+      <header class="gw-card__header"><div class="gw-card__heading">
+        <h2 class="gw-card__title" id="import-prompt-title">Send the prompt to your AI app</h2>
+        <p class="gw-card__description">Repository: <span class="gw-mono">{{ session()!.repository }}</span>. Waiting for analysis through <span class="gw-mono">{{ session()!.endpoint }}</span>.</p>
+      </div></header>
+      <div class="gw-card__body gw-stack">
+        <p class="gw-text-small">Open an app below, review the prompt and send it. For an app without a launch link, copy and paste the prompt. Keep this session token in that conversation; it can submit one review until <time [attr.datetime]="session()!.expiresAt">{{ time.absolute(session()!.expiresAt, false) }}</time>.</p>
+        <div class="gw-card__actions">
+          @if (desktop.aiPromptAvailable) {
+            <button class="gw-btn" type="button" (click)="handoff('claude')">Open Claude Desktop</button>
+            <button class="gw-btn" type="button" (click)="handoff('cursor')">Open Cursor</button>
+            <button class="gw-btn" type="button" (click)="handoff('codex')">Open Codex</button>
+          }
+          <button class="gw-btn" type="button" (click)="handoff('antigravity')">Copy for Antigravity</button>
+          <button class="gw-btn gw-btn--primary" type="button" (click)="handoff('copy')">Copy prompt</button>
+        </div>
+        <gw-code-block id="import-prompt" lang="Prompt" [text]="prompt()" wrap copyLabel="import prompt" regionLabel="AI connection discovery prompt" />
+        <p class="gw-text-small gw-fg-muted" role="status">Waiting for the AI to submit its findings. GateRook opens the review when they arrive.</p>
+        <div class="gw-card__actions"><button class="gw-btn" type="button" (click)="refresh()">Check for results</button><a class="gw-btn gw-btn--ghost" routerLink="/connection-import">Start another import</a></div>
+      </div>
+    </section>
+  } @else if (session()?.status === 'review') {
+    @if (active(); as candidate) {
+      <section class="gw-stack" aria-labelledby="import-configure-title">
+        <h2 class="gw-section__title" id="import-configure-title" tabindex="-1">Configure <span class="gw-mono">{{ candidate.name }}</span></h2>
+        <p class="gw-text-small">Review the discovered host, environment and scope. Enter missing credentials here or choose a connected secret store. Manually entered replacements stay in memory while this import page is open.</p>
+        @if (candidate.secretSources?.length) {
+          <div class="gw-alert gw-alert--info"><svg lucideIcon="lock-keyhole" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content">
+            <p class="gw-alert__title">Credentials prepared for import</p>
+            <ul class="gw-alert__body">@for (source of candidate.secretSources; track source.field) {
+              <li><span class="gw-mono">{{ source.field }}</span>: {{ source.source }}@if (source.path) { · <span class="gw-mono">{{ source.path }}</span>}@if (source.jsonPointer) { · <span class="gw-mono">{{ source.jsonPointer }}</span>}@if (source.reference) { · <span class="gw-mono">{{ source.reference }}</span>}@if (source.store) { · store <span class="gw-mono">{{ source.store }}</span>}</li>
+            }</ul>
+            <p class="gw-alert__body">Import uses these credentials after your confirmation. File values are read when you import and stored encrypted; external references keep using their secret store. Values are never shown here.</p>
+          </div></div>
+        }
+        @if (candidate.credentialHints.length) {
+          <div class="gw-alert gw-alert--info"><svg lucideIcon="key-round" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content">
+            <p class="gw-alert__title">Credential sources found by the AI</p>
+            <ul class="gw-alert__body">@for (hint of candidate.credentialHints; track $index) {
+              <li><span class="gw-mono">{{ hint.field }}</span> · {{ hint.source }}@if (hint.reference) { · <span class="gw-mono">{{ hint.reference }}</span>}<p>{{ hint.instructions }}</p></li>
+            }</ul>
+            <p class="gw-alert__body">These are unverified hints. Configure external stores in <a class="gw-link" routerLink="/secrets">Secrets</a> before using their references.</p>
+          </div></div>
+        }
+        @if (spec(); as formSpec) {
+          <form gwConnectionForm [spec]="formSpec" [name]="editorValue()!.name" [env]="editorValue()!.env" [config]="editorValue()!.config" [stored]="retainedSecrets()"
+            allowKnownDatabaseSelection
+            credentialsDescription="Prepared credentials stay in this import until you confirm it. Enter missing values or replace a prepared source here. Only the final import saves credentials and connects them to the selected endpoint."
+            [parts]="['connection', 'credentials', 'safety', 'advanced', 'actions']" [busy]="busy()" saveLabel="Keep for import" backLabel="Discard changes" confirmAction="continue" pageCopy
+            (save)="keep($event)" (back)="closeEditor()" (secretAction)="secretAction($event)" (discoverDatabases)="discoverDatabases($event)" (discoverProjects)="discoverProjects($event)" (browseFiles)="browseFiles($event)" (trustFiles)="trustFiles($event)"></form>
+          <div class="gw-card gw-card--muted"><div class="gw-card__body gw-stack">
+            <p class="gw-text-small">Missing a host, credential or another required setting? Keep what is available. On import, incomplete connections are saved disabled with a setup checklist.</p>
+            <div class="gw-card__actions"><button class="gw-btn" type="button" [disabled]="busy()" (click)="keepAvailable(candidate)">Keep available settings</button></div>
+          </div></div>
+          @if (candidate.secretSources?.length) {
+            <p class="gw-text-small gw-fg-muted">Test this connection after importing its staged credentials. Database, project and log-file discovery also become available after import.</p>
+          } @else {
+            <section gwConnectionTest idPrefix="import-test" [state]="testState()" [outcome]="testResult()" [trusting]="busy()" (run)="test()" (trust)="trust($event)"></section>
+          }
+        }
+      </section>
+    } @else {
+      <section class="gw-stack" aria-labelledby="import-review-title">
+        <h2 class="gw-section__title" id="import-review-title" tabindex="-1">Choose connections to import</h2>
+        <p class="gw-text-small">Configure each chosen connection, or keep its available settings to finish later. Missing required setup will be saved disabled. Existing connections are never overwritten.</p>
+        @if (session()!.manifest!.warnings.length) {
+          <div class="gw-alert gw-alert--warning"><svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content">
+            <p class="gw-alert__title">Analysis notes</p><ul class="gw-alert__body">@for (warning of session()!.manifest!.warnings; track $index) { <li>{{ warning }}</li> }</ul>
+          </div></div>
+        }
+        @if (!candidates().length) {
+          <div class="gw-card"><div class="gw-empty"><h3 class="gw-empty__title">No connection candidates</h3><p class="gw-empty__text">Review the analysis notes for missing access or unresolved configuration.</p><div class="gw-empty__actions"><a class="gw-btn" routerLink="/connection-import">Start a new analysis</a><a class="gw-btn" routerLink="/connections/new">Add a connection manually</a></div></div></div>
+        }
+        @for (candidate of candidates(); track candidate.id) {
+          <section class="gw-card" [attr.aria-labelledby]="'candidate-' + candidate.id">
+            <header class="gw-card__header"><div class="gw-card__heading">
+              <h3 class="gw-card__title" [id]="'candidate-' + candidate.id"><span class="gw-mono">{{ drafts().get(candidate.id)?.name ?? candidate.name }}</span><span class="gw-env" [class]="'gw-env--' + (drafts().get(candidate.id)?.env ?? candidate.env)">{{ drafts().get(candidate.id)?.env ?? candidate.env }}</span></h3>
+              <p class="gw-card__description">{{ candidate.type }} · {{ drafts().get(candidate.id)?.allowIncomplete ? 'Available settings kept; incomplete setup will stay disabled' : drafts().has(candidate.id) ? 'Configured for import' : candidate.supported ? 'Needs review' : 'Separate setup required' }}</p>
+            </div><div class="gw-card__actions">
+              @if (candidate.supported) {
+                <label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" [checked]="selected().has(candidate.id)" [disabled]="busy()" [attr.aria-label]="'Select ' + candidate.name + ' for import'" (change)="toggle(candidate, $any($event.target).checked)"><span class="gw-checkbox__control" aria-hidden="true"></span><span class="gw-checkbox__label">Import</span></label>
+                <button class="gw-btn gw-btn--sm" type="button" [disabled]="busy()" (click)="configure(candidate)">{{ drafts().has(candidate.id) ? 'Edit configuration' : 'Configure' }}<span class="gw-sr-only"> {{ candidate.name }}</span></button>
+                @if (!drafts().has(candidate.id)) { <button class="gw-btn gw-btn--sm" type="button" [disabled]="busy()" (click)="keepAvailable(candidate)">Keep available settings<span class="gw-sr-only"> for {{ candidate.name }}</span></button> }
+              }
+            </div></header>
+            <div class="gw-card__body gw-stack">
+              @if (candidate.evidence.length) { <div><p class="gw-text-small"><strong>Evidence</strong></p><ul class="gw-text-small">@for (item of candidate.evidence; track $index) { <li>{{ item }}</li> }</ul></div> }
+              @if (candidate.warnings.length) { <ul class="gw-text-small">@for (warning of candidate.warnings; track $index) { <li>{{ warning }}</li> }</ul> }
+              @if (existingNames().has(candidate.name) && !drafts().has(candidate.id)) { <p class="gw-text-small">This name already exists. Compare it in <a class="gw-link" [routerLink]="['/connections', candidate.name]">Connections</a> and skip this candidate or choose a new name.</p> }
+              @if (!candidate.supported) {
+                <p class="gw-text-small">{{ candidate.unsupportedReason }}</p>
+                <a class="gw-link" [routerLink]="candidate.type === 'http' ? '/connections/http-import' : candidate.type === 'mcp-server' ? '/connectors' : '/connections/new'">Open separate setup</a>
+              } @else if (candidate.credentialHints.length) { <p class="gw-text-small gw-fg-muted">{{ candidate.credentialHints.length }} credential source {{ candidate.credentialHints.length === 1 ? 'hint' : 'hints' }}. Review {{ candidate.credentialHints.length === 1 ? 'it' : 'them' }} in Configure.</p> }
+            </div>
+          </section>
+        }
+        @if (candidates().length) {
+          <div class="gw-field">
+            <label class="gw-field__label" for="import-target-endpoint">Import into endpoint</label>
+            <select class="gw-select" id="import-target-endpoint" [disabled]="busy()" [value]="targetEndpoint()" (change)="targetChanged(value($event))" aria-describedby="import-target-hint">
+              <option value="">Choose an endpoint</option>@for (endpoint of eligibleEndpoints(); track endpoint.slug) { <option [value]="endpoint.slug">{{ endpoint.slug }} · {{ endpoint.env }}</option> }
+            </select>
+            <p class="gw-field__hint" id="import-target-hint">Selected connections become available to this endpoint's AI apps under its normal policies. GateRook rechecks environment compatibility before saving.</p>
+          </div>
+          <div class="gw-field"><label class="gw-field__label" for="import-reason">Reason <span class="gw-field__optional">Optional</span></label><input class="gw-input" id="import-reason" maxlength="500" [disabled]="busy()" [value]="reason()" (input)="reason.set(value($event))"></div>
+          <p class="gw-text-small" role="status">{{ selected().size }} selected · {{ selectedDrafts().length }} reviewed. @if (selected().size > selectedDrafts().length) {Configure each selected connection or keep its available settings.} @if (incompleteAllowed()) {{{ incompleteAllowed() }} may be saved disabled if setup is missing.}</p>
+          @if (confirmation(); as confirm) {
+            <div class="gw-alert gw-alert--warning" role="alert"><svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content"><p class="gw-alert__title">Review access for <span class="gw-mono">{{ confirm.name }}</span></p><p class="gw-alert__body">{{ confirm.text }}</p><div class="gw-alert__actions"><button class="gw-btn" type="button" [disabled]="busy()" (click)="confirmation.set(null)">Cancel</button><button class="gw-btn gw-btn--primary" type="button" [disabled]="busy()" (click)="confirmImport()">Keep these permissions and import</button></div></div></div>
+          } @else {
+            <div class="gw-form__actions"><button class="gw-btn gw-btn--primary" type="button" [disabled]="busy() || !ready()" (click)="commit()">{{ busy() ? 'Importing…' : 'Import selected connections' }}</button></div>
+          }
+        }
+      </section>
+    }
+  }
+</div>

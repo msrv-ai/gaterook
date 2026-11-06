@@ -5,6 +5,7 @@ import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.connections.ConnectionConfigs;
+import ai.msrv.gaterook.core.connections.ConnectionService;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.connectors.ConnectorType;
 import ai.msrv.gaterook.core.endpoints.CoreTools;
@@ -57,8 +58,14 @@ public class Wiring {
   public List<Written> wire(EndpointEntity e, ConnectionConfigs.Stored c, ConnectorManifest m,
       Function<ToolPairs.Offered, Mode> modes) {
     rows.save(new EndpointConnectionEntity(e, c.id(), clock.instant()));
+    // Drafts expose no tools. Keep built-in defaults ready for completion without asking a connector to interpret
+    // incomplete settings; normal reconciliation removes inapplicable tools once the settings are complete.
+    List<ToolPairs.Offered> offeredHere = ConnectionService.needsSetup(c.config())
+        ? m.kind() == ConnectorManifest.Kind.BUILT_IN ? m.tools().stream()
+            .map(t -> new ToolPairs.Offered(t.name(), t, m.kind(), null, null, null, null)).toList() : List.of()
+        : offered(e, c.config());
     List<Written> out = new ArrayList<>();
-    for (ToolPairs.Offered offered : offered(e, c.config())) {
+    for (ToolPairs.Offered offered : offeredHere) {
       Mode mode = modes.apply(offered);
       rows.save(new EndpointToolEntity(e, c.id(), offered.toolKey(), mode, clock.instant()));
       out.add(new Written(offered.toolKey(), offered.definition().name(), mode));
@@ -110,7 +117,7 @@ public class Wiring {
       Optional<ConnectorType> type = c.flatMap(s -> registry.type(s.config().type()));
       if (c.isPresent() && type.isPresent()) {
         out.add(new ToolPairs.Member(c.get().config(), type.get().manifest(), c.get().verified()
-            && type.get().usable()));
+            && !ConnectionService.needsSetup(c.get().config()) && type.get().usable()));
       }
     }
     return out;

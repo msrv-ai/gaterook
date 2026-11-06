@@ -8,8 +8,9 @@ import java.util.regex.Pattern;
 /**
  * A reference to a secret in an external store (report 12 §4.2): {@code vault://kv/stage/db#password},
  * {@code gcp-sm://projects/acme-stage/secrets/billing-api-token/versions/latest},
- * {@code aws-sm://eu-central-1/stage/billing-api#webhook_secret}. Only a person sets one, in the window; no tool takes a
- * reference as an argument, so an agent can never name a secret.
+ * {@code aws-sm://eu-central-1/stage/billing-api#webhook_secret}. Only a person activates one, in the window.
+ * Repository discovery may submit an inert source hint, but no MCP tool resolves, tests or activates that hint;
+ * the person must configure the store and choose the reference in the connection form.
  *
  * <p>The parser is our own rather than {@link java.net.URI}: a reference is not a URL (an AWS name has slashes, a key
  * may come before or after the query), and a lenient URL parser would let two spellings name the same secret.

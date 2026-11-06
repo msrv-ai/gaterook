@@ -274,6 +274,10 @@ public class ConnectionTester implements DisposableBean {
       throw ProblemException.conflict("Changed outside GateRook", stored.name() + " was changed outside "
           + "GateRook. Review it first.");
     }
+    if (ConnectionService.needsSetup(stored.config())) {
+      throw ProblemException.conflict("Needs setup", "Complete " + stored.name()
+          + " in the connection editor before testing it.");
+    }
     ConnectorManifest manifest = usable(stored.config().type());
     Taint taint = new Taint();
     TestResult result;

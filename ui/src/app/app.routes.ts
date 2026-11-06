@@ -74,6 +74,18 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/http-import/http-import.page').then(m => m.HttpImportPage),
       },
       {
+        path: 'connection-import',
+        title: 'Import connections with AI',
+        data: data('Connections'),
+        loadComponent: () => import('./pages/connection-import/connection-import.page').then(m => m.ConnectionImportPage),
+      },
+      {
+        path: 'connection-import/:id',
+        title: 'Review connection import',
+        data: data('Connections'),
+        loadComponent: () => import('./pages/connection-import/connection-import.page').then(m => m.ConnectionImportPage),
+      },
+      {
         // The same page in edit mode (kit: connection-new.html?edit=<name>, titled "dev-db · Connections").
         path: 'connections/:name',
         title: (route: ActivatedRouteSnapshot) => `${route.paramMap.get('name') ?? ''} · Connections`,

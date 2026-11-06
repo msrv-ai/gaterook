@@ -1258,13 +1258,25 @@ export class ConnectionNewPage {
   private async saveEdit(value: ConnectionFormValue, confirm: string | null = null): Promise<void> {
     const name = this.name()!;
     if (this.saving() || this.accessBusy() || this.accessSyncError()) return;
+    const completingSetup = this.detail()?.setupRequired === true;
+    if (completingSetup) {
+      const existingFields = new Set(this.stored().filter(secret => !!secret.secretId).map(secret => secret.field));
+      if (Object.keys(value.secrets).some(field => existingFields.has(field))) {
+        this.formProblem.set({ title: 'Save credential replacements first',
+          message: 'Use the Save control beside an existing credential to replace its value. For an existing reference, use Replace reference in Secrets. Your typed values have not been discarded. Missing credentials are saved with the completed settings.' });
+        afterNextRender(() => this.doc.getElementById('connection-form-error')?.focus(), { injector: this.injector });
+        return;
+      }
+    }
     this.saving.set(true);
     try {
-      await this.connections.update(name, { config: value.config, env: value.env, version: this.version, confirm });
+      await this.connections.update(name, { config: value.config, env: value.env, version: this.version, confirm,
+        ...(completingSetup ? { secrets: value.secrets } : {}) });
       this.toasts.show({
         tone: 'success',
         title: `Connection ${name} saved`,
-        body: 'The new settings apply from the next call. Calls in flight finish with the old ones.',
+        body: completingSetup ? 'Setup is complete. Access stays off until you enable this connection.'
+          : 'The new settings apply from the next call. Calls in flight finish with the old ones.',
       });
       await this.reloadDetail();
     } catch (e) {

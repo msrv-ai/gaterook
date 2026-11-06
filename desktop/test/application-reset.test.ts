@@ -16,7 +16,7 @@ function fixture() {
     'master.keyset.replaced-123456', '.master.keyset.tmp-123', 'master.keyset.osk.123.012345abcdef.tmp']) {
     writeFileSync(join(home, name), name === 'desktop.json' ? '{"port":9999,"publicPort":9998,"startHidden":true}' : 'old data');
   }
-  for (const name of ['backups', 'logs', 'plugins', 'plugin-data', 'clients', 'connectors', 'cache', 'run', 'bin', 'mcp']) {
+  for (const name of ['backups', 'logs', 'plugins', 'plugin-data', 'clients', 'connectors', 'cache', 'run', 'bin', 'mcp', 'connection-imports']) {
     mkdirSync(join(home, name));
     writeFileSync(join(home, name, 'old'), 'old data');
   }

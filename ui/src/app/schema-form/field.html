@@ -149,10 +149,11 @@
             [fieldName]="lowerFirst(n.title)"
             [subject]="f.subject()"
             [version]="stored?.version ?? null"
+            [prepared]="stored?.staged === true"
             [updatedAt]="stored?.updatedAt ?? null"
             [canRotate]="stored?.canRotate !== false"
             [rotateReasonId]="stored?.canRotate === false ? id + '-rotate-why' : null"
-            [provider]="f.source()"
+            [provider]="stored?.staged ? (stored?.state === 'short-lived' ? 'short-lived' : stored?.source ?? f.source()) : f.source()"
             [ref]="stored?.name ?? ''"
             changeable
             (changeRef)="f.replace(n, true)"

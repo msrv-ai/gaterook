@@ -25,10 +25,12 @@
           @if (detail(); as d) {
             <p class="gw-page-header__description"><span>{{ d.typeLabel || d.typeName }}</span>@if (host()) { at <span class="gw-mono">{{ host() }}</span>}. Saved changes apply from the next call; calls in flight finish with the old settings.</p>
             <div class="gw-page-header__meta">
-              <gw-access-switch kind="connection" [name]="d.name" [enabled]="d.enabled !== false" [blocked]="!d.verified ? 'Review the change outside GateRook first.' : saving() ? 'Wait until the connection settings are saved.' : accessRefreshing() ? 'Updating connection access. Please wait.' : null" (changed)="accessChanged($event)" />
+              <gw-access-switch kind="connection" [name]="d.name" [enabled]="d.enabled !== false" [blocked]="d.setupRequired ? 'Finish this connection’s setup before enabling access.' : !d.verified ? 'Review the change outside GateRook first.' : saving() ? 'Wait until the connection settings are saved.' : accessRefreshing() ? 'Updating connection access. Please wait.' : null" (changed)="accessChanged($event)" />
               <span class="gw-text-small gw-fg-muted">Across all endpoints</span>
               <span class="gw-sr-only">environment</span> <span class="gw-env" [class]="'gw-env--' + d.env">{{ d.env }}</span>
-              @if (d.enabled === false) {
+              @if (d.setupRequired) {
+                <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Needs setup</span></span>
+              } @else if (d.enabled === false) {
                 <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Disabled by you</span></span>
               } @else if (editTesting()) {
                 <span class="gw-status gw-status--checking" id="edit-checking"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Checking {{ d.name }}</span></span>
@@ -85,7 +87,22 @@
 </header>
 
 @if (m === 'edit') {
-  @if (detail()?.enabled === false) {
+  @if (detail()?.setupRequired) {
+    <section class="gw-alert gw-alert--warning" aria-labelledby="finish-setup-title">
+      <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <h2 class="gw-alert__title" id="finish-setup-title">Finish setup for <span class="gw-mono">{{ name() }}</span></h2>
+        <p class="gw-alert__body">The available settings were imported. This connection is disabled and provides no tools until you complete its required setup. Save the completed settings below, then enable access when ready.</p>
+        @if (detail()?.setupMissingFields?.length) { <ul class="gw-alert__body">@for (missing of detail()!.setupMissingFields; track $index) { <li>{{ missing }}</li> }</ul> }
+        @if (detail()?.setupSources?.length) {
+          <p class="gw-alert__body">Credential sources to configure:</p>
+          <ul class="gw-alert__body">@for (source of detail()!.setupSources; track $index) {
+            <li><span class="gw-mono">{{ source['field'] }}</span> · {{ source['source'] }}@if (source['path']) { · <span class="gw-mono">{{ source['path'] }}</span>}@if (source['reference']) { · <span class="gw-mono">{{ source['reference'] }}</span>}@if (source['jsonPointer']) { · <span class="gw-mono">{{ source['jsonPointer'] }}</span>}@if (source['store']) { · store <span class="gw-mono">{{ source['store'] }}</span>}@if (source['instructions']) {<p>{{ source['instructions'] }}</p>}</li>
+          }</ul>
+        }
+      </div>
+    </section>
+  } @else if (detail()?.enabled === false) {
     <div class="gw-alert gw-alert--neutral gw-alert--compact" role="status">
       <svg lucideIcon="circle-off" class="gw-icon gw-alert__icon"></svg>
       <div class="gw-alert__content"><p class="gw-alert__title">Access is off across all endpoints.</p><p class="gw-alert__body">AI apps can still see this connection and ask you to enable it. Tool modes and credentials are kept.</p></div>

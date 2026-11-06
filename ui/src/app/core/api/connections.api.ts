@@ -30,6 +30,9 @@ export function nextHealth(previous: ConnectionHealth | null | undefined, next: 
 
 /** One row of Connections (admin.connections.ConnectionsController.Row). */
 export interface ConnectionRow {
+  readonly setupRequired?: boolean;
+  readonly setupMissingFields?: readonly string[];
+  readonly setupSources?: readonly JsonObject[];
   readonly name: string;
   readonly type: string;
   readonly typeName: string;
@@ -71,6 +74,8 @@ export interface ConnectionList {
 }
 
 export interface StoredSecret {
+  /** Renderer-only import placeholder: prepared in the core, not yet saved as a connection secret. */
+  readonly staged?: boolean;
   readonly field: string;
   readonly secretId: string | null;
   readonly name: string | null;
@@ -96,6 +101,9 @@ export interface ConnectionUsedBy {
 
 /** `GET /api/connections/{name}` (connection-new `?edit=`). */
 export interface ConnectionDetail {
+  readonly setupRequired?: boolean;
+  readonly setupMissingFields?: readonly string[];
+  readonly setupSources?: readonly JsonObject[];
   readonly name: string;
   readonly type: string;
   readonly typeName: string;
@@ -203,6 +211,8 @@ export interface UpdateConnectionRequest extends WithReason {
   readonly config: JsonObject;
   readonly env: Env;
   readonly version: number;
+  /** Missing credentials supplied while finishing an imported connection's setup. */
+  readonly secrets?: SecretInputs;
   /**
    * What the person confirmed after the core asked (409 with `confirm`): `send-secret-to-new-host`, `danger`, or both,
    * separated by a comma.
