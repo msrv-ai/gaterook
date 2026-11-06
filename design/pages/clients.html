@@ -179,7 +179,8 @@
           card's one primary "Connect <app>"), and focus goes to the card's heading, never to the primary. One
           review at a time; a card that is connecting or connected in this session stays. After Connect: "Check that it works" with the
           prompt to copy. claude.ai: never published, Publish dev is secondary. Manual setup is collapsed.
-        FIRST RUN (?state=first-run: nothing set up). The same rows; Connect and Publish are aria-disabled with
+        FIRST RUN (?state=first-run: an empty endpoint). Connect opens its review before any connections exist.
+        With ?endpoints=none, Connect is unavailable with
           the reason, and the header's Add connection is the page's only primary. No manual setup.
         Ids of the setup / first-run blocks carry -s (review cards) and -row (rows), so the in-use ids stay.
         Demo data: BLUEPRINT §9. "Now" is 2026-10-22 14:30 CEST. The demo-only script at the end describes itself in its header comment.
@@ -192,7 +193,7 @@
             <h1 class="gw-page-header__title">AI apps</h1>
             <p class="gw-page-header__description" data-cl-show="in-use">Connect AI apps to an endpoint in one click. You see the exact change to an app's config before anything is written, and Disconnect takes it back.</p>
             <p class="gw-page-header__description" data-cl-show="setup" hidden>Connect the AI app you use, and it can start reading <span class="gw-mono">dev-db</span>. You see the exact change before anything is written, and Disconnect takes it back.</p>
-            <p class="gw-page-header__description" data-cl-show="first-run" hidden>Claude Desktop, Codex and Cursor are already on this computer. Add a connection first, so they have something to work with. Connect then shows the exact change before anything is written.</p>
+            <p class="gw-page-header__description" data-cl-show="first-run" hidden>Claude Desktop, Codex and Cursor are already on this computer. Connect your AI app to an endpoint to import connections with AI, or add connections later. Connect shows the exact change before anything is written.</p>
             <div class="gw-page-header__meta">
               <span class="gw-status gw-status--success" data-cl-show="in-use"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">2 connected</span></span>
               <span class="gw-status gw-status--info" data-cl-show="in-use"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">1 detected, not connected</span></span>
@@ -270,7 +271,7 @@
           <!-- ─── First run and setup (?state=first-run | setup). Setup: the app Overview's guide named in the hash
                (#cl-cd-t, #cl-cx-t, #cl-cu-t) opens as one full-width card on top, with its Connect review inline and the
                card's one primary; the other apps stay quiet rows. A card connected in this session stays, its row stays
-               hidden. First run: only the rows, Connect aria-disabled with Overview's reason. Ids carry -s / -row. ─── -->
+               hidden. First run: the same review is available when an endpoint exists. Ids carry -s / -row. ─── -->
           <div class="gw-stack" id="cl-reviews" data-cl-show="setup" data-cl-later hidden>
             <!-- Claude Desktop · the .mcpb bridge: nothing is written to a config file and no token is stored. Phases:
                  before → wait (Claude Desktop shows its own install prompt) → after; or the config-file fallback → after-file. -->
@@ -799,7 +800,7 @@
               </div>
             </li>
             </ul>
-            <p class="gw-text-caption gw-fg-muted" id="cl-first-why" data-cl-show="first-run" hidden><i class="gw-icon gw-icon--xs" data-lucide="lock"></i> Add a connection first: your AI app needs something to work with.</p>
+            <p class="gw-text-caption gw-fg-muted" id="cl-first-why" data-cl-show="first-run" hidden><i class="gw-icon gw-icon--xs" data-lucide="lock"></i> Create an endpoint first to connect your AI app. <a class="gw-link" href="endpoints.html">Open endpoints</a></p>
           </div>
 
           <!-- Local apps start as compact disclosure rows. Opening Cursor reveals its existing Connect flow;
@@ -1453,7 +1454,8 @@
       <!-- Demo only: the other states of this page. Not part of the app. -->
       <p class="gw-text-caption gw-fg-muted">Demo only, this page in other states:
         <a class="gw-link" href="clients.html" data-cl-ref="in-use">In use</a> ·
-        <a class="gw-link" href="clients.html?state=first-run" data-cl-ref="first-run">Nothing set up yet</a> ·
+        <a class="gw-link" href="clients.html?state=first-run" data-cl-ref="first-run">No connections, empty endpoint</a> ·
+        <a class="gw-link" href="clients.html?state=first-run&amp;endpoints=none" data-cl-ref="first-run" data-cl-endpoints="none">No endpoint yet</a> ·
         <a class="gw-link" href="clients.html?state=setup" data-cl-ref="setup">One connection, no AI app</a>
       </p>
       <p class="gw-text-caption gw-fg-muted" data-cl-show="setup" hidden>Demo only, arriving from Overview:
@@ -1842,10 +1844,10 @@
    1. Reference states: clients.html?state=first-run | setup, as on Overview. The blocks of the other states are
       removed before kit.js starts (the app renders one state); a block marked data-cl-later stays hidden until this
       script shows it. Outside "in use" nothing waits for approval (the shell's counters go), and the command palette
-      offers only what exists: nothing in first run, dev-db and endpoint dev in setup.
+      offers only what exists: the empty dev endpoint in first run (none with endpoints=none), dev-db and dev in setup.
    2. Setup and first run: a hash from Overview's guide (#cl-cd-t, #cl-cx-t, #cl-cu-t) opens that app's review card
-      on top in setup and focuses its heading, never the primary; #cl-ag-t in setup, and in first run each of
-      #cl-cd-t / #cl-cx-t / #cl-cu-t / #cl-ag-t, focuses the app's row. Connect runs the card's phases: Claude Desktop waits for its own install prompt, then Connected (or
+      on top when an endpoint exists and focuses its heading, never the primary; #cl-ag-t, or any app without an
+      endpoint, focuses the app's row. Connect runs the card's phases: Claude Desktop waits for its own install prompt, then Connected (or
       Needs restart through the config-file fallback); Codex Needs restart; Cursor Connected, or Waiting for Cursor
       while its browser sign-in is pending. The header counts follow, and Disconnect puts the card back to its review.
    3. "Scan again" / "Check again": the busy state of a button (aria-busy + spinner), then the result is announced.
@@ -1869,14 +1871,50 @@
 
   // ── 1. Reference state ──
   var STATES = ["in-use", "first-run", "setup"];
-  var state = new URLSearchParams(window.location.search).get("state");
+  var params = new URLSearchParams(window.location.search);
+  var state = params.get("state");
   if (STATES.indexOf(state) < 0) state = "in-use";
+  var noEndpoints = state === "first-run" && params.get("endpoints") === "none";
+  var emptyEndpoint = state === "first-run" && !noEndpoints;
+  if (emptyEndpoint) {
+    ["cl-reviews", "cl-m-connected", "cl-m-restart", "cl-m-waiting", "cl-dlg-disc-cd-s", "cl-dlg-disc-cd-file-s", "cl-dlg-disc-cx", "cl-dlg-disc-cu-s"].forEach(function (id) {
+      var el = $(id);
+      if (el) el.setAttribute("data-cl-show", el.getAttribute("data-cl-show") + " first-run");
+    });
+    $("cl-manual-t").closest("section").setAttribute("data-cl-show", "in-use setup first-run");
+    doc.querySelectorAll('#cl-rows .gw-client-card__actions a[data-cl-show="setup"]').forEach(function (a) {
+      a.setAttribute("data-cl-show", "setup first-run");
+    });
+    doc.querySelectorAll('#cl-rows button[aria-describedby="cl-first-why"], #cl-first-why').forEach(function (el) { el.remove(); });
+    doc.querySelectorAll('#cl-reviews .gw-client-card__step').forEach(function (step) {
+      var heading = step.querySelector("h4");
+      if (!heading || !/^What .+ can use$/.test(heading.textContent.trim())) return;
+      var details = step.querySelector("dl");
+      details.querySelectorAll(".gw-kv__row").forEach(function (row) {
+        if (row.querySelector("dt").textContent.trim() !== "Endpoint") row.remove();
+      });
+      step.querySelector("p").textContent = "This endpoint has no connections yet. Connect your AI app to import connections with AI, or add connections later.";
+    });
+    doc.querySelectorAll('#cl-reviews input.gw-copy-field__value').forEach(function (input) {
+      input.value = "List the connections available through GateRook";
+    });
+    doc.querySelectorAll('#cl-reviews .gw-kv__row').forEach(function (row) {
+      if (row.querySelector("dt").textContent.trim() !== "Endpoint") return;
+      var value = row.querySelector("dd"), endpoint = value.querySelector(".gw-mono");
+      if (endpoint) value.replaceChildren(endpoint, doc.createTextNode(" · No connections yet"));
+    });
+    doc.querySelectorAll('#cl-reviews .gw-client-card__step p').forEach(function (p) {
+      if (p.textContent.startsWith("Its first request shows up")) p.textContent = "Its first request shows up on Overview and in Activity.";
+    });
+  } else if (state === "first-run") {
+    doc.querySelector('.gw-page-header__description[data-cl-show="first-run"]').textContent = "Claude Desktop, Codex and Cursor are already on this computer. Create an endpoint first, then connect your AI app. Connect shows the exact change before anything is written.";
+  }
   doc.querySelectorAll("[data-cl-show]").forEach(function (el) {
     if (el.getAttribute("data-cl-show").split(/\s+/).indexOf(state) < 0) el.remove();
     else if (!el.hasAttribute("data-cl-later")) el.hidden = false;
   });
   doc.querySelectorAll("[data-cl-ref]").forEach(function (a) {
-    if (a.getAttribute("data-cl-ref") !== state) return;
+    if (a.getAttribute("data-cl-ref") !== state || (a.getAttribute("data-cl-endpoints") === "none") !== noEndpoints) return;
     var current = doc.createElement("span");
     current.setAttribute("aria-current", "page");
     current.textContent = a.textContent;
@@ -1886,7 +1924,7 @@
     doc.querySelectorAll(".gw-titlebar .gw-counter, .gw-nav__counter, #cmdk .gw-counter").forEach(function (c) { c.hidden = true; });
     var bell = doc.querySelector('.gw-titlebar a[href="approvals.html"]');
     if (bell) bell.setAttribute("aria-label", "Approvals, none waiting");
-    var keep = state === "setup" ? ["cmdk-o-dev-db", "cmdk-o-ep-dev"] : [];
+    var keep = state === "setup" ? ["cmdk-o-dev-db", "cmdk-o-ep-dev"] : emptyEndpoint ? ["cmdk-o-ep-dev"] : [];
     ["cmdk-g-connections", "cmdk-g-endpoints"].forEach(function (id) {
       var group = doc.querySelector('#cmdk [aria-labelledby="' + id + '"]');
       if (!group) return;
@@ -1894,10 +1932,10 @@
       if (!group.querySelector(".gw-menu__item")) group.remove();
     });
     if (state === "first-run") {
-      ["cmdk-o-copy-dev", "cmdk-o-issue-token"].forEach(function (id) { var o = $(id); if (o) o.remove(); });
+      if (noEndpoints) ["cmdk-o-copy-dev", "cmdk-o-issue-token"].forEach(function (id) { var o = $(id); if (o) o.remove(); });
       ["#cmdk-o-add-connection", "#cmdk .gw-empty__actions a"].forEach(function (sel) { var a = doc.querySelector(sel); if (a) a.setAttribute("href", "connection-new.html?state=first-run"); });
     }
-    if (state === "setup" && $("cl-manual-p")) $("cl-manual-p").hidden = true; // behind "Show manual setup"
+    if ($("cl-manual-p")) $("cl-manual-p").hidden = true; // behind "Show manual setup"
   }
 
   // Compact cards open in place. Hash links reveal the matching app before moving keyboard focus.
@@ -2181,7 +2219,7 @@
     var a = e.target.closest('a[href^="#cl-"]');
     if (a && a.getAttribute("href") === window.location.hash) { e.preventDefault(); route(); }
   });
-  if (!reviews) return; // first run: rows only
+  if (!reviews) return; // No endpoint: rows only.
 
   function count(el, n, text) {
     el.hidden = !n;

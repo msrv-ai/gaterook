@@ -99,8 +99,11 @@
           <div class="gw-card__actions">
             <button class="gw-btn gw-btn--primary" type="button" (click)="handoffSelected()">{{ desktop.aiPromptAvailable && appSelection()!.client !== 'antigravity' ? 'Open ' : 'Copy for ' }}{{ appSelection()!.name }}</button>
             @if (desktop.aiPromptAvailable && appSelection()!.client !== 'antigravity') { <button class="gw-btn" type="button" (click)="handoff('copy')">Copy prompt</button> }
+            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle #promptDetails="gwToggle" aria-controls="import-prompt-details">{{ promptDetails.expanded() ? 'Hide prompt' : 'Show prompt' }}<svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
           </div>
-          <gw-code-block id="import-prompt" lang="Prompt" [text]="prompt()" wrap copyLabel="import prompt" regionLabel="AI connection discovery prompt" />
+          <div id="import-prompt-details" hidden>
+            <gw-code-block id="import-prompt" lang="Prompt" [text]="prompt()" wrap copyLabel="import prompt" regionLabel="AI connection discovery prompt" />
+          </div>
         }
         <p class="gw-text-small gw-fg-muted" role="status">Waiting for the AI to submit its findings. GateRook opens the review when they arrive.</p>
         <div class="gw-card__actions"><button class="gw-btn" type="button" (click)="refresh()">Check for results</button>@if (!appConnecting()) { <a class="gw-btn gw-btn--ghost" routerLink="/connection-import">Start another import</a> }</div>

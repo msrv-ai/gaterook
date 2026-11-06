@@ -239,16 +239,19 @@ describe('Clients: first run and setup (kit ?state=first-run | setup)', () => {
     expect(firstConnection(firstRunOverview())).toBeNull();
   });
 
-  it('says in the header what comes first: the apps found and a connection; in setup the connection they will read', () => {
+  it('says in the header what comes first: an endpoint or AI setup; in setup the connection they will read', () => {
     const found = foundClients().clients;
     expect(stageDescription('first-run', found, null).text).toBe(
-      'Claude Desktop, Codex and Cursor are already on this computer. Add a connection first, so they have something to work with. Connect then shows the exact change before anything is written.',
+      'Claude Desktop, Codex and Cursor are already on this computer. Create an endpoint first, then connect your AI app. Connect shows the exact change before anything is written.',
     );
     expect(stageDescription('first-run', [found[1], found[3]], null).text).toBe(
-      'Codex is already on this computer. Add a connection first, so it has something to work with. Connect then shows the exact change before anything is written.',
+      'Codex is already on this computer. Create an endpoint first, then connect your AI app. Connect shows the exact change before anything is written.',
     );
     expect(stageDescription('first-run', noneFound().clients, null).text).toBe(
-      'Add a connection first, so your AI app has something to work with. Connect then shows the exact change before anything is written.',
+      'Create an endpoint first, then connect your AI app. Connect shows the exact change before anything is written.',
+    );
+    expect(stageDescription('first-run', found, null, true).text).toBe(
+      'Claude Desktop, Codex and Cursor are already on this computer. Connect your AI app to an endpoint to import connections with AI, or add connections later. Connect shows the exact change before anything is written.',
     );
     expect(stageDescription('setup', found, firstConnection(setupOverview()))).toEqual({
       text: 'Connect the AI app you use, and it can start reading dev-db. You see the exact change before anything is written, and Disconnect takes it back.',

@@ -61,8 +61,8 @@ export const SKELETON_DELAY_MS = 300;
  * works; the apps are quiet rows. Setup — a connection, no AI app yet — opens the app Overview's Connect names
  * (`#cl-<app>-t`) as one Connect review on top, its heading focused: what it can use (the connection, its tools, the
  * endpoint), what will change, "Connect <app>"; once connected here, "Check that it works" with the prompt to copy.
- * Manual setup is collapsed. First run — nothing set up — keeps the rows with
- * Connect unavailable and why, the header's Add connection as the page's only primary, and no manual setup.
+ * Manual setup is collapsed. First run keeps the same review flow when an endpoint exists, even without
+ * connections. Without an endpoint, Connect stays unavailable with a reason and an Endpoints link.
  */
 @Component({
   selector: 'gw-clients-page',
@@ -121,6 +121,12 @@ export class ClientsPage {
     const selected = endpoints.find((endpoint) => endpoint.slug === requested);
     return selected ? [selected, ...endpoints.filter((endpoint) => endpoint !== selected)] : endpoints;
   });
+  protected readonly canConnect = computed(() => this.endpoints().length > 0);
+  protected readonly connectUnavailable = computed(() => {
+    const endpoints = this.data.endpoints();
+    if (endpoints.error || endpoints.unavailable) return "Endpoints couldn't be loaded.";
+    return endpoints.value === null ? 'Loading endpoints…' : 'Create an endpoint first to connect your AI app.';
+  });
   protected readonly hand = computed(() => handTokens(this.data.tokens(), this.cards()));
   protected readonly scannedAt = computed(() => this.data.clients().value?.scannedAt ?? null);
 
@@ -132,7 +138,7 @@ export class ClientsPage {
   /** The header's description outside "in use". */
   protected readonly description = computed(() => {
     const st = this.stage();
-    return st === 'in-use' ? null : stageDescription(st, this.cards(), this.data.first());
+    return st === 'in-use' ? null : stageDescription(st, this.cards(), this.data.first(), this.canConnect());
   });
   /** Setup: the app whose Connect review is open on top (one at a time). */
   readonly review = signal<string | null>(null);
@@ -159,7 +165,7 @@ export class ClientsPage {
   /** The prompt "Check that it works" offers ("Show me the tables in dev-db"). */
   protected readonly prompt = computed(() => {
     const f = this.data.first();
-    return checkPrompt(f?.type ?? null, f?.name ?? null);
+    return f ? checkPrompt(f.type, f.name) : 'List the connections available through GateRook';
   });
   /** Manual setup remains available behind its disclosure. */
   protected readonly manualOpen = signal(false);
@@ -185,6 +191,7 @@ export class ClientsPage {
     // Arriving with an app's anchor (Overview's tiles and guide: `#cl-cu-t`): its review, row or card, once loaded.
     effect(() => {
       const f = this.fragment();
+      this.canConnect();
       if (!f || !this.data.loaded() || !this.stageKnown()) return;
       untracked(() => this.arrive(f));
     });
@@ -244,7 +251,7 @@ export class ClientsPage {
     if (this.none()) {
       // With no detected apps, a selected missing app keeps its installation card above the empty state.
       this.focus(null, client);
-    } else if (st === 'setup' && !card.links.length && card.status !== 'not-installed') {
+    } else if (st !== 'in-use' && this.canConnect() && !card.links.length && card.status !== 'not-installed') {
       this.review.set(client);
       this.focus(`${base}-s-t`);
     } else if (st !== 'in-use' && !card.links.length) {
@@ -266,7 +273,7 @@ export class ClientsPage {
 
   /** A row's Connect (setup): the same anchor again doesn't navigate, so the review opens here too. */
   protected openReview(card: ClientCard, e: MouseEvent): void {
-    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    if (!this.canConnect() || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
     this.review.set(card.client);
     this.focus(`${anchorBase(card.client)}-s-t`);
   }

@@ -834,7 +834,7 @@ Position in a short linear flow of 3–5 steps (Add connection: Choose type, Con
 
 [SCSS](scss/components/_stepper.scss)
 
-**Variants:** (default) horizontal from md (960px) with connectors filling the row, vertical below md; --vertical (always vertical: side rail, onboarding); --guide (first-run guide on Overview: always vertical, the label is an h3, __content holds the step's actions; actions of an upcoming step are aria-disabled with a reason).
+**Variants:** (default) horizontal from md (960px) with connectors filling the row, vertical below md; --vertical (always vertical: side rail, onboarding); --guide (first-run guide on Overview: always vertical, the label is an h3, __content holds the step's actions; actions wait only for their actual prerequisites).
 
 **Parts:** __step (<li>, carries data-state); __marker (24px circle, aria-hidden); __label; __description (choice made, or what failed); __content (--guide); __actions (--guide).
 
@@ -845,7 +845,7 @@ Position in a short linear flow of 3–5 steps (Add connection: Choose type, Con
 - data-state=upcoming: border-strong ring + muted number + secondary label
 - data-state=error: 2px danger ring + danger-subtle fill + x icon, danger description, sr-only ', failed', aria-current=step
 
-**Accessibility:** <ol aria-label="<flow name>">; markers are decorative; complete / failed are spoken through sr-only text and current through aria-current=step; never colour alone (icon, ring, weight). --guide: the label is a heading one level below the enclosing heading (h3 under a card h2); an upcoming step's actions are aria-disabled + aria-describedby → a visible reason.
+**Accessibility:** <ol aria-label="<flow name>">; markers are decorative; complete / failed are spoken through sr-only text and current through aria-current=step; never colour alone (icon, ring, weight). --guide: the label is a heading one level below the enclosing heading (h3 under a card h2). Unavailable actions use aria-disabled + aria-describedby → a visible reason. Independent setup remains available: an AI app can connect to an existing endpoint before any connections are added.
 
 ### `gw-paginator`
 
@@ -1417,7 +1417,7 @@ Cursor browser sign-in enables OAuth for the selected local endpoint and opens i
 - waiting for the app (Claude Desktop's install prompt): gw-status--checking 'Waiting for Claude Desktop', the primary keeps its label, aria-busy + aria-disabled, described by what to do in the app; the config-file fallback stays available
 - waiting for sign-in (Cursor, browser sign-in): gw-status--checking 'Waiting for Cursor'; show 'Continue in Cursor', Open in browser to retry, and Manage sign-in; GateRook has not written a config entry or created a managed file link
 - connected in the inline review: the card stays and ends with Check that it works (prompt in a gw-copy-field, Last call 'Waiting for the first request'); focus on the card's h3
-- compact row with an aria-disabled Connect and a visible reason under the list (first run); the row name is an h3.gw-text-ui hash target
+- compact row with Connect available when an endpoint exists, even when it has no connections; without an endpoint, aria-disabled Connect has a visible reason and an Endpoints link under the list; the row name is an h3.gw-text-ui hash target
 
 **Reference screens:**
 

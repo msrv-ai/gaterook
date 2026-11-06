@@ -182,6 +182,41 @@ describe('AI connection import review', () => {
     expect(page.error()).toContain('too long');
   });
 
+  it('keeps the full prompt collapsed with copy and app handoff available', async () => {
+    page.session.set(awaiting);
+    fixture.detectChanges(); await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    const disclosure = root.querySelector<HTMLButtonElement>('[aria-controls="import-prompt-details"]')!;
+    const details = root.querySelector<HTMLElement>('#import-prompt-details')!;
+    const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>('button'));
+    const copyPrompt = buttons.find(button => button.textContent?.trim() === 'Copy prompt')!;
+    const openApp = buttons.find(button => button.textContent?.trim() === 'Open Cursor')!;
+    expect(disclosure.type).toBe('button');
+    expect(disclosure.getAttribute('aria-expanded')).toBe('false');
+    expect(disclosure.textContent).toContain('Show prompt');
+    expect(details.hidden).toBe(true);
+    expect(copyPrompt.closest('[hidden]')).toBeNull();
+    expect(openApp.closest('[hidden]')).toBeNull();
+
+    copyPrompt.click(); await fixture.whenStable();
+    expect(copy).toHaveBeenCalledWith(connectionImportPrompt(awaiting));
+    openApp.click(); await fixture.whenStable();
+    expect(open).toHaveBeenCalledWith('cursor', connectionImportPrompt(awaiting));
+    expect(details.hidden).toBe(true);
+
+    disclosure.click(); fixture.detectChanges();
+    expect(disclosure.getAttribute('aria-expanded')).toBe('true');
+    expect(disclosure.textContent).toContain('Hide prompt');
+    expect(details.hidden).toBe(false);
+    expect(details.querySelector('pre')?.textContent).toBe(connectionImportPrompt(awaiting));
+    expect(details.querySelector('[role="region"]')?.getAttribute('tabindex')).toBe('0');
+    disclosure.click(); fixture.detectChanges();
+    expect(disclosure.getAttribute('aria-expanded')).toBe('false');
+    expect(details.hidden).toBe(true);
+    expect(api.commit).not.toHaveBeenCalled();
+    expect(connections.create).not.toHaveBeenCalled();
+  });
+
   it('requires app selection for the chosen endpoint and exposes only that app handoff', async () => {
     page.selectedClient.set(null);
     fixture.detectChanges(); await fixture.whenStable();
