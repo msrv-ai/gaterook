@@ -2733,7 +2733,7 @@
     setCurrent(id);
     var dlg = $(dlgId);
     if (window.gwIcons) window.gwIcons(dlg);
-    dlg.showModal();
+    window.gwShowDialog(dlg);
   }
   function fromHash() {
     var m = /^#event-(.+)$/.exec(location.hash);

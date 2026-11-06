@@ -28,6 +28,7 @@ export class GwToastTimer implements OnDestroy {
   private readonly el: HTMLElement = inject(ElementRef<HTMLElement>).nativeElement;
   private readonly toasts = inject(ToastService);
   readonly gwToastTimer = input.required<Toast>();
+  readonly gwToastHidden = input(false);
   private remaining = -1;
   private started = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -39,6 +40,12 @@ export class GwToastTimer implements OnDestroy {
       const t = this.gwToastTimer();
       if (this.remaining < 0 && t.timeout > 0) {
         this.remaining = t.timeout;
+        this.start();
+      }
+      if (this.gwToastHidden()) {
+        // Hiding for another modal can suppress pointer/focus leave events. Do not retain a stale pause.
+        this.hovered = false;
+        this.focused = false;
         this.start();
       }
     });
@@ -88,7 +95,8 @@ export class GwToastTimer implements OnDestroy {
 
 /**
  * `<gw-toast-region>`: the kit's `gw-toast-region` with the live toasts. While a modal dialog is open the region moves
- * into it (the rest of the document is inert then), and back when it closes — kit.js's `toastRegion()`.
+ * into it (the rest of the document is inert then), and back when it closes. Only feedback produced during this
+ * opening is visible inside the modal; earlier notifications keep their normal lifetime outside its decision.
  */
 @Component({
   selector: 'gw-toast-region',
@@ -103,7 +111,8 @@ export class GwToastTimer implements OnDestroy {
   },
   template: `
     @for (t of toasts.toasts(); track t.id) {
-      <div [class]="'gw-toast gw-toast--' + t.tone" [attr.role]="t.tone === 'danger' ? 'alert' : null" [gwToastTimer]="t">
+      <div [class]="'gw-toast gw-toast--' + t.tone" [attr.role]="t.tone === 'danger' ? 'alert' : null"
+        [hidden]="hidden(t)" [gwToastTimer]="t" [gwToastHidden]="hidden(t)">
         <svg [lucideIcon]="t.icon" class="gw-icon gw-toast__icon"></svg>
         <div class="gw-toast__content">
           @if (t.title) {
@@ -154,6 +163,11 @@ export class GwToastRegion {
   protected act(t: Toast, onClick?: () => void): void {
     onClick?.();
     this.toasts.dismiss(t.id);
+  }
+
+  protected hidden(t: Toast): boolean {
+    const scope = this.dialogs.scope();
+    return scope !== null && t.dialogScope !== scope;
   }
 }
 

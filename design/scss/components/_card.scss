@@ -24,6 +24,8 @@
 //                  aria-current / aria-checked / a check icon, never colour alone
 //   --dashed       "add new" placeholder card
 //   --muted        raised fill, no shadow: secondary info inside a page
+//   --invalid      danger edge for a blocking error; include an error message
+//                  and correction action, never colour alone
 // Gap between stacked cards: var(--gw-space-4). Cards never touch.
 // Header     wraps: below ~192px of heading beside the actions, the actions go
 //            under the heading. A header-only card keeps its bottom padding.
@@ -148,6 +150,12 @@
     background: var(--gw-color-bg-raised);
     border-color: var(--gw-color-border-subtle);
     box-shadow: none;
+  }
+
+  &--invalid,
+  &--invalid:hover {
+    border-color: var(--gw-color-danger-fg);
+    box-shadow: inset 0 0 0 var(--gw-border-width-default) var(--gw-color-danger-fg);
   }
 }
 

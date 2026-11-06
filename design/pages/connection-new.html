@@ -2153,7 +2153,7 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
     commentText.value = "";
     commentError(false);
     commentDlg._gwReturn = opener; // kit.js gives focus back to it when the dialog closes without saving
-    commentDlg.showModal();
+    window.gwShowDialog(commentDlg);
     if (window.gwIcons) window.gwIcons(commentDlg);
   }
   doc.getElementById("dlg-comment-form").addEventListener("submit", function (e) {

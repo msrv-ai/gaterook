@@ -53,9 +53,11 @@ class ApiExceptionHandler {
       case CONFLICT -> HttpStatus.CONFLICT;
       case UNPROCESSABLE -> HttpStatus.UNPROCESSABLE_CONTENT;
     };
-    ResponseEntity<ApiProblem> response = problem(status, e.title(), e.getMessage(), e.field());
-    return e.confirm() == null ? response : ResponseEntity.status(status).contentType(PROBLEM)
-        .body(response.getBody().withConfirm(e.confirm()));
+    ApiProblem body = e.errors().isEmpty() ? ApiProblem.field(e.title(), e.getMessage(), e.field())
+        : new ApiProblem("about:blank", e.title(), e.getMessage(), e.field(), e.errors().stream()
+            .map(error -> new ApiProblem.FieldError(error.field(), error.message())).toList());
+    return ResponseEntity.status(status).contentType(PROBLEM)
+        .body(e.confirm() == null ? body : body.withConfirm(e.confirm()));
   }
 
   @ExceptionHandler(ApiRequestException.class)

@@ -153,7 +153,7 @@
     } @else {
       <section class="gw-stack" aria-labelledby="import-review-title">
         <h2 class="gw-section__title" id="import-review-title" tabindex="-1">Choose connections to import</h2>
-        <p class="gw-text-small">Available settings are prepared for import. Choose Do not add to endpoint to skip a connection entirely, or open its settings to make changes. Incomplete connections are saved disabled; existing connections are never overwritten.</p>
+        <p class="gw-text-small">Available settings are prepared for import. Choose Skip import to skip a connection entirely, or open its settings to make changes. Incomplete connections are saved disabled; existing connections are never overwritten.</p>
         @if (session()!.manifest!.warnings.length) {
           <div class="gw-stack gw-stack--sm">
             <div class="gw-alert gw-alert--warning gw-alert--compact">
@@ -170,7 +170,8 @@
           <div class="gw-card"><div class="gw-empty"><h3 class="gw-empty__title">No importable connections</h3><p class="gw-empty__text">No supported connection candidates were found. Review the analysis notes for missing access or unresolved configuration.</p><div class="gw-empty__actions"><a class="gw-btn" routerLink="/connection-import">Start a new analysis</a><a class="gw-btn" routerLink="/connections/new">Add a connection manually</a></div></div></div>
         }
         @for (candidate of supportedCandidates(); track candidate.id) {
-          <section class="gw-card" [attr.aria-labelledby]="'candidate-' + candidate.id">
+          @let issue = candidateIssues().get(candidate.id);
+          <section class="gw-card" [id]="'import-candidate-' + candidate.id" [class.gw-card--invalid]="!!issue && !issue.warning" [attr.aria-labelledby]="'candidate-' + candidate.id" [attr.aria-describedby]="issue ? 'import-candidate-issue-' + candidate.id : null">
             <header class="gw-card__header"><div class="gw-card__heading">
               <h3 class="gw-card__title" [id]="'candidate-' + candidate.id"><span class="gw-mono">{{ drafts().get(candidate.id)?.name ?? candidate.name }}</span><span class="gw-env" [class]="'gw-env--' + (drafts().get(candidate.id)?.env ?? candidate.env)">{{ drafts().get(candidate.id)?.env ?? candidate.env }}</span></h3>
               <p class="gw-card__description">{{ candidate.type }} · {{ drafts().get(candidate.id)?.allowIncomplete ? 'Available settings kept; incomplete setup will stay disabled' : drafts().has(candidate.id) ? 'Configured for import' : candidate.supported ? 'Needs review' : 'Separate setup required' }}</p>
@@ -179,14 +180,14 @@
                 <div class="gw-field">
                   <label class="gw-field__label" [for]="'import-destination-' + candidate.id">Import to<span class="gw-sr-only"> for {{ drafts().get(candidate.id)?.name ?? candidate.name }}</span></label>
                   <div class="gw-card__actions">
-                    <div><select class="gw-select" [id]="'import-destination-' + candidate.id" [disabled]="busy()" (change)="destinationChanged(candidate, $event)" aria-describedby="import-destination-hint">
-                      <option value="" [selected]="!destinations().has(candidate.id)">Do not add to endpoint</option>
+                    <div><select class="gw-select" [id]="'import-destination-' + candidate.id" [disabled]="busy()" (change)="destinationChanged(candidate, $event)" [attr.aria-invalid]="issue?.field === 'endpoint' ? 'true' : null" [attr.aria-describedby]="'import-destination-hint' + (issue?.field === 'endpoint' ? ' import-candidate-issue-' + candidate.id : '')">
+                      <option value="" [selected]="!destinations().has(candidate.id)">Skip import</option>
                       @if (destinations().get(candidate.id); as destination) { @if (!eligibleEndpointSlugs().has(destination)) { <option [value]="destination" selected disabled>{{ destination }} · Unavailable</option> } }
                       @for (endpoint of eligibleEndpoints(); track endpoint.slug) { <option [value]="endpoint.slug" [selected]="endpoint.slug === destinations().get(candidate.id)">{{ endpoint.slug }} · {{ endpoint.env }}</option> }
                       <option value="__create">Create endpoint…</option>
                     </select></div>
                     <span class="gw-tooltip gw-tooltip--bottom gw-tooltip--end">
-                      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [disabled]="busy()" [attr.aria-labelledby]="'import-settings-tip-' + candidate.id" (click)="configure(candidate)"><svg lucideIcon="settings" class="gw-icon"></svg></button>
+                      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [disabled]="busy()" [attr.aria-labelledby]="'import-settings-tip-' + candidate.id" [attr.aria-describedby]="issue?.field === 'settings' ? 'import-candidate-issue-' + candidate.id : null" (click)="configure(candidate)"><svg lucideIcon="settings" class="gw-icon"></svg></button>
                       <span class="gw-tooltip__bubble" role="tooltip" [id]="'import-settings-tip-' + candidate.id">Edit settings for {{ candidate.name }}</span>
                     </span>
                   </div>
@@ -194,6 +195,17 @@
               }
             </div></header>
             <div class="gw-card__body gw-stack">
+              @if (issue) {
+                <div class="gw-alert" [class.gw-alert--warning]="issue.warning" [class.gw-alert--danger]="!issue.warning" role="alert" [id]="'import-candidate-issue-' + candidate.id" tabindex="-1">
+                  <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+                  <div class="gw-alert__content">
+                    <p class="gw-alert__title">{{ issue.warning ? 'Permissions warning' : issue.field === 'endpoint' ? 'Choose another endpoint' : 'Review connection settings' }}</p>
+                    <p class="gw-alert__body">{{ issue.text }}</p>
+                    @if (issue.warning) { <p class="gw-alert__body">You can import with these permissions using Import with warnings below.</p> }
+                    @if (issue.field === 'settings') { <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" [disabled]="busy()" (click)="configure(candidate)">Review settings</button></div> }
+                  </div>
+                </div>
+              }
               @if (candidate.evidence.length) {
                 <div class="gw-stack gw-stack--sm">
                   <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [attr.aria-controls]="'import-evidence-' + candidate.id">Evidence <span class="gw-counter">{{ candidate.evidence.length }}</span><svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg><span class="gw-sr-only"> for {{ candidate.name }}</span></button></div>
@@ -210,14 +222,11 @@
           </section>
         }
         @if (supportedCandidates().length) {
-          <p class="gw-text-small gw-fg-muted" id="import-destination-hint">Choose a destination for each connection. Do not add to endpoint skips the connection entirely; it will not be created. Connections become available to their endpoint's AI apps under its normal policies. GateRook checks environment compatibility before saving.</p>
+          <p class="gw-text-small gw-fg-muted" id="import-destination-hint">Choose a destination for each connection. Skip import skips the connection entirely; it will not be created. Connections become available to their endpoint's AI apps under its normal policies. GateRook checks environment compatibility before saving.</p>
           <div class="gw-field"><label class="gw-field__label" for="import-reason">Reason <span class="gw-field__optional">Optional</span></label><input class="gw-input" id="import-reason" maxlength="500" [disabled]="busy()" [value]="reason()" (input)="reason.set(value($event))"></div>
           <p class="gw-text-small" role="status">{{ selected().size }} selected · {{ selectedDrafts().length }} prepared. @if (selected().size > selectedDrafts().length) {Open settings for the remaining connections to review their names and available configuration.} @if (incompleteAllowed()) {{{ incompleteAllowed() }} may be saved disabled if setup is missing.}</p>
-          @if (confirmation(); as confirm) {
-            <div class="gw-alert gw-alert--warning" role="alert"><svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content"><p class="gw-alert__title">Review access for <span class="gw-mono">{{ confirm.name }}</span></p><p class="gw-alert__body">{{ confirm.text }}</p><div class="gw-alert__actions"><button class="gw-btn" type="button" [disabled]="busy()" (click)="confirmation.set(null)">Cancel</button><button class="gw-btn gw-btn--primary" type="button" [disabled]="busy()" (click)="confirmImport()">Keep these permissions and import</button></div></div></div>
-          } @else {
-            <div class="gw-form__actions"><button class="gw-btn gw-btn--primary" type="button" [disabled]="busy() || !ready()" (click)="commit()">{{ busy() ? 'Importing…' : 'Import selected connections' }}</button></div>
-          }
+          @if (confirmation()) { <p class="gw-text-small">Review the permissions warnings above. You can keep the current settings and import.</p> }
+          <div class="gw-form__actions"><button class="gw-btn gw-btn--primary" type="button" [disabled]="busy() || !ready()" (click)="confirmation() ? confirmImport() : commit()">{{ busy() ? 'Importing…' : confirmation() ? 'Import with warnings' : 'Import selected connections' }}</button></div>
         }
       </section>
     }

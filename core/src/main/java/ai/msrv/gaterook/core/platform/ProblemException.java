@@ -1,5 +1,6 @@
 package ai.msrv.gaterook.core.platform;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -20,13 +21,22 @@ public class ProblemException extends RuntimeException {
   private final String title;
   private final String field;
   private final String confirm;
+  private final List<FieldError> errors;
+
+  /** Related actionable messages, each tied to a field of the same request. */
+  public record FieldError(String field, String message) {}
 
   public ProblemException(Kind kind, String title, String detail, String field, String confirm) {
+    this(kind, title, detail, field, confirm, List.of());
+  }
+
+  public ProblemException(Kind kind, String title, String detail, String field, String confirm, List<FieldError> errors) {
     super(detail);
     this.kind = Objects.requireNonNull(kind, "kind");
     this.title = Objects.requireNonNull(title, "title");
     this.field = field;
     this.confirm = confirm;
+    this.errors = List.copyOf(errors);
   }
 
   public static ProblemException notFound(String title, String detail) {
@@ -61,6 +71,8 @@ public class ProblemException extends RuntimeException {
   public String field() {
     return field;
   }
+
+  public List<FieldError> errors() { return errors; }
 
   public String confirm() {
     return confirm;

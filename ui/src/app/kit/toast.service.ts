@@ -1,4 +1,5 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
+import { DialogStack } from './dialog';
 
 export type ToastTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'brand';
 
@@ -20,6 +21,8 @@ export interface ToastOptions {
 
 export interface Toast {
   readonly id: number;
+  /** The dialog opening that produced this feedback; null means the main page. */
+  readonly dialogScope: number | null;
   readonly title: string | null;
   readonly body: string | null;
   readonly tone: ToastTone;
@@ -53,6 +56,7 @@ export function normalizeToastDurationSeconds(value: unknown): number {
  */
 @Injectable({ providedIn: 'root' })
 export class ToastService {
+  private readonly dialogs = inject(DialogStack);
   private next = 1;
   private durationSeconds = DEFAULT_TOAST_DURATION_SECONDS;
   private readonly list = signal<readonly Toast[]>([]);
@@ -69,6 +73,7 @@ export class ToastService {
     const actions = opts.actions ?? [];
     const toast: Toast = {
       id: this.next++,
+      dialogScope: this.dialogs.scope(),
       title: opts.title ?? null,
       body: opts.body ?? null,
       tone,

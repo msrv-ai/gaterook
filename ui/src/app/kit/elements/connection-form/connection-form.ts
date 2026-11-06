@@ -562,7 +562,7 @@ export class GwConnectionForm {
       options.push({ kind, store: reference.store ?? null,
         title: reference.store ? `${SHORT_TITLES[kind] ?? kindTitle(kind)} · ${reference.store}` : kindTitle(kind),
         detail: null, available: false,
-        reason: reference.store ? `${reference.store} is not connected. Connect it in Secrets or choose another source.`
+        reason: reference.store ? `The reference names ${reference.store}, but no connected store matches this name. Connect the intended store in Secrets or choose another source.`
           : `No ${kindTitle(kind)} is connected. Connect one in Secrets or choose another source.` });
     }
     return options;

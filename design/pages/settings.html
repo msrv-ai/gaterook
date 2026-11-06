@@ -2266,7 +2266,7 @@
     callers.addEventListener("click", function (e) {
       if (callers.checked) return; // turning it on: applies at once (change → toast)
       e.preventDefault(); // keeps it on until the dialog is confirmed
-      anyDlg.showModal();
+      window.gwShowDialog(anyDlg);
     });
     callers.addEventListener("change", syncCallers);
     anyDlg.addEventListener("close", function () {
