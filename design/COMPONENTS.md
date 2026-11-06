@@ -1427,7 +1427,7 @@ Cursor browser sign-in enables OAuth for the selected local endpoint and opens i
 
 ### `connection-form`
 
-The schema-driven Configure step of Add connection (PostgreSQL demo), also the form of connection-new ?duplicate=<name> (settings copied, credentials never) and ?edit=<name> (secret stored: Replace / Rotate, or a reference). It has four gw-form sections: Connection (name slug, host, port, database, SSL mode); Credentials (User, plus a secret source picker of four gw-choice-cards that switches the gw-secret control: Encrypted here, Vault or OpenBao, GCP SM, AWS SM; with several Vaults connected each is a card of its own, 'Vault · vault-stage' with its address, and the references go to the one chosen; with a store as the source, a 'Read the user from Vault' gw-checkbox turns a login's User into a reference to the same secret); Environment and safety (dev / stage / prod cards with gw-env, where prod shows the stricter defaults: read-only transactions, row limit 100, statement timeout 3 s, no DDL, approval timeout 10 min, a comment required to approve); and Advanced (a disclosure with an optional statement timeout — empty means the environment's one policy value —, pool size and a schema allowlist as tags). A Test connection panel follows with idle, testing, success (detected permissions, write grant flagged) and failure states.
+The schema-driven Configure step of Add connection (PostgreSQL demo), also the form of connection-new ?duplicate=<name> (settings copied, credentials never) and ?edit=<name> (secret stored: Replace / Rotate, or a reference). It has four gw-form sections: Connection (name slug, host, port, database, SSL mode); Credentials (User and the secret, each a gw-input-group whose first part is its source menu, a gw-input-group__addon with a gw-menu listbox: Text, typed here, the secret encrypted with the master key, or a connected store, Vault or OpenBao, GCP SM, AWS SM, with several Vaults one option each, 'Vault · vault-stage' with its address; a store puts its scheme in front of the value, vault://, and binds the reference to it, and a value typed with a scheme is a reference too, read at call time from the only store of its kind or from the first, by name, that has it; any text field takes a reference typed into it, never the host or URL the credentials go to); Environment and safety (dev / stage / prod cards with gw-env, where prod shows the stricter defaults: read-only transactions, row limit 100, statement timeout 3 s, no DDL, approval timeout 10 min, a comment required to approve); and Advanced (a disclosure with an optional statement timeout — empty means the environment's one policy value —, pool size and a schema allowlist as tags). A Test connection panel follows with idle, testing, success (detected permissions, write grant flagged) and failure states.
 
 The edit page places the global access switch in `gw-page-header__meta`, outside the settings form. It applies immediately across all endpoints and preserves unsaved fields. Off shows a neutral **Disabled by you** status and an explanatory alert. Save waits for access updates; refreshing the saved version must not replace the draft or accept unrelated settings changes. Add and Duplicate have no access switch until the connection exists.
 
@@ -1464,8 +1464,8 @@ Redis also shows Connection type in the main Connection section, with Without TL
 
 **States and behavior:**
 
-- new connection, Encrypted here (gw-secret empty, reveal only while typing a new value)
-- reference source, new (mono reference input + Test reference); Vault loads accessible paths and key names automatically into one autocomplete. Typing filters complete path#key suggestions, and choosing one inserts the reference. Click or ArrowDown opens suggestions; arrow keys move, Enter chooses, and Escape or Tab closes while focus stays in the input. Loading, empty, and partial-permission states stay beside the field; Refresh list retries discovery. Values are never shown and manual references remain available.
+- new connection, Text (gw-secret empty with its source menu first: the password encrypted here, reveal only while typing a new value)
+- a store picked in the field's menu, or a scheme typed (mono reference input with the menu naming the store, + Test reference); Vault loads accessible paths and key names automatically into one autocomplete. Typing filters complete path#key suggestions, and choosing one inserts the reference. Click or ArrowDown opens suggestions; arrow keys move, Enter chooses, and Escape or Tab closes while focus stays in the input. Loading, empty, and partial-permission states stay beside the field; Refresh list retries discovery. Values are never shown and manual references remain available.
 - secret reference, tested (gw-secret reference well, Vault KV, stage-db)
 - stored password in the edit view (gw-secret stored: Encrypted · version 3, Replace / Rotate, no reveal)
 - Rotate unavailable (a connector that can't set a value at the source, cache-redis): aria-disabled with the reason under the field
@@ -1481,8 +1481,8 @@ Redis also shows Connection type in the main Connection section, with Without TL
 - validation error after submit
 - duplicate (?duplicate=<name>): wizard from Configure, settings copied, name <name>-copy, credentials empty + info alert 'not copied'
 - edit (?edit=<name>): health stat with sparkline, settings with gw-secret stored / reference, 'Used by' table (one row per tool, endpoints with immediate Off / Read only / Approval / Bypass menus in one column), an Endpoint selector with All endpoints when several and Set all to… including Restore defaults, per-endpoint busy/error states and skipped-tool reporting, Save changes ('Applies from the next call'), Delete connection (danger confirm)
-- first run (connection-new ?state=first-run): Encrypted here preselected, Secret source behind 'Use a secret manager instead (Vault, GCP, AWS)' (__toggle placed before the fieldset), plain-words section descriptions
-- several Vaults: a source card per Vault (title 'Vault · <name>', its address in the description); User as a Vault reference with 'Read the user from Vault' checked, next to the password's reference
+- first run (connection-new ?state=first-run): each credential starts as Text, the password encrypted on this computer, its menu still offering the stores; plain-words section descriptions
+- several Vaults: each field's menu lists every Vault ('Vault · <name>' with its address) and the button names the one picked; User and password both read from vault-stage; without a pick, each Vault is asked in turn, as the hint says
 
 **Reference screens:**
 
@@ -2135,14 +2135,14 @@ Press <kbd class="gw-kbd">⌘</kbd><kbd class="gw-kbd">K</kbd> to search.
 
 ```html
 <fieldset class="gw-field">
-  <legend class="gw-field__label">Secret source</legend>
+  <legend class="gw-field__label">Environment</legend>
   <div class="gw-grid gw-grid--3">
     <label class="gw-choice-card">
-      <input class="gw-choice-card__input" type="radio" name="src" value="vault" aria-labelledby="src-vault-t" aria-describedby="src-vault-d">
-      <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="vault"></i></span>
-      <span class="gw-choice-card__title" id="src-vault-t">Vault</span>
-      <span class="gw-choice-card__description" id="src-vault-d">Resolve a vault:// reference at call time.</span>
-      <span class="gw-choice-card__meta">KV v2</span>
+      <input class="gw-choice-card__input" type="radio" name="env" value="prod" aria-labelledby="env-prod-t" aria-describedby="env-prod-d">
+      <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="shield-alert"></i></span>
+      <span class="gw-choice-card__title" id="env-prod-t">Production</span>
+      <span class="gw-choice-card__description" id="env-prod-d">Real data. Read-only by default, stricter limits.</span>
+      <span class="gw-choice-card__meta">Turns on stricter defaults</span>
     </label>
   </div>
 </fieldset>

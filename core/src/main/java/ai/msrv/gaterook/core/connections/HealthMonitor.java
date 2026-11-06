@@ -239,7 +239,14 @@ public class HealthMonitor implements ApplicationListener<ApplicationReadyEvent>
         .taint(taint).build();
     HealthResult result;
     try (var resolver = secrets.resolver(cfg, taint)) {
-      Future<HealthResult> f = workers.submit(() -> connector.health(cfg, resolver, ctx));
+      Future<HealthResult> f = workers.submit(() -> {
+        try {
+          return connector.health(ConnectionTexts.fill(cfg, registry.manifest(cfg.type()).orElse(null), resolver),
+              resolver, ctx);
+        } catch (ai.msrv.gaterook.connector.api.SecretUnavailableException e) {
+          return HealthResult.unreachable(e.getMessage());
+        }
+      });
       try {
         result = f.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
       } catch (TimeoutException e) {

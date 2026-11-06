@@ -292,7 +292,9 @@
       item.setAttribute(attrName, "true");
       var valueSlot = openMenu.trigger.querySelector("[data-gw-menu-value]");
       if (valueSlot) valueSlot.textContent = (item.querySelector(".gw-menu__label") || item).textContent.trim();
+      var sourced = item.hasAttribute("data-gw-scheme") ? openMenu.trigger : null;
       closeMenu(true);
+      if (sourced) pickSource(sourced, item);
     } else if (e.target.closest('.gw-menu [role="menuitem"]') && openMenu) {
       closeMenu(true);
     }
@@ -1094,6 +1096,53 @@
     });
   }
 
+  // ───────────────────────── Field source menu ─────────────────────────
+  // A credential field's menu (connection-form "Credentials"): where its value comes from. A store puts its scheme in
+  // front of the value (another store's scheme gives way; a typed secret is never kept in a reference, where it would
+  // show); Text empties a reference. The button names the source; the value field follows it.
+  var SOURCE_SCHEMES = ["vault://", "gcp-sm://", "aws-sm://"];
+  function sourceScheme(value) {
+    var start = value.replace(/^\s+/, "").toLowerCase();
+    return SOURCE_SCHEMES.filter(function (scheme) { return start.indexOf(scheme) === 0; })[0] || "";
+  }
+  function pickSource(trigger, item) {
+    var group = trigger.parentElement;
+    var input = group.querySelector(".gw-input");
+    if (!input) return;
+    var scheme = item.getAttribute("data-gw-scheme");
+    var current = sourceScheme(input.value);
+    var secret = input.hasAttribute("data-gw-secret-input");
+    if (!scheme) { if (current) input.value = ""; }
+    else if (current !== scheme) input.value = scheme + (current ? input.value.trim().slice(current.length) : secret ? "" : input.value.trim());
+    showSource(trigger, input, item.getAttribute("data-gw-short") || "Text");
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+  /** The button's word and the field's look: a reference is shown as typed, in mono; a secret value is hidden. */
+  function showSource(trigger, input, word) {
+    var reference = !!sourceScheme(input.value);
+    trigger.firstChild.nodeValue = word;
+    trigger.setAttribute("aria-label", trigger.getAttribute("aria-label").replace(/: .*$/, ": " + word));
+    input.classList.toggle("gw-input--mono", reference || input.hasAttribute("data-gw-mono"));
+    if (input.hasAttribute("data-gw-secret-input")) {
+      input.type = reference ? "text" : "password";
+      var reveal = input.parentElement.querySelector("[data-gw-reveal]");
+      if (reveal) reveal.hidden = reference;
+    }
+  }
+  function initSourceMenus() {
+    doc.querySelectorAll(".gw-menu-host > [data-gw-source-menu]").forEach(function (trigger) {
+      var input = trigger.parentElement.querySelector(".gw-input");
+      if (!input) return;
+      // A reference typed by hand: the button follows the scheme.
+      input.addEventListener("input", function () {
+        var scheme = sourceScheme(input.value);
+        var option = scheme && doc.getElementById(trigger.getAttribute("aria-controls")).querySelector('[data-gw-scheme="' + scheme + '"]');
+        showSource(trigger, input, scheme ? (option && option.getAttribute("data-gw-kind")) || scheme.slice(0, -3) : "Text");
+      });
+    });
+  }
+
   // ───────────────────────── Vault reference demo ─────────────────────────
   // Fixtures contain complete reference names only. The application discovers accessible KV keys in the core.
   function initVaultPickers() {
@@ -1145,9 +1194,10 @@
           option.appendChild(label);
           option.addEventListener("mousedown", function (event) { event.preventDefault(); });
           option.addEventListener("click", function () {
+            // The field keeps its scheme: a suggestion is the whole reference.
             var currentPath = ref.value.replace(/^vault:\/\//, "").split(/[?#]/)[0];
             var version = ref.value.match(/\?version=([1-9][0-9]*)/);
-            ref.value = version && currentPath === name.split("#")[0] ? name.replace("#", "?version=" + version[1] + "#") : name;
+            ref.value = "vault://" + (version && currentPath === name.split("#")[0] ? name.replace("#", "?version=" + version[1] + "#") : name);
             ref.dispatchEvent(new Event("input", { bubbles: true }));
             ref.dispatchEvent(new Event("change", { bubbles: true }));
             close();
@@ -1214,7 +1264,6 @@
         }
       }
       ref.addEventListener("input", function () {
-        ref.value = ref.value.replace(/^vault:\/\//, "");
         active = -1;
         if (!loaded && !busy) load();
         show();
@@ -1263,6 +1312,7 @@
     initSingleKeys();
     initToastDuration();
     initVaultPickers();
+    initSourceMenus();
     tabFromHash();
   }
   if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", boot); else boot();

@@ -607,7 +607,7 @@ export function isVisible(node: SchemaNode, model: JsonValue): boolean {
  */
 export function inUse(form: CompiledForm, path: readonly string[], model: JsonValue, filled: ReadonlySet<string> = new Set()): boolean {
   return form.all.some((n) => n.kind !== 'object' && n.path.length > path.length && path.every((k, i) => n.path[i] === k)
-    && isVisible(n, model) && (n.kind === 'secret' ? filled.has(n.pointer) : ownValue(n, getAt(model, n.path))));
+    && isVisible(n, model) && (filled.has(n.pointer) || (n.kind !== 'secret' && ownValue(n, getAt(model, n.path)))));
 }
 
 function ownValue(node: SchemaNode, v: JsonValue): boolean {

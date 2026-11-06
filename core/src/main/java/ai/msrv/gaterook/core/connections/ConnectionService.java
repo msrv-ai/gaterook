@@ -227,7 +227,7 @@ public class ConnectionService {
     ConnectorManifest manifest = usableType(type);
     ObjectNode cleaned = requestConfig(config);
     Map<String, SecretInput> given = checkSecrets(manifest.configSchema(), SecretFields.templates(
-        manifest.configSchema()), newSecrets, field -> false);
+        manifest.configSchema()), newSecrets);
     Set<String> dynamic = new LinkedHashSet<>();
     given.forEach((field, input) -> { if (!input.isLocal() && input.dynamic()) dynamic.add(field); });
     validate(manifest, cleaned, given.keySet(), dynamic, env, false);
@@ -255,7 +255,7 @@ public class ConnectionService {
       ConnectorManifest manifest = usableType(type);
       ObjectNode cleaned = requestConfig(config);
       List<String> templates = SecretFields.templates(manifest.configSchema());
-      Map<String, SecretInput> given = checkSecrets(manifest.configSchema(), templates, newSecrets, field -> false);
+      Map<String, SecretInput> given = checkSecrets(manifest.configSchema(), templates, newSecrets);
       Set<String> dynamic = new LinkedHashSet<>();
       given.forEach((field, input) -> { if (!input.isLocal() && input.dynamic()) dynamic.add(field); });
       validate(manifest, cleaned, given.keySet(), dynamic, env, false);
@@ -266,7 +266,7 @@ public class ConnectionService {
             : input));
         requireNoDanger(name, tester.getObject().testDraft(type, env, cleaned, copies, null, null).result());
       }
-      return persistCreation(name, type, env, cleaned, given, manifest, reason, null);
+      return persistCreation(name, type, env, cleaned, withStores(given), manifest, reason, null);
     } finally {
       if (newSecrets != null) {
         newSecrets.values().forEach(SecretInput::clear);
@@ -324,7 +324,7 @@ public class ConnectionService {
         throw ProblemException.unprocessable("Use secret fields", "Credentials must be supplied separately from settings.", "/config");
       }
     }
-    Map<String, SecretInput> given = checkSecrets(manifest.configSchema(), secretFields, newSecrets, field -> false);
+    Map<String, SecretInput> given = checkSecrets(manifest.configSchema(), secretFields, newSecrets);
     Set<String> dynamic = new LinkedHashSet<>();
     given.forEach((field, input) -> { if (input.dynamic()) dynamic.add(field); });
     validate(manifest, cleaned, given.keySet(), dynamic, env, true, PartialConnectionSchema.relax(manifest.configSchema()));
@@ -345,12 +345,12 @@ public class ConnectionService {
       ConnectorManifest manifest = usableType(type);
       ObjectNode cleaned = PartialConnectionSchema.available(requestConfig(config));
       Map<String, SecretInput> given = checkSecrets(manifest.configSchema(), SecretFields.templates(
-          manifest.configSchema()), newSecrets, field -> false);
+          manifest.configSchema()), newSecrets);
       ObjectNode setup = JsonNodeFactory.instance.objectNode().put("setupRequired", true);
       var fields = setup.putArray("setupMissingFields");
       java.util.stream.Stream.concat(required.stream(), missing.stream()).distinct().limit(50).forEach(fields::add);
       setup.set("setupSources", sources == null ? JsonNodeFactory.instance.arrayNode() : sources.deepCopy());
-      return persistCreation(name, type, env, cleaned, given, manifest, reason, setup);
+      return persistCreation(name, type, env, cleaned, withStores(given), manifest, reason, setup);
     } finally {
       if (newSecrets != null) newSecrets.values().forEach(SecretInput::clear);
     }
@@ -375,10 +375,9 @@ public class ConnectionService {
       requireVerified(current);
       ConnectorManifest manifest = usableType(current.config().type());
       boolean completing = needsSetup(current.config());
-      // A draft completed with a user from a store may already hold that store's password reference.
+      // New secrets and text fields read from a store join an edit; a stored one changes through its Secrets control.
       Map<String, SecretInput> given = checkSecrets(manifest.configSchema(), SecretFields.templates(
-          manifest.configSchema()), newSecrets, referenceSecretFields(current.secretIds())::contains);
-      if (!completing && !given.isEmpty()) throw ProblemException.unprocessable("Use secret replacement", "Replace existing credentials through the Secrets controls.", "/secrets");
+          manifest.configSchema()), newSecrets);
       for (String field : given.keySet()) {
         if (current.secretIds().containsKey(field)) throw ProblemException.unprocessable("Use secret replacement", "Replace an existing credential through its Secrets control.", secretPointer(field));
       }
@@ -388,11 +387,18 @@ public class ConnectionService {
           if (!SchemaPointers.values(cleaned, field).isEmpty()) throw ProblemException.unprocessable("Use secret fields", "Credentials must be supplied separately from settings.", "/config");
         }
       }
-      // The secrets stay: their placeholders move into the new config wherever their field still has a place.
+      // The secrets stay: their placeholders move into the new config wherever their field still has a place. A text
+      // field read from a store that is typed now keeps the typed value, and its reference goes.
       ObjectNode next = cleaned.deepCopy();
       Map<String, String> dropped = new LinkedHashMap<>();
+      List<String> secretTemplates = SecretFields.templates(manifest.configSchema());
+      List<String> texts = SecretFields.textTemplates(manifest.configSchema());
       current.secretIds().forEach((field, id) -> {
-        if (!SecretFields.parentExists(next, field) || !SecretFields.set(next, field, SecretFields.placeholder(id))) {
+        JsonNode typed = cleaned.at(field);
+        boolean retyped = !SecretFields.matches(secretTemplates, field) && SecretFields.matches(texts, field)
+            && typed.isString() && !typed.asString().isBlank();
+        if (retyped || !SecretFields.parentExists(next, field)
+            || !SecretFields.set(next, field, SecretFields.placeholder(id))) {
           dropped.put(field, id);
         }
       });
@@ -412,6 +418,7 @@ public class ConnectionService {
           }
         }
       }
+      Map<String, SecretInput> bound = withStores(given);
       // Shown and recorded without a key an MCP server's URL may carry.
       Optional<String> newTarget = ConnectionTargets.changedTarget(current.config().config(), cleaned).map(masker::url);
       if (newTarget.isPresent() && !current.secretIds().isEmpty() && !confirmed(confirm, CONFIRM_NEW_HOST)) {
@@ -423,7 +430,7 @@ public class ConnectionService {
       if (env == Env.PROD && !confirmed(confirm, CONFIRM_DANGER)
           && (completing || current.config().env() != Env.PROD || !next.equals(current.config().config()))) {
         Map<String, SecretInput> copies = new LinkedHashMap<>();
-        given.forEach((field, input) -> copies.put(field, input.isLocal() ? SecretInput.local(input.value().clone()) : input));
+        bound.forEach((field, input) -> copies.put(field, input.isLocal() ? SecretInput.local(input.value().clone()) : input));
         try {
           requireNoDanger(name, tester.getObject().testDraft(current.config().type(), env, cleaned, copies, name,
               newTarget.isPresent() ? CONFIRM_NEW_HOST : null).result());
@@ -449,7 +456,7 @@ public class ConnectionService {
             throw ProblemException.unprocessable("Can't change the environment", problem.get(), "/env");
           }
         }
-        for (Map.Entry<String, SecretInput> entry : given.entrySet()) {
+        for (Map.Entry<String, SecretInput> entry : bound.entrySet()) {
           SecretInput input = entry.getValue();
           String secretName = uniqueSecretName(name, entry.getKey(), cleaned);
           SecretInfo info = input.isLocal()
@@ -792,34 +799,41 @@ public class ConnectionService {
   }
 
   /**
-   * The secrets of a request: each secret field with a value or a reference, and the user of a login read from a
-   * store ({@link SecretFields#loginUserTemplates}): a reference only, next to a password that a store holds too.
+   * The secrets of a request: each secret field with a value or a reference, and each text field read from a store
+   * ({@link SecretFields#textTemplates}, a login's user among them): a reference only, as its typed value belongs in
+   * the config.
    *
-   * @param templates       the type's secret fields
-   * @param storedReference whether a field the request leaves out reads a store already (a stored reference of the
-   *                        connection a draft edits)
+   * @param templates the type's secret fields
    */
   static Map<String, SecretInput> checkSecrets(JsonNode schema, List<String> templates,
-      Map<String, SecretInput> given, java.util.function.Predicate<String> storedReference) {
+      Map<String, SecretInput> given) {
     Map<String, SecretInput> out = new LinkedHashMap<>();
     if (given == null) {
       return out;
     }
     List<String> users = SecretFields.loginUserTemplates(schema);
+    List<String> texts = SecretFields.textTemplates(schema);
     for (Map.Entry<String, SecretInput> e : given.entrySet()) {
       String field = secretPointer(e.getKey());
-      boolean user = SecretFields.matches(users, e.getKey());
-      if (!user && !SecretFields.matches(templates, e.getKey())) {
+      boolean text = !SecretFields.matches(templates, e.getKey()) && SecretFields.matches(texts, e.getKey());
+      String key = SecretFields.unescape(e.getKey().substring(e.getKey().lastIndexOf('/') + 1));
+      if (!text && ConnectionTargets.isTargetKey(key)) {
+        throw ProblemException.unprocessable("Type the " + key, "Type it into the form: where a connection sends "
+            + "its credentials is never read from a store.", field);
+      }
+      if (!text && !SecretFields.matches(templates, e.getKey())) {
         throw ProblemException.unprocessable("Not a secret field", e.getKey() + " is not a secret field of this "
-            + "connector.", field);
+            + "connector, nor a text field a store can hold.", field);
       }
       SecretInput input = e.getValue();
       if (input == null || (!input.isLocal() && input.reference() == null)) {
         throw ProblemException.unprocessable("Secret missing", "Enter a value for " + e.getKey() + ".", field);
       }
-      if (user && (input.isLocal() || input.dynamic())) {
-        throw ProblemException.unprocessable("Type the user", "Type the user into the form, or read it from a "
-            + "store with a reference such as vault://kv/prod/db#username.", field);
+      if (text && (input.isLocal() || input.dynamic())) {
+        boolean user = SecretFields.matches(users, e.getKey());
+        throw ProblemException.unprocessable(user ? "Type the user" : "Type the value", "Type the "
+            + (user ? "user" : key) + " into the form, or read it from a store with a reference such as "
+            + "vault://kv/prod/db#username.", field);
       }
       if (!input.isLocal()) {
         // Parsed (and bound to its store) by the secrets module when it is stored; here only its presence counts.
@@ -840,28 +854,43 @@ public class ConnectionService {
         throw ProblemException.unprocessable("Leave the user out", "Short-lived Vault credentials bring their own "
             + "user.", secretPointer(user));
       }
-      boolean fromStore = login.stream().anyMatch(f -> out.containsKey(f) ? !out.get(f).isLocal()
-          : storedReference.test(f));
-      if (!fromStore) {
-        throw ProblemException.unprocessable("Read the password from the store too", "The user is read from a "
-            + "store: read the password from one as well.", secretPointer(user));
-      }
     }
     return out;
   }
 
-  /** Stored references of a connection that read a value from a store (not short-lived credentials). */
-  Set<String> referenceSecretFields(Map<String, String> secretIds) {
-    Set<String> out = new LinkedHashSet<>();
-    secretIds.forEach((field, id) -> {
-      try {
-        SecretInfo info = secrets.get(id);
-        if (!"local".equals(info.source()) && !info.dynamicReference()) out.add(field);
-      } catch (SecretService.NoSuchSecretException ignored) {
-        // A missing reference reads nothing.
+  /**
+   * The secrets of a request with the store each reference reads from: the one chosen; else the natural or only one
+   * of its kind; else, with several connected, the first, by name, that has it ({@link SecretService#storeHolding}
+   * asks them in turn). Call it outside a transaction; inputs that name their store are kept as they are.
+   */
+  public Map<String, SecretInput> withStores(Map<String, SecretInput> given) {
+    Map<String, SecretInput> out = new LinkedHashMap<>();
+    given.forEach((field, input) -> out.put(field, input.isLocal() || (input.store() != null
+        && !input.store().isBlank()) ? input : new SecretInput(null, input.reference(), input.dynamic(),
+        secrets.storeHolding(input.reference(), input.dynamic(), null, secretPointer(field)))));
+    return out;
+  }
+
+  /**
+   * Refuses a reference typed as a value ({@code vault://kv/prod/db#username} in the config): a value read from a
+   * store is sent as the field's reference in {@code secrets}, which only a person sets, in the window.
+   */
+  private static void checkNoReferenceValues(JsonNode node, String pointer) {
+    if (SecretFields.isPlaceholder(node)) {
+      return;
+    }
+    if (node.isObject()) {
+      for (Map.Entry<String, JsonNode> e : node.properties()) {
+        checkNoReferenceValues(e.getValue(), pointer + "/" + SecretFields.escape(e.getKey()));
       }
-    });
-    return Set.copyOf(out);
+    } else if (node.isArray()) {
+      for (int i = 0; i < node.size(); i++) {
+        checkNoReferenceValues(node.get(i), pointer + "/" + i);
+      }
+    } else if (node.isString() && SecretFields.looksLikeReference(node.asString())) {
+      throw ProblemException.unprocessable("Read it from the store", "This names a value kept in a store. Send it "
+          + "as the field's reference, so that GateRook reads the value from there at call time.", "/config" + pointer);
+    }
   }
 
   /**
@@ -934,17 +963,25 @@ public class ConnectionService {
   private void validate(ConnectorManifest manifest, ObjectNode config, Set<String> newSecretFields,
       Set<String> dynamicSecretFields, Env env, boolean discovery, JsonNode validationSchema) {
     Objects.requireNonNull(env, "env");
+    checkNoReferenceValues(config, "");
     ObjectNode probe = config.deepCopy();
-    for (String field : SecretFields.placeholders(config).keySet()) {
+    // Stand-ins for what the secrets module holds: a stored or new secret, a text field read from a store. Their
+    // values aren't known here, so only their presence is checked, not a pattern or format of the field.
+    Set<String> standIns = new LinkedHashSet<>(SecretFields.placeholders(config).keySet());
+    for (String field : standIns) {
       SecretFields.set(probe, field, StringNode.valueOf("‹secret›"));
     }
     for (String field : newSecretFields) {
       if (!SecretFields.set(probe, field, StringNode.valueOf("‹secret›"))) {
         throw ProblemException.unprocessable("Add the credential field", "Add its containing settings or array row before supplying this credential.", secretPointer(field));
       }
+      standIns.add(field);
     }
     SecretFields.dynamicLoginUsers(manifest.configSchema(), probe, dynamicSecretFields);
     for (SchemaValidator.Violation v : validator.validate(validationSchema, probe)) {
+      if (standIns.contains(v.pointer())) {
+        continue;
+      }
       throw ProblemException.unprocessable("Check the settings", v.message(), "/config" + v.pointer());
     }
     JsonNode selection = manifest.configSchema().path("x-database-selection");

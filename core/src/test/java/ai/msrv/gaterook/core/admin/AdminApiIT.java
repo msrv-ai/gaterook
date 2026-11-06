@@ -181,9 +181,14 @@ class AdminApiIT {
     assertThat(api.get("/api/connections").json().path("total").asInt()).as("a draft saves nothing").isZero();
 
     JsonNode wrongField = api.expect(422, HttpMethod.POST, "/api/connections/test", """
-        {"type":"pgfake","env":"dev","config":%s,"secrets":{"/connection/host":{"source":"local","value":"x"}}}"""
+        {"type":"pgfake","env":"dev","config":%s,"secrets":{"/connection/port":{"source":"local","value":"x"}}}"""
         .formatted(draft("db.test")));
     assertThat(wrongField.path("title").asString()).isEqualTo("Not a secret field");
+    // Where the credentials go is typed: never a value stored here, nor read from a store.
+    JsonNode host = api.expect(422, HttpMethod.POST, "/api/connections/test", """
+        {"type":"pgfake","env":"dev","config":%s,"secrets":{"/connection/host":{"source":"local","value":"x"}}}"""
+        .formatted(draft("db.test")));
+    assertThat(host.path("title").asString()).isEqualTo("Type the host");
     // A login's user is typed, or read from a store with a reference; it is never stored here.
     JsonNode typedUser = api.expect(422, HttpMethod.POST, "/api/connections/test", """
         {"type":"pgfake","env":"dev","config":%s,"secrets":{"/credentials/user":{"source":"local","value":"x"}}}"""

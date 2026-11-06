@@ -211,8 +211,24 @@ class ConnectionsIT {
           assertThat(e.field()).isEqualTo("/config/connection/note");
         });
     assertThatThrownBy(() -> connections.create("odd-secret", "pgfake", Env.DEV, TestCore.config("db.test"),
-        Map.of("/connection/host", SecretInput.local("x".toCharArray())), null))
+        Map.of("/connection/port", SecretInput.local("x".toCharArray())), null))
         .isInstanceOf(ProblemException.class).hasMessageContaining("not a secret field");
+    // Where the credentials go is typed, never read from a store.
+    assertThatThrownBy(() -> connections.create("odd-secret", "pgfake", Env.DEV, TestCore.config("db.test"),
+        Map.of("/connection/host", SecretInput.reference("vault://kv/dev/db#host")), null))
+        .isInstanceOfSatisfying(ProblemException.class, e -> assertThat(e.title()).isEqualTo("Type the host"));
+    // A text field typed as a value goes into the config; one read from a store is a reference.
+    assertThatThrownBy(() -> connections.create("odd-secret", "pgfake", Env.DEV, TestCore.config("db.test"),
+        Map.of("/connection/note", SecretInput.local("x".toCharArray())), null))
+        .isInstanceOfSatisfying(ProblemException.class, e -> assertThat(e.title()).isEqualTo("Type the value"));
+    ObjectNode typedReference = TestCore.config("db.test");
+    ((ObjectNode) typedReference.get("connection")).put("note", "vault://kv/dev/db#note");
+    assertThatThrownBy(() -> connections.create("odd-secret", "pgfake", Env.DEV, typedReference,
+        Map.of("/credentials/password", SecretInput.local("x-1234567".toCharArray())), null))
+        .isInstanceOfSatisfying(ProblemException.class, e -> {
+          assertThat(e.title()).isEqualTo("Read it from the store");
+          assertThat(e.field()).isEqualTo("/config/connection/note");
+        });
     core.connection("twice", "pgfake", Env.DEV, "db.test");
     assertThatThrownBy(() -> core.connection("twice", "pgfake", Env.DEV, "db.test"))
         .isInstanceOfSatisfying(ProblemException.class,

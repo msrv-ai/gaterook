@@ -82,6 +82,26 @@ export function sourceCopy(id: string, label?: string | null): SecretSourceCopy 
   );
 }
 
+/** How a reference into each kind of store starts; a value starting so is read from a store, not typed. */
+export const REFERENCE_SCHEMES: Readonly<Record<string, string>> = { vault: 'vault://', 'gcp-sm': 'gcp-sm://', 'aws-sm': 'aws-sm://' };
+
+/** The kind of store a value names (`vault://kv/prod/db#username` → `vault`), or `null` for a typed value. */
+export function referenceKind(value: string | null | undefined): string | null {
+  const start = (value ?? '').trimStart().toLowerCase();
+  return Object.entries(REFERENCE_SCHEMES).find(([, scheme]) => start.startsWith(scheme))?.[0] ?? null;
+}
+
+/**
+ * Properties that say where a connection sends its credentials: the core never reads them from a store, as whoever
+ * can write the store could send the credentials elsewhere (the core's ConnectionTargets).
+ */
+const TARGET_KEYS: ReadonlySet<string> = new Set(['host', 'hostname', 'server', 'apiServer', 'url', 'uri', 'baseUrl',
+  'baseUrls', 'endpoint', 'address', 'command']);
+
+export function isTargetKey(key: string): boolean {
+  return TARGET_KEYS.has(key);
+}
+
 /** The API and stored-secret metadata use different names for the same short-lived login choice. */
 export function secretSourceId(id: string): string {
   return id === 'vault-dynamic' || id === 'short-lived' ? 'dynamic' : id;

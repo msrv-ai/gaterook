@@ -24,6 +24,11 @@ public final class ConnectionTargets {
 
   private ConnectionTargets() {}
 
+  /** Whether a property of this name says where the connection sends its credentials ({@code host}, {@code url}). */
+  public static boolean isTargetKey(String key) {
+    return TARGET_KEYS.contains(key);
+  }
+
   /** Every target of a config: pointer → value text. */
   public static Map<String, String> of(JsonNode config) {
     Map<String, String> out = new TreeMap<>();

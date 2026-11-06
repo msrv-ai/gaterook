@@ -74,88 +74,39 @@
       <section class="gw-form__section gw-connection-form__credentials" aria-labelledby="f1-cred-t">
         <header class="gw-form__section-header">
           <h3 class="gw-form__legend" id="f1-cred-t">Credentials</h3>
-          <p class="gw-form__description">The agent never sees these. The core decrypts or fetches the secret only for the duration of a call.</p>
+          <p class="gw-form__description">The agent never sees these. Type a value, or pick a store in a field's menu to read it from there at call time.</p>
         </header>
         <div class="gw-form__rows">
-          <fieldset class="gw-field">
-            <legend class="gw-field__label">Secret source</legend>
-            <div class="gw-grid gw-grid--auto gw-connection-form__sources">
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f1-src" value="local" checked aria-labelledby="f1-src-local-t" aria-describedby="f1-src-local-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="lock-keyhole"></i></span>
-                <span class="gw-choice-card__title" id="f1-src-local-t">Encrypted here</span>
-                <span class="gw-choice-card__description" id="f1-src-local-d">Stored in the local database, encrypted with the master key. Write-only.</span>
-                <span class="gw-choice-card__meta">Default</span>
-              </label>
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f1-src" value="vault" aria-labelledby="f1-src-vault-t" aria-describedby="f1-src-vault-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="vault"></i></span>
-                <span class="gw-choice-card__title" id="f1-src-vault-t">HashiCorp Vault or OpenBao</span>
-                <span class="gw-choice-card__description" id="f1-src-vault-d">Resolve a <span class="gw-mono">vault://</span> reference at call time.</span>
-                <span class="gw-choice-card__meta">KV v2</span>
-              </label>
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f1-src" value="gcp" aria-labelledby="f1-src-gcp-t" aria-describedby="f1-src-gcp-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
-                <span class="gw-choice-card__title" id="f1-src-gcp-t">GCP Secret Manager</span>
-                <span class="gw-choice-card__description" id="f1-src-gcp-d">Resolve <span class="gw-mono">gcp-sm://</span> with the core&#39;s service account.</span>
-                <span class="gw-choice-card__meta">Needs secretAccessor</span>
-              </label>
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f1-src" value="aws" aria-labelledby="f1-src-aws-t" aria-describedby="f1-src-aws-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
-                <span class="gw-choice-card__title" id="f1-src-aws-t">AWS Secrets Manager</span>
-                <span class="gw-choice-card__description" id="f1-src-aws-d">Resolve <span class="gw-mono">aws-sm://</span> with the core&#39;s AWS profile.</span>
-                <span class="gw-choice-card__meta">Needs GetSecretValue</span>
-              </label>
-            </div>
-          </fieldset>
           <div class="gw-field gw-connection-form__user">
             <label class="gw-field__label" for="f1-user">User</label>
-            <input class="gw-input gw-input--mono" id="f1-user" name="user" value="app_rw" required autocomplete="off" spellcheck="false" aria-describedby="f1-user-hint">
+            <div class="gw-input-group gw-menu-host">
+            <button class="gw-input-group__addon" type="button" id="f1-user-src" data-gw-source-menu aria-haspopup="listbox" aria-expanded="false" aria-controls="f1-user-src-menu" aria-label="Source of the user: Text">Text<i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+              <input class="gw-input gw-input--mono" id="f1-user" name="user" value="app_rw" required autocomplete="off" spellcheck="false" data-gw-mono aria-describedby="f1-user-hint">
+            <div class="gw-menu gw-menu--wide" id="f1-user-src-menu" role="listbox" aria-label="Source of the user" hidden>
+              <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="true" data-gw-scheme="" data-gw-short="Text"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Text<span class="gw-menu__hint">Typed into this form</span></span></button>
+              <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="vault://" data-gw-short="Vault" data-gw-kind="Vault"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">HashiCorp Vault or OpenBao<span class="gw-menu__hint gw-mono">vault://</span></span></button>
+              <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="gcp-sm://" data-gw-short="GCP" data-gw-kind="GCP"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">GCP Secret Manager<span class="gw-menu__hint gw-mono">gcp-sm://</span></span></button>
+              <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="aws-sm://" data-gw-short="AWS" data-gw-kind="AWS"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">AWS Secrets Manager<span class="gw-menu__hint gw-mono">aws-sm://</span></span></button>
+            </div>
+            </div>
             <p class="gw-field__hint" id="f1-user-hint">Use a user that can only read wherever you can. The test below shows what it may do.</p>
           </div>
-          <div class="gw-field gw-connection-form__secret" data-source="local">
+          <div class="gw-field gw-connection-form__secret">
             <label class="gw-field__label" for="f1-pw">Password</label>
             <div class="gw-secret" data-state="empty">
-              <div class="gw-input-group">
-                <input class="gw-input" type="password" id="f1-pw" name="password" placeholder="Paste or type the password" autocomplete="new-password" aria-describedby="f1-pw-hint">
+              <div class="gw-input-group gw-menu-host">
+              <button class="gw-input-group__addon" type="button" id="f1-pw-src" data-gw-source-menu aria-haspopup="listbox" aria-expanded="false" aria-controls="f1-pw-src-menu" aria-label="Source of the password: Text">Text<i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+                <input class="gw-input" type="password" id="f1-pw" name="password" placeholder="Paste or type the password" autocomplete="new-password" data-gw-secret-input aria-describedby="f1-pw-hint">
                 <button class="gw-input-group__addon" type="button" data-gw-reveal aria-pressed="false" aria-label="Show password" aria-controls="f1-pw"><i class="gw-icon" data-lucide="eye"></i><i class="gw-icon" data-lucide="eye-off"></i></button>
+              <div class="gw-menu gw-menu--wide" id="f1-pw-src-menu" role="listbox" aria-label="Source of the password" hidden>
+                <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="true" data-gw-scheme="" data-gw-short="Text"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Text<span class="gw-menu__hint">Encrypted here with the master key</span></span></button>
+                <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="vault://" data-gw-short="Vault" data-gw-kind="Vault"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">HashiCorp Vault or OpenBao<span class="gw-menu__hint gw-mono">vault://</span></span></button>
+                <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="gcp-sm://" data-gw-short="GCP" data-gw-kind="GCP"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">GCP Secret Manager<span class="gw-menu__hint gw-mono">gcp-sm://</span></span></button>
+                <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="aws-sm://" data-gw-short="AWS" data-gw-kind="AWS"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">AWS Secrets Manager<span class="gw-menu__hint gw-mono">aws-sm://</span></span></button>
+              </div>
               </div>
             </div>
-            <p class="gw-field__hint" id="f1-pw-hint">Encrypted with the master key on save. Nobody can view it afterwards: Replace or Rotate only.</p>
-          </div>
-          <div class="gw-field gw-connection-form__secret" data-source="vault">
-            <label class="gw-field__label" for="f1-ref-vault">Secret reference</label>
-            <div class="gw-secret gw-menu-host" data-state="empty">
-              <div class="gw-input-group">
-                <span class="gw-input-group__affix gw-mono" id="f1-ref-vault-prefix">vault://</span>
-                <input class="gw-input gw-input--mono" type="text" id="f1-ref-vault" data-vault-reference name="secretRef" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="f1-vault-suggestions" placeholder="Search Vault paths or keys" autocomplete="off" spellcheck="false" aria-describedby="f1-ref-vault-prefix f1-ref-vault-hint f1-vault-status">
-              </div>
-              <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
-              <div class="gw-menu gw-menu--wide" id="f1-vault-suggestions" data-vault-suggestions role="listbox" aria-label="Vault secret references" hidden></div>
-            </div>
-            <p class="gw-field__hint" id="f1-ref-vault-hint">Choose a path and key from Vault or OpenBao, or enter a reference manually.</p>
-            <div class="gw-toolbar" data-vault-feedback>
-              <div class="gw-toolbar__start"><p class="gw-field__hint" id="f1-vault-status" data-vault-status role="status">Available paths and keys load automatically. Secret values are never shown.</p></div>
-              <div class="gw-toolbar__end"><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-vault-refresh aria-describedby="f1-vault-status"><span class="gw-spinner gw-spinner--sm" data-vault-spinner aria-hidden="true" hidden></span>Refresh list</button></div>
-            </div>
-          </div>
-          <div class="gw-field gw-connection-form__secret" data-source="gcp">
-            <label class="gw-field__label" for="f1-ref-gcp">Secret reference</label>
-            <div class="gw-secret" data-state="empty">
-              <input class="gw-input gw-input--mono" type="text" id="f1-ref-gcp" name="secretRef" placeholder="gcp-sm://projects/acme-dev/secrets/dev-db-password/versions/latest" autocomplete="off" spellcheck="false" aria-describedby="f1-ref-gcp-hint">
-              <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
-            </div>
-            <p class="gw-field__hint" id="f1-ref-gcp-hint">Resolved at call time with the core's service account.</p>
-          </div>
-          <div class="gw-field gw-connection-form__secret" data-source="aws">
-            <label class="gw-field__label" for="f1-ref-aws">Secret reference</label>
-            <div class="gw-secret" data-state="empty">
-              <input class="gw-input gw-input--mono" type="text" id="f1-ref-aws" name="secretRef" placeholder="aws-sm://eu-central-1/dev/db#password" autocomplete="off" spellcheck="false" aria-describedby="f1-ref-aws-hint">
-              <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
-            </div>
-            <p class="gw-field__hint" id="f1-ref-aws-hint">Resolved at call time with the core's AWS profile.</p>
+            <p class="gw-field__hint" id="f1-pw-hint">Encrypted with the master key on save. Nobody can view it afterwards: Replace or Rotate only. Or pick a store in its menu to read it from there.</p>
           </div>
         </div>
       </section>
@@ -265,8 +216,8 @@
   </section>
   <section class="gw-section" aria-labelledby="s-first">
     <header class="gw-section__header">
-      <h2 class="gw-section__title" id="s-first">First run: secret managers behind a disclosure</h2>
-      <p class="gw-section__description">connection-new.html?state=first-run: Encrypted here is preselected and the password field shows at once; the other sources wait behind "Use a secret manager instead", placed before them. Every line about the secret follows the source picked.</p>
+      <h2 class="gw-section__title" id="s-first">First run: the secret stays on this computer</h2>
+      <p class="gw-section__description">connection-new.html?state=first-run: each credential starts as Text, and the password is encrypted on this computer. Its menu still offers the connected stores; every line about the secret follows the source picked.</p>
     </header>
     <form class="gw-form gw-connection-form" method="dialog" novalidate aria-label="dev-db credentials, first run">
       <section class="gw-form__section gw-connection-form__credentials" aria-labelledby="f7-cred-t">
@@ -275,89 +226,36 @@
           <p class="gw-form__description">Your AI never sees these. GateRook uses them only to sign in to the database.</p>
         </header>
         <div class="gw-form__rows">
-          <div class="gw-stack gw-stack--sm">
-            <p class="gw-text-small gw-fg-secondary"><i class="gw-icon gw-icon--sm" data-lucide="lock-keyhole"></i> The password is stored encrypted on this computer. Nobody can view it afterwards, not even you.</p>
-            <button class="gw-btn gw-btn--ghost gw-btn--sm gw-connection-form__toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="f7-src-field"><i class="gw-icon gw-icon--sm gw-connection-form__when-closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-connection-form__when-open" data-lucide="chevron-up"></i>Use a secret manager instead (Vault, GCP, AWS)</button>
-          </div>
-          <fieldset class="gw-field" id="f7-src-field" hidden>
-            <legend class="gw-field__label">Secret source</legend>
-            <div class="gw-grid gw-grid--auto gw-connection-form__sources">
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f7-src" value="local" checked aria-labelledby="f7-src-local-t" aria-describedby="f7-src-local-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="lock-keyhole"></i></span>
-                <span class="gw-choice-card__title" id="f7-src-local-t">Encrypted here</span>
-                <span class="gw-choice-card__description" id="f7-src-local-d">Stored in the local database, encrypted with the master key. Write-only.</span>
-                <span class="gw-choice-card__meta">Default</span>
-              </label>
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f7-src" value="vault" aria-labelledby="f7-src-vault-t" aria-describedby="f7-src-vault-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="vault"></i></span>
-                <span class="gw-choice-card__title" id="f7-src-vault-t">HashiCorp Vault or OpenBao</span>
-                <span class="gw-choice-card__description" id="f7-src-vault-d">Resolve a <span class="gw-mono">vault://</span> reference at call time.</span>
-                <span class="gw-choice-card__meta">KV v2</span>
-              </label>
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f7-src" value="gcp" aria-labelledby="f7-src-gcp-t" aria-describedby="f7-src-gcp-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
-                <span class="gw-choice-card__title" id="f7-src-gcp-t">GCP Secret Manager</span>
-                <span class="gw-choice-card__description" id="f7-src-gcp-d">Resolve <span class="gw-mono">gcp-sm://</span> with the core&#39;s service account.</span>
-                <span class="gw-choice-card__meta">Needs secretAccessor</span>
-              </label>
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f7-src" value="aws" aria-labelledby="f7-src-aws-t" aria-describedby="f7-src-aws-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
-                <span class="gw-choice-card__title" id="f7-src-aws-t">AWS Secrets Manager</span>
-                <span class="gw-choice-card__description" id="f7-src-aws-d">Resolve <span class="gw-mono">aws-sm://</span> with the core&#39;s AWS profile.</span>
-                <span class="gw-choice-card__meta">Needs GetSecretValue</span>
-              </label>
-            </div>
-          </fieldset>
           <div class="gw-field gw-connection-form__user">
             <label class="gw-field__label" for="f7-user">User</label>
-            <input class="gw-input gw-input--mono" id="f7-user" name="user" value="app_rw" required autocomplete="off" spellcheck="false" aria-describedby="f7-user-hint">
+            <div class="gw-input-group gw-menu-host">
+            <button class="gw-input-group__addon" type="button" id="f7-user-src" data-gw-source-menu aria-haspopup="listbox" aria-expanded="false" aria-controls="f7-user-src-menu" aria-label="Source of the user: Text">Text<i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+              <input class="gw-input gw-input--mono" id="f7-user" name="user" value="app_rw" required autocomplete="off" spellcheck="false" data-gw-mono aria-describedby="f7-user-hint">
+            <div class="gw-menu gw-menu--wide" id="f7-user-src-menu" role="listbox" aria-label="Source of the user" hidden>
+              <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="true" data-gw-scheme="" data-gw-short="Text"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Text<span class="gw-menu__hint">Typed into this form</span></span></button>
+              <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="vault://" data-gw-short="Vault" data-gw-kind="Vault"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">HashiCorp Vault or OpenBao<span class="gw-menu__hint gw-mono">vault://</span></span></button>
+              <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="gcp-sm://" data-gw-short="GCP" data-gw-kind="GCP"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">GCP Secret Manager<span class="gw-menu__hint gw-mono">gcp-sm://</span></span></button>
+              <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="aws-sm://" data-gw-short="AWS" data-gw-kind="AWS"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">AWS Secrets Manager<span class="gw-menu__hint gw-mono">aws-sm://</span></span></button>
+            </div>
+            </div>
             <p class="gw-field__hint" id="f7-user-hint">Use a user that can only read wherever you can. The test below shows what it may do.</p>
           </div>
-          <div class="gw-field gw-connection-form__secret" data-source="local">
+          <div class="gw-field gw-connection-form__secret">
             <label class="gw-field__label" for="f7-pw">Password</label>
             <div class="gw-secret" data-state="empty">
-              <div class="gw-input-group">
-                <input class="gw-input" type="password" id="f7-pw" name="password" placeholder="Paste or type the password" autocomplete="new-password" aria-describedby="f7-pw-hint">
+              <div class="gw-input-group gw-menu-host">
+              <button class="gw-input-group__addon" type="button" id="f7-pw-src" data-gw-source-menu aria-haspopup="listbox" aria-expanded="false" aria-controls="f7-pw-src-menu" aria-label="Source of the password: Text">Text<i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+                <input class="gw-input" type="password" id="f7-pw" name="password" placeholder="Paste or type the password" autocomplete="new-password" data-gw-secret-input aria-describedby="f7-pw-hint">
                 <button class="gw-input-group__addon" type="button" data-gw-reveal aria-pressed="false" aria-label="Show password" aria-controls="f7-pw"><i class="gw-icon" data-lucide="eye"></i><i class="gw-icon" data-lucide="eye-off"></i></button>
+              <div class="gw-menu gw-menu--wide" id="f7-pw-src-menu" role="listbox" aria-label="Source of the password" hidden>
+                <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="true" data-gw-scheme="" data-gw-short="Text"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Text<span class="gw-menu__hint">Encrypted on this computer</span></span></button>
+                <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="vault://" data-gw-short="Vault" data-gw-kind="Vault"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">HashiCorp Vault or OpenBao<span class="gw-menu__hint gw-mono">vault://</span></span></button>
+                <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="gcp-sm://" data-gw-short="GCP" data-gw-kind="GCP"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">GCP Secret Manager<span class="gw-menu__hint gw-mono">gcp-sm://</span></span></button>
+                <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="aws-sm://" data-gw-short="AWS" data-gw-kind="AWS"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">AWS Secrets Manager<span class="gw-menu__hint gw-mono">aws-sm://</span></span></button>
+              </div>
               </div>
             </div>
             <p class="gw-field__hint" id="f7-pw-hint">Encrypted on this computer when you save.</p>
-          </div>
-          <div class="gw-field gw-connection-form__secret" data-source="vault">
-            <label class="gw-field__label" for="f7-ref-vault">Secret reference</label>
-            <div class="gw-secret gw-menu-host" data-state="empty">
-              <div class="gw-input-group">
-                <span class="gw-input-group__affix gw-mono" id="f7-ref-vault-prefix">vault://</span>
-                <input class="gw-input gw-input--mono" type="text" id="f7-ref-vault" data-vault-reference name="secretRef" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="f7-vault-suggestions" placeholder="Search Vault paths or keys" autocomplete="off" spellcheck="false" aria-describedby="f7-ref-vault-prefix f7-ref-vault-hint f7-vault-status">
-              </div>
-              <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
-              <div class="gw-menu gw-menu--wide" id="f7-vault-suggestions" data-vault-suggestions role="listbox" aria-label="Vault secret references" hidden></div>
-            </div>
-            <p class="gw-field__hint" id="f7-ref-vault-hint">Choose a path and key from Vault or OpenBao, or enter a reference manually.</p>
-            <div class="gw-toolbar" data-vault-feedback>
-              <div class="gw-toolbar__start"><p class="gw-field__hint" id="f7-vault-status" data-vault-status role="status">Available paths and keys load automatically. Secret values are never shown.</p></div>
-              <div class="gw-toolbar__end"><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-vault-refresh aria-describedby="f7-vault-status"><span class="gw-spinner gw-spinner--sm" data-vault-spinner aria-hidden="true" hidden></span>Refresh list</button></div>
-            </div>
-          </div>
-          <div class="gw-field gw-connection-form__secret" data-source="gcp">
-            <label class="gw-field__label" for="f7-ref-gcp">Secret reference</label>
-            <div class="gw-secret" data-state="empty">
-              <input class="gw-input gw-input--mono" type="text" id="f7-ref-gcp" name="secretRef" placeholder="gcp-sm://projects/acme-dev/secrets/dev-db-password/versions/latest" autocomplete="off" spellcheck="false" aria-describedby="f7-ref-gcp-hint">
-              <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
-            </div>
-            <p class="gw-field__hint" id="f7-ref-gcp-hint">Resolved at call time with the core's service account.</p>
-          </div>
-          <div class="gw-field gw-connection-form__secret" data-source="aws">
-            <label class="gw-field__label" for="f7-ref-aws">Secret reference</label>
-            <div class="gw-secret" data-state="empty">
-              <input class="gw-input gw-input--mono" type="text" id="f7-ref-aws" name="secretRef" placeholder="aws-sm://eu-central-1/dev/db#password" autocomplete="off" spellcheck="false" aria-describedby="f7-ref-aws-hint">
-              <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
-            </div>
-            <p class="gw-field__hint" id="f7-ref-aws-hint">Resolved at call time with the core's AWS profile.</p>
           </div>
         </div>
       </section>
@@ -375,46 +273,22 @@
           <p class="gw-form__description"><span class="gw-mono">stage-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span> reads its password from Vault. The reference is not a secret: it is shown in full and can be copied.</p>
         </header>
         <div class="gw-form__rows">
-          <fieldset class="gw-field">
-            <legend class="gw-field__label">Secret source</legend>
-            <div class="gw-grid gw-grid--auto gw-connection-form__sources">
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f2-src" value="local" aria-labelledby="f2-src-local-t" aria-describedby="f2-src-local-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="lock-keyhole"></i></span>
-                <span class="gw-choice-card__title" id="f2-src-local-t">Encrypted here</span>
-                <span class="gw-choice-card__description" id="f2-src-local-d">Stored in the local database, encrypted with the master key. Write-only.</span>
-                <span class="gw-choice-card__meta">Default</span>
-              </label>
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f2-src" value="vault" checked aria-labelledby="f2-src-vault-t" aria-describedby="f2-src-vault-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="vault"></i></span>
-                <span class="gw-choice-card__title" id="f2-src-vault-t">HashiCorp Vault or OpenBao</span>
-                <span class="gw-choice-card__description" id="f2-src-vault-d">Resolve a <span class="gw-mono">vault://</span> reference at call time.</span>
-                <span class="gw-choice-card__meta">KV v2</span>
-              </label>
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f2-src" value="gcp" aria-labelledby="f2-src-gcp-t" aria-describedby="f2-src-gcp-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
-                <span class="gw-choice-card__title" id="f2-src-gcp-t">GCP Secret Manager</span>
-                <span class="gw-choice-card__description" id="f2-src-gcp-d">Resolve <span class="gw-mono">gcp-sm://</span> with the core&#39;s service account.</span>
-                <span class="gw-choice-card__meta">Needs secretAccessor</span>
-              </label>
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f2-src" value="aws" aria-labelledby="f2-src-aws-t" aria-describedby="f2-src-aws-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
-                <span class="gw-choice-card__title" id="f2-src-aws-t">AWS Secrets Manager</span>
-                <span class="gw-choice-card__description" id="f2-src-aws-d">Resolve <span class="gw-mono">aws-sm://</span> with the core&#39;s AWS profile.</span>
-                <span class="gw-choice-card__meta">Needs GetSecretValue</span>
-              </label>
-            </div>
-          </fieldset>
           <div class="gw-field gw-connection-form__user">
             <label class="gw-field__label" for="f2-user">User</label>
-            <input class="gw-input gw-input--mono" id="f2-user" name="user" value="app_reader" required autocomplete="off" spellcheck="false" aria-describedby="f2-user-hint">
+            <div class="gw-input-group gw-menu-host">
+            <button class="gw-input-group__addon" type="button" id="f2-user-src" data-gw-source-menu aria-haspopup="listbox" aria-expanded="false" aria-controls="f2-user-src-menu" aria-label="Source of the user: Text">Text<i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+              <input class="gw-input gw-input--mono" id="f2-user" name="user" value="app_reader" required autocomplete="off" spellcheck="false" data-gw-mono aria-describedby="f2-user-hint">
+            <div class="gw-menu gw-menu--wide" id="f2-user-src-menu" role="listbox" aria-label="Source of the user" hidden>
+              <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="true" data-gw-scheme="" data-gw-short="Text"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Text<span class="gw-menu__hint">Typed into this form</span></span></button>
+              <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="vault://" data-gw-short="Vault" data-gw-kind="Vault"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">HashiCorp Vault or OpenBao<span class="gw-menu__hint gw-mono">vault://</span></span></button>
+              <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="gcp-sm://" data-gw-short="GCP" data-gw-kind="GCP"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">GCP Secret Manager<span class="gw-menu__hint gw-mono">gcp-sm://</span></span></button>
+              <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="aws-sm://" data-gw-short="AWS" data-gw-kind="AWS"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">AWS Secrets Manager<span class="gw-menu__hint gw-mono">aws-sm://</span></span></button>
+            </div>
+            </div>
             <p class="gw-field__hint" id="f2-user-hint">Use a user that can only read wherever you can. The test below shows what it may do.</p>
           </div>
-          <div class="gw-field gw-connection-form__secret" data-source="vault">
-            <span class="gw-field__label" id="f2-ref-l">Secret reference</span>
+          <div class="gw-field gw-connection-form__secret">
+            <span class="gw-field__label" id="f2-ref-l">Password</span>
             <div class="gw-secret" data-state="reference" role="group" aria-labelledby="f2-ref-l" aria-describedby="f2-ref-hint">
               <span class="gw-secret__status"><i class="gw-icon" data-lucide="vault"></i>Vault</span>
               <code class="gw-secret__ref">vault://kv/stage/db#password</code>
@@ -780,8 +654,8 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
   </section>
   <section class="gw-section" aria-labelledby="s-vaults">
     <header class="gw-section__header">
-      <h2 class="gw-section__title" id="s-vaults">Several Vaults: each one a source, the user read from it too</h2>
-      <p class="gw-section__description">With more than one Vault connected, each is a source card of its own, named and with its address; the connection's references go to the one chosen. A login's user can come from the same secret as the password instead of being typed.</p>
+      <h2 class="gw-section__title" id="s-vaults">Several Vaults: each field picks its own</h2>
+      <p class="gw-section__description">Each credential field's menu lists Text and every connected store, each Vault named with its address. Picking one puts its scheme in front of the value and binds the reference to it; a reference typed by hand reads from the first Vault, by name, that has it. A login's user is read from a store like the password, or typed next to a password read from one.</p>
     </header>
     <form class="gw-form gw-connection-form" method="dialog" novalidate aria-label="stage-db credentials from Vault">
       <section class="gw-form__section gw-connection-form__credentials" aria-labelledby="f8-cred-t">
@@ -790,68 +664,44 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
           <p class="gw-form__description">The agent never sees these. The core decrypts or fetches the secret only for the duration of a call.</p>
         </header>
         <div class="gw-form__rows">
-          <fieldset class="gw-field">
-            <legend class="gw-field__label">Secret source</legend>
-            <div class="gw-grid gw-grid--auto gw-connection-form__sources">
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f8-src" value="local" aria-labelledby="f8-src-local-t" aria-describedby="f8-src-local-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="lock-keyhole"></i></span>
-                <span class="gw-choice-card__title" id="f8-src-local-t">Encrypted here</span>
-                <span class="gw-choice-card__description" id="f8-src-local-d">Stored in the local database, encrypted with the master key. Write-only.</span>
-                <span class="gw-choice-card__meta">Default</span>
-              </label>
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f8-src" value="vault:vault" aria-labelledby="f8-src-vault-t" aria-describedby="f8-src-vault-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="vault"></i></span>
-                <span class="gw-choice-card__title" id="f8-src-vault-t">Vault · vault</span>
-                <span class="gw-choice-card__description" id="f8-src-vault-d">Resolve <span class="gw-mono">vault://</span> references from <span class="gw-mono">https://vault.acme.internal</span> at call time.</span>
-                <span class="gw-choice-card__meta">KV v2</span>
-              </label>
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f8-src" value="vault:vault-stage" checked aria-labelledby="f8-src-vault-stage-t" aria-describedby="f8-src-vault-stage-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="vault"></i></span>
-                <span class="gw-choice-card__title" id="f8-src-vault-stage-t">Vault · vault-stage</span>
-                <span class="gw-choice-card__description" id="f8-src-vault-stage-d">Resolve <span class="gw-mono">vault://</span> references from <span class="gw-mono">https://vault.stage.acme.internal</span> at call time.</span>
-                <span class="gw-choice-card__meta">KV v2</span>
-              </label>
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f8-src" value="gcp" aria-labelledby="f8-src-gcp-t" aria-describedby="f8-src-gcp-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
-                <span class="gw-choice-card__title" id="f8-src-gcp-t">GCP Secret Manager</span>
-                <span class="gw-choice-card__description" id="f8-src-gcp-d">Resolve <span class="gw-mono">gcp-sm://</span> with the core&#39;s service account.</span>
-                <span class="gw-choice-card__meta">Needs secretAccessor</span>
-              </label>
-            </div>
-          </fieldset>
-          <div class="gw-field gw-connection-form__user" data-source="vault">
-            <label class="gw-field__label" for="f8-user">User reference</label>
-            <div class="gw-secret gw-menu-host" data-state="empty">
-              <div class="gw-input-group">
-                <span class="gw-input-group__affix gw-mono" id="f8-user-prefix">vault://</span>
-                <input class="gw-input gw-input--mono" type="text" id="f8-user" value="kv/stage/db#username" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="f8-user-suggestions" autocomplete="off" spellcheck="false" aria-describedby="f8-user-prefix f8-user-hint">
+          <div class="gw-field gw-connection-form__user">
+            <label class="gw-field__label" for="f8-user">User</label>
+            <div class="gw-secret" data-state="empty">
+              <div class="gw-input-group gw-menu-host">
+              <button class="gw-input-group__addon" type="button" id="f8-user-src" data-gw-source-menu aria-haspopup="listbox" aria-expanded="false" aria-controls="f8-user-src-menu" aria-label="Source of the user: vault-stage">vault-stage<i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+                <input class="gw-input gw-input--mono" type="text" id="f8-user" value="vault://kv/stage/db#username" autocomplete="off" spellcheck="false" data-gw-mono aria-describedby="f8-user-hint">
+              <div class="gw-menu gw-menu--wide" id="f8-user-src-menu" role="listbox" aria-label="Source of the user" hidden>
+                <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="" data-gw-short="Text"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Text<span class="gw-menu__hint">Typed into this form</span></span></button>
+                <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="vault://" data-gw-short="vault" data-gw-kind="Vault"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Vault · vault<span class="gw-menu__hint gw-mono">https://vault.acme.internal</span></span></button>
+                <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="true" data-gw-scheme="vault://" data-gw-short="vault-stage" data-gw-kind="Vault"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Vault · vault-stage<span class="gw-menu__hint gw-mono">https://vault.stage.acme.internal</span></span></button>
+                <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="gcp-sm://" data-gw-short="GCP" data-gw-kind="GCP" aria-disabled="true"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">GCP Secret Manager<span class="gw-menu__hint">Connect GCP Secret Manager in Secrets first.</span></span></button>
+              </div>
               </div>
               <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
-              <div class="gw-menu gw-menu--wide" id="f8-user-suggestions" role="listbox" aria-label="Vault paths and keys" hidden></div>
             </div>
-            <p class="gw-field__hint" id="f8-user-hint">Where the store keeps the user, next to the password. It is read at call time.</p>
-            <div class="gw-checkbox">
-              <input class="gw-checkbox__input" type="checkbox" id="f8-user-from-store" checked aria-describedby="f8-user-from-store-hint">
-              <span class="gw-checkbox__control" aria-hidden="true"></span>
-              <label class="gw-checkbox__label" for="f8-user-from-store">Read the user from Vault</label>
-              <p class="gw-checkbox__hint" id="f8-user-from-store-hint">Like the password, it is read at call time, for example from the <span class="gw-mono">username</span> key of the same secret.</p>
-            </div>
+            <p class="gw-field__hint" id="f8-user-hint">Read from vault-stage at call time, like a typed user.</p>
           </div>
           <div class="gw-field gw-connection-form__secret" data-source="vault">
-            <label class="gw-field__label" for="f8-ref">Secret reference</label>
+            <label class="gw-field__label" for="f8-ref">Password</label>
             <div class="gw-secret gw-menu-host" data-state="empty">
-              <div class="gw-input-group">
-                <span class="gw-input-group__affix gw-mono" id="f8-ref-prefix">vault://</span>
-                <input class="gw-input gw-input--mono" type="text" id="f8-ref" value="kv/stage/db#password" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="f8-ref-suggestions" autocomplete="off" spellcheck="false" aria-describedby="f8-ref-prefix f8-ref-hint">
+              <div class="gw-input-group gw-menu-host">
+              <button class="gw-input-group__addon" type="button" id="f8-ref-src" data-gw-source-menu aria-haspopup="listbox" aria-expanded="false" aria-controls="f8-ref-src-menu" aria-label="Source of the password: vault-stage">vault-stage<i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+                <input class="gw-input gw-input--mono" type="text" id="f8-ref" value="vault://kv/stage/db#password" data-vault-reference data-gw-secret-input role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="f8-ref-suggestions" autocomplete="off" spellcheck="false" aria-describedby="f8-ref-hint f8-vault-status">
+              <div class="gw-menu gw-menu--wide" id="f8-ref-src-menu" role="listbox" aria-label="Source of the password" hidden>
+                <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="" data-gw-short="Text"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Text<span class="gw-menu__hint">Encrypted here with the master key</span></span></button>
+                <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="vault://" data-gw-short="vault" data-gw-kind="Vault"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Vault · vault<span class="gw-menu__hint gw-mono">https://vault.acme.internal</span></span></button>
+                <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="true" data-gw-scheme="vault://" data-gw-short="vault-stage" data-gw-kind="Vault"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Vault · vault-stage<span class="gw-menu__hint gw-mono">https://vault.stage.acme.internal</span></span></button>
+                <button class="gw-menu__item" type="button" role="option" tabindex="-1" aria-selected="false" data-gw-scheme="gcp-sm://" data-gw-short="GCP" data-gw-kind="GCP" aria-disabled="true"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">GCP Secret Manager<span class="gw-menu__hint">Connect GCP Secret Manager in Secrets first.</span></span></button>
+              </div>
               </div>
               <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
-              <div class="gw-menu gw-menu--wide" id="f8-ref-suggestions" role="listbox" aria-label="Vault paths and keys" hidden></div>
+              <div class="gw-menu gw-menu--wide" id="f8-ref-suggestions" data-vault-suggestions role="listbox" aria-label="Vault paths and keys" hidden></div>
             </div>
-            <p class="gw-field__hint" id="f8-ref-hint">Path and key in Vault or OpenBao, resolved at call time with the core's Vault token.</p>
+            <p class="gw-field__hint" id="f8-ref-hint">Read from vault-stage at call time. Without a Vault picked, each one is asked in turn: vault, then vault-stage.</p>
+            <div class="gw-toolbar" data-vault-feedback>
+              <div class="gw-toolbar__start"><p class="gw-field__hint" id="f8-vault-status" data-vault-status role="status">Available paths and keys load automatically. Secret values are never shown.</p></div>
+              <div class="gw-toolbar__end"><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-vault-refresh aria-describedby="f8-vault-status"><span class="gw-spinner gw-spinner--sm" data-vault-spinner aria-hidden="true" hidden></span>Refresh list</button></div>
+            </div>
           </div>
         </div>
       </section>
@@ -871,8 +721,9 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
           <div class="gw-kv__row"><dt class="gw-kv__key"><code class="gw-code">enum</code></dt><dd class="gw-kv__value">A select (SSL mode). Five options or fewer with descriptions become choice cards.</dd></div>
           <div class="gw-kv__row"><dt class="gw-kv__key"><code class="gw-code">integer</code>, <code class="gw-code">minimum</code></dt><dd class="gw-kv__value">A mono text input with <code class="gw-code">inputmode="numeric"</code>, a unit affix, checked on save.</dd></div>
           <div class="gw-kv__row"><dt class="gw-kv__key"><code class="gw-code">array</code> of strings</dt><dd class="gw-kv__value">A tag list with an add input (schema allowlist).</dd></div>
-          <div class="gw-kv__row"><dt class="gw-kv__key"><code class="gw-code">writeOnly</code>, <code class="gw-code">format: "password"</code></dt><dd class="gw-kv__value">A gw-secret with the secret source picker. Never echoed back by the API.</dd></div>
-          <div class="gw-kv__row"><dt class="gw-kv__key"><code class="gw-code">x-gateway-secret: "login"</code></dt><dd class="gw-kv__value">The user of the login is typed, or read from the store that holds the password: Read the user from Vault.</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key"><code class="gw-code">writeOnly</code>, <code class="gw-code">format: "password"</code></dt><dd class="gw-kv__value">A gw-secret whose menu says where the value comes from: Text (encrypted here) or a connected store. Never echoed back by the API.</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key"><code class="gw-code">x-gateway-secret: "login"</code></dt><dd class="gw-kv__value">The user of the login gets the same menu: typed, or read from a store.</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key">Any other <code class="gw-code">string</code></dt><dd class="gw-kv__value">A value starting with <code class="gw-code">vault://</code>, <code class="gw-code">gcp-sm://</code> or <code class="gw-code">aws-sm://</code> is read from that store at call time. Never the host or URL: where credentials go stays typed.</dd></div>
           <div class="gw-kv__row"><dt class="gw-kv__key">Added by the gateway</dt><dd class="gw-kv__value">Environment and safety, and Test connection: the same for every connector.</dd></div>
         </dl>
       </div>

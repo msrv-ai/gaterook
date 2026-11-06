@@ -119,6 +119,22 @@ class ConnectionImportServiceTest {
     verifyNoInteractions(connections, wiring, events);
   }
 
+  /** A reference in a field would read that store at call time: only a person sets one, in the connection form. */
+  @Test
+  void rejectsStoreReferencesInCandidateConfig() {
+    var session = start();
+    for (String config : List.of("{\"credentials\":{\"username\":\"vault://kv/prod/db#password\"}}",
+        "{\"credentials\":{\"username\":\" AWS-SM://eu-central-1/prod/db#password\"}}",
+        "{\"replicas\":[{\"host\":\"gcp-sm://projects/acme/secrets/db/versions/latest\"}]}")) {
+      ObjectNode manifest = manifest();
+      ((ObjectNode) manifest.path("connections").get(0)).set("config", json.readTree(config));
+      assertThatThrownBy(() -> submit(session, manifest)).isInstanceOf(ProblemException.class)
+          .hasMessageContaining("Secret references belong in credentialHints");
+      assertThat(service.get(session.id()).status()).isEqualTo("awaiting");
+    }
+    verifyNoInteractions(connections, wiring, events);
+  }
+
   @Test
   void replayIsIdempotentButAnotherCallerOrChangedManifestCannotReplaceTheProposal() {
     var session = start();

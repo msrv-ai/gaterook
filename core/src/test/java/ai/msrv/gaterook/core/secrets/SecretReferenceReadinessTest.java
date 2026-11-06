@@ -32,14 +32,20 @@ class SecretReferenceReadinessTest {
     when(binding.integrity()).thenReturn(integrity);
     assertThat(service.referenceConnected("vault://kv/example#password", false, null)).isFalse();
     ExternalStoreEntity store = mock(ExternalStoreEntity.class);
-    when(binding.storeFor(any(), eq("example-store"), eq("/secrets"))).thenReturn(store);
+    when(binding.candidates(any(), eq("example-store"), eq("/secrets"))).thenReturn(List.of(store));
     when(integrity.verifyStore(store)).thenReturn(true);
     assertThat(service.referenceConnected("vault://kv/example#password", false, "example-store")).isTrue();
     when(integrity.verifyStore(store)).thenReturn(false);
     assertThat(service.referenceConnected("vault://kv/example#password", false, "example-store")).isFalse();
-    when(binding.storeFor(any(), eq("missing-store"), eq("/secrets")))
+    when(binding.candidates(any(), eq("missing-store"), eq("/secrets")))
         .thenThrow(ProblemException.unprocessable("No such store", "Configure the store.", "/secrets"));
     assertThat(service.referenceConnected("vault://kv/example#password", false, "missing-store")).isFalse();
+    // Several Vaults are asked in turn for a value; short-lived credentials need the one chosen.
+    ExternalStoreEntity other = mock(ExternalStoreEntity.class);
+    when(binding.candidates(any(), eq(null), eq("/secrets"))).thenReturn(List.of(store, other));
+    when(integrity.verifyStore(other)).thenReturn(true);
+    assertThat(service.referenceConnected("vault://kv/example#password", false, null)).isTrue();
+    assertThat(service.referenceConnected("vault://database/creds/reader", true, null)).isFalse();
     verifyNoInteractions(resolution);
   }
 

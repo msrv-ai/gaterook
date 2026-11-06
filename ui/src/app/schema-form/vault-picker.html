@@ -1,11 +1,11 @@
 <div class="gw-secret gw-menu-host" data-state="empty">
   <div class="gw-input-group">
-    @if (prefix()) {<span class="gw-input-group__affix gw-mono" [id]="fieldId() + '-prefix'">vault://</span>}
+    @if (lead(); as lead) {<ng-container [ngTemplateOutlet]="lead" />}
     <input #field class="gw-input gw-input--mono" type="text" [id]="fieldId()" [value]="text()"
-      placeholder="Search Vault paths and keys" autocomplete="off" spellcheck="false" role="combobox"
+      placeholder="vault:// then search Vault paths and keys" autocomplete="off" spellcheck="false" role="combobox"
       aria-autocomplete="list" [attr.aria-expanded]="expanded()" [attr.aria-controls]="id() + '-options'"
       [attr.aria-activedescendant]="activeId()" [attr.aria-invalid]="invalid() ? 'true' : null"
-      [attr.aria-describedby]="(describedBy() ? describedBy() + ' ' : '') + (prefix() ? fieldId() + '-prefix ' : '') + id() + '-status' + (result()?.issues?.length ? ' ' + id() + '-issues' : '')"
+      [attr.aria-describedby]="(describedBy() ? describedBy() + ' ' : '') + id() + '-status' + (result()?.issues?.length ? ' ' + id() + '-issues' : '')"
       (click)="open()" (input)="onInput(field)" (keydown)="onKeydown($event)" (blur)="close()" />
   </div>
   <span class="gw-secret__actions"><button class="gw-btn" type="button" (click)="testReference()">Test reference</button></span>

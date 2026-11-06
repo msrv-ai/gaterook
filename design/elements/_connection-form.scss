@@ -29,12 +29,16 @@
 //     </fieldset>
 //     <section class="gw-form__section gw-connection-form__credentials" aria-labelledby="…">
 //       <header class="gw-form__section-header"><h3 class="gw-form__legend">Credentials</h3>…</header>
-//       User (.gw-connection-form__user) · Secret source:
-//       <fieldset class="gw-field"><legend class="gw-field__label">Secret source</legend>
-//         <div class="gw-grid gw-grid--auto gw-connection-form__sources"> 5 × gw-choice-card --compact
-//           (value = local | vault | gcp | aws | dynamic) </div></fieldset>
-//       one secret field per source:
-//       <div class="gw-field gw-connection-form__secret" data-source="local">…gw-secret…</div>
+//       User (.gw-connection-form__user) and the secret, each a gw-input-group --
+//       gw-menu-host whose first part is its source menu: a gw-input-group__addon
+//       (aria-haspopup=listbox, "Text" or the store: Vault, vault-stage) and a
+//       gw-menu --wide role=listbox (Text, then each connected store with its
+//       address; a store not usable is aria-disabled with the reason). A store
+//       puts its scheme (vault://) in front of the value; a value typed with a
+//       scheme is a reference too, shown as typed in mono.
+//       <div class="gw-field gw-connection-form__secret">…gw-secret…</div>
+//       A screen that shows one field per source (connection-new.html) marks the
+//       section: .gw-connection-form__credentials[data-source=local|vault|gcp|aws|dynamic].
 //     </section>
 //     <section class="gw-form__section gw-connection-form__safety" aria-labelledby="…">
 //       Environment: 3 × gw-choice-card --compact (value = dev | stage | prod, title
@@ -109,11 +113,11 @@
 //             to fix it) before the hint, focus on the first invalid field.
 //
 // Parts
-//   __credentials   the Credentials section (scope of the source switch)
-//   __sources       grid of the five source cards (min column 200px: two or
-//                   three across, depending on the column width)
+//   __credentials   the Credentials section ([data-source] on a screen with one
+//                   secret field per source)
 //   __user          the User field (hidden for short-lived credentials)
-//   __secret        one secret field, with data-source="local|vault|gcp|aws|dynamic"
+//   __secret        a secret field; [data-source="local|vault|gcp|aws|dynamic"]
+//                   only where the section shows one field per source
 //   __safety        the Environment and safety section (scope of the prod alert)
 //   __prod-defaults the strict defaults alert
 //   __defaults      its list (a ul.gw-alert__body): icon + default per line
@@ -123,12 +127,14 @@
 //   __result        the result area of the panel, stacked 12px apart
 // A11y   Real fieldsets and legends; sections with nested fieldsets are
 //        <section aria-labelledby> with an h3 legend. Choice cards are named
-//        by their title and described by their description. Hidden
+//        by their title and described by their description. A source menu's
+//        button is named with its object and choice ("Source of the
+//        password: Text"); its options are role=option with aria-selected. Hidden
 //        alternatives are display: none, so they leave the tab order and the
 //        accessibility tree. The result area is role="status": the outcome of
 //        a test is announced. The busy button keeps its label; its spinner is
 //        decorative. Repeated forms on one page carry distinct names.
-// Raw values: none (the 200px source column is 5 × --gw-size-control-lg).
+// Raw values: none.
 // =============================================================
 
 @use "../scss/tokens" as *;
@@ -141,19 +147,15 @@ $gw-secret-sources: (local, vault, gcp, aws, dynamic);
   // lets long mono values shrink inside narrow columns.
   min-width: 0;
 
-  // ─── Credentials: the secret field follows the chosen source ───
-  &__sources {
-    --gw-grid-min: calc(var(--gw-size-control-lg) * 5); // 200px: two or three source cards across
-  }
-
+  // ─── Credentials: a screen with one secret field per source shows the one in use ───
   @each $source in $gw-secret-sources {
-    &__credentials:has(.gw-connection-form__sources input[value="#{$source}"]:checked) .gw-connection-form__secret:not([data-source="#{$source}"]) {
+    &__credentials[data-source="#{$source}"] .gw-connection-form__secret[data-source]:not([data-source="#{$source}"]) {
       display: none;
     }
   }
 
   // Short-lived credentials bring their own user.
-  &__credentials:has(.gw-connection-form__sources input[value="dynamic"]:checked) &__user {
+  &__credentials[data-source="dynamic"] &__user {
     display: none;
   }
 

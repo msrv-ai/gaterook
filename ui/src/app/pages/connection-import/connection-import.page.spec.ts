@@ -312,7 +312,8 @@ describe('AI connection import review', () => {
     await fixture.whenStable();
     fixture.detectChanges();
     const state = page.form()!.state();
-    expect(state.source()).toBe('vault');
+    // Each staged field keeps its own source; nothing is chosen for the form as a whole.
+    expect(state.source()).toBe('local');
     expect(state.secretState(state.compiled.all.find(n => n.pointer === '/credentials/password')!)).toBe('stored');
     expect(state.secretState(state.compiled.all.find(n => n.pointer === '/credentials/apiKey')!)).toBe('reference');
     expect(state.submit()).toBe(true);
