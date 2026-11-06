@@ -153,7 +153,7 @@
     } @else {
       <section class="gw-stack" aria-labelledby="import-review-title">
         <h2 class="gw-section__title" id="import-review-title" tabindex="-1">Choose connections to import</h2>
-        <p class="gw-text-small">Available settings are prepared for import. Choose Do not import to skip a connection, or open its settings to make changes. Incomplete connections are saved disabled; existing connections are never overwritten.</p>
+        <p class="gw-text-small">Available settings are prepared for import. Choose Do not add to endpoint to skip a connection entirely, or open its settings to make changes. Incomplete connections are saved disabled; existing connections are never overwritten.</p>
         @if (session()!.manifest!.warnings.length) {
           <div class="gw-stack gw-stack--sm">
             <div class="gw-alert gw-alert--warning gw-alert--compact">
@@ -178,17 +178,19 @@
               @if (candidate.supported) {
                 <div class="gw-field">
                   <label class="gw-field__label" [for]="'import-destination-' + candidate.id">Import to<span class="gw-sr-only"> for {{ drafts().get(candidate.id)?.name ?? candidate.name }}</span></label>
-                  <select class="gw-select" [id]="'import-destination-' + candidate.id" [disabled]="busy()" (change)="destinationChanged(candidate, $event)" aria-describedby="import-destination-hint">
-                    <option value="" [selected]="!destinations().has(candidate.id)">Do not import</option>
-                    @if (destinations().get(candidate.id); as destination) { @if (!eligibleEndpointSlugs().has(destination)) { <option [value]="destination" selected disabled>{{ destination }} · Unavailable</option> } }
-                    @for (endpoint of eligibleEndpoints(); track endpoint.slug) { <option [value]="endpoint.slug" [selected]="endpoint.slug === destinations().get(candidate.id)">{{ endpoint.slug }} · {{ endpoint.env }}</option> }
-                    <option value="__create">Create endpoint…</option>
-                  </select>
+                  <div class="gw-card__actions">
+                    <div><select class="gw-select" [id]="'import-destination-' + candidate.id" [disabled]="busy()" (change)="destinationChanged(candidate, $event)" aria-describedby="import-destination-hint">
+                      <option value="" [selected]="!destinations().has(candidate.id)">Do not add to endpoint</option>
+                      @if (destinations().get(candidate.id); as destination) { @if (!eligibleEndpointSlugs().has(destination)) { <option [value]="destination" selected disabled>{{ destination }} · Unavailable</option> } }
+                      @for (endpoint of eligibleEndpoints(); track endpoint.slug) { <option [value]="endpoint.slug" [selected]="endpoint.slug === destinations().get(candidate.id)">{{ endpoint.slug }} · {{ endpoint.env }}</option> }
+                      <option value="__create">Create endpoint…</option>
+                    </select></div>
+                    <span class="gw-tooltip gw-tooltip--bottom gw-tooltip--end">
+                      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [disabled]="busy()" [attr.aria-labelledby]="'import-settings-tip-' + candidate.id" (click)="configure(candidate)"><svg lucideIcon="settings" class="gw-icon"></svg></button>
+                      <span class="gw-tooltip__bubble" role="tooltip" [id]="'import-settings-tip-' + candidate.id">Edit settings for {{ candidate.name }}</span>
+                    </span>
+                  </div>
                 </div>
-                <span class="gw-tooltip gw-tooltip--bottom gw-tooltip--end">
-                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [disabled]="busy()" [attr.aria-labelledby]="'import-settings-tip-' + candidate.id" (click)="configure(candidate)"><svg lucideIcon="settings" class="gw-icon"></svg></button>
-                  <span class="gw-tooltip__bubble" role="tooltip" [id]="'import-settings-tip-' + candidate.id">Edit settings for {{ candidate.name }}</span>
-                </span>
               }
             </div></header>
             <div class="gw-card__body gw-stack">
@@ -208,7 +210,7 @@
           </section>
         }
         @if (supportedCandidates().length) {
-          <p class="gw-text-small gw-fg-muted" id="import-destination-hint">Choose a destination for each connection, or choose Do not import. Connections become available to their endpoint's AI apps under its normal policies. GateRook checks environment compatibility before saving.</p>
+          <p class="gw-text-small gw-fg-muted" id="import-destination-hint">Choose a destination for each connection. Do not add to endpoint skips the connection entirely; it will not be created. Connections become available to their endpoint's AI apps under its normal policies. GateRook checks environment compatibility before saving.</p>
           <div class="gw-field"><label class="gw-field__label" for="import-reason">Reason <span class="gw-field__optional">Optional</span></label><input class="gw-input" id="import-reason" maxlength="500" [disabled]="busy()" [value]="reason()" (input)="reason.set(value($event))"></div>
           <p class="gw-text-small" role="status">{{ selected().size }} selected · {{ selectedDrafts().length }} prepared. @if (selected().size > selectedDrafts().length) {Open settings for the remaining connections to review their names and available configuration.} @if (incompleteAllowed()) {{{ incompleteAllowed() }} may be saved disabled if setup is missing.}</p>
           @if (confirmation(); as confirm) {

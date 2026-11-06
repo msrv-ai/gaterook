@@ -391,7 +391,11 @@ describe('AI connection import review', () => {
     const skipped = { ...candidate, id: 'skipped-db', name: 'skipped-dev-db' };
     await loadReview({ ...review, manifest: { version: 1, connections: [candidate, second, skipped], warnings: [] } });
     page.setDestination(second, 'production');
-    page.setDestination(skipped, '');
+    const select = fixture.nativeElement.querySelector(`#import-destination-${skipped.id}`) as HTMLSelectElement;
+    const skip = Array.from(select.options).find(option => option.textContent === 'Do not add to endpoint')!;
+    expect(skip).toBeDefined();
+    select.value = skip.value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
     await page.configure(second); page.keep({ ...draft, name: second.name });
     expect(page.destinations().get(second.id)).toBe('production');
     const destinations = [{ connection: candidate.name, endpoint: 'default' }, { connection: second.name, endpoint: 'production' }];
@@ -405,6 +409,7 @@ describe('AI connection import review', () => {
     expect(fixture.nativeElement.querySelector('a[href="/endpoints/default"]')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('a[href="/endpoints/production"]')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('a[href="/connections/skipped-dev-db"]')).toBeNull();
+    expect(connections.create).not.toHaveBeenCalled();
   });
 
   it('cancels endpoint creation without changing the candidate destination or saving anything', async () => {

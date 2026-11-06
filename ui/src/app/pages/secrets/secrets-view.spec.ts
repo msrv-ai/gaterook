@@ -341,6 +341,10 @@ describe('external stores', () => {
     const aws: SecretStore = { ...gcp, kind: 'aws-sm', references: [{ secretId: 'x', name: 'billing-api/webhook-secret', ref: 'aws-sm://…', kind: 'reference', owner: 'billing-api' }] };
     expect(connectedToast('AWS Secrets Manager', aws, ok)).toEqual({ tone: 'success', title: 'AWS Secrets Manager connected', body: 'billing-api/webhook-secret resolves now.' });
     expect(connectedToast('AWS Secrets Manager', aws, { ...ok, ok: false, error: 'AccessDenied' })).toMatchObject({ tone: 'warning', title: 'AWS Secrets Manager connected, but its test failed' });
+    expect(connectedToast('AWS Secrets Manager', aws, null)).toEqual({
+      tone: 'warning', title: 'AWS Secrets Manager saved, but its test did not finish',
+      body: 'The store settings were saved. Check its connection in Secrets and test it again.',
+    });
   });
 });
 

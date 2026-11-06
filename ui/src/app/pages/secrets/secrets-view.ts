@@ -840,7 +840,10 @@ export function storeTestToast(title: string, t: SecretStoreTest): ToastText {
 
 export function connectedToast(title: string, store: SecretStore, test: SecretStoreTest | null): ToastText {
   const refs = storeReferences(store).map((r) => r.name);
-  if (test && !test.ok) {
+  if (!test) {
+    return { tone: 'warning', title: `${title} saved, but its test did not finish`, body: 'The store settings were saved. Check its connection in Secrets and test it again.' };
+  }
+  if (!test.ok) {
     return { tone: 'warning', title: `${title} connected, but its test failed`, body: test.error ?? 'Check its settings, then test it again.' };
   }
   return {

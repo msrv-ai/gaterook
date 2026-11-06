@@ -2,9 +2,10 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
 import { ConnectionImportsApi, ImportStoreConnect, ImportStoreProposal } from '../../core/api/connection-imports.api';
-import { SecretStore, SecretsApi } from '../../core/api/secrets.api';
+import { SecretStore, SecretStoreTest, SecretsApi } from '../../core/api/secrets.api';
 import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { provideKitIcons } from '../../kit/icons';
+import { ToastService } from '../../kit/toast.service';
 import { ImportVaultStores } from './import-vault-stores';
 
 const proposal: ImportStoreProposal = {
@@ -58,11 +59,21 @@ describe('Vault setup during connection import', () => {
   async function open(): Promise<void> { root().querySelector<HTMLButtonElement>('button[aria-haspopup="dialog"]')!.click(); await settle(); }
   async function submit(): Promise<void> {
     root().querySelector('#dlg-connect-store form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await waitForIdle();
+  }
+  async function waitForIdle(): Promise<void> {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(root().querySelector('#dlg-connect-store button[type="submit"]')!.getAttribute('aria-busy')).not.toBe('true');
     });
     await settle();
+  }
+  function dialogButton(dialog: string, text: string): HTMLButtonElement {
+    return Array.from(root().querySelectorAll<HTMLButtonElement>(`${dialog} button`)).find(button => button.textContent?.trim() === text)!;
+  }
+  async function openHttpHomeLogin(): Promise<void> {
+    fixture.componentRef.setInput('proposals', [{ ...proposal, config: { address: 'http://vault.example.test', auth: { method: 'cli-token' } }, secretSources: [] }]);
+    await settle(); await open(); await submit();
   }
   function prepared(): HTMLInputElement { return root().querySelector('#dlg-connect-store input[type="checkbox"]')!; }
 
@@ -185,6 +196,74 @@ describe('Vault setup during connection import', () => {
     expect(secrets.testStore).not.toHaveBeenCalled();
     await submit();
     expect(imports.connectStore).toHaveBeenCalledWith('ci_abcdefgh1234', proposal.id, expect.objectContaining({ config: expect.objectContaining({ auth: { method: 'cli-token' } }), preparedFields: [] }));
+  });
+
+  it('lets HTTP home-token confirmation be cancelled without starting a connect or test', async () => {
+    await openHttpHomeLogin();
+    expect(root().querySelector<HTMLDialogElement>('#dlg-vault-http')!.open).toBe(true);
+    expect(component.busy()).toBeNull();
+    expect(imports.connectStore).not.toHaveBeenCalled();
+    dialogButton('#dlg-vault-http', 'Cancel').click(); await settle();
+    expect(root().querySelector<HTMLDialogElement>('#dlg-vault-http')!.open).toBe(false);
+    expect(root().querySelector<HTMLDialogElement>('#dlg-connect-store')!.open).toBe(true);
+    expect(dialogButton('#dlg-connect-store', 'Cancel').disabled).toBe(false);
+    expect((root().querySelector('#vault-method') as HTMLSelectElement).value).toBe('cli-token');
+    expect(input('vault-address').value).toBe('http://vault.example.test');
+    expect(imports.connectStore).not.toHaveBeenCalled();
+    expect(secrets.testStore).not.toHaveBeenCalled();
+  });
+
+  it.each(['failed result', 'rejected request'])('releases HTTP home-token setup after a saved store test returns a %s', async (outcome) => {
+    let finish!: (result: SecretStoreTest) => void;
+    let fail!: (error: Error) => void;
+    secrets.testStore.mockImplementationOnce(() => new Promise<SecretStoreTest>((resolve, reject) => { finish = resolve; fail = reject; }));
+    const busy = vi.fn(); component.busyChange.subscribe(busy);
+    const changed = vi.fn(); component.changed.subscribe(changed);
+    await openHttpHomeLogin();
+    dialogButton('#dlg-vault-http', 'Connect over HTTP').click();
+    await vi.waitFor(() => { fixture.detectChanges(); expect(secrets.testStore).toHaveBeenCalledTimes(1); });
+    expect(root().querySelector<HTMLDialogElement>('#dlg-vault-http')!.open).toBe(false);
+    expect(root().querySelector<HTMLDialogElement>('#dlg-connect-store')!.open).toBe(true);
+    expect(dialogButton('#dlg-connect-store', 'Test and connect').getAttribute('aria-busy')).toBe('true');
+    expect(dialogButton('#dlg-connect-store', 'Cancel').disabled).toBe(true);
+    expect(imports.connectStore).toHaveBeenCalledExactlyOnceWith('ci_abcdefgh1234', proposal.id, {
+      name: proposal.name, config: { address: 'http://vault.example.test', auth: { method: 'cli-token' }, allowPlainHttp: true }, preparedFields: [],
+    });
+    expect(changed).not.toHaveBeenCalled();
+    if (outcome === 'failed result') {
+      finish({ ok: false, latencyMs: 10000, server: null, identity: null, permissions: [], hints: [], checks: [], error: 'Vault request timed out.', reason: 'timeout' });
+    } else {
+      fail(new Error('The test response was interrupted.'));
+    }
+    await waitForIdle();
+    expect(root().querySelector<HTMLDialogElement>('#dlg-connect-store')!.open).toBe(false);
+    expect(component.busy()).toBeNull();
+    expect(busy.mock.calls.map(call => call[0])).toEqual([true, false]);
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(imports.connectStore).toHaveBeenCalledTimes(1);
+    expect(component.match(proposal)?.id).toBe(saved.id);
+    expect(root().textContent).toContain('Selected for this import');
+    const toast = TestBed.inject(ToastService).toasts().at(-1)!;
+    expect(toast.tone).toBe('warning');
+    expect(toast.title).toContain(outcome === 'failed result' ? 'test failed' : 'saved, but its test did not finish');
+    expect(toast.body).not.toContain('resolves now');
+  });
+
+  it('restores HTTP home-token controls and reviewed settings when the connect request fails', async () => {
+    imports.connectStore.mockRejectedValueOnce(new Error('Vault sign-in did not finish. Try again.'));
+    await openHttpHomeLogin();
+    dialogButton('#dlg-vault-http', 'Connect over HTTP').click();
+    await vi.waitFor(() => expect(imports.connectStore).toHaveBeenCalledTimes(1));
+    await waitForIdle();
+    expect(component.busy()).toBeNull();
+    expect(root().querySelector<HTMLDialogElement>('#dlg-connect-store')!.open).toBe(true);
+    expect(dialogButton('#dlg-connect-store', 'Cancel').disabled).toBe(false);
+    expect((root().querySelector('#vault-method') as HTMLSelectElement).value).toBe('cli-token');
+    expect(input('vault-address').value).toBe('http://vault.example.test');
+    expect(root().textContent).toContain('Vault sign-in did not finish. Try again.');
+    expect(secrets.testStore).not.toHaveBeenCalled();
+    dialogButton('#dlg-connect-store', 'Cancel').click(); await settle();
+    expect(root().querySelector<HTMLDialogElement>('#dlg-connect-store')!.open).toBe(false);
   });
 
   it('prefills AppRole and clears prepared consent when the login identity changes', async () => {
