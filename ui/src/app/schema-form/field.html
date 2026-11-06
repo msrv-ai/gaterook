@@ -50,7 +50,7 @@
     @let state = f.textState(n);
     @let stored = storedSecret();
     @let kind = f.fieldKind(n);
-    @let hint = textHint2();
+    @let hint = referenceFieldHint();
     @let textHintId = hint ? id + '-hint' : null;
     <div class="gw-field" [class.gw-connection-form__user]="f.loginUsername(n)">
       @if (state === 'reference') {

@@ -242,7 +242,7 @@ export class GwSchemaField {
   }
 
   /** The hint of a text field next to a secret: its description, or where its reference is read from. */
-  protected textHint2(): string | null {
+  protected referenceFieldHint(): string | null {
     const f = this.form();
     const n = this.node();
     if (f.textState(n) === 'reference') return 'Read from its store at call time.';

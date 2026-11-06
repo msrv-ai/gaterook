@@ -107,13 +107,6 @@ export function secretSourceId(id: string): string {
   return id === 'vault-dynamic' || id === 'short-lived' ? 'dynamic' : id;
 }
 
-/** Add the selected store's scheme to a bare path, preserving explicit URIs for validation. */
-export function completeReference(source: string, value: string): string {
-  const ref = value.trim();
-  const scheme = secretSourceId(source) === 'dynamic' ? 'vault://' : sourceCopy(source).scheme;
-  return !ref || !scheme || ref.includes('://') ? ref : `${scheme}${ref}`;
-}
-
 /** Both accepted query/fragment orders become a key-free URI plus the selected key. */
 export function vaultReferenceParts(reference: string): { uri: string; key: string } {
   const ref = reference.trim();

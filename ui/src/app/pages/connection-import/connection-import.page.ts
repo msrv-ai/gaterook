@@ -548,27 +548,19 @@ export class ConnectionImportPage {
   }
 
   private needsRetainedSecrets(draft: ConnectionFormValue): boolean { return (this.active()?.secretSources ?? []).some(source => !draft.secrets[source.field]); }
+  /**
+   * The draft with the credentials kept from earlier edits. A staged reference moves to another store only through its
+   * field (Change, then a store picked in its menu); one sent without a store is bound by the core to the only store
+   * of its kind, or to the first of several, asked in turn, that has it.
+   */
   private withEditorSecrets(draft: ConnectionFormValue): ConnectionFormValue {
-    const { vaultStore, ...value } = draft;
-    const secrets: Record<string, SecretInputs[string]> = { ...this.editorSecrets(), ...draft.secrets };
-    if (vaultStore) {
-      // Import creates new secrets, so a store change becomes explicit references rather than an edit-only flag.
-      for (const source of this.active()?.secretSources ?? []) {
-        if (!secrets[source.field] && source.source === 'reference' && source.reference?.startsWith('vault://')) {
-          secrets[source.field] = { source: 'reference', ref: source.reference, store: vaultStore };
-        }
-      }
-      for (const [field, secret] of Object.entries(secrets)) {
-        if (secret.source === 'reference' && secret.ref.startsWith('vault://')) secrets[field] = { ...secret, store: vaultStore };
-      }
-    }
-    return { ...value, secrets };
+    return { ...draft, secrets: { ...this.editorSecrets(), ...draft.secrets } };
   }
   /** In-memory comparison only; the effective draft includes credentials and must never be logged. */
   private fileDraftKey(form: GwConnectionForm): string {
     const draft = form.value();
     const value = this.withEditorSecrets(draft);
-    return JSON.stringify([this.active()?.id, this.active()?.type, value.env, value.config, value.secrets, draft.vaultStore ?? null]);
+    return JSON.stringify([this.active()?.id, this.active()?.type, value.env, value.config, value.secrets]);
   }
   private message(error: unknown): string { return isApiError(error) ? `${error.title}. ${error.detail}` : desktopErrorText(error, 'GateRook could not complete this action. Try again.'); }
   private fail(error: unknown): void { if (this.destroy.destroyed) return; this.error.set(this.message(error)); this.focus('#import-error'); }
