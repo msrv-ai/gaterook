@@ -493,6 +493,27 @@
   });
 
   // ───────────────────────── toasts ─────────────────────────
+  var TOAST_DURATION = "gw-toast-duration-seconds";
+  var toastDurations = [5, 10, 15, 30, 60, 120];
+  var toastDurationSeconds = 15;
+  try {
+    var savedToastDuration = Number(localStorage.getItem(TOAST_DURATION));
+    if (toastDurations.indexOf(savedToastDuration) >= 0) toastDurationSeconds = savedToastDuration;
+  } catch (err) { /* keep the default */ }
+  // Capture before a reference settings page shows its "Saved" toast.
+  doc.addEventListener("change", function (e) {
+    var select = e.target;
+    if (!select.matches || !select.matches("select[data-gw-toast-duration]")) return;
+    var seconds = Number(select.value);
+    if (toastDurations.indexOf(seconds) < 0) return;
+    toastDurationSeconds = seconds;
+    try { localStorage.setItem(TOAST_DURATION, String(seconds)); } catch (err) { /* applies in this window */ }
+  }, true);
+  function initToastDuration() {
+    doc.querySelectorAll("select[data-gw-toast-duration]").forEach(function (select) {
+      select.value = String(toastDurationSeconds);
+    });
+  }
   function toastRegion() {
     var host = topLayer();
     var region = host.querySelector(":scope > .gw-toast-region");
@@ -537,15 +558,26 @@
     region.appendChild(el);
     icons(el);
     // Auto-dismiss pauses while the toast is hovered or focused (WCAG 2.2.1); toasts with actions stay.
-    var timeout = opts.timeout === undefined ? (opts.actions && opts.actions.length ? 0 : 6000) : opts.timeout;
-    if (timeout) {
-      var remaining = timeout, started = Date.now(), timer = null;
-      var start = function () { started = Date.now(); timer = setTimeout(function () { el.remove(); }, remaining); };
-      var pause = function () { clearTimeout(timer); remaining -= Date.now() - started; };
-      el.addEventListener("mouseenter", pause);
-      el.addEventListener("mouseleave", start);
-      el.addEventListener("focusin", pause);
-      el.addEventListener("focusout", function (ev) { if (!el.contains(ev.relatedTarget)) start(); });
+    var timeout = opts.timeout === undefined ? (opts.actions && opts.actions.length ? 0 : toastDurationSeconds * 1000) : opts.timeout;
+    if (timeout > 0) {
+      var remaining = timeout, started = 0, timer = null, hovered = el.matches(":hover"), focused = false;
+      var start = function () {
+        if (hovered || focused || timer !== null || !el.isConnected) return;
+        started = Date.now();
+        timer = setTimeout(function () { timer = null; el.remove(); }, Math.max(0, remaining));
+      };
+      var pause = function () {
+        if (timer === null) return;
+        clearTimeout(timer);
+        timer = null;
+        remaining = Math.max(0, remaining - (Date.now() - started));
+      };
+      el.addEventListener("mouseenter", function () { hovered = true; pause(); });
+      el.addEventListener("mouseleave", function () { hovered = false; start(); });
+      el.addEventListener("focusin", function () { focused = true; pause(); });
+      el.addEventListener("focusout", function (ev) {
+        if (!el.contains(ev.relatedTarget)) { focused = false; start(); }
+      });
       start();
     }
     return el;
@@ -1229,6 +1261,7 @@
     syncEnableWhen();
     doc.querySelectorAll(".gw-command-palette").forEach(initPalette);
     initSingleKeys();
+    initToastDuration();
     initVaultPickers();
     tabFromHash();
   }

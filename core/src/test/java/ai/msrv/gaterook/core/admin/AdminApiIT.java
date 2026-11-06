@@ -744,6 +744,7 @@ class AdminApiIT {
     assertThat(List.copyOf(all.propertyNames())).containsExactly("general", "appearance", "authorization",
         "approval-rules", "local-api", "audit", "backup");
     assertThat(all.path("general").path("values").path("autoUpdate").asBoolean()).isTrue();
+    assertThat(all.path("general").path("values").path("toastDurationSeconds").asInt()).isEqualTo(15);
     assertThat(all.path("authorization").path("values").path("tokenTtlDays").asInt()).isEqualTo(184);
     assertThat(all.path("audit").path("values").path("retentionYears").asInt()).isEqualTo(1);
     assertThat(all.path("backup").path("values").path("keep").asInt()).isEqualTo(7);
@@ -757,6 +758,26 @@ class AdminApiIT {
     assertThat(general.path("version").asLong()).isPositive();
     assertThat(api.expect(409, HttpMethod.PUT, "/api/settings/general", "{\"autoUpdate\":true,\"version\":0}")
         .path("title").asString()).isEqualTo("Changed meanwhile");
+    long generalVersion = general.path("version").asLong();
+    for (String invalid : List.of("-1", "0", "14", "121", "15.5", "\"30\"")) {
+      assertThat(api.expect(422, HttpMethod.PUT, "/api/settings/general",
+          "{\"toastDurationSeconds\":%s,\"version\":%d}".formatted(invalid, generalVersion))
+          .path("field").asString()).isEqualTo("/toastDurationSeconds");
+    }
+    assertThat(api.ok("/api/settings/general").path("version").asLong()).isEqualTo(generalVersion);
+    for (int seconds : List.of(5, 10, 15, 30, 60, 120)) {
+      JsonNode saved = api.expect(200, HttpMethod.PUT, "/api/settings/general",
+          "{\"toastDurationSeconds\":%d,\"version\":%d}".formatted(seconds, generalVersion));
+      generalVersion = saved.path("version").asLong();
+      JsonNode reloaded = api.ok("/api/settings/general");
+      assertThat(reloaded.path("values").path("toastDurationSeconds").asInt()).isEqualTo(seconds);
+      assertThat(reloaded.path("values").path("autoUpdate").asBoolean()).isFalse();
+      assertThat(reloaded.path("version").asLong()).isEqualTo(generalVersion);
+    }
+    JsonNode resetDuration = api.expect(200, HttpMethod.PUT, "/api/settings/general",
+        "{\"toastDurationSeconds\":null,\"version\":%d}".formatted(generalVersion));
+    assertThat(resetDuration.path("values").path("toastDurationSeconds").asInt()).isEqualTo(15);
+    assertThat(api.ok("/api/settings/general").path("values").path("toastDurationSeconds").asInt()).isEqualTo(15);
     // The audit retention is a signed row from the first start on (V87), not a default read in its place.
     assertThat(all.path("audit").path("version").asLong()).isPositive();
     assertThat(all.path("audit").path("verified").asBoolean()).isTrue();

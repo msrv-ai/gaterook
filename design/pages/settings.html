@@ -696,7 +696,7 @@
           <section class="gw-settings-layout__section" id="settings-notifications" aria-labelledby="st-notif-t">
             <header class="gw-section__header">
               <h2 class="gw-section__title" id="st-notif-t">Notifications</h2>
-              <p class="gw-section__description">Where approval requests reach you. Each message shows the exact action with its connection and environment; the agent's note is never sent.</p>
+              <p class="gw-section__description">How long in-app notifications stay visible and where approval requests reach you. Approval messages show the exact action with its connection and environment; the agent's note is never sent.</p>
               <div class="gw-section__actions">
                 <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-dialog-open="st-preview-dlg"><i class="gw-icon gw-icon--sm" data-lucide="message-square"></i> Preview messages</button>
                 <button class="gw-btn gw-btn--sm" type="button" data-gw-toast="Sent to the desktop and to #deploy-approvals in Slack. Telegram is not set up." data-gw-toast-title="Test notification sent" data-gw-toast-tone="success"><i class="gw-icon gw-icon--sm" data-lucide="send"></i> Send test notification</button>
@@ -704,6 +704,27 @@
             </header>
             <hr class="gw-divider">
             <div class="gw-form">
+              <section class="gw-form__section" aria-labelledby="st-in-app-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-in-app-t">In-app notifications</h3>
+                  <p class="gw-form__description">Brief messages inside GateRook. Changes apply to new notifications.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="st-toast-duration">Display duration</label>
+                    <select class="gw-select" id="st-toast-duration" data-gw-toast-duration aria-describedby="st-toast-duration-hint">
+                      <option value="5">5 seconds</option>
+                      <option value="10">10 seconds</option>
+                      <option value="15" selected>15 seconds</option>
+                      <option value="30">30 seconds</option>
+                      <option value="60">1 minute</option>
+                      <option value="120">2 minutes</option>
+                    </select>
+                    <p class="gw-field__hint" id="st-toast-duration-hint">Notifications disappear after this time. The timer pauses while you hover over or focus a notification. Notifications with actions stay until dismissed.</p>
+                  </div>
+                </div>
+              </section>
+
               <section class="gw-form__section" aria-labelledby="st-desktop-t">
                 <header class="gw-form__section-header">
                   <h3 class="gw-form__legend" id="st-desktop-t">Desktop</h3>

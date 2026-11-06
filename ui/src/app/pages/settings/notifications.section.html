@@ -1,6 +1,6 @@
 <header class="gw-section__header">
   <h2 class="gw-section__title" id="st-notif-t">Notifications</h2>
-  <p class="gw-section__description">Where approval requests reach you. Each message shows the exact action with its connection and environment; the agent's note is never sent.</p>
+  <p class="gw-section__description">How long in-app notifications stay visible and where approval requests reach you. Approval messages show the exact action with its connection and environment; the agent's note is never sent.</p>
   <div class="gw-section__actions">
     <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="dialog" [attr.aria-busy]="previewBusy() ? 'true' : null" (click)="openPreview($event)"><svg lucideIcon="message-square" class="gw-icon gw-icon--sm"></svg> Preview messages</button>
     <button class="gw-btn gw-btn--sm" type="button" [attr.aria-disabled]="off() || busy() === 'test' ? 'true' : null" [attr.aria-busy]="busy() === 'test' ? 'true' : null" [attr.aria-describedby]="off() && (unavailable() || failed()) ? 'st-notif-why' : null" (click)="sendTest()"><svg lucideIcon="send" class="gw-icon gw-icon--sm"></svg> Send test notification</button>
@@ -20,13 +20,37 @@
     <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
     <div class="gw-alert__content">
       <p class="gw-alert__title">The notification channels didn't load</p>
-      <p class="gw-alert__body">Nothing here can change until they do. Approval requests still wait in <a class="gw-link" routerLink="/approvals">Approvals</a>.</p>
+      <p class="gw-alert__body">Channel settings can't change until they do. Approval requests still wait in <a class="gw-link" routerLink="/approvals">Approvals</a>.</p>
     </div>
     <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="data.reloadNotifications()"><svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg> Try again</button></div>
   </div>
 }
 @let why = unavailable() || failed() ? 'st-notif-why' : null;
 <div class="gw-form">
+  <section class="gw-form__section" aria-labelledby="st-in-app-t">
+    <header class="gw-form__section-header">
+      <h3 class="gw-form__legend" id="st-in-app-t">In-app notifications</h3>
+      <p class="gw-form__description">Brief messages inside GateRook. Changes apply to new notifications.</p>
+    </header>
+    <div class="gw-form__rows">
+      <div class="gw-field">
+        <label class="gw-field__label" for="st-toast-duration">Display duration</label>
+        <select class="gw-select" id="st-toast-duration" [attr.aria-disabled]="durationUnavailable() || durationBusy() ? 'true' : null" [attr.aria-busy]="durationBusy() ? 'true' : null" [attr.aria-describedby]="'st-toast-duration-hint' + (durationUnavailable() || durationBusy() ? ' st-toast-duration-status' : '') + (durationError() ? ' st-toast-duration-error' : '')" (change)="setDuration($event)">
+          @for (seconds of durationOptions; track seconds) {
+            <option [value]="seconds" [selected]="seconds === duration()">{{ durationText(seconds) }}</option>
+          }
+        </select>
+        <p class="gw-field__hint" id="st-toast-duration-hint">Notifications disappear after this time. The timer pauses while you hover over or focus a notification. Notifications with actions stay until dismissed.</p>
+        @if (durationUnavailable() || durationBusy()) {
+          <p class="gw-field__hint" id="st-toast-duration-status" role="status">{{ durationUnavailable() ? 'The app settings have not loaded.' : 'Saving display duration.' }}</p>
+        }
+        @if (durationError(); as error) {
+          <p class="gw-field__error" id="st-toast-duration-error" role="alert"><svg lucideIcon="circle-alert" class="gw-icon"></svg>In-app notification duration wasn't saved. {{ error }}</p>
+        }
+      </div>
+    </div>
+  </section>
+
   <section class="gw-form__section" aria-labelledby="st-desktop-t">
     <header class="gw-form__section-header">
       <h3 class="gw-form__legend" id="st-desktop-t">Desktop</h3>

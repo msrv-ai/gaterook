@@ -43,8 +43,8 @@ import tools.jackson.databind.node.ObjectNode;
 public class SettingsService {
 
   /**
-   * The sections people edit, in the kit's order (Users & roles is a static preview; Notifications and Tunnel have
-   * their own API).
+   * The sections people edit, in the kit's order (Users & roles is a static preview; notification channels and Tunnel
+   * have their own API). General also stores the in-app notification duration shown under Notifications.
    */
   public static final List<String> SECTIONS = List.of("general", "appearance", "authorization", "approval-rules",
       "local-api", "audit", "backup");
@@ -256,7 +256,9 @@ public class SettingsService {
           "openAtLogin":{"type":"boolean","default":true,"title":"Start GateRook when you sign in"},
           "startHidden":{"type":"boolean","default":true,"title":"Start minimized"},
           "autoUpdate":{"type":"boolean","default":true,"title":"Check for updates automatically"},
-          "singleKeyShortcuts":{"type":"boolean","default":true,"title":"Single-key shortcuts"}}}"""));
+          "singleKeyShortcuts":{"type":"boolean","default":true,"title":"Single-key shortcuts"},
+          "toastDurationSeconds":{"type":"integer","enum":[5,10,15,30,60,120],"default":15,
+            "title":"In-app notification duration","x-unit":"seconds"}}}"""));
     out.put("appearance", parse("""
         {"type":"object","additionalProperties":false,"properties":{
           "theme":{"enum":["system","light","dark"],"default":"system","title":"Theme"},

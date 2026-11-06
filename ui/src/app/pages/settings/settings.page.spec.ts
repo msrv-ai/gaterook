@@ -231,7 +231,6 @@ function configure(): void {
       { provide: DesktopBridge, useFactory: () => desktop },
       { provide: CoreStore, useValue: { running: signal(true), instanceChanges: signal(0), version: signal<string | null>(kitHealth().version) } },
       { provide: ApprovalsStore, useValue: { pendingCount: signal(3) } },
-      { provide: SettingsStore, useValue: { put: () => undefined } },
       { provide: TunnelStore, useValue: { refresh: () => Promise.resolve(), stop: () => (calls.push('tunnel stop'), Promise.resolve()) } },
       { provide: TimeService, useValue: fakeTime },
     ],
@@ -685,7 +684,54 @@ describe('Settings page: Authorization', () => {
 });
 
 describe('Settings page: Notifications', () => {
-  it('without K2: says so, and every control that would act is unavailable with that reason', async () => {
+  it('in-app notifications default to 15 seconds and save independently of delivery channels', async () => {
+    // Existing homes may not have stored the newly introduced preference yet.
+    world.sections = () => Promise.resolve(kitSections({ general: { openAtLogin: true } }));
+    const el = await render();
+    const select = $<HTMLSelectElement>('#st-toast-duration', el)!;
+    expect(select.value).toBe('15');
+    expect(select.getAttribute('aria-disabled')).toBeNull();
+    expect(text($('#st-notif-why', el))).toContain('Not available in this build');
+
+    await type(select, '30');
+    expect(bodies['general']).toEqual({ toastDurationSeconds: 30, version: 3 });
+    expect(TestBed.inject(SettingsStore).section('general')?.values['toastDurationSeconds']).toBe(30);
+    expect(select.value).toBe('30');
+    expect(toasts()).toContain('Saved · In-app notification duration: 30 seconds.');
+    expect(TestBed.inject(ToastService).toasts().at(-1)?.timeout).toBe(30_000);
+  });
+
+  it('a rejected duration change keeps the saved duration and explains the failure beside the field', async () => {
+    world.sections = () => Promise.resolve(kitSections({ general: { toastDurationSeconds: 60 } }));
+    world.update = () => Promise.reject(problem(500, 'The settings table is locked.'));
+    const el = await render();
+    const select = $<HTMLSelectElement>('#st-toast-duration', el)!;
+    expect(select.value).toBe('60');
+
+    await type(select, '120');
+    expect(select.value).toBe('60');
+    expect(TestBed.inject(SettingsStore).section('general')?.values['toastDurationSeconds']).toBe(60);
+    expect(reason(select)).toContain("In-app notification duration wasn't saved. The settings table is locked.");
+    expect($('#st-toast-duration-error', el)?.getAttribute('role')).toBe('alert');
+    expect(toasts()).not.toContain('Saved · In-app notification duration: 2 minutes.');
+  });
+
+  it('cannot save duration until the general settings section is available', async () => {
+    world.sections = () => {
+      const { general: _general, ...sections } = kitSections();
+      return Promise.resolve(sections);
+    };
+    const el = await render();
+    const select = $<HTMLSelectElement>('#st-toast-duration', el)!;
+    expect(select.getAttribute('aria-disabled')).toBe('true');
+    expect(reason(select)).toContain('The app settings have not loaded.');
+
+    await type(select, '30');
+    expect(select.value).toBe('15');
+    expect(calls).not.toContain('put general');
+  });
+
+  it('without K2: says so, and every channel control that would act is unavailable with that reason', async () => {
     const el = await render();
     const n = $('#settings-notifications', el)!;
     expect(text($('#st-notif-why', n))).toContain('Not available in this build');
