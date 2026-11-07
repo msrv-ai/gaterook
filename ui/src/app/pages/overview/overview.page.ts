@@ -37,6 +37,7 @@ import { activityLine, overviewState, retestToast, RetestResult } from './overvi
 import { MapConnection, endpointUnreachable, mapApps, mapConnections } from './overview-map-view';
 import { GwOverviewSetup } from './overview-setup';
 import { GwOverviewWires, OverviewWireTrace } from './overview-wires';
+import { OverviewRequestPath } from './overview-request-path';
 
 export const SKELETON_DELAY_MS = 300;
 
@@ -62,6 +63,7 @@ export const SKELETON_DELAY_MS = 300;
     GwMcpSetupFlow,
     GwOverviewWires,
     OverviewConnectionTools,
+    OverviewRequestPath,
   ],
   providers: [OverviewData, ConnectorsData],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -119,6 +121,13 @@ export class OverviewPage {
   protected readonly apps = computed(() =>
     mapApps(this.data.clients()?.clients ?? null, this.endpoint()),
   );
+  protected readonly requestPath = computed(() => {
+    const trace = this.trace();
+    const endpoint = this.endpoint();
+    const app = this.apps()?.find((app) => app.client === trace?.app);
+    const service = this.connections()?.find((service) => service.name === trace?.service);
+    return trace && endpoint && app && service ? { app, service, endpoint, sequence: trace.sequence } : null;
+  });
   protected readonly assigned = computed(() => this.connections()?.filter((c) => c.assigned) ?? []);
   protected readonly filtered = computed(() =>
     this.assigned().filter((c) => this.matches(c) && (!this.problemsOnly() || c.unreachable)),
@@ -417,6 +426,7 @@ export class OverviewPage {
   }
   protected clearPath(): void {
     this.trace.set(null);
+    afterNextRender(() => this.host.querySelector<HTMLElement>('#ov-show-path')?.focus(), { injector: this.injector });
   }
   protected async testAgain(name: string): Promise<void> {
     if (this.testing().includes(name) || this.mutationBlocked()) return;

@@ -372,7 +372,7 @@ export class McpServersApi {
     return this.api.post('/api/mcp-servers', source);
   }
 
-  /** A page of the MCP registry's servers whose names contain `search`; `cursor` continues the previous page. */
+  /** Browse servers with an empty search, or match their names; `cursor` continues the previous page. */
   searchRegistry(search: string, cursor: string | null = null): Promise<McpRegistryPage> {
     return this.api.get('/api/mcp-registry/servers', { search, cursor });
   }

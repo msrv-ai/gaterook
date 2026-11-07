@@ -1058,6 +1058,96 @@ describe('Connectors page: MCP servers', () => {
     expect(toasts().at(-1)?.body).toBe('Its 12 tools are Off until you add them to an endpoint. Declared reads start as Read only; other tools start as Approval.');
   });
 
+  it('loads registry browsing on first selection, keeps it across tabs and paginates without a search', async () => {
+    const first = deferred<McpRegistryPage>();
+    setup({ registry: (search, cursor) => cursor ? registryPage(search, cursor) : first.promise });
+    const { fixture, el } = await render();
+    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual([]);
+
+    button(add, 'Official MCP Registry').click();
+    await settle(fixture);
+    const registry = add.querySelector<HTMLElement>('[role="tabpanel"][id$="-registry"]')!;
+    const results = () => Array.from(registry.querySelectorAll('[aria-label="Servers in the MCP registry"] article'));
+    expect(text(registry.querySelector('[role="status"]'))).toBe('Loading servers from the MCP registry…');
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ']);
+    first.resolve(await registryPage('', null));
+    await settle(fixture);
+    expect(results()).toHaveLength(2);
+    button(add, 'Manual entry').click();
+    button(add, 'Official MCP Registry').click();
+    await settle(fixture);
+    expect(results()).toHaveLength(2);
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ']);
+
+    button(add, 'Show more').click();
+    await settle(fixture);
+    expect(calls).toContain('registry  after app.linear/linear:1.0.2');
+    expect(results()).toHaveLength(3);
+    expect(document.activeElement).toBe(button(results()[2], 'Use'));
+    expect(calls).not.toContain('review');
+    expect(bodies['create-server']).toBeUndefined();
+  });
+
+  it('restores registry browsing when the search is cleared', async () => {
+    setup();
+    const { fixture, el } = await render();
+    const { registry, search, results } = await searchMcpRegistry(fixture, el, 'linear');
+    type(search, '');
+    await settle(fixture);
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ', 'registry linear', 'registry ']);
+    expect(results()).toHaveLength(2);
+    expect(text(registry.querySelector('[role="status"]'))).toBe('2 servers so far');
+  });
+
+  it('retries an initial registry listing and explains an empty listing without a search', async () => {
+    let fail = true;
+    setup({ registry: () => fail ? Promise.reject(new ApiError('server', 502, {
+      title: 'The registry did not answer', detail: 'Registry is temporarily unavailable.',
+    })) : Promise.resolve({ registry: 'registry.modelcontextprotocol.io', servers: [] }) });
+    const fixture = TestBed.createComponent(ConnectorsPage);
+    fixture.componentRef.setInput('add', 'mcp-server');
+    fixture.componentRef.setInput('source', 'registry');
+    document.body.appendChild(fixture.nativeElement);
+    await settle(fixture);
+    const add = fixture.nativeElement.querySelector('dialog[gwMcpAddDialog]') as HTMLDialogElement;
+    const registry = add.querySelector<HTMLElement>('[role="tabpanel"][id$="-registry"]')!;
+    expect(text(registry.querySelector('.gw-alert--danger'))).toContain('Registry is temporarily unavailable.');
+    fail = false;
+    button(registry, 'Try again').click();
+    await settle(fixture);
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ', 'registry ']);
+    expect(registry.querySelector('.gw-alert--danger')).toBeNull();
+    expect(text(registry.querySelector('.gw-empty__title'))).toBe('No servers available');
+    expect(text(registry.querySelector('[role="status"]'))).toBe('0 servers');
+  });
+
+  it('drops an initial listing as soon as a new query is typed, before its debounce finishes', async () => {
+    const initial = deferred<McpRegistryPage>();
+    setup({ registry: (search, cursor) => search ? registryPage(search, cursor) : initial.promise });
+    const { fixture, el } = await render();
+    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    button(add, 'Official MCP Registry').click();
+    await settle(fixture);
+    const search = add.querySelector<HTMLInputElement>('input[type="search"]')!;
+    type(search, 'linear');
+    initial.resolve({ registry: 'registry.modelcontextprotocol.io', servers: stripeRegistryServers });
+    await Promise.resolve();
+    await Promise.resolve();
+    fixture.detectChanges();
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ']);
+    expect(add.querySelectorAll('[aria-label="Servers in the MCP registry"] article')).toHaveLength(0);
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await settle(fixture);
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ', 'registry linear']);
+    expect(text(add.querySelector('[aria-label="Servers in the MCP registry"]'))).toContain('Linear');
+    expect(text(add.querySelector('[aria-label="Servers in the MCP registry"]'))).not.toContain('stripecheckup');
+  });
+
   it.each(['Use', 'title'])('selects an MCP registry server with %s, fills the form and waits for review', async (action) => {
     setup();
     const { fixture, el } = await render();
@@ -1076,18 +1166,18 @@ describe('Connectors page: MCP servers', () => {
     const search = registry.querySelector<HTMLInputElement>('input[type="search"]')!;
     const status = () => text(registry.querySelector('[role="status"]'));
 
-    // The registry takes 3 characters at least: nothing is asked before.
+    // Browsing loads immediately; a nonempty search still needs at least 3 characters.
     type(search, 'li');
     search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     await settle(fixture);
     expect(status()).toBe('Type at least 3 characters of the server’s name.');
-    expect(calls.filter((c) => c.startsWith('registry'))).toEqual([]);
+    expect(calls.filter((c) => c.startsWith('registry'))).toEqual(['registry ']);
 
     // Enter searches at once and doesn't submit the form for review.
     type(search, 'linear');
     search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     await settle(fixture);
-    expect(calls.filter((c) => c.startsWith('registry'))).toEqual(['registry linear']);
+    expect(calls.filter((c) => c.startsWith('registry'))).toEqual(['registry ', 'registry linear']);
     expect(calls).not.toContain('review');
     expect(status()).toBe('2 servers so far');
     const results = () => Array.from(add.querySelectorAll('[aria-label="Servers in the MCP registry"] article'));
@@ -1150,7 +1240,7 @@ describe('Connectors page: MCP servers', () => {
     expect(results()[0].querySelector('[aria-label="Official server by Stripe"]')).not.toBeNull();
     expect(results()[1].querySelector('.gw-card__title .gw-badge')).toBeNull();
     expect(results()[2].querySelector('.gw-card__title .gw-badge')).toBeNull();
-    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry stripe']);
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ', 'registry stripe']);
     expect(calls).not.toContain('review');
   });
 
@@ -1162,7 +1252,7 @@ describe('Connectors page: MCP servers', () => {
     expect(results().map((row) => text(row.querySelector('.gw-card__title button'))))
       .toEqual(['stripecheckup', 'Official Stripe integration', 'mcp']);
     expect(results().every((row) => row.querySelector('.gw-card__title .gw-badge') === null)).toBe(true);
-    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry stripe']);
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ', 'registry stripe']);
   });
 
   it('finds an official publisher beyond the first page and deduplicates it on Show more', async () => {
@@ -1178,7 +1268,7 @@ describe('Connectors page: MCP servers', () => {
 
     expect(results().map((row) => text(row.querySelector('.gw-card__title button'))))
       .toEqual(['mcp', 'stripecheckup', 'Official Stripe integration']);
-    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry stripe', 'registry com.stripe/mcp']);
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ', 'registry stripe', 'registry com.stripe/mcp']);
     expect(text(registry.querySelector('[role="status"]'))).toBe('3 servers so far');
 
     button(add, 'Show more').click();
@@ -1273,7 +1363,7 @@ describe('Connectors page: MCP servers', () => {
     expect(add.querySelectorAll('[aria-label="Servers in the MCP registry"] article')).toHaveLength(2);
   });
 
-  it('opens on Manual entry again after the registry tab was left open', async () => {
+  it('opens on Manual entry again and cancels a registry search queued before closing', async () => {
     setup();
     const { fixture, el } = await render();
     button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
@@ -1281,6 +1371,7 @@ describe('Connectors page: MCP servers', () => {
     const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
     button(add, 'Official MCP Registry').click();
     await settle(fixture);
+    type(add.querySelector<HTMLInputElement>('input[type="search"]')!, 'linear');
     button(add.querySelector('footer'), 'Cancel').click();
     await settle(fixture);
     expect(add.open).toBe(false);
@@ -1292,6 +1383,9 @@ describe('Connectors page: MCP servers', () => {
     expect(add.querySelector<HTMLElement>('[role="tabpanel"][id$="-registry"]')!.hidden).toBe(true);
     expect(document.activeElement).toBe(add.querySelector('input[placeholder="sentry-mcp"]'));
     expect(Array.from(add.querySelectorAll('footer button')).map(text)).toEqual(['Cancel', 'Review and start']);
+    await sleep(400);
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ']);
+    expect(add.querySelectorAll('[aria-label="Servers in the MCP registry"] article')).toHaveLength(0);
   });
 
   it('warns about a key in the URL in the review, and still connects the server with it', async () => {
@@ -1348,9 +1442,12 @@ describe('Connectors page: MCP servers', () => {
     if (source === 'registry') {
       expect(text(add.querySelector('[role="tab"][aria-selected="true"]'))).toContain('Official MCP Registry');
       expect((document.activeElement as HTMLElement)?.id).toContain('-find-q');
+      expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry ']);
+      expect(add.querySelectorAll('[aria-label="Servers in the MCP registry"] article')).toHaveLength(2);
     } else {
       expect(text(add)).toContain('Review and connect');
       expect(add.querySelector<HTMLInputElement>('input[type="radio"][value="http"]')?.checked).toBe(true);
+      expect(calls.filter((call) => call.startsWith('registry'))).toEqual([]);
     }
     expect(bodies['create-server']).toBeUndefined();
   });

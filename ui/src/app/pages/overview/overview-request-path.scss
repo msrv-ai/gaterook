@@ -1,0 +1,69 @@
+:host {
+  display: block;
+  container-type: inline-size;
+  border-top: 1px solid var(--gw-color-border-subtle);
+  margin-top: var(--gw-space-3);
+  padding-top: var(--gw-space-4);
+}
+
+.path-flow {
+  --path-gap: var(--gw-space-12);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--path-gap);
+  padding: var(--gw-space-6) var(--gw-space-4);
+  margin: 0;
+  list-style: none;
+  border-radius: var(--gw-radius-lg);
+  background: radial-gradient(ellipse at center, var(--gw-color-brand-subtle), var(--gw-color-bg-canvas) 75%);
+}
+
+.path-step { position: relative; min-width: 0; }
+.path-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--gw-space-2);
+  padding: var(--gw-space-5) var(--gw-space-3);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.path-gateway {
+  border-color: var(--gw-color-brand-border);
+  box-shadow: 0 0 0 var(--gw-space-2) var(--gw-color-brand-subtle), var(--gw-shadow-sm);
+}
+.path-mark { width: var(--gw-size-control-md); height: var(--gw-size-control-md); object-fit: contain; }
+.path-wire {
+  position: absolute;
+  z-index: 1;
+  left: 100%;
+  top: calc(50% - 12px);
+  width: var(--path-gap);
+  height: 24px;
+  overflow: visible;
+  pointer-events: none;
+  fill: none;
+  stroke: var(--gw-color-brand-fg);
+  stroke-width: 1.5;
+}
+.path-pulse {
+  fill: var(--gw-color-brand-fg);
+  stroke: var(--gw-color-bg-surface);
+  stroke-width: 2;
+  opacity: 0;
+  animation: path-request 1.2s ease-in-out .15s;
+}
+.path-pulse--service { animation-delay: 1.35s; }
+@keyframes path-request {
+  0% { transform: translateX(0); opacity: 0; }
+  15%, 85% { opacity: 1; }
+  100% { transform: translateX(100px); opacity: 0; }
+}
+@container (max-width: 620px) {
+  .path-flow { grid-template-columns: minmax(0, 1fr); }
+  .path-wire { left: calc(50% - var(--path-gap) / 2); top: calc(100% + var(--path-gap) / 2 - 12px); transform: rotate(90deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .path-pulse { animation: none; }
+}

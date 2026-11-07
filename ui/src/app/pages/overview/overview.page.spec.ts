@@ -348,12 +348,32 @@ describe('Overview connection map', () => {
     const { fixture, el } = await render();
     await searchFor(fixture, el, 'prod-replica');
     expect(text(el)).toContain('No matching connections');
+    expect(byText(el.querySelector('#ov-services')!, 'a', 'Import with AI')).toBeNull();
     await selectEndpoint(fixture, el, 'incident-prod');
     expect(services(el)).toEqual(['prod-replica']);
     await searchFor(fixture, el, 'does-not-exist');
     findButton(el.querySelector('#ov-services')!, 'Clear search').click();
     await settle(fixture);
     expect(services(el)).toEqual(['prod-logs', 'prod-replica', 'prod-vm']);
+  });
+
+  it('offers repository import for an empty selected endpoint and keeps its context', async () => {
+    savedConnections = savedConnections.map((connection) => ({ ...connection,
+      usedBy: connection.usedBy.filter((slug) => slug !== 'incident-prod') }));
+    TestBed.inject(Router).resetConfig([{ path: 'connection-import', children: [] }]);
+    const { fixture, el } = await render();
+    expect(byText(el.querySelector('#ov-services')!, 'a', 'Import with AI')).toBeNull();
+    await selectEndpoint(fixture, el, 'incident-prod');
+    const empty = el.querySelector('#ov-services')!;
+    expect(text(empty)).toContain('No services connected to this endpoint');
+    expect(text(empty)).toContain('analyze a repository and prepare connections for review');
+    const importLink = byText<HTMLAnchorElement>(empty, 'a', 'Import with AI')!;
+    expect(href(importLink)).toBe('/connection-import?endpoint=incident-prod');
+    const before = [...calls];
+    importLink.click();
+    await settle(fixture);
+    expect(TestBed.inject(Router).url).toBe('/connection-import?endpoint=incident-prod');
+    expect(calls).toEqual(before);
   });
 
   it('shows only enabled unreachable connections from the endpoint badge and resets both filters', async () => {
@@ -609,15 +629,30 @@ describe('Overview connection map', () => {
     const before = [...calls];
     service(el, 'billing-api')!.querySelector<HTMLButtonElement>('button')!.click();
     await settle(fixture);
-    findButton(el.querySelector('#ov-detail')!, 'Show path').click();
+    const showPath = findButton(el.querySelector('#ov-detail')!, 'Show path');
+    expect(showPath.getAttribute('aria-expanded')).toBe('false');
+    expect(showPath.getAttribute('aria-controls')).toBe('ov-request-path');
+    showPath.click();
     await settle(fixture);
+    expect(showPath.getAttribute('aria-expanded')).toBe('true');
+    const route = el.querySelector('ol[aria-label="Request route"]')!;
+    expect(route.children).toHaveLength(3);
+    expect(text(route.children[0])).toContain('Claude Desktop');
+    expect(text(route.children[1])).toContain('GateRook');
+    expect(text(route.children[1])).toContain('Endpoint dev');
+    expect(text(route.children[2])).toContain('billing-api');
     expect(text(el.querySelector('#ov-detail'))).toContain('Example path only; no request is sent.');
-    expect(text(el.querySelector('#ov-detail'))).toContain('claude-desktop → dev → billing-api');
     expect(text(el.querySelector('#ov-detail'))).toContain('An unreachable service cannot complete the call.');
+    showPath.click();
+    await settle(fixture);
+    expect(el.querySelector('ol[aria-label="Request route"]')).not.toBe(route);
     expect(calls).toEqual(before);
+    expect(tests).toEqual([]);
     findButton(el.querySelector('#ov-detail')!, 'Clear').click();
     await settle(fixture);
     expect(text(el.querySelector('#ov-detail'))).not.toContain('Example path only');
+    expect(showPath.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(showPath);
     expect(href(byText(el, 'a', 'Activity'))).toBe('/activity');
   });
 });
@@ -703,6 +738,8 @@ describe('Overview availability', () => {
     const { fixture, el } = await render();
     expect(text(el)).toContain('Connect your first service');
     expect(services(el)).toEqual([]);
+    expect(href(byText(el.querySelector('#ov-services')!, 'a', 'Import with AI'))).toBe('/connection-import');
+    expect(text(el.querySelector('#ov-services'))).toContain('analyze a repository and prepare connections for review');
     expect(el.querySelector('input[name="overview-endpoint"]')).toBeNull();
     expect(app(el, 'codex').querySelector('a')?.getAttribute('aria-disabled')).toBe('true');
     findButton(el.querySelector('.gw-page-header__actions')!, 'Add service').click();
@@ -719,5 +756,6 @@ describe('Overview availability', () => {
     expect(href(connect)).toBe('/clients?endpoint=empty&connect=codex#cl-cx-t');
     expect(connect.hasAttribute('aria-disabled')).toBe(false);
     expect(text(el)).toContain('No services connected to this endpoint');
+    expect(href(byText(el.querySelector('#ov-services')!, 'a', 'Import with AI'))).toBe('/connection-import?endpoint=empty');
   });
 });
