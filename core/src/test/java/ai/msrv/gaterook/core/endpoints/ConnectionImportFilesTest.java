@@ -60,7 +60,8 @@ class ConnectionImportFilesTest {
       Files.writeString(file, manifest(source.toString()).toString());
       try (var prepared = files.read(ID)) {
         assertThat(Files.exists(credentials)).isFalse();
-        assertThat(prepared.manifest().toString()).contains(credentials.toString());
+        assertThat(prepared.manifest().at("/connections/0/secretSources/0/path").asText())
+            .isEqualTo(credentials.toString());
         assertThatThrownBy(() -> prepared.resolve("database")).isInstanceOf(ProblemException.class);
         Files.writeString(credentials, "{\"database\":{\"password\":\"file-import-test-password\"}}");
         var secret = prepared.resolve("database").get("/credentials/password");
