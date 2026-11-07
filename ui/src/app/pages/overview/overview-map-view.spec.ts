@@ -57,6 +57,20 @@ describe('Overview connection map', () => {
     expect(mapConnections(rows, [fresh, stale], dev)?.[1].row.health.message).toBe('Offline');
     expect(mapConnections(rows, [health('db', 'unreachable', { checkedAt: null })], dev)?.[0].state.label).toBe('Healthy');
   });
+
+  it('keeps a healthy connection globally On while selected endpoint access is paused', () => {
+    const rows = [native('ready-db')];
+    const paused = endpoint('dev', { status: 'disabled' });
+    const connection = mapConnections(rows, [], paused)![0];
+    expect(connection.enabled).toBe(true);
+    expect(connection.row.health.state).toBe('healthy');
+    expect(connection.effectiveOn).toBe(false);
+    expect(connection.state.label).toBe('Endpoint off');
+    expect(endpointUnreachable(paused, rows, [])).toBe(0);
+    expect(mapConnections(rows, [], dev)![0]).toEqual(expect.objectContaining({
+      enabled: true, effectiveOn: true, state: { tone: 'success', label: 'Healthy' },
+    }));
+  });
 });
 
 describe('Overview AI app map', () => {

@@ -428,6 +428,21 @@ describe('AI connection import review', () => {
     ], undefined);
   });
 
+  it('imports prepared complete connections in one action without opening and saving individual settings', async () => {
+    await loadReview();
+    expect(page.active()).toBeNull();
+    expect(page.ready()).toBe(true);
+    await page.commit(); fixture.detectChanges();
+    expect(api.commit).toHaveBeenCalledExactlyOnceWith(review.id, [{
+      candidateId: candidate.id, name: candidate.name, env: candidate.env, config: candidate.config,
+      secrets: {}, allowIncomplete: true, endpoint: 'default',
+    }], undefined);
+    expect(connections.create).not.toHaveBeenCalled();
+    expect(connections.testDraft).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('Complete connections are on and ready to use');
+    expect(fixture.nativeElement.textContent).not.toContain('Finish setup for');
+  });
+
   it('keeps the source endpoint when it is production even if another production endpoint comes first', async () => {
     vi.mocked(TestBed.inject(EndpointsApi).list).mockResolvedValue([
       ...endpoints, { ...endpoints[1], slug: 'incident-response' },

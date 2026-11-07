@@ -19,7 +19,7 @@ class EndpointSharesController {
   record Export(String endpointSlug, List<String> connectionNames, boolean includeSecrets) {}
   record Preview(JsonNode bundle) { @Override public String toString() { return "Preview[bundle=<redacted>]"; } }
   record Import(JsonNode bundle, List<String> connectionIds, boolean includeEndpoint, boolean includeSecrets,
-      String endpointSlug, String reason) { @Override public String toString() { return "Import[bundle=<redacted>]"; } }
+      String endpointSlug, String reason, String confirm) { @Override public String toString() { return "Import[bundle=<redacted>]"; } }
   private final EndpointShareService shares;
   EndpointSharesController(EndpointShareService shares) { this.shares = shares; }
 
@@ -32,7 +32,7 @@ class EndpointSharesController {
   @PostMapping("/internal/endpoint-shares/import")
   ResponseEntity<JsonNode> importBundle(@RequestBody Import request) {
     return response(shares.importBundle(request.bundle(), request.connectionIds(), request.includeEndpoint(),
-        request.includeSecrets(), request.endpointSlug(), Reasons.check(request.reason())));
+        request.includeSecrets(), request.endpointSlug(), Reasons.check(request.reason()), request.confirm()));
   }
   private static ResponseEntity<JsonNode> response(JsonNode value) {
     return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(value);

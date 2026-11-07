@@ -5,11 +5,11 @@ import { lstatSync, realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, sep, win32 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeFileAtomic } from './atomic-file.ts';
-import { callCoreOk } from './core-client.ts';
+import { callCore, callCoreOk } from './core-client.ts';
 import type { ReadyCore } from './core-supervisor.ts';
 import { readBackupFile } from './full-backup-files.ts';
 import { decryptEndpointShare, encryptEndpointShare, MAX_SHARE_BUNDLE_BYTES, MAX_SHARE_BYTES, validateSharePassphrase } from './endpoint-share-archive.ts';
-import type { EndpointShareExport, EndpointShareImport, EndpointShareFile } from '../shared/contract.ts';
+import type { EndpointShareConfirmation, EndpointShareExport, EndpointShareImport, EndpointShareFile } from '../shared/contract.ts';
 
 const filters = [{ name: 'Encrypted GateRook endpoint share', extensions: ['grshare'] }];
 const REVIEW_MS = 15 * 60 * 1000;
@@ -69,12 +69,32 @@ function importOptions(value: unknown): EndpointShareImport {
       || !raw.connectionIds.every((id) => typeof id === 'string' && id.length <= 200)
       || typeof raw.includeEndpoint !== 'boolean' || typeof raw.includeSecrets !== 'boolean'
       || (raw.endpointSlug !== undefined && (typeof raw.endpointSlug !== 'string' || raw.endpointSlug.length > 200))
-      || (raw.reason !== undefined && (typeof raw.reason !== 'string' || raw.reason.length > 500))) {
+      || (raw.reason !== undefined && (typeof raw.reason !== 'string' || raw.reason.length > 500))
+      || (raw.confirm !== undefined && raw.confirm !== 'danger')) {
     throw new Error('Choose what to import from the reviewed file.');
   }
   return { handle: raw.handle, connectionIds: raw.connectionIds, includeEndpoint: raw.includeEndpoint,
     includeSecrets: raw.includeSecrets, ...(raw.endpointSlug !== undefined ? { endpointSlug: raw.endpointSlug } : {}),
-    ...(raw.reason !== undefined ? { reason: raw.reason } : {}) };
+    ...(raw.reason !== undefined ? { reason: raw.reason } : {}),
+    ...(raw.confirm === 'danger' ? { confirm: 'danger' } : {}) };
+}
+
+/** The core's preflight warning contains display text, never configuration or secret values. */
+function importConfirmation(value: unknown): EndpointShareConfirmation | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const problem = value as Record<string, unknown>;
+  if (problem['confirm'] !== 'danger' || typeof problem['title'] !== 'string'
+      || typeof problem['detail'] !== 'string' || !Array.isArray(problem['errors'])
+      || problem['errors'].length > 100) return null;
+  const errors: { field: string; message: string }[] = [];
+  for (const entry of problem['errors']) {
+    if (!entry || typeof entry !== 'object' || typeof entry.field !== 'string'
+        || typeof entry.message !== 'string') return null;
+    errors.push({ field: entry.field.slice(0, 1_000), message: entry.message.slice(0, 16_000) });
+  }
+  // Do not forward arbitrary ProblemDetail extensions across IPC.
+  return { confirm: 'danger', status: 409, title: problem['title'].slice(0, 200),
+    detail: problem['detail'].slice(0, 64_000), errors };
 }
 
 export class EndpointShares {
@@ -193,14 +213,25 @@ export class EndpointShares {
       }
       const revision = this.revision;
       const { handle: _handle, ...selection } = options;
+      let retryable = false;
       try {
         const bundle: unknown = JSON.parse(review.payload.toString('utf8'));
-        // Consume the review before requesting writes. A repeated click cannot import it twice.
-        this.clearReview();
-        const result = await callCoreOk(core, 'POST', '/internal/endpoint-shares/import', { bundle, ...selection });
+        // run() prevents concurrent writes. Only an authenticated preflight refusal permits a retry.
+        const answer = await callCore(core, 'POST', '/internal/endpoint-shares/import', { bundle, ...selection });
+        const confirmation = answer.status === 409 ? importConfirmation(answer.body) : null;
+        if (confirmation) {
+          this.current(core, revision);
+          if (this.review !== review) throw new Error('The import review expired.');
+          retryable = true;
+          return { confirmationRequired: confirmation };
+        }
+        if (answer.status < 200 || answer.status >= 300) throw new Error('The import failed.');
         if (this.revision === revision) this.discard();
-        return result;
-      } finally { if (this.review === review) this.clearReview(); }
+        return answer.body;
+      } catch {
+        // Transport errors and other failures may follow a write. Consume the review and omit raw response data.
+        throw new Error('The endpoint share could not be imported. Open and review the file again before retrying.');
+      } finally { if (!retryable && this.review === review) this.clearReview(); }
     });
   }
 }

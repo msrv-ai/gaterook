@@ -53,6 +53,7 @@ export interface EndpointShareImport {
   readonly includeSecrets: boolean;
   readonly endpointSlug?: string;
   readonly reason?: string;
+  readonly confirm?: 'danger';
 }
 
 export interface EndpointShareResult {
@@ -60,6 +61,17 @@ export interface EndpointShareResult {
   readonly connections: readonly { readonly id: string; readonly name: string; readonly needsSetup: boolean }[];
   readonly warnings: readonly string[];
 }
+
+/** Permission review from the core; no decrypted configuration or secret values cross this boundary. */
+export interface EndpointShareConfirmation {
+  readonly confirm: 'danger';
+  readonly status: 409;
+  readonly title: string;
+  readonly detail: string;
+  readonly errors: readonly { readonly field: string; readonly message: string }[];
+}
+
+export type EndpointShareImportOutcome = EndpointShareResult | { readonly confirmationRequired: EndpointShareConfirmation };
 
 /** A display name and revision only: the desktop owns paths, file bytes and decrypted handles. */
 @Injectable({ providedIn: 'root' })

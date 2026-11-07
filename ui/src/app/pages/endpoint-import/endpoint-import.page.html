@@ -18,14 +18,14 @@
     <section class="gw-card"><div class="gw-card__body gw-stack">
       <h2 class="gw-section__title" id="share-import-complete" tabindex="-1">Selected items imported</h2>
       <p>{{ saved.connections.length }} {{ saved.connections.length === 1 ? 'connection' : 'connections' }} imported@if (saved.endpointSlug) { with endpoint <span class="gw-mono">{{ saved.endpointSlug }}</span>}.</p>
-      <p class="gw-text-small gw-fg-secondary">Imported endpoints and connections are disabled. Review their settings, complete missing credentials and test connections before enabling access.</p>
+      <p class="gw-text-small gw-fg-secondary">@if (saved.endpointSlug) {The imported endpoint is on. }Complete connections are on. Connections marked Setup required stay off until their missing settings or credentials are completed.</p>
       @if (saved.connections.length) {
-        <ul class="gw-stack gw-stack--sm">@for (connection of saved.connections; track connection.id) {<li><a class="gw-link gw-mono" [routerLink]="['/connections', connection.name]">{{ connection.name }}</a>@if (connection.needsSetup) { <span class="gw-badge gw-badge--warning">Needs setup</span>}</li>}</ul>
+        <ul class="gw-stack gw-stack--sm">@for (connection of saved.connections; track connection.id) {<li><a class="gw-link gw-mono" [routerLink]="['/connections', connection.name]">{{ connection.name }}</a>@if (connection.needsSetup) { <span class="gw-badge gw-badge--warning">Setup required · Off</span>} @else { <span class="gw-badge gw-badge--success">On</span>}</li>}</ul>
       }
       @for (warning of saved.warnings; track $index) {<p class="gw-text-small gw-fg-secondary">{{ warning }}</p>}
       <div class="gw-form__actions">
-        @if (saved.endpointSlug) {<a class="gw-btn gw-btn--primary" [routerLink]="['/endpoints', saved.endpointSlug]">Review endpoint</a>}
-        @else {<a class="gw-btn gw-btn--primary" routerLink="/connections">Review connections</a>}
+        @if (saved.endpointSlug) {<a class="gw-btn gw-btn--primary" [routerLink]="['/endpoints', saved.endpointSlug]">Open endpoint</a>}
+        @else {<a class="gw-btn gw-btn--primary" routerLink="/connections">Open connections</a>}
         <button class="gw-btn" type="button" [attr.aria-disabled]="busy() ? 'true' : null" (click)="choose()">Choose another file</button>
       </div>
     </div></section>
@@ -33,7 +33,7 @@
     @let preview = current.preview;
     <section class="gw-card" aria-labelledby="share-review-title"><div class="gw-card__body gw-stack">
       <h2 class="gw-section__title" id="share-review-title" tabindex="-1">Review {{ files.selected()?.fileName }}</h2>
-      <div class="gw-alert gw-alert--info gw-alert--compact"><svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content"><p class="gw-alert__body">Import creates new, disabled items. Existing items are kept. Review settings and tool access before enabling them. Shared Bypass modes become Approval.</p></div></div>
+      <div class="gw-alert gw-alert--info gw-alert--compact"><svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content"><p class="gw-alert__body">Import creates a new endpoint and turns on connections with complete settings and credentials. Connections missing required setup stay off. Existing items are kept. Review the selected settings and tool access before importing. Shared Bypass modes become Approval.</p></div></div>
       @for (warning of preview.warnings; track $index) {<p class="gw-text-small gw-fg-secondary">{{ warning }}</p>}
       <label class="gw-checkbox">
         <input id="share-import-endpoint" class="gw-checkbox__input" type="checkbox" [checked]="includeEndpoint()" [disabled]="busy()" (change)="includeEndpoint.set($any($event.target).checked)">
@@ -93,13 +93,21 @@
         <input id="share-import-secrets" class="gw-checkbox__input" type="checkbox" [checked]="includeSecrets() && secretCount() > 0" [disabled]="busy() || secretCount() === 0" (change)="includeSecrets.set($any($event.target).checked)">
         <span class="gw-checkbox__control" aria-hidden="true"></span>
         <span class="gw-checkbox__label">Import {{ secretCount() }} stored secrets for selected connections</span>
-        <span class="gw-checkbox__hint">Secrets stay hidden and are encrypted in this GateRook vault. Leave this unchecked to enter your own credentials after import.</span>
+        <span class="gw-checkbox__hint">Included by default so complete connections can work immediately. Secrets stay hidden and are encrypted in this GateRook vault. Clear this to enter your own credentials after import.</span>
       </label>
       @if (secretCount() === 0) {<p class="gw-text-small gw-fg-secondary">No stored secrets are available for the selected connections.</p>}
     </div></section>
+    @if (confirmationDetails(); as confirmation) {
+      <div class="gw-alert gw-alert--danger" role="alert" id="share-import-confirmation" tabindex="-1"><svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content">
+        <h2 class="gw-alert__title">{{ confirmation.title }}</h2>
+        @if (confirmation.errors.length) {<ul class="gw-alert__body">@for (warning of confirmation.errors; track $index) {<li>{{ warning.message }}</li>}</ul>}
+        @else {<p class="gw-alert__body">{{ confirmation.detail }}</p>}
+        <p class="gw-alert__body">No items have been imported yet. Confirm these permissions to import the selected connections, or change the selection above.</p>
+      </div></div>
+    }
     <div class="gw-form__actions">
       <button class="gw-btn" type="button" [attr.aria-disabled]="busy() ? 'true' : null" (click)="cancel()">Cancel import</button>
-      <button class="gw-btn gw-btn--primary" type="button" [attr.aria-disabled]="!canImport() ? 'true' : null" [attr.aria-busy]="busy() ? 'true' : null" (click)="importSelected()">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Import selected items</button>
+      <button class="gw-btn gw-btn--primary" type="button" [attr.aria-disabled]="!canImport() ? 'true' : null" [attr.aria-busy]="busy() ? 'true' : null" (click)="importSelected(!!confirmationDetails())" [attr.aria-describedby]="confirmationDetails() ? 'share-import-confirmation' : null">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}{{ confirmationDetails() ? 'Import with these permissions' : 'Import selected items' }}</button>
     </div>
     <p class="gw-text-small gw-fg-secondary" role="status">{{ includeEndpoint() ? '1 endpoint' : 'No endpoint' }}, {{ selectedConnections().length }} connections and {{ includeSecrets() ? secretCount() : 0 }} secrets selected.</p>
   } @else {

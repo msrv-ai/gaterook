@@ -781,12 +781,11 @@
           [name]="c.name"
           [enabled]="c.enabled"
           [compact]="true"
-          [forceOff]="!!c.blockedReason"
           [blocked]="mutationBlocked() ?? c.blockedReason"
           [pausedByEndpoint]="endpointOn() ? null : (endpoint()?.slug ?? null)"
           (changed)="connectionChanged(c.name, $event)"
         /><span class="gw-text-caption gw-fg-muted" aria-hidden="true">{{
-          c.effectiveOn ? 'On' : 'Off'
+          c.enabled ? 'On' : 'Off'
         }}</span>
       </div>
     </div>
