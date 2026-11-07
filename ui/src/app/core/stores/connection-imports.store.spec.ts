@@ -101,6 +101,32 @@ describe('ConnectionImportsStore', () => {
     expect(store.tasks()).toEqual([]);
   });
 
+  it('removes a cancelled task immediately and ignores a pre-cancellation list response', async () => {
+    const other: ConnectionImportTask = { ...task, id: 'ci_othertask123', status: 'review' };
+    list.mockResolvedValueOnce({ items: [task, other] });
+    running.set(true);
+    await settle();
+    let resolveOld!: (value: TaskList) => void;
+    list.mockReturnValueOnce(new Promise<TaskList>(done => { resolveOld = done; }));
+    const old = store.refresh();
+    let resolveNew!: (value: TaskList) => void;
+    list.mockReturnValueOnce(new Promise<TaskList>(done => { resolveNew = done; }));
+    store.remove(task.id);
+    expect(store.tasks()).toEqual([other]);
+    expect(list).toHaveBeenCalledTimes(3);
+    const current = store.refresh();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(list).toHaveBeenCalledTimes(3);
+    resolveOld({ items: [task, other] });
+    await old;
+    expect(store.tasks()).toEqual([other]);
+    expect(store.refresh()).toBe(current);
+    resolveNew({ items: [other] });
+    await current;
+    expect(store.tasks()).toEqual([other]);
+    expect(list).toHaveBeenCalledTimes(3);
+  });
+
   it('clears reports on a core restart and ignores the old instance response', async () => {
     list.mockResolvedValueOnce({ items: [task] });
     running.set(true);

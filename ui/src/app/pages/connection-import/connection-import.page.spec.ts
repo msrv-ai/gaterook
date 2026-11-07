@@ -10,6 +10,7 @@ import { ConnectionFormSpec, ConnectorTypesApi } from '../../core/api/connector-
 import { EndpointsApi, EndpointSummary } from '../../core/api/endpoints.api';
 import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { TimeService } from '../../core/time/time.service';
+import { ConnectionImportsStore } from '../../core/stores/connection-imports.store';
 import { ClipboardWriter } from '../../kit/clipboard';
 import { ConnectionFormValue, GwConnectionForm } from '../../kit/elements/connection-form/connection-form';
 import { provideKitIcons } from '../../kit/icons';
@@ -59,6 +60,13 @@ const firstHostKey: TestOutcome = { ...folder, ok: false, details: null, confirm
     fingerprint: 'SHA256:' + 'A'.repeat(43), publicKey: sshKey,
   } } };
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}
+
 describe('AI connection import review', () => {
   let fixture: ComponentFixture<ConnectionImportPage>;
   let page: ConnectionImportPage;
@@ -69,6 +77,7 @@ describe('AI connection import review', () => {
   let open: ReturnType<typeof vi.fn>;
   let clientCards: ReturnType<typeof signal<ClientCard[]>>;
   let clientData: Partial<ClientsData>;
+  let importTasks: { remove: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
     api = {
@@ -83,6 +92,7 @@ describe('AI connection import review', () => {
     };
     copy = vi.fn(async () => true);
     open = vi.fn(async () => undefined);
+    importTasks = { remove: vi.fn() };
     const known = kitClients().clients;
     clientCards = signal(known.map(card => ({ ...card, detected: true, status: 'connected', links: [{ ...known[1].links[0], client: card.client, endpoint: 'default', status: 'connected' }] })));
     const manual = signal({ value: { ...kitManual(), endpoint: 'default', url: awaiting.endpointUrl }, error: null, unavailable: false });
@@ -98,6 +108,7 @@ describe('AI connection import review', () => {
     await TestBed.configureTestingModule({ imports: [ConnectionImportPage], providers: [
       provideRouter([]), provideHttpClient(), provideKitIcons(),
       { provide: ConnectionImportsApi, useValue: api },
+      { provide: ConnectionImportsStore, useValue: importTasks },
       { provide: ConnectionsApi, useValue: connections },
       { provide: SecretsApi, useValue: { stores: vi.fn(async () => []) } },
       { provide: ConnectorTypesApi, useValue: { form: vi.fn(async () => spec) } },
@@ -652,7 +663,7 @@ describe('AI connection import review', () => {
     expect(TestBed.inject(EndpointsApi).create).not.toHaveBeenCalled();
     dialog.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     await fixture.whenStable(); fixture.detectChanges();
-    expect(TestBed.inject(EndpointsApi).create).toHaveBeenCalledWith({ slug: 'project-dev', description: 'Project analysis', startFrom: 'empty', connections: [] });
+    expect(TestBed.inject(EndpointsApi).create).toHaveBeenCalledWith({ slug: 'project-dev', description: 'Project analysis', startFrom: 'empty', connections: [], env: 'dev' });
     expect(page.destinations().get(second.id)).toBe('project-dev');
     expect(page.destinations().get(candidate.id)).toBe('default');
     expect(page.drafts().get(candidate.id)?.secrets).toEqual(draft.secrets);
@@ -665,12 +676,43 @@ describe('AI connection import review', () => {
     await loadReview();
     vi.mocked(TestBed.inject(EndpointsApi).create).mockRejectedValueOnce(new ApiError('conflict', 409, { title: 'Endpoint exists', detail: 'Choose another endpoint slug.', field: '/slug' }));
     const dialog = await openEndpointDialog(candidate);
-    page.endpointSlug.set('project-dev');
+    page.endpointSlug.set('project-dev'); page.endpointEnv.set('stage');
     await page.createEndpoint(); fixture.detectChanges();
     expect(dialog.open).toBe(true);
     expect(page.endpointSlug()).toBe('project-dev');
+    expect(page.endpointEnv()).toBe('stage');
     expect(page.endpointSlugError()).toContain('Choose another endpoint slug');
     expect(page.destinations().get(candidate.id)).toBe('default');
+    expect(api.commit).not.toHaveBeenCalled();
+  });
+
+  it('starts endpoint creation in a production candidate environment and submits that environment', async () => {
+    const productionCandidate: ImportCandidate = { ...candidate, id: 'prod-redis', name: 'prod-redis', env: 'prod' };
+    await loadReview({ ...review, manifest: { version: 1, connections: [productionCandidate], warnings: [] } });
+    vi.mocked(TestBed.inject(EndpointsApi).create).mockResolvedValueOnce({ ...endpoints[1], slug: 'project-prod', env: 'prod' });
+    const dialog = await openEndpointDialog(productionCandidate);
+    const env = dialog.querySelector('#import-create-endpoint-env') as HTMLSelectElement;
+    expect(env.value).toBe('prod');
+    expect(Array.from(env.options).map(option => option.value)).toEqual(['dev', 'stage', 'prod']);
+    page.endpointSlug.set('project-prod');
+    await page.createEndpoint(); fixture.detectChanges();
+    expect(TestBed.inject(EndpointsApi).create).toHaveBeenCalledWith(expect.objectContaining({ slug: 'project-prod', env: 'prod' }));
+    expect(page.endpoints().find(endpoint => endpoint.slug === 'project-prod')?.env).toBe('prod');
+    expect(page.destinations().get(productionCandidate.id)).toBe('project-prod');
+    expect(api.commit).not.toHaveBeenCalled();
+  });
+
+  it('uses the reviewed environment by default and lets the user choose another starting environment', async () => {
+    await loadReview();
+    page.drafts.update(drafts => new Map(drafts).set(candidate.id, { ...drafts.get(candidate.id)!, env: 'stage' }));
+    const dialog = await openEndpointDialog(candidate);
+    const env = dialog.querySelector('#import-create-endpoint-env') as HTMLSelectElement;
+    expect(env.value).toBe('stage');
+    env.value = 'dev'; env.dispatchEvent(new Event('change', { bubbles: true }));
+    page.endpointSlug.set('project-dev');
+    await page.createEndpoint(); fixture.detectChanges();
+    expect(TestBed.inject(EndpointsApi).create).toHaveBeenCalledWith(expect.objectContaining({ env: 'dev' }));
+    expect(page.drafts().get(candidate.id)?.env).toBe('stage');
     expect(api.commit).not.toHaveBeenCalled();
   });
 
@@ -853,7 +895,175 @@ describe('AI connection import review', () => {
     expect(page.drafts().size).toBe(0);
     expect(page.session()).toBeNull();
     expect(api.commit).not.toHaveBeenCalled();
-    expect(TestBed.inject(Router).navigate).toHaveBeenLastCalledWith(['/connection-import']);
+    expect(importTasks.remove).toHaveBeenCalledWith(review.id);
+    expect(page.notice()).toBe('Import discarded. No saved connections were changed.');
+    expect(TestBed.inject(Router).navigate).toHaveBeenLastCalledWith(['/connection-import'], { state: { importDismissed: 'discarded' } });
+  });
+
+  it.each(['waiting', 'running', 'paused'])('cancels a %s analysis and removes its prompt and sidebar task', async state => {
+    const startedAt = '2026-11-07T12:00:00Z';
+    vi.spyOn(TestBed.inject(TimeService), 'now').mockReturnValue(Date.parse(startedAt) + (state === 'paused' ? 16 * 60_000 : 0));
+    await loadReview({ ...awaiting, progress: state === 'waiting' ? null : { startedAt, updatedAt: startedAt, message: 'Inspecting configuration' } });
+    const cancel = [...fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>]
+      .find(button => button.textContent?.trim() === 'Cancel import')!;
+    expect(cancel).toBeDefined();
+    cancel.click(); await fixture.whenStable(); fixture.detectChanges();
+    expect(api.cancel).toHaveBeenCalledExactlyOnceWith(awaiting.id);
+    expect(importTasks.remove).toHaveBeenCalledExactlyOnceWith(awaiting.id);
+    expect(page.session()).toBeNull();
+    expect(page.prompt()).toBe('');
+    expect(page.notice()).toContain('Import cancelled. GateRook will no longer accept data for this import.');
+    expect(fixture.nativeElement.querySelector('#import-progress')).toBeNull();
+    expect(fixture.nativeElement.querySelector('#import-prompt-details')).toBeNull();
+    expect(TestBed.inject(Router).navigate).toHaveBeenLastCalledWith(['/connection-import'], { state: { importDismissed: 'cancelled' } });
+    api.get.mockClear();
+    await page.refresh(); await page.handoff('copy'); await page.handoff('cursor');
+    expect(api.get).not.toHaveBeenCalled();
+    expect(copy).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('allows only one cancellation request and blocks handoff while it is pending', async () => {
+    await loadReview(awaiting);
+    const pending = deferred<void>();
+    api.cancel.mockReturnValueOnce(pending.promise);
+    const cancelling = page.discard();
+    fixture.detectChanges();
+    const cancel = [...fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>]
+      .find(button => button.textContent?.trim() === 'Cancelling…')!;
+    expect(cancel.disabled).toBe(true);
+    expect(cancel.getAttribute('aria-busy')).toBe('true');
+    await page.discard(); await page.handoff('copy'); await page.handoffSelected();
+    expect(api.cancel).toHaveBeenCalledTimes(1);
+    expect(importTasks.remove).not.toHaveBeenCalled();
+    expect(copy).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+    pending.resolve(); await cancelling;
+    expect(page.busy()).toBe(false);
+    expect(page.cancelling()).toBe(false);
+  });
+
+  it('keeps the session and allows retry if cancellation fails', async () => {
+    await loadReview(awaiting);
+    api.cancel.mockRejectedValueOnce(new Error('The cancellation request failed'));
+    await page.discard(); fixture.detectChanges();
+    expect(page.session()).toEqual(awaiting);
+    expect(page.prompt()).toBe(connectionImportPrompt(awaiting));
+    expect(importTasks.remove).not.toHaveBeenCalled();
+    expect(page.error()).toContain('The cancellation request failed');
+    expect(page.notice()).not.toContain('Import cancelled');
+    expect(page.busy()).toBe(false);
+    expect(page.cancelling()).toBe(false);
+    expect(TestBed.inject(Router).navigate).not.toHaveBeenCalled();
+    await page.discard();
+    expect(importTasks.remove).toHaveBeenCalledExactlyOnceWith(awaiting.id);
+    expect(page.session()).toBeNull();
+  });
+
+  it.each(['success', 'failure'])('ignores a late refresh %s after cancellation', async outcome => {
+    await loadReview(awaiting);
+    const pending = deferred<ConnectionImportSession>();
+    api.get.mockReturnValueOnce(pending.promise);
+    const refresh = page.refresh();
+    await page.discard();
+    if (outcome === 'success') pending.resolve(review);
+    else pending.reject(new ApiError('not-found', 404, { title: 'Import unavailable', detail: 'The old import expired.' }));
+    await refresh;
+    expect(page.session()).toBeNull();
+    expect(page.unavailable()).toBe(false);
+    expect(page.error()).toBe('');
+    expect(page.notice()).toContain('Import cancelled');
+    expect(page.drafts().size).toBe(0);
+  });
+
+  it('ignores a late connection lookup after cancellation during the transition to review', async () => {
+    await loadReview(awaiting);
+    const pending = deferred<{ items: [] }>();
+    connections.list.mockReturnValueOnce(pending.promise);
+    api.get.mockResolvedValueOnce(review);
+    const refresh = page.refresh();
+    await Promise.resolve();
+    await page.discard();
+    pending.resolve({ items: [] }); await refresh;
+    expect(page.session()).toBeNull();
+    expect(page.notice()).toContain('Import cancelled');
+    expect(page.drafts().size).toBe(0);
+  });
+
+  it.each(['success', 'failure'])('keeps a newly opened session when an earlier cancellation finishes with %s', async outcome => {
+    await loadReview(awaiting);
+    const pending = deferred<void>();
+    api.cancel.mockReturnValueOnce(pending.promise);
+    const cancelling = page.discard();
+    const next = { ...awaiting, id: 'ci_newimport1234', repository: '/workspace/next' };
+    await loadReview(next);
+    expect(page.busy()).toBe(false);
+    if (outcome === 'success') pending.resolve();
+    else pending.reject(new Error('An old cancellation failed'));
+    await cancelling;
+    expect(page.session()).toEqual(next);
+    expect(page.error()).toBe('');
+    expect(page.notice()).not.toContain('Import cancelled');
+    expect(TestBed.inject(Router).navigate).not.toHaveBeenCalled();
+    if (outcome === 'success') expect(importTasks.remove).toHaveBeenCalledExactlyOnceWith(awaiting.id);
+    else expect(importTasks.remove).not.toHaveBeenCalled();
+  });
+
+  it('does not restore a cancelled session from a load started while DELETE was pending', async () => {
+    await loadReview(awaiting);
+    const deletion = deferred<void>();
+    const loading = deferred<ConnectionImportSession>();
+    api.cancel.mockReturnValueOnce(deletion.promise);
+    const cancelling = page.discard();
+    api.get.mockReturnValueOnce(loading.promise);
+    const reload = page.load(awaiting.id);
+    deletion.resolve(); await cancelling;
+    loading.resolve(awaiting); await reload;
+    expect(page.session()).toBeNull();
+    expect(page.loading()).toBe(false);
+    expect(page.error()).toBe('');
+    expect(page.notice()).toContain('Import cancelled');
+    expect(importTasks.remove).toHaveBeenCalledExactlyOnceWith(awaiting.id);
+  });
+
+  it('keeps a reloaded review blocked until its pending cancellation fails, then shows the failure', async () => {
+    await loadReview(review);
+    const deletion = deferred<void>();
+    api.cancel.mockReturnValueOnce(deletion.promise);
+    const cancelling = page.discard();
+    await page.load(review.id);
+    expect(page.session()?.id).toBe(review.id);
+    expect(page.busy()).toBe(true);
+    expect(page.cancelling()).toBe(true);
+    await page.discard();
+    expect(api.cancel).toHaveBeenCalledTimes(1);
+    deletion.reject(new Error('Cancellation could not finish')); await cancelling;
+    expect(page.session()?.id).toBe(review.id);
+    expect(page.error()).toContain('Cancellation could not finish');
+    expect(page.busy()).toBe(false);
+    expect(page.cancelling()).toBe(false);
+    expect(importTasks.remove).not.toHaveBeenCalled();
+  });
+
+  it('removes the cancelled sidebar task even if its page was destroyed before DELETE completed', async () => {
+    await loadReview(awaiting);
+    const pending = deferred<void>();
+    api.cancel.mockReturnValueOnce(pending.promise);
+    const cancelling = page.discard();
+    fixture.destroy();
+    pending.resolve(); await cancelling;
+    expect(importTasks.remove).toHaveBeenCalledExactlyOnceWith(awaiting.id);
+    expect(TestBed.inject(Router).navigate).not.toHaveBeenCalled();
+  });
+
+  it('restores the cancellation notice on the setup page after navigation', async () => {
+    fixture.destroy();
+    vi.spyOn(TestBed.inject(Router), 'currentNavigation').mockReturnValue({ extras: { state: { importDismissed: 'cancelled' } } } as never);
+    fixture = TestBed.createComponent(ConnectionImportPage);
+    page = fixture.componentInstance;
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Import cancelled. GateRook will no longer accept data for this import.');
+    expect(page.session()).toBeNull();
   });
 
   it('hides unsupported services from import controls while retaining their original discovery', async () => {
