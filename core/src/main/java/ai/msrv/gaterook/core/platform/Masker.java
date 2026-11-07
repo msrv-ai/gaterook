@@ -223,7 +223,8 @@ public final class Masker {
 
   /**
    * Whether a value someone typed into a non-secret field looks like a secret ("This looks like a secret: store it as
-   * a secret"); the rule id that matched.
+   * a secret"); the rule id that matched. Uses syntax and optional entropy, not process fingerprints: resolving a
+   * password must not make a coincidentally matching hostname or port invalid. Output masking still uses both.
    */
   public Optional<String> looksLikeSecret(String value) {
     return looksLikeSecret(value, true);
@@ -237,9 +238,12 @@ public final class Masker {
     if (value == null || value.isEmpty()) {
       return Optional.empty();
     }
-    Pass pass = new Pass(fingerprints, null, entropy ? MaskPolicy.SECRETS_ONLY : new MaskPolicy(false, Set.of(), List.of()));
-    pass.string(value);
-    return pass.counter.byRule().keySet().stream().findFirst();
+    MaskCounter counter = new MaskCounter();
+    String out = SecretRules.apply(value, MASK, counter);
+    if (entropy) {
+      EntropyDetector.apply(out, MASK, counter);
+    }
+    return counter.byRule().keySet().stream().findFirst();
   }
 
   /** Whether {@code key} names a cursor, handle or digest: random-looking by design, not a secret. */

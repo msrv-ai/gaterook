@@ -255,7 +255,7 @@
       <button class="gw-tabs__tab" type="button" role="tab" id="connection-tools-tab" aria-controls="used-by" aria-selected="false" tabindex="-1"><svg lucideIcon="wrench" class="gw-icon"></svg>Tools</button>
     </div>
   }
-  <div id="connection-settings" [class.gw-tabs__panel]="m === 'edit'" [attr.role]="m === 'edit' ? 'tabpanel' : null" [attr.aria-labelledby]="m === 'edit' ? 'connection-settings-tab' : null" [attr.tabindex]="m === 'edit' ? 0 : null">
+  <div id="connection-settings" class="gw-stack gw-stack--lg" [class.gw-tabs__panel]="m === 'edit'" [attr.role]="m === 'edit' ? 'tabpanel' : null" [attr.aria-labelledby]="m === 'edit' ? 'connection-settings-tab' : null" [attr.tabindex]="m === 'edit' ? 0 : null">
   <section class="gw-section" id="step-2" aria-labelledby="step-2-title" [hidden]="m !== 'edit' && (step() !== 2 || !!done)">
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="step-2-title" tabindex="-1">@if (m === 'edit') {Settings} @else {Configure {{ typeName() }}}</h2>

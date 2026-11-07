@@ -429,6 +429,49 @@ class MaskerTest {
     assertThat(masker.looksLikeSecret("db.dev.internal")).isEmpty();
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "http://dev-search.example.internal:80",
+      "https://dev-search.example.internal:9200",
+      "http://localhost:9200",
+      "http://127.0.0.1:9200",
+      "http://[::1]:9200"
+  })
+  void connectionUrlValidationDoesNotDependOnPreviouslyResolvedSecrets(String url) {
+    SecretFingerprints fingerprints = new SecretFingerprints();
+    Masker validator = new Masker(fingerprints);
+    assertThat(validator.looksLikeSecret(url, false)).isEmpty();
+    fingerprints.learnValue("internal");
+    fingerprints.learnValue("9200");
+    fingerprints.learnValue(url);
+
+    assertThat(validator.looksLikeSecret(url, false)).isEmpty();
+    assertThat(validator.looksLikeSecret(url)).isEmpty();
+    assertThat(validator.text(url, null, MaskPolicy.SECRETS_ONLY).text()).isEqualTo(MASK);
+    assertThat(validator.log(url)).isEqualTo(MASK);
+  }
+
+  @ParameterizedTest
+  @CsvSource(delimiter = '|', value = {
+      "http://app:pw-123@search.example.internal:80 | url-credentials",
+      "https://search.example.internal:9200/?apiKey=key-123 | kv-password"
+  })
+  void connectionUrlsStillRejectCredentials(String url, String rule) {
+    SecretFingerprints fingerprints = new SecretFingerprints();
+    fingerprints.learnValue(url);
+    Masker validator = new Masker(fingerprints);
+
+    assertThat(validator.looksLikeSecret(url, false)).contains(rule);
+    assertThat(validator.looksLikeSecret(url)).contains(rule);
+  }
+
+  @Test
+  void inputSecretDetectionKeepsEntropyOptional() {
+    String token = "Zx8Qp3Lr7Vt2Wn9Ks4Jd6Hf1Bg5Mc0Ya8Ue";
+    assertThat(masker.looksLikeSecret(token)).contains("entropy");
+    assertThat(masker.looksLikeSecret(token, false)).isEmpty();
+  }
+
   /** An MCP server's URL as its docs give it, with the key in it: shown again without the key, the rest as typed. */
   @Test
   void aUrlLosesTheKeysItCarriesPartByPart() {
