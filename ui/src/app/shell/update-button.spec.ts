@@ -14,13 +14,17 @@ class Page {}
 const HEALTH = { status: 'ok', version: '0.4.0', uptimeMs: 60_000, ports: { local: 7465, public: 7466 }, runtime: 'native', warnings: [] };
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve));
 const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+const SIDEBAR_PREFERENCE = 'gw-sidebar-collapsed';
 
 describe('sidebar update action', () => {
   let push: (state: UpdateState) => void;
   let install: ReturnType<typeof vi.fn>;
   let subscribe: ReturnType<typeof vi.fn>;
+  let previousSidebarPreference: string | null;
 
   beforeEach(() => {
+    previousSidebarPreference = localStorage.getItem(SIDEBAR_PREFERENCE);
+    localStorage.setItem(SIDEBAR_PREFERENCE, '');
     install = vi.fn(() => new Promise<void>(() => undefined));
     subscribe = vi.fn((cb: (state: UpdateState) => void) => { push = cb; return () => undefined; });
     TestBed.configureTestingModule({
@@ -47,6 +51,8 @@ describe('sidebar update action', () => {
 
   afterEach(() => {
     TestBed.inject(HttpTestingController).match(() => true);
+    if (previousSidebarPreference === null) localStorage.removeItem(SIDEBAR_PREFERENCE);
+    else localStorage.setItem(SIDEBAR_PREFERENCE, previousSidebarPreference);
     document.body.innerHTML = '';
   });
 
@@ -64,6 +70,7 @@ describe('sidebar update action', () => {
 
   it('appears below the version when a release is available and survives navigation', async () => {
     const { fixture, el, button } = await openApp();
+    expect(el.querySelector('.gw-shell')!.hasAttribute('data-collapsed')).toBe(false);
     expect(button()).toBeNull();
     push({ state: 'up-to-date', version: '0.4.0' });
     await fixture.whenStable();
