@@ -249,6 +249,13 @@
 
 <!-- ───────────── Step 2 · Configure (the edit view's settings) ───────────── -->
 @if (m === 'edit' ? detailState() === 'ready' : true) {
+  @if (m === 'edit') {
+    <div class="gw-tabs__list" role="tablist" gwTabs aria-label="Connection details">
+      <button class="gw-tabs__tab" type="button" role="tab" id="connection-settings-tab" aria-controls="connection-settings" aria-selected="true" tabindex="0"><svg lucideIcon="settings" class="gw-icon"></svg>Settings</button>
+      <button class="gw-tabs__tab" type="button" role="tab" id="connection-tools-tab" aria-controls="used-by" aria-selected="false" tabindex="-1"><svg lucideIcon="wrench" class="gw-icon"></svg>Tools</button>
+    </div>
+  }
+  <div id="connection-settings" [class.gw-tabs__panel]="m === 'edit'" [attr.role]="m === 'edit' ? 'tabpanel' : null" [attr.aria-labelledby]="m === 'edit' ? 'connection-settings-tab' : null" [attr.tabindex]="m === 'edit' ? 0 : null">
   <section class="gw-section" id="step-2" aria-labelledby="step-2-title" [hidden]="m !== 'edit' && (step() !== 2 || !!done)">
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="step-2-title" tabindex="-1">@if (m === 'edit') {Settings} @else {Configure {{ typeName() }}}</h2>
@@ -301,6 +308,7 @@
         [nameProblem]="nameProblem()"
         [confirmAction]="m === 'edit' ? 'save' : 'continue'"
         [busy]="saving()"
+        (submit)="showSettings()"
         (save)="onFormSubmit($event)"
         (discoverDatabases)="loadDatabases($event)"
         (discoverProjects)="loadProjects($event)"
@@ -351,6 +359,18 @@
       </div>
     }
   </section>
+  @if (m === 'edit') {
+    <section class="gw-section" id="delete-connection" aria-labelledby="delete-title">
+      <header class="gw-section__header">
+        <h2 class="gw-section__title" id="delete-title">Delete connection</h2>
+        <p class="gw-section__description">Agents lose its tools on their next call and pending approvals for it are denied. Past calls stay in Activity.</p>
+        <div class="gw-section__actions">
+          <button class="gw-btn gw-btn--danger-ghost" type="button" aria-haspopup="dialog" #delBtn (click)="openDelete(delBtn)"><svg lucideIcon="trash-2" class="gw-icon"></svg> Delete connection<span class="gw-sr-only"> {{ name() }}</span></button>
+        </div>
+      </header>
+    </section>
+  }
+  </div>
 }
 
 @if (m !== 'edit') {
@@ -654,10 +674,10 @@
     </section>
   }
 } @else if (detailState() === 'ready') {
-  <!-- ───────────── Edit view · Used by ───────────── -->
-  <section class="gw-section" id="used-by" aria-labelledby="used-by-title">
+  <!-- Keep both tab panels mounted so switching never discards a settings draft or tool selection. -->
+  <section class="gw-section gw-tabs__panel" id="used-by" role="tabpanel" aria-labelledby="connection-tools-tab" tabindex="0" hidden>
     <header class="gw-section__header">
-      <h2 class="gw-section__title" id="used-by-title">Used by</h2>
+      <h2 class="gw-section__title" id="used-by-title">Tools</h2>
       <p class="gw-section__description">The endpoints that expose <span class="gw-mono">{{ name() }}</span> and the mode of each of its tools there. Choose a mode for one tool, or use Set all to… to change all tools on the selected endpoints. Changes apply from the next call.</p>
     </header>
     @if (usedBy().length) {
@@ -674,16 +694,6 @@
     }
   </section>
 
-  <!-- ───────────── Edit view · Delete ───────────── -->
-  <section class="gw-section" id="delete-connection" aria-labelledby="delete-title">
-    <header class="gw-section__header">
-      <h2 class="gw-section__title" id="delete-title">Delete connection</h2>
-      <p class="gw-section__description">Agents lose its tools on their next call and pending approvals for it are denied. Past calls stay in Activity.</p>
-      <div class="gw-section__actions">
-        <button class="gw-btn gw-btn--danger-ghost" type="button" aria-haspopup="dialog" #delBtn (click)="openDelete(delBtn)"><svg lucideIcon="trash-2" class="gw-icon"></svg> Delete connection<span class="gw-sr-only"> {{ name() }}</span></button>
-      </div>
-    </header>
-  </section>
 }
 
 <!-- Rotate the stored secret of this connection (the same dialog as on Secrets) -->

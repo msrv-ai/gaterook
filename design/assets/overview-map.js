@@ -24,6 +24,29 @@
     "github-mcp": { name: "GitHub MCP", env: "dev", icon: "plug", mcp: true, health: "Healthy", tone: "success" },
     "docs-mcp": { name: "Docs MCP", env: "dev", icon: "book-open", mcp: true, health: "Healthy", tone: "success" }
   };
+  const toolModes = [
+    { value: "off", label: "Off", icon: "circle-off" },
+    { value: "read", label: "Read only", icon: "eye" },
+    { value: "approval", label: "Approval", icon: "user-check" },
+    { value: "bypass", label: "Bypass", icon: "shield-off" }
+  ];
+  const tool = (name, read, mode = read ? "read" : "approval", note = "") => ({ name, read, mode, note });
+  const sqlTools = () => [tool("sql_list_schemas", true), tool("sql_describe_table", true), tool("sql_query", true), tool("sql_execute", false)];
+  const serviceTools = {
+    "dev-db": sqlTools(), "stage-db": sqlTools(), "prod-replica": sqlTools(),
+    "orders-mongo": [tool("mongo_find", true), tool("mongo_aggregate", true)],
+    "cache-redis": [tool("redis_get", true), tool("redis_scan", true)],
+    "dev-vm": [tool("ssh_run", true, "read", "Read only runs runbooks marked read only."), tool("ssh_exec", false, "off")],
+    "prod-vm": [tool("ssh_run", true, "read", "Read only runs runbooks marked read only."), tool("ssh_exec", false, "off")],
+    "app-logs": [tool("loki_search", true), tool("loki_tail", true, "off")],
+    "dev-cluster": [tool("k8s_get", true), tool("k8s_logs", true, "off"), tool("k8s_rollout_restart", false), tool("k8s_apply", false, "off")],
+    "aws-stage": [tool("aws_describe", true), tool("aws_metrics", true)],
+    "billing-api": [tool("http_get", true, "off"), tool("http_request", false)],
+    "prod-logs": [tool("gcp_logging_search", true)],
+    "github-mcp": [tool("github_list_issues", false), tool("github_search_code", false), tool("github_create_issue", false)],
+    "docs-mcp": [tool("search_docs", false), tool("read_document", false)]
+  };
+  const savedToolModes = new Map();
   const apps = {
     claude: { name: "Claude Desktop", mark: "CD", tone: "claude", anchor: "cd" },
     codex: { name: "Codex", mark: "Cx", tone: "codex", anchor: "cx" },
@@ -77,6 +100,7 @@
         <span class="gw-choice-card__description">${ep.services.length} ${ep.services.length === 1 ? "service" : "services"} · ${ep.apps.length} ${ep.apps.length === 1 ? "app" : "apps"}</span>
         <span class="gw-choice-card__meta" id="nm-ep-${index}-meta"><span class="gw-env gw-env--sm gw-env--${ep.env}">${ep.env}</span> · ${ep.enabled ? ep.readonly ? "Read only" : ep.env === "prod" ? "Restricted tools" : "Changes need approval" : "Access paused"}</span>
       </label>
+      <div class="gw-setup-map__network-endpoint-access"><span class="gw-text-caption gw-fg-secondary">Access</span><span class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="nm-endpoint-access-${index}" data-nm-endpoint-enabled="${escape(ep.slug)}" aria-label="Access through endpoint ${escape(ep.slug)}" aria-describedby="nm-endpoint-access-hint-${index}" ${ep.enabled ? "checked" : ""} ${availability !== "ready" ? 'aria-disabled="true"' : ""}><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="nm-endpoint-access-${index}">${ep.enabled ? "On" : "Off"}</label><span class="gw-sr-only" id="nm-endpoint-access-hint-${index}">${availability !== "ready" ? "Retry the gateway connection before changing access." : "Applies only to this endpoint. Saved service and tool settings are kept."}</span></span></div>
       ${failed.length ? `<span class="gw-tooltip gw-tooltip--end gw-setup-map__network-health"><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-nm-problems="${escape(ep.slug)}" aria-label="Show ${failed.length} unreachable ${failed.length === 1 ? "connection" : "connections"} on ${escape(ep.slug)}" aria-describedby="nm-health-tip-${index}" aria-controls="nm-services nm-mcp-cluster" aria-pressed="${ep === selected && problemsOnly}"><span class="gw-badge gw-badge--danger">${icon("unplug")}${failed.length}</span></button><span class="gw-tooltip__bubble" role="tooltip" id="nm-health-tip-${index}">${failed.length} enabled ${failed.length === 1 ? "connection is" : "connections are"} unreachable: ${failed.map(escape).join(", ")}. Show them on the left.</span></span>` : ""}
       </div>`;
     }).join("") : '<p class="gw-text-small gw-fg-muted">No endpoints yet. Add one to start sharing.</p>';
@@ -90,7 +114,7 @@
     return `<div class="gw-card gw-setup-map__network-service${failed ? " gw-card--invalid" : !on ? " gw-card--muted" : ""}" data-selected="${selectedNode === `service:${id}`}" data-nm-service="${id}">
       <span class="gw-tooltip gw-tooltip--start"><button class="gw-card--interactive gw-setup-map__network-node" type="button" data-nm-node="service:${id}" aria-pressed="${selectedNode === `service:${id}`}" aria-controls="nm-detail" aria-describedby="nm-connection-tip-${id}">
       ${item.mark ? `<img class="gw-setup-map__network-mark" src="../assets/integrations/${item.mark}.svg" alt="">` : `<span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true">${icon(item.icon)}</span>`}
-      <span class="gw-setup-map__network-label"><strong class="gw-text-h3 gw-truncate">${id}</strong><span class="gw-setup-map__network-meta"><span class="gw-text-caption gw-fg-muted gw-truncate">${item.name}</span>${status(label, on ? item.tone : "neutral")}</span></span>
+      <span class="gw-setup-map__network-label"><strong class="gw-text-h3 gw-truncate">${id}</strong><span class="gw-setup-map__network-meta"><span class="gw-text-caption gw-fg-muted gw-truncate">${item.name}</span><span class="gw-text-caption gw-fg-muted">${serviceTools[id]?.length || 0} tools</span>${status(label, on ? item.tone : "neutral")}</span></span>
       </button><span class="gw-tooltip__bubble" role="tooltip" id="nm-connection-tip-${id}">${escape(id)} · ${escape(item.name)}</span></span><div class="gw-setup-map__network-toggle"><span class="gw-tooltip gw-tooltip--end"><label class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" data-nm-connection="${id}" aria-label="Connection ${id}, all endpoints" aria-describedby="nm-switch-tip-${id}" ${on ? "checked" : ""} ${!selected.enabled ? 'aria-disabled="true"' : ""}><span class="gw-switch__control" aria-hidden="true"></span></label><span class="gw-tooltip__bubble" role="tooltip" id="nm-switch-tip-${id}">${escape(hint)}</span></span><span class="gw-text-caption gw-fg-muted" aria-hidden="true">${on ? "On" : "Off"}</span></div>
     </div>`;
   }
@@ -128,6 +152,38 @@
     }).join("");
   }
 
+  function currentToolMode(ep, id, item) {
+    return savedToolModes.get(`${ep.slug}:${id}:${item.name}`) || (ep.readonly ? item.read ? "read" : "off" : item.mode);
+  }
+  function toolModeReason(ep, id, item, value) {
+    if (availability !== "ready") return "Retry the gateway connection before changing access.";
+    if (!ep.enabled) return `Endpoint ${ep.slug} is off. Saved modes are kept.`;
+    if (!connectionOn(id)) return "Connection off across all endpoints. Saved modes are kept.";
+    if (value === "read" && !item.read) return services[id].mcp ? "Read only is unavailable: this server does not declare this tool read only." : "Read only is unavailable: this tool can change data.";
+    if (ep.readonly && value !== "off" && value !== "read") return `Endpoint ${ep.slug} allows read-only tools only.`;
+    return "";
+  }
+  function renderServiceTools(id) {
+    const ep = selected;
+    const show = Boolean(id && ep && ep.services.includes(id));
+    $("nm-service-tools").hidden = !show;
+    if (!show) { $("nm-tools-rows").replaceChildren(); return; }
+    $("nm-tools-title").textContent = `Tools on ${ep.slug}`;
+    $("nm-tools-scope").textContent = `Changes apply only to ${id} on ${ep.slug}. Other endpoints keep their own modes. Bypass runs without approval; policy limits still apply.`;
+    $("nm-tools-caption").textContent = `Tools for ${id} on endpoint ${ep.slug}`;
+    const paused = !ep.enabled || !connectionOn(id);
+    $("nm-tools-rows").innerHTML = (serviceTools[id] || []).map((item, index) => {
+      const saved = currentToolMode(ep, id, item);
+      const noteId = `nm-tool-note-${index}`;
+      const note = paused ? `${!ep.enabled ? `Endpoint ${ep.slug}` : "Connection"} off. Saved mode: ${toolModes.find((mode) => mode.value === saved).label}.` : availability !== "ready" ? "Connection status unavailable. Retry before changing access." : [services[id].mcp ? "Declared by this server, not verified. Read only is unavailable: this tool is not declared read only." : !item.read ? "This tool can change data. Choose Approval, Bypass or Off." : item.note, ep.readonly ? `Endpoint ${ep.slug} allows read-only tools only.` : ""].filter(Boolean).join(" ");
+      const modeControl = paused ? `<span class="gw-mode gw-mode--off">${icon("circle-off")}Off</span>` : `<fieldset class="gw-segmented gw-segmented--sm" aria-describedby="${noteId}"><legend class="gw-sr-only">Mode for ${escape(item.name)} on ${escape(ep.slug)}</legend>${toolModes.map((mode) => {
+        const reason = toolModeReason(ep, id, item, mode.value);
+        return `<label class="gw-segmented__option" data-tone="${mode.value}"><input class="gw-segmented__input" type="radio" name="nm-tool-mode-${index}" data-nm-tool="${escape(item.name)}" value="${mode.value}" ${saved === mode.value ? "checked" : ""} ${reason ? `disabled aria-describedby="${noteId}" title="${escape(reason)}"` : ""}><span class="gw-segmented__label">${icon(mode.icon, "gw-icon--sm")}${mode.label}</span></label>`;
+      }).join("")}</fieldset>`;
+      return `<tr class="gw-tool-policy-list__row" data-mode="${paused ? "off" : saved}"><th scope="row" class="gw-tool-policy-list__tool"><div class="gw-tool-policy-list__name"><code class="gw-code">${escape(item.name)}</code></div>${services[id].mcp ? '<p class="gw-text-caption gw-fg-muted">External MCP tool</p>' : ""}</th><td><div class="gw-tool-policy-list__mode">${modeControl}<p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="${noteId}" ${note ? "" : "hidden"}>${escape(note)}</p></div></td></tr>`;
+    }).join("");
+  }
+
   function renderDetail() {
     const [kind, id] = (selectedNode || "").split(":");
     const ep = selected;
@@ -141,8 +197,8 @@
       description = !connectionOn(id) ? "Connection off across all endpoints. Saved settings and tool permissions are kept; turn access on to use it again." : !ep.enabled ? `Endpoint ${ep.slug} is off. This connection keeps its saved setting for other endpoints.` : `${services[id].health}. Shared through ${ep.slug} with ${ep.apps.map((link) => apps[link.id].name).join(", ") || "no AI apps yet"}.`;
       href = services[id].mcp ? "connectors.html#mcp-servers" : `connections.html?q=${encodeURIComponent(id)}`;
       action = "Manage service";
-      if (id === "github-mcp") rules = "All 26 tools require approval. This server does not declare read-only tools; nothing runs without a separate decision.";
-      if (id === "docs-mcp") rules = "Example documentation service. Its tools require approval; credentials stay in GateRook and calls are recorded in Activity.";
+      if (id === "github-mcp") rules = "External tools start in Approval. Review each tool mode below; this server does not declare read-only tools.";
+      if (id === "docs-mcp") rules = "External tools start in Approval. Credentials stay in GateRook and calls are recorded in Activity.";
     } else if (kind === "app") {
       const link = ep?.apps.find((entry) => entry.id === id);
       title = apps[id].name;
@@ -160,8 +216,9 @@
     $("nm-detail-rules").textContent = rules;
     $("nm-manage").href = href;
     $("nm-manage").innerHTML = action + icon("arrow-up-right", "gw-icon--sm");
-    $("nm-endpoint-controls").hidden = !ep;
-    $("nm-pause-hint").hidden = !ep;
+    $("nm-endpoint-controls").hidden = !ep || Boolean(kind);
+    $("nm-pause-hint").hidden = !ep || Boolean(kind);
+    renderServiceTools(kind === "service" ? id : null);
     if (ep) {
       $("nm-endpoint-url").textContent = `http://127.0.0.1:7465/mcp/${ep.slug}`;
       doc.querySelector('[data-gw-copy-from="#nm-endpoint-url"]').removeAttribute("data-copied");
@@ -287,6 +344,10 @@
   function openServicePicker(trigger) {
     if (!selected || availability !== "ready") return;
     $("nm-picker-endpoint").textContent = `Selected endpoint: ${selected.slug}. Review access after choosing a service.`;
+    const count = Object.keys(services).filter((id) => !selected.services.includes(id)).length;
+    $("nm-picker-existing").hidden = !count;
+    $("nm-picker-existing-link").href = `connections.html?notConnectedTo=${encodeURIComponent(selected.slug)}`;
+    $("nm-picker-existing-description").textContent = `${count} ${count === 1 ? "service is" : "services are"} not connected to ${selected.slug}.`;
     $("nm-database-link").href = onboarding ? "connection-new.html?state=first-run" : "connection-new.html";
     openDialog("nm-service-picker", trigger);
   }
@@ -313,7 +374,39 @@
     openDialog("nm-connect", trigger);
   }
 
+  $("nm-endpoints").addEventListener("click", (event) => {
+    if (event.target.name !== "nm-endpoint" || event.target.value !== selected?.slug) return;
+    selectedNode = hoverNode = null;
+    clearTrace();
+    render(false);
+  });
+  $("nm-tools-rows").addEventListener("change", (event) => {
+    const name = event.target.dataset.nmTool;
+    const [kind, id] = (selectedNode || "").split(":");
+    const item = serviceTools[id]?.find((entry) => entry.name === name);
+    if (kind !== "service" || !selected || !item || !toolModes.some((mode) => mode.value === event.target.value)) return;
+    if (toolModeReason(selected, id, item, event.target.value)) return;
+    savedToolModes.set(`${selected.slug}:${id}:${name}`, event.target.value);
+    const value = event.target.value;
+    renderServiceTools(id);
+    refreshIcons();
+    const active = Array.from(doc.querySelectorAll("[data-nm-tool]")).find((input) => input.dataset.nmTool === name && input.value === value);
+    active?.focus({ preventScroll: true });
+    announce(`${name} on ${selected.slug}: ${toolModes.find((mode) => mode.value === value).label}. Other endpoints are unchanged.`);
+  });
   $("nm-endpoints").addEventListener("change", (event) => {
+    const toggle = event.target.dataset.nmEndpointEnabled;
+    if (toggle) {
+      if (availability !== "ready") return;
+      const ep = endpoints.find((entry) => entry.slug === toggle);
+      if (!ep) return;
+      ep.enabled = event.target.checked;
+      if (ep === selected) { problemsOnly = false; clearTrace(); }
+      render();
+      Array.from(doc.querySelectorAll("[data-nm-endpoint-enabled]")).find((input) => input.dataset.nmEndpointEnabled === toggle)?.focus({ preventScroll: true });
+      announce(`${ep.slug} is ${ep.enabled ? "on" : "off"}. Other endpoints are unchanged.`);
+      return;
+    }
     if (event.target.name !== "nm-endpoint") return;
     selected = endpoints.find((ep) => ep.slug === event.target.value);
     selectedNode = hoverNode = null;

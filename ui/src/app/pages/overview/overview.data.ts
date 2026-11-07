@@ -51,6 +51,10 @@ export class OverviewData {
   private readonly endpointsSignal = signal<readonly EndpointSummary[] | null>(null);
   private readonly refreshingSignal = signal(false);
   private readonly areaErrorsSignal = signal<OverviewAreaErrors>({ connections: null, endpoints: null, clients: null });
+  private readonly connectionToolCounts = signal<{ readonly slug: string; readonly counts: ReadonlyMap<string, number> } | null>(null);
+  private selectedEndpoint: string | null = null;
+  private countsGeneration = 0;
+  private countsInFlight: Promise<void> | null = null;
 
   /** `GET /api/overview`; null until the first answer. */
   readonly overview = this.overviewSignal.asReadonly();
@@ -109,9 +113,50 @@ export class OverviewData {
 
   stop(): void {
     this.stopped = true;
+    ++this.countsGeneration;
+    this.connectionToolCounts.set(null);
     this.unsubscribe.splice(0).forEach((u) => u());
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
+  }
+
+  /** One wiring request for the selected endpoint supplies every service card's real tool count. */
+  selectEndpoint(slug: string | null): Promise<void> {
+    if (slug === this.selectedEndpoint) return this.countsInFlight ?? Promise.resolve();
+    this.selectedEndpoint = slug;
+    return this.loadConnectionToolCounts();
+  }
+
+  /** Missing data is unknown, not zero; counts never cross endpoint scopes. */
+  connectionToolCount(slug: string | null, connection: string): number | null {
+    const snapshot = this.connectionToolCounts();
+    return snapshot?.slug === slug ? snapshot.counts.get(connection) ?? null : null;
+  }
+
+  private loadConnectionToolCounts(): Promise<void> {
+    const generation = ++this.countsGeneration;
+    const slug = this.selectedEndpoint;
+    this.connectionToolCounts.set(null);
+    if (!slug || this.stopped) {
+      this.countsInFlight = null;
+      return Promise.resolve();
+    }
+    const request = (async () => {
+      try {
+        const detail = await this.endpointsApi.get(slug);
+        if (this.stopped || generation !== this.countsGeneration) return;
+        this.connectionToolCounts.set({ slug, counts: new Map(detail.connections.map((connection) => [
+          connection.name, connection.tools.read + connection.tools.approval + connection.tools.off + (connection.tools.bypass ?? 0),
+        ])) });
+      } catch {
+        // The map stays usable without counts; a failed request must not claim zero available tools.
+        if (generation === this.countsGeneration) this.connectionToolCounts.set(null);
+      }
+    })().finally(() => {
+      if (generation === this.countsGeneration) this.countsInFlight = null;
+    });
+    this.countsInFlight = request;
+    return request;
   }
 
   /** A refresh within `ms`; an earlier one already planned stands. */
@@ -193,6 +238,13 @@ export class OverviewData {
     this.connectionsSignal.set(connections.value);
     this.endpointsSignal.set(endpoints.value);
     this.areaErrorsSignal.set({ connections: connections.error, endpoints: endpoints.error, clients: clients.error });
+    if (this.selectedEndpoint && endpoints.value?.some((endpoint) => endpoint.slug === this.selectedEndpoint)) {
+      await this.loadConnectionToolCounts();
+    } else {
+      ++this.countsGeneration;
+      this.connectionToolCounts.set(null);
+      this.countsInFlight = null;
+    }
   }
 
   /** This computer's AI apps; a core without the clients area (or one that failed to answer) leaves them out. */

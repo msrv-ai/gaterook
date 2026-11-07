@@ -128,6 +128,9 @@
             }
           </div>
         </div>
+        @if (filters().notConnectedTo; as endpoint) {
+          <span class="gw-tag gw-tag--brand"><span class="gw-tag__label" [title]="'Not connected to ' + endpoint">Not connected to <span class="gw-mono">{{ endpoint }}</span></span><button class="gw-tag__remove" type="button" [attr.aria-label]="'Remove not connected to ' + endpoint + ' filter'" (click)="clearEndpointFilter()"><svg lucideIcon="x" class="gw-icon"></svg></button></span>
+        }
         <span class="gw-divider gw-divider--vertical" aria-hidden="true"></span>
         <p class="gw-text-small gw-fg-muted" id="conn-count" role="status">{{ countLabel() }}</p>
       </div>
@@ -159,7 +162,6 @@
                 @if (v.row.host) {
                   <div class="gw-text-code-sm gw-fg-muted gw-truncate" [title]="v.row.host">{{ v.row.host }}</div>
                 }
-                @if (v.row.setupRequired) { <div><a class="gw-link gw-text-small" [routerLink]="['/connections', v.row.name]">Finish setup<span class="gw-sr-only"> for {{ v.row.name }}</span></a></div> }
               </th>
               <td class="gw-table__cell--optional"><svg [lucideIcon]="connectorIcon(v.row.type)" class="gw-icon gw-icon--sm"></svg> {{ typeText(v.row) }}@for (b of v.row.badges; track b) { <span class="gw-badge gw-badge--outline gw-badge--sm">{{ b }}</span>}</td>
               <td class="gw-table__cell--optional gw-table__cell--truncate">
@@ -192,7 +194,13 @@
                   <span class="gw-text-small gw-fg-muted">No endpoint</span>
                 }
               </td>
-              <td><gw-access-switch kind="connection" [name]="v.row.name" [enabled]="v.row.enabled !== false" [blocked]="v.row.setupRequired ? 'Finish this connection’s setup before enabling access.' : v.row.verified ? null : 'Review the change outside GateRook first.'" (changed)="data.refresh()" /></td>
+              <td>
+                @if (v.row.setupRequired) {
+                  <a class="gw-btn gw-btn--sm" [routerLink]="['/connections', v.row.name]">Finish setup<span class="gw-sr-only"> for {{ v.row.name }}</span></a>
+                } @else {
+                  <gw-access-switch kind="connection" [name]="v.row.name" [enabled]="v.row.enabled !== false" [blocked]="v.row.verified ? null : 'Review the change outside GateRook first.'" (changed)="data.refresh()" />
+                }
+              </td>
               <td class="gw-table__cell--actions">
                 <div class="gw-menu-host">
                   <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [attr.aria-label]="'Actions for connection ' + v.row.name" aria-haspopup="menu" [gwMenuTrigger]="rowMenu"><svg lucideIcon="ellipsis" class="gw-icon"></svg></button>

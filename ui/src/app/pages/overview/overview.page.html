@@ -325,9 +325,14 @@
                 }}
               </p>
             }
-            <button class="gw-btn gw-btn--ghost" type="button" (click)="picker($event)">
+            <a
+              class="gw-btn gw-btn--ghost"
+              routerLink="/connectors"
+              [queryParams]="{ add: 'mcp-server' }"
+              fragment="mcp-servers"
+            >
               <svg lucideIcon="plus" class="gw-icon"></svg>Add an MCP service
-            </button>
+            </a>
           </div>
         </div>
         <button
@@ -389,7 +394,9 @@
                     name="overview-endpoint"
                     [value]="ep.slug"
                     [checked]="endpoint()?.slug === ep.slug"
+                    (click)="inspectEndpoint(ep.slug)"
                     (change)="chooseEndpoint(ep.slug)"
+                    aria-controls="ov-detail"
                     [attr.aria-labelledby]="'ov-endpoint-' + i"
                     [attr.aria-describedby]="'ov-endpoint-meta-' + i + ' ov-endpoint-help'"
                   /><span
@@ -420,6 +427,16 @@
                     }}</span
                   ></label
                 >
+                <div class="gw-setup-map__network-endpoint-access">
+                  <span class="gw-text-caption gw-fg-secondary">Access</span>
+                  <gw-access-switch
+                    kind="endpoint"
+                    [name]="ep.slug"
+                    [enabled]="ep.status !== 'disabled'"
+                    [blocked]="mutationBlocked() ?? ep.blockedReason"
+                    (changed)="endpointChanged(ep.slug, $event)"
+                  />
+                </div>
                 @if (problemCount(ep); as count) {
                   <span class="gw-tooltip gw-tooltip--end gw-setup-map__network-health"
                     ><button
@@ -628,7 +645,16 @@
           Test connection again
         </button>
       }
-      @if (endpoint(); as ep) {
+      @if (detailConnection(); as connection) {
+        @if (endpoint(); as ep) {
+          <gw-overview-connection-tools
+            [connection]="connection.row"
+            [endpoint]="ep"
+            [blocked]="mutationBlocked()"
+            (changed)="data.refresh()"
+          />
+        }
+      } @else if (!detailApp() && endpoint(); as ep) {
         <div class="gw-toolbar">
           <div class="gw-toolbar__start">
             <div class="gw-copy-field">
@@ -730,7 +756,12 @@
           ><strong class="gw-text-h3 gw-truncate">{{ c.name }}</strong
           ><span class="gw-setup-map__network-meta"
             ><span class="gw-text-caption gw-fg-muted gw-truncate">{{ c.typeLabel }}</span
-            ><span [class]="'gw-status gw-status--' + c.state.tone"
+            >
+            @let tools = data.connectionToolCount(endpoint()?.slug ?? null, c.name);
+            @if (tools !== null) {
+              <span class="gw-badge gw-badge--outline gw-badge--sm">{{ tools }} {{ tools === 1 ? 'tool' : 'tools' }}</span>
+            }
+            <span [class]="'gw-status gw-status--' + c.state.tone"
               ><span class="gw-status__dot" aria-hidden="true"></span
               ><span class="gw-status__label">{{ c.state.label }}</span></span
             ></span

@@ -1579,6 +1579,42 @@ describe('Connection: edit view', () => {
     expect(p.q('#connection-form-error')).toBeNull();
   });
 
+  it.each([
+    ['/config/credentials/user', '#cf-credentials-user'],
+    ['/config', '#connection-form-error'],
+  ])('reveals Settings before focusing a delayed update error for %s', async (field, target) => {
+    let reject!: (error: ApiError) => void;
+    vi.mocked(TestBed.inject(ConnectionsApi).update).mockReturnValueOnce(new Promise((_resolve, fail) => { reject = fail; }));
+    const p = await open('/connections/dev-db');
+    p.button('Save changes').click();
+    await p.settle();
+    p.q<HTMLButtonElement>('#connection-tools-tab')!.click();
+    await p.settle();
+    expect(p.q<HTMLElement>('#connection-settings')!.hidden).toBe(true);
+
+    reject(new ApiError('unprocessable', 422, { title: 'Invalid connection', errors: [{ field, message: 'Review this setting.' }] }));
+    await p.settle();
+    expect(p.q<HTMLElement>('#connection-settings')!.hidden).toBe(false);
+    expect(p.q<HTMLElement>('#used-by')!.hidden).toBe(true);
+    expect(p.q('#connection-settings-tab')!.getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(p.q(target));
+    expect(text(p.q('#cf-form'))).toContain('Review this setting.');
+  });
+
+  it('reveals Settings before focusing synchronous validation from a hidden form submission', async () => {
+    const p = await open('/connections/dev-db');
+    await p.type('cf-credentials-user', '');
+    p.q<HTMLButtonElement>('#connection-tools-tab')!.click();
+    await p.settle();
+    expect(p.q<HTMLElement>('#connection-settings')!.hidden).toBe(true);
+    p.q<HTMLFormElement>('#cf-form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await p.settle();
+    expect(p.q<HTMLElement>('#connection-settings')!.hidden).toBe(false);
+    expect(p.q<HTMLElement>('#used-by')!.hidden).toBe(true);
+    expect(document.activeElement).toBe(p.q('#cf-credentials-user'));
+    expect(core.updates).toEqual([]);
+  });
+
   it('keeps a saved database and requests stored-secret consent before discovering on a new host', async () => {
     core.nextDiscovery = new ApiError('conflict', 409, {
       title: 'Send the stored password to db2.internal?', detail: 'The password will be used to load databases.', confirm: 'send-secret-to-new-host',
@@ -1784,6 +1820,41 @@ describe('Connection: edit view', () => {
     expect(p.el.querySelector('.gw-stepper')).toBeNull();
     expect((document.getElementById('cf-name') as HTMLInputElement).readOnly).toBe(true);
     expect(text(p.q('.gw-secret[data-state=stored]'))).toContain('version 3');
+  });
+
+  it('switches Settings and Tools with the keyboard without losing unsaved settings', async () => {
+    const p = await open('/connections/dev-db');
+    const settings = p.q<HTMLElement>('#connection-settings')!;
+    const tools = p.q<HTMLElement>('#used-by')!;
+    const settingsTab = p.q<HTMLButtonElement>('#connection-settings-tab')!;
+    const toolsTab = p.q<HTMLButtonElement>('#connection-tools-tab')!;
+    const form = p.q<HTMLFormElement>('#cf-form')!;
+    expect(text(settingsTab)).toBe('Settings');
+    expect(text(toolsTab)).toBe('Tools');
+    expect(settings.hidden).toBe(false);
+    expect(tools.hidden).toBe(true);
+    expect(settings.contains(p.q('#delete-connection'))).toBe(true);
+    await p.type('cf-credentials-user', 'unsaved_reader');
+
+    settingsTab.focus();
+    settingsTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    await p.settle();
+    expect(document.activeElement).toBe(toolsTab);
+    expect(toolsTab.getAttribute('aria-selected')).toBe('true');
+    expect(settings.hidden).toBe(true);
+    expect(tools.hidden).toBe(false);
+    expect(tools.querySelector('gw-connection-tool-modes')).not.toBeNull();
+
+    toolsTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+    await p.settle();
+    expect(document.activeElement).toBe(settingsTab);
+    expect(settingsTab.getAttribute('aria-selected')).toBe('true');
+    expect(settings.hidden).toBe(false);
+    expect(tools.hidden).toBe(true);
+    expect(p.q('#cf-form')).toBe(form);
+    expect(p.q<HTMLInputElement>('#cf-credentials-user')!.value).toBe('unsaved_reader');
+    expect(core.updates).toEqual([]);
+    expect(core.modes).toEqual([]);
   });
 
   it("lists the kubeconfig's contexts the core found (metadata, step API) and says how often health is checked", async () => {

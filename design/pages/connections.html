@@ -227,6 +227,7 @@
                   <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="unreachable"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Unreachable</span><span class="gw-menu__hint">1<span class="gw-sr-only"> connections</span></span></button>
               </div>
             </div>
+            <span class="gw-tag gw-tag--brand" id="conn-endpoint-filter" hidden><span class="gw-tag__label" id="conn-endpoint-filter-label"></span><button class="gw-tag__remove" type="button" id="conn-endpoint-filter-remove" aria-label="Remove endpoint filter"><i class="gw-icon" data-lucide="x"></i></button></span>
             <span class="gw-divider gw-divider--vertical" aria-hidden="true"></span>
             <p class="gw-text-small gw-fg-muted" id="conn-count" role="status">12 connections</p>
           </div>
@@ -650,8 +651,8 @@
 
       <section class="gw-section" aria-labelledby="conn-states-title">
         <header class="gw-section__header">
-          <h2 class="gw-section__title" id="conn-states-title">Empty and loading states</h2>
-          <p class="gw-section__description">Reference for the app: what replaces the toolbar and table before the first connection, and while the list loads.</p>
+          <h2 class="gw-section__title" id="conn-states-title">Connection states</h2>
+          <p class="gw-section__description">Reference for the app: first run, loading, and connections that need setup.</p>
           <div class="gw-section__actions">
             <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="conn-states-panel">Show states <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button>
           </div>
@@ -697,6 +698,25 @@
                 </table>
               </div>
               <p class="gw-sr-only" role="status">Loading connections</p>
+            </div>
+          </section>
+          <section class="gw-card" aria-labelledby="conn-setup-title">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="conn-setup-title">Setup required</h3>
+                <p class="gw-card__description">For an incomplete connection, Finish setup replaces the access switch.</p>
+              </div>
+            </header>
+            <div class="gw-table-wrap" role="region" aria-labelledby="conn-setup-cap" tabindex="0">
+              <table class="gw-table">
+                <caption class="gw-sr-only" id="conn-setup-cap">A saved connection awaiting setup</caption>
+                <thead><tr><th scope="col">Connection</th><th scope="col">Health</th><th scope="col">Access</th></tr></thead>
+                <tbody><tr>
+                  <th scope="row"><a class="gw-link gw-mono" href="connection-new.html?edit=dev-db">dev-db</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></th>
+                  <td><span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not checked yet</span></span></td>
+                  <td><a class="gw-btn gw-btn--sm" href="connection-new.html?edit=dev-db">Finish setup<span class="gw-sr-only"> for dev-db</span></a></td>
+                </tr></tbody>
+              </table>
             </div>
           </section>
         </div>
@@ -875,6 +895,10 @@
   var search = doc.getElementById("conn-q");
   var count = doc.getElementById("conn-count");
   var noMatch = doc.getElementById("conn-no-match");
+  var notConnectedTo = (new URLSearchParams(window.location.search).get("notConnectedTo") || "").trim();
+  var endpointFilter = doc.getElementById("conn-endpoint-filter");
+  var endpointFilterLabel = doc.getElementById("conn-endpoint-filter-label");
+  var endpointFilterRemove = doc.getElementById("conn-endpoint-filter-remove");
   var announce = window.gwAnnounce || function () {};
   var toast = window.gwToast || function () {};
 
@@ -885,8 +909,12 @@
     return o ? o.getAttribute("data-value") : "all";
   }
 
-  // ───── Filters: search, type, environment, health ─────
+  // ───── Filters: search, type, environment, health, endpoint membership ─────
   function apply() {
+    endpointFilter.hidden = !notConnectedTo;
+    endpointFilterLabel.textContent = "Not connected to " + notConnectedTo;
+    endpointFilterLabel.title = endpointFilterLabel.textContent;
+    endpointFilterRemove.setAttribute("aria-label", "Remove not connected to " + notConnectedTo + " filter");
     var q = search.value.trim().toLowerCase();
     var type = picked("conn-type-menu");
     var health = picked("conn-health-menu");
@@ -896,10 +924,13 @@
     var shown = 0;
     live.forEach(function (r) {
       var text = (r.cells[0].textContent + " " + r.cells[1].textContent).toLowerCase();
+      var connected = notConnectedTo && Array.from(r.cells[4].querySelectorAll("a")).some(function (link) {
+        return new URL(link.href).searchParams.get("endpoint") === notConnectedTo;
+      });
       var ok = (type === "all" || r.getAttribute("data-type") === type) &&
         (health === "all" || r.getAttribute("data-health") === health) &&
         (env === "all" || r.getAttribute("data-env") === env) &&
-        (!q || text.indexOf(q) !== -1);
+        (!q || text.indexOf(q) !== -1) && !connected;
       r.hidden = !ok;
       var d = detailOf(r.getAttribute("data-conn"));
       if (d) d.hidden = !ok;
@@ -919,7 +950,13 @@
   doc.addEventListener("change", function (e) { if (e.target.name === "conn-env") apply(); });
   doc.addEventListener("click", function (e) {
     if (e.target.closest('#conn-type-menu [role="option"], #conn-health-menu [role="option"]')) setTimeout(apply, 0);
+    if (e.target.closest("#conn-endpoint-filter-remove")) {
+      notConnectedTo = "";
+      apply();
+      search.focus();
+    }
     if (e.target.closest("#conn-clear")) {
+      notConnectedTo = "";
       search.value = "";
       resetListbox("conn-type-menu");
       resetListbox("conn-health-menu");
@@ -1113,7 +1150,7 @@
     var trigger = doc.querySelector('[aria-controls="conn-type-menu"] [data-gw-menu-value]');
     if (trigger) trigger.textContent = typeOption.querySelector(".gw-menu__label").textContent;
   }
-  if (preset || typeOption) apply();
+  if (preset || typeOption || notConnectedTo) apply();
 })();
 </script>
 </body>

@@ -46,6 +46,7 @@ import { connectorIcon } from '../../kit/elements/shared/connector-icons';
 import { MODES, healthLook } from '../../kit/elements/shared/dictionaries';
 import { literalParts } from '../../kit/elements/shared/literals';
 import { GwIcon } from '../../kit/icons';
+import { GwTabs } from '../../kit/tabs';
 import { ToastService } from '../../kit/toast.service';
 import { getAt, setAt } from '../../schema-form/compile';
 import { SecretAction, storedReference } from '../../schema-form/schema-form';
@@ -130,8 +131,9 @@ export function errorText(e: ApiError | null): string {
  *   endpoint, the core's own preview and `POST /api/endpoints/{slug}/connections/{name}`.
  * - **Duplicate** (`?duplicate=<name>`): the wizard from Configure with the settings of `GET …/{name}/duplicate`;
  *   credentials are never copied.
- * - **Edit** (`/connections/<name>`): health (live through `connection.health`), Test connection, the settings form
- *   with stored secrets (Replace, Rotate where the source can) or references, "Used by" and Delete.
+ * - **Edit** (`/connections/<name>`): health (live through `connection.health`), Test connection, Settings with
+ *   stored secrets (Replace, Rotate where the source can), references and Delete, and Tools with endpoint modes.
+ *   Both tab panels stay mounted so changing tabs preserves the settings draft.
  *
  * Step changes move focus to the step's heading and announce "Step 2 of 4: Configure", as the kit's page script does.
  */
@@ -149,6 +151,7 @@ interface ReferenceChange {
     NgTemplateOutlet,
     RouterLink,
     GwIcon,
+    GwTabs,
     GwToggle,
     GwAriaDisabled,
     GwDialog,
@@ -255,6 +258,7 @@ export class ConnectionNewPage {
   protected readonly formProblem = signal<{ readonly title: string; readonly message: string } | null>(null);
   private readonly policies = signal<{ readonly all: Policies; readonly schema: JsonObject | null } | null>(null);
   readonly form = viewChild(GwConnectionForm);
+  private readonly editTabs = viewChild(GwTabs);
   /** The duplicate's settings: picking its type again keeps them, another type starts fresh. */
   private copied: { readonly type: string; readonly env: Env; readonly config: JsonObject } | null = null;
   protected readonly databaseSetup = computed(() => !!this.spec() && !!databaseSelection(this.spec()!.schema));
@@ -1237,6 +1241,7 @@ export class ConnectionNewPage {
 
   /** Keep errors without a field beside the form, and focus them when there is no invalid control to visit. */
   private applyFormErrors(error: ApiError, focus = true, submittedName = this.current().name): void {
+    if (focus) this.showSettings();
     const others = this.form()?.applyServerError(error) ?? error.errors;
     const name = this.mode() !== 'edit' ? others.find((item) => item.field === '/name') : undefined;
     if (name) this.nameProblem.set({ name: submittedName, message: name.message });
@@ -1253,6 +1258,11 @@ export class ConnectionNewPage {
   }
 
   // ─── Edit: save, test, secrets, delete ───
+
+  /** Form errors must stay visible even if a pending save finishes while Tools is selected. */
+  protected showSettings(): void {
+    if (this.mode() === 'edit') this.editTabs()?.selectById('connection-settings-tab');
+  }
 
   protected async accessChanged(enabled: boolean): Promise<void> {
     this.detail.update((d) => d ? { ...d, enabled } : d);

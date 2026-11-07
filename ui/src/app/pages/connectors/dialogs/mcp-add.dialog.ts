@@ -523,7 +523,7 @@ let nextId = 0;
                       <article class="gw-card" [attr.aria-labelledby]="uid + '-r' + i">
                         <header class="gw-card__header">
                           <div class="gw-card__heading">
-                            <h3 class="gw-card__title" [id]="uid + '-r' + i">{{ r.title }}</h3>
+                            <h3 class="gw-card__title" [id]="uid + '-r' + i"><button class="gw-btn gw-btn--link gw-truncate" type="button" [title]="r.title" (click)="use(r)" [attr.aria-disabled]="r.use.kind === 'none' ? 'true' : null" [attr.aria-describedby]="r.use.kind === 'none' ? uid + '-rn' + i : null"><span class="gw-text-h2 gw-truncate">{{ r.title }}</span></button></h3>
                             <p class="gw-card__description gw-mono">{{ r.server.name }}@if (r.server.version) { · {{ r.server.version }}}</p>
                           </div>
                           <div class="gw-card__actions">

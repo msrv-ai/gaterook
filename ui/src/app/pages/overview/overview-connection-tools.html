@@ -1,0 +1,34 @@
+<div class="gw-stack gw-stack--sm">
+  <p class="gw-text-small gw-fg-muted">Tool modes apply to <span class="gw-mono">{{ connection().name }}</span> on <span class="gw-mono">{{ endpoint().slug }}</span> only.</p>
+  @if (unavailable(); as reason) {
+    <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
+      <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content"><p class="gw-alert__body">{{ reason }}</p></div>
+    </div>
+  } @else if (!assigned()) {
+    <p class="gw-text-small gw-fg-muted">This service is not connected to {{ endpoint().slug }}. Connect it before choosing tool modes.</p>
+  } @else if (error(); as message) {
+    <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+      <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content"><p class="gw-alert__title">Could not load tools</p><p class="gw-alert__body">{{ message }}</p></div>
+      <button class="gw-btn gw-btn--sm" type="button" (click)="reload()">Retry tools</button>
+    </div>
+  } @else if (rows(); as uses) {
+    @if (paused(); as message) {
+      <div class="gw-alert gw-alert--neutral gw-alert--compact" role="status">
+        <svg lucideIcon="circle-pause" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content"><p class="gw-alert__title">Effective access: Off</p><p class="gw-alert__body">{{ message }}</p></div>
+      </div>
+    }
+    @if (uses.length) {
+      <fieldset class="gw-field" [disabled]="!!paused()">
+        <legend class="gw-field__label">{{ paused() ? 'Saved tool modes' : 'Tool modes' }}</legend>
+        <gw-connection-tool-modes [connection]="connection().name" [connectionVersion]="version()" [rows]="uses" (changed)="modesChanged($event)" />
+      </fieldset>
+    } @else {
+      <p class="gw-text-small gw-fg-muted">No tools are available for this connection on {{ endpoint().slug }}.</p>
+    }
+  } @else {
+    <p class="gw-text-small gw-fg-muted" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Loading tools…</p>
+  }
+</div>

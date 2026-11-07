@@ -603,9 +603,27 @@
 
     .gw-choice-card__title { min-height: var(--gw-size-control-sm); }
 
+    &:has(> .gw-setup-map__network-endpoint-access) > .gw-choice-card {
+      padding-block-end: calc(var(--gw-size-control-sm) + var(--gw-space-5));
+    }
+
     &:has(> .gw-setup-map__network-health) .gw-choice-card__title {
       padding-inline-end: calc(var(--gw-size-control-md) + var(--gw-space-6));
     }
+  }
+
+  // The footer is visually inside the card but remains a sibling of its radio
+  // label. Its stacking level keeps the switch above the stretched choice input.
+  .gw-setup-map__network-endpoint-access {
+    position: absolute;
+    z-index: var(--gw-z-raised);
+    inset-inline: var(--gw-space-3);
+    inset-block-end: var(--gw-space-2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gw-space-2);
+    min-height: var(--gw-size-control-sm);
   }
 
   .gw-setup-map__network-health {

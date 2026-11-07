@@ -1033,7 +1033,7 @@ describe('Connectors page: MCP servers', () => {
     expect(toasts().at(-1)?.body).toBe('Its 12 tools are Off until you add them to an endpoint. Declared reads start as Read only; other tools start as Approval.');
   });
 
-  it('finds a server in the MCP registry, fills the form from it and reviews it like a typed one', async () => {
+  it.each(['Use', 'title'])('selects an MCP registry server with %s, fills the form and waits for review', async (action) => {
     setup();
     const { fixture, el } = await render();
     button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
@@ -1072,6 +1072,16 @@ describe('Connectors page: MCP servers', () => {
     expect(text(results()[1])).toContain('Deprecated');
     expect(text(results()[1])).toContain('It runs as a Docker image, which GateRook doesn’t start from the registry yet.');
     expect(button(results()[1], 'Use').getAttribute('aria-disabled')).toBe('true');
+    const unavailableTitle = results()[1].querySelector<HTMLButtonElement>('.gw-card__title button')!;
+    expect(unavailableTitle.getAttribute('type')).toBe('button');
+    expect(unavailableTitle.getAttribute('aria-disabled')).toBe('true');
+    expect(unavailableTitle.getAttribute('aria-describedby')).toBe(button(results()[1], 'Use').getAttribute('aria-describedby'));
+    unavailableTitle.click();
+    await settle(fixture);
+    expect(registry.hidden).toBe(false);
+    expect(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!.value).toBe('');
+    expect(calls).not.toContain('review');
+    expect(bodies['create-server']).toBeUndefined();
     expect(text(add)).toContain('From the Official MCP Registry (registry.modelcontextprotocol.io).');
 
     // The next page joins the list, and the keyboard goes to its first result.
@@ -1083,7 +1093,8 @@ describe('Connectors page: MCP servers', () => {
     expect(text(results()[2])).toContain('stdio npx @someone/linear-mcp@0.3.2');
     expect(Array.from(add.querySelectorAll('button')).some((b) => text(b) === 'Show more')).toBe(false);
 
-    button(results()[0], 'Use').click();
+    const choose = action === 'title' ? results()[0].querySelector<HTMLButtonElement>('.gw-card__title button')! : button(results()[0], 'Use');
+    choose.click();
     await settle(fixture);
     const name = add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!;
     expect(name.value).toBe('linear-mcp');
@@ -1094,10 +1105,13 @@ describe('Connectors page: MCP servers', () => {
     expect(registry.hidden).toBe(true);
     expect(text(add)).toContain('Filled in the name and the URL from Linear in the MCP registry.');
     expect(document.activeElement).toBe(name);
+    expect(calls).not.toContain('review');
+    expect(bodies['create-server']).toBeUndefined();
 
     button(add, 'Review and connect').click();
     await settle(fixture);
     expect(bodies['review']).toEqual({ config: { name: 'linear-mcp', transport: 'http', url: 'https://mcp.linear.app/mcp', headers: [] } });
+    expect(bodies['create-server']).toBeUndefined();
   });
 
   it('says why the registry search failed, and searches again on request', async () => {
