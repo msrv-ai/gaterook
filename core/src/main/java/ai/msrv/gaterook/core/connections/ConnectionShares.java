@@ -130,24 +130,67 @@ public class ConnectionShares {
     finally { values.values().forEach(SecretInput::clear); }
   }
 
-  public ConnectionService.Summary importDraft(JsonNode entry, boolean includeSecrets, String reason) {
+  /** Exact, caller-reviewed inputs retained only until the enclosing import finishes or fails. */
+  public record Prepared(String name, String type, Env env, JsonNode config, Map<String, SecretInput> secrets,
+      List<String> missing) implements AutoCloseable {
+    public boolean needsSetup() { return !missing.isEmpty(); }
+    @Override public void close() { secrets.values().forEach(SecretInput::clear); }
+    @Override public String toString() { return "Prepared[name=" + name + ", settings=<redacted>]"; }
+  }
+
+  public Prepared prepareImport(JsonNode entry, boolean includeSecrets, Set<String> reservedNames) {
     String type = entry.path("type").asString();
     if (!supported(type)) throw invalid("Skip unavailable connectors and use their dedicated setup flow.");
     ObjectNode reviewed = (ObjectNode) entry.deepCopy();
+    List<String> missing = new ArrayList<>();
+    entry.path("omittedSecretFields").forEach(field -> missing.add(field.asString() + ": Supply the omitted credential."));
+    // An omitted optional credential must not silently turn an authenticated connection into anonymous access.
     if (!includeSecrets) {
+      entry.path("secrets").propertyNames().forEach(field -> missing.add(field + ": Include or supply the credential."));
       ObjectNode clean = (ObjectNode) reviewed.path("config");
       for (String field : SecretFields.keyAllowedTemplates(registry.manifest(type).orElseThrow().configSchema()))
-        SchemaPointers.values(clean, field).keySet().forEach(p -> remove(clean, p));
+        SchemaPointers.values(clean, field).keySet().forEach(p -> {
+          remove(clean, p);
+          missing.add(p + ": Include or supply the credential.");
+        });
     }
+    if (entry.path("warnings").valueStream().anyMatch(w -> w.asString().startsWith("Local file paths and credential profiles were omitted")))
+      missing.add("Choose the omitted local files and credential profiles on this computer.");
     validate(reviewed, includeSecrets);
     Map<String, SecretInput> values = inputs(reviewed, includeSecrets);
-    return connections.createImportDraft(uniqueName(entry.path("name").asString()), type,
-        Env.of(entry.path("env").asString()), reviewed.path("config"), values,
-        List.of("Review imported settings and credentials on this computer before enabling access."), null, reason);
+    try {
+      String name = uniqueName(entry.path("name").asString(), reservedNames);
+      Env env = Env.of(entry.path("env").asString());
+      missing.addAll(connections.missingImportSettings(name, type, env, reviewed.path("config"), values));
+      reservedNames.add(name);
+      return new Prepared(name, type, env, reviewed.path("config"), values, missing.stream().distinct().toList());
+    } catch (RuntimeException e) {
+      values.values().forEach(SecretInput::clear);
+      throw e;
+    }
+  }
+
+  /** Resource checks happen before the batch transaction; incomplete entries never contact a resource. */
+  public void preflightImport(Prepared prepared, String confirm) {
+    if (!prepared.needsSetup()) connections.preflightCreate(prepared.name(), prepared.type(), prepared.env(),
+        prepared.config(), prepared.secrets(), confirm);
+  }
+
+  /** Only complete entries that passed the batch preflight become enabled connections. */
+  public ConnectionService.Summary importPrepared(Prepared prepared, String reason) {
+    return prepared.needsSetup()
+        ? connections.createImportDraft(prepared.name(), prepared.type(), prepared.env(), prepared.config(),
+            prepared.secrets(), prepared.missing(), null, reason)
+        : connections.create(prepared.name(), prepared.type(), prepared.env(), prepared.config(), prepared.secrets(),
+            reason, ConnectionService.CONFIRM_DANGER);
   }
 
   public String uniqueName(String source) {
-    Set<String> names = new HashSet<>();
+    return uniqueName(source, Set.of());
+  }
+
+  private String uniqueName(String source, Set<String> reservedNames) {
+    Set<String> names = new HashSet<>(reservedNames);
     configs.all().forEach(c -> names.add(c.name()));
     if (!names.contains(source)) return source;
     for (int i = 2; i < 100_000; i++) {

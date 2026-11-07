@@ -54,8 +54,9 @@ class EndpointShareIT {
     assertThatThrownBy(() -> shares.export("select-share", List.of("not-on-endpoint"), true)).isInstanceOf(ProblemException.class);
   }
 
-  @Test void previewHidesValuesAndImportCreatesDisabledCopiesWithFreshSecretOwners() throws Exception {
+  @Test void previewHidesValuesAndImportCreatesReadyEnabledCopiesWithFreshSecretOwners() throws Exception {
     ObjectNode bundle = source("copy-share", true);
+    endpoints.disable("copy-share", "Keep the existing endpoint paused");
     assertThat(bundle.path("connections").get(0).path("omittedSecretFields")).isEmpty();
     JsonNode preview = shares.preview(bundle);
     assertThat(preview.toString()).doesNotContain("pw-copy-share", "$secret");
@@ -68,15 +69,19 @@ class EndpointShareIT {
     String name = imported.path("connections").get(0).path("name").asString();
     assertThat(name).isEqualTo("copy-share-one-2");
     var destination = endpoints.snapshot("copy-share-2");
-    assertThat(destination.enabled()).isFalse();
+    assertThat(destination.enabled()).isTrue();
+    assertThat(endpoints.snapshot("copy-share").enabled()).isFalse();
     assertThat(destination.oauthEnabled()).isFalse();
     assertThat(destination.published()).isFalse();
     assertThat(destination.blocked()).isFalse();
     assertThat(destination.connections()).hasSize(1);
     var copied = core.bean(ConnectionConfigs.class).byName(name).orElseThrow();
-    assertThat(copied.enabled()).isFalse();
+    assertThat(copied.enabled()).isTrue();
     assertThat(copied.verified()).isTrue();
-    assertThat(ConnectionService.needsSetup(copied.config())).isTrue();
+    assertThat(ConnectionService.needsSetup(copied.config())).isFalse();
+    assertThat(imported.path("connections").get(0).path("needsSetup").asBoolean()).isFalse();
+    assertThat(destination.pairs()).anyMatch(pair -> pair.config().name().equals(name)
+        && pair.tool().name().equals("sql_query") && pair.mode() == Mode.READ_ONLY);
     assertThat(copied.id()).isNotEqualTo(core.bean(ConnectionConfigs.class).byName("copy-share-one").orElseThrow().id());
     Taint taint = new Taint();
     try (var resolver = core.bean(SecretService.class).resolver(copied.config(), taint); var secret = resolver.secret("/credentials/password")) {
@@ -93,8 +98,56 @@ class EndpointShareIT {
     assertThat(imported.path("connections")).hasSize(1);
     var copied = core.bean(ConnectionConfigs.class).byName("skip-share-two-2").orElseThrow();
     assertThat(copied.secretIds()).isEmpty();
+    assertThat(copied.enabled()).isFalse();
+    assertThat(ConnectionService.needsSetup(copied.config())).isTrue();
+    assertThat(imported.path("connections").get(0).path("needsSetup").asBoolean()).isTrue();
     assertThat(core.bean(ConnectionConfigs.class).byName("skip-share-one-2")).isEmpty();
     assertThat(endpoints.list()).noneMatch(e -> e.slug().equals("skip-share-2"));
+  }
+
+  @Test void completeAndIncompleteConnectionsImportTogetherWithoutBlockingReadyTools() {
+    ObjectNode bundle = source("mixed-setup-share", true);
+    ((ObjectNode) bundle.path("connections").get(1).path("config").path("credentials")).remove("user");
+    JsonNode imported = shares.importBundle(bundle, List.of("mixed-setup-share-one", "mixed-setup-share-two"),
+        true, true, "mixed-setup-share-copy", "test");
+    assertThat(imported.path("connections").get(0).path("needsSetup").asBoolean()).isFalse();
+    assertThat(imported.path("connections").get(1).path("needsSetup").asBoolean()).isTrue();
+    var destination = endpoints.snapshot("mixed-setup-share-copy");
+    assertThat(destination.enabled()).isTrue();
+    assertThat(destination.pairs()).anyMatch(pair -> pair.config().name().equals("mixed-setup-share-one-2"))
+        .noneMatch(pair -> pair.config().name().equals("mixed-setup-share-two-2"));
+    var incomplete = core.bean(ConnectionConfigs.class).byName("mixed-setup-share-two-2").orElseThrow();
+    assertThat(incomplete.enabled()).isFalse();
+    assertThat(incomplete.secretIds()).containsKey("/credentials/password");
+    assertThat(incomplete.config().metadata().path("setupMissingFields").toString()).contains("user")
+        .doesNotContain("Review imported settings and credentials");
+  }
+
+  @Test void productionWarningsAreReviewedTogetherBeforeAnyCopiesAreWritten() {
+    ObjectNode bundle = source("prod-review-share", true);
+    int index = 0;
+    for (JsonNode entry : bundle.path("connections")) {
+      ((ObjectNode) entry).put("env", "prod");
+      ((ObjectNode) entry.path("config").path("connection"))
+          .put("host", index++ == 0 ? "danger-one.test" : "danger-two.test");
+    }
+    int count = core.bean(ConnectionConfigs.class).all().size();
+    assertThatThrownBy(() -> shares.importBundle(bundle, List.of("prod-review-share-one", "prod-review-share-two"),
+        true, true, "prod-review-share-copy", "test"))
+        .isInstanceOfSatisfying(ProblemException.class, problem -> {
+          assertThat(problem.confirm()).isEqualTo(ConnectionService.CONFIRM_DANGER);
+          assertThat(problem.errors()).hasSize(2);
+          assertThat(problem.getMessage()).contains("prod-review-share-one-2", "prod-review-share-two-2")
+              .doesNotContain("pw-prod-review");
+        });
+    assertThat(core.bean(ConnectionConfigs.class).all()).hasSize(count);
+    assertThat(endpoints.list()).noneMatch(endpoint -> endpoint.slug().equals("prod-review-share-copy"));
+    JsonNode imported = shares.importBundle(bundle, List.of("prod-review-share-one", "prod-review-share-two"),
+        true, true, "prod-review-share-copy", "test", ConnectionService.CONFIRM_DANGER);
+    assertThat(imported.path("connections")).allMatch(entry -> !entry.path("needsSetup").asBoolean());
+    assertThat(endpoints.snapshot("prod-review-share-copy").enabled()).isTrue();
+    assertThat(endpoints.snapshot("prod-review-share-copy").connections()).allMatch(connection ->
+        core.bean(ConnectionConfigs.class).byId(connection.config().id()).orElseThrow().enabled());
   }
 
   @Test void bypassAndUntrustedReadModesNeverBecomeImplicitApprovalGrants() {
@@ -135,6 +188,19 @@ class EndpointShareIT {
     assertThat(endpoints.list()).noneMatch(e -> e.slug().equals("atomic-share-copy"));
   }
 
+  @Test void aTemplateCompilationFailureRollsBackReadyConnectionsAndTheEnabledEndpoint() {
+    ObjectNode bundle = source("compile-failure-share", true);
+    ((ObjectNode) bundle.path("connections").get(1)).putArray("templates").addObject()
+        .put("id", "broken-template").put("name", "broken_query").put("kind", "sql-query")
+        .putObject("definition").put("name", "broken_query");
+    int count = core.bean(ConnectionConfigs.class).all().size();
+    assertThatThrownBy(() -> shares.importBundle(bundle, List.of("compile-failure-share-one", "compile-failure-share-two"),
+        true, true, "compile-failure-share-copy", "test")).isInstanceOf(ProblemException.class);
+    assertThat(core.bean(ConnectionConfigs.class).all()).hasSize(count);
+    assertThat(endpoints.list()).noneMatch(endpoint -> endpoint.slug().equals("compile-failure-share-copy"));
+    assertThat(core.bean(ConnectionConfigs.class).byName("compile-failure-share-one-2")).isEmpty();
+  }
+
   @Test void sqlTemplatesAreCopiedAndToolKeysUseNewIds() {
     source("template-share", false);
     var templates = core.bean(TemplateService.class);
@@ -172,7 +238,7 @@ class EndpointShareIT {
     assertThat(core.jdbc().queryForList("select tool_key from endpoint_tool where connection_id = ?", String.class, id))
         .anyMatch(k -> k.startsWith("plugin:jirafake:"));
     assertThat(core.jdbc().queryForList("select mode from endpoint_tool where connection_id = ?", String.class, id)).doesNotContain("READ_ONLY", "BYPASS");
-    assertThat(core.bean(ConnectionConfigs.class).byId(id).orElseThrow().enabled()).isFalse();
+    assertThat(core.bean(ConnectionConfigs.class).byId(id).orElseThrow().enabled()).isTrue();
   }
 
   @Test void secretFingerprintsCannotRenamePreviewProtocolKeysOrSelectionIdentifiers() {
