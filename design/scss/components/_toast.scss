@@ -1,7 +1,7 @@
 // =============================================================
 // .gw-toast-region · .gw-toast · Toast notifications
 // -------------------------------------------------------------
-// Short-lived feedback in the bottom-right corner: the result of something
+// Short-lived feedback in the top-right corner below the titlebar: the result of something
 // the user just did ("Token codex-laptop revoked"), or an event that needs
 // no answer right now ("Approval requested", with a link to it). A toast
 // is never the only place a decision or an error lives: approvals stay in
@@ -21,7 +21,7 @@
 //     </div>
 //   </section>
 //
-// .gw-toast-region  fixed bottom-right, z toast, stacks toasts with a gap, width
+// .gw-toast-region  fixed top-right below the titlebar, z toast, stacks toasts with a gap, width
 //                   --gw-layout-toast-width (never wider than the viewport). Lets
 //                   clicks through where there is no toast.
 // .gw-toast         overlay surface + 3px inline-start bar in the tone fg + tone icon.
@@ -48,7 +48,7 @@
 
 .gw-toast-region {
   position: fixed;
-  inset-block-end: var(--gw-space-4);
+  inset-block-start: calc(var(--gw-layout-titlebar-height) + var(--gw-space-4));
   inset-inline-end: var(--gw-space-4);
   z-index: var(--gw-z-toast);
   display: flex;

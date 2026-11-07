@@ -802,13 +802,13 @@ Native <dialog> opened with showModal(). gw-dialog is centred and holds one ques
 
 ### `gw-toast-region / gw-toast`
 
-Short-lived feedback in the bottom-end corner: the result of an action (Token revoked, with Undo), or an event that needs no answer now. Never the only place a decision or an error lives.
+Short-lived feedback in the top-end corner below the titlebar: the result of an action (Token revoked, with Undo), or an event that needs no answer now. Never the only place a decision or an error lives.
 
 [SCSS](scss/components/_toast.scss)
 
 **Variants:** gw-toast--brand / --success / --warning / --danger / --info / --neutral (default).
 
-**Parts:** gw-toast-region (fixed bottom-end, z --gw-z-toast, width --gw-layout-toast-width, max viewport − 32px, clicks pass through gaps); __icon (tone fg); __content; __title; __body; __actions; __close (gw-btn ghost icon sm, 'Dismiss notification'); 3px inline-start bar in tone fg (::before).
+**Parts:** gw-toast-region (fixed top-end, inset below --gw-layout-titlebar-height by --gw-space-4, z --gw-z-toast, width --gw-layout-toast-width, max viewport − 32px, clicks pass through gaps); __icon (tone fg); __content; __title; __body; __actions; __close (gw-btn ghost icon sm, 'Dismiss notification'); 3px inline-start bar in tone fg (::before).
 
 **States and behavior:**
 
