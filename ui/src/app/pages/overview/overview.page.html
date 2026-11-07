@@ -723,49 +723,43 @@
     [attr.data-map-service]="c.name"
     [attr.data-selected]="selectedNode() === 'service:' + c.name"
   >
-    <span class="gw-tooltip gw-tooltip--start"
-      ><button
-        class="gw-card--interactive gw-setup-map__network-node"
-        type="button"
-        (click)="inspect('service:' + c.name)"
-        (pointerenter)="hoverNode.set('service:' + c.name)"
-        (pointerleave)="hoverNode.set(null)"
-        (focus)="hoverNode.set('service:' + c.name)"
-        (blur)="hoverNode.set(null)"
-        [attr.aria-pressed]="selectedNode() === 'service:' + c.name"
-        aria-controls="ov-detail"
-        [attr.aria-describedby]="nodeId('name', c.name)"
-      >
-        @if (mark(c); as logo) {
-          <img
-            class="gw-setup-map__network-mark"
-            [src]="'assets/integrations/' + logo + '.svg'"
-            alt=""
-          />
-        } @else {
-          <span class="gw-icon-tile gw-icon-tile--neutral"
-            ><svg [lucideIcon]="c.icon" class="gw-icon"></svg
-          ></span>
-        }
-        <span class="gw-setup-map__network-label"
-          ><strong class="gw-text-h3 gw-truncate">{{ c.name }}</strong
-          ><span class="gw-setup-map__network-meta"
-            ><span class="gw-text-caption gw-fg-muted gw-truncate">{{ c.typeLabel }}</span
-            >
-            @let tools = data.connectionToolCount(endpoint()?.slug ?? null, c.name);
-            @if (tools !== null) {
-              <span class="gw-badge gw-badge--outline gw-badge--sm">{{ tools }} {{ tools === 1 ? 'tool' : 'tools' }}</span>
-            }
-            <span [class]="'gw-status gw-status--' + c.state.tone"
-              ><span class="gw-status__dot" aria-hidden="true"></span
-              ><span class="gw-status__label">{{ c.state.label }}</span></span
-            ></span
-          ></span
-        ></button
-      ><span class="gw-tooltip__bubble" role="tooltip" [id]="nodeId('name', c.name)"
-        >{{ c.name }} · {{ c.typeLabel }}</span
-      ></span
+    <button
+      class="gw-card--interactive gw-setup-map__network-node"
+      type="button"
+      (click)="inspect('service:' + c.name)"
+      (pointerenter)="hoverNode.set('service:' + c.name)"
+      (pointerleave)="hoverNode.set(null)"
+      (focus)="hoverNode.set('service:' + c.name)"
+      (blur)="hoverNode.set(null)"
+      [attr.aria-pressed]="selectedNode() === 'service:' + c.name"
+      aria-controls="ov-detail"
     >
+      @if (mark(c); as logo) {
+        <img
+          class="gw-setup-map__network-mark"
+          [src]="'assets/integrations/' + logo + '.svg'"
+          alt=""
+        />
+      } @else {
+        <span class="gw-icon-tile gw-icon-tile--neutral"
+          ><svg [lucideIcon]="c.icon" class="gw-icon"></svg
+        ></span>
+      }
+      <span class="gw-setup-map__network-label"
+        ><strong class="gw-text-h3 gw-truncate">{{ c.name }}</strong
+        ><span class="gw-setup-map__network-meta"
+          ><span class="gw-text-caption gw-fg-muted gw-truncate">{{ c.typeLabel }}</span
+          >
+          @let tools = data.connectionToolCount(endpoint()?.slug ?? null, c.name);
+          @if (tools !== null) {
+            <span class="gw-badge gw-badge--outline gw-badge--sm">{{ tools }} {{ tools === 1 ? 'tool' : 'tools' }}</span>
+          }
+          <span [class]="'gw-status gw-status--' + c.state.tone"
+            ><span class="gw-status__dot" aria-hidden="true"></span
+            ><span class="gw-status__label">{{ c.state.label }}</span></span
+          ></span
+        ></span
+      ></button>
     <div class="gw-overview-service-actions">
       @if (!c.mcp) {
         <a
