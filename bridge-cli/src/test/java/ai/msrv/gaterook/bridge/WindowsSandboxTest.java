@@ -42,8 +42,8 @@ class WindowsSandboxTest {
     assertThat(Sandbox.resolve("node", env, true)).isEqualTo(one.resolve("node.exe").toAbsolutePath());
     assertThat(Sandbox.resolve("node.exe", env, true)).isEqualTo(one.resolve("node.exe").toAbsolutePath());
     assertThat(Sandbox.resolve("missing", env, true)).isNull();
-    // A path the Unix rules would have taken for a name.
-    assertThat(Sandbox.resolve(two.resolve("npx.cmd").toString().replace('/', '\\'), env, true)).isNull();
+    // An explicit Windows path must not fall back to the matching command on PATH.
+    assertThat(Sandbox.resolve(one.resolve("npx.cmd").toString().replace('/', '\\'), env, true)).isNull();
     assertThat(Sandbox.resolve(two.resolve("npx.cmd").toString(), env, true))
         .isEqualTo(two.resolve("npx.cmd").toAbsolutePath());
   }
