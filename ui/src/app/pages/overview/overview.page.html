@@ -618,7 +618,7 @@
               aria-controls="ov-request-path"
               aria-describedby="ov-trace-reason"
             >
-              <svg lucideIcon="route" class="gw-icon gw-icon--sm"></svg>Show path</button
+              <svg lucideIcon="route" class="gw-icon gw-icon--sm"></svg>{{ requestPath() ? 'Replay path' : 'Show path' }}</button
             ><span class="gw-tooltip__bubble" role="tooltip" id="ov-trace-reason">{{
               traceReason() ?? 'Show an example of how a request travels. No request is sent.'
             }}</span></span

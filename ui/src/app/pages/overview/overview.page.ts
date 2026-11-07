@@ -358,7 +358,7 @@ export class OverviewPage {
     this.resetSelection();
     const first = this.filtered()[0];
     if (first) {
-      this.selectedNode.set(`service:${first.name}`);
+      this.inspect(`service:${first.name}`);
       this.focusNode(first.name);
     }
     this.announcer.announce(
@@ -375,6 +375,7 @@ export class OverviewPage {
   protected inspect(key: string): void {
     this.selectedNode.set(key);
     this.trace.set(null);
+    this.showPath();
   }
   protected connectionChanged(name: string, enabled: boolean): void {
     this.data.patchConnectionEnabled(name, enabled);
@@ -382,8 +383,7 @@ export class OverviewPage {
       this.problemsOnly.set(false);
       this.expanded.set(true);
     }
-    this.trace.set(null);
-    this.selectedNode.set(`service:${name}`);
+    this.inspect(`service:${name}`);
     this.focusNode(name, true);
     void this.data.refresh();
   }
