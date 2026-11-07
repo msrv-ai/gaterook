@@ -39,7 +39,7 @@ import { GwOverviewWires, OverviewWireTrace } from './overview-wires';
 
 export const SKELETON_DELAY_MS = 300;
 
-/** Live application counterpart of design/pages/overview-map.html. */
+/** Live connection map for Overview. */
 @Component({
   selector: 'gw-overview-page',
   imports: [

@@ -4,7 +4,7 @@
 // by main with the bootstrap line, exactly as the installed app starts its native core.
 //
 //   npm run dev -w desktop                         home desktop/.dev/home (kept between runs)
-//   npm run dev -w desktop -- --demo --fresh       a new home with the demo world of BLUEPRINT §9
+//   npm run dev -w desktop -- --demo --fresh       a new home with the demo world
 //   npm run dev -w desktop -- --home ~/.gaterook   the real gateway home
 //   npm run dev -w desktop -- --core-binary app/target/gaterook-core   the native core instead of the jar
 //   npm run dev -w desktop -- --protection off     no OS protection of the master key (no Keychain entry)

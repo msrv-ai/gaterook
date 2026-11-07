@@ -214,7 +214,7 @@ public record PreparedAction(Outcome outcome, ActionPreview preview, JsonNode pr
 }
 // ── TestResult.java ────────────────────────────────────────────────────────────────────────────────────────────
 package ai.msrv.gaterook.connector.api; import java.util.*; import tools.jackson.databind.JsonNode;
-/** Latency, version, identity, what the account may really do, hints in the kit's tone. needsConfirmation stops the test
+/** Latency, version, identity, what the account may really do, clear user-facing hints. needsConfirmation stops the test
  *  before credentials leave; the core applies configPatch (Setup changes) after "Trust" and runs the test again. */
 public record TestResult(boolean ok, long latencyMs, String serverVersion, String identity, Permissions permissions,
     List<Hint> hints, List<Check> checks, TestError error, Confirmation needsConfirmation,

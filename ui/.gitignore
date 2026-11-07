@@ -43,6 +43,6 @@ __screenshots__/
 .DS_Store
 Thumbs.db
 
-# Kit assets copied by scripts/sync-kit-assets.mjs (build inputs, not sources)
+# Runtime assets copied by scripts/sync-ui-assets.mjs (build inputs, not sources)
 /public/assets/
 /target/

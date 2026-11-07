@@ -3,7 +3,7 @@ import { SecretRow, ShortLivedCredential } from '../../core/api/secrets.api';
 
 /*
  * Test data only (imported by the specs, never by the page): rows in the shape `GET /api/connections` answers,
- * named after the kit's world (BLUEPRINT §9) so assertions read like the kit page.
+ * named after the kit's world so assertions read like the kit page.
  */
 
 export const NOW = Date.parse('2026-10-22T14:30:00+02:00');

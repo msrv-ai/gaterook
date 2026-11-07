@@ -71,7 +71,7 @@ export function splitSlug(slug: string, connection: string): string {
 }
 
 /**
- * The Split endpoint dialog (elements/risk-callout.html, endpoint-detail `#ep-dlg-split`): move one ingredient's
+ * The Split endpoint dialog (risk callout component, endpoint-detail `#ep-dlg-split`): move one ingredient's
  * connection to a new endpoint so neither holds the whole combination. The recommended move is pre-selected (focus
  * starts there); before / after shows both endpoints' ingredients from the core's preview; the checked clients get the
  * new URL next, each through its own Connect step. `changed` asks the page for a new preview; `create` confirms.

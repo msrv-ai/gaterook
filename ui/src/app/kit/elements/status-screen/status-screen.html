@@ -320,7 +320,7 @@
   @if (steps().length) {
   <ol class="gw-stepper gw-stepper--vertical" aria-label="Start-up steps">
     @for (step of steps(); track step.id; let i = $index) {
-      <!-- The step that runs now, or the one that failed, is the current one (pages/core-starting.html). -->
+      <!-- The step that runs now, or the one that failed, is the current one. -->
       <li class="gw-stepper__step" [attr.data-state]="step.state" [attr.aria-current]="step.state === 'current' || step.state === 'error' ? 'step' : null">
         <span class="gw-stepper__marker" aria-hidden="true">
           @switch (step.state) {
@@ -360,7 +360,7 @@
 
 <ng-template #quitButton>
   @if (quitReason(); as why) {
-    <!-- A browser tab can't quit the app: the reason shows on hover and focus, next to the button (DESIGN §8). -->
+    <!-- A browser tab can't quit the app: the reason shows on hover and focus, next to the button. -->
     <span class="gw-tooltip"><button class="gw-btn" type="button" aria-disabled="true" [attr.aria-describedby]="uid + '-quit-why'">Quit</button><span class="gw-tooltip__bubble" role="tooltip" [id]="uid + '-quit-why'">{{ why }}</span></span>
   } @else {
     <button class="gw-btn" type="button" (click)="quit.emit()">Quit</button>

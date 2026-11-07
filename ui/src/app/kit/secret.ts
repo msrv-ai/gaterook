@@ -17,7 +17,7 @@ const PROVIDERS: Record<string, { readonly name: string; readonly icon: string }
 };
 
 /**
- * `<div gwSecret>`: the kit's write-only secret (`gw-secret`, DESIGN.md §8 "Secrets"). Its `data-state` picks what it
+ * `<div gwSecret>`: the kit's write-only secret (`gw-secret`). Its `data-state` picks what it
  * shows, inside a 32 px frame that never jumps:
  * - `empty` — a brand new value: a password field; the reveal toggle exists only here, while it is typed first;
  * - `editing` — replacing a stored value: a password field, Cancel, Save (no reveal; the stored version keeps

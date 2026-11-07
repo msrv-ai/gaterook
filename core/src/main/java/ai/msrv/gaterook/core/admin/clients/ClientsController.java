@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Clients (ARCHITECTURE.md §6 clients, kit {@code pages/clients.html} and {@code client-card}): the clients found on
+ * Clients (ARCHITECTURE.md §6 clients, kit {@code clients screen} and {@code client-card}): the clients found on
  * this computer, "What will change" before Connect, Disconnect as a reverse edit, Check, backups and Restore, Remove
  * bridge, manual setup. What a card says about calls (last call, the revision spoken) comes from the audit. No answer
  * holds a token except manual app creation and token replacement, which show the new value once for setup.

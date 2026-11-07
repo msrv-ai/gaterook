@@ -120,7 +120,7 @@ export function errorText(e: ApiError | null): string {
 }
 
 /**
- * Add connection (design/pages/connection-new.html, ARCHITECTURE.md §8.4): one page, three modes.
+ * Add connection (ARCHITECTURE.md §8.4): one page, three modes.
  *
  * - **Wizard** (`/connections/new`, `?type=&variant=` from Connectors): 1 Choose type (the catalog by group, Logs back
  *   ends as cards, unavailable types disabled with their reason) → 2 Configure (the connector's JSON Schema, the secret

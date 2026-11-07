@@ -16,7 +16,7 @@ import {
 const at = (d: number, h: number, m = 0, s = 0) => new Date(2026, 9, d, h, m, s).getTime();
 const NOW = at(22, 14, 30);
 
-describe('time-format (BLUEPRINT §8 time as the kit writes it)', () => {
+describe('time-format (display wording)', () => {
   it.each([
     [at(22, 14, 29, 58), 'just now'],
     [at(22, 14, 29, 30), '30 s ago'],

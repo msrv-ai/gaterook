@@ -11,7 +11,7 @@ Installed apps check update metadata at `msrv.dev`; macOS update downloads remai
 
 On DEV and STAGE, you can temporarily bypass approval for a method on one connection and endpoint for 15 or 30 minutes, or 1, 3, 12, or 24 hours. Open **Temporary bypass** in an approval review or the endpoint's tool list. The original mode returns automatically at expiry, and you can end the bypass early. Existing pending requests still need a separate decision.
 
-[Website](https://msrv.dev) · [Issues](https://github.com/msrv-ai/gaterook/issues) · [Architecture](docs/ARCHITECTURE.md) · [Research](docs/research/README.md) · [Design kit](design/README.md)
+[Website](https://msrv.dev) · [Issues](https://github.com/msrv-ai/gaterook/issues) · [Architecture](docs/ARCHITECTURE.md) · [Research](docs/research/README.md)
 
 ## How it works
 
@@ -35,7 +35,7 @@ For an AI app that GateRook does not detect, open **AI apps → Add app manually
 
 ![GateRook Overview page showing connection health, AI app connection status, and navigation for managing access and reviewing activity.](docs/images/gaterook-overview.png)
 
-This repository contains the complete application, its tests, the canonical design kit, and everything needed for a local development build. The application is in development; a source build is not a signed release installer.
+This repository contains the complete application, its tests, runtime assets, and everything needed for a local development build. The application is in development; a source build is not a signed release installer.
 
 ## Build and run locally
 
@@ -48,12 +48,11 @@ git clone https://github.com/msrv-ai/gaterook.git
 cd gaterook
 # If you use nvm: nvm install && nvm use
 npm ci
-npm ci --prefix design
 npm run build
 npm start
 ```
 
-`npm run build` builds the design kit, all Java modules, the Angular UI, and the Electron main/preload bundle. It compiles tests but skips running them. `npm start` opens the desktop application, which manages its JVM core. Development data is stored in `desktop/.dev/home/`; stop the application with **Ctrl+C** in the terminal.
+`npm run build` builds all Java modules, the Angular UI, and the Electron main/preload bundle. It compiles tests but skips running them. `npm start` opens the desktop application, which manages its JVM core. Development data is stored in `desktop/.dev/home/`; stop the application with **Ctrl+C** in the terminal.
 
 With OS credential protection enabled, select **Unlock GateRook** to continue startup. macOS offers Touch ID when enrolled, with your Mac password as a fallback. Windows uses Windows Hello when available, including face, fingerprint, or PIN; otherwise it asks for your Windows account password. On a computer with Windows Hello, a new GateRook home binds its encryption key to Windows Hello, so only Windows Hello opens it: if Hello is turned off, GateRook can't unlock until it is set up again, and if Windows removed the key, GateRook offers to restore your master-key backup. Authentication happens only in system dialogs. Denying access closes GateRook. Restarting the core within the same app session does not ask again.
 
@@ -88,7 +87,6 @@ npm test                          # Build and staging helper tests
 npm test -w bridge                # Token broker and stdio bridge
 npm test -w desktop               # Electron type checking and unit tests
 npm test -w ui                    # Angular component and behavior tests
-npm --prefix design run verify   # Design generation and validation
 mvn -B -ntp verify                # Java tests; some integration tests need local services
 ```
 
@@ -110,10 +108,6 @@ For the full connector integration suite, follow [the Docker test-services guide
 | [SSH log files](docs/ssh-log-files.md) | Remote file selection, searching, latest records, time ranges, and continuation |
 | [Repository layout](docs/repository-layout.md) | Source directories and their responsibilities |
 | [Migration scope](docs/migration.md) | Source inclusion, compatibility, and publication boundaries |
-| [Design kit](design/README.md) | Tokens, styles, assets, reference pages, and verification |
-| [Design rules](design/DESIGN.md) | Visual language and interaction rules |
-| [Components](design/COMPONENTS.md) | Component and element APIs |
-| [UI blueprint](design/BLUEPRINT.md) | Screens, states, and the shared demo world |
 | [Contributor and AI rules](AGENTS.md) | English-only content and handling of internal AI files |
 
 The stack is Electron 45, Angular 22, Java 25, and Spring Boot 4.1. The core can also be built as a GraalVM native executable. Java plugins run in a separate JVM host. See the manifests and lockfiles for exact dependency versions.

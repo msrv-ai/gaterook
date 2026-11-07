@@ -493,7 +493,7 @@ public class NotificationService {
   // ── Demo ────────────────────────────────────────────────────────────────────────────────────────────────────
 
   /**
-   * The demo world's notifications (BLUEPRINT §9): desktop on, Slack connected to {@code acme} posting to
+   * The demo world's notifications: desktop on, Slack connected to {@code acme} posting to
    * {@code #deploy-approvals}, Telegram not set up. The demo's Slack has no tokens and never calls Slack.
    */
   public void seedDemo(JsonNode demo) {

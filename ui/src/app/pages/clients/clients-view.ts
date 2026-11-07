@@ -19,7 +19,7 @@ import { ClientFailure, ConfigEntry, andList, clientFailure, fileName, keeps } f
 import { TextPart, literalParts } from '../../kit/elements/shared/literals';
 
 /**
- * What the Clients screen says (design/pages/clients.html; ARCHITECTURE.md §8.4 "clients"), as pure functions of
+ * What the Clients screen says (ARCHITECTURE.md §8.4 "clients"), as pure functions of
  * the core's answers: the header's counts, where each card goes, the toasts and announcements of Connect,
  * Disconnect and Scan, "Connect failed", the manual setup's snippets and the claude.ai card's rows. Tested against the
  * kit's wording.

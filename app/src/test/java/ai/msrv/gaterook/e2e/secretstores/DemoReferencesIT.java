@@ -27,7 +27,7 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 
 /**
- * The secret references of the demo world (design/BLUEPRINT.md §9, ARCHITECTURE.md §10 S1) on the assembled core with
+ * The secret references of the demo world (ARCHITECTURE.md §10 S1) on the assembled core with
  * the real built-in connectors: Vault and GCP Secret Manager connected, AWS Secrets Manager not, so
  * {@code billing-api/webhook-secret} says so; {@code prod-replica} reads a Vault KV reference; the SSH
  * hosts sign in with Vault's CA. Nothing contacts a store while seeding or here.

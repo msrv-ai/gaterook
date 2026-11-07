@@ -1,7 +1,7 @@
 import { DOCUMENT, Directive, ElementRef, inject, input, model } from '@angular/core';
 
 /**
- * `<button gwReveal aria-controls="pw">` (kit.js "reveal"): shows a NEW secret while it is typed for the first time
+ * `<button gwReveal aria-controls="pw">`: shows a NEW secret while it is typed for the first time
  * (password ↔ text, `aria-pressed`). Never offered for a stored secret: `gw-secret` renders it only in `empty`.
  */
 @Directive({

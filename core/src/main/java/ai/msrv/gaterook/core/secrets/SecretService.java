@@ -146,7 +146,7 @@ public class SecretService {
 
   /**
    * The rows of Secrets: values stored here and references. Vault dynamic credentials aren't secrets of the table
-   * (BLUEPRINT §9: Secrets › Short-lived lists them).
+   * (demo data: Secrets › Short-lived lists them).
    */
   public List<SecretInfo> list() {
     return readTx.execute(s -> secrets.findAllByOrderByNameAsc().stream().filter(e -> e.getKind() != SecretKind.DYNAMIC)
@@ -819,7 +819,7 @@ public class SecretService {
     };
     String state;
     if (secret.getKind() != SecretKind.LOCAL) {
-      // "AWS SM · not connected" (BLUEPRINT §9): a reference whose kind of store isn't connected.
+      // "AWS SM · not connected": a reference whose kind of store isn't connected.
       state = !binding.integrity().verifyReference(secret) ? "changed-outside" : secret.getStore() == null
           ? "not-connected" : secret.getKind() == SecretKind.DYNAMIC ? "short-lived" : "reference";
     } else if (secret.getCurrentVersion() == null) {

@@ -2,9 +2,9 @@ import { Facets, Histogram, HistogramBucket, SavedView } from '../core/api/activ
 import { Env } from '../core/api/types';
 
 /**
- * The Activity of the demo world (BLUEPRINT §9): 24 hours up to Thursday 14:30, as `/api/activity/histogram`,
- * `/api/activity/facets` and `/api/activity/events` return them, for the log-explorer gallery
- * (design/elements/log-explorer.html). Dev only.
+ * The Activity of the demo world: 24 hours up to Thursday 14:30, as `/api/activity/histogram`,
+ * `/api/activity/facets` and `/api/activity/events` return them, for the log-explorer gallery.
+ * Dev only.
  */
 
 /** Calls per hour by decision, 15:00 yesterday to 14:00 today: [allowed, pending, denied, expired]. */

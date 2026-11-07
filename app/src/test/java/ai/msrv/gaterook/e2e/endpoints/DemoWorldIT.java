@@ -44,7 +44,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * The kit's demo world (design/BLUEPRINT.md §9) on the assembled core with the real built-in connectors: the twelve
+ * The kit's demo world on the assembled core with the real built-in connectors: the twelve
  * connections, the endpoints {@code dev}, {@code stage-readonly} and {@code incident-prod} with the kit's modes, the
  * risk callouts (dev 3/3, stage-readonly 3/3, incident-prod contained), an endpoint with PostgreSQL and MySQL behind
  * one {@code sql_query}, and finally the deletion of {@code dev-db} and {@code dev}, after which the history still
@@ -81,7 +81,7 @@ class DemoWorldIT {
     catalog = core.getBean(ToolCatalog.class);
     jdbc = new JdbcTemplate(core.getBean(javax.sql.DataSource.class));
 
-    // Connections (BLUEPRINT §9 "Connections" and "Hosts"). Secret references and short-lived credentials arrive
+    // Connections. Secret references and short-lived credentials arrive
     // with S1; here every secret is encrypted locally.
     connection("dev-db", "postgres", Env.DEV, """
         {"connection":{"host":"db.dev.internal","port":5432,"database":"app"},"credentials":{"user":"gw_reader"}}""",

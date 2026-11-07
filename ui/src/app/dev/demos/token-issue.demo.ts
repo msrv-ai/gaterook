@@ -8,7 +8,7 @@ import { DEMO_ISSUED } from '../fixtures';
 import { GwLiveNote, demoFixture, liveRead } from '../live';
 
 /**
- * Dev only: design/elements/token-issue.html (the server-mode IP allowlist preview is left out: desktop only). The
+ * Dev only: token-issue component (the server-mode IP allowlist preview is left out: desktop only). The
  * tables are the dev core's (`GET /api/endpoints/dev/tokens`, and `incident-prod`, which has none); the issued token
  * is a fixture: the core shows a token once, to the request that issued it, and the gallery never issues one.
  */

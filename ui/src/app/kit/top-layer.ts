@@ -1,5 +1,5 @@
 /**
- * The element announcements and toasts must live in (kit.js `topLayer()`): an open modal `<dialog>` makes the rest
+ * The element announcements and toasts must live in: an open modal `<dialog>` makes the rest
  * of the document inert, so a live region or a toast outside it would be neither seen nor heard.
  */
 export function topLayer(doc: Document = document): HTMLElement {

@@ -6,7 +6,7 @@ import { PoliciesByEnv, PolicySchemas } from './policy-model';
 
 /*
  * Test data only (imported by the specs, never by the page): the core's own answers for the demo world (GW_DEMO=1)
- * with the kit's values set (design/pages/policies.html): `GET /api/policies/schema`, `GET /api/policies`,
+ * with the kit's values set: `GET /api/policies/schema`, `GET /api/policies`,
  * `GET /api/connections`, `GET /api/endpoints` and `GET /api/templates?kind=ssh-runbook`, recorded from a running core.
  */
 

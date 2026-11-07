@@ -24,7 +24,7 @@ export function envOfFragment(fragment: string | null | undefined): Env | null {
 }
 
 /**
- * Policies (design/pages/policies.html; ARCHITECTURE.md §8.4 "policies"): guardrails per environment.
+ * Policies (ARCHITECTURE.md §8.4 "policies"): guardrails per environment.
  *
  * - The header links to the denied calls; the default approval behavior and explicit Bypass exception is an info alert
  *   with no switch anywhere.

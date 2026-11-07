@@ -2,7 +2,7 @@ import { Directive, ElementRef, inject, model } from '@angular/core';
 import { Announcer } from './announcer';
 
 /**
- * `<button gwPressed [(pressed)]>` (kit.js "pressed"): flips `aria-pressed` (Live, view toggles) and announces
+ * `<button gwPressed [(pressed)]>`: flips `aria-pressed` (Live, view toggles) and announces
  * "Live on" / "Live off" from the button's label.
  */
 @Directive({

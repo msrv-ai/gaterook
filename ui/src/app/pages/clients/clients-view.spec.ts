@@ -37,7 +37,7 @@ import {
 import { firstRun as firstRunOverview, setup as setupOverview } from '../overview/overview.fixtures';
 import { NOW, codexDisconnect, connected, foundClients, kitClients, kitEndpoints, kitManual, kitTokens, noneFound } from './clients.fixtures';
 
-/** What the Clients screen says, against design/pages/clients.html's words and the core's answers. */
+/** What the Clients screen says, from the core's answers. */
 
 const words = (parts: readonly { text: string }[]) => parts.map((p) => p.text).join('');
 const problem = (status: number, body: object) => ApiError.fromHttp(new HttpErrorResponse({ status, error: body }));

@@ -21,7 +21,7 @@ import { ToastService } from '../../kit/toast.service';
 import { ConnectionNewPage } from './connection-new.page';
 
 /**
- * Add connection against the kit's page script (design/pages/connection-new.html): the four steps with their focus
+ * Add connection against the kit's page script: the four steps with their focus
  * and announcements, what the test shows, the endpoints a connection may join, Save, the duplicate and the edit view
  * with its dialogs. The admin API is faked at the service level with canonical connector schemas.
  */
@@ -1060,7 +1060,7 @@ describe('Add connection: wizard', () => {
     const p = await open();
     await toTest(p);
     expect(text(p.q('#step-3 .gw-alert--danger .gw-alert__title'))).toBe("Can't reach db.dev.internal:5432");
-    // The failed step's marker is an x (COMPONENTS.md stepper): no number, "failed" for screen readers.
+    // The failed step's marker is an x (stepper): no number, "failed" for screen readers.
     expect(p.steps()[2]).toBe("error:Test, failed Can't reach db.dev.internal:5432");
     p.button('Continue', p.q('#step-3')!).click();
     await p.settle();

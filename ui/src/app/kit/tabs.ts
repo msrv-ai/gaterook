@@ -12,13 +12,13 @@ import { NavigationEnd, Router } from '@angular/router';
 import { filter } from 'rxjs';
 
 /**
- * `[role=tablist][gwTabs]` (kit.js "tabs"): click selects, ←/→ (↑/↓ when `aria-orientation="vertical"`), Home and
+ * `[role=tablist][gwTabs]`: click selects, ←/→ (↑/↓ when `aria-orientation="vertical"`), Home and
  * End move AND select (automatic activation), roving tabindex, each tab's `aria-controls` panel is `hidden` unless
  * its tab is selected. Natively disabled and `aria-disabled` tabs are skipped by the arrows.
  *
  * Deep links: a URL fragment naming a tab, a panel or anything inside a hidden panel selects every tab around it
  * (innermost first) and scrolls the target into view — on first render and on every navigation (the router's
- * fragment, the app's equivalent of kit.js's `hashchange`).
+ * fragment, following fragment changes).
  */
 @Directive({
   selector: '[gwTabs]',
@@ -99,7 +99,7 @@ export class GwTabs {
 }
 
 /**
- * Selects the tabs around the element the fragment names, then scrolls it into view (kit.js `tabFromHash`).
+ * Selects the tabs around the element the fragment names, then scrolls it into view.
  * Returns whether the fragment named an element.
  */
 export function selectFromFragment(doc: Document, fragment?: string | null): boolean {

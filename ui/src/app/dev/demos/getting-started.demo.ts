@@ -7,7 +7,7 @@ import { DEMO_GETTING_STARTED } from '../fixtures';
 import { GwLiveNote, liveRead } from '../live';
 
 /**
- * Dev only: design/elements/getting-started.html. "In progress" is the dev core's checklist (`GET /api/overview`
+ * Dev only: getting-started component. "In progress" is the dev core's checklist (`GET /api/overview`
  * gettingStarted); a fresh install and a finished one are fixtures. The detected clients come with K1 (fixture).
  */
 @Component({

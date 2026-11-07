@@ -54,7 +54,7 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
 type BackupPhase = 'idle' | 'choosing' | 'writing';
 
 /**
- * Welcome (design/pages/onboarding.html; ARCHITECTURE.md §6 onboarding, §7.1 bootstrap (a), §8.4): the first run,
+ * Welcome (ARCHITECTURE.md §6 onboarding, §7.1 bootstrap (a), §8.4): the first run,
  * without the sidebar. The welcome (logo, value, three promises), then setup in four steps — a stepper that shows
  * progress (not navigation), the current step's card and, beside it, the setup map in the order of the steps — and
  * where the data lives.

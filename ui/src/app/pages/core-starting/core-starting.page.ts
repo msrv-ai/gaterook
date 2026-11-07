@@ -50,7 +50,7 @@ import {
 const QUIT_IN_BROWSER = 'This window is a browser tab: close the tab to leave.';
 
 /**
- * Core starting (design/pages/core-starting.html; ARCHITECTURE.md §7.1, §8.1, §8.4): not a route — the status screen
+ * Core starting (ARCHITECTURE.md §7.1, §8.1, §8.4): not a route — the status screen
  * over the whole window while the core isn't running, driven by Electron's core state (`onCoreState`: progress lines,
  * the ready line, a failed start, an exit) and `/api/health`.
  *

@@ -173,7 +173,7 @@ final class Fixtures {
       return new Context(env, limits(env), Duration.ofSeconds(15), payload);
     }
 
-    /** BLUEPRINT §9: dev 1,000 rows · 5 s · 512 KB · 10 s; prod 100 rows · 3 s · 256 KB · 5 s. */
+    /** Demo policy limits: dev 1,000 rows · 5 s · 512 KB · 10 s; prod 100 rows · 3 s · 256 KB · 5 s. */
     static Limits limits(Env env) {
       boolean prod = env == Env.PROD;
       return new Limits(prod ? 100 : 1_000, prod ? 200 : 1_000, (prod ? 256 : 512) * 1024L, 256 * 1024L,

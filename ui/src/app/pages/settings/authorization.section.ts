@@ -18,7 +18,7 @@ import { Registration, TOKEN_TTL_DAYS, dayAt, daysText, expiresText, expiringTok
 const NO_ANSWER = 'The core didn’t answer. Try again.';
 
 /**
- * Settings › Authorization (design/pages/settings.html `#settings-authorization`): how clients prove who they are.
+ * Settings › Authorization: how clients prove who they are.
  *
  * - How authorization works (four steps, `--vertical`, folded state remembered).
  * - MCP access applies at once: the default lifetime of new named tokens (`authorization.tokenTtlDays`), the IP

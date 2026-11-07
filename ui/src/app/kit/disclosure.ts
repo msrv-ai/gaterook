@@ -2,7 +2,7 @@ import { DOCUMENT, Directive, ElementRef, afterNextRender, inject, input, model 
 import { safeStorage } from './storage';
 
 /**
- * `<button gwToggle aria-controls="id" [(expanded)]>` (kit.js "disclosure"): toggles `hidden` on the target and
+ * `<button gwToggle aria-controls="id" [(expanded)]>`: toggles `hidden` on the target and
  * `aria-expanded` on itself. `gwTogglePersist="key"` remembers open / closed in localStorage `gw-toggle-<key>`
  * (how-it-works strips, "Show raw").
  */
@@ -47,7 +47,7 @@ export class GwToggle {
 }
 
 /**
- * `<button gwExpand="#raw">` (kit.js "expand", "View raw"): opens that disclosure (and syncs the `aria-expanded` of
+ * `<button gwExpand="#raw">`: opens that disclosure (and syncs the `aria-expanded` of
  * its toggle buttons), then puts the keyboard inside it — its first `tabindex="0"` region, else the target itself.
  */
 @Directive({ selector: '[gwExpand]', host: { '(click)': 'onClick($event)' } })

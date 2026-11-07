@@ -123,7 +123,7 @@ public class TokenService implements PrincipalStatus {
 
   /**
    * As {@link #issue(String, String, Integer, String)}, counted as issued at {@code issuedAt}: the demo seed backdates
-   * {@code ci-smoke} so that it has expired, as in the kit (design/BLUEPRINT.md §9). The admin API always issues now.
+   * {@code ci-smoke} so that it has expired, as in the kit. The admin API always issues now.
    * Backdating only shortens a token's life, so a time in the future is refused.
    *
    * @param issuedAt when the token counts as issued, or {@code null} for now

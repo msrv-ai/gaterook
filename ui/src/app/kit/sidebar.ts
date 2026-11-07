@@ -4,7 +4,7 @@ import { safeStorage } from './storage';
 const KEY = 'gw-sidebar-collapsed';
 
 /**
- * `<button gwSidebarToggle aria-controls="gw-sidebar">` (kit.js "sidebar"): toggles `data-collapsed` on its
+ * `<button gwSidebarToggle aria-controls="gw-sidebar">`: toggles `data-collapsed` on its
  * `.gw-shell`, keeps `aria-expanded` and the label ("Collapse sidebar" / "Expand sidebar") in sync. Only the real app
  * shell (the one holding `nav[data-gw-nav]`) remembers the choice; demos don't. Below `md` the kit collapses the
  * sidebar by CSS and hides this button.

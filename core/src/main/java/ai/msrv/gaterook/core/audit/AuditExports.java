@@ -353,7 +353,7 @@ public class AuditExports {
   }
 
   /**
-   * The kit's destinations in the demo world (design/BLUEPRINT.md §9 "Audit": {@code siem.acme.internal:6514},
+   * The kit's destinations in the demo world ( {@code siem.acme.internal:6514},
    * {@code s3://acme-audit/gaterook/}, BigQuery {@code acme-prod.audit.mcp_calls}) in the states Settings shows:
    * shown, signed, never contacted ({@code demo} in their config). Never in a release build.
    */

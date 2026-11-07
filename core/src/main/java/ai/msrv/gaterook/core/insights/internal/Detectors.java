@@ -20,7 +20,7 @@ import java.util.function.Function;
  * The Unusual activity detectors (ARCHITECTURE.md §10 K5), each over the calls of the range and of the 7 days before
  * it, narrowed by the same query. Pure functions: the golden test runs them on the demo world.
  * <ul>
- *   <li><b>prod-ddl</b> — an agent's task in which a policy denied DDL on prod ({@code *.sql.block_ddl}, at least
+ *   <li><b>prod-ddl</b> — an agent's task in which a policy denied DDL on prod ({@code *sql.block_ddl}, at least
  *       once): the statements in the order they came, how far apart, who sent them;</li>
  *   <li><b>tool-spike</b> — a tool on a connection with at least {@value #SPIKE_MIN_CALLS} calls in the range and at
  *       least {@value #SPIKE_FACTOR}× its daily average of the 7 days before, scaled to the range; with the client,

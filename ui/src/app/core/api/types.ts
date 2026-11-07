@@ -21,7 +21,7 @@ export interface ToolAnnotations {
   readonly openWorldHint: boolean | null;
 }
 
-/** Decisions of the audit (BLUEPRINT §7). */
+/** Decisions of the audit. */
 export type Decision = 'allowed' | 'approved' | 'pending' | 'denied' | 'rejected' | 'expired' | 'error';
 
 /** The optional reason every Setup-change-writing mutation accepts (≤ 500 characters). */

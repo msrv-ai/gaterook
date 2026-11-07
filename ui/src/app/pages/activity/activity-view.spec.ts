@@ -49,7 +49,7 @@ import { ENDED_TASK, HOUR, MIN, NOW, OLD_TASK, WAITING_TASK, ago, call, change, 
 
 const DAY = { kind: 'relative', key: '24h' } as const;
 
-describe('Activity view (design/pages/activity.html)', () => {
+describe('Activity view', () => {
   it('reads the address: ?view= and #event-<id>', () => {
     expect([parseView(null), parseView('traces'), parseView('changes'), parseView('nonsense')]).toEqual(['events', 'traces', 'changes', 'events']);
     expect([viewParam('events'), viewParam('traces'), viewParam('changes')]).toEqual([null, 'traces', 'changes']);

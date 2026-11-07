@@ -10,7 +10,7 @@ import { healthLook } from '../../kit/elements/shared/dictionaries';
 import { TileState, TilePart } from '../../kit/elements/status-tile/status-tile';
 
 /**
- * What Overview shows (design/pages/overview.html, BLUEPRINT §5 overview, COMPONENTS.md › status-tile), computed from
+ * What Overview shows (status-tile components), computed from
  * the admin API: pure functions of the answers, so the tests check them against the kit's wording without a clock or
  * a core. The page binds them; nothing here invents a number the core didn't give.
  */

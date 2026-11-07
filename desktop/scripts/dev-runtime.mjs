@@ -10,7 +10,7 @@ const PRODUCT = 'GateRook';
 const BUNDLE_ID = 'ai.msrv.gaterook.desktop.dev';
 const FORMAT = 3;
 const ICON_FILE = 'GateRook.icns';
-const DEFAULT_ICON = fileURLToPath(new URL('../../design/assets/gaterook/gaterook-icon-macos.icns', import.meta.url));
+const DEFAULT_ICON = fileURLToPath(new URL('../../assets/gaterook/gaterook-icon-macos.icns', import.meta.url));
 
 function run(command, args) {
   const result = spawnSync(command, args, { encoding: 'utf8' });

@@ -141,7 +141,7 @@ class CatalogApiIT {
           e.path("description").asString(), e.path("tools").asInt() + " tools", e.path("icon").asString("-"),
           e.path("installed").isNull() ? "not installed" : e.path("installed").asString()));
     }
-    // The kit's Catalog tab (design/pages/connectors.html #catalog), card by card.
+    // The kit's Catalog tab (connectors screen #catalog), card by card.
     assertThat(cards).containsExactly(
         "plugin | jira-service-desk | Jira Service Desk | v1.3.0 | Signed | This release adds SLA timers: one new "
             + "read-only tool, no new hosts. | 6 tools | puzzle | not installed",
