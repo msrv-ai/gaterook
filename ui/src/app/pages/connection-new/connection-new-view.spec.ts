@@ -401,6 +401,15 @@ describe('Connection: edit view', () => {
     expect(usedByMeta(uses)).toEqual({ tools: 3, endpoints: ['dev', 'stage-readonly'], clients: 'Claude Desktop and Codex' });
   });
 
+  it('keeps saved endpoint membership when an endpoint has no tool rows', () => {
+    const uses = endpointUses([{ tool: 'opensearch_query', endpoint: 'dev', mode: 'READ_ONLY' }], ENDPOINTS, ['stage-readonly', 'dev']);
+    expect(uses).toEqual([
+      { slug: 'dev', tools: ['opensearch_query'], clients: ['Claude Desktop', 'Codex'] },
+      { slug: 'stage-readonly', tools: [], clients: [] },
+    ]);
+    expect(usedByMeta(uses)).toEqual({ tools: 1, endpoints: ['dev', 'stage-readonly'], clients: 'Claude Desktop and Codex' });
+  });
+
   it('says what Delete does to the secrets: destroyed here, references left in their store', () => {
     const titles = { '/credentials/password': 'Password' };
     expect(secretsSentence([{ field: '/credentials/password', secretId: 's1', name: 'dev-db/password', state: 'stored', version: 3, source: 'local' }], titles)).toBe(

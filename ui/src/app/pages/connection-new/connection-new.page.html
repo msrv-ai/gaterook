@@ -680,6 +680,19 @@
     </header>
     @if (usedBy().length) {
       <gw-connection-tool-modes [connection]="name()!" [connectionVersion]="detail()!.version" [rows]="usedBy()" (changed)="toolModesChanged($event)" />
+    } @else if (uses().length) {
+      <div class="gw-card gw-card--dashed">
+        <div class="gw-empty gw-empty--compact">
+          <span class="gw-empty__icon"><svg lucideIcon="wrench" class="gw-icon"></svg></span>
+          <p class="gw-empty__title">No tools available</p>
+          <p class="gw-empty__text"><span class="gw-mono">{{ name() }}</span> is on an endpoint, but no tools are available there. Check its settings and endpoint tools.</p>
+          <div class="gw-empty__actions">
+            @for (use of uses(); track use.slug) {
+              <a class="gw-btn gw-btn--sm" [routerLink]="['/endpoints', use.slug]" [queryParams]="{ tab: 'tools' }">Open {{ use.slug }}</a>
+            }
+          </div>
+        </div>
+      </div>
     } @else {
       <div class="gw-card gw-card--dashed">
         <div class="gw-empty gw-empty--compact">

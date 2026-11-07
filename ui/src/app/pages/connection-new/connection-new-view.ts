@@ -632,8 +632,8 @@ export interface EndpointUse {
   readonly clients: readonly string[];
 }
 
-export function endpointUses(rows: readonly ConnectionUsedBy[], endpoints: readonly EndpointSummary[]): EndpointUse[] {
-  const slugs = [...new Set(rows.map((r) => r.endpoint))];
+export function endpointUses(rows: readonly ConnectionUsedBy[], endpoints: readonly EndpointSummary[], assigned: readonly string[] = []): EndpointUse[] {
+  const slugs = [...new Set([...rows.map((r) => r.endpoint), ...assigned])].sort((a, b) => a.localeCompare(b));
   return slugs.map((slug) => ({
     slug,
     tools: rows.filter((r) => r.endpoint === slug && toolMode(r.mode) !== 'OFF').map((r) => r.tool),

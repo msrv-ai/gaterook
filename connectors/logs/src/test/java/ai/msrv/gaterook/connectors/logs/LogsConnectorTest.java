@@ -88,6 +88,22 @@ class LogsConnectorTest {
     assertThat(connector.supportsTool("logs_search", full)).isTrue();
   }
 
+  @Test
+  void storedUsernameReferencesKeepLegacyApiAccessRestrictions() {
+    for (String access : List.of("full", "logs", "invalid")) {
+      ConnectionConfig cfg = Configs.of("search", Env.DEV, """
+          {"backend":"opensearch","url":"https://search.example.test","apiAccess":"%s",
+           "indices":["logs-app-*"],"auth":{"mode":"basic","username":{"$secret":"sec_search_user"}}}"""
+          .formatted(access), "/auth/username", "/auth/secret");
+      assertThat(connector.supportsTool("opensearch_indices", cfg)).as(access).isEqualTo(!access.equals("invalid"));
+      assertThat(connector.supportsTool("opensearch_query", cfg)).as(access).isEqualTo(access.equals("full"));
+      assertThat(connector.supportsTool("opensearch_request", cfg)).as(access).isEqualTo(access.equals("full"));
+      assertThat(connector.supportsTool("elasticsearch_indices", cfg)).isFalse();
+      assertThat(connector.previewTools(cfg)).extracting(ToolDefinition::name)
+          .contains("logs_search", "logs_tail");
+    }
+  }
+
   private static void assertTool(ToolDefinition t, String name, Mode dev, Mode prod, boolean idempotent) {
     assertThat(t.name()).isEqualTo(name);
     assertThat(t.nature()).as(name).isEqualTo(Nature.READ);

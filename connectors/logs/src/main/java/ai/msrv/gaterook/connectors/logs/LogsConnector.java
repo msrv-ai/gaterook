@@ -107,12 +107,19 @@ public final class LogsConnector implements Connector {
     if (!OpenSearchRequest.isTool(tool)) {
       return true;
     }
-    try {
-      return Settings.parse(cfg) instanceof Settings.OpenSearch s
-          && tool.startsWith(s.backend() + "_") && (tool.equals(s.tool("indices")) || s.fullApi());
-    } catch (Settings.InvalidSettingsException e) {
+    // Availability is checked before store-backed text fields (such as a Basic username) are resolved. Parsing
+    // runtime settings here would hide valid tools and let endpoint reconciliation remove their saved modes.
+    JsonNode config = cfg.config();
+    if (config == null || !config.isObject()) return false;
+    String backend = config.path("backend").asString("").strip();
+    String access = config.path("apiAccess").asString("full").strip();
+    if (access.isEmpty()) access = "full";
+    if (!List.of("opensearch", "elasticsearch").contains(backend)
+        || !List.of("logs", "full").contains(access)
+        || (backend.equals("elasticsearch") && (!cfg.type().equals(backend) || !access.equals("full")))) {
       return false;
     }
+    return tool.startsWith(backend + "_") && (tool.equals(backend + "_indices") || access.equals("full"));
   }
 
   @Override
