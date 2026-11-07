@@ -65,8 +65,9 @@ export class GwTemplateEditor {
   readonly target = input.required<EditorTarget>();
   /** The connections a SQL query can run on (PostgreSQL, MySQL, Oracle Database, SQL Server). */
   readonly connections = input.required<readonly ConnectionRow[]>();
-  /** A template was saved: the panel shows it as the edited one. */
-  readonly saved = output<Template>();
+  /** A template was saved: the panel returns to its list and shows any compiler warnings. */
+  readonly saved = output<TemplateSaved>();
+  readonly closed = output<void>();
 
   protected readonly paramTypes = PARAM_TYPES;
 
@@ -85,7 +86,6 @@ export class GwTemplateEditor {
 
   protected readonly errors = signal<FieldErrors>({});
   protected readonly compileErrors = signal<readonly string[]>([]);
-  protected readonly warnings = signal<readonly string[]>([]);
   protected readonly failure = signal<string | null>(null);
   protected readonly busy = signal(false);
 
@@ -119,7 +119,6 @@ export class GwTemplateEditor {
     this.params.set(syncParams(scanSql(t.draft.sql).placeholders, t.draft.params));
     this.errors.set({});
     this.compileErrors.set([]);
-    this.warnings.set([]);
     this.failure.set(null);
     this.snapshot.set(this.serialize());
   }
@@ -181,7 +180,8 @@ export class GwTemplateEditor {
       this.host.querySelector<HTMLElement>(`#${first}`)?.focus();
       return;
     }
-    const template = this.editing();
+    const target = this.target();
+    const template = target.template;
     if (template && !this.dirty()) {
       this.announcer.announce('No changes to save');
       return;
@@ -189,23 +189,25 @@ export class GwTemplateEditor {
     this.busy.set(true);
     this.failure.set(null);
     this.compileErrors.set([]);
-    this.warnings.set([]);
     try {
       const definition = toDefinition(this.draft());
       const result: TemplateSaved = template
         ? await this.data.updateTemplate(template.id, definition, template.version)
         : await this.data.createTemplate('sql-query', this.connection()!, definition);
       if (!result.template || result.compile?.ok === false) {
+        if (this.target() !== target) return;
         // Compiling refused it: nothing was saved; what the core said stays above the actions.
         this.compileErrors.set(result.compile?.errors?.length ? result.compile.errors : ['The core didn’t compile this template.']);
         this.focusAfterRender('#tpl-compile');
         return;
       }
-      this.warnings.set(result.compile?.warnings ?? []);
-      this.snapshot.set(this.serialize());
       this.toasts.show({ tone: 'success', title: `Template ${result.template.name} saved`, body: 'Add it to an endpoint to let agents call it.' });
-      this.saved.emit(result.template);
+      // New template or another row may have opened while this request was in flight.
+      if (this.target() !== target) return;
+      this.snapshot.set(this.serialize());
+      this.saved.emit(result);
     } catch (err) {
+      if (this.target() !== target) return;
       if (isApiError(err) && err.field) {
         const field = err.field.startsWith('/name') || err.field.startsWith('/definition/name') ? 'name' : err.field.startsWith('/connection') ? 'connection' : err.field.includes('sql') ? 'sql' : null;
         if (field) {

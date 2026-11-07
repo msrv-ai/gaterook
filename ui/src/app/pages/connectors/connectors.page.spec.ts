@@ -7,7 +7,7 @@ import { ConnectorCatalog, ConnectorTypesApi } from '../../core/api/connector-ty
 import { EndpointsApi } from '../../core/api/endpoints.api';
 import { CatalogIndex, McpRegistryPage, McpServersApi, PluginsApi } from '../../core/api/plugins.api';
 import { SecretsApi } from '../../core/api/secrets.api';
-import { Template, TemplatesApi } from '../../core/api/templates.api';
+import { Template, TemplateSaved, TemplatesApi } from '../../core/api/templates.api';
 import { EventStream } from '../../core/events/event-stream';
 import { CoreStore } from '../../core/stores/core.store';
 import { TimeService } from '../../core/time/time.service';
@@ -771,7 +771,10 @@ describe('Connectors page: Templates', () => {
   });
 
   it('builds a SQL query: placeholders become parameters, Save sends the definition', async () => {
-    setup({ templateKinds: { postgres: ['sql-query'] } });
+    setup({
+      templateKinds: { postgres: ['sql-query'] },
+      templates: () => Promise.resolve(calls.includes('create-template') ? [...templates(), { ...templates()[0], id: 't9' }] : templates()),
+    });
     const { fixture, el } = await render();
     el.querySelector<HTMLButtonElement>('#tab-templates')!.click();
     await settle(fixture);
@@ -818,11 +821,34 @@ describe('Connectors page: Templates', () => {
       },
     });
     expect(toasts().at(-1)?.title).toBe('Template orders_by_status saved');
+    expect(el.querySelector('#template-editor')).toBeNull();
+    expect(el.querySelector('#template-t9')).not.toBeNull();
+    expect(document.activeElement).toBe(el.querySelector('#template-t9 th a'));
+
+    el.querySelector<HTMLButtonElement>('#tab-installed')!.click();
+    await settle(fixture);
+    el.querySelector<HTMLButtonElement>('#tab-templates')!.click();
+    await settle(fixture);
+    expect(el.querySelector<HTMLElement>('#templates')!.hidden).toBe(false);
+    expect(el.querySelector('#template-editor')).toBeNull();
+
+    el.querySelector<HTMLButtonElement>('#new-template')!.click();
+    button(el.querySelector('#menu-new-template'), 'SQL query').click();
+    await settle(fixture);
+    expect(text(el.querySelector('#tpl-title'))).toBe('New template');
+    expect(el.querySelector<HTMLInputElement>('#tpl-name')!.value).toBe('');
+    expect(el.querySelector<HTMLTextAreaElement>('#tpl-sql')!.value).toBe('');
+    button(el.querySelector('#template-editor'), 'Close editor').click();
+    await settle(fixture);
+    expect(el.querySelector('#template-editor')).toBeNull();
+    expect(document.activeElement?.id).toBe('new-template');
   });
 
-  it('opens a saved SQL query from its definition', async () => {
+  it('opens a saved SQL query from its definition and returns focus to its row when closed', async () => {
     setup({ templateKinds: { postgres: ['sql-query'] } });
     const { fixture, el } = await render();
+    el.querySelector<HTMLButtonElement>('#tab-templates')!.click();
+    await settle(fixture);
     el.querySelector<HTMLAnchorElement>('#template-t1 th a')!.click();
     await settle(fixture);
     expect(calls).toContain('template t1');
@@ -831,6 +857,95 @@ describe('Connectors page: Templates', () => {
     expect(editor.querySelector<HTMLTextAreaElement>('#tpl-sql')!.value).toBe(ORDERS_DEFINITION.sql);
     expect(editor.querySelector<HTMLSelectElement>('#tpl-conn')!.disabled).toBe(true);
     expect(editor.querySelectorAll('tbody tr')).toHaveLength(2);
+    button(editor, 'Close editor').click();
+    await settle(fixture);
+    expect(el.querySelector('#template-editor')).toBeNull();
+    expect(document.activeElement).toBe(el.querySelector('#template-t1 th a'));
+  });
+
+  it('keeps a refused template open and shows compiler warnings beside the list after a successful retry', async () => {
+    let created = false;
+    const saved = { ...templates()[0], id: 't9', name: 'lookup_order' };
+    setup({
+      templateKinds: { postgres: ['sql-query'] },
+      templates: () => Promise.resolve(created ? [...templates(), saved] : templates()),
+    });
+    const create = vi.spyOn(TestBed.inject(TemplatesApi), 'create')
+      .mockResolvedValueOnce({
+        template: null,
+        compile: { ok: false, tools: [], errors: ['The gateway could not analyze the SQL.'], warnings: [], digest: null },
+      })
+      .mockImplementationOnce(async () => {
+        created = true;
+        return {
+          template: saved,
+          compile: { ok: true, tools: [], errors: [], warnings: ['Review the query before enabling it on an endpoint.'], digest: null },
+        };
+      });
+    const { fixture, el } = await render();
+    el.querySelector<HTMLButtonElement>('#tab-templates')!.click();
+    await settle(fixture);
+    button(el.querySelector('#menu-new-template'), 'SQL query').click();
+    await settle(fixture);
+    const editor = el.querySelector('#template-editor')!;
+    type(editor.querySelector<HTMLInputElement>('#tpl-name')!, 'lookup_order');
+    type(editor.querySelector<HTMLTextAreaElement>('#tpl-sql')!, 'SELECT id FROM orders WEHRE id = :id');
+    await settle(fixture);
+    button(editor, 'Save template').click();
+    await settle(fixture);
+    expect(el.querySelector('#template-editor')).toBe(editor);
+    expect(text(editor.querySelector('#tpl-compile'))).toContain('The gateway could not analyze the SQL.');
+    expect(editor.querySelector<HTMLInputElement>('#tpl-name')!.value).toBe('lookup_order');
+    expect(editor.querySelector<HTMLTextAreaElement>('#tpl-sql')!.value).toBe('SELECT id FROM orders WEHRE id = :id');
+    expect(el.querySelector('#template-t9')).toBeNull();
+
+    type(editor.querySelector<HTMLTextAreaElement>('#tpl-sql')!, 'SELECT id FROM orders WHERE id = :id');
+    await settle(fixture);
+    button(editor, 'Save template').click();
+    await settle(fixture);
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(el.querySelector('#template-editor')).toBeNull();
+    expect(el.querySelector('#template-t9')).not.toBeNull();
+    expect(text(el.querySelector('#templates .gw-alert--warning'))).toContain('Review the query before enabling it on an endpoint.');
+    expect(document.activeElement).toBe(el.querySelector('#template-t9 th a'));
+  });
+
+  it('keeps a newer draft open when an earlier template finishes saving', async () => {
+    const pending = deferred<TemplateSaved>();
+    setup({ templateKinds: { postgres: ['sql-query'] } });
+    const create = vi.spyOn(TestBed.inject(TemplatesApi), 'create').mockReturnValueOnce(pending.promise);
+    const { fixture, el } = await render();
+    el.querySelector<HTMLButtonElement>('#tab-templates')!.click();
+    await settle(fixture);
+    button(el.querySelector('#menu-new-template'), 'SQL query').click();
+    await settle(fixture);
+    type(el.querySelector<HTMLInputElement>('#tpl-name')!, 'first_query');
+    type(el.querySelector<HTMLTextAreaElement>('#tpl-sql')!, 'SELECT id FROM orders');
+    await settle(fixture);
+    button(el.querySelector('#template-editor'), 'Save template').click();
+    await settle(fixture);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(button(el.querySelector('#template-editor'), 'Save template').getAttribute('aria-busy')).toBe('true');
+
+    el.querySelector<HTMLButtonElement>('#new-template')!.click();
+    button(el.querySelector('#menu-new-template'), 'SQL query').click();
+    await settle(fixture);
+    type(el.querySelector<HTMLInputElement>('#tpl-name')!, 'second_query');
+    type(el.querySelector<HTMLTextAreaElement>('#tpl-sql')!, 'SELECT status FROM orders WHERE id = :id');
+    await settle(fixture);
+
+    pending.resolve({
+      template: { ...templates()[0], id: 't9', name: 'first_query' },
+      compile: { ok: true, tools: [], errors: [], warnings: [], digest: null },
+    });
+    await settle(fixture);
+    const editor = el.querySelector('#template-editor')!;
+    expect(editor).not.toBeNull();
+    expect(text(editor.querySelector('#tpl-title'))).toBe('New template');
+    expect(editor.querySelector<HTMLInputElement>('#tpl-name')!.value).toBe('second_query');
+    expect(editor.querySelector<HTMLTextAreaElement>('#tpl-sql')!.value).toBe('SELECT status FROM orders WHERE id = :id');
+    expect(text(editor)).toContain('Unsaved changes');
+    expect(button(editor, 'Save template').getAttribute('aria-busy')).toBeNull();
   });
 
   it('asks before deleting a template', async () => {
