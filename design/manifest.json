@@ -1393,14 +1393,14 @@
         "setup order: Secrets & resources → Connections → Policies → Endpoints → AI apps; 'start here' sits on the first todo node (usually Secrets & resources)",
         "caption + aria-describedby: 'Set it up left to right. An agent's call travels the other way: AI app → endpoint → policy → connection, where the secret is injected.'",
         "Overview: endpoint radio choices filter services and app access together; empty and unavailable data are stated explicitly, and preview actions reset on reload.",
-        "--network: three columns from lg, stacked setup order below lg; service grid has two columns from sm; SVG wires are hidden when stacked.",
+        "--network: three columns from lg, stacked setup order below lg; service rows stay in one column at every width; SVG wires are hidden when stacked.",
         "Network nodes use native buttons with aria-pressed selection; selecting or highlighting a node does not grant access.",
         "Network app wrappers separate the inspect button from a visible Connect button or Install link. The wrapper carries data-selected; native controls keep individual focus. Setup actions sit beside the node from sm and below it on narrow viewports.",
         "Network paths use data-active, data-pending and data-muted with redundant textual states. Unshared and unconnected objects have no active path.",
         "Network previews include empty, loading and error states; add actions change sample data only and reset on reload.",
         "Network canvas: canonical card root, subtle dot grid, compact horizontal GateRook header, separate endpoint choice cards with selection ports; no decorative halo or endless animation.",
         "Show path plays one example marker from app through endpoint to service, then removes it; reduced motion shows the static highlight only. No request is sent.",
-        "Network service wrappers contain separate inspect buttons and global connection On/Off switches. Scope is visible and named accessibly; paused endpoints show effective Off with an explained aria-disabled state without changing saved global settings.",
+        "Network service wrappers form compact rows with the connection name on one primary line, an ellipsis for overflow, and connector type plus health in __network-meta below. The full name stays in the accessible name, hover/focus tooltip and details panel. Separate global connection On/Off switches sit at the right of each row. Scope is visible and named accessibly; paused endpoints show effective Off with an explained aria-disabled state without changing saved global settings.",
         "Network health actions are sibling buttons outside endpoint radio labels. Danger badges count enabled Unreachable connections on enabled endpoints, excluding Slow, disabled and unavailable services. Tooltips name count and endpoint; aria-pressed identifies the active filter.",
         "Selecting a health badge selects its endpoint and shows affected services with gw-card--invalid and Unreachable text. Show all, endpoint changes or pausing clear the filter; disabling a filtered problem restores the expanded list and preserves switch focus.",
         "Network search matches service type and connection name across all connections on the selected endpoint, including collapsed nodes. It combines with the unreachable filter; health badges clear the query, Show all clears both filters, and endpoint changes retain the query with the new scope. Unavailable data disables search.",
@@ -1422,6 +1422,7 @@
         "__network-grid",
         "__network-node",
         "__network-label",
+        "__network-meta",
         "__network-hub",
         "__network-brand",
         "__network-endpoints",
@@ -2232,7 +2233,7 @@
     {
       "html": "pages/overview-map.html",
       "title": "Overview map · GateRook",
-      "purpose": "Independent Overview alternative: service nodes in a two-column grid, a compact composite GateRook group with distinct endpoint radio cards and connection ports, and AI app nodes connected by curved SVG paths. Selection filters endpoint scope and inspects nodes; Add service, Add endpoint and Connect AI app controls live in the graph. The canonical shell and existing card, control, status and theme tokens remain shared. Text states explain configured, pending, paused and unavailable access. Empty/loading/error states retain a clear next step. Preview changes are sample-only and reset on reload. The existing Overview remains a separate reference. Endpoint health badges filter unreachable connections with red service edges; separate quick switches control each connection across all endpoints while preserving its settings. Scoped connection search covers every assigned service and combines with health filtering. The protection shield explains credentials, rules and Activity without asserting service reachability. A source chooser precedes installed-service review; URL entry opens the existing MCP form in HTTP mode, and external setup routes do not inherit the selected endpoint.",
+      "purpose": "Independent Overview alternative: compact service rows in one column, a compact composite GateRook group with distinct endpoint radio cards and connection ports, and AI app nodes connected by curved SVG paths. Selection filters endpoint scope and inspects nodes; Add service, Add endpoint and Connect AI app controls live in the graph. The canonical shell and existing card, control, status and theme tokens remain shared. Text states explain configured, pending, paused and unavailable access. Empty/loading/error states retain a clear next step. Preview changes are sample-only and reset on reload. The existing Overview remains a separate reference. Endpoint health badges filter unreachable connections with red service edges; separate quick switches control each connection across all endpoints while preserving its settings. Scoped connection search covers every assigned service and combines with health filtering. The protection shield explains credentials, rules and Activity without asserting service reachability. A source chooser precedes installed-service review; URL entry opens the existing MCP form in HTTP mode, and external setup routes do not inherit the selected endpoint.",
       "elements": [
         "setup-map --network",
         "command-palette"

@@ -8288,7 +8288,7 @@ th[aria-sort=descending] .gw-table__sort .gw-table__sort-icon--desc {
 .gw-setup-map.gw-setup-map--network .gw-setup-map__network-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--gw-space-3);
+  gap: var(--gw-space-2);
   min-width: 0;
 }
 .gw-setup-map.gw-setup-map--network .gw-setup-map__network-node {
@@ -8331,8 +8331,8 @@ th[aria-sort=descending] .gw-table__sort .gw-table__sort-icon--desc {
 .gw-setup-map.gw-setup-map--network .gw-setup-map__network-app {
   height: 100%;
 }
-.gw-setup-map.gw-setup-map--network .gw-setup-map__network-service:not(.gw-card--invalid):has(> .gw-setup-map__network-node:hover),
-.gw-setup-map.gw-setup-map--network .gw-setup-map__network-app:not(.gw-card--invalid):has(> .gw-setup-map__network-node:hover) {
+.gw-setup-map.gw-setup-map--network .gw-setup-map__network-service:not(.gw-card--invalid):has(.gw-setup-map__network-node:hover),
+.gw-setup-map.gw-setup-map--network .gw-setup-map__network-app:not(.gw-card--invalid):has(.gw-setup-map__network-node:hover) {
   border-color: var(--gw-color-border-strong);
 }
 .gw-setup-map.gw-setup-map--network .gw-setup-map__network-service[data-selected=true]:not(.gw-card--invalid),
@@ -8347,6 +8347,38 @@ th[aria-sort=descending] .gw-table__sort .gw-table__sort-icon--desc {
   border-radius: var(--gw-radius-md) var(--gw-radius-md) 0 0;
   background: transparent;
   box-shadow: none;
+}
+.gw-setup-map.gw-setup-map--network .gw-setup-map__network-service {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  height: auto;
+}
+.gw-setup-map.gw-setup-map--network .gw-setup-map__network-service > .gw-tooltip {
+  display: block;
+  min-width: 0;
+}
+.gw-setup-map.gw-setup-map--network .gw-setup-map__network-service .gw-setup-map__network-node {
+  min-width: 0;
+  min-height: var(--gw-space-16);
+  padding-block: var(--gw-space-2);
+  border: 0;
+  border-radius: var(--gw-radius-md);
+  background: transparent;
+  box-shadow: none;
+}
+.gw-setup-map.gw-setup-map--network .gw-setup-map__network-service .gw-setup-map__network-label {
+  flex: 1;
+}
+.gw-setup-map.gw-setup-map--network .gw-setup-map__network-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--gw-space-2);
+  min-width: 0;
+}
+.gw-setup-map.gw-setup-map--network .gw-setup-map__network-meta > .gw-status {
+  flex: none;
+  max-width: calc(100% - var(--gw-space-8));
 }
 .gw-setup-map.gw-setup-map--network .gw-setup-map__network-app {
   display: grid;
@@ -8371,11 +8403,11 @@ th[aria-sort=descending] .gw-table__sort .gw-table__sort-icon--desc {
 }
 .gw-setup-map.gw-setup-map--network .gw-setup-map__network-toggle {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--gw-space-2);
-  padding: var(--gw-space-1-5) var(--gw-space-3);
-  border-top: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
+  justify-content: center;
+  gap: var(--gw-space-0-5);
+  padding: var(--gw-space-2) var(--gw-space-3) var(--gw-space-2) 0;
 }
 .gw-setup-map.gw-setup-map--network .gw-setup-map__network-toggle > .gw-tooltip {
   flex: none;
@@ -8534,11 +8566,6 @@ th[aria-sort=descending] .gw-table__sort .gw-table__sort-icon--desc {
   fill: var(--gw-color-brand-fg);
   stroke: var(--gw-color-bg-surface);
   stroke-width: var(--gw-border-width-strong);
-}
-@media (min-width: 640px) {
-  .gw-setup-map.gw-setup-map--network .gw-setup-map__network-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 @media (min-width: 1280px) {
   .gw-setup-map.gw-setup-map--network {

@@ -644,16 +644,38 @@
       <p class="gw-section__description">A desktop canvas with independent service and app nodes around a compact GateRook group. Its endpoint is a separate card with connection ports. Select a service to highlight its path; all meaning remains in the text when the narrow layout hides the decorative wires.</p>
       <div class="gw-section__actions"><a class="gw-btn gw-btn--sm" href="../pages/overview-map.html">Open interactive Overview</a></div>
     </header>
-    <p class="gw-sr-only" id="sm-network-description">Two of endpoint dev's eight services are shown. Claude Desktop is connected to dev. AI requests travel through GateRook to the chosen service.</p>
+    <p class="gw-sr-only" id="sm-network-description">Two illustrative services on endpoint dev are shown, including a long connection name. Claude Desktop is connected to dev. AI requests travel through GateRook to the chosen service.</p>
     <div class="gw-card gw-setup-map gw-setup-map--network" id="sm-network" aria-describedby="sm-network-description">
       <svg class="gw-setup-map__network-wires" aria-hidden="true" focusable="false"><path class="gw-setup-map__network-path" data-sm-wire="sm-network-db"></path><path class="gw-setup-map__network-path" data-sm-wire="sm-network-mongo"></path><path class="gw-setup-map__network-path" data-sm-wire="sm-network-client"></path></svg>
       <div class="gw-setup-map__network-side">
         <h3 class="gw-text-overline gw-fg-muted">Your services</h3>
         <ul class="gw-setup-map__network-grid" aria-label="Sample services on dev">
-          <li><button class="gw-card gw-card--interactive gw-setup-map__network-node" type="button" id="sm-network-db" aria-pressed="false"><span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span><span class="gw-setup-map__network-label"><strong class="gw-text-h3">PostgreSQL</strong><span class="gw-text-caption gw-mono">dev-db</span><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></span></button></li>
-          <li><button class="gw-card gw-card--interactive gw-setup-map__network-node" type="button" id="sm-network-mongo" aria-pressed="false"><span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span><span class="gw-setup-map__network-label"><strong class="gw-text-h3">MongoDB</strong><span class="gw-text-caption gw-mono">orders-mongo</span><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></span></button></li>
+          <li>
+            <div class="gw-card gw-setup-map__network-service" data-selected="false">
+              <span class="gw-tooltip gw-tooltip--start">
+                <button class="gw-card--interactive gw-setup-map__network-node" type="button" id="sm-network-db" aria-pressed="false" aria-describedby="sm-network-db-name-tip">
+                  <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span>
+                  <span class="gw-setup-map__network-label"><strong class="gw-text-h3 gw-truncate">dev-db</strong><span class="gw-setup-map__network-meta"><span class="gw-text-caption gw-fg-muted gw-truncate">PostgreSQL</span><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></span></span>
+                </button>
+                <span class="gw-tooltip__bubble" role="tooltip" id="sm-network-db-name-tip">dev-db</span>
+              </span>
+              <div class="gw-setup-map__network-toggle"><label class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" checked data-sm-access="sm-network-db" aria-label="Connection dev-db, all endpoints" aria-describedby="sm-network-switch-help"><span class="gw-switch__control" aria-hidden="true"></span></label><span class="gw-text-caption gw-fg-muted" data-sm-access-label>On</span></div>
+            </div>
+          </li>
+          <li>
+            <div class="gw-card gw-setup-map__network-service" data-selected="false">
+              <span class="gw-tooltip gw-tooltip--start">
+                <button class="gw-card--interactive gw-setup-map__network-node" type="button" id="sm-network-mongo" aria-pressed="false" aria-describedby="sm-network-mongo-name-tip">
+                  <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span>
+                  <span class="gw-setup-map__network-label"><strong class="gw-text-h3 gw-truncate">orders-mongo-order-processing-development-west</strong><span class="gw-setup-map__network-meta"><span class="gw-text-caption gw-fg-muted gw-truncate">MongoDB</span><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></span></span>
+                </button>
+                <span class="gw-tooltip__bubble" role="tooltip" id="sm-network-mongo-name-tip">orders-mongo-order-processing-development-west</span>
+              </span>
+              <div class="gw-setup-map__network-toggle"><label class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" checked data-sm-access="sm-network-mongo" aria-label="Connection orders-mongo-order-processing-development-west, all endpoints" aria-describedby="sm-network-switch-help"><span class="gw-switch__control" aria-hidden="true"></span></label><span class="gw-text-caption gw-fg-muted" data-sm-access-label>On</span></div>
+            </div>
+          </li>
         </ul>
-        <p class="gw-text-caption gw-fg-muted">Two of eight services shown</p>
+        <p class="gw-text-caption gw-fg-muted" id="sm-network-switch-help">Connection switches apply to all endpoints. This preview keeps changes in memory only.</p>
       </div>
       <div class="gw-setup-map__network-hub" id="sm-network-hub">
         <div class="gw-setup-map__network-brand"><h3 class="gw-logo gw-logo--lg"><img class="gw-logo__mark" src="../assets/logo-mark.svg" alt=""><span class="gw-logo__name">GateRook</span></h3><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Running</span></span></div>
@@ -682,7 +704,8 @@
     const center = hub.getBoundingClientRect();
     wires.setAttribute("viewBox", `0 0 ${bounds.width} ${bounds.height}`);
     map.querySelectorAll("[data-sm-wire]").forEach((path) => {
-      const node = document.getElementById(path.dataset.smWire).getBoundingClientRect();
+      const button = document.getElementById(path.dataset.smWire);
+      const node = (button.closest(".gw-setup-map__network-service") || button).getBoundingClientRect();
       const left = node.left < center.left;
       const startX = (left ? node.right : center.right) - bounds.left;
       const endX = (left ? center.left : node.left) - bounds.left;
@@ -692,11 +715,41 @@
       path.setAttribute("d", `M ${startX} ${startY} C ${startX + bend} ${startY}, ${endX - bend} ${endY}, ${endX} ${endY}`);
     });
   }
+  let selected = null;
+  function highlight() {
+    const selectedSwitch = selected?.closest(".gw-setup-map__network-service")?.querySelector("[data-sm-access]");
+    map.querySelectorAll("button.gw-setup-map__network-node").forEach((node) => {
+      node.setAttribute("aria-pressed", String(node === selected));
+      const service = node.closest(".gw-setup-map__network-service");
+      if (service) service.dataset.selected = String(node === selected);
+    });
+    map.querySelectorAll("[data-sm-wire]").forEach((path) => {
+      const input = map.querySelector(`[data-sm-access="${path.dataset.smWire}"]`);
+      const off = input && !input.checked;
+      path.dataset.pending = path.dataset.muted = String(Boolean(off));
+      path.dataset.active = String(Boolean(selected) && !off && (!selectedSwitch || selectedSwitch.checked) && (selected.id === "sm-network-client" || path.dataset.smWire === selected.id || path.dataset.smWire === "sm-network-client"));
+    });
+  }
   map.querySelectorAll("button.gw-setup-map__network-node").forEach((button) => {
     button.addEventListener("click", () => {
-      map.querySelectorAll("button.gw-setup-map__network-node").forEach((node) => node.setAttribute("aria-pressed", String(node === button)));
-      map.querySelectorAll("[data-sm-wire]").forEach((path) => path.dataset.active = String(path.dataset.smWire === button.id || path.dataset.smWire === "sm-network-client"));
-      document.getElementById("sm-network-status").textContent = `${button.querySelector("strong").textContent} uses endpoint dev through GateRook. The highlighted lines show configured access, not live traffic.`;
+      selected = button;
+      highlight();
+      const input = button.closest(".gw-setup-map__network-service")?.querySelector("[data-sm-access]");
+      document.getElementById("sm-network-status").textContent = input && !input.checked ? `${button.querySelector("strong").textContent} is off. Its saved settings are kept.` : `${button.querySelector("strong").textContent} uses endpoint dev through GateRook. The highlighted lines show configured access, not live traffic.`;
+    });
+  });
+  map.querySelectorAll("[data-sm-access]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const service = input.closest(".gw-setup-map__network-service");
+      const status = service.querySelector(".gw-status");
+      service.classList.toggle("gw-card--muted", !input.checked);
+      status.classList.toggle("gw-status--success", input.checked);
+      status.classList.toggle("gw-status--neutral", !input.checked);
+      status.querySelector(".gw-status__label").textContent = input.checked ? "Healthy" : "Connection off";
+      service.querySelector("[data-sm-access-label]").textContent = input.checked ? "On" : "Off";
+      selected = document.getElementById(input.dataset.smAccess);
+      highlight();
+      document.getElementById("sm-network-status").textContent = `${selected.querySelector("strong").textContent} is ${input.checked ? "on" : "off"} across all endpoints. Saved settings are kept.`;
     });
   });
   new ResizeObserver(draw).observe(map);
