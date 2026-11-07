@@ -21,7 +21,8 @@ const DESIGN = join(ROOT, 'design');
 const OUT = join(UI, 'src/app/kit/icons.generated.ts');
 
 /** Icon names the app uses beyond the kit's markup (none may fall outside the kit: AGENTS.md §4). */
-const EXTRA = [];
+// The network map selects this state icon dynamically in design/assets/overview-map.js.
+const EXTRA = ['shield-minus'];
 
 function kitNames() {
   const names = new Set(EXTRA);

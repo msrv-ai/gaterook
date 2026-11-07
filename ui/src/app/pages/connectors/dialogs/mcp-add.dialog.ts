@@ -312,7 +312,7 @@ let nextId = 0;
               </div>
               <div class="gw-field">
                 <label class="gw-field__label" [for]="uid + '-name'">Name</label>
-                <input class="gw-input gw-input--mono" [id]="uid + '-name'" type="text" autofocus required placeholder="sentry-mcp" spellcheck="false" autocomplete="off" [value]="name()" (input)="name.set(value($event)); suggested.set(null); clear('name')" [attr.aria-invalid]="errors().name ? 'true' : null" [attr.aria-describedby]="uid + '-name-hint' + (errors().name ? ' ' + uid + '-name-err' : '')">
+                <input class="gw-input gw-input--mono" [id]="uid + '-name'" type="text" [attr.autofocus]="tab() === 'manual' ? '' : null" required placeholder="sentry-mcp" spellcheck="false" autocomplete="off" [value]="name()" (input)="name.set(value($event)); suggested.set(null); clear('name')" [attr.aria-invalid]="errors().name ? 'true' : null" [attr.aria-describedby]="uid + '-name-hint' + (errors().name ? ' ' + uid + '-name-err' : '')">
                 <p class="gw-field__hint" [id]="uid + '-name-hint'">Lowercase letters, digits and <span class="gw-mono">-</span>. It also prefixes the tool names.</p>
                 @if (errors().name) {<p class="gw-field__error" [id]="uid + '-name-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().name }}</p>}
               </div>
@@ -503,7 +503,7 @@ let nextId = 0;
                 <label class="gw-field__label" [for]="uid + '-find-q'">Server name</label>
                 <div class="gw-search">
                   <svg lucideIcon="search" class="gw-icon gw-search__icon"></svg>
-                  <input class="gw-search__input" type="search" [id]="uid + '-find-q'" placeholder="linear, sentry, postgres" spellcheck="false" autocapitalize="off" autocomplete="off" [attr.aria-describedby]="uid + '-find-hint'" (input)="find(value($event))" (keydown.enter)="findNow($event)">
+                  <input class="gw-search__input" type="search" [id]="uid + '-find-q'" [attr.autofocus]="tab() === 'registry' ? '' : null" placeholder="linear, sentry, postgres" spellcheck="false" autocapitalize="off" autocomplete="off" [attr.aria-describedby]="uid + '-find-hint'" (input)="find(value($event))" (keydown.enter)="findNow($event)">
                   <button class="gw-search__clear" type="button" aria-label="Clear search"><svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg></button>
                 </div>
                 <p class="gw-field__hint" [id]="uid + '-find-hint'">Searches server names in the registry. Use fills in Manual entry; nothing runs or connects before the review.</p>
@@ -654,10 +654,10 @@ export class GwMcpAddDialog {
     inject(DestroyRef).onDestroy(() => this.findTimer && clearTimeout(this.findTimer));
   }
 
-  /** Opens empty, as the kit's dialog: stdio, one variable row. */
-  open(opener: HTMLElement | null): void {
+  /** Opens an empty draft for the explicitly selected source; no server starts until its review is confirmed. */
+  open(opener: HTMLElement | null, source: 'manual' | 'registry' | 'url' = 'manual'): void {
     this.name.set('');
-    this.transport.set('stdio');
+    this.transport.set(source === 'url' ? 'http' : 'stdio');
     this.command.set('');
     this.url.set('');
     this.variables.set([{ name: '' }]);
@@ -681,7 +681,7 @@ export class GwMcpAddDialog {
     this.pasteError.set(null);
     const paste = this.host.querySelector<HTMLTextAreaElement>(`#${this.uid}-paste-text`);
     if (paste) paste.value = '';
-    this.tabs().selectById(`${this.uid}-tab-manual`);
+    this.tabs().selectById(`${this.uid}-tab-${source === 'registry' ? 'registry' : 'manual'}`);
     this.resetFind();
     this.chosen.set(null);
     const search = this.host.querySelector<HTMLInputElement>(`#${this.uid}-find-q`);

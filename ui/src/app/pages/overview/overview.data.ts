@@ -1,12 +1,10 @@
 import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { isNotAvailable } from '../../core/api/api-error';
-import { ActionSegment, ApprovalItem, ApprovalsApi } from '../../core/api/approvals.api';
 import { ClientsApi, ClientsView } from '../../core/api/clients.api';
-import { ConnectionDetail, ConnectionRow, ConnectionsApi, nextHealth } from '../../core/api/connections.api';
+import { ConnectionRow, ConnectionsApi, nextHealth } from '../../core/api/connections.api';
 import { EndpointSummary, EndpointsApi } from '../../core/api/endpoints.api';
 import { HealthRow, Overview, OverviewApi } from '../../core/api/overview.api';
 import { EventStream } from '../../core/events/event-stream';
-import { overviewState } from './overview-view';
 
 /**
  * How soon a refresh follows an event: decisions and new requests change the queue at once; health a moment later
@@ -14,15 +12,25 @@ import { overviewState } from './overview-view';
  */
 const DELAY = { approval: 150, health: 1_000, call: 5_000, clients: 1_000 } as const;
 
+export interface OverviewAreaErrors {
+  readonly connections: unknown | null;
+  readonly endpoints: unknown | null;
+  readonly clients: unknown | null;
+}
+
+interface AreaResult<T> { readonly value: T | null; readonly error: unknown | null }
+
+async function areaResult<T>(request: Promise<T>): Promise<AreaResult<T>> {
+  try { return { value: await request, error: null }; }
+  catch (error) { return { value: null, error }; }
+}
+
 /**
- * Overview's data (ARCHITECTURE.md §6 overview, §8.4: `overview`, SSE `approval.*`, `connection.health`): the core's
- * overview — which also decides the state the page is in (first run, setup, in use) — and what each state needs from
- * the merged areas:
- * - the AI apps of this computer (`/api/clients`: the guide's tiles in every state, the home screen's in use);
- * - in use, the connections with the endpoints that use them (`/api/connections`): what each connected app can use;
- * - every endpoint (`/api/endpoints`), including empty or disabled ones, for AI app setup and connection groups;
- * - in setup, the first connection (`/api/connections/{name}`): its tool modes and where its secret is;
- * - the exact action of each waiting request (`/api/approvals/{id}`: the compact row shows its first line).
+ * Overview's connection map and aggregate activity (ARCHITECTURE.md §6 overview, §8.4):
+ * - the core's overview, including setup progress, health and the approval count;
+ * - this computer's AI apps and their exact endpoint links (`/api/clients`);
+ * - all saved connections and the endpoints that use them (`/api/connections`);
+ * - every endpoint (`/api/endpoints`), including empty or disabled ones.
  *
  * Only the overview is required: when another call fails, the part it feeds is left out, never filled in. Events
  * refresh everything, coalesced: one refresh in flight, one more after it when events came meanwhile.
@@ -30,7 +38,6 @@ const DELAY = { approval: 150, health: 1_000, call: 5_000, clients: 1_000 } as c
 @Injectable()
 export class OverviewData {
   private readonly api = inject(OverviewApi);
-  private readonly approvals = inject(ApprovalsApi);
   private readonly clientsApi = inject(ClientsApi);
   private readonly connectionsApi = inject(ConnectionsApi);
   private readonly endpointsApi = inject(EndpointsApi);
@@ -39,12 +46,11 @@ export class OverviewData {
   private readonly overviewSignal = signal<Overview | null>(null);
   private readonly errorSignal = signal<unknown>(null);
   private readonly staleSignal = signal<unknown>(null);
-  private readonly actionsSignal = signal<ReadonlyMap<string, readonly ActionSegment[]>>(new Map());
   private readonly clientsSignal = signal<ClientsView | null>(null);
   private readonly connectionsSignal = signal<readonly ConnectionRow[] | null>(null);
   private readonly endpointsSignal = signal<readonly EndpointSummary[] | null>(null);
-  private readonly firstSignal = signal<ConnectionDetail | null>(null);
   private readonly refreshingSignal = signal(false);
+  private readonly areaErrorsSignal = signal<OverviewAreaErrors>({ connections: null, endpoints: null, clients: null });
 
   /** `GET /api/overview`; null until the first answer. */
   readonly overview = this.overviewSignal.asReadonly();
@@ -52,17 +58,15 @@ export class OverviewData {
   readonly error = this.errorSignal.asReadonly();
   /** Why the last refresh failed while older data is on screen. */
   readonly stale = this.staleSignal.asReadonly();
-  /** The exact action of each waiting request, by id, as the server segmented it. */
-  readonly actions = this.actionsSignal.asReadonly();
   /** This computer's AI apps; null when the core has no clients area or it didn't answer. */
   readonly clients = this.clientsSignal.asReadonly();
-  /** The connections with the endpoints that use them (in use only); null when not loaded. */
+  /** All saved connections, including external MCP servers; null when their list did not load. */
   readonly connections = this.connectionsSignal.asReadonly();
   /** All endpoints, including empty ones; null when their list did not load. */
   readonly endpoints = this.endpointsSignal.asReadonly();
-  /** The first connection's detail (setup only): its tool modes on endpoints, where its secret is. */
-  readonly first = this.firstSignal.asReadonly();
   readonly refreshing = this.refreshingSignal.asReadonly();
+  /** A missing optional area is unavailable, never an empty list or confirmed access. */
+  readonly areaErrors = this.areaErrorsSignal.asReadonly();
 
   private inFlight: Promise<void> | null = null;
   private again = false;
@@ -72,6 +76,7 @@ export class OverviewData {
   private readonly unsubscribe: (() => void)[] = [];
   /** The core answered that it has no clients area: the tiles of AI apps are left out, not asked for again. */
   private noClientsApi = false;
+  private clientsUnavailableError: unknown = null;
 
   constructor() {
     inject(DestroyRef).onDestroy(() => this.stop());
@@ -95,6 +100,9 @@ export class OverviewData {
       this.events.on('audit.call', () => this.schedule(DELAY.call)),
       this.events.on('clients.drift', () => this.schedule(DELAY.clients)),
       this.events.on('oauth.grant.changed', () => this.schedule(DELAY.clients)),
+      this.events.on('mcp-server.state', () => this.schedule(DELAY.health)),
+      this.events.on('mcp-server.sign-in', () => this.schedule(DELAY.health)),
+      this.events.on('integrity.alert', () => this.schedule(DELAY.health)),
     );
     return this.refresh();
   }
@@ -147,6 +155,16 @@ export class OverviewData {
     } : row) ?? null);
   }
 
+  /** Apply a confirmed access mutation to every appearance while its refresh is in flight. */
+  patchConnectionEnabled(name: string, enabled: boolean): void {
+    this.connectionsSignal.update((rows) => rows?.map((row) => row.name === name ? { ...row, enabled } : row) ?? null);
+  }
+
+  /** The endpoint's saved wiring remains present when access is paused. */
+  patchEndpointEnabled(slug: string, enabled: boolean): void {
+    this.endpointsSignal.update((rows) => rows?.map((row) => row.slug === slug ? { ...row, status: enabled ? 'running' : 'disabled' } : row) ?? null);
+  }
+
   /** A request left the queue (decided, or it ran out of time here): off the list at once. */
   dropWaiting(id: string): void {
     this.overviewSignal.update((o) => (o ? { ...o, waiting: o.waiting.filter((w) => w.id !== id) } : o));
@@ -162,53 +180,32 @@ export class OverviewData {
       return;
     }
     if (this.stopped) return;
-    const state = overviewState(overview);
-    const firstName = overview.gettingStarted.steps.find((s) => s.id === 'connection')?.detail['name'];
-    const [actions, clients, connections, endpoints, first] = await Promise.all([
-      this.loadActions(overview.waiting),
+    const [clients, connections, endpoints] = await Promise.all([
       this.loadClients(),
-      state === 'in-use' ? this.connectionsApi.list().then((l) => l.items, () => null) : Promise.resolve(null),
-      this.endpointsApi.list().catch(() => null),
-      state === 'setup' && typeof firstName === 'string' ? this.connectionsApi.get(firstName).catch(() => null) : Promise.resolve(null),
+      areaResult(this.connectionsApi.list().then((list) => list.items)),
+      areaResult(this.endpointsApi.list()),
     ]);
     if (this.stopped) return;
     this.overviewSignal.set(overview);
     this.errorSignal.set(null);
     this.staleSignal.set(null);
-    this.actionsSignal.set(actions);
-    this.clientsSignal.set(clients);
-    this.connectionsSignal.set(connections);
-    this.endpointsSignal.set(endpoints);
-    this.firstSignal.set(first);
+    this.clientsSignal.set(clients.value);
+    this.connectionsSignal.set(connections.value);
+    this.endpointsSignal.set(endpoints.value);
+    this.areaErrorsSignal.set({ connections: connections.error, endpoints: endpoints.error, clients: clients.error });
   }
 
   /** This computer's AI apps; a core without the clients area (or one that failed to answer) leaves them out. */
-  private async loadClients(): Promise<ClientsView | null> {
-    if (this.noClientsApi) return null;
+  private async loadClients(): Promise<AreaResult<ClientsView>> {
+    if (this.noClientsApi) return { value: null, error: this.clientsUnavailableError };
     try {
-      return await this.clientsApi.list();
+      return { value: await this.clientsApi.list(), error: null };
     } catch (e) {
-      if (isNotAvailable(e)) this.noClientsApi = true;
-      return null;
+      if (isNotAvailable(e)) {
+        this.noClientsApi = true;
+        this.clientsUnavailableError = e;
+      }
+      return { value: null, error: e };
     }
-  }
-
-  /** The exact action of each waiting request; a request whose detail didn't load shows its summary instead. */
-  private async loadActions(waiting: readonly ApprovalItem[]): Promise<ReadonlyMap<string, readonly ActionSegment[]>> {
-    const known = this.actionsSignal();
-    const entries = await Promise.all(
-      waiting.map(async (w): Promise<[string, readonly ActionSegment[]] | null> => {
-        // A waiting request's action never changes: it is what will run.
-        const cached = known.get(w.id);
-        if (cached) return [w.id, cached];
-        try {
-          const detail = await this.approvals.get(w.id);
-          return detail.action?.segments?.length ? [w.id, detail.action.segments] : null;
-        } catch {
-          return null;
-        }
-      }),
-    );
-    return new Map(entries.filter((e): e is [string, readonly ActionSegment[]] => !!e));
   }
 }

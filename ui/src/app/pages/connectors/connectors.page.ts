@@ -87,6 +87,8 @@ export class ConnectorsPage {
 
   /** `?add=mcp-server` (the connection wizard's External MCP server): Add MCP server opens on the MCP servers tab. */
   readonly add = input<string | null>(null);
+  /** Overview's service chooser opens the matching real MCP source form. */
+  readonly source = input<string | null>(null);
 
   private readonly installDialog = viewChild.required(GwPluginInstallDialog);
   private readonly reviewDialog = viewChild.required(GwPluginReviewDialog);
@@ -140,12 +142,13 @@ export class ConnectorsPage {
     });
     effect(() => {
       if (this.add() !== 'mcp-server') return;
+      const source = this.source();
       untracked(() =>
         afterNextRender(
           () => {
-            this.addServerDialog().open(null);
+            this.addServerDialog().open(null, source === 'registry' || source === 'url' ? source : 'manual');
             // Once: a reload or Back doesn't open it again.
-            void this.router.navigate([], { relativeTo: this.route, queryParams: { add: null }, queryParamsHandling: 'merge', fragment: 'mcp-servers', replaceUrl: true });
+            void this.router.navigate([], { relativeTo: this.route, queryParams: { add: null, source: null }, queryParamsHandling: 'merge', fragment: 'mcp-servers', replaceUrl: true });
           },
           { injector: this.injector },
         ),

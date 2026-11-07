@@ -414,7 +414,9 @@ JSON action previews default to a Pretty view that changes only structural white
 
 ### 8.6 Application and kit compatibility
 
-The application follows the kit's first-run, setup, and in-use Overview compositions using current core data. First connection setup can create an endpoint for the selected environment, and AI-app setup shows the exact connection review before changing client configuration. Do not infer that every prototype is a current API capability. The following numbered contracts retain the references used by source comments, without an implementation progress log.
+The application's Overview follows the kit's [connection map](../design/pages/overview-map.html) using current core data. Selecting an endpoint scopes service membership and AI-app status together. Search includes connections outside the initial compact list; unreachable badges filter enabled problem connections. Connection switches apply globally, while endpoint switches pause only that endpoint and preserve saved settings. Missing data is explicitly unavailable. Decorative paths show configured access, and the request example sends no traffic.
+
+Adding an existing service previews its eligible tools and modes before connecting it to the selected endpoint. New MCP sources open the registry, URL, or configuration flow; those flows review their own endpoint scope. AI-app Connect actions keep the selected endpoint and show the exact setup review before changing client configuration. First connection setup can create an endpoint for the selected environment. Do not infer that every prototype is a current API capability. The following numbered contracts retain the references used by source comments, without an implementation progress log.
 
 1. Show the actual core runtime from the API: native in a native build, JVM in development. The plugin runtime is a separate JRE.
 2. Codex's `http_headers_helper` is a string. Claude Desktop uses an endpoint-specific bridge bundle. Cursor and Antigravity have supported token, browser, or bridge methods; production policy can disable methods.

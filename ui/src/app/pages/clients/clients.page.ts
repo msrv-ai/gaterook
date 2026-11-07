@@ -110,6 +110,29 @@ export class ClientsPage {
   protected readonly reinstalling = signal<string | null>(null);
 
   protected readonly cards = this.data.cards;
+  /** An explicit Overview Connect action keeps its exact endpoint, even when the app already has other links. */
+  protected readonly requestedClient = computed(() => this.queryParams().get('connect'));
+  protected readonly requestedEndpoint = computed(() => this.data.endpointList().find((endpoint) => endpoint.slug === this.queryParams().get('endpoint')) ?? null);
+  protected readonly requestedSetupError = computed(() => {
+    const client = this.requestedClient();
+    if (!client) return null;
+    const endpoints = this.data.endpoints();
+    if (endpoints.error || endpoints.unavailable) return 'Endpoints could not be loaded. Try again before connecting this app.';
+    if (!this.data.loaded() || endpoints.value === null) return 'Loading the requested connection…';
+    const endpoint = this.requestedEndpoint();
+    if (!endpoint) return 'The requested endpoint is unavailable. Choose an endpoint in Overview and try again.';
+    if (endpoint.blockedReason) return endpoint.blockedReason;
+    if (endpoint.status === 'disabled') return `Turn on ${endpoint.slug} before connecting an AI app.`;
+    const card = this.cards().find((card) => card.client === client);
+    if (!card) return 'This AI app is unavailable. Scan this computer again.';
+    if (card.status === 'not-installed') return `Install ${card.name}, then scan this computer again.`;
+    if (!card.methods.length) return 'Automatic setup is unavailable for this app. Use manual setup below.';
+    if (card.links.some((link) => link.endpoint === endpoint.slug && link.status !== 'revoked')) return `${card.name} is already connected to ${endpoint.slug}.`;
+    return null;
+  });
+  protected readonly requestedSetup = computed(() => this.requestedClient() && !this.requestedSetupError() ? this.cards().find((card) => card.client === this.requestedClient()) ?? null : null);
+  protected readonly requestedEndpoints = computed(() => this.requestedEndpoint() ? [this.requestedEndpoint()!] : []);
+  protected readonly listedCards = computed(() => this.cards().filter((card) => card !== this.requestedSetup()));
   protected readonly selectedCard = computed(() => this.cards().find((c) => this.clientAnchor(c.client) === this.fragment()) ?? null);
   protected readonly counts = computed(() => headerCounts(this.cards()));
   protected readonly expandedApps = signal<ReadonlySet<string>>(new Set());
@@ -142,7 +165,7 @@ export class ClientsPage {
   });
   /** Setup: the app whose Connect review is open on top (one at a time). */
   readonly review = signal<string | null>(null);
-  protected readonly setup = computed(() => setupLayout(this.cards(), this.review()));
+  protected readonly setup = computed(() => setupLayout(this.listedCards(), this.review()));
   /** Setup: apps connected here in this session: their cards say "Check that it works". */
   protected readonly fresh = signal<ReadonlySet<string>>(new Set());
   /** Setup: the first connection's endpoint. */
@@ -192,6 +215,11 @@ export class ClientsPage {
     effect(() => {
       const f = this.fragment();
       this.canConnect();
+      if (this.requestedClient()) {
+        const card = this.requestedSetup();
+        if (card) this.focus(`${anchorBase(card.client)}-requested-t`);
+        return;
+      }
       if (!f || !this.data.loaded() || !this.stageKnown()) return;
       untracked(() => this.arrive(f));
     });

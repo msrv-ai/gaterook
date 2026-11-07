@@ -77,6 +77,15 @@
     }
   </header>
 
+  @if (requestedClient()) {
+    @if (requestedSetupError(); as reason) {
+      <div class="gw-alert gw-alert--neutral" role="status"><div class="gw-alert__content"><p class="gw-alert__title">Connect AI app</p><p class="gw-alert__body">{{ reason }}</p></div></div>
+    } @else if (requestedSetup(); as c) {
+      @let s = data.connectState(c.client);
+      <article gwInlineConnectCard review [anchor]="anchorBase(c.client) + '-requested'" [attr.data-requested-client]="c.client" [card]="c" [defaultTtlDays]="data.defaultTokenTtlDays()" [endpoints]="requestedEndpoints()" [preview]="s.preview" [loading]="s.loading" [failure]="s.failure" [connecting]="connecting() === c.client" [canOpenConfig]="desktopApp" (previewRequest)="onPreview(c, $event)" (connect)="onConnect(c, $event.previewId, $event.request)" (openConfig)="onOpenConfig(c.client)"></article>
+    }
+  }
+
   @if (data.clients().value && !stageKnown()) {
     <p class="gw-sr-only" role="status">Loading the clients of this computer</p>
   } @else if (data.clients().value && st !== 'in-use' && !none()) {
@@ -100,7 +109,7 @@
       </section>
     } @else {
       <ul class="gw-stack gw-stack--sm" role="list" aria-label="AI apps on this computer">
-        @for (c of cards(); track c.client) {
+        @for (c of listedCards(); track c.client) {
           <li>
             @if (c.status === 'detected' && !c.links.length) {
               @let s = data.connectState(c.client);

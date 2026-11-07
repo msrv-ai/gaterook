@@ -7,6 +7,7 @@
 //   design/assets/fonts/*        → ui/public/assets/fonts/      (the kit's @font-face urls, $gw-font-path)
 //   design/assets/theme-boot.js  → ui/public/assets/theme-boot.js (classic <script> in index.html: theme before paint)
 //   design/assets/logo-mark.svg  → ui/public/assets/logo-mark.svg (the shell's gw-logo, the favicon)
+//   design/assets/integrations/* → ui/public/assets/integrations/ (service marks and their source notices)
 //
 // The copies are build inputs, not sources: ui/public/assets is git-ignored. A file is rewritten only when its
 // bytes differ, so a running `ng serve` does not rebuild for nothing.
@@ -27,7 +28,10 @@ function entries() {
   const fonts = readdirSync(join(KIT, 'fonts'))
     .filter((f) => f.endsWith('.woff2') || f.endsWith('.txt'))
     .map((f) => [join('fonts', f), join('fonts', f)]);
-  return [...fonts, ['theme-boot.js', 'theme-boot.js'], ['logo-mark.svg', 'logo-mark.svg']];
+  const integrations = readdirSync(join(KIT, 'integrations'))
+    .filter((f) => f.endsWith('.svg') || f.endsWith('.md'))
+    .map((f) => [join('integrations', f), join('integrations', f)]);
+  return [...fonts, ...integrations, ['theme-boot.js', 'theme-boot.js'], ['logo-mark.svg', 'logo-mark.svg']];
 }
 
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');

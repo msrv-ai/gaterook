@@ -940,6 +940,49 @@ describe('Clients page: first run and setup (kit ?state=first-run | setup)', () 
 });
 
 
+describe('Overview Connect links', () => {
+  it('opens a real review for the exact requested endpoint when the app already has another connection', async () => {
+    await TestBed.inject(Router).navigateByUrl('/clients?connect=codex&endpoint=incident-prod#cl-cx-t');
+    const el = await render();
+    const review = el.querySelector('[data-requested-client="codex"]');
+    expect(review).not.toBeNull();
+    expect(text(review)).toContain('incident-prod');
+    expect(calls.some((call) => call.startsWith('preview codex incident-prod '))).toBe(true);
+    expect(calls.some((call) => call.startsWith('preview codex dev '))).toBe(false);
+    expect(calls.some((call) => call.startsWith('connect '))).toBe(false);
+    expect(document.activeElement?.id).toBe('cl-cx-requested-t');
+  });
+
+  it.each(['missing', 'paused', 'blocked'])('does not silently substitute another endpoint when the requested endpoint is %s', async (state) => {
+    if (state !== 'missing') world.endpoints = async () => kitEndpoints().map((endpoint) => endpoint.slug === 'incident-prod' ? {
+      ...endpoint, status: state === 'paused' ? 'disabled' : endpoint.status, blockedReason: state === 'blocked' ? 'Review endpoint configuration.' : null,
+    } : endpoint);
+    await TestBed.inject(Router).navigateByUrl(`/clients?connect=codex&endpoint=${state === 'missing' ? 'removed' : 'incident-prod'}#cl-cx-t`);
+    const el = await render();
+    expect(el.querySelector('[data-requested-client]')).toBeNull();
+    expect(text(el)).toContain(state === 'missing' ? 'requested endpoint is unavailable' : state === 'paused' ? 'Turn on incident-prod' : 'Review endpoint configuration.');
+    expect(calls.some((call) => /^(preview|connect) codex /.test(call))).toBe(false);
+  });
+
+  it('reports an existing connection without creating another one', async () => {
+    await TestBed.inject(Router).navigateByUrl('/clients?connect=codex&endpoint=dev#cl-cx-t');
+    const el = await render();
+    expect(text(el)).toContain('Codex is already connected to dev.');
+    expect(calls.some((call) => /^(preview|connect) codex /.test(call))).toBe(false);
+  });
+
+  it('lets an app reconnect through the normal review when its previous link was revoked', async () => {
+    world.list = async () => ({ ...kitClients(), clients: kitClients().clients.map((client) => client.client === 'codex' ? {
+      ...client, links: client.links.map((link) => ({ ...link, status: 'revoked' as const })),
+    } : client) });
+    await TestBed.inject(Router).navigateByUrl('/clients?connect=codex&endpoint=dev#cl-cx-t');
+    const el = await render();
+    expect(el.querySelector('[data-requested-client="codex"]')).not.toBeNull();
+    expect(calls.some((call) => call.startsWith('preview codex dev '))).toBe(true);
+    expect(calls.some((call) => call.startsWith('connect '))).toBe(false);
+  });
+});
+
 describe('Microsoft Store client setup', () => {
   function storeEdition(): void {
     Object.assign(TestBed.inject(DesktopBridge), { available: true, windowsStore: true });

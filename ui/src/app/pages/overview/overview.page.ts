@@ -1,61 +1,60 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
-import { GwAccessSwitch } from '../../kit/access-switch';
-import { RouterLink } from '@angular/router';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  Injector,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { GwCodeBlock } from '../../code/code-block';
 import { isApiError } from '../../core/api/api-error';
-import { ApprovalItem } from '../../core/api/approvals.api';
 import { ConnectionsApi } from '../../core/api/connections.api';
+import { EndpointSummary } from '../../core/api/endpoints.api';
 import { CoreStore } from '../../core/stores/core.store';
 import { TimeService } from '../../core/time/time.service';
+import { GwAccessSwitch } from '../../kit/access-switch';
 import { Announcer } from '../../kit/announcer';
+import { GwCopy } from '../../kit/copy';
+import { GwDialog, GwDialogClose, GwDialogOpen } from '../../kit/dialog';
 import { GwToggle } from '../../kit/disclosure';
-import { GwApprovalRequestCompact } from '../../kit/elements/approval-request/approval-request-compact';
-import { GwStatusTile } from '../../kit/elements/status-tile/status-tile';
-import { GwGuideStep } from '../../kit/guide-step';
 import { GwIcon } from '../../kit/icons';
+import { GwSearchClear, GwSearchClearButton } from '../../kit/search';
 import { ToastService } from '../../kit/toast.service';
 import { OverviewData } from './overview.data';
-import {
-  AppTile,
-  RetestResult,
-  activityLine,
-  appAnchor,
-  checkPrompt,
-  connectionTiles,
-  endpointConnectionGroups,
-  guideAppTile,
-  homeAppTiles,
-  modesWords,
-  overviewState,
-  retestToast,
-  secretLine,
-  tileHealth,
-} from './overview-view';
+import { activityLine, overviewState, retestToast, RetestResult } from './overview-view';
+import { MapConnection, endpointUnreachable, mapApps, mapConnections } from './overview-map-view';
+import { GwOverviewSetup } from './overview-setup';
+import { GwOverviewWires, OverviewWireTrace } from './overview-wires';
 
-/** The first render waits this long before it shows placeholders (kit: a skeleton only past ~300 ms). */
 export const SKELETON_DELAY_MS = 300;
 
-/**
- * Overview (design/pages/overview.html; BLUEPRINT §5 overview): the home screen, with as little on it as possible, in
- * one of three states the core's own facts decide (`overviewState`):
- *
- * - **In use** — an AI app is connected. Waiting for your approval at the top, the quick-access zone (compact
- *   requests, soonest auto-deny first, Review opens the exact action in Approvals; a quiet line when none waits);
- *   Your connections grouped by endpoint with its AI apps and all connection status tiles, problems first
- *   (Test again on an unreachable one); AI apps as tiles (an app found and not connected first, with Connect);
- *   one line about Activity.
- * - **First run** — no connection yet: a three-step guide (`gw-stepper --guide`): Add your first connection,
- *   Connect your AI app (available as soon as an endpoint exists, including an empty one), Check that it works.
- * - **Setup** — a connection, no AI app yet: step 1 done with that connection, step 2 current, its Connect leading to
- *   the app's review on AI apps (`/clients#cl-<app>-t`), step 3 waiting for the first request.
- *
- * Data is the core's (OverviewData) and follows its events; the page is a loading skeleton, an error with Try again,
- * or one of the states.
- */
+/** Live application counterpart of design/pages/overview-map.html. */
 @Component({
   selector: 'gw-overview-page',
-  imports: [GwAccessSwitch, NgTemplateOutlet, RouterLink, GwIcon, GwToggle, GwCodeBlock, GwApprovalRequestCompact, GwStatusTile, GwGuideStep],
+  imports: [
+    NgTemplateOutlet,
+    RouterLink,
+    GwIcon,
+    GwAccessSwitch,
+    GwCopy,
+    GwToggle,
+    GwCodeBlock,
+    GwDialog,
+    GwDialogOpen,
+    GwDialogClose,
+    GwSearchClearButton,
+    GwSearchClear,
+    GwOverviewSetup,
+    GwOverviewWires,
+  ],
   providers: [OverviewData],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-page' },
@@ -63,141 +62,364 @@ export const SKELETON_DELAY_MS = 300;
 })
 export class OverviewPage {
   protected readonly data = inject(OverviewData);
-  protected readonly time = inject(TimeService);
-  private readonly connectionsApi = inject(ConnectionsApi);
   private readonly core = inject(CoreStore);
-  private readonly toasts = inject(ToastService);
+  private readonly connectionsApi = inject(ConnectionsApi);
+  private readonly time = inject(TimeService);
   private readonly announcer = inject(Announcer);
+  private readonly toasts = inject(ToastService);
   private readonly injector = inject(Injector);
   private readonly host: HTMLElement = inject(ElementRef<HTMLElement>).nativeElement;
-
-  private readonly connectionsTitle = viewChild<ElementRef<HTMLElement>>('connectionsTitle');
-
-  protected readonly appAnchor = appAnchor;
-
-  /** Placeholders only when the first answer is slow. */
+  private readonly route = inject(ActivatedRoute);
+  private readonly mapTitle = viewChild<ElementRef<HTMLElement>>('mapTitle');
+  protected readonly setup = viewChild.required(GwOverviewSetup);
   protected readonly slow = signal(false);
-  protected readonly loading = computed(() => !this.data.overview() && !this.data.error());
-
   protected readonly overview = this.data.overview;
-  protected readonly state = computed(() => {
-    const o = this.overview();
-    return o ? overviewState(o) : null;
-  });
-
-  // ── In use ──
-
-  protected readonly pending = computed(() => this.overview()?.stats.pending ?? 0);
-  protected readonly waiting = computed(() => this.overview()?.waiting ?? []);
-  /** The counter next to the title: every request waiting, also those the list doesn't show. */
-  protected readonly waitingCount = computed(() => Math.max(this.waiting().length, this.pending()));
-  protected readonly waitingLabel = computed(() => {
-    const shown = this.waiting().length;
-    const all = this.waitingCount();
-    const n = (k: number) => `${k} ${k === 1 ? 'request' : 'requests'}`;
-    return shown < all ? `Waiting for approval, ${shown} of ${n(all)}` : `Waiting for approval, ${n(shown)}`;
-  });
-
-  protected readonly tiles = computed(() => connectionTiles(this.overview()?.health ?? []));
-  protected readonly groups = computed(() => endpointConnectionGroups(
-    this.overview()?.health ?? [], this.data.connections(), this.data.endpoints(), this.data.clients()?.clients ?? null,
-  ));
-  protected connectionAccess(name: string) {
-    return this.data.connections()?.find((row) => row.name === name) ?? null;
-  }
-
-  protected readonly moreOpen = signal(false);
-  protected readonly moreLabel = computed(() => {
-    const more = this.tiles().more;
-    return more.every((t) => t.state.tone === 'success') ? 'More connections, all healthy' : 'More connections';
-  });
-  /** The connections Test again is testing now. */
+  protected readonly loading = computed(() => !this.overview() && !this.data.error());
+  protected readonly state = computed(() =>
+    this.overview() ? overviewState(this.overview()!) : null,
+  );
+  protected readonly pending = computed(() =>
+    Math.max(this.overview()?.stats.pending ?? 0, this.overview()?.waiting.length ?? 0),
+  );
+  protected readonly activity = computed(() =>
+    activityLine(this.overview()?.stats ?? { calls24h: 0, denied24h: 0 }),
+  );
+  protected readonly selectedSlug = signal<string | null>(
+    this.route.snapshot.queryParamMap.get('endpoint'),
+  );
+  protected readonly endpoint = computed(
+    () =>
+      this.data.endpoints()?.find((e) => e.slug === this.selectedSlug()) ??
+      this.data.endpoints()?.[0] ??
+      null,
+  );
+  protected readonly query = signal('');
+  protected readonly problemsOnly = signal(false);
+  protected readonly expanded = signal(false);
+  protected readonly selectedNode = signal<string | null>(null);
+  protected readonly hoverNode = signal<string | null>(null);
+  protected readonly activeNode = computed(() => this.hoverNode() ?? this.selectedNode());
+  protected readonly trace = signal<OverviewWireTrace | null>(null);
   protected readonly testing = signal<readonly string[]>([]);
+  private traceSequence = 0;
 
-  protected readonly homeApps = computed(() => homeAppTiles(this.data.clients()?.clients ?? [], this.data.connections(), null));
-  protected readonly homeAppsLabel = computed(() => (this.homeApps().some((a) => a.action === 'connect') ? 'AI apps, the one to connect first' : 'AI apps'));
-  protected readonly activity = computed(() => activityLine(this.overview()?.stats ?? { calls24h: 0, denied24h: 0 }));
-
-  // ── First run and setup ──
-
-  /** The four AI apps of this computer, as the guide shows them (the core's order: Claude Desktop, Codex, Cursor, Antigravity). */
-  protected readonly guideApps = computed<AppTile[]>(() => (this.data.clients()?.clients ?? []).map(guideAppTile));
-  protected readonly anyConnect = computed(() => this.guideApps().some((a) => a.action === 'connect'));
-  protected readonly canConnectApps = computed(() => (this.data.endpoints()?.length ?? 0) > 0);
-
-  /** Setup: the connection step 1 names (the core's first connection), with its live health. */
-  protected readonly first = computed(() => {
-    const o = this.overview();
-    const step = o?.gettingStarted.steps.find((s) => s.id === 'connection');
-    const name = typeof step?.detail['name'] === 'string' ? step.detail['name'] : null;
-    if (!o || !name) return null;
-    const row = o.health.find((h) => h.name === name) ?? null;
-    const detail = this.data.first()?.name === name ? this.data.first() : null;
-    const typeName = row?.typeLabel || detail?.typeLabel || (typeof step?.detail['typeName'] === 'string' ? step.detail['typeName'] : null);
-    const count = typeof step?.detail['count'] === 'number' ? step.detail['count'] : 1;
-    return {
-      name,
-      type: row?.type ?? detail?.type ?? null,
-      typeName,
-      health: row ? tileHealth(row) : null,
-      modes: modesWords(detail ? detail.usedBy : null),
-      secret: detail ? secretLine(detail.secrets) : null,
-      others: Math.max(0, count - 1),
-    };
+  protected readonly connections = computed(() =>
+    mapConnections(this.data.connections(), this.overview()?.health ?? [], this.endpoint()),
+  );
+  protected readonly apps = computed(() =>
+    mapApps(this.data.clients()?.clients ?? null, this.endpoint()),
+  );
+  protected readonly assigned = computed(() => this.connections()?.filter((c) => c.assigned) ?? []);
+  protected readonly filtered = computed(() =>
+    this.assigned().filter((c) => this.matches(c) && (!this.problemsOnly() || c.unreachable)),
+  );
+  protected readonly native = computed(() => {
+    const rows = this.filtered().filter((c) => !c.mcp);
+    return this.expanded() || this.query().trim() || this.problemsOnly() ? rows : rows.slice(0, 4);
   });
-  /** "Your connection works." only when the connection answered its last check. */
-  protected readonly firstWorks = computed(() => this.first()?.health?.tone === 'success');
-  protected readonly keyBackedUp = computed(() => this.overview()?.gettingStarted.steps.find((s) => s.id === 'master-key')?.state === 'done');
-  protected readonly prompt = computed(() => {
-    const f = this.state() === 'setup' ? this.first() : null;
-    return checkPrompt(f?.type ?? null, f?.name ?? null);
+  protected readonly nativeCount = computed(() => this.assigned().filter((c) => !c.mcp).length);
+  protected readonly mcp = computed(() => this.filtered().filter((c) => c.mcp));
+  protected readonly unassignedMcp = computed(() =>
+    this.problemsOnly() || this.data.endpoints() === null
+      ? []
+      : (this.connections()?.filter((c) => c.mcp && !c.assigned && this.matches(c)) ?? []),
+  );
+  protected readonly detailConnection = computed(
+    () => this.connections()?.find((c) => `service:${c.name}` === this.selectedNode()) ?? null,
+  );
+  protected readonly detailApp = computed(
+    () => this.apps()?.find((a) => `app:${a.client}` === this.selectedNode()) ?? null,
+  );
+  protected readonly mutationBlocked = computed(() =>
+    !this.core.running()
+      ? 'The local gateway is unavailable. Reconnect before changing access.'
+      : this.data.stale()
+        ? 'This view may be out of date. Refresh before changing access.'
+        : this.data.connections() === null || this.data.endpoints() === null
+          ? 'Connection or endpoint data is unavailable. Retry before changing access.'
+          : null,
+  );
+  protected readonly endpointOn = computed(
+    () => this.endpoint()?.status === 'running' && !this.endpoint()?.blockedReason,
+  );
+  protected readonly protection = computed(() =>
+    this.mutationBlocked()
+      ? 'Status unavailable'
+      : this.endpoint() && !this.endpointOn()
+        ? 'Access paused'
+        : 'Protected access',
+  );
+  protected readonly visibleConnections = computed(() => [...this.native(), ...this.mcp()]);
+  protected readonly wireServices = computed(() =>
+    this.visibleConnections().map((c) => ({
+      id: c.name,
+      enabled: c.effectiveOn,
+      pending: !c.effectiveOn,
+    })),
+  );
+  protected readonly wireApps = computed(() =>
+    (this.apps() ?? [])
+      .filter((a) => a.assigned)
+      .map((a) => ({ id: a.client, enabled: this.endpointOn(), pending: !a.connected })),
+  );
+  protected readonly detailTitle = computed(
+    () =>
+      this.detailConnection()?.name ??
+      this.detailApp()?.name ??
+      (this.data.endpoints() === null
+        ? 'Endpoint status unavailable'
+        : this.endpoint()
+          ? `Access through ${this.endpoint()!.slug}`
+          : 'Create your first endpoint'),
+  );
+  protected readonly detailDescription = computed(() => {
+    const c = this.detailConnection();
+    if (c)
+      return `${c.typeLabel} · ${c.state.label}. ${c.assigned ? `Configured on endpoint ${this.endpoint()?.slug}.` : 'Not connected to this endpoint.'}`;
+    const app = this.detailApp();
+    if (app)
+      return `${app.state.label}${this.endpoint() ? ` on ${this.endpoint()!.slug}` : ''}. ${app.actionReason ?? 'Inspect or manage this app’s endpoint access.'}`;
+    const services =
+      this.connections() === null
+        ? 'Service status unavailable'
+        : `${this.assigned().length} services`;
+    const apps =
+      this.apps() === null
+        ? 'AI app status unavailable'
+        : `${this.apps()!.filter((a) => a.assigned).length} configured AI apps`;
+    if (this.data.endpoints() === null)
+      return 'Retry the connection to load endpoints and inspect access.';
+    return this.endpoint()
+      ? `${services} · ${apps}. ${this.endpoint()!.description ?? 'Select a connection or app to inspect its access.'}`
+      : 'An endpoint groups the services and permissions your AI app can use.';
+  });
+  protected readonly detailRules = computed(
+    () =>
+      this.mutationBlocked() ??
+      this.endpoint()?.blockedReason ??
+      (!this.endpointOn() && this.endpoint()
+        ? 'All tools are off on this endpoint. Saved settings are kept; other endpoints keep their own access.'
+        : this.endpoint()?.access === 'read-only'
+          ? 'This endpoint permits read-only tools. Calls are recorded in Activity.'
+          : 'GateRook checks saved tool modes, approval rules and limits on every call. Service credentials stay in GateRook.'),
+  );
+  protected readonly traceReason = computed(() => {
+    if (this.mutationBlocked()) return this.mutationBlocked();
+    if (!this.endpointOn()) return 'Enable an endpoint first.';
+    if (this.detailConnection() && !this.detailConnection()!.effectiveOn)
+      return 'Enable this connection before showing its request path.';
+    if (this.detailApp() && !this.detailApp()!.connected)
+      return 'This app is not connected to the selected endpoint.';
+    if (!this.visibleConnections().some((c) => c.effectiveOn))
+      return 'Show an enabled connection to see its request path.';
+    if (!this.apps()?.some((a) => a.connected))
+      return 'A connected AI app is needed to show a request path.';
+    return null;
   });
 
   constructor() {
     void this.data.start();
     const timer = setTimeout(() => this.slow.set(true), SKELETON_DELAY_MS);
-    effect((onCleanup) => {
+    inject(DestroyRef).onDestroy(() => clearTimeout(timer));
+    effect(() => {
       if (!this.loading()) clearTimeout(timer);
-      onCleanup(() => clearTimeout(timer));
     });
-    // The core came back (it was away, or another instance answers): what the page shows may be stale.
-    let wasRunning = this.core.running();
+    let running = this.core.running();
     let instance = this.core.instanceChanges();
     effect(() => {
-      const running = this.core.running();
-      const changes = this.core.instanceChanges();
+      const nextRunning = this.core.running();
+      const nextInstance = this.core.instanceChanges();
       untracked(() => {
-        if (running && (!wasRunning || changes !== instance)) void this.data.refresh();
-        wasRunning = running;
-        instance = changes;
+        if (nextRunning && (!running || nextInstance !== instance)) void this.data.refresh();
       });
+      running = nextRunning;
+      instance = nextInstance;
+    });
+    // SSE refreshes can pause or remove an endpoint while its problem filter is open.
+    effect(() => {
+      const endpoints = this.data.endpoints();
+      const selected = this.selectedSlug();
+      if (endpoints && (!selected || !endpoints.some((ep) => ep.slug === selected))) {
+        this.selectedSlug.set(endpoints[0]?.slug ?? null);
+        this.problemsOnly.set(false);
+        this.resetSelection();
+      }
+      if (!this.endpointOn()) this.problemsOnly.set(false);
+    });
+    // Removed endpoints and connections cannot leave a stale detail or example route selected.
+    effect(() => {
+      const selected = this.selectedNode();
+      const exists =
+        !selected ||
+        this.visibleConnections().some((c) => `service:${c.name}` === selected) ||
+        this.apps()?.some((a) => `app:${a.client}` === selected);
+      if (!exists) {
+        this.selectedNode.set(null);
+        this.trace.set(null);
+      }
+      const trace = this.trace();
+      if (
+        this.mutationBlocked() ||
+        !this.endpointOn() ||
+        (trace &&
+          (!this.visibleConnections().some((c) => c.name === trace.service && c.effectiveOn) ||
+            !this.apps()?.some((a) => a.client === trace.app && a.connected)))
+      )
+        this.trace.set(null);
     });
   }
 
+  protected matches(c: MapConnection): boolean {
+    return `${c.name} ${c.typeLabel}`
+      .toLocaleLowerCase()
+      .includes(this.query().trim().toLocaleLowerCase());
+  }
   protected retry(): void {
     void this.data.refresh();
   }
-
-  /** What a failed call says to do: the core's words when it sent them. */
-  protected errorText(e: unknown): string {
-    return isApiError(e) ? e.detail : 'See the core log for details, then try again.';
+  protected problemCount(ep: EndpointSummary): number | null {
+    return this.mutationBlocked()
+      ? null
+      : endpointUnreachable(ep, this.data.connections(), this.overview()?.health ?? []);
   }
-
-  /** The technical side of a failed load, for the code block under Details. */
-  protected errorDetails(e: unknown): string {
-    if (isApiError(e)) return `GET /api/overview → ${e.status || 'no answer'}\n${e.title}: ${e.detail}`;
-    return e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+  protected appCount(ep: EndpointSummary): number | null {
+    return (
+      mapApps(this.data.clients()?.clients ?? null, ep)?.filter((a) => a.assigned).length ?? null
+    );
   }
-
-  /**
-   * Test again on an unreachable connection (kit status-tile, busy): the button keeps its label with a spinner and
-   * aria-busy, the tile's state says "Checking…", then the result comes as a toast; the tile stays until it answers.
-   */
+  protected mark(c: MapConnection): string | null {
+    return (
+      (
+        {
+          postgres: 'postgresql',
+          mysql: 'mysql',
+          mongodb: 'mongodb',
+          redis: 'redis',
+          opensearch: 'opensearch',
+        } as Record<string, string>
+      )[c.row.type] ?? null
+    );
+  }
+  protected nodeId(kind: string, value: string): string {
+    return `ov-${kind}-${encodeURIComponent(value)}`;
+  }
+  protected resetSelection(): void {
+    this.selectedNode.set(null);
+    this.hoverNode.set(null);
+    this.trace.set(null);
+  }
+  protected chooseEndpoint(slug: string): void {
+    this.selectedSlug.set(slug);
+    this.problemsOnly.set(false);
+    this.expanded.set(false);
+    this.resetSelection();
+    this.announcer.announce(`Showing access through endpoint ${slug}.`);
+  }
+  protected search(value: string): void {
+    this.query.set(value);
+    this.resetSelection();
+    this.announcer.announce(
+      `${this.filtered().length} matching connections on ${this.endpoint()?.slug ?? 'no endpoint'}.`,
+    );
+  }
+  protected showAll(): void {
+    this.expanded.update((v) => !v);
+    this.resetSelection();
+  }
+  protected showProblems(ep: EndpointSummary): void {
+    if (!this.problemCount(ep)) return;
+    this.selectedSlug.set(ep.slug);
+    this.query.set('');
+    this.problemsOnly.set(true);
+    this.expanded.set(true);
+    this.resetSelection();
+    const first = this.filtered()[0];
+    if (first) {
+      this.selectedNode.set(`service:${first.name}`);
+      this.focusNode(first.name);
+    }
+    this.announcer.announce(
+      `Showing ${this.filtered().length} unreachable connections on ${ep.slug}.`,
+    );
+  }
+  protected clearFilters(): void {
+    this.problemsOnly.set(false);
+    this.query.set('');
+    this.expanded.set(true);
+    this.resetSelection();
+    this.focusMap();
+  }
+  protected inspect(key: string): void {
+    this.selectedNode.set(key);
+    this.trace.set(null);
+  }
+  protected connectionChanged(name: string, enabled: boolean): void {
+    this.data.patchConnectionEnabled(name, enabled);
+    if (!enabled && this.problemsOnly()) {
+      this.problemsOnly.set(false);
+      this.expanded.set(true);
+    }
+    this.trace.set(null);
+    this.selectedNode.set(`service:${name}`);
+    this.focusNode(name, true);
+    void this.data.refresh();
+  }
+  protected endpointChanged(slug: string, enabled: boolean): void {
+    this.data.patchEndpointEnabled(slug, enabled);
+    this.problemsOnly.set(false);
+    this.trace.set(null);
+    void this.data.refresh();
+  }
+  protected added(slug: string): void {
+    this.selectedSlug.set(slug);
+    this.clearFilters();
+    void this.data.refresh();
+  }
+  protected picker(event: Event): void {
+    this.setup().showPicker(
+      this.endpoint(),
+      this.data.connections() ?? [],
+      event.currentTarget as HTMLElement,
+    );
+  }
+  protected connectService(c: MapConnection, event: Event): void {
+    const endpoint = this.endpoint();
+    if (endpoint && !this.mutationBlocked())
+      this.setup().showConnection(c.row, endpoint, event.currentTarget as HTMLElement);
+  }
+  protected showPath(): void {
+    if (this.traceReason()) return;
+    const service =
+      this.detailConnection() ?? this.visibleConnections().find((c) => c.effectiveOn)!;
+    const app = this.detailApp() ?? this.apps()!.find((a) => a.connected)!;
+    this.trace.set({ service: service.name, app: app.client, sequence: ++this.traceSequence });
+    this.announcer.announce(
+      `Example path: ${app.name} through ${this.endpoint()!.slug} to ${service.name}. No request is sent.`,
+    );
+  }
+  protected clearPath(): void {
+    this.trace.set(null);
+  }
   protected async testAgain(name: string): Promise<void> {
-    if (this.testing().includes(name)) return;
-    this.testing.update((t) => [...t, name]);
-    this.announcer.announce(`Testing ${name}`);
-    const result = await this.retest(name);
+    if (this.testing().includes(name) || this.mutationBlocked()) return;
+    this.testing.update((v) => [...v, name]);
+    let result: RetestResult;
+    try {
+      const answer = await this.connectionsApi.test(name);
+      result = {
+        name,
+        ok: answer.ok,
+        latencyMs: answer.ok ? answer.latencyMs : null,
+        message: answer.error?.message ?? answer.needsConfirmation?.text ?? null,
+      };
+    } catch (error) {
+      result = {
+        name,
+        ok: false,
+        latencyMs: null,
+        message: isApiError(error) ? error.detail : null,
+      };
+    }
     this.data.patchHealth({
       name,
       state: result.ok ? 'healthy' : 'unreachable',
@@ -205,46 +427,38 @@ export class OverviewPage {
       message: result.message,
       checkedAt: new Date(this.time.now()).toISOString(),
     });
+    this.testing.update((v) => v.filter((n) => n !== name));
+    const toast = retestToast(result);
+    this.toasts.show({ tone: toast.tone, title: toast.title, body: toast.body });
     void this.data.refresh();
-    this.testing.update((t) => t.filter((n) => n !== name));
-    const t = retestToast(result);
-    this.toasts.show({ tone: t.tone, title: t.title, body: t.body });
-    // A tile that answered loses its button: keep the keyboard in the section.
-    this.focusAfterRender(() => this.connectionsTitle()?.nativeElement, true);
+    this.focusMap();
   }
-
-  private async retest(name: string): Promise<RetestResult> {
-    try {
-      const o = await this.connectionsApi.test(name);
-      return { name, ok: o.ok, latencyMs: o.ok ? o.latencyMs : null, message: o.error?.message ?? o.needsConfirmation?.text ?? null };
-    } catch (e) {
-      return { name, ok: false, latencyMs: null, message: isApiError(e) ? e.detail : null };
-    }
+  protected errorText(error: unknown): string {
+    return isApiError(error) ? error.detail : 'Check the local gateway and try again.';
   }
-
-  /** A request ran out of time here: it leaves the list at once (the core denies it and says so); the numbers follow. */
-  protected onExpired(w: ApprovalItem): void {
-    this.data.dropWaiting(w.id);
-    const n = this.waiting().length;
-    this.announcer.announce(n ? `${n} ${n === 1 ? 'request' : 'requests'} waiting for your approval` : 'Nothing waits for your approval');
-    this.data.schedule(1_000);
+  protected errorDetails(error: unknown): string {
+    return isApiError(error)
+      ? `${error.status || 'No answer'}: ${error.title}\n${error.detail}`
+      : error instanceof Error
+        ? error.message
+        : String(error);
   }
-
-  /** Read out once when a request's last minute starts (kit `data-gw-countdown-announce`). */
-  protected announceOf(w: ApprovalItem): string {
-    return `${w.tool} on ${w.connection ?? w.endpoint} is denied automatically in less than a minute`;
-  }
-
-  /** Moves focus once the view shows the change; `onlyIfLost` leaves it alone unless it fell back to the body. */
-  private focusAfterRender(target: () => HTMLElement | null | undefined, onlyIfLost = false): void {
+  private focusNode(name: string, toggle = false): void {
     afterNextRender(
       () => {
-        const doc = this.host.ownerDocument;
-        const active = doc.activeElement;
-        if (onlyIfLost && active && active !== doc.body && doc.contains(active)) return;
-        target()?.focus();
+        const row = Array.from(this.host.querySelectorAll<HTMLElement>('[data-map-service]')).find(
+          (e) => e.dataset['mapService'] === name,
+        );
+        row
+          ?.querySelector<HTMLElement>(toggle ? 'input[role="switch"]' : 'button')
+          ?.focus({ preventScroll: true });
       },
       { injector: this.injector },
     );
+  }
+  private focusMap(): void {
+    afterNextRender(() => this.mapTitle()?.nativeElement.focus({ preventScroll: true }), {
+      injector: this.injector,
+    });
   }
 }

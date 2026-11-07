@@ -135,4 +135,22 @@ describe('access switch', () => {
     expect(row.control.checked).toBe(false);
     expect(s.setEnabled).not.toHaveBeenCalled();
   });
+
+  it('keeps blocked access visibly Off without losing the saved setting or accessible name in a compact row', () => {
+    const s = setup();
+    const row = s.render('connection');
+    row.fixture.componentRef.setInput('compact', true);
+    row.fixture.componentRef.setInput('forceOff', true);
+    row.fixture.componentRef.setInput('blocked', 'Finish setting up this connection first.');
+    row.fixture.detectChanges();
+    expect(row.control.checked).toBe(false);
+    expect(row.fixture.nativeElement.querySelector('label').classList).toContain('gw-sr-only');
+    expect(row.control.getAttribute('aria-label')).toContain('shared-prod across all endpoints');
+    row.control.click();
+    expect(s.setEnabled).not.toHaveBeenCalled();
+    row.fixture.componentRef.setInput('blocked', null);
+    row.fixture.componentRef.setInput('forceOff', false);
+    row.fixture.detectChanges();
+    expect(row.control.checked).toBe(true);
+  });
 });

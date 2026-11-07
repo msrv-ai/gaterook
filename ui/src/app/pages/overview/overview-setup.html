@@ -1,0 +1,63 @@
+<dialog gwDialog #picker="gwDialog" class="gw-dialog gw-dialog--md" [attr.aria-labelledby]="uid + '-picker-title'">
+  <header class="gw-dialog__header">
+    <h2 class="gw-dialog__title" [id]="uid + '-picker-title'">Add a service</h2>
+    <p class="gw-dialog__description">Choose where to start. Review access before connecting your AI apps.</p>
+    <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+  </header>
+  <div class="gw-dialog__body gw-stack">
+    <div class="gw-stack gw-stack--sm">
+      <a class="gw-btn" routerLink="/connection-import" [queryParams]="{ endpoint: endpoint()?.slug }" autofocus (click)="picker.close()"><svg lucideIcon="download" class="gw-icon"></svg> Import with AI</a>
+      <a class="gw-btn" routerLink="/connectors" [queryParams]="{ add: 'mcp-server', source: 'registry' }" fragment="mcp-servers" (click)="picker.close()"><svg lucideIcon="search" class="gw-icon"></svg> Find an MCP service</a>
+      <a class="gw-btn" routerLink="/connectors" [queryParams]="{ add: 'mcp-server', source: 'url' }" fragment="mcp-servers" (click)="picker.close()"><svg lucideIcon="link" class="gw-icon"></svg> Connect an MCP URL</a>
+      <a class="gw-btn" routerLink="/connectors" [queryParams]="{ add: 'mcp-server' }" fragment="mcp-servers" (click)="picker.close()"><svg lucideIcon="terminal" class="gw-icon"></svg> Add an MCP command or config</a>
+      <a class="gw-btn" routerLink="/connections/new" (click)="picker.close()"><svg lucideIcon="database" class="gw-icon"></svg> Add a database or API</a>
+    </div>
+    @if (choices().length) {
+      <section class="gw-stack gw-stack--sm" [attr.aria-labelledby]="uid + '-existing-title'">
+        <h3 class="gw-text-h3" [id]="uid + '-existing-title'">Already in GateRook</h3>
+        @if (endpoint(); as ep) {
+          <p class="gw-text-small gw-fg-secondary">Not connected to <span class="gw-mono">{{ ep.slug }}</span>. Choose a service to review its tools.</p>
+        } @else {
+          <p class="gw-text-small gw-fg-secondary">Choose or create an endpoint to connect an existing service.</p>
+        }
+        @for (choice of choices(); track choice.row.name; let index = $index) {
+          <div class="gw-stack gw-stack--sm">
+            <button class="gw-btn" type="button" [attr.aria-disabled]="!endpoint() || choice.pending || choice.reason ? 'true' : null" [attr.aria-busy]="choice.pending ? 'true' : null" [attr.aria-describedby]="choice.reason ? uid + '-choice-' + index : null" (click)="choose(choice)">{{ choice.row.name }} · {{ choice.row.typeName }}</button>
+            @if (choice.reason) { <p class="gw-text-small gw-fg-secondary" [id]="uid + '-choice-' + index">{{ choice.reason }}</p> }
+          </div>
+        }
+      </section>
+    }
+  </div>
+  <footer class="gw-dialog__footer"><button class="gw-btn" type="button" gwDialogClose>Cancel</button></footer>
+</dialog>
+
+<dialog gwDialog #review="gwDialog" gwDialogStatic [gwDialogGuard]="saving()" (cancel)="saving() && $event.preventDefault()" class="gw-dialog gw-dialog--md" [attr.aria-labelledby]="uid + '-review-title'">
+  <header class="gw-dialog__header">
+    <h2 class="gw-dialog__title" [id]="uid + '-review-title'">Review service access</h2>
+    <p class="gw-dialog__description">Connect <span class="gw-mono">{{ connection()?.name }}</span> to <span class="gw-mono">{{ endpoint()?.slug }}</span>.</p>
+    <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" [attr.aria-disabled]="saving() ? 'true' : null" (click)="!saving() && review.close()"><svg lucideIcon="x" class="gw-icon"></svg></button>
+  </header>
+  <div class="gw-dialog__body gw-stack" [attr.aria-busy]="pending() ? 'true' : null">
+    @if (error() || refusal(); as reason) {
+      <div class="gw-alert gw-alert--danger" role="alert"><svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content"><p class="gw-alert__title">Service cannot be connected</p><p class="gw-alert__body">{{ reason }}</p></div></div>
+    }
+    @if (changed()) {
+      <div class="gw-alert gw-alert--warning" role="status"><div class="gw-alert__content"><p class="gw-alert__body">Available tools changed. Review the updated access below, then connect again.</p></div></div>
+    }
+    @if (preview(); as p) {
+      <p class="gw-text-small gw-fg-secondary">AI apps on <span class="gw-mono">{{ endpoint()?.slug }}</span> gain the access shown below. Credentials stay in GateRook.</p>
+      <p class="gw-text-small">@for (mode of modes(); track mode.mode) { {{ mode.count }} {{ mode.label }}@if (!$last) { · } }</p>
+      @for (warning of p.warnings; track $index) { <div class="gw-alert gw-alert--warning gw-alert--compact" role="status"><div class="gw-alert__content"><p class="gw-alert__body">{{ warning }}</p></div></div> }
+      @if (p.tools.length) {
+        <div class="gw-table-wrap"><table class="gw-table"><caption class="gw-sr-only">Tools and access for {{ connection()?.name }}</caption><thead><tr><th scope="col">Tool</th><th scope="col">Access</th></tr></thead><tbody>
+          @for (tool of p.tools; track tool.toolKey) { <tr><td><span class="gw-mono">{{ tool.tool }}</span></td><td>{{ modeLabel(tool.mode) }}@if (tool.locked) { <span class="gw-text-small gw-fg-secondary"> · {{ tool.locked }}</span> }</td></tr> }
+        </tbody></table></div>
+      } @else { <p class="gw-text-small gw-fg-secondary">This service currently exposes no tools.</p> }
+    } @else if (pending()) { <p class="gw-text-small" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Checking available tools…</p> }
+  </div>
+  <footer class="gw-dialog__footer">
+    <button class="gw-btn" type="button" autofocus [attr.aria-disabled]="saving() ? 'true' : null" (click)="!saving() && review.close()">Cancel</button>
+    <button class="gw-btn gw-btn--primary" type="button" [attr.aria-disabled]="pending() || !preview() || error() || refusal() ? 'true' : null" [attr.aria-busy]="pending() ? 'true' : null" (click)="add()">Connect service</button>
+  </footer>
+</dialog>

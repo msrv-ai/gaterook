@@ -1,13 +1,12 @@
 import { Injector, runInInjectionContext } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ApiError } from '../../core/api/api-error';
-import { ApprovalsApi } from '../../core/api/approvals.api';
 import { ClientsApi } from '../../core/api/clients.api';
 import { ConnectionsApi } from '../../core/api/connections.api';
 import { EndpointSummary, EndpointsApi } from '../../core/api/endpoints.api';
 import { Overview, OverviewApi } from '../../core/api/overview.api';
 import { EventStream } from '../../core/events/event-stream';
-import { ROWS, browserSignedIn, clientsBrowserSignedIn, clientsFound, clientsInUse, devDb, firstRun, overview, setup } from './overview.fixtures';
+import { ROWS, browserSignedIn, clientsBrowserSignedIn, clientsFound, clientsInUse, firstRun, overview, setup } from './overview.fixtures';
 import { OverviewData } from './overview.data';
 import { endpoint } from '../endpoints/endpoints.fixtures';
 
@@ -60,15 +59,10 @@ function make(): OverviewData {
       if (connectionsFail) return Promise.reject(new Error('connections unavailable'));
       return Promise.resolve({ items: ROWS, facets: { health: {}, env: {}, type: {} }, total: ROWS.length });
     },
-    get: (name) => {
-      calls.push(`connection ${name}`);
-      return Promise.resolve(devDb());
-    },
   };
   TestBed.configureTestingModule({
     providers: [
       { provide: OverviewApi, useValue: overviewApi },
-      { provide: ApprovalsApi, useValue: { get: () => Promise.reject(new Error('no detail')) } },
       {
         provide: ClientsApi,
         useValue: {
@@ -113,7 +107,6 @@ describe('OverviewData', () => {
       expect(cursor?.status).toBe('connected');
       expect(cursor?.links).toEqual([expect.objectContaining({ id: 'og_cursor', method: 'oauth', configPath: null, tokenName: null, lastCallAt: null })]);
       expect(calls.sort()).toEqual(['clients', 'connections', 'endpoints']);
-      expect(data.first()).toBeNull();
       data.stop();
       expect(events.handlers.get('oauth.grant.changed')?.size).toBe(0);
       events.emit('oauth.grant.changed', { id: 'og_cursor', endpoint: 'dev' });
@@ -140,7 +133,7 @@ describe('OverviewData', () => {
     expect(gets).toHaveLength(2);
   });
 
-  it('in use: the AI apps, endpoint list and the connections with their endpoints; no first connection', async () => {
+  it('loads the connection map and aggregate approvals without fetching individual action details', async () => {
     const data = make();
     const done = data.refresh();
     gets[0].resolve(overview());
@@ -149,29 +142,28 @@ describe('OverviewData', () => {
     expect(data.clients()?.clients).toHaveLength(4);
     expect(data.connections()).toHaveLength(ROWS.length);
     expect(data.endpoints()).toEqual([]);
-    expect(data.first()).toBeNull();
+    expect(data.overview()?.waiting).toHaveLength(3);
   });
 
-  it('setup: the first connection the core names, for its modes and its secret', async () => {
+  it('setup loads the same map lists without fetching the first connection detail', async () => {
     const data = make();
     const done = data.refresh();
     gets[0].resolve(setup());
     await done;
-    expect(calls.sort()).toEqual(['clients', 'connection dev-db', 'endpoints']);
-    expect(data.first()?.name).toBe('dev-db');
-    expect(data.connections()).toBeNull();
+    expect(calls.sort()).toEqual(['clients', 'connections', 'endpoints']);
+    expect(data.connections()).toHaveLength(ROWS.length);
     expect(data.endpoints()).toEqual([]);
   });
 
-  it('first run: loads AI apps and empty endpoints before any connection exists', async () => {
+  it('first run: loads AI apps, endpoints and saved services even before the guide marks a connection complete', async () => {
     const data = make();
     endpointsAnswer = () => Promise.resolve([endpoint('dev')]);
     const done = data.refresh();
     gets[0].resolve(firstRun());
     await done;
-    expect(calls).toEqual(['clients', 'endpoints']);
+    expect(calls).toEqual(['clients', 'connections', 'endpoints']);
     expect(data.endpoints()).toEqual([endpoint('dev')]);
-    expect(data.connections()).toBeNull();
+    expect(data.connections()).toHaveLength(ROWS.length);
   });
 
   it('a core without the clients area leaves the apps out and is not asked again', async () => {
@@ -184,7 +176,8 @@ describe('OverviewData', () => {
     done = data.refresh();
     gets[1].resolve(firstRun());
     await done;
-    expect(calls).toEqual(['clients', 'endpoints', 'endpoints']);
+    expect(calls).toEqual(['clients', 'connections', 'endpoints', 'connections', 'endpoints']);
+    expect(data.areaErrors().clients).toBeInstanceOf(ApiError);
   });
 
   it('marks app links unavailable when their reload fails instead of claiming stale access is current', async () => {
@@ -197,6 +190,7 @@ describe('OverviewData', () => {
     gets[1].resolve(overview());
     await done;
     expect(data.clients()).toBeNull();
+    expect(data.areaErrors().clients).toEqual(new Error('down'));
   });
 
   it('keeps overview health when endpoint or wiring requests fail and recovers on the next refresh', async () => {
@@ -209,6 +203,7 @@ describe('OverviewData', () => {
     expect(data.endpoints()).toBeNull();
     expect(data.connections()).toHaveLength(ROWS.length);
     expect(data.error()).toBeNull();
+    expect(data.areaErrors()).toEqual({ connections: null, clients: null, endpoints: new Error('endpoints unavailable') });
 
     endpointsAnswer = () => Promise.resolve([]);
     connectionsFail = true;
@@ -217,6 +212,7 @@ describe('OverviewData', () => {
     await done;
     expect(data.endpoints()).toEqual([]);
     expect(data.connections()).toBeNull();
+    expect(data.areaErrors()).toEqual({ connections: new Error('connections unavailable'), clients: null, endpoints: null });
 
     connectionsFail = false;
     done = data.refresh();
@@ -224,6 +220,44 @@ describe('OverviewData', () => {
     await done;
     expect(data.connections()).toHaveLength(ROWS.length);
     expect(data.overview()?.health).toHaveLength(12);
+    expect(data.areaErrors()).toEqual({ connections: null, clients: null, endpoints: null });
+  });
+
+  it('applies confirmed switches without deleting endpoint wiring or changing another connection setting', async () => {
+    const data = make();
+    endpointsAnswer = () => Promise.resolve([endpoint('dev'), endpoint('stage-readonly')]);
+    const done = data.refresh();
+    gets[0].resolve(setup());
+    await done;
+    data.patchConnectionEnabled('dev-db', false);
+    expect(data.connections()?.find((row) => row.name === 'dev-db')).toEqual(expect.objectContaining({ enabled: false, usedBy: ['dev'] }));
+    expect(data.connections()?.find((row) => row.name === 'cache-redis')?.enabled).toBeUndefined();
+    data.patchEndpointEnabled('dev', false);
+    expect(data.endpoints()?.find((row) => row.slug === 'dev')?.status).toBe('disabled');
+    expect(data.endpoints()?.find((row) => row.slug === 'stage-readonly')?.status).toBe('running');
+    expect(data.connections()?.find((row) => row.name === 'cache-redis')?.usedBy).toEqual(['dev']);
+    expect(data.connections()?.find((row) => row.name === 'dev-db')?.enabled).toBe(false);
+  });
+
+  it('refreshes MCP availability and external configuration blocks without a tool call', async () => {
+    const data = make();
+    const done = data.start();
+    gets[0].resolve(firstRun());
+    await done;
+    vi.useFakeTimers();
+    try {
+      events.emit('mcp-server.state', { server: 'docs', state: 'running' });
+      events.emit('mcp-server.sign-in', { server: 'docs', state: 'signed-in' });
+      events.emit('integrity.alert', { scope: 'endpoint', name: 'dev' });
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(gets).toHaveLength(2);
+      gets[1].resolve(firstRun());
+      await vi.advanceTimersByTimeAsync(0);
+      expect(data.connections()).toHaveLength(ROWS.length);
+    } finally {
+      data.stop();
+      vi.useRealTimers();
+    }
   });
 
   it('patches grouped connection health even for a server absent from overview health', async () => {

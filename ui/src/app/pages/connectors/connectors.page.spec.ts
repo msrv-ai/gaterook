@@ -1191,6 +1191,25 @@ describe('Connectors page: MCP servers', () => {
     expect(add.open).toBe(true);
   });
 
+  it.each(['url', 'registry'])('opens the source selected in Overview without starting a server: %s', async (source) => {
+    setup();
+    const fixture = TestBed.createComponent(ConnectorsPage);
+    fixture.componentRef.setInput('add', 'mcp-server');
+    fixture.componentRef.setInput('source', source);
+    document.body.appendChild(fixture.nativeElement);
+    await settle(fixture);
+    const add = fixture.nativeElement.querySelector('dialog[gwMcpAddDialog]') as HTMLDialogElement;
+    expect(add.open).toBe(true);
+    if (source === 'registry') {
+      expect(text(add.querySelector('[role="tab"][aria-selected="true"]'))).toContain('Official MCP Registry');
+      expect((document.activeElement as HTMLElement)?.id).toContain('-find-q');
+    } else {
+      expect(text(add)).toContain('Review and connect');
+      expect(add.querySelector<HTMLInputElement>('input[type="radio"][value="http"]')?.checked).toBe(true);
+    }
+    expect(bodies['create-server']).toBeUndefined();
+  });
+
   it('returns from a refused HTTP review to choose Bearer token and connects with the token prefixed automatically', async () => {
     setup();
     const reviewApi = vi.spyOn(TestBed.inject(McpServersApi), 'review').mockResolvedValueOnce(sentryReview({

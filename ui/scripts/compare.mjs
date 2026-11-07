@@ -23,7 +23,7 @@ const OUT = join(UI, 'target', 'compare');
 
 /** Kit page or element → app route. Pages are compared inside the shell; elements against the dev gallery. */
 const PAGES = [
-  ['overview', 'pages/overview.html', '/overview'],
+  ['overview', 'pages/overview-map.html', '/overview'],
   ['approvals', 'pages/approvals.html', '/approvals'],
   ['connections', 'pages/connections.html', '/connections'],
   ['connection-new', 'pages/connection-new.html', '/connections/new'],
