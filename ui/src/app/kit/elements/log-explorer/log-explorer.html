@@ -11,8 +11,7 @@
         <button class="gw-btn gw-btn--ghost gw-btn--icon" type="button" aria-label="Query syntax" aria-haspopup="dialog" [gwMenuTrigger]="help"><svg lucideIcon="circle-help" class="gw-icon"></svg></button>
         <div class="gw-popover gw-popover--right" gwMenu #help="gwMenu" [id]="uid + '-help'" role="dialog" [attr.aria-labelledby]="uid + '-help-title'" hidden>
           <div class="gw-popover__header">
-            <!-- On Insights and on the Activity page the popover is the first heading after the page's h1
-                 (design/pages/insights.html, design/pages/activity.html). -->
+            <!-- On Insights and on the Activity page the popover is the first heading after the page's h1. -->
             @if (insights() || page()) {
               <h2 class="gw-popover__title" [id]="uid + '-help-title'">Query syntax</h2>
             } @else {

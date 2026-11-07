@@ -19,7 +19,7 @@ import { ProviderCard, formSavedToast, providerCard, providerName, providerOf, s
 const NO_ANSWER = 'The core didn’t answer. Try again.';
 
 /**
- * Settings › Tunnel (design/pages/settings.html `#settings-tunnel`): the public HTTPS address claude.ai needs.
+ * Settings › Tunnel: the public HTTPS address claude.ai needs.
  *
  * - Status applies at once: Turn on tunnel asks first (`gw-dialog--md --warning` with what becomes public, from
  *   `POST /api/tunnel/publish/preview`; Cancel has focus), Turn off acts at once (publishing again always asks).

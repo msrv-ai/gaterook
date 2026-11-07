@@ -5,7 +5,7 @@ import { DemoTimeService } from './demo-time';
 /**
  * Dev only (angular.json replaces this file with dev-routes.prod.ts in production builds, so none of the gallery or
  * its fixtures ship): `/dev/elements` lists the kit's elements and `/dev/elements/<name>` renders one with the demo
- * world's data, frameless like design/elements/<name>.html.
+ * world's data, without the application shell.
  *
  * Elements of merged areas read the dev core's GW_DEMO world (dev/live.ts) on the core's clock, with fixtures rebased
  * to it for the states the world doesn't have now. Elements whose area isn't merged yet (clients, notifications,

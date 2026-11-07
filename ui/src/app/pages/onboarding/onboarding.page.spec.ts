@@ -18,7 +18,7 @@ import { NOW, backedUpKey, clients, masterKey, onboarding } from './onboarding.f
 import { OnboardingPage, SKELETON_DELAY_MS } from './onboarding.page';
 
 /**
- * Welcome against fake admin API services in the kit's first-run world (design/pages/onboarding.html): what it shows
+ * Welcome against fake admin API services in the kit's first-run world: what it shows
  * for each answer, what each control asks the core, where the keyboard goes and what is announced.
  */
 

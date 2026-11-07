@@ -7,8 +7,7 @@ import { Look } from '../shared/dictionaries';
 
 /**
  * What the approval-request element shows, computed from the admin API's `ApprovalDetail` (ARCHITECTURE.md §6
- * approvals). Pure functions: the element binds them, the tests check them against the kit's wording
- * (design/elements/approval-request.html).
+ * approvals). Pure functions: the element binds them, the tests check their display wording.
  */
 
 /** The element's `data-state` (the kit's states; `partial` exists only in server mode). */
@@ -33,7 +32,7 @@ export function requestState(status: ApprovalStatus): RequestState {
   }
 }
 
-/** The status badge (BLUEPRINT §7): a decided request reads as its decision. */
+/** The status badge: a decided request reads as its decision. */
 export function statusBadge(state: RequestState): Look {
   switch (state) {
     case 'pending':
@@ -383,7 +382,7 @@ export interface PreviewPart {
 }
 
 /**
- * The first non-blank line of an action for the compact row (DESIGN §8 "The complete action must remain visible"): from the server's
+ * The first non-blank line of an action for the compact row: from the server's
  * segments when the page has them (invisible escapes and look-alike letters kept as the inspector marked them), else
  * from plain text inspected here with the server's rules (`inspectPlain`: invisible, bidi, zero-width and tag
  * characters escaped, non-ASCII letters boxed), so a U+202E in the first line can't reorder what the row shows. No

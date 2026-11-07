@@ -11,7 +11,7 @@ import { ToolPolicyGroup } from '../../kit/elements/tool-policy-list/tool-policy
 import { ToastTone } from '../../kit/toast.service';
 
 /**
- * What the endpoint page says (design/pages/endpoint-detail.html; ARCHITECTURE.md §8.4 "endpoint-detail"), from the
+ * What the endpoint page says (ARCHITECTURE.md §8.4 "endpoint-detail"), from the
  * admin API's answers. Pure functions: the page and its tests share them, and each states the kit wording it follows.
  */
 

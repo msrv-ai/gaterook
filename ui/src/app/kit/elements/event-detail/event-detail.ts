@@ -33,7 +33,7 @@ import {
 let nextId = 0;
 
 /**
- * `<article gwEventDetail [detail]="d" [approval]="a">` (elements/event-detail.html): everything about one logged
+ * `<article gwEventDetail [detail]="d" [approval]="a">`: everything about one logged
  * call, in the order a developer asks: what happened (decision, call, time, duration) · who asked (client, token,
  * endpoint, protocol, trace) · the arguments as stored (masked values stay masked) · why the policy decided so ·
  * who approved, and whether what ran is byte for byte what was approved · what came back · where the time went · the
@@ -78,7 +78,7 @@ export class GwEventDetail {
   protected readonly badge = computed(() => decisionBadge(this.e().decision));
   protected readonly who = computed(() => clientLabel(this.e().client));
   protected readonly duration = computed(() => durationText(this.detail()));
-  /** Copy link: the app's own scheme (decision 11, BLUEPRINT §9 "Links"), opened through shell/deep-links.ts. */
+  /** Copy link: the app's own scheme (decision 11), opened through shell/deep-links.ts. */
   protected readonly link = computed(() => `gaterook://activity/events/${this.e().id}`);
   protected readonly token = computed(() => tokenParts(this.rows().received ?? this.rows().last, this.e().tokenLabel));
   protected readonly protocol = computed(() => (this.rows().received ?? this.rows().last)?.protocolVersion ?? null);

@@ -10,7 +10,7 @@ export interface MenuPick {
 
 /**
  * The panel of a `gw-menu-host`: `<div class="gw-menu" gwMenu #m="gwMenu" id="m-dev" role="menu" hidden>` (or a
- * `gw-popover` with `role="dialog"`). Picks inside it behave as kit.js: an `option` / `menuitemradio` becomes the
+ * `gw-popover` with `role="dialog"`). For selections inside it, an `option` / `menuitemradio` becomes the
  * only selected one of its group and its label goes into the trigger's `[data-gw-menu-value]`, a
  * `menuitemcheckbox` flips, a `menuitem` or `[data-gw-menu-close]` closes and refocuses the trigger.
  */

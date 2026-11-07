@@ -618,7 +618,7 @@ describe('locked: master key not found', () => {
     });
     const page = await render();
     const body = page.querySelector('.gw-alert--danger .gw-alert__body')!;
-    // The kit's sentence (pages/core-starting.html), the server's name in mono.
+    // The kit's sentence, the server's name in mono.
     expect(text(body)).toBe(
       'The 8 secrets encrypted here become unreadable (6 connections, the github-mcp server token and the Vault sign-in), and you enter each one again. The 3 secret references to Vault, GCP and AWS keep working.',
     );

@@ -23,7 +23,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 import tools.jackson.databind.JsonNode;
 
 /**
- * The demo world's notifications (design/BLUEPRINT.md §9, step K2) on the real built-in connectors: desktop
+ * The demo world's notifications (step K2) on the real built-in connectors: desktop
  * notifications on, Slack shown connected to {@code acme} posting to {@code #deploy-approvals} with no token stored,
  * Telegram not set up; the demo's waiting requests are announced on the desktop only — its Slack never calls Slack.
  */

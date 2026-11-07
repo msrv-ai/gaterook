@@ -21,7 +21,7 @@ import { KeySchema, same } from './policy-model';
 import { OptionView } from './policies-view';
 
 /**
- * The fields of a policy form, each one kit field 1:1 (design/pages/policies.html, COMPONENTS.md "C · Forms"): the
+ * The fields of a policy form, each one kit field 1:1: the
  * host element is the kit's own wrapper (`div.gw-field`, `div.gw-checkbox`, `fieldset.gw-field`), so a field sits in
  * `gw-form__rows` and `gw-form__row` exactly as in the kit. Values are Signal Forms fields of the panel's form.
  */
@@ -48,7 +48,7 @@ export class GwHintParts {
   readonly parts = input.required<Hint>({ alias: 'gwHintParts' });
 }
 
-/** `div.gw-field` with a number typed as text (`inputmode="numeric"`, COMPONENTS.md "Ports and numbers") and its unit. */
+/** `div.gw-field` with a number typed as text (`inputmode="numeric"`) and its unit. */
 @Component({
   selector: 'div[gwPolicyNumber]',
   imports: [FormField, GwIcon, GwHintParts],

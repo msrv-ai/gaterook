@@ -575,7 +575,7 @@ describe('log-explorer', () => {
     expect(host.q()).toBe('');
   });
 
-  describe('insights variant (design/pages/insights.html)', () => {
+  describe('insights variant', () => {
     @Component({
       imports: [GwLogExplorer],
       template: `<section gwLogExplorer variant="insights" [(query)]="q" [(range)]="range" [status]="status"></section>`,

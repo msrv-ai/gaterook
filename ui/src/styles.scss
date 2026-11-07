@@ -1,7 +1,4 @@
-// The design kit is the only source of styles (design/AGENTS.md §0): fonts, tokens of all four themes, reset,
-// typography, every component and every element. Fonts are copied to /assets/fonts by scripts/sync-kit-assets.mjs.
-@use "@gaterook/design-kit/scss" as gw with ($gw-font-path: "/assets/fonts");
-
+// Application layout adapters; shared styles are loaded from assets/gw-kit.css.
 // The root component must not add a box between <body> and the kit's skip link and .gw-shell: the shell is a
 // viewport-tall grid capped by its parent (max-height: 100%), exactly as on the kit's pages.
 gw-root {

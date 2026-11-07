@@ -18,7 +18,7 @@ import { ENVS, NOW, kitMasterKey, kitSecrets, kitShortLived, kitStores } from '.
 import { SKELETON_DELAY_MS, SecretsPage } from './secrets.page';
 
 /**
- * The Secrets page against fake API services in the kit's world (design/pages/secrets.html): what it shows, what each
+ * The Secrets page against fake API services in the kit's world: what it shows, what each
  * control asks the core, where the keyboard goes, and that a typed value never outlives its request.
  */
 

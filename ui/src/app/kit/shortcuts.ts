@@ -8,7 +8,7 @@ const SINGLE_KEYS = 'gw-single-keys';
 const NOT_TEXT = /^(checkbox|radio|button|submit|reset|range|color|file|image|hidden)$/;
 
 /**
- * The app's keyboard shortcuts, in one place (kit.js "⌘K / Ctrl+K", "/" key, "single keys"; DESIGN.md §12):
+ * The app's keyboard shortcuts, in one place:
  * - ⌘K / Ctrl+K toggles the command palette from anywhere, unless another modal dialog is open (it never lies over
  *   someone's decision);
  * - ⌘, / Ctrl+, opens Settings (the palette lists it with `aria-keyshortcuts`, so it must really work);

@@ -6,8 +6,7 @@ import { provideKitIcons } from '../../icons';
 import { GwStatusTile, TilePart, TileState } from './status-tile';
 
 /**
- * The status tile and the guide step against the kit (design/elements/status-tile.html; COMPONENTS.md › gw-stepper
- * `--guide`, design/pages/overview.html): their markup, what a screen reader hears, and where the one action goes.
+ * The status tile and the guide step (`gw-stepper--guide`): their markup, what a screen reader hears, and where the one action goes.
  */
 
 beforeEach(() => {
@@ -38,7 +37,7 @@ class Tiles {
   readonly level = signal(3);
 }
 
-describe('Status tile (design/elements/status-tile.html)', () => {
+describe('Status tile', () => {
   async function render() {
     const fixture = TestBed.createComponent(Tiles);
     document.body.appendChild(fixture.nativeElement);

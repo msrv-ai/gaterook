@@ -30,7 +30,7 @@ import {
 const NO_ANSWER = 'The core didn’t answer. Try again.';
 
 /**
- * Secrets › Master key (design/pages/secrets.html `#master-key`; ARCHITECTURE.md §6 `/api/master-key/*`, §8.4):
+ * Secrets › Master key (ARCHITECTURE.md §6 `/api/master-key/*`, §8.4):
  * where the key is, who can read it, what it protects and when it was last backed up, with what is wrong with it in
  * the kit's words (permissions, OS protection, a synced folder, a missing backup).
  *

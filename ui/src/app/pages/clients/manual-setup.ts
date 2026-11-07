@@ -11,7 +11,7 @@ import { GwTabs } from '../../kit/tabs';
 import { expiresIn, otherPaths, snippetLang, snippetTabs } from './clients-view';
 
 /**
- * `<div gwManualSetup [manual]="m" [tokens]="t">` (pages/clients.html, "Manual setup"): for MCP Inspector, scripts
+ * `<div gwManualSetup [manual]="m" [tokens]="t">`: for MCP Inspector, scripts
  * and any app not listed above — the endpoint URL with Copy, where tokens come from (Endpoints › Tokens: shown once,
  * pasted where a snippet says ‹token›), the core's snippets by kind (MCP Inspector commands, an `mcpServers` JSON
  * file, TOML) and the tokens already set up by hand on that endpoint. Snippets never hold a token: Inspector reads it

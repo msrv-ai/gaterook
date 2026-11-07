@@ -105,7 +105,7 @@ function followSaved<T>(saved: () => T, same: (a: T, b: T) => boolean) {
 }
 
 /**
- * Endpoint detail › Settings (design/pages/endpoint-detail.html `#settings`): what the endpoint tells agents, how hard
+ * Endpoint detail › Settings: what the endpoint tells agents, how hard
  * it may be called, how clients sign in and which MCP revisions it answers. A settings nav on the left
  * (`ep-st-instructions`, `ep-st-limits`, `ep-st-auth`, `ep-st-protocol`; the fragment also selects the tab).
  *

@@ -39,7 +39,7 @@ function demoPreview(client: ClientId, r: ConnectRequest): ConnectPreview {
   return { ...base, previewId: `pv_${client}_${r.endpoint}_${r.method}`, endpoint: r.endpoint, env, method: r.method, files, warnings };
 }
 
-/** Dev only: design/elements/client-card.html with the demo world's clients. */
+/** Dev only: client-card component with the demo world's clients. */
 @Component({
   selector: 'gw-client-card-demo',
   imports: [GwDemoHeader, GwClientCard, GwClientConnectCard, GwClaudeAiCard],

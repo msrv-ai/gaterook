@@ -7,7 +7,7 @@ import { TextPart } from '../../kit/elements/shared/literals';
 import { StatusScreenView, StatusStep } from '../../kit/elements/status-screen/status-screen';
 
 /**
- * The core-starting screen in words (design/pages/core-starting.html; ARCHITECTURE.md §7.1, §8.4): pure functions from
+ * The core-starting screen in words (ARCHITECTURE.md §7.1, §8.4): pure functions from
  * what Electron's main and `/api/health` / `/api/master-key` said to the status screen's view, the "Use another port"
  * checks and the toasts after a restore or a new key. Nothing here invents a fact: what nobody reported is left out.
  */

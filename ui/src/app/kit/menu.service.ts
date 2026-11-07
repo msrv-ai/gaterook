@@ -11,7 +11,7 @@ interface OpenMenu {
 }
 
 /**
- * The one open menu or popover (kit.js "menus & popovers"): at most one at a time, opened by click / Enter / Space or
+ * The one open menu or popover: at most one at a time, opened by click / Enter / Space or
  * ↑/↓ on its trigger (never on hover or focus), placed in the top layer (Popover API `popover="manual"`) under its
  * trigger from the trigger's rect so a scrolling table or a dialog body never clips it, flipped above
  * (`gw-menu--up` / `gw-popover--up`) when there is more room there, and following scroll and resize. Esc closes and
@@ -23,7 +23,7 @@ interface OpenMenu {
 @Injectable({ providedIn: 'root' })
 export class MenuService {
   private readonly doc = inject(DOCUMENT);
-  /** A signal so `aria-expanded` bindings follow it; the attribute is also set directly, as kit.js does. */
+  /** A signal so `aria-expanded` bindings follow it; the attribute is also set directly. */
   private readonly openSignal = signal<OpenMenu | null>(null);
   private listening = false;
 

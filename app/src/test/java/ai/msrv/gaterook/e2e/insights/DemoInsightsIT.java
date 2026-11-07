@@ -28,8 +28,7 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 
 /**
- * Insights on the demo world (ARCHITECTURE.md §10 K5 "demo Insights totals match BLUEPRINT section 9 (three findings
- * Unusual activity)"): the last 24 hours of {@code GW_DEMO=1} counted by {@code GET /api/insights}'s service equal the
+ * Insights on the demo world: the last 24 hours of {@code GW_DEMO=1} counted by {@code GET /api/insights}'s service equal the
  * kit's numbers — calls by decision, tool, environment, endpoint, connection and client, the gateway's p50 and p95,
  * the median wait for a person, the agents' tasks — and the detectors find exactly the kit's three: DDL on prod in
  * task b81e44, {@code sql_query} on {@code prod-replica} at 4× its 7-day average, {@code cache-redis} 45× slower than
@@ -96,7 +95,7 @@ class DemoInsightsIT {
     long buckets = i.callsOverTime().buckets().stream().mapToLong(AuditQueries.Bucket::total).sum();
     assertThat(buckets).as("calls over time, waiting ones included").isEqualTo(1_287);
 
-    // BLUEPRINT §9 counts the waiting calls too: Activity's facets over the same range.
+    // The demo data counts the waiting calls too: Activity's facets over the same range.
     Map<String, List<AuditQueries.FacetValue>> facets = core.getBean(AuditQueries.class).facets(null,
         i.from(), i.to());
     assertThat(counts(facets.get("tool"))).containsExactlyEntriesOf(ordered("sql_query", 512, "logs_search", 341,

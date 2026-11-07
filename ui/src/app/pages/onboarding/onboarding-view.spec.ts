@@ -19,7 +19,7 @@ import {
   stepsDone,
 } from './onboarding-view';
 
-/** The words and states of Welcome against the kit (design/pages/onboarding.html) for the core's answers. */
+/** The words and states of Welcome against the kit for the core's answers. */
 
 const firstRun = (patch: Partial<SetupFacts> = {}): SetupFacts => ({ onboarding: onboarding(), key: masterKey(), clients: clients(), ...patch });
 const text = (parts: readonly MetaPart[]) => parts.map((p) => (p.mono ? `\`${p.text}\`` : p.text)).join('');

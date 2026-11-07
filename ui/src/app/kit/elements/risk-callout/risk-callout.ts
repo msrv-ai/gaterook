@@ -82,7 +82,7 @@ export function channelSource(risk: EndpointRisk): EndpointRisk['sources'][numbe
 
 /**
  * The compact line, as parts (literals in code): "private data + untrusted content + external channel". The Endpoints
- * card (`review`) names the channel's tool and a limited channel's runbooks, as pages/endpoints.html does:
+ * card (`review`) names the channel's tool and a limited channel's runbooks, as endpoints screen does:
  * "… + external channel through `http_request`", "… + limited channel (2 fixed runbooks)".
  */
 export function compactLine(risk: EndpointRisk, review = false, runbooks: number | null = null): TextPart[] {
@@ -124,7 +124,7 @@ function dismissal(v: JsonValue): Dismissal | null {
 let nextId = 0;
 
 /**
- * `<div gwRiskCallout [risk]="endpoint.risk" slug="dev">` (elements/risk-callout.html): warns when one endpoint mixes
+ * `<div gwRiskCallout [risk]="endpoint.risk" slug="dev">`: warns when one endpoint mixes
  * private data, untrusted content and a way to send data out. All three: present ingredients in red in an amber alert
  * (a person decides what to change), with Review tools, Split endpoint and Dismiss; two of three while building an
  * endpoint: amber; contained (the only way out is fixed SSH runbooks): an info alert that says what would break it.
@@ -149,7 +149,7 @@ export class GwRiskCallout {
   readonly slug = input<string | null>(null);
   readonly compact = input(false, { transform: booleanAttribute });
   /**
-   * The compact line of an Endpoints card (pages/endpoints.html): it names the tool that opens the channel
+   * The compact line of an Endpoints card: it names the tool that opens the channel
    * ("external channel through `http_request`"), a limited channel's runbooks, and ends with Review, a link to the
    * endpoint's risk callout (`/endpoints/<slug>#ep-risk`).
    */

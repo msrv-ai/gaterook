@@ -3,16 +3,16 @@ import { Announcer } from './announcer';
 import { COPY_FAILED, ClipboardWriter } from './clipboard';
 import { GwToast } from './toast-region';
 
-/** How long the button shows "Copied" (`[data-copied]`), as kit.js. */
+/** How long the button shows "Copied" (`[data-copied]`). */
 export const COPIED_MS = 1600;
 
 /**
- * `<button gwCopy="text">` or `<button [gwCopyFrom]="el">` / `gwCopyFrom="#id"` (kit.js "copy"): copies, shows the
+ * `<button gwCopy="text">` or `<button [gwCopyFrom]="el">` / `gwCopyFrom="#id"`: copies, shows the
  * button's "Copied" face for 1.6 s through `[data-copied]`, and announces "Copied to clipboard" — unless the button
  * also shows a toast (`gwToast`), which is the more precise message: one announcement per action.
  * The source's value is taken for inputs, its text for `div`, `pre` and `code` (copy what is visible: escapes too).
  *
- * Unlike kit.js (which shows "Copied" whether or not the write worked) the state, the announcement and the toast
+ * The state, the announcement and the toast
  * follow the result: a one-time token the person believes is copied, but is not, is lost when the dialog closes.
  * On failure the button keeps its face and "Couldn't copy. Select the text and copy it." is announced.
  */

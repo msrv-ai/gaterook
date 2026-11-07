@@ -4,8 +4,7 @@ import { formatCount } from '../../../core/time/time-format';
 
 /**
  * What the tool-policy-list element shows, from the admin API's tool groups (ARCHITECTURE.md §6 endpoint-detail,
- * `GET /api/endpoints/{slug}/tools`). Pure functions, tested against the kit's wording
- * (design/elements/tool-policy-list.html).
+ * `GET /api/endpoints/{slug}/tools`). Pure functions, tested for consistent display wording.
  */
 
 /** One group as the element draws it: the API's group plus what the page knows about its connection. */
@@ -16,8 +15,7 @@ export interface ToolPolicyGroup {
   /** What the connection is, before the counts: "PostgreSQL 16", "SSH · 10.20.0.14", "Kubernetes · namespace app-dev". */
   readonly detail: string | null;
   /**
-   * The group's heading when the page names it itself: Playground calls the core's own tools "General" (kit
-   * playground.html), endpoint detail "Built-in tools" (the default without a connection).
+   * The group's heading when the page names it itself: Playground calls the core's own tools "General", endpoint detail "Built-in tools" (the default without a connection).
    */
   readonly title?: string | null;
 }

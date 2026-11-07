@@ -68,7 +68,7 @@ export const SKELETON_DELAY_MS = 300;
 const NO_ANSWER = 'The core didn’t answer. Try again.';
 
 /**
- * Connections (design/pages/connections.html; ARCHITECTURE.md §8.4 "connections"): every resource agents can reach
+ * Connections (ARCHITECTURE.md §8.4 "connections"): every resource agents can reach
  * and whether it answers right now.
  *
  * - The header counts the connections by health and says when they were last checked; Add connection is the page's

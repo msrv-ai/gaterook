@@ -6,7 +6,7 @@ import { GwDemoHeader } from '../demo-header';
 import { kitElement } from '../elements';
 import { DEMO_REQUESTS } from '../fixtures';
 
-/** Dev only: design/elements/approval-notification.html. */
+/** Dev only: approval-notification component. */
 @Component({
   selector: 'gw-approval-notification-demo',
   imports: [GwDemoHeader, GwNotificationCard, GwNotificationPreview, GwIcon],

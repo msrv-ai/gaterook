@@ -2,7 +2,7 @@ import { DOCUMENT, Directive, Injectable, booleanAttribute, inject, input } from
 import { MenuService } from './menu.service';
 
 /**
- * "Unavailable, with a reason" (kit.js guard, DESIGN.md §8 "Action hierarchy and disabled behavior"): a control with
+ * "Unavailable, with a reason": a control with
  * `aria-disabled="true"` (or the `<label>` of such an input) stays focusable and explains itself through
  * `aria-describedby`, but never acts. Capture-phase listeners on the document, installed before anything else
  * (provideAppInitializer), cancel its click, Enter / Space (and ↑/↓ on a menu trigger), a Space released, a submit by

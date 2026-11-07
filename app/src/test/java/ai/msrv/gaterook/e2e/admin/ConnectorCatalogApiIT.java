@@ -37,7 +37,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * {@code GET /api/connector-types} of the assembled core with the real built-in connectors against the kit's type
- * picker (design/pages/connection-new.html, step 1 "Choose a connector type"; M1.6 "the /api/connector-types catalogue matches the
+ * picker (step 1 "Choose a connector type"; M1.6 "the /api/connector-types catalogue matches the
  * kit"): the groups in the kit's order, each card's name, icon, description and tool count, each log provider as its own connector, OpenSearch and Elasticsearch under Databases, the external MCP server last with its tools from the server. The kit's catalog plugins (ClickHouse,
  * Jira Service Desk) arrive with the plugin host and the catalog (K4, K6), OpenAPI import with its template kind (C9).
  * Over the real listener, signed as Electron signs. Connectors › Installed keeps the manifests' longer texts.

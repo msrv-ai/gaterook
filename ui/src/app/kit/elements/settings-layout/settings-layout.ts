@@ -24,7 +24,7 @@ export type { SettingsNavGroup, SettingsNavItem } from './settings-sections';
 let nextId = 0;
 
 /**
- * `<div gwSettingsLayout [(current)]="section">` (elements/settings-layout.html): a settings nav on the left that stays
+ * `<div gwSettingsLayout [(current)]="section">`: a settings nav on the left that stays
  * in view and marks the section on screen (`aria-current="location"`, scroll spy), and the sections on the right
  * (`<section gwSettingsSection name="appearance">`). Below 1280px the nav becomes "Jump to section", a select with the
  * same groups: picking one scrolls there and leaves focus on the select. Items link to `<base>/<id>` so a section has
@@ -81,7 +81,7 @@ export class GwSettingsLayout {
   /** Jump to section: the URL follows, the section scrolls into view, focus stays on the select. */
   protected jump(id: string): void {
     this.current.set(id);
-    // In a tab of another page the URL keeps its own fragment; kit.js only scrolls there.
+    // In a tab of another page the URL keeps its own fragment; the view only scrolls there.
     if (!this.fragments()) void this.router.navigate([this.base(), id], { replaceUrl: true });
     this.section(id)?.scrollIntoView({ block: 'start' });
   }

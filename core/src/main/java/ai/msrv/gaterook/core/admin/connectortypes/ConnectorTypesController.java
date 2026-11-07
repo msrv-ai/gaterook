@@ -51,7 +51,7 @@ import tools.jackson.databind.node.ObjectNode;
     ConnectorTypesController.ToolPreviewRequest.class, ConnectorTypesController.ToolPreview.class})
 class ConnectorTypesController {
 
-  /** The kit's groups in its order (BLUEPRINT §6 connection-new). */
+  /** The kit's groups in its order. */
   static final List<String> GROUPS = List.of("Databases", "Remote access", "Logs", "Kubernetes", "Cloud",
       "HTTP and MCP");
 

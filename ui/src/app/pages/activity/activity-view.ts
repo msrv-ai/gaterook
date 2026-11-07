@@ -10,7 +10,7 @@ import { clientName } from '../../kit/elements/shared/client-mark';
 import { Look, decisionLook } from '../../kit/elements/shared/dictionaries';
 
 /**
- * What the Activity page says (design/pages/activity.html; ARCHITECTURE.md §6 activity, §8.4 "activity"), computed
+ * What the Activity page says (ARCHITECTURE.md §6 activity, §8.4 "activity"), computed
  * from the admin API's answers: pure functions, tested without a DOM or a clock.
  */
 
@@ -49,7 +49,7 @@ export function queryWithout(q: string, field: string): string {
 }
 
 /**
- * The facets as the kit counts them (COMPONENTS.md log-explorer "counts respect all other filters"): a field
+ * The facets as the kit counts them (log-explorer "counts respect all other filters"): a field
  * the query filters on counts within the other filters only, so its other values stay visible and checkable; the
  * rest count within the whole query.
  */
@@ -558,5 +558,5 @@ export function envsOf(items: readonly { readonly name: string; readonly env: En
   return out;
 }
 
-/** The decision badge of a row (BLUEPRINT §7). */
+/** The decision badge of a row. */
 export const decisionOf = decisionLook;

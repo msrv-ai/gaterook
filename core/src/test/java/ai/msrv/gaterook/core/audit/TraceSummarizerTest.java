@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 
 /**
- * Golden traces of the kit (design/pages/activity.html, design/elements/event-detail.html): 4f2a9c, "Fix failing order
+ * Golden traces of the kit: 4f2a9c, "Fix failing order
  * sync" (23 calls, 18 min, Explore → Change → Wait for deploy → Verify, 47 s waiting for you) and b81e44, "Investigate
  * failed order sync on prod" (14 calls, 8 min, Explore → Clean up), built as the audit rows the gateway writes.
  */

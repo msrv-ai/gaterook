@@ -12,7 +12,7 @@ import { formSavedToast, numOf, parseOrigin, sameList, strOf, stringsOf } from '
 const NO_ANSWER = 'The core didn’t answer. Try again.';
 
 /**
- * Settings › Local API (design/pages/settings.html `#settings-local-api`): how the core accepts calls on this
+ * Settings › Local API: how the core accepts calls on this
  * computer. The listen address and the request checks are facts (always on; the port comes from the core's
  * `local-api` section); Allowed origins is a Save form (`PUT /api/settings/local-api {allowedOrigins}`), validated
  * like the core does (scheme, host and port, no path; at most 20). The core applies new origins on its next start

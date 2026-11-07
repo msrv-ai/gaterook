@@ -40,7 +40,7 @@ const TONE_ICONS: Record<ToastTone, string> = {
   brand: 'bell',
 };
 
-/** At most three toasts stand at once; a fourth pushes the oldest out (kit.js caps the stack). */
+/** At most three toasts stand at once; a fourth pushes the oldest out. */
 export const TOAST_CAP = 3;
 
 export const DEFAULT_TOAST_DURATION_SECONDS = 15;
@@ -51,8 +51,8 @@ export function normalizeToastDurationSeconds(value: unknown): number {
 }
 
 /**
- * Toasts (kit.js `gwToast`): a signal list the `gw-toast-region` renders. A toast is never the only place a decision
- * or an error lives (COMPONENTS.md "Toasts"); reversible actions show one with Undo instead of asking first.
+ * Toasts: a signal list the `gw-toast-region` renders. A toast is never the only place a decision
+ * or an error lives; reversible actions show one with Undo instead of asking first.
  */
 @Injectable({ providedIn: 'root' })
 export class ToastService {

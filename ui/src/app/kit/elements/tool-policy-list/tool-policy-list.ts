@@ -97,12 +97,12 @@ interface GroupView {
 }
 
 /**
- * `<div gwToolPolicyList [groups]="…" slug="dev" (modeChange)="…">` (elements/tool-policy-list.html): what agents may
+ * `<div gwToolPolicyList [groups]="…" slug="dev" (modeChange)="…">`: what agents may
  * call on one endpoint, and how. Every tool grouped by the connection it runs on, with its MCP annotations, the mode
  * picker Off · Read only · Approval · Bypass and, in a disclosure row, per-tool limits over the environment policy of the
  * connection (an override can only be stricter). Bypass runs calls without approval. A
  * tool that changes data offers Approval, Bypass or Off, and its Read only stays NATIVELY
- * disabled (DESIGN.md §8: safety must not depend on a script). Tools of external MCP servers and plugins say who
+ * disabled: safety must not depend on a script. Tools of external MCP servers and plugins say who
  * declared their annotations; plugin reads need individual confirmation, while eligible MCP reads do not.
  *
  * `variant="picker"` is Playground's tool picker: the same groups, the mode as a `gw-mode` chip, rows link to the tool

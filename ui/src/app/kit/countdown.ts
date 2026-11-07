@@ -7,7 +7,7 @@ import { Announcer } from './announcer';
 export const URGENT_SECONDS = 60;
 
 /**
- * `[gwCountdown]="expiresAt"` (kit.js "countdown") on the element that carries a countdown — an approval request's
+ * `[gwCountdown]="expiresAt"` on the element that carries a countdown — an approval request's
  * `__countdown`, a timeline step. It ticks on the core's clock (TimeService), sets `--gw-countdown` (1 → 0) through
  * CSSOM (`style=""` is blocked by the CSP, `setProperty` is not), and the kit's states:
  * - ≤ 60 s: `[data-urgent]`, `gw-progress--warning` → `--danger` inside, the `[role=timer]` line turns

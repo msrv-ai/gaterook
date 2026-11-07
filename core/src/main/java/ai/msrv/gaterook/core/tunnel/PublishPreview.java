@@ -4,7 +4,7 @@ import java.util.List;
 
 /**
  * {@code POST /api/tunnel/publish/preview}: exactly what becomes reachable from the internet and what stays on this
- * computer, for the confirmation dialog (kit {@code gw-dialog--warning}, BLUEPRINT §9).
+ * computer, for the confirmation dialog (kit {@code gw-dialog--warning}).
  *
  * @param publicPaths  {@code /mcp/<slug>}, {@code /oauth/*}, {@code /.well-known/oauth-*}
  * @param local        what stays local: the UI and admin API, the other endpoints

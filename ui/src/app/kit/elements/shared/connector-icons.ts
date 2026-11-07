@@ -1,5 +1,5 @@
 /**
- * Connector type → the kit's icon and display name (BLUEPRINT §7 dictionaries, as the kit's pages use them). The core
+ * Connector type → the kit's icon and display name (shared connector vocabulary). The core
  * sends `typeName` where it has one; this is for lists that only carry the type id.
  */
 export const CONNECTOR_ICONS: Record<string, string> = {

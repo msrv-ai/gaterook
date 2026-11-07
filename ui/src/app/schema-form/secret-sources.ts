@@ -1,5 +1,5 @@
 /**
- * The kit's words for each secret source (design/elements/connection-form.html "Secret source"): the card, and the
+ * The kit's words for each secret source (connection-form component "Secret source"): the card, and the
  * secret field it switches to. The core lists which sources exist and whether they can be used right now
  * (`secretSources` of the form spec); these are only how each one reads.
  */

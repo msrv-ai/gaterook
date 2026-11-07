@@ -10,7 +10,7 @@ import { SchemaNode } from '../../schema-form/compile';
 import { valueProblem } from '../../schema-form/messages';
 
 /**
- * What the Playground shows (design/pages/playground.html, ARCHITECTURE.md §8.4 "playground"), from the core's answers:
+ * What the Playground shows (ARCHITECTURE.md §8.4 "playground"), from the core's answers:
  * `GET /api/playground/tools`, `GET /api/endpoints/{slug}/tools` (the mode of every tool × connection pair),
  * `POST /api/playground/call` and `GET /api/playground/history`. Pure functions, tested against the kit's wording.
  */

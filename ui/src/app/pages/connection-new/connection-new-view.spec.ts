@@ -41,7 +41,7 @@ import {
   usedByRows,
 } from './connection-new-view';
 
-/** Add connection's words and decisions against the kit (design/pages/connection-new.html) and the core's rules. */
+/** Add connection's words and decisions against the kit and the core's rules. */
 
 const card = (over: Partial<ConnectorGroup['cards'][number]>) => ({
   type: 'postgres',
@@ -149,7 +149,7 @@ describe('Add connection: the stepper', () => {
     expect(steps.filter((s) => s.current).map((s) => s.n)).toEqual([3]);
   });
 
-  it('keeps Test failed until a test passes, also on the next step (COMPONENTS.md stepper, error)', () => {
+  it('keeps Test failed until a test passes, also on the next step (stepper, error)', () => {
     const failed = testSummary(outcome({ error: { code: 'unreachable', message: 'Timed out', technical: null } }), 'db.dev.internal:5432');
     expect(failed).toEqual({ passed: false, text: "Can't reach db.dev.internal:5432" });
     const steps = stepperSteps(4, { typeName: 'PostgreSQL', name: 'dev-db', env: 'dev', test: failed, endpoints: ['dev'] });

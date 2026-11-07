@@ -37,7 +37,7 @@ export function kindBadge(kind: ConnectorKind) {
 export type ConnectorAction = 'add' | 'install' | 'configure' | 'update' | null;
 
 /**
- * The footer's status in place of the tool count (BLUEPRINT §7 tones): "Update available · v1.3.0", "Running · 54 MB",
+ * The footer's status in place of the tool count: "Update available · v1.3.0", "Running · 54 MB",
  * "Sleeping", "Installed as github-mcp". `mono` is the literal at its end (a version, a server name).
  */
 export interface ConnectorCardStatus {
@@ -86,12 +86,12 @@ export class GwConnectorCardNote {}
 export class GwConnectorCardActions {}
 
 /**
- * `<article gwConnectorCard [card]="…" (act)="…">` (elements/connector-card.html): one connector type — what it
+ * `<article gwConnectorCard [card]="…" (act)="…">`: one connector type — what it
  * connects to, where it comes from (Built-in, Template, Plugin, MCP server), whether the catalog signed it, how many
  * tools it brings and the one thing to do next. Installing an unsigned plugin asks first in a danger confirmation
  * that names the risk; Install stays disabled until the acknowledgement is checked, focus starts on Cancel.
  *
- * Connectors › Installed and Catalog (pages/connectors.html) add a line under the description
+ * Connectors › Installed and Catalog add a line under the description
  * (`[gwConnectorCardNote]`), a status in the footer (`card.status`), their own footer actions
  * (`[gwConnectorCardActions]` with `action: null`), and `confirmUnsigned=false` where the page reviews the package
  * before it confirms (its check report names the file and the SHA-256).
@@ -146,7 +146,7 @@ export class GwConnectorCard {
 }
 
 /**
- * `<fieldset gwConnectorPicker [groups]="catalog.groups" [(value)]="type">` (elements/connector-card.html, Picker): step
+ * `<fieldset gwConnectorPicker [groups]="catalog.groups" [(value)]="type">` (connector card component, Picker): step
  * 1 of Add connection — radio cards grouped by category, one radio group across all of them so the arrow keys move
  * through every type. Built-in types say so with their tool count; packages carry their kind and trust; a type that
  * isn't installed stays visible and focusable but unavailable (`aria-disabled`, its reason as the description).

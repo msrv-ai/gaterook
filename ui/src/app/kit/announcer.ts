@@ -2,7 +2,7 @@ import { DOCUMENT, Injectable, inject } from '@angular/core';
 import { topLayer } from './top-layer';
 
 /**
- * Live announcements (kit.js "live region / announce"): one polite `role=status` and one assertive `role=alert`
+ * Live announcements: one polite `role=status` and one assertive `role=alert`
  * region, visually hidden, moved into the open modal dialog when there is one, cleared and refilled after 50 ms so a
  * repeated message is read again.
  *

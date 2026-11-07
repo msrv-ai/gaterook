@@ -17,7 +17,7 @@ import { TextPart, literalParts } from '../shared/literals';
 
 /**
  * What the client-card element says, from the clients module's cards (ARCHITECTURE.md §6 clients, step K1). Pure
- * functions, tested against the kit's wording (design/elements/client-card.html).
+ * functions, tested against the kit's wording.
  */
 
 /** What a card needs to know about an endpoint: its name, class, access and tools (`GET /api/endpoints`). */
@@ -85,7 +85,7 @@ export function tableLayout(card: ClientCard): boolean {
 
 /**
  * The Auth row: how the client authenticates, literals in code. `page`: in the words of the Clients screen
- * (pages/clients.html), which says it shorter than the element's demo for the bridge, the helper and a client that
+ *, which says it shorter than the element's demo for the bridge, the helper and a client that
  * isn't installed.
  */
 export function authParts(card: ClientCard, link: ClientLink | null, restart = false, page = false): TextPart[] {
@@ -377,7 +377,7 @@ export function disconnectFacts(
 }
 
 /**
- * What a Disconnect confirm says (pages/clients.html, pages/endpoint-detail.html): the endpoint the client loses at
+ * What a Disconnect confirm says: the endpoint the client loses at
  * once and, for a client on several endpoints, the ones it keeps; the button names the object.
  */
 export function disconnectWords(card: ClientCard, link: ClientLink, table: boolean): { readonly title: string; readonly body: TextPart[]; readonly button: string } {

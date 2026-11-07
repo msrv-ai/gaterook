@@ -24,7 +24,7 @@ import {
   withOwnCalls,
 } from './approvals-view';
 
-/** The page around approval-request, against the kit's wording (design/pages/approvals.html) and BLUEPRINT §9. */
+/** The page around approval-request, against the kit's wording and demo data. */
 
 const NOW = Date.parse('2026-10-22T14:30:00+02:00');
 
@@ -219,7 +219,7 @@ describe('decisions', () => {
 describe('delivery channels', () => {
   const world = notifications({ desktop: { enabled: true }, slack: { enabled: true, config: { workspace: 'acme', channel: 'deploy-approvals' } }, telegram: { enabled: false } });
 
-  it('reads the header line of BLUEPRINT §9: Desktop on · Slack #deploy-approvals · Telegram not set up', () => {
+  it('reads the demo notification summary: Desktop on · Slack #deploy-approvals · Telegram not set up', () => {
     expect(channelStatuses(world)).toEqual([
       { tone: 'success', label: 'Desktop on', mono: null },
       { tone: 'success', label: 'Slack', mono: '#deploy-approvals' },

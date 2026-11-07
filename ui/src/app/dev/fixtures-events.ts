@@ -3,8 +3,8 @@ import { ApprovalDetail } from '../core/api/approvals.api';
 import { DEMO_APPROVALS } from './fixtures-approvals';
 
 /**
- * Logged calls of the demo world (BLUEPRINT §9) as `GET /api/activity/events/{id}` and
- * `GET /api/activity/traces/{id}` return them, for the event-detail gallery (design/elements/event-detail.html).
+ * Logged calls of the demo world as `GET /api/activity/events/{id}` and
+ * `GET /api/activity/traces/{id}` return them, for the event-detail gallery.
  * Dev only.
  */
 

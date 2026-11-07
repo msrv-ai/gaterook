@@ -68,7 +68,7 @@ function connectionEnum(schema: JsonObject | null | undefined): unknown[] {
 }
 
 /**
- * Playground (design/pages/playground.html; ARCHITECTURE.md §8.1 `playground?endpoint=&tool=`, §8.4 "playground"):
+ * Playground (ARCHITECTURE.md §8.1 `playground?endpoint=&tool=`, §8.4 "playground"):
  * call a tool the way an agent does and see exactly what it gets back. Calls are real — the same policies,
  * approvals, masking, limits and audit as an agent's, as the principal `playground`.
  *
