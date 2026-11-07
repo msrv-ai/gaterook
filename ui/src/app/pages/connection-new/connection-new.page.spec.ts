@@ -1441,6 +1441,23 @@ describe('Connection: edit view with references', () => {
     expect(core.references).toEqual([{ id: 'sec-1', uri: 'vault://kv/dev/cache-v2#password', store: 'vault-dev', reason: null }]);
   });
 
+  it('tests an edited stored reference without saving its new target', async () => {
+    cacheWithReference();
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Change reference"]')!.click();
+    await p.settle();
+    await p.type('cf-credentials-password', 'vault://kv/dev/cache-v2#password');
+    p.q<HTMLButtonElement>('#edit-test')!.click();
+    await p.settle();
+    expect(core.tests).toHaveLength(1);
+    expect(core.tests[0]).toMatchObject({ existing: 'cache', secrets: {
+      '/credentials/password': { source: 'reference', ref: 'vault://kv/dev/cache-v2#password', store: 'vault-dev' },
+    } });
+    expect(core.references).toEqual([]);
+    expect(core.updates).toEqual([]);
+    expect(TestBed.inject(ConnectionsApi).test).not.toHaveBeenCalled();
+  });
+
   it("picking another Vault in the field's menu moves the stored reference there, with the same path", async () => {
     cacheWithReference();
     const p = await open('/connections/cache');
@@ -1981,6 +1998,10 @@ describe('Connection: edit view', () => {
 
   it('Test connection works in place on the button and says the result in a toast', async () => {
     const p = await open('/connections/dev-db');
+    const actions = p.q('#edit-connection-actions')!;
+    expect(p.q('#edit-test')!.parentElement).toBe(actions);
+    expect(p.q('#edit-test')!.nextElementSibling).toBe(p.button('Save changes'));
+    expect(p.q('.gw-page-header #edit-test')).toBeNull();
     p.q<HTMLButtonElement>('#edit-test')!.click();
     p.harness.detectChanges();
     expect(p.q('#edit-test')!.getAttribute('aria-busy')).toBe('true');
@@ -1988,6 +2009,180 @@ describe('Connection: edit view', () => {
     await p.settle();
     expect(p.q('#edit-test')!.hasAttribute('aria-busy')).toBe(false);
     expect(TestBed.inject(ToastService).toasts().map((t) => [t.title, t.body])).toEqual([['dev-db is healthy', 'Answered in 12 ms.']]);
+    expect(core.tests[0]).toMatchObject({ type: 'postgres', env: 'dev', existing: 'dev-db', secrets: {} });
+    expect(TestBed.inject(ConnectionsApi).test).not.toHaveBeenCalled();
+  });
+
+  it('tests unsaved settings from Tools and keeps the draft and saved health separate', async () => {
+    const p = await open('/connections/dev-db');
+    const api = TestBed.inject(ConnectionsApi);
+    const loaded = vi.mocked(api.get).mock.calls.length;
+    await p.type('cf-connection-host', 'draft.dev.internal');
+    await p.type('cf-credentials-user', 'draft_reader');
+    p.q<HTMLButtonElement>('#connection-tools-tab')!.click();
+    await p.settle();
+    const test = p.q<HTMLButtonElement>('#edit-test')!;
+    expect(test.closest('[hidden]')).toBeNull();
+    test.click();
+    await p.settle();
+
+    expect(core.tests).toHaveLength(1);
+    expect(core.tests[0]).toMatchObject({ existing: 'dev-db', secrets: {}, config: {
+      connection: { host: 'draft.dev.internal' }, credentials: { user: 'draft_reader' },
+    } });
+    expect(api.test).not.toHaveBeenCalled();
+    expect(api.get).toHaveBeenCalledTimes(loaded);
+    expect(core.updates).toEqual([]);
+    expect(p.q<HTMLInputElement>('#cf-connection-host')!.value).toBe('draft.dev.internal');
+    expect(p.q<HTMLInputElement>('#cf-credentials-user')!.value).toBe('draft_reader');
+  });
+
+  it('tests an imported connection with its newly entered missing credential before saving', async () => {
+    core.detail = { ...structuredClone(DETAIL), enabled: false, setupRequired: true,
+      setupMissingFields: ['/credentials/password'], secrets: [] };
+    const p = await open('/connections/dev-db');
+    await p.type('cf-credentials-password', 'fixture-unsaved-password');
+    const test = p.q<HTMLButtonElement>('#edit-test')!;
+    expect(test.getAttribute('aria-disabled')).not.toBe('true');
+    test.click();
+    p.harness.detectChanges();
+    expect(text(p.q('#edit-connection-actions #edit-checking'))).toBe('Checking dev-db');
+    await p.settle();
+
+    expect(core.tests[0]).toMatchObject({ existing: 'dev-db', secrets: {
+      '/credentials/password': { source: 'local', value: 'fixture-unsaved-password' },
+    } });
+    expect(TestBed.inject(ConnectionsApi).test).not.toHaveBeenCalled();
+    expect(TestBed.inject(ConnectionsApi).setEnabled).not.toHaveBeenCalled();
+    expect(core.updates).toEqual([]);
+    expect(core.replaced).toEqual([]);
+    expect(text(p.q('.gw-page-header__meta .gw-status'))).toBe('Needs setup');
+  });
+
+  it('tests an unsaved replacement of a stored credential without replacing it', async () => {
+    const p = await open('/connections/dev-db');
+    p.button('Replace').click();
+    await p.settle();
+    await p.type('cf-credentials-password', 'fixture-replacement-password');
+    p.q<HTMLButtonElement>('#edit-test')!.click();
+    await p.settle();
+    expect(core.tests[0]).toMatchObject({ existing: 'dev-db', secrets: {
+      '/credentials/password': { source: 'local', value: 'fixture-replacement-password' },
+    } });
+    expect(core.replaced).toEqual([]);
+    expect(core.updates).toEqual([]);
+    expect(p.q<HTMLInputElement>('#cf-credentials-password')!.value).toBe('fixture-replacement-password');
+  });
+
+  it('reveals Settings and focuses a refused test field when testing from Tools', async () => {
+    core.nextTest = new ApiError('unprocessable', 422, { title: 'Invalid connection',
+      errors: [{ field: '/config/credentials/user', message: 'This login is unavailable.' }] });
+    const p = await open('/connections/dev-db');
+    p.q<HTMLButtonElement>('#connection-tools-tab')!.click();
+    await p.settle();
+    p.q<HTMLButtonElement>('#edit-test')!.click();
+    await p.settle();
+    expect(p.q<HTMLElement>('#connection-settings')!.hidden).toBe(false);
+    expect(document.activeElement).toBe(p.q('#cf-credentials-user'));
+    expect(text(p.q('#cf-credentials-user-err'))).toContain('This login is unavailable.');
+    expect(core.updates).toEqual([]);
+  });
+
+  it('confirms sending stored credentials for the tested snapshot without saving it', async () => {
+    core.nextTest = new ApiError('conflict', 409, { title: 'Send the stored secret to a new host?',
+      detail: 'The stored password will be sent to draft.dev.internal.', confirm: 'send-secret-to-new-host' });
+    const p = await open('/connections/dev-db');
+    await p.type('cf-connection-host', 'draft.dev.internal');
+    p.q<HTMLButtonElement>('#edit-test')!.click();
+    await p.settle();
+    const dialog = document.getElementById('dlg-new-host') as HTMLDialogElement;
+    expect(dialog.open).toBe(true);
+    expect(text(document.activeElement)).toBe('Cancel');
+    const tested = structuredClone(core.tests[0]);
+    await p.type('cf-connection-host', 'later.dev.internal');
+    core.nextTest = OK;
+    p.button('Send and test', dialog).click();
+    await p.settle();
+    expect(core.tests).toHaveLength(2);
+    expect(core.tests[1]).toEqual({ ...tested, confirm: 'send-secret-to-new-host' });
+    expect(core.updates).toEqual([]);
+    expect(p.q<HTMLInputElement>('#cf-connection-host')!.value).toBe('later.dev.internal');
+  });
+
+  it('trusts a host key in the draft and tests again without saving or reloading', async () => {
+    core.nextTest = HOST_KEY;
+    const p = await open('/connections/dev-db');
+    await p.type('cf-credentials-user', 'draft_reader');
+    const api = TestBed.inject(ConnectionsApi);
+    const loaded = vi.mocked(api.get).mock.calls.length;
+    p.q<HTMLButtonElement>('#edit-test')!.click();
+    await p.settle();
+    const tested = structuredClone(core.tests[0].config);
+    const trusted = { ...tested, connection: { ...tested['connection'] as JsonObject, hostKey: 'ssh-ed25519 AAAA' } };
+    core.pendingConfirm = Promise.resolve({ kind: 'host-key', config: trusted, retest: null });
+    core.nextTest = OK;
+    p.button('Trust this key and test again', document.getElementById('dlg-trust')!).click();
+    await p.settle();
+    expect(api.confirmDraft).toHaveBeenCalledWith('cf-1');
+    expect(core.tests).toHaveLength(2);
+    expect(core.tests[1]).toMatchObject({ existing: 'dev-db', config: trusted });
+    expect(p.page().form()!.value().config).toMatchObject(trusted);
+    expect(p.q<HTMLInputElement>('#cf-credentials-user')!.value).toBe('draft_reader');
+    expect(core.updates).toEqual([]);
+    expect(api.get).toHaveBeenCalledTimes(loaded);
+  });
+
+  it('retains new-host consent through draft host-key trust and the subsequent test', async () => {
+    core.nextTest = new ApiError('conflict', 409, { title: 'Send the stored secret to a new host?',
+      detail: 'The stored password will be sent to draft.dev.internal.', confirm: 'send-secret-to-new-host' });
+    const p = await open('/connections/dev-db');
+    await p.type('cf-connection-host', 'draft.dev.internal');
+    p.q<HTMLButtonElement>('#edit-test')!.click();
+    await p.settle();
+    core.nextTest = HOST_KEY;
+    p.button('Send and test', document.getElementById('dlg-new-host')!).click();
+    await p.settle();
+    expect(core.tests).toHaveLength(2);
+    const tested = structuredClone(core.tests[1]);
+    const trusted = { ...tested.config,
+      connection: { ...tested.config['connection'] as JsonObject, hostKey: 'ssh-ed25519 AAAA' } };
+    core.pendingConfirm = Promise.resolve({ kind: 'host-key', config: trusted, retest: null });
+    core.nextTest = OK;
+    p.button('Trust this key and test again', document.getElementById('dlg-trust')!).click();
+    await p.settle();
+
+    expect(TestBed.inject(ConnectionsApi).confirmDraft).toHaveBeenCalledWith('cf-1');
+    expect(core.tests).toHaveLength(3);
+    expect(core.tests.map((request) => request.confirm ?? null)).toEqual([
+      null, 'send-secret-to-new-host', 'send-secret-to-new-host',
+    ]);
+    expect(core.tests[2]).toEqual({ ...tested, config: trusted });
+    expect(TestBed.inject(ConnectionsApi).test).not.toHaveBeenCalled();
+    expect(core.updates).toEqual([]);
+    expect(core.replaced).toEqual([]);
+    expect(core.references).toEqual([]);
+    expect(TestBed.inject(ToastService).toasts().at(-1)?.title).toBe('dev-db is healthy');
+  });
+
+  it('does not let a pending trust response overwrite a newer draft', async () => {
+    core.nextTest = HOST_KEY;
+    const p = await open('/connections/dev-db');
+    p.q<HTMLButtonElement>('#edit-test')!.click();
+    await p.settle();
+    const tested = structuredClone(core.tests[0].config);
+    let resolve!: (result: TestConfirmed) => void;
+    core.pendingConfirm = new Promise((done) => { resolve = done; });
+    p.button('Trust this key and test again', document.getElementById('dlg-trust')!).click();
+    await p.settle();
+    expect(TestBed.inject(ConnectionsApi).confirmDraft).toHaveBeenCalledWith('cf-1');
+    await p.type('cf-connection-host', 'later.dev.internal');
+    resolve({ kind: 'host-key', config: { ...tested,
+      connection: { ...tested['connection'] as JsonObject, hostKey: 'ssh-ed25519 AAAA' } }, retest: null });
+    await p.settle();
+    expect(p.q<HTMLInputElement>('#cf-connection-host')!.value).toBe('later.dev.internal');
+    expect(p.page().form()!.value().config['connection']).not.toHaveProperty('hostKey');
+    expect(core.tests).toHaveLength(1);
+    expect(core.updates).toEqual([]);
   });
 
   it('Save changes sends the version; a new host with a stored secret asks first, then sends the confirmation', async () => {
