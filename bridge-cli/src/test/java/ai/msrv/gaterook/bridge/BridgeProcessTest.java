@@ -44,7 +44,10 @@ class BridgeProcessTest {
     BridgeProcess.Result v = run("", "--version");
     assertThat(v.code()).as(v.err()).isZero();
     assertThat(v.out().strip()).isEqualTo(Main.VERSION);
-    assertThat(run("", "steal").code()).isEqualTo(3);
+    BridgeProcess.Result unknown = run("", "steal");
+    assertThat(unknown.code()).isEqualTo(3);
+    assertThat(unknown.out()).isEmpty();
+    assertThat(unknown.err()).contains("gw-bridge: unknown command steal");
   }
 
   @Test

@@ -1,5 +1,6 @@
 package ai.msrv.gaterook.bridge;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -70,9 +71,16 @@ final class BridgeProcess {
     CompletableFuture<String> text = new CompletableFuture<>();
     Thread.ofVirtual().start(() -> {
       try (stream) {
-        text.complete(new String(stream.readAllBytes(), StandardCharsets.UTF_8));
+        // A process pipe is not seekable; FileInputStream.readAllBytes may try to query its position.
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        int count;
+        while ((count = stream.read(buffer)) != -1) {
+          bytes.write(buffer, 0, count);
+        }
+        text.complete(bytes.toString(StandardCharsets.UTF_8));
       } catch (IOException e) {
-        text.complete("");
+        text.completeExceptionally(e);
       }
     });
     return text;
