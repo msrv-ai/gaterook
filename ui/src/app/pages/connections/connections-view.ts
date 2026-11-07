@@ -26,9 +26,10 @@ export interface Filters {
   readonly type: string;
   readonly env: EnvFilter;
   readonly health: HealthFilter;
+  readonly notConnectedTo: string | null;
 }
 
-export const NO_FILTERS: Filters = { q: '', type: 'all', env: 'all', health: 'all' };
+export const NO_FILTERS: Filters = { q: '', type: 'all', env: 'all', health: 'all', notConnectedTo: null };
 
 export const ENVS: readonly Env[] = ['dev', 'stage', 'prod'];
 
@@ -59,6 +60,7 @@ export function sortRows(rows: readonly ConnectionRow[]): ConnectionRow[] {
 
 /** The kit's search: name, host and type (with its badges), case-insensitive. */
 export function matches(row: ConnectionRow, f: Filters): boolean {
+  if (f.notConnectedTo && row.usedBy.includes(f.notConnectedTo)) return false;
   if (f.type !== 'all' && row.type !== f.type) return false;
   if (f.env !== 'all' && row.env !== f.env) return false;
   if (f.health !== 'all' && healthState(row) !== f.health) return false;
@@ -89,7 +91,7 @@ export function filtered(rows: readonly ConnectionRow[], f: Filters): Connection
 }
 
 export function isFiltered(f: Filters): boolean {
-  return f.q.trim() !== '' || f.type !== 'all' || f.env !== 'all' || f.health !== 'all';
+  return f.q.trim() !== '' || f.type !== 'all' || f.env !== 'all' || f.health !== 'all' || f.notConnectedTo !== null;
 }
 
 export interface MenuOption {

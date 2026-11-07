@@ -16,6 +16,7 @@ import { ToastService } from '../../kit/toast.service';
 import { NOW, ROWS, clientsFound, clientsInUse, devDb, firstRun, overview, row } from './overview.fixtures';
 import { OverviewPage, SKELETON_DELAY_MS } from './overview.page';
 import { endpoint, kitEndpoints } from '../endpoints/endpoints.fixtures';
+import { detail as endpointDetail, groups as endpointTools } from '../endpoint-detail/endpoint-detail.fixtures';
 
 /** The page against fake admin API services: what it shows in each state, and what it asks the core to do. */
 
@@ -121,7 +122,7 @@ function setupPage(first: () => Promise<Overview> = () => Promise.resolve(overvi
       return { items, facets: { health: {}, env: {}, type: {} }, total: items.length };
     },
     setEnabled: (name, enabled) => { calls.push(`connection ${name} ${enabled}`); return connectionWrite(name, enabled); },
-    get: () => Promise.resolve(devDb()),
+    get: (name) => Promise.resolve({ ...devDb(), name, usedBy: name === 'dev-db' ? devDb().usedBy : [] }),
     test: (name) => {
       calls.push(`test ${name}`);
       const answer = deferred<TestOutcome>();
@@ -139,6 +140,8 @@ function setupPage(first: () => Promise<Overview> = () => Promise.resolve(overvi
       { provide: ClientsApi, useValue: { list: () => { calls.push('GET /api/clients'); return clientsAnswer(); } } },
       { provide: EndpointsApi, useValue: {
         list: () => { calls.push('GET /api/endpoints'); return endpointsAnswer(); },
+        get: async (slug: string) => endpointDetail({ endpoint: savedEndpoints.find((endpoint) => endpoint.slug === slug) }),
+        tools: async () => endpointTools(),
         disable: async (slug: string) => {
           calls.push(`endpoint ${slug} false`);
           savedEndpoints = savedEndpoints.map((endpoint) => endpoint.slug === slug ? { ...endpoint, status: 'disabled' } : endpoint);
@@ -228,6 +231,37 @@ function openReview(el: HTMLElement): HTMLDialogElement | null {
 beforeEach(() => setupPage());
 
 describe('Overview connection map', () => {
+  it('toggles an endpoint from its card without selecting it or changing connections', async () => {
+    const { fixture, el } = await render();
+    const card = el.querySelector('[data-map-endpoint="stage-readonly"]')!.parentElement!;
+    const control = switchOf(card);
+    expect(control.checked).toBe(true);
+    control.click();
+    await settle(fixture);
+    expect(control.checked).toBe(false);
+    expect(calls).toContain('endpoint stage-readonly false');
+    expect(calls.some((call) => call.startsWith('connection '))).toBe(false);
+    expect(el.querySelector<HTMLInputElement>('input[name="overview-endpoint"]:checked')!.value).toBe('dev');
+    expect(text(el.querySelector('#ov-detail-title'))).toBe('Access through dev');
+    expect(text(card)).toContain('Access paused');
+  });
+
+  it('shows scoped connection tools and restores endpoint details when the selected endpoint is clicked', async () => {
+    const { fixture, el } = await render();
+    await showAll(fixture, el);
+    const details = el.querySelector('#ov-detail')!;
+    expect(details.querySelector('gw-access-switch[kind="endpoint"]')).not.toBeNull();
+    service(el, 'dev-db')!.querySelector<HTMLButtonElement>('button')!.click();
+    await settle(fixture);
+    expect(text(details)).toContain('sql_query');
+    expect(details.querySelector('gw-overview-connection-tools')).not.toBeNull();
+    expect(details.querySelector('gw-access-switch[kind="endpoint"]')).toBeNull();
+    await selectEndpoint(fixture, el, 'dev');
+    expect(details.querySelector('gw-overview-connection-tools')).toBeNull();
+    expect(details.querySelector('gw-access-switch[kind="endpoint"]')).not.toBeNull();
+    expect(text(details)).toContain('Access through dev');
+  });
+
   it('changes both service membership and AI app access with the selected endpoint', async () => {
     const { fixture, el } = await render();
     await showAll(fixture, el);
@@ -324,16 +358,22 @@ describe('Overview connection map', () => {
     expect(calls.some((call) => call.startsWith('add '))).toBe(false);
   });
 
-  it('opens the service chooser from the map with the catalog, MCP URL and database setup routes', async () => {
+  it('links Add an MCP service directly to MCP setup', async () => {
+    const { el } = await render();
+    expect(href(byText(el.querySelector('#ov-mcp')!, 'a', 'Add an MCP service'))).toBe('/connectors?add=mcp-server#mcp-servers');
+  });
+
+  it('opens the service chooser with new-service routes and existing services scoped to the endpoint', async () => {
     const { fixture, el } = await render();
     findButton(el.querySelector('.gw-page-header__actions')!, 'Add service').click();
     await settle(fixture);
     const dialog = el.querySelector<HTMLDialogElement>('dialog[open]')!;
     expect(text(dialog.querySelector('h2'))).toBe('Add a service');
-    expect(href(byText(dialog, 'a', 'Browse services'))).toBe('/connectors#catalog');
     expect(href(byText(dialog, 'a', 'Connect an MCP service by URL'))).toBe('/connectors?add=mcp-server&source=url#mcp-servers');
     expect(href(byText(dialog, 'a', 'Connect a database or API'))).toBe('/connections/new');
-    expect(text(dialog)).toContain('Already in GateRook');
+    expect(href(byText(dialog, 'a', 'Connect existing services'))).toBe('/connections?notConnectedTo=dev');
+    expect(text(dialog)).not.toContain('Already in GateRook');
+    expect(text(dialog)).not.toContain('Browse services');
     expect(calls.some((call) => call.startsWith('add '))).toBe(false);
   });
 

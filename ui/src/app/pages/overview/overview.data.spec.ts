@@ -1,14 +1,15 @@
-import { Injector, runInInjectionContext } from '@angular/core';
+import { Injector, effect, runInInjectionContext, untracked } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ApiError } from '../../core/api/api-error';
 import { ClientsApi } from '../../core/api/clients.api';
 import { ConnectionsApi } from '../../core/api/connections.api';
-import { EndpointSummary, EndpointsApi } from '../../core/api/endpoints.api';
+import { EndpointDetail, EndpointSummary, EndpointsApi } from '../../core/api/endpoints.api';
 import { Overview, OverviewApi } from '../../core/api/overview.api';
 import { EventStream } from '../../core/events/event-stream';
 import { ROWS, browserSignedIn, clientsBrowserSignedIn, clientsFound, clientsInUse, firstRun, overview, setup } from './overview.fixtures';
 import { OverviewData } from './overview.data';
 import { endpoint } from '../endpoints/endpoints.fixtures';
+import { detail } from '../endpoint-detail/endpoint-detail.fixtures';
 
 /** OverviewData: what it loads for each state, how it coalesces refreshes, and what it leaves out when a part fails. */
 
@@ -36,6 +37,7 @@ let gets: ReturnType<typeof deferred<Overview>>[];
 let calls: string[];
 let clientsAnswer: () => Promise<unknown>;
 let endpointsAnswer: () => Promise<EndpointSummary[]>;
+let endpointDetailAnswer: (slug: string) => Promise<EndpointDetail>;
 let connectionsFail: boolean;
 let events: FakeEvents;
 
@@ -45,6 +47,7 @@ function make(): OverviewData {
   events = new FakeEvents();
   clientsAnswer = () => Promise.resolve(clientsInUse());
   endpointsAnswer = () => Promise.resolve([]);
+  endpointDetailAnswer = (slug) => Promise.resolve(detail({ endpoint: { slug }, connections: [] }));
   connectionsFail = false;
   const overviewApi: Partial<OverviewApi> = {
     get: () => {
@@ -73,7 +76,10 @@ function make(): OverviewData {
         },
       },
       { provide: ConnectionsApi, useValue: connectionsApi },
-      { provide: EndpointsApi, useValue: { list: () => { calls.push('endpoints'); return endpointsAnswer(); } } },
+      { provide: EndpointsApi, useValue: {
+        list: () => { calls.push('endpoints'); return endpointsAnswer(); },
+        get: (slug: string) => { calls.push(`endpoint ${slug}`); return endpointDetailAnswer(slug); },
+      } },
       { provide: EventStream, useValue: events },
     ],
   });
@@ -81,6 +87,88 @@ function make(): OverviewData {
 }
 
 describe('OverviewData', () => {
+  it('does not duplicate the initial wiring load when the page selects the first loaded endpoint', async () => {
+    const data = make();
+    endpointsAnswer = async () => [endpoint('dev')];
+    runInInjectionContext(TestBed.inject(Injector), () => effect(() => {
+      const slug = data.endpoints()?.[0]?.slug ?? null;
+      untracked(() => void data.selectEndpoint(slug));
+    }));
+    TestBed.tick();
+    let done = data.refresh();
+    gets[0].resolve(overview());
+    await done;
+    TestBed.tick();
+    await sleep(0);
+    expect(calls.filter((call) => call.startsWith('endpoint '))).toEqual(['endpoint dev']);
+
+    done = data.refresh();
+    gets[1].resolve(overview());
+    await done;
+    TestBed.tick();
+    await sleep(0);
+    expect(calls.filter((call) => call.startsWith('endpoint '))).toEqual(['endpoint dev', 'endpoint dev']);
+  });
+
+  it('loads all service counts with one selected-endpoint request and includes every saved mode', async () => {
+    const data = make();
+    endpointDetailAnswer = async (slug) => detail({ endpoint: { slug }, connections: [
+      { name: 'dev-db', type: 'postgres', typeName: 'PostgreSQL', env: 'dev', health: 'healthy', problem: null, tools: { read: 2, approval: 3, off: 4, bypass: 1 } },
+      { name: 'empty-mcp', type: 'mcp-server', typeName: 'MCP server', env: 'dev', health: 'healthy', problem: null, tools: { read: 0, approval: 0, off: 0 } },
+    ] });
+    expect(data.connectionToolCount('dev', 'dev-db')).toBeNull();
+    await data.selectEndpoint('dev');
+    await data.selectEndpoint('dev');
+    expect(calls).toEqual(['endpoint dev']);
+    expect(data.connectionToolCount('dev', 'dev-db')).toBe(10);
+    expect(data.connectionToolCount('dev', 'empty-mcp')).toBe(0);
+    expect(data.connectionToolCount('dev', 'unknown-db')).toBeNull();
+    expect(data.connectionToolCount('stage', 'dev-db')).toBeNull();
+  });
+
+  it('clears unavailable counts and reloads the selected scope with an Overview refresh', async () => {
+    const data = make();
+    endpointsAnswer = async () => [endpoint('dev')];
+    endpointDetailAnswer = async () => detail();
+    await data.selectEndpoint('dev');
+    expect(data.connectionToolCount('dev', 'dev-db')).toBe(4);
+    endpointDetailAnswer = async () => { throw new Error('unavailable'); };
+    let done = data.refresh();
+    gets[0].resolve(overview());
+    await done;
+    expect(data.connectionToolCount('dev', 'dev-db')).toBeNull();
+    endpointDetailAnswer = async () => detail({ connections: [
+      { name: 'dev-db', type: 'postgres', typeName: 'PostgreSQL', env: 'dev', health: 'healthy', problem: null, tools: { read: 2, approval: 1, off: 0 } },
+    ] });
+    done = data.refresh();
+    gets[1].resolve(overview());
+    await done;
+    expect(data.connectionToolCount('dev', 'dev-db')).toBe(3);
+    expect(calls.filter((call) => call.startsWith('endpoint '))).toEqual(['endpoint dev', 'endpoint dev', 'endpoint dev']);
+  });
+
+  it('ignores late counts after changing endpoints or disposing the page', async () => {
+    const data = make();
+    const late = deferred<EndpointDetail>();
+    endpointDetailAnswer = (slug) => slug === 'dev' ? late.promise : Promise.resolve(detail({ endpoint: { slug } }));
+    const old = data.selectEndpoint('dev');
+    await data.selectEndpoint('stage');
+    expect(data.connectionToolCount('stage', 'dev-db')).toBe(4);
+    expect(data.connectionToolCount('dev', 'dev-db')).toBeNull();
+    late.resolve(detail());
+    await old;
+    expect(data.connectionToolCount('stage', 'dev-db')).toBe(4);
+    await data.selectEndpoint(null);
+    expect(data.connectionToolCount('stage', 'dev-db')).toBeNull();
+    const afterStop = deferred<EndpointDetail>();
+    endpointDetailAnswer = () => afterStop.promise;
+    const loading = data.selectEndpoint('dev');
+    data.stop();
+    afterStop.resolve(detail());
+    await loading;
+    expect(data.connectionToolCount('dev', 'dev-db')).toBeNull();
+  });
+
   it('refreshes setup progress and observed OAuth status without a tool call, then stops on disposal', async () => {
     const data = make();
     clientsAnswer = () => Promise.resolve(clientsFound());

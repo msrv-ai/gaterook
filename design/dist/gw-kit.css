@@ -1636,6 +1636,24 @@ table {
   border-color: var(--gw-color-border-strong);
   box-shadow: none;
 }
+.gw-card--dashed:is(button, a[href]) {
+  cursor: pointer;
+  transition: background-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard), border-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard);
+}
+.gw-card--dashed:is(button, a[href]):focus {
+  outline: none;
+}
+.gw-card--dashed:is(button, a[href]):focus-visible {
+  outline: var(--gw-focus-width) solid var(--gw-color-border-focus);
+  outline-offset: var(--gw-focus-offset);
+}
+.gw-card--dashed:is(button, a[href]):is(:hover, :focus-visible):not(:disabled):not([aria-disabled=true]) {
+  background-color: var(--gw-color-brand-subtle);
+  border-color: var(--gw-color-brand-solid);
+}
+.gw-card--dashed:is(button, a[href]):disabled, .gw-card--dashed:is(button, a[href])[aria-disabled=true] {
+  cursor: not-allowed;
+}
 .gw-card--muted {
   background: var(--gw-color-bg-raised);
   border-color: var(--gw-color-border-subtle);
@@ -8455,8 +8473,22 @@ th[aria-sort=descending] .gw-table__sort .gw-table__sort-icon--desc {
 .gw-setup-map.gw-setup-map--network .gw-setup-map__network-endpoint .gw-choice-card__title {
   min-height: var(--gw-size-control-sm);
 }
+.gw-setup-map.gw-setup-map--network .gw-setup-map__network-endpoint:has(> .gw-setup-map__network-endpoint-access) > .gw-choice-card {
+  padding-block-end: calc(var(--gw-size-control-sm) + var(--gw-space-5));
+}
 .gw-setup-map.gw-setup-map--network .gw-setup-map__network-endpoint:has(> .gw-setup-map__network-health) .gw-choice-card__title {
   padding-inline-end: calc(var(--gw-size-control-md) + var(--gw-space-6));
+}
+.gw-setup-map.gw-setup-map--network .gw-setup-map__network-endpoint-access {
+  position: absolute;
+  z-index: var(--gw-z-raised);
+  inset-inline: var(--gw-space-3);
+  inset-block-end: var(--gw-space-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gw-space-2);
+  min-height: var(--gw-size-control-sm);
 }
 .gw-setup-map.gw-setup-map--network .gw-setup-map__network-health {
   position: absolute;

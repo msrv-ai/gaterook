@@ -63,6 +63,20 @@ describe('Connections view: filters and counts', () => {
     expect(parseEnv('production')).toBe('all');
   });
 
+  it('combines endpoint exclusion with search, type, environment and health', () => {
+    const rows = [
+      row('available-dev', { usedBy: [] }),
+      row('available-prod', { usedBy: ['incident-prod'], env: 'prod' }),
+      row('available-cache', { usedBy: [], type: 'redis', typeName: 'Redis' }),
+      row('available-unchecked', { usedBy: [], setupRequired: true, health: { state: 'unknown', latencyMs: null, message: null, checkedAt: null } }),
+      row('connected-dev', { usedBy: ['dev'] }),
+      row('connected-multiple', { usedBy: ['stage', 'dev'] }),
+    ];
+    expect(filtered(rows, { ...NO_FILTERS, notConnectedTo: 'dev' }).map((r) => r.name)).toEqual(['available-dev', 'available-prod', 'available-cache', 'available-unchecked']);
+    expect(filtered(rows, { ...NO_FILTERS, notConnectedTo: 'dev', q: 'available', type: 'postgres', env: 'dev', health: 'healthy' }).map((r) => r.name)).toEqual(['available-dev']);
+    expect(isFiltered({ ...NO_FILTERS, notConnectedTo: 'dev' })).toBe(true);
+  });
+
   it('lists the types the connections have in the kit’s order, with counts', () => {
     const options = typeOptions(kitRows());
     expect(options.map((o) => `${o.label} ${o.count}`)).toEqual([

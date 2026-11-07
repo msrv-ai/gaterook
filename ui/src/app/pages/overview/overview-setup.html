@@ -12,13 +12,7 @@
     <div class="gw-stack gw-stack--sm">
       <div class="gw-card gw-card--interactive">
         <div class="gw-card__header">
-          <div class="gw-card__heading"><h3 class="gw-card__title"><svg lucideIcon="search" class="gw-icon"></svg><a class="gw-card__link" routerLink="/connectors" fragment="catalog" autofocus (click)="picker.close()">Browse services</a></h3><p class="gw-card__description">Find a ready-made integration in the catalog.</p></div>
-          <svg lucideIcon="chevron-right" class="gw-icon gw-fg-muted"></svg>
-        </div>
-      </div>
-      <div class="gw-card gw-card--interactive">
-        <div class="gw-card__header">
-          <div class="gw-card__heading"><h3 class="gw-card__title"><svg lucideIcon="link" class="gw-icon"></svg><a class="gw-card__link" routerLink="/connectors" [queryParams]="{ add: 'mcp-server', source: 'url' }" fragment="mcp-servers" (click)="picker.close()">Connect an MCP service by URL</a></h3><p class="gw-card__description">Have a service link? Paste it in the connection setup.</p></div>
+          <div class="gw-card__heading"><h3 class="gw-card__title"><svg lucideIcon="link" class="gw-icon"></svg><a class="gw-card__link" routerLink="/connectors" [queryParams]="{ add: 'mcp-server', source: 'url' }" fragment="mcp-servers" autofocus (click)="picker.close()">Connect an MCP service by URL</a></h3><p class="gw-card__description">Have a service link? Paste it in the connection setup.</p></div>
           <svg lucideIcon="chevron-right" class="gw-icon gw-fg-muted"></svg>
         </div>
       </div>
@@ -28,48 +22,15 @@
           <svg lucideIcon="chevron-right" class="gw-icon gw-fg-muted"></svg>
         </div>
       </div>
-    </div>
-    @if (choices().length) {
-      <section class="gw-stack gw-stack--sm" [attr.aria-labelledby]="uid + '-existing-title'">
-        <h3 class="gw-text-overline gw-fg-muted" [id]="uid + '-existing-title'">Already in GateRook</h3>
-        @if (choices().length > 5) {
-          <search aria-label="Find saved services"><div class="gw-search gw-search--sm">
-            <svg lucideIcon="search" class="gw-icon gw-search__icon"></svg>
-            <input class="gw-search__input" type="search" placeholder="Find a saved service" aria-label="Find a saved service" [attr.aria-controls]="uid + '-saved-services'" autocomplete="off" [value]="query()" (input)="query.set($any($event.target).value)">
-            <button class="gw-search__clear" type="button" aria-label="Clear saved service search"><svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg></button>
-          </div></search>
-        }
-        <div class="gw-stack gw-stack--sm" [id]="uid + '-saved-services'">
-          @if (checking()) { <p class="gw-text-small gw-fg-muted" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Checking available services…</p> }
-          @for (choice of visibleChoices(); track choice.row.name; let index = $index) {
-            <div class="gw-card gw-card--interactive">
-              <div class="gw-card__header">
-                <div class="gw-card__heading">
-                  <h4 class="gw-card__title"><svg [lucideIcon]="choiceIcon(choice)" class="gw-icon"></svg><button class="gw-card__link gw-truncate" type="button" [title]="choice.row.name" [attr.aria-describedby]="uid + '-choice-' + index" (click)="choose(choice)">Use {{ choice.row.name }}</button></h4>
-                  <p class="gw-card__description" [id]="uid + '-choice-' + index">{{ choice.row.typeName }} · {{ choice.row.type === 'mcp-server' ? 'Installed' : 'Saved' }} · {{ choice.tools }} {{ choice.tools === 1 ? 'tool' : 'tools' }} · review access.</p>
-                </div>
-                <svg lucideIcon="chevron-right" class="gw-icon gw-fg-muted"></svg>
-              </div>
-            </div>
-          }
-          @if (readyChoices().length > 4 && !query().trim()) {
-            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" (click)="readyExpanded.set(!readyExpanded())" [attr.aria-expanded]="readyExpanded()" [attr.aria-controls]="uid + '-saved-services'">{{ readyExpanded() ? 'Show fewer services' : 'Show all ' + readyChoices().length + ' services' }}</button>
-          }
-          @if (unavailableChoices().length) {
-            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [(expanded)]="unavailableExpanded" [attr.aria-controls]="uid + '-unavailable'">{{ unavailableExpanded() ? 'Hide unavailable' : 'Show unavailable' }} ({{ unavailableChoices().length }})<svg lucideIcon="chevron-down" class="gw-icon gw-btn__chevron"></svg></button>
-            <div class="gw-stack gw-stack--sm" [id]="uid + '-unavailable'" [hidden]="!unavailableExpanded()">
-              @for (choice of unavailableChoices(); track choice.row.name) {
-                <div class="gw-card gw-card--muted"><div class="gw-card__header"><div class="gw-card__heading">
-                  <h4 class="gw-card__title"><svg [lucideIcon]="choiceIcon(choice)" class="gw-icon"></svg><span class="gw-truncate" [title]="choice.row.name">{{ choice.row.name }}</span></h4>
-                  <p class="gw-card__description">{{ choice.reason }}</p>
-                </div></div></div>
-              }
-            </div>
-          }
-          @if (!checking() && !matches().length) { <p class="gw-text-small gw-fg-muted" role="status">No matching saved services.</p> }
+      @if (unconnectedCount(); as count) {
+        <div class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading"><h3 class="gw-card__title"><svg lucideIcon="plug" class="gw-icon"></svg><a class="gw-card__link" routerLink="/connections" [queryParams]="{ notConnectedTo: endpoint()?.slug }" (click)="picker.close()">Connect existing services</a></h3><p class="gw-card__description">{{ count }} {{ count === 1 ? 'service is' : 'services are' }} not connected to <span class="gw-mono">{{ endpoint()?.slug }}</span>.</p></div>
+            <svg lucideIcon="chevron-right" class="gw-icon gw-fg-muted"></svg>
+          </div>
         </div>
-      </section>
-    }
+      }
+    </div>
   </div>
   <footer class="gw-dialog__footer"><button class="gw-btn" type="button" gwDialogClose>Cancel</button></footer>
 </dialog>

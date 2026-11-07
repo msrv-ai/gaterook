@@ -29,6 +29,7 @@ import { GwIcon } from '../../kit/icons';
 import { GwSearchClear, GwSearchClearButton } from '../../kit/search';
 import { ToastService } from '../../kit/toast.service';
 import { OverviewData } from './overview.data';
+import { OverviewConnectionTools } from './overview-connection-tools';
 import { activityLine, overviewState, retestToast, RetestResult } from './overview-view';
 import { MapConnection, endpointUnreachable, mapApps, mapConnections } from './overview-map-view';
 import { GwOverviewSetup } from './overview-setup';
@@ -54,6 +55,7 @@ export const SKELETON_DELAY_MS = 300;
     GwSearchClear,
     GwOverviewSetup,
     GwOverviewWires,
+    OverviewConnectionTools,
   ],
   providers: [OverviewData],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -219,6 +221,10 @@ export class OverviewPage {
 
   constructor() {
     void this.data.start();
+    effect(() => {
+      const slug = this.endpoint()?.slug ?? null;
+      untracked(() => void this.data.selectEndpoint(slug));
+    });
     const timer = setTimeout(() => this.slow.set(true), SKELETON_DELAY_MS);
     inject(DestroyRef).onDestroy(() => clearTimeout(timer));
     effect(() => {
@@ -314,6 +320,9 @@ export class OverviewPage {
     this.expanded.set(false);
     this.resetSelection();
     this.announcer.announce(`Showing access through endpoint ${slug}.`);
+  }
+  protected inspectEndpoint(slug: string): void {
+    if (this.endpoint()?.slug === slug) this.resetSelection();
   }
   protected search(value: string): void {
     this.query.set(value);

@@ -163,7 +163,7 @@
               <header class="gw-card__header"><div class="gw-card__heading"><h4 class="gw-card__title"><i class="gw-icon" data-lucide="plug"></i>MCP services</h4><p class="gw-card__description" id="nm-mcp-hint">External tools, with your access rules.</p></div></header>
               <div class="gw-card__body gw-stack gw-stack--sm">
                 <div class="gw-stack gw-stack--sm" id="nm-mcp-service"></div>
-                <button class="gw-btn gw-btn--ghost" type="button" data-nm-add-service><i class="gw-icon" data-lucide="plus"></i>Add an MCP service</button>
+                <a class="gw-btn gw-btn--ghost" href="connectors.html?add=mcp#mcp-servers"><i class="gw-icon" data-lucide="plus"></i>Add an MCP service</a>
               </div>
             </div>
             <button class="gw-card gw-card--dashed gw-setup-map__network-add" type="button" data-nm-add-service><i class="gw-icon" data-lucide="plus"></i>Add a service</button>
@@ -201,6 +201,13 @@
           <div class="gw-alert gw-alert--brand gw-alert--compact" id="nm-trace-result" hidden><i class="gw-icon gw-alert__icon" data-lucide="route"></i><div class="gw-alert__content"><p class="gw-alert__title" id="nm-trace-title">Example request path</p><p class="gw-alert__body" id="nm-trace-text"></p></div><div class="gw-alert__actions"><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" id="nm-clear-trace">Clear highlight</button></div></div>
           <div class="gw-toolbar" id="nm-endpoint-controls"><div class="gw-toolbar__start"><div class="gw-copy-field" role="group" aria-label="Selected endpoint address"><code class="gw-copy-field__value" id="nm-endpoint-url">http://127.0.0.1:7465/mcp/dev</code><button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#nm-endpoint-url"><span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i><span class="gw-sr-only">Copy endpoint URL</span></span><span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i><span class="gw-sr-only">Copied</span></span></button></div></div><div class="gw-toolbar__end"><div class="gw-switch"><input class="gw-switch__input" type="checkbox" role="switch" id="nm-endpoint-enabled" checked aria-label="Access through endpoint dev" aria-describedby="nm-pause-hint"><span class="gw-switch__control" aria-hidden="true"></span><label class="gw-switch__label" for="nm-endpoint-enabled">Endpoint on</label></div></div></div>
           <p class="gw-text-caption gw-fg-muted" id="nm-pause-hint">Pausing an endpoint keeps its settings and does not affect other endpoints.</p>
+          <section class="gw-tool-policy-list gw-stack gw-stack--sm" id="nm-service-tools" aria-labelledby="nm-tools-title" hidden>
+            <h3 class="gw-text-h3" id="nm-tools-title">Service tools</h3>
+            <p class="gw-text-small gw-fg-secondary" id="nm-tools-scope"></p>
+            <div class="gw-table-wrap" role="region" aria-labelledby="nm-tools-title" tabindex="0">
+              <table class="gw-table"><caption class="gw-sr-only" id="nm-tools-caption">Tools for the selected service and endpoint</caption><thead><tr><th scope="col">Tool</th><th scope="col">Mode</th></tr></thead><tbody id="nm-tools-rows"></tbody></table>
+            </div>
+          </section>
         </div>
       </section>
 
@@ -230,13 +237,7 @@
         <div class="gw-stack gw-stack--sm">
           <div class="gw-card gw-card--interactive">
             <div class="gw-card__header">
-              <div class="gw-card__heading"><h3 class="gw-card__title"><i class="gw-icon" data-lucide="search"></i><a class="gw-card__link" id="nm-picker-browse" href="connectors.html#catalog" autofocus>Browse services</a></h3><p class="gw-card__description">Find a ready-made integration in the catalog.</p></div>
-              <i class="gw-icon gw-fg-muted" data-lucide="chevron-right"></i>
-            </div>
-          </div>
-          <div class="gw-card gw-card--interactive">
-            <div class="gw-card__header">
-              <div class="gw-card__heading"><h3 class="gw-card__title"><i class="gw-icon" data-lucide="link"></i><a class="gw-card__link" id="nm-picker-url" href="connectors.html?add=mcp&amp;transport=http#mcp-servers">Connect an MCP service by URL</a></h3><p class="gw-card__description">Have a service link? Paste it in the connection setup.</p></div>
+              <div class="gw-card__heading"><h3 class="gw-card__title"><i class="gw-icon" data-lucide="link"></i><a class="gw-card__link" id="nm-picker-url" href="connectors.html?add=mcp&amp;transport=http#mcp-servers" autofocus>Connect an MCP service by URL</a></h3><p class="gw-card__description">Have a service link? Paste it in the connection setup.</p></div>
               <i class="gw-icon gw-fg-muted" data-lucide="chevron-right"></i>
             </div>
           </div>
@@ -246,12 +247,9 @@
               <i class="gw-icon gw-fg-muted" data-lucide="chevron-right"></i>
             </div>
           </div>
-        </div>
-        <div class="gw-stack gw-stack--sm">
-          <h3 class="gw-text-overline gw-fg-muted">Already in GateRook</h3>
-          <div class="gw-card gw-card--interactive">
+          <div class="gw-card gw-card--interactive" id="nm-picker-existing" hidden>
             <div class="gw-card__header">
-              <div class="gw-card__heading"><h4 class="gw-card__title"><i class="gw-icon" data-lucide="plug"></i><button class="gw-card__link" type="button" id="nm-picker-installed" data-nm-review-installed>Use GitHub MCP</button></h4><p class="gw-card__description">Installed · 26 tools · choose who can use them.</p></div>
+              <div class="gw-card__heading"><h3 class="gw-card__title"><i class="gw-icon" data-lucide="plug"></i><a class="gw-card__link" id="nm-picker-existing-link" href="connections.html?notConnectedTo=dev">Connect existing services</a></h3><p class="gw-card__description" id="nm-picker-existing-description"></p></div>
               <i class="gw-icon gw-fg-muted" data-lucide="chevron-right"></i>
             </div>
           </div>

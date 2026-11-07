@@ -64,6 +64,7 @@
   {
    "fg": "color.text.link",
    "on": [
+    "color.brand.subtle",
     "color.bg.canvas",
     "color.bg.surface",
     "color.bg.raised",
@@ -104,6 +105,7 @@
   {
    "fg": "color.brand.solid",
    "on": [
+    "color.brand.subtle",
     "color.bg.canvas",
     "color.bg.surface",
     "color.bg.raised",
