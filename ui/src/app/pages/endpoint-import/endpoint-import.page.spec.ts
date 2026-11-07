@@ -63,19 +63,21 @@ describe('Shared endpoint review', () => {
     expect(desktop.previewEndpointShare).not.toHaveBeenCalled();
   });
 
-  it('previews before import and submits only selected items with secrets excluded by default', async () => {
+  it('previews before import and includes available secrets so complete selected connections are immediately on', async () => {
     await click('Choose .grshare file'); await unlock();
     expect(desktop.previewEndpointShare).toHaveBeenCalledExactlyOnceWith('a unique shared passphrase');
     expect(root.querySelector('#share-import-pass')).toBeNull();
     expect(desktop.importEndpointShare).not.toHaveBeenCalled();
-    expect(get<HTMLInputElement>('#share-import-secrets').checked).toBe(false);
+    expect(get<HTMLInputElement>('#share-import-secrets').checked).toBe(true);
     expect(get<HTMLInputElement>('[data-connection-id=mcp]').disabled).toBe(true);
     expect(root.textContent).toContain('db-imported');
     get<HTMLInputElement>('[data-connection-id=logs]').click(); await settle();
     await click('Import selected items');
-    expect(desktop.importEndpointShare).toHaveBeenCalledExactlyOnceWith({ handle: REVIEW.handle, connectionIds: ['db'], includeEndpoint: true, includeSecrets: false, endpointSlug: 'dev-imported' });
+    expect(desktop.importEndpointShare).toHaveBeenCalledExactlyOnceWith({ handle: REVIEW.handle, connectionIds: ['db'], includeEndpoint: true, includeSecrets: true, endpointSlug: 'dev-imported' });
     expect(root.textContent).toContain('Selected items imported');
-    expect(root.textContent).toContain('disabled');
+    expect(get('.gw-badge--success').textContent).toBe('On');
+    expect(root.querySelector('.gw-badge--warning')).toBeNull();
+    expect(root.textContent).not.toContain('save, then enable');
   });
 
   it('can import connections and secrets while skipping the endpoint, and prevents importing an empty selection', async () => {
@@ -87,9 +89,70 @@ describe('Shared endpoint review', () => {
     expect(desktop.importEndpointShare).not.toHaveBeenCalled();
     expect(get<HTMLInputElement>('#share-import-secrets').disabled).toBe(true);
     get<HTMLInputElement>('[data-connection-id=db]').click(); await settle();
-    get<HTMLInputElement>('#share-import-secrets').click(); await settle();
+    expect(get<HTMLInputElement>('#share-import-secrets').checked).toBe(true);
     await click('Import selected items');
     expect(desktop.importEndpointShare).toHaveBeenCalledExactlyOnceWith({ handle: REVIEW.handle, connectionIds: ['db'], includeEndpoint: false, includeSecrets: true });
+  });
+
+  it('lets the recipient omit credentials and identifies only the incomplete connections as off', async () => {
+    desktop.importEndpointShare.mockResolvedValueOnce({ endpointSlug: 'dev-imported', connections: [
+      { id: 'new-db', name: 'db-imported', needsSetup: true },
+      { id: 'new-public', name: 'public-api', needsSetup: false },
+    ], warnings: [] });
+    await click('Choose .grshare file'); await unlock();
+    get<HTMLInputElement>('#share-import-secrets').click(); await settle();
+    await click('Import selected items');
+    expect(desktop.importEndpointShare).toHaveBeenCalledWith(expect.objectContaining({ includeSecrets: false }));
+    expect(get('.gw-badge--warning').textContent).toBe('Setup required · Off');
+    expect(get('.gw-badge--success').textContent).toBe('On');
+  });
+
+  it('never claims to include secrets when the selected connections have none in the file', async () => {
+    await click('Choose .grshare file'); await unlock();
+    get<HTMLInputElement>('[data-connection-id=db]').click(); await settle();
+    expect(get<HTMLInputElement>('#share-import-secrets').checked).toBe(false);
+    expect(get<HTMLInputElement>('#share-import-secrets').disabled).toBe(true);
+    await click('Import selected items');
+    expect(desktop.importEndpointShare).toHaveBeenCalledWith(expect.objectContaining({ connectionIds: ['logs'], includeSecrets: false }));
+  });
+
+  const permissionReview = { confirmationRequired: {
+    confirm: 'danger', status: 409, title: 'Review database permissions', detail: 'An account has elevated permissions.',
+    errors: [{ field: '/connections/db', message: 'db-imported can modify production data.' }],
+  } };
+
+  it('retains the unlocked review and requires an explicit batch permission confirmation before retrying', async () => {
+    desktop.importEndpointShare.mockResolvedValueOnce(permissionReview);
+    await click('Choose .grshare file'); await unlock();
+    await click('Import selected items');
+    expect(desktop.importEndpointShare).toHaveBeenCalledTimes(1);
+    expect(root.querySelector('#share-review-title')).not.toBeNull();
+    expect(root.querySelector('#share-import-pass')).toBeNull();
+    expect(get('#share-import-confirmation').textContent).toContain('db-imported can modify production data.');
+    expect(root.textContent).not.toContain('Selected items imported');
+    await click('Import with these permissions');
+    expect(desktop.importEndpointShare).toHaveBeenLastCalledWith({
+      handle: REVIEW.handle, connectionIds: ['db', 'logs'], includeEndpoint: true, includeSecrets: true,
+      endpointSlug: 'dev-imported', confirm: 'danger',
+    });
+    expect(root.textContent).toContain('Selected items imported');
+    expect(desktop.previewEndpointShare).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['secrets', 'endpoint', 'slug', 'connections'])('requires a fresh permission review when %s selection changes', async (change) => {
+    desktop.importEndpointShare.mockResolvedValueOnce(permissionReview);
+    await click('Choose .grshare file'); await unlock();
+    await click('Import selected items');
+    if (change === 'slug') {
+      const name = get<HTMLInputElement>('#share-import-slug');
+      name.value = 'another-endpoint'; name.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      get<HTMLInputElement>(change === 'connections' ? '[data-connection-id=logs]' : '#share-import-' + change).click();
+    }
+    await settle();
+    expect(root.querySelector('#share-import-confirmation')).toBeNull();
+    await click('Import selected items');
+    expect(desktop.importEndpointShare.mock.calls[1][0].confirm).toBeUndefined();
   });
 
   it('clears the consumed review after failed import and asks for the passphrase again', async () => {
