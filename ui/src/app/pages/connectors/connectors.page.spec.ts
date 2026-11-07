@@ -111,6 +111,16 @@ function registryPage(search: string, cursor: string | null): Promise<McpRegistr
   });
 }
 
+const stripeRegistryServers: McpRegistryPage['servers'] = [
+  { name: 'app.vercel.stripecheckup/stripecheckup', title: 'stripecheckup', status: 'active', packages: [],
+    remotes: [{ type: 'streamable-http', url: 'https://stripecheckup.vercel.app', headers: [], variables: [] }] },
+  { name: 'com.insightfulpipe/stripe', title: 'Official Stripe integration', status: 'active', packages: [],
+    listing: { verification: 'vendor', featured: true },
+    remotes: [{ type: 'streamable-http', url: 'https://stripe.insightfulmcp.com', headers: [], variables: [] }] },
+  { name: 'com.stripe/mcp', title: 'mcp', version: '0.2.4', status: 'active', packages: [],
+    remotes: [{ type: 'streamable-http', url: 'https://mcp.stripe.com', headers: [], variables: [] }] },
+];
+
 let calls: string[];
 let bodies: Record<string, unknown>;
 let events: FakeEvents;
@@ -336,6 +346,21 @@ function button(root: Element | null, label: string): HTMLButtonElement {
 function type(input: HTMLInputElement | HTMLTextAreaElement, value: string): void {
   input.value = value;
   input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+async function searchMcpRegistry(fixture: ComponentFixture<ConnectorsPage>, el: HTMLElement, query: string) {
+  button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
+  await settle(fixture);
+  const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+  button(add, 'Official MCP Registry').click();
+  await settle(fixture);
+  const registry = add.querySelector<HTMLElement>('[role="tabpanel"][id$="-registry"]')!;
+  const search = registry.querySelector<HTMLInputElement>('input[type="search"]')!;
+  type(search, query);
+  search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  await settle(fixture);
+  return { add, registry, search,
+    results: () => Array.from(registry.querySelectorAll('[aria-label="Servers in the MCP registry"] article')) };
 }
 
 function choose(select: HTMLSelectElement, value: string): void {
@@ -1066,7 +1091,8 @@ describe('Connectors page: MCP servers', () => {
     expect(calls).not.toContain('review');
     expect(status()).toBe('2 servers so far');
     const results = () => Array.from(add.querySelectorAll('[aria-label="Servers in the MCP registry"] article'));
-    expect(results().map((r) => text(r.querySelector('.gw-card__title')))).toEqual(['Linear', 'image-only']);
+    expect(results().map((r) => text(r.querySelector('.gw-card__title button')))).toEqual(['Linear', 'image-only']);
+    expect(results()[0].querySelector('[aria-label="Official server by Linear"]')).not.toBeNull();
     expect(text(results()[0])).toContain('HTTP mcp.linear.app');
     expect(text(results()[1])).toContain('Can’t be added here');
     expect(text(results()[1])).toContain('Deprecated');
@@ -1112,6 +1138,111 @@ describe('Connectors page: MCP servers', () => {
     await settle(fixture);
     expect(bodies['review']).toEqual({ config: { name: 'linear-mcp', transport: 'http', url: 'https://mcp.linear.app/mcp', headers: [] } });
     expect(bodies['create-server']).toBeUndefined();
+  });
+
+  it('highlights the official Stripe server and keeps other results in registry order', async () => {
+    setup({ registry: () => Promise.resolve({ registry: 'registry.modelcontextprotocol.io', servers: stripeRegistryServers }) });
+    const { fixture, el } = await render();
+    const { results } = await searchMcpRegistry(fixture, el, 'stripe');
+
+    expect(results().map((row) => text(row.querySelector('.gw-card__title button'))))
+      .toEqual(['mcp', 'stripecheckup', 'Official Stripe integration']);
+    expect(results()[0].querySelector('[aria-label="Official server by Stripe"]')).not.toBeNull();
+    expect(results()[1].querySelector('.gw-card__title .gw-badge')).toBeNull();
+    expect(results()[2].querySelector('.gw-card__title .gw-badge')).toBeNull();
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry stripe']);
+    expect(calls).not.toContain('review');
+  });
+
+  it('does not treat copied official IDs from another registry as official publishers', async () => {
+    setup({ registry: () => Promise.resolve({ registry: 'registry.example.com', servers: stripeRegistryServers }) });
+    const { fixture, el } = await render();
+    const { results } = await searchMcpRegistry(fixture, el, 'stripe');
+
+    expect(results().map((row) => text(row.querySelector('.gw-card__title button'))))
+      .toEqual(['stripecheckup', 'Official Stripe integration', 'mcp']);
+    expect(results().every((row) => row.querySelector('.gw-card__title .gw-badge') === null)).toBe(true);
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry stripe']);
+  });
+
+  it('finds an official publisher beyond the first page and deduplicates it on Show more', async () => {
+    const additional: McpRegistryPage['servers'][number] = { ...stripeRegistryServers[0], name: 'org.example/stripe', title: 'Another Stripe server' };
+    setup({ registry: (search, cursor) => Promise.resolve({
+      registry: 'registry.modelcontextprotocol.io',
+      servers: cursor ? [stripeRegistryServers[2], additional, additional]
+        : search === 'com.stripe/mcp' ? [stripeRegistryServers[0], stripeRegistryServers[2]] : stripeRegistryServers.slice(0, 2),
+      nextCursor: !cursor && search === 'stripe' ? 'next-stripe-page' : null,
+    }) });
+    const { fixture, el } = await render();
+    const { add, registry, results } = await searchMcpRegistry(fixture, el, 'stripe');
+
+    expect(results().map((row) => text(row.querySelector('.gw-card__title button'))))
+      .toEqual(['mcp', 'stripecheckup', 'Official Stripe integration']);
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry stripe', 'registry com.stripe/mcp']);
+    expect(text(registry.querySelector('[role="status"]'))).toBe('3 servers so far');
+
+    button(add, 'Show more').click();
+    await settle(fixture);
+    expect(calls).toContain('registry stripe after next-stripe-page');
+    expect(results()).toHaveLength(4);
+    expect(results()[0].querySelector('[aria-label="Official server by Stripe"]')).not.toBeNull();
+    expect(document.activeElement).toBe(button(results()[3], 'Use'));
+    expect(text(registry.querySelector('[role="status"]'))).toBe('4 servers');
+  });
+
+  it('keeps ordinary search usable when the extra lookup fails and focuses a later official result after ranking', async () => {
+    setup({ registry: (search, cursor) => search === 'com.stripe/mcp' ? Promise.reject(new Error('Lookup unavailable'))
+      : Promise.resolve({ registry: 'registry.modelcontextprotocol.io',
+        servers: cursor ? [stripeRegistryServers[0], stripeRegistryServers[2]] : stripeRegistryServers.slice(0, 2),
+        nextCursor: cursor ? null : 'next-stripe-page' }) });
+    const { fixture, el } = await render();
+    const { add, registry, results } = await searchMcpRegistry(fixture, el, 'stripe');
+    expect(results()).toHaveLength(2);
+    expect(registry.querySelector('.gw-alert--danger')).toBeNull();
+
+    button(add, 'Show more').click();
+    await settle(fixture);
+    expect(results()).toHaveLength(3);
+    expect(results()[0].querySelector('[aria-label="Official server by Stripe"]')).not.toBeNull();
+    expect(document.activeElement).toBe(button(results()[0], 'Use'));
+  });
+
+  it('discards an extra official lookup when a newer query has already completed', async () => {
+    const oldOfficial = deferred<McpRegistryPage>();
+    setup({ registry: (search, cursor) => search === 'com.stripe/mcp' ? oldOfficial.promise
+      : search === 'stripe' ? Promise.resolve({ registry: 'registry.modelcontextprotocol.io', servers: stripeRegistryServers.slice(0, 2) })
+        : registryPage(search, cursor) });
+    const { fixture, el } = await render();
+    const { search, results } = await searchMcpRegistry(fixture, el, 'stripe');
+    type(search, 'linear');
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await settle(fixture);
+
+    oldOfficial.resolve({ registry: 'registry.modelcontextprotocol.io', servers: [stripeRegistryServers[2]] });
+    await settle(fixture);
+    expect(results().map((row) => text(row.querySelector('.gw-card__title button')))).toEqual(['Linear', 'image-only']);
+  });
+
+  it('does not append the previous search page while a new official lookup is pending', async () => {
+    const official = deferred<McpRegistryPage>();
+    setup({ registry: (search, cursor) => search === 'com.stripe/mcp' ? official.promise
+      : search === 'stripe' ? Promise.resolve({ registry: 'registry.modelcontextprotocol.io', servers: stripeRegistryServers.slice(0, 2) })
+        : registryPage(search, cursor) });
+    const { fixture, el } = await render();
+    const { add, search, results } = await searchMcpRegistry(fixture, el, 'linear');
+    type(search, 'stripe');
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await settle(fixture);
+
+    expect(button(add, 'Show more').getAttribute('aria-disabled')).toBe('true');
+    button(add, 'Show more').click();
+    await settle(fixture);
+    expect(calls).not.toContain('registry linear after app.linear/linear:1.0.2');
+
+    official.resolve({ registry: 'registry.modelcontextprotocol.io', servers: [stripeRegistryServers[2]] });
+    await settle(fixture);
+    expect(results().map((row) => text(row.querySelector('.gw-card__title button'))))
+      .toEqual(['mcp', 'stripecheckup', 'Official Stripe integration']);
   });
 
   it('says why the registry search failed, and searches again on request', async () => {

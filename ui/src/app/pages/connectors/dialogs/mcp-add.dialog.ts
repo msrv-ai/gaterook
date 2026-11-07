@@ -8,6 +8,7 @@ import { GwTabs } from '../../../kit/tabs';
 import { joinAnd, tokenizeCommand } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
 import { signingTarget } from '../mcp-cloud';
+import { OfficialMcpPublisher, matchingOfficialMcpServerNames, officialMcpPublisher } from '../mcp-official-publishers';
 import { PastedServer, parsePastedServer, serverName } from '../mcp-paste';
 import { RegistryUse, fromRegistry, registryUse, templateParts } from '../mcp-registry';
 import { failureText } from './failure';
@@ -19,9 +20,10 @@ export interface RegistryResult {
   readonly use: RegistryUse;
   /** The host of its URL, or the package command (`npx @sentry/mcp-server@0.42.0`). */
   readonly target: string;
+  readonly officialPublisher: OfficialMcpPublisher | null;
 }
 
-export function registryResult(server: McpRegistryServer): RegistryResult {
+export function registryResult(server: McpRegistryServer, registry: string | null = null): RegistryResult {
   const use = registryUse(server);
   let target = '';
   if (use.kind === 'remote') {
@@ -33,7 +35,18 @@ export function registryResult(server: McpRegistryServer): RegistryResult {
   } else if (use.kind === 'package') {
     target = `${use.runtime} ${use.pkg.identifier}${use.pkg.version ? `@${use.pkg.version}` : ''}`;
   }
-  return { server, title: server.title || server.name.split('/')[1] || server.name, use, target };
+  return { server, title: server.title || server.name.split('/')[1] || server.name, use, target,
+    officialPublisher: officialMcpPublisher(server, registry) };
+}
+
+/** Keep upstream order within each group and one row per server, including across pages. */
+function rankRegistryResults(rows: readonly RegistryResult[]): readonly RegistryResult[] {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    if (seen.has(row.server.name)) return false;
+    seen.add(row.server.name);
+    return true;
+  }).sort((a, b) => Number(!!b.officialPublisher) - Number(!!a.officialPublisher));
 }
 
 /** The line under the results that says where they come from. */
@@ -523,7 +536,10 @@ let nextId = 0;
                       <article class="gw-card" [attr.aria-labelledby]="uid + '-r' + i">
                         <header class="gw-card__header">
                           <div class="gw-card__heading">
-                            <h3 class="gw-card__title" [id]="uid + '-r' + i"><button class="gw-btn gw-btn--link gw-truncate" type="button" [title]="r.title" (click)="use(r)" [attr.aria-disabled]="r.use.kind === 'none' ? 'true' : null" [attr.aria-describedby]="r.use.kind === 'none' ? uid + '-rn' + i : null"><span class="gw-text-h2 gw-truncate">{{ r.title }}</span></button></h3>
+                            <h3 class="gw-card__title" [id]="uid + '-r' + i">
+                              <button class="gw-btn gw-btn--link gw-truncate" type="button" [title]="r.title" (click)="use(r)" [attr.aria-disabled]="r.use.kind === 'none' ? 'true' : null" [attr.aria-describedby]="r.use.kind === 'none' ? uid + '-rn' + i : null"><span class="gw-text-h2 gw-truncate">{{ r.title }}</span></button>
+                              @if (r.officialPublisher; as publisher) {<span class="gw-badge gw-badge--info" [title]="'Official server by ' + publisher.name" [attr.aria-label]="'Official server by ' + publisher.name"><svg lucideIcon="shield-check" class="gw-icon"></svg>Official</span>}
+                            </h3>
                             <p class="gw-card__description gw-mono">{{ r.server.name }}@if (r.server.version) { · {{ r.server.version }}}</p>
                           </div>
                           <div class="gw-card__actions">
@@ -554,7 +570,7 @@ let nextId = 0;
                   }
                 </ul>
                 @if (nextCursor()) {
-                  <div><button class="gw-btn gw-btn--sm" type="button" (click)="more()" [attr.aria-busy]="moreBusy() ? 'true' : null" [attr.aria-disabled]="moreBusy() ? 'true' : null">@if (moreBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} Show more</button></div>
+                  <div><button class="gw-btn gw-btn--sm" type="button" (click)="more()" [attr.aria-busy]="moreBusy() ? 'true' : null" [attr.aria-disabled]="moreBusy() || searching() ? 'true' : null">@if (moreBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} Show more</button></div>
                 }
                 <p class="gw-text-caption gw-fg-muted">{{ source() }} The registry checks who published a name, not what the server does: the review shows what will run.</p>
               } @else if (searched(); as q) {
@@ -814,7 +830,21 @@ export class GwMcpAddDialog {
     try {
       const page = await this.data.searchRegistry(q);
       if (seq !== this.findSeq) return;
-      this.found.set(page.servers.map(registryResult));
+      const shown = new Set(page.servers.map((server) => server.name));
+      // Exact-name searches bring known official publishers onto the first page even when the registry ranks them later.
+      const officialPages = await Promise.all(matchingOfficialMcpServerNames(q, page.registry)
+        .filter((name) => !shown.has(name))
+        .map(async (name) => {
+          try {
+            const officialPage = await this.data.searchRegistry(name);
+            return officialPage.registry === page.registry ? officialPage.servers.filter((server) => server.name === name) : [];
+          } catch {
+            return [];
+          }
+        }));
+      if (seq !== this.findSeq) return;
+      this.found.set(rankRegistryResults([...page.servers, ...officialPages.flat()]
+        .map((server) => registryResult(server, page.registry))));
       this.nextCursor.set(page.nextCursor ?? null);
       this.registry.set(page.registry);
       this.searched.set(q);
@@ -833,17 +863,23 @@ export class GwMcpAddDialog {
   protected async more(): Promise<void> {
     const cursor = this.nextCursor();
     const q = this.searched();
-    if (!cursor || q === null || this.moreBusy()) return;
+    if (!cursor || q === null || this.moreBusy() || this.searching() || q !== this.query().trim()) return;
     const seq = this.findSeq;
     this.moreBusy.set(true);
     try {
       const page = await this.data.searchRegistry(q, cursor);
       if (seq !== this.findSeq) return;
-      const first = this.found().length;
       const shown = new Set(this.found().map((r) => r.server.name));
-      this.found.update((rows) => [...rows, ...page.servers.filter((s) => !shown.has(s.name)).map(registryResult)]);
+      const added = page.servers.filter((server) => !shown.has(server.name))
+        .map((server) => registryResult(server, page.registry));
+      this.found.update((rows) => rankRegistryResults([...rows, ...added]));
       this.nextCursor.set(page.nextCursor ?? null);
-      setTimeout(() => this.host.querySelector<HTMLElement>(`#${this.uid}-use-${first}`)?.focus());
+      const first = this.found().find((row) => added.some((newRow) => newRow.server.name === row.server.name));
+      setTimeout(() => {
+        if (seq !== this.findSeq || q !== this.query().trim() || this.tab() !== 'registry' || !this.host.open || !first) return;
+        const index = this.found().findIndex((row) => row.server.name === first.server.name);
+        if (index >= 0) this.host.querySelector<HTMLElement>(`#${this.uid}-use-${index}`)?.focus();
+      });
     } catch (err) {
       if (seq === this.findSeq) this.findError.set(failureText(err, 'This build of the gateway core can’t search the MCP registry.'));
     } finally {
