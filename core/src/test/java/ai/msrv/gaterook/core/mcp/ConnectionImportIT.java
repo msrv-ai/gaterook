@@ -5,13 +5,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ai.msrv.gaterook.core.admin.AdminMvc;
 import ai.msrv.gaterook.core.connections.ConnectionService;
+import ai.msrv.gaterook.core.endpoints.ConnectionImportFiles;
 import ai.msrv.gaterook.core.endpoints.EndpointService;
 import ai.msrv.gaterook.core.endpoints.TokenService;
 import ai.msrv.gaterook.core.platform.LocalListener;
+import ai.msrv.gaterook.core.platform.EventBus;
 import ai.msrv.gaterook.core.secrets.store.FakeVault;
 import ai.msrv.gaterook.testfixtures.TestCore;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.util.OptionalLong;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -212,6 +216,65 @@ class ConnectionImportIT {
       admin.expect(204, HttpMethod.DELETE, path(running), null);
       admin.expect(204, HttpMethod.DELETE, path(awaiting), null);
       admin.expect(204, HttpMethod.DELETE, path(review), null);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2025-11-25", "2026-07-28"})
+  void cancellationRevokesAnalysisAndReviewCapabilitiesBeforeAnyLateFileCanBeRead(String revision) throws Exception {
+    for (boolean staged : new boolean[] {false, true}) {
+      JsonNode session = session();
+      Path file = Path.of(session.path("importFile").asString());
+      try {
+        ObjectNode discovered = manifest("cancelled-private-candidate");
+        ((ObjectNode) discovered.path("connections").get(0)).putObject("secrets")
+            .putObject("/credentials/password").put("source", "local").put("value", "cancelled-private-credential");
+        Files.writeString(file, discovered.toString());
+        assertThat(importCall(revision, "connection_import_progress", capability(session).put("message", "Checking configuration"))
+            .path("isError").asBoolean()).isFalse();
+        if (staged) {
+          assertThat(importCall(revision, "submit_connection_import", capability(session)).path("isError").asBoolean()).isFalse();
+          assertThat(admin.ok(path(session)).path("status").asString()).isEqualTo("review");
+        }
+        long connectionsBefore = core.jdbc().queryForObject("select count(*) from connection", Long.class);
+        long secretsBefore = core.jdbc().queryForObject("select count(*) from secret", Long.class);
+        EventBus events = core.bean(EventBus.class);
+        long eventsBefore = events.lastId();
+        admin.expect(204, HttpMethod.DELETE, path(session), null);
+        assertThat(Files.exists(file)).isFalse();
+        admin.expect(404, HttpMethod.GET, path(session), null);
+        assertThat(listedTask(admin.ok("/api/connection-imports"), session)).isNull();
+
+        // A still-running AI may recreate its handoff file; the revoked session must never read or stage it.
+        core.bean(ConnectionImportFiles.class).create(session.path("id").asString());
+        Files.writeString(file, discovered.toString());
+        ObjectNode inline = capability(session);
+        inline.set("manifest", manifest("cancelled-inline-candidate"));
+        for (JsonNode refused : new JsonNode[] {
+            importCall(revision, "connection_import_progress", capability(session).put("message", "Preparing the proposal")),
+            importCall(revision, "connection_import_schema", capability(session).put("type", "pgfake")),
+            importCall(revision, "submit_connection_import", capability(session)),
+            importCall(revision, "submit_connection_import", inline),
+            importCall(revision, "open_connection_import", args("sessionId", session.path("id").asString()))}) {
+          assertThat(refused.path("isError").asBoolean()).as(refused.toString()).isTrue();
+          SpecSchemas.assertValid(revision, "CallToolResult", refused);
+          assertThat(refused.toString()).contains("unavailable").doesNotContain("cancelled-private-credential",
+              session.path("submissionToken").asString(), file.toString());
+        }
+        assertThat(Files.readString(file)).isEqualTo(discovered.toString());
+        assertThat(core.jdbc().queryForObject("select count(*) from connection", Long.class)).isEqualTo(connectionsBefore);
+        assertThat(core.jdbc().queryForObject("select count(*) from secret", Long.class)).isEqualTo(secretsBefore);
+        admin.expect(404, HttpMethod.GET, path(session), null);
+        assertThat(listedTask(admin.ok("/api/connection-imports"), session)).isNull();
+        try (var subscription = events.subscribe(OptionalLong.of(eventsBefore))) {
+          for (var event = subscription.next(Duration.ZERO); event.isPresent(); event = subscription.next(Duration.ZERO)) {
+            assertThat(event.get().type()).isNotEqualTo("ui.open");
+          }
+        }
+      } finally {
+        admin.expect(204, HttpMethod.DELETE, path(session), null);
+        Files.deleteIfExists(file);
+      }
     }
   }
 
@@ -450,6 +513,10 @@ class ConnectionImportIT {
       if (task.path("id").equals(session.path("id"))) return task;
     }
     return null;
+  }
+
+  private static JsonNode importCall(String revision, String tool, ObjectNode arguments) {
+    return (revision.equals(McpClient.MODERN) ? agent.modernCall(tool, arguments, false) : agent.legacyCall(tool, arguments)).result();
   }
 
   private static ObjectNode capability(JsonNode session) {

@@ -59,6 +59,15 @@ export class ConnectionImportsStore {
     return request;
   }
 
+  /** Call after cancellation succeeds so an earlier list response cannot restore the removed task. */
+  remove(id: string): void {
+    if (this.destroy.destroyed) return;
+    this.epoch++;
+    this.pending = null;
+    this.items.update(items => items.filter(task => task.id !== id));
+    void this.refresh();
+  }
+
   private observeCore(running: boolean, instance: number): void {
     if (this.observed?.running === running && this.observed.instance === instance) return;
     this.observed = { running, instance };

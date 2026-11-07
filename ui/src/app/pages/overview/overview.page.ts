@@ -26,6 +26,7 @@ import { GwCopy } from '../../kit/copy';
 import { GwDialog, GwDialogClose, GwDialogOpen } from '../../kit/dialog';
 import { GwToggle } from '../../kit/disclosure';
 import { GwIcon } from '../../kit/icons';
+import { GwMenu, GwMenuTrigger } from '../../kit/menu';
 import { GwSearchClear, GwSearchClearButton } from '../../kit/search';
 import { ToastService } from '../../kit/toast.service';
 import { OverviewData } from './overview.data';
@@ -46,6 +47,8 @@ export const SKELETON_DELAY_MS = 300;
     NgTemplateOutlet,
     RouterLink,
     GwIcon,
+    GwMenu,
+    GwMenuTrigger,
     GwAccessSwitch,
     GwCopy,
     GwToggle,

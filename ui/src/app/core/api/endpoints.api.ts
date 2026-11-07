@@ -169,7 +169,7 @@ export class EndpointsApi {
     return this.api.get('/api/endpoints');
   }
 
-  create(request: { readonly slug: string; readonly description?: string | null; readonly startFrom: StartFrom; readonly connections?: readonly string[] } & WithReason): Promise<EndpointSummary> {
+  create(request: { readonly slug: string; readonly description?: string | null; readonly startFrom: StartFrom; readonly connections?: readonly string[]; readonly env?: Env } & WithReason): Promise<EndpointSummary> {
     return this.api.post('/api/endpoints', request);
   }
 

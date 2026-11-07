@@ -1,5 +1,6 @@
 package ai.msrv.gaterook.core.admin.endpoints;
 
+import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.core.admin.ApiRequestException;
 import ai.msrv.gaterook.core.admin.Modes;
@@ -55,7 +56,7 @@ import tools.jackson.databind.JsonNode;
     EndpointsController.SplitPreview.class, EndpointsController.Check.class, EndpointsController.StartFrom.class})
 class EndpointsController {
 
-  record Create(String slug, String description, String startFrom, List<String> connections, String reason) {}
+  record Create(String slug, String description, String startFrom, List<String> connections, String env, String reason) {}
 
   record Duplicate(String slug, String reason) {}
 
@@ -209,8 +210,16 @@ class EndpointsController {
   ResponseEntity<EndpointDtos.Summary> create(@RequestBody Create request) {
     EndpointService.Summary s = endpoints.create(request.slug(), request.description(),
         EndpointService.StartFrom.of(request.startFrom() == null ? "empty" : request.startFrom()),
-        request.connections(), Reasons.check(request.reason()));
+        request.connections(), initialEnv(request.env()), Reasons.check(request.reason()));
     return ResponseEntity.status(HttpStatus.CREATED).body(EndpointDtos.summary(s, 0, List.of()));
+  }
+
+  private static Env initialEnv(String id) {
+    if (id == null) return null;
+    try { return Env.of(id); }
+    catch (IllegalArgumentException e) {
+      throw ApiRequestException.unprocessable("Unknown environment", "Choose dev, stage or prod.", "/env");
+    }
   }
 
   @PostMapping("/api/endpoints/{slug}/duplicate")

@@ -7,8 +7,9 @@ import { ConnectionsApi, SecretInputs, StoredSecret, TestOutcome } from '../../c
 import { ConnectionFormSpec, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointsApi, EndpointSummary } from '../../core/api/endpoints.api';
 import { SecretsApi } from '../../core/api/secrets.api';
-import { JsonObject, JsonValue } from '../../core/api/types';
+import { Env, JsonObject, JsonValue } from '../../core/api/types';
 import { DesktopBridge, desktopErrorText } from '../../core/desktop/desktop-bridge';
+import { ConnectionImportsStore } from '../../core/stores/connection-imports.store';
 import { TimeService } from '../../core/time/time.service';
 import { ClipboardWriter } from '../../kit/clipboard';
 import { COPIED_MS } from '../../kit/copy';
@@ -29,6 +30,9 @@ import { ClientsData } from '../clients/clients.data';
 import { ImportAppConsent, ImportAppPicker, ImportAppSelection } from './import-app-picker';
 import { ImportVaultStores } from './import-vault-stores';
 
+const CANCELLED_NOTICE = 'Import cancelled. GateRook will no longer accept data for this import. No saved connections were changed.';
+const DISCARDED_NOTICE = 'Import discarded. No saved connections were changed.';
+
 function mergeConfig(base: JsonValue, patch: JsonValue): JsonValue {
   if (!base || !patch || typeof base !== 'object' || typeof patch !== 'object' || Array.isArray(base) || Array.isArray(patch)) return patch;
   const result: JsonObject = { ...base };
@@ -46,6 +50,7 @@ function mergeConfig(base: JsonValue, patch: JsonValue): JsonValue {
 })
 export class ConnectionImportPage {
   private readonly api = inject(ConnectionImportsApi);
+  private readonly imports = inject(ConnectionImportsStore);
   private readonly types = inject(ConnectorTypesApi);
   private readonly connections = inject(ConnectionsApi);
   private readonly endpointsApi = inject(EndpointsApi);
@@ -71,6 +76,7 @@ export class ConnectionImportPage {
   readonly form = viewChild(GwConnectionForm);
   readonly loading = signal(false);
   readonly busy = signal(false);
+  readonly cancelling = signal(false);
   readonly error = signal('');
   readonly notice = signal('');
   private readonly copiedPrompt = signal<{ text: string; client: ClientId | null } | null>(null);
@@ -86,6 +92,7 @@ export class ConnectionImportPage {
   readonly endpointCandidate = signal<ImportCandidate | null>(null);
   readonly endpointSlug = signal('');
   readonly endpointDescription = signal('');
+  readonly endpointEnv = signal<Env>('dev');
   readonly endpointError = signal('');
   readonly endpointSlugError = signal<string | null>(null);
   readonly creatingEndpoint = signal(false);
@@ -159,11 +166,17 @@ export class ConnectionImportPage {
   });
   private generation = 0;
   private editing = 0;
-  private refreshing = false;
+  private refreshing: object | null = null;
+  private readonly cancelledSessions = new Set<string>();
+  private readonly cancellingSessions = new Set<string>();
+  private loadingSessionId: string | null = null;
   private preparedReview: string | null = null;
   private copyTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
+    const dismissed = this.router.currentNavigation()?.extras.state?.['importDismissed'];
+    if (dismissed === 'cancelled') this.notice.set(CANCELLED_NOTICE);
+    else if (dismissed === 'discarded') this.notice.set(DISCARDED_NOTICE);
     const choice = this.router.currentNavigation()?.extras.state?.['importAppChoice'] as { client?: ClientId; consent?: ImportAppConsent } | undefined;
     if (choice?.client && ['claude-desktop', 'codex', 'cursor', 'antigravity'].includes(choice.client)) this.selectedClient.set(choice.client);
     if (choice?.consent && ['manual', 'restart'].includes(choice.consent.kind) && typeof choice.consent.key === 'string') this.appConsent.set(choice.consent);
@@ -190,6 +203,11 @@ export class ConnectionImportPage {
 
   async load(id: string | null = this.id(), endpoint: string | null = this.endpoint()): Promise<void> {
     const generation = ++this.generation;
+    this.refreshing = null;
+    this.loadingSessionId = id;
+    const cancelling = !!id && this.cancellingSessions.has(id);
+    this.busy.set(cancelling);
+    this.cancelling.set(cancelling);
     this.loading.set(true);
     this.vaultBusy.set(false);
     this.setupVisible.set(false);
@@ -213,12 +231,14 @@ export class ConnectionImportPage {
       if (generation !== this.generation) return;
       this.endpoints.set(endpoints);
       this.existingNames.set(new Set(connections.items.map(c => c.name)));
+      if (session && this.cancelledSessions.has(session.id)) { this.notice.set(CANCELLED_NOTICE); return; }
       this.session.set(session);
       if (session) this.prepareReview(session);
       this.sourceEndpoint.set(session?.endpoint ?? endpoint ?? endpoints.find(e => e.slug === 'default')?.slug ?? endpoints[0]?.slug ?? '');
       if (session) this.repository.set(session.repository);
     } catch (e) {
       if (generation !== this.generation) return;
+      if (id && this.cancelledSessions.has(id)) { this.notice.set(CANCELLED_NOTICE); return; }
       this.unavailable.set(!!id && isApiError(e) && ['not-found', 'bad-request'].includes(e.kind));
       this.fail(e);
     } finally { if (generation === this.generation) this.loading.set(false); }
@@ -245,18 +265,19 @@ export class ConnectionImportPage {
     if (!this.repository().trim() || !this.sourceEndpoint()) { this.fail(new Error('Choose a repository and the endpoint your AI app is connected to.')); return; }
     if (!this.appSelection()?.ready || !this.appEndpoint()) { this.fail(new Error('Choose an AI app and connect it to this endpoint before creating the prompt.')); return; }
     this.busy.set(true);
+    const generation = this.generation;
     try {
       const previous = this.session();
       const reusable = previous?.status === 'awaiting' && previous.repository === this.repository().trim()
         && previous.endpoint === this.sourceEndpoint() && !this.expired();
       const session = reusable ? previous : await this.api.start(this.repository().trim(), this.sourceEndpoint());
-      if (this.destroy.destroyed) return;
+      if (this.destroy.destroyed || generation !== this.generation) return;
       this.session.set(session);
       this.setupVisible.set(false);
       this.notice.set('');
       await this.router.navigate(['/connection-import', session.id], { queryParams: { app: this.selectedClient() }, state: { importAppChoice: { client: this.selectedClient(), consent: this.appConsent() } } });
-    } catch (e) { this.fail(e); }
-    finally { this.busy.set(false); }
+    } catch (e) { if (!this.destroy.destroyed && generation === this.generation) this.fail(e); }
+    finally { if (!this.destroy.destroyed && generation === this.generation) this.busy.set(false); }
   }
 
   async startWithApp(selection: ImportAppSelection): Promise<void> {
@@ -268,7 +289,8 @@ export class ConnectionImportPage {
   }
 
   async handoff(client: 'claude' | 'codex' | 'cursor' | 'copy' | 'antigravity'): Promise<void> {
-    if (!this.prompt() || this.expired()) return;
+    if (!this.prompt() || this.expired() || this.busy()) return;
+    const generation = this.generation;
     if (this.importProgress() && client !== 'copy' && client !== 'antigravity') return;
     const selected = this.appSelection();
     const launch = selected?.client === 'claude-desktop' ? 'claude' : selected?.client;
@@ -282,7 +304,7 @@ export class ConnectionImportPage {
         this.copiedPrompt.set(null);
         if (this.copyTimer) clearTimeout(this.copyTimer);
         const copied = await this.clipboard.write(text);
-        if (this.destroy.destroyed || text !== this.prompt() || selectedClient !== this.selectedClient()) return;
+        if (this.destroy.destroyed || generation !== this.generation || text !== this.prompt() || selectedClient !== this.selectedClient()) return;
         if (copied) {
           this.copiedPrompt.set({ text, client: selectedClient });
           this.copyTimer = setTimeout(() => this.copiedPrompt.set(null), COPIED_MS);
@@ -291,9 +313,13 @@ export class ConnectionImportPage {
           : 'Could not copy. Expand the prompt and copy its text.');
       } else {
         await this.desktop.openAiPrompt(client, this.prompt());
+        if (this.destroy.destroyed || generation !== this.generation) return;
         if (!this.importProgress()) this.notice.set('Review and send the prompt in your AI app. GateRook will open the results when they arrive.');
       }
-    } catch (e) { this.fail(e); this.notice.set('Use Copy prompt and paste it into your AI app.'); }
+    } catch (e) {
+      if (this.destroy.destroyed || generation !== this.generation) return;
+      this.fail(e); this.notice.set('Use Copy prompt and paste it into your AI app.');
+    }
   }
 
   async handoffSelected(): Promise<void> {
@@ -314,32 +340,54 @@ export class ConnectionImportPage {
 
   async discard(): Promise<void> {
     const session = this.session();
-    if (!session || session.status === 'imported' || this.busy() || this.vaultBusy()) return;
+    if (!session || session.status === 'imported' || this.busy() || this.vaultBusy() || this.cancellingSessions.has(session.id)) return;
+    this.cancellingSessions.add(session.id);
+    const generation = ++this.generation;
+    this.refreshing = null;
     this.busy.set(true);
+    this.cancelling.set(true);
     this.error.set('');
     try {
       await this.api.cancel(session.id);
+      this.cancelledSessions.add(session.id);
+      this.imports.remove(session.id);
       if (this.destroy.destroyed) return;
+      if (generation !== this.generation && this.session()?.id !== session.id) return;
+      ++this.generation;
+      this.refreshing = null;
+      this.loading.set(false); this.busy.set(false); this.cancelling.set(false);
       this.session.set(null);
+      this.unavailable.set(false);
+      this.copiedPrompt.set(null);
+      if (this.copyTimer) { clearTimeout(this.copyTimer); this.copyTimer = null; }
       this.preparedReview = null;
       this.drafts.set(new Map()); this.editorSecrets.set({}); this.editorValue.set(null);
       this.destinations.set(new Map()); this.active.set(null); this.spec.set(null);
-      this.candidateIssues.set(new Map()); this.confirmation.set(null); this.notice.set('Import discarded. No saved connections were changed.');
-      await this.router.navigate(['/connection-import']);
-    } catch (e) { this.fail(e); }
-    finally { this.busy.set(false); }
+      const dismissed = session.status === 'awaiting' ? 'cancelled' : 'discarded';
+      this.candidateIssues.set(new Map()); this.confirmation.set(null);
+      this.notice.set(dismissed === 'cancelled' ? CANCELLED_NOTICE : DISCARDED_NOTICE);
+      await this.router.navigate(['/connection-import'], { state: { importDismissed: dismissed } });
+    } catch (e) {
+      if (!this.destroy.destroyed && (this.session()?.id === session.id || (this.loading() && this.loadingSessionId === session.id))) this.fail(e);
+    } finally {
+      this.cancellingSessions.delete(session.id);
+      if (!this.destroy.destroyed && (generation === this.generation || this.session()?.id === session.id
+          || (this.loading() && this.loadingSessionId === session.id))) { this.busy.set(false); this.cancelling.set(false); }
+    }
   }
 
   async refresh(showError = true): Promise<void> {
     const current = this.session();
     if (!current || this.refreshing || this.busy()) return;
-    this.refreshing = true;
+    const generation = this.generation;
+    const request = {};
+    this.refreshing = request;
     try {
       const session = await this.api.get(current.id);
-      if (this.destroy.destroyed || this.session()?.id !== current.id) return;
+      if (this.destroy.destroyed || generation !== this.generation || this.session()?.id !== current.id) return;
       if (session.status === 'review' && this.preparedReview !== session.id) {
         const connections = await this.connections.list();
-        if (this.destroy.destroyed || this.session()?.id !== current.id) return;
+        if (this.destroy.destroyed || generation !== this.generation || this.session()?.id !== current.id) return;
         this.existingNames.set(new Set(connections.items.map(c => c.name)));
       }
       this.session.set(session);
@@ -351,9 +399,10 @@ export class ConnectionImportPage {
         this.focus('#import-review-title');
       }
     } catch (e) {
+      if (this.destroy.destroyed || generation !== this.generation || this.session()?.id !== current.id) return;
       if (isApiError(e) && ['not-found', 'bad-request'].includes(e.kind)) { this.unavailable.set(true); this.fail(e); }
       else if (showError) this.fail(e);
-    } finally { this.refreshing = false; }
+    } finally { if (this.refreshing === request) this.refreshing = null; }
   }
 
   /** Prepare defaults once; subsequent polls must retain the person's choices and edited credentials. */
@@ -399,6 +448,7 @@ export class ConnectionImportPage {
       if (this.busy() || !candidate.supported || this.expired()) return;
       this.endpointCandidate.set(candidate);
       this.endpointSlug.set(''); this.endpointDescription.set('');
+      this.endpointEnv.set(this.drafts().get(candidate.id)?.env ?? candidate.env);
       this.endpointError.set(''); this.endpointSlugError.set(null);
       this.endpointDialog()?.openAfterRender(select);
     } else {
@@ -413,6 +463,10 @@ export class ConnectionImportPage {
     this.endpointError.set(''); this.endpointSlugError.set(null);
   }
 
+  setEndpointEnv(value: string): void {
+    if (value === 'dev' || value === 'stage' || value === 'prod') this.endpointEnv.set(value);
+  }
+
   async createEndpoint(event?: Event): Promise<void> {
     event?.preventDefault();
     const candidate = this.endpointCandidate();
@@ -425,7 +479,8 @@ export class ConnectionImportPage {
     if (this.endpointDescription().length > DESCRIPTION_MAX) { this.endpointError.set(`Use at most ${DESCRIPTION_MAX} characters in the description.`); return; }
     this.creatingEndpoint.set(true);
     try {
-      const endpoint = await this.endpointsApi.create({ slug, description: this.endpointDescription().trim() || null, startFrom: 'empty', connections: [] });
+      const endpoint = await this.endpointsApi.create({ slug, description: this.endpointDescription().trim() || null,
+        startFrom: 'empty', connections: [], env: this.endpointEnv() });
       if (this.destroy.destroyed || this.session()?.id !== sessionId || this.endpointCandidate()?.id !== candidate.id) return;
       this.endpoints.update(endpoints => [...endpoints.filter(known => known.slug !== endpoint.slug), endpoint]);
       this.setDestination(candidate, endpoint.slug);
