@@ -41,9 +41,11 @@ public class ConnectionImportTools {
       return ResultWriter.toolError(request.env(), "Review the endpoint's policy integrity in GateRook first.", null);
     }
     boolean submit = CoreTools.SUBMIT_CONNECTION_IMPORT.equals(name);
+    boolean progress = CoreTools.CONNECTION_IMPORT_PROGRESS.equals(name);
     boolean open = "open_connection_import".equals(name);
     ToolDefinition definition = submit ? CoreTools.submitConnectionImport()
-        : open ? CoreTools.openConnectionImport() : CoreTools.connectionImportSchema();
+        : open ? CoreTools.openConnectionImport() : progress ? CoreTools.connectionImportProgress()
+        : CoreTools.connectionImportSchema();
     String callId = Ids.next("tc_");
     // The capability and the discovery body never enter audit arguments, previews, hashes or tracing tags.
     ObjectNode summary = JsonNodeFactory.instance.objectNode().put("sessionId", arguments.path("sessionId").asString());
@@ -58,6 +60,8 @@ public class ConnectionImportTools {
               request.caller().principalId()) : submit
           ? imports.submit(arguments.path("sessionId").asString(), arguments.path("submissionToken").asString(),
               request.snapshot().id(), request.caller().principalId(), arguments.get("manifest"))
+          : progress ? imports.progress(arguments.path("sessionId").asString(), arguments.path("submissionToken").asString(),
+              request.snapshot().id(), arguments.path("message").asString(null))
           : imports.schema(arguments.path("sessionId").asString(), arguments.path("submissionToken").asString(),
               request.snapshot().id(), arguments.path("type").asString(null));
       // Some clients expose only text content to their model, so it must contain the complete schema too.
@@ -66,7 +70,7 @@ public class ConnectionImportTools {
     } catch (ProblemException e) { result = ToolResult.error(e.getMessage()); }
     long elapsed = (System.nanoTime() - started) / 1_000_000;
     String preview = result.isError() ? "Discovery request refused." : submit ? "Discovery staged for review."
-        : open ? "Import review opened." : "Connector schemas returned.";
+        : open ? "Import review opened." : progress ? "Import progress updated." : "Connector schemas returned.";
     try {
       audit.completed(call, new AuditWriter.Completion(result.isError() ? AuditWriter.Verdict.ERROR : AuditWriter.Verdict.ALLOWED,
           null, null, null, null, elapsed, elapsed, 0L, null, null, null, preview, 0, false,

@@ -11,6 +11,7 @@ import ai.msrv.gaterook.core.platform.CanonicalJson;
 import ai.msrv.gaterook.core.platform.EventBus;
 import ai.msrv.gaterook.core.platform.Ids;
 import ai.msrv.gaterook.core.platform.LocalListener;
+import ai.msrv.gaterook.core.platform.MaskPolicy;
 import ai.msrv.gaterook.core.platform.Masker;
 import ai.msrv.gaterook.core.platform.ProblemException;
 import java.nio.charset.StandardCharsets;
@@ -50,14 +51,20 @@ public class ConnectionImportService {
   public static final int MAX_CONNECTIONS = 50;
   public static final int MAX_STORES = 16;
   public static final int MAX_BYTES = 128 * 1024;
+  public static final int MAX_PROGRESS_MESSAGE = 240;
   private static final Set<String> SPECIALIZED = Set.of("http", "mcp-server");
   private static final Set<String> CANDIDATE_FIELDS = Set.of("id", "name", "type", "env", "config", "evidence",
       "credentialHints", "warnings");
 
   /** The capability is shown only to the local admin UI, which puts it in the user's chosen AI prompt. */
   public record Session(String id, String repository, String endpoint, String endpointUrl, Instant expiresAt, String status,
-      JsonNode manifest, String submissionToken, String importFile) {
+      JsonNode manifest, String submissionToken, String importFile, Progress progress) {
     @Override public String toString() { return "Session[id=" + id + ", status=" + status + ", capability=redacted]"; }
+  }
+
+  /** The latest bounded update is kept only for this temporary import session. */
+  public record Progress(Instant startedAt, Instant updatedAt, String message) {
+    @Override public String toString() { return "Progress[startedAt=" + startedAt + ", updatedAt=" + updatedAt + "]"; }
   }
 
   /** Reviewed input from the admin UI; the connector type is always taken from the staged candidate. */
@@ -87,6 +94,7 @@ public class ConnectionImportService {
     String principal;
     String digest;
     ObjectNode manifest;
+    Progress progress;
     ConnectionImportFiles.Prepared prepared;
     final Map<String, String> storeConnections = new LinkedHashMap<>();
     Instant lastOpened = Instant.EPOCH;
@@ -102,7 +110,7 @@ public class ConnectionImportService {
 
     Session view() {
       return new Session(id, repository, endpoint, endpointUrl, expiresAt, status,
-          manifest == null ? null : manifest.deepCopy(), token, importFile);
+          manifest == null ? null : manifest.deepCopy(), token, importFile, progress);
     }
   }
 
@@ -181,6 +189,31 @@ public class ConnectionImportService {
         out.setAll(descriptor(connector, true));
       }
       return out;
+    }
+  }
+
+  /** Reporting analysis never submits a proposal or extends the session's fixed lifetime. */
+  public ObjectNode progress(String id, String token, String endpointId, String message) {
+    Pending pending = authorize(id, token, endpointId);
+    synchronized (pending) {
+      requireActive(pending);
+      if (!"awaiting".equals(pending.status)) {
+        throw ProblemException.conflict("Import already submitted", "Progress can only be reported before submitting an import.");
+      }
+      if (message == null || message.isBlank() || message.codePointCount(0, message.length()) > MAX_PROGRESS_MESSAGE
+          || message.codePoints().anyMatch(c -> Character.isISOControl(c) || Character.getType(c) == Character.FORMAT
+              || Character.getType(c) == Character.LINE_SEPARATOR || Character.getType(c) == Character.PARAGRAPH_SEPARATOR)) {
+        throw invalid("Provide a short, single-line progress message of up to 240 characters.", "/message");
+      }
+      if (message.contains(pending.token)) {
+        throw invalid("Keep session tokens and credential values out of progress messages.", "/message");
+      }
+      secretText(message, "/message");
+      String safe = masker.text(message.strip(), null, MaskPolicy.SECRETS_ONLY).text();
+      Instant now = clock.instant();
+      pending.progress = new Progress(pending.progress == null ? now : pending.progress.startedAt(), now, safe);
+      return JsonNodeFactory.instance.objectNode().put("sessionId", pending.id).put("status", "running")
+          .put("startedAt", pending.progress.startedAt().toString()).put("updatedAt", now.toString());
     }
   }
 
@@ -794,10 +827,14 @@ public class ConnectionImportService {
   }
 
   private void secretText(String value) {
+    secretText(value, "/manifest");
+  }
+
+  private void secretText(String value, String field) {
     if (masker.looksLikeSecret(value, false).isPresent()
         || value.matches("(?is).*\\b[a-z][a-z0-9+.-]*://[^/\\s]*@.*")
         || value.matches("(?is).*[(?&;](?:password|passwd|pwd|token|api[-_]?key|secret|authorization)=.+")) {
-      throw invalid("Remove credential values and authenticated URLs. Describe their source using credentialHints.", "/manifest");
+      throw invalid("Remove credential values and authenticated URLs. Describe their source using credentialHints.", field);
     }
   }
 

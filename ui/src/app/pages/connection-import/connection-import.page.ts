@@ -111,6 +111,11 @@ export class ConnectionImportPage {
     || candidate.credentialHints.some(hint => hint.reference?.startsWith('vault://') || /vault|openbao/i.test(hint.source))));
   readonly prompt = computed(() => this.session()?.status === 'awaiting' ? connectionImportPrompt(this.session()!) : '');
   readonly expired = computed(() => !!this.session() && this.session()!.status !== 'imported' && this.time.secondsUntil(this.session()!.expiresAt) <= 0);
+  readonly importProgress = computed(() => this.session()?.status === 'awaiting' ? this.session()?.progress ?? null : null);
+  readonly progressPaused = computed(() => {
+    const progress = this.importProgress();
+    return !!progress && this.time.now() - Date.parse(progress.updatedAt) > 15 * 60_000;
+  });
   readonly eligibleEndpoints = computed(() => this.endpoints().filter(e => !e.blockedReason && e.status === 'running'));
   readonly appEndpoint = computed(() => {
     const session = this.setupVisible() ? null : this.session();
@@ -283,7 +288,7 @@ export class ConnectionImportPage {
           : 'Could not copy. Expand the prompt and copy its text.');
       } else {
         await this.desktop.openAiPrompt(client, this.prompt());
-        this.notice.set('Review and send the prompt in your AI app. GateRook will open the results when they arrive.');
+        if (!this.importProgress()) this.notice.set('Review and send the prompt in your AI app. GateRook will open the results when they arrive.');
       }
     } catch (e) { this.fail(e); this.notice.set('Use Copy prompt and paste it into your AI app.'); }
   }
@@ -336,6 +341,7 @@ export class ConnectionImportPage {
       }
       this.session.set(session);
       this.prepareReview(session);
+      if (!current.progress && session.progress) this.notice.set('');
       if (current.status === 'awaiting' && session.status === 'review') {
         this.setupVisible.set(false);
         this.notice.set('The AI analysis is ready. Available settings are prepared for import. Review the selection and use Settings to make changes.');

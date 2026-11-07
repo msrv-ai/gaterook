@@ -94,6 +94,64 @@ class ConnectionImportServiceTest {
   }
 
   @Test
+  void progressRecordsTheStartAndLatestUpdateWithoutSubmittingOrExtendingTheSession() {
+    var session = start();
+    assertThat(session.progress()).isNull();
+    String first = "Checking repository configuration";
+    ObjectNode result = service.progress(session.id(), session.submissionToken(), "ep-source", "  " + first + "  ");
+    assertThat(result.path("status").asString()).isEqualTo("running");
+    assertThat(result.toString()).doesNotContain(first, session.submissionToken(), session.repository(), session.importFile());
+    assertThat(service.get(session.id()).progress()).isEqualTo(new ConnectionImportService.Progress(NOW, NOW, first));
+    Instant later = NOW.plusSeconds(16 * 60);
+    when(clock.instant()).thenReturn(later);
+    service.schema(session.id(), session.submissionToken(), "ep-source", null);
+    assertThat(service.get(session.id()).progress().updatedAt()).isEqualTo(NOW);
+    service.progress(session.id(), session.submissionToken(), "ep-source", first);
+    var updated = service.get(session.id());
+    assertThat(updated.progress()).isEqualTo(new ConnectionImportService.Progress(NOW, later, first));
+    assertThat(updated.expiresAt()).isEqualTo(session.expiresAt());
+    assertThat(updated.status()).isEqualTo("awaiting");
+    assertThat(updated.manifest()).isNull();
+    verifyNoInteractions(connections, wiring, events);
+    submit(session, manifest());
+    assertThat(service.get(session.id()).status()).isEqualTo("review");
+    assertThatThrownBy(() -> service.progress(session.id(), session.submissionToken(), "ep-source", "Too late"))
+        .isInstanceOf(ProblemException.class).hasMessageContaining("before submitting");
+    assertThat(service.get(session.id()).progress()).isEqualTo(updated.progress());
+  }
+
+  @Test
+  void progressRequiresTheSessionCapabilityAndOriginalEndpoint() {
+    var session = start();
+    for (String endpoint : List.of("other-endpoint", "")) {
+      assertThatThrownBy(() -> service.progress(session.id(), session.submissionToken(), endpoint, "Checking files"))
+          .isInstanceOf(ProblemException.class).hasMessageContaining("unavailable");
+    }
+    for (String token : new String[] {null, "", "wrong"}) {
+      assertThatThrownBy(() -> service.progress(session.id(), token, "ep-source", "Checking files"))
+          .isInstanceOf(ProblemException.class).hasMessageContaining("unavailable");
+    }
+    assertThat(service.get(session.id()).progress()).isNull();
+    verifyNoInteractions(connections, wiring, events);
+  }
+
+  @Test
+  void progressRejectsInvalidOrSensitiveMessagesWithoutChangingTheLastUpdate() {
+    var session = start();
+    service.progress(session.id(), session.submissionToken(), "ep-source", "a".repeat(240));
+    var first = service.get(session.id()).progress();
+    when(clock.instant()).thenReturn(NOW.plusSeconds(60));
+    for (String message : new String[] {null, "", " ", "a".repeat(241), "line\nbreak", "tab\there", "line\u2028break",
+        "paragraph\u2029break", "hidden\u200btext", "direction\u202etext", "https://user:password@example.test",
+        "https://example.test/?token=secret", "Using " + session.submissionToken()}) {
+      assertThatThrownBy(() -> service.progress(session.id(), session.submissionToken(), "ep-source", message))
+          .isInstanceOf(ProblemException.class);
+      assertThat(service.get(session.id()).progress()).isEqualTo(first);
+    }
+    verifyNoInteractions(connections, wiring, events);
+  }
+
+  @Test
   void schemaAndSubmitRequireTheUserCapabilityAndItsOriginalEndpoint() {
     var session = start();
     for (String endpoint : List.of("other-endpoint", "")) {
@@ -244,13 +302,20 @@ class ConnectionImportServiceTest {
   @Test
   void cancelledAndExpiredSessionsLoseTheirCapabilitiesAndFiles() {
     var cancelled = start();
+    service.progress(cancelled.id(), cancelled.submissionToken(), "ep-source", "Checking configuration");
     service.cancel(cancelled.id());
     assertThatThrownBy(() -> submit(cancelled, manifest())).isInstanceOf(ProblemException.class);
+    assertThatThrownBy(() -> service.progress(cancelled.id(), cancelled.submissionToken(), "ep-source", "Checking files"))
+        .isInstanceOf(ProblemException.class).hasMessageContaining("unavailable");
     verify(files).delete(cancelled.id());
     var expired = start();
+    when(clock.instant()).thenReturn(NOW.plus(ConnectionImportService.LIFETIME).minusSeconds(1));
+    service.progress(expired.id(), expired.submissionToken(), "ep-source", "Preparing the proposal");
     when(clock.instant()).thenReturn(NOW.plus(ConnectionImportService.LIFETIME));
     service.expireSessions();
     assertThatThrownBy(() -> service.get(expired.id())).isInstanceOf(ProblemException.class);
+    assertThatThrownBy(() -> service.progress(expired.id(), expired.submissionToken(), "ep-source", "Checking files"))
+        .isInstanceOf(ProblemException.class).hasMessageContaining("unavailable");
     verify(files).delete(expired.id());
   }
 

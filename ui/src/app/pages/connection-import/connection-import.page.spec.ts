@@ -9,6 +9,7 @@ import { ConnectionsApi, TestOutcome } from '../../core/api/connections.api';
 import { ConnectionFormSpec, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointsApi, EndpointSummary } from '../../core/api/endpoints.api';
 import { DesktopBridge } from '../../core/desktop/desktop-bridge';
+import { TimeService } from '../../core/time/time.service';
 import { ClipboardWriter } from '../../kit/clipboard';
 import { ConnectionFormValue, GwConnectionForm } from '../../kit/elements/connection-form/connection-form';
 import { provideKitIcons } from '../../kit/icons';
@@ -285,6 +286,84 @@ describe('AI connection import review', () => {
     expect(root.textContent).not.toContain('Check app connections');
     expect(root.querySelector('#import-prompt-details')?.textContent).toContain(awaiting.endpointUrl);
     expect(api.commit).not.toHaveBeenCalled();
+  });
+
+  it('waits for the AI to report work before showing progress or an inactivity warning', async () => {
+    const now = signal(Date.parse('2026-11-07T12:00:00Z'));
+    vi.spyOn(TestBed.inject(TimeService), 'now').mockImplementation(now);
+    await loadReview({ ...awaiting, progress: null });
+    now.update(value => value + 16 * 60_000);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('#import-progress')).toBeNull();
+    expect(root.textContent).toContain('Review and send the prompt in the app to begin');
+    expect(page.progressPaused()).toBe(false);
+  });
+
+  it('shows reported progress, pauses after 15 minutes without an update, and resumes on a fresh report', async () => {
+    const updatedAt = '2026-11-07T12:00:00Z';
+    const now = signal(Date.parse(updatedAt));
+    vi.spyOn(TestBed.inject(TimeService), 'now').mockImplementation(now);
+    await loadReview(awaiting);
+    await page.handoff('cursor');
+    expect(page.notice()).toContain('Review and send the prompt');
+    const progress = { startedAt: updatedAt, updatedAt, message: 'Checking database configuration' };
+    api.get.mockResolvedValue({ ...awaiting, progress });
+    await page.refresh(false); fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const status = () => root.querySelector('#import-progress')!;
+    expect(status().textContent).toContain('Import in progress');
+    expect(status().textContent).toContain(progress.message);
+    expect(page.notice()).toBe('');
+    expect(status().querySelector('[role="status"]')?.getAttribute('aria-live')).toBe('polite');
+    expect(root.textContent).not.toContain('Review and send the prompt in the app to begin');
+    now.update(value => value + 15 * 60_000);
+    fixture.detectChanges();
+    expect(status().textContent).not.toContain('Import paused');
+    api.get.mockRejectedValueOnce(new Error('Core temporarily unavailable'));
+    await page.refresh(false);
+    now.update(value => value + 1000);
+    fixture.detectChanges();
+    expect(status().textContent).toContain('Import paused');
+    expect(status().textContent).toContain('No progress updates have been received for more than 15 minutes');
+    expect(status().textContent).toContain(progress.message);
+    expect(status().classList.contains('gw-alert--warning')).toBe(true);
+    api.get.mockResolvedValue({ ...awaiting, progress: { ...progress, updatedAt: new Date(now()).toISOString(), message: 'Preparing connection proposals' } });
+    await page.refresh(false); fixture.detectChanges();
+    expect(status().textContent).toContain('Import in progress');
+    expect(status().textContent).toContain('Preparing connection proposals');
+    expect(status().textContent).not.toContain(progress.message);
+    expect(status().classList.contains('gw-alert--warning')).toBe(false);
+    expect(api.commit).not.toHaveBeenCalled();
+  });
+
+  it('restores the latest progress on reload and removes it when the proposal reaches review', async () => {
+    const updatedAt = '2026-11-07T12:00:00Z';
+    vi.spyOn(TestBed.inject(TimeService), 'now').mockReturnValue(Date.parse(updatedAt) + 16 * 60_000);
+    const progress = { startedAt: updatedAt, updatedAt, message: 'Inspecting <strong>deployment</strong> configuration' };
+    await loadReview({ ...awaiting, progress });
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('#import-progress')?.textContent).toContain('Import paused');
+    expect(root.querySelector('#import-progress')?.textContent).toContain(progress.message);
+    expect(root.querySelector('#import-progress strong')).toBeNull();
+    api.get.mockResolvedValue({ ...review, progress });
+    await page.refresh(false); fixture.detectChanges();
+    expect(root.querySelector('#import-progress')).toBeNull();
+    expect(root.querySelector('#import-review-title')).not.toBeNull();
+    expect(page.importProgress()).toBeNull();
+  });
+
+  it('replaces stale progress with the expired-session screen at the session deadline', async () => {
+    const updatedAt = '2026-11-07T12:00:00Z';
+    const now = signal(Date.parse(updatedAt));
+    vi.spyOn(TestBed.inject(TimeService), 'now').mockImplementation(now);
+    await loadReview({ ...awaiting, expiresAt: '2026-11-07T14:00:00Z',
+      progress: { startedAt: updatedAt, updatedAt, message: 'Inspecting configuration' } });
+    now.set(Date.parse('2026-11-07T14:00:00Z'));
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('#import-progress')).toBeNull();
+    expect(root.textContent).toContain('This import expired or GateRook restarted');
   });
 
   it('returns to setup without discarding the session and reuses its prompt for the same repository and endpoint', async () => {
@@ -1201,6 +1280,11 @@ describe('AI connection import review', () => {
 describe('repository discovery prompt', () => {
   it('uses a private manifest file, schemas and review-only submission, with no credential tool arguments', () => {
     const prompt = connectionImportPrompt(awaiting);
+    expect(prompt).toContain('connection_import_progress');
+    expect(prompt.indexOf('connection_import_progress')).toBeLessThan(prompt.indexOf('connection_import_schema'));
+    expect(prompt).toContain('at least every 5 minutes');
+    expect(prompt).toContain('one short line, at most 240 characters');
+    expect(prompt).toContain('without credentials, tokens or configuration values');
     expect(prompt).toContain('connection_import_schema');
     expect(prompt).toContain(JSON.stringify(awaiting.endpointUrl));
     expect(prompt).toContain('endpoint names can repeat');

@@ -2,13 +2,13 @@
   @if (card(); as app) {
     <div class="gw-stack gw-stack--sm">
       <p class="gw-text-ui"><span [gwClientMark]="app.client" size="sm"></span> {{ app.name }}</p>
-      @if (checking()) {
+      @if (!analysisStarted() && checking()) {
         <p class="gw-text-small gw-fg-muted" role="status">Checking the app connection…</p>
-      } @else if (!ready()) {
+      } @else if (!analysisStarted() && !ready()) {
         <p class="gw-text-small gw-fg-warning" role="status">Go back to finish connecting {{ app.name }} to this endpoint.</p>
       }
     </div>
-  } @else {
+  } @else if (!analysisStarted()) {
     <p class="gw-text-small" role="status">Go back to choose an AI app for this import.</p>
   }
 } @else if (endpoint(); as endpoint) {
@@ -101,7 +101,7 @@
           }
           @if (manualAllowed() && (manual() || acknowledgedManual())) {
             <div class="gw-stack gw-stack--sm" id="import-manual-app">
-              <p class="gw-text-small">For a manually configured app, check its MCP settings against this exact URL. Enable <span class="gw-mono">connection_import_schema</span> and <span class="gw-mono">submit_connection_import</span>, then fully restart the app and open a new chat.</p>
+              <p class="gw-text-small">For a manually configured app, check its MCP settings against this exact URL. Enable <span class="gw-mono">connection_import_progress</span>, <span class="gw-mono">connection_import_schema</span> and <span class="gw-mono">submit_connection_import</span>, then fully restart the app and open a new chat.</p>
               <div class="gw-copy-field" role="group" aria-label="MCP endpoint URL"><code class="gw-copy-field__value" id="import-app-url">{{ endpoint.url }}</code><button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" gwCopyFrom="#import-app-url"><span class="gw-copy-field__copy"><svg lucideIcon="copy" class="gw-icon gw-icon--sm"></svg> Copy<span class="gw-sr-only"> MCP endpoint URL</span></span><span class="gw-copy-field__copied"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Copied</span></button></div>
               <label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" [checked]="acknowledgedManual()" [disabled]="disabled() || connecting() || checking() || failed()" (change)="acknowledge('manual', $any($event.target).checked)"><span class="gw-checkbox__control" aria-hidden="true"></span><span class="gw-checkbox__label">I connected this endpoint in {{ app.name }}</span></label>
               @if (acknowledgedManual()) { <p class="gw-text-caption gw-fg-muted">Manually confirmed by you. GateRook has not verified this app connection.</p> }

@@ -112,6 +112,7 @@ public class ToolCatalog {
       out.add(coreTool(snapshot, CoreTools.approvalCard(), false));
       out.add(coreTool(snapshot, CoreTools.approvalCardAction(), false));
       out.add(coreTool(snapshot, CoreTools.connectionImportSchema(), false));
+      out.add(coreTool(snapshot, CoreTools.connectionImportProgress(), false));
       out.add(coreTool(snapshot, CoreTools.submitConnectionImport(), false));
       out.add(coreTool(snapshot, CoreTools.openConnectionImport(), false));
     }
