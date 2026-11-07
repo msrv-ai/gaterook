@@ -7,6 +7,7 @@ import ai.msrv.gaterook.core.connections.ConnectionRemovalParticipant;
 import ai.msrv.gaterook.core.connections.ConnectionUsage;
 import ai.msrv.gaterook.core.endpoints.EndpointChanged;
 import ai.msrv.gaterook.core.endpoints.EndpointRemovalParticipant;
+import ai.msrv.gaterook.core.endpoints.EndpointSnapshotService;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointConnectionEntity;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointConnectionRepository;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointEntity;
@@ -34,6 +35,7 @@ class EndpointUsage implements ConnectionUsage, ConnectionRemovalParticipant {
 
   private final EndpointConnectionRepository wiring;
   private final EndpointToolRepository tools;
+  private final EndpointSnapshotService snapshots;
   private final EndpointRows rows;
   private final Wiring writer;
   private final ConnectionConfigs connections;
@@ -43,12 +45,14 @@ class EndpointUsage implements ConnectionUsage, ConnectionRemovalParticipant {
   private final Clock clock;
   private final TransactionTemplate readTx;
 
-  EndpointUsage(EndpointConnectionRepository wiring, EndpointToolRepository tools, EndpointRows rows, Wiring writer,
+  EndpointUsage(EndpointConnectionRepository wiring, EndpointToolRepository tools, EndpointSnapshotService snapshots,
+      EndpointRows rows, Wiring writer,
       ConnectionConfigs connections, ObjectProvider<EndpointRemovalParticipant> participants,
       ApplicationEventPublisher publisher, IntegrityAlerts alerts, Clock clock,
       PlatformTransactionManager transactions) {
     this.wiring = wiring;
     this.tools = tools;
+    this.snapshots = snapshots;
     this.rows = rows;
     this.writer = writer;
     this.connections = connections;
@@ -66,6 +70,13 @@ class EndpointUsage implements ConnectionUsage, ConnectionRemovalParticipant {
       List<UsedBy> out = new ArrayList<>();
       for (EndpointToolEntity t : tools.findByConnectionId(connectionId)) {
         out.add(new UsedBy(Wiring.toolName(t.getToolKey()), t.getEndpoint().getSlug(), ToolPairs.label(t.getMode())));
+      }
+      // Newly available tools have no stored grant until the person chooses a mode. Include the snapshot's Off
+      // pairs so they can be configured here, while retaining saved defaults for connections still needing setup.
+      for (EndpointConnectionEntity w : wiring.findByConnectionId(connectionId)) {
+        snapshots.uncached(w.getEndpoint().getId()).ifPresent(snapshot -> snapshot.pairs().stream()
+            .filter(p -> p.config().id().equals(connectionId) && p.rowId() == null)
+            .forEach(p -> out.add(new UsedBy(p.tool().name(), snapshot.slug(), ToolPairs.label(p.storedMode())))));
       }
       out.sort(java.util.Comparator.comparing(UsedBy::endpoint).thenComparing(UsedBy::tool));
       return out;

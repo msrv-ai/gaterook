@@ -1862,6 +1862,31 @@ describe('Connection: edit view', () => {
     expect(text(p.q('.gw-secret[data-state=stored]'))).toContain('version 3');
   });
 
+  it('shows an attached connection with no tools without claiming its endpoint is missing', async () => {
+    core.detail = { ...structuredClone(DETAIL), name: 'search-dev', usedBy: [] };
+    vi.mocked(TestBed.inject(ConnectionsApi).list).mockResolvedValueOnce({
+      items: [{ name: 'search-dev', host: 'search.example.test:9200', usedBy: ['dev'] }], facets: {}, total: 1,
+    } as never);
+    const p = await open('/connections/search-dev');
+    expect(Array.from(p.el.querySelectorAll('.gw-stat')).map(text)[1]).toBe('Used by 1endpoint 0 tools on dev · Claude Desktop and Codex');
+    p.q<HTMLButtonElement>('#connection-tools-tab')!.click();
+    await p.settle();
+    expect(text(p.q('#used-by .gw-empty__title'))).toBe('No tools available');
+    expect(text(p.q('#used-by'))).not.toContain('Not on an endpoint yet');
+    expect(p.q<HTMLAnchorElement>('#used-by .gw-empty__actions a')!.getAttribute('href')).toBe('/endpoints/dev?tab=tools');
+  });
+
+  it('still shows the attach action when a connection has no saved endpoint membership', async () => {
+    core.detail = { ...structuredClone(DETAIL), usedBy: [] };
+    vi.mocked(TestBed.inject(ConnectionsApi).list).mockResolvedValueOnce({
+      items: [{ name: 'dev-db', usedBy: [] }], facets: {}, total: 1,
+    } as never);
+    const p = await open('/connections/dev-db');
+    expect(Array.from(p.el.querySelectorAll('.gw-stat')).map(text)[1]).toContain('Used by 0endpoints');
+    expect(text(p.q('#used-by .gw-empty__title'))).toBe('Not on an endpoint yet');
+    expect(p.q<HTMLAnchorElement>('#used-by .gw-empty__actions a')!.getAttribute('href')).toBe('/endpoints');
+  });
+
   it('switches Settings and Tools with the keyboard without losing unsaved settings', async () => {
     const p = await open('/connections/dev-db');
     const settings = p.q<HTMLElement>('#connection-settings')!;

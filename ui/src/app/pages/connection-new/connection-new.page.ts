@@ -456,7 +456,9 @@ export class ConnectionNewPage {
   protected readonly usedBy = computed(() =>
     usedByRows(this.detail()?.usedBy ?? [], (this.typeDetail()?.tools ?? []).map((t) => t.name)),
   );
-  protected readonly uses = computed(() => endpointUses(this.usedBy(), this.endpoints() ?? []));
+  /** Saved endpoint membership exists independently of the connection's tool rows. */
+  private readonly assignedEndpoints = signal<readonly string[]>([]);
+  protected readonly uses = computed(() => endpointUses(this.usedBy(), this.endpoints() ?? [], this.assignedEndpoints()));
   protected readonly usesMeta = computed(() => usedByMeta(this.uses()));
   /** Delete's "Stops working": the endpoints where some of its tools are on. */
   protected readonly usesOn = computed(() => this.uses().filter((u) => u.tools.length));
@@ -690,6 +692,7 @@ export class ConnectionNewPage {
       if (healthRevision === this.healthRevision) this.health.set(detail.health);
       this.typeDetail.set(typeDetail);
       this.endpoints.set(endpoints);
+      this.assignedEndpoints.set(rows?.items.find((r) => r.name === name)?.usedBy ?? []);
       this.spec.set(spec);
       this.specCard.set(detail.type);
       this.specState.set('ready');

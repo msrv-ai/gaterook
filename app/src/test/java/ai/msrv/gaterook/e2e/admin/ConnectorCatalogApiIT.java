@@ -4,8 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.core.GatewayApplication;
+import ai.msrv.gaterook.core.connections.ConnectionConfigs;
 import ai.msrv.gaterook.core.connectors.EnvironmentPolicies;
+import ai.msrv.gaterook.core.endpoints.EndpointConnections;
 import ai.msrv.gaterook.core.endpoints.EndpointService;
+import ai.msrv.gaterook.core.endpoints.EndpointSnapshot;
 import ai.msrv.gaterook.core.endpoints.ToolCatalog;
 import ai.msrv.gaterook.core.platform.LaunchSecret;
 import ai.msrv.gaterook.core.platform.LocalListener;
@@ -233,6 +236,52 @@ class ConnectorCatalogApiIT {
       assertThat(tool.description()).contains("Elasticsearch").doesNotContain("OpenSearch", "catalog-search");
     });
     assertThat(published.tool("logs_search")).isEmpty();
+  }
+
+  @Test
+  void movingAnOpenSearchUsernameToAStorePreservesItsEndpointToolGrants() throws Exception {
+    Answer created = send("POST", "/api/connections", """
+        {"name":"catalog-stored-user","type":"opensearch","env":"dev",
+         "config":{"backend":"opensearch","url":"https://search.example.test","apiAccess":"full",
+                   "auth":{"mode":"basic","username":"search-reader"}},
+         "secrets":{"/auth/secret":{"source":"local","value":"catalog-search-password"}}}""");
+    assertThat(created.status()).as(created.body()).isEqualTo(201);
+    assertThat(send("POST", "/api/endpoints", "{\"slug\":\"catalog-stored-user\",\"startFrom\":\"empty\"}").status())
+        .isEqualTo(201);
+    assertThat(send("POST", "/api/endpoints/catalog-stored-user/connections/catalog-stored-user", "{}").status())
+        .isEqualTo(200);
+    EndpointService endpoints = core.getBean(EndpointService.class);
+    List<String> grants = endpoints.snapshot("catalog-stored-user").pairs().stream()
+        .map(EndpointSnapshot.Pair::rowId).toList();
+    assertThat(grants).hasSize(3).doesNotContainNull();
+    JsonNode before = get("/api/connections/catalog-stored-user");
+    assertThat(each(before.path("usedBy"), "tool"))
+        .containsExactly("opensearch_indices", "opensearch_query", "opensearch_request");
+    assertThat(each(before.path("usedBy"), "mode")).containsExactly("READ_ONLY", "READ_ONLY", "APPROVAL");
+
+    // The store stays disconnected: saving and discovering tools must never resolve credentials.
+    Answer changed = send("PUT", "/api/connections/catalog-stored-user", """
+        {"env":"dev","version":%d,
+         "config":{"backend":"opensearch","url":"https://search.example.test","apiAccess":"full",
+                   "auth":{"mode":"basic"}},
+         "secrets":{"/auth/username":{"source":"reference","ref":"vault://kv/catalog/search#username"}}}"""
+        .formatted(before.path("version").asLong()));
+    assertThat(changed.status()).as(changed.body()).isEqualTo(200);
+    var stored = core.getBean(ConnectionConfigs.class).byName("catalog-stored-user").orElseThrow();
+    assertThat(stored.secretIds()).containsKey("/auth/username");
+    assertThat(stored.config().secretFields()).contains("/auth/username");
+    assertThat(stored.config().config().at("/auth/username").isMissingNode()).isTrue();
+    core.getBean(EndpointConnections.class).reconcile(stored.id(), "Username moved to a store");
+
+    JsonNode after = get("/api/connections/catalog-stored-user");
+    assertThat(after.path("usedBy")).isEqualTo(before.path("usedBy"));
+    assertThat(endpoints.snapshot("catalog-stored-user").pairs()).extracting(EndpointSnapshot.Pair::rowId)
+        .containsExactlyElementsOf(grants);
+    ToolCatalog.Catalog published = core.getBean(ToolCatalog.class).forEndpoint(endpoints.snapshot("catalog-stored-user"));
+    assertThat(published.problems()).isEmpty();
+    assertThat(published.tool("opensearch_indices")).isPresent();
+    assertThat(published.tool("opensearch_query")).isPresent();
+    assertThat(published.tool("opensearch_request")).isPresent();
   }
 
   @Test

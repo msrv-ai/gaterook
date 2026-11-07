@@ -81,6 +81,42 @@ class EndpointsIT {
   }
 
   @Test
+  void connectionDetailIncludesAvailableToolsWithoutStoredGrantsUntilTheUserChoosesModes() {
+    core.connection("recovered-db", "pgfake", Env.DEV, "db.test");
+    core.connection("other-recovered-db", "pgfake", Env.DEV, "db.test");
+    endpoints.create("recovered-tools", null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add("recovered-tools", "recovered-db", null);
+    wiring.add("recovered-tools", "other-recovered-db", null);
+    ConnectionService connections = core.bean(ConnectionService.class);
+    var before = connections.get("recovered-db");
+    assertThat(before.usedBy()).isNotEmpty();
+
+    // Reproduce an existing attachment whose tools were unavailable when its grants were reconciled.
+    core.jdbc().update("delete from endpoint_tool where connection_id = ?", before.id());
+    snapshots.invalidateAll();
+    var recovered = connections.get("recovered-db").usedBy();
+    assertThat(recovered).extracting(ai.msrv.gaterook.core.connections.ConnectionUsage.UsedBy::tool)
+        .containsExactlyElementsOf(before.usedBy().stream().map(u -> u.tool()).toList());
+    assertThat(recovered).allSatisfy(u -> {
+      assertThat(u.endpoint()).isEqualTo("recovered-tools");
+      assertThat(u.mode()).isEqualTo("Off");
+    });
+    assertThat(core.jdbc().queryForObject("select count(*) from endpoint_tool where connection_id = ?",
+        Integer.class, before.id())).isZero();
+    assertThat(mode(snapshots.bySlug("recovered-tools").orElseThrow(), "sql_query", "other-recovered-db"))
+        .isEqualTo(Mode.READ_ONLY);
+
+    tools.setMode("recovered-tools", "sql_query", "recovered-db", Mode.READ_ONLY, null, 0, null);
+    assertThat(connections.get("recovered-db").usedBy()).hasSize(recovered.size())
+        .anySatisfy(u -> {
+          assertThat(u.tool()).isEqualTo("sql_query");
+          assertThat(u.mode()).isEqualTo("Read only");
+        });
+    assertThat(mode(snapshots.bySlug("recovered-tools").orElseThrow(), "sql_query", "recovered-db"))
+        .isEqualTo(Mode.READ_ONLY);
+  }
+
+  @Test
   void anEmptyEndpointTakesTheEnvOfItsFirstConnectionAndProdNeverMixes() {
     EndpointService.Summary created = endpoints.create("empty-ep", "for tests", EndpointService.StartFrom.EMPTY, null);
     assertThat(created.env()).isEqualTo(Env.DEV);
