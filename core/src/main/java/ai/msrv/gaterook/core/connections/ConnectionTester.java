@@ -404,7 +404,8 @@ public class ConnectionTester implements DisposableBean {
       Thread.currentThread().interrupt();
       result = TestResult.failure("cancelled", "The test was cancelled.", null);
     }
-    return TestResults.mask(result, masker, taint);
+    return operation == DraftOperation.DATABASES ? TestResults.maskDatabaseDiscovery(result, masker, taint)
+        : TestResults.mask(result, masker, taint);
   }
 
   /**

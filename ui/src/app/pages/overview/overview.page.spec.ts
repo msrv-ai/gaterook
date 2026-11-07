@@ -622,18 +622,15 @@ describe('Overview connection map', () => {
     expect(el.querySelector('[aria-pressed="true"][aria-controls="ov-services ov-mcp"]')).toBeNull();
   });
 
-  it('offers request review and shows a clearly labelled path without sending a service request', async () => {
+  it('shows the selected service path automatically and can replay, clear and restore it without sending a request', async () => {
     const { fixture, el } = await render();
     expect(text(el.querySelector('#ov-approvals'))).toContain('3 requests need your approval');
     expect(href(byText(el.querySelector('#ov-approvals')!, 'a', 'Review requests'))).toBe('/approvals');
     const before = [...calls];
     service(el, 'billing-api')!.querySelector<HTMLButtonElement>('button')!.click();
     await settle(fixture);
-    const showPath = findButton(el.querySelector('#ov-detail')!, 'Show path');
-    expect(showPath.getAttribute('aria-expanded')).toBe('false');
+    const showPath = findButton(el.querySelector('#ov-detail')!, 'Replay path');
     expect(showPath.getAttribute('aria-controls')).toBe('ov-request-path');
-    showPath.click();
-    await settle(fixture);
     expect(showPath.getAttribute('aria-expanded')).toBe('true');
     const route = el.querySelector('ol[aria-label="Request route"]')!;
     expect(route.children).toHaveLength(3);
@@ -652,8 +649,36 @@ describe('Overview connection map', () => {
     await settle(fixture);
     expect(text(el.querySelector('#ov-detail'))).not.toContain('Example path only');
     expect(showPath.getAttribute('aria-expanded')).toBe('false');
+    expect(text(showPath)).toBe('Show path');
     expect(document.activeElement).toBe(showPath);
+    showPath.click();
+    await settle(fixture);
+    expect(text(el.querySelector('ol[aria-label="Request route"]'))).toContain('billing-api');
+    service(el, 'cache-redis')!.querySelector<HTMLButtonElement>('button')!.click();
+    await settle(fixture);
+    expect(text(el.querySelector('ol[aria-label="Request route"]'))).toContain('cache-redis');
+    expect(text(el.querySelector('ol[aria-label="Request route"]'))).not.toContain('billing-api');
+    expect(calls).toEqual(before);
+    expect(tests).toEqual([]);
     expect(href(byText(el, 'a', 'Activity'))).toBe('/activity');
+  });
+
+  it('keeps request paths hidden for disabled services and disconnected apps', async () => {
+    savedConnections = savedConnections.map((connection) => connection.name === 'cache-redis'
+      ? { ...connection, enabled: false } : connection);
+    const { fixture, el } = await render();
+    service(el, 'billing-api')!.querySelector<HTMLButtonElement>('button')!.click();
+    await settle(fixture);
+    expect(el.querySelector('ol[aria-label="Request route"]')).not.toBeNull();
+    service(el, 'cache-redis')!.querySelector<HTMLButtonElement>('button')!.click();
+    await settle(fixture);
+    expect(el.querySelector('ol[aria-label="Request route"]')).toBeNull();
+    expect(findButton(el.querySelector('#ov-detail')!, 'Show path').getAttribute('aria-disabled')).toBe('true');
+    expect(text(el.querySelector('#ov-trace-reason'))).toContain('Enable this connection');
+    app(el, 'antigravity').querySelector<HTMLButtonElement>('button')!.click();
+    await settle(fixture);
+    expect(el.querySelector('ol[aria-label="Request route"]')).toBeNull();
+    expect(text(el.querySelector('#ov-trace-reason'))).toContain('This app is not connected');
   });
 });
 
