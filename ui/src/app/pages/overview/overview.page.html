@@ -7,9 +7,6 @@
       </p>
     </div>
     <div class="gw-page-header__actions">
-      <a class="gw-btn gw-btn--ghost" routerLink="/connection-import"
-        ><svg lucideIcon="lightbulb" class="gw-icon"></svg>Import with AI</a
-      >
       <button class="gw-btn gw-btn--ghost" type="button" [gwDialogOpen]="explain">
         <svg lucideIcon="circle-help" class="gw-icon"></svg>How it works
       </button>
@@ -21,6 +18,21 @@
       >
         <svg lucideIcon="plus" class="gw-icon"></svg>Add service
       </button>
+      <div class="gw-menu-host">
+        <button class="gw-btn gw-btn--ghost gw-btn--icon" type="button" aria-label="More overview actions" aria-haspopup="menu" [gwMenuTrigger]="importMenu">
+          <svg lucideIcon="ellipsis" class="gw-icon"></svg>
+        </button>
+        <div class="gw-menu gw-menu--right gw-menu--wide" gwMenu #importMenu="gwMenu" id="overview-import-menu" role="menu" aria-label="Overview actions" hidden>
+          <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/connection-import">
+            <svg lucideIcon="lightbulb" class="gw-icon gw-menu__icon"></svg>
+            <span class="gw-menu__label">Create connections with AI<span class="gw-menu__hint">Analyze a repository</span></span>
+          </a>
+          <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/endpoint-import">
+            <svg lucideIcon="download" class="gw-icon gw-menu__icon"></svg>
+            <span class="gw-menu__label">Import endpoint and connections<span class="gw-menu__hint">From a file</span></span>
+          </a>
+        </div>
+      </div>
     </div>
   </div>
 </header>
@@ -100,7 +112,7 @@
       <div class="gw-alert__content">
         <p class="gw-alert__title">Connect your first service</p>
         <p class="gw-alert__body">
-          Import with AI, or add a service and choose which endpoint can use it.
+          Import connections from the actions menu, or add a service and choose which endpoint can use it.
         </p>
       </div>
     </div>
@@ -762,12 +774,15 @@
       ></button>
     <div class="gw-overview-service-actions">
       @if (!c.mcp) {
-        <a
-          class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-overview-settings"
-          [routerLink]="c.route"
-          [attr.aria-label]="'Open settings for ' + c.name"
-          title="Open connection settings"
-        ><svg lucideIcon="settings" class="gw-icon gw-icon--sm" aria-hidden="true"></svg></a>
+        <span class="gw-tooltip gw-tooltip--end">
+          <a
+            class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-overview-settings"
+            [routerLink]="c.route"
+            [attr.aria-label]="'Open settings for ' + c.name"
+            [attr.aria-describedby]="'ov-settings-tip-' + c.name"
+          ><svg lucideIcon="settings" class="gw-icon gw-icon--sm" aria-hidden="true"></svg></a>
+          <span class="gw-tooltip__bubble" role="tooltip" [id]="'ov-settings-tip-' + c.name">Open connection settings</span>
+        </span>
       }
       <div class="gw-setup-map__network-toggle">
         <gw-access-switch

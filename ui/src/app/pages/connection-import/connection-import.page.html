@@ -6,7 +6,7 @@
     </div>
     @if (session()?.status !== 'awaiting' || setupVisible()) {
       <div class="gw-page-header__actions">
-      @if (session() && session()?.status !== 'imported') { <button class="gw-btn gw-btn--ghost" type="button" [disabled]="busy() || appConnecting() || vaultBusy()" (click)="discard()">Discard import</button> }
+        @if (session() && session()?.status !== 'imported') { <button class="gw-btn gw-btn--ghost" type="button" [disabled]="busy() || appConnecting() || vaultBusy()" [attr.aria-busy]="cancelling() ? 'true' : null" (click)="discard()">{{ session()?.status === 'awaiting' ? 'Cancel import' : 'Discard import' }}</button> }
         <a class="gw-btn gw-btn--ghost" routerLink="/connections">Back to Connections</a>
       </div>
     }
@@ -80,7 +80,7 @@
         </div>
       </fieldset>
       <gw-import-app-picker [endpoint]="appEndpoint()" [disabled]="busy()" [cardsMode]="true" [startDisabledReason]="repository().trim() ? null : 'Choose a repository folder above before starting.'" [(client)]="selectedClient" [(consent)]="appConsent" (selectionChange)="appSelection.set($event)" (busyChange)="appConnecting.set($event)" (startImport)="startWithApp($event)" />
-      @if (busy()) { <p class="gw-text-small" role="status">Creating prompt…</p> }
+      @if (busy()) { <p class="gw-text-small" role="status">{{ cancelling() ? 'Cancelling import…' : 'Creating prompt…' }}</p> }
       @if (error()) { <div class="gw-form__actions"><button class="gw-btn" type="button" [disabled]="busy()" (click)="load()">Reload setup</button></div> }
     </form>
   } @else if (session()?.status === 'awaiting') {
@@ -112,15 +112,16 @@
           <button class="gw-btn" type="button" [disabled]="busy()" (click)="backToSetup()">Back</button>
           @if (appSelection()?.ready || importProgress()) {
             @if (importProgress()) {
-              <button class="gw-btn" type="button" (click)="handoff('copy')">@if (promptCopied()) { <svg lucideIcon="check" class="gw-icon"></svg> }{{ promptCopied() ? 'Copied' : 'Copy prompt' }}</button>
+              <button class="gw-btn" type="button" [disabled]="busy()" (click)="handoff('copy')">@if (promptCopied()) { <svg lucideIcon="check" class="gw-icon"></svg> }{{ promptCopied() ? 'Copied' : 'Copy prompt' }}</button>
             } @else if (desktop.aiPromptAvailable && ['claude-desktop', 'codex', 'cursor'].includes(appSelection()!.client)) {
-              <button class="gw-btn gw-btn--primary" type="button" (click)="handoffSelected()">Open {{ appSelection()!.name }}</button>
-              <button class="gw-btn" type="button" (click)="handoff('copy')">@if (promptCopied()) { <svg lucideIcon="check" class="gw-icon"></svg> }{{ promptCopied() ? 'Copied' : 'Copy prompt' }}</button>
+              <button class="gw-btn gw-btn--primary" type="button" [disabled]="busy()" (click)="handoffSelected()">Open {{ appSelection()!.name }}</button>
+              <button class="gw-btn" type="button" [disabled]="busy()" (click)="handoff('copy')">@if (promptCopied()) { <svg lucideIcon="check" class="gw-icon"></svg> }{{ promptCopied() ? 'Copied' : 'Copy prompt' }}</button>
             } @else {
-              <button class="gw-btn gw-btn--primary" type="button" (click)="handoffSelected()">@if (promptCopied()) { <svg lucideIcon="check" class="gw-icon"></svg> }{{ promptCopied() ? 'Copied' : 'Copy for ' + appSelection()!.name }}</button>
+              <button class="gw-btn gw-btn--primary" type="button" [disabled]="busy()" (click)="handoffSelected()">@if (promptCopied()) { <svg lucideIcon="check" class="gw-icon"></svg> }{{ promptCopied() ? 'Copied' : 'Copy for ' + appSelection()!.name }}</button>
             }
             <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle #promptDetails="gwToggle" aria-controls="import-prompt-details">{{ promptDetails.expanded() ? 'Hide prompt' : 'Show prompt' }}<svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
           }
+          <button class="gw-btn gw-btn--ghost" type="button" [disabled]="busy() || appConnecting() || vaultBusy()" [attr.aria-busy]="cancelling() ? 'true' : null" (click)="discard()">{{ cancelling() ? 'Cancelling…' : 'Cancel import' }}</button>
         </div>
         @if (appSelection()?.ready || importProgress()) {
           <div id="import-prompt-details" hidden><gw-code-block id="import-prompt" lang="Prompt" [text]="prompt()" wrap copyLabel="import prompt" regionLabel="AI connection discovery prompt" /></div>
@@ -268,6 +269,15 @@
         <p class="gw-field__hint" id="import-create-endpoint-slug-hint">Lowercase letters, digits and hyphens. AI apps use this name in the endpoint URL.</p>
       </div>
       <div class="gw-field"><label class="gw-field__label" for="import-create-endpoint-note">Description <span class="gw-field__optional">Optional</span></label><input class="gw-input" id="import-create-endpoint-note" type="text" [maxLength]="endpointDescriptionMax" [disabled]="creatingEndpoint()" [value]="endpointDescription()" (input)="endpointDescription.set(value($event))"></div>
+      <div class="gw-field">
+        <label class="gw-field__label" for="import-create-endpoint-env">Environment</label>
+        <select class="gw-select" id="import-create-endpoint-env" required [disabled]="creatingEndpoint()" [value]="endpointEnv()" (change)="setEndpointEnv(value($event))" aria-describedby="import-create-endpoint-env-hint">
+          <option value="dev">Development (dev)</option>
+          <option value="stage">Stage (stage)</option>
+          <option value="prod">Production (prod)</option>
+        </select>
+        <p class="gw-field__hint" id="import-create-endpoint-env-hint">Choose its starting environment. Production connections must stay separate from dev and stage.</p>
+      </div>
     </div>
     <footer class="gw-dialog__footer">
       <button class="gw-btn" type="button" [disabled]="creatingEndpoint()" gwDialogClose>Cancel</button>

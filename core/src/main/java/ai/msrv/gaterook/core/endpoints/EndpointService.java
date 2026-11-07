@@ -228,18 +228,29 @@ public class EndpointService {
     return create(slug, description, startFrom, List.of(), reason);
   }
 
-  /** {@code POST /api/endpoints {slug, description?, startFrom, connections?}}; only selected names are wired. */
+  /** Creates from the preset's default environment; only selected names are wired. */
   public Summary create(String slug, String description, StartFrom startFrom, List<String> selectedConnections,
       String reason) {
+    return create(slug, description, startFrom, selectedConnections, null, reason);
+  }
+
+  /** An empty endpoint may start in a chosen environment; connections still determine its environment once wired. */
+  public Summary create(String slug, String description, StartFrom startFrom, List<String> selectedConnections,
+      Env initialEnv, String reason) {
     checkSlug(slug);
     checkDescription(description);
+    Env presetEnv = startFrom == StartFrom.INCIDENT_RESPONSE ? Env.PROD : Env.DEV;
+    if (initialEnv != null && startFrom != StartFrom.EMPTY && initialEnv != presetEnv) {
+      throw ProblemException.unprocessable("Environment does not match preset",
+          "This preset uses " + presetEnv.id() + ". Start from empty to choose another environment.", "/env");
+    }
+    Env env = initialEnv == null ? presetEnv : initialEnv;
     String id = writeTx.execute(s -> {
       if (endpoints.existsBySlug(slug)) {
         throw ProblemException.conflict("Slug in use", "An endpoint /mcp/" + slug + " already exists.");
       }
       List<ConnectionConfigs.Stored> selected = selectedStartConnections(startFrom, selectedConnections);
       EndpointAccess access = startFrom == StartFrom.READ_ONLY_DEV ? EndpointAccess.READ_ONLY : EndpointAccess.STANDARD;
-      Env env = startFrom == StartFrom.INCIDENT_RESPONSE ? Env.PROD : Env.DEV;
       EndpointEntity e = new EndpointEntity(slug, env, access, rows.map(defaultSettings()), clock.instant());
       e.setDescription(description);
       e = rows.save(e);

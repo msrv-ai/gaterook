@@ -370,6 +370,33 @@ class ConnectionImportServiceTest {
   }
 
   @Test
+  void cancellingAStagedReviewClearsCredentialsAndRefusesEveryLateOperation() {
+    var session = start();
+    var staged = mock(ConnectionImportFiles.StagedSecret.class);
+    when(files.read(session.id())).thenReturn(new ConnectionImportFiles.Prepared(manifest(),
+        Map.of("db", Map.of("/credentials/password", staged))));
+    service.submit(session.id(), session.submissionToken(), "ep-source", "caller", null);
+    service.cancel(session.id());
+    verify(staged).clear();
+    verify(staged, never()).resolve();
+    verify(files).delete(session.id());
+    assertThat(service.tasks()).isEmpty();
+    assertThatThrownBy(() -> service.get(session.id())).isInstanceOf(ProblemException.class);
+    assertThatThrownBy(() -> service.schema(session.id(), session.submissionToken(), "ep-source", "pgfake"))
+        .isInstanceOf(ProblemException.class);
+    assertThatThrownBy(() -> service.progress(session.id(), session.submissionToken(), "ep-source", "Checking configuration"))
+        .isInstanceOf(ProblemException.class);
+    assertThatThrownBy(() -> service.submit(session.id(), session.submissionToken(), "ep-source", "caller", null))
+        .isInstanceOf(ProblemException.class);
+    assertThatThrownBy(() -> service.open(session.id(), "ep-source", "caller")).isInstanceOf(ProblemException.class);
+    assertThatThrownBy(() -> service.commit(session.id(), "dev", List.of(selection("dev")), null))
+        .isInstanceOf(ProblemException.class);
+    verify(files, times(1)).read(session.id());
+    verify(events, times(1)).publish(eq("ui.open"), any());
+    verifyNoInteractions(connections, wiring);
+  }
+
+  @Test
   void boundsSessionCountAndRejectsDuplicateCandidateIds() {
     for (int i = 0; i < ConnectionImportService.MAX_SESSIONS; i++) start();
     assertThatThrownBy(this::start).isInstanceOf(ProblemException.class).hasMessageContaining("Cancel an import");

@@ -1,13 +1,16 @@
 package ai.msrv.gaterook.core.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
+import ai.msrv.gaterook.core.endpoints.EndpointConnections;
 import ai.msrv.gaterook.core.endpoints.EndpointService;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshotService;
 import ai.msrv.gaterook.core.endpoints.ToolCatalog;
 import ai.msrv.gaterook.core.platform.LocalListener;
+import ai.msrv.gaterook.core.platform.ProblemException;
 import ai.msrv.gaterook.testfixtures.TestCore;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -16,6 +19,59 @@ import tools.jackson.databind.JsonNode;
 
 /** Presets configure only explicitly selected connections, even when other endpoints already use them. */
 class EndpointCreationApiIT {
+
+  @Test
+  void emptyEndpointsKeepTheChosenEnvironmentWithoutChangingPresetDefaultsOrProductionIsolation() {
+    try (TestCore core = TestCore.start("endpoint-environment")) {
+      AdminMvc api = new AdminMvc(core.context(), core.bean(LocalListener.class).port());
+      EndpointService endpoints = core.bean(EndpointService.class);
+      EndpointConnections wiring = core.bean(EndpointConnections.class);
+      EndpointSnapshotService snapshots = core.bean(EndpointSnapshotService.class);
+      for (Env env : Env.values()) {
+        String slug = "chosen-" + env.id();
+        JsonNode created = api.expect(201, HttpMethod.POST, "/api/endpoints", """
+            {"slug":"%s","startFrom":"empty","connections":[],"env":"%s"}
+            """.formatted(slug, env.id()));
+        assertThat(created.path("env").asString()).isEqualTo(env.id());
+        assertThat(created.at("/connections/total").asInt()).isZero();
+        assertThat(endpoints.snapshot(slug).coreTools()).allSatisfy(tool -> assertThat(tool.mode()).isEqualTo(Mode.OFF));
+        assertThat(api.ok("/api/endpoints/" + slug).at("/endpoint/env").asString()).isEqualTo(env.id());
+        assertThat(core.jdbc().queryForObject("select env from endpoint where slug = ?", String.class, slug)).isEqualTo(env.id());
+      }
+      api.expect(201, HttpMethod.POST, "/api/endpoints", """
+          {"slug":"default-environment"}
+          """);
+      assertThat(endpoints.get("default-environment").env()).isEqualTo(Env.DEV);
+      for (String invalid : List.of("", "testing", "development")) {
+        JsonNode refused = api.expect(422, HttpMethod.POST, "/api/endpoints", """
+            {"slug":"invalid-environment","env":"%s"}
+            """.formatted(invalid));
+        assertThat(refused.path("field").asString()).isEqualTo("/env");
+        assertThat(snapshots.bySlug("invalid-environment")).isEmpty();
+      }
+      for (String preset : List.of("read-only-dev", "incident-response")) {
+        String matchingEnv = preset.equals("read-only-dev") ? "dev" : "prod";
+        JsonNode created = api.expect(201, HttpMethod.POST, "/api/endpoints", """
+            {"slug":"matching-%s","startFrom":"%s","env":"%s"}
+            """.formatted(preset, preset, matchingEnv));
+        assertThat(created.path("env").asString()).isEqualTo(matchingEnv);
+        JsonNode refused = api.expect(422, HttpMethod.POST, "/api/endpoints", """
+            {"slug":"conflicting-preset","startFrom":"%s","env":"stage"}
+            """.formatted(preset));
+        assertThat(refused.path("field").asString()).isEqualTo("/env");
+        assertThat(snapshots.bySlug("conflicting-preset")).isEmpty();
+      }
+
+      core.connection("environment-prod-db", "pgfake", Env.PROD, "production.test");
+      core.connection("environment-dev-db", "pgfake", Env.DEV, "development.test");
+      wiring.add("chosen-prod", "environment-prod-db", null);
+      assertThat(endpoints.snapshot("chosen-prod").env()).isEqualTo(Env.PROD);
+      assertThatThrownBy(() -> wiring.add("chosen-prod", "environment-dev-db", null))
+          .isInstanceOf(ProblemException.class).hasMessageContaining("prod connections only");
+      wiring.add("chosen-stage", "environment-dev-db", null);
+      assertThat(endpoints.snapshot("chosen-stage").env()).as("connections still determine the endpoint environment").isEqualTo(Env.DEV);
+    }
+  }
 
   @Test
   void creationNeverInheritsConnectionsAndOnlyWiresTheExplicitSelection() {
