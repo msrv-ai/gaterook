@@ -93,7 +93,8 @@
         <gw-import-app-picker [endpoint]="appEndpoint()" [disabled]="busy()" [handoffMode]="true" [analysisStarted]="!!importProgress()" [(client)]="selectedClient" [(consent)]="appConsent" (selectionChange)="appSelection.set($event)" (busyChange)="appConnecting.set($event)" />
         @if (importProgress(); as progress) {
           <div class="gw-alert" [class.gw-alert--info]="!progressPaused()" [class.gw-alert--warning]="progressPaused()" id="import-progress">
-            <svg [lucideIcon]="progressPaused() ? 'clock' : 'activity'" class="gw-icon gw-alert__icon"></svg>
+            @if (progressPaused()) { <svg lucideIcon="clock" class="gw-icon gw-alert__icon"></svg> }
+            @else { <span class="gw-spinner gw-alert__icon" aria-hidden="true"></span> }
             <div class="gw-alert__content">
               <div role="status" aria-live="polite" aria-atomic="true">
                 <p class="gw-alert__title">{{ progressPaused() ? 'Import paused' : 'Import in progress' }}</p>
@@ -109,8 +110,10 @@
         <p>GateRook will open the findings when they arrive. Choose what to import and where, review the settings, then confirm. Connections are saved only after your confirmation.</p>
         <div class="gw-card__actions">
           <button class="gw-btn" type="button" [disabled]="busy()" (click)="backToSetup()">Back</button>
-          @if (appSelection()?.ready) {
-            @if (desktop.aiPromptAvailable && ['claude-desktop', 'codex', 'cursor'].includes(appSelection()!.client)) {
+          @if (appSelection()?.ready || importProgress()) {
+            @if (importProgress()) {
+              <button class="gw-btn" type="button" (click)="handoff('copy')">@if (promptCopied()) { <svg lucideIcon="check" class="gw-icon"></svg> }{{ promptCopied() ? 'Copied' : 'Copy prompt' }}</button>
+            } @else if (desktop.aiPromptAvailable && ['claude-desktop', 'codex', 'cursor'].includes(appSelection()!.client)) {
               <button class="gw-btn gw-btn--primary" type="button" (click)="handoffSelected()">Open {{ appSelection()!.name }}</button>
               <button class="gw-btn" type="button" (click)="handoff('copy')">@if (promptCopied()) { <svg lucideIcon="check" class="gw-icon"></svg> }{{ promptCopied() ? 'Copied' : 'Copy prompt' }}</button>
             } @else {
@@ -119,7 +122,7 @@
             <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle #promptDetails="gwToggle" aria-controls="import-prompt-details">{{ promptDetails.expanded() ? 'Hide prompt' : 'Show prompt' }}<svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
           }
         </div>
-        @if (appSelection()?.ready) {
+        @if (appSelection()?.ready || importProgress()) {
           <div id="import-prompt-details" hidden><gw-code-block id="import-prompt" lang="Prompt" [text]="prompt()" wrap copyLabel="import prompt" regionLabel="AI connection discovery prompt" /></div>
         }
       </div>

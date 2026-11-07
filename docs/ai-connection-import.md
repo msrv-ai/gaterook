@@ -12,6 +12,10 @@
 
 If no progress update arrives for more than 15 minutes after the AI starts, the screen shows **Import paused** and explains that updates are not arriving. It keeps the last message visible. A new update resumes the active status automatically. This indicates missing progress reports, not proof that the AI stopped working. Opening the AI app or copying its prompt alone does not start this timer, and progress reports do not extend the session's two-hour lifetime.
 
+During analysis, a spinner accompanies the latest progress message. It becomes a static clock when updates pause. The **Open** app button disappears after the first report; **Copy prompt** and **Show prompt** remain available.
+
+Started imports appear under **Imports** in the sidebar, with their repository folder, endpoint, and **In progress**, **Paused**, or **Ready to review** status. Select an entry to return to that import from any screen. The list refreshes automatically and survives a window reload while the core is running. Imports stay available for review until they are completed, discarded, or expired; restarting the core clears its temporary sessions.
+
 Check the exact MCP URL shown with the prompt: multiple GateRook instances can have endpoints with the same name. A connected status records successful setup or authenticated usage; it does not guarantee that the AI app has refreshed its tool list. If GateRook was updated, restart the AI app and start a new chat. While the selected app is waiting for restart or sign-in, its status refreshes automatically. Confirming a restart yourself is labeled separately from an observed connection. You can also refresh app statuses without losing the repository choice or current import.
 
 App links depend on the installed client's protocol handler. If an app cannot open the link, or the prompt is too long for a link, use **Copy prompt**. Cursor may first show its own **Create chat with prompt** dialog. Opening a prompt does not send it to a model.

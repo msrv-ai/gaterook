@@ -21,6 +21,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -65,6 +66,11 @@ public class ConnectionImportService {
   /** The latest bounded update is kept only for this temporary import session. */
   public record Progress(Instant startedAt, Instant updatedAt, String message) {
     @Override public String toString() { return "Progress[startedAt=" + startedAt + ", updatedAt=" + updatedAt + "]"; }
+  }
+
+  /** Sidebar metadata deliberately excludes the handoff capability, file and staged proposal. */
+  public record Task(String id, String repository, String endpoint, Instant expiresAt, String status, Progress progress) {
+    @Override public String toString() { return "Task[id=" + id + ", status=" + status + "]"; }
   }
 
   /** Reviewed input from the admin UI; the connector type is always taken from the staged candidate. */
@@ -163,6 +169,22 @@ public class ConnectionImportService {
   public Session get(String id) {
     Pending pending = pending(id);
     synchronized (pending) { requireActive(pending); return pending.view(); }
+  }
+
+  public List<Task> tasks() {
+    expire();
+    List<Task> tasks = new ArrayList<>();
+    for (Pending pending : List.copyOf(sessions.values())) {
+      synchronized (pending) {
+        if (sessions.get(pending.id) != pending || !pending.expiresAt.isAfter(clock.instant())) continue;
+        if ("review".equals(pending.status) || ("awaiting".equals(pending.status) && pending.progress != null)) {
+          tasks.add(new Task(pending.id, pending.repository, pending.endpoint, pending.expiresAt, pending.status,
+              pending.progress));
+        }
+      }
+    }
+    tasks.sort(Comparator.comparing(Task::expiresAt).reversed().thenComparing(Task::id));
+    return List.copyOf(tasks);
   }
 
   /** Cancelling drops only discovery data, never connections or endpoint settings. */

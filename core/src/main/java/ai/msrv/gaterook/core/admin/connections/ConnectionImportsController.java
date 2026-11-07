@@ -23,8 +23,10 @@ import tools.jackson.databind.JsonNode;
 /** Only the local, signed admin API starts discovery and commits the person's reviewed selections. */
 @RestController
 @RegisterReflectionForBinding({ConnectionImportService.Session.class, ConnectionImportService.Imported.class,
-    ConnectionImportService.NeedsSetup.class, ConnectionImportService.Destination.class, ConnectionImportService.Progress.class})
+    ConnectionImportService.NeedsSetup.class, ConnectionImportService.Destination.class, ConnectionImportService.Progress.class,
+    ConnectionImportService.Task.class})
 class ConnectionImportsController {
+  record ListPage(List<ConnectionImportService.Task> items) {}
   record Start(String repository, String endpoint) {}
   record Selection(String candidateId, String name, String env, JsonNode config,
       Map<String, ConnectionsController.SecretSource> secrets, String confirm, Boolean allowIncomplete, String endpoint) {}
@@ -33,6 +35,9 @@ class ConnectionImportsController {
   private final ConnectionImportService imports;
 
   ConnectionImportsController(ConnectionImportService imports) { this.imports = imports; }
+
+  @GetMapping("/api/connection-imports")
+  ListPage list() { return new ListPage(imports.tasks()); }
 
   @PostMapping("/api/connection-imports")
   ResponseEntity<ConnectionImportService.Session> start(@RequestBody Start request) {

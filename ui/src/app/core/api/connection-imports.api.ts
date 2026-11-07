@@ -40,6 +40,22 @@ export interface ImportCandidate {
   readonly secretSources?: readonly { readonly field: string; readonly source: 'local' | 'file' | 'reference' | 'vault-dynamic'; readonly path?: string; readonly reference?: string; readonly jsonPointer?: string; readonly store?: string }[];
 }
 
+export interface ConnectionImportProgress {
+  readonly startedAt: string;
+  readonly updatedAt: string;
+  readonly message: string;
+}
+
+/** Active analysis and review summaries never include staging capabilities or discovered credentials. */
+export interface ConnectionImportTask {
+  readonly id: string;
+  readonly repository: string;
+  readonly endpoint: string;
+  readonly expiresAt: string;
+  readonly status: 'awaiting' | 'review';
+  readonly progress: ConnectionImportProgress | null;
+}
+
 export interface ConnectionImportSession {
   readonly id: string;
   readonly repository: string;
@@ -49,11 +65,7 @@ export interface ConnectionImportSession {
   readonly importFile: string;
   readonly expiresAt: string;
   readonly status: 'awaiting' | 'review' | 'imported';
-  readonly progress?: {
-    readonly startedAt: string;
-    readonly updatedAt: string;
-    readonly message: string;
-  } | null;
+  readonly progress?: ConnectionImportProgress | null;
   readonly manifest: {
     readonly version: 1;
     readonly connections: readonly ImportCandidate[];
@@ -84,6 +96,10 @@ export interface ConnectionImportResult {
 @Injectable({ providedIn: 'root' })
 export class ConnectionImportsApi {
   private readonly api = inject(ApiClient);
+
+  list(): Promise<{ readonly items: readonly ConnectionImportTask[] }> {
+    return this.api.get('/api/connection-imports');
+  }
 
   start(repository: string, endpoint: string): Promise<ConnectionImportSession> {
     return this.api.post('/api/connection-imports', { repository, endpoint });

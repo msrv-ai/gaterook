@@ -10,9 +10,11 @@ import { EndpointShareFiles } from './core/desktop/endpoint-share';
 import { EventStream } from './core/events/event-stream';
 import { ApprovalsStore } from './core/stores/approvals.store';
 import { ConsentStore } from './core/stores/consent.store';
+import { ConnectionImportsStore } from './core/stores/connection-imports.store';
 import { CoreStore } from './core/stores/core.store';
 import { SettingsStore } from './core/stores/settings.store';
 import { UpdatesStore } from './core/stores/updates.store';
+import { TimeService } from './core/time/time.service';
 import { ActivationGuard } from './kit/activation-guard';
 import { GwOAuthConsent } from './kit/elements/client-card/oauth-consent';
 import { GwCommandPalette } from './kit/elements/command-palette/command-palette';
@@ -139,6 +141,8 @@ export class App {
   private readonly consents = inject(ConsentStore);
   private readonly noticeToasts = inject(DesktopNoticeToasts);
   private readonly toasts = inject(ToastService);
+  private readonly imports = inject(ConnectionImportsStore);
+  private readonly time = inject(TimeService);
   protected readonly core = inject(CoreStore);
   protected readonly approvals = inject(ApprovalsStore);
   protected readonly desktop = inject(DesktopBridge);
@@ -146,6 +150,17 @@ export class App {
   protected readonly updates = inject(UpdatesStore);
 
   protected readonly nav = NAV;
+  protected readonly importTasks = computed(() => this.imports.tasks().map(task => {
+    const name = task.repository.split(/[\\/]/).filter(Boolean).at(-1) ?? task.repository;
+    const paused = !!task.progress && this.time.now() - Date.parse(task.progress.updatedAt) > 15 * 60_000;
+    const status = task.status === 'review' ? 'Ready to review' : paused ? 'Paused' : 'In progress';
+    return {
+      id: task.id, name, endpoint: task.endpoint, status,
+      icon: task.status === 'review' ? 'file-check' : paused ? 'clock' : 'activity',
+      label: `Import ${name}, ${status}, endpoint ${task.endpoint}`,
+      title: `${task.repository} · ${task.endpoint} · ${status}${task.progress ? '\n' + task.progress.message : ''}`,
+    };
+  }));
   protected readonly mac = this.desktop.platform === 'darwin';
   /** The MCP shortcut and Connectors share a route, but only one sidebar item is current. */
   protected readonly mcpServersSelected = toSignal(

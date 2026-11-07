@@ -3,6 +3,15 @@ import { ApiClient } from './api-client';
 import { ConnectionImportsApi, ImportSelection } from './connection-imports.api';
 
 describe('ConnectionImportsApi', () => {
+  it('loads active import task summaries through the admin collection route', async () => {
+    const result = { items: [{ id: 'ci_abcdefgh1234', repository: '/workspace/example', endpoint: 'default',
+      expiresAt: '2026-11-07T14:00:00Z', status: 'review', progress: null }] };
+    const get = vi.fn().mockResolvedValue(result);
+    TestBed.configureTestingModule({ providers: [{ provide: ApiClient, useValue: { get } }] });
+    expect(await TestBed.inject(ConnectionImportsApi).list()).toBe(result);
+    expect(get).toHaveBeenCalledExactlyOnceWith('/api/connection-imports');
+  });
+
   it('connects prepared or existing stores only through the reviewed admin route', async () => {
     const post = vi.fn().mockResolvedValue({ id: 'st_vault', kind: 'vault' });
     TestBed.configureTestingModule({ providers: [{ provide: ApiClient, useValue: { post } }] });
