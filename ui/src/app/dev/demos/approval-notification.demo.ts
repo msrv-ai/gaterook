@@ -99,7 +99,7 @@ import { DEMO_REQUESTS } from '../fixtures';
         <p class="gw-section__description">While the window is in front, a toast with Review replaces the OS notification. It stays until it is used or dismissed.</p>
       </header>
       <section gwNotificationCard heading="In-app toast" icon="bell">
-        <span gwCardDescription>Bottom-right of the window; the titlebar bell keeps the count.</span>
+        <span gwCardDescription>Top-right of the window, below the titlebar; the titlebar bell keeps the count.</span>
         <div class="gw-card__actions" gwCardActions>
           <button class="gw-btn gw-btn--sm" type="button" (click)="live()"><svg lucideIcon="bell-ring" class="gw-icon gw-icon--sm"></svg>Show live toast</button>
         </div>

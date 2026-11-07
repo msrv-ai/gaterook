@@ -6105,7 +6105,7 @@ legend.gw-form__legend {
 }
 .gw-toast-region {
   position: fixed;
-  inset-block-end: var(--gw-space-4);
+  inset-block-start: calc(var(--gw-layout-titlebar-height) + var(--gw-space-4));
   inset-inline-end: var(--gw-space-4);
   z-index: var(--gw-z-toast);
   display: flex;
