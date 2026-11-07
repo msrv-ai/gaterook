@@ -311,7 +311,7 @@ describe('Overview connection map', () => {
     expect(services(el)).toEqual([longName]);
     expect(text(service(el, longName))).toContain(longName);
     expect(text(el.querySelector('#ov-services-scope'))).toBe('1 of 9 services on dev');
-    expect(text(service(el, longName)?.querySelector('[role="tooltip"]'))).toContain(longName);
+    expect(text(service(el, longName)?.querySelector('button'))).toContain(longName);
     await searchFor(fixture, el, 'Reporting database');
     expect(services(el)).toEqual([longName]);
     el.querySelector<HTMLButtonElement>('button[aria-label="Clear connection search"]')!.click();
@@ -467,7 +467,7 @@ describe('Overview connection map', () => {
     const dialog = el.querySelector<HTMLDialogElement>('dialog[open]')!;
     expect(text(dialog.querySelector('h2'))).toBe('Add a service');
     expect(findButton(dialog, 'Connect an MCP service by URL')).toBe(document.activeElement);
-    expect(href(byText(dialog, 'a', 'Connect a database or API'))).toBe('/connections/new');
+    expect(href(byText(dialog, 'a', 'Built-in connectors'))).toBe('/connections/new');
     expect(href(byText(dialog, 'a', 'Connect existing services'))).toBe('/connections?notConnectedTo=dev');
     expect(text(dialog)).not.toContain('Already in GateRook');
     expect(text(dialog)).not.toContain('Browse services');
@@ -687,7 +687,7 @@ describe('Overview availability', () => {
     findButton(el.querySelector('.gw-page-header__actions')!, 'Add service').click();
     await settle(fixture);
     const picker = el.querySelector<HTMLDialogElement>('dialog[open]')!;
-    expect(href(byText(picker, 'a', 'Connect a database or API'))).toBe('/connections/new');
+    expect(href(byText(picker, 'a', 'Built-in connectors'))).toBe('/connections/new');
     findButton(picker, 'Cancel').click();
     savedEndpoints = [endpoint('empty')];
     clientsAnswer = async () => ({ ...clientsFound(), clients: clientsFound().clients.map((card) => ({ ...card, methods: [{ id: 'token', label: 'Token', prodAllowed: true, reason: null }] })) });

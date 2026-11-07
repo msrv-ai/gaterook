@@ -89,7 +89,7 @@ it('keeps first-run source choices usable without inventing an endpoint', async 
     null,
     '/connections/new',
   ]);
-  expect(sources.map(label)).toEqual(['Connect an MCP service by URL', 'Connect a database or API']);
+  expect(sources.map(label)).toEqual(['Connect an MCP service by URL', 'Built-in connectors']);
   expect(document.activeElement).toBe(sources[0]);
   expect(openDialog().querySelector('button.gw-card__link')).toBe(sources[0]);
   expect(preview).not.toHaveBeenCalled();
@@ -146,7 +146,7 @@ it('offers unconnected services last with the selected endpoint filter, without 
   await settle();
   const dialog = openDialog();
   const sources = [...dialog.querySelectorAll<HTMLElement>('.gw-card__link')];
-  expect(sources.map(label)).toEqual(['Connect an MCP service by URL', 'Connect a database or API', 'Connect existing services']);
+  expect(sources.map(label)).toEqual(['Connect an MCP service by URL', 'Built-in connectors', 'Connect existing services']);
   expect(sources.at(-1)!.getAttribute('href')).toBe('/connections?notConnectedTo=selected');
   expect(label(sources.at(-1)!.closest('.gw-card'))).toContain('2 services are not connected to selected.');
   expect(label(dialog)).not.toContain('Already in GateRook');

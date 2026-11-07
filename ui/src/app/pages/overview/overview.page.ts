@@ -310,9 +310,6 @@ export class OverviewPage {
       )[c.row.type] ?? null
     );
   }
-  protected nodeId(kind: string, value: string): string {
-    return `ov-${kind}-${encodeURIComponent(value)}`;
-  }
   protected resetSelection(): void {
     this.selectedNode.set(null);
     this.hoverNode.set(null);
