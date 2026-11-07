@@ -49,6 +49,11 @@ export interface ConnectionImportSession {
   readonly importFile: string;
   readonly expiresAt: string;
   readonly status: 'awaiting' | 'review' | 'imported';
+  readonly progress?: {
+    readonly startedAt: string;
+    readonly updatedAt: string;
+    readonly message: string;
+  } | null;
   readonly manifest: {
     readonly version: 1;
     readonly connections: readonly ImportCandidate[];

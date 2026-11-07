@@ -27,6 +27,7 @@ public final class CoreTools {
   public static final String APPROVAL_CARD_ACTION = "approval_card_action";
   public static final String OPEN_CONNECTION_IMPORT = "open_connection_import";
   public static final String CONNECTION_IMPORT_SCHEMA = "connection_import_schema";
+  public static final String CONNECTION_IMPORT_PROGRESS = "connection_import_progress";
   public static final String SUBMIT_CONNECTION_IMPORT = "submit_connection_import";
 
   /** The endpoint-wide tools with a mode, in the kit's order. */
@@ -192,6 +193,19 @@ public final class CoreTools {
     return ToolDefinition.builder(SUBMIT_CONNECTION_IMPORT).title("Submit discovered connections for review")
         .description("Stage the discovery file at the private importFile path provided by a user-started import. Pass only sessionId and submissionToken; GateRook reads that one predetermined file and opens the review page. Never creates, modifies or deletes connections or settings. The user chooses connections and destination in GateRook. The optional inline manifest is a credential-free fallback and must contain no secrets. Use connection_import_schema for actual config fields. Submit once; do not replace submitted results.")
         .inputSchema(input).annotations(new Annotations(false, false, true, false)).nature(Nature.MUTATION)
+        .defaultMode(Mode.BYPASS, Mode.BYPASS).resultShape(ResultShape.JSON)
+        .risk(new Risk(false, false, Egress.NONE)).build();
+  }
+
+  public static ToolDefinition connectionImportProgress() {
+    ObjectNode input = importInput();
+    ((tools.jackson.databind.node.ArrayNode) input.get("required")).add("message");
+    ((ObjectNode) input.get("properties")).putObject("message").put("type", "string")
+        .put("minLength", 1).put("maxLength", ConnectionImportService.MAX_PROGRESS_MESSAGE)
+        .put("description", "A short, single-line summary of the current analysis step. Never include credentials, tokens, configuration values or file contents.");
+    return ToolDefinition.builder(CONNECTION_IMPORT_PROGRESS).title("Report connection import progress")
+        .description("For a user-started import, call before analysis to report that work has started, then at meaningful steps while working. Send the session ID and submission token from the prompt and a short message. GateRook shows the latest update and marks progress paused after 15 minutes without updates. Only available before submission; does not create connections, submit results or extend the session lifetime.")
+        .inputSchema(input).annotations(new Annotations(false, false, false, false)).nature(Nature.MUTATION)
         .defaultMode(Mode.BYPASS, Mode.BYPASS).resultShape(ResultShape.JSON)
         .risk(new Risk(false, false, Egress.NONE)).build();
   }

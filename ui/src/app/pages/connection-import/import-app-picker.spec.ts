@@ -139,6 +139,11 @@ describe('Import AI app picker', () => {
     expect(picker.ready()).toBe(false);
     expect(content(fixture.nativeElement)).toContain('Go back to finish connecting Cursor');
     expect(clients.connect).not.toHaveBeenCalled();
+
+    fixture.componentRef.setInput('analysisStarted', true); await settle();
+    expect(picker.ready()).toBe(false);
+    expect(content(fixture.nativeElement)).not.toContain('Go back to finish connecting Cursor');
+    expect(content(fixture.nativeElement)).toContain('Cursor');
   });
 
   it('offers app cards that start a connected app or open reviewed connection setup', async () => {

@@ -154,7 +154,7 @@ class EndpointsIT {
     EndpointSnapshot s = wiring.add("mixed", "m-my", null);
     ToolCatalog.Catalog list = catalog.forEndpoint(s);
     assertThat(list.tools()).extracting(ToolCatalog.PublishedTool::name)
-        .containsExactly("approval_card", "approval_card_action", "approval_status", "connection_import_schema",
+        .containsExactly("approval_card", "approval_card_action", "approval_status", "connection_import_progress", "connection_import_schema",
             "open_connection_import", "sql_execute", "sql_query", "submit_connection_import");
     ToolCatalog.PublishedTool query = list.tool("sql_query").orElseThrow();
     assertThat(query.inputSchema().at("/properties/connection/enum")).extracting(n -> n.asString())

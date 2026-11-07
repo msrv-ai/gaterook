@@ -114,6 +114,58 @@ class ConnectionImportIT {
 
   @ParameterizedTest
   @ValueSource(strings = {"2025-11-25", "2026-07-28"})
+  void progressIsAvailableInBothErasAndStaysOutOfAuditContent(String revision) {
+    boolean modern = revision.equals(McpClient.MODERN);
+    JsonNode session = session();
+    try {
+      JsonNode list = (modern ? agent.modern("tools/list", JsonNodeFactory.instance.objectNode(), false)
+          : agent.legacy("tools/list", null)).result();
+      JsonNode definition = null;
+      for (JsonNode tool : list.path("tools")) {
+        if (tool.path("name").asString().equals("connection_import_progress")) definition = tool;
+      }
+      assertThat(definition).isNotNull();
+      assertThat(definition.at("/inputSchema/properties/message/maxLength").asInt()).isEqualTo(240);
+      assertThat(definition.at("/annotations/readOnlyHint").asBoolean()).isFalse();
+      assertThat(admin.ok(path(session)).path("progress").isNull()).isTrue();
+      String message = "Checking deployment manifests and database configuration";
+      ObjectNode request = capability(session).put("message", message);
+      JsonNode response = (modern ? agent.modernCall("connection_import_progress", request, false)
+          : agent.legacyCall("connection_import_progress", request)).result();
+      assertThat(response.path("isError").asBoolean()).as(response.toString()).isFalse();
+      SpecSchemas.assertValid(revision, "CallToolResult", response);
+      assertThat(response.toString()).doesNotContain(message, session.path("submissionToken").asString());
+      JsonNode running = admin.ok(path(session));
+      assertThat(running.at("/progress/message").asString()).isEqualTo(message);
+      assertThat(running.at("/progress/startedAt").asString()).isEqualTo(running.at("/progress/updatedAt").asString());
+      assertThat(running.path("status").asString()).isEqualTo("awaiting");
+      assertThat(running.path("expiresAt")).isEqualTo(session.path("expiresAt"));
+      ObjectNode wrongToken = request.deepCopy().put("submissionToken", "00000000-0000-0000-0000-000000000000");
+      assertThat((modern ? agent.modernCall("connection_import_progress", wrongToken, false)
+          : agent.legacyCall("connection_import_progress", wrongToken)).result().path("isError").asBoolean()).isTrue();
+      assertThat((modern ? other.modernCall("connection_import_progress", request, false)
+          : other.legacyCall("connection_import_progress", request)).result().path("isError").asBoolean()).isTrue();
+      assertThat(admin.ok(path(session)).path("progress")).isEqualTo(running.path("progress"));
+      String audit = core.jdbc().queryForList(
+          "select args_masked, result_preview, error_message from tool_call where tool_name = 'connection_import_progress'").toString();
+      assertThat(audit).contains(session.path("id").asString(), "Import progress updated.")
+          .doesNotContain(message, session.path("submissionToken").asString());
+
+      ObjectNode submit = capability(session);
+      submit.set("manifest", JsonNodeFactory.instance.objectNode().put("version", 1).set("connections",
+          JsonNodeFactory.instance.arrayNode()));
+      assertThat((modern ? agent.modernCall("submit_connection_import", submit, false)
+          : agent.legacyCall("submit_connection_import", submit)).result().path("isError").asBoolean()).isFalse();
+      assertThat((modern ? agent.modernCall("connection_import_progress", request, false)
+          : agent.legacyCall("connection_import_progress", request)).result().path("isError").asBoolean()).isTrue();
+      assertThat(admin.ok(path(session)).path("status").asString()).isEqualTo("review");
+    } finally {
+      admin.expect(204, HttpMethod.DELETE, path(session), null);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2025-11-25", "2026-07-28"})
   void contentOnlyClientsCanReadTheCatalogAndCompleteConnectorSchema(String revision) {
     JsonNode session = session();
     long before = core.jdbc().queryForObject("select count(*) from connection", Long.class);

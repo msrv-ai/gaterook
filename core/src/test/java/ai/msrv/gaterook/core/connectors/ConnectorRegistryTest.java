@@ -95,6 +95,10 @@ class ConnectorRegistryTest {
         ToolDefinition.builder("approval_status").inputSchema(input()).build());
     assertThatThrownBy(() -> ConnectorRegistry.checkTools(List.of(core)))
         .isInstanceOf(IllegalStateException.class).hasMessageContaining("approval_status is a tool of the core");
+    ConnectorManifest progress = manifest("x", ConnectorManifest.Kind.PLUGIN,
+        ToolDefinition.builder("connection_import_progress").inputSchema(input()).build());
+    assertThatThrownBy(() -> ConnectorRegistry.checkTools(List.of(progress)))
+        .isInstanceOf(IllegalStateException.class).hasMessageContaining("connection_import_progress is a tool of the core");
 
     ConnectorManifest invalid = manifest("x", ConnectorManifest.Kind.BUILT_IN,
         ToolDefinition.builder("Bad-Name").inputSchema(input()).build());

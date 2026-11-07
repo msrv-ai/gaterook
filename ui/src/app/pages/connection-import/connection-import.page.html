@@ -89,8 +89,22 @@
         <p class="gw-card__description gw-mono">{{ session()!.repository }}</p>
       </div></header>
       <div class="gw-card__body gw-stack">
-        <gw-import-app-picker [endpoint]="appEndpoint()" [disabled]="busy()" [handoffMode]="true" [(client)]="selectedClient" [(consent)]="appConsent" (selectionChange)="appSelection.set($event)" (busyChange)="appConnecting.set($event)" />
-        <p>{{ appSelection()?.name ?? 'Your AI app' }} will inspect your repository to find databases, logs, other connections, and credential sources. Review and send the prompt in the app to begin.</p>
+        <gw-import-app-picker [endpoint]="appEndpoint()" [disabled]="busy()" [handoffMode]="true" [analysisStarted]="!!importProgress()" [(client)]="selectedClient" [(consent)]="appConsent" (selectionChange)="appSelection.set($event)" (busyChange)="appConnecting.set($event)" />
+        @if (importProgress(); as progress) {
+          <div class="gw-alert" [class.gw-alert--info]="!progressPaused()" [class.gw-alert--warning]="progressPaused()" id="import-progress">
+            <svg [lucideIcon]="progressPaused() ? 'clock' : 'activity'" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content">
+              <div role="status" aria-live="polite" aria-atomic="true">
+                <p class="gw-alert__title">{{ progressPaused() ? 'Import paused' : 'Import in progress' }}</p>
+                @if (progressPaused()) { <p class="gw-alert__body">No progress updates have been received for more than 15 minutes. Progress will resume when the AI sends an update.</p> }
+                <p class="gw-alert__body">{{ progress.message }}</p>
+              </div>
+              <p class="gw-text-small gw-fg-muted">Last update <time [attr.datetime]="progress.updatedAt" [title]="time.absolute(progress.updatedAt)">{{ time.relative(progress.updatedAt) }}</time></p>
+            </div>
+          </div>
+        } @else {
+          <p>{{ appSelection()?.name ?? 'Your AI app' }} will inspect your repository to find databases, logs, other connections, and credential sources. Review and send the prompt in the app to begin.</p>
+        }
         <p>GateRook will open the findings when they arrive. Choose what to import and where, review the settings, then confirm. Connections are saved only after your confirmation.</p>
         <div class="gw-card__actions">
           <button class="gw-btn" type="button" [disabled]="busy()" (click)="backToSetup()">Back</button>

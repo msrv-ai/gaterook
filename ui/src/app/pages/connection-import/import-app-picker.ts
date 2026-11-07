@@ -31,6 +31,7 @@ export class ImportAppPicker {
   readonly disabled = input(false);
   readonly cardsMode = input(false);
   readonly handoffMode = input(false);
+  readonly analysisStarted = input(false);
   readonly startDisabledReason = input<string | null>(null);
   readonly client = model<ClientId | null>(null);
   readonly consent = model<ImportAppConsent | null>(null);

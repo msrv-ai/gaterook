@@ -136,7 +136,8 @@ public class ToolCallHandler {
       return ResultWriter.callToolResult(env,
           approvalCards.call(r, args, CoreTools.APPROVAL_CARD_ACTION.equals(name)), null, r.span().traceId(), null);
     }
-    if (CoreTools.CONNECTION_IMPORT_SCHEMA.equals(name) || CoreTools.SUBMIT_CONNECTION_IMPORT.equals(name)
+    if (CoreTools.CONNECTION_IMPORT_SCHEMA.equals(name) || CoreTools.CONNECTION_IMPORT_PROGRESS.equals(name)
+        || CoreTools.SUBMIT_CONNECTION_IMPORT.equals(name)
         || "open_connection_import".equals(name)) {
       return connectionImports.call(r, name, args);
     }
