@@ -4,13 +4,17 @@ import { isApiError } from '../../core/api/api-error';
 import { ConnectionRow } from '../../core/api/connections.api';
 import { ConnectionPreview, EndpointSummary, EndpointsApi } from '../../core/api/endpoints.api';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
+import { GwToggle } from '../../kit/disclosure';
+import { connectorIcon } from '../../kit/elements/shared/connector-icons';
 import { GwIcon } from '../../kit/icons';
+import { GwSearchClearButton } from '../../kit/search';
 import { ToastService } from '../../kit/toast.service';
 
 interface ServiceChoice {
   readonly row: ConnectionRow;
   readonly pending: boolean;
   readonly reason: string | null;
+  readonly tools: number | null;
 }
 
 let nextId = 0;
@@ -18,7 +22,7 @@ let nextId = 0;
 /** Overview's service chooser and exact-endpoint review. Only the core decides eligible tools and modes. */
 @Component({
   selector: 'gw-overview-setup',
-  imports: [RouterLink, GwDialog, GwDialogClose, GwIcon],
+  imports: [RouterLink, GwDialog, GwDialogClose, GwIcon, GwToggle, GwSearchClearButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './overview-setup.html',
 })
@@ -31,6 +35,18 @@ export class GwOverviewSetup {
   protected readonly uid = `overview-setup-${++nextId}`;
   protected readonly endpoint = signal<EndpointSummary | null>(null);
   protected readonly choices = signal<readonly ServiceChoice[]>([]);
+  protected readonly query = signal('');
+  protected readonly unavailableExpanded = signal(false);
+  protected readonly readyExpanded = signal(false);
+  protected readonly matches = computed(() => {
+    const query = this.query().trim().toLocaleLowerCase();
+    return this.choices().filter(({ row }) => `${row.name} ${row.typeName}`.toLocaleLowerCase().includes(query));
+  });
+  protected readonly readyChoices = computed(() => this.matches().filter((choice) => !choice.pending && !choice.reason));
+  protected readonly visibleChoices = computed(() => this.readyExpanded() || this.query().trim() ? this.readyChoices() : this.readyChoices().slice(0, 4));
+  protected readonly unavailableChoices = computed(() => this.matches().filter((choice) => !!choice.reason));
+  protected readonly checking = computed(() => this.choices().some((choice) => choice.pending));
+  protected readonly choiceIcon = (choice: ServiceChoice): string => connectorIcon(choice.row.type);
   protected readonly connection = signal<ConnectionRow | null>(null);
   protected readonly preview = signal<ConnectionPreview | null>(null);
   protected readonly pending = signal(false);
@@ -52,15 +68,18 @@ export class GwOverviewSetup {
   showPicker(endpoint: EndpointSummary | null, connections: readonly ConnectionRow[], opener: HTMLElement | null): void {
     const generation = ++this.generation;
     this.endpoint.set(endpoint);
+    this.query.set('');
+    this.unavailableExpanded.set(false);
+    this.readyExpanded.set(false);
     const rows = connections.filter((row) => !endpoint || !row.usedBy.includes(endpoint.slug));
-    this.choices.set(rows.map((row) => ({ row, pending: !!endpoint, reason: null })));
+    this.choices.set(rows.map((row) => ({ row, pending: !!endpoint, reason: this.endpointReason(endpoint) ?? this.connectionReason(row), tools: null })));
     this.picker().openAfterRender(opener);
     if (!endpoint) return;
     for (const row of rows) {
       const reason = this.endpointReason(endpoint) ?? this.connectionReason(row);
       if (reason) this.updateChoice(row.name, reason, generation);
       else void this.api.previewConnection(endpoint.slug, row.name).then(
-        (preview) => this.updateChoice(row.name, preview.refusal, generation),
+        (preview) => this.updateChoice(row.name, preview.refusal, generation, preview.tools.length),
         (error) => this.updateChoice(row.name, failureText(error), generation),
       );
     }
@@ -123,9 +142,9 @@ export class GwOverviewSetup {
     return ({ READ_ONLY: 'Read only', APPROVAL: 'Approval', BYPASS: 'Bypass', OFF: 'Off' } as Record<string, string>)[mode] ?? mode;
   }
 
-  private updateChoice(name: string, reason: string | null, generation: number): void {
+  private updateChoice(name: string, reason: string | null, generation: number, tools: number | null = null): void {
     if (generation !== this.generation) return;
-    this.choices.update((choices) => choices.map((choice) => choice.row.name === name ? { ...choice, pending: false, reason } : choice));
+    this.choices.update((choices) => choices.map((choice) => choice.row.name === name ? { ...choice, pending: false, reason, tools } : choice));
   }
 
   private endpointReason(endpoint: EndpointSummary | null): string | null {

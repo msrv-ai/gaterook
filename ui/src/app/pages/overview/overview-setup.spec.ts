@@ -26,6 +26,10 @@ async function settle(): Promise<void> {
   }
 }
 const text = () => fixture.nativeElement.textContent.replace(/\s+/g, ' ');
+const openDialog = () => fixture.nativeElement.querySelector('dialog[open]') as HTMLDialogElement;
+const label = (element: Element | null) => (element?.textContent ?? '').replace(/\s+/g, ' ').trim();
+const button = (root: ParentNode, name: string) => [...root.querySelectorAll<HTMLButtonElement>('button')].find((item) => label(item) === name)!;
+const unavailableToggle = () => [...openDialog().querySelectorAll<HTMLButtonElement>('button[aria-controls]')].find((item) => label(item).startsWith('Show unavailable'))!;
 const confirm = () => [...fixture.nativeElement.querySelectorAll('button')].find((button) => (button as HTMLButtonElement).textContent?.trim() === 'Connect service') as HTMLButtonElement;
 
 beforeEach(async () => {
@@ -58,10 +62,15 @@ it('uses the core refusal for existing service eligibility rather than inferring
   preview.mockResolvedValue({ ...access(), refusal: 'This endpoint accepts read-only tools only.' });
   fixture.componentInstance.showPicker(endpoint('selected', { access: 'read-only' }), [connection()], null);
   await settle();
-  const service = [...fixture.nativeElement.querySelectorAll('button')].find((button) => (button as HTMLButtonElement).textContent?.includes('github-mcp')) as HTMLButtonElement;
-  expect(service.getAttribute('aria-disabled')).toBe('true');
-  expect(text()).toContain('This endpoint accepts read-only tools only.');
-  service.click();
+  const toggle = unavailableToggle();
+  expect(label(toggle)).toBe('Show unavailable (1)');
+  const region = document.getElementById(toggle.getAttribute('aria-controls')!)!;
+  expect(region.hidden).toBe(true);
+  expect(openDialog().querySelector('button.gw-card__link')).toBeNull();
+  toggle.click();
+  await settle();
+  expect(region.hidden).toBe(false);
+  expect(label(region)).toContain('This endpoint accepts read-only tools only.');
   expect(add).not.toHaveBeenCalled();
 });
 
@@ -82,11 +91,15 @@ it('does not write a changed preview until its updated tools are reviewed again'
 it('keeps first-run source choices usable without inventing an endpoint', async () => {
   fixture.componentInstance.showPicker(null, [connection()], null);
   await settle();
-  const links = [...fixture.nativeElement.querySelectorAll('a')].map((link) => (link as HTMLAnchorElement).getAttribute('href'));
-  expect(links).toContain('/connection-import');
-  expect(links).toContain('/connections/new');
-  expect(links).toContain('/connectors?add=mcp-server&source=url#mcp-servers');
-  expect(links).toContain('/connectors?add=mcp-server&source=registry#mcp-servers');
+  const sources = [...openDialog().querySelectorAll<HTMLAnchorElement>('a.gw-card__link')];
+  expect(sources.map((link) => link.getAttribute('href'))).toEqual([
+    '/connectors#catalog',
+    '/connectors?add=mcp-server&source=url#mcp-servers',
+    '/connections/new',
+  ]);
+  expect(sources.map(label)).toEqual(['Browse services', 'Connect an MCP service by URL', 'Connect a database or API']);
+  expect(document.activeElement).toBe(sources[0]);
+  expect(openDialog().querySelector('button.gw-card__link')).toBeNull();
   expect(preview).not.toHaveBeenCalled();
   expect(add).not.toHaveBeenCalled();
 });
@@ -127,5 +140,95 @@ it.each([{ status: 'disabled' as const }, { blockedReason: 'Endpoint configurati
   expect(confirm().getAttribute('aria-disabled')).toBe('true');
   confirm().click();
   expect(preview).not.toHaveBeenCalled();
+  expect(add).not.toHaveBeenCalled();
+});
+
+
+it('keeps many unavailable services collapsed and resets the disclosure each time the chooser opens', async () => {
+  const rows = Array.from({ length: 12 }, (_, index) => ({ ...connection(), name: `incomplete-service-${index}`, setupRequired: true }));
+  const selected = endpoint('selected');
+  fixture.componentInstance.showPicker(selected, rows, null);
+  await settle();
+  const toggle = unavailableToggle();
+  expect(label(toggle)).toBe('Show unavailable (12)');
+  expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  const region = document.getElementById(toggle.getAttribute('aria-controls')!)!;
+  expect(region.hidden).toBe(true);
+  expect(openDialog().querySelectorAll('a.gw-card__link')).toHaveLength(3);
+  expect(preview).not.toHaveBeenCalled();
+  expect(add).not.toHaveBeenCalled();
+  toggle.click();
+  await settle();
+  expect(region.hidden).toBe(false);
+  expect(label(region)).toContain('incomplete-service-11');
+  expect(label(region)).toContain('Finish setting up this service in Connections first.');
+  button(openDialog(), 'Cancel').click();
+  await settle();
+  fixture.componentInstance.showPicker(selected, rows, null);
+  await settle();
+  expect(unavailableToggle().getAttribute('aria-expanded')).toBe('false');
+  expect(document.getElementById(unavailableToggle().getAttribute('aria-controls')!)!.hidden).toBe(true);
+  expect(add).not.toHaveBeenCalled();
+});
+
+it('shows one checking state and waits for eligibility before offering an existing service', async () => {
+  let finish!: (value: ConnectionPreview) => void;
+  preview.mockImplementation(() => new Promise<ConnectionPreview>((resolve) => finish = resolve));
+  fixture.componentInstance.showPicker(endpoint('selected'), [connection()], null);
+  await settle();
+  const dialog = openDialog();
+  expect(dialog.querySelectorAll('[role="status"]')).toHaveLength(1);
+  expect(label(dialog.querySelector('[role="status"]'))).toMatch(/Checking/i);
+  expect(dialog.querySelector('button.gw-card__link')).toBeNull();
+  expect(unavailableToggle()).toBeUndefined();
+  expect(add).not.toHaveBeenCalled();
+  finish(access());
+  await settle();
+  expect(dialog.querySelector('[role="status"]')).toBeNull();
+  const use = button(dialog, 'Use github-mcp');
+  expect(use).toBeTruthy();
+  expect(use.classList).toContain('gw-card__link');
+  expect(label(use.closest('.gw-card'))).toContain('2 tools');
+  use.click();
+  await settle();
+  expect(label(openDialog())).toContain('Review service access');
+  expect(preview).toHaveBeenLastCalledWith('selected', 'github-mcp');
+  expect(add).not.toHaveBeenCalled();
+});
+
+it('finds an existing service beyond the compact list by its full name or type', async () => {
+  const longName = 'analytics-database-for-europe-reporting-replica';
+  const rows = [
+    ...Array.from({ length: 5 }, (_, index) => ({ ...connection(), name: `existing-service-${index}` })),
+    { ...connection(), name: longName, typeName: 'Reporting database' },
+  ];
+  fixture.componentInstance.showPicker(endpoint('selected'), rows, null);
+  await settle();
+  const dialog = openDialog();
+  expect(dialog.querySelectorAll('button.gw-card__link')).toHaveLength(4);
+  expect(button(dialog, `Use ${longName}`)).toBeUndefined();
+  button(dialog, 'Show all 6 services').click();
+  await settle();
+  expect(dialog.querySelectorAll('button.gw-card__link')).toHaveLength(6);
+  expect(button(dialog, `Use ${longName}`)).toBeTruthy();
+  button(dialog, 'Show fewer services').click();
+  await settle();
+  expect(dialog.querySelectorAll('button.gw-card__link')).toHaveLength(4);
+  const search = dialog.querySelector<HTMLInputElement>('input[type="search"]')!;
+  search.value = 'europe-reporting';
+  search.dispatchEvent(new Event('input', { bubbles: true }));
+  await settle();
+  expect(dialog.querySelectorAll('button.gw-card__link')).toHaveLength(1);
+  expect(button(dialog, `Use ${longName}`)).toBeTruthy();
+  search.value = 'Reporting database';
+  search.dispatchEvent(new Event('input', { bubbles: true }));
+  await settle();
+  expect(dialog.querySelectorAll('button.gw-card__link')).toHaveLength(1);
+  expect(button(dialog, `Use ${longName}`)).toBeTruthy();
+  dialog.querySelector<HTMLButtonElement>('button.gw-search__clear')!.click();
+  await settle();
+  expect(search.value).toBe('');
+  expect(document.activeElement).toBe(search);
+  expect(dialog.querySelectorAll('button.gw-card__link')).toHaveLength(4);
   expect(add).not.toHaveBeenCalled();
 });

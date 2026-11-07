@@ -324,16 +324,15 @@ describe('Overview connection map', () => {
     expect(calls.some((call) => call.startsWith('add '))).toBe(false);
   });
 
-  it('opens the service chooser from the map with real import, MCP and database setup routes', async () => {
+  it('opens the service chooser from the map with the catalog, MCP URL and database setup routes', async () => {
     const { fixture, el } = await render();
     findButton(el.querySelector('.gw-page-header__actions')!, 'Add service').click();
     await settle(fixture);
     const dialog = el.querySelector<HTMLDialogElement>('dialog[open]')!;
     expect(text(dialog.querySelector('h2'))).toBe('Add a service');
-    expect(href(byText(dialog, 'a', 'Import with AI'))).toBe('/connection-import?endpoint=dev');
-    expect(href(byText(dialog, 'a', 'Find an MCP service'))).toBe('/connectors?add=mcp-server&source=registry#mcp-servers');
-    expect(href(byText(dialog, 'a', 'Connect an MCP URL'))).toBe('/connectors?add=mcp-server&source=url#mcp-servers');
-    expect(href(byText(dialog, 'a', 'Add a database or API'))).toBe('/connections/new');
+    expect(href(byText(dialog, 'a', 'Browse services'))).toBe('/connectors#catalog');
+    expect(href(byText(dialog, 'a', 'Connect an MCP service by URL'))).toBe('/connectors?add=mcp-server&source=url#mcp-servers');
+    expect(href(byText(dialog, 'a', 'Connect a database or API'))).toBe('/connections/new');
     expect(text(dialog)).toContain('Already in GateRook');
     expect(calls.some((call) => call.startsWith('add '))).toBe(false);
   });
@@ -551,7 +550,7 @@ describe('Overview availability', () => {
     findButton(el.querySelector('.gw-page-header__actions')!, 'Add service').click();
     await settle(fixture);
     const picker = el.querySelector<HTMLDialogElement>('dialog[open]')!;
-    expect(href(byText(picker, 'a', 'Add a database or API'))).toBe('/connections/new');
+    expect(href(byText(picker, 'a', 'Connect a database or API'))).toBe('/connections/new');
     findButton(picker, 'Cancel').click();
     savedEndpoints = [endpoint('empty')];
     clientsAnswer = async () => ({ ...clientsFound(), clients: clientsFound().clients.map((card) => ({ ...card, methods: [{ id: 'token', label: 'Token', prodAllowed: true, reason: null }] })) });
