@@ -340,16 +340,14 @@
             </div>
           }
         </ng-container>
-        <div class="gw-form__actions" gwFormActions>
-          @if (m === 'edit') {
-            <p class="gw-form__note"><svg lucideIcon="info" class="gw-icon"></svg>Applies from the next call</p>
-            <button class="gw-btn" type="button" (click)="discard()">Discard</button>
-            <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="saving() ? 'true' : null" [attr.aria-disabled]="saving() || accessBusy() || accessSyncError() || form()?.databaseLoading() ? 'true' : null" [attr.aria-describedby]="accessBusy() ? 'edit-access-saving' : accessSyncError() ? 'edit-access-error' : form()?.databaseLoading() ? 'cf-database-status' : null">@if (saving()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Save changes<span class="gw-sr-only"> to {{ name() }}</span></button>
-          } @else {
-            <button class="gw-btn gw-btn--ghost" type="button" (click)="go(1)"><svg lucideIcon="arrow-left" class="gw-icon"></svg> Back</button>
-            <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-disabled]="form()?.databaseLoading() ? 'true' : null" [attr.aria-describedby]="form()?.databaseLoading() ? 'cf-database-status' : null">Continue<span class="gw-sr-only"> to test</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
+        <ng-container ngProjectAs="[gwFormActions]">
+          @if (m !== 'edit') {
+            <div class="gw-form__actions">
+              <button class="gw-btn gw-btn--ghost" type="button" (click)="go(1)"><svg lucideIcon="arrow-left" class="gw-icon"></svg> Back</button>
+              <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-disabled]="form()?.databaseLoading() ? 'true' : null" [attr.aria-describedby]="form()?.databaseLoading() ? 'cf-database-status' : null">Continue<span class="gw-sr-only"> to test</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
+            </div>
           }
-        </div>
+        </ng-container>
       </form>
     } @else {
       <div class="gw-stack" aria-busy="true">
@@ -694,6 +692,14 @@
     }
   </section>
 
+  @if (specState() === 'ready' && spec()) {
+    <!-- Connection settings remain saveable from either tab through the same mounted form. -->
+    <div class="gw-form__actions" id="edit-connection-actions">
+      <p class="gw-form__note"><svg lucideIcon="info" class="gw-icon"></svg>Connection settings apply from the next call</p>
+      <button class="gw-btn" type="button" (click)="discard()">Discard</button>
+      <button class="gw-btn gw-btn--primary" type="submit" form="cf-form" [attr.aria-busy]="saving() ? 'true' : null" [attr.aria-disabled]="saving() || accessBusy() || accessSyncError() || form()?.databaseLoading() ? 'true' : null" [attr.aria-describedby]="accessBusy() ? 'edit-access-saving' : accessSyncError() ? 'edit-access-error' : form()?.databaseLoading() ? 'cf-database-status' : null">@if (saving()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Save changes<span class="gw-sr-only"> to {{ name() }}</span></button>
+    </div>
+  }
 }
 
 <!-- Rotate the stored secret of this connection (the same dialog as on Secrets) -->

@@ -164,7 +164,7 @@ interface ReferenceChange {
     ConnectionToolModes,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'gw-page gw-page--narrow' },
+  host: { class: 'gw-page gw-page--narrow', '[class.gw-form--sticky-actions]': "mode() === 'edit'" },
   templateUrl: './connection-new.page.html',
 })
 export class ConnectionNewPage {

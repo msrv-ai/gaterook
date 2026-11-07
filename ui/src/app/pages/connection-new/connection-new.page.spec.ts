@@ -1548,6 +1548,46 @@ describe('Connection: edit view with references', () => {
 });
 
 describe('Connection: edit view', () => {
+  it('keeps the shared Save changes bar visible on Tools and submits the mounted settings draft', async () => {
+    const p = await open('/connections/dev-db');
+    const form = p.q<HTMLFormElement>('#cf-form')!;
+    const actions = p.q('#edit-connection-actions')!;
+    const save = p.button('Save changes');
+    expect(save.form).toBe(form);
+    expect(actions.parentElement).toBe(p.el);
+    expect(p.el.classList.contains('gw-form--sticky-actions')).toBe(true);
+    await p.type('cf-credentials-user', 'draft_user');
+    p.button('Load databases').click();
+    await p.settle();
+    p.q<HTMLButtonElement>('#connection-tools-tab')!.click();
+    await p.settle();
+
+    expect(p.q<HTMLElement>('#connection-settings')!.hidden).toBe(true);
+    expect(actions.closest('[hidden]')).toBeNull();
+    expect(p.q('#cf-form')).toBe(form);
+    expect(p.q<HTMLInputElement>('#cf-credentials-user')!.value).toBe('draft_user');
+    save.click();
+    await p.settle();
+    expect(core.updates).toHaveLength(1);
+    expect(core.updates[0].config).toMatchObject({ credentials: { user: 'draft_user' } });
+    expect(core.updates[0].version).toBe(DETAIL.version);
+  });
+
+  it('discards the settings draft from the shared action bar while Tools is selected', async () => {
+    const p = await open('/connections/dev-db');
+    const user = p.q<HTMLInputElement>('#cf-credentials-user')!.value;
+    await p.type('cf-credentials-user', 'draft_user');
+    p.q<HTMLButtonElement>('#connection-tools-tab')!.click();
+    await p.settle();
+    const discard = p.button('Discard');
+    expect(discard.closest('[hidden]')).toBeNull();
+    discard.click();
+    await p.settle();
+    expect(p.q<HTMLInputElement>('#cf-credentials-user')!.value).toBe(user);
+    expect(core.updates).toEqual([]);
+    expect(p.q<HTMLElement>('#used-by')!.hidden).toBe(false);
+  });
+
   it('changes a tool mode immediately without saving or replacing the connection draft', async () => {
     core.endpointTools = TOOLS.map((tool) => row(tool.name, tool.name === 'sql_execute' ? 'APPROVAL' : 'READ_ONLY'));
     vi.mocked(TestBed.inject(EndpointsApi).tools).mockImplementation(async () => [{
@@ -1601,13 +1641,13 @@ describe('Connection: edit view', () => {
     expect(text(p.q('#cf-form'))).toContain('Review this setting.');
   });
 
-  it('reveals Settings before focusing synchronous validation from a hidden form submission', async () => {
+  it('reveals Settings before focusing validation when Save changes is clicked from Tools', async () => {
     const p = await open('/connections/dev-db');
     await p.type('cf-credentials-user', '');
     p.q<HTMLButtonElement>('#connection-tools-tab')!.click();
     await p.settle();
     expect(p.q<HTMLElement>('#connection-settings')!.hidden).toBe(true);
-    p.q<HTMLFormElement>('#cf-form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    p.button('Save changes').click();
     await p.settle();
     expect(p.q<HTMLElement>('#connection-settings')!.hidden).toBe(false);
     expect(p.q<HTMLElement>('#used-by')!.hidden).toBe(true);
