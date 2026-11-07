@@ -7,6 +7,8 @@ import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.connections.ConnectionConfigs;
 import ai.msrv.gaterook.core.connections.ConnectionService;
+import ai.msrv.gaterook.core.platform.MaskPolicy;
+import ai.msrv.gaterook.core.platform.Masker;
 import ai.msrv.gaterook.core.platform.ProblemException;
 import ai.msrv.gaterook.core.platform.Taint;
 import ai.msrv.gaterook.core.secrets.SecretService;
@@ -16,6 +18,7 @@ import ai.msrv.gaterook.testfixtures.TestCore;
 import java.util.List;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -241,13 +244,18 @@ class EndpointShareIT {
     assertThat(core.bean(ConnectionConfigs.class).byId(id).orElseThrow().enabled()).isTrue();
   }
 
+  @Tag("isolated-secret-fingerprints")
   @Test void secretFingerprintsCannotRenamePreviewProtocolKeysOrSelectionIdentifiers() {
+    assertThat(Masker.standard().text("connections", new Taint(), MaskPolicy.SECRETS_ONLY).text())
+        .as("the isolated process has not learned the protocol word").isEqualTo("connections");
     core.bean(ConnectionService.class).create("protocol-key-share", "pgfake", Env.DEV,
         TestCore.config("db.example.test"), java.util.Map.of("/credentials/password",
             ai.msrv.gaterook.core.connections.SecretInput.local("connections".toCharArray())), "test");
     endpoints.create("protocol-key-endpoint", null, EndpointService.StartFrom.EMPTY, "test");
     wiring.add("protocol-key-endpoint", "protocol-key-share", "test");
     ObjectNode bundle = shares.export("protocol-key-endpoint", List.of("protocol-key-share"), true);
+    assertThat(Masker.standard().text("connections", new Taint(), MaskPolicy.SECRETS_ONLY).text())
+        .as("resolved secrets remain masked by the process for other calls").isEqualTo(Masker.MASK);
     JsonNode preview = shares.preview(bundle);
     assertThat(preview.path("connections")).hasSize(1);
     assertThat(preview.path("connections").get(0).path("id").asString()).isEqualTo("protocol-key-share");
