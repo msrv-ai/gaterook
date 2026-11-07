@@ -15,6 +15,8 @@
     "contrast-pairs": "tokens/contrast-pairs.json",
     "theme-boot": "assets/theme-boot.js",
     "behaviours": "assets/kit.js",
+    "mcp-setup-markup": "fragments/mcp-setup.html",
+    "mcp-setup-behaviours": "assets/mcp-setup.js",
     "logo": "assets/logo.svg",
     "logo-png": "assets/logo.png",
     "logo-mark": "assets/logo-mark.svg",
@@ -181,7 +183,7 @@
         "dashed: native button or link cards show a pointer cursor, brand tint and border on hover or keyboard focus; disabled controls retain their resting appearance",
         "invalid: danger border and inset retained on hover; only for blocking errors, with a visible explanation and correction action"
       ],
-      "a11y": "section[aria-labelledby] → the title heading. Interactive cards use one stretched link; selected pairs with aria-current/aria-checked. Invalid cards use aria-describedby for their visible error; warnings use an inline warning alert without the invalid variant."
+      "a11y": "section[aria-labelledby] → the title heading. Interactive cards use one stretched native link or button; selected pairs with aria-current/aria-checked. Invalid cards use aria-describedby for their visible error; warnings use an inline warning alert without the invalid variant."
     },
     {
       "name": "gw-shell",
@@ -1405,7 +1407,7 @@
         "Network health actions are sibling buttons outside endpoint radio labels. Danger badges count enabled Unreachable connections on enabled endpoints, excluding Slow, disabled and unavailable services. Tooltips name count and endpoint; aria-pressed identifies the active filter.",
         "Selecting a health badge selects its endpoint and shows affected services with gw-card--invalid and Unreachable text. Show all, endpoint changes or pausing clear the filter; disabling a filtered problem restores the expanded list and preserves switch focus.",
         "Network search matches service type and connection name across all connections on the selected endpoint, including collapsed nodes. It combines with the unreachable filter; health badges clear the query, Show all clears both filters, and endpoint changes retain the query with the new scope. Unavailable data disables search.",
-        "Protected access names local credentials, rules and Activity and opens the explanation. Paused and unavailable states are explicit; protection does not assert service reachability. Add service offers MCP URL and database/API setup, followed by a conditional Connect existing services card linking to the selected endpoint's unassigned connections. The MCP group opens MCP setup directly. Installed-service Connect actions retain exact access review. Service selection shows scoped tools and modes; endpoint selection restores endpoint details."
+        "Protected access names local credentials, rules and Activity and opens the explanation. Paused and unavailable states are explicit; protection does not assert service reachability. Add service offers MCP URL and database/API setup, followed by a conditional Connect existing services card linking to the selected endpoint's unassigned connections. The MCP group and URL chooser action open shared MCP setup dialogs over Overview without navigation; closing restores the original map action. Installed-service Connect actions retain exact access review. Service selection shows scoped tools and modes; endpoint selection restores endpoint details."
       ],
       "usedIn": [
         "pages/overview.html",
@@ -2235,7 +2237,7 @@
     {
       "html": "pages/overview-map.html",
       "title": "Overview map · GateRook",
-      "purpose": "Independent Overview alternative: compact service rows in one column, a compact composite GateRook group with distinct endpoint radio cards and connection ports, and AI app nodes connected by curved SVG paths. Selection filters endpoint scope and inspects nodes; Add service, Add endpoint and Connect AI app controls live in the graph. The canonical shell and existing card, control, status and theme tokens remain shared. Text states explain configured, pending, paused and unavailable access. Empty/loading/error states retain a clear next step. Preview changes are sample-only and reset on reload. The existing Overview remains a separate reference. Endpoint health badges filter unreachable connections with red service edges; separate quick switches control each connection across all endpoints while preserving its settings. Scoped connection search covers every assigned service and combines with health filtering. The protection shield explains credentials, rules and Activity without asserting service reachability. The source chooser offers MCP URL and database/API setup, then a conditional link to existing connections not assigned to the selected endpoint. MCP add opens its dialog directly. Service selection shows scoped tool modes and endpoint selection shows endpoint data. Every endpoint has a direct access switch, and service rows show scoped tool counts.",
+      "purpose": "Independent Overview alternative: compact service rows in one column, a compact composite GateRook group with distinct endpoint radio cards and connection ports, and AI app nodes connected by curved SVG paths. Selection filters endpoint scope and inspects nodes; Add service, Add endpoint and Connect AI app controls live in the graph. The canonical shell and existing card, control, status and theme tokens remain shared. Text states explain configured, pending, paused and unavailable access. Empty/loading/error states retain a clear next step. Preview changes are sample-only and reset on reload. The existing Overview remains a separate reference. Endpoint health badges filter unreachable connections with red service edges; separate quick switches control each connection across all endpoints while preserving its settings. Scoped connection search covers every assigned service and combines with health filtering. The protection shield explains credentials, rules and Activity without asserting service reachability. The source chooser offers MCP URL and database/API setup, then a conditional link to existing connections not assigned to the selected endpoint. MCP add and URL setup open shared local dialogs and retain Overview, endpoint selection and the original focus target. Service selection shows scoped tool modes and endpoint selection shows endpoint data. Every endpoint has a direct access switch, and service rows show scoped tool counts.",
       "elements": [
         "setup-map --network",
         "command-palette"

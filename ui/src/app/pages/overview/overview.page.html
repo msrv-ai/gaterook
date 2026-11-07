@@ -325,14 +325,9 @@
                 }}
               </p>
             }
-            <a
-              class="gw-btn gw-btn--ghost"
-              routerLink="/connectors"
-              [queryParams]="{ add: 'mcp-server' }"
-              fragment="mcp-servers"
-            >
+            <button class="gw-btn gw-btn--ghost" type="button" (click)="openMcp($any($event.currentTarget))">
               <svg lucideIcon="plus" class="gw-icon"></svg>Add an MCP service
-            </a>
+            </button>
           </div>
         </div>
         <button
@@ -823,4 +818,5 @@
     <button class="gw-btn gw-btn--primary" type="button" gwDialogClose autofocus>Got it</button>
   </footer>
 </dialog>
-<gw-overview-setup (added)="added($event)" />
+<gw-overview-setup (added)="added($event)" (mcpRequested)="openMcp($event.opener, $event.source)" />
+<gw-mcp-setup-flow (changed)="data.refresh()" />

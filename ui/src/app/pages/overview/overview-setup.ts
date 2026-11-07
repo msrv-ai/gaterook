@@ -22,6 +22,7 @@ export class GwOverviewSetup {
   private readonly picker = viewChild.required<GwDialog>('picker');
   private readonly review = viewChild.required<GwDialog>('review');
   readonly added = output<string>();
+  readonly mcpRequested = output<{ readonly source: 'url'; readonly opener: HTMLElement | null }>();
   protected readonly uid = `overview-setup-${++nextId}`;
   protected readonly endpoint = signal<EndpointSummary | null>(null);
   protected readonly unconnectedCount = signal(0);
@@ -48,6 +49,14 @@ export class GwOverviewSetup {
     this.endpoint.set(endpoint);
     this.unconnectedCount.set(endpoint ? connections.filter((row) => !row.usedBy.includes(endpoint.slug)).length : 0);
     this.picker().openAfterRender(opener);
+  }
+
+  protected openMcpUrl(): void {
+    const picker = this.picker();
+    const opener = picker.returnTo;
+    picker.returnTo = null;
+    picker.close('next');
+    this.mcpRequested.emit({ source: 'url', opener });
   }
 
   showConnection(connection: ConnectionRow, endpoint: EndpointSummary, opener: HTMLElement | null): void {

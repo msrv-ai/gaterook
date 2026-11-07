@@ -1615,6 +1615,8 @@ table {
   outline-offset: var(--gw-focus-offset);
 }
 .gw-card__link {
+  cursor: pointer;
+  text-align: inherit;
   color: inherit;
   text-decoration: none;
   outline: none;

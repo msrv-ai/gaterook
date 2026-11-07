@@ -44,9 +44,7 @@
 <dialog gwPluginInstallDialog gwDialogStatic (checked)="onChecked($event)"></dialog>
 <dialog gwPluginReviewDialog gwDialogStatic></dialog>
 <dialog gwPluginUpdateDialog></dialog>
-<dialog gwMcpAddDialog gwDialogStatic (reviewed)="onReviewed($event)"></dialog>
-<dialog gwMcpReviewDialog gwDialogStatic (back)="onReviewBack($event)" (connected)="onConnected($event)"></dialog>
-<dialog gwMcpEndpointDialog gwDialogStatic></dialog>
+<gw-mcp-setup-flow />
 <dialog gwMcpSignInDialog gwDialogStatic></dialog>
 <dialog gwConfirmDialog></dialog>
 <dialog gwTemplateInstallDialog gwDialogStatic></dialog>

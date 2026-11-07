@@ -12,7 +12,7 @@
     <div class="gw-stack gw-stack--sm">
       <div class="gw-card gw-card--interactive">
         <div class="gw-card__header">
-          <div class="gw-card__heading"><h3 class="gw-card__title"><svg lucideIcon="link" class="gw-icon"></svg><a class="gw-card__link" routerLink="/connectors" [queryParams]="{ add: 'mcp-server', source: 'url' }" fragment="mcp-servers" autofocus (click)="picker.close()">Connect an MCP service by URL</a></h3><p class="gw-card__description">Have a service link? Paste it in the connection setup.</p></div>
+          <div class="gw-card__heading"><h3 class="gw-card__title"><svg lucideIcon="link" class="gw-icon"></svg><button class="gw-card__link" type="button" autofocus (click)="openMcpUrl()">Connect an MCP service by URL</button></h3><p class="gw-card__description">Have a service link? Paste it in the connection setup.</p></div>
           <svg lucideIcon="chevron-right" class="gw-icon gw-fg-muted"></svg>
         </div>
       </div>

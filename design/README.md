@@ -22,7 +22,7 @@ npm run serve
 
 Open `http://127.0.0.1:8020/pages/index.html`. The index links to application reference screens, reusable compositions, and the generated component showcase. Use `npm run icons -- --search shield` to inspect the pinned Lucide inventory.
 
-`npm run build` generates token styles, compiles SCSS, and assembles the component showcase. `npm run check` checks contrast, SCSS, HTML, accessibility conventions, links, and the manifest. `npm run verify` performs both.
+`npm run build` generates token styles, compiles SCSS, assembles the component showcase, and renders the shared MCP setup dialogs into their reference screens. `npm run check` checks contrast, SCSS, HTML, accessibility conventions, links, and the manifest. `npm run verify` performs both.
 
 ## Use in a static page
 
@@ -93,6 +93,7 @@ design/
 ├── tokens/       DTCG source, contrast pairs, generated CSS
 ├── scss/         Foundations and component partials
 ├── elements/     Reusable compositions and demonstrations
+├── fragments/    Shared dialog markup rendered into marked page blocks
 ├── showcase/     Editable component showcase fragments
 ├── pages/        Reference application screens
 ├── assets/       Behavior, themes, fonts, and brand assets
@@ -102,4 +103,4 @@ design/
 └── manifest.json
 ```
 
-Do not edit generated token SCSS/CSS, the compiled kit stylesheet, or the assembled showcase directly. Keep temporary AI research and work files in repository-root `ai/`, which must never be committed.
+Do not edit generated token SCSS/CSS, the compiled kit stylesheet, the assembled showcase, or marked shared-dialog blocks directly. MCP add/review markup lives in `fragments/mcp-setup.html`; its behavior is in `assets/mcp-setup.js`. The build updates both `pages/connectors.html` and `pages/overview-map.html` from that one source. Keep temporary AI research and work files in repository-root `ai/`, which must never be committed.

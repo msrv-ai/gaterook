@@ -9,6 +9,7 @@
     "tokens/",
     "scss/",
     "elements/",
+    "fragments/",
     "dist/",
     "assets/",
     "vendor/",
