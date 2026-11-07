@@ -766,19 +766,29 @@
         >{{ c.name }} · {{ c.typeLabel }}</span
       ></span
     >
-    <div class="gw-setup-map__network-toggle">
-      <gw-access-switch
-        kind="connection"
-        [name]="c.name"
-        [enabled]="c.enabled"
-        [compact]="true"
-        [forceOff]="!!c.blockedReason"
-        [blocked]="mutationBlocked() ?? c.blockedReason"
-        [pausedByEndpoint]="endpointOn() ? null : (endpoint()?.slug ?? null)"
-        (changed)="connectionChanged(c.name, $event)"
-      /><span class="gw-text-caption gw-fg-muted" aria-hidden="true">{{
-        c.effectiveOn ? 'On' : 'Off'
-      }}</span>
+    <div class="gw-overview-service-actions">
+      @if (!c.mcp) {
+        <a
+          class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-overview-settings"
+          [routerLink]="c.route"
+          [attr.aria-label]="'Open settings for ' + c.name"
+          title="Open connection settings"
+        ><svg lucideIcon="settings" class="gw-icon gw-icon--sm" aria-hidden="true"></svg></a>
+      }
+      <div class="gw-setup-map__network-toggle">
+        <gw-access-switch
+          kind="connection"
+          [name]="c.name"
+          [enabled]="c.enabled"
+          [compact]="true"
+          [forceOff]="!!c.blockedReason"
+          [blocked]="mutationBlocked() ?? c.blockedReason"
+          [pausedByEndpoint]="endpointOn() ? null : (endpoint()?.slug ?? null)"
+          (changed)="connectionChanged(c.name, $event)"
+        /><span class="gw-text-caption gw-fg-muted" aria-hidden="true">{{
+          c.effectiveOn ? 'On' : 'Off'
+        }}</span>
+      </div>
     </div>
   </div>
 </ng-template>
