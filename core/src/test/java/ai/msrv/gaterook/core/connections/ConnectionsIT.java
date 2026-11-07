@@ -332,6 +332,19 @@ class ConnectionsIT {
   }
 
   @Test
+  void discoveredDatabaseNamesStaySelectableWhenTheyMatchCredentials() {
+    for (String value : List.of("catalog-choice-7654321", "choice-7654321")) {
+      SecretInput password = SecretInput.local(value.toCharArray());
+      ConnectionTester.Outcome found = tester.discoverDatabases("pgfake", Env.DEV,
+          TestCore.config("database-names.test"), Map.of("/credentials/password", password), null, null);
+      assertThat(found.result().ok()).isTrue();
+      assertThat(found.result().details().path("databases").toString())
+          .isEqualTo("[\"catalog-choice-7654321\",\"catalog-choice-7654321_mail\"]");
+      assertThat(password.value()).containsOnly('\0');
+    }
+  }
+
+  @Test
   void discoveringWithStoredCredentialsRetainsTheNewHostConfirmation() {
     core.connection("discovery-stored", "pgfake", Env.DEV, "db.test");
     assertThatThrownBy(() -> tester.discoverDatabases("pgfake", Env.DEV, TestCore.config("another.test"), Map.of(),

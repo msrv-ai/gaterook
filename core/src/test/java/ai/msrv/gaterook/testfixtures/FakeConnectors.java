@@ -604,7 +604,11 @@ public class FakeConnectors {
       TestResult result = test(cfg, secrets, ctx);
       if (!result.ok()) return result;
       ObjectNode details = JsonNodeFactory.instance.objectNode();
-      details.putArray("databases").add("orders").add("analytics");
+      if ("database-names.test".equals(cfg.string("/connection/host"))) {
+        details.putArray("databases").add("catalog-choice-7654321").add("catalog-choice-7654321_mail");
+      } else {
+        details.putArray("databases").add("orders").add("analytics");
+      }
       details.put("discoveryComplete", true);
       return result.withDetails(details);
     }
