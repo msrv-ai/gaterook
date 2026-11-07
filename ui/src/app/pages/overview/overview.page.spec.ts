@@ -250,6 +250,26 @@ function openReview(el: HTMLElement): HTMLDialogElement | null {
 beforeEach(() => setupPage());
 
 describe('Overview connection map', () => {
+  it('opens connection settings directly without selecting the card or changing access, including unfinished connections', async () => {
+    savedConnections = savedConnections.map((connection) => connection.name === 'dev-db'
+      ? { ...connection, enabled: false, setupRequired: true } : connection);
+    TestBed.inject(Router).resetConfig([{ path: 'connections/:name', children: [] }]);
+    const { fixture, el } = await render();
+    await showAll(fixture, el);
+    const card = service(el, 'dev-db')!;
+    const settings = card.querySelector<HTMLAnchorElement>('a[aria-label="Open settings for dev-db"]')!;
+    expect(href(settings)).toBe('/connections/dev-db');
+    expect(settings.closest('button')).toBeNull();
+    expect(settings.getAttribute('aria-disabled')).toBeNull();
+    settings.focus();
+    expect(document.activeElement).toBe(settings);
+    settings.click();
+    await settle(fixture);
+    expect(TestBed.inject(Router).url).toBe('/connections/dev-db');
+    expect(card.getAttribute('data-selected')).toBe('false');
+    expect(calls.some((call) => call.startsWith('connection ') || call.startsWith('endpoint '))).toBe(false);
+  });
+
   it('toggles an endpoint from its card without selecting it or changing connections', async () => {
     const { fixture, el } = await render();
     const card = el.querySelector('[data-map-endpoint="stage-readonly"]')!.parentElement!;
