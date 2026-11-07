@@ -29,6 +29,8 @@ import { GwIcon } from '../../kit/icons';
 import { GwSearchClear, GwSearchClearButton } from '../../kit/search';
 import { ToastService } from '../../kit/toast.service';
 import { OverviewData } from './overview.data';
+import { ConnectorsData } from '../connectors/connectors.data';
+import { GwMcpSetupFlow, McpSetupSource } from '../connectors/mcp-setup-flow';
 import { OverviewConnectionTools } from './overview-connection-tools';
 import { activityLine, overviewState, retestToast, RetestResult } from './overview-view';
 import { MapConnection, endpointUnreachable, mapApps, mapConnections } from './overview-map-view';
@@ -54,10 +56,11 @@ export const SKELETON_DELAY_MS = 300;
     GwSearchClearButton,
     GwSearchClear,
     GwOverviewSetup,
+    GwMcpSetupFlow,
     GwOverviewWires,
     OverviewConnectionTools,
   ],
-  providers: [OverviewData],
+  providers: [OverviewData, ConnectorsData],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-page' },
   templateUrl: './overview.page.html',
@@ -74,6 +77,7 @@ export class OverviewPage {
   private readonly route = inject(ActivatedRoute);
   private readonly mapTitle = viewChild<ElementRef<HTMLElement>>('mapTitle');
   protected readonly setup = viewChild.required(GwOverviewSetup);
+  private readonly mcpSetup = viewChild.required(GwMcpSetupFlow);
   protected readonly slow = signal(false);
   protected readonly overview = this.data.overview;
   protected readonly loading = computed(() => !this.overview() && !this.data.error());
@@ -384,6 +388,10 @@ export class OverviewPage {
     this.clearFilters();
     void this.data.refresh();
   }
+  protected openMcp(opener: HTMLElement | null, source: McpSetupSource = 'manual'): void {
+    this.mcpSetup().open(opener, source);
+  }
+
   protected picker(event: Event): void {
     this.setup().showPicker(
       this.endpoint(),

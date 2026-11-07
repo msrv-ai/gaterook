@@ -127,6 +127,8 @@
   }
 
   &__link {
+    cursor: pointer;
+    text-align: inherit;
     color: inherit;
     text-decoration: none;
     outline: none;

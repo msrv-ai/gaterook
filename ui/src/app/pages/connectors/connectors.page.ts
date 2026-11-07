@@ -12,9 +12,7 @@ import { InstalledView, installedViews, plural, v } from './connectors-view';
 import { ConnectorsData } from './connectors.data';
 import { GwConfirmDialog } from './dialogs/confirm.dialog';
 import { failureText } from './dialogs/failure';
-import { GwMcpAddDialog, McpReviewed } from './dialogs/mcp-add.dialog';
-import { GwMcpEndpointDialog, McpServerConnected } from './dialogs/mcp-endpoint.dialog';
-import { GwMcpReviewDialog } from './dialogs/mcp-review.dialog';
+import { GwMcpSetupFlow } from './mcp-setup-flow';
 import { GwMcpSignInDialog } from './dialogs/mcp-sign-in.dialog';
 import { GwPluginInstallDialog, PluginChecked } from './dialogs/plugin-install.dialog';
 import { GwPluginReviewDialog } from './dialogs/plugin-review.dialog';
@@ -62,10 +60,8 @@ export const SKELETON_DELAY_MS = 300;
     GwPluginInstallDialog,
     GwPluginReviewDialog,
     GwPluginUpdateDialog,
-    GwMcpAddDialog,
-    GwMcpReviewDialog,
+    GwMcpSetupFlow,
     GwMcpSignInDialog,
-    GwMcpEndpointDialog,
     GwConfirmDialog,
     GwTemplateInstallDialog,
   ],
@@ -93,10 +89,8 @@ export class ConnectorsPage {
   private readonly installDialog = viewChild.required(GwPluginInstallDialog);
   private readonly reviewDialog = viewChild.required(GwPluginReviewDialog);
   private readonly updateDialog = viewChild.required(GwPluginUpdateDialog);
-  private readonly addServerDialog = viewChild.required(GwMcpAddDialog);
-  private readonly serverReviewDialog = viewChild.required(GwMcpReviewDialog);
+  private readonly mcpSetup = viewChild.required(GwMcpSetupFlow);
   private readonly serverSignInDialog = viewChild.required(GwMcpSignInDialog);
-  private readonly serverEndpointDialog = viewChild.required(GwMcpEndpointDialog);
   private readonly confirmDialog = viewChild.required(GwConfirmDialog);
   private readonly templateInstallDialog = viewChild.required(GwTemplateInstallDialog);
   private readonly templatesPanel = viewChild.required(GwTemplatesPanel);
@@ -146,7 +140,7 @@ export class ConnectorsPage {
       untracked(() =>
         afterNextRender(
           () => {
-            this.addServerDialog().open(null, source === 'registry' || source === 'url' ? source : 'manual');
+            this.mcpSetup().open(null, source === 'registry' || source === 'url' ? source : 'manual');
             // Once: a reload or Back doesn't open it again.
             void this.router.navigate([], { relativeTo: this.route, queryParams: { add: null, source: null }, queryParamsHandling: 'merge', fragment: 'mcp-servers', replaceUrl: true });
           },
@@ -181,7 +175,7 @@ export class ConnectorsPage {
   }
 
   protected openAddServer(e: Event): void {
-    this.addServerDialog().open(this.triggerOf(e));
+    this.mcpSetup().open(this.triggerOf(e));
   }
 
   // ── Plugins ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -348,7 +342,7 @@ export class ConnectorsPage {
           async () => {
             const source = { catalog: `${e.id}@${e.version}` } as const;
             const review = await this.data.reviewServer(source);
-            this.serverReviewDialog().show({
+            this.mcpSetup().showReviewed({
               review,
               source,
               name: review.name || e.id,
@@ -420,7 +414,7 @@ export class ConnectorsPage {
 
   protected onServerAction(a: McpServerAction): void {
     if (a.type === 'add' || !a.server) {
-      this.addServerDialog().open(a.opener);
+      this.mcpSetup().open(a.opener);
       return;
     }
     const s = a.server;
@@ -479,19 +473,6 @@ export class ConnectorsPage {
       },
       a.opener,
     );
-  }
-
-  protected onReviewed(r: McpReviewed): void {
-    this.serverReviewDialog().show(r, true);
-  }
-
-  protected onReviewBack(opener: HTMLElement | null): void {
-    this.addServerDialog().resume(opener);
-  }
-
-  /** The server connected: its tools join an endpoint next, as a connection's do at the end of the wizard. */
-  protected onConnected(c: McpServerConnected): void {
-    void this.serverEndpointDialog().show(c);
   }
 
   /** The menu item's menu trigger: the item itself is hidden once the menu closes. */

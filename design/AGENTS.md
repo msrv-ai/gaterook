@@ -39,7 +39,8 @@ Do not hard-code colors, dimensions, fonts, shadows, stacking levels, or duratio
 | `scss/_mixins.scss`, `_reset.scss`, `_typography.scss`, `_fonts.scss` | Foundations | Change sparingly |
 | `scss/components/_*.scss` | Components | Canonical editable source |
 | `elements/_*.scss`, `elements/*.html` | Layout compositions and state demonstrations | Canonical editable source |
-| `pages/*.html` | Reference application screens | Edit source pages only |
+| `pages/*.html` | Reference application screens | Edit source pages outside generated blocks |
+| `fragments/mcp-setup.html` | Shared MCP add/review dialogs | Edit here; the build updates marked blocks in both reference screens |
 | `pages/_shell.html` | Shared titlebar and sidebar | Keep the same shell on every application screen |
 | `showcase/*.html` | Component demonstrations | Update with component changes |
 | `pages/showcase.html`, `dist/gw-kit.css` | Generated showcase and stylesheet | Regenerate; never edit directly |

@@ -307,6 +307,29 @@ const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
 // ─────────────────────────── run ───────────────────────────
 
+/** The same source dialogs are rendered into both reference screens, never edited in either page. */
+export function replaceMcpSetup(html, fragment) {
+  const start = "<!-- @BEGIN mcp-setup: generated from fragments/mcp-setup.html -->";
+  const end = "<!-- @END mcp-setup -->";
+  const from = html.indexOf(start);
+  const to = html.indexOf(end, from);
+  if (from < 0 || to < 0 || html.indexOf(start, from + start.length) !== -1) {
+    throw new Error("Expected one complete shared MCP setup block");
+  }
+  return html.slice(0, from) + start + "\n" + fragment.trim() + "\n" + end + html.slice(to + end.length);
+}
+
+function buildMcpSetup() {
+  const fragment = readFileSync(join(ROOT, "fragments/mcp-setup.html"), "utf8");
+  for (const name of ["connectors.html", "overview-map.html"]) {
+    const path = join(ROOT, "pages", name);
+    const source = readFileSync(path, "utf8");
+    const rendered = replaceMcpSetup(source, fragment);
+    if (rendered !== source) writeFileSync(path, rendered);
+  }
+  console.log("dialogs  shared MCP setup → 2 reference screens");
+}
+
 async function main() {
   const flat = loadTokens();
   const css = buildTokensCss(flat);
@@ -329,6 +352,7 @@ async function main() {
     console.log(`css      dist/gw-kit.css (${(res.css.length / 1024).toFixed(1)} KB)`);
   }
 
+  buildMcpSetup();
   const n = await buildShowcase(flat);
   if (n !== null) console.log(`showcase ${n} fragments → pages/showcase.html`);
 }
