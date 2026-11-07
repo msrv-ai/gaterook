@@ -1,6 +1,6 @@
 // The app window (ARCHITECTURE.md §7.1 "Window and security", §9 "Electron hardening", "Self-approval through the GUI"):
 // sandboxed renderer with context isolation and no Node, the UI from app://gw/ only, no new windows, no navigation
-// away, no webviews; the kit's frameless titlebar; on the approval and consent screens content protection and the
+// away, no webviews; the application's frameless titlebar; on the approval and consent screens content protection and the
 // 700 ms input guard.
 import { app, BrowserWindow, nativeTheme, shell, type WebContents } from 'electron';
 import { ActivationGate, isDecisionRoute } from './activation-gate.ts';
@@ -11,7 +11,7 @@ import { markImage } from './tray.ts';
 
 export { APP_URL, safeUrl } from './app-protocol.ts';
 
-/** The kit's canvas and text colors (design/scss/_tokens-css.scss), for the background and the Windows titlebar. */
+/** The canvas and text colors from assets/gw-kit.css, for the background and the Windows titlebar. */
 const CANVAS = { light: '#F5F6F8', dark: '#0B0D12' };
 const TEXT = { light: '#11141A', dark: '#E7E9EE' };
 /** --gw-layout-titlebar-height. */

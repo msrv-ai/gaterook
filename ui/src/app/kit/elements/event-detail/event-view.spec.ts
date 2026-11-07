@@ -24,7 +24,7 @@ import {
 
 const words = (parts: readonly { text: string }[]) => parts.map((p) => p.text).join('');
 
-describe('event-detail view (design/elements/event-detail.html)', () => {
+describe('event-detail view', () => {
   it('says how long a call took, in the kit words', () => {
     expect(durationText(DEMO_EVENTS.approved)).toBe('47.0 s · 47 s waiting for approval');
     expect(durationText(DEMO_EVENTS.allowed)).toBe('38 ms');

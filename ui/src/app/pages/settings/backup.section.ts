@@ -14,7 +14,7 @@ import { boolOf, dailyHint, dayAt, dbBackedUpToast, fileOf, folderOf, keyBackedU
 const NO_ANSWER = 'The core didn’t answer. Try again.';
 
 /**
- * Settings › Backup (design/pages/settings.html `#settings-backup`): what restoring this gateway elsewhere needs.
+ * Settings › Backup: what restoring this gateway elsewhere needs.
  *
  * - Database applies at once: the daily copy (`PUT /api/settings/backup {daily}`; 03:00 or the next start, 7 kept),
  *   the files from `/api/health` and `/api/backup`, Back up now (`POST /api/backup/db`, into the backup folder) and

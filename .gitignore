@@ -34,13 +34,10 @@ npm-debug.log*
 /signing-private/
 /logs/
 
-# Do not add a blanket dist/ rule: the design kit may version generated assets.
-
 # Additional build output and local runtime data.
 out-tsc/
 .angular/
 *.tsbuildinfo
-/design/site-dist/
 /desktop/.dev/
 *.log
 

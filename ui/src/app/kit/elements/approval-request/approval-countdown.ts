@@ -3,8 +3,7 @@ import { GwCountdown } from '../../countdown';
 import { GwIcon } from '../../icons';
 
 /**
- * `<div gwApprovalCountdown [expiresAt] [total] (ended)>`: the request's time to auto-deny (kit `__countdown`, kit.js
- * "countdown"): "Auto-deny in 4:12" over a thin bar that empties as the window runs out. Warning tone until the last
+ * `<div gwApprovalCountdown [expiresAt] [total] (ended)>`: the request's time to auto-deny: "Auto-deny in 4:12" over a thin bar that empties as the window runs out. Warning tone until the last
  * minute, then danger (the colour moves from the icon to the whole line); at zero "Expired, denied automatically"
  * without the bar, and `ended` fires once. The line is a `role="timer"` (not live: no announcement every second).
  */

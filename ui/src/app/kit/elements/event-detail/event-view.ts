@@ -7,8 +7,7 @@ import { TextPart } from '../shared/literals';
 
 /**
  * What the event-detail element says about one logged call, from the audit rows the core wrote for it
- * (`GET /api/activity/events/{id}`: received, resolved, completed). Pure functions, tested against the kit's wording
- * (design/elements/event-detail.html).
+ * (`GET /api/activity/events/{id}`: received, resolved, completed). Pure functions, tested for consistent display wording.
  */
 
 const t = (text: string): TextPart => ({ text, code: false });
@@ -32,7 +31,7 @@ export function clientLabel(client: string | null | undefined): string {
   return client ? clientName(client) : 'An agent';
 }
 
-/** The decision badge's icon and words (BLUEPRINT §7). */
+/** The decision badge's icon and words. */
 export const decisionBadge = decisionLook;
 
 /** "47.0 s · 47 s waiting for approval", "41 ms", "1.8 s, timed out", "Not run: denied in the gateway". */

@@ -41,7 +41,7 @@ import {
   updateView,
 } from './settings-view';
 
-/** The words of Settings against the kit (design/pages/settings.html and its page script). */
+/** The words of Settings against the kit (settings behavior). */
 
 const NOW = Date.parse('2026-10-22T12:30:00Z');
 const DAY = 24 * 60 * 60 * 1000;

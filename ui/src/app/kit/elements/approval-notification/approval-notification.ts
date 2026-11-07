@@ -35,7 +35,7 @@ export type NotificationChannel = 'desktop' | 'slack' | 'telegram' | 'toast';
 const LIMITS: Record<'slack' | 'telegram', number> = { slack: 3000, telegram: 4096 };
 
 /**
- * `<figure gwNotificationPreview channel="slack" [request]="…">` (elements/approval-notification.html): how one
+ * `<figure gwNotificationPreview channel="slack" [request]="…">`: how one
  * approval request reaches the approver outside the window, with the same fields as the request. The desktop
  * notification is always Review and Deny; Slack and Telegram show Approve only off prod, when the policy doesn't
  * require a comment, the action has no hidden or look-alike characters and fits whole, else Deny and Open in app with
@@ -129,7 +129,7 @@ export class GwNotificationPreview {
 let nextCard = 0;
 
 /**
- * `<section gwNotificationCard heading="Slack" letter="S">` (elements/approval-notification.html): the card a channel
+ * `<section gwNotificationCard heading="Slack" letter="S">`: the card a channel
  * preview sits in: the channel's mark (an icon tile, or the generic client mark with a letter), its name, a description
  * (`[gwCardDescription]`), optional header actions (`[gwCardActions]`) and the stage with the previews and their note.
  */

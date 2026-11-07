@@ -71,7 +71,7 @@ interface CreateModel {
 /**
  * The slug field of Create and Duplicate, the kit's `required`, `maxlength="40"` and `pattern` as Signal Forms rules
  * (it sets `required` and `maxlength` on the input itself). The form is `novalidate`: the messages are the page's, at
- * the field, after a submit attempt (DESIGN §8 "Forms"), worded by {@link slugError}.
+ * the field, after a submit attempt, worded by {@link slugError}.
  */
 function slugRules(path: SchemaPath<string>): void {
   required(path, { message: slugError('') ?? undefined });
@@ -102,7 +102,7 @@ const START_FROM: readonly { readonly id: StartFrom; readonly env: Env; readonly
 ];
 
 /**
- * Endpoints (design/pages/endpoints.html; ARCHITECTURE.md §8.4 "endpoints"): every MCP URL with what it gives an
+ * Endpoints (ARCHITECTURE.md §8.4 "endpoints"): every MCP URL with what it gives an
  * agent, one card each.
  *
  * - The header counts the endpoints and says whether they run; Create endpoint is the page's one primary.
@@ -214,7 +214,7 @@ export class EndpointsPage {
     slugRules(p.slug);
     maxLength(p.description, DESCRIPTION_MAX, { message: `Use at most ${DESCRIPTION_MAX} characters.` });
   });
-  /** Errors show once the person tried to create (DESIGN §8 "Forms"), not while typing the first letters. */
+  /** Errors show once the person tried to create, not while typing the first letters. */
   protected readonly createTried = signal(false);
   protected readonly createError = signal<string | null>(null);
   protected readonly startFromError = signal<string | null>(null);
@@ -400,7 +400,7 @@ export class EndpointsPage {
 
   // ── Disable, enable ───────────────────────────────────────────────────────────────────────────────────────────
 
-  /** Disable is reversible, so it acts at once and offers Undo in a toast instead of asking first (DESIGN §8). */
+  /** Disable is reversible, so it acts at once and offers Undo in a toast instead of asking first. */
   protected async disable(e: EndpointSummary): Promise<void> {
     if (this.data.busy().has(e.slug)) return;
     // Said before the change: the tokens and clients it names are the ones the endpoint has now.
@@ -550,7 +550,7 @@ export class EndpointsPage {
     return scope.querySelector<HTMLElement>('[aria-invalid="true"]');
   }
 
-  /** Focus on the first field in error, once its error shows (DESIGN §8 "Forms"). */
+  /** Focus on the first field in error, once its error shows. */
   private focusFirstInvalid(scope: HTMLElement): void {
     this.focusAfterRender(() => this.firstInvalid(scope));
   }

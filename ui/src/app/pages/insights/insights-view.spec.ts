@@ -33,7 +33,7 @@ import {
   windowsWords,
 } from './insights-view';
 
-/** What Insights says about the kit's world (design/pages/insights.html, BLUEPRINT §9), word for word. */
+/** What Insights says about the kit's world, word for word. */
 
 const tiles = () => statTiles({ insights: insights(), key: '24h', pageQuery: '', now: NOW });
 const tile = (id: string) => tiles().find((x) => x.id === id)!;

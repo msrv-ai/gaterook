@@ -24,7 +24,7 @@ import {
 } from './endpoints-view';
 import { NOW, TUNNEL_OFF, at, conn, endpoint, kitConnections, kitEndpoints, kitTokens, risk, token } from './endpoints.fixtures';
 
-/** The page's words against the kit's (design/pages/endpoints.html), for the kit's own world. */
+/** The page's words against the kit's, for the kit's own world. */
 
 const rel = (iso: string) => relativeTime(iso, NOW);
 const [dev, stage, prod] = kitEndpoints();
@@ -251,7 +251,7 @@ describe('Endpoints view', () => {
     expect(line(compactLine(stage.risk, true))).toBe('private data + untrusted content + external channel through `http_get`');
     expect(line(compactLine(prod.risk, true, 2))).toBe('private data + untrusted content + limited channel (2 fixed runbooks)');
     expect(line(compactLine(prod.risk, true, 1))).toBe('private data + untrusted content + limited channel (1 fixed runbook)');
-    // Without `review` (elements/risk-callout.html "Compact, in the endpoint list"): no tool, no count.
+    // Without `review`: no tool, no count.
     expect(line(compactLine(dev.risk))).toBe('private data + untrusted content + external channel');
     expect(line(compactLine(prod.risk, false, 2))).toBe('private data + untrusted content + limited channel (fixed runbooks)');
     expect(line(compactLine(risk('partial', 'present', []), true))).toBe('private data + untrusted content + external channel');

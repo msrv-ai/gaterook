@@ -19,8 +19,7 @@ import { GwVaultPicker } from './vault-picker';
 const join = (...ids: (string | null | undefined)[]) => ids.filter(Boolean).join(' ') || null;
 
 /**
- * One field of a schema form (ARCHITECTURE.md §8.3), in the kit's markup for its kind (design/elements/
- * connection-form.html): `gw-field` with its label, the control (mono input, `gw-input-group` with the `x-unit`
+ * One field of a schema form (ARCHITECTURE.md §8.3), using the shared markup for its kind: `gw-field` with its label, the control (mono input, `gw-input-group` with the `x-unit`
  * affix, `gw-select`, choice cards, `gw-segmented`, a tag list, `gw-textarea`, the code editor, a JSON textarea for
  * anything unknown, `gw-secret` for a secret), then `gw-field__error` before the hint. Text fields bind with
  * Signal Forms' `[formField]`; the others write the field's value themselves (a number typed as text stays text

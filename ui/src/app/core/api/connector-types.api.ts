@@ -10,7 +10,7 @@ export interface ConnectorCard {
   readonly type: string;
   readonly variant: string | null;
   readonly name: string;
-  /** A Lucide icon name (BLUEPRINT §7: database, leaf, layers, terminal…). */
+  /** A Lucide icon name (status vocabulary: database, leaf, layers, terminal…). */
   readonly icon: string;
   readonly description: string;
   readonly kind: ConnectorKind;

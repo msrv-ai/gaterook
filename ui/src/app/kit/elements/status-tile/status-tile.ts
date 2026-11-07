@@ -21,7 +21,7 @@ let nextId = 0;
 
 /**
  * `<li gwStatusTile name="dev-db" icon="database" env="dev" [state]="…" [link]="['/connections', 'dev-db']">`
- * (design/elements/status-tile.html, COMPONENTS.md › status-tile): one compact card that names one thing — a connection,
+ *: one compact card that names one thing — a connection,
  * an AI app — and says its state in words, with at most one action, projected as the tile's content (Connect, Test
  * again, How to install).
  *

@@ -27,14 +27,14 @@ import { GwTemplatesPanel, TemplateAction } from './panels/templates.panel';
 export const SKELETON_DELAY_MS = 300;
 
 /**
- * Connectors (design/pages/connectors.html; ARCHITECTURE.md §8.4 "connectors"): the types of resource the gateway
+ * Connectors (ARCHITECTURE.md §8.4 "connectors"): the types of resource the gateway
  * can reach and the tools each brings, and the three ways to add one without rebuilding — a template, a plugin or an
  * MCP server.
  *
  * - Header: "Add connector" (the page's one primary) — New template (Templates tab), Install plugin, Add MCP server.
  * - How it works: the three levels of connectors, folded and remembered.
  * - Tabs Installed / Catalog / Templates / MCP servers with their counts; `#installed|catalog|templates|mcp-servers`
- *   deep-links a tab (the app's fragment follower, kit.js `tabFromHash`).
+ *   deep-links a tab (the app's fragment follower).
  * - The dialogs of the kit page live here, outside the tabs (a dialog inside a hidden panel can't show): Install
  *   plugin → its review (signed, or unsigned in `--danger` with an acknowledgement), Update with the manifest diff,
  *   Uninstall, Add MCP server → its review (`--danger`), Remove MCP server, and the confirmations of templates.

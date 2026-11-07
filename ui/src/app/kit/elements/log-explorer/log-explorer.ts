@@ -39,19 +39,19 @@ export type ExportKind = 'csv' | 'jsonl' | 'siem';
 
 /**
  * `<section gwLogExplorer [(query)]="q" [(range)]="r" [(live)]="live" [facets]="f" [histogram]="h" …>`
- * (elements/log-explorer.html): the query and filter area above the events table. Row 1: the structured query
+ *: the query and filter area above the events table. Row 1: the structured query
  * (`field:value`, Enter makes tags; `/` focuses it through the shared shortcut), its syntax popover, the time range,
  * Live, saved views and export. Row 2: Filters, the active filters as tags, Clear all and the count (`role=status`).
  * Then the facets (checkboxes counted within the other filters) and the histogram by decision; a bar zooms into its
  * hour, a second click returns. The page puts the events table inside (`<ng-content>`); with no match the element
  * shows the empty state. `variant="compact"` is rows 1 and 2 only (the element demo's Live state).
- * `variant="insights"` is rows 1 and 2 as design/pages/insights.html draws them: the query, its syntax (the fields
+ * `variant="insights"` is rows 1 and 2 as shown on Insights: the query, its syntax (the fields
  * that narrow a chart), the range (Last hour to Last 30 days, no custom range: every number compares with the range
  * before it) and the tags; no Live, Saved views or Export, and the count line is the page's (`status`).
  *
  * The element fetches nothing: the page reacts to `query`, `range`, `zoom` and `live`.
  *
- * `page`: the Activity page's own variant (pages/activity.html), where Export sits in the page header, the empty
+ * `page`: the Activity page's own variant, where Export sits in the page header, the empty
  * states live in the Events tab under the histogram (which stays, so another hour is one click away), the count line
  * says how many calls wait for approval, the histogram has four gridlines and the syntax popover is headed at level 2.
  */

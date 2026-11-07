@@ -95,7 +95,7 @@ const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringif
 export const SPLIT_FRAGMENT = 'ep-dlg-split';
 
 /**
- * Endpoint detail (design/pages/endpoint-detail.html; ARCHITECTURE.md §8.4 "endpoint-detail"): one endpoint, the
+ * Endpoint detail (ARCHITECTURE.md §8.4 "endpoint-detail"): one endpoint, the
  * URL a client calls, and everything that decides what an agent can do through it.
  *
  * - The header: slug, what it is for, Running or Disabled, the URL to copy, the MCP revisions it answers, how
@@ -585,7 +585,7 @@ export class EndpointDetailPage {
     }
   }
 
-  /** Disable is reversible: it acts at once and offers Undo (kit, DESIGN §8). */
+  /** Disable is reversible: it acts at once and offers Undo. */
   protected async disable(): Promise<void> {
     if (this.toggling()) return;
     this.toggling.set(true);

@@ -356,7 +356,7 @@
         }
         <p class="gw-field__hint" [id]="secretHintId">{{ secretHint(state) }}</p>
         @if (state === 'stored' && stored?.canRotate === false && stored?.rotateReason) {
-          <!-- Rotate stays in the Tab order (aria-disabled) and says why here (DESIGN.md §8 "Action hierarchy and disabled behavior"). -->
+          <!-- Rotate stays in the Tab order (aria-disabled) and says why here. -->
           <p class="gw-field__hint" [id]="id + '-rotate-why'">Rotate: {{ stored!.rotateReason }}</p>
         }
       </div>

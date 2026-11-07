@@ -25,14 +25,14 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The past of the demo world's audit (design/BLUEPRINT.md §9 "24-hour totals", design/pages/insights.html): the day the
+ * The past of the demo world's audit (24-hour totals): the day the
  * kit shows and the eight before it, so that Activity, Overview and Insights have the kit's numbers and the Unusual
  * activity detectors have their 7 days to compare with.
  *
  * <p>The last 24 hours, with the rows {@link DemoSeed} writes at the seeding itself (three waiting requests, a
  * rejected {@code k8s_apply}, five calls), come to the kit's 1,287 calls: 1,201 allowed, 46 approved, 9 rejected, 17
  * denied by policy, 3 expired, 8 errors and 3 waiting; per tool, environment, endpoint, connection and client as
- * BLUEPRINT §9 lists them; the gateway's p50 9 ms and p95 31 ms; a median wait for a person of 47 s; 61 agent tasks.
+ * the fixtures define them; the gateway's p50 9 ms and p95 31 ms; a median wait for a person of 47 s; 61 agent tasks.
  * In them the kit's stories: task {@code 4f2a9c} "Fix failing order sync" (23 calls in 18 minutes), task {@code b81e44}
  * "Investigate failed order sync on prod" ending in {@code TRUNCATE} and {@code DROP TABLE} denied on
  * {@code prod-replica}, {@code sql_query} on {@code prod-replica} at 65 calls against 16 a day, {@code cache-redis}
@@ -177,7 +177,7 @@ final class DemoHistory {
   private List<Plan> today() {
     Instant start = now.minus(DAY);
     List<Plan> pool = new ArrayList<>();
-    // The kit's calls of the last 24 hours (BLUEPRINT §9) less the rows the seeding writes itself (a sql_query,
+    // The kit's calls of the last 24 hours less the rows the seeding writes itself (a sql_query,
     // ssh_run, logs_search and redis_get of the moment, the denied DROP TABLE, the rejected k8s_apply, three waiting).
     add(pool, 274, "dev", "dev-db", "sql_query", "codex", "allowed", null);
     add(pool, 150, "dev", "dev-db", "sql_query", "claude-desktop", "allowed", null);

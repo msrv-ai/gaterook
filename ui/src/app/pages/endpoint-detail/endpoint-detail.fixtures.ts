@@ -15,7 +15,7 @@ import { Policies } from '../../core/api/policies.api';
 import { Env, ToolMode } from '../../core/api/types';
 
 /*
- * Test data only (imported by the specs, never by the page): endpoint `dev` of the demo world (BLUEPRINT §9) in the
+ * Test data only (imported by the specs, never by the page): endpoint `dev` of the demo world in the
  * shapes the admin API answers, so assertions read like the kit page.
  */
 

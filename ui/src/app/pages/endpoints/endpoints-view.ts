@@ -9,7 +9,7 @@ import { tokenView } from '../../kit/elements/token-issue/token-issue';
 import { ToastTone } from '../../kit/toast.service';
 
 /*
- * What the Endpoints page (design/pages/endpoints.html) says about the core's endpoints, as pure functions: the
+ * What the Endpoints page says about the core's endpoints, as pure functions: the
  * header meta, each card's facts (connections by environment, connection health, tools by mode, clients, tokens,
  * approvals), the Disable / Undo toast, the Delete confirmation, the slug rules and the Start from meta of Create.
  * The page and its data service only wire them to the API and the DOM.

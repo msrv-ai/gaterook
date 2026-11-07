@@ -5,9 +5,9 @@ import { GwDemoHeader } from '../demo-header';
 import { kitElement } from '../elements';
 
 /**
- * Dev only: design/elements/status-tile.html — the tile on its own, in the kit's sets: connections (problems first),
+ * Dev only: status-tile component — the tile on its own, in the kit's sets: connections (problems first),
  * AI apps (the action fits the state), an action unavailable with its reason (first run), busy (Test again running)
- * and a narrow tile. The data are the kit's (BLUEPRINT §9); Test again here only runs the busy state.
+ * and a narrow tile. The data are the kit's; Test again here only runs the busy state.
  */
 @Component({
   selector: 'gw-status-tile-demo',

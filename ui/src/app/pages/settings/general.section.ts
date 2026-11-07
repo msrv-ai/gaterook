@@ -34,7 +34,7 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
 type GeneralKey = 'openAtLogin' | 'startHidden' | 'autoUpdate' | 'singleKeyShortcuts';
 
 /**
- * Settings › General (design/pages/settings.html `#settings-general`): how the app starts, stays up to date, answers
+ * Settings › General: how the app starts, stays up to date, answers
  * the keyboard and where its core listens. Every switch applies at once (`PUT /api/settings/general`, a toast names
  * the setting and its value; a refusal puts the switch back). Startup is applied by Electron too
  * (`gwDesktop.applyGeneral`), updates come from Electron's updater (`checkForUpdates`, `onUpdateState`), single-key

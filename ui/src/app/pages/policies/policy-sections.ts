@@ -5,7 +5,7 @@ import { PoliciesByEnv, PolicySchemas, chain, effectiveValue, fallback, inherito
 import { KeyInfo, approvalRule, capitalize, joinWords, keyInfo, numberText, valueParts } from './policies-view';
 
 /**
- * The fixed parts of each section of design/pages/policies.html: its description, the rows that no setting opens
+ * The fixed parts of each section of Policies: its description, the rows that no setting opens
  * ("INSERT, UPDATE, DELETE → Approval, always"), what a section says while its environment has no connection of
  * its kind, and the read-only summary it shows then.
  */

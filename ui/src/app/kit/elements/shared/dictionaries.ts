@@ -1,6 +1,6 @@
 import { duration } from '../../../core/time/time-format';
 
-/** A status as the kit draws it everywhere (BLUEPRINT §7 "Shared status vocabulary"): tone, icon and words. */
+/** A status as the kit draws it everywhere: tone, icon and words. */
 export interface Look {
   readonly tone: 'success' | 'warning' | 'danger' | 'neutral' | 'info' | 'brand';
   readonly icon: string;

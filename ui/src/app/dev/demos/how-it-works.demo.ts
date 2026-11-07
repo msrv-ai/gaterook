@@ -4,7 +4,7 @@ import { GwHowItWorks, GwHowItWorksStep } from '../../kit/elements/how-it-works/
 import { GwDemoHeader } from '../demo-header';
 import { kitElement } from '../elements';
 
-/** Dev only: design/elements/how-it-works.html. */
+/** Dev only: how-it-works component. */
 @Component({
   selector: 'gw-how-it-works-demo',
   imports: [GwDemoHeader, GwHowItWorks, GwHowItWorksStep, RouterLink],

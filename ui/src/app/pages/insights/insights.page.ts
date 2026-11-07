@@ -48,7 +48,7 @@ import {
 export const SKELETON_DELAY_MS = 300;
 
 /**
- * Insights (design/pages/insights.html; ARCHITECTURE.md §8.4 "insights"): what agents did through the gateway in a
+ * Insights (ARCHITECTURE.md §8.4 "insights"): what agents did through the gateway in a
  * range, against the range before it, and a link to the calls behind every number —
  * 1. the filter bar (log-explorer, Insights variant): Activity's query language and a range from the last hour to
  *    the last 30 days; every number below follows both;

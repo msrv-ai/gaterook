@@ -71,7 +71,7 @@ public final class ConnectionTargets {
   }
 
   /**
-   * One line for the list, in the kit's words (design/pages/connections.html): where the connection connects, without
+   * One line for the list, in the kit's words: where the connection connects, without
    * the scheme of a URL ("db.dev.internal:5432/app", "loki.dev.internal:3100", "10.20.0.14:22" with the form's
    * default port), the cluster's namespace ("k8s.dev.internal:6443 · ns app-dev") and the AWS account
    * ("eu-central-1 · acme-stage": its alias, its id, or the account the last test signed in to). An HTTP API (and an

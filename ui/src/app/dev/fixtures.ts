@@ -7,8 +7,8 @@ import { EndpointRisk, IssuedToken, SplitPreview } from '../core/api/endpoints.a
 import { SplitClient, SplitOption } from '../kit/elements/risk-callout/split-dialog';
 
 /**
- * The demo world of BLUEPRINT §9 for the gallery (dev only, never imported by production code). Shapes are the
- * admin API's; values are the ones the kit's pages show, so each demo can be compared with design/elements/*.html.
+ * The demo world for the gallery (dev only, never imported by production code). Shapes follow the
+ * admin API, and the shared values keep component states consistent across the gallery.
  */
 
 const steps = (states: string[], details: Record<string, object> = {}): GettingStarted['steps'] =>

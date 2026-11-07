@@ -726,7 +726,7 @@ public class ConnectionService {
   }
 
   /**
-   * The kit's Type column (design/pages/connections.html): "Loki" and "GCP Cloud Logging" for the Logs variants,
+   * The kit's Type column: "Loki" and "GCP Cloud Logging" for the Logs variants,
    * "PostgreSQL 16", "MongoDB 7", "Redis 7" for databases whose test saw the server (product and major version of what
    * it reported: "MongoDB 7.0" → "MongoDB 7"), the connector's name otherwise ("SSH", "Kubernetes", "AWS", "HTTP API").
    */

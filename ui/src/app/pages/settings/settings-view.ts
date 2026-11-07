@@ -13,7 +13,7 @@ import { clientName } from '../../kit/elements/shared/client-mark';
 import { ToastOptions } from '../../kit/toast.service';
 
 /**
- * The words and small computations of Settings (design/pages/settings.html), as pure functions of the core's answers
+ * The words and small computations of Settings, as pure functions of the core's answers
  * and "now": what each section says, which toast a change gives, what a form accepts. The page and its tests share
  * them, so the wording is checked once against the kit.
  */

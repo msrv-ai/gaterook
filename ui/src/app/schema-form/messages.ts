@@ -2,8 +2,8 @@ import { JsonValue } from '../core/api/types';
 import { SchemaNode, exampleNumber, tagNoun } from './compile';
 
 /**
- * The validation messages of the schema renderer: what is wrong and how to fix it, next to the field (DESIGN.md §10
- * "Errors"). The core validates again on save (networknt, the source of truth); these catch the obvious early.
+ * The validation messages of the schema renderer: what is wrong and how to fix it, next to the field.
+ * The core validates again on save (networknt, the source of truth); these catch the obvious early.
  */
 
 /** "Host" → "host", but "SSL mode" stays: a word in capitals is a name. */

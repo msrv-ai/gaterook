@@ -19,7 +19,7 @@ interface LiveDev {
 }
 
 /**
- * Dev only: design/elements/tool-policy-list.html. Endpoint dev is the dev core's: its tools
+ * Dev only: tool-policy-list component. Endpoint dev is the dev core's: its tools
  * (`GET /api/endpoints/dev/tools`), the connector types' tool descriptions and the effective policies
  * (`GET /api/policies`). The read-only prod endpoint and the external MCP server's tools are fixtures: the demo
  * world's incident-prod isn't read only and external MCP servers come with K4.

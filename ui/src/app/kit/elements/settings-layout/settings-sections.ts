@@ -12,7 +12,7 @@ export interface SettingsNavGroup {
   readonly items: readonly SettingsNavItem[];
 }
 
-/** Settings › the groups people look for (BLUEPRINT §2, elements/settings-layout.html). */
+/** Settings › the groups people look for. */
 export const SETTINGS_GROUPS: readonly SettingsNavGroup[] = [
   {
     label: 'Workspace',

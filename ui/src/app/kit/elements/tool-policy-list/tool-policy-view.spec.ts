@@ -5,7 +5,7 @@ const tools = DEMO_TOOL_GROUPS.flatMap((g) => g.group.tools);
 const tool = (name: string) => tools.find((t) => t.name === name)!;
 const external = (name: string) => DEMO_TOOL_GROUPS_EXTERNAL[0].group.tools.find((t) => t.name === name)!;
 
-describe('tool-policy-list view (design/elements/tool-policy-list.html)', () => {
+describe('tool-policy-list view', () => {
   it('counts modes in the kit order', () => {
     expect(modeCounts(tools).map((c) => c.text)).toEqual(['6 read only', '3 approval', '5 off']);
     expect(toolCount(14)).toBe('14 tools');

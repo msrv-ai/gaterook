@@ -19,7 +19,7 @@ Before finishing work in an AI-managed linked worktree, release its checked-out 
 
 ## Repository scope
 
-This repository contains the complete application source, tests and fixtures, the canonical design kit, architecture and curated research, and the manifests, lockfiles, toolchain pins, and scripts required to build, test, and run locally. Keep these inputs together so a clone builds without another checkout. Deployment credentials and production operations do not belong here.
+This repository contains the complete application source, tests and fixtures, runtime assets, architecture and curated research, and the manifests, lockfiles, toolchain pins, and scripts required to build, test, and run locally. Keep these inputs together so a clone builds without another checkout. Deployment credentials and production operations do not belong here.
 
 Do not add production release orchestration or production installer workflows to this repository. Keep local development builds and reusable build inputs independent of release operations.
 
@@ -35,14 +35,14 @@ Preserve runtime behavior, dependency relationships, resources, and third-party 
 
 ## Design and documentation
 
-Read `design/AGENTS.md`, `design/DESIGN.md`, and the relevant `design/COMPONENTS.md` entry before UI changes. Reuse canonical tokens, components, and assets. Regenerate outputs from their sources; do not maintain another editable kit.
+Read `ui/README.md` and the UI architecture before changing the interface. Reuse existing Angular components, semantic CSS variables, and bundled runtime assets. Preserve keyboard behavior, accessible names, focus handling, and all four themes. Treat the compiled styles and bundled assets in `assets/` as a read-only distribution; do not introduce a second editable styling system.
 
-The design kit covers reusable application UI and application reference screens. Website page templates, marketing compositions, website guide content, and static-site generators are outside its scope. Do not reintroduce them into the kit or its generated showcase.
+Website page templates, marketing compositions, website guide content, and static-site generators are outside this application repository.
 
 Keep README commands and links aligned with actual scripts. Record architectural contracts and research findings, not implementation progress logs. Do not publish internal repository names, private infrastructure, real user configurations, credentials, or personal filesystem paths. Examples must use fictional values or explicit placeholders.
 
 ## Verification
 
-Run checks relevant to the change using the commands in `README.md` and `docs/development.md`. For design changes, run `npm --prefix design run verify`. For documentation, check local links, English-only prose, file selection, ignore behavior, and `git diff --check`. Report checks actually completed and any limitations; a local build is not proof of a signed installer or published release.
+Run checks relevant to the change using the commands in `README.md` and `docs/development.md`. For UI changes, run `npm test -w ui` and `npm run build -w ui`. For documentation, check local links, English-only prose, file selection, ignore behavior, and `git diff --check`. Report checks actually completed and any limitations; a local build is not proof of a signed installer or published release.
 
 For macOS packaging or updater changes, preserve the canonical `afterPack` hook: it creates update metadata and makes packaged resources owner-writable before signing. Keep JRE license notices, file contents, executable bits, symbolic links, and source runtimes intact. Run `npm test -w desktop` and `node desktop/scripts/verify-mac-update-permissions.mjs /path/to/GateRook.app` against the packaged app and a fresh extraction of its final updater ZIP. Every real file and directory needs the owner-write mode bit; a privileged process's ability to write is not sufficient. A permission-check failure blocks acceptance of that artifact. Successful signing or notarization does not prove that Squirrel can install it. Diagnose failures after restart using the ShipIt log documented in `docs/development.md`.

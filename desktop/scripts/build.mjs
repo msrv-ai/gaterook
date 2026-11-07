@@ -40,10 +40,10 @@ await build({ ...common, entryPoints: ['src/main/main.ts'], outfile: join(dist, 
 await build({ ...common, entryPoints: ['src/preload/preload.ts'], outfile: join(dist, 'preload.cjs') });
 buildNativeUnlock({ root, dist });
 
-// Runtime and installer icons consume the design kit's exports without redrawing the artwork.
+// Runtime and installer icons consume the versioned application assets without redrawing the artwork.
 mkdirSync(join(dist, 'icons'), { recursive: true });
 for (const name of ['gaterook-icon.png', 'gaterook-mark-mono.png', 'gaterook-icon-macos.png']) {
-  copyFileSync(join(root, '..', 'design', 'assets', 'gaterook', name), join(dist, 'icons', name));
+  copyFileSync(join(root, '..', 'assets', 'gaterook', name), join(dist, 'icons', name));
 }
 
 // The preload runs sandboxed: only `electron` can be required there.

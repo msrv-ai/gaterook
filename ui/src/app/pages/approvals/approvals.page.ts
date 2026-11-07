@@ -74,7 +74,7 @@ const ACTIVITY_PAGE = 200;
 const EXPIRY_RECHECK_MS = 3000;
 
 /**
- * Approvals (design/pages/approvals.html, ARCHITECTURE.md §8.4): the queue of requests waiting for a person, most
+ * Approvals (ARCHITECTURE.md §8.4): the queue of requests waiting for a person, most
  * urgent first, next to the selected request in full (the kit element `approval-request`), and the history of the
  * last 24 hours. Data: `GET /api/approvals?status=pending|history`, `GET /api/approvals/{id}` for each queued request
  * (its exact action feeds the queue's preview line), `POST /api/approvals/{id}/decision`; live through the event

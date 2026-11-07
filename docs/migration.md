@@ -1,8 +1,8 @@
 # Application source scope and compatibility
 
-This repository contains the full desktop application source, canonical design kit, tests, fixtures, architecture, curated research, and local build inputs. Maven and npm manifests, lockfiles, code and asset generators, and development/test scripts are included so contributors can build from a clone.
+This repository contains the full desktop application source, runtime assets, tests, fixtures, architecture, curated research, and local build inputs. Maven and npm manifests, lockfiles, code generators, and development/test scripts are included so contributors can build from a clone.
 
-Website page templates, marketing compositions, and website guide generators are outside the application design kit. Its reference pages demonstrate the desktop application and reusable UI.
+Website page templates, marketing compositions, and website guide generators are outside this application repository.
 
 Internal AI work, implementation progress logs, local editor settings, installed dependencies, generated runtime homes, and operational CI/release workflows are excluded. Test-service credentials are deliberately public, disposable fixtures; generated certificates and private keys stay in ignored output directories.
 
@@ -12,7 +12,7 @@ The application uses the Java package namespace `ai.msrv.gaterook`, the default 
 
 As specified in [product decision 11](DECISIONS.md), the default home starts fresh: the application does not import, read, or modify `~/.mcp-gateway`. Existing client configurations are not rewritten automatically. The documented development launcher uses a repository-local home, independent of either default home.
 
-The design kit remains the canonical source of tokens, components, fonts, and brand assets. The UI consumes it through a local npm package and an asset synchronization script. GateRook is licensed under the [Apache License, Version 2.0](../LICENSE). Keep third-party notices with their assets.
+The application includes compiled interface styles, fonts, theme bootstrap, and brand assets in `assets/`. Local builds consume these versioned resources directly; they do not require an additional source checkout or package registry. GateRook is licensed under the [Apache License, Version 2.0](../LICENSE). Keep third-party notices with their assets.
 
 ## Maintaining the public source tree
 

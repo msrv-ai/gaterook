@@ -18,7 +18,7 @@ export interface TrayOptions {
   readonly quit: () => void;
 }
 
-/** Canonical kit PNGs, copied into the app by the desktop build for development and packaged runs. */
+/** Application PNG assets, copied into the app by the desktop build for development and packaged runs. */
 type MarkVariant = 'brand' | 'mono' | 'macos';
 const markFiles: Record<MarkVariant, string> = {
   brand: 'gaterook-icon.png',
@@ -33,7 +33,7 @@ export function markImage(size: number, variant: MarkVariant): NativeImage {
   if (!source) {
     const name = markFiles[variant];
     source = nativeImage.createFromPath(join(app.getAppPath(), 'dist', 'icons', name));
-    if (source.isEmpty()) throw new Error(`The design kit icon ${name} is missing or invalid. Rebuild the desktop app.`);
+    if (source.isEmpty()) throw new Error(`The application icon ${name} is missing or invalid. Rebuild the desktop app.`);
     marks.set(variant, source);
   }
   const image = nativeImage.createEmpty();

@@ -67,12 +67,12 @@ interface RowForm {
 }
 
 /**
- * Secrets › Stored secrets (design/pages/secrets.html `#stored-secrets`; ARCHITECTURE.md §6 `/api/secrets`, §8.4):
+ * Secrets › Stored secrets (ARCHITECTURE.md §6 `/api/secrets`, §8.4):
  * values encrypted here and references to external stores, write-only — never a value, its length or its prefix.
  *
  * - The toolbar filters at once (search by secret or connection, Source) and its count line says how many show; no
  *   match is the table's own empty row with Clear filters (focus back in the search).
- * - Name and Last rotated sort (kit.js table sort).
+ * - Name and Last rotated sort.
  * - Each row: Rotate (only when the connector can set a value at the source; otherwise `aria-disabled` with the
  *   core's reason in a tooltip), Replace (a new value, or another reference), Test (a reference resolves now and
  *   nothing is kept), Connect store (a reference whose store isn't connected), View usage (Activity).

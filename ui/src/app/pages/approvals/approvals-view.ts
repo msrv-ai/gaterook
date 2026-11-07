@@ -7,7 +7,7 @@ import { Look } from '../../kit/elements/shared/dictionaries';
 import { requestState, statusBadge, who, windowMinutes } from '../../kit/elements/approval-request/approval-view';
 
 /**
- * What the Approvals page shows (design/pages/approvals.html), computed from the admin API (ARCHITECTURE.md §6
+ * What the Approvals page shows, computed from the admin API (ARCHITECTURE.md §6
  * approvals) as pure functions: the page binds them, the tests check them against the kit's wording. The request
  * itself is the kit element `approval-request`; this file is the page around it — the queue, the history table, the
  * delivery line and card, the toasts and announcements after a decision.

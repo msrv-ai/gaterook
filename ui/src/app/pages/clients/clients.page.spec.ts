@@ -25,7 +25,7 @@ import { firstRun as firstRunOverview, setup as setupOverview } from '../overvie
 import { NOW, bridgeDisconnect, codexDisconnect, connected, foundClients, kitClients, kitEndpoints, kitManual, kitTokens, noneFound, previewFor, setupEndpoints } from './clients.fixtures';
 
 /**
- * The Clients page against fake API services in the kit's world (design/pages/clients.html): what it shows, what each
+ * The Clients page against fake API services in the kit's world: what it shows, what each
  * control asks the core, where the keyboard goes, and that nothing is written before its exact change is on screen.
  */
 

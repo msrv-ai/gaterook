@@ -34,7 +34,7 @@
     <span [gwClientMark]="c().client"></span>
     <div class="gw-client-card__main">
       <span class="gw-text-ui">{{ c().name }}</span>
-      <!-- pages/endpoint-detail.html › Clients: how it reaches this endpoint, its other endpoints, how it gets a token. -->
+      <!-- endpoint detail screen › Clients: how it reaches this endpoint, its other endpoints, how it gets a token. -->
       @if (scoped(); as l) {
         @let others = compactOthers();
         @if (bridge()) {

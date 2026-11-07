@@ -9,7 +9,7 @@ import { testConfirmTitle, testFailureTitle } from '../../kit/elements/connectio
 import { clientName } from '../../kit/elements/shared/client-mark';
 
 /**
- * The words and decisions of Add connection (design/pages/connection-new.html) that need no DOM: the wizard's stepper,
+ * The words and decisions of Add connection that need no DOM: the wizard's stepper,
  * the type picker's default, where the test connects, the endpoints a new connection may join and the tools it would
  * bring there, what prod turns on, and the edit view's summaries. The page component wires them to the core.
  */
@@ -485,7 +485,7 @@ export const POLICY_SECTION: Readonly<Record<string, string>> = {
   http: 'http',
 };
 
-/** The kit's own words for the defaults it lists (pages/connection-new.html `__defaults`). */
+/** The kit's own words for the defaults it lists. */
 const KIT_LINES: Readonly<Record<string, ProdDefault>> = {
   'sql.readOnlyTransactions': { icon: 'lock', text: 'Read-only transactions' },
   'sql.denyDdl': { icon: 'ban', text: 'No DDL: CREATE, ALTER, DROP, TRUNCATE are refused', literals: ['CREATE', 'ALTER', 'DROP', 'TRUNCATE'] },

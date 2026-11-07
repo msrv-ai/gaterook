@@ -25,7 +25,7 @@ import {
 } from './core-starting-view';
 
 /**
- * The core-starting screen's words against the kit (design/pages/core-starting.html) and the core's real protocol
+ * The core-starting screen's words against the kit and the core's real protocol
  * (ARCHITECTURE.md §7.1): which card, which steps in which state, and what the dialogs check.
  */
 
@@ -67,7 +67,7 @@ const masterKey = (p: Partial<MasterKeyStatus> = {}): MasterKeyStatus => ({
   ...p,
 });
 
-/** The kit's live state: three steps done, Local API binding (pages/core-starting.html). */
+/** The kit's live state: three steps done, Local API binding. */
 const KIT_LIVE: CoreStep[] = [
   { step: 'runtime', state: 'done', ms: 140 },
   { step: 'master-key', state: 'running' },

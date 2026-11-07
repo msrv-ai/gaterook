@@ -15,7 +15,7 @@ import { isVaultDynamicCredential } from '../../core/secret-visibility';
 import { duration, relativeTime, shortDate } from '../../core/time/time-format';
 
 /**
- * The Secrets page's wording and view models (design/pages/secrets.html), as pure functions of the core's answers
+ * The Secrets page's wording and view models, as pure functions of the core's answers
  * (ARCHITECTURE.md §6 secrets) and "now", so every sentence the page shows is tested without a browser or a clock.
  */
 

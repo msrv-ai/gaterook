@@ -24,7 +24,7 @@ declare global {
 const FALLBACK: Appearance = { theme: 'system', contrast: 'system', resolved: { theme: 'light', contrast: 'normal' } };
 
 /**
- * The appearance (kit.js "theme controls" over `assets/theme-boot.js`): theme-boot resolves System / Light / Dark and
+ * The appearance: theme-boot resolves System / Light / Dark and
  * System / Normal / High into `data-theme` / `data-contrast` on `<html>` before the first paint and follows the OS
  * live; this service mirrors it as a signal and tells Electron (`nativeTheme.themeSource`, the titlebar overlay).
  */
@@ -60,8 +60,7 @@ export class ThemeService {
 
 /**
  * `input[name=gw-theme]` and `input[name=gw-contrast]` radios anywhere (the titlebar popover, Settings ›
- * Appearance): checked from the current choice and bound to it, every control on the page in sync (kit.js binds
- * them by name, so this directive matches them by name).
+ * Appearance): checked from the current choice and bound to it, every control on the page in sync.
  */
 @Directive({
   selector: 'input[type=radio][name=gw-theme], input[type=radio][name=gw-contrast]',

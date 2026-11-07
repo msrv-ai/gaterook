@@ -4,8 +4,8 @@ import { ClientEndpoint, ClientFailure } from '../kit/elements/client-card/clien
 import { literalParts } from '../kit/elements/shared/literals';
 
 /**
- * The clients of the demo world (BLUEPRINT §9) as `GET /api/clients`, `GET /api/tunnel` and `GET /api/oauth/grants`
- * return them, for the client-card gallery (design/elements/client-card.html). Dev only.
+ * The clients of the demo world as `GET /api/clients`, `GET /api/tunnel` and `GET /api/oauth/grants`
+ * return them, for the client-card gallery. Dev only.
  */
 
 export const DEMO_CLIENT_ENDPOINTS: ClientEndpoint[] = [
@@ -261,7 +261,7 @@ export const DEMO_DISCONNECT_CODEX: ConnectPreview = {
   files: [{ ...DEMO_PREVIEW_CODEX.files[0], diff: null }],
 };
 
-/** The tunnel, off since 12:10 after a public morning (BLUEPRINT §9). */
+/** The tunnel, off since 12:10 after a public morning. */
 export const DEMO_TUNNEL_OFF: TunnelState = {
   provider: 'cloudflare-quick',
   state: 'off',

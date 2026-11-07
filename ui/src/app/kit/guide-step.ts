@@ -6,7 +6,7 @@ export type GuideStepState = 'complete' | 'current' | 'upcoming';
 
 /**
  * `<li gwGuideStep [n]="1" state="current" heading="Add your first connection">` — one step of a
- * `<ol class="gw-stepper gw-stepper--guide">` (COMPONENTS.md › gw-stepper `--guide`; design/pages/overview.html): a
+ * `<ol class="gw-stepper gw-stepper--guide">`: a
  * short first-run guide on a page, always vertical, two or three steps that lead to the pages where the work is done
  * — never a wizard.
  *

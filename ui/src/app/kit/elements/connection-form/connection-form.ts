@@ -157,7 +157,7 @@ function formatValue(v: JsonValue, unit: string | null): string {
 let nextId = 0;
 
 /**
- * `<form gwConnectionForm [spec]="…">` (design/elements/connection-form.html): the Configure step of Add connection
+ * `<form gwConnectionForm [spec]="…">`: the Configure step of Add connection
  * and the edit view of a connection. The connector's JSON Schema (from `GET /api/connector-types/{type}/form`)
  * becomes the sections (§8.3 renderer); the gateway adds the connection's Name to the first one, the secret source
  * to the credentials, Environment and safety (prod shows its stricter defaults from `envDefaults`, read from the prod

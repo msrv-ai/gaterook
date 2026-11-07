@@ -13,7 +13,7 @@ import { DialogStack } from './dialog';
 import { Toast, ToastService, ToastTone } from './toast.service';
 
 /**
- * One toast: auto-dismisses after its timeout, pausing while hovered or focused (WCAG 2.2.1), as kit.js does.
+ * One toast: auto-dismisses after its timeout, pausing while hovered or focused (WCAG 2.2.1).
  */
 @Directive({
   selector: '[gwToastTimer]',
@@ -171,7 +171,7 @@ export class GwToastRegion {
   }
 }
 
-/** `<button gwToast="message" gwToastTitle="…" gwToastTone="success">` (kit.js `data-gw-toast`). */
+/** `<button gwToast="message" gwToastTitle="…" gwToastTone="success">`. */
 @Directive({ selector: '[gwToast]', host: { '(click)': 'onClick()', 'data-gw-toast': '' } })
 export class GwToast {
   private readonly toasts = inject(ToastService);

@@ -3,7 +3,7 @@ import { EndpointSummary, TokenRow } from '../../core/api/endpoints.api';
 import { DEMO_CLIENTS, DEMO_CLIENT_ENDPOINTS, DEMO_PREVIEW_CURSOR } from '../../dev/fixtures-clients';
 
 /**
- * The Clients page's world for its tests: design/pages/clients.html's data (BLUEPRINT §9), shaped as the core's
+ * The Clients page's world for its tests: demo client data, shaped as the core's
  * answers were captured from a `GW_DEMO=1` core (`/api/clients`, `/api/endpoints`, `/api/clients/manual`,
  * `connect/preview`, `disconnect/preview`, `/api/endpoints/dev/tokens`). "Now" is 2026-10-22 14:30 CEST.
  */

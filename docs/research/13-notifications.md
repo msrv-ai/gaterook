@@ -36,7 +36,7 @@ Channel Approve is available only when every condition holds **both when sending
 
 If any condition prevents complete review, omit Approve and explain why. Do not display a truncated action as if it were complete. When channel decisions are disabled entirely, show only Open in app; desktop Deny remains a separate supported action.
 
-The original design kit allowed production channel approval if its comment requirement were disabled. This research proposed **never** allowing it on production; that historical discrepancy must be resolved through the architecture/policy implementation, not silently treated as a proven old behavior.
+An earlier interface proposal allowed production channel approval if its comment requirement were disabled. This research proposed **never** allowing it on production; the architecture and policy implementation determine the supported behavior.
 
 Never include the agent's note in a notification. Exclude that field from the notice DTO instead of relying on each formatter to remember to remove it. Show environment, connection, client, exact action, expiry, and relevant rule. Mark production in text, not color alone.
 

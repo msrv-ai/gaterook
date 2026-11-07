@@ -16,7 +16,7 @@ import {
 
 const words = (parts: readonly { text: string }[]) => parts.map((p) => p.text).join('');
 
-describe('approval-request view (design/elements/approval-request.html)', () => {
+describe('approval-request view', () => {
   it('maps API statuses to the kit states and badges', () => {
     expect(requestState('running')).toBe('approved');
     expect(requestState('completed')).toBe('executed');

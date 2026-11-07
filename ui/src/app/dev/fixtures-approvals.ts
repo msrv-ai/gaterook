@@ -2,8 +2,8 @@ import { ActionSegment, ApprovalDetail, ApprovalItem, ApprovalTimelineEntry, Dif
 import { JsonValue } from '../core/api/types';
 
 /**
- * The approval requests of the demo world (BLUEPRINT §9) as `GET /api/approvals/{id}` returns them, one per state of
- * design/elements/approval-request.html. Dev only: the gallery imports it, production code never does.
+ * The approval requests of the demo world as `GET /api/approvals/{id}` returns them, one per state of
+ * the approval-request component. Dev only: the gallery imports it, production code never does.
  */
 
 const text = (v: string): ActionSegment[] => [{ t: 'text', v }];

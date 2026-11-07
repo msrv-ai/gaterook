@@ -200,7 +200,7 @@ function canonical(v: JsonValue): string {
 
 const NUMBER = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 });
 
-/** "1,000", "0.5": the kit's numbers (BLUEPRINT §8 "Numbers with units and separators"). */
+/** "1,000", "0.5": the kit's numbers. */
 export function formatNumber(n: number): string {
   return NUMBER.format(n);
 }

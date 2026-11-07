@@ -3,7 +3,7 @@ import { TokenRow } from '../../core/api/endpoints.api';
 import { Decision } from '../../core/api/types';
 
 /**
- * The kit's Activity world (design/pages/activity.html) for the page's tests: the clock stands at 14:30 on
+ * The kit's Activity world for the page's tests: the clock stands at 14:30 on
  * 2026-10-22, calls of the last hour, tasks, setup changes and the access that made the calls.
  */
 

@@ -47,7 +47,7 @@ public final class McpAppResource {
   }
 
   static String assemble(String name) {
-    // The same versioned design kit as the desktop UI; no remote fonts or assets in a sandboxed card.
+    // The same bundled stylesheet as the desktop UI; no remote fonts or assets in a sandboxed card.
     String css = resource("gw-kit.css").replaceAll("(?s)@font-face\\s*\\{[^}]*}", "")
         .replaceAll("@charset\\s+\"[^\"]+\";", "");
     String script = resource(name + ".js");

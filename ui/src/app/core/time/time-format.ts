@@ -1,5 +1,5 @@
 /**
- * Time as the kit writes it (BLUEPRINT §8, DESIGN §8 "Activity"): relative in lists ("2 min ago", "30 s ago",
+ * Time as the kit writes it (Activity display): relative in lists ("2 min ago", "30 s ago",
  * "3 weeks ago"), absolute ISO in `title` and `datetime` ("2026-10-22 14:29:30 +02:00"), durations with units
  * ("38 ms", "2.4 s", "47 s", "5 min"). Pure functions of an instant and "now", so they are tested without clocks.
  */

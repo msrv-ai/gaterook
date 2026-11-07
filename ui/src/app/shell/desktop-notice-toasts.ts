@@ -10,7 +10,7 @@ import { deepLinkUrl } from './deep-links';
 
 type Notice = GatewayEvents['notify.desktop'];
 
-/** The kit's in-app toast of one request (design/elements/approval-notification.html "In-app toast"). */
+/** The kit's in-app toast of one request (approval-notification component "In-app toast"). */
 export function requestToast(r: Pick<ApprovalDetail, 'tool' | 'connection' | 'endpoint' | 'env' | 'client' | 'expiresAt'>): Pick<ToastOptions, 'title' | 'body'> {
   const who = r.client ? clientName(r.client) : 'an agent';
   const deadline = r.expiresAt ? ` Auto-deny at ${clockTime(r.expiresAt, true)}.` : '';

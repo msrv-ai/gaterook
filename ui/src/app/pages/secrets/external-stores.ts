@@ -92,7 +92,7 @@ interface StoreCard {
 }
 
 /**
- * Secrets › External stores (design/pages/secrets.html `#external-stores`; ARCHITECTURE.md §6 `/api/secret-stores`,
+ * Secrets › External stores (ARCHITECTURE.md §6 `/api/secret-stores`,
  * step S1): HashiCorp Vault / OpenBao, GCP Secret Manager and AWS Secrets Manager, read at call time and never copied
  * here. A connected store shows how it signs in and what reads through it, with Test and Disconnect; a kind without a
  * store is a dashed card with Connect and the references that wait for it. Until the core has the stores' API (S1 not

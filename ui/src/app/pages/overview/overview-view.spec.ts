@@ -19,7 +19,7 @@ import {
   tileHealth,
 } from './overview-view';
 
-/** The words of design/pages/overview.html from the core's answers. */
+/** The Overview wording from the core's answers. */
 
 describe('Overview state', () => {
   it('is first run without a connection, setup until an AI app is connected, then in use', () => {

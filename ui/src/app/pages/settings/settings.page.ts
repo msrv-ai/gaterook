@@ -28,7 +28,7 @@ export const SECTION_IDS: ReadonlySet<string> = new Set(SETTINGS_GROUPS.flatMap(
 const FRAGMENT = /^(settings|st)-[a-z0-9-]+$/;
 
 /**
- * Settings (design/pages/settings.html; ARCHITECTURE.md §8.4 "settings"): one page with sections in the kit's
+ * Settings (ARCHITECTURE.md §8.4 "settings"): one page with sections in the kit's
  * settings layout — a nav that marks the section on screen, each section with its own URL (`/settings/<section>`).
  * A topic that applies at once is a plain section confirmed by a toast; a topic with values to save is a form with
  * its own sticky Save bar (the kit's save model).

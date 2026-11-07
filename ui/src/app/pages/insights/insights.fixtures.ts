@@ -4,7 +4,7 @@ import { ConnectionHealth } from '../../core/api/connections.api';
 import { Insights } from '../../core/api/insights.api';
 
 /**
- * The kit's Insights (design/pages/insights.html, BLUEPRINT §9) in the shape `GET /api/insights` returns — the last
+ * The kit's Insights in the shape `GET /api/insights` returns — the last
  * 24 hours up to Thursday 14:30 of the demo world. For the page's tests only: production code never imports it
  * (step K5, which builds the route, isn't merged yet; until then the page says "not available yet").
  */

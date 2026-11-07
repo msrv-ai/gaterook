@@ -19,7 +19,7 @@ let nextId = 0;
  * phases with the decisions in each. The task name comes from the agent, so it is marked unverified. Activity's
  * Traces tab shows one per trace; Open trace in an event leads here.
  *
- * `page`: the card of Activity › Traces (pages/activity.html "Agent tasks"). It says whether the task is still going
+ * `page`: the card of Activity › Traces. It says whether the task is still going
  * ("5 calls so far", Status "In progress, waiting for you" with what waits and Review in Approvals), shows the
  * decisions as badges, and folds the phases behind "Show N phases" when nobody had to be asked (the decisions
  * already sum the task up); Show N calls filters the page in place by the trace's short id, and a phase that
@@ -189,7 +189,7 @@ export class GwTraceView {
   );
 }
 
-/** A decision count as a badge: "12 allowed", "2 denied by policy", "1 waiting for approval" (BLUEPRINT §7 words). */
+/** A decision count as a badge: "12 allowed", "2 denied by policy", "1 waiting for approval". */
 function badge(d: { readonly decision: string; readonly count: number }) {
   const look = decisionLook(d.decision);
   return { ...d, look, words: look.text.toLowerCase() };

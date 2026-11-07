@@ -17,7 +17,7 @@ interface RulesModel {
 }
 
 /**
- * Settings › Approval rules (design/pages/settings.html `#settings-approval-rules`): where decisions can be made and
+ * Settings › Approval rules: where decisions can be made and
  * whether a prod approval needs a comment — one Save form (`PUT /api/settings/approval-rules`; the comment rule lives
  * in the prod policy, the core writes it there). The per-environment table is read-only: timeouts, comment and the
  * channels each policy announces in come from the policies (`perEnvironment`), each row links to its Approvals

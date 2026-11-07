@@ -48,7 +48,7 @@ interface Loaded {
 }
 
 /**
- * Dev only: design/elements/approval-request.html, every state of the kit's demo. A section shows the dev core's
+ * Dev only: every state of the kit's demo. A section shows the dev core's
  * request (`GET /api/approvals?status=…`, `GET /api/approvals/{id}`) when the GW_DEMO world has one in that state
  * now; the world is one moment (its requests expire 5 to 10 minutes after the core starts), so the others, and the
  * states it never has (prod runbook, hidden characters, running, executed, failed), are fixtures on the same clock.

@@ -9,7 +9,7 @@ import { DEMO_SETUP_MAP } from '../fixtures';
 import { GwLiveNote, liveRead } from '../live';
 
 /**
- * Dev only: design/elements/setup-map.html. "Needs attention" is the dev core's world as Overview gets it
+ * Dev only: setup-map component. "Needs attention" is the dev core's world as Overview gets it
  * (`GET /api/overview` setupMap) and the wiring is endpoint dev (`GET /api/endpoints/dev`; its clients come with K1);
  * all set up and first run are fixtures, since the demo world is neither.
  */

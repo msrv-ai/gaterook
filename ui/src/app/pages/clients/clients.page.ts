@@ -48,7 +48,7 @@ import { ManualAppDialog } from './manual-app-dialog';
 export const SKELETON_DELAY_MS = 300;
 
 /**
- * Clients (design/pages/clients.html; ARCHITECTURE.md §8.4 "clients"): which AI apps reach the gateway, and how.
+ * Clients (ARCHITECTURE.md §8.4 "clients"): which AI apps reach the gateway, and how.
  * Top to bottom, as the kit answers it:
  * 1. What does Connect do? — How it works (find → show the diff → back up and write → Disconnect undoes).
  * 2. Which apps are connected? — compact app rows with live status, in a stable order. Opening a row reveals the

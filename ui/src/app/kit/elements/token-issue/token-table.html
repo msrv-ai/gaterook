@@ -6,7 +6,7 @@
         @default { <h3 class="gw-card__title" [id]="uid + '-title'">{{ pageCopy() ? 'Access tokens' : 'Tokens' }}</h3> }
       }
       @if (tokens().length && pageCopy()) {
-        <!-- pages/endpoint-detail.html › Tokens: the endpoint is the page's own, the IP allowlist line is there. -->
+        <!-- endpoint detail screen › Tokens: the endpoint is the page's own, the IP allowlist line is there. -->
         <p class="gw-card__description">{{ summary() }}. Claude Desktop's bridge and Codex's headers helper get a 15-minute token on the fly and never store one; for anything you paste a token into, issue one per app and machine, so each can be revoked alone. Tokens work from this computer only: the gateway listens on <span class="gw-mono">127.0.0.1</span>, so there is no IP allowlist (a server-mode setting).</p>
       } @else if (tokens().length) {
         <p class="gw-card__description">Endpoint <span class="gw-mono">{{ slug() }}</span> · {{ summary() }}. Claude Desktop and Codex get a 15-minute token on the fly; issue a named token for any other app, one per app and machine, so each can be revoked alone.</p>

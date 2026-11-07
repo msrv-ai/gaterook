@@ -1,7 +1,7 @@
 import { DOCUMENT, Directive, ElementRef, inject, input } from '@angular/core';
 
 /**
- * The kit's `.gw-search__clear` button (kit.js "search clear"): empties its `.gw-search__input`, fires `input` (so a
+ * The kit's `.gw-search__clear` button: empties its `.gw-search__input`, fires `input` (so a
  * bound model and filters follow) and puts focus back into the field. Matches the kit's class: no extra markup.
  */
 @Directive({ selector: 'button.gw-search__clear', host: { '(click)': 'clear()' } })
@@ -15,7 +15,7 @@ export class GwSearchClearButton {
   }
 }
 
-/** `<button gwSearchClear="#q">` from elsewhere (an empty state's "Clear search"; kit.js `data-gw-search-clear`). */
+/** `<button gwSearchClear="#q">` from elsewhere (an empty state's "Clear search"). */
 @Directive({ selector: '[gwSearchClear]', host: { '(click)': 'clear()' } })
 export class GwSearchClear {
   private readonly doc = inject(DOCUMENT);

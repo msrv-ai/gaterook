@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { GwIcon } from '../../kit/icons';
 
-/** The server-mode preview's people (BLUEPRINT §9: names appear only in an explicitly labelled server-mode preview). */
+/** The server-mode preview's people (demo data: names appear only in an explicitly labelled server-mode preview). */
 const PEOPLE: readonly { readonly initials: string; readonly name: string; readonly role: string; readonly approves: boolean; readonly twoFactor: boolean }[] = [
   { initials: 'AM', name: 'Alex Morgan', role: 'Owner', approves: true, twoFactor: true },
   { initials: 'PN', name: 'Priya Nair', role: 'Admin · Approver', approves: true, twoFactor: true },
@@ -11,7 +11,7 @@ const PEOPLE: readonly { readonly initials: string; readonly name: string; reado
 ];
 
 /**
- * Settings › Users & roles (design/pages/settings.html `#settings-users`): a read-only preview of server mode
+ * Settings › Users & roles: a read-only preview of server mode
  * (decision 1: the desktop has one local user who holds every permission; decisions and changes are signed "by you").
  * Invite people is unavailable with its reason; the people and roles are the kit's preview, labelled as such.
  */
