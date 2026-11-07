@@ -13,7 +13,7 @@ import { ToastService } from '../../kit/toast.service';
 import { GwDemoHeader } from '../demo-header';
 import { kitElement } from '../elements';
 
-/** Dev only: design/elements/settings-layout.html with the demo world's settings (BLUEPRINT §9). */
+/** Dev only: settings-layout component with the demo world's settings. */
 @Component({
   selector: 'gw-settings-layout-demo',
   imports: [GwDemoHeader, GwSettingsLayout, GwSettingsSection, GwSaveBar, GwIcon, GwCopy, GwThemeControl, RouterLink],

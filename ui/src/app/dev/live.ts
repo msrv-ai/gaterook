@@ -29,7 +29,7 @@ export function rebase<T>(value: T, deltaMs: number): T {
 }
 
 /**
- * A fixture written for the demo world's 14:30 (BLUEPRINT §9), moved to now on the core's clock: a pending request
+ * A fixture written for the demo world's 14:30, moved to now on the core's clock: a pending request
  * still has its 0:48 left and "2 min ago" still reads so, next to the live sections of the same page. Call it in an
  * injection context (a demo's field initializer).
  */

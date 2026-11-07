@@ -22,7 +22,7 @@ import { GwToast, GwToastRegion } from './toast-region';
 import { TooltipDismiss } from './tooltip';
 
 /**
- * Every kit.js behaviour as an Angular directive or component (ARCHITECTURE.md §8.2), for a page's `imports`.
+ * Shared interaction behavior as an Angular directive or component (ARCHITECTURE.md §8.2), for a page's `imports`.
  * The document-wide behaviours (aria-disabled guard, "/" and ⌘K, tooltip Esc) are services installed once by
  * {@link provideKit}.
  */

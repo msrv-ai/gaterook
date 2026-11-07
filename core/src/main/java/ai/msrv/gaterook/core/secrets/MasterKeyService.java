@@ -660,7 +660,7 @@ public class MasterKeyService implements HmacKeys, InitializingBean, DisposableB
   }
 
   /**
-   * The demo world's key (GW_DEMO=1, design/BLUEPRINT.md §9: "last backup 12 days ago", Secrets "Created Jul 14"): the
+   * The demo world's key (GW_DEMO=1: "last backup 12 days ago", Secrets "Created Jul 14"): the
    * keys in use are recorded as backed up, and the key as made, on the world's dates. No copy of the key is written: a
    * demo home is a normal home afterwards, and a backup without a passphrase lying in it would hand the key to anyone
    * who can read the file, past whatever guards the keyset (the Keychain on macOS) — review API #7. Never in a release

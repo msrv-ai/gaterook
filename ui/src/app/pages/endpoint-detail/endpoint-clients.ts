@@ -17,7 +17,7 @@ import { connectedToast, disconnectedToast, endpointClients } from './endpoint-d
 const NO_ANSWER = 'The core didn’t answer. Try again.';
 
 /**
- * Endpoint detail › Clients (design/pages/endpoint-detail.html `#clients`): the MCP clients of this computer that use
+ * Endpoint detail › Clients: the MCP clients of this computer that use
  * the endpoint, then those installed but not connected to it. One compact client-card per client: how it reaches the
  * endpoint, its other endpoints, how it gets a token, its last call; View activity and Disconnect, or Connect.
  *

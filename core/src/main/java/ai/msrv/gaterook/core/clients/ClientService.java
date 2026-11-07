@@ -1376,7 +1376,7 @@ public class ClientService {
   public record DemoGrant(String client, String endpoint, String grantId, String label) {}
 
   /**
-   * The kit's clients (design/BLUEPRINT.md §9) for {@code GW_DEMO=1}: the clients of {@code detected} get their config
+   * The kit's clients for {@code GW_DEMO=1}: the clients of {@code detected} get their config
    * folder, {@code files} are written relative to the demo user home, and every link is connected through preview and
    * Confirm as the window does it, then takes its first bridge token (a prod grant allowed first), so the page shows
    * it connected. Only into a sandboxed home: never the developer's own Claude, Codex or Cursor.

@@ -1016,7 +1016,7 @@ public class McpServerSignIns {
 
   /**
    * The cloud a server runs on, when it takes that cloud's credentials instead of an OAuth sign-in (§7.6):
-   * {@code google} for {@code *.googleapis.com} or Google's authorization server, {@code aws} for an AWS endpoint
+   * {@code google} for {@code *googleapis.com} or Google's authorization server, {@code aws} for an AWS endpoint
    * ({@code aws-mcp.us-east-1.api.aws}) or AWS Sign-in; otherwise {@code null}.
    */
   static String cloud(URI url, Discovery.Server server) {

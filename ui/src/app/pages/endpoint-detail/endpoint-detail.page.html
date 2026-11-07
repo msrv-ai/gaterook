@@ -449,7 +449,7 @@
           </fieldset>
         }
         @if (serverCandidates().length) {
-          <!-- External MCP servers: their annotations are declared, not verified (DESIGN §8 Tool modes). -->
+          <!-- External MCP servers: their annotations are declared, not verified. -->
           <fieldset class="gw-field">
             <legend class="gw-field__label">MCP servers not on {{ slug }} yet</legend>
             @for (cand of serverCandidates(); track cand.row.name; let first = $first) {

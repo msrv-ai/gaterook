@@ -11,7 +11,7 @@ import { GwIcon } from '../../kit/icons';
 import { allowedAt, connectionEnvs, lastCallRow, providerName, tunnelRow } from './clients-view';
 
 /**
- * `<article gwClaudeAiAccess …>` (pages/clients.html, "In the browser"): claude.ai is the only way in from the
+ * `<article gwClaudeAiAccess …>`: claude.ai is the only way in from the
  * internet, so the card names everything that guards it — what gets published and what stays local, the three gates
  * (Anthropic IP ranges, shown here and switched only in Settings › Tunnel › Callers; each new sign-in allowed on this
  * computer; the endpoint's own modes), when the tunnel was public, the last call, and every sign-in you allowed, with

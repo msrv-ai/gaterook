@@ -3,7 +3,7 @@ import { GwIcon } from '../../kit/icons';
 import { GwThemeControl } from '../../kit/theme';
 
 /**
- * Settings › Appearance (design/pages/settings.html `#settings-appearance`): theme and contrast for this computer,
+ * Settings › Appearance: theme and contrast for this computer,
  * applied at once by the kit's theme boot (the same `gw-theme` / `gw-contrast` radios as the titlebar popover, kept in
  * sync by `GwThemeControl`), and the one density with a note about zoom. Nothing to save: the choice lives where it
  * must apply before the first paint (theme-boot's storage, `nativeTheme` in Electron), so the core's copy of the

@@ -19,7 +19,7 @@ import {
   toggleTag,
 } from './log-view';
 
-describe('log-explorer view (design/elements/log-explorer.html)', () => {
+describe('log-explorer view', () => {
   it('splits a query into filter tags and free text', () => {
     expect(parseQuery('decision:denied  env:prod sync -tool:sql_* decision:denied')).toEqual({
       tags: ['decision:denied', 'env:prod', '-tool:sql_*'],
@@ -99,7 +99,7 @@ describe('log-explorer view (design/elements/log-explorer.html)', () => {
   });
 });
 
-describe('log-explorer page variant (design/pages/activity.html)', () => {
+describe('log-explorer page variant', () => {
   it('says the count line as the Activity page does', () => {
     const o = { matched: null, total: null, waiting: 0, filtered: false, live: false, zoom: null };
     expect(pageCountText(o)).toBe('Loading calls');

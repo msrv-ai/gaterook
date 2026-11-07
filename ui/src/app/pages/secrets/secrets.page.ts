@@ -19,7 +19,7 @@ export const SKELETON_DELAY_MS = 300;
 const ANCHORS = /^(master-key|stored-secrets|external-stores|short-lived|store-[a-z0-9-]+)$/;
 
 /**
- * Secrets (design/pages/secrets.html; ARCHITECTURE.md §8.4 "secrets"): how credentials are stored, encrypted and
+ * Secrets (ARCHITECTURE.md §8.4 "secrets"): how credentials are stored, encrypted and
  * handed to a connector at call time, and where they come from.
  *
  * - The info alert and How it works (what happens to a secret; open by default, remembered).

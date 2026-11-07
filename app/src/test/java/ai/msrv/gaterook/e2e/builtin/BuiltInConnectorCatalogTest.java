@@ -32,7 +32,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 
 /**
- * The built-in connector catalog against the kit's demo world (design/BLUEPRINT.md §9): every connector module
+ * The built-in connector catalog against the kit's demo world: every connector module
  * registers through its own {@code AutoConfiguration.imports}, exactly as the assembled core loads them, and the
  * numbers every screen shows hold.
  */
@@ -44,7 +44,7 @@ class BuiltInConnectorCatalogTest {
       "Kubernetes", 4, "GCP", 4, "AWS", 2, "HTTP API", 2, "GCP Cloud Logging", 2, "AWS CloudWatch", 2,
       "Loki", 2, "OpenSearch", 3, "Elasticsearch", 3);
 
-  /** Current default modes for the connection types in BLUEPRINT §9's {@code dev} endpoint. */
+  /** Current default modes for the connection types in the demo world's {@code dev} endpoint. */
   private static final Map<String, Map<String, Mode>> DEV_ENDPOINT = Map.of(
       "postgres", Map.of("sql_list_schemas", Mode.READ_ONLY, "sql_describe_table", Mode.READ_ONLY,
           "sql_query", Mode.READ_ONLY, "sql_execute", Mode.APPROVAL),

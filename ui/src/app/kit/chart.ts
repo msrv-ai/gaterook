@@ -2,7 +2,7 @@ import { DestroyRef, Directive, ElementRef, afterNextRender, inject, output } fr
 import { Announcer } from './announcer';
 
 /**
- * The kit's `.gw-chart` with pressable bars (kit.js "chart bars"): one selected range per chart (a click presses a
+ * The kit's `.gw-chart` with pressable bars: one selected range per chart (a click presses a
  * bar and releases the others, a second click releases it), announced; one tab stop per chart with ←/→/↑/↓, Home and
  * End moving between bars (roving focus). Charts without `.gw-chart__bar[aria-pressed]` buttons are untouched.
  *

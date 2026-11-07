@@ -634,7 +634,7 @@ public final class Masker {
       int s = path.size() - 1;
       while (p >= 0) {
         if (s < 0) {
-          // A leading "*" may stand for nothing: *.password matches a top-level password too.
+          // A leading "*" may stand for nothing: *password matches a top-level password too.
           return p == 0 && pattern[0].equals("*");
         }
         if (!pattern[p].equals("*") && !pattern[p].equalsIgnoreCase(path.get(s))) {

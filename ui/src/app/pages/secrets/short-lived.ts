@@ -7,7 +7,7 @@ import { SecretsData } from './secrets.data';
 import { connectionsQuery, idOf, shortLivedGroups, shortLivedSummary } from './secrets-view';
 
 /**
- * Secrets › Short-lived credentials (design/pages/secrets.html `#short-lived`; ARCHITECTURE.md §6
+ * Secrets › Short-lived credentials (ARCHITECTURE.md §6
  * `/api/secrets/short-lived`): what the gateway gets instead of a static key — GCP impersonation, AWS AssumeRole,
  * SSH certificates from Vault CA — one card per mechanism and identity, with the
  * connections that use it and when it was last issued. The core knows only what it issued since it started: before a

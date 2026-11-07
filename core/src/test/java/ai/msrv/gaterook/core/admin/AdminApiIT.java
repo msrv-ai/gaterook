@@ -903,7 +903,7 @@ class AdminApiIT {
     assertThat(nodes).containsExactly("secrets", "connections", "policies", "endpoints", "clients");
     assertThat(node(overview, "connections").path("state").asString()).as("cache-down is unreachable")
         .isEqualTo("attention");
-    // The kit's words (design/pages/overview.html: "12 connections · billing-api unreachable", …).
+    // The kit's words (overview screen: "12 connections · billing-api unreachable", …).
     assertThat(node(overview, "connections").path("status").asString())
         .isEqualTo("2 connections · cache-down unreachable");
     assertThat(node(overview, "policies").path("status").asString())

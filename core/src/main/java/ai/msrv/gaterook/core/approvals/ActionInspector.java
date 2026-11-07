@@ -7,8 +7,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Makes the exact action safe to read (ARCHITECTURE.md §8.5, §9 "Prompt-injection-safe approvals"; kit DESIGN §8
- * "The complete action must remain visible"): the text an approver sees is cut into segments the UI only paints —
+ * Makes the exact action safe to read (ARCHITECTURE.md §8.5, §9 "Prompt-injection-safe approvals"; the complete action must remain visible): the text an approver sees is cut into segments the UI only paints —
  * <ul>
  *   <li>{@code invisible}: control characters (tab included), bidi controls U+202A–202E and U+2066–2069, every
  *       default-ignorable code point (zero-width, variation selectors, tags, fillers), unassigned, private-use and

@@ -36,7 +36,7 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
 type Preview = { readonly kind: 'none' } | { readonly kind: 'failed' } | { readonly kind: 'ready'; readonly request: ApprovalDetail };
 
 /**
- * Settings › Notifications (design/pages/settings.html `#settings-notifications`): in-app feedback and where approval
+ * Settings › Notifications: in-app feedback and where approval
  * requests reach you. The in-app display duration is a General preference and applies to new toasts at once.
  * Every channel setting applies at once (`PUT /api/notifications/{desktop|slack|telegram}` with the changed fields
  * flat, as K2's `ChannelBody` takes them, and the channel's `version`). Telegram and Slack connect through a dialog

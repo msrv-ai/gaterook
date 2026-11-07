@@ -7,7 +7,7 @@
 //    heavy-build lock when `flock` exists).
 // 2. A fresh launch secret (32 random bytes, base64url) and free local ports.
 // 3. The core on the JVM in dev mode (-Dgateway.dev=true + GW_DEV_INTERNAL_SECRET), with GW_DEMO=1 on an empty home
-//    under ui/target/dev-home: the demo world of BLUEPRINT §9, the data every page is compared with the kit on.
+//    under ui/target/dev-home: the shared demo data used by application pages and component examples.
 //    --keep reuses the home of the last run (the demo seeds an empty home only); --no-demo starts empty: Overview's
 //    and AI apps' first run, then setup once a connection is added. The AI apps it finds then live in a sandbox
 //    (<home>/demo-user-home, -Dgateway.clients.user-home) where Claude Desktop, Codex and Cursor are installed, so
@@ -148,7 +148,7 @@ async function main() {
   }
 
   if (demo && !flag('--keep')) {
-    // The demo world is a gateway in the middle of its setup (BLUEPRINT §9), but its home was empty at this start,
+    // The demo world is a gateway in the middle of its setup, but its home was empty at this start,
     // so the ready line says firstRun and the app would open on Welcome. Mark onboarding skipped, as "Skip setup"
     // does: every page opens as in the kit; /onboarding stays reachable.
     await api(corePort, secret, 'POST', '/api/onboarding/skip').catch((e) => console.warn(`[dev] ${e.message}`));

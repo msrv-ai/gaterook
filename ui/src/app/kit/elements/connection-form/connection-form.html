@@ -23,7 +23,7 @@
       <!-- A first connection (kit connection-new ?state=first-run): what the name is for, in a beginner's words. -->
       <p class="gw-field__hint" [id]="p + '-name-hint'">Lowercase letters, digits and dashes, like <span class="gw-mono">dev-db</span>. Your AI apps use this name to pick the connection.</p>
     } @else if (pageCopy()) {
-      <!-- Add connection's own words (pages/connection-new.html); the edit view says the name stays. -->
+      <!-- Add connection's own words; the edit view says the name stays. -->
       <p class="gw-field__hint" [id]="p + '-name-hint'">A slug: lowercase letters, digits and dashes. Agents call tools with it and Activity filters by <span class="gw-mono">connection:{{ name && nameValid() ? name : placeholderName }}</span>.@if (mode() === 'edit') { It can't be renamed: agents, policies and past calls refer to it.}</p>
     } @else {
       <p class="gw-field__hint" [id]="p + '-name-hint'">A slug: lowercase letters, digits and dashes. Agents and Activity see it as <span class="gw-mono">connection:{{ name && nameValid() ? name : placeholderName }}</span>.</p>

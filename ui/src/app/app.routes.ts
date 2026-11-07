@@ -4,9 +4,9 @@ import { onboardingGuard } from './shell/onboarding.guard';
 
 /**
  * What the shell needs from a route: the titlebar's section name and the frame around the page.
- * - `app` (default): titlebar, sidebar and main (pages/_shell.html);
+ * - `app` (default): titlebar, sidebar and main;
  * - `welcome`: the no-sidebar variant of Onboarding (titlebar with Appearance only);
- * - `none`: no frame at all, the page is the whole document (the dev-only element gallery, like design/elements).
+ * - `none`: no frame at all, the page is the whole document (the dev-only element gallery).
  */
 export interface GwRouteData {
   readonly section: string;

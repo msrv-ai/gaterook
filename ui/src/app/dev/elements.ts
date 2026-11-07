@@ -1,4 +1,4 @@
-/** The kit's 17 elements (design/elements/*.html): the gallery's index and each demo's header. */
+/** The kit's 17 elements: the gallery's index and each demo's header. */
 export interface KitElement {
   readonly name: string;
   readonly title: string;

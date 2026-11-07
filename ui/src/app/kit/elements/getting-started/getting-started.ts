@@ -8,7 +8,7 @@ import { GwToggle } from '../../disclosure';
 import { GwIcon } from '../../icons';
 import { clientName } from '../shared/client-mark';
 
-/** The kit's copy of each step (elements/getting-started.html): title, why it matters, the action and where it goes. */
+/** The kit's copy of each step: title, why it matters, the action and where it goes. */
 interface StepCopy {
   readonly title: string;
   readonly why: string;
@@ -118,7 +118,7 @@ export function stepMeta(step: GettingStartedStep, relative: (at: string) => str
 let nextId = 0;
 
 /**
- * `<section gwGettingStarted [checklist]="overview.gettingStarted" (dismiss)="…">` (elements/getting-started.html): the
+ * `<section gwGettingStarted [checklist]="overview.gettingStarted" (dismiss)="…">`: the
  * first-run checklist. Six steps in order with how far the user has got; the current one carries the only primary
  * button, the others are links (any order works); done steps fold to one line with what was done. Once all are done
  * the card shrinks to "Setup complete" with the steps one click away, until dismissed.
@@ -148,7 +148,7 @@ export class GwGettingStarted {
   readonly level = input(2, { transform: numberAttribute });
   /**
    * The time estimate after the description ("About 5 minutes."): the element's demo and onboarding say it,
-   * Overview's checklist (pages/overview.html) doesn't.
+   * Overview's checklist doesn't.
    */
   readonly estimate = input(true, { transform: booleanAttribute });
   readonly dismiss = output<void>();

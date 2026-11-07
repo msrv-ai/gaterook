@@ -214,9 +214,9 @@
         </includes>
         <targetPath>ai/msrv/gaterook/core/clients/bridge</targetPath>
       </resource>
-      <!-- The MCP App uses the canonical generated kit, with no separately maintained styles. -->
+      <!-- The MCP App shares the application runtime stylesheet. -->
       <resource>
-        <directory>${project.basedir}/../design/dist</directory>
+        <directory>${project.basedir}/../assets</directory>
         <includes><include>gw-kit.css</include></includes>
         <targetPath>ai/msrv/gaterook/core/mcp/apps</targetPath>
       </resource>

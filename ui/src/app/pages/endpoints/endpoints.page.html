@@ -36,7 +36,7 @@
   <gw-code-block [attr.id]="'ep-error-details'" [id]="'ep-error-pre'" hidden wrap lang="Error" [text]="errorDetails(e)" copyLabel="error details" regionLabel="Error details" />
 } @else if (loading()) {
   @if (slow()) {
-    <!-- The first render of the list, when it takes longer than 300 ms (DESIGN §8 "Loading": gw-skeleton). -->
+    <!-- The first render of the list, when it takes longer than 300 ms (gw-skeleton). -->
     <div class="gw-stack" aria-busy="true">
       <p class="gw-sr-only" role="status">Loading endpoints</p>
       @for (i of [1, 2]; track i) {

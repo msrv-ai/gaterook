@@ -135,7 +135,7 @@
         <p class="gw-text-small gw-fg-muted" id="conn-count" role="status">{{ countLabel() }}</p>
       </div>
       <div class="gw-toolbar__end">
-        <!-- In work: aria-busy + aria-disabled, a spinner, and the count line says what runs (DESIGN §8 "Action hierarchy and disabled behavior"). -->
+        <!-- In work: aria-busy + aria-disabled, a spinner, and the count line says what runs. -->
         <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" id="conn-test-all" (click)="testAll()" [attr.aria-busy]="data.testingAll() ? 'true' : null" [attr.aria-disabled]="data.testingAll() ? 'true' : null" [attr.aria-describedby]="data.testingAll() ? 'conn-count' : null">@if (data.testingAll()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}<svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg> Test all<span class="gw-sr-only"> connections</span></button>
       </div>
     </div>

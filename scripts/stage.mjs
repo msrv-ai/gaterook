@@ -8,7 +8,7 @@
 //   plugin-host/plugin-host.jar  the plugin host (step K4), else a placeholder
 //   bridge/                      gw-bridge.mjs (Claude Desktop extensions), the native gw-bridge, gw-bridge.jar
 //   cloudflared/<platform>/      the pinned cloudflared (scripts/stage-cloudflared.mjs, hashes checked)
-//   icons/icon.png               the canonical app icon from design/assets/gaterook/gaterook-icon.png
+//   icons/icon.png               the app icon from assets/gaterook/gaterook-icon.png
 //
 //   node scripts/stage.mjs                         this machine's platform, the native core of app/target
 //   node scripts/stage.mjs --core <binary>         another native core (its native-libs/ folder comes along)
@@ -171,11 +171,11 @@ export async function stage(o, sources = {}) {
     report.push(`cloudflared/${o.platform}`);
   }
 
-  // Windows/Linux keep the compact kit mark. macOS uses its padded export at every native icon size.
-  copyFile(join(root, 'design', 'assets', 'gaterook', 'gaterook-icon.png'), join(o.out, 'icons', 'icon.png'));
+  // Windows/Linux keep the compact application mark. macOS uses its padded export at every native icon size.
+  copyFile(join(root, 'assets', 'gaterook', 'gaterook-icon.png'), join(o.out, 'icons', 'icon.png'));
   report.push('icons/icon.png (1024 px)');
   for (const extension of ['png', 'icns']) {
-    copyFile(join(root, 'design', 'assets', 'gaterook', `gaterook-icon-macos.${extension}`),
+    copyFile(join(root, 'assets', 'gaterook', `gaterook-icon-macos.${extension}`),
       join(o.out, 'icons', `icon-macos.${extension}`));
     report.push(`icons/icon-macos.${extension}`);
   }

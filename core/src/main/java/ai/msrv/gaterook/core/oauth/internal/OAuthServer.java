@@ -437,7 +437,7 @@ public class OAuthServer {
   }
 
   /**
-   * The demo world's claude.ai sign-in (BLUEPRINT §9): its client and a grant for the tunnel's URL of the endpoint as
+   * The demo world's claude.ai sign-in: its client and a grant for the tunnel's URL of the endpoint as
    * of {@code at} (the kit's Setup changes don't list it). Never called outside {@code GW_DEMO}.
    */
   public String seedDemoGrant(String clientId, String clientHost, String clientName, List<String> redirectUris,

@@ -28,7 +28,7 @@ afterEach(() => (document.body.innerHTML = ''));
 
 const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
-describe('compact row preview (DESIGN §8 "Видно — значит видно")', () => {
+describe('compact row preview', () => {
   it('takes the first non-blank line of the server segments, keeping escapes and look-alikes', () => {
     const segments: ActionSegment[] = [
       { t: 'text', v: '\nDELETE FROM ' },

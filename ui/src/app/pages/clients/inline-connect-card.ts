@@ -11,7 +11,7 @@ import { GwIcon } from '../../kit/icons';
 let nextId = 0;
 
 /**
- * `<article gwInlineConnectCard [card]="cursor" …>` (pages/clients.html, Cursor): a detected client's connection
+ * `<article gwInlineConnectCard [card]="cursor" …>` (clients screen, Cursor): a detected client's connection
  * review, revealed by its compact row on AI apps — the endpoint, how
  * it signs in, the token it would get, the exact change of its config and the backup — and Connect as the card's
  * primary. Cursor browser sign-in opens its install link without editing configuration. Other methods write only
@@ -19,7 +19,7 @@ let nextId = 0;
  * current selection (it is on its way, or the core refused it) Connect asks the core again instead. A refused change
  * is the kit's "Connect failed" in the card, above its footer.
  *
- * `review` is the setup state's Connect review (pages/clients.html `?state=setup`, `#cl-cd-s`): opened from Overview's
+ * `review` is the setup state's Connect review: opened from Overview's
  * Connect (`#cl-<app>-t`), its heading takes the focus (`anchor`: `cl-cd-s-t`), the page's "What <app> can use" comes
  * right after the first line (`uses`), the one endpoint needs no select, and Connect <app> is the footer's only button.
  */

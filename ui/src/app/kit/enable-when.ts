@@ -1,7 +1,7 @@
 import { DOCUMENT, DestroyRef, Directive, ElementRef, afterNextRender, inject, input } from '@angular/core';
 
 /**
- * `<button [gwEnableWhen]="commentField">` (kit.js "enable when"): `aria-disabled` until the source is satisfied — a
+ * `<button [gwEnableWhen]="commentField">`: `aria-disabled` until the source is satisfied — a
  * checkbox checked ("I've stored this token"), a text field holding non-blank text (prod's "comment required" Approve
  * and run). A native `disabled` in the markup is the no-script fallback and is lifted. The button's
  * `aria-describedby` points at the hint that says what to check or type; the guard keeps it inert meanwhile.

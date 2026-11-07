@@ -8,7 +8,6 @@ From the repository root:
 
 ```bash
 npm ci
-npm ci --prefix design
 npm run build
 npm start
 ```
@@ -17,7 +16,7 @@ The desktop build compiles a small native unlock helper on macOS and Windows. In
 
 The helper is cached by source and compiler identity under ignored `desktop/.dev/native-unlock/` and copied into `desktop/dist/native/`. Rebuilding unchanged sources keeps the same macOS Keychain identity. Packaged helpers live in the application's `resources/native/` folder and must be signed with the release. A local ad-hoc signature is only for development; signed installer and interactive authentication verification remain separate checks.
 
-Dependencies and pinned artifacts require network access on the first build. The root npm workspace contains `ui`, `desktop`, and `bridge`; the design kit is a local package with its own build dependencies and lockfile. Do not replace lockfile-based installs with unpinned upgrades during routine builds.
+Dependencies and pinned artifacts require network access on the first build. The root npm workspace contains `ui`, `desktop`, and `bridge`. Versioned runtime styles, fonts, and icons are included in `assets/`. Do not replace lockfile-based installs with unpinned upgrades during routine builds.
 
 ## IntelliJ IDEA
 
@@ -25,9 +24,9 @@ Open the cloned repository directory in IDEA and import its root `pom.xml` as a 
 
 Set the project SDK to **JDK 25** in **Project Structure**. In Maven settings, select **Maven 3.9.16** (or another compatible 3.9+ installation), and set both the importer JDK and runner JRE to the project SDK. In the Node.js settings, select **Node 24.22.1** and its npm package manager (**11.19.1**).
 
-In **Maven → Runner**, enable **Delegate IDE build/run actions to Maven**. The Java modules require Maven lifecycle plugin phases, including the dependency shading in `third-party/sshd-nofs`; IDEA's internal compiler does not run those phases. Delegated **Build Project** builds the Java modules. Use **GateRook: Build** below for the complete application, including the design kit, UI, and Electron bundle.
+In **Maven → Runner**, enable **Delegate IDE build/run actions to Maven**. The Java modules require Maven lifecycle plugin phases, including the dependency shading in `third-party/sshd-nofs`; IDEA's internal compiler does not run those phases. Delegated **Build Project** builds the Java modules. Use **GateRook: Build** below for the complete application, including the UI and Electron bundle.
 
-In the repository-root terminal, run `npm ci` and `npm ci --prefix design` once before the first build. Repeat these installs after the corresponding lockfiles change. Check that this terminal uses the intended Node and Java versions; the IDE terminal and run configurations can inherit different environments.
+In the repository-root terminal, run `npm ci` once before the first build. Repeat the install after the workspace lockfile changes. Check that this terminal uses the intended Node and Java versions; the IDE terminal and run configurations can inherit different environments.
 
 Under **Run → Edit Configurations**, create these **npm** configurations. For each configuration, select the repository-root `package.json`, the Node 24 interpreter, and its npm package manager:
 
@@ -37,7 +36,7 @@ Under **Run → Edit Configurations**, create these **npm** configurations. For 
 | `GateRook: Run` | `run` | `start` | Empty | Run `GateRook: Build` |
 | `GateRook: Demo` | `run` | `start` | `-- --demo --home ./desktop/.dev/idea-demo` | Run `GateRook: Build` |
 
-For the two launch configurations, add **Run Another Configuration → GateRook: Build** to **Before launch**. The full npm build produces the design kit, Java core, UI, and Electron bundle before starting the application. IDEA's Java **Build Project** action does not run this complete build.
+For the two launch configurations, add **Run Another Configuration → GateRook: Build** to **Before launch**. The full npm build produces the Java core, UI, and Electron bundle before starting the application. IDEA's Java **Build Project** action does not run this complete build.
 
 In each configuration's environment variables, set `JAVA_HOME` to the local JDK 25 installation and ensure `PATH` starts with the selected Node, Maven, and JDK `bin` directories while retaining the system paths. Choose paths for your machine; keep these IDE settings local. The npm build invokes `mvn` through `PATH`, so changing IDEA's Maven home alone does not select the Maven used by this build. This also prevents a desktop-launched IDE from using an older system Node or Java installation.
 
@@ -55,7 +54,7 @@ Run configurations must point to the actual application `package.json`: `$PROJEC
 
 The root [`pom.xml`](../pom.xml) defines the application version once, in `<properties><revision>`.
 Change that value for the next release, then run `npm run build`. Maven modules inherit `${revision}`;
-the independently versioned connector API and design kit retain their own versions.
+the independently versioned connector API retains its own version.
 
 The build synchronizes the root, UI, desktop, and bridge npm manifests and the workspace lockfile from
 that revision. These npm version fields are derived mirrors; do not bump them individually. Run
@@ -70,7 +69,7 @@ resources, bundled bridges, and Electron metadata carry this version. It appears
 
 ### Component outputs
 
-`npm run build` runs the design generator, `mvn -B -ntp -DskipTests package`, the Angular production build, and the Electron development bundle. Tests are compiled but not run by this command.
+`npm run build` runs `mvn -B -ntp -DskipTests package`, the Angular production build, and the Electron development bundle. Tests are compiled but not run by this command.
 
 | Output | Purpose |
 | --- | --- |
@@ -79,7 +78,6 @@ resources, bundled bridges, and Electron metadata carry this version. It appears
 | `plugin-host/target/plugin-host.jar` | JVM plugin host |
 | `ui/dist/gaterook-ui/browser/` | Renderer assets |
 | `desktop/dist/` | Electron main/preload bundle |
-| `design/dist/gw-kit.css` | Generated design-kit CSS |
 
 Build just one area when appropriate:
 
@@ -87,7 +85,6 @@ Build just one area when appropriate:
 npm run build:java
 npm run build -w ui
 npm run build -w desktop
-npm --prefix design run verify
 ```
 
 ## Desktop launcher
@@ -162,7 +159,7 @@ npm run dev:ui
 # Optional: npm run dev:ui -- --port 4311 --core-port 7467
 ```
 
-This starts a development JVM core and the Angular server with a signing proxy. The browser launcher selects a free core port and prints the resulting URLs. `--core-port` requests a preferred port; if it is occupied, the launcher chooses another free one. Plain `ng serve` cannot authenticate administrative API requests by itself. See [UI development](../ui/README.md) for demo homes, element routes, and visual comparisons.
+This starts a development JVM core and the Angular server with a signing proxy. The browser launcher selects a free core port and prints the resulting URLs. `--core-port` requests a preferred port; if it is occupied, the launcher chooses another free one. Plain `ng serve` cannot authenticate administrative API requests by itself. See [UI development](../ui/README.md) for demo homes and element routes.
 
 ## Tests
 
@@ -171,7 +168,6 @@ npm test
 npm test -w bridge
 npm test -w desktop
 npm test -w ui
-npm --prefix design run verify
 node --test 'catalog/*.test.mjs'
 mvn -B -ntp verify
 ```
@@ -188,7 +184,7 @@ Tests reset their service databases and users. Use only disposable test servers.
 
 Run a focused Java module with `mvn -B -ntp -pl core -am verify` or `-pl connectors/sql -am verify`. Individual integration tests can be selected with `-Dit.test=NameIT -Dit.failIfNoSpecifiedTests=false`; add `-Dtest=none -Dsurefire.failIfNoSpecifiedTests=false` when skipping unit tests for that focused run.
 
-MCP Apps approval cards live in `core/src/main/resources/ai/msrv/gaterook/core/mcp/apps/`. Maven packages the versioned `design/dist/gw-kit.css` alongside the HTML and script; regenerate that CSS through the design build when changing its source. `npm test` exercises the card's sandbox message lifecycle. `McpApprovalCardsIT` uses local fake connectors to cover authenticated negotiation, caller isolation, denial, navigation, and approval-forgery rejection. Clients that connect through either stdio bridge keep their declared capabilities across core restarts. A Claude Desktop extension contains its own copy of `gw-bridge.mjs`, so reinstall it from GateRook after bridge changes; Claude's Code and Cowork sessions also keep the extension's first tool list until it reconnects. Other legacy clients must reconnect after a core restart before they show cards again. Ordinary MCP clients retain the handle flow. Protocol fixtures do not establish compatibility with every host or replace a real host smoke test.
+MCP Apps approval cards live in `core/src/main/resources/ai/msrv/gaterook/core/mcp/apps/`. Maven packages the versioned interface stylesheet from `assets/` alongside the HTML and script. The renderer and MCP cards use the same bundled styles. `npm test` exercises the card's sandbox message lifecycle. `McpApprovalCardsIT` uses local fake connectors to cover authenticated negotiation, caller isolation, denial, navigation, and approval-forgery rejection. Clients that connect through either stdio bridge keep their declared capabilities across core restarts. A Claude Desktop extension contains its own copy of `gw-bridge.mjs`, so reinstall it from GateRook after bridge changes; Claude's Code and Cowork sessions also keep the extension's first tool list until it reconnects. Other legacy clients must reconnect after a core restart before they show cards again. Ordinary MCP clients retain the handle flow. Protocol fixtures do not establish compatibility with every host or replace a real host smoke test.
 
 The desktop smoke suite starts real Electron instances in disposable homes, including a real JVM core scenario:
 

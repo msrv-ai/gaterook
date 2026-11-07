@@ -44,7 +44,7 @@ import {
 import { SKELETON_DELAY_MS, SettingsPage } from './settings.page';
 
 /**
- * The Settings page against fake API services in the kit's world (design/pages/settings.html): what each section
+ * The Settings page against fake API services in the kit's world: what each section
  * shows, what each control asks the core, the save model (applies at once with a toast, or a Save bar), the dialogs
  * and their initial focus, and the "not in this build" state of the areas whose backend step isn't merged.
  */

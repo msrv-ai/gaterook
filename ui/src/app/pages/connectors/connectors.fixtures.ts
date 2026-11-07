@@ -7,7 +7,7 @@ import { Template } from '../../core/api/templates.api';
 import { JsonObject } from '../../core/api/types';
 
 /**
- * Test answers in the shapes of the admin API (§6), with the kit page's world (design/pages/connectors.html): ten
+ * Test answers in the shapes of the admin API (§6), with the kit page's world: ten
  * built-in types, the RabbitMQ plugin, the github-mcp server, the catalog's five entries and the templates table.
  */
 

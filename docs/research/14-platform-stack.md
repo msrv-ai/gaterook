@@ -60,11 +60,11 @@ Count only resource-unavailable and timeout failures toward a circuit breaker. B
 
 Close pools/sessions and reset associated admission state when configuration changes. Mutations are not automatically retried. Uncertain delivery remains visible to the caller and reviewer.
 
-## 5. Angular and the canonical design kit
+## 5. Angular interface
 
-Use standalone components, signals, the built-in control flow, and zoneless change detection. Connect the canonical kit as the local `@gaterook/design-kit` package; reuse tokens, components, fonts, and icons. The researched icon package was `@lucide/angular`, with explicit aliases for renamed kit icons.
+Use standalone components, signals, the built-in control flow, and zoneless change detection. Reuse the application's Angular components, semantic CSS variables, fonts, and icons. Bundled styles and assets are versioned build inputs. The researched icon package was `@lucide/angular`, with explicit aliases for renamed icons.
 
-Port behavior through thin Angular directives while preserving the kit's keyboard/ARIA contract. Native dialog and Popover API behavior can avoid overlay conflicts inside a modal top layer. Use CDK utilities such as key managers, Clipboard, and LiveAnnouncer where useful; do not introduce a second visual component system.
+Port behavior through thin Angular directives while preserving keyboard and ARIA behavior. Native dialog and Popover API behavior can avoid overlay conflicts inside a modal top layer. Use CDK utilities such as key managers, Clipboard, and LiveAnnouncer where useful; do not introduce a second visual component system.
 
 Render connector configuration with a bounded JSON Schema renderer on Signal Forms. The agreed extension vocabulary includes:
 
@@ -80,7 +80,7 @@ Render connector configuration with a bounded JSON Schema renderer on Signal For
 
 Use fieldsets/legends for sections and a safe JSON fallback for unknown schema features rather than silently dropping fields. Earlier reports used inconsistent aliases; the integrated renderer/connector schemas must share one vocabulary.
 
-Load CodeMirror 6 lazily and preserve exact action text. Server-produced diffs render through the kit's diff presentation. Maintain parity tests for dialogs, menus, focus return, disabled reasons, announcements, and schema-generated forms.
+Load CodeMirror 6 lazily and preserve exact action text. Server-produced diffs render through the shared diff component. Maintain parity tests for dialogs, menus, focus return, disabled reasons, announcements, and schema-generated forms.
 
 ## 6. Electron renderer boundary and CSP
 

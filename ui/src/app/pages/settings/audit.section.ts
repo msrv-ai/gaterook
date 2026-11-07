@@ -15,7 +15,7 @@ import { ExportCard, RETENTION_YEARS, exportCard, formSavedToast, listText, numO
 const NO_ANSWER = 'The core didn’t answer. Try again.';
 
 /**
- * Settings › Audit & retention (design/pages/settings.html `#settings-audit`).
+ * Settings › Audit & retention.
  *
  * - Retention is a Save form (`PUT /api/settings/audit {retentionYears}`: 1, 2, 3 or 5 years); the hint says how many
  *   records the period holds at today's rate (the overview's calls in the last 24 hours). A retention changed or

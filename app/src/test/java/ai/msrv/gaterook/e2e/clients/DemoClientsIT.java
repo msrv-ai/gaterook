@@ -19,7 +19,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * The demo world's clients (design/BLUEPRINT.md §9 "Clients"): Claude Desktop connected to {@code dev} and
+ * The demo world's clients: Claude Desktop connected to {@code dev} and
  * {@code incident-prod} through extensions, Codex to {@code dev} through the helper as {@code codex-laptop}, Cursor
  * detected, Antigravity not installed — all in {@code <home>/demo-user-home}, and the demo's calls and requests come
  * from those clients' real grants.

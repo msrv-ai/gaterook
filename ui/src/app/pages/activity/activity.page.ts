@@ -99,7 +99,7 @@ function savedRefreshSeconds(): number {
 const NO_ANSWER = 'The core didn’t answer. Try again.';
 
 /**
- * Activity (design/pages/activity.html; ARCHITECTURE.md §6 activity, §8.4 "activity"): every call an agent made
+ * Activity (ARCHITECTURE.md §6 activity, §8.4 "activity"): every call an agent made
  * through the gateway, and every change made to its setup. Append-only.
  *
  * - Header: Refresh, a remembered auto-refresh interval, View in Insights (with the query) and Export — a CSV or

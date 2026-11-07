@@ -1,7 +1,7 @@
 # GateRook UI
 
-The renderer of the desktop app: Angular 22 (standalone, signals, zoneless), styled only by the design kit in
-`../design` (`@use "@gaterook/design-kit/scss"`). See [the UI architecture](../docs/ARCHITECTURE.md#8-angular-ui-and-design-kit).
+The renderer of the desktop app uses Angular 22 with standalone components, signals, and zoneless change detection.
+Compiled interface styles and runtime assets are versioned in `../assets/`. See [the UI architecture](../docs/ARCHITECTURE.md#8-angular-ui).
 
 ## Prerequisites
 
@@ -10,7 +10,7 @@ The renderer of the desktop app: Angular 22 (standalone, signals, zoneless), sty
 - `npm ci` at the repository root (`ui` is a workspace).
 
 Every `npm run … -w ui` command below is run from the repository root; `start`, `build` and `test` first copy the
-kit's fonts, `theme-boot.js` and logo into `public/assets` (`scripts/sync-kit-assets.mjs`).
+bundled fonts, `theme-boot.js` and logo into `public/assets` (`scripts/sync-ui-assets.mjs`).
 
 ## Develop against the demo world
 
@@ -23,7 +23,7 @@ One command (`scripts/dev.mjs`):
 1. builds `app/target/app.jar` once if it is missing (`mvn -pl app -am -DskipTests package`, under the shared
    heavy-build lock);
 2. starts the core on the JVM in dev mode (`-Dgateway.dev=true`, a fresh `GW_DEV_INTERNAL_SECRET`) with `GW_DEMO=1`
-   on an empty home in `ui/target/dev-home`: the demo world of BLUEPRINT §9 (`--keep` reuses the last home,
+   on an empty home in `ui/target/dev-home`: the shared demo world (`--keep` reuses the last home,
    `--no-demo` starts empty and discovers sample AI apps in `demo-user-home` inside that development home,
    so connecting them does not change your real AI app configurations);
 3. waits for the core's ready line and starts `ng serve` with `proxy.conf.mjs`, which signs every `/api` request
@@ -37,26 +37,14 @@ loop for a fresh one.
 
 ## Element gallery (dev only)
 
-`http://127.0.0.1:<port>/dev/elements` lists the kit's 17 elements; `/dev/elements/<name>` renders one frameless,
-like `design/elements/<name>.html`. Elements of merged areas read the dev core (approvals, tokens, tools, risk,
+`http://127.0.0.1:<port>/dev/elements` lists 17 reusable elements; `/dev/elements/<name>` renders one without the application shell. Elements of merged areas read the dev core (approvals, tokens, tools, risk,
 overview, activity, connector types, search); states not represented by the current demo world use fixtures from `src/app/dev/`, moved to the core's clock. Production builds replace
 `dev-routes.ts` with `dev-routes.prod.ts`: no gallery or fixture ships.
-
-## Compare with the kit
-
-```bash
-npm run compare -w ui -- --app http://127.0.0.1:4311 [--only overview,token-issue] [--themes light,dark,hc]
-```
-
-Screenshots of each kit page or element and the matching app route at 1440×900, side by side, in
-`ui/target/compare/` (git-ignored) with an `index.html` ranked by the share of differing pixels — a triage aid,
-not a threshold: data and dates differ by design. Chromium comes from `$PLAYWRIGHT_BROWSERS_PATH` or
-`/opt/pw-browsers`; the script never downloads one.
 
 ## Test and build
 
 ```bash
-npm test -w ui                       # Vitest + jsdom: kit.js parity, elements, schema form, code, API, SSE, shell
+npm test -w ui                       # Vitest + jsdom: interactions, elements, schema form, code, API, SSE, shell
 npm run build -w ui                  # production build into ui/dist (CSP-friendly: no inline styles or innerHTML)
 node ui/scripts/schema-goldens.mjs --fetch   # refresh the connector form goldens from a running dev loop
 ```

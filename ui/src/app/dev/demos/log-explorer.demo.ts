@@ -37,7 +37,7 @@ const DENIED_PROD = 'decision:denied env:prod';
 const NOTHING = 'decision:expired env:prod client:cursor';
 
 /**
- * Dev only: design/elements/log-explorer.html with the dev core's last 24 hours: facets, histogram and events of
+ * Dev only: log-explorer component with the dev core's last 24 hours: facets, histogram and events of
  * `/api/activity/*` for each query, the connections' environments from `/api/connections`. Saved views are the
  * person's own (`activity.saved-views`): the kit's three when the demo world has none.
  */

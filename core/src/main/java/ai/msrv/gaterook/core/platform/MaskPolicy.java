@@ -11,7 +11,7 @@ import tools.jackson.databind.JsonNode;
 /**
  * The Masking section of an environment's policy (kit Policies › Masking; report 12 §6): secrets are always masked,
  * whatever this says; on top of them personal data of the chosen kinds and the fields named here ("Always mask these
- * fields": {@code orders.customer_email}, {@code *.password}).
+ * fields": {@code orders.customer_email}, {@code *password}).
  *
  * @param entropy whether long random-looking strings are masked as unknown secrets (on by default; a dev connection
  *                full of base64 data may switch it off)

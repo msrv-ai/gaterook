@@ -4,7 +4,7 @@ import { MasterKeyStatus } from '../../core/api/secrets.api';
 import { JsonValue } from '../../core/api/types';
 
 /**
- * Welcome's world for tests: the first run of design/pages/onboarding.html as the core answers it (an empty gateway,
+ * Welcome's world for tests: the onboarding first run as the core answers it (an empty gateway,
  * a key the core just created, Claude Desktop, Codex and Cursor found on this computer). Tests only.
  */
 

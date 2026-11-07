@@ -31,7 +31,7 @@ const LOCKED: StatusScreenView = {
   secrets: 8,
   references: 3,
   lastBackupAt: '2026-10-10T14:30:00+02:00',
-  // The kit's sentence (pages/core-starting.html), as /api/master-key's protectsBy words it.
+  // The kit's sentence, as /api/master-key's protectsBy words it.
   breakdown: [
     { text: '6 connections, the ', code: false },
     { text: 'github-mcp', code: true },
@@ -60,7 +60,7 @@ const STOPPED: StatusScreenView = {
   ].join('\n'),
 };
 
-/** Dev only: design/elements/status-screen.html with the demo world. */
+/** Dev only: status-screen component with the demo world. */
 @Component({
   selector: 'gw-status-screen-demo',
   imports: [GwDemoHeader, GwStatusScreen],

@@ -57,11 +57,11 @@ describe('stage.mjs', () => {
     assert.ok(existsSync(join(out, 'cloudflared', 'darwin-arm64', 'README.txt')));
     const png = readFileSync(join(out, 'icons', 'icon.png'));
     assert.equal(png.readUInt32BE(16), 1024);
-    assert.deepEqual(png, readFileSync(new URL('../../design/assets/gaterook/gaterook-icon.png', import.meta.url)));
+    assert.deepEqual(png, readFileSync(new URL('../../assets/gaterook/gaterook-icon.png', import.meta.url)));
     for (const extension of ['png', 'icns']) {
       const macIcon = readFileSync(join(out, 'icons', `icon-macos.${extension}`));
       assert.deepEqual(macIcon,
-        readFileSync(new URL(`../../design/assets/gaterook/gaterook-icon-macos.${extension}`, import.meta.url)));
+        readFileSync(new URL(`../../assets/gaterook/gaterook-icon-macos.${extension}`, import.meta.url)));
       if (extension === 'png') assert.equal(macIcon.readUInt32BE(16), 1024);
       else assert.equal(macIcon.subarray(0, 4).toString(), 'icns');
     }

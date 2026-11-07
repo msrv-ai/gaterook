@@ -24,7 +24,7 @@ export type EditorLanguage = 'sql' | 'yaml' | 'json' | 'text';
 
 /**
  * The editor's look in kit tokens only: it sits where a `gw-textarea--code` would and must read as one (no own
- * colours, sizes or fonts: design/AGENTS.md §4).
+ * colours, sizes or fonts: shared interface styling rules).
  */
 const KIT_THEME = EditorView.theme({
   '&': {

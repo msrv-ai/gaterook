@@ -27,14 +27,14 @@ The product name is GateRook. The default home is `~/.gaterook`, the native core
 | A15 | Bound execution with deadlines, virtual threads, bulkheads, circuit breakers, and rate limits. | A slow or failing resource must not consume the whole gateway. Limits are keyed to the relevant connection or principal. |
 | A16 | Keep notification adapters lightweight and gate remote approval. | Desktop notifications offer Review/Deny. Slack and Telegram approval is allowed only when the complete safe action can be shown and policy permits it. |
 | A17 | Derive activity and insights from audit data; make telemetry export opt-in. | Do not send traces or metrics to an implicit endpoint. Trace correlation must work even without an external collector. |
-| A18 | Use standalone, signal-based, zoneless Angular with kit styles. | Native dialog/popover behavior avoids a second overlay and styling system. |
+| A18 | Use standalone, signal-based, zoneless Angular with shared styles. | Native dialog/popover behavior avoids a second overlay and styling system. |
 | A19 | Use Lucide, a JSON Schema form renderer, and lazy CodeMirror editors. | Exact actions are server-produced code/diff segments, not a client-side reinterpretation of editable text. |
 | A20 | Harden Electron and keep the launch secret in main. | Sandboxed renderer, context isolation, a narrow preload API, CSP, Trusted Types, validated IPC, and controlled navigation protect the process boundary. |
 | A21 | Authenticate every admin request with a launch-secret HMAC. | A random nonce and timestamp prevent replay; the raw launch secret is never sent as a reusable HTTP credential. |
 | A22 | Model one local desktop user. | Roles, OIDC, and multi-user identity are outside the current desktop application. |
 | A23 | Adapt MINA SSHD for native-image constraints. | The shaded dependency excludes filesystem-provider discovery; crypto provider handling avoids unsupported runtime JCE registration. |
 
-Exact dependency versions are pinned by [the Maven parent](../pom.xml), [the npm lockfile](../package-lock.json), and [the design lockfile](../design/package-lock.json). The baseline is Spring Boot 4.1.2, Java 25, Electron 45, and Angular 22.
+Exact dependency versions are pinned by [the Maven parent](../pom.xml) and [the npm lockfile](../package-lock.json). The baseline is Spring Boot 4.1.2, Java 25, Electron 45, and Angular 22.
 
 ## 2. Repository and module boundaries
 
@@ -360,15 +360,15 @@ A server at a URL is added the way Claude Desktop, Cursor or Codex add one: by i
 
 The metadata document is a contract between this client and the website that publishes it: its `client_id` equals its URL, and its redirect URIs, grants and `none` match what the client sends. The URL must stay stable. Authorization servers fetch it without following redirects and cache it as its HTTP headers allow. While it is unavailable, new sign-ins at those servers fail on the provider's page, which can't return to GateRook; the sign-in then waits until it is cancelled or expires. The person's OAuth app is the way around a provider that refuses the document.
 
-## 8. Angular UI and design kit
+## 8. Angular UI
 
 ### 8.1 Structure and styling
 
-The Angular application uses standalone components, signals, zoneless change detection, lazy routes, and the canonical [design kit](../design/README.md). Tokens own themes; components do not branch on theme or invent raw colors/layout surfaces. Fonts, logos, and theme boot assets are synchronized from `design/` into ignored UI build inputs.
+The Angular application uses standalone components, signals, zoneless change detection, and lazy routes. Its compiled stylesheet, fonts, logos, and theme bootstrap are versioned in `assets/`; the asset synchronization script copies runtime files into ignored UI build inputs. Semantic CSS variables own themes; components reuse those variables and existing layout primitives rather than inventing colors or surfaces.
 
-### 8.2 Interaction parity
+### 8.2 Interaction behavior
 
-Kit behavior is represented by Angular directives/components with parity tests. Native `<dialog>` and popovers keep focus, announcements, and menus in the correct modal subtree. Every actionable control has a native semantic element and accessible name. Keyboard navigation, disabled reasons, loading/empty/error states, and high-contrast themes are part of the contract.
+Shared interaction behavior is implemented by Angular directives/components with behavior tests. Native `<dialog>` and popovers keep focus, announcements, and menus in the correct modal subtree. Every actionable control has a native semantic element and accessible name. Keyboard navigation, disabled reasons, loading/empty/error states, and high-contrast themes are part of the contract.
 
 ### 8.3 Schema forms and editors
 
@@ -404,7 +404,7 @@ SSH log health probes authenticate, open SFTP and validate the selected root wit
 
 ### 8.4 Screens and data
 
-The [blueprint](../design/BLUEPRINT.md) specifies screens and a coherent demo world. Demo data and dev element routes are development facilities; production routing excludes the gallery. The core owns the clock used for expiry and state. UI tests cover behavior against core-shaped data; [visual comparison](../ui/README.md) helps inspect kit parity.
+Screens consume core API data, and the development gallery uses a coherent demo world. Demo data and dev element routes are development facilities; production routing excludes the gallery. The core owns the clock used for expiry and state. UI tests cover behavior against core-shaped data; see [UI development](../ui/README.md) for the demo environment and gallery.
 
 ### 8.5 Exact action display
 
@@ -412,9 +412,9 @@ Approval text, structured fields, diff, warnings, and suspicious-character segme
 
 JSON action previews default to a Pretty view that changes only structural whitespace. Preserve number and string lexemes, property order, duplicate keys, and suspicious-character segments. The Original view restores the core's displayed segments; Copy follows the active view. Invalid, truncated, oversized, or unsafe-to-format previews stay in their original form. Display formatting never changes execution arguments or the approval digest.
 
-### 8.6 Application and kit compatibility
+### 8.6 Screen and runtime contracts
 
-The application's Overview follows the kit's [connection map](../design/pages/overview-map.html) using current core data. Selecting an endpoint scopes service membership and AI-app status together. Search includes connections outside the initial compact list; unreachable badges filter enabled problem connections. Connection switches apply globally, while endpoint switches pause only that endpoint and preserve saved settings. Missing data is explicitly unavailable. Decorative paths show configured access, and the request example sends no traffic.
+The application's Overview presents a connection map using current core data. Selecting an endpoint scopes service membership and AI-app status together. Search includes connections outside the initial compact list; unreachable badges filter enabled problem connections. Connection switches apply globally, while endpoint switches pause only that endpoint and preserve saved settings. Missing data is explicitly unavailable. Decorative paths show configured access, and the request example sends no traffic.
 
 Adding an existing service previews its eligible tools and modes before connecting it to the selected endpoint. New MCP sources open the registry, URL, or configuration flow; those flows review their own endpoint scope. AI-app Connect actions keep the selected endpoint and show the exact setup review before changing client configuration. First connection setup can create an endpoint for the selected environment. Do not infer that every prototype is a current API capability. The following numbered contracts retain the references used by source comments, without an implementation progress log.
 
@@ -477,7 +477,7 @@ Older source comments use compact area identifiers. They identify architectural 
 | K5 | Activity, trace aggregation, insights, export cursors, and audit integrity |
 | K6 | Signed catalog verification, pinned artifacts, expiry, revocation, and rollback prevention |
 | S1 | Local/external secrets, rotation, references, leases, and leak prevention |
-| U0–U16 | Angular foundation, kit parity, application pages, and state/interaction tests |
+| U0–U16 | Angular foundation, shared interactions, application pages, and state/interaction tests |
 | E1 | Electron process lifecycle, proxy/IPC boundary, security controls, and desktop smoke |
 | N1 / R1 | Native-image/AOT checks and installer/release validation, independently of JVM success |
 

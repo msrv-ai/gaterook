@@ -17,9 +17,9 @@ import { ToastService } from '../../kit/toast.service';
 import { ApprovalsPage } from './approvals.page';
 
 /**
- * The Approvals page against the kit's page script (design/pages/approvals.html): which request opens, where focus
+ * The Approvals page against the kit's page script: which request opens, where focus
  * goes, what a decision does to the queue, live updates, the history tab and the empty, loading and error states.
- * The admin API is faked at the service level with the demo world's requests (BLUEPRINT §9).
+ * The admin API is faked at the service level with the demo world's requests.
  */
 
 const NOW = Date.parse('2026-10-22T14:30:00+02:00');

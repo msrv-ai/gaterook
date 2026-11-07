@@ -5,7 +5,7 @@ import { topLayer } from './top-layer';
 export const COPY_FAILED = "Couldn't copy. Select the text and copy it.";
 
 /**
- * Writes text to the clipboard and says whether it worked (kit.js "copy" uses `navigator.clipboard.writeText`).
+ * Writes text to the clipboard and says whether it worked.
  *
  * Why not CDK `Clipboard`: it copies through a hidden textarea appended to `<body>`, and `<body>` is inert while a
  * modal `<dialog>` is open — `execCommand('copy')` then copies nothing although it returns as if it had. Most copies

@@ -16,8 +16,7 @@ import { GwIcon } from '../../icons';
 let nextId = 0;
 
 /**
- * `<section gwHowItWorks summary="…" stepsLabel="What happens to a secret" persist="secrets">` (elements/
- * how-it-works.html): three or four numbered steps that explain a mechanism before the user configures it, in a muted
+ * `<section gwHowItWorks summary="…" stepsLabel="What happens to a secret" persist="secrets">`: three or four numbered steps that explain a mechanism before the user configures it, in a muted
  * card that folds away once the user knows it (the choice is remembered per `persist` key). Steps are
  * `<li gwHowItWorksStep icon="key-round" heading="Store or reference">text, <code class="gw-code">…</code></li>`;
  * an optional `<p class="gw-how-it-works__more" gwHowItWorksMore>` link goes after them. From lg the steps run across

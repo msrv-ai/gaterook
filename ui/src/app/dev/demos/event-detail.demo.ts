@@ -15,7 +15,7 @@ type EventKey = keyof typeof DEMO_EVENTS;
 const LIVE_DECISION: Partial<Record<EventKey, string>> = { allowed: 'allowed', denied: 'denied', expired: 'expired', error: 'error' };
 
 /**
- * Dev only: design/elements/event-detail.html, each state of one logged call and a trace. Allowed, denied, expired
+ * Dev only: each state of one logged call and a trace. Allowed, denied, expired
  * and error are the dev core's calls (`GET /api/activity/events/{id}`) when the GW_DEMO world has one with that
  * decision; the approved mutation (the world has none that ran) and the trace (the world logs no multi-call task)
  * are fixtures on the same clock.

@@ -40,7 +40,7 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Environment policies (ARCHITECTURE.md §2.2 {@code policy}, kit Policies, BLUEPRINT §9): one row per environment that
+ * Environment policies (ARCHITECTURE.md §2.2 {@code policy}, kit Policies): one row per environment that
  * stores only what the person set; everything else comes from the section schemas ({@code x-env-default}, then
  * {@code default}) and, for {@code stage}, from {@code dev}, which it inherits (keys with {@code x-inherit: false}
  * excepted).

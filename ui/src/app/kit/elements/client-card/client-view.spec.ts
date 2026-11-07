@@ -33,7 +33,7 @@ import { DEMO_GRANTS, DEMO_TUNNEL_OFF, DEMO_TUNNEL_ON, DEMO_CONSENT } from '../.
 const words = (parts: readonly { text: string }[]) => parts.map((p) => p.text).join('');
 const [dev, stage, prod] = DEMO_CLIENT_ENDPOINTS;
 
-describe('client-card view (design/elements/client-card.html)', () => {
+describe('client-card view', () => {
   it('labels registered OAuth clients by name and metadata clients by host', () => {
     const grant = { ...DEMO_GRANTS[0], client: 'localhost', clientName: ' Cursor ', clientKind: 'dcr' as const };
     expect(oauthClientLabel(grant)).toBe('Cursor');
@@ -124,7 +124,7 @@ describe('client-card view (design/elements/client-card.html)', () => {
     expect(changeSummary({ added: 7, removed: 0 })).toBe('7 additions');
   });
 
-  it('lists what Disconnect removes, revokes and keeps (pages/clients.html, pages/endpoint-detail.html)', () => {
+  it('lists what Disconnect removes, revokes and keeps', () => {
     const link = DEMO_CLIENTS.codex.links[0];
     const f = disconnectFacts(DEMO_CLIENTS.codex, link, DEMO_DISCONNECT_CODEX);
     expect(words(f.removes!)).toBe('[mcp_servers.gaterook-dev] from ~/.codex/config.toml');
@@ -153,7 +153,7 @@ describe('client-card view (design/elements/client-card.html)', () => {
     expect(single.button).toBe('Disconnect Codex');
   });
 
-  it('words the Clients screen as pages/clients.html does', () => {
+  it('words the Clients screen as clients screen does', () => {
     expect(words(authParts(DEMO_CLIENTS.claudeDesktop, DEMO_CLIENTS.claudeDesktop.links[0], false, true))).toBe(
       'A short-lived token per endpoint, issued on the fly and never written to the config',
     );

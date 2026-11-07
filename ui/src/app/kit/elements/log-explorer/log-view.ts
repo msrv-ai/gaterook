@@ -5,7 +5,7 @@ import { clientName } from '../shared/client-mark';
 import { decisionLook } from '../shared/dictionaries';
 
 /**
- * What the log-explorer element shows (design/elements/log-explorer.html): the query as filter tags, the time range,
+ * What the log-explorer element shows: the query as filter tags, the time range,
  * the facets with their counts, and the histogram by decision. Pure functions of the admin API's activity answers
  * (`/api/activity/facets`, `/api/activity/histogram`) and the query text; tested without a DOM.
  */
@@ -76,7 +76,7 @@ export interface RangeOption {
 
 const DAY_MS = 24 * 3_600_000;
 
-/** Activity's relative ranges (design/elements/log-explorer.html): a call is looked up minutes to days later. */
+/** Activity's relative ranges: a call is looked up minutes to days later. */
 export const RANGES: readonly RangeOption[] = [
   { key: '15m', label: 'Last 15 minutes', ms: 15 * 60_000 },
   { key: '1h', label: 'Last hour', ms: 3_600_000 },
@@ -84,7 +84,7 @@ export const RANGES: readonly RangeOption[] = [
   { key: '7d', label: 'Last 7 days', ms: 7 * DAY_MS },
 ];
 
-/** Insights' ranges (design/pages/insights.html): sums want an hour at least and reach back a month. */
+/** Insights' ranges: sums want an hour at least and reach back a month. */
 export const INSIGHTS_RANGES: readonly RangeOption[] = [
   { key: '1h', label: 'Last hour', ms: 3_600_000 },
   { key: '24h', label: 'Last 24 hours', ms: DAY_MS },
@@ -221,7 +221,7 @@ export function countText(matched: number | null, total: number | null, filtered
 }
 
 /**
- * The count line of the Activity page (pages/activity.html `#ac-count`): "1,287 calls · 3 waiting for approval"
+ * The count line of the Activity page: "1,287 calls · 3 waiting for approval"
  * without filters, "6 of 1,287 calls" with them, "166 of 1,287 calls from 11:00 to 12:00" in a zoomed hour, and
  * "Loading calls" until the core has answered (the line is `role=status`: it never says "0 calls" by mistake).
  */

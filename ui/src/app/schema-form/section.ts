@@ -10,7 +10,7 @@ import { SchemaForm } from './schema-form';
  * One top-level object of the schema as a form section (ARCHITECTURE.md §8.3, gw-form contract): a `fieldset` with
  * its legend, or — when it holds a nested fieldset (choice cards, a sub-object, the page's own `lead` such as the
  * secret source picker) — a `section` with an h3 legend. `x-collapsed` puts the fields behind a disclosure button
- * ("Advanced settings", kit.js data-gw-toggle). `lead` renders first in the section's rows (the connection's Name
+ * ("Advanced settings"). `lead` renders first in the section's rows (the connection's Name
  * in Connection, the source cards in Credentials).
  */
 @Component({

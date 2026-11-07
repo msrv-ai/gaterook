@@ -29,7 +29,7 @@ import { DesktopNoticeToasts } from './shell/desktop-notice-toasts';
 import { NavigationHistory } from './shell/navigation-history';
 import { GwTitleStrategy } from './shell/title.strategy';
 
-/** One link of the sidebar (BLUEPRINT §2, pages/_shell.html): label, route and section icon. */
+/** One link of the sidebar (navigation): label, route and section icon. */
 interface NavLink {
   readonly label: string;
   readonly route: string;
@@ -94,7 +94,7 @@ const WARNING_ICONS: Record<string, string> = {
 };
 
 /**
- * The window (pages/_shell.html, copied 1:1): skip link, titlebar (Back, section name, Search ⌘K, the approvals bell,
+ * The window (_shell screen, copied 1:1): skip link, titlebar (Back, section name, Search ⌘K, the approvals bell,
  * Report a bug, Appearance), the sidebar with the live approvals counter and core status, and main with the app-wide
  * banners, the page and the command palette. While the core isn't running the status screen is the whole window
  * (core-starting); Welcome uses the no-sidebar variant; the dev gallery has no frame at all.
@@ -102,7 +102,7 @@ const WARNING_ICONS: Record<string, string> = {
  * The app also routes what comes from outside, strictly by allowlist (`shell/deep-links.ts`): `gaterook://` deep
  * links from Electron (Review in an OS notification, Copy link in Activity) and the core's `ui.open` ("Open in app"
  * in Slack or Telegram) only navigate, and re-arm the decision buttons' 700 ms activation delay. `#fragment`s select
- * tabs on every navigation, the same-route ones included (GwFragmentTabs, kit.js `hashchange`).
+ * tabs on every navigation, the same-route ones included (GwFragmentTabs).
  *
  * Two things wait for a person on any page, so the window holds them, not a page: a local app sign-in (the
  * OAuth consent dialog, ARCHITECTURE.md §7.3 — the oldest waiting request, Deny focused, "Allow access" after 700 ms
