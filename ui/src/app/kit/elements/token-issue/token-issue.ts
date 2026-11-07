@@ -87,7 +87,7 @@ export function tokenView(row: TokenRow, slug: string, now: number): TokenView {
 let nextId = 0;
 
 /**
- * `<div gwTokens slug="dev" [tokens]="rows" (issue)="…" (revoke)="…">` (elements/token-issue.html): the tokens of one
+ * `<div gwTokens slug="dev" [tokens]="rows" (issue)="…" (revoke)="…">`: the tokens of one
  * endpoint. Only the prefix is listed, never the token; Claude Desktop (the .mcpb bridge) and Codex (the gw-bridge
  * headers helper) get a 15-minute token on the fly, so their rows say how, and Revoke ends the AI app's grant. An expiry
  * within 7 days gets a warning badge, "Last used" opens Activity filtered by the token, Revoke asks with a confirmation
@@ -107,7 +107,7 @@ export class GwTokens {
   readonly tokens = input.required<readonly TokenRow[]>();
   readonly level = input(3, { transform: numberAttribute });
   /**
-   * The endpoint's own Tokens tab (pages/endpoint-detail.html): titled "Access tokens", the page's description (no
+   * The endpoint's own Tokens tab: titled "Access tokens", the page's description (no
    * endpoint name, the IP allowlist line) and rows that don't repeat the client the page already shows.
    */
   readonly pageCopy = input(false, { transform: booleanAttribute });
@@ -158,7 +158,7 @@ export class GwTokens {
 export type IssueStep = 'form' | 'result';
 
 /**
- * `<gw-token-issue-dialog slug="dev" [issued]="token" [error]="nameError" (issue)="…">` (elements/token-issue.html,
+ * `<gw-token-issue-dialog slug="dev" [issued]="token" [error]="nameError" (issue)="…">` (token issue component,
  * Issue token): name, lifetime (184 days by default) and the fixed endpoint; then the result step with the only copy of
  * the token (initial focus: Copy). The result step has no close button and Done needs "I've stored this token" (the
  * dialog is guarded: Esc and the backdrop don't close it). Desktop tokens have no IP allowlist.

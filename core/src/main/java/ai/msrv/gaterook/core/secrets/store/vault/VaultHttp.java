@@ -2,7 +2,9 @@ package ai.msrv.gaterook.core.secrets.store.vault;
 
 import ai.msrv.gaterook.connectors.support.Pem;
 import ai.msrv.gaterook.connectors.support.TrustStores;
+import ai.msrv.gaterook.connectors.support.egress.HostResolver;
 import ai.msrv.gaterook.core.secrets.store.SecretJson;
+import ai.msrv.gaterook.core.secrets.store.StoreAddress;
 import ai.msrv.gaterook.core.secrets.store.StoreCall;
 import ai.msrv.gaterook.core.secrets.store.StoreException;
 import java.io.IOException;
@@ -18,14 +20,19 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import javax.net.ssl.SSLException;
 import tools.jackson.databind.JsonNode;
 
 /**
  * The HTTP side of a Vault/OpenBao store (report 12 §6, §7.5): {@code java.net.http}, no redirects (a 307 from a
  * standby would carry the token to another host), no proxy unless the store says so, the store's own CA, the headers
- * {@code X-Vault-Request} and {@code X-Vault-Namespace}. Bodies are byte arrays the caller zeroes; error texts come
- * from Vault's {@code errors} list, which names paths, never values.
+ * {@code X-Vault-Request} and {@code X-Vault-Namespace}. Before each request, what the store's name resolves to is
+ * judged ({@link StoreAddress#checkResolved}). Bodies are byte arrays the caller zeroes; error texts come from Vault's
+ * {@code errors} list, which names paths, never values.
  */
 final class VaultHttp implements AutoCloseable {
 
@@ -54,10 +61,18 @@ final class VaultHttp implements AutoCloseable {
   }
 
   private final VaultSettings settings;
+  private final Set<Integer> corePorts;
+  private final HostResolver resolver;
   private final HttpClient client;
 
-  VaultHttp(VaultSettings settings) {
+  /**
+   * @param corePorts the core's listeners: never reached, also when the store's name resolves to this computer
+   * @param resolver  resolves the store's name for that check; tests substitute it
+   */
+  VaultHttp(VaultSettings settings, Set<Integer> corePorts, HostResolver resolver) {
     this.settings = settings;
+    this.corePorts = Set.copyOf(corePorts);
+    this.resolver = resolver;
     HttpClient.Builder b = HttpClient.newBuilder()
         .followRedirects(HttpClient.Redirect.NEVER)
         .version(HttpClient.Version.HTTP_1_1)
@@ -78,9 +93,11 @@ final class VaultHttp implements AutoCloseable {
    * long as the request).
    *
    * @param body JSON or {@code null}; the caller zeroes it
-   * @throws StoreException {@code UNAVAILABLE} when Vault can't be reached or answers from a standby node
+   * @throws StoreException {@code UNAVAILABLE} when Vault can't be reached or answers from a standby node,
+   *                        {@code INVALID} when the store's name resolves to an address the core never reaches
    */
   Response send(String method, String path, byte[] body, char[] token, StoreCall call) {
+    StoreAddress.checkResolved(settings.address(), corePorts, resolver);
     URI uri = URI.create(settings.address() + "/v1/" + path);
     HttpRequest.Builder r = HttpRequest.newBuilder(uri).timeout(call.requestTimeout())
         .header("X-Vault-Request", "true")
@@ -99,7 +116,23 @@ final class VaultHttp implements AutoCloseable {
     }
     HttpResponse<byte[]> response;
     try {
-      response = client.send(r.build(), HttpResponse.BodyHandlers.ofByteArray());
+      var pending = client.sendAsync(r.build(), HttpResponse.BodyHandlers.ofByteArray());
+      try {
+        // HttpRequest's timer ends when headers arrive; bound receipt of the complete body as well.
+        response = pending.get(call.requestTimeout().toNanos(), TimeUnit.NANOSECONDS);
+      } catch (TimeoutException e) {
+        pending.cancel(true);
+        throw new HttpTimeoutException("The complete Vault response did not arrive in time.");
+      } catch (InterruptedException | RuntimeException e) {
+        pending.cancel(true);
+        throw e;
+      } catch (ExecutionException e) {
+        Throwable cause = e.getCause();
+        if (cause instanceof IOException io) throw io;
+        if (cause instanceof RuntimeException runtime) throw runtime;
+        if (cause instanceof Error error) throw error;
+        throw new IOException("The Vault request failed.", cause);
+      }
     } catch (HttpConnectTimeoutException | ConnectException e) {
       throw StoreException.unavailable("Can't reach Vault at " + settings.address() + ". Check the address and the "
           + "VPN, then test again.", e);

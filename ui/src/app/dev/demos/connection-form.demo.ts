@@ -18,7 +18,7 @@ interface Loaded {
 }
 
 /**
- * Dev only: design/elements/connection-form.html. The form spec and the configs are the demo world's, live from the
+ * Dev only: connection-form component. The form spec and the configs are the demo world's, live from the
  * core (`GET /api/connector-types/postgres/form`, `/api/connections/dev-db/duplicate`, …); the secret stores, the
  * references and the test results are fixtures, since the demo world connects no store and its connectors don't run.
  */

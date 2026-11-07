@@ -1,4 +1,4 @@
-import { DOCUMENT, Directive, ElementRef, Injectable, Injector, afterNextRender, booleanAttribute, inject, input, output, signal } from '@angular/core';
+import { DOCUMENT, Directive, ElementRef, Injectable, Injector, OnDestroy, afterNextRender, booleanAttribute, inject, input, output, signal } from '@angular/core';
 import { MenuService } from './menu.service';
 
 /**
@@ -7,24 +7,26 @@ import { MenuService } from './menu.service';
  */
 @Injectable({ providedIn: 'root' })
 export class DialogStack {
-  private readonly stack = signal<readonly HTMLDialogElement[]>([]);
+  private readonly stack = signal<readonly { element: HTMLDialogElement; scope: number }[]>([]);
+  private nextScope = 1;
 
   /** The open modal dialog on top, or null. */
-  readonly top = (): HTMLDialogElement | null => this.stack().at(-1) ?? null;
+  readonly top = (): HTMLDialogElement | null => this.stack().at(-1)?.element ?? null;
+  /** A fresh identity for each opening, including reopening the same dialog element. */
+  readonly scope = (): number | null => this.stack().at(-1)?.scope ?? null;
   readonly openCount = (): number => this.stack().length;
 
   push(d: HTMLDialogElement): void {
-    this.stack.update((s) => [...s.filter((x) => x !== d), d]);
+    this.stack.update((s) => [...s.filter((x) => x.element !== d), { element: d, scope: this.nextScope++ }]);
   }
 
   remove(d: HTMLDialogElement): void {
-    this.stack.update((s) => s.filter((x) => x !== d));
+    this.stack.update((s) => s.filter((x) => x.element !== d));
   }
 }
 
 /**
- * `<dialog class="gw-dialog" gwDialog #d="gwDialog">` and `<dialog class="gw-drawer" gwDialog>` (kit.js "dialogs &
- * drawers"): `open()` calls `showModal()` (focus trap, Esc, inert page, top layer); the initial focus is the
+ * `<dialog class="gw-dialog" gwDialog #d="gwDialog">` and `<dialog class="gw-drawer" gwDialog>`: `open()` calls `showModal()` (focus trap, Esc, inert page, top layer); the initial focus is the
  * markup's `autofocus` (first field, or Cancel in a confirmation). On close, focus returns to the opener — the menu's
  * trigger when the opener was a menu item, the first opener of a dialog chain. A backdrop click closes it unless it
  * is `gwDialogStatic` (forms) or guarded.
@@ -41,7 +43,7 @@ export class DialogStack {
     '(click)': 'onClick($event)',
   },
 })
-export class GwDialog {
+export class GwDialog implements OnDestroy {
   readonly element: HTMLDialogElement = inject(ElementRef<HTMLDialogElement>).nativeElement;
   private readonly doc = inject(DOCUMENT);
   private readonly menus = inject(MenuService);
@@ -57,6 +59,11 @@ export class GwDialog {
   readonly opened = output<void>();
 
   readonly isOpen = signal(false);
+
+  ngOnDestroy(): void {
+    // Routing can destroy the dialog before the native asynchronous close event reaches its listener.
+    this.stack.remove(this.element);
+  }
 
   /** Opens the dialog modally; `opener` is where focus returns (default: the focused element). */
   open(opener?: HTMLElement | null): void {
@@ -122,7 +129,7 @@ export class GwDialog {
   }
 }
 
-/** `<button [gwDialogOpen]="d">` (kit.js `data-gw-dialog-open`): opens the dialog, focus returns here on close. */
+/** `<button [gwDialogOpen]="d">`: opens the dialog, focus returns here on close. */
 @Directive({ selector: '[gwDialogOpen]', host: { '(click)': 'onClick($event)', 'aria-haspopup': 'dialog' } })
 export class GwDialogOpen {
   private readonly el: HTMLElement = inject(ElementRef<HTMLElement>).nativeElement;
@@ -134,7 +141,7 @@ export class GwDialogOpen {
   }
 }
 
-/** `<button gwDialogClose="value">` inside a dialog (kit.js `data-gw-dialog-close`). */
+/** `<button gwDialogClose="value">` inside a dialog. */
 @Directive({ selector: '[gwDialogClose]', host: { '(click)': 'onClick()' } })
 export class GwDialogClose {
   private readonly el: HTMLElement = inject(ElementRef<HTMLElement>).nativeElement;
@@ -146,7 +153,7 @@ export class GwDialogClose {
 }
 
 /**
- * Dialog steps (kit.js `data-gw-dialog-next`): on a form, a valid submit closes this dialog and opens the next one; on
+ * Dialog steps: on a form, a valid submit closes this dialog and opens the next one; on
  * a button (not submit), the same after `reportValidity()`. The chain hands its first opener on, so the last step
  * returns focus there.
  */

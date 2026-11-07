@@ -73,7 +73,7 @@ class CoreController {
 
   record EndpointHit(String slug, String env, String route) {}
 
-  /** Pages of the kit (BLUEPRINT §2), each with words a person might type for it. */
+  /** Pages of the kit, each with words a person might type for it. */
   private static final List<String[]> PAGES = List.of(
       new String[] {"overview", "Overview", "/overview", "home dashboard getting started"},
       new String[] {"approvals", "Approvals", "/approvals", "requests decide approve deny pending"},

@@ -1,19 +1,18 @@
-import { ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
+import { DOCUMENT, ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { CoreStore } from '../../core/stores/core.store';
 import { Announcer } from '../../kit/announcer';
 import { GwHowItWorks, GwHowItWorksStep } from '../../kit/elements/how-it-works/how-it-works';
 import { GwIcon } from '../../kit/icons';
 import { GwMenu, GwMenuTrigger } from '../../kit/menu';
-import { GwTabs } from '../../kit/tabs';
+import { GwTabs, selectFromFragment } from '../../kit/tabs';
 import { ToastService } from '../../kit/toast.service';
 import { InstalledView, installedViews, plural, v } from './connectors-view';
 import { ConnectorsData } from './connectors.data';
 import { GwConfirmDialog } from './dialogs/confirm.dialog';
 import { failureText } from './dialogs/failure';
-import { GwMcpAddDialog, McpReviewed } from './dialogs/mcp-add.dialog';
-import { GwMcpEndpointDialog, McpServerConnected } from './dialogs/mcp-endpoint.dialog';
-import { GwMcpReviewDialog } from './dialogs/mcp-review.dialog';
+import { GwMcpSetupFlow } from './mcp-setup-flow';
 import { GwMcpSignInDialog } from './dialogs/mcp-sign-in.dialog';
 import { GwPluginInstallDialog, PluginChecked } from './dialogs/plugin-install.dialog';
 import { GwPluginReviewDialog } from './dialogs/plugin-review.dialog';
@@ -28,14 +27,14 @@ import { GwTemplatesPanel, TemplateAction } from './panels/templates.panel';
 export const SKELETON_DELAY_MS = 300;
 
 /**
- * Connectors (design/pages/connectors.html; ARCHITECTURE.md §8.4 "connectors"): the types of resource the gateway
+ * Connectors (ARCHITECTURE.md §8.4 "connectors"): the types of resource the gateway
  * can reach and the tools each brings, and the three ways to add one without rebuilding — a template, a plugin or an
  * MCP server.
  *
  * - Header: "Add connector" (the page's one primary) — New template (Templates tab), Install plugin, Add MCP server.
  * - How it works: the three levels of connectors, folded and remembered.
  * - Tabs Installed / Catalog / Templates / MCP servers with their counts; `#installed|catalog|templates|mcp-servers`
- *   deep-links a tab (the app's fragment follower, kit.js `tabFromHash`).
+ *   deep-links a tab (the app's fragment follower).
  * - The dialogs of the kit page live here, outside the tabs (a dialog inside a hidden panel can't show): Install
  *   plugin → its review (signed, or unsigned in `--danger` with an acknowledgement), Update with the manifest diff,
  *   Uninstall, Add MCP server → its review (`--danger`), Remove MCP server, and the confirmations of templates.
@@ -61,10 +60,8 @@ export const SKELETON_DELAY_MS = 300;
     GwPluginInstallDialog,
     GwPluginReviewDialog,
     GwPluginUpdateDialog,
-    GwMcpAddDialog,
-    GwMcpReviewDialog,
+    GwMcpSetupFlow,
     GwMcpSignInDialog,
-    GwMcpEndpointDialog,
     GwConfirmDialog,
     GwTemplateInstallDialog,
   ],
@@ -81,17 +78,19 @@ export class ConnectorsPage {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly injector = inject(Injector);
+  private readonly doc = inject(DOCUMENT);
+  private readonly fragment = toSignal(this.route.fragment);
 
   /** `?add=mcp-server` (the connection wizard's External MCP server): Add MCP server opens on the MCP servers tab. */
   readonly add = input<string | null>(null);
+  /** Overview's service chooser opens the matching real MCP source form. */
+  readonly source = input<string | null>(null);
 
   private readonly installDialog = viewChild.required(GwPluginInstallDialog);
   private readonly reviewDialog = viewChild.required(GwPluginReviewDialog);
   private readonly updateDialog = viewChild.required(GwPluginUpdateDialog);
-  private readonly addServerDialog = viewChild.required(GwMcpAddDialog);
-  private readonly serverReviewDialog = viewChild.required(GwMcpReviewDialog);
+  private readonly mcpSetup = viewChild.required(GwMcpSetupFlow);
   private readonly serverSignInDialog = viewChild.required(GwMcpSignInDialog);
-  private readonly serverEndpointDialog = viewChild.required(GwMcpEndpointDialog);
   private readonly confirmDialog = viewChild.required(GwConfirmDialog);
   private readonly templateInstallDialog = viewChild.required(GwTemplateInstallDialog);
   private readonly templatesPanel = viewChild.required(GwTemplatesPanel);
@@ -119,6 +118,17 @@ export class ConnectorsPage {
 
   constructor() {
     void this.data.start();
+    // Back to a plain /connectors URL restores the default tab on the reused page.
+    let hadFragment = false;
+    effect(() => {
+      const fragment = this.fragment();
+      if (!fragment && hadFragment) {
+        afterNextRender(() => {
+          if (!this.route.snapshot.fragment) selectFromFragment(this.doc, 'installed');
+        }, { injector: this.injector });
+      }
+      hadFragment = !!fragment;
+    });
     const timer = setTimeout(() => this.slow.set(true), SKELETON_DELAY_MS);
     effect((onCleanup) => {
       if (this.installed()) clearTimeout(timer);
@@ -126,12 +136,13 @@ export class ConnectorsPage {
     });
     effect(() => {
       if (this.add() !== 'mcp-server') return;
+      const source = this.source();
       untracked(() =>
         afterNextRender(
           () => {
-            this.addServerDialog().open(null);
+            this.mcpSetup().open(null, source === 'registry' || source === 'url' ? source : 'manual');
             // Once: a reload or Back doesn't open it again.
-            void this.router.navigate([], { relativeTo: this.route, queryParams: { add: null }, queryParamsHandling: 'merge', fragment: 'mcp-servers', replaceUrl: true });
+            void this.router.navigate([], { relativeTo: this.route, queryParams: { add: null, source: null }, queryParamsHandling: 'merge', fragment: 'mcp-servers', replaceUrl: true });
           },
           { injector: this.injector },
         ),
@@ -153,12 +164,18 @@ export class ConnectorsPage {
 
   // ── Header menu ───────────────────────────────────────────────────────────────────────────────────────────────
 
+  protected onTabSelected(tab: string): void {
+    const fragment = tab === 'tab-mcp' ? 'mcp-servers' : tab.replace(/^tab-/, '');
+    // Keep sidebar shortcuts reusable after switching tabs, without adding a Back entry for each tab.
+    void this.router.navigate([], { relativeTo: this.route, fragment, queryParamsHandling: 'preserve', replaceUrl: true });
+  }
+
   protected openInstall(e: Event): void {
     this.installDialog().open(this.triggerOf(e));
   }
 
   protected openAddServer(e: Event): void {
-    this.addServerDialog().open(this.triggerOf(e));
+    this.mcpSetup().open(this.triggerOf(e));
   }
 
   // ── Plugins ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -325,7 +342,7 @@ export class ConnectorsPage {
           async () => {
             const source = { catalog: `${e.id}@${e.version}` } as const;
             const review = await this.data.reviewServer(source);
-            this.serverReviewDialog().show({
+            this.mcpSetup().showReviewed({
               review,
               source,
               name: review.name || e.id,
@@ -397,7 +414,7 @@ export class ConnectorsPage {
 
   protected onServerAction(a: McpServerAction): void {
     if (a.type === 'add' || !a.server) {
-      this.addServerDialog().open(a.opener);
+      this.mcpSetup().open(a.opener);
       return;
     }
     const s = a.server;
@@ -456,15 +473,6 @@ export class ConnectorsPage {
       },
       a.opener,
     );
-  }
-
-  protected onReviewed(r: McpReviewed): void {
-    this.serverReviewDialog().show(r);
-  }
-
-  /** The server connected: its tools join an endpoint next, as a connection's do at the end of the wizard. */
-  protected onConnected(c: McpServerConnected): void {
-    void this.serverEndpointDialog().show(c);
   }
 
   /** The menu item's menu trigger: the item itself is hidden once the menu closes. */

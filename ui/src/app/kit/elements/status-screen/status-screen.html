@@ -22,8 +22,14 @@
             @case ('touch-id') {
               <p class="gw-text-body-read">Use Touch ID or your Mac password to unlock your saved credentials. Choose Unlock GateRook, then complete the system dialog. If you deny access, GateRook will close.</p>
             }
+            @case ('mac-password') {
+              <p class="gw-text-body-read">Enter your Mac password to unlock your saved credentials. Choose Unlock GateRook, then complete the system dialog. If you deny access, GateRook will close.</p>
+            }
             @case ('windows-hello') {
               <p class="gw-text-body-read">Use Windows Hello to unlock your saved credentials with your face, fingerprint, or PIN. Choose Unlock GateRook, then complete the system dialog. If you deny access, GateRook will close.</p>
+            }
+            @case ('windows-password') {
+              <p class="gw-text-body-read">Enter your Windows password to unlock your saved credentials. Choose Unlock GateRook, then complete the system dialog. If you deny access, GateRook will close.</p>
             }
             @default {
               <p class="gw-text-body-read">After you choose Unlock GateRook, your operating system may ask you to allow access or enter your computer password. If you deny access, GateRook will close.</p>
@@ -46,7 +52,9 @@
             @if (unlocking) {
               @switch (access.authentication) {
                 @case ('touch-id') {Complete Touch ID or enter your Mac password in the system dialog to continue.}
+                @case ('mac-password') {Enter your Mac password in the system dialog to continue.}
                 @case ('windows-hello') {Complete Windows Hello in the system dialog to continue.}
+                @case ('windows-password') {Enter your Windows password in the system dialog to continue.}
                 @default {Complete the request from your operating system to continue.}
               }
             }
@@ -63,8 +71,7 @@
           <div class="gw-status-screen__intro">
             <div class="gw-status-screen__text">
               <ng-container *ngTemplateOutlet="heading; context: { $implicit: 'Starting the gateway core' }" />
-              <!-- Decision 2, ARCHITECTURE §8.6.1: a native core, not a Java runtime; it starts in well under the kit's "few seconds". -->
-              <p class="gw-text-body-read">Starting the native core and the local API on <span class="gw-mono">{{ address() }}</span>. This usually takes about a second.</p>
+              <p class="gw-text-body-read">Preparing GateRook and starting local services. This may take a moment.</p>
             </div>
           </div>
           <div class="gw-progress gw-progress--indeterminate" role="progressbar" [attr.aria-labelledby]="uid + '-title'">
@@ -312,7 +319,7 @@
   @if (steps().length) {
   <ol class="gw-stepper gw-stepper--vertical" aria-label="Start-up steps">
     @for (step of steps(); track step.id; let i = $index) {
-      <!-- The step that runs now, or the one that failed, is the current one (pages/core-starting.html). -->
+      <!-- The step that runs now, or the one that failed, is the current one. -->
       <li class="gw-stepper__step" [attr.data-state]="step.state" [attr.aria-current]="step.state === 'current' || step.state === 'error' ? 'step' : null">
         <span class="gw-stepper__marker" aria-hidden="true">
           @switch (step.state) {
@@ -352,7 +359,7 @@
 
 <ng-template #quitButton>
   @if (quitReason(); as why) {
-    <!-- A browser tab can't quit the app: the reason shows on hover and focus, next to the button (DESIGN §8). -->
+    <!-- A browser tab can't quit the app: the reason shows on hover and focus, next to the button. -->
     <span class="gw-tooltip"><button class="gw-btn" type="button" aria-disabled="true" [attr.aria-describedby]="uid + '-quit-why'">Quit</button><span class="gw-tooltip__bubble" role="tooltip" [id]="uid + '-quit-why'">{{ why }}</span></span>
   } @else {
     <button class="gw-btn" type="button" (click)="quit.emit()">Quit</button>

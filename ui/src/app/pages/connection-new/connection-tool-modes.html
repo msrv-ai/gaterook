@@ -1,3 +1,65 @@
+<div class="gw-toolbar" aria-label="Change all tool modes">
+  <div class="gw-toolbar__start">
+    <label class="gw-text-ui" for="connection-bulk-endpoint">Endpoint</label>
+    <select class="gw-select" id="connection-bulk-endpoint" [value]="bulkScope()" [disabled]="bulkBusy()" (change)="bulkScope.set($any($event.target).value)">
+      @if (endpointSlugs().length > 1) {<option value="">All endpoints</option>}
+      @for (endpoint of endpointSlugs(); track endpoint) {<option [value]="endpointSlugs().length === 1 ? '' : endpoint">{{ endpoint }}</option>}
+    </select>
+    <span class="gw-text-caption gw-fg-muted" id="connection-bulk-status" role="status">
+      @if (bulkUnavailable(); as reason) {{{ reason }}}
+      @else {{{ bulkCount() }} tools on {{ bulkTargets().length }} {{ bulkTargets().length === 1 ? 'endpoint' : 'endpoints' }}. Changes apply from the next call.}
+    </span>
+  </div>
+  <div class="gw-toolbar__end">
+    <div class="gw-menu-host">
+      <button class="gw-btn gw-btn--sm" type="button" [gwMenuTrigger]="bulkMenu" aria-haspopup="menu"
+        [attr.aria-label]="'Set all ' + connection() + ' tools to a mode'" [gwAriaDisabled]="!!bulkUnavailable()"
+        [attr.aria-busy]="bulkBusy() ? 'true' : null" aria-describedby="connection-bulk-status">
+        Set all to…
+        @if (bulkBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}
+        @else {<svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm"></svg>}
+      </button>
+      <div class="gw-menu gw-menu--right gw-menu--wide" gwMenu #bulkMenu="gwMenu" id="connection-bulk-menu" role="menu" [attr.aria-label]="'Mode for all ' + connection() + ' tools'" hidden (picked)="pickBulk($event)">
+        @for (mode of modes; track mode) {
+          <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" [attr.data-value]="mode" [disabled]="mode === 'BYPASS' && bulkReadOnly()">
+            <svg [lucideIcon]="looks[mode].icon" class="gw-icon gw-menu__icon"></svg>
+            <span class="gw-menu__label">{{ looks[mode].text }}
+              <span class="gw-menu__hint">
+                @switch (mode) {
+                  @case ('OFF') {Agents can't call any of these tools}
+                  @case ('READ_ONLY') {Only eligible read tools change; other tools keep their mode}
+                  @case ('APPROVAL') {Every eligible call waits for your decision; endpoint restrictions apply}
+                  @case ('BYPASS') {{{ bulkReadOnly() ? 'Unavailable: a selected endpoint is read only' : 'Calls run without approval, including changes to data; policy limits still apply' }}}
+                }
+              </span>
+            </span>
+          </button>
+        }
+        <div class="gw-menu__divider" role="separator"></div>
+        <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-value="DEFAULT">
+          <svg lucideIcon="rotate-ccw" class="gw-icon gw-menu__icon"></svg>
+          <span class="gw-menu__label">Restore defaults<span class="gw-menu__hint">MCP reads use Read only; other MCP tools use Approval, or Off on read-only endpoints</span></span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+@if (bulkResults().length) {
+  <div class="gw-stack gw-stack--sm" role="status" aria-label="Results of changing all tool modes">
+    @for (result of bulkResults(); track result.endpoint; let index = $index) {
+      <div>
+        <p class="gw-text-caption" [class.gw-fg-danger]="result.failed"><span class="gw-mono">{{ result.endpoint }}</span>: {{ result.failed ? 'Could not update modes. ' : '' }}{{ result.text }}</p>
+        @if (result.skipped.length) {
+          <button class="gw-btn gw-btn--link gw-btn--sm" type="button" gwToggle [attr.aria-controls]="'connection-bulk-skipped-' + index">View skipped tools<span class="gw-sr-only"> on {{ result.endpoint }}</span></button>
+          <ul class="gw-text-caption" [id]="'connection-bulk-skipped-' + index" hidden>
+            @for (skipped of result.skipped; track skipped.name) {<li><span class="gw-mono">{{ skipped.name }}</span>: {{ skipped.reason }}</li>}
+          </ul>
+        }
+      </div>
+    }
+  </div>
+}
+
 <div class="gw-table-wrap" role="region" aria-labelledby="used-by-cap" tabindex="0">
   <table class="gw-table">
     <caption class="gw-sr-only" id="used-by-cap">Tools of {{ connection() }} by endpoint, with their modes</caption>

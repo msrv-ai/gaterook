@@ -1,7 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { TimeService } from '../core/time/time.service';
 
-/** The demo world's clock (BLUEPRINT §9): Thursday 2026-10-22, 14:30, local time UTC+2. */
+/** The demo world's clock: Thursday 2026-10-22, 14:30, local time UTC+2. */
 export const DEMO_NOW = Date.parse('2026-10-22T14:30:00+02:00');
 
 /**

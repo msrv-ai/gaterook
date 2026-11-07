@@ -4,6 +4,7 @@ import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.endpoints.internal.EndpointRows;
+import ai.msrv.gaterook.core.endpoints.internal.TemporaryBypass;
 import ai.msrv.gaterook.core.endpoints.internal.ToolPairs;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointEntity;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointRepository;
@@ -32,7 +33,7 @@ import tools.jackson.databind.JsonNode;
 /**
  * Tool modes of an endpoint (kit {@code tool-policy-list}, ARCHITECTURE.md §6 endpoint-detail Tools): Off · Read only ·
  * Approval · Bypass per tool × connection. Bypass skips approval but keeps policy limits. Read only isn't offered to a tool that
- * changes data, and a plugin or MCP server tool gets it only after the person confirmed it for that tool's definition
+ * changes data. MCP tools use their read-only declaration; plugin tools require confirmation for their definition
  * and version. "Set all to…" skips what it can't set and says why. Every change is a Setup change.
  */
 @Service
@@ -111,7 +112,7 @@ public class EndpointTools {
   /** Temporarily skips approval for exactly one tool on one connection; the base mode is preserved. */
   public void setTemporaryBypass(String slug, String toolKey, String connection, int durationMinutes,
       long version, String reason) {
-    if (!List.of(15, 30, 60, 180, 720, 1440).contains(durationMinutes)) {
+    if (!List.of(15, 30, 60, 180, 720, (int) TemporaryBypass.MAX.toMinutes()).contains(durationMinutes)) {
       throw ProblemException.unprocessable("Invalid bypass duration",
           "Choose 15 or 30 minutes, or 1, 3, 12 or 24 hours.", "/durationMinutes");
     }
@@ -255,7 +256,7 @@ public class EndpointTools {
         } else {
           target = Mode.valueOf(mode);
         }
-        if (target == Mode.READ_ONLY && p.declaredBy() != null) {
+        if (target == Mode.READ_ONLY && offered(p).needsReadOnlyConfirmation()) {
           skipped.add(new Skipped(p.toolKey(), "Declared by " + p.declaredBy() + ", not verified: confirm Read only "
               + "for this tool on its own"));
           continue;

@@ -7,7 +7,7 @@ import { Env } from '../../core/api/types';
 
 /**
  * Test data in the shapes the core answers (admin.overview, clients, connections, tunnel), with the kit's numbers
- * where the tests compare wording (BLUEPRINT §9: "now" is 2026-10-22 14:30 CEST). Only the specs import this file.
+ * where the tests compare wording (demo data: "now" is 2026-10-22 14:30 CEST). Only the specs import this file.
  */
 
 export const NOW = Date.parse('2026-10-22T14:30:00+02:00');
@@ -60,7 +60,7 @@ export function health(name: string, state: string, over: Partial<HealthRow> = {
   return { name, type: 'postgres', env: 'dev', state, latencyMs: null, message: null, checkedAt: at(14, 29), typeLabel: 'PostgreSQL 16', host: null, ...over };
 }
 
-/** The kit's twelve connections (BLUEPRINT §9), in the core's order: by name. */
+/** The kit's twelve connections, in the core's order: by name. */
 export const HEALTH: HealthRow[] = [
   health('app-logs', 'healthy', { type: 'logs', latencyMs: 30, typeLabel: 'Loki' }),
   health('aws-stage', 'healthy', { type: 'aws', env: 'stage', typeLabel: 'AWS' }),

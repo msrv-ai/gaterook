@@ -110,10 +110,10 @@ class McpIT {
   @Test
   void eachEraIsCheckedBeforeAnythingRuns() {
     // Unknown method: legacy 200, modern 404 (MUST).
-    McpClient.Answer legacy = dev.legacy("completion/complete", null);
+    McpClient.Answer legacy = dev.legacy("sampling/createMessage", null);
     assertThat(legacy.status()).isEqualTo(200);
     assertThat(legacy.error().path("code").asInt()).isEqualTo(-32601);
-    McpClient.Answer modern = dev.modern("subscriptions/listen", JsonNodeFactory.instance.objectNode(), false);
+    McpClient.Answer modern = dev.modern("roots/list", JsonNodeFactory.instance.objectNode(), false);
     assertThat(modern.status()).isEqualTo(404);
     assertThat(modern.error().path("code").asInt()).isEqualTo(-32601);
     SpecSchemas.assertValid("2026-07-28", "JSONRPCErrorResponse", modern.body());
@@ -210,8 +210,8 @@ class McpIT {
     assertThat(modern.result().path("ttlMs").asLong()).isEqualTo(30_000);
     assertThat(modern.result().path("cacheScope").asString()).isEqualTo("private");
     for (JsonNode list : List.of(legacy.result(), modern.result())) {
-      assertThat(names(list.path("tools"))).containsExactly("approval_card", "approval_status", "describe_connection",
-          "list_connections", "sql_execute", "sql_query");
+      assertThat(names(list.path("tools"))).containsExactly("approval_card", "approval_status", "connection_import_progress", "connection_import_schema",
+          "describe_connection", "list_connections", "sql_execute", "sql_query", "submit_connection_import");
       JsonNode query = tool(list, "sql_query");
       assertThat(query.path("outputSchema").isObject()).isTrue();
       // Named in the description, not as an enum: a client that keeps this list accepts connections added later.
@@ -1034,6 +1034,31 @@ class McpIT {
         + "GateRook. Not executed.");
     assertThat(core.jdbc().queryForObject("select decision from tool_call where approval_id = ? and phase = "
         + "'completed'", String.class, a.id())).isEqualTo("rejected");
+  }
+
+  @Test
+  void anApprovalWhoseWarningsOrEndpointWereChangedOutsideTheGatewayIsNotExecuted() {
+    FakeConnectors.EXECUTIONS.clear();
+    ApprovalView stripped = request("UPDATE orders SET status = 'paid' WHERE id = 32;");
+    // What the person reads beside the exact action, not what runs: the digest doesn't cover it, the MAC does.
+    core.jdbc().update("update approval set action = json_set(action, '$.warnings', json('[]'), '$.summary', "
+        + "'harmless') where id = ?", stripped.id());
+    ApprovalView moved = request("UPDATE orders SET status = 'paid' WHERE id = 33;");
+    String other = core.jdbc().queryForObject("select id from endpoint where slug <> ? and id <> ? limit 1",
+        String.class, moved.endpointSlug(), moved.endpointId());
+    core.jdbc().update("update approval set endpoint_id = ? where id = ?", other, moved.id());
+    for (ApprovalView a : List.of(stripped, moved)) {
+      try {
+        approvals.decide(a.id(), ApprovalService.Decision.APPROVE, "app", null, a.digest());
+      } catch (RuntimeException refusedEarly) {
+        // Refusing at the decision is as good as refusing at the execution.
+      }
+      TestCore.await(() -> approvals.find(a.id()).map(ApprovalView::terminal).orElse(true), "refusal");
+      ApprovalView after = approvals.find(a.id()).orElseThrow();
+      assertThat(after.status()).as(a.id()).isEqualTo("rejected");
+      assertThat(after.error()).isEqualTo("The request was changed outside GateRook. Not executed.");
+    }
+    assertThat(FakeConnectors.EXECUTIONS).isEmpty();
   }
 
   @Test

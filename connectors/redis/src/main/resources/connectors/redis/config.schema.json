@@ -123,18 +123,18 @@
       "properties": {
         "keyAllowlist": {
           "type": "array",
-          "title": "Keys the agent may read",
+          "title": "Keys the agent may access",
           "items": {
             "type": "string",
             "maxLength": 256
           },
           "maxItems": 100,
           "x-stricter": "intersect",
-          "description": "Redis globs: cache:*, product:*. Empty: every key."
+          "description": "Redis globs: cache:*, product:*. Applies to reads and writes. Empty: every key."
         },
         "keyDenylist": {
           "type": "array",
-          "title": "Keys the agent never reads",
+          "title": "Keys the agent never accesses",
           "items": {
             "type": "string",
             "maxLength": 256

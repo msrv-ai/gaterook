@@ -13,8 +13,8 @@ import redis.clients.jedis.exceptions.JedisDataException;
 
 /**
  * One call's connection of a pool: the commands of the call go one after the other through its
- * {@link ReadOnlyCommandExecutor}. A socket that served an earlier call and turns out dead on the first command is
- * replaced once — the command only read, so sending it again is safe. {@link #abort()} cuts the socket of a cancelled
+ * {@link RedisCommandExecutor}. A socket that served an earlier call and turns out dead on the first read is
+ * replaced once. Writes use a separate executor mode and are never retried. {@link #abort()} cuts a cancelled
  * call; {@link #close()} returns a healthy connection to its pool and drops a broken one.
  */
 final class RedisSession implements AutoCloseable {
@@ -23,7 +23,7 @@ final class RedisSession implements AutoCloseable {
   private final Clock clock;
   private final Instant deadline;
   private BoundedConnection connection;
-  private ReadOnlyCommandExecutor executor;
+  private RedisCommandExecutor executor;
   private int keep = -1;
   private boolean reused;
   private boolean sentAny;
@@ -55,6 +55,24 @@ final class RedisSession implements AutoCloseable {
           throw e;
         }
       }
+    }
+  }
+
+  /** A write is never retried: losing its reply does not mean Redis did not apply it. */
+  Object write(RedisWrite write) throws ConnectorException {
+    if (aborted) {
+      throw ConnectorException.timeout("The call was stopped before the write was sent.");
+    }
+    RedisCommandExecutor writer = new RedisCommandExecutor(connection, RedisCommandExecutor.Mode.WRITES, clock,
+        deadline, pool.settings.commandTimeoutMs());
+    sentAny = true;
+    try {
+      return writer.executeCommand(new CommandObject<>(args(write.command(), write.arguments().toArray()),
+          BuilderFactory.RAW_OBJECT));
+    } catch (JedisConnectionException e) {
+      abort();
+      throw new ConnectorException(RedisErrors.of(e, pool.settings).kind(),
+          "Redis did not confirm the write; it may have been applied. Read the key before retrying.", e);
     }
   }
 
@@ -122,7 +140,7 @@ final class RedisSession implements AutoCloseable {
   private void attach(RedisClients.Borrowed borrowed) throws ConnectorException {
     connection = borrowed.connection();
     reused = borrowed.reused();
-    executor = new ReadOnlyCommandExecutor(connection, ReadOnlyCommandExecutor.Mode.READS, clock, deadline,
+    executor = new RedisCommandExecutor(connection, RedisCommandExecutor.Mode.READS, clock, deadline,
         pool.settings.commandTimeoutMs());
     if (!reused && pool.settings.noTouch() && !pool.noTouchUnsupported()) {
       // Reads of the agent shouldn't change what the server evicts next (Redis 7.2+, report 05 §6).

@@ -1,0 +1,56 @@
+<section class="gw-stack gw-stack--sm" id="ov-request-path" aria-labelledby="ov-path-title" aria-describedby="ov-path-description">
+  <div class="gw-toolbar">
+    <div class="gw-toolbar__start">
+      <h3 class="gw-text-h3" id="ov-path-title">Request path</h3>
+      <span class="gw-badge gw-badge--outline">Example</span>
+    </div>
+    <div class="gw-toolbar__end">
+      <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" (click)="cleared.emit()">Clear<span class="gw-sr-only"> request path</span></button>
+    </div>
+  </div>
+  @for (play of [sequence()]; track play) {
+    <ol class="path-flow" aria-label="Request route">
+      <li class="path-step">
+        <div class="gw-card path-node">
+          <span class="gw-text-overline gw-fg-muted">1 · AI app</span>
+          <span [class]="'gw-client-mark gw-client-mark--' + app().tone" aria-hidden="true">{{ app().mark }}</span>
+          <strong class="gw-text-h3">{{ app().name }}</strong>
+          <span class="gw-text-caption gw-fg-muted">Sends a tool request</span>
+        </div>
+        <svg class="path-wire" viewBox="0 0 100 24" aria-hidden="true" focusable="false">
+          <path d="M0 12H98M91 6L98 12L91 18" />
+          <circle class="path-pulse" cx="0" cy="12" r="3" />
+        </svg>
+      </li>
+      <li class="path-step">
+        <div class="gw-card path-node path-gateway">
+          <span class="gw-text-overline gw-fg-brand">2 · Access control</span>
+          <img class="path-mark" src="assets/logo-mark.svg" alt="" />
+          <strong class="gw-text-h2">GateRook</strong>
+          <span class="gw-text-small">Endpoint <strong class="gw-mono">{{ endpoint().slug }}</strong></span>
+          <span class="gw-text-caption gw-fg-brand"><svg lucideIcon="shield-check" class="gw-icon gw-icon--sm"></svg> Policy · Approval · Audit</span>
+        </div>
+        <svg class="path-wire" viewBox="0 0 100 24" aria-hidden="true" focusable="false">
+          <path d="M0 12H98M91 6L98 12L91 18" />
+          <circle class="path-pulse path-pulse--service" cx="0" cy="12" r="3" />
+        </svg>
+      </li>
+      <li class="path-step">
+        <div class="gw-card path-node">
+          <span class="gw-text-overline gw-fg-muted">3 · {{ service().mcp ? 'MCP server' : 'Service' }}</span>
+          @if (serviceMark(); as mark) {
+            <img class="path-mark" [src]="'assets/integrations/' + mark + '.svg'" alt="" />
+          } @else {
+            <span class="gw-icon-tile gw-icon-tile--brand"><svg [lucideIcon]="service().icon" class="gw-icon"></svg></span>
+          }
+          <strong class="gw-text-h3">{{ service().name }}</strong>
+          <span class="gw-text-caption gw-fg-muted">{{ service().typeLabel }}</span>
+          @if (service().unreachable) {
+            <span class="gw-status gw-status--danger"><span class="gw-status__dot" aria-hidden="true"></span>Unreachable</span>
+          }
+        </div>
+      </li>
+    </ol>
+  }
+  <p class="gw-text-caption gw-fg-muted" id="ov-path-description">Example path only; no request is sent. GateRook checks access rules, requests approval when required and records the result.@if (service().unreachable) { An unreachable service cannot complete the call.}</p>
+</section>

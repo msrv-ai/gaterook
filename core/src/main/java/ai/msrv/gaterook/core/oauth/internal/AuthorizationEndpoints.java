@@ -76,7 +76,7 @@ class AuthorizationEndpoints {
     }
     if (request.getParameter("request_uri") != null || request.getParameter("request") != null) {
       return page(400, ConsentPages.error("This sign-in can't continue", "Request objects aren't supported here."),
-          null, s.get());
+          null, null, s.get());
     }
     Map<String, String> params = new HashMap<>();
     for (String name : List.of("response_type", "client_id", "redirect_uri", "code_challenge",
@@ -85,7 +85,7 @@ class AuthorizationEndpoints {
       if (values != null && values.length > 1) {
         // A repeated parameter (two resources, two redirects) is ambiguous: refuse it like an unknown client.
         return page(400, ConsentPages.error("This sign-in can't continue", "The request repeats " + name + "."),
-            null, s.get());
+            null, null, s.get());
       }
       if (values != null) {
         params.put(name, values[0]);
@@ -96,7 +96,7 @@ class AuthorizationEndpoints {
       return ResponseEntity.status(HttpStatus.FOUND).header(HttpHeaders.LOCATION, answer.location())
           .cacheControl(CacheControl.noStore()).build();
     }
-    return page(answer.status(), answer.html(), answer.cookie(), s.get());
+    return page(answer.status(), answer.html(), answer.cookieName(), answer.cookie(), s.get());
   }
 
   @GetMapping("/oauth/authorize/status")
@@ -107,9 +107,9 @@ class AuthorizationEndpoints {
       return notFound();
     }
     String cookie = null;
-    if (request.getCookies() != null) {
+    if (rid != null && request.getCookies() != null) {
       for (Cookie c : request.getCookies()) {
-        if (OAuthServer.COOKIE.equals(c.getName())) {
+        if (OAuthServer.cookieName(rid).equals(c.getName())) {
           cookie = c.getValue();
         }
       }
@@ -197,14 +197,15 @@ class AuthorizationEndpoints {
 
   // ── Answers ─────────────────────────────────────────────────────────────────────────────────────────────────
 
-  private static ResponseEntity<byte[]> page(int status, String html, String cookie, Issuers.Server server) {
+  private static ResponseEntity<byte[]> page(int status, String html, String cookieName, String cookie,
+      Issuers.Server server) {
     ResponseEntity.BodyBuilder b = ResponseEntity.status(status).cacheControl(CacheControl.noStore())
         .contentType(new MediaType("text", "html", java.nio.charset.StandardCharsets.UTF_8))
         .header("Content-Security-Policy", ConsentPages.CSP).header("X-Frame-Options", "DENY")
         .header("Referrer-Policy", "no-referrer").header("X-Content-Type-Options", "nosniff");
     if (cookie != null) {
       // The tunnel is https (Secure); the local server is plain loopback http, where browsers keep no Secure cookie.
-      b.header(HttpHeaders.SET_COOKIE, ResponseCookie.from(OAuthServer.COOKIE, cookie).httpOnly(true)
+      b.header(HttpHeaders.SET_COOKIE, ResponseCookie.from(cookieName, cookie).httpOnly(true)
           .secure(server.tunnel()).sameSite("Lax").path("/oauth/authorize")
           .maxAge(Consents.TIMEOUT.plusSeconds(30)).build().toString());
     }

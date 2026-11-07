@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { EndpointShareExport, EndpointShareImport, EndpointShareImportOutcome, EndpointShareReview } from './endpoint-share';
 
 /**
  * A progress line of the core's start (stdout protocol, ARCHITECTURE.md §7.1). Main adds `runtime` itself (the
@@ -21,7 +22,7 @@ export type DesktopCoreState =
       readonly unlocking: boolean;
       readonly error: string | null;
       /** Available system authentication; the renderer never receives passwords or biometric data. */
-      readonly authentication?: 'touch-id' | 'windows-hello' | 'system';
+      readonly authentication?: 'touch-id' | 'mac-password' | 'windows-hello' | 'windows-password' | 'system';
       /** The existing macOS Keychain entry that its permission dialog may name. */
       readonly keychainService?: string;
     }
@@ -89,7 +90,7 @@ export interface FullBackupResult {
   readonly fileName?: string;
 }
 
-/** What Electron's preload exposes as `window.gwDesktop` (§7.1): no secrets; paths only from an explicit key selection. */
+/** What Electron's preload exposes as `window.gwDesktop` (§7.1): no secrets; paths only from explicit selection. */
 export interface GwDesktop {
   readonly platform: 'darwin' | 'win32' | 'linux';
   /** True for MSIX packages whose startup and updates are managed by Windows. */
@@ -102,6 +103,13 @@ export interface GwDesktop {
   openFile(purpose: string): Promise<string | null>;
   /** Shows the native picker and returns the selected private key path, without reading its contents. */
   choosePrivateKeyFile(): Promise<string | null>;
+  /** Selects the repository folder for an AI prompt without reading its files. */
+  chooseRepository?(): Promise<string | null>;
+  /**
+   * Shows the native picker for a Vault token file and grants it to the core: the one-time token to send with the store
+   * (`files: {"/auth/file": token}`) and the chosen path to show. The renderer never reads the file.
+   */
+  chooseVaultTokenFile?(): Promise<{ readonly token: string; readonly path: string } | null>;
   /** Runs the fixed Google ADC sign-in flow in main; no command, token or credential crosses IPC. */
   signInToGoogle(): Promise<void>;
   openMcpb(linkId: string): Promise<void>;
@@ -124,6 +132,12 @@ export interface GwDesktop {
   resetApplication(confirmation: string): Promise<void>;
   createFullBackup(passphrase: string): Promise<FullBackupResult>;
   restoreFullBackup(passphrase: string, confirmation: string): Promise<FullBackupResult>;
+  createEndpointShare?(options: EndpointShareExport, passphrase: string): Promise<FullBackupResult>;
+  chooseEndpointShare?(): Promise<{ readonly fileName: string } | null>;
+  previewEndpointShare?(passphrase: string): Promise<EndpointShareReview>;
+  importEndpointShare?(options: EndpointShareImport): Promise<EndpointShareImportOutcome>;
+  discardEndpointShare?(handle?: string): Promise<void>;
+  onEndpointShareFile?(cb: (file: { readonly fileName: string }) => void): () => void;
   /**
    * Writes `desktop.json` and restarts the core on `port` — a number moves the local API, `{ publicPort }` the tunnel's
    * public listener (or both at once); rejects with a reason main can't use it (taken, reserved).
@@ -170,9 +184,14 @@ export class DesktopBridge {
 
   /** Also false when a browser UI connects to an older desktop shell. */
   readonly privateKeyPickerAvailable = typeof this.desktop?.choosePrivateKeyFile === 'function';
+  readonly repositoryPickerAvailable = typeof this.desktop?.chooseRepository === 'function';
+  readonly vaultTokenPickerAvailable = typeof this.desktop?.chooseVaultTokenFile === 'function';
   readonly aiPromptAvailable = typeof this.desktop?.openAiPrompt === 'function';
   readonly googleSignInAvailable = typeof this.desktop?.signInToGoogle === 'function';
   readonly fullBackupAvailable = typeof this.desktop?.createFullBackup === 'function' && typeof this.desktop?.restoreFullBackup === 'function';
+  readonly endpointShareAvailable = typeof this.desktop?.createEndpointShare === 'function'
+    && typeof this.desktop?.chooseEndpointShare === 'function' && typeof this.desktop?.previewEndpointShare === 'function'
+    && typeof this.desktop?.importEndpointShare === 'function' && typeof this.desktop?.discardEndpointShare === 'function';
 
   /** The OS, for `gw-titlebar--mac`; `web` in a browser. */
   readonly platform: GwDesktop['platform'] | 'web' = this.desktop?.platform ?? 'web';
@@ -203,6 +222,15 @@ export class DesktopBridge {
 
   async choosePrivateKeyFile(): Promise<string | null> {
     return this.desktop?.choosePrivateKeyFile?.() ?? null;
+  }
+
+  async chooseRepository(): Promise<string | null> {
+    return this.desktop?.chooseRepository?.() ?? null;
+  }
+
+  async chooseVaultTokenFile(): Promise<{ readonly token: string; readonly path: string } | null> {
+    if (!this.desktop?.chooseVaultTokenFile) throw new Error('Choosing a token file needs the GateRook desktop app. Paste the token instead.');
+    return this.desktop.chooseVaultTokenFile();
   }
 
   async signInToGoogle(): Promise<void> {
@@ -273,6 +301,34 @@ export class DesktopBridge {
 
   async unlock(): Promise<void> {
     await this.desktop?.unlock();
+  }
+
+  async createEndpointShare(options: EndpointShareExport, passphrase: string): Promise<FullBackupResult> {
+    if (!this.endpointShareAvailable) throw new Error('Sharing endpoints requires an up-to-date GateRook desktop app.');
+    return this.desktop!.createEndpointShare!(options, passphrase);
+  }
+
+  async chooseEndpointShare(): Promise<{ readonly fileName: string } | null> {
+    if (!this.endpointShareAvailable) throw new Error('Importing shared endpoints requires an up-to-date GateRook desktop app.');
+    return this.desktop!.chooseEndpointShare!();
+  }
+
+  async previewEndpointShare(passphrase: string): Promise<EndpointShareReview> {
+    if (!this.endpointShareAvailable) throw new Error('Importing shared endpoints requires an up-to-date GateRook desktop app.');
+    return this.desktop!.previewEndpointShare!(passphrase);
+  }
+
+  async importEndpointShare(options: EndpointShareImport): Promise<EndpointShareImportOutcome> {
+    if (!this.endpointShareAvailable) throw new Error('Importing shared endpoints requires an up-to-date GateRook desktop app.');
+    return this.desktop!.importEndpointShare!(options);
+  }
+
+  async discardEndpointShare(handle?: string): Promise<void> {
+    await this.desktop?.discardEndpointShare?.(handle);
+  }
+
+  onEndpointShareFile(cb: (file: { readonly fileName: string }) => void): () => void {
+    return this.desktop?.onEndpointShareFile?.(cb) ?? NOOP;
   }
 
   async usePort(port: number | DesktopPorts): Promise<void> {

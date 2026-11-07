@@ -48,10 +48,10 @@ final class RedisErrors {
   }
 
   static Problem of(Throwable e, RedisSettings s) {
-    if (e instanceof ReadOnlyCommandExecutor.RefusedCommandException r) {
+    if (e instanceof RedisCommandExecutor.RefusedCommandException r) {
       return new Problem("redis.refused-command", ConnectorException.Kind.INTERNAL, r.getMessage());
     }
-    if (e instanceof ReadOnlyCommandExecutor.CallDeadlineException) {
+    if (e instanceof RedisCommandExecutor.CallDeadlineException) {
       return new Problem("redis.timeout", ConnectorException.Kind.TIMEOUT, s.hostPort()
           + " didn't answer before the call's time ran out.");
     }

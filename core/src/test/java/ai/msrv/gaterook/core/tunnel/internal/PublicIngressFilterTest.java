@@ -205,6 +205,73 @@ class PublicIngressFilterTest {
   }
 
   @Test
+  void aPageOfAnotherOriginGetsAnEmpty403AndTheSignInPagesOwnRequestsPass() throws Exception {
+    TunnelPublication.Publication cf = new TunnelPublication.Publication(SMOKE.host(), "smoke",
+        TunnelProvider.CLOUDFLARE_QUICK);
+    tunnel.publish(cf);
+    for (String path : List.of("/mcp/smoke", "/oauth/token", "/oauth/register", "/oauth/revoke", "/oauth/authorize",
+        "/oauth/authorize/status", "/.well-known/oauth-authorization-server")) {
+      for (String origin : List.of("https://evil.example", "null", "https://claude.ai", "http://" + cf.host(),
+          "https://" + cf.host() + ".evil.example", "https://" + cf.host() + ":8443")) {
+        MockHttpServletRequest r = request(PUBLIC, path, cf.host(), "{}");
+        r.addHeader("CF-Connecting-IP", "160.79.104.10");
+        r.addHeader("Origin", origin);
+        Result result = run(r);
+        assertThat(result.status).as(path + " from " + origin).isEqualTo(403);
+        assertThat(result.passed).isFalse();
+        assertThat(result.body).isEmpty();
+      }
+    }
+    assertThat(gate.refusedCount()).as("not counted as the caller gate's refusals").isZero();
+
+    // The waiting page polls its status from the tunnel's own origin; servers and navigations send no Origin.
+    MockHttpServletRequest poll = request(PUBLIC, "/oauth/authorize/status", cf.host(), null);
+    poll.setMethod("GET");
+    poll.addHeader("CF-Connecting-IP", "203.0.113.24");
+    poll.addHeader("Origin", "https://" + cf.host());
+    assertThat(run(poll).passed).isTrue();
+    MockHttpServletRequest twoLines = request(PUBLIC, "/oauth/authorize/status", cf.host(), null);
+    twoLines.addHeader("CF-Connecting-IP", "203.0.113.24");
+    twoLines.addHeader("Origin", "https://" + cf.host());
+    twoLines.addHeader("Origin", "https://evil.example");
+    assertThat(run(twoLines).status).as("every line counts").isEqualTo(403);
+  }
+
+  @Test
+  void aCallerTheEdgeDidNotNameHasNoAddressRatherThanTheAgentsLoopbackOne() throws Exception {
+    TunnelPublication.Publication cf = new TunnelPublication.Publication(SMOKE.host(), "smoke",
+        TunnelProvider.CLOUDFLARE_QUICK);
+    tunnel.publish(cf);
+    // Straight to 7466 from a program on this computer, as the agent itself connects: 127.0.0.1.
+    MockHttpServletRequest none = request(PUBLIC, "/oauth/authorize", cf.host(), null);
+    none.setMethod("GET");
+    Result r = run(none);
+    assertThat(r.passed).as("the sign-in page isn't gated").isTrue();
+    assertThat(r.remote).as("not this computer's own browser").isNull();
+    // No edge reports this computer's own address for a caller on the internet.
+    for (String forged : List.of("127.0.0.1", "127.8.9.10", "::1", "::ffff:127.0.0.1", "0.0.0.0", "::")) {
+      MockHttpServletRequest f = request(PUBLIC, "/oauth/authorize", cf.host(), null);
+      f.setMethod("GET");
+      f.addHeader("CF-Connecting-IP", forged);
+      assertThat(run(f).remote).as(forged).isNull();
+    }
+    TunnelPublication.Publication ng = new TunnelPublication.Publication("gw-acme.ngrok.app", "smoke",
+        TunnelProvider.NGROK);
+    tunnel.publish(ng);
+    MockHttpServletRequest viaNgrok = request(PUBLIC, "/oauth/authorize", ng.host(), null);
+    viaNgrok.setMethod("GET");
+    viaNgrok.addHeader("X-Forwarded-For", "203.0.113.24, 127.0.0.1");
+    assertThat(run(viaNgrok).remote).isNull();
+    MockHttpServletRequest noHeader = request(PUBLIC, "/oauth/authorize", ng.host(), null);
+    noHeader.setMethod("GET");
+    assertThat(run(noHeader).remote).isNull();
+
+    // The test override has no edge in front: its callers are this computer.
+    tunnel.publish(SMOKE);
+    assertThat(run(request(PUBLIC, "/mcp/smoke", SMOKE.host(), "{}")).remote).isEqualTo("127.0.0.1");
+  }
+
+  @Test
   void callerAddressesAreLiteralsOnly() {
     assertThat(PublicIngressFilter.literal(" 160.79.104.10 ")).isEqualTo("160.79.104.10");
     assertThat(PublicIngressFilter.literal("2607:6bc0::10")).isEqualTo("2607:6bc0:0:0:0:0:0:10");

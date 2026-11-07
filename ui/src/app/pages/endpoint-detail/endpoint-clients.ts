@@ -7,14 +7,17 @@ import { EndpointsStore } from '../../core/stores/endpoints.store';
 import { GwClientCard } from '../../kit/elements/client-card/client-card';
 import { ClientEndpoint, ClientFailure, browserInstallUrl, clientFailure, keeps, reinstallToast, usesBridgeExtension } from '../../kit/elements/client-card/client-view';
 import { GwIcon } from '../../kit/icons';
+import { GwClientMark } from '../../kit/elements/shared/client-mark';
+import { clientStatusLook } from '../../kit/elements/shared/dictionaries';
 import { ToastService } from '../../kit/toast.service';
+import { appAnchor } from '../overview/overview-view';
 import { EndpointDetailData } from './endpoint-detail.data';
 import { connectedToast, disconnectedToast, endpointClients } from './endpoint-detail-view';
 
 const NO_ANSWER = 'The core didn’t answer. Try again.';
 
 /**
- * Endpoint detail › Clients (design/pages/endpoint-detail.html `#clients`): the MCP clients of this computer that use
+ * Endpoint detail › Clients: the MCP clients of this computer that use
  * the endpoint, then those installed but not connected to it. One compact client-card per client: how it reaches the
  * endpoint, its other endpoints, how it gets a token, its last call; View activity and Disconnect, or Connect.
  *
@@ -25,7 +28,7 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
  */
 @Component({
   selector: 'section[gwEndpointClients]',
-  imports: [GwClientCard, GwIcon, RouterLink],
+  imports: [GwClientCard, GwIcon, GwClientMark, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-section', 'aria-labelledby': 'ep-clients-title' },
   templateUrl: './endpoint-clients.html',
@@ -40,6 +43,8 @@ export class GwEndpointClients {
   readonly slug = input.required<string>();
 
   protected readonly cards = computed(() => endpointClients(this.data.clients(), this.slug()));
+  protected readonly appAnchor = appAnchor;
+  protected readonly clientLook = clientStatusLook;
   /** Connect's endpoint choice: this endpoint first (the dialog starts on it), then the others. */
   protected readonly endpoints = computed<ClientEndpoint[]>(() => {
     const here = this.data.summary();

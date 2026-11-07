@@ -34,9 +34,14 @@ class SnapshotsTest {
     ToolDefinition create = Snapshots.definition(m.tools().get(2), "github-mcp");
 
     assertThat(search.nature()).isEqualTo(ToolDefinition.Nature.READ);
+    assertThat(search.defaultMode()).isEqualTo(ToolDefinition.Mode.READ_ONLY);
+    assertThat(search.prodDefaultMode()).isEqualTo(ToolDefinition.Mode.READ_ONLY);
     assertThat(search.outputSchema()).isNotNull();
     assertThat(tricky.nature()).isEqualTo(ToolDefinition.Nature.MUTATION);
     assertThat(create.nature()).isEqualTo(ToolDefinition.Nature.MUTATION);
+    assertThat(tricky.defaultMode()).isEqualTo(ToolDefinition.Mode.APPROVAL);
+    assertThat(create.defaultMode()).isEqualTo(ToolDefinition.Mode.APPROVAL);
+    assertThat(create.prodDefaultMode()).isEqualTo(ToolDefinition.Mode.APPROVAL);
     // Unset hints take the protocol's pessimistic defaults; a mutation publishes no result schema.
     assertThat(create.annotations().destructiveHint()).isTrue();
     assertThat(create.annotations().openWorldHint()).isTrue();
@@ -118,7 +123,8 @@ class SnapshotsTest {
         n -> Optional.empty()).tools();
 
     assertThat(Tests.diff(before, before)).isNull();
-    assertThat(Tests.diff(before, after)).isEqualTo("The server lists other tools than were reviewed: 1 new (Off on "
-        + "every endpoint), 1 changed (Read only asks again), 1 gone.");
+    assertThat(Tests.diff(before, after)).isEqualTo("The server lists other tools than were reviewed: 1 new "
+        + "(declared reads start in Read only; other tools stay Off), 1 changed "
+        + "(read-only eligibility is checked again), 1 gone.");
   }
 }

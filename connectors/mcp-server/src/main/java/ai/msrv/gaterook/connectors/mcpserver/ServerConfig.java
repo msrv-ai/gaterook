@@ -15,13 +15,20 @@ import tools.jackson.databind.node.MissingNode;
  * of variables and headers are never here: a binding names the secret field ({@code /env/0/secretRef}) the value is
  * resolved from when the process starts.
  *
- * @param auth the HTTP server's sign-in settings as canonical JSON ({@code {"type":"oauth",…}}), or {@code null}: the
- *             tokens are the core's ({@link ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime.Authorization}),
- *             these are only what the person chose
+ * @param auth            the HTTP server's sign-in settings as canonical JSON ({@code {"type":"oauth",…}}), or
+ *                        {@code null}: the tokens are the core's
+ *                        ({@link ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime.Authorization}), these are
+ *                        only what the person chose
+ * @param shareResources  whether the person lets agents read the server's resources and resource templates
+ *                        ({@code share.resources})
+ * @param sharePrompts    whether the person lets agents get the server's prompts ({@code share.prompts})
+ * @param offThisComputer whether the person keeps a stdio server off this computer: an AppContainer on Windows
+ *                        ({@code offThisComputer})
  */
 record ServerConfig(String name, String transport, List<String> command, String url, List<Binding> env,
     List<Binding> headers, List<String> inheritEnv, boolean startWithCore, Duration idleStop, Duration startTimeout,
-    Duration callTimeout, int maxInFlight, String catalogEntry, String toolPrefix, String auth) {
+    Duration callTimeout, int maxInFlight, String catalogEntry, String toolPrefix, String auth,
+    boolean shareResources, boolean sharePrompts, boolean offThisComputer) {
 
   static final String STDIO = "stdio";
   static final String HTTP = "http";
@@ -65,7 +72,9 @@ record ServerConfig(String name, String transport, List<String> command, String 
         Duration.ofSeconds(Math.clamp(start, 5, 300)), Duration.ofSeconds(Math.clamp(call, 1, 300)),
         Math.clamp(c.path("maxInFlight").asInt(4), 1, 16), Texts.str(c.path("catalogEntry"), null),
         prefix != null && PREFIX.matcher(prefix).matches() ? prefix : defaultPrefix(cfg.name()),
-        HTTP.equals(transport) && auth.isObject() ? Texts.JSON.writeValueAsString(Texts.canonical(auth)) : null);
+        HTTP.equals(transport) && auth.isObject() ? Texts.JSON.writeValueAsString(Texts.canonical(auth)) : null,
+        c.path("share").path("resources").asBoolean(false), c.path("share").path("prompts").asBoolean(false),
+        !HTTP.equals(transport) && c.path("offThisComputer").asBoolean(false));
   }
 
   boolean http() {

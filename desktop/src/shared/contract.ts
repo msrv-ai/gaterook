@@ -19,7 +19,7 @@ export type DesktopCoreState =
       readonly kind: 'unlock-required';
       readonly unlocking: boolean;
       readonly error: string | null;
-      readonly authentication?: 'touch-id' | 'windows-hello' | 'system';
+      readonly authentication?: 'touch-id' | 'mac-password' | 'windows-hello' | 'windows-password' | 'system';
       /** The compatibility name shown by macOS in its access dialog. */
       readonly keychainService?: string;
     }
@@ -83,6 +83,29 @@ export interface GeneralSettings {
   readonly startHidden?: boolean;
 }
 
+export interface EndpointShareFile { readonly fileName: string }
+export interface EndpointShareExport {
+  readonly endpointSlug: string;
+  readonly connectionNames: readonly string[];
+  readonly includeSecrets: boolean;
+}
+export interface EndpointShareImport {
+  readonly handle: string;
+  readonly connectionIds: readonly string[];
+  readonly includeEndpoint: boolean;
+  readonly includeSecrets: boolean;
+  readonly endpointSlug?: string;
+  readonly reason?: string;
+  readonly confirm?: 'danger';
+}
+export interface EndpointShareConfirmation {
+  readonly confirm: 'danger';
+  readonly status: 409;
+  readonly title: string;
+  readonly detail: string;
+  readonly errors: readonly { readonly field: string; readonly message: string }[];
+}
+
 /**
  * IPC channels. `invoke` ones answer; `send` ones are fire-and-forget; `push` ones go from main to the renderer.
  * Main handles a fixed list (ipc.ts) and checks every sender (ipc-guard.ts).
@@ -98,6 +121,8 @@ export const IPC = {
   saveFile: 'gw:save-file',
   openFile: 'gw:open-file',
   choosePrivateKeyFile: 'gw:choose-private-key-file',
+  chooseRepository: 'gw:choose-repository',
+  chooseVaultTokenFile: 'gw:choose-vault-token-file',
   signInToGoogle: 'gw:sign-in-to-google',
   openMcpb: 'gw:open-mcpb',
   openMcpSignIn: 'gw:open-mcp-sign-in',
@@ -107,6 +132,12 @@ export const IPC = {
   unlock: 'gw:unlock',
   restartCore: 'gw:restart-core',
   resetApplication: 'gw:reset-application',
+  createEndpointShare: 'gw:create-endpoint-share',
+  chooseEndpointShare: 'gw:choose-endpoint-share',
+  previewEndpointShare: 'gw:preview-endpoint-share',
+  importEndpointShare: 'gw:import-endpoint-share',
+  discardEndpointShare: 'gw:discard-endpoint-share',
+  pendingEndpointShare: 'gw:pending-endpoint-share',
   createFullBackup: 'gw:create-full-backup',
   restoreFullBackup: 'gw:restore-full-backup',
   usePort: 'gw:use-port',
@@ -120,6 +151,7 @@ export const IPC = {
   // push
   coreStatePush: 'gw:core-state-push',
   deepLinkPush: 'gw:deep-link-push',
+  endpointSharePush: 'gw:endpoint-share-push',
   eventPush: 'gw:event-push',
   updateStatePush: 'gw:update-state-push',
 } as const;

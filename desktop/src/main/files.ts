@@ -10,6 +10,8 @@ import { clientId, defaultFileName, filePurpose, linkId, openableConfig, reveala
 import type { Logger } from './log.ts';
 import type { CoreEndpoint } from './proxy.ts';
 import { choosePrivateKeyPath } from './private-key-picker.ts';
+import { chooseRepositoryPath } from './repository-picker.ts';
+import { chooseVaultTokenPath, type VaultTokenFile } from './vault-token-picker.ts';
 
 export interface FilesOptions {
   readonly home: string;
@@ -22,6 +24,26 @@ export interface FilesOptions {
 export async function choosePrivateKeyFile(o: FilesOptions): Promise<string | null> {
   const win = o.window();
   return choosePrivateKeyPath((options) => win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options));
+}
+
+/** Returns the chosen repository folder without scanning it or requiring Git metadata. */
+export async function chooseRepository(o: FilesOptions): Promise<string | null> {
+  const win = o.window();
+  return chooseRepositoryPath((options) => win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options));
+}
+
+/** A Vault token file: granted to the core for its sign-in; the renderer gets the grant token and the path to show. */
+export async function chooseVaultTokenFile(o: FilesOptions): Promise<VaultTokenFile | null> {
+  const core = requireCore(o);
+  const win = o.window();
+  return chooseVaultTokenPath(
+    (options) => win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options),
+    async (path) => {
+      const grant = await callCoreOk<{ token?: unknown }>(core, 'POST', '/internal/files/grant', { path, purpose: 'vault-token' });
+      if (typeof grant.token !== 'string') throw new Error('The core gave no file token');
+      return grant.token;
+    },
+  );
 }
 
 function requireCore(o: FilesOptions): CoreEndpoint {

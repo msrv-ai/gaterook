@@ -29,7 +29,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * {@code GW_DEMO=1} (ARCHITECTURE.md §2.4, design/BLUEPRINT.md §9): an empty home gets the kit's world through the
+ * {@code GW_DEMO=1} (ARCHITECTURE.md §2.4): an empty home gets the kit's world through the
  * core's own services, on the assembled core with the real built-in connectors; a home with data is left alone.
  */
 class DemoSeedIT {
@@ -69,7 +69,7 @@ class DemoSeedIT {
 
       EndpointService.Summary dev = endpoints.get("dev");
       assertThat(dev.connections()).isEqualTo(8);
-      assertThat(dev.tools()).as("14 read only · 5 approval · 5 off").isEqualTo(new EndpointService.ToolCounts(14, 5,
+      assertThat(dev.tools()).as("14 read only · 11 approval · 5 off").isEqualTo(new EndpointService.ToolCounts(14, 11,
           5));
       assertThat(dev.description()).startsWith("Local development. Agents read freely;");
       assertThat(endpoints.get("stage-readonly").access()).isEqualTo("read-only");

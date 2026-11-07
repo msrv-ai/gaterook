@@ -11,13 +11,14 @@ import { CoreStore } from '../../core/stores/core.store';
 import { absoluteTime, isoLocal, relativeTime, shortDate } from '../../core/time/time-format';
 import { TimeService } from '../../core/time/time.service';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
+import { ClipboardWriter } from '../../kit/clipboard';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
 import { ENVS, NOW, kitMasterKey, kitSecrets, kitShortLived, kitStores } from './secrets.fixtures';
 import { SKELETON_DELAY_MS, SecretsPage } from './secrets.page';
 
 /**
- * The Secrets page against fake API services in the kit's world (design/pages/secrets.html): what it shows, what each
+ * The Secrets page against fake API services in the kit's world: what it shows, what each
  * control asks the core, where the keyboard goes, and that a typed value never outlives its request.
  */
 
@@ -56,7 +57,13 @@ let calls: string[];
 let requests: unknown[];
 let world: World;
 let events: FakeEvents;
-let desktop: { available: boolean; platform: string; saveFile: (purpose: string) => Promise<string | null> };
+let desktop: {
+  available: boolean;
+  platform: string;
+  saveFile: (purpose: string) => Promise<string | null>;
+  vaultTokenPickerAvailable?: boolean;
+  chooseVaultTokenFile?: () => Promise<{ readonly token: string; readonly path: string } | null>;
+};
 const now = signal(NOW);
 
 const fakeTime: Partial<TimeService> = {
@@ -201,7 +208,9 @@ describe('Secrets page: what it shows', () => {
 
     expect(text($('#external-stores .gw-section__description', el))).toContain('2 of 3 connected.');
     expect(text($('#store-vault', el))).toContain('https://vault.acme.internal');
-    expect(text($('#store-vault', el))).toContain('stage-db/password from vault://kv/stage/db#password');
+    expect(text($('#store-vault-references summary', el))).toBe('1 reference');
+    expect($<HTMLDetailsElement>('#store-vault-references', el)!.open).toBe(false);
+    expect($<HTMLInputElement>('#store-vault-reference-0', el)!.value).toBe('vault://kv/stage/db#password');
     expect(text($('#store-gcp', el))).toContain('Connected');
     const aws = $('#store-aws', el)!;
     expect(aws.classList).toContain('gw-card--dashed');
@@ -445,6 +454,41 @@ describe('Secrets page: Replace and Rotate', () => {
 });
 
 describe('Secrets page: external stores', () => {
+  it('collapses reference lists and preserves full, selectable and copyable URIs when expanded', async () => {
+    const references = [
+      { secretId: 'id-analytics-password', name: 'analytics-db/password', ref: 'vault://kv/team/development/analytics/database/readonly#password', kind: 'reference' as const, owner: 'analytics-db' },
+      { secretId: 'id-analytics-user', name: 'analytics-db/username', ref: 'vault://kv/team/development/analytics/database/readonly#username', kind: 'reference' as const, owner: 'analytics-db' },
+      { secretId: 'id-cache-token', name: 'cache/token', ref: 'vault://kv/team/development/cache/service#token', kind: 'reference' as const, owner: 'cache' },
+    ];
+    world.stores = async () => [{ ...kitStores()[0], references }];
+    const el = await render();
+    const details = $<HTMLDetailsElement>('#store-vault-references', el)!;
+    const summary = $('summary', details)!;
+    expect(details.open).toBe(false);
+    expect(text(summary)).toBe('3 references');
+    await click(summary);
+    expect(details.open).toBe(true);
+    const inputs = $$<HTMLInputElement>('input[readonly]', details);
+    expect(inputs.map((input) => input.value)).toEqual(references.map((r) => r.ref));
+    expect(inputs.map((input) => input.labels?.[0].textContent?.trim())).toEqual(references.map((r) => r.name));
+    inputs[0].focus();
+    inputs[0].select();
+    expect(document.activeElement).toBe(inputs[0]);
+    expect(inputs[0].selectionEnd).toBe(references[0].ref.length);
+    const write = vi.spyOn(TestBed.inject(ClipboardWriter), 'write').mockResolvedValue(true);
+    await click(control(details, 'Copy reference for analytics-db/password'));
+    expect(write).toHaveBeenCalledExactlyOnceWith(references[0].ref);
+    await click(summary);
+    expect(details.open).toBe(false);
+  });
+
+  it('shows a compact empty reference state without an empty disclosure', async () => {
+    world.stores = async () => [{ ...kitStores()[0], references: [] }];
+    const el = await render();
+    expect($('#store-vault-references', el)).toBeNull();
+    expect(text($('#store-vault', el))).toContain('No references yet');
+  });
+
   async function openVault(address: string): Promise<HTMLInputElement> {
     world.stores = () => Promise.resolve([]);
     await render();
@@ -548,6 +592,87 @@ describe('Secrets page: external stores', () => {
     expect($<HTMLInputElement>('#vault-address')!.value).toBe('');
     expect(warning.open).toBe(false);
     close.mockRestore();
+  });
+
+  it('a connected Vault is followed by a card for another one, which gets a name of its own', async () => {
+    const el = await render();
+    expect(text($('#store-vault', el))).toContain('https://vault.acme.internal');
+    const another = $('#store-vault-another', el)!;
+    expect(another.classList).toContain('gw-card--dashed');
+    // The cards keep the kit's order: the Vaults, then GCP and AWS.
+    const ids = $$('#external-stores article', el).map((a) => a.id);
+    expect(ids.indexOf('store-vault-another')).toBe(ids.indexOf('store-vault') + 1);
+    expect(ids.indexOf('store-gcp')).toBeGreaterThan(ids.indexOf('store-vault-another'));
+
+    await click(control(another, 'Connect another Vault'));
+    const name = $<HTMLInputElement>('#vault-name')!;
+    expect(name.value).toBe('vault-2');
+    await type(name, 'vault');
+    await type($<HTMLInputElement>('#vault-address')!, 'https://vault.stage.acme.internal');
+    await type($<HTMLSelectElement>('#vault-method')!, 'token');
+    $<HTMLInputElement>('#vault-token')!.value = 'stage-token';
+    await submit('#dlg-connect-store');
+    expect(text($('#vault-name-err'))).toBe('A store named vault already exists. Choose another name.');
+    expect(document.activeElement).toBe(name);
+    expect(calls.some((c) => c.startsWith('create'))).toBe(false);
+
+    await type(name, 'Vault Stage');
+    await submit('#dlg-connect-store');
+    expect(text($('#vault-name-err'))).toContain("isn't a store name");
+
+    await type(name, 'vault-stage');
+    await submit('#dlg-connect-store');
+    expect(calls).toContain('create vault vault-stage');
+    expect(requests.at(-1)).toEqual({
+      kind: 'vault', name: 'vault-stage',
+      config: { address: 'https://vault.stage.acme.internal', auth: { method: 'token' } },
+      secrets: { '/auth/token': 'stage-token' },
+    });
+  });
+
+  it('several Vaults are named in their titles', async () => {
+    const [vault] = kitStores();
+    world.stores = () => Promise.resolve([...kitStores(), {
+      ...vault, id: 'st-vault-stage', name: 'vault-stage', references: [], issues: 0,
+      config: { address: 'https://vault.stage.acme.internal', auth: { method: 'approle', roleId: 'gaterook' } },
+    }]);
+    const el = await render();
+    const titles = $$('#external-stores .gw-card__title', el).map((t) => text(t));
+    expect(titles).toEqual(expect.arrayContaining(['HashiCorp Vault · vault', 'HashiCorp Vault · vault-stage', 'Another Vault']));
+    expect(text($('#store-vault-vault-stage', el))).toContain('https://vault.stage.acme.internal');
+  });
+
+  it('a Vault token can be read from a file the desktop app chooses: the request carries its grant, never the path', async () => {
+    const path = '/Users/you/.vault-agent/token';
+    desktop = { ...desktop, available: true, vaultTokenPickerAvailable: true, chooseVaultTokenFile: () => Promise.resolve({ token: 'ft_granted', path }) };
+    await openVault('https://vault.acme.internal');
+    await click($<HTMLInputElement>('#vault-token-file')!);
+    expect($('#vault-token')).toBeNull();
+    await submit('#dlg-connect-store');
+    expect(text($('#vault-token-path-err'))).toBe('Choose the file that holds the Vault token.');
+    expect(calls.some((c) => c.startsWith('create'))).toBe(false);
+
+    await click($<HTMLButtonElement>('#vault-token-choose')!);
+    expect($<HTMLInputElement>('#vault-token-path')!.value).toBe(path);
+    expect($<HTMLInputElement>('#vault-token-path')!.readOnly).toBe(true);
+    expect($('#vault-token-path-err')).toBeNull();
+    await submit('#dlg-connect-store');
+    expect(requests.at(-1)).toEqual({
+      kind: 'vault', name: 'vault',
+      config: { address: 'https://vault.acme.internal', auth: { method: 'token-file' } },
+      files: { '/auth/file': 'ft_granted' },
+    });
+    expect(JSON.stringify(requests.at(-1))).not.toContain(path);
+  });
+
+  it('outside the desktop app, choosing a token file says why it is not available', async () => {
+    await openVault('https://vault.acme.internal');
+    await click($<HTMLInputElement>('#vault-token-file')!);
+    const choose = $<HTMLButtonElement>('#vault-token-choose')!;
+    expect(choose.getAttribute('aria-disabled')).toBe('true');
+    expect(text($('#vault-token-path-hint'))).toContain('available in the desktop app');
+    await click($<HTMLInputElement>('#vault-token-stored')!);
+    expect($('#vault-token')).not.toBeNull();
   });
 
   it('HTTP confirmation cannot submit the same connection twice while the request is pending', async () => {

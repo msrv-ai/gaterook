@@ -15,10 +15,12 @@ import { ExportCard, RETENTION_YEARS, exportCard, formSavedToast, listText, numO
 const NO_ANSWER = 'The core didn’t answer. Try again.';
 
 /**
- * Settings › Audit & retention (design/pages/settings.html `#settings-audit`).
+ * Settings › Audit & retention.
  *
  * - Retention is a Save form (`PUT /api/settings/audit {retentionYears}`: 1, 2, 3 or 5 years); the hint says how many
- *   records the period holds at today's rate (the overview's calls in the last 24 hours).
+ *   records the period holds at today's rate (the overview's calls in the last 24 hours). A retention changed or
+ *   removed outside GateRook (`verified: false`) removes nothing until it is reviewed: the form says so and offers to
+ *   keep the period as stored, or a new one is saved.
  * - Export applies at once: one card per destination with its schedule and last run (`GET /api/audit-export`, step
  *   K5); a failing one shows the core's error under Show error details and Retry. Export now runs every enabled one.
  *   Adding and editing a destination has no screen in the kit, so Edit and Add destination are unavailable with that
@@ -51,6 +53,19 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
           <p class="gw-form__description">Older records are removed only after every export destination has received them.</p>
         </header>
         <div class="gw-form__rows">
+          @if (unverified()) {
+            <!-- The stored retention doesn't verify, or is gone: retention removes nothing until it is saved again. -->
+            <div class="gw-alert gw-alert--warning" role="status" id="st-retention-changed">
+              <svg lucideIcon="shield-alert" class="gw-icon gw-alert__icon"></svg>
+              <div class="gw-alert__content">
+                <p class="gw-alert__title">Retention was changed outside GateRook</p>
+                <p class="gw-alert__body">Nothing is removed from the log until you review it. Keep the period below if it is the one you chose, or choose another and save it.</p>
+                <div class="gw-alert__actions">
+                  <button class="gw-btn gw-btn--sm" type="button" [attr.aria-busy]="saving() ? 'true' : null" [attr.aria-disabled]="saving() ? 'true' : null" (click)="keep()">Keep {{ savedText() }}<span class="gw-sr-only"> as the retention</span></button>
+                </div>
+              </div>
+            </div>
+          }
           <div class="gw-field">
             <label class="gw-field__label" for="st-keep">Keep records for</label>
             <select class="gw-select" id="st-keep" aria-describedby="st-keep-hint" [formField]="retentionForm.years">
@@ -165,6 +180,9 @@ export class GwAuditSettings {
   });
   protected readonly retentionForm = form(this.model, () => undefined, { injector: this.injector });
   protected readonly dirty = computed(() => this.model().years !== this.saved());
+  /** The stored retention was changed or removed outside GateRook: nothing is removed until it is saved again. */
+  protected readonly unverified = computed(() => this.data.section('audit')?.verified === false);
+  protected readonly savedText = computed(() => yearsText(Number(this.saved())));
   protected readonly hint = computed(() => retentionHint(this.data.calls24h(), Number(this.model().years)));
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -188,6 +206,22 @@ export class GwAuditSettings {
     this.error.set(null);
     try {
       await this.data.save('audit', { retentionYears: Number(this.model().years) });
+      this.toasts.show(formSavedToast('Retention'));
+    } catch (err) {
+      this.error.set(isApiError(err) && err.status === 409 ? 'Retention changed meanwhile, in another window. Check it, then save again.' : isApiError(err) ? err.detail : NO_ANSWER);
+      this.announcer.announce('Retention wasn’t saved');
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  /** Saves the stored period as it is: the review of a retention changed outside GateRook. */
+  protected async keep(): Promise<void> {
+    if (this.saving()) return;
+    this.saving.set(true);
+    this.error.set(null);
+    try {
+      await this.data.save('audit', { retentionYears: Number(this.saved()) });
       this.toasts.show(formSavedToast('Retention'));
     } catch (err) {
       this.error.set(isApiError(err) && err.status === 409 ? 'Retention changed meanwhile, in another window. Check it, then save again.' : isApiError(err) ? err.detail : NO_ANSWER);

@@ -10,11 +10,12 @@ import {
   ShortLivedCredential,
 } from '../../core/api/secrets.api';
 import { Env, JsonObject, JsonValue } from '../../core/api/types';
+import { compactReferenceError } from '../../core/secret-reference-feedback';
 import { isVaultDynamicCredential } from '../../core/secret-visibility';
 import { duration, relativeTime, shortDate } from '../../core/time/time-format';
 
 /**
- * The Secrets page's wording and view models (design/pages/secrets.html), as pure functions of the core's answers
+ * The Secrets page's wording and view models, as pure functions of the core's answers
  * (ARCHITECTURE.md §6 secrets) and "now", so every sentence the page shows is tested without a browser or a clock.
  */
 
@@ -384,7 +385,7 @@ export function rotateStartedToast(s: SecretSubject): ToastText {
 
 export function refTestToast(name: string, t: SecretRefTest): ToastText {
   if (!t.found) {
-    return { tone: 'danger', title: `Reference ${name} doesn't resolve`, body: t.error ?? 'The store didn\'t find it. Check the reference, then test again.' };
+    return { tone: 'danger', title: `Reference ${name} doesn't resolve`, body: compactReferenceError(t.error, 'Check the reference and the selected store access, then test again.') };
   }
   const took = t.latencyMs !== null && t.latencyMs !== undefined ? ` in ${duration(t.latencyMs)}` : '';
   const version = t.resolvedVersion ? `Version ${t.resolvedVersion.replace(/^(\d+)$/, 'v$1')}. ` : '';
@@ -393,7 +394,7 @@ export function refTestToast(name: string, t: SecretRefTest): ToastText {
 
 /** The reference field's own result line in the Replace reference dialog. */
 export function refTestLine(t: SecretRefTest): { readonly ok: boolean; readonly text: string } {
-  if (!t.found) return { ok: false, text: t.error ?? 'The store didn\'t find it. Check the reference.' };
+  if (!t.found) return { ok: false, text: compactReferenceError(t.error, 'Check the reference and the selected store access, then test again.') };
   const parts = ['Found'];
   if (t.resolvedVersion) parts.push(t.resolvedVersion.replace(/^(\d+)$/, 'v$1'));
   if (t.keys?.length) parts.push(`keys ${t.keys.join(', ')}`);
@@ -690,6 +691,7 @@ export function storeSignIn(s: SecretStore): TextPart[] {
       return name ? [{ text: 'A token stored here: ' }, { text: name, mono: true }] : [{ text: 'A token stored here' }];
     }
     if (method === 'cli-token') return [{ text: 'Your ' }, { text: 'vault login', mono: true }, { text: ' on this computer (' }, { text: stringAt(s.config, 'auth.file') ?? '~/.vault-token', mono: true }, { text: ')' }];
+    if (method === 'token-file') return [{ text: 'A token read from ' }, { text: stringAt(s.config, 'auth.file') ?? 'a file', mono: true }, { text: ' each time it signs in. It isn’t stored here.' }];
     const role = stringAt(s.config, 'auth.roleId');
     const parts: TextPart[] = [{ text: 'AppRole ' }];
     if (role) parts.push({ text: role, mono: true }, { text: ' ' });
@@ -839,7 +841,10 @@ export function storeTestToast(title: string, t: SecretStoreTest): ToastText {
 
 export function connectedToast(title: string, store: SecretStore, test: SecretStoreTest | null): ToastText {
   const refs = storeReferences(store).map((r) => r.name);
-  if (test && !test.ok) {
+  if (!test) {
+    return { tone: 'warning', title: `${title} saved, but its test did not finish`, body: 'The store settings were saved. Check its connection in Secrets and test it again.' };
+  }
+  if (!test.ok) {
     return { tone: 'warning', title: `${title} connected, but its test failed`, body: test.error ?? 'Check its settings, then test it again.' };
   }
   return {

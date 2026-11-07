@@ -7,6 +7,7 @@ import ai.msrv.gaterook.core.platform.Taint;
 import java.util.List;
 import java.util.Set;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Masks what a connector's {@code test} says before a person sees it or the core stores it: an error message may echo
@@ -20,6 +21,32 @@ public final class TestResults {
   private TestResults() {}
 
   public static TestResult mask(TestResult r, Masker masker, Taint taint) {
+    return mask(r, masker, taint, tree(masker, taint, r.details()));
+  }
+
+  /**
+   * Successful administrative database discovery supplies identifiers the form saves verbatim. A name may happen
+   * to match a password; masking it would select a different database. Only the typed choice list is exempt, not
+   * diagnostics, failed tests, or agent-facing results.
+   */
+  public static TestResult maskDatabaseDiscovery(TestResult r, Masker masker, Taint taint) {
+    if (!r.ok() || r.needsConfirmation() != null || !(r.details() instanceof ObjectNode details)
+        || !details.path("databases").isArray()) {
+      return mask(r, masker, taint);
+    }
+    for (JsonNode name : details.path("databases")) {
+      if (!name.isString() && !(name.isIntegralNumber() && name.canConvertToInt() && name.asInt() >= 0)) {
+        return mask(r, masker, taint);
+      }
+    }
+    ObjectNode diagnostics = details.deepCopy();
+    JsonNode names = diagnostics.remove("databases");
+    ObjectNode masked = (ObjectNode) tree(masker, taint, diagnostics);
+    masked.set("databases", names);
+    return mask(r, masker, taint, masked);
+  }
+
+  private static TestResult mask(TestResult r, Masker masker, Taint taint, JsonNode details) {
     TestResult.Permissions p = r.permissions() == null ? null : new TestResult.Permissions(r.permissions().level(),
         text(masker, taint, r.permissions().read()), text(masker, taint, r.permissions().write()),
         r.permissions().admin() == null ? List.of()
@@ -37,7 +64,7 @@ public final class TestResults {
     return new TestResult(r.ok(), r.latencyMs(), text(masker, taint, r.serverVersion()),
         text(masker, taint, r.identity()), p, hints, checks, error, confirmation,
         tree(masker, taint, r.metadataUpdate()), tree(masker, taint, r.suggestedPolicyChange()),
-        tree(masker, taint, r.details()));
+        details);
   }
 
   private static String text(Masker masker, Taint taint, String value) {

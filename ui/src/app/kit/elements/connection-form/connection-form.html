@@ -23,7 +23,7 @@
       <!-- A first connection (kit connection-new ?state=first-run): what the name is for, in a beginner's words. -->
       <p class="gw-field__hint" [id]="p + '-name-hint'">Lowercase letters, digits and dashes, like <span class="gw-mono">dev-db</span>. Your AI apps use this name to pick the connection.</p>
     } @else if (pageCopy()) {
-      <!-- Add connection's own words (pages/connection-new.html); the edit view says the name stays. -->
+      <!-- Add connection's own words; the edit view says the name stays. -->
       <p class="gw-field__hint" [id]="p + '-name-hint'">A slug: lowercase letters, digits and dashes. Agents call tools with it and Activity filters by <span class="gw-mono">connection:{{ name && nameValid() ? name : placeholderName }}</span>.@if (mode() === 'edit') { It can't be renamed: agents, policies and past calls refer to it.}</p>
     } @else {
       <p class="gw-field__hint" [id]="p + '-name-hint'">A slug: lowercase letters, digits and dashes. Agents and Activity see it as <span class="gw-mono">connection:{{ name && nameValid() ? name : placeholderName }}</span>.</p>
@@ -37,55 +37,11 @@
   <span class="gw-mono">{{ common().name }}</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm" [class]="'gw-env--' + env">{{ env }}</span>{{ credentialsText().slice(common().name.length) }}
 </ng-template>
 
-<!-- The secret source: where the core gets the secret at call time. -->
-<ng-template #sources>
-  @if (showSources() && beginner()) {
-    <!-- First run: the secret stays encrypted here; the other sources wait behind a disclosure placed before them. -->
-    <div class="gw-stack gw-stack--sm">
-      <p class="gw-text-small gw-fg-secondary"><svg lucideIcon="lock-keyhole" class="gw-icon gw-icon--sm"></svg> @if (s.source() === 'local') {The {{ secretWord() }} is stored encrypted on this computer. Nobody can view it afterwards, not even you.} @else {The secret stays in your secret manager. GateRook reads it only when a call needs it.}</p>
-      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-connection-form__toggle" type="button" gwToggle [(expanded)]="sourcesOpen" [attr.aria-controls]="p + '-src-field'"><svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-connection-form__when-closed"></svg><svg lucideIcon="chevron-up" class="gw-icon gw-icon--sm gw-connection-form__when-open"></svg>Use a secret manager instead (Vault, GCP, AWS)</button>
-    </div>
-  }
-  @if (showSources()) {
-    <fieldset class="gw-field" [id]="p + '-src-field'" [hidden]="beginner() && !sourcesOpen()">
-      <legend class="gw-field__label">Secret source</legend>
-      <div class="gw-grid gw-grid--auto gw-connection-form__sources">
-        @for (src of secretSources(); track src.id) {
-          @let copy = sourceCopy(src.id, src.label);
-          @let base = p + '-src-' + copy.kit;
-          <label class="gw-choice-card gw-choice-card--compact">
-            <input
-              class="gw-choice-card__input"
-              type="radio"
-              [name]="p + '-src'"
-              [value]="copy.kit"
-              [checked]="s.source() === sourceId(src.id)"
-              [attr.aria-disabled]="src.available ? null : 'true'"
-              [attr.aria-labelledby]="base + '-t'"
-              [attr.aria-describedby]="base + '-d' + (src.available ? '' : ' ' + base + '-r')"
-              (change)="setSource(src.id, src.available, $event)"
-            />
-            <span class="gw-choice-card__icon"><svg [lucideIcon]="copy.icon" class="gw-icon"></svg></span>
-            <span class="gw-choice-card__title" [id]="base + '-t'">{{ copy.title }}</span>
-            <span class="gw-choice-card__description" [id]="base + '-d'">@for (part of literalParts(copy.description, [copy.scheme]); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {<ng-container>{{ part.text }}</ng-container>}}</span>
-            @if (!src.available && src.reason) {
-              <span class="gw-choice-card__meta" [id]="base + '-r'">{{ src.reason }}</span>
-            } @else if (copy.meta) {
-              <span class="gw-choice-card__meta">{{ copy.meta }}</span>
-            }
-          </label>
-        }
-      </div>
-    </fieldset>
-  }
-</ng-template>
-
-<!-- A flat schema's root section: the Name, then where its secrets come from. -->
+<!-- A flat schema's root section: the Name first (each secret field says where its value comes from). -->
 <ng-template #rootLead>
   @if (showName()) {
     <ng-container [ngTemplateOutlet]="nameField" />
   }
-  <ng-container [ngTemplateOutlet]="sources" />
 </ng-template>
 
 <!-- What the page puts first inside the form (a duplicate's "Copied from dev-db" alert). -->
@@ -110,7 +66,6 @@
       <gw-schema-section
         [form]="s"
         [node]="section"
-        [lead]="showSources() ? sources : null"
         [description]="credentialsText()"
         [descriptionTemplate]="namedCredentials() ? namedDescription : null"
         sectionClass="gw-connection-form__credentials"
@@ -271,7 +226,6 @@
       <gw-schema-section
         [form]="s"
         [node]="section"
-        [lead]="showSources() ? sources : null"
         [description]="credentialsText()"
         [descriptionTemplate]="namedCredentials() ? namedDescription : null"
         sectionClass="gw-connection-form__credentials"

@@ -41,7 +41,7 @@ import {
   usedByRows,
 } from './connection-new-view';
 
-/** Add connection's words and decisions against the kit (design/pages/connection-new.html) and the core's rules. */
+/** Add connection's words and decisions against the kit and the core's rules. */
 
 const card = (over: Partial<ConnectorGroup['cards'][number]>) => ({
   type: 'postgres',
@@ -149,7 +149,7 @@ describe('Add connection: the stepper', () => {
     expect(steps.filter((s) => s.current).map((s) => s.n)).toEqual([3]);
   });
 
-  it('keeps Test failed until a test passes, also on the next step (COMPONENTS.md stepper, error)', () => {
+  it('keeps Test failed until a test passes, also on the next step (stepper, error)', () => {
     const failed = testSummary(outcome({ error: { code: 'unreachable', message: 'Timed out', technical: null } }), 'db.dev.internal:5432');
     expect(failed).toEqual({ passed: false, text: "Can't reach db.dev.internal:5432" });
     const steps = stepperSteps(4, { typeName: 'PostgreSQL', name: 'dev-db', env: 'dev', test: failed, endpoints: ['dev'] });
@@ -275,6 +275,14 @@ describe('Add connection: endpoints', () => {
     expect(toolMode('read-only')).toBe('READ_ONLY');
     expect(toolMode(null)).toBe('OFF');
   });
+
+  it('previews declared MCP reads as Read only, retaining Approval or Off for other tools', () => {
+    const [dev, stage] = endpointChoices(ENDPOINTS, { name: 'notes-mcp', env: 'dev' });
+    const definitions = [SQL_TOOLS[0], SQL_TOOLS[3], { ...SQL_TOOLS[0], name: 'conflicting', nature: 'mutation' }];
+    expect(toolPreview(definitions, 'mcp-server', true, dev).rows.map((row) => row.mode)).toEqual(['READ_ONLY', 'APPROVAL', 'APPROVAL']);
+    expect(toolPreview(definitions, 'mcp-server', true, stage).rows.map((row) => row.mode)).toEqual(['READ_ONLY', 'OFF', 'OFF']);
+    expect(toolPreview(SQL_TOOLS.slice(0, 1), 'custom-kind', false, dev).rows[0].mode).toBe('APPROVAL');
+  });
 });
 
 describe('Add connection: what prod turns on', () => {
@@ -391,6 +399,15 @@ describe('Connection: edit view', () => {
       { slug: 'stage-readonly', tools: ['sql_query'], clients: [] },
     ]);
     expect(usedByMeta(uses)).toEqual({ tools: 3, endpoints: ['dev', 'stage-readonly'], clients: 'Claude Desktop and Codex' });
+  });
+
+  it('keeps saved endpoint membership when an endpoint has no tool rows', () => {
+    const uses = endpointUses([{ tool: 'opensearch_query', endpoint: 'dev', mode: 'READ_ONLY' }], ENDPOINTS, ['stage-readonly', 'dev']);
+    expect(uses).toEqual([
+      { slug: 'dev', tools: ['opensearch_query'], clients: ['Claude Desktop', 'Codex'] },
+      { slug: 'stage-readonly', tools: [], clients: [] },
+    ]);
+    expect(usedByMeta(uses)).toEqual({ tools: 1, endpoints: ['dev', 'stage-readonly'], clients: 'Claude Desktop and Codex' });
   });
 
   it('says what Delete does to the secrets: destroyed here, references left in their store', () => {

@@ -4,7 +4,7 @@ import { Announcer } from './announcer';
 export type FileDropState = 'idle' | 'dragover' | 'uploaded' | 'error';
 
 /**
- * The kit's `label.gw-file-drop` (kit.js "file drop"): `data-state` follows dragenter / dragover (`dragover`),
+ * The kit's `label.gw-file-drop`: `data-state` follows dragenter / dragover (`dragover`),
  * dragleave (`idle`), a drop (the files go into its `input[type=file]`, which fires `change`) and the choice
  * (`uploaded`, the name in `[data-gw-file-name]`, announced). `error` is the page's verdict (`gwFileDropError`):
  * too large, wrong type. A plugin JAR is ≤ 50 MB, an OpenAPI file ≤ 20 MB (`gwFileDropMaxBytes`).

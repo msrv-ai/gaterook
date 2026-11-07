@@ -11,12 +11,13 @@ import tools.jackson.databind.JsonNode;
 /**
  * The Masking section of an environment's policy (kit Policies › Masking; report 12 §6): secrets are always masked,
  * whatever this says; on top of them personal data of the chosen kinds and the fields named here ("Always mask these
- * fields": {@code orders.customer_email}, {@code *.password}).
+ * fields": {@code orders.customer_email}, {@code *password}).
  *
  * @param entropy whether long random-looking strings are masked as unknown secrets (on by default; a dev connection
  *                full of base64 data may switch it off)
  * @param pii     kinds of personal data masked in every value, whatever its field name
- * @param fields  {@code table.column} (SQL), {@code collection.field} (MongoDB), {@code a.b.c} (JSON);
+ * @param fields  {@code table.column} or {@code schema.table.column} (SQL), {@code collection.field} (MongoDB),
+ *                {@code a.b.c} (JSON);
  *                {@code *} is any one name
  */
 public record MaskPolicy(boolean entropy, Set<Pii> pii, List<String> fields) {

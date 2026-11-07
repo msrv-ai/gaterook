@@ -29,11 +29,11 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The Redis connector (report 05): {@code redis_get} and {@code redis_scan} over Jedis 8.
+ * Bounded Redis reads and writes over Jedis 8.
  *
- * <p>Read only by construction: neither tool takes a command; {@code classify} answers READ or DENY, never MUTATION;
- * every command goes through {@link ReadOnlyCommandExecutor}, which refuses anything outside its read allowlist before
- * the network — {@code SET}, {@code FLUSHALL}, {@code KEYS}, {@code EVAL} included. The account's ACL is the real
+ * <p>Tools never take raw commands. Writes are classified as mutations and default to approval. Every command goes
+ * through {@link RedisCommandExecutor}, with separate allowlists for reads, writes and connection probes.
+ * Commands outside those lists are refused before the network. The account's ACL is the real
  * boundary on the server, and Test connection shows what it allows. Keys outside the connection's allowlist or in its
  * denylist are refused ({@code redis_get}) or hidden ({@code redis_scan}). Values are untrusted content: the core
  * masks secrets in them before anyone sees them.
@@ -57,7 +57,7 @@ public final class RedisConnector implements Connector {
         .name("Redis")
         .icon("layers")
         .group("Databases")
-        .description("Read keys and scan by pattern. Read only.")
+        .description("Read and write values, and scan keys by pattern. Writes require approval by default.")
         .configSchema(schemas.load("config"))
         .tools(RedisTools.definitions(schemas))
         .build();
@@ -84,11 +84,12 @@ public final class RedisConnector implements Connector {
           + e.getMessage(), "Ask the person to fix the connection in GateRook.");
     }
     try {
-      RedisRequest.of(call.tool(), call.arguments(), cfg, s);
+      RedisRequest request = RedisRequest.of(call.tool(), call.arguments(), cfg, s);
+      return request instanceof RedisWrite ? Classification.mutation("Write values to a Redis key.")
+          : Classification.read();
     } catch (RedisRequest.Refusal r) {
       return Classification.deny(policy.rule(r.rule), r.getMessage(), r.hint);
     }
-    return Classification.read();
   }
 
   @Override
@@ -154,8 +155,11 @@ public final class RedisConnector implements Connector {
     } catch (RedisSettings.InvalidSettingsException e) {
       throw ConnectorException.badInput("The settings of " + cfg.name() + " can't be used: " + e.getMessage());
     }
-    // An approved call (a person set the tool to Approval) runs the stored request, not the arguments again.
+    // An approved call runs the stored request, not the arguments again.
     Optional<JsonNode> approved = ctx.approved() ? ctx.approvedPayload() : Optional.empty();
+    if (ctx.approved() && approved.isEmpty()) {
+      throw ConnectorException.badInput("The approved Redis request is missing its stored payload.");
+    }
     JsonNode arguments = approved.isPresent() ? approved.get() : call.arguments();
     String tool = approved.isPresent() ? approved.get().path("tool").asString(call.tool()) : call.tool();
     RedisRequest r;
@@ -167,15 +171,24 @@ public final class RedisConnector implements Connector {
           : ConnectorException.badInput(e.getMessage() + (e.hint == null ? "" : " " + e.hint));
     }
     s = s.withDatabase(r.database());
+    if (r instanceof RedisWrite write) {
+      write.checkLimits(ctx);
+    }
     Budget budget = Budget.of(ctx.limits(), switch (r) {
       case RedisRequest.Get g -> g.limit();
       case RedisRequest.Scan sc -> sc.count();
+      case RedisWrite w -> w.items();
     });
     try (RedisSession session = clients.open(cfg, s, Credentials.resolve(s, secrets), ctx.deadline())) {
       ctx.onCancel(session::abort);
+      if (r instanceof RedisWrite write) {
+        write.checkLimits(ctx);
+        return write.result(session.write(write));
+      }
       RedisReads.Reading reading = switch (r) {
         case RedisRequest.Get g -> RedisReads.get(session, g, budget, ctx, s.cursorScope(cfg.id()));
         case RedisRequest.Scan sc -> ScanLoop.scan(session, sc, budget, ctx, s.cursorScope(cfg.id()));
+        case RedisWrite ignored -> throw new IllegalStateException("Write already handled");
       };
       if (!s.databases().isEmpty()) {
         reading.structured().put("database", s.database());

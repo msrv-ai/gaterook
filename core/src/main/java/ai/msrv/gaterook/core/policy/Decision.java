@@ -2,6 +2,7 @@ package ai.msrv.gaterook.core.policy;
 
 import ai.msrv.gaterook.connector.api.Limits;
 import ai.msrv.gaterook.connector.api.PolicyView;
+import ai.msrv.gaterook.core.platform.MaskPolicy;
 import java.util.Objects;
 
 /**
@@ -15,9 +16,10 @@ import java.util.Objects;
  * @param limits       effective limits of the call: min(environment, connection, endpoint, pair)
  * @param ratePerToken calls per minute of one principal on this environment
  * @param ratePerTool  calls per minute of one principal × tool
+ * @param mask         masking of the call's results: the environment's, narrowed by the endpoint and the pair
  */
 public record Decision(Outcome outcome, String ruleId, String reason, String hint, PolicyView view, Limits limits,
-    int ratePerToken, int ratePerTool) {
+    int ratePerToken, int ratePerTool, MaskPolicy mask) {
 
   /** The outcomes; there is no "write without approval" anywhere. */
   public enum Outcome {
@@ -33,5 +35,6 @@ public record Decision(Outcome outcome, String ruleId, String reason, String hin
 
   public Decision {
     Objects.requireNonNull(outcome, "outcome");
+    Objects.requireNonNull(mask, "mask");
   }
 }

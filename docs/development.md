@@ -8,16 +8,15 @@ From the repository root:
 
 ```bash
 npm ci
-npm ci --prefix design
 npm run build
 npm start
 ```
 
-The desktop build compiles a small native unlock helper on macOS and Windows. Install Xcode Command Line Tools with Swift on macOS. On Windows, install Visual Studio C++ build tools and the Windows 11 SDK, then build from a Developer Command Prompt targeting the same architecture as Node.js (x64 or arm64). The Windows Hello desktop interop requires a supported Windows version and configured Hello credentials. Linux keeps its existing Secret Service/KWallet integration and does not compile this helper.
+The desktop build compiles a small native unlock helper on macOS and Windows. Install Xcode Command Line Tools with Swift on macOS. On Windows, install Visual Studio C++ build tools and the Windows 11 SDK, then build from a Developer Command Prompt targeting the same architecture as Node.js (x64 or arm64). The Windows Hello desktop interop requires a supported Windows version and configured Hello credentials; without them the helper checks the Windows account password through the system credential dialog. Linux keeps its existing Secret Service/KWallet integration and does not compile this helper.
 
 The helper is cached by source and compiler identity under ignored `desktop/.dev/native-unlock/` and copied into `desktop/dist/native/`. Rebuilding unchanged sources keeps the same macOS Keychain identity. Packaged helpers live in the application's `resources/native/` folder and must be signed with the release. A local ad-hoc signature is only for development; signed installer and interactive authentication verification remain separate checks.
 
-Dependencies and pinned artifacts require network access on the first build. The root npm workspace contains `ui`, `desktop`, and `bridge`; the design kit is a local package with its own build dependencies and lockfile. Do not replace lockfile-based installs with unpinned upgrades during routine builds.
+Dependencies and pinned artifacts require network access on the first build. The root npm workspace contains `ui`, `desktop`, and `bridge`. Versioned runtime styles, fonts, and icons are included in `assets/`. Do not replace lockfile-based installs with unpinned upgrades during routine builds.
 
 ## IntelliJ IDEA
 
@@ -25,9 +24,9 @@ Open the cloned repository directory in IDEA and import its root `pom.xml` as a 
 
 Set the project SDK to **JDK 25** in **Project Structure**. In Maven settings, select **Maven 3.9.16** (or another compatible 3.9+ installation), and set both the importer JDK and runner JRE to the project SDK. In the Node.js settings, select **Node 24.22.1** and its npm package manager (**11.19.1**).
 
-In **Maven → Runner**, enable **Delegate IDE build/run actions to Maven**. The Java modules require Maven lifecycle plugin phases, including the dependency shading in `third-party/sshd-nofs`; IDEA's internal compiler does not run those phases. Delegated **Build Project** builds the Java modules. Use **GateRook: Build** below for the complete application, including the design kit, UI, and Electron bundle.
+In **Maven → Runner**, enable **Delegate IDE build/run actions to Maven**. The Java modules require Maven lifecycle plugin phases, including the dependency shading in `third-party/sshd-nofs`; IDEA's internal compiler does not run those phases. Delegated **Build Project** builds the Java modules. Use **GateRook: Build** below for the complete application, including the UI and Electron bundle.
 
-In the repository-root terminal, run `npm ci` and `npm ci --prefix design` once before the first build. Repeat these installs after the corresponding lockfiles change. Check that this terminal uses the intended Node and Java versions; the IDE terminal and run configurations can inherit different environments.
+In the repository-root terminal, run `npm ci` once before the first build. Repeat the install after the workspace lockfile changes. Check that this terminal uses the intended Node and Java versions; the IDE terminal and run configurations can inherit different environments.
 
 Under **Run → Edit Configurations**, create these **npm** configurations. For each configuration, select the repository-root `package.json`, the Node 24 interpreter, and its npm package manager:
 
@@ -37,7 +36,7 @@ Under **Run → Edit Configurations**, create these **npm** configurations. For 
 | `GateRook: Run` | `run` | `start` | Empty | Run `GateRook: Build` |
 | `GateRook: Demo` | `run` | `start` | `-- --demo --home ./desktop/.dev/idea-demo` | Run `GateRook: Build` |
 
-For the two launch configurations, add **Run Another Configuration → GateRook: Build** to **Before launch**. The full npm build produces the design kit, Java core, UI, and Electron bundle before starting the application. IDEA's Java **Build Project** action does not run this complete build.
+For the two launch configurations, add **Run Another Configuration → GateRook: Build** to **Before launch**. The full npm build produces the Java core, UI, and Electron bundle before starting the application. IDEA's Java **Build Project** action does not run this complete build.
 
 In each configuration's environment variables, set `JAVA_HOME` to the local JDK 25 installation and ensure `PATH` starts with the selected Node, Maven, and JDK `bin` directories while retaining the system paths. Choose paths for your machine; keep these IDE settings local. The npm build invokes `mvn` through `PATH`, so changing IDEA's Maven home alone does not select the Maven used by this build. This also prevents a desktop-launched IDE from using an older system Node or Java installation.
 
@@ -55,7 +54,7 @@ Run configurations must point to the actual application `package.json`: `$PROJEC
 
 The root [`pom.xml`](../pom.xml) defines the application version once, in `<properties><revision>`.
 Change that value for the next release, then run `npm run build`. Maven modules inherit `${revision}`;
-the independently versioned connector API and design kit retain their own versions.
+the independently versioned connector API retains its own version.
 
 The build synchronizes the root, UI, desktop, and bridge npm manifests and the workspace lockfile from
 that revision. These npm version fields are derived mirrors; do not bump them individually. Run
@@ -70,7 +69,7 @@ resources, bundled bridges, and Electron metadata carry this version. It appears
 
 ### Component outputs
 
-`npm run build` runs the design generator, `mvn -B -ntp -DskipTests package`, the Angular production build, and the Electron development bundle. Tests are compiled but not run by this command.
+`npm run build` runs `mvn -B -ntp -DskipTests package`, the Angular production build, and the Electron development bundle. Tests are compiled but not run by this command.
 
 | Output | Purpose |
 | --- | --- |
@@ -79,7 +78,6 @@ resources, bundled bridges, and Electron metadata carry this version. It appears
 | `plugin-host/target/plugin-host.jar` | JVM plugin host |
 | `ui/dist/gaterook-ui/browser/` | Renderer assets |
 | `desktop/dist/` | Electron main/preload bundle |
-| `design/dist/gw-kit.css` | Generated design-kit CSS |
 
 Build just one area when appropriate:
 
@@ -87,7 +85,6 @@ Build just one area when appropriate:
 npm run build:java
 npm run build -w ui
 npm run build -w desktop
-npm --prefix design run verify
 ```
 
 ## Desktop launcher
@@ -99,7 +96,7 @@ npm start -- --demo --home ./desktop/.dev/demo --protection off
 
 The launcher rebuilds Electron, uses the built renderer, and starts the core as its child. Its default home is `desktop/.dev/home`. `--demo` seeds an empty home; `--protection off` avoids OS key-store use for a disposable instance. `--fresh` recursively deletes the chosen development home, so use it only for disposable data. Ctrl+C stops Electron and the core.
 
-With protection enabled, startup waits at **Unlock GateRook** before accessing any stored key or showing authentication. A capability check can identify available authentication before that click without requesting access. macOS uses Touch ID or the Mac password. Windows uses Windows Hello face, fingerprint, or PIN when configured, while DPAPI continues to protect the stored key. Cancellation closes the app without starting the core; helper failures do not silently bypass authentication.
+With protection enabled, startup waits at **Unlock GateRook** before accessing any stored key or showing authentication. A capability check can identify available authentication before that click without requesting access. macOS uses Touch ID or the Mac password. Windows uses Windows Hello face, fingerprint, or PIN when configured, else the Windows account password, while DPAPI protects the stored key. A home whose first file key is made where Hello is available binds it to a Windows Hello key instead (a `gaterook-hello-key-v1` reference in `master.keyset.osk`), which only Windows Hello opens. Cancellation closes the app without starting the core; helper failures do not silently bypass authentication.
 
 An existing macOS vault initially uses its previous **GateRook Dev Safe Storage** entry. After successful access, the same file key is saved in **GateRook Vault Unlock**, and `master.keyset.osk` is atomically replaced with a reference to that Keychain item. The encrypted master keyset is unchanged. If migration cannot finish, the previous ciphertext remains usable. A locked Keychain or changed helper signature uses the Keychain access dialog alone; ordinary subsequent launches use Touch ID/password alone. The app retains a private file-key copy for core restarts and zeroes it on quit.
 
@@ -135,6 +132,26 @@ To recover, use the same GateRook version, open **Settings → Backup → Restor
 
 GateRook closes when restoration succeeds. Reopen it, review the restored configuration and reconnect your AI apps: previous client access is revoked. Restored plugins are disabled, external MCP servers start on first use, and tunnels stay off until enabled. This computer's listener ports are retained, and startup at login is disabled. The restored master key uses the destination's local protection; the source computer's OS key-store credentials are not transferred.
 
+## Endpoint sharing
+
+Open an endpoint and choose **Share endpoint**. Select the connections to include, choose whether to include their stored local secrets, and enter and repeat a passphrase of 12–1,024 characters. Secrets are excluded by default. Save the `.grshare` file outside the GateRook data folder and send it to the recipient; communicate its passphrase separately. Sharing does not stop the gateway or change the source endpoint.
+
+Open **Endpoints → Import shared endpoint** to select a file. Installed desktop packages also register `.grshare` as a GateRook document type; opening one brings up the same import review. Enter its passphrase to see the endpoint, connections, tool modes and warnings. Select or skip individual connections, choose whether to create the endpoint, and choose whether to import any included secrets. Nothing is created until **Import selected** is confirmed. An incorrect passphrase, modified file or unsupported format is rejected before review.
+
+Imports create new copies with new internal identifiers. Existing connections and endpoints, including paused ones, are preserved; colliding names receive a numeric suffix. Confirming the import enables the new endpoint and every connection with complete settings and included credentials, without opening and saving each connection again. Entries with missing settings, omitted credentials or local file/profile references remain disabled with **Setup required**; their available settings and included secrets are retained. Production permission warnings are reviewed together before any copies are created. Connect AI apps separately: source client grants, bearer tokens, OAuth sign-ins, master keys, audit history, global settings and external secret stores are never shared. External credentials and local file/profile references must be configured on the destination computer. Plugin connections require the same connector to be installed and enabled locally; plugin code is not included. Unavailable connector types cannot be selected for import. External MCP servers use their separate installation and sign-in review and cannot be transferred in a share.
+
+Active SQL query, SSH runbook and OpenAPI template definitions travel with their selected connection. The destination compiles them again and remaps their tool identifiers. Read-only confirmations do not transfer: imported SSH runbooks and HTTP operations other than GET/HEAD require approval. Bypass modes become Approval, and temporary bypass windows do not transfer. Review warnings for excluded templates and credentials.
+
+The share envelope uses the full-backup encryption implementation with a distinct format header: scrypt derives a key from the passphrase, and AES-256-GCM encrypts and authenticates the payload and header using a new random salt and nonce for every export. This protects confidentiality and detects changes; it does not certify the sender's identity. The encrypted file limit is 8 MiB, with at most 6 MiB of portable JSON data. Decrypted data stays in desktop main-process memory during review, is not written to a temporary file or returned to the renderer, and expires after 15 minutes or a core restart. Only sanitized review metadata reaches the UI.
+
+For local verification, run `npm test -w desktop`, `npm test -w ui`, and the focused Java checks:
+
+```bash
+mvn -B -ntp -pl app -am verify -Dtest=TemplateSharesTest,ModularityTests -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=EndpointShareIT,HttpCoreProcessIT -Dit.failIfNoSpecifiedTests=false
+```
+
+File-association unit tests and packaging metadata checks do not replace opening a file with the installed application on each supported operating system.
+
 ## Browser development
 
 ```bash
@@ -142,7 +159,7 @@ npm run dev:ui
 # Optional: npm run dev:ui -- --port 4311 --core-port 7467
 ```
 
-This starts a development JVM core and the Angular server with a signing proxy. The browser launcher selects a free core port and prints the resulting URLs. `--core-port` requests a preferred port; if it is occupied, the launcher chooses another free one. Plain `ng serve` cannot authenticate administrative API requests by itself. See [UI development](../ui/README.md) for demo homes, element routes, and visual comparisons.
+This starts a development JVM core and the Angular server with a signing proxy. The browser launcher selects a free core port and prints the resulting URLs. `--core-port` requests a preferred port; if it is occupied, the launcher chooses another free one. Plain `ng serve` cannot authenticate administrative API requests by itself. See [UI development](../ui/README.md) for demo homes and element routes.
 
 ## Tests
 
@@ -151,7 +168,6 @@ npm test
 npm test -w bridge
 npm test -w desktop
 npm test -w ui
-npm --prefix design run verify
 node --test 'catalog/*.test.mjs'
 mvn -B -ntp verify
 ```
@@ -168,7 +184,7 @@ Tests reset their service databases and users. Use only disposable test servers.
 
 Run a focused Java module with `mvn -B -ntp -pl core -am verify` or `-pl connectors/sql -am verify`. Individual integration tests can be selected with `-Dit.test=NameIT -Dit.failIfNoSpecifiedTests=false`; add `-Dtest=none -Dsurefire.failIfNoSpecifiedTests=false` when skipping unit tests for that focused run.
 
-MCP Apps approval cards live in `core/src/main/resources/ai/msrv/gaterook/core/mcp/apps/`. Maven packages the versioned `design/dist/gw-kit.css` alongside the HTML and script; regenerate that CSS through the design build when changing its source. `npm test` exercises the card's sandbox message lifecycle. `McpApprovalCardsIT` uses local fake connectors to cover authenticated negotiation, caller isolation, denial, navigation, and approval-forgery rejection. Clients that connect through either stdio bridge keep their declared capabilities across core restarts. A Claude Desktop extension contains its own copy of `gw-bridge.mjs`, so reinstall it from GateRook after bridge changes; Claude's Code and Cowork sessions also keep the extension's first tool list until it reconnects. Other legacy clients must reconnect after a core restart before they show cards again. Ordinary MCP clients retain the handle flow. Protocol fixtures do not establish compatibility with every host or replace a real host smoke test.
+MCP Apps approval cards live in `core/src/main/resources/ai/msrv/gaterook/core/mcp/apps/`. Maven packages the versioned interface stylesheet from `assets/` alongside the HTML and script. The renderer and MCP cards use the same bundled styles. `npm test` exercises the card's sandbox message lifecycle. `McpApprovalCardsIT` uses local fake connectors to cover authenticated negotiation, caller isolation, denial, navigation, and approval-forgery rejection. Clients that connect through either stdio bridge keep their declared capabilities across core restarts. A Claude Desktop extension contains its own copy of `gw-bridge.mjs`, so reinstall it from GateRook after bridge changes; Claude's Code and Cowork sessions also keep the extension's first tool list until it reconnects. Other legacy clients must reconnect after a core restart before they show cards again. Ordinary MCP clients retain the handle flow. Protocol fixtures do not establish compatibility with every host or replace a real host smoke test.
 
 The desktop smoke suite starts real Electron instances in disposable homes, including a real JVM core scenario:
 
@@ -179,6 +195,16 @@ npm run smoke -w desktop -- --only real
 ```
 
 Linux without a display needs `xvfb-run -a`. Native image and OS-specific sandbox checks have additional requirements.
+
+## Update checks and installation identity
+
+On first launch, an installed app creates a cryptographically random 16-character ASCII letter/digit ID in `install-id` inside its Electron application data directory. Updates retain the file. The ID is independent of account information, hardware, gateway settings and credentials. It is not part of gateway backup archives; deleting the application data directory creates a new ID on the next launch. An invalid, unreadable or unwritable identity never blocks opening the app or checking for updates: the check omits the ID and is not counted, while any existing identity file remains untouched.
+
+Update checks send `install_id` to `https://msrv.dev/api/updates/{platform}/{arch}/latest-mac.yml` on macOS or `latest.yml` for supported standalone Windows builds. Metadata contains versioned GitHub release download URLs with the updater's hashes, sizes and blockmap information. The request parameter is added only to metadata requests and is redacted from updater logs and errors; it is not attached to GitHub downloads or blockmaps. Packaging retains its GitHub publish configuration so release metadata remains compatible, while the installed app selects the site metadata provider at runtime.
+
+Automatic checks run one minute after launch, then hourly on macOS and daily on Windows, when **Settings → General → Check for updates automatically** is enabled. **Check now** performs an explicit check regardless of that preference. Microsoft Store builds read `store.json` at the Windows metadata path for the same activity count; they never load an external installer, and Microsoft Store remains responsible for all installation and updates. Development builds never make these requests. Linux automatic updates remain unavailable.
+
+The ID measures distinct installations that checked for updates within a rolling 30-day window, not a lifetime installation count or the number of people. Offline apps and apps with automatic checks disabled are not counted unless they make a successful manual check. No connection configuration, credentials, queries or gateway activity are included in these requests. Existing signature verification, explicit download/install actions and rollback restrictions remain in force.
 
 ## Native binaries and local packaging
 

@@ -42,10 +42,13 @@
     @if (summary(); as s) {
       <div class="gw-page-header__actions">
         <a class="gw-btn gw-btn--ghost" routerLink="/activity" [queryParams]="{ q: 'endpoint:' + s.slug }"><svg lucideIcon="activity" class="gw-icon"></svg> View activity<span class="gw-sr-only"> of endpoint {{ s.slug }}</span></a>
-        <a class="gw-btn" routerLink="/playground" [queryParams]="{ endpoint: s.slug }"><svg lucideIcon="flask-conical" class="gw-icon"></svg> Open in Playground</a>
         <div class="gw-menu-host">
           <button class="gw-btn gw-btn--ghost gw-btn--icon" type="button" [attr.aria-label]="'More actions for endpoint ' + s.slug" aria-haspopup="menu" [gwMenuTrigger]="epMenu"><svg lucideIcon="ellipsis" class="gw-icon"></svg></button>
           <div class="gw-menu gw-menu--right" gwMenu #epMenu="gwMenu" id="ep-menu" role="menu" [attr.aria-label]="'Actions for endpoint ' + s.slug" hidden>
+            <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" aria-haspopup="dialog" [attr.aria-disabled]="!shareDialog.available() ? 'true' : null" [attr.title]="shareDialog.unavailableReason()" (click)="shareDialog.open($event)"><svg lucideIcon="upload" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Share endpoint</span></button>
+            <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/connection-import" [queryParams]="{ endpoint: s.slug }"><svg lucideIcon="lightbulb" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Import with AI</span></a>
+            <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/playground" [queryParams]="{ endpoint: s.slug }"><svg lucideIcon="flask-conical" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Open in Playground</span></a>
+            <div class="gw-menu__divider" role="separator"></div>
             <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" aria-haspopup="dialog" (click)="askDuplicate($event)"><svg lucideIcon="copy-plus" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Duplicate</span></button>
             @if (s.status === 'disabled') {
               <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" [attr.aria-disabled]="toggling() ? 'true' : null" (click)="enable()"><svg lucideIcon="play" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Enable</span></button>
@@ -427,7 +430,7 @@
       <span class="gw-icon-tile"><svg lucideIcon="database" class="gw-icon"></svg></span>
       <h2 class="gw-dialog__title" id="ep-add-title">Add connections to {{ slug }}</h2>
       <!-- The core starts a connection's tools in its type's default modes, not Off (ARCHITECTURE §8.6): each hint says how. -->
-      <p class="gw-dialog__description" id="ep-add-desc">Tools of a connection start in the modes its type suggests; tools of an MCP server start in Approval. Pick what the agent needs under Tools &amp; policies.</p>
+      <p class="gw-dialog__description" id="ep-add-desc">Tools of a connection start in the modes its type suggests; declared reads of an MCP server start in Read only, and its other tools in Approval. Pick what the agent needs under Tools &amp; policies.</p>
       <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
     </header>
     <div class="gw-dialog__body">
@@ -446,7 +449,7 @@
           </fieldset>
         }
         @if (serverCandidates().length) {
-          <!-- External MCP servers: their annotations are declared, not verified (DESIGN §8 Tool modes). -->
+          <!-- External MCP servers: their annotations are declared, not verified. -->
           <fieldset class="gw-field">
             <legend class="gw-field__label">MCP servers not on {{ slug }} yet</legend>
             @for (cand of serverCandidates(); track cand.row.name; let first = $first) {
@@ -455,7 +458,7 @@
                 <input class="gw-checkbox__input" type="checkbox" [id]="'ep-add-' + cand.row.name" [attr.aria-describedby]="'ep-add-' + cand.row.name + '-hint'" [attr.aria-disabled]="cand.refusal ? 'true' : null" [checked]="picked().has(cand.row.name)" [attr.autofocus]="first && !connectionCandidates().length ? '' : null" (change)="togglePick(cand, $any($event.target).checked)">
                 <span class="gw-checkbox__control" aria-hidden="true"></span>
                 <label class="gw-checkbox__label" [for]="'ep-add-' + cand.row.name"><span class="gw-mono">{{ cand.row.name }}</span></label>
-                <p class="gw-checkbox__hint" [id]="'ep-add-' + cand.row.name + '-hint'">@if (cand.refusal; as why) {{{ why }}} @else {<span class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning"><svg lucideIcon="shield-question-mark" class="gw-icon gw-badge__icon"></svg>Declared by {{ declared }}, not verified</span>@if (cand.preview; as p) { {{ plural(p.tools.length, 'tool') }}@if (p.tools[0]; as t) { such as <code class="gw-code">{{ t.tool }}</code>}.} They start in Approval; Read only needs your confirmation for each tool, never for all at once.}</p>
+                <p class="gw-checkbox__hint" [id]="'ep-add-' + cand.row.name + '-hint'">@if (cand.refusal; as why) {{{ why }}} @else {<span class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning"><svg lucideIcon="shield-question-mark" class="gw-icon gw-badge__icon"></svg>Declared by {{ declared }}, not verified</span>@if (cand.preview; as p) { {{ plural(p.tools.length, 'tool') }}@if (p.tools[0]; as t) { such as <code class="gw-code">{{ t.tool }}</code>}.} Declared reads start as Read only; other tools start as Approval. Use Set all to… to change their modes together.}</p>
               </div>
             }
           </fieldset>
@@ -540,3 +543,4 @@
 </dialog>
 
 @if (temporaryBypassMounted()) {<gw-temporary-bypass-dialog #temporaryBypassDialog (changed)="temporaryBypassChanged($event)" />}
+<gw-endpoint-share #shareDialog [slug]="slug" [connections]="wired()" [blocked]="!!summary()?.blockedReason" [showTrigger]="false" />

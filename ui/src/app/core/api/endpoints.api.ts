@@ -72,14 +72,14 @@ export interface EndpointSettings {
 export type StartFrom = 'empty' | 'read-only-dev' | 'incident-response';
 
 /**
- * One "Start from" card of New endpoint (`GET /api/endpoint-starts`, step API): what the endpoint would start with
- * now, counted as its list row counts after Create ("Read-only dev · 6 dev connections · 12 tools").
+ * One "Start from" card of New endpoint (`GET /api/endpoint-starts`): eligible connections and the tool modes
+ * available if all candidates are explicitly selected.
  */
 export interface EndpointStart {
   readonly startFrom: StartFrom;
   readonly env: Env;
   readonly access: 'standard' | 'read-only';
-  /** The connections it would wire (external MCP servers never: the person adds those). */
+  /** Eligible connections; none join until explicitly selected. External MCP servers are added separately. */
   readonly connections: string[];
   /** Its pairs by mode, the core's own tools included (read + approval + bypass are on). */
   readonly tools: { readonly read: number; readonly approval: number; readonly off: number; readonly bypass?: number };
@@ -169,7 +169,7 @@ export class EndpointsApi {
     return this.api.get('/api/endpoints');
   }
 
-  create(request: { readonly slug: string; readonly description?: string | null; readonly startFrom: StartFrom } & WithReason): Promise<EndpointSummary> {
+  create(request: { readonly slug: string; readonly description?: string | null; readonly startFrom: StartFrom; readonly connections?: readonly string[]; readonly env?: Env } & WithReason): Promise<EndpointSummary> {
     return this.api.post('/api/endpoints', request);
   }
 
@@ -241,7 +241,7 @@ export class EndpointsApi {
     return this.api.delete(ApiClient.path`/api/endpoints/${slug}/tools/temporary-bypass`, request);
   }
 
-  /** Answers with every group again, like {@link setMode}. */
+  /** Records trust without changing the mode. Returns fresh groups and versions for the following {@link setMode}. */
   confirmReadOnly(
     slug: string,
     request: { readonly toolKey: string; readonly connection: string | null; readonly definitionHash: string } & WithReason,
@@ -249,7 +249,7 @@ export class EndpointsApi {
     return this.api.post(ApiClient.path`/api/endpoints/${slug}/tools/confirm-read-only`, request);
   }
 
-  /** "Set all to…": `DEFAULT` restores defaults; mutating and "Declared by" tools are skipped for Read only. */
+  /** "Set all to…": `DEFAULT` restores defaults; ineligible reads and unconfirmed plugin tools are skipped for Read only. */
   bulk(slug: string, request: { readonly group: string; readonly mode: ToolMode | 'DEFAULT' } & WithReason): Promise<{ readonly changed: string[]; readonly skipped: { readonly toolKey: string; readonly reason: string }[] }> {
     return this.api.post(ApiClient.path`/api/endpoints/${slug}/tools/bulk`, request);
   }

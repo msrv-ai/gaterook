@@ -14,6 +14,7 @@
       }
     </div>
     <div class="gw-page-header__actions">
+      <a class="gw-btn" routerLink="/endpoint-import"><svg lucideIcon="download" class="gw-icon"></svg> Import shared endpoint</a>
       <button class="gw-btn gw-btn--primary" type="button" id="ep-create-open" aria-haspopup="dialog" (click)="openCreate($any($event.currentTarget))"><svg lucideIcon="plus" class="gw-icon"></svg> Create endpoint</button>
     </div>
   </div>
@@ -35,7 +36,7 @@
   <gw-code-block [attr.id]="'ep-error-details'" [id]="'ep-error-pre'" hidden wrap lang="Error" [text]="errorDetails(e)" copyLabel="error details" regionLabel="Error details" />
 } @else if (loading()) {
   @if (slow()) {
-    <!-- The first render of the list, when it takes longer than 300 ms (DESIGN §8 "Loading": gw-skeleton). -->
+    <!-- The first render of the list, when it takes longer than 300 ms (gw-skeleton). -->
     <div class="gw-stack" aria-busy="true">
       <p class="gw-sr-only" role="status">Loading endpoints</p>
       @for (i of [1, 2]; track i) {
@@ -166,7 +167,7 @@
     <header class="gw-dialog__header">
       <span class="gw-icon-tile gw-icon-tile--brand"><svg lucideIcon="waypoints" class="gw-icon"></svg></span>
       <h2 class="gw-dialog__title" id="ep-create-title">Create endpoint</h2>
-      <p class="gw-dialog__description" id="ep-create-desc">One MCP URL with its own connections, tool modes and tokens. You add connections and pick modes on the next page.</p>
+      <p class="gw-dialog__description" id="ep-create-desc">One MCP URL with its own connections, tool modes and tokens. Only connections you select are added. Review tool modes on the next page.</p>
       <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
     </header>
     <div class="gw-dialog__body">
@@ -213,6 +214,31 @@
             <p class="gw-field__error" id="ep-create-tpl-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ err }}</p>
           }
         </fieldset>
+        @if (createModel().startFrom !== 'empty') {
+          <fieldset class="gw-field" aria-describedby="ep-create-connections-hint">
+            <legend class="gw-field__label">Connections to add <span class="gw-field__optional">Optional</span></legend>
+            <p class="gw-field__hint" id="ep-create-connections-hint">Only selected connections are added. Leave all unchecked to create an empty endpoint.</p>
+            @if (data.startsLoading()) {
+              <p class="gw-text-small gw-fg-muted" role="status">Loading available connections…</p>
+            } @else if (connectionChoices(); as choices) {
+              @if (choices.length) {
+                <div class="gw-stack gw-stack--sm">
+                  @for (name of choices; track name) {
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" name="ep-create-connections" [value]="name" [checked]="chosenConnections().includes(name)" (change)="toggleConnection(name, $event)">
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label gw-mono">{{ name }}</span>
+                    </label>
+                  }
+                </div>
+              } @else {
+                <p class="gw-text-small gw-fg-muted">No connections are available for this preset. You can add connections after creating the endpoint.</p>
+              }
+            } @else {
+              <p class="gw-text-small gw-fg-muted" role="status">Available connections couldn't be loaded. Create an empty endpoint and add connections afterward.</p>
+            }
+          </fieldset>
+        }
         <div class="gw-alert gw-alert--info gw-alert--compact">
           <svg lucideIcon="user-check" class="gw-icon gw-alert__icon"></svg>
           <div class="gw-alert__content"><p class="gw-alert__body">Whatever you start from, a tool that changes data runs only after a person approves the exact action.</p></div>

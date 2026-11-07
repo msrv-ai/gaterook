@@ -61,7 +61,7 @@ export interface PluginCheck {
     /** The connection form in words ("Host, port, virtual host, user and password") or its field titles. */
     readonly configPreview: JsonValue;
     /**
-     * The OS sandbox the plugin's process will run in here (`landlock`, `sandbox-exec`), null where this system has
+     * The OS sandbox the plugin's process will run in here (`landlock`, `sandbox-exec`, `low-integrity`), null where this system has
      * none ("Not sandboxed on this system", ARCHITECTURE §7.5); absent from a core before the K4 review.
      */
     readonly sandbox?: string | null;
@@ -139,7 +139,7 @@ export interface McpServerReview {
   readonly notPinned: boolean;
   readonly catalogEntry: string | null;
   readonly protocol: string | null;
-  /** The OS sandbox the process runs in (`landlock`, `sandbox-exec`), or null where this system has none (§7.5). */
+  /** The OS sandbox the process runs in (`landlock`, `sandbox-exec`, `low-integrity`), or null where this system has none (§7.5). */
   readonly sandbox: string | null;
   /**
    * The server's name (a catalog review names it: `github-mcp`), its transport and, over HTTP, its URL: a key the URL
@@ -372,7 +372,7 @@ export class McpServersApi {
     return this.api.post('/api/mcp-servers', source);
   }
 
-  /** A page of the MCP registry's servers whose names contain `search`; `cursor` continues the previous page. */
+  /** Browse servers with an empty search, or match their names; `cursor` continues the previous page. */
   searchRegistry(search: string, cursor: string | null = null): Promise<McpRegistryPage> {
     return this.api.get('/api/mcp-registry/servers', { search, cursor });
   }

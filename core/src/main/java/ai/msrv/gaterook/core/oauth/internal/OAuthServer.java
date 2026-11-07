@@ -49,7 +49,6 @@ import tools.jackson.databind.node.ObjectNode;
 public class OAuthServer {
 
   static final Set<String> SCOPES = Set.of("mcp", "offline_access");
-  static final String COOKIE = "gw_ar";
 
   private static final Logger log = LoggerFactory.getLogger(OAuthServer.class);
 
@@ -148,22 +147,31 @@ public class OAuthServer {
 
   // ── Authorize ───────────────────────────────────────────────────────────────────────────────────────────────
 
-  /** What {@code /oauth/authorize} answers: a page (with the cookie of a new sign-in) or a redirect. */
-  record Answer(int status, String html, String location, String cookie) {
+  /**
+   * The cookie of sign-in {@code rid} ({@code gw_ar_…}): one per sign-in, so a second one in the same browser doesn't
+   * take the first one's place while both wait.
+   */
+  static String cookieName(String rid) {
+    return "gw_" + rid;
+  }
+
+  /** What {@code /oauth/authorize} answers: a page (with the cookie of a new sign-in, by name) or a redirect. */
+  record Answer(int status, String html, String location, String cookieName, String cookie) {
 
     static Answer page(int status, String html) {
-      return new Answer(status, html, null, null);
+      return new Answer(status, html, null, null, null);
     }
 
     static Answer redirect(String location) {
-      return new Answer(302, null, location, null);
+      return new Answer(302, null, location, null, null);
     }
   }
 
+  /** @param browserIp the browser's address, {@code null} when the tunnel's edge didn't say */
   Answer authorize(Issuers.Server server, Map<String, String> p, String browserIp) throws InterruptedException {
     // (g) for the browser's address first: every attempt counts, valid or not, so a stranger can't make this computer
     // fetch metadata documents (or open dialogs) without limit.
-    if (!consents.admitBrowser(browserIp)) {
+    if (!consents.admitBrowser(server.ingress(), browserIp)) {
       return Answer.page(429, ConsentPages.error("Too many sign-in attempts from this browser", "Wait a minute, "
           + "then start again."));
     }
@@ -220,7 +228,7 @@ public class OAuthServer {
     log.info("Sign-in {} of {} for {} waits for the person (code {})", rid, client.host(), slug.get(), code);
     String html = ConsentPages.waiting(rid, code, client.host(), OAuthUris.hostOf(redirect), slug.get(),
         Consents.TIMEOUT.toSeconds());
-    return new Answer(200, html, null, cookie);
+    return new Answer(200, html, null, cookieName(rid), cookie);
   }
 
   private static String scope(String requested) {
@@ -381,6 +389,8 @@ public class OAuthServer {
     if (c.ingress() != server.ingress() || !c.clientId().equals(p.get("client_id"))) {
       return tokenError(400, "invalid_grant", "The authorization code was issued to another client.");
     }
+    // An OAuth 2.1 client sends no redirect_uri here (draft-ietf-oauth-v2-1 §4.1.3, §10.2): the PKCE verifier, required
+    // below, binds the code to its authorization request. One that sends it (OAuth 2.0) must send the request's own.
     String redirect = p.get("redirect_uri");
     if (redirect != null && !redirect.equals(c.redirectUri())) {
       return tokenError(400, "invalid_grant", "redirect_uri doesn't match the authorization request.");
@@ -392,11 +402,8 @@ public class OAuthServer {
     if (!OAuthUris.pkceS256(p.get("code_verifier"), c.challenge())) {
       return tokenError(400, "invalid_grant", "code_verifier doesn't match the code challenge.");
     }
-    Optional<Grants.Live> grant = grants.live(c.grantId());
-    if (grant.isEmpty()) {
-      return tokenError(400, "invalid_grant", "The sign-in was revoked.");
-    }
-    return new TokenAnswer(200, tokens(grants.issue(c.grantId())));
+    return grants.exchange(c.grantId()).map(issued -> new TokenAnswer(200, tokens(issued)))
+        .orElseGet(() -> tokenError(400, "invalid_grant", "The sign-in was revoked."));
   }
 
   private static ObjectNode tokens(Grants.Issued issued) {
@@ -430,7 +437,7 @@ public class OAuthServer {
   }
 
   /**
-   * The demo world's claude.ai sign-in (BLUEPRINT §9): its client and a grant for the tunnel's URL of the endpoint as
+   * The demo world's claude.ai sign-in: its client and a grant for the tunnel's URL of the endpoint as
    * of {@code at} (the kit's Setup changes don't list it). Never called outside {@code GW_DEMO}.
    */
   public String seedDemoGrant(String clientId, String clientHost, String clientName, List<String> redirectUris,

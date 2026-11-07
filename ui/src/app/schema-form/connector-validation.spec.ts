@@ -1,6 +1,7 @@
 import { Injector } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { CONNECTOR_FORMS } from '../../testing/connector-schemas';
+import { ApiError } from '../core/api/api-error';
 import { JsonObject } from '../core/api/types';
 import { getAt } from './compile';
 import { createSchemaForm } from './schema-form';
@@ -184,6 +185,17 @@ const cases: readonly ConnectionCase[] = [
     config: { transport: 'stdio', command: ['node', '/example/mcp-server.js'] } },
   { name: 'External MCP: HTTP without a local command', type: 'mcp-server',
     config: { transport: 'http', url: 'https://mcp.example.test/mcp' } },
+  { name: 'External MCP: HTTP with an OAuth sign-in', type: 'mcp-server',
+    config: { transport: 'http', url: 'https://mcp.example.test/mcp', auth: { type: 'oauth' } } },
+  { name: 'External MCP: HTTP with its own OAuth app', type: 'mcp-server',
+    config: { transport: 'http', url: 'https://mcp.example.test/mcp', auth: { type: 'oauth', clientId: 'gaterook-example' } },
+    secrets: { '/auth/clientSecret': 'test-only-client-secret' } },
+  { name: 'External MCP: HTTP with Google Cloud credentials', type: 'mcp-server',
+    config: { transport: 'http', url: 'https://mcp.example.test/mcp', auth: { type: 'google', credentials: { source: 'adc' } } } },
+  { name: 'External MCP: HTTP with an AWS access key', type: 'mcp-server',
+    config: { transport: 'http', url: 'https://aws-mcp.us-east-1.api.aws/mcp',
+      auth: { type: 'aws', credentials: { source: 'accessKey', accessKeyId } } },
+    secrets: { '/auth/credentials/secretAccessKey': secretKey } },
 ];
 
 describe('schema-form: minimal active connector configurations', () => {
@@ -288,6 +300,58 @@ describe('schema-form: minimal active connector configurations', () => {
     });
   });
 
+  it('External MCP: HTTP without a sign-in sends no auth, and a sign-in filled in needs its type', () => {
+    const form = createSchemaForm(CONNECTOR_FORMS['mcp-server'], {
+      idPrefix: 'mcp-auth', current: { transport: 'http', url: 'https://mcp.example.test/mcp' }, injector: TestBed.inject(Injector),
+    });
+    const active = (pointer: string) => form.compiled.all.find((node) => node.pointer === pointer && form.visible(node))!;
+    expect(form.submit()).toBe(true);
+    expect(form.value()).not.toHaveProperty('auth');
+
+    form.setSecret(active('/auth/clientSecret'), 'test-only-client-secret');
+    expect(form.submit()).toBe(false);
+    expect(form.invalidNodes().map((node) => node.pointer)).toEqual(['/auth/type']);
+    form.set(active('/auth/type'), 'oauth');
+    expect(form.submit()).toBe(true);
+    expect(form.value()['auth']).toMatchObject({ type: 'oauth', callbackHost: '127.0.0.1', callbackPath: '/callback' });
+    expect(form.secretInputs()).toEqual({ '/auth/clientSecret': { source: 'local', value: 'test-only-client-secret' } });
+
+    form.set(active('/auth/type'), null);
+    form.setSecret(active('/auth/clientSecret'), '');
+    expect(form.submit()).toBe(true);
+    expect(form.value()).not.toHaveProperty('auth');
+    expect(form.secretInputs()).toEqual({});
+  });
+
+  it('External MCP: two sign-ins answered by leaving the sign-in out go back to the core', () => {
+    const form = createSchemaForm(CONNECTOR_FORMS['mcp-server'], {
+      idPrefix: 'mcp-twice', pointerPrefix: '/config', injector: TestBed.inject(Injector),
+      current: { transport: 'http', url: 'https://mcp.example.test/mcp', headers: [{ name: 'Authorization' }], auth: { type: 'oauth' } },
+    });
+    const active = (pointer: string) => form.compiled.all.find((node) => node.pointer === pointer && form.visible(node))!;
+    const twice = 'The OAuth sign-in sends the Authorization header. Remove the Authorization header, or sign in another way.';
+    form.applyServerErrors(new ApiError('unprocessable', 422, { errors: [{ field: '/config/headers', message: twice }] }));
+    expect(form.error(active('/headers'))).toBe(twice);
+
+    form.set(active('/auth/type'), null);
+    expect(form.submit()).toBe(true);
+    expect(form.value()).not.toHaveProperty('auth');
+    expect(form.value()['headers']).toMatchObject([{ name: 'Authorization' }]);
+  });
+
+  it('External MCP: a stored sign-in keeps its settings and a stdio server never sends one', () => {
+    const stored = { transport: 'http', url: 'https://mcp.example.test/mcp', auth: { type: 'oauth', optional: true } };
+    const http = createSchemaForm(CONNECTOR_FORMS['mcp-server'], { idPrefix: 'mcp-stored', current: stored, injector: TestBed.inject(Injector) });
+    expect(http.submit()).toBe(true);
+    expect(http.value()['auth']).toMatchObject({ type: 'oauth', optional: true });
+
+    const stdio = createSchemaForm(CONNECTOR_FORMS['mcp-server'], {
+      idPrefix: 'mcp-stdio', current: { transport: 'stdio', command: ['node', '/example/mcp-server.js'] }, injector: TestBed.inject(Injector),
+    });
+    expect(stdio.submit()).toBe(true);
+    expect(stdio.value()).not.toHaveProperty('auth');
+  });
+
   it('Redis keeps database zero when the user only enters the host', () => {
     const form = createSchemaForm(CONNECTOR_FORMS['redis'], {
       idPrefix: 'redis', current: { connection: { host: 'redis.example.test' } }, injector: TestBed.inject(Injector),
@@ -299,36 +363,6 @@ describe('schema-form: minimal active connector configurations', () => {
   });
 
   for (const type of ['postgres', 'mysql', 'sqlserver']) {
-    it(`${type}: a dynamic Vault role supplies the username`, () => {
-      const form = createSchemaForm(CONNECTOR_FORMS[type], {
-        idPrefix: 'dynamic', current: { connection: { host: 'db.example.test', databases: ['orders'] } },
-        injector: TestBed.inject(Injector),
-      });
-      form.source.set('dynamic');
-      const passwordNode = form.compiled.all.find((node) => node.pointer === '/credentials/password')!;
-      const role = 'database/creds/orders-reader';
-      form.setSecret(passwordNode, role);
-      const valid = form.submit();
-      expect(valid, form.invalidNodes().map((node) => `${node.pointer}: ${form.error(node)}`).join('\n')).toBe(true);
-      expect(getAt(form.value(), ['credentials', 'user'])).toBeNull();
-      expect(form.secretInputs()).toEqual({ '/credentials/password': { source: 'vault-dynamic', ref: `vault://${role}` } });
-    });
-
-    for (const role of ['', 'gcp-sm://projects/example-dev/secrets/orders-reader']) {
-      it(`${type}: dynamic authentication rejects ${role ? 'a reference to another store' : 'an empty role'}`, () => {
-        const form = createSchemaForm(CONNECTOR_FORMS[type], {
-          idPrefix: 'dynamic-required', current: { connection: { host: 'db.example.test', databases: ['orders'] } },
-          injector: TestBed.inject(Injector),
-        });
-        form.source.set('dynamic');
-        const passwordNode = form.compiled.all.find((node) => node.pointer === '/credentials/password')!;
-        form.setSecret(passwordNode, role);
-        expect(form.submit()).toBe(false);
-        expect(form.invalidNodes().map((node) => node.pointer)).toEqual(['/credentials/password']);
-        if (role) expect(form.error(passwordNode)).toContain('vault://');
-      });
-    }
-
     it.each([
       { state: 'short-lived', source: 'vault' },
       { state: 'not-connected', source: 'vault-dynamic' },
@@ -391,6 +425,10 @@ describe('schema-form: minimal active connector configurations', () => {
       pointer: '/auth/username' },
     { name: 'External MCP stdio command', type: 'mcp-server', config: { transport: 'stdio' }, pointer: '/command' },
     { name: 'External MCP HTTP URL', type: 'mcp-server', config: { transport: 'http' }, pointer: '/url' },
+    { name: 'External MCP sign-in type once a sign-in setting is filled in', type: 'mcp-server',
+      config: { transport: 'http', url: 'https://mcp.example.test/mcp', auth: { clientId: 'gaterook-example' } }, pointer: '/auth/type' },
+    { name: 'External MCP sign-in type once a sign-in default is changed', type: 'mcp-server',
+      config: { transport: 'http', url: 'https://mcp.example.test/mcp', auth: { callbackHost: 'localhost' } }, pointer: '/auth/type' },
   ];
 
   for (const sample of missingRequired) {
@@ -407,76 +445,108 @@ describe('schema-form: minimal active connector configurations', () => {
     const form = createSchemaForm(CONNECTOR_FORMS['redis'], {
       idPrefix: 'reference', current: { connection: { host: 'redis.example.test' } }, injector: TestBed.inject(Injector),
     });
-    form.source.set('vault');
     const passwordNode = form.compiled.all.find((node) => node.pointer === '/credentials/password')!;
-    form.setSecret(passwordNode, 'gcp-sm://projects/example-dev/secrets/api-key');
+    form.setSecret(passwordNode, 'gcp-sm://');
     expect(form.submit()).toBe(false);
-    expect(form.error(passwordNode)).toContain('vault://');
+    expect(form.error(passwordNode)).toContain('after gcp-sm://');
   });
 });
 
-describe('schema-form: secret references from the selected source', () => {
-  const references = [
-    { source: 'gcp-sm', path: 'projects/example-dev/secrets/api-key',
-      ref: 'gcp-sm://projects/example-dev/secrets/api-key' },
-    { source: 'vault', path: 'kv/dev/orders#password', ref: 'vault://kv/dev/orders#password' },
-    { source: 'aws-sm', path: 'eu-central-1/dev/orders#password', ref: 'aws-sm://eu-central-1/dev/orders#password' },
-    { source: 'aws-sm', path: 'arn:aws:secretsmanager:eu-central-1:123456789012:secret:orders-AbCdEf',
-      ref: 'aws-sm://arn:aws:secretsmanager:eu-central-1:123456789012:secret:orders-AbCdEf' },
-    { source: 'dynamic', path: 'database/creds/orders-reader', ref: 'vault://database/creds/orders-reader' },
+describe("schema-form: a value that starts with a store's scheme is read from that store", () => {
+  const redis = () => createSchemaForm(CONNECTOR_FORMS['redis'], {
+    idPrefix: 'reference', current: { connection: { host: 'redis.example.test' } }, injector: TestBed.inject(Injector),
+  });
+  const at = (form: ReturnType<typeof redis>, pointer: string) => form.compiled.all.find((node) => node.pointer === pointer)!;
+  const vaults = [
+    { kind: 'vault', store: 'vault-dev', title: 'Vault · vault-dev', detail: null, available: true, reason: null },
+    { kind: 'vault', store: 'vault-stage', title: 'Vault · vault-stage', detail: null, available: true, reason: null },
   ];
 
-  for (const sample of references) {
-    for (const input of [sample.path, sample.ref]) {
-      it(`accepts ${sample.source} input ${input} and sends its complete reference`, () => {
-        const form = createSchemaForm(CONNECTOR_FORMS['redis'], {
-          idPrefix: 'reference', current: { connection: { host: 'redis.example.test' } }, injector: TestBed.inject(Injector),
-        });
-        form.source.set(sample.source);
-        const passwordNode = form.compiled.all.find((node) => node.pointer === '/credentials/password')!;
-        form.setSecret(passwordNode, `  ${input}\n`);
+  for (const ref of [
+    'gcp-sm://projects/example-dev/secrets/api-key',
+    'vault://kv/dev/orders#password',
+    'aws-sm://eu-central-1/dev/orders#password',
+    'aws-sm://arn:aws:secretsmanager:eu-central-1:123456789012:secret:orders-AbCdEf',
+  ]) {
+    it(`sends ${ref} as the password's reference`, () => {
+      const form = redis();
+      const password = at(form, '/credentials/password');
+      form.setSecret(password, `  ${ref}\n`);
 
-        expect(form.submit()).toBe(true);
-        expect(form.secretReference(passwordNode)).toBe(sample.ref);
-        expect(form.secretInputs()).toEqual({ '/credentials/password': {
-          source: sample.source === 'dynamic' ? 'vault-dynamic' : 'reference', ref: sample.ref,
-        } });
-      });
-    }
+      expect(form.submit()).toBe(true);
+      expect(form.fieldReference(password)).toBe(ref);
+      expect(form.secretInputs()).toEqual({ '/credentials/password': { source: 'reference', ref } });
+    });
   }
 
-  it.each(['vault', 'gcp-sm', 'aws-sm'])('keeps an optional %s reference empty', (source) => {
-    const form = createSchemaForm(CONNECTOR_FORMS['redis'], {
-      idPrefix: 'reference', current: { connection: { host: 'redis.example.test' } }, injector: TestBed.inject(Injector),
-    });
-    form.source.set(source);
-    const passwordNode = form.compiled.all.find((node) => node.pointer === '/credentials/password')!;
-    form.setSecret(passwordNode, ' \n ');
+  it('names nothing with a scheme alone, and says what goes after it', () => {
+    const form = redis();
+    const password = at(form, '/credentials/password');
+    form.setSecret(password, 'vault://');
 
-    expect(form.submit()).toBe(true);
-    expect(form.secretReference(passwordNode)).toBe('');
+    expect(form.submit()).toBe(false);
+    expect(form.error(password)).toContain('after vault://');
     expect(form.secretInputs()).toEqual({});
   });
 
-  it('rejects an explicit reference to another provider without rewriting it', () => {
-    const form = createSchemaForm(CONNECTOR_FORMS['redis'], {
-      idPrefix: 'reference', current: { connection: { host: 'redis.example.test' } }, injector: TestBed.inject(Injector),
-    });
-    form.source.set('gcp-sm');
-    const passwordNode = form.compiled.all.find((node) => node.pointer === '/credentials/password')!;
-    form.setSecret(passwordNode, 'vault://kv/dev/orders#password');
+  it("binds a reference to the store picked in the field's menu; Text empties it again", () => {
+    const form = redis();
+    form.stores.set(vaults);
+    const password = at(form, '/credentials/password');
+    form.chooseSource(password, vaults[1]);
+    expect(form.fieldText(password)).toBe('vault://');
+    form.setSecret(password, 'vault://kv/dev/orders#password');
 
-    expect(form.submit()).toBe(false);
-    expect(form.error(passwordNode)).toContain('gcp-sm://');
-    expect(form.secretReference(passwordNode)).toBe('vault://kv/dev/orders#password');
+    expect(form.secretInputs()).toEqual({ '/credentials/password': {
+      source: 'reference', ref: 'vault://kv/dev/orders#password', store: 'vault-stage' } });
+    form.chooseSource(password, null);
+    expect(form.fieldText(password)).toBe('');
+    expect(form.secretInputs()).toEqual({});
   });
 
-  it('preserves local secrets exactly, including whitespace and reference-like text', () => {
+  it('never keeps a typed secret in a reference: picking a store empties the value', () => {
+    const form = redis();
+    form.stores.set(vaults);
+    const password = at(form, '/credentials/password');
+    form.setSecret(password, 'typed-secret-1');
+    form.chooseSource(password, vaults[0]);
+    expect(form.fieldText(password)).toBe('vault://');
+  });
+
+  it("reads a login's user from a store and leaves it out of the config", () => {
+    const form = redis();
+    form.stores.set(vaults);
+    const user = at(form, '/credentials/user');
+    expect(form.credential(user)).toBe(true);
+    form.set(user, 'app');
+    form.chooseSource(user, vaults[0]);
+    // A text field keeps what was typed after the scheme picked for it.
+    expect(form.fieldText(user)).toBe('vault://app');
+    form.set(user, 'vault://kv/dev/orders#username');
+
+    expect(form.submit()).toBe(true);
+    expect(form.value()['credentials'] ?? {}).not.toHaveProperty('user');
+    expect(form.secretInputs()).toEqual({ '/credentials/user': {
+      source: 'reference', ref: 'vault://kv/dev/orders#username', store: 'vault-dev' } });
+  });
+
+  it('keeps the host typed: where the credentials go is never read from a store', () => {
+    const form = redis();
+    const host = at(form, '/connection/host');
+    expect(form.textReferable(host)).toBe(false);
+    form.set(host, 'vault://kv/dev/orders#host');
+
+    expect(form.submit()).toBe(false);
+    expect(form.error(host)).toContain('never read from a store');
+    expect(form.secretInputs()).toEqual({});
+  });
+
+  it('preserves local secrets exactly, including whitespace and text that only mentions a scheme', () => {
     const form = createSchemaForm(CONNECTOR_FORMS['redis'], {
       idPrefix: 'local', current: { connection: { host: 'redis.example.test' } }, injector: TestBed.inject(Injector),
     });
     const passwordNode = form.compiled.all.find((node) => node.pointer === '/credentials/password')!;
-    const value = '  gcp-sm://test-only-password\n';
+    const value = '  test-only gcp-sm://password\n';
     form.setSecret(passwordNode, value);
 
     expect(form.submit()).toBe(true);

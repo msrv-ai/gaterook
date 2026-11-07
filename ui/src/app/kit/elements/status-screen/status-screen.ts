@@ -20,7 +20,7 @@ export interface StatusStep {
 }
 
 /**
- * What the window shows while the core isn't available (design/elements/status-screen.html):
+ * What the window shows while the core isn't available:
  * - `unlock-required`: explanation and explicit OS key access, with pending and local preparation error states;
  * - `starting`: indeterminate progress and the steps done so far;
  * - `port-in-use`: the local API or the tunnel's public listener couldn't bind; the command that finds the other
@@ -37,7 +37,7 @@ export type StatusScreenView =
       readonly kind: 'unlock-required';
       readonly unlocking: boolean;
       readonly error: string | null;
-      readonly authentication?: 'touch-id' | 'windows-hello' | 'system';
+      readonly authentication?: 'touch-id' | 'mac-password' | 'windows-hello' | 'windows-password' | 'system';
       readonly keychainService?: string;
     }
   | { readonly kind: 'starting'; readonly steps: readonly StatusStep[] }
@@ -156,7 +156,7 @@ export class GwStatusScreen {
   /** The title's heading level: 1 in the app (it is the page), 2 or 3 inside a documentation section. */
   readonly level = input(1, { transform: numberAttribute });
   /**
-   * The meta line of the page (pages/core-starting.html): version, core address and log file under every card. The
+   * The meta line of the page: version, core address and log file under every card. The
    * element's demo names either the address or the log, by state.
    */
   readonly fullMeta = input(false, { transform: booleanAttribute });

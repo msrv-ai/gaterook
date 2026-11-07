@@ -16,7 +16,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
-import java.util.function.Consumer;
 
 /**
  * The provider's edge as the fake agents play it: a loopback HTTP port that forwards to the agent's target the way
@@ -37,26 +36,17 @@ final class FakeEdge {
   private FakeEdge() {}
 
   static HttpServer start(String target, String hostname, boolean ngrok) throws IOException {
-    return start(target, hostname, ngrok, null);
-  }
-
-  /**
-   * @param inspector receives each exchange as the agent would keep it for inspection (request line, headers, the
-   *     answer's body), or {@code null} when the agent inspects nothing
-   */
-  static HttpServer start(String target, String hostname, boolean ngrok, Consumer<String> inspector)
-      throws IOException {
     HttpServer edge = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
     edge.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
     HttpClient client = HttpClient.newBuilder().proxy(HttpClient.Builder.NO_PROXY)
         .followRedirects(HttpClient.Redirect.NEVER).connectTimeout(Duration.ofSeconds(5)).build();
-    edge.createContext("/", ex -> forward(ex, client, target, hostname, ngrok, inspector));
+    edge.createContext("/", ex -> forward(ex, client, target, hostname, ngrok));
     edge.start();
     return edge;
   }
 
   private static void forward(HttpExchange ex, HttpClient client, String target, String hostname,
-      boolean ngrok, Consumer<String> inspector) throws IOException {
+      boolean ngrok) throws IOException {
     try (ex) {
       String caller = ex.getRequestHeaders().getFirst("X-Fake-Client-IP");
       if (caller == null) {
@@ -87,11 +77,6 @@ final class FakeEdge {
         rq.header("X-Forwarded-For", caller);
         rq.header("Cf-Ray", "8d2c1f0a9b7e3c4d-FRA");
       }
-      if (inspector != null) {
-        // What ngrok's inspection keeps of the request: its line, every header, the body.
-        inspector.accept(ex.getRequestMethod() + " " + ex.getRequestURI() + "\n" + ex.getRequestHeaders() + "\n"
-            + new String(body, java.nio.charset.StandardCharsets.UTF_8));
-      }
       HttpResponse<byte[]> rs;
       try {
         rs = client.send(rq.build(), HttpResponse.BodyHandlers.ofByteArray());
@@ -117,10 +102,6 @@ final class FakeEdge {
         ex.getResponseHeaders().set("Server", "cloudflare");
       }
       byte[] out = rs.body();
-      if (inspector != null) {
-        // ... and of the answer (a token endpoint's tokens among them).
-        inspector.accept(rs.statusCode() + " " + new String(out, java.nio.charset.StandardCharsets.UTF_8));
-      }
       ex.sendResponseHeaders(rs.statusCode(), out.length == 0 ? -1 : out.length);
       if (out.length > 0) {
         ex.getResponseBody().write(out);

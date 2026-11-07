@@ -9,6 +9,7 @@ import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.policy.Decision.Outcome;
 import ai.msrv.gaterook.core.policy.internal.LimitsOf;
+import ai.msrv.gaterook.core.platform.MaskPolicy;
 import ai.msrv.gaterook.core.policy.internal.StricterMerge;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +36,8 @@ import tools.jackson.databind.node.ObjectNode;
  * says MUTATION is a mutation even if its connector classified the call as READ.
  *
  * <p>Limits = min(environment policy of the connection, the connection's own stricter settings, the endpoint's,
- * the pair's), merged key by key with {@code x-stricter}.
+ * the pair's), merged key by key with {@code x-stricter}. Masking narrows the same way: the endpoint and the pair can
+ * add personal-data kinds and fields, never remove the environment's.
  */
 @Component
 public class PolicyEngine {
@@ -53,6 +55,18 @@ public class PolicyEngine {
 
   /** Calls per minute of one principal, and of one principal × tool, on this pair (ARCHITECTURE.md §5 step 5). */
   public record Rates(int perToken, int perTool) {}
+
+  /**
+   * The masking of what a pair returns: the connection environment's Masking section narrowed by the endpoint's limits
+   * and the pair's overrides, as {@link #decide} applies it to tool calls.
+   */
+  public MaskPolicy maskPolicy(PairView pair, ConnectionConfig cfg) {
+    return mask(pair, merged(pair, cfg));
+  }
+
+  private static MaskPolicy mask(PairView pair, ObjectNode sections) {
+    return MaskPolicy.fromSection(sections.path("masking"), MaskPolicy.defaults(pair.connectionEnv()));
+  }
 
   /** The rate limits of a pair before its call is classified: they apply to every call, refused or not. */
   public Rates rates(PairView pair, ConnectionConfig cfg) {
@@ -91,55 +105,57 @@ public class PolicyEngine {
   public Decision decide(PairView pair, ConnectionConfig cfg, Classification classification) {
     ObjectNode sections = merged(pair, cfg);
     PolicyView view = view(pair, cfg, sections);
+    MaskPolicy mask = mask(pair, sections);
     Env env = pair.connectionEnv();
     int perToken = LimitsOf.ratePerToken(sections, env);
     int perTool = LimitsOf.ratePerTool(sections, env);
     Env unverified = unverified(env, pair.endpointEnv());
     if (unverified != null) {
       return new Decision(Outcome.DENY, INTEGRITY_RULE, integrityReason(unverified), null, view, view.limits(),
-          perToken, perTool);
+          perToken, perTool, mask);
     }
     if (pair.mode() == Mode.OFF) {
       return new Decision(Outcome.UNKNOWN_TOOL, null, "Unknown tool " + pair.tool().name(), null, view,
-          view.limits(), perToken, perTool);
+          view.limits(), perToken, perTool, mask);
     }
     if (classification == null) {
       return deny("core.classify-error", "The call couldn't be classified, so it was not run.", view, perToken,
-          perTool);
+          perTool, mask);
     }
     if (classification.kind() == Classification.Kind.DENY) {
       String rule = classification.ruleId() == null ? view.rule("deny") : classification.ruleId();
       return new Decision(Outcome.DENY, rule, classification.reason(), classification.hint(), view, view.limits(),
-          perToken, perTool);
+          perToken, perTool, mask);
     }
     if ((pair.endpointEnv() == Env.PROD) != (pair.connectionEnv() == Env.PROD)) {
       return deny("core.prod-isolation", "Prod connections are used only through prod endpoints.", view, perToken,
-          perTool);
+          perTool, mask);
     }
     boolean mutation = classification.kind() == Classification.Kind.MUTATION
         || pair.tool().nature() == ToolDefinition.Nature.MUTATION;
     if (pair.endpointReadOnly() && (mutation || pair.mode() == Mode.BYPASS)) {
       return deny(pair.endpointEnv().id() + ".endpoint.read-only", pair.endpointSlug() + " is read only: it "
-          + "doesn't allow Bypass or anything that changes data.", view, perToken, perTool);
+          + "doesn't allow Bypass or anything that changes data.", view, perToken, perTool, mask);
     }
     if (pair.mode() == Mode.BYPASS) {
       return new Decision(Outcome.ALLOW, "core.bypass", "Bypass is enabled for this tool on " + pair.endpointSlug(),
-          null, view, view.limits(), perToken, perTool);
+          null, view, view.limits(), perToken, perTool, mask);
     }
     if (mutation) {
       String reason = classification.reason() == null ? "Changes data" : classification.reason();
       return new Decision(Outcome.APPROVAL, view.rule("write-approval"), reason, null, view, view.limits(), perToken,
-          perTool);
+          perTool, mask);
     }
     if (pair.mode() == Mode.APPROVAL) {
       return new Decision(Outcome.APPROVAL, view.rule("approval-mode"), "The tool is set to Approval on "
-          + pair.endpointSlug(), null, view, view.limits(), perToken, perTool);
+          + pair.endpointSlug(), null, view, view.limits(), perToken, perTool, mask);
     }
-    return new Decision(Outcome.ALLOW, null, null, null, view, view.limits(), perToken, perTool);
+    return new Decision(Outcome.ALLOW, null, null, null, view, view.limits(), perToken, perTool, mask);
   }
 
-  private static Decision deny(String rule, String reason, PolicyView view, int perToken, int perTool) {
-    return new Decision(Outcome.DENY, rule, reason, null, view, view.limits(), perToken, perTool);
+  private static Decision deny(String rule, String reason, PolicyView view, int perToken, int perTool,
+      MaskPolicy mask) {
+    return new Decision(Outcome.DENY, rule, reason, null, view, view.limits(), perToken, perTool, mask);
   }
 
   private PolicyView view(PairView pair, ConnectionConfig cfg, ObjectNode sections) {

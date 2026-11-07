@@ -32,7 +32,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 
 /**
- * The built-in connector catalog against the kit's demo world (design/BLUEPRINT.md §9): every connector module
+ * The built-in connector catalog against the kit's demo world: every connector module
  * registers through its own {@code AutoConfiguration.imports}, exactly as the assembled core loads them, and the
  * numbers every screen shows hold.
  */
@@ -40,17 +40,19 @@ class BuiltInConnectorCatalogTest {
 
   /** Current built-in tool counts used by the runtime connector catalog. */
   private static final Map<String, Integer> TOOLS_PER_CONNECTOR = orderedMap(
-      "PostgreSQL", 4, "MySQL", 4, "Oracle Database", 4, "SQL Server", 4, "MongoDB", 4, "Redis", 2, "SSH", 2, "Logs", 5, "SSH log files", 3,
+      "PostgreSQL", 4, "MySQL", 4, "Oracle Database", 4, "SQL Server", 4, "MongoDB", 4, "Redis", 8, "SSH", 2, "Logs", 5, "SSH log files", 3,
       "Kubernetes", 4, "GCP", 4, "AWS", 2, "HTTP API", 2, "GCP Cloud Logging", 2, "AWS CloudWatch", 2,
       "Loki", 2, "OpenSearch", 3, "Elasticsearch", 3);
 
-  /** Current default modes for the connection types in BLUEPRINT §9's {@code dev} endpoint. */
+  /** Current default modes for the connection types in the demo world's {@code dev} endpoint. */
   private static final Map<String, Map<String, Mode>> DEV_ENDPOINT = Map.of(
       "postgres", Map.of("sql_list_schemas", Mode.READ_ONLY, "sql_describe_table", Mode.READ_ONLY,
           "sql_query", Mode.READ_ONLY, "sql_execute", Mode.APPROVAL),
       "mongodb", Map.of("mongo_find", Mode.READ_ONLY, "mongo_aggregate", Mode.READ_ONLY,
           "mongo_update", Mode.APPROVAL, "mongo_update_many", Mode.APPROVAL),
-      "redis", Map.of("redis_get", Mode.READ_ONLY, "redis_scan", Mode.READ_ONLY),
+      "redis", Map.of("redis_get", Mode.READ_ONLY, "redis_scan", Mode.READ_ONLY,
+          "redis_set", Mode.APPROVAL, "redis_hset", Mode.APPROVAL, "redis_lpush", Mode.APPROVAL,
+          "redis_rpush", Mode.APPROVAL, "redis_sadd", Mode.APPROVAL, "redis_zadd", Mode.APPROVAL),
       "ssh", Map.of("ssh_run", Mode.READ_ONLY, "ssh_exec", Mode.OFF),
       "logs", Map.of("logs_search", Mode.READ_ONLY, "logs_tail", Mode.OFF),
       "kubernetes", Map.of("k8s_get", Mode.READ_ONLY, "k8s_logs", Mode.OFF, "k8s_rollout_restart", Mode.APPROVAL,
@@ -148,7 +150,7 @@ class BuiltInConnectorCatalogTest {
 
   @Test
   void devEndpointUsesTheCurrentDefaultModes() {
-    // The demo endpoint has 24 tools, 14 read only · 5 approval · 5 off. Defaults of its 8 connection types, then the
+    // The demo endpoint has 30 tools, 14 read only · 11 approval · 5 off. Defaults of its 8 connection types, then the
     // Setup change of 10:40 (http_get on billing-api: Read only → Off), plus the core tools list_connections and
     // describe_connection, both Read only.
     Map<Mode, Integer> modes = new EnumMap<>(Mode.class);
@@ -171,7 +173,7 @@ class BuiltInConnectorCatalogTest {
     modes.merge(Mode.READ_ONLY, 2, Integer::sum);
 
     assertThat(modes).containsExactlyInAnyOrderEntriesOf(
-        Map.of(Mode.READ_ONLY, 14, Mode.APPROVAL, 5, Mode.OFF, 5));
+        Map.of(Mode.READ_ONLY, 14, Mode.APPROVAL, 11, Mode.OFF, 5));
   }
 
   @Test
@@ -191,7 +193,7 @@ class BuiltInConnectorCatalogTest {
         }
       }
     }
-    assertThat(seen).hasSize(39);
+    assertThat(seen).hasSize(45);
   }
 
   @Test

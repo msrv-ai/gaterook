@@ -26,4 +26,4 @@ Most evidence was collected on **2026-10-23**. Version tables, benchmark figures
 
 Read the reports as a sequence of decisions. Report 16 replaces report 11's initial proposal to load Java plugins in the core. Report 15 replaces report 14's JVM-only shipping-core proposal while keeping JVM development, and refines its JPA/native mapping requirements. Other historical discrepancies are called out where they affect trust or compatibility.
 
-The [design kit](../../design/README.md), [design rules](../../design/DESIGN.md), and [screen blueprint](../../design/BLUEPRINT.md) provide the interface contracts used alongside this research. Temporary investigation files and working notes belong in the ignored root `ai/` directory and must never be committed.
+The [application architecture](../ARCHITECTURE.md) records interface and runtime contracts alongside this research. Temporary investigation files and working notes belong in the ignored root `ai/` directory and must never be committed.

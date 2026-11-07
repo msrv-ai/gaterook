@@ -826,7 +826,7 @@ public class TunnelService implements DisposableBean {
   // ── Demo world ──────────────────────────────────────────────────────────────────────────────────────────────
 
   /**
-   * The demo world's tunnel (BLUEPRINT §9, {@code GW_DEMO} only): {@code slug} is the tunnel's endpoint, it was public
+   * The demo world's tunnel ({@code GW_DEMO} only): {@code slug} is the tunnel's endpoint, it was public
    * at {@code host} from {@code from} to {@code to} with {@code calls} calls, and both switches are in Setup changes.
    * The tunnel itself stays off, as after every start.
    */

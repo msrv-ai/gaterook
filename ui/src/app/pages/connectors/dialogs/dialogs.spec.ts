@@ -120,6 +120,33 @@ describe('Add MCP server request', () => {
     });
   });
 
+  it('adds a Bearer authorization header without sending a token or stale OAuth settings to review', () => {
+    const options = { with: 'bearer' as const, clientId: 'invalid client id', scopes: 'invalid "scope"', callbackPort: '80' };
+    const headers = [{ name: 'X-Workspace' }];
+    expect(mcpRequest('private-mcp', 'http', '', 'https://mcp.example.com/mcp', headers, options).source).toEqual({
+      config: { name: 'private-mcp', transport: 'http', url: 'https://mcp.example.com/mcp', headers: [{ name: 'X-Workspace' }, { name: 'Authorization' }] },
+    });
+    expect(headers).toEqual([{ name: 'X-Workspace' }]);
+    // Selecting another mode or transport must not retain the generated header.
+    expect(mcpRequest('private-mcp', 'http', '', 'https://mcp.example.com/mcp', headers).source).toEqual({
+      config: { name: 'private-mcp', transport: 'http', url: 'https://mcp.example.com/mcp', headers },
+    });
+    expect(mcpRequest('private-mcp', 'stdio', 'node server.js', '', [], options).source).toEqual({
+      config: { name: 'private-mcp', transport: 'stdio', command: ['node', 'server.js'], env: [] },
+    });
+  });
+
+  it('reuses an existing Authorization header for Bearer tokens and still rejects duplicate header names', () => {
+    const options = { with: 'bearer' as const, clientId: '', scopes: '', callbackPort: '' };
+    const headers = [{ name: 'X-Workspace' }, { name: 'authorization' }];
+    expect(mcpRequest('private-mcp', 'http', '', 'https://mcp.example.com/mcp', headers, options).source).toEqual({
+      config: { name: 'private-mcp', transport: 'http', url: 'https://mcp.example.com/mcp', headers },
+    });
+    expect(mcpRequest('private-mcp', 'http', '', 'https://mcp.example.com/mcp', [...headers, { name: 'Authorization' }], options).errors?.variables).toBe(
+      'Authorization is named twice. Give each header once.',
+    );
+  });
+
   it('refuses sign-in options HTTP or the server can’t take', () => {
     const errors = (o: { clientId?: string; scopes?: string; callbackPort?: string }, headers: { name: string }[] = []) =>
       mcpRequest('x', 'http', '', 'https://x.dev/mcp', headers, { clientId: '', scopes: '', callbackPort: '', ...o }).errors;
@@ -223,6 +250,32 @@ describe('MCP server values', () => {
     expect(mcpSecretValues(secrets, ['', 'x']).missing).toEqual([0]);
     expect(mcpSecretValues([], [])).toEqual({ secrets: {}, missing: [] });
   });
+
+  it('prefixes only the dedicated Bearer token, accepts an existing prefix and refuses an empty token', () => {
+    const secrets = [
+      { name: 'X-Workspace', pointer: '/headers/0/secretRef' },
+      { name: 'authorization', pointer: '/headers/1/secretRef', label: 'Bearer token', bearer: true },
+    ];
+    for (const token of [' example-token ', 'Bearer example-token', ' bearer\texample-token ']) {
+      expect(mcpSecretValues(secrets, [' workspace ', token])).toEqual({
+        secrets: {
+          '/headers/0/secretRef': { source: 'local', value: ' workspace ' },
+          '/headers/1/secretRef': { source: 'local', value: 'Bearer example-token' },
+        },
+        missing: [],
+      });
+    }
+    for (const token of ['', '  ', 'Bearer', ' Bearer\t ']) {
+      expect(mcpSecretValues(secrets, ['workspace', token])).toEqual({
+        secrets: { '/headers/0/secretRef': { source: 'local', value: 'workspace' } },
+        missing: [1],
+      });
+    }
+    expect(mcpSecretValues([{ name: 'Authorization', pointer: '/headers/0/secretRef' }], [' Basic example '])).toEqual({
+      secrets: { '/headers/0/secretRef': { source: 'local', value: ' Basic example ' } },
+      missing: [],
+    });
+  });
 });
 
 describe('MCP server review', () => {
@@ -315,6 +368,29 @@ describe('MCP server review', () => {
     expect(command.version).toEqual({ pinned: false });
   });
 
+  it('labels only the chosen Authorization header as a Bearer token at its existing secret index', () => {
+    const reviewed = {
+      review: sentryReview({ transport: 'http', url: 'https://mcp.example.com/mcp', argv: [], env: ['X-Workspace', 'authorization'], auth: { kind: 'oauth' as const } }),
+      source: { config: { name: 'private-mcp', transport: 'http' as const, url: 'https://mcp.example.com/mcp', headers: [{ name: 'X-Workspace' }, { name: 'authorization' }] } },
+      name: 'private-mcp',
+      transport: 'http' as const,
+      target: 'https://mcp.example.com/mcp',
+      variables: [{ name: 'X-Workspace' }, { name: 'authorization' }],
+      opener: null,
+      bearer: true,
+    };
+    const w = mcpReviewView(reviewed);
+    expect(w.secrets).toEqual([
+      { name: 'X-Workspace', pointer: '/headers/0/secretRef' },
+      { name: 'authorization', pointer: '/headers/1/secretRef', label: 'Bearer token', bearer: true },
+    ]);
+    expect(w.signIn).toBeNull();
+    expect(mcpReviewView({ ...reviewed, bearer: false }).secrets).toEqual([
+      { name: 'X-Workspace', pointer: '/headers/0/secretRef' },
+      { name: 'authorization', pointer: '/headers/1/secretRef' },
+    ]);
+  });
+
   const remote = (auth: NonNullable<Parameters<typeof sentryReview>[0]>['auth'], headers: string[] = [], clientId?: string) =>
     mcpReviewView({
       review: sentryReview({ transport: 'http', url: 'https://mcp.linear.app/mcp', argv: [], env: headers, auth }),
@@ -401,19 +477,19 @@ describe('MCP server review', () => {
 describe('MCP server endpoint step', () => {
   const linear = { name: 'linear-mcp', http: true, tools: 23 };
 
-  it('says where the tools went, that they start as Approval, or that they are Off', () => {
+  it('says where the tools went, their default modes, or that they are Off', () => {
     expect(connectedToast(linear, { added: ['dev'], notAdded: [] })).toEqual({
       tone: 'success',
       title: 'MCP server linear-mcp connected',
-      body: 'Its 23 tools are on dev, each as Approval. Change their modes on the endpoint.',
+      body: 'Its 23 tools are on dev. Declared reads start as Read only; other tools start as Approval. Change their modes on the endpoint.',
     });
     expect(connectedToast({ ...linear, tools: 1 }, { added: ['dev', 'stage'], notAdded: [] }).body).toBe(
-      'Its tool is on dev and stage, each as Approval. Change their modes on the endpoint.',
+      'Its tool is on dev and stage. Declared reads start as Read only; other tools start as Approval. Change their modes on the endpoint.',
     );
     expect(connectedToast({ name: 'notes-mcp', http: false, tools: null }, { added: [], notAdded: [] })).toEqual({
       tone: 'success',
       title: 'MCP server notes-mcp started',
-      body: 'Its tools are Off until you add them to an endpoint. There each starts as Approval.',
+      body: 'Its tools are Off until you add them to an endpoint. Declared reads start as Read only; other tools start as Approval.',
     });
   });
 
@@ -421,7 +497,7 @@ describe('MCP server endpoint step', () => {
     expect(connectedToast(linear, { added: ['dev'], notAdded: [{ slug: 'shared', why: 'Live tokens would cross the prod line.' }] })).toEqual({
       tone: 'warning',
       title: 'MCP server linear-mcp connected, not added to shared',
-      body: 'Its 23 tools are on dev as Approval. Live tokens would cross the prod line.',
+      body: 'Its 23 tools are on dev with their default modes. Live tokens would cross the prod line.',
     });
   });
 });

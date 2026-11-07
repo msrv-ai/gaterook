@@ -18,7 +18,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * The demo world's past (ARCHITECTURE.md §2.4, design/BLUEPRINT.md §9: a day of 1,287 calls, the week Insights compares
+ * The demo world's past (ARCHITECTURE.md §2.4, demo data: a day of 1,287 calls, the week Insights compares
  * it with): calls written as the call path writes them — the same phases, decisions, timings and one hash chain — but
  * at the times the world says they happened. Only into an audit whose newest row is no newer than the first one given,
  * so that ids keep the order of time (the events table pages by id, the export cursor moves by id), and never in a

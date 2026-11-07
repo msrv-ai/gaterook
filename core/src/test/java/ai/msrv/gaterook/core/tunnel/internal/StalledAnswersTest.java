@@ -23,8 +23,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Answers that stall after their headers (ARCHITECTURE.md §7.3): {@code java.net.http}'s request timeout ends with the
- * headers, so every exchange of the tunnel — the agent's local API, the self-test's public URL, the download of a
- * pinned agent — has a deadline of its own for the whole answer, and a stalled body never holds a start, a "Check
+ * headers, so every exchange of the tunnel — cloudflared's metrics server, the self-test's public URL, the download of
+ * a pinned agent — has a deadline of its own for the whole answer, and a stalled body never holds a start, a "Check
  * public URL" or ngrok's "Downloading…" forever.
  */
 class StalledAnswersTest {

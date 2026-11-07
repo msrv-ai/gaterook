@@ -11,7 +11,7 @@ import { ToolPolicyGroup } from '../../kit/elements/tool-policy-list/tool-policy
 import { ToastTone } from '../../kit/toast.service';
 
 /**
- * What the endpoint page says (design/pages/endpoint-detail.html; ARCHITECTURE.md §8.4 "endpoint-detail"), from the
+ * What the endpoint page says (ARCHITECTURE.md §8.4 "endpoint-detail"), from the
  * admin API's answers. Pure functions: the page and its tests share them, and each states the kit wording it follows.
  */
 
@@ -78,13 +78,14 @@ export function signInText(oauth: boolean): string {
 export function endpointClients(view: ClientsView | null, slug: string): ClientCard[] {
   if (!view) return [];
   const linked = view.clients.filter((c) => c.links.some((l) => l.endpoint === slug));
-  const installed = view.clients.filter((c) => !linked.includes(c) && c.status !== 'not-installed');
+  const installed = view.clients.filter((c) => !linked.includes(c) && !c.manual && c.status !== 'not-installed');
   return [...linked, ...installed];
 }
 
 export function wiringClients(cards: readonly ClientCard[], slug: string): WiringClient[] {
   return cards.map((c) => {
     const link = c.links.find((l) => l.endpoint === slug);
+    if (c.manual) return { client: c.client, name: c.name, status: link?.status === 'connected' || link?.status === 'pending' ? link.status : 'error' };
     if (!link) return { client: c.client, status: 'detected' };
     return { client: c.client, status: link.status === 'connected' || link.status === 'needs-restart' ? link.status : 'error' };
   });

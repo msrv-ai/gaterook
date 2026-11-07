@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { CONNECTOR_FORMS, CONNECTOR_GOLDENS } from '../../testing/connector-schemas';
 import { ApiError } from '../core/api/api-error';
 import { JsonObject } from '../core/api/types';
-import { cleanValue, compileSchema, getAt, initialValue, isVisible, layoutRows, setAt } from './compile';
+import { cleanValue, compileSchema, getAt, inUse, initialValue, isVisible, layoutRows, setAt } from './compile';
 import { golden } from './goldens';
 import { SchemaForm, SchemaFormOptions, createSchemaForm } from './schema-form';
 
@@ -184,6 +184,79 @@ describe('schema-form: branches and conditions', () => {
   });
 });
 
+describe('schema-form: objects the config may leave out although they require members', () => {
+  const schema: JsonObject = {
+    type: 'object',
+    required: ['url', 'proxy'],
+    properties: {
+      url: { type: 'string' },
+      proxy: { type: 'object', title: 'Proxy', required: ['host'], properties: { host: { type: 'string' } } },
+      auth: {
+        type: 'object',
+        title: 'Sign-in',
+        required: ['type'],
+        properties: {
+          type: { enum: ['oauth', 'token'] },
+          callbackHost: { enum: ['127.0.0.1', 'localhost'], default: '127.0.0.1' },
+          token: { type: 'string', 'x-gateway-secret': 'value' },
+          client: { type: 'object', required: ['id'], properties: { id: { type: 'string' }, lifetime: { type: 'integer', default: 900 } } },
+        },
+      },
+      share: { type: 'object', properties: { resources: { type: 'boolean', default: false } } },
+    },
+  };
+  const stored = { url: 'https://mcp.example.test', proxy: { host: 'proxy.example.test' } };
+  const node = (pointer: string) => compileSchema(schema).all.find((n) => n.pointer === pointer)!;
+
+  it('are the objects neither required nor defaulted that require members, and their fields know it', () => {
+    expect(['/proxy', '/auth', '/auth/client', '/share'].map((p) => node(p).omittable)).toEqual([false, true, true, false]);
+    expect(node('/auth/type').within).toEqual([['auth']]);
+    expect(node('/auth/client/id').within).toEqual([['auth'], ['auth', 'client']]);
+    expect(node('/proxy/host').within).toEqual([]);
+  });
+
+  it('are left out until a field in them holds a value of its own: defaults alone are not one', () => {
+    const form = compileSchema(schema);
+    const blank = initialValue(schema, stored);
+    expect(blank['auth']).toMatchObject({ callbackHost: '127.0.0.1', client: { lifetime: 900 } });
+    expect(inUse(form, ['auth'], blank)).toBe(false);
+    expect(cleanValue(form, blank)).toEqual({ ...stored, share: { resources: false } });
+    expect(inUse(form, ['auth'], blank, new Set(['/auth/token']))).toBe(true);
+    const localhost = setAt(blank, ['auth', 'callbackHost'], 'localhost');
+    expect([inUse(form, ['auth'], localhost), inUse(form, ['auth', 'client'], localhost)]).toEqual([true, false]);
+    expect(cleanValue(form, localhost)['auth']).toEqual({ callbackHost: 'localhost' });
+    expect(cleanValue(form, setAt(blank, ['auth', 'type'], 'oauth'))['auth']).toEqual({ type: 'oauth', callbackHost: '127.0.0.1' });
+  });
+
+  it('require their members only while in use, a typed secret included', () => {
+    const f = createSchemaForm(schema, { idPrefix: 'o', current: stored, injector: TestBed.inject(Injector) });
+    const at = (pointer: string) => f.compiled.all.find((n) => n.pointer === pointer)!;
+    expect(f.submit()).toBe(true);
+    expect(f.value()).not.toHaveProperty('auth');
+    expect(f.needed(at('/auth/type'))).toBe(false);
+
+    f.setSecret(at('/auth/token'), 'test-only-token');
+    expect(f.submit()).toBe(false);
+    expect(f.invalidNodes().map((n) => n.pointer)).toEqual(['/auth/type']);
+    f.set(at('/auth/type'), 'token');
+    expect(f.submit()).toBe(true);
+    expect(f.value()['auth']).toEqual({ type: 'token', callbackHost: '127.0.0.1' });
+
+    f.set(at('/auth/client/lifetime'), 600);
+    expect(f.submit()).toBe(false);
+    expect(f.invalidNodes().map((n) => n.pointer)).toEqual(['/auth/client/id']);
+    f.set(at('/auth/client/id'), 'gaterook');
+    expect(f.submit()).toBe(true);
+    expect(f.value()['auth']).toEqual({ type: 'token', callbackHost: '127.0.0.1', client: { id: 'gaterook', lifetime: 600 } });
+  });
+
+  it('leave the members of a required object required', () => {
+    const f = createSchemaForm(schema, { idPrefix: 'o', current: { url: 'https://mcp.example.test' }, injector: TestBed.inject(Injector) });
+    expect(f.submit()).toBe(false);
+    expect(f.invalidNodes().map((n) => n.pointer)).toEqual(['/proxy/host']);
+  });
+});
+
 describe('schema-form: display sections', () => {
   const schema: JsonObject = {
     type: 'object',
@@ -250,6 +323,23 @@ describe('schema-form: display sections', () => {
       .toEqual(['/connection/certificate']);
     expect(form.all.filter((node) => node.kind !== 'object').map((node) => node.pointer))
       .toEqual(['/kind', '/auth/first', '/auth/second', '/connection/certificate']);
+  });
+
+  it('keeps a message of the core until its value changes, and leaves Save to the core', () => {
+    const f = make({ connection: { host: 'db', caCertificate: 'longer than the allowed length' } });
+    const at = (pointer: string) => f.compiled.all.find((n) => n.pointer === pointer)!;
+    f.applyServerErrors(new ApiError('unprocessable', 422, {
+      errors: [{ field: '/config/connection/host', message: 'Use an allowed host.' }],
+    }));
+    expect(f.error(at('/connection/host'))).toBe('Use an allowed host.');
+    // The form's own rules still hold Save back; the core's message is shown beside them.
+    expect(f.submit()).toBe(false);
+    expect(f.invalidNodes().map((n) => n.pointer)).toEqual(['/connection/host', '/connection/caCertificate']);
+    f.set(at('/connection/caCertificate'), 'short CA');
+    expect(f.submit()).toBe(true);
+    expect(f.error(at('/connection/host'))).toBe('Use an allowed host.');
+    f.set(at('/connection/host'), 'db.example.test');
+    expect(f.error(at('/connection/host'))).toBeNull();
   });
 
   it('opens the display section for server errors at the original config path', () => {

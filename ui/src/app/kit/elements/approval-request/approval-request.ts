@@ -62,7 +62,7 @@ interface Fact {
 }
 
 /**
- * `<article gwApprovalRequest [request]="detail" [level]="2" (decide)="…">` (elements/approval-request.html): THE
+ * `<article gwApprovalRequest [request]="detail" [level]="2" (decide)="…">`: THE
  * decision UI. One mutation an agent asked for, shown verbatim (`gw-code-block` / `gw-diff` from the server's
  * segments, always wrapped, hidden characters boxed and counted), why it needs a person (the policy rule, linked to
  * Policies), its impact, and last the agent's note, marked unverified. Pending: a comment and Deny · Approve and run

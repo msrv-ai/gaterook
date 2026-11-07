@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Redis (report 05): redis_get and redis_scan over Jedis with a read-only command executor, the SET … NX XX probe
+  Redis: bounded reads and typed writes over Jedis with separate command allowlists, the SET … NX XX probe
   and sealed cursors (rgc./rsc.). Native: the resource redis/clients/jedis/pom.properties needs a hint (report 15 §4).
   Spring only in the .boot subpackage. Built by step C3.
 

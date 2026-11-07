@@ -59,13 +59,13 @@ describe('tool-policy-list bypass mode', () => {
   });
 });
 
-describe('tool-policy-list read only of an external tool', () => {
+describe('tool-policy-list read only of a plugin tool', () => {
   async function render(row: Partial<ToolRow> = {}) {
     TestBed.configureTestingModule({ providers: [provideRouter([]), provideKitIcons()] });
     const fixture = TestBed.createComponent(GwToolPolicyList);
     const g = DEMO_TOOL_GROUPS_EXTERNAL[0];
-    const tools = g.group.tools.map((t) => (t.name === 'list_issues' ? { ...t, ...row } : t));
-    fixture.componentRef.setInput('groups', [{ ...g, group: { ...g.group, tools } }]);
+    const tools = g.group.tools.map((t) => (t.name === 'list_issues' ? { ...t, toolKey: 'plugin:issues/list_issues', mode: 'APPROVAL' as const, storedMode: 'APPROVAL' as const, readOnlyAllowed: false, ...row } : t));
+    fixture.componentRef.setInput('groups', [{ ...g, type: 'plugin:issues', group: { ...g.group, tools } }]);
     fixture.componentRef.setInput('slug', 'dev');
     const changes: ToolModeChange[] = [];
     const confirmed: unknown[] = [];
@@ -102,7 +102,7 @@ describe('tool-policy-list read only of an external tool', () => {
     await fixture.whenStable();
     button('Allow read only').click();
     await fixture.whenStable();
-    expect(confirmed).toEqual([{ toolKey: 'list_issues', connection: 'github-mcp', definitionHash: 'sha256-list_issues' }]);
+    expect(confirmed).toEqual([{ toolKey: 'plugin:issues/list_issues', connection: 'github-mcp', definitionHash: 'sha256-list_issues' }]);
     expect(changes).toEqual([]);
     expect(dialog.hasAttribute('open')).toBe(false);
     expect(read.checked).toBe(true);
@@ -129,12 +129,41 @@ describe('tool-policy-list read only of an external tool', () => {
     radio('read').click();
     await fixture.whenStable();
     expect(dialog.hasAttribute('open')).toBe(false);
-    expect(changes).toEqual([expect.objectContaining({ toolKey: 'list_issues', connection: 'github-mcp', mode: 'READ_ONLY' })]);
+    expect(changes).toEqual([expect.objectContaining({ toolKey: 'plugin:issues/list_issues', connection: 'github-mcp', mode: 'READ_ONLY' })]);
   });
 
   it('keeps Read only unavailable when there is no definition to confirm', async () => {
     const { tr, radio } = await render({ definitionHash: null });
     expect(radio('read').getAttribute('aria-disabled')).toBe('true');
     expect(tr.textContent).toContain('Read only needs your confirmation for this tool');
+  });
+});
+
+describe('tool-policy-list MCP bulk modes', () => {
+  it('offers bulk changes and defaults for MCP servers, and does not confirm eligible read tools', async () => {
+    TestBed.configureTestingModule({ providers: [provideRouter([]), provideKitIcons()] });
+    const fixture = TestBed.createComponent(GwToolPolicyList);
+    const group = DEMO_TOOL_GROUPS_EXTERNAL[0];
+    fixture.componentRef.setInput('groups', [{ ...group, group: { ...group.group, tools: group.group.tools.map((tool) => ({ ...tool, mode: 'APPROVAL', storedMode: 'APPROVAL' })) } }]);
+    fixture.componentRef.setInput('slug', 'dev');
+    const bulk = vi.fn();
+    const modeChange = vi.fn();
+    const confirm = vi.fn();
+    fixture.componentInstance.bulk.subscribe(bulk);
+    fixture.componentInstance.modeChange.subscribe(modeChange);
+    fixture.componentInstance.confirmReadOnly.subscribe(confirm);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    const trigger = [...root.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent?.includes('Set all to…'))!;
+    expect(trigger).toBeDefined();
+    trigger.click();
+    root.querySelector<HTMLButtonElement>('[role="menuitem"][data-value="DEFAULT"]')!.click();
+    expect(bulk).toHaveBeenCalledWith({ connection: 'github-mcp', mode: 'DEFAULT' });
+    const read = root.querySelector<HTMLInputElement>('input[value="read"]')!;
+    read.click();
+    await fixture.whenStable();
+    expect(confirm).not.toHaveBeenCalled();
+    expect(modeChange).toHaveBeenCalledWith(expect.objectContaining({ toolKey: 'mcp:github-mcp/list_issues', mode: 'READ_ONLY' }));
   });
 });

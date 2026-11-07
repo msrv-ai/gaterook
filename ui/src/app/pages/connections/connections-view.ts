@@ -11,7 +11,7 @@ import { Look, healthLook } from '../../kit/elements/shared/dictionaries';
 import { ToastTone } from '../../kit/toast.service';
 
 /*
- * What the Connections page (design/pages/connections.html) says about the core's rows, as pure functions: the
+ * What the Connections page says about the core's rows, as pure functions: the
  * filters, the counts, the health and credentials cells, the alert under a row, the delete confirmation and the
  * toasts of Test connection and Test all. The page and its data service only wire them to the API and the DOM.
  */
@@ -26,9 +26,10 @@ export interface Filters {
   readonly type: string;
   readonly env: EnvFilter;
   readonly health: HealthFilter;
+  readonly notConnectedTo: string | null;
 }
 
-export const NO_FILTERS: Filters = { q: '', type: 'all', env: 'all', health: 'all' };
+export const NO_FILTERS: Filters = { q: '', type: 'all', env: 'all', health: 'all', notConnectedTo: null };
 
 export const ENVS: readonly Env[] = ['dev', 'stage', 'prod'];
 
@@ -59,6 +60,7 @@ export function sortRows(rows: readonly ConnectionRow[]): ConnectionRow[] {
 
 /** The kit's search: name, host and type (with its badges), case-insensitive. */
 export function matches(row: ConnectionRow, f: Filters): boolean {
+  if (f.notConnectedTo && row.usedBy.includes(f.notConnectedTo)) return false;
   if (f.type !== 'all' && row.type !== f.type) return false;
   if (f.env !== 'all' && row.env !== f.env) return false;
   if (f.health !== 'all' && healthState(row) !== f.health) return false;
@@ -89,7 +91,7 @@ export function filtered(rows: readonly ConnectionRow[], f: Filters): Connection
 }
 
 export function isFiltered(f: Filters): boolean {
-  return f.q.trim() !== '' || f.type !== 'all' || f.env !== 'all' || f.health !== 'all';
+  return f.q.trim() !== '' || f.type !== 'all' || f.env !== 'all' || f.health !== 'all' || f.notConnectedTo !== null;
 }
 
 export interface MenuOption {
@@ -99,7 +101,7 @@ export interface MenuOption {
   readonly count: number;
 }
 
-/** The order the kit lists connector types in (BLUEPRINT §9): databases, remote access, logs, clusters, clouds, HTTP. */
+/** The order the kit lists connector types in: databases, remote access, logs, clusters, clouds, HTTP. */
 const TYPE_ORDER = Object.keys(CONNECTOR_NAMES);
 
 /**
@@ -191,7 +193,7 @@ export function countText(shown: number, total: number): string {
   return shown === total ? plural(total, 'connection') : `${shown.toLocaleString('en-US')} of ${plural(total, 'connection')}`;
 }
 
-/** The health cell: "Healthy · 12 ms", "Slow · 1.8 s", "Unreachable", "Not checked yet" (BLUEPRINT §7). */
+/** The health cell: "Healthy · 12 ms", "Slow · 1.8 s", "Unreachable", "Not checked yet". */
 export function healthCell(row: ConnectionRow): Look {
   const state = healthState(row);
   return healthLook(state, state === 'unreachable' ? null : row.health?.latencyMs ?? null);

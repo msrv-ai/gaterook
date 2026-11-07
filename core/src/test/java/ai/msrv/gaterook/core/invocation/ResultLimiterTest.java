@@ -138,6 +138,36 @@ class ResultLimiterTest {
         new ToolResult.Column("status", "text", null, null, null)), r, null), null);
   }
 
+  /** Bytes can't be cut: an image that doesn't fit is left out whole, largest first, with a note of what it was. */
+  @Test
+  void imagesThatDontFitAreLeftOutLargestFirst() {
+    String small = java.util.Base64.getEncoder().encodeToString(new byte[600]);
+    String large = java.util.Base64.getEncoder().encodeToString(new byte[3_000]);
+    ToolResult r = new ToolResult(List.of(ToolResult.Content.text("caption"), ToolResult.Content.image(large,
+        "image/png"), ToolResult.Content.image(small, "image/png")), null, false, null, false, null, List.of(), 0, 0,
+        null);
+
+    ToolResult cut = ResultLimiter.limit(r, limits(1_000, 2_000), 1);
+
+    assertThat(cut.content().get(0).text()).isEqualTo("caption");
+    assertThat(cut.content().get(1).data()).isNull();
+    assertThat(cut.content().get(1).text()).isEqualTo("[image image/png, 2 KB, left out: larger than the size limit]");
+    assertThat(cut.content().get(2).data()).isEqualTo(small);
+    assertThat(cut.truncatedReason()).isEqualTo("size_limit");
+    assertThat(ResultLimiter.size(cut)).isLessThanOrEqualTo(2_000);
+    assertThat(ResultLimiter.preview(cut, 200)).contains("[image image/png, 600 bytes]");
+  }
+
+  /** A result of texts hashes as it did before blocks could carry bytes: digests stored earlier stay comparable. */
+  @Test
+  void aTextResultHashesAsBefore() {
+    assertThat(ResultLimiter.sha256(ToolResult.text("hello")))
+        .isEqualTo(ai.msrv.gaterook.core.platform.CanonicalJson.sha256Hex(JsonNodeFactory.instance.objectNode()
+            .<ObjectNode>set("content", JsonNodeFactory.instance.arrayNode().add(JsonNodeFactory.instance.objectNode()
+                .put("type", "text").put("text", "hello").putNull("uri")))
+            .<ObjectNode>set("structuredContent", null).put("isError", false)));
+  }
+
   static Limits limits(int maxRows, long maxBytes) {
     return new Limits(maxRows, 1_000, maxBytes, 1 << 20, 256 * 1024, 64 * 1024, 8_192, Duration.ofSeconds(5),
         Duration.ofSeconds(30), Duration.ofSeconds(10), Duration.ofHours(168));

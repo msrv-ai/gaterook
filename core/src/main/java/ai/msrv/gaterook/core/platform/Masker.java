@@ -24,7 +24,8 @@ import tools.jackson.databind.node.ObjectNode;
  * report 12 §7.7): results before the agent, Playground or the audit see them, arguments in the audit, texts of
  * notifications, log messages. Every string the agent can read is a value here: texts, the {@code uri}, {@code name}
  * and {@code mimeType} of a {@code resource_link}, JSON property names (hashes keyed by tokens), table column names
- * and string cells; numbers and binary nodes are checked by their text against the taint and personal data. Each
+ * and string cells; numbers and binary nodes are checked by their text against the taint and personal data. An
+ * image, audio or blob of a result is left out whole when its bytes carry a secret ({@code carriesSecret}). Each
  * goes through, in order:
  * <ol>
  *   <li>the call's {@link Taint}: every stored secret handed out and every derived credential, in their encodings,
@@ -122,9 +123,16 @@ public final class Masker {
     Pass pass = new Pass(fingerprints, taint, policy);
     List<ToolResult.Content> content = new ArrayList<>(result.content().size());
     for (ToolResult.Content c : result.content()) {
+      if (c.binary() && pass.carriesSecret(c.data())) {
+        // Bytes can't be masked without breaking them: a block that carries a secret is left out whole.
+        content.add(ToolResult.Content.text("[" + c.type() + (c.mimeType() == null ? "" : " " + pass.string(
+            c.mimeType())) + " withheld by GateRook: it carried a secret]"));
+        continue;
+      }
       // A resource link reaches the agent as much as a text does: a presigned URL carries the STS session token.
       content.add(new ToolResult.Content(c.type(), pass.string(c.text()), pass.string(c.uri()),
-          pass.string(c.mimeType()), pass.string(c.name())));
+          pass.string(c.mimeType()), pass.string(c.name()), c.data(),
+          c.meta() == null ? null : pass.node(c.meta(), new ArrayList<>(), false)));
     }
     JsonNode structured = result.structuredContent() == null ? null
         : pass.node(maskPaths(result.structuredContent(), result.maskPaths(), pass), new ArrayList<>(), false);
@@ -215,7 +223,8 @@ public final class Masker {
 
   /**
    * Whether a value someone typed into a non-secret field looks like a secret ("This looks like a secret: store it as
-   * a secret"); the rule id that matched.
+   * a secret"); the rule id that matched. Uses syntax and optional entropy, not process fingerprints: resolving a
+   * password must not make a coincidentally matching hostname or port invalid. Output masking still uses both.
    */
   public Optional<String> looksLikeSecret(String value) {
     return looksLikeSecret(value, true);
@@ -229,9 +238,12 @@ public final class Masker {
     if (value == null || value.isEmpty()) {
       return Optional.empty();
     }
-    Pass pass = new Pass(fingerprints, null, entropy ? MaskPolicy.SECRETS_ONLY : new MaskPolicy(false, Set.of(), List.of()));
-    pass.string(value);
-    return pass.counter.byRule().keySet().stream().findFirst();
+    MaskCounter counter = new MaskCounter();
+    String out = SecretRules.apply(value, MASK, counter);
+    if (entropy) {
+      EntropyDetector.apply(out, MASK, counter);
+    }
+    return counter.byRule().keySet().stream().findFirst();
   }
 
   /** Whether {@code key} names a cursor, handle or digest: random-looking by design, not a secret. */
@@ -332,6 +344,24 @@ public final class Masker {
       return fields == 0 ? Outcome.NONE : new Outcome(fields, counter.byRule());
     }
 
+    /**
+     * Whether the Base64 of a binary block carries a secret: the taint keeps every secret's Base64 at each alignment,
+     * so a secret anywhere in the bytes shows in their Base64; the fingerprints of the process are checked the same
+     * way. No rule or entropy check: random bytes look like secrets to both. Counts a field when it does.
+     */
+    boolean carriesSecret(String base64) {
+      if (base64 == null || base64.isEmpty()) {
+        return false;
+      }
+      boolean found = (taint != null && taint.occursIn(base64))
+          || !fingerprints.mask(base64, MASK, new MaskCounter()).equals(base64);
+      if (found) {
+        counter.hit("stored-secret");
+        fields++;
+      }
+      return found;
+    }
+
     /** One string value: taint → rules → entropy → personal data. Counts a field when anything changed. */
     String string(String value) {
       return string(value, policy.entropy());
@@ -379,24 +409,50 @@ public final class Masker {
       return out;
     }
 
+    /**
+     * {@code value} with every occurrence of every form masked. The occurrences are found in {@code value} as it
+     * came, overlapping ones included, and each run they cover becomes one mask: replacing form by form would break
+     * an overlapping second form and leave its other end readable.
+     */
     private String maskForms(String value) {
-      String out = value;
+      long[] runs = new long[8];
+      int count = 0;
       for (char[] form : taint.forms()) {
-        int at = indexOf(out, form, 0);
-        if (at < 0) {
-          continue;
-        }
-        StringBuilder sb = new StringBuilder(out.length());
-        int copied = 0;
+        int at = indexOf(value, form, 0);
         while (at >= 0) {
-          sb.append(out, copied, at).append(MASK);
-          counter.hit("stored-secret");
-          copied = at + form.length;
-          at = indexOf(out, form, copied);
+          int end = at + form.length;
+          int next = indexOf(value, form, at + 1);
+          while (next >= 0 && next < end) {
+            end = next + form.length;
+            next = indexOf(value, form, next + 1);
+          }
+          if (count == runs.length) {
+            runs = Arrays.copyOf(runs, count * 2);
+          }
+          runs[count++] = ((long) at << 32) | end;
+          at = next;
         }
-        out = sb.append(out, copied, out.length()).toString();
       }
-      return out;
+      if (count == 0) {
+        return value;
+      }
+      Arrays.sort(runs, 0, count);
+      StringBuilder out = new StringBuilder(value.length());
+      int copied = 0;
+      int i = 0;
+      while (i < count) {
+        int start = (int) (runs[i] >>> 32);
+        int end = (int) runs[i];
+        i++;
+        while (i < count && (int) (runs[i] >>> 32) < end) {
+          end = Math.max(end, (int) runs[i]);
+          i++;
+        }
+        out.append(value, copied, start).append(MASK);
+        counter.hit("stored-secret");
+        copied = end;
+      }
+      return out.append(value, copied, value.length()).toString();
     }
 
     /**
@@ -513,9 +569,7 @@ public final class Masker {
       boolean[] forced = new boolean[columns.size()];
       for (int i = 0; i < columns.size(); i++) {
         ToolResult.Column c = columns.get(i);
-        String column = c.sourceColumn() != null ? c.sourceColumn() : c.name();
-        forced[i] = sensitiveKey(column) || fieldMatches(c.sourceTable() != null
-            ? List.of(c.sourceTable(), column) : List.of(column));
+        forced[i] = forcedColumn(c);
         // Column metadata is rendered into the table's text and the structured result: a value like any other.
         maskedColumns.add(new ToolResult.Column(name(c.name()), name(c.type()), name(c.sourceSchema()),
             name(c.sourceTable()), name(c.sourceColumn())));
@@ -542,6 +596,33 @@ public final class Masker {
       return new ToolResult.Table(maskedColumns, rows, string(table.nextCursor(), false));
     }
 
+    /**
+     * Whether a column is masked whole: its name in the result ({@code SELECT pw AS password}) or its origin
+     * ({@code schema.table.column} as far as the driver knows it; an expression has none) is a sensitive key or one
+     * of the policy's fields.
+     */
+    private boolean forcedColumn(ToolResult.Column c) {
+      String name = c.name() == null ? "" : c.name();
+      if (sensitiveKey(name) || fieldMatches(List.of(name))) {
+        return true;
+      }
+      boolean known = !blank(c.sourceColumn());
+      String column = known ? c.sourceColumn() : name;
+      List<String> origin = new ArrayList<>(3);
+      if (!blank(c.sourceTable())) {
+        if (!blank(c.sourceSchema())) {
+          origin.add(c.sourceSchema());
+        }
+        origin.add(c.sourceTable());
+      }
+      origin.add(column);
+      return (known && sensitiveKey(column)) || fieldMatches(origin);
+    }
+
+    private static boolean blank(String s) {
+      return s == null || s.isBlank();
+    }
+
     /** "Always mask these fields": {@code a.b} matches a path ending in {@code a.b}; {@code *} is any one name. */
     boolean fieldMatches(List<String> path) {
       for (String[] pattern : fieldPatterns) {
@@ -557,7 +638,7 @@ public final class Masker {
       int s = path.size() - 1;
       while (p >= 0) {
         if (s < 0) {
-          // A leading "*" may stand for nothing: *.password matches a top-level password too.
+          // A leading "*" may stand for nothing: *password matches a top-level password too.
           return p == 0 && pattern[0].equals("*");
         }
         if (!pattern[p].equals("*") && !pattern[p].equalsIgnoreCase(path.get(s))) {

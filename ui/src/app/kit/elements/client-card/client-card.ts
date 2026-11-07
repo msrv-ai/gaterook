@@ -62,7 +62,7 @@ export interface ClientPreviewRequest {
 }
 
 /**
- * `<article gwClientCard [card]="codex" [endpoints]="endpoints" …>` (elements/client-card.html): one MCP client of
+ * `<article gwClientCard [card]="codex" [endpoints]="endpoints" …>`: one MCP client of
  * this computer: installed or not, connected to which endpoints, through which file or channel, how it
  * authenticates, and the next step. States follow the clients module (`connected`, `detected`, `not-installed`,
  * `needs-restart`, `error`); a failed Connect (`failure`) shows what failed, the fix, and Try again. Claude Desktop
@@ -111,7 +111,7 @@ export class GwClientCard {
   /** Open config needs the desktop app (it opens the file in the default editor). */
   readonly canOpenConfig = input(true, { transform: booleanAttribute });
   /**
-   * The card on the Clients screen (pages/clients.html): the Auth row and a missing client's note in that page's
+   * The card on the Clients screen: the Auth row and a missing client's note in that page's
    * words, which the element's demo says longer.
    */
   readonly page = input(false, { transform: booleanAttribute });

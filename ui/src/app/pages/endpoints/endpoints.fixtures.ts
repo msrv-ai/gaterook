@@ -4,7 +4,7 @@ import { TunnelState } from '../../core/api/tunnel.api';
 
 /*
  * Test data only (imported by the specs, never by the page): answers in the shapes of the admin API, named after the
- * kit's world (BLUEPRINT §9, design/pages/endpoints.html) so assertions read like the kit page.
+ * kit's world (endpoints screen) so assertions read like the kit page.
  */
 
 export const NOW = Date.parse('2026-10-22T14:30:00+02:00');
@@ -137,7 +137,7 @@ export function token(id: string, kind: 'named' | 'grant', name: string, state: 
   };
 }
 
-/** The tokens of each kit endpoint (BLUEPRINT §9 "Tokens of endpoint dev"). */
+/** The tokens of each kit endpoint. */
 export function kitTokens(): Record<string, TokenRow[]> {
   return {
     dev: [

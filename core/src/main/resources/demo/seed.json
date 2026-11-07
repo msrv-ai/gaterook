@@ -1,5 +1,5 @@
 {
-  "_comment": "The kit's demo world (design/BLUEPRINT.md §9), applied by admin.demo.DemoSeed when the core starts with GW_DEMO=1 on an empty home. Everything goes through the core's own services, so rows are signed and the audit is one chain. External stores and secret references are S1's: Vault (AppRole) and GCP Secret Manager (impersonation) are connected, AWS Secrets Manager isn't, so billing-api/webhook-secret shows 'not connected'; the stores are never contacted while seeding. Notifications (K2): desktop on, Slack connected to the acme workspace and posting to #deploy-approvals (no tokens: the demo's Slack never calls Slack), Telegram not set up. The tunnel and claude.ai's sign-in are K3's. The MCP server github-mcp is stored as installing its catalog entry leaves it (no npm, no process). Each connection carries what its last test found (facts: the server's version, a read replica, the AWS account) and its health as the kit shows it; the core runs the demo without periodic health checks, since its hosts don't exist. The clients (K1) live in <home>/demo-user-home, never in the developer's own home; the master key's backup is a date only (no copy of the key is written).",
+  "_comment": "The kit's demo world, applied by admin.demo.DemoSeed when the core starts with GW_DEMO=1 on an empty home. Everything goes through the core's own services, so rows are signed and the audit is one chain. External stores and secret references are S1's: Vault (AppRole) and GCP Secret Manager (impersonation) are connected, AWS Secrets Manager isn't, so billing-api/webhook-secret shows 'not connected'; the stores are never contacted while seeding. Notifications (K2): desktop on, Slack connected to the acme workspace and posting to #deploy-approvals (no tokens: the demo's Slack never calls Slack), Telegram not set up. The tunnel and claude.ai's sign-in are K3's. The MCP server github-mcp is stored as installing its catalog entry leaves it (no npm, no process). Each connection carries what its last test found (facts: the server's version, a read replica, the AWS account) and its health as the kit shows it; the core runs the demo without periodic health checks, since its hosts don't exist. The clients (K1) live in <home>/demo-user-home, never in the developer's own home; the master key's backup is a date only (no copy of the key is written).",
   "stores": [
     {"kind": "vault", "name": "vault", "secrets": ["/auth/secretId"],
      "config": {"address": "https://vault.acme.internal", "auth": {"method": "approle", "roleId": "gaterook-demo"}}},
@@ -64,7 +64,7 @@
      "health": {"state": "HEALTHY", "latencyMs": 52}}
   ],
   "mcpServers": [
-    {"_comment": "BLUEPRINT §9: github-mcp v0.6.2 from the signed catalog entry (catalog/index.json), 26 tools that declare no annotations, on no endpoint; its token is a secret encrypted here.",
+    {"_comment": "Demo data: github-mcp v0.6.2 from the signed catalog entry (catalog/index.json), 26 tools that declare no annotations, on no endpoint; its token is a secret encrypted here.",
      "name": "github-mcp", "env": "dev", "secrets": ["/env/0/secretRef"],
      "config": {"transport": "stdio", "command": ["node", "node_modules/@modelcontextprotocol/server-github/dist/index.js"],
        "env": [{"name": "GITHUB_PERSONAL_ACCESS_TOKEN"}], "toolPrefix": "github_", "catalogEntry": "github-mcp@0.6.2"},
@@ -133,7 +133,7 @@
     {"slug": "stage-readonly", "description": "Stage data for claude.ai, read only. Nothing on it can change data.", "startFrom": "empty",
      "connections": ["stage-db", "aws-stage", "billing-api"], "access": "read-only", "reason": "claude.ai only reads"},
     {"slug": "incident-prod", "description": "Production incidents: read the replica and the logs, run approved runbooks on prod-vm.",
-     "startFrom": "incident-response"}
+     "startFrom": "incident-response", "connections": ["prod-replica", "prod-logs", "prod-vm"]}
   ],
   "tokens": [
     {"endpoint": "dev", "name": "inspector-debug", "ttlDays": 3},
@@ -141,7 +141,7 @@
     {"endpoint": "dev", "name": "old-claude", "ttlDays": 7, "revoke": "replaced by the bridge"}
   ],
   "clients": {
-    "_comment": "BLUEPRINT §9 Clients: Claude Desktop connected to dev and incident-prod (.mcpb), Codex to dev (helper, access codex-laptop), Cursor detected, Antigravity not installed. Links go through preview and Confirm and take a first bridge token, so the page shows them connected; a link with a caller makes that caller's principal its grant.",
+    "_comment": "Demo data Clients: Claude Desktop connected to dev and incident-prod (.mcpb), Codex to dev (helper, access codex-laptop), Cursor detected, Antigravity not installed. Links go through preview and Confirm and take a first bridge token, so the page shows them connected; a link with a caller makes that caller's principal its grant.",
     "detected": ["claude-desktop", "codex", "cursor"],
     "files": {
       ".cursor/mcp.json": "{\n  \"mcpServers\": {\n    \"github\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@modelcontextprotocol/server-github\"]\n    }\n  }\n}\n",
@@ -160,7 +160,7 @@
         "appId": "A0MCPGW0001"}}, "lastDeliveryMinutesAgo": 28}
   },
   "tunnel": {
-    "_comment": "BLUEPRINT §9 claude.ai and the tunnel: stage-readonly is published through a Cloudflare quick tunnel; it was on 08:40-12:10 (here: 3 h 50 min to 20 min before the seeding) with 19 calls from claude.ai, and is off now, as after every start. claude.ai's sign-in was allowed 12 minutes into that session and stays in Signed in for 184 days. Nothing is contacted: the client row is written as a first sign-in would have stored it.",
+    "_comment": "Demo data claude.ai and the tunnel: stage-readonly is published through a Cloudflare quick tunnel; it was on 08:40-12:10 (here: 3 h 50 min to 20 min before the seeding) with 19 calls from claude.ai, and is off now, as after every start. claude.ai's sign-in was allowed 12 minutes into that session and stays in Signed in for 184 days. Nothing is contacted: the client row is written as a first sign-in would have stored it.",
     "endpoint": "stage-readonly",
     "host": "gw-acme-7f3k.trycloudflare.com",
     "provider": "cloudflare-quick",
@@ -229,12 +229,12 @@
      "arguments": {"sql": "DROP TABLE orders_archive"}, "rule": "prod.sql.block_ddl"}
   ],
   "history": {
-    "_comment": "K5: the audit's past, generated by admin.demo.DemoHistory (deterministic for this random seed) and written through audit.AuditBackfill before the requests and calls above. With them the last 24 hours are BLUEPRINT §9's 1,287 calls (1,201 allowed, 46 approved, 9 rejected, 17 denied, 3 expired, 8 errors, 3 waiting; per tool, environment, endpoint, connection and client as §9 lists them; gateway p50 9 ms, p95 31 ms; median wait 47 s; 61 tasks) and the three Unusual activity findings of insights.html; the 24 hours before are the kit's 'previous'; six more days give the 7-day baselines.",
+    "_comment": "K5: the audit's past, generated by admin.demo.DemoHistory (deterministic for this random seed) and written through audit.AuditBackfill before the requests and calls above. With them the last 24 hours are the demo world's 1,287 calls (1,201 allowed, 46 approved, 9 rejected, 17 denied, 3 expired, 8 errors, 3 waiting; per tool, environment, endpoint, connection and client as the fixtures define them; gateway p50 9 ms, p95 31 ms; median wait 47 s; 61 tasks) and the three Unusual activity findings shown in Insights; the 24 hours before are the kit's 'previous'; six more days give the 7-day baselines.",
     "random": 20261022,
     "days": 8
   },
   "masterKey": {
-    "_comment": "BLUEPRINT §9: the last backup 12 days ago (recorded with its date only: a copy of the key without a passphrase would stay in a home that is a normal home afterwards), the key made on Jul 14 (100 days before the kit's Oct 22), never rotated.",
+    "_comment": "Demo data: the last backup 12 days ago (recorded with its date only: a copy of the key without a passphrase would stay in a home that is a normal home afterwards), the key made on Jul 14 (100 days before the kit's Oct 22), never rotated.",
     "backupDaysAgo": 12,
     "createdDaysAgo": 100
   },

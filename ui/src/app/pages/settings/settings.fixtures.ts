@@ -8,7 +8,7 @@ import { OAuthGrant, TunnelState } from '../../core/api/tunnel.api';
 import { JsonObject } from '../../core/api/types';
 
 /**
- * The kit's Settings world (design/pages/settings.html, BLUEPRINT §9) as the core's answers, for the page's tests:
+ * The kit's Settings world as the core's answers, for the page's tests:
  * port 7465, endpoints dev / stage-readonly / incident-prod, a token of dev that runs out in 3 days, approval rules that
  * announce in the desktop and Slack, retention 1 year, a daily backup at 03:00.
  */
@@ -20,7 +20,7 @@ const section = (name: string, values: JsonObject, version = 3): SettingsSection
 
 export function kitSections(over: Partial<Record<string, JsonObject>> = {}): { [name: string]: SettingsSection } {
   const values: Record<string, JsonObject> = {
-    general: { openAtLogin: true, startHidden: true, autoUpdate: true, singleKeyShortcuts: true },
+    general: { openAtLogin: true, startHidden: true, autoUpdate: true, singleKeyShortcuts: true, toastDurationSeconds: 15 },
     appearance: { theme: 'system', contrast: 'system' },
     authorization: { tokenTtlDays: 184, clientRegistration: 'cimd' },
     'approval-rules': {

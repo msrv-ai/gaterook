@@ -9,7 +9,7 @@ import { testConfirmTitle, testFailureTitle } from '../../kit/elements/connectio
 import { clientName } from '../../kit/elements/shared/client-mark';
 
 /**
- * The words and decisions of Add connection (design/pages/connection-new.html) that need no DOM: the wizard's stepper,
+ * The words and decisions of Add connection that need no DOM: the wizard's stepper,
  * the type picker's default, where the test connects, the endpoints a new connection may join and the tools it would
  * bring there, what prod turns on, and the edit view's summaries. The page component wires them to the core.
  */
@@ -298,8 +298,8 @@ export interface ToolPreview {
 
 /**
  * The modes a new connection's tools start in on an endpoint, by the core's rules (`endpoints.ToolPairs.initial`):
- * the manifest's default for the endpoint's env (prod has its own), Approval for every tool of a plugin or an MCP
- * server, and on a read-only endpoint nothing that changes data and nothing in Approval. The core decides again when
+ * the manifest's default for the endpoint's env (prod has its own), Approval for plugin tools, and Read only for
+ * declared MCP reads. On a read-only endpoint nothing changes data or runs in Approval. The core decides again when
  * the connection is added; this is what the person agrees to.
  */
 export function toolPreview(
@@ -308,10 +308,10 @@ export function toolPreview(
   dynamicTools: boolean,
   choice: EndpointChoice,
 ): ToolPreview {
-  const builtIn = kind === 'built-in';
   const rows = tools.map((t): PreviewRow => {
     let mode = toolMode(choice.env === 'prod' ? t.prodDefaultMode : t.defaultMode);
-    if (!builtIn || mode === 'BYPASS') mode = 'APPROVAL';
+    if ((kind !== 'built-in' && kind !== 'mcp-server') || mode === 'BYPASS') mode = 'APPROVAL';
+    if (kind === 'mcp-server') mode = readOnlyAllowed(t) && t.annotations.readOnlyHint && !t.annotations.destructiveHint ? 'READ_ONLY' : 'APPROVAL';
     if (choice.readOnly) {
       // ToolPairs.clampReadOnly: never Approval, never a tool that only changes data, Read only only where allowed.
       if ((t.nature ?? '').toLowerCase() === 'mutation' || mode === 'APPROVAL') mode = 'OFF';
@@ -485,7 +485,7 @@ export const POLICY_SECTION: Readonly<Record<string, string>> = {
   http: 'http',
 };
 
-/** The kit's own words for the defaults it lists (pages/connection-new.html `__defaults`). */
+/** The kit's own words for the defaults it lists. */
 const KIT_LINES: Readonly<Record<string, ProdDefault>> = {
   'sql.readOnlyTransactions': { icon: 'lock', text: 'Read-only transactions' },
   'sql.denyDdl': { icon: 'ban', text: 'No DDL: CREATE, ALTER, DROP, TRUNCATE are refused', literals: ['CREATE', 'ALTER', 'DROP', 'TRUNCATE'] },
@@ -632,8 +632,8 @@ export interface EndpointUse {
   readonly clients: readonly string[];
 }
 
-export function endpointUses(rows: readonly ConnectionUsedBy[], endpoints: readonly EndpointSummary[]): EndpointUse[] {
-  const slugs = [...new Set(rows.map((r) => r.endpoint))];
+export function endpointUses(rows: readonly ConnectionUsedBy[], endpoints: readonly EndpointSummary[], assigned: readonly string[] = []): EndpointUse[] {
+  const slugs = [...new Set([...rows.map((r) => r.endpoint), ...assigned])].sort((a, b) => a.localeCompare(b));
   return slugs.map((slug) => ({
     slug,
     tools: rows.filter((r) => r.endpoint === slug && toolMode(r.mode) !== 'OFF').map((r) => r.tool),

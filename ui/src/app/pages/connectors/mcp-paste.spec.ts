@@ -1,4 +1,4 @@
-import { parsePastedServer, serverName } from './mcp-paste';
+import { SSE_NOTE, parsePastedServer, serverName } from './mcp-paste';
 
 /** The snippets official MCP servers publish for the AI apps (their docs, 2026-11), as Add MCP server reads them. */
 describe('pasted MCP server configurations', () => {
@@ -53,14 +53,14 @@ describe('pasted MCP server configurations', () => {
     expect(maps.variables).toEqual(['X-Goog-Api-Key']);
   });
 
-  it('turns an mcp-remote bridge into the URL it bridges, /sse into /mcp', () => {
+  it('turns an mcp-remote bridge into the URL it bridges, an SSE address as given', () => {
     const r = parsePastedServer(`{"mcpServers":{"atlassian":{"command":"npx","args":["-y","mcp-remote","https://mcp.atlassian.com/v1/sse"]}}}`);
     expect('error' in r).toBe(false);
     if ('error' in r) return;
     expect(r.transport).toBe('http');
-    expect(r.url).toBe('https://mcp.atlassian.com/v1/mcp');
+    expect(r.url).toBe('https://mcp.atlassian.com/v1/sse');
     expect(r.name).toBe('atlassian');
-    expect(r.notes.join(' ')).toContain('Changed /sse to /mcp');
+    expect(r.notes).toContain(SSE_NOTE);
     expect(r.notes.join(' ')).toContain('mcp-remote isn’t needed');
   });
 
@@ -138,7 +138,7 @@ describe('pasted MCP server configurations', () => {
 
   it('takes a bare URL and names it after its host', () => {
     expect(parsePastedServer(' https://mcp.linear.app/mcp ')).toMatchObject({ name: 'linear-mcp', transport: 'http', url: 'https://mcp.linear.app/mcp' });
-    expect(parsePastedServer('npx -y mcp-remote https://mcp.asana.com/sse')).toMatchObject({ name: 'asana-mcp', url: 'https://mcp.asana.com/mcp' });
+    expect(parsePastedServer('npx -y mcp-remote https://mcp.asana.com/sse')).toMatchObject({ name: 'asana-mcp', url: 'https://mcp.asana.com/sse' });
   });
 
   it('says what it can’t read', () => {

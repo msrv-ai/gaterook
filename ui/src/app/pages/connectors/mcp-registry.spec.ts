@@ -1,4 +1,5 @@
 import { McpRegistryServer } from '../../core/api/plugins.api';
+import { SSE_NOTE } from './mcp-paste';
 import { fromRegistry, registryName, registryUse } from './mcp-registry';
 
 /** Entries of the Official MCP Registry (2026-11-02) as the core passes them on, and what they fill in Add MCP server. */
@@ -61,13 +62,13 @@ describe('MCP registry entries in Add MCP server', () => {
     expect(r.notes[0]).toBe('Replace {tenant_id} in the URL with your own value. {tenant_id}: Microsoft Entra tenant ID.');
   });
 
-  it('turns an SSE address into /mcp, as a pasted one', () => {
+  it('keeps an SSE address as given, as a pasted one', () => {
     const r = fromRegistry(entry({ name: 'com.example/tenant',
       remotes: [{ type: 'sse', url: 'https://{tenant}.example.com/sse', headers: [], variables: [] }] }));
     if ('error' in r) throw new Error(r.error);
-    expect(r.url).toBe('https://{tenant}.example.com/mcp');
+    expect(r.url).toBe('https://{tenant}.example.com/sse');
     expect(r.name).toBe('tenant');
-    expect(r.notes).toContain('Changed /sse to /mcp: GateRook connects over Streamable HTTP, and servers that list an SSE address usually answer there too.');
+    expect(r.notes).toContain(SSE_NOTE);
   });
 
   it('starts an npm package with npx and its pinned version, its secret variables by name', () => {

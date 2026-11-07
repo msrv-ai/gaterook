@@ -3,7 +3,7 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { ApiError } from '../../core/api/api-error';
-import { ClientsApi, ClientsView, ConnectPreview, ConnectRequest, ConnectResult } from '../../core/api/clients.api';
+import { ClientCard, ClientsApi, ClientsView, ConnectPreview, ConnectRequest, ConnectResult, ManualAppResult } from '../../core/api/clients.api';
 import { CoreApi } from '../../core/api/core.api';
 import { EndpointSummary, EndpointsApi, TokensApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { Overview, OverviewApi } from '../../core/api/overview.api';
@@ -25,7 +25,7 @@ import { firstRun as firstRunOverview, setup as setupOverview } from '../overvie
 import { NOW, bridgeDisconnect, codexDisconnect, connected, foundClients, kitClients, kitEndpoints, kitManual, kitTokens, noneFound, previewFor, setupEndpoints } from './clients.fixtures';
 
 /**
- * The Clients page against fake API services in the kit's world (design/pages/clients.html): what it shows, what each
+ * The Clients page against fake API services in the kit's world: what it shows, what each
  * control asks the core, where the keyboard goes, and that nothing is written before its exact change is on screen.
  */
 
@@ -78,6 +78,25 @@ const fakeTime: Partial<TimeService> = {
   date: (at, year = false) => (at ? shortDate(at, now(), year) : ''),
   clock: (at, withSeconds = false) => (at ? clockTime(at, withSeconds) : ''),
 };
+
+function manualAppResult(): ManualAppResult {
+  const client: ClientCard = {
+    ...kitClients().clients[2], client: 'manual-local-assistant', name: 'Local assistant', manual: true,
+    status: 'pending', statusText: 'Awaiting connection', detected: false,
+    configPath: null, configDisplay: null, evidence: [], methods: [],
+    links: [{
+      ...connected('cursor', { endpoint: 'dev', method: 'token' }).link,
+      id: 'manual-local-assistant', client: 'manual-local-assistant', endpoint: 'dev', method: 'manual',
+      status: 'pending', statusText: 'Awaiting connection', tokenName: 'app-local-assistant',
+      configPath: null, configDisplay: null, entryName: null, grantPrefix: 'gwt_once',
+      usedAt: null, lastCallAt: null,
+    }],
+  };
+  return {
+    client, setup: kitManual(),
+    token: { id: 'tok_manual', name: 'app-local-assistant', prefix: 'gwt_once', token: 'gwt_once_manual_test_secret', expiresAt: '2027-04-24T12:30:00Z' },
+  };
+}
 
 function configure(): void {
   calls = [];
@@ -197,6 +216,91 @@ async function choose(select: HTMLSelectElement, value: string): Promise<void> {
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+describe('Clients page: manually added apps', () => {
+  it('adds a named app to the common list, retains it after scanning, and never keeps the token in its card', async () => {
+    const result = manualAppResult();
+    let added = false;
+    world.list = async () => ({ ...kitClients(), clients: [...kitClients().clients, ...(added ? [result.client] : [])] });
+    const addManual = vi.fn(async () => { added = true; return result; });
+    Object.assign(TestBed.inject(ClientsApi), { addManual });
+    const el = await render();
+    await click(control(el, 'Add app manually'));
+    const name = $<HTMLInputElement>('#manual-app-name')!;
+    name.value = '  Local assistant  ';
+    name.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle();
+    await click(control(openDialog()!, 'Add app'));
+    expect(addManual).toHaveBeenCalledExactlyOnceWith({ name: 'Local assistant', endpoint: 'dev', ttlDays: 184 });
+
+    const saved = $('article[data-client="manual-local-assistant"]', el)!;
+    expect(saved.closest('ul')?.getAttribute('aria-label')).toBe('AI apps on this computer');
+    expect(text($('.gw-status__label', saved))).toBe('Awaiting connection');
+    expect(text(saved)).toContain('Added manually');
+    expect(text(saved)).toContain('No request yet');
+    expect(text(saved)).not.toContain(result.token.token);
+    expect(disclosure(saved).getAttribute('aria-expanded')).toBe('true');
+    expect(text(openDialog())).toContain(result.token.token);
+    await click($<HTMLInputElement>('input[type="checkbox"]', openDialog()!)!);
+    await click(control(openDialog()!, 'Done'));
+    expect(text(el)).not.toContain(result.token.token);
+
+    await click(control(el, 'Scan again'));
+    expect($$('article[data-client="manual-local-assistant"]', el)).toHaveLength(1);
+    expect(calls.some((call) => /^(preview|connect|disconnect-preview) manual-/.test(call))).toBe(false);
+  });
+
+  it('opens a pending manual app by its anchor when no built-in app is detected and updates on connection events', async () => {
+    const result = manualAppResult();
+    let current = result.client;
+    world.list = async () => ({ ...noneFound(), clients: [...noneFound().clients, current] });
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/clients#cl-manual-local-assistant-t');
+    const el = await render();
+    const saved = $('article[data-client="manual-local-assistant"]', el)!;
+    expect(text(el)).not.toContain('No AI apps found');
+    expect(disclosure(saved).getAttribute('aria-expanded')).toBe('true');
+    expect(control(saved, 'Open config')).toBeUndefined();
+    expect(control(saved, 'Disconnect')).toBeUndefined();
+    expect(control(saved, 'View activity').getAttribute('href')).toContain('token:app-local-assistant');
+    current = { ...current, status: 'connected', statusText: 'Connected', links: current.links.map((link) => ({ ...link, status: 'connected', statusText: 'Connected', usedAt: '2026-10-22T14:29:00+02:00' })) };
+    events.emit('clients.drift', {});
+    await settle();
+    expect(text($('.gw-status__label', saved))).toBe('Connected');
+    expect(text(saved)).not.toContain('No request yet');
+  });
+
+  it('requires removal confirmation, preserves the app on failure, and revokes access through the manual API on retry', async () => {
+    const result = manualAppResult();
+    let removed = false;
+    world.list = async () => ({ ...kitClients(), clients: [...kitClients().clients, ...(removed ? [] : [result.client])] });
+    const removeManual = vi.fn(async () => {
+      removed = true;
+      return { linkId: result.client.client, entryRemoved: false, rejectedApprovals: 0, notes: [] };
+    });
+    removeManual.mockRejectedValueOnce(problem(503, { title: 'Unavailable', detail: 'The core is restarting. Try again.' }));
+    Object.assign(TestBed.inject(ClientsApi), { removeManual });
+    const el = await render();
+    const saved = $('article[data-client="manual-local-assistant"]', el)!;
+    await click(disclosure(saved));
+    await click(control(saved, 'Remove app'));
+    expect(removeManual).not.toHaveBeenCalled();
+    expect(text(openDialog())).toContain('Its token will be revoked');
+    expect(document.activeElement).toBe(control(openDialog()!, 'Cancel'));
+    await click(control(openDialog()!, 'Cancel'));
+    expect(removeManual).not.toHaveBeenCalled();
+    await click(control(saved, 'Remove app'));
+    await click(control(openDialog()!, 'Remove Local assistant'));
+    expect(text(openDialog())).toContain('The core is restarting. Try again.');
+    expect($('article[data-client="manual-local-assistant"]', el)).not.toBeNull();
+    await click(control(openDialog()!, 'Remove Local assistant'));
+    expect(removeManual).toHaveBeenNthCalledWith(2, 'manual-local-assistant');
+    expect($('article[data-client="manual-local-assistant"]', el)).toBeNull();
+    expect(openDialog()).toBeNull();
+    expect(toasts().at(-1)?.title).toBe('Local assistant removed');
+    expect(calls.some((call) => call.startsWith('disconnect '))).toBe(false);
+  });
+});
 
 describe('Clients page: what it shows', () => {
   it('shows an observed OAuth connection and routes its management to sign-ins without disconnecting a config', async () => {
@@ -745,15 +849,15 @@ describe('Clients page: first run and setup (kit ?state=first-run | setup)', () 
     return render();
   }
 
-  it('first run: the apps found are quiet rows whose Connect waits for a connection, and says why', async () => {
+  it('first run: the apps found are quiet rows whose Connect waits for an endpoint, and says why', async () => {
     firstRun();
     const el = await render();
     expect(text($('.gw-page-header__description', el))).toBe(
-      'Claude Desktop, Codex and Cursor are already on this computer. Add a connection first, so they have something to work with. Connect then shows the exact change before anything is written.',
+      'Claude Desktop, Codex and Cursor are already on this computer. Create an endpoint first, then connect your AI app. Connect shows the exact change before anything is written.',
     );
     expect($$('.gw-page-header__meta .gw-status__label', el).map(text)).toEqual(['3 detected, not connected', '1 not installed']);
     // The header's Add connection is the page's only primary; nothing explains Connect yet, nothing to set up by hand.
-    expect($$('.gw-btn--primary', el).map((b) => [text(b), b.getAttribute('href')])).toEqual([['Add connection', '/connections/new']]);
+    expect($$('.gw-btn--primary', el).filter((b) => !b.closest('dialog')).map((b) => [text(b), b.getAttribute('href')])).toEqual([['Add connection', '/connections/new']]);
     expect($('.gw-how-it-works', el)).toBeNull();
     expect($('#cl-manual-t', el)).toBeNull();
     expect(text($('section[aria-labelledby="cl-local-t"] .gw-section__description', el))).toBe('These apps reach the gateway at 127.0.0.1:7465 directly, once you connect them.');
@@ -767,7 +871,7 @@ describe('Clients page: first run and setup (kit ?state=first-run | setup)', () 
     ]);
     const connect = control($('#cl-cx-row', el)!, 'Connect Codex');
     expect([connect.tagName, connect.getAttribute('aria-disabled'), connect.getAttribute('aria-describedby')]).toEqual(['BUTTON', 'true', 'cl-first-why']);
-    expect(text($('#cl-first-why', el))).toBe('Add a connection first: your AI app needs something to work with.');
+    expect(text($('#cl-first-why', el))).toBe('Create an endpoint first to connect your AI app. Open endpoints');
     await click(connect);
     expect(calls.filter((c) => c.startsWith('preview'))).toEqual([]);
     const ag = $('#cl-ag-row', el)!;
@@ -782,6 +886,51 @@ describe('Clients page: first run and setup (kit ?state=first-run | setup)', () 
     await arrive('cl-ag-t');
     await settle();
     expect(document.activeElement?.id).toBe('cl-ag-row-t');
+  });
+
+  it('first run: an empty endpoint enables Connect and waits for confirmation before writing', async () => {
+    firstRun();
+    world.endpoints = async () => setupEndpoints().map((endpoint) => ({ ...endpoint, connections: { total: 0, byEnv: {} }, tools: { read: 0, approval: 0, off: 0 } }));
+    const el = await render();
+    expect($('#cl-first-why', el)).toBeNull();
+    expect(text($('.gw-page-header__description', el))).toContain('Connect your AI app to an endpoint to import connections with AI');
+    for (const app of ['Claude Desktop', 'Codex', 'Cursor']) {
+      expect(control(el, `Connect ${app}`).getAttribute('aria-disabled')).toBeNull();
+    }
+    expect($('#cl-manual-t', el)).not.toBeNull();
+    await click(control($('#cl-cx-row', el)!, 'Connect Codex'));
+    const review = $('article[aria-labelledby="cl-cx-s-t"]', el)!;
+    expect(review).not.toBeNull();
+    expect(text(review)).not.toContain('dev-db');
+    expect(calls).toContain('preview codex dev helper');
+    expect(calls.some((call) => call.startsWith('connect '))).toBe(false);
+    await click(control(review, 'Connect Codex'));
+    expect(calls).toContain('connect codex pv_codex_dev_helper');
+  });
+
+  it('first run: an Overview link waits for endpoints, then opens the empty endpoint review', async () => {
+    firstRun();
+    let finish!: (endpoints: EndpointSummary[]) => void;
+    world.endpoints = () => new Promise((resolve) => { finish = resolve; });
+    const el = await arrive('cl-cx-t');
+    expect(control(el, 'Connect Codex').getAttribute('aria-disabled')).toBe('true');
+    expect(text($('#cl-first-why', el))).toContain('Loading endpoints');
+    expect(calls.some((call) => call.startsWith('preview '))).toBe(false);
+    finish(setupEndpoints().map((endpoint) => ({ ...endpoint, connections: { total: 0, byEnv: {} } })));
+    await settle();
+    expect($('article[aria-labelledby="cl-cx-s-t"]', el)).not.toBeNull();
+    expect(calls).toContain('preview codex dev helper');
+    expect(document.activeElement?.id).toBe('cl-cx-s-t');
+  });
+
+  it('first run: a failed endpoint load explains why Connect is unavailable', async () => {
+    firstRun();
+    world.endpoints = () => Promise.reject(problem(503, { status: 503, detail: 'Try again later.' }));
+    const el = await arrive('cl-cx-t');
+    expect(control(el, 'Connect Codex').getAttribute('aria-disabled')).toBe('true');
+    expect(text($('#cl-first-why', el))).toContain("Endpoints couldn't be loaded");
+    expect(control(el, 'Open endpoints').getAttribute('href')).toBe('/endpoints');
+    expect(calls.some((call) => call.startsWith('preview '))).toBe(false);
   });
 
   it('setup: Overview’s Connect (#cl-cx-t) opens Codex’s review on top, heading focused, with what it can use', async () => {
@@ -895,6 +1044,49 @@ describe('Clients page: first run and setup (kit ?state=first-run | setup)', () 
 });
 
 
+describe('Overview Connect links', () => {
+  it('opens a real review for the exact requested endpoint when the app already has another connection', async () => {
+    await TestBed.inject(Router).navigateByUrl('/clients?connect=codex&endpoint=incident-prod#cl-cx-t');
+    const el = await render();
+    const review = el.querySelector('[data-requested-client="codex"]');
+    expect(review).not.toBeNull();
+    expect(text(review)).toContain('incident-prod');
+    expect(calls.some((call) => call.startsWith('preview codex incident-prod '))).toBe(true);
+    expect(calls.some((call) => call.startsWith('preview codex dev '))).toBe(false);
+    expect(calls.some((call) => call.startsWith('connect '))).toBe(false);
+    expect(document.activeElement?.id).toBe('cl-cx-requested-t');
+  });
+
+  it.each(['missing', 'paused', 'blocked'])('does not silently substitute another endpoint when the requested endpoint is %s', async (state) => {
+    if (state !== 'missing') world.endpoints = async () => kitEndpoints().map((endpoint) => endpoint.slug === 'incident-prod' ? {
+      ...endpoint, status: state === 'paused' ? 'disabled' : endpoint.status, blockedReason: state === 'blocked' ? 'Review endpoint configuration.' : null,
+    } : endpoint);
+    await TestBed.inject(Router).navigateByUrl(`/clients?connect=codex&endpoint=${state === 'missing' ? 'removed' : 'incident-prod'}#cl-cx-t`);
+    const el = await render();
+    expect(el.querySelector('[data-requested-client]')).toBeNull();
+    expect(text(el)).toContain(state === 'missing' ? 'requested endpoint is unavailable' : state === 'paused' ? 'Turn on incident-prod' : 'Review endpoint configuration.');
+    expect(calls.some((call) => /^(preview|connect) codex /.test(call))).toBe(false);
+  });
+
+  it('reports an existing connection without creating another one', async () => {
+    await TestBed.inject(Router).navigateByUrl('/clients?connect=codex&endpoint=dev#cl-cx-t');
+    const el = await render();
+    expect(text(el)).toContain('Codex is already connected to dev.');
+    expect(calls.some((call) => /^(preview|connect) codex /.test(call))).toBe(false);
+  });
+
+  it('lets an app reconnect through the normal review when its previous link was revoked', async () => {
+    world.list = async () => ({ ...kitClients(), clients: kitClients().clients.map((client) => client.client === 'codex' ? {
+      ...client, links: client.links.map((link) => ({ ...link, status: 'revoked' as const })),
+    } : client) });
+    await TestBed.inject(Router).navigateByUrl('/clients?connect=codex&endpoint=dev#cl-cx-t');
+    const el = await render();
+    expect(el.querySelector('[data-requested-client="codex"]')).not.toBeNull();
+    expect(calls.some((call) => call.startsWith('preview codex dev '))).toBe(true);
+    expect(calls.some((call) => call.startsWith('connect '))).toBe(false);
+  });
+});
+
 describe('Microsoft Store client setup', () => {
   function storeEdition(): void {
     Object.assign(TestBed.inject(DesktopBridge), { available: true, windowsStore: true });
@@ -969,7 +1161,7 @@ describe('Microsoft Store client setup', () => {
     expect(toasts().some((toast) => toast.title === 'Claude Desktop connected to dev')).toBe(false);
   });
 
-  it('keeps first-run client choices unavailable until a connection exists', async () => {
+  it('keeps first-run client choices unavailable until an endpoint exists', async () => {
     storeEdition();
     world.overview = () => Promise.resolve(firstRunOverview());
     world.list = () => Promise.resolve(foundClients());

@@ -184,8 +184,7 @@ public final class AwsSmStore implements SecretStore {
     }
     SecretJson.Picked picked = SecretJson.pickTop(value, ref.key());
     if (picked.value() == null) {
-      throw StoreException.notFound(ref.display() + " has no key \"" + ref.key() + "\". Keys: "
-          + String.join(", ", picked.keys()));
+      throw StoreException.missingKey(ref.key());
     }
     return new RemoteValue(picked.value(), null, null, picked.string() ? "string" : "json", picked.keys());
   }

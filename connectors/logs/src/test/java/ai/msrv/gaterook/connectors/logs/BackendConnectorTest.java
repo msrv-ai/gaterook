@@ -66,6 +66,29 @@ class BackendConnectorTest {
   }
 
   @Test
+  void searchToolsRemainAvailableWithAStoredUsernameReference() {
+    try (var cloud = cloud()) {
+      for (String type : List.of("opensearch", "elasticsearch")) {
+        try (var connector = new BackendConnector(type, cloud)) {
+          ConnectionConfig cfg = typed(type, Configs.of("search", Env.DEV, """
+              {"backend":"%s","url":"https://search.example.test","apiAccess":"full",
+               "auth":{"mode":"basic","username":{"$secret":"sec_search_user"},
+                       "secret":{"$secret":"sec_search_password"}}}""".formatted(type),
+              "/auth/username", "/auth/secret"));
+          assertThat(connector.previewTools(cfg)).extracting(ToolDefinition::name)
+              .containsExactly(type + "_indices", type + "_query", type + "_request");
+          for (ToolDefinition tool : connector.manifest().tools()) {
+            assertThat(connector.supportsTool(tool.name(), cfg)).as(tool.name()).isTrue();
+          }
+          // Credentials are resolved only for calls; availability must not weaken runtime validation.
+          assertThat(connector.classify(Configs.call(type + "_query", "{\"path\":\"/\"}"), cfg,
+              Configs.policy(Env.DEV, TestCtx.dev())).kind()).isEqualTo(Classification.Kind.DENY);
+        }
+      }
+    }
+  }
+
+  @Test
   void openSearchDescriptionContainsOnlyDatabaseCapabilities() throws Exception {
     try (var cloud = cloud(); var connector = new BackendConnector("opensearch", cloud)) {
       ConnectionConfig cfg = typed("opensearch", Configs.of("search", Env.DEV, """

@@ -16,7 +16,8 @@
       }
     </div>
     <div class="gw-page-header__actions">
-      <a class="gw-btn gw-btn--primary" routerLink="/connections/new"><svg lucideIcon="plus" class="gw-icon"></svg> Add connection</a>
+      <a class="gw-btn gw-btn--primary" routerLink="/connection-import"><svg lucideIcon="lightbulb" class="gw-icon"></svg> Import with AI</a>
+      <a class="gw-btn" routerLink="/connections/new"><svg lucideIcon="plus" class="gw-icon"></svg> Add connection</a>
     </div>
   </div>
 </header>
@@ -127,11 +128,14 @@
             }
           </div>
         </div>
+        @if (filters().notConnectedTo; as endpoint) {
+          <span class="gw-tag gw-tag--brand"><span class="gw-tag__label" [title]="'Not connected to ' + endpoint">Not connected to <span class="gw-mono">{{ endpoint }}</span></span><button class="gw-tag__remove" type="button" [attr.aria-label]="'Remove not connected to ' + endpoint + ' filter'" (click)="clearEndpointFilter()"><svg lucideIcon="x" class="gw-icon"></svg></button></span>
+        }
         <span class="gw-divider gw-divider--vertical" aria-hidden="true"></span>
         <p class="gw-text-small gw-fg-muted" id="conn-count" role="status">{{ countLabel() }}</p>
       </div>
       <div class="gw-toolbar__end">
-        <!-- In work: aria-busy + aria-disabled, a spinner, and the count line says what runs (DESIGN §8 "Action hierarchy and disabled behavior"). -->
+        <!-- In work: aria-busy + aria-disabled, a spinner, and the count line says what runs. -->
         <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" id="conn-test-all" (click)="testAll()" [attr.aria-busy]="data.testingAll() ? 'true' : null" [attr.aria-disabled]="data.testingAll() ? 'true' : null" [attr.aria-describedby]="data.testingAll() ? 'conn-count' : null">@if (data.testingAll()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}<svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg> Test all<span class="gw-sr-only"> connections</span></button>
       </div>
     </div>
@@ -190,7 +194,13 @@
                   <span class="gw-text-small gw-fg-muted">No endpoint</span>
                 }
               </td>
-              <td><gw-access-switch kind="connection" [name]="v.row.name" [enabled]="v.row.enabled !== false" [blocked]="v.row.verified ? null : 'Review the change outside GateRook first.'" (changed)="data.refresh()" /></td>
+              <td>
+                @if (v.row.setupRequired) {
+                  <a class="gw-btn gw-btn--sm" [routerLink]="['/connections', v.row.name]">Finish setup<span class="gw-sr-only"> for {{ v.row.name }}</span></a>
+                } @else {
+                  <gw-access-switch kind="connection" [name]="v.row.name" [enabled]="v.row.enabled !== false" [blocked]="v.row.verified ? null : 'Review the change outside GateRook first.'" (changed)="data.refresh()" />
+                }
+              </td>
               <td class="gw-table__cell--actions">
                 <div class="gw-menu-host">
                   <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [attr.aria-label]="'Actions for connection ' + v.row.name" aria-haspopup="menu" [gwMenuTrigger]="rowMenu"><svg lucideIcon="ellipsis" class="gw-icon"></svg></button>

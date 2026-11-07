@@ -11,7 +11,6 @@ import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
 import ai.msrv.gaterook.connectors.cloudauth.CloudEndpoints;
 import ai.msrv.gaterook.connectors.support.egress.GuardedEgress;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
-import io.modelcontextprotocol.spec.McpSchema;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
@@ -129,7 +128,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
       Optional<Path> p = l.resolve(argv.getFirst(), workDir);
       if (p.isPresent()) {
         resolved = p.get().toString();
-        runs = l.argv(p.get(), argv.subList(1, argv.size()), workDir);
+        runs = l.argv(p.get(), argv.subList(1, argv.size()), workDir, server.offThisComputer());
       } else {
         warnings.add(argv.getFirst() + " isn't on the PATH GateRook gives servers: " + l.path());
       }
@@ -148,16 +147,17 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
           + "runs.");
     }
     List<String> inherited = server.inheritEnv().stream().filter(Launcher.INHERITABLE::contains).toList();
-    return new Review(ServerConfig.STDIO, runs, resolved, node, null, variables, inherited, notPinned, l.sandbox(),
-        workDir.toString(), logFile(cfg.name()).toString(), warnings);
+    return new Review(ServerConfig.STDIO, runs, resolved, node, null, variables, inherited, notPinned,
+        l.sandbox(server.offThisComputer()), workDir.toString(), logFile(cfg.name()).toString(), warnings);
   }
 
   @Override
   public Handshake probe(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Authorization authorization)
       throws ConnectorException {
     ServerConfig server = ServerConfig.of(cfg);
+    // A new server: which revision it speaks is found out.
     Session.Request request = new Session.Request(cfg, server, server.toolPrefix(), null, secrets, ctx,
-        authorization, credentials(cfg, server, secrets, ctx));
+        authorization, credentials(cfg, server, secrets, ctx), null);
     try {
       Session s = Session.open(request, workDir(cfg.name()), launcher(), log(cfg.name()), pids(), now(), x -> {},
           x -> {});
@@ -262,8 +262,10 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
       throw ConnectorException.unavailable("GateRook is quitting.", null);
     }
     ServerConfig server = ServerConfig.of(cfg);
+    // A call speaks the era the review recorded; a person's Test, Start or Restart finds out again.
     Session.Request request = new Session.Request(cfg, server, snapshot.toolPrefix(), snapshot.npmIntegrity(),
-        secrets, ctx, server.oauth() ? authorization(cfg.id()) : null, credentials(cfg, server, secrets, ctx));
+        secrets, ctx, server.oauth() ? authorization(cfg.id()) : null, credentials(cfg, server, secrets, ctx),
+        why == Supervisor.Why.PERSON ? null : Session.Request.eraOf(snapshot.protocolVersion()));
     String config = configFingerprint(server, snapshot.npmIntegrity());
     String full = fingerprint(config, cfg, server, secrets, ctx);
     Duration budget = Session.min(server.startTimeout().plusSeconds(5), ctx.remaining());
@@ -300,8 +302,52 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
   @Override
   public Session open(Session.Request request, Supervisor owner) throws ConnectorException {
     String name = request.cfg().name();
-    return Session.open(request, workDir(name), launcher(), log(name), pids(), now(),
-        s -> toolsChanged(s, request, owner), owner::exited);
+    String id = request.cfg().id();
+    Session s = Session.open(request, workDir(name), launcher(), log(name), pids(), now(),
+        x -> toolsChanged(x, request, owner), owner::exited, (what, uri) -> notice(id, name, what, uri));
+    s.subscribe(upstream(name, subscriptions.getOrDefault(id, java.util.Set.of())));
+    return s;
+  }
+
+  /** The resources of each stored server clients subscribe to now, as endpoints publish them. */
+  private final Map<String, java.util.Set<String>> subscriptions = new ConcurrentHashMap<>();
+
+  /** Clients subscribe to {@code uris} of a server now: its running session hears their updates, and its next one. */
+  void subscriptions(String connectionId, String name, java.util.Set<String> uris) {
+    if (uris.isEmpty()) {
+      subscriptions.remove(connectionId);
+    } else {
+      subscriptions.put(connectionId, java.util.Set.copyOf(uris));
+    }
+    Session s = running(connectionId);
+    if (s != null) {
+      s.subscribe(upstream(name, uris));
+    }
+  }
+
+  private static java.util.Set<String> upstream(String name, java.util.Set<String> exposed) {
+    java.util.Set<String> out = new java.util.LinkedHashSet<>();
+    for (String uri : exposed) {
+      Federation.upstream(name, uri).ifPresent(out::add);
+    }
+    return out;
+  }
+
+  /** What a server said outside any call, for the host: a changed list, an updated resource (as published). */
+  private void notice(String connectionId, String name, String what, String uri) {
+    Host h = host;
+    if (h == null || connectionId.startsWith("draft-")) {
+      return;
+    }
+    try {
+      if ("updated".equals(what)) {
+        h.resourceUpdated(connectionId, Federation.exposed(name, uri));
+      } else {
+        h.listChanged(connectionId, what);
+      }
+    } catch (RuntimeException e) {
+      LOG.log(System.Logger.Level.WARNING, "The core didn't take a notification of an MCP server", e);
+    }
   }
 
   /**
@@ -433,7 +479,10 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
     return supervisors.computeIfAbsent(connectionId, id -> new Supervisor(id, this));
   }
 
-  /** The launcher, made once: the login shell and the sandbox probe take a moment, so never at start-up. */
+  /**
+   * The launcher, made once: the login shell and the sandbox probe take a moment, so never at start-up. The core's
+   * ports it closes to the servers are asked of the host for every start.
+   */
   Launcher launcher() {
     Launcher l = launcher;
     if (l == null) {
@@ -442,7 +491,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
         if (l == null) {
           Path shim = home().resolve("bin").resolve(osName.toLowerCase(Locale.ROOT).startsWith("windows")
               ? "gw-bridge.cmd" : "gw-bridge");
-          l = new Launcher(coreEnv, osName, loginShellPath, shim);
+          l = new Launcher(coreEnv, osName, loginShellPath, home(), shim, this::corePorts);
           launcher = l;
         }
       }
@@ -450,18 +499,25 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
     return l;
   }
 
-  private Handshake handshake(Session.Request request, Session s, List<McpSchema.Tool> tools) {
+  /** The core's own listeners as the host knows them now; none before it attached. */
+  private java.util.Set<Integer> corePorts() {
     Host h = host;
-    Snapshots.Mapped mapped = Snapshots.of(request.toolPrefix(), tools, name -> h == null ? Optional.empty()
+    return h == null ? java.util.Set.of() : h.corePorts();
+  }
+
+  private Handshake handshake(Session.Request request, Session s, List<ObjectNode> tools) {
+    Host h = host;
+    Snapshots.Mapped mapped = Snapshots.fromJson(request.toolPrefix(), tools, name -> h == null ? Optional.empty()
         : h.reservedProblem(name));
     ObjectNode info = Texts.JSON.createObjectNode();
-    McpSchema.Implementation impl = s.init == null ? null : s.init.serverInfo();
+    ObjectNode impl = s.init == null ? null : s.init.serverInfo();
     if (impl != null) {
-      info.put("name", Texts.clean(String.valueOf(impl.name()), 200, false));
-      if (impl.title() != null) {
-        info.put("title", Texts.clean(impl.title(), 200, false));
+      info.put("name", Texts.clean(Texts.str(impl.get("name"), String.valueOf(impl.get("name"))), 200, false));
+      if (impl.path("title").isString()) {
+        info.put("title", Texts.clean(impl.get("title").asString(), 200, false));
       }
-      info.put("version", Texts.clean(String.valueOf(impl.version()), 100, false));
+      info.put("version", Texts.clean(Texts.str(impl.get("version"), String.valueOf(impl.get("version"))), 100,
+          false));
     }
     List<String> notes = new ArrayList<>();
     notes.add(mapped.tools().size() + " tools, " + Snapshots.annotated(mapped.tools()) + " declare annotations");
@@ -471,10 +527,29 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
     if (!request.server().http() && Commands.notPinned(request.server().command())) {
       notes.add("Not pinned: it can fetch new code on every start");
     }
+    if (s.sse) {
+      notes.add("Over the HTTP+SSE transport of 2024-11-05: the URL takes no Streamable HTTP");
+    }
+    List<String> offers = new ArrayList<>();
+    if (s.init != null && s.init.has("resources")) {
+      offers.add("resources");
+    }
+    if (s.init != null && s.init.has("prompts")) {
+      offers.add("prompts");
+    }
+    if (!offers.isEmpty()) {
+      notes.add("Offers " + String.join(" and ", offers) + " besides tools: agents get them once you let it share "
+          + "them in its settings");
+    }
+    long apps = mapped.tools().stream().filter(t -> t.path("ui").isObject()).count();
+    if (apps > 0) {
+      notes.add(apps + (apps == 1 ? " tool shows an MCP App" : " tools show MCP Apps")
+          + ": clients that render apps get them through GateRook");
+    }
     String instructions = s.init == null || s.init.instructions() == null ? null
         : Texts.clean(s.init.instructions(), 4_000, true);
-    return new Handshake(info, s.init == null ? null : s.init.protocolVersion(), instructions, mapped.tools(),
-        mapped.rejected(), s.startMillis, notes);
+    return new Handshake(info, s.protocolVersion(), instructions, mapped.tools(), mapped.rejected(), s.startMillis,
+        notes);
   }
 
   private void announce(String connectionId, Handshake h) {

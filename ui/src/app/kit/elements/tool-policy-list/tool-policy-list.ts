@@ -97,13 +97,13 @@ interface GroupView {
 }
 
 /**
- * `<div gwToolPolicyList [groups]="…" slug="dev" (modeChange)="…">` (elements/tool-policy-list.html): what agents may
+ * `<div gwToolPolicyList [groups]="…" slug="dev" (modeChange)="…">`: what agents may
  * call on one endpoint, and how. Every tool grouped by the connection it runs on, with its MCP annotations, the mode
  * picker Off · Read only · Approval · Bypass and, in a disclosure row, per-tool limits over the environment policy of the
  * connection (an override can only be stricter). Bypass runs calls without approval. A
  * tool that changes data offers Approval, Bypass or Off, and its Read only stays NATIVELY
- * disabled (DESIGN.md §8: safety must not depend on a script). Tools of external MCP servers and plugins say who
- * declared their annotations; picking Read only for one of them opens a confirmation for that tool first.
+ * disabled: safety must not depend on a script. Tools of external MCP servers and plugins say who
+ * declared their annotations; plugin reads need individual confirmation, while eligible MCP reads do not.
  *
  * `variant="picker"` is Playground's tool picker: the same groups, the mode as a `gw-mode` chip, rows link to the tool
  * (`picked` says which row, so the page knows the connection too); the search also matches connection names, and
@@ -157,7 +157,7 @@ export class GwToolPolicyList {
   readonly modeFilter = model<ModeFilter>('ALL');
 
   readonly modeChange = output<ToolModeChange>();
-  readonly bulk = output<{ readonly connection: string | null; readonly mode: ToolMode }>();
+  readonly bulk = output<{ readonly connection: string | null; readonly mode: ToolMode | 'DEFAULT' }>();
   readonly overridesChange = output<ToolOverridesChange>();
   /** "Allow read only" in the confirmation: the page confirms the tool, then sets it to Read only. */
   readonly confirmReadOnly = output<{ readonly toolKey: string; readonly connection: string | null; readonly definitionHash: string }>();
@@ -199,7 +199,7 @@ export class GwToolPolicyList {
       const local = this.localModes();
       const rows: RowView[] = g.group.tools.map((t) => {
         const key = `${connection ?? 'core'}/${t.toolKey}`;
-        // A Read only picked here on an external tool was allowed in its confirmation first: onMode takes it no other way.
+        // Plugin reads require confirmation before onMode picks Read only; eligible MCP reads need no confirmation.
         const tool = local[key] ? { ...t, mode: local[key], readOnlyConfirmed: t.readOnlyConfirmed || local[key] === 'READ_ONLY' } : t;
         const fields = limitFields(g.type);
         return {
@@ -326,7 +326,7 @@ export class GwToolPolicyList {
   }
 
   protected onBulk(g: GroupView, pick: MenuPick): void {
-    const mode = pick.value as ToolMode;
+    const mode = pick.value as ToolMode | 'DEFAULT';
     if (mode === 'BYPASS' && this.readOnly()) return;
     this.bulk.emit({ connection: g.connection, mode });
   }

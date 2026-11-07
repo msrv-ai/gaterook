@@ -37,13 +37,22 @@ import {
 import { firstRun as firstRunOverview, setup as setupOverview } from '../overview/overview.fixtures';
 import { NOW, codexDisconnect, connected, foundClients, kitClients, kitEndpoints, kitManual, kitTokens, noneFound } from './clients.fixtures';
 
-/** What the Clients screen says, against design/pages/clients.html's words and the core's answers. */
+/** What the Clients screen says, from the core's answers. */
 
 const words = (parts: readonly { text: string }[]) => parts.map((p) => p.text).join('');
 const problem = (status: number, body: object) => ApiError.fromHttp(new HttpErrorResponse({ status, error: body }));
 const { claudeDesktop, codex, cursor, antigravity } = DEMO_CLIENTS;
 
 describe('Clients view: header and layout', () => {
+  it('keeps manual apps visible and addressable while their first connection is pending', () => {
+    const manual: ClientCard = { ...cursor, client: 'manual-example', name: 'Research assistant', manual: true, detected: false, status: 'pending', links: [] };
+    expect(noClients([manual])).toBe(false);
+    expect(headerCounts([manual])).toEqual([{ tone: 'info', text: '1 awaiting connection' }]);
+    expect(scanSummary(null, [manual])).toBe('Scan finished: 1 awaiting connection.');
+    expect(anchorClient(`${anchorBase(manual.client)}-t`)).toBe(manual.client);
+    expect(anchorClient('cl-unknown-t')).toBeNull();
+  });
+
   it('counts the clients as the kit’s header does', () => {
     expect(headerCounts(kitClients().clients)).toEqual([
       { tone: 'success', text: '2 connected' },
@@ -239,16 +248,19 @@ describe('Clients: first run and setup (kit ?state=first-run | setup)', () => {
     expect(firstConnection(firstRunOverview())).toBeNull();
   });
 
-  it('says in the header what comes first: the apps found and a connection; in setup the connection they will read', () => {
+  it('says in the header what comes first: an endpoint or AI setup; in setup the connection they will read', () => {
     const found = foundClients().clients;
     expect(stageDescription('first-run', found, null).text).toBe(
-      'Claude Desktop, Codex and Cursor are already on this computer. Add a connection first, so they have something to work with. Connect then shows the exact change before anything is written.',
+      'Claude Desktop, Codex and Cursor are already on this computer. Create an endpoint first, then connect your AI app. Connect shows the exact change before anything is written.',
     );
     expect(stageDescription('first-run', [found[1], found[3]], null).text).toBe(
-      'Codex is already on this computer. Add a connection first, so it has something to work with. Connect then shows the exact change before anything is written.',
+      'Codex is already on this computer. Create an endpoint first, then connect your AI app. Connect shows the exact change before anything is written.',
     );
     expect(stageDescription('first-run', noneFound().clients, null).text).toBe(
-      'Add a connection first, so your AI app has something to work with. Connect then shows the exact change before anything is written.',
+      'Create an endpoint first, then connect your AI app. Connect shows the exact change before anything is written.',
+    );
+    expect(stageDescription('first-run', found, null, true).text).toBe(
+      'Claude Desktop, Codex and Cursor are already on this computer. Connect your AI app to an endpoint to import connections with AI, or add connections later. Connect shows the exact change before anything is written.',
     );
     expect(stageDescription('setup', found, firstConnection(setupOverview()))).toEqual({
       text: 'Connect the AI app you use, and it can start reading dev-db. You see the exact change before anything is written, and Disconnect takes it back.',

@@ -15,29 +15,52 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.IntStream;
 
 /**
- * {@code gw-bridge sandbox-exec [--ro <path>]… [--rw <path>]… [--no-defaults] [--allow-unsandboxed] -- <command> [args…]}
- * (ARCHITECTURE.md §7.5): starts an MCP server, or anything the core runs on the person's behalf, confined to what it
- * needs. On Linux (Landlock, kernel 5.13 or later) the bridge restricts itself — {@code PR_SET_NO_NEW_PRIVS}, a
- * Landlock ruleset that reads only the {@code --ro} paths and writes only the {@code --rw} paths — and then
- * {@code execve}s the command, which inherits the restriction and can't lift it. The rest of {@code $HOME},
- * GateRook's data included, can't be opened. The network isn't restricted: MCP servers need it.
+ * {@code gw-bridge sandbox-exec [--ro <path>]… [--rw <path>]… [--deny-tcp <port>]… [--no-defaults]
+ * [--allow-unsandboxed] [--appcontainer] -- <command> [args…]} (ARCHITECTURE.md §7.5): starts an MCP server, or
+ * anything the core runs on the person's behalf, confined to what it needs. On Linux (Landlock, kernel 5.13 or later) the bridge restricts
+ * itself — {@code PR_SET_NO_NEW_PRIVS}, a Landlock ruleset that reads only the {@code --ro} paths and writes only the
+ * {@code --rw} paths — and then {@code execve}s the command, which inherits the restriction and can't lift it. The
+ * rest of {@code $HOME}, GateRook's data included, can't be opened.
+ *
+ * <p>The network stays open, since MCP servers need it, except the {@code --deny-tcp} ports: the core passes its own
+ * listeners (its local API and the tunnel's listener), which the command's sockets may neither connect to nor bind,
+ * on any address. On Linux that takes Landlock ABI 4 (Linux 6.7), whose rules only allow: the ruleset handles TCP bind
+ * and connect and allows every other port, one rule each (port 0 included, which binds an ephemeral port). Landlock
+ * judges TCP ports, not addresses, and TCP alone (not UDP, nor MPTCP). With an older ABI the ports stay open, which is
+ * said on stderr. On macOS the profile denies them on every host ({@link #macProfile}).
  *
  * <p>Defaults (unless {@code --no-defaults}): the system read-only ({@code /usr}, {@code /lib*}, {@code /bin},
- * {@code /sbin}, {@code /etc}, {@code /opt}, {@code /proc}, {@code /sys}, {@code /nix}), {@code /dev} for reading and
- * writing devices, and the command's own folder read-only. On macOS the command runs under {@code sandbox-exec} with
- * a profile that denies reading GateRook's home, the usual credential folders and the configs of the connected
- * clients, and denies writing anywhere but the {@code --rw} paths, the temporary folders, the devices and the
- * package managers' caches (the API is deprecated, but works on macOS 27): a login item or a shell profile written
- * from inside would run unconfined later. On Linux with Landlock ABI 6 or later the command is also kept from
- * abstract Unix sockets and signals outside its own tree. Elsewhere, or when Landlock is unavailable, it refuses
- * with exit 4, unless
- * {@code --allow-unsandboxed} says to run it as it is (the core then shows "Not sandboxed on this system").
- * Exit codes: 3 wrong arguments, 4 no sandbox, 126/127 the command can't run.
+ * {@code /sbin}, {@code /etc}, {@code /opt}, {@code /proc}, {@code /sys}, {@code /nix}, and the resolver's
+ * configuration in {@code /run}, where {@code /etc/resolv.conf} often links: without it no name resolves, and
+ * {@code npm ci} can't reach its registry), {@code /dev} for reading and writing devices, and the command's own folder
+ * read-only (only the command itself where that folder holds more: a command in the home). No path is opened that is
+ * or holds the person's home, GateRook's home or a {@link #DENIED} path, nor a read-only path in one of them
+ * ({@link Closed}): such a {@code --ro} path is left out and said on stderr, such a {@code --rw} path refused (exit 3)
+ * on every system. A writable path may lie in GateRook's home, where the work folders are.
+ *
+ * <p>On macOS the command runs under {@code sandbox-exec} with a profile that denies reading GateRook's home, the
+ * usual credential folders and the configs of the connected clients, and denies writing anywhere but the {@code --rw}
+ * paths, the temporary folders and the devices (the API is deprecated, but works on macOS 27): a login item, a shell
+ * profile or a package in a cache shared with the person's own tools, written from inside, would run unconfined later.
+ * The core gives a server its work folder as {@code HOME}, so {@code npx} and {@code uvx} keep their caches there.
+ * Reading is open there except for the denied paths, so {@code --ro} adds nothing; {@code --no-defaults} can't be
+ * honored and is refused with exit 4 unless {@code --allow-unsandboxed}. On Linux with Landlock ABI 6 or later the
+ * command is also kept from abstract Unix sockets and signals outside its own tree. On Windows the command runs at
+ * low integrity in a job that ends it with the bridge ({@link WindowsSandbox}), or, with {@code --appcontainer}, in an
+ * AppContainer of its work folder that the bridge creates it in ({@link WindowsAppContainer}); {@code --ro} and
+ * {@code --deny-tcp} need nothing there (the core refuses its sandboxed processes' connections itself). Elsewhere, or
+ * when Landlock is unavailable, it refuses with exit 4, unless {@code --allow-unsandboxed} says to run it as it is (the
+ * core then shows "Not sandboxed on this system"). Exit codes: 3 wrong arguments, 4 no sandbox, 126/127 the command
+ * can't run.
  */
 final class Sandbox {
 
@@ -65,30 +88,47 @@ final class Sandbox {
   static final long SCOPE_ABSTRACT_UNIX_SOCKET = 1L;
   static final long SCOPE_SIGNAL = 1L << 1;
 
+  /** Landlock's network rights (ABI 4): binding a TCP socket to a port, connecting one to a port. */
+  static final long BIND_TCP = 1L;
+  static final long CONNECT_TCP = 1L << 1;
+  /** The first ABI with network rules. */
+  static final int NET_ABI = 4;
+
   private static final long SYS_LANDLOCK_CREATE_RULESET = 444;
   private static final long SYS_LANDLOCK_ADD_RULE = 445;
   private static final long SYS_LANDLOCK_RESTRICT_SELF = 446;
   private static final int LANDLOCK_CREATE_RULESET_VERSION = 1;
   private static final int LANDLOCK_RULE_PATH_BENEATH = 1;
+  private static final int LANDLOCK_RULE_NET_PORT = 2;
   private static final int PR_SET_NO_NEW_PRIVS = 38;
   private static final int O_PATH = 0x200000;
   private static final int O_CLOEXEC = 0x80000;
 
+  /**
+   * What any program reads. Landlock judges the file a link leads to, so {@code /etc/resolv.conf} needs its target as
+   * well: systemd-resolved's, resolvconf's or NetworkManager's in {@code /run} (as the plugin host's sandbox has it).
+   */
   static final List<String> SYSTEM_READ = List.of("/usr", "/lib", "/lib64", "/lib32", "/bin", "/sbin", "/etc", "/opt",
-      "/proc", "/sys", "/nix", "/run/current-system");
+      "/proc", "/sys", "/nix", "/run/current-system", "/run/systemd/resolve", "/run/resolvconf",
+      "/run/NetworkManager/resolv.conf");
   static final List<String> SYSTEM_WRITE = List.of("/dev");
 
-  /** The parsed command line. */
-  record Request(List<String> readOnly, List<String> readWrite, boolean defaults, boolean allowUnsandboxed,
-      List<String> command) {}
+  /**
+   * The parsed command line; {@code deniedPorts} ascending. {@code appContainer}: on Windows, the command in an
+   * AppContainer instead of at low integrity ({@link WindowsAppContainer}); ignored elsewhere.
+   */
+  record Request(List<String> readOnly, List<String> readWrite, Set<Integer> deniedPorts, boolean defaults,
+      boolean allowUnsandboxed, boolean appContainer, List<String> command) {}
 
   private Sandbox() {}
 
   static Request parse(List<String> args) {
     List<String> ro = new ArrayList<>();
     List<String> rw = new ArrayList<>();
+    Set<Integer> ports = new TreeSet<>();
     boolean defaults = true;
     boolean allow = false;
+    boolean appContainer = false;
     int i = 0;
     for (; i < args.size(); i++) {
       String a = args.get(i);
@@ -98,7 +138,8 @@ final class Sandbox {
           if (command.isEmpty()) {
             throw new IllegalArgumentException("sandbox-exec needs a command after --");
           }
-          return new Request(List.copyOf(ro), List.copyOf(rw), defaults, allow, command);
+          return new Request(List.copyOf(ro), List.copyOf(rw), Collections.unmodifiableSet(ports), defaults, allow,
+              appContainer, command);
         }
         case "--ro", "--rw" -> {
           if (i + 1 >= args.size()) {
@@ -106,8 +147,16 @@ final class Sandbox {
           }
           (a.equals("--ro") ? ro : rw).add(args.get(++i));
         }
+        case "--deny-tcp" -> {
+          String port = i + 1 < args.size() ? args.get(++i) : "";
+          if (!port.matches("[0-9]{1,5}") || Integer.parseInt(port) < 1 || Integer.parseInt(port) > 65_535) {
+            throw new IllegalArgumentException("--deny-tcp needs a port from 1 to 65535");
+          }
+          ports.add(Integer.parseInt(port));
+        }
         case "--no-defaults" -> defaults = false;
         case "--allow-unsandboxed" -> allow = true;
+        case "--appcontainer" -> appContainer = true;
         default -> throw new IllegalArgumentException("unexpected " + a);
       }
     }
@@ -120,9 +169,17 @@ final class Sandbox {
       r = parse(args);
     } catch (IllegalArgumentException e) {
       err.println(e.getMessage());
-      err.println("usage: gw-bridge sandbox-exec [--ro <path>]… [--rw <path>]… [--no-defaults] [--allow-unsandboxed] "
-          + "-- <command> [args…]");
+      err.println("usage: gw-bridge sandbox-exec [--ro <path>]… [--rw <path>]… [--deny-tcp <port>]… "
+          + "[--no-defaults] [--allow-unsandboxed] [--appcontainer] -- <command> [args…]");
       return 3;
+    }
+    Closed closed = Closed.of(env);
+    for (String rw : r.readWrite()) {
+      String why = closed.refusal(Path.of(rw), true);
+      if (why != null) {
+        err.println("gw-bridge: --rw " + why + ": it can't be opened to the command");
+        return 3;
+      }
     }
     Path executable = resolve(r.command().getFirst(), env);
     if (executable == null) {
@@ -141,18 +198,16 @@ final class Sandbox {
         }
         err.println("gw-bridge: not sandboxed on this system: the command can read everything your account can");
       } else {
-        List<String> ro = new ArrayList<>(r.readOnly());
         List<String> rw = new ArrayList<>(r.readWrite());
         if (r.defaults()) {
-          ro.addAll(SYSTEM_READ);
           rw.addAll(SYSTEM_WRITE);
-          Path parent = executable.getParent();
-          if (parent != null) {
-            ro.add(parent.toString());
-          }
+        }
+        if (!r.deniedPorts().isEmpty() && abi < NET_ABI) {
+          err.println("gw-bridge: Landlock ABI " + abi + " can't close TCP ports (ABI 4, Linux 6.7, can): the "
+              + "command can still reach GateRook's ports " + r.deniedPorts());
         }
         try {
-          restrict(abi, ro, rw);
+          restrict(abi, readable(r, executable, closed, err), rw, r.deniedPorts());
         } catch (IllegalStateException e) {
           err.println("gw-bridge: " + e.getMessage());
           return NO_SANDBOX;
@@ -161,9 +216,38 @@ final class Sandbox {
       return exec(argv, env, err);
     }
     if (os.startsWith("mac")) {
-      List<String> wrapped = new ArrayList<>(List.of("/usr/bin/sandbox-exec", "-p", macProfile(env, r.readWrite())));
+      if (!r.defaults()) {
+        if (!r.allowUnsandboxed()) {
+          err.println("gw-bridge: --no-defaults can't be honored on macOS: its sandbox can't keep the command to its "
+              + "--ro paths");
+          return NO_SANDBOX;
+        }
+        err.println("gw-bridge: on macOS the command reads more than its --ro paths: the system and the home, minus "
+            + "GateRook's data and the credentials");
+      }
+      List<String> wrapped = new ArrayList<>(List.of("/usr/bin/sandbox-exec", "-p", macProfile(closed,
+          r.readWrite(), r.deniedPorts())));
       wrapped.addAll(argv);
       return exec(wrapped, env, err);
+    }
+    if (os.startsWith("windows")) {
+      // Low integrity, set on this process and inherited by the command (WindowsSandbox), or an AppContainer the
+      // bridge starts the command in (WindowsAppContainer); the core refuses the command's connections to its own
+      // ports itself, so --deny-tcp needs nothing here.
+      if (r.appContainer()) {
+        return WindowsAppContainer.run(argv, r.readWrite().stream().map(Path::of).toList(), env, err);
+      }
+      String why = WindowsSandbox.confine(r.readWrite().stream().map(Path::of).toList(), env);
+      if (why == null) {
+        return spawn(argv, err);
+      }
+      if (!r.allowUnsandboxed()) {
+        err.println("gw-bridge: the command can't run at low integrity here: " + why);
+        return NO_SANDBOX;
+      }
+      err.println("gw-bridge: not sandboxed on this system (" + why + "): the command can read everything your "
+          + "account can");
+      return spawn(argv, err);
     }
     if (r.allowUnsandboxed()) {
       err.println("gw-bridge: not sandboxed on this system: the command can read everything your account can");
@@ -175,21 +259,169 @@ final class Sandbox {
 
   /** A command name looked up in {@code PATH}, or an existing path; {@code null} when there is none. */
   static Path resolve(String command, Map<String, String> env) {
-    if (command.contains("/")) {
+    return resolve(command, env, System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows"));
+  }
+
+  /**
+   * {@link #resolve(String, Map)} for one system. On Windows a path has a drive or a backslash, {@code PATH} (any case)
+   * is split at {@code ;}, and a name without an extension is tried with each of {@code PATHEXT}'s.
+   */
+  static Path resolve(String command, Map<String, String> env, boolean windows) {
+    if (command.contains("/") || (windows && (command.contains("\\") || command.contains(":")))) {
       Path p = Path.of(command).toAbsolutePath();
-      return Files.isExecutable(p) ? p : null;
+      return Files.isRegularFile(p) && (windows || Files.isExecutable(p)) ? p : null;
     }
-    String path = env.getOrDefault("PATH", "/usr/local/bin:/usr/bin:/bin");
-    for (String dir : path.split(java.io.File.pathSeparator)) {
-      if (dir.isEmpty()) {
+    String path = windows ? variable(env, "PATH", "") : env.getOrDefault("PATH", "/usr/local/bin:/usr/bin:/bin");
+    List<String> names = List.of(command);
+    if (windows && !command.contains(".")) {
+      names = new ArrayList<>();
+      for (String ext : variable(env, "PATHEXT", ".COM;.EXE;.BAT;.CMD").split(";")) {
+        if (!ext.isBlank()) {
+          names.add(command + ext.strip().toLowerCase(Locale.ROOT));
+        }
+      }
+    }
+    for (String dir : path.split(windows ? ";" : ":")) {
+      if (dir.isBlank()) {
         continue;
       }
-      Path p = Path.of(dir, command);
-      if (Files.isRegularFile(p) && Files.isExecutable(p)) {
-        return p.toAbsolutePath();
+      for (String name : names) {
+        try {
+          Path p = Path.of(dir.strip(), name);
+          if (Files.isRegularFile(p) && (windows || Files.isExecutable(p))) {
+            return p.toAbsolutePath();
+          }
+        } catch (java.nio.file.InvalidPathException e) {
+          // A PATH entry that isn't a path on this system.
+        }
       }
     }
     return null;
+  }
+
+  /** An environment variable whose name matches in any case, as Windows reads them. */
+  private static String variable(Map<String, String> env, String name, String otherwise) {
+    String exact = env.get(name);
+    if (exact != null) {
+      return exact;
+    }
+    for (Map.Entry<String, String> e : env.entrySet()) {
+      if (e.getKey().equalsIgnoreCase(name)) {
+        return e.getValue();
+      }
+    }
+    return otherwise;
+  }
+
+  // ── What no grant opens ─────────────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Under the person's home, what the command may neither read nor write: GateRook's earlier home and its desktop
+   * app's storage, the credentials of tools and registries, and the configs of the AI apps (GateRook's clients hold a
+   * gateway token or name its grants; Claude Code's, Cursor's and Antigravity's own sign-ins). The plugin host's
+   * profile on macOS denies the same list ({@code HostLauncher.MAC_DENIED}).
+   */
+  static final List<String> DENIED = List.of(".mcp-gateway", "Library/Application Support/GateRook",
+      ".config/GateRook", ".ssh", ".aws", ".config/gcloud", ".kube", "Library/Keychains", ".docker", ".netrc",
+      ".gnupg", ".config/gh", ".config/op", ".vault-token", ".pgpass", ".my.cnf", ".mylogin.cnf", ".azure", ".oci",
+      ".password-store", ".npmrc", ".pypirc", ".git-credentials", ".config/git/credentials", ".cargo/credentials",
+      ".cargo/credentials.toml", ".gem/credentials", ".m2/settings.xml", ".m2/settings-security.xml",
+      ".gradle/gradle.properties", ".terraform.d/credentials.tfrc.json", ".cloudflared", ".config/ngrok", ".ngrok2",
+      "Library/Application Support/ngrok", ".codex", ".cursor", ".gemini", ".claude", ".claude.json",
+      ".config/github-copilot", "Library/Application Support/Claude", ".config/Claude",
+      "Library/Application Support/Cursor", ".config/Cursor", "Library/Application Support/Antigravity",
+      ".config/Antigravity");
+
+  /**
+   * What no grant may open: the person's home (from the account, not {@code HOME}, which the core sets to the work
+   * folder), GateRook's home ({@code GW_HOME}, which its shim exports) and the {@link #DENIED} paths in the home.
+   */
+  record Closed(Path home, Path gateway, List<Path> credentials) {
+
+    static Closed of(Map<String, String> env) {
+      Path home = Path.of(System.getProperty("user.home"));
+      return new Closed(home, BrokerClient.home(env), DENIED.stream().map(home::resolve).toList());
+    }
+
+    /** GateRook's home, then the credential paths: what the command may neither read nor write. */
+    List<Path> denied() {
+      List<Path> all = new ArrayList<>(List.of(gateway));
+      all.addAll(credentials);
+      return all;
+    }
+
+    /**
+     * Why {@code path} can't be opened to the command, or {@code null}. It may not be or hold the home or a denied
+     * path: Landlock opens all of a path, and in SBPL a later allow reopens what an earlier deny closed. Nor may it lie
+     * in a denied path, except a writable path in GateRook's home: the servers' work folders are there.
+     */
+    String refusal(Path path, boolean writable) {
+      List<Path> forms = forms(path);
+      if (within(forms(home), forms)) {
+        return path + " holds the home folder";
+      }
+      for (Path d : denied()) {
+        if (within(forms(d), forms)) {
+          return path + " holds " + d;
+        }
+      }
+      if (!writable && within(forms, forms(gateway))) {
+        return path + " is in " + gateway;
+      }
+      for (Path c : credentials) {
+        if (within(forms, forms(c))) {
+          return path + " is in " + c;
+        }
+      }
+      return null;
+    }
+
+    private static List<Path> forms(Path p) {
+      return canonicalForms(p).stream().map(Path::of).toList();
+    }
+
+    /** Whether some form of {@code inner} is some form of {@code outer} or lies in it. */
+    private static boolean within(List<Path> inner, List<Path> outer) {
+      for (Path i : inner) {
+        for (Path o : outer) {
+          if (i.startsWith(o)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+  }
+
+  /**
+   * What Landlock lets the command read: the {@code --ro} paths and the defaults (the system, the command's folder —
+   * only the command where its folder holds more), minus each one that would open what {@code closed} keeps closed,
+   * which is said on {@code err}.
+   */
+  static List<String> readable(Request r, Path executable, Closed closed, PrintStream err) {
+    List<String> wanted = new ArrayList<>(r.readOnly());
+    if (r.defaults()) {
+      wanted.addAll(SYSTEM_READ);
+    }
+    List<String> out = new ArrayList<>();
+    for (String p : wanted) {
+      String why = closed.refusal(Path.of(p), false);
+      if (why == null) {
+        out.add(p);
+      } else {
+        err.println("gw-bridge: not readable to the command: " + why);
+      }
+    }
+    if (r.defaults()) {
+      // Nothing in GateRook's home: a command in a work folder is read through its --rw path.
+      Path parent = executable.getParent();
+      if (parent != null && closed.refusal(parent, false) == null) {
+        out.add(parent.toString());
+      } else if (closed.refusal(executable, false) == null) {
+        out.add(executable.toString());
+      }
+    }
+    return out;
   }
 
   // ── Linux: Landlock ─────────────────────────────────────────────────────────────────────────────────────────
@@ -210,8 +442,9 @@ final class Sandbox {
   }
 
   // The native image links only the downcalls its metadata lists (src/main/native-linux/.../reachability-metadata.json,
-  // in this order: the ABI probe, create_ruleset, add_rule, restrict_self, prctl, open, close, execve; on macOS
-  // src/main/native-mac/…: execve alone): a descriptor or option changed here must change there too.
+  // in this order: the ABI probe, create_ruleset, add_rule (path and port rules alike), restrict_self, prctl, open,
+  // close, execve; on macOS src/main/native-mac/…: execve alone): a descriptor or option changed here must change
+  // there too.
   private static final FunctionDescriptor SYSCALL_CREATE = FunctionDescriptor.of(ValueLayout.JAVA_LONG,
       ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT);
   private static final FunctionDescriptor SYSCALL_ADD = FunctionDescriptor.of(ValueLayout.JAVA_LONG,
@@ -266,8 +499,26 @@ final class Sandbox {
     return directory ? all : all & fileOnly;
   }
 
-  /** Restricts this process: Landlock ruleset, no new privileges, restrict self. Missing paths are skipped. */
-  static void restrict(int abi, List<String> readOnly, List<String> readWrite) {
+  /**
+   * The TCP ports a ruleset of ABI {@code abi} opens when {@code closed} are to stay closed: every port but those
+   * (port 0 too, which binds an ephemeral port), from ABI 4; none before, when nothing is closed, and the network
+   * isn't handled then.
+   */
+  static int[] openPorts(int abi, Set<Integer> closed) {
+    if (abi < NET_ABI || closed.isEmpty()) {
+      return new int[0];
+    }
+    return IntStream.rangeClosed(0, 65_535).filter(p -> !closed.contains(p)).toArray();
+  }
+
+  /**
+   * Restricts this process: Landlock ruleset, no new privileges, restrict self. Missing paths are skipped. From ABI 4
+   * the TCP ports in {@code closedPorts} can be neither bound nor connected to; before it they stay open, which the
+   * caller says.
+   */
+  static void restrict(int abi, List<String> readOnly, List<String> readWrite, Set<Integer> closedPorts) {
+    int[] tcpPorts = openPorts(abi, closedPorts);
+    boolean net = tcpPorts.length > 0;
     try (Arena arena = Arena.ofConfined()) {
       MethodHandle create = handle("syscall", SYSCALL_CREATE, Linker.Option.firstVariadicArg(1),
           Linker.Option.captureCallState("errno"));
@@ -282,15 +533,18 @@ final class Sandbox {
       MethodHandle close = handle("close", CLOSE);
       MemorySegment state = arena.allocate(ERRNO.layout);
       // struct landlock_ruleset_attr { __u64 handled_access_fs; __u64 handled_access_net; __u64 scoped; }: the
-      // size of ABI 1 (8 bytes, which every later ABI accepts) up to ABI 5; from ABI 6 the whole struct, with the
-      // process scoped out of the abstract Unix sockets (the session bus, X11) and the signals of the rest of the
-      // session. The network isn't handled: MCP servers need it.
-      long size = abi >= 6 ? 24 : 8;
+      // size of ABI 1 (8 bytes, which every later ABI accepts) up to ABI 5, or up to handled_access_net (16 bytes,
+      // ABI 4) when ports are closed; from ABI 6 the whole struct, with the process scoped out of the abstract Unix
+      // sockets (the session bus, X11) and the signals of the rest of the session. The network is handled only to
+      // close ports: MCP servers need the rest of it.
+      long size = abi >= 6 ? 24 : net ? 16 : 8;
       MemorySegment attr = arena.allocate(size, 8);
       long handled = handledRights(abi);
       attr.set(ValueLayout.JAVA_LONG, 0, handled);
+      if (size >= 16) {
+        attr.set(ValueLayout.JAVA_LONG, 8, net ? BIND_TCP | CONNECT_TCP : 0L);
+      }
       if (abi >= 6) {
-        attr.set(ValueLayout.JAVA_LONG, 8, 0L);
         attr.set(ValueLayout.JAVA_LONG, 16, SCOPE_ABSTRACT_UNIX_SOCKET | SCOPE_SIGNAL);
       }
       long fd = (long) create.invokeExact(state, SYS_LANDLOCK_CREATE_RULESET, attr, size, 0);
@@ -321,6 +575,17 @@ final class Sandbox {
           if (rc < 0) {
             throw new IllegalStateException("landlock_add_rule failed for " + p + " (errno " + errno(state) + ")");
           }
+        }
+      }
+      // struct landlock_net_port_attr { __u64 allowed_access; __u64 port; }: one per open port.
+      MemorySegment port = arena.allocate(16, 8);
+      port.set(ValueLayout.JAVA_LONG, 0, BIND_TCP | CONNECT_TCP);
+      for (int p : tcpPorts) {
+        port.set(ValueLayout.JAVA_LONG, 8, p);
+        long rc = (long) add.invokeExact(state, SYS_LANDLOCK_ADD_RULE, ruleset, LANDLOCK_RULE_NET_PORT, port, 0);
+        if (rc < 0) {
+          throw new IllegalStateException("landlock_add_rule failed for TCP port " + p + " (errno " + errno(state)
+              + ")");
         }
       }
       int rc = (int) prctl.invokeExact(state, PR_SET_NO_NEW_PRIVS, 1L, 0L, 0L, 0L);
@@ -389,30 +654,33 @@ final class Sandbox {
   // ── macOS: sandbox-exec ─────────────────────────────────────────────────────────────────────────────────────
 
   /**
-   * SBPL: reading as usual, except GateRook's home, the credential folders and the configs of the clients GateRook
-   * connects (Cursor's and Antigravity's may hold a token, Codex's and Claude's name grants); writing nowhere but the
-   * {@code --rw} paths, the temporary folders, the devices and the package managers' caches ({@link #MAC_WRITABLE}:
-   * {@code npx} and {@code uvx} fetch into them). The rest of the home stays closed to writes: a login item, a shell
-   * profile, another app's settings or a repository's hooks planted from inside would run unconfined later. The
-   * folders above a {@code --rw} path may be stat-ed, not read: GateRook's home is closed, yet the work folders of its
-   * MCP servers live in it. Later rules win in SBPL. Seatbelt compares {@code subpath} with the canonical path only — a
-   * rule for {@code /tmp/x} doesn't stop reading {@code /private/tmp/x} — so every path is written as given and as the
-   * kernel sees it.
+   * SBPL: reading as usual, except GateRook's home and the {@link #DENIED} paths (the credentials and the configs of
+   * the AI apps: Cursor's and Antigravity's may hold a token, Codex's and Claude's name grants); writing nowhere but
+   * the {@code --rw} paths, the temporary folders and the devices. The rest of the home stays closed to writes, the
+   * caches the person's own tools share included: a login item, a shell profile, another app's settings, a
+   * repository's hooks or a package planted from inside would run unconfined later. The core gives a server its work
+   * folder as {@code HOME}, so {@code npx} and {@code uvx} cache there. The folders above a {@code --rw} path may be
+   * stat-ed, not read: GateRook's home is closed, yet the work folders of its MCP servers live in it. Later rules win
+   * in SBPL, whichever is narrower, so the allows that reopen the work folders come after the denial, and a
+   * {@code --rw} path that would reopen a denied one is refused before ({@link Closed#refusal}). Seatbelt compares
+   * {@code subpath} with the canonical path only — a rule for {@code /tmp/x} doesn't stop reading
+   * {@code /private/tmp/x} — so every path is written as given and as the kernel sees it.
+   *
+   * <p>The network is open but for the {@code --deny-tcp} ports, which the command may neither connect to nor bind,
+   * on every host: Seatbelt takes only {@code *} or {@code localhost} as a host, and a rule for {@code localhost} lets
+   * {@code ::ffff:0.0.0.0} through, the IPv4-mapped wildcard that the kernel connects to {@code 127.0.0.1} (checked
+   * on macOS 27).
    */
-  static String macProfile(Map<String, String> env, List<String> readWrite) {
-    Path home = Path.of(System.getProperty("user.home"));
-    List<Path> denied = new ArrayList<>(List.of(BrokerClient.home(env)));
-    for (String p : MAC_DENIED) {
-      denied.add(home.resolve(p));
-    }
+  static String macProfile(Map<String, String> env, List<String> readWrite, Set<Integer> deniedPorts) {
+    return macProfile(Closed.of(env), readWrite, deniedPorts);
+  }
+
+  static String macProfile(Closed closed, List<String> readWrite, Set<Integer> deniedPorts) {
     StringBuilder b = new StringBuilder("(version 1)\n(allow default)\n(deny file-write* (subpath \"/\"))\n");
     List<Path> writable = new ArrayList<>(List.of(Path.of("/dev"), Path.of("/tmp"), Path.of("/private/tmp")));
     String tmp = System.getenv("TMPDIR");
-    if (tmp != null && !tmp.isBlank()) {
+    if (tmp != null && !tmp.isBlank() && closed.refusal(Path.of(tmp), true) == null) {
       writable.add(Path.of(tmp));
-    }
-    for (String p : MAC_WRITABLE) {
-      writable.add(home.resolve(p));
     }
     for (Path p : writable) {
       for (String form : canonicalForms(p)) {
@@ -420,7 +688,7 @@ final class Sandbox {
       }
     }
     b.append("(deny file-read* file-write*\n");
-    for (Path p : denied) {
+    for (Path p : closed.denied()) {
       for (String form : canonicalForms(p)) {
         b.append("  (subpath ").append(sbplString(form)).append(")\n");
       }
@@ -449,16 +717,17 @@ final class Sandbox {
       }
       b.append(")\n");
     }
+    if (!deniedPorts.isEmpty()) {
+      // Several filters in one rule are OR'ed; "*" is every host, the mapped wildcard included.
+      Set<Integer> ports = new TreeSet<>(deniedPorts);
+      b.append("(deny network-outbound");
+      ports.forEach(p -> b.append(" (remote ip \"*:").append(p).append("\")"));
+      b.append(")\n(deny network-bind");
+      ports.forEach(p -> b.append(" (local ip \"*:").append(p).append("\")"));
+      b.append(")\n");
+    }
     return b.toString();
   }
-
-  /** Under the person's home, what the command may not read: GateRook's data, credentials, connected clients' configs. */
-  static final List<String> MAC_DENIED = List.of(".ssh", ".aws", ".config/gcloud", ".kube", "Library/Keychains",
-      ".docker", ".netrc", ".gnupg", ".config/gh", ".config/op", ".vault-token", ".pgpass", ".my.cnf", ".azure",
-      ".password-store", ".codex", ".cursor", ".gemini", "Library/Application Support/Claude");
-
-  /** Under the person's home, where the command may write besides its {@code --rw} paths: the package caches. */
-  static final List<String> MAC_WRITABLE = List.of(".npm", ".cache", "Library/Caches");
 
   /** {@code p} absolute, and its canonical form when that differs (a path not there yet: via its deepest parent). */
   static List<String> canonicalForms(Path p) {

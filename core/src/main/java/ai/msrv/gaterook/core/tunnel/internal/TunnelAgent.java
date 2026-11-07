@@ -19,12 +19,17 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * A provider's agent (ARCHITECTURE.md §7.3): starts its process towards {@code http://127.0.0.1:<publicPort>} and
  * returns once the public hostname is known and the agent says it is connected to its edge — the URL is published
- * only then. Each agent reads its own state from its local HTTP interface (cloudflared's metrics server, ngrok's agent
- * API) on a loopback port of its own, without any proxy.
+ * only then. cloudflared reports both on its metrics server, a loopback port of its own read without any proxy;
+ * ngrok in its JSON log, since its local API has no authentication and stays off.
  */
 public interface TunnelAgent {
 
@@ -107,17 +112,57 @@ public interface TunnelAgent {
     }
   }
 
-  /** The most telling error line of an agent's log, cut to one sentence's length. */
+  /**
+   * The most telling error line of an agent's log, cut to one sentence's length. A JSON log (ngrok's) states it in its
+   * last {@code crit} or {@code eror} entry: that entry's {@code err}, else its {@code msg}, the first line of it with
+   * the error code it names. ngrok repeats that on stderr afterwards, a piece per line down to a bare
+   * {@code ERROR:}, which says nothing. Otherwise it is the last line that reads like an error.
+   */
   static String lastError(List<String> tail) {
     for (int i = tail.size() - 1; i >= 0; i--) {
-      String line = tail.get(i);
+      String stated = statedError(tail.get(i));
+      if (stated != null) {
+        return oneSentence(stated);
+      }
+    }
+    for (int i = tail.size() - 1; i >= 0; i--) {
+      String line = tail.get(i).strip();
       String l = line.toLowerCase(java.util.Locale.ROOT);
-      if (l.contains(" err ") || l.contains("\"lvl\":\"eror\"") || l.contains("\"lvl\":\"crit\"") || l.contains("error")
-          || l.contains("failed")) {
-        String s = line.strip();
-        return s.length() > 300 ? s.substring(0, 300) + "…" : s;
+      if (!l.equals("error:") && (l.contains(" err ") || l.contains("\"lvl\":\"eror\"")
+          || l.contains("\"lvl\":\"crit\"") || l.contains("error") || l.contains("failed"))) {
+        return oneSentence(line);
       }
     }
     return null;
+  }
+
+  /** What a JSON log entry of level {@code crit} or {@code eror} says went wrong, on one line; else null. */
+  private static String statedError(String line) {
+    String s = line.strip();
+    if (!s.startsWith("{") || !(s.contains("\"crit\"") || s.contains("\"eror\""))) {
+      return null;
+    }
+    JsonNode entry;
+    try {
+      entry = JsonMapper.shared().readTree(s);
+    } catch (JacksonException e) {
+      return null;
+    }
+    String level = entry.path("lvl").asString("");
+    if (!level.equals("crit") && !level.equals("eror")) {
+      return null;
+    }
+    String err = entry.path("err").asString("");
+    String text = (err.isBlank() ? entry.path("msg").asString("") : err).strip();
+    String first = text.lines().findFirst().orElse("").strip();
+    if (first.isEmpty()) {
+      return null;
+    }
+    Matcher code = Pattern.compile("\\bERR_[A-Z]+_\\d+\\b").matcher(text);
+    return code.find() && !first.contains(code.group()) ? first + " (" + code.group() + ")" : first;
+  }
+
+  private static String oneSentence(String s) {
+    return s.length() > 300 ? s.substring(0, 300) + "…" : s;
   }
 }

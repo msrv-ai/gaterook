@@ -5,7 +5,7 @@ const tools = DEMO_TOOL_GROUPS.flatMap((g) => g.group.tools);
 const tool = (name: string) => tools.find((t) => t.name === name)!;
 const external = (name: string) => DEMO_TOOL_GROUPS_EXTERNAL[0].group.tools.find((t) => t.name === name)!;
 
-describe('tool-policy-list view (design/elements/tool-policy-list.html)', () => {
+describe('tool-policy-list view', () => {
   it('counts modes in the kit order', () => {
     expect(modeCounts(tools).map((c) => c.text)).toEqual(['6 read only', '3 approval', '5 off']);
     expect(toolCount(14)).toBe('14 tools');
@@ -38,12 +38,16 @@ describe('tool-policy-list view (design/elements/tool-policy-list.html)', () => 
     expect(modeNote(tool('ssh_run'), { slug: 'dev', readOnly: false })?.text).toBe('Read only runs runbooks marked read only');
   });
 
-  it('external tools: read only only after a confirmation, never for declared writers', () => {
-    // Read only stays a choice: picking it opens the confirmation, so the note informs rather than locks.
-    expect(modeNote(external('list_issues'), { slug: 'dev', readOnly: false })).toMatchObject({ icon: 'info', readOnlyDisabled: false, needsConfirmation: true });
-    expect(modeNote({ ...external('list_issues'), readOnlyConfirmed: true }, { slug: 'dev', readOnly: false })).toBeNull();
+  it('accepts eligible MCP reads immediately while plugins still need confirmation', () => {
+    expect(modeNote(external('list_issues'), { slug: 'dev', readOnly: false })).toBeNull();
+    const plugin = { ...external('list_issues'), toolKey: 'plugin:issues/list_issues', readOnlyAllowed: false };
+    expect(modeNote(plugin, { slug: 'dev', readOnly: false })).toMatchObject({ icon: 'info', readOnlyDisabled: false, needsConfirmation: true });
+    expect(modeNote({ ...plugin, readOnlyConfirmed: true }, { slug: 'dev', readOnly: false })).toBeNull();
+    expect(modeNote({ ...external('list_issues'), mode: 'BYPASS' }, { slug: 'dev', readOnly: false })?.needsConfirmation).toBe(false);
     expect(modeNote(external('merge_pull_request'), { slug: 'dev', readOnly: false })?.text).toBe('Declared destructive: approval, bypass or off');
     expect(modeNote(external('create_issue'), { slug: 'dev', readOnly: false })?.text).toBe('Not declared read only: approval, bypass or off');
+    expect(bulkHints('github-mcp', DEMO_TOOL_GROUPS_EXTERNAL[0].group.tools, { readOnly: false }).read).not.toContain('confirmation');
+    expect(bulkHints('github-mcp', DEMO_TOOL_GROUPS_EXTERNAL[0].group.tools, { readOnly: false }).read).toContain('create_issue stays as it is: it is not declared read only');
   });
 
   it('says what "Set all to…" does to each group', () => {

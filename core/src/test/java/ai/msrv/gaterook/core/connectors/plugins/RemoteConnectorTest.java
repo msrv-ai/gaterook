@@ -73,4 +73,18 @@ class RemoteConnectorTest {
     PluginSupervisor supervisor = new PluginSupervisor("jira-service-desk", null, Clock.systemUTC());
     return new RemoteConnector(MANIFEST, supervisor, new SecretCallbackRegistry(), null, null, signed);
   }
+
+  @Test
+  void anIpv6HostIsWrittenAsInAUrlForTheEgressGrant() {
+    assertThat(RemoteConnector.connectionHost(config("{\"host\":\"::1\"}"))).isEqualTo("[::1]");
+    assertThat(RemoteConnector.connectionHost(config("{\"host\":\"[fd00::5]\"}"))).isEqualTo("[fd00::5]");
+    assertThat(RemoteConnector.connectionHost(config("{\"host\":\" DB.Example \"}"))).isEqualTo("db.example");
+    assertThat(RemoteConnector.connectionHost(config("{\"baseUrl\":\"http://[fd00::5]:8123/\"}")))
+        .isEqualTo("[fd00::5]");
+  }
+
+  private static ConnectionConfig config(String json) {
+    return new ConnectionConfig("c_2", "ch", "clickhouse", Env.DEV, 1, (ObjectNode) GppJson.MAPPER.readTree(json),
+        Set.of(), null);
+  }
 }

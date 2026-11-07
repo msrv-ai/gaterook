@@ -10,7 +10,7 @@ import { GwClientMark, clientName } from '../shared/client-mark';
 import { connectorIcon } from '../shared/connector-icons';
 import { Look, clientStatusLook, healthLook } from '../shared/dictionaries';
 
-/** The kit's copy of each node (elements/setup-map.html). */
+/** The kit's copy of each node. */
 const NODES: Record<SetupNodeId, { readonly icon: string; readonly title: string; readonly desc: string; readonly route: string; readonly what: string }> = {
   secrets: { icon: 'key-round', title: 'Secrets & resources', desc: 'Credentials the agent never sees', route: '/secrets', what: 'secrets' },
   connections: { icon: 'database', title: 'Connections', desc: 'Where tools run: databases, hosts, APIs', route: '/connections', what: 'connections' },
@@ -28,7 +28,7 @@ const STATE: Record<SetupNode['state'], { readonly tile: string; readonly badge:
 let nextId = 0;
 
 /**
- * `<gw-setup-map [nodes]="overview.setupMap.nodes">` (elements/setup-map.html): what to configure and how it connects,
+ * `<gw-setup-map [nodes]="overview.setupMap.nodes">`: what to configure and how it connects,
  * in setup order — secrets and resources, connections, policies, endpoints, clients. Each node says its state in words
  * (the core's status line) and links to its page; done nodes are joined by brand arrows, the rest are dashed. An
  * agent's call travels the other way, and the secret is injected at the connection: the visible caption and the
@@ -67,6 +67,7 @@ export class GwSetupMap {
 
 /** A client of an endpoint on the wiring card: its id and state (K1 `/api/clients`). */
 export interface WiringClient {
+  readonly name?: string;
   readonly client: string;
   readonly status: string;
 }
@@ -122,11 +123,11 @@ export function setupWiring(detail: EndpointDetail, clients: readonly WiringClie
 }
 
 /**
- * `<gw-setup-wiring [wiring]="…">` (elements/setup-map.html, "Wiring on endpoint-detail", gw-setup-map--wiring): the
+ * `<gw-setup-wiring [wiring]="…">` (setup map component, "Wiring on endpoint-detail", gw-setup-map--wiring): the
  * endpoint in the middle, the clients that call it on the left, the connections its tools run on, with environment
  * and health, on the right.
  *
- * `inPage` is the wiring as pages/endpoint-detail.html draws it under the endpoint's own header: the URL and sign-in
+ * `inPage` is the wiring as endpoint detail screen draws it under the endpoint's own header: the URL and sign-in
  * are in the header, so the endpoint node lists Tools, Policy (links to each environment's rules) and Limits, and the
  * footers lead to the page's own tabs (`?tab=clients|tools|connections`) instead of other pages.
  */
@@ -166,7 +167,7 @@ export class GwSetupWiring {
   protected readonly flow = computed(() => {
     const w = this.wiring();
     if (w.flowText) return w.flowText;
-    const names = w.clients.filter((c) => c.status === 'connected').map((c) => clientName(c.client));
+    const names = w.clients.filter((c) => c.status === 'connected').map((c) => c.name ?? clientName(c.client));
     const who = names.length ? `${names.join(' and ')} call` : 'AI apps call';
     const n = w.connections.length;
     return `${who} endpoint ${w.slug} with their tokens; ${w.slug} runs its tools on ${n} ${n === 1 ? 'connection' : 'connections'}, which inject the secrets.`;
@@ -186,7 +187,7 @@ export class GwSetupWiring {
   protected clientLook(c: WiringClient): Look {
     const look = clientStatusLook(c.status);
     // On the wiring card a detected client reads "Detected", in neutral: it isn't wired to this endpoint. The
-    // endpoint's own page draws it in info, as its Clients tab does (pages/endpoint-detail.html: Cursor).
+    // endpoint's own page draws it in info, as its Clients tab does (endpoint detail screen: Cursor).
     return c.status === 'detected' ? { tone: this.inPage() ? 'info' : 'neutral', icon: look.icon, text: 'Detected' } : look;
   }
 }

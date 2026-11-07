@@ -1,5 +1,6 @@
 package ai.msrv.gaterook.core.connections;
 
+import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.HealthResult;
@@ -7,6 +8,8 @@ import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.core.connections.internal.ConnectionRows;
 import ai.msrv.gaterook.core.connections.internal.ConnectionTargets;
 import ai.msrv.gaterook.core.connections.internal.EnvLocks;
+import ai.msrv.gaterook.core.connections.internal.PartialConnectionSchema;
+import ai.msrv.gaterook.core.connections.internal.SchemaPointers;
 import ai.msrv.gaterook.core.connections.internal.SecretFields;
 import ai.msrv.gaterook.core.connections.internal.persistence.ConnectionEntity;
 import ai.msrv.gaterook.core.connections.internal.persistence.ConnectionRepository;
@@ -81,6 +84,20 @@ public class ConnectionService {
    * Confirmations accumulate in one value, separated by commas: {@code send-secret-to-new-host,danger}.
    */
   public static final String CONFIRM_DANGER = "danger";
+
+  private static final List<String> SETUP_METADATA = List.of("setupRequired", "setupMissingFields", "setupSources");
+
+  public static boolean needsSetup(ConnectionConfig config) {
+    return config.metadata() != null && config.metadata().path("setupRequired").asBoolean(false);
+  }
+
+  public boolean referenceConnected(SecretInput input) {
+    return input.isLocal() || secrets.referenceConnected(input.reference(), input.dynamic(), input.store());
+  }
+
+  public static ObjectNode availableImportConfig(JsonNode config) {
+    return PartialConnectionSchema.available(requestConfig(config));
+  }
 
   /**
    * One row of Connections.
@@ -200,6 +217,33 @@ public class ConnectionService {
   }
 
   /**
+   * Validate the exact reviewed input and check production rights before a caller opens a batch transaction.
+   * No connection is created and caller-owned credentials remain available for the subsequent create call.
+   */
+  public void preflightCreate(String name, String type, Env env, JsonNode config,
+      Map<String, SecretInput> newSecrets, String confirm) {
+    Objects.requireNonNull(env, "env");
+    checkName(name);
+    ConnectorManifest manifest = usableType(type);
+    ObjectNode cleaned = requestConfig(config);
+    Map<String, SecretInput> given = checkSecrets(manifest.configSchema(), SecretFields.templates(
+        manifest.configSchema()), newSecrets);
+    Set<String> dynamic = new LinkedHashSet<>();
+    given.forEach((field, input) -> { if (!input.isLocal() && input.dynamic()) dynamic.add(field); });
+    validate(manifest, cleaned, given.keySet(), dynamic, env, false);
+    if (repository.existsByName(name)) {
+      throw ProblemException.conflict("Name in use", "A connection named " + name + " already exists.");
+    }
+    if (env == Env.PROD && !confirmed(confirm, CONFIRM_DANGER)) {
+      Map<String, SecretInput> copies = new HashMap<>();
+      given.forEach((field, input) -> copies.put(field, input.isLocal() ? SecretInput.local(input.value().clone()) : input));
+      try {
+        requireNoDanger(name, tester.getObject().testDraft(type, env, cleaned, copies, null, null).result());
+      } finally { copies.values().forEach(SecretInput::clear); }
+    }
+  }
+
+  /**
    * @param confirm {@link #CONFIRM_DANGER} when the person agreed to keep a prod connection whose test found rights
    *     that can do harm; without it such a save is a 409 that names them
    */
@@ -211,7 +255,7 @@ public class ConnectionService {
       ConnectorManifest manifest = usableType(type);
       ObjectNode cleaned = requestConfig(config);
       List<String> templates = SecretFields.templates(manifest.configSchema());
-      Map<String, SecretInput> given = checkSecrets(templates, newSecrets);
+      Map<String, SecretInput> given = checkSecrets(manifest.configSchema(), templates, newSecrets);
       Set<String> dynamic = new LinkedHashSet<>();
       given.forEach((field, input) -> { if (!input.isLocal() && input.dynamic()) dynamic.add(field); });
       validate(manifest, cleaned, given.keySet(), dynamic, env, false);
@@ -222,34 +266,7 @@ public class ConnectionService {
             : input));
         requireNoDanger(name, tester.getObject().testDraft(type, env, cleaned, copies, null, null).result());
       }
-      String id = writeTx.execute(s -> {
-        if (repository.existsByName(name)) {
-          throw ProblemException.conflict("Name in use", "A connection named " + name + " already exists.");
-        }
-        ConnectionEntity row = repository.saveAndFlush(new ConnectionEntity(name, type, env, rows.map(cleaned),
-            clock.instant()));
-        ObjectNode stored = cleaned.deepCopy();
-        for (Map.Entry<String, SecretInput> secret : given.entrySet()) {
-          SecretInput input = secret.getValue();
-          String secretName = uniqueSecretName(name, secret.getKey(), cleaned);
-          SecretInfo info = input.isLocal()
-              ? secrets.createLocal(SecretOwner.connection(row.getId()), secret.getKey(), secretName, input.value())
-              : secrets.createReference(SecretOwner.connection(row.getId()), secret.getKey(), secretName,
-                  input.reference(), input.dynamic(), input.store(), secretPointer(secret.getKey()));
-          SecretFields.set(stored, secret.getKey(), SecretFields.placeholder(info.id()));
-        }
-        row.reconfigure(env, rows.map(stored), clock.instant());
-        row = repository.saveAndFlush(row);
-        rows.sign(row);
-        setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.CONNECTION,
-            "Connection " + name + " added", null, manifest.name() + " · " + env.id(), reason, env, null, name,
-            null));
-        publisher.publishEvent(new ConnectionConfigured(name, type, env, cleaned.deepCopy(), reason));
-        publisher.publishEvent(new ConnectionChanged(row.getId(), name, env, row.getVersion()));
-        publisher.publishEvent(new ConnectionCreated(row.getId()));
-        return row.getId();
-      });
-      return summary(configs.byId(id).orElseThrow());
+      return persistCreation(name, type, env, cleaned, withStores(given), manifest, reason, null);
     } finally {
       if (newSecrets != null) {
         newSecrets.values().forEach(SecretInput::clear);
@@ -257,7 +274,87 @@ public class ConnectionService {
     }
   }
 
+  private Summary persistCreation(String name, String type, Env env, ObjectNode cleaned,
+      Map<String, SecretInput> given, ConnectorManifest manifest, String reason, JsonNode setup) {
+    String id = writeTx.execute(s -> {
+      if (repository.existsByName(name)) {
+        throw ProblemException.conflict("Name in use", "A connection named " + name + " already exists.");
+      }
+      ConnectionEntity row = repository.saveAndFlush(new ConnectionEntity(name, type, env, rows.map(cleaned),
+          clock.instant()));
+      ObjectNode stored = cleaned.deepCopy();
+      for (Map.Entry<String, SecretInput> secret : given.entrySet()) {
+        SecretInput input = secret.getValue();
+        String secretName = uniqueSecretName(name, secret.getKey(), cleaned);
+        SecretInfo info = input.isLocal()
+            ? secrets.createLocal(SecretOwner.connection(row.getId()), secret.getKey(), secretName, input.value())
+            : secrets.createReference(SecretOwner.connection(row.getId()), secret.getKey(), secretName,
+                input.reference(), input.dynamic(), input.store(), secretPointer(secret.getKey()));
+        SecretFields.set(stored, secret.getKey(), SecretFields.placeholder(info.id()));
+      }
+      row.reconfigure(env, rows.map(stored), clock.instant());
+      if (setup != null) {
+        row.setMetadata(rows.map(setup));
+        row.setEnabled(false, clock.instant());
+      }
+      row = repository.saveAndFlush(row);
+      rows.sign(row);
+      setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.CONNECTION,
+          "Connection " + name + " added", null, manifest.name() + " · " + env.id(), reason, env, null, name,
+          null));
+      if (setup == null) publisher.publishEvent(new ConnectionConfigured(name, type, env, cleaned.deepCopy(), reason));
+      publisher.publishEvent(new ConnectionChanged(row.getId(), name, env, row.getVersion()));
+      publisher.publishEvent(new ConnectionCreated(row.getId()));
+      return row.getId();
+    });
+    return summary(configs.byId(id).orElseThrow());
+  }
+
   // ── Edit ────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** Validate available settings without testing a resource. Only missing required inputs may remain incomplete. */
+  public List<String> missingImportSettings(String name, String type, Env env, JsonNode config,
+      Map<String, SecretInput> newSecrets) {
+    checkName(name);
+    ConnectorManifest manifest = usableType(type);
+    ObjectNode cleaned = PartialConnectionSchema.available(requestConfig(config));
+    List<String> secretFields = SecretFields.templates(manifest.configSchema());
+    for (String field : secretFields) {
+      if (!SchemaPointers.values(cleaned, field).isEmpty()) {
+        throw ProblemException.unprocessable("Use secret fields", "Credentials must be supplied separately from settings.", "/config");
+      }
+    }
+    Map<String, SecretInput> given = checkSecrets(manifest.configSchema(), secretFields, newSecrets);
+    Set<String> dynamic = new LinkedHashSet<>();
+    given.forEach((field, input) -> { if (input.dynamic()) dynamic.add(field); });
+    validate(manifest, cleaned, given.keySet(), dynamic, env, true, PartialConnectionSchema.relax(manifest.configSchema()));
+    if (repository.existsByName(name)) throw ProblemException.conflict("Name in use", "A connection named " + name + " already exists.");
+    try {
+      validate(manifest, cleaned, given.keySet(), dynamic, env, false);
+      return List.of();
+    } catch (ProblemException e) {
+      return List.of((e.field() == null ? "Settings" : e.field()) + ": " + e.getMessage());
+    }
+  }
+
+  /** Persist reviewed available data, signed and disabled, without resource tests or usable endpoint tools. */
+  public Summary createImportDraft(String name, String type, Env env, JsonNode config,
+      Map<String, SecretInput> newSecrets, List<String> missing, JsonNode sources, String reason) {
+    try {
+      List<String> required = missingImportSettings(name, type, env, config, newSecrets);
+      ConnectorManifest manifest = usableType(type);
+      ObjectNode cleaned = PartialConnectionSchema.available(requestConfig(config));
+      Map<String, SecretInput> given = checkSecrets(manifest.configSchema(), SecretFields.templates(
+          manifest.configSchema()), newSecrets);
+      ObjectNode setup = JsonNodeFactory.instance.objectNode().put("setupRequired", true);
+      var fields = setup.putArray("setupMissingFields");
+      java.util.stream.Stream.concat(required.stream(), missing.stream()).distinct().limit(50).forEach(fields::add);
+      setup.set("setupSources", sources == null ? JsonNodeFactory.instance.arrayNode() : sources.deepCopy());
+      return persistCreation(name, type, env, cleaned, withStores(given), manifest, reason, setup);
+    } finally {
+      if (newSecrets != null) newSecrets.values().forEach(SecretInput::clear);
+    }
+  }
 
   /**
    * {@code PUT /api/connections/{name}}: new config and env; secrets stay as stored ("Applies from the next call").
@@ -266,68 +363,132 @@ public class ConnectionService {
    * @throws ProblemException 409 {@code send-secret-to-new-host} when a target changes and secrets are stored
    */
   public Summary update(String name, Env env, JsonNode config, long version, String reason, String confirm) {
-    Objects.requireNonNull(env, "env");
-    ConnectionConfigs.Stored current = stored(name);
-    requireVerified(current);
-    ConnectorManifest manifest = usableType(current.config().type());
-    ObjectNode cleaned = requestConfig(config);
-    // The secrets stay: their placeholders move into the new config wherever their field still has a place.
-    ObjectNode next = cleaned.deepCopy();
-    Map<String, String> dropped = new LinkedHashMap<>();
-    current.secretIds().forEach((field, id) -> {
-      if (!SecretFields.parentExists(next, field) || !SecretFields.set(next, field, SecretFields.placeholder(id))) {
-        dropped.put(field, id);
+    return update(name, env, config, version, reason, confirm, Map.of());
+  }
+
+  /** Completing an imported draft can supply previously missing credentials in the same validated transaction. */
+  public Summary update(String name, Env env, JsonNode config, long version, String reason, String confirm,
+      Map<String, SecretInput> newSecrets) {
+    try {
+      Objects.requireNonNull(env, "env");
+      ConnectionConfigs.Stored current = stored(name);
+      requireVerified(current);
+      ConnectorManifest manifest = usableType(current.config().type());
+      boolean completing = needsSetup(current.config());
+      // New secrets and text fields read from a store join an edit; a stored one changes through its Secrets control.
+      Map<String, SecretInput> given = checkSecrets(manifest.configSchema(), SecretFields.templates(
+          manifest.configSchema()), newSecrets);
+      for (String field : given.keySet()) {
+        if (current.secretIds().containsKey(field)) throw ProblemException.unprocessable("Use secret replacement", "Replace an existing credential through its Secrets control.", secretPointer(field));
       }
-    });
-    validate(manifest, next, java.util.Set.of(), env);
-    // Shown and recorded without a key an MCP server's URL may carry.
-    Optional<String> newTarget = ConnectionTargets.changedTarget(current.config().config(), cleaned).map(masker::url);
-    if (newTarget.isPresent() && !current.secretIds().isEmpty() && !confirmed(confirm, CONFIRM_NEW_HOST)) {
-      throw ProblemException.needsConfirmation("Send the stored secret to a new host?",
-          "Send the stored credentials of " + name + " to " + newTarget.get() + "? Confirm, or enter new values.",
-          CONFIRM_NEW_HOST);
-    }
-    // A prod connection is tested again when it becomes prod or its settings change: rights may be new.
-    if (env == Env.PROD && !confirmed(confirm, CONFIRM_DANGER)
-        && (current.config().env() != Env.PROD || !next.equals(current.config().config()))) {
-      requireNoDanger(name, tester.getObject().testDraft(current.config().type(), env, cleaned, Map.of(), name,
-          newTarget.isPresent() ? CONFIRM_NEW_HOST : null).result());
-    }
-    writeTx.executeWithoutResult(s -> {
-      ConnectionEntity row = repository.findById(current.id()).orElseThrow();
-      if (row.getVersion() != version) {
-        throw new OptimisticLockingFailureException("Connection " + name + " is at version " + row.getVersion());
-      }
-      // Checked again in the transaction that signs it: an edit made since the read above must not ride along.
-      if (!rows.verify(row)) {
-        alerts.report("connection", row.getId(), row.getName(), "connection row");
-        throw ProblemException.conflict("Changed outside GateRook", name + " was changed outside GateRook. "
-            + "Review it first.");
-      }
-      Env before = row.getEnv();
-      if (env != before) {
-        // In the writing transaction: the single writer orders it with the connection joining an endpoint, so the
-        // two can't both pass and leave prod mixed with dev on one endpoint.
-        Optional<String> problem = usage().flatMap(u -> u.envChangeProblem(current.id(), env));
-        if (problem.isPresent()) {
-          throw ProblemException.unprocessable("Can't change the environment", problem.get(), "/env");
+      ObjectNode cleaned = requestConfig(config);
+      if (completing) {
+        for (String field : SecretFields.templates(manifest.configSchema())) {
+          if (!SchemaPointers.values(cleaned, field).isEmpty()) throw ProblemException.unprocessable("Use secret fields", "Credentials must be supplied separately from settings.", "/config");
         }
       }
-      row.reconfigure(env, rows.map(next), clock.instant());
-      row = repository.saveAndFlush(row);
-      rows.sign(row);
-      if (!dropped.isEmpty()) {
-        // A field the new config no longer has (another sign-in method): its secret goes away with it.
-        secrets.deleteForOwnerFields(SecretOwner.connection(row.getId()), dropped.keySet());
+      // The secrets stay: their placeholders move into the new config wherever their field still has a place. A text
+      // field read from a store that is typed now keeps the typed value, and its reference goes.
+      ObjectNode next = cleaned.deepCopy();
+      Map<String, String> dropped = new LinkedHashMap<>();
+      List<String> secretTemplates = SecretFields.templates(manifest.configSchema());
+      List<String> texts = SecretFields.textTemplates(manifest.configSchema());
+      current.secretIds().forEach((field, id) -> {
+        JsonNode typed = cleaned.at(field);
+        boolean retyped = !SecretFields.matches(secretTemplates, field) && SecretFields.matches(texts, field)
+            && typed.isString() && !typed.asString().isBlank();
+        if (retyped || !SecretFields.parentExists(next, field)
+            || !SecretFields.set(next, field, SecretFields.placeholder(id))) {
+          dropped.put(field, id);
+        }
+      });
+      Set<String> dynamic = new LinkedHashSet<>(dynamicSecretFields(SecretFields.placeholders(next)));
+      given.forEach((field, input) -> { if (input.dynamic()) dynamic.add(field); });
+      validate(manifest, next, given.keySet(), dynamic, env, false);
+      if (completing) {
+        for (SecretInput input : given.values()) {
+          if (!referenceConnected(input)) throw ProblemException.unprocessable("Connect the secret store", "Configure the credential source before finishing setup.", "/secrets");
+        }
+        for (var entry : current.secretIds().entrySet()) {
+          if (dropped.containsKey(entry.getKey())) continue;
+          SecretInfo info = secrets.get(entry.getValue());
+          if (info.ref() != null && !secrets.referenceConnected(info.ref(), info.dynamicReference(), info.store())
+              || info.ref() == null && !"stored".equals(info.state())) {
+            throw ProblemException.unprocessable("Complete the credential", "Configure the missing credential source before finishing setup.", secretPointer(entry.getKey()));
+          }
+        }
       }
-      setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.CONNECTION,
-          "Connection " + name + " edited", before == env ? null : before.id(), before == env ? null : env.id(),
-          reason, env, null, name, newTarget.map(t -> (JsonNode) JsonNodeFactory.instance.objectNode()
-              .put("newTarget", t)).orElse(null)));
-      publisher.publishEvent(new ConnectionConfigured(name, row.getType(), env, cleaned.deepCopy(), reason));
-      publisher.publishEvent(new ConnectionChanged(row.getId(), name, env, row.getVersion()));
-    });
-    return summary(name);
+      Map<String, SecretInput> bound = withStores(given);
+      // Shown and recorded without a key an MCP server's URL may carry.
+      Optional<String> newTarget = ConnectionTargets.changedTarget(current.config().config(), cleaned).map(masker::url);
+      if (newTarget.isPresent() && !current.secretIds().isEmpty() && !confirmed(confirm, CONFIRM_NEW_HOST)) {
+        throw ProblemException.needsConfirmation("Send the stored secret to a new host?",
+            "Send the stored credentials of " + name + " to " + newTarget.get() + "? Confirm, or enter new values.",
+            CONFIRM_NEW_HOST);
+      }
+      // A prod connection is tested again when it becomes prod or its settings change: rights may be new.
+      if (env == Env.PROD && !confirmed(confirm, CONFIRM_DANGER)
+          && (completing || current.config().env() != Env.PROD || !next.equals(current.config().config()))) {
+        Map<String, SecretInput> copies = new LinkedHashMap<>();
+        bound.forEach((field, input) -> copies.put(field, input.isLocal() ? SecretInput.local(input.value().clone()) : input));
+        try {
+          requireNoDanger(name, tester.getObject().testDraft(current.config().type(), env, cleaned, copies, name,
+              newTarget.isPresent() ? CONFIRM_NEW_HOST : null).result());
+        } finally { copies.values().forEach(SecretInput::clear); }
+      }
+      writeTx.executeWithoutResult(s -> {
+        ConnectionEntity row = repository.findById(current.id()).orElseThrow();
+        if (row.getVersion() != version) {
+          throw new OptimisticLockingFailureException("Connection " + name + " is at version " + row.getVersion());
+        }
+        // Checked again in the transaction that signs it: an edit made since the read above must not ride along.
+        if (!rows.verify(row)) {
+          alerts.report("connection", row.getId(), row.getName(), "connection row");
+          throw ProblemException.conflict("Changed outside GateRook", name + " was changed outside GateRook. "
+              + "Review it first.");
+        }
+        Env before = row.getEnv();
+        if (env != before) {
+          // In the writing transaction: the single writer orders it with the connection joining an endpoint, so the
+          // two can't both pass and leave prod mixed with dev on one endpoint.
+          Optional<String> problem = usage().flatMap(u -> u.envChangeProblem(current.id(), env));
+          if (problem.isPresent()) {
+            throw ProblemException.unprocessable("Can't change the environment", problem.get(), "/env");
+          }
+        }
+        for (Map.Entry<String, SecretInput> entry : bound.entrySet()) {
+          SecretInput input = entry.getValue();
+          String secretName = uniqueSecretName(name, entry.getKey(), cleaned);
+          SecretInfo info = input.isLocal()
+              ? secrets.createLocal(SecretOwner.connection(row.getId()), entry.getKey(), secretName, input.value())
+              : secrets.createReference(SecretOwner.connection(row.getId()), entry.getKey(), secretName,
+                  input.reference(), input.dynamic(), input.store(), secretPointer(entry.getKey()));
+          SecretFields.set(next, entry.getKey(), SecretFields.placeholder(info.id()));
+        }
+        if (completing) {
+          ObjectNode metadata = (ObjectNode) current.config().metadata().deepCopy();
+          SETUP_METADATA.forEach(metadata::remove);
+          row.setMetadata(rows.map(metadata));
+          row.setEnabled(false, clock.instant());
+        }
+        row.reconfigure(env, rows.map(next), clock.instant());
+        row = repository.saveAndFlush(row);
+        rows.sign(row);
+        if (!dropped.isEmpty()) {
+          // A field the new config no longer has (another sign-in method): its secret goes away with it.
+          secrets.deleteForOwnerFields(SecretOwner.connection(row.getId()), dropped.keySet());
+        }
+        setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.CONNECTION,
+            "Connection " + name + " edited", before == env ? null : before.id(), before == env ? null : env.id(),
+            reason, env, null, name, newTarget.map(t -> (JsonNode) JsonNodeFactory.instance.objectNode()
+                .put("newTarget", t)).orElse(null)));
+        publisher.publishEvent(new ConnectionConfigured(name, row.getType(), env, cleaned.deepCopy(), reason));
+        publisher.publishEvent(new ConnectionChanged(row.getId(), name, env, row.getVersion()));
+      });
+      return summary(name);
+    } finally {
+      if (newSecrets != null) newSecrets.values().forEach(SecretInput::clear);
+    }
   }
 
   /**
@@ -352,7 +513,11 @@ public class ConnectionService {
       if (row == null || !rows.verify(row) || testedVersion >= 0 && row.getVersion() != testedVersion) {
         return;
       }
-      Map<String, Object> next = rows.map(facts);
+      ObjectNode guarded = facts instanceof ObjectNode object ? object.deepCopy() : JsonNodeFactory.instance.objectNode();
+      SETUP_METADATA.forEach(guarded::remove);
+      JsonNode current = configs.stored(row).config().metadata();
+      if (current != null) for (String key : SETUP_METADATA) if (current.has(key)) guarded.set(key, current.get(key).deepCopy());
+      Map<String, Object> next = rows.map(guarded);
       if (Objects.equals(next, row.getMetadata())) {
         return;
       }
@@ -458,6 +623,15 @@ public class ConnectionService {
       if (rows.verify(row)) {
         return;
       }
+      ConnectorManifest manifest = usableType(row.getType());
+      ObjectNode stored = rows.storedConfig(row);
+      boolean partial = row.getMetadata() != null && Boolean.TRUE.equals(row.getMetadata().get("setupRequired"));
+      if (partial) {
+        validate(manifest, stored, Set.of(), dynamicSecretFields(SecretFields.placeholders(stored)), row.getEnv(), true,
+            PartialConnectionSchema.relax(manifest.configSchema()));
+        row.setEnabled(false, clock.instant());
+        row = repository.saveAndFlush(row);
+      } else validate(manifest, stored, Set.of(), row.getEnv());
       rows.sign(row);
       alerts.resolve("connection", row.getId());
       setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.CONNECTION,
@@ -514,6 +688,10 @@ public class ConnectionService {
     writeTx.executeWithoutResult(tx -> {
       ConnectionEntity row = repository.findByName(name).orElseThrow(() -> notFound(name));
       requireVerified(configs.stored(row));
+      if (enabled && needsSetup(configs.stored(row).config())) {
+        throw ProblemException.unprocessable("Finish setup first", "Complete the missing settings and save this connection before enabling it.", "/enabled");
+      }
+      if (enabled) validate(usableType(row.getType()), rows.storedConfig(row), Set.of(), row.getEnv());
       if (row.isEnabled() == enabled) return;
       row.setEnabled(enabled, clock.instant());
       repository.saveAndFlush(row);
@@ -548,7 +726,7 @@ public class ConnectionService {
   }
 
   /**
-   * The kit's Type column (design/pages/connections.html): "Loki" and "GCP Cloud Logging" for the Logs variants,
+   * The kit's Type column: "Loki" and "GCP Cloud Logging" for the Logs variants,
    * "PostgreSQL 16", "MongoDB 7", "Redis 7" for databases whose test saw the server (product and major version of what
    * it reported: "MongoDB 7.0" → "MongoDB 7"), the connector's name otherwise ("SSH", "Kubernetes", "AWS", "HTTP API").
    */
@@ -620,20 +798,42 @@ public class ConnectionService {
     return "/secrets/" + field.replace("~", "~0").replace("/", "~1");
   }
 
-  private static Map<String, SecretInput> checkSecrets(List<String> templates, Map<String, SecretInput> given) {
+  /**
+   * The secrets of a request: each secret field with a value or a reference, and each text field read from a store
+   * ({@link SecretFields#textTemplates}, a login's user among them): a reference only, as its typed value belongs in
+   * the config.
+   *
+   * @param templates the type's secret fields
+   */
+  static Map<String, SecretInput> checkSecrets(JsonNode schema, List<String> templates,
+      Map<String, SecretInput> given) {
     Map<String, SecretInput> out = new LinkedHashMap<>();
     if (given == null) {
       return out;
     }
+    List<String> users = SecretFields.loginUserTemplates(schema);
+    List<String> texts = SecretFields.textTemplates(schema);
     for (Map.Entry<String, SecretInput> e : given.entrySet()) {
       String field = secretPointer(e.getKey());
-      if (!SecretFields.matches(templates, e.getKey())) {
+      boolean text = !SecretFields.matches(templates, e.getKey()) && SecretFields.matches(texts, e.getKey());
+      String key = SecretFields.unescape(e.getKey().substring(e.getKey().lastIndexOf('/') + 1));
+      if (!text && ConnectionTargets.isTargetKey(key)) {
+        throw ProblemException.unprocessable("Type the " + key, "Type it into the form: where a connection sends "
+            + "its credentials is never read from a store.", field);
+      }
+      if (!text && !SecretFields.matches(templates, e.getKey())) {
         throw ProblemException.unprocessable("Not a secret field", e.getKey() + " is not a secret field of this "
-            + "connector.", field);
+            + "connector, nor a text field a store can hold.", field);
       }
       SecretInput input = e.getValue();
       if (input == null || (!input.isLocal() && input.reference() == null)) {
         throw ProblemException.unprocessable("Secret missing", "Enter a value for " + e.getKey() + ".", field);
+      }
+      if (text && (input.isLocal() || input.dynamic())) {
+        boolean user = SecretFields.matches(users, e.getKey());
+        throw ProblemException.unprocessable(user ? "Type the user" : "Type the value", "Type the "
+            + (user ? "user" : key) + " into the form, or read it from a store with a reference such as "
+            + "vault://kv/prod/db#username.", field);
       }
       if (!input.isLocal()) {
         // Parsed (and bound to its store) by the secrets module when it is stored; here only its presence counts.
@@ -648,7 +848,49 @@ public class ConnectionService {
       }
       out.put(e.getKey(), input);
     }
+    for (String user : out.keySet().stream().filter(f -> SecretFields.matches(users, f)).toList()) {
+      List<String> login = SecretFields.loginSecretsOf(templates, user);
+      if (login.stream().map(out::get).anyMatch(i -> i != null && i.dynamic())) {
+        throw ProblemException.unprocessable("Leave the user out", "Short-lived Vault credentials bring their own "
+            + "user.", secretPointer(user));
+      }
+    }
     return out;
+  }
+
+  /**
+   * The secrets of a request with the store each reference reads from: the one chosen; else the natural or only one
+   * of its kind; else, with several connected, the first, by name, that has it ({@link SecretService#storeHolding}
+   * asks them in turn). Call it outside a transaction; inputs that name their store are kept as they are.
+   */
+  public Map<String, SecretInput> withStores(Map<String, SecretInput> given) {
+    Map<String, SecretInput> out = new LinkedHashMap<>();
+    given.forEach((field, input) -> out.put(field, input.isLocal() || (input.store() != null
+        && !input.store().isBlank()) ? input : new SecretInput(null, input.reference(), input.dynamic(),
+        secrets.storeHolding(input.reference(), input.dynamic(), null, secretPointer(field)))));
+    return out;
+  }
+
+  /**
+   * Refuses a reference typed as a value ({@code vault://kv/prod/db#username} in the config): a value read from a
+   * store is sent as the field's reference in {@code secrets}, which only a person sets, in the window.
+   */
+  private static void checkNoReferenceValues(JsonNode node, String pointer) {
+    if (SecretFields.isPlaceholder(node)) {
+      return;
+    }
+    if (node.isObject()) {
+      for (Map.Entry<String, JsonNode> e : node.properties()) {
+        checkNoReferenceValues(e.getValue(), pointer + "/" + SecretFields.escape(e.getKey()));
+      }
+    } else if (node.isArray()) {
+      for (int i = 0; i < node.size(); i++) {
+        checkNoReferenceValues(node.get(i), pointer + "/" + i);
+      }
+    } else if (node.isString() && SecretFields.looksLikeReference(node.asString())) {
+      throw ProblemException.unprocessable("Read it from the store", "This names a value kept in a store. Send it "
+          + "as the field's reference, so that GateRook reads the value from there at call time.", "/config" + pointer);
+    }
   }
 
   /**
@@ -721,15 +963,25 @@ public class ConnectionService {
   private void validate(ConnectorManifest manifest, ObjectNode config, Set<String> newSecretFields,
       Set<String> dynamicSecretFields, Env env, boolean discovery, JsonNode validationSchema) {
     Objects.requireNonNull(env, "env");
+    checkNoReferenceValues(config, "");
     ObjectNode probe = config.deepCopy();
-    for (String field : SecretFields.placeholders(config).keySet()) {
+    // Stand-ins for what the secrets module holds: a stored or new secret, a text field read from a store. Their
+    // values aren't known here, so only their presence is checked, not a pattern or format of the field.
+    Set<String> standIns = new LinkedHashSet<>(SecretFields.placeholders(config).keySet());
+    for (String field : standIns) {
       SecretFields.set(probe, field, StringNode.valueOf("‹secret›"));
     }
     for (String field : newSecretFields) {
-      SecretFields.set(probe, field, StringNode.valueOf("‹secret›"));
+      if (!SecretFields.set(probe, field, StringNode.valueOf("‹secret›"))) {
+        throw ProblemException.unprocessable("Add the credential field", "Add its containing settings or array row before supplying this credential.", secretPointer(field));
+      }
+      standIns.add(field);
     }
     SecretFields.dynamicLoginUsers(manifest.configSchema(), probe, dynamicSecretFields);
     for (SchemaValidator.Violation v : validator.validate(validationSchema, probe)) {
+      if (standIns.contains(v.pointer())) {
+        continue;
+      }
       throw ProblemException.unprocessable("Check the settings", v.message(), "/config" + v.pointer());
     }
     JsonNode selection = manifest.configSchema().path("x-database-selection");

@@ -68,7 +68,7 @@ export class GwClientConnectFlow {
   /** The diff wraps long lines (the dialog); inline it scrolls. */
   readonly wrap = input(false, { transform: booleanAttribute });
   /**
-   * The flow open inline in a detected client's card on the Clients screen (pages/clients.html, Cursor): it says
+   * The flow open inline in a detected client's card on the Clients screen (clients screen, Cursor): it says
    * what to do first, the endpoint's warnings sit under its select, each sign-in choice says where it works, the
    * token step ends with where the token goes and a way to revoke it, sign-in through the browser offers the
    * "Add to Cursor" link, and a refused change is the page's "Connect failed" alert (what failed, Open config,
@@ -78,7 +78,7 @@ export class GwClientConnectFlow {
   /** Open config in the page's failure alert needs the desktop app. */
   readonly canOpenConfig = input(true, { transform: booleanAttribute });
   /**
-   * The setup review (pages/clients.html `?state=setup`) names the one endpoint above the flow ("What Claude Desktop
+   * The setup review names the one endpoint above the flow ("What Claude Desktop
    * can use"): with a single endpoint there is no select.
    */
   readonly single = input(false, { transform: booleanAttribute });
@@ -121,7 +121,7 @@ export class GwClientConnectFlow {
     const shown = (m: ClientMethod) => m.id !== 'config-bridge' || card.client === 'claude-desktop' || offered.length === 1;
     const choices = offered.filter(shown).map((m) => ({ method: m, refused: false, ...methodChoice(card, m) }));
     if (!this.page()) return choices;
-    // The page keeps the choices a prod endpoint refuses in place, unavailable with the reason (DESIGN.md §8): the
+    // The page keeps the choices a prod endpoint refuses in place, unavailable with the reason: the
     // layout stays, and the person sees why a token in the file isn't offered here (ARCHITECTURE.md §8.6.2).
     const all = card.methods.filter((m) => refused.includes(m) || choices.some((c) => c.method === m));
     return all.map((m) => choices.find((c) => c.method === m) ?? { method: m, refused: true, ...methodChoice(card, m) });

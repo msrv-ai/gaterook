@@ -7,6 +7,7 @@ import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.connections.ConnectionChanged;
 import ai.msrv.gaterook.core.connections.ConnectionConfigs;
+import ai.msrv.gaterook.core.connections.ConnectionService;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.connectors.ConnectorType;
 import ai.msrv.gaterook.core.endpoints.internal.EndpointRows;
@@ -231,7 +232,7 @@ public class EndpointConnections {
    */
   public void reconcile(String connectionId, String reason) {
     ConnectionConfigs.Stored c = connections.byId(connectionId).orElse(null);
-    if (c == null || !c.verified()) {
+    if (c == null || !c.verified() || ConnectionService.needsSetup(c.config())) {
       return;
     }
     ConnectorType type = registry.type(c.config().type()).orElse(null);
@@ -287,7 +288,8 @@ public class EndpointConnections {
       ToolDefinition d = offered.definition();
       if (row == null) {
         boolean freshTemplate = offered.template() != null && offered.template().version() == 1;
-        Mode mode = freshTemplate ? ToolPairs.initial(offered, e.getEnv(), readOnly) : Mode.OFF;
+        Mode mode = freshTemplate || offered.automaticReadOnly()
+            ? ToolPairs.initial(offered, e.getEnv(), readOnly) : Mode.OFF;
         rows.save(new EndpointToolEntity(e, c.id(), offered.toolKey(), mode, clock.instant()));
         changed = true;
       } else if (row.getMode() == Mode.READ_ONLY && !d.readOnlyModeAllowed()) {

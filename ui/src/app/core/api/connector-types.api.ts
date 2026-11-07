@@ -10,7 +10,7 @@ export interface ConnectorCard {
   readonly type: string;
   readonly variant: string | null;
   readonly name: string;
-  /** A Lucide icon name (BLUEPRINT §7: database, leaf, layers, terminal…). */
+  /** A Lucide icon name (status vocabulary: database, leaf, layers, terminal…). */
   readonly icon: string;
   readonly description: string;
   readonly kind: ConnectorKind;
@@ -106,6 +106,10 @@ export interface SecretSourceOption {
   readonly label: string;
   readonly available: boolean;
   readonly reason: string | null;
+  /** The connected store it reads from: every Vault is a source of its own. Absent for the other kinds. */
+  readonly store?: string | null;
+  /** What tells that store apart, such as a Vault's address. */
+  readonly detail?: string | null;
 }
 
 /** What choosing prod (or stage) changes: shown under the environment cards. */

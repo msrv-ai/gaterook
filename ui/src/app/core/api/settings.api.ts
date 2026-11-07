@@ -11,12 +11,17 @@ export type SettingsSectionName =
   | 'audit'
   | 'backup';
 
-/** One typed section of Settings (settings.SettingsService): values, a version for optimistic locking. */
+/**
+ * One typed section of Settings (settings.SettingsService): values, a version for optimistic locking. `verified` false:
+ * a signed section (Audit & retention) was changed or removed outside GateRook; what acts on it refuses to until the
+ * section is saved again, which a save does even unchanged.
+ */
 export interface SettingsSection {
   readonly name: string;
   readonly values: JsonObject;
   readonly version: number;
   readonly updatedAt: Iso | null;
+  readonly verified?: boolean;
 }
 
 /** `GET /api/backup` (settings.DatabaseBackupJob.Status). */

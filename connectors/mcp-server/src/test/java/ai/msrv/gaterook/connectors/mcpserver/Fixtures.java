@@ -165,6 +165,10 @@ final class Fixtures {
     final JsonNode payload;
     final Egress egress;
     final List<String> taints = new CopyOnWriteArrayList<>();
+    /** What the client heard: "3.0/3.0 step 3", "warning steps: almost done". */
+    final List<String> heard = new CopyOnWriteArrayList<>();
+    boolean progressWanted;
+    String logLevel;
 
     Context(Duration timeout, boolean approved, JsonNode payload, Egress egress) {
       this.limits = Fixtures.limits(timeout);
@@ -180,6 +184,10 @@ final class Fixtures {
 
     static Context approved(JsonNode payload) {
       return new Context(Duration.ofSeconds(30), true, payload, null);
+    }
+
+    static Context approved(JsonNode payload, Duration timeout) {
+      return new Context(timeout, true, payload, null);
     }
 
     @Override
@@ -279,6 +287,33 @@ final class Fixtures {
     public void taint(CharSequence value) {
       taints.add(value.toString());
     }
+
+    /** A client that asked for progress and for log messages from {@code level} on. */
+    Context listening(String level) {
+      progressWanted = true;
+      logLevel = level;
+      return this;
+    }
+
+    @Override
+    public boolean wantsProgress() {
+      return progressWanted;
+    }
+
+    @Override
+    public void progress(double progress, Double total, String message) {
+      heard.add(progress + "/" + total + " " + message);
+    }
+
+    @Override
+    public String clientLogLevel() {
+      return logLevel;
+    }
+
+    @Override
+    public void clientLog(String level, String logger, JsonNode data) {
+      heard.add(level + " " + logger + ": " + (data == null ? "" : data.asString()));
+    }
   }
 
   /** What the core does as the runtime's host, recorded. */
@@ -289,7 +324,11 @@ final class Fixtures {
     final List<McpServerRuntime.Handshake> handshakes = new CopyOnWriteArrayList<>();
     final List<McpServerRuntime.ProcessView> states = new CopyOnWriteArrayList<>();
     final List<String> wanted = new CopyOnWriteArrayList<>();
+    /** What the servers said outside any call: a changed list ({@code resources}, {@code prompts}) or an update. */
+    final List<String> notices = new CopyOnWriteArrayList<>();
     final Set<String> reserved = new LinkedHashSet<>(List.of("sql_query", "approval_status"));
+    /** The core's listeners a test says it has: closed to sandboxed servers at their next start. */
+    volatile Set<Integer> corePorts = Set.of();
 
     Host(Path home) {
       this.home = home;
@@ -298,6 +337,11 @@ final class Fixtures {
     @Override
     public Path home() {
       return home;
+    }
+
+    @Override
+    public Set<Integer> corePorts() {
+      return corePorts;
     }
 
     @Override
@@ -319,6 +363,16 @@ final class Fixtures {
     @Override
     public void wanted(String connectionId) {
       wanted.add(connectionId);
+    }
+
+    @Override
+    public void listChanged(String connectionId, String what) {
+      notices.add(what);
+    }
+
+    @Override
+    public void resourceUpdated(String connectionId, String uri) {
+      notices.add("updated " + uri);
     }
 
     @Override

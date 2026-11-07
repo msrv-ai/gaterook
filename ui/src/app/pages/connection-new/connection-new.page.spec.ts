@@ -21,7 +21,7 @@ import { ToastService } from '../../kit/toast.service';
 import { ConnectionNewPage } from './connection-new.page';
 
 /**
- * Add connection against the kit's page script (design/pages/connection-new.html): the four steps with their focus
+ * Add connection against the kit's page script: the four steps with their focus
  * and announcements, what the test shows, the endpoints a connection may join, Save, the duplicate and the edit view
  * with its dialogs. The admin API is faked at the service level with canonical connector schemas.
  */
@@ -233,6 +233,8 @@ class FakeCore {
   spec: ConnectionFormSpec = structuredClone(SPEC);
   catalog: ConnectorCatalog | ApiError = structuredClone(CATALOG);
   replaced: { id: string; value: string; reason: string | null | undefined }[] = [];
+  references: { id: string; uri: string; store: string | null | undefined; reason: string | null | undefined }[] = [];
+  referenceFails: ApiError[] = [];
   /** Nothing set up yet: no connection, no endpoint (Add connection's first run). */
   empty = false;
   endpointsCreated: { slug: string; startFrom: string }[] = [];
@@ -356,6 +358,13 @@ beforeEach(() => {
   const policies: Partial<PoliciesApi> = { all: vi.fn(async () => POLICIES), schema: vi.fn(async () => structuredClone(POLICY_SCHEMA)) };
   const secrets: Partial<SecretsApi> = {
     list: vi.fn(async () => [{ id: 'sec-1', rotatedAt: '2026-10-20T09:14:00Z', canRotate: false, rotateReason: "This connector can't issue a new value for itself." } as SecretRow]),
+    testReference: vi.fn(async () => ({ found: true, resolvedVersion: '4', created: null, type: 'string', keys: [] })),
+    setReference: vi.fn(async (id: string, uri: string, store?: string | null, reason?: string | null) => {
+      core.references.push({ id, uri, store, reason });
+      const fail = core.referenceFails.shift();
+      if (fail) throw fail;
+      return { id, name: 'cache/password', owner: 'cache', field: '/credentials/password', source: 'vault', ref: uri, store: store ?? null, remoteVersion: null, state: 'reference' };
+    }),
     replace: vi.fn(async (id: string, r: { value: string; reason?: string | null }) => {
       core.replaced.push({ id, value: r.value, reason: r.reason });
       return { id, version: 4, state: 'stored', tested: null, testMessage: null };
@@ -1051,7 +1060,7 @@ describe('Add connection: wizard', () => {
     const p = await open();
     await toTest(p);
     expect(text(p.q('#step-3 .gw-alert--danger .gw-alert__title'))).toBe("Can't reach db.dev.internal:5432");
-    // The failed step's marker is an x (COMPONENTS.md stepper): no number, "failed" for screen readers.
+    // The failed step's marker is an x (stepper): no number, "failed" for screen readers.
     expect(p.steps()[2]).toBe("error:Test, failed Can't reach db.dev.internal:5432");
     p.button('Continue', p.q('#step-3')!).click();
     await p.settle();
@@ -1302,7 +1311,300 @@ describe('Add connection: duplicate', () => {
   });
 });
 
+describe('Connection: edit view with references', () => {
+  const VAULTS = [
+    { id: 'local', label: 'Encrypted here', available: true, reason: null },
+    { id: 'vault', label: 'HashiCorp Vault', available: true, reason: null, store: 'vault-dev', detail: 'https://vault.dev.example.test' },
+    { id: 'vault', label: 'HashiCorp Vault', available: true, reason: null, store: 'vault-stage', detail: 'https://vault.stage.example.test' },
+  ];
+
+  /** A Redis connection whose password is a reference into vault-dev (no database discovery to redo). */
+  function cacheWithReference(env: 'dev' | 'prod' = 'dev') {
+    core.spec = { ...structuredClone(SPEC), type: 'redis', name: 'Redis', schema: CONNECTOR_FORMS['redis'], secretSources: VAULTS };
+    core.detail = {
+      ...structuredClone(DETAIL), name: 'cache', type: 'redis', typeName: 'Redis', env,
+      config: { connection: { host: 'cache.dev.internal', port: 6379 } },
+      secrets: [{ field: '/credentials/password', secretId: 'sec-1', name: 'cache/password', state: 'reference', version: null, source: 'vault' }],
+    } as ConnectionDetail;
+    vi.mocked(TestBed.inject(SecretsApi).list).mockResolvedValue([
+      { id: 'sec-1', ref: 'vault://kv/dev/cache#password', store: 'vault-dev', canRotate: false } as SecretRow,
+    ]);
+  }
+
+  /** Picks where a field's value comes from in its menu (Text, a store), as the person does. */
+  async function pick(p: Awaited<ReturnType<typeof open>>, field: string, value: string) {
+    p.q<HTMLButtonElement>(`#cf-${field}-src`)!.click();
+    await p.settle();
+    p.q<HTMLElement>(`#cf-${field}-src-menu [data-value="${value}"]`)!.click();
+    await p.settle();
+  }
+
+  it.each([
+    { reason: 'not-found', error: 'No secret at kv/dev/cache.', title: 'Reference of cache not found' },
+    { reason: 'not-found', error: 'Key "password" was not found in this secret. Check the key after # in the reference.', title: 'Reference of cache not found' },
+    { reason: 'denied', error: "The gateway's token can't read kv/data/dev/cache.", title: 'Access to reference of cache denied' },
+    { reason: 'unavailable', error: 'The Vault token has expired. Sign in again.', title: 'Secret store unavailable' },
+    { reason: 'unavailable', error: 'Vault could not be reached. Check network access.', title: 'Secret store unavailable' },
+    { reason: 'gone', error: 'Version 3 of kv/dev/cache is destroyed.', title: 'Reference of cache is no longer available' },
+    { reason: 'invalid', error: 'Vault cannot use this reference with the configured engine.', title: 'Reference of cache is invalid' },
+    { reason: 'not-connected', error: "HashiCorp Vault isn't connected: connect it in Secrets › External stores.", title: 'Secret store is not connected' },
+  ])('reference test shows the $reason diagnostic: $error', async ({ reason, error, title }) => {
+    cacheWithReference();
+    vi.mocked(TestBed.inject(SecretsApi).testReference).mockResolvedValue({
+      found: false, resolvedVersion: null, created: null, type: null, keys: [], reason, error,
+    });
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Test reference"]')!.click();
+    await p.settle();
+    expect(TestBed.inject(SecretsApi).testReference).toHaveBeenCalledExactlyOnceWith('vault://kv/dev/cache#password', 'vault-dev');
+    expect(TestBed.inject(ToastService).toasts().at(-1)).toMatchObject({ tone: 'danger', title, body: error });
+    expect(core.updates).toEqual([]);
+    expect(core.references).toEqual([]);
+  });
+
+  it('reference test omits a large sibling-key list returned by an older core', async () => {
+    cacheWithReference();
+    const keys = Array.from({ length: 1000 }, (_, i) => `service-${i}.credential`).join(', ');
+    vi.mocked(TestBed.inject(SecretsApi).testReference).mockResolvedValue({
+      found: false, resolvedVersion: null, created: null, type: null, keys: [], reason: 'not-found',
+      error: `kv/dev/cache has no key "password". Keys: ${keys}`,
+    });
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Test reference"]')!.click();
+    await p.settle();
+    expect(TestBed.inject(ToastService).toasts().at(-1)).toMatchObject({
+      tone: 'danger', title: 'Reference of cache not found',
+      body: 'kv/dev/cache has no key "password". Check the key after # in the reference.',
+    });
+    expect(core.updates).toEqual([]);
+  });
+
+  it('reference test keeps an oversized permission error actionable and compact', async () => {
+    cacheWithReference();
+    vi.mocked(TestBed.inject(SecretsApi).testReference).mockResolvedValue({
+      found: false, resolvedVersion: null, created: null, type: null, keys: [], reason: 'denied',
+      error: `The gateway's token cannot read ${'long/path/'.repeat(500)}.`,
+    });
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Test reference"]')!.click();
+    await p.settle();
+    expect(TestBed.inject(ToastService).toasts().at(-1)).toMatchObject({
+      tone: 'danger', title: 'Access to reference of cache denied',
+      body: 'Check the selected store identity and its permission to read this secret.',
+    });
+  });
+
+  it.each([
+    { reason: 'denied', error: null, title: 'Access to reference of cache denied', body: 'permission to read this secret' },
+    { reason: 'unavailable', error: ' ', title: 'Secret store unavailable', body: 'network access and sign-in' },
+    { reason: null, error: null, title: "Couldn't test the reference of cache", body: 'Check the selected store connection' },
+    { reason: 'future-reason', error: 'The reference test did not finish.', title: "Couldn't test the reference of cache", body: 'The reference test did not finish.' },
+  ])('reference test handles absent or unknown diagnostics without claiming a missing path ($reason)', async ({ reason, error, title, body }) => {
+    cacheWithReference();
+    vi.mocked(TestBed.inject(SecretsApi).testReference).mockResolvedValue({
+      found: false, resolvedVersion: null, created: null, type: null, keys: [], reason, error,
+    });
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Test reference"]')!.click();
+    await p.settle();
+    const toast = TestBed.inject(ToastService).toasts().at(-1)!;
+    expect(toast.title).toBe(title);
+    expect(toast.body).toContain(body);
+    expect(toast.title).not.toContain('not found');
+  });
+
+  it('reference test success shows version metadata without adding secret details', async () => {
+    cacheWithReference();
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Test reference"]')!.click();
+    await p.settle();
+    expect(TestBed.inject(ToastService).toasts().at(-1)).toMatchObject({
+      tone: 'success', title: 'Reference of cache works', body: 'Found version 4. The value was neither shown nor kept.',
+    });
+    expect(core.references).toEqual([]);
+    expect(core.replaced).toEqual([]);
+  });
+
+  it('Change opens the stored reference in its Vault and saves the new one after the settings', async () => {
+    cacheWithReference();
+    const p = await open('/connections/cache');
+    expect(p.q('input[name="cf-src"]')).toBeNull();
+    p.q<HTMLButtonElement>('button[aria-label^="Change reference"]')!.click();
+    await p.settle();
+    expect(p.q<HTMLInputElement>('#cf-credentials-password')!.value).toBe('vault://kv/dev/cache#password');
+    expect(text(p.q('#cf-credentials-password-src'))).toBe('vault-dev');
+    await p.type('cf-credentials-password', 'vault://kv/dev/cache-v2#password');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates).toHaveLength(1);
+    expect(core.updates[0]).not.toHaveProperty('secrets');
+    expect(core.references).toEqual([{ id: 'sec-1', uri: 'vault://kv/dev/cache-v2#password', store: 'vault-dev', reason: null }]);
+  });
+
+  it('tests an edited stored reference without saving its new target', async () => {
+    cacheWithReference();
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Change reference"]')!.click();
+    await p.settle();
+    await p.type('cf-credentials-password', 'vault://kv/dev/cache-v2#password');
+    p.q<HTMLButtonElement>('#edit-test')!.click();
+    await p.settle();
+    expect(core.tests).toHaveLength(1);
+    expect(core.tests[0]).toMatchObject({ existing: 'cache', secrets: {
+      '/credentials/password': { source: 'reference', ref: 'vault://kv/dev/cache-v2#password', store: 'vault-dev' },
+    } });
+    expect(core.references).toEqual([]);
+    expect(core.updates).toEqual([]);
+    expect(TestBed.inject(ConnectionsApi).test).not.toHaveBeenCalled();
+  });
+
+  it("picking another Vault in the field's menu moves the stored reference there, with the same path", async () => {
+    cacheWithReference();
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Change reference"]')!.click();
+    await p.settle();
+    await pick(p, 'credentials-password', 'vault/vault-stage');
+    expect(p.q<HTMLInputElement>('#cf-credentials-password')!.value).toBe('vault://kv/dev/cache#password');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates).toHaveLength(1);
+    expect(core.references).toEqual([{ id: 'sec-1', uri: 'vault://kv/dev/cache#password', store: 'vault-stage', reason: null }]);
+  });
+
+  it('saving without a change of reference sends none', async () => {
+    cacheWithReference();
+    const p = await open('/connections/cache');
+    await p.type('cf-connection-host', 'cache2.dev.internal');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates).toHaveLength(1);
+    expect(core.references).toEqual([]);
+  });
+
+  it('on prod the changed reference waits for a comment, which goes with it', async () => {
+    cacheWithReference('prod');
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Change reference"]')!.click();
+    await p.settle();
+    await p.type('cf-credentials-password', 'vault://kv/prod/cache#password');
+    p.button('Save changes').click();
+    await p.settle();
+    const dialog = document.getElementById('dlg-comment') as HTMLDialogElement;
+    expect(dialog.open).toBe(true);
+    expect(text(dialog.querySelector('#dlg-comment-t'))).toBe('Save the new password reference of cache?');
+    expect(core.updates).toEqual([]);
+    const area = dialog.querySelector<HTMLTextAreaElement>('#dlg-comment-text')!;
+    area.value = 'moved to the prod path';
+    area.dispatchEvent(new Event('input', { bubbles: true }));
+    dialog.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await p.settle();
+    expect(core.updates).toHaveLength(1);
+    expect(core.references).toEqual([{ id: 'sec-1', uri: 'vault://kv/prod/cache#password', store: 'vault-dev', reason: 'moved to the prod path' }]);
+  });
+
+  it('a reference the core refuses leaves the saved settings and says why', async () => {
+    cacheWithReference();
+    core.referenceFails = [new ApiError('unprocessable', 422, { title: 'Check the reference', detail: 'kv/missing is not a KV path.' })];
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Change reference"]')!.click();
+    await p.settle();
+    await p.type('cf-credentials-password', 'vault://kv/missing#password');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates).toHaveLength(1);
+    const toasts = TestBed.inject(ToastService).toasts();
+    expect(toasts.at(-1)).toMatchObject({ tone: 'danger', title: "The password reference of cache didn't change" });
+    expect(toasts.at(-1)!.body).toContain('kv/missing is not a KV path.');
+  });
+
+  it('a stored reference stays in its store: Text in its menu says why instead of being picked', async () => {
+    cacheWithReference();
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Change reference"]')!.click();
+    await p.settle();
+    const option = p.q<HTMLElement>('#cf-credentials-password-src-menu [data-value="text"]')!;
+    expect(option.getAttribute('aria-disabled')).toBe('true');
+    expect(text(option)).toContain('A secret read from a store stays there: change its reference instead.');
+    await pick(p, 'credentials-password', 'text');
+    expect(p.q<HTMLInputElement>('#cf-credentials-password')!.value).toBe('vault://kv/dev/cache#password');
+  });
+
+  it('a user typed in place of a stored reference goes with the settings, and a new reference with them too', async () => {
+    cacheWithReference();
+    const detail = core.detail as ConnectionDetail;
+    core.detail = { ...detail, secrets: [...detail.secrets,
+      { field: '/credentials/user', secretId: 'sec-2', name: 'cache/user', state: 'reference', version: null, source: 'vault' }] } as ConnectionDetail;
+    vi.mocked(TestBed.inject(SecretsApi).list).mockResolvedValue([
+      { id: 'sec-1', ref: 'vault://kv/dev/cache#password', store: 'vault-dev', canRotate: false } as SecretRow,
+      { id: 'sec-2', ref: 'vault://kv/dev/cache#username', store: 'vault-dev', canRotate: false } as SecretRow,
+    ]);
+    const p = await open('/connections/cache');
+    p.q<HTMLButtonElement>('button[aria-label^="Change ACL user reference"]')!.click();
+    await p.settle();
+    await pick(p, 'credentials-user', 'text');
+    await p.type('cf-credentials-user', 'app');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates).toHaveLength(1);
+    expect(core.updates[0]).toMatchObject({ config: { credentials: { user: 'app' } } });
+    expect(core.updates[0]).not.toHaveProperty('secrets');
+    expect(core.references).toEqual([]);
+  });
+
+  it('a value typed where a reference is stored is refused instead of dropped', async () => {
+    cacheWithReference();
+    const p = await open('/connections/cache');
+    const page = p.page() as unknown as { saveEdit(value: unknown): Promise<void> };
+    await page.saveEdit({ name: 'cache', env: 'dev', config: { connection: { host: 'cache.dev.internal', port: 6379 } },
+      secrets: { '/credentials/password': { source: 'local', value: 'typed-here' } } });
+    await p.settle();
+    expect(text(p.q('#connection-form-error'))).toContain("can't be turned into a value stored here");
+    expect(core.updates).toEqual([]);
+    expect(core.references).toEqual([]);
+  });
+});
+
 describe('Connection: edit view', () => {
+  it('keeps the shared Save changes bar visible on Tools and submits the mounted settings draft', async () => {
+    const p = await open('/connections/dev-db');
+    const form = p.q<HTMLFormElement>('#cf-form')!;
+    const actions = p.q('#edit-connection-actions')!;
+    const save = p.button('Save changes');
+    expect(save.form).toBe(form);
+    expect(actions.parentElement).toBe(p.el);
+    expect(p.el.classList.contains('gw-form--sticky-actions')).toBe(true);
+    await p.type('cf-credentials-user', 'draft_user');
+    p.button('Load databases').click();
+    await p.settle();
+    p.q<HTMLButtonElement>('#connection-tools-tab')!.click();
+    await p.settle();
+
+    expect(p.q<HTMLElement>('#connection-settings')!.hidden).toBe(true);
+    expect(actions.closest('[hidden]')).toBeNull();
+    expect(p.q('#cf-form')).toBe(form);
+    expect(p.q<HTMLInputElement>('#cf-credentials-user')!.value).toBe('draft_user');
+    save.click();
+    await p.settle();
+    expect(core.updates).toHaveLength(1);
+    expect(core.updates[0].config).toMatchObject({ credentials: { user: 'draft_user' } });
+    expect(core.updates[0].version).toBe(DETAIL.version);
+  });
+
+  it('discards the settings draft from the shared action bar while Tools is selected', async () => {
+    const p = await open('/connections/dev-db');
+    const user = p.q<HTMLInputElement>('#cf-credentials-user')!.value;
+    await p.type('cf-credentials-user', 'draft_user');
+    p.q<HTMLButtonElement>('#connection-tools-tab')!.click();
+    await p.settle();
+    const discard = p.button('Discard');
+    expect(discard.closest('[hidden]')).toBeNull();
+    discard.click();
+    await p.settle();
+    expect(p.q<HTMLInputElement>('#cf-credentials-user')!.value).toBe(user);
+    expect(core.updates).toEqual([]);
+    expect(p.q<HTMLElement>('#used-by')!.hidden).toBe(false);
+  });
+
   it('changes a tool mode immediately without saving or replacing the connection draft', async () => {
     core.endpointTools = TOOLS.map((tool) => row(tool.name, tool.name === 'sql_execute' ? 'APPROVAL' : 'READ_ONLY'));
     vi.mocked(TestBed.inject(EndpointsApi).tools).mockImplementation(async () => [{
@@ -1334,6 +1636,42 @@ describe('Connection: edit view', () => {
     expect(p.q('#connection-form-error')).toBeNull();
   });
 
+  it.each([
+    ['/config/credentials/user', '#cf-credentials-user'],
+    ['/config', '#connection-form-error'],
+  ])('reveals Settings before focusing a delayed update error for %s', async (field, target) => {
+    let reject!: (error: ApiError) => void;
+    vi.mocked(TestBed.inject(ConnectionsApi).update).mockReturnValueOnce(new Promise((_resolve, fail) => { reject = fail; }));
+    const p = await open('/connections/dev-db');
+    p.button('Save changes').click();
+    await p.settle();
+    p.q<HTMLButtonElement>('#connection-tools-tab')!.click();
+    await p.settle();
+    expect(p.q<HTMLElement>('#connection-settings')!.hidden).toBe(true);
+
+    reject(new ApiError('unprocessable', 422, { title: 'Invalid connection', errors: [{ field, message: 'Review this setting.' }] }));
+    await p.settle();
+    expect(p.q<HTMLElement>('#connection-settings')!.hidden).toBe(false);
+    expect(p.q<HTMLElement>('#used-by')!.hidden).toBe(true);
+    expect(p.q('#connection-settings-tab')!.getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(p.q(target));
+    expect(text(p.q('#cf-form'))).toContain('Review this setting.');
+  });
+
+  it('reveals Settings before focusing validation when Save changes is clicked from Tools', async () => {
+    const p = await open('/connections/dev-db');
+    await p.type('cf-credentials-user', '');
+    p.q<HTMLButtonElement>('#connection-tools-tab')!.click();
+    await p.settle();
+    expect(p.q<HTMLElement>('#connection-settings')!.hidden).toBe(true);
+    p.button('Save changes').click();
+    await p.settle();
+    expect(p.q<HTMLElement>('#connection-settings')!.hidden).toBe(false);
+    expect(p.q<HTMLElement>('#used-by')!.hidden).toBe(true);
+    expect(document.activeElement).toBe(p.q('#cf-credentials-user'));
+    expect(core.updates).toEqual([]);
+  });
+
   it('keeps a saved database and requests stored-secret consent before discovering on a new host', async () => {
     core.nextDiscovery = new ApiError('conflict', 409, {
       title: 'Send the stored password to db2.internal?', detail: 'The password will be used to load databases.', confirm: 'send-secret-to-new-host',
@@ -1353,6 +1691,101 @@ describe('Connection: edit view', () => {
     expect(core.discoveries[1].confirm).toBe('send-secret-to-new-host');
     expect(p.q<HTMLInputElement>('#cf-database-0')!.checked).toBe(true);
     expect(core.updates).toEqual([]);
+  });
+
+  it('shows the incomplete import checklist and blocks enabling access until setup is completed', async () => {
+    core.detail = { ...structuredClone(DETAIL), enabled: false, setupRequired: true,
+      setupMissingFields: ['/connection/host', '/credentials/password'],
+      setupSources: [{ field: '/credentials/password', source: 'reference', reference: 'vault://secret/example/dev#password', instructions: 'The deployment obtains DB_PASSWORD from this secret.' }] };
+    const p = await open('/connections/dev-db');
+    expect(text(p.q('#finish-setup-title'))).toContain('Finish setup for dev-db');
+    expect(p.el.textContent).toContain('/connection/host');
+    expect(p.el.textContent).toContain('vault://secret/example/dev#password');
+    expect(p.el.textContent).toContain('DB_PASSWORD');
+    expect(text(p.q('.gw-page-header__meta .gw-status'))).toBe('Needs setup');
+    p.q<HTMLInputElement>('gw-access-switch input')!.click();
+    await p.settle();
+    expect(TestBed.inject(ConnectionsApi).setEnabled).not.toHaveBeenCalled();
+  });
+
+  it('includes newly entered missing credentials when finishing an imported connection', async () => {
+    core.detail = { ...structuredClone(DETAIL), enabled: false, setupRequired: true,
+      setupMissingFields: ['/credentials/password'], secrets: [] };
+    const p = await open('/connections/dev-db');
+    await p.type('cf-credentials-password', 'fixture-completion-password');
+    p.button('Load databases').click();
+    await p.settle();
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates[0]?.secrets).toEqual({ '/credentials/password': { source: 'local', value: 'fixture-completion-password' } });
+    expect(TestBed.inject(ConnectionsApi).setEnabled).not.toHaveBeenCalled();
+  });
+
+  it('restores unresolved imported login references as drafts and sends them only after the user saves', async () => {
+    core.spec = { ...structuredClone(SPEC), secretSources: [
+      ...SPEC.secretSources,
+      { id: 'vault', label: 'Vault', store: 'vault-dev', available: true, reason: null },
+    ] };
+    core.detail = { ...structuredClone(DETAIL), enabled: false, setupRequired: true,
+      config: { connection: structuredClone(DETAIL.config['connection']) }, secrets: [],
+      setupMissingFields: ['/credentials/user', '/credentials/password'],
+      setupSources: [
+        { field: '/credentials/user', source: 'reference', reference: 'vault://kv/dev/example#user', store: 'vault-dev' },
+        { field: '/credentials/password', source: 'reference', reference: 'vault://kv/dev/example#password', store: 'vault-dev' },
+      ] };
+    const p = await open('/connections/dev-db');
+    expect(p.q<HTMLInputElement>('#cf-credentials-user')!.value).toBe('vault://kv/dev/example#user');
+    expect(p.q<HTMLInputElement>('#cf-credentials-password')!.value).toBe('vault://kv/dev/example#password');
+    expect(p.page().form()!.state().stored.size).toBe(0);
+    expect(core.updates).toEqual([]);
+    expect(core.tests).toEqual([]);
+    expect(core.references).toEqual([]);
+    p.button('Load databases').click();
+    await p.settle();
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates[0]?.secrets).toEqual({
+      '/credentials/user': { source: 'reference', ref: 'vault://kv/dev/example#user', store: 'vault-dev' },
+      '/credentials/password': { source: 'reference', ref: 'vault://kv/dev/example#password', store: 'vault-dev' },
+    });
+    expect(core.updates[0]?.config['credentials'] ?? {}).toEqual({});
+    expect(TestBed.inject(ConnectionsApi).setEnabled).not.toHaveBeenCalled();
+  });
+
+  it('keeps an absent imported host empty and requires the missing reference store before finishing setup', async () => {
+    core.detail = { ...structuredClone(DETAIL), enabled: false, setupRequired: true, config: {}, secrets: [],
+      setupMissingFields: ['/connection/host', '/credentials/password'],
+      setupSources: [
+        { field: '/credentials/user', source: 'reference', reference: 'vault://kv/dev/example#user', store: 'vault-unavailable' },
+        { field: '/credentials/password', source: 'reference', reference: 'vault://kv/dev/example#password', store: 'vault-unavailable' },
+        { field: '/connection/host', source: 'reference', reference: 'vault://kv/dev/example#host' },
+      ] };
+    const p = await open('/connections/dev-db');
+    expect(p.q<HTMLInputElement>('#cf-connection-host')!.value).toBe('');
+    expect(text(p.q('#cf-credentials-password-src'))).toBe('vault-unavailable');
+    expect(p.el.textContent).toContain('The reference names vault-unavailable, but no connected store matches this name.');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates).toEqual([]);
+    expect(core.references).toEqual([]);
+    expect(TestBed.inject(ConnectionsApi).setEnabled).not.toHaveBeenCalled();
+  });
+
+  it('does not send an unsaved existing credential replacement through setup completion', async () => {
+    core.detail = { ...structuredClone(DETAIL), enabled: false, setupRequired: true,
+      setupMissingFields: ['/connection/host'] };
+    const p = await open('/connections/dev-db');
+    const form = p.page().form()!;
+    const node = form.state().compiled.all.find(field => field.pointer === '/credentials/password')!;
+    form.state().replace(node, true);
+    form.state().setSecret(node, 'fixture-replacement-password');
+    await p.settle();
+    p.button('Load databases').click();
+    await p.settle();
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates).toEqual([]);
+    expect(text(p.q('#connection-form-error'))).toContain('Save credential replacements first');
   });
 
   it('changes access immediately without losing draft fields and saves with the refreshed version', async () => {
@@ -1446,6 +1879,66 @@ describe('Connection: edit view', () => {
     expect(text(p.q('.gw-secret[data-state=stored]'))).toContain('version 3');
   });
 
+  it('shows an attached connection with no tools without claiming its endpoint is missing', async () => {
+    core.detail = { ...structuredClone(DETAIL), name: 'search-dev', usedBy: [] };
+    vi.mocked(TestBed.inject(ConnectionsApi).list).mockResolvedValueOnce({
+      items: [{ name: 'search-dev', host: 'search.example.test:9200', usedBy: ['dev'] }], facets: {}, total: 1,
+    } as never);
+    const p = await open('/connections/search-dev');
+    expect(Array.from(p.el.querySelectorAll('.gw-stat')).map(text)[1]).toBe('Used by 1endpoint 0 tools on dev · Claude Desktop and Codex');
+    p.q<HTMLButtonElement>('#connection-tools-tab')!.click();
+    await p.settle();
+    expect(text(p.q('#used-by .gw-empty__title'))).toBe('No tools available');
+    expect(text(p.q('#used-by'))).not.toContain('Not on an endpoint yet');
+    expect(p.q<HTMLAnchorElement>('#used-by .gw-empty__actions a')!.getAttribute('href')).toBe('/endpoints/dev?tab=tools');
+  });
+
+  it('still shows the attach action when a connection has no saved endpoint membership', async () => {
+    core.detail = { ...structuredClone(DETAIL), usedBy: [] };
+    vi.mocked(TestBed.inject(ConnectionsApi).list).mockResolvedValueOnce({
+      items: [{ name: 'dev-db', usedBy: [] }], facets: {}, total: 1,
+    } as never);
+    const p = await open('/connections/dev-db');
+    expect(Array.from(p.el.querySelectorAll('.gw-stat')).map(text)[1]).toContain('Used by 0endpoints');
+    expect(text(p.q('#used-by .gw-empty__title'))).toBe('Not on an endpoint yet');
+    expect(p.q<HTMLAnchorElement>('#used-by .gw-empty__actions a')!.getAttribute('href')).toBe('/endpoints');
+  });
+
+  it('switches Settings and Tools with the keyboard without losing unsaved settings', async () => {
+    const p = await open('/connections/dev-db');
+    const settings = p.q<HTMLElement>('#connection-settings')!;
+    const tools = p.q<HTMLElement>('#used-by')!;
+    const settingsTab = p.q<HTMLButtonElement>('#connection-settings-tab')!;
+    const toolsTab = p.q<HTMLButtonElement>('#connection-tools-tab')!;
+    const form = p.q<HTMLFormElement>('#cf-form')!;
+    expect(text(settingsTab)).toBe('Settings');
+    expect(text(toolsTab)).toBe('Tools');
+    expect(settings.hidden).toBe(false);
+    expect(tools.hidden).toBe(true);
+    expect(settings.contains(p.q('#delete-connection'))).toBe(true);
+    await p.type('cf-credentials-user', 'unsaved_reader');
+
+    settingsTab.focus();
+    settingsTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    await p.settle();
+    expect(document.activeElement).toBe(toolsTab);
+    expect(toolsTab.getAttribute('aria-selected')).toBe('true');
+    expect(settings.hidden).toBe(true);
+    expect(tools.hidden).toBe(false);
+    expect(tools.querySelector('gw-connection-tool-modes')).not.toBeNull();
+
+    toolsTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+    await p.settle();
+    expect(document.activeElement).toBe(settingsTab);
+    expect(settingsTab.getAttribute('aria-selected')).toBe('true');
+    expect(settings.hidden).toBe(false);
+    expect(tools.hidden).toBe(true);
+    expect(p.q('#cf-form')).toBe(form);
+    expect(p.q<HTMLInputElement>('#cf-credentials-user')!.value).toBe('unsaved_reader');
+    expect(core.updates).toEqual([]);
+    expect(core.modes).toEqual([]);
+  });
+
   it("lists the kubeconfig's contexts the core found (metadata, step API) and says how often health is checked", async () => {
     core.spec = {
       ...structuredClone(SPEC),
@@ -1505,6 +1998,10 @@ describe('Connection: edit view', () => {
 
   it('Test connection works in place on the button and says the result in a toast', async () => {
     const p = await open('/connections/dev-db');
+    const actions = p.q('#edit-connection-actions')!;
+    expect(p.q('#edit-test')!.parentElement).toBe(actions);
+    expect(p.q('#edit-test')!.nextElementSibling).toBe(p.button('Save changes'));
+    expect(p.q('.gw-page-header #edit-test')).toBeNull();
     p.q<HTMLButtonElement>('#edit-test')!.click();
     p.harness.detectChanges();
     expect(p.q('#edit-test')!.getAttribute('aria-busy')).toBe('true');
@@ -1512,6 +2009,180 @@ describe('Connection: edit view', () => {
     await p.settle();
     expect(p.q('#edit-test')!.hasAttribute('aria-busy')).toBe(false);
     expect(TestBed.inject(ToastService).toasts().map((t) => [t.title, t.body])).toEqual([['dev-db is healthy', 'Answered in 12 ms.']]);
+    expect(core.tests[0]).toMatchObject({ type: 'postgres', env: 'dev', existing: 'dev-db', secrets: {} });
+    expect(TestBed.inject(ConnectionsApi).test).not.toHaveBeenCalled();
+  });
+
+  it('tests unsaved settings from Tools and keeps the draft and saved health separate', async () => {
+    const p = await open('/connections/dev-db');
+    const api = TestBed.inject(ConnectionsApi);
+    const loaded = vi.mocked(api.get).mock.calls.length;
+    await p.type('cf-connection-host', 'draft.dev.internal');
+    await p.type('cf-credentials-user', 'draft_reader');
+    p.q<HTMLButtonElement>('#connection-tools-tab')!.click();
+    await p.settle();
+    const test = p.q<HTMLButtonElement>('#edit-test')!;
+    expect(test.closest('[hidden]')).toBeNull();
+    test.click();
+    await p.settle();
+
+    expect(core.tests).toHaveLength(1);
+    expect(core.tests[0]).toMatchObject({ existing: 'dev-db', secrets: {}, config: {
+      connection: { host: 'draft.dev.internal' }, credentials: { user: 'draft_reader' },
+    } });
+    expect(api.test).not.toHaveBeenCalled();
+    expect(api.get).toHaveBeenCalledTimes(loaded);
+    expect(core.updates).toEqual([]);
+    expect(p.q<HTMLInputElement>('#cf-connection-host')!.value).toBe('draft.dev.internal');
+    expect(p.q<HTMLInputElement>('#cf-credentials-user')!.value).toBe('draft_reader');
+  });
+
+  it('tests an imported connection with its newly entered missing credential before saving', async () => {
+    core.detail = { ...structuredClone(DETAIL), enabled: false, setupRequired: true,
+      setupMissingFields: ['/credentials/password'], secrets: [] };
+    const p = await open('/connections/dev-db');
+    await p.type('cf-credentials-password', 'fixture-unsaved-password');
+    const test = p.q<HTMLButtonElement>('#edit-test')!;
+    expect(test.getAttribute('aria-disabled')).not.toBe('true');
+    test.click();
+    p.harness.detectChanges();
+    expect(text(p.q('#edit-connection-actions #edit-checking'))).toBe('Checking dev-db');
+    await p.settle();
+
+    expect(core.tests[0]).toMatchObject({ existing: 'dev-db', secrets: {
+      '/credentials/password': { source: 'local', value: 'fixture-unsaved-password' },
+    } });
+    expect(TestBed.inject(ConnectionsApi).test).not.toHaveBeenCalled();
+    expect(TestBed.inject(ConnectionsApi).setEnabled).not.toHaveBeenCalled();
+    expect(core.updates).toEqual([]);
+    expect(core.replaced).toEqual([]);
+    expect(text(p.q('.gw-page-header__meta .gw-status'))).toBe('Needs setup');
+  });
+
+  it('tests an unsaved replacement of a stored credential without replacing it', async () => {
+    const p = await open('/connections/dev-db');
+    p.button('Replace').click();
+    await p.settle();
+    await p.type('cf-credentials-password', 'fixture-replacement-password');
+    p.q<HTMLButtonElement>('#edit-test')!.click();
+    await p.settle();
+    expect(core.tests[0]).toMatchObject({ existing: 'dev-db', secrets: {
+      '/credentials/password': { source: 'local', value: 'fixture-replacement-password' },
+    } });
+    expect(core.replaced).toEqual([]);
+    expect(core.updates).toEqual([]);
+    expect(p.q<HTMLInputElement>('#cf-credentials-password')!.value).toBe('fixture-replacement-password');
+  });
+
+  it('reveals Settings and focuses a refused test field when testing from Tools', async () => {
+    core.nextTest = new ApiError('unprocessable', 422, { title: 'Invalid connection',
+      errors: [{ field: '/config/credentials/user', message: 'This login is unavailable.' }] });
+    const p = await open('/connections/dev-db');
+    p.q<HTMLButtonElement>('#connection-tools-tab')!.click();
+    await p.settle();
+    p.q<HTMLButtonElement>('#edit-test')!.click();
+    await p.settle();
+    expect(p.q<HTMLElement>('#connection-settings')!.hidden).toBe(false);
+    expect(document.activeElement).toBe(p.q('#cf-credentials-user'));
+    expect(text(p.q('#cf-credentials-user-err'))).toContain('This login is unavailable.');
+    expect(core.updates).toEqual([]);
+  });
+
+  it('confirms sending stored credentials for the tested snapshot without saving it', async () => {
+    core.nextTest = new ApiError('conflict', 409, { title: 'Send the stored secret to a new host?',
+      detail: 'The stored password will be sent to draft.dev.internal.', confirm: 'send-secret-to-new-host' });
+    const p = await open('/connections/dev-db');
+    await p.type('cf-connection-host', 'draft.dev.internal');
+    p.q<HTMLButtonElement>('#edit-test')!.click();
+    await p.settle();
+    const dialog = document.getElementById('dlg-new-host') as HTMLDialogElement;
+    expect(dialog.open).toBe(true);
+    expect(text(document.activeElement)).toBe('Cancel');
+    const tested = structuredClone(core.tests[0]);
+    await p.type('cf-connection-host', 'later.dev.internal');
+    core.nextTest = OK;
+    p.button('Send and test', dialog).click();
+    await p.settle();
+    expect(core.tests).toHaveLength(2);
+    expect(core.tests[1]).toEqual({ ...tested, confirm: 'send-secret-to-new-host' });
+    expect(core.updates).toEqual([]);
+    expect(p.q<HTMLInputElement>('#cf-connection-host')!.value).toBe('later.dev.internal');
+  });
+
+  it('trusts a host key in the draft and tests again without saving or reloading', async () => {
+    core.nextTest = HOST_KEY;
+    const p = await open('/connections/dev-db');
+    await p.type('cf-credentials-user', 'draft_reader');
+    const api = TestBed.inject(ConnectionsApi);
+    const loaded = vi.mocked(api.get).mock.calls.length;
+    p.q<HTMLButtonElement>('#edit-test')!.click();
+    await p.settle();
+    const tested = structuredClone(core.tests[0].config);
+    const trusted = { ...tested, connection: { ...tested['connection'] as JsonObject, hostKey: 'ssh-ed25519 AAAA' } };
+    core.pendingConfirm = Promise.resolve({ kind: 'host-key', config: trusted, retest: null });
+    core.nextTest = OK;
+    p.button('Trust this key and test again', document.getElementById('dlg-trust')!).click();
+    await p.settle();
+    expect(api.confirmDraft).toHaveBeenCalledWith('cf-1');
+    expect(core.tests).toHaveLength(2);
+    expect(core.tests[1]).toMatchObject({ existing: 'dev-db', config: trusted });
+    expect(p.page().form()!.value().config).toMatchObject(trusted);
+    expect(p.q<HTMLInputElement>('#cf-credentials-user')!.value).toBe('draft_reader');
+    expect(core.updates).toEqual([]);
+    expect(api.get).toHaveBeenCalledTimes(loaded);
+  });
+
+  it('retains new-host consent through draft host-key trust and the subsequent test', async () => {
+    core.nextTest = new ApiError('conflict', 409, { title: 'Send the stored secret to a new host?',
+      detail: 'The stored password will be sent to draft.dev.internal.', confirm: 'send-secret-to-new-host' });
+    const p = await open('/connections/dev-db');
+    await p.type('cf-connection-host', 'draft.dev.internal');
+    p.q<HTMLButtonElement>('#edit-test')!.click();
+    await p.settle();
+    core.nextTest = HOST_KEY;
+    p.button('Send and test', document.getElementById('dlg-new-host')!).click();
+    await p.settle();
+    expect(core.tests).toHaveLength(2);
+    const tested = structuredClone(core.tests[1]);
+    const trusted = { ...tested.config,
+      connection: { ...tested.config['connection'] as JsonObject, hostKey: 'ssh-ed25519 AAAA' } };
+    core.pendingConfirm = Promise.resolve({ kind: 'host-key', config: trusted, retest: null });
+    core.nextTest = OK;
+    p.button('Trust this key and test again', document.getElementById('dlg-trust')!).click();
+    await p.settle();
+
+    expect(TestBed.inject(ConnectionsApi).confirmDraft).toHaveBeenCalledWith('cf-1');
+    expect(core.tests).toHaveLength(3);
+    expect(core.tests.map((request) => request.confirm ?? null)).toEqual([
+      null, 'send-secret-to-new-host', 'send-secret-to-new-host',
+    ]);
+    expect(core.tests[2]).toEqual({ ...tested, config: trusted });
+    expect(TestBed.inject(ConnectionsApi).test).not.toHaveBeenCalled();
+    expect(core.updates).toEqual([]);
+    expect(core.replaced).toEqual([]);
+    expect(core.references).toEqual([]);
+    expect(TestBed.inject(ToastService).toasts().at(-1)?.title).toBe('dev-db is healthy');
+  });
+
+  it('does not let a pending trust response overwrite a newer draft', async () => {
+    core.nextTest = HOST_KEY;
+    const p = await open('/connections/dev-db');
+    p.q<HTMLButtonElement>('#edit-test')!.click();
+    await p.settle();
+    const tested = structuredClone(core.tests[0].config);
+    let resolve!: (result: TestConfirmed) => void;
+    core.pendingConfirm = new Promise((done) => { resolve = done; });
+    p.button('Trust this key and test again', document.getElementById('dlg-trust')!).click();
+    await p.settle();
+    expect(TestBed.inject(ConnectionsApi).confirmDraft).toHaveBeenCalledWith('cf-1');
+    await p.type('cf-connection-host', 'later.dev.internal');
+    resolve({ kind: 'host-key', config: { ...tested,
+      connection: { ...tested['connection'] as JsonObject, hostKey: 'ssh-ed25519 AAAA' } }, retest: null });
+    await p.settle();
+    expect(p.q<HTMLInputElement>('#cf-connection-host')!.value).toBe('later.dev.internal');
+    expect(p.page().form()!.value().config['connection']).not.toHaveProperty('hostKey');
+    expect(core.tests).toHaveLength(1);
+    expect(core.updates).toEqual([]);
   });
 
   it('Save changes sends the version; a new host with a stored secret asks first, then sends the confirmation', async () => {
@@ -1709,7 +2380,7 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     expect(p.steps()).toEqual(['current:1 Choose type', 'upcoming:2 Configure', 'upcoming:3 Test', 'upcoming:4 Create endpoint']);
   });
 
-  it('Configure in plain words; the secret stays encrypted here, the secret managers wait behind their disclosure', async () => {
+  it("Configure in plain words; the secret stays encrypted here unless its field's menu picks a store", async () => {
     core.spec = {
       ...core.spec,
       secretSources: [
@@ -1728,18 +2399,15 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     expect(descriptions).toContain('Pick dev for your own work and test data. Prod turns on stricter rules.');
     expect(text(p.q('#cf-env-dev-d'))).toBe('Local work and test data. Changes to data still wait for your approval.');
     expect(text(p.q('#cf-credentials-password-hint'))).toBe('Encrypted on this computer when you save.');
-    const lock = () => Array.from(p.el.querySelectorAll('#cf-form .gw-text-small.gw-fg-secondary')).map(text);
-    expect(lock()).toEqual(['The password is stored encrypted on this computer. Nobody can view it afterwards, not even you.']);
-    const toggle = p.button('Use a secret manager instead (Vault, GCP, AWS)', p.q('#cf-form')!);
-    const sources = document.getElementById('cf-src-field')!;
-    expect([toggle.getAttribute('aria-expanded'), toggle.getAttribute('aria-controls'), sources.hidden]).toEqual(['false', 'cf-src-field', true]);
-    toggle.click();
+    // The secret is encrypted here unless a store is picked in its field's menu: no form-wide source to choose.
+    expect(p.q('#cf-src-field')).toBeNull();
+    expect(text(p.q('#cf-credentials-password-src'))).toBe('Text');
+    p.q<HTMLButtonElement>('#cf-credentials-password-src')!.click();
     await p.settle();
-    expect([toggle.getAttribute('aria-expanded'), sources.hidden]).toEqual(['true', false]);
-    // Every line about the secret follows the source picked.
-    sources.querySelector<HTMLInputElement>('input[value="vault"]')!.click();
+    expect(text(p.q('#cf-credentials-password-src-menu [data-value="text"]'))).toContain('Encrypted on this computer');
+    p.q<HTMLElement>('#cf-credentials-password-src-menu [data-value="vault/"]')!.click();
     await p.settle();
-    expect(lock()).toEqual(['The secret stays in your secret manager. GateRook reads it only when a call needs it.']);
+    expect(text(p.q('#cf-credentials-password-hint'))).toBe('Read from Vault at call time.');
   });
 
   it('step 4 shows the endpoint Save creates, named after the environment, and what the AI apps can do there', async () => {
@@ -1869,7 +2537,69 @@ function sshLogs() {
       logs: { root: '/var/log', allowedFiles: ['app.log'] } } };
 }
 
+const SSH_LOG_KEY = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG4q5cLnwuK6nh3KekSjpSxn3RUE8TATPm0X+fK02R8D';
+const firstSshLogHost = (host = 'logs.example.test') => outcome({
+  confirmationId: 'cf_ssh_first',
+  needsConfirmation: { kind: 'host-key', text: `First connection to ${host}:22.`, data: {
+    kind: 'host-key', host, port: 22, bastion: false, keyType: 'ssh-ed25519',
+    fingerprint: 'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', publicKey: SSH_LOG_KEY,
+  } },
+});
+
 describe('connection-new: SSH remote files', () => {
+  it('automatically pins the first browsed host only in the draft until Save changes', async () => {
+    sshLogs();
+    const p = await open('/connections/dev-db');
+    let finish!: (value: TestConfirmed) => void;
+    core.pendingConfirm = new Promise((resolve) => { finish = resolve; });
+    core.nextFiles = firstSshLogHost();
+    p.button('Browse folders').click(); await p.settle();
+    expect(TestBed.inject(ConnectionsApi).confirmDraft).toHaveBeenCalledExactlyOnceWith('cf_ssh_first');
+    expect(text(p.q('#cf-form'))).not.toContain('Trust host key and browse');
+    core.nextFiles = outcome({ ok: true, details: { path: '/var/log', parent: '/var', entries: [], truncated: false } });
+    finish({ kind: 'host-key', config: { ...(core.detail as ConnectionDetail).config, hostKeys: { pinned: [SSH_LOG_KEY] } }, retest: null });
+    await p.settle();
+    expect(core.fileRequests).toHaveLength(2);
+    expect(core.fileRequests[1].config['hostKeys']).toEqual({ pinned: [SSH_LOG_KEY] });
+    expect(p.page().form()!.value().config['hostKeys']).toEqual({ pinned: [SSH_LOG_KEY] });
+    expect((core.detail as ConnectionDetail).config['hostKeys']).toBeUndefined();
+    expect(core.updates).toEqual([]);
+    expect(core.created).toEqual([]);
+
+    p.button('Save changes').click(); await p.settle();
+    expect(core.updates).toHaveLength(1);
+    expect(core.updates[0].config['hostKeys']).toEqual({ pinned: [SSH_LOG_KEY] });
+  });
+
+  it.each(['ssh.host-key-changed', 'ssh.host-key-revoked'])('does not automatically trust %s while browsing', async (code) => {
+    sshLogs();
+    const p = await open('/connections/dev-db');
+    core.nextFiles = outcome({ error: { code, message: 'The previously trusted host key is no longer accepted.', technical: null } });
+    p.button('Browse folders').click(); await p.settle();
+    expect(TestBed.inject(ConnectionsApi).confirmDraft).not.toHaveBeenCalled();
+    expect(core.fileRequests).toHaveLength(1);
+    expect(core.updates).toEqual([]);
+    expect(p.page().form()!.value().config).not.toHaveProperty('hostKeys.pinned');
+    expect(text(p.q('#cf-form'))).toContain('previously trusted host key');
+  });
+
+  it('discards a late automatic host pin when the connection target changes', async () => {
+    sshLogs();
+    const p = await open('/connections/dev-db');
+    let finish!: (value: TestConfirmed) => void;
+    core.pendingConfirm = new Promise((resolve) => { finish = resolve; });
+    core.nextFiles = firstSshLogHost();
+    p.button('Browse folders').click(); await p.settle();
+    expect(TestBed.inject(ConnectionsApi).confirmDraft).toHaveBeenCalledExactlyOnceWith('cf_ssh_first');
+    await p.type('cf-connection-host', 'another.example.test');
+    finish({ kind: 'host-key', config: { ...(core.detail as ConnectionDetail).config, hostKeys: { pinned: [SSH_LOG_KEY] } }, retest: null });
+    await p.settle();
+    expect(p.page().form()!.value().config['connection']).toMatchObject({ host: 'another.example.test' });
+    expect(p.page().form()!.value().config).not.toHaveProperty('hostKeys.pinned');
+    expect(core.fileRequests).toHaveLength(1);
+    expect(core.updates).toEqual([]);
+  });
+
   it('uses stored credentials for edits and retries browsing only after consent to a changed host', async () => {
     sshLogs();
     const p = await open('/connections/dev-db');
@@ -1895,14 +2625,17 @@ describe('connection-new: SSH remote files', () => {
     await p.type('cf-connection-host', 'other.example.test');
     core.nextFiles = new ApiError('conflict', 409, { title: 'Send the stored password?', detail: 'The host changed.', confirm: 'send-secret-to-new-host' });
     p.button('Browse folders').click(); await p.settle();
-    core.nextFiles = HOST_KEY;
+    core.nextFiles = firstSshLogHost('other.example.test');
+    let finish!: (value: TestConfirmed) => void;
+    core.pendingConfirm = new Promise((resolve) => { finish = resolve; });
     p.button('Send and browse folders', p.q('#dlg-new-host')!).click(); await p.settle();
-    core.pendingConfirm = Promise.resolve({ kind: 'host-key', config: { hostKeys: { pinned: ['ssh-ed25519 AAAA'] } }, retest: OK });
+    expect(TestBed.inject(ConnectionsApi).confirmDraft).toHaveBeenCalledExactlyOnceWith('cf_ssh_first');
     core.nextFiles = outcome({ ok: true, details: { path: '/var/log', parent: '/var', entries: [], truncated: false } });
-    p.button('Trust host key and browse').click(); await p.settle();
+    finish({ kind: 'host-key', config: { hostKeys: { pinned: [SSH_LOG_KEY] } }, retest: null });
+    await p.settle();
     expect(core.fileRequests).toHaveLength(3);
     expect(core.fileRequests[2]).toMatchObject({ confirm: 'send-secret-to-new-host',
-      config: { connection: { host: 'other.example.test' }, hostKeys: { pinned: ['ssh-ed25519 AAAA'] } } });
+      config: { connection: { host: 'other.example.test' }, hostKeys: { pinned: [SSH_LOG_KEY] } } });
     await p.type('cf-connection-host', 'different.example.test');
     p.button('Browse folders').click(); await p.settle();
     expect(core.fileRequests[3].confirm).toBeUndefined();
@@ -1911,17 +2644,17 @@ describe('connection-new: SSH remote files', () => {
   it('does not restore file permissions removed while host-key confirmation is in flight', async () => {
     sshLogs();
     const p = await open('/connections/dev-db');
-    core.nextFiles = HOST_KEY;
-    p.button('Browse folders').click(); await p.settle();
+    core.nextFiles = firstSshLogHost();
     let finish!: (value: TestConfirmed) => void;
     core.pendingConfirm = new Promise((resolve) => { finish = resolve; });
-    p.button('Trust host key and browse').click(); await p.settle();
+    p.button('Browse folders').click(); await p.settle();
+    expect(TestBed.inject(ConnectionsApi).confirmDraft).toHaveBeenCalledExactlyOnceWith('cf_ssh_first');
     p.q<HTMLButtonElement>('button[aria-label="Remove allowed file app.log"]')!.click(); await p.settle();
     core.nextFiles = outcome({ ok: true, details: { path: '/var/log', parent: '/var', entries: [], truncated: false } });
-    finish({ kind: 'host-key', config: { ...(core.detail as ConnectionDetail).config, hostKeys: { pinned: ['ssh-ed25519 AAAA'] } }, retest: OK });
+    finish({ kind: 'host-key', config: { ...(core.detail as ConnectionDetail).config, hostKeys: { pinned: [SSH_LOG_KEY] } }, retest: null });
     await p.settle();
     expect(p.page().form()!.files()!.selected()).toEqual([]);
-    expect(p.page().form()!.value().config['hostKeys']).toEqual({ pinned: ['ssh-ed25519 AAAA'] });
+    expect(p.page().form()!.value().config['hostKeys']).toEqual({ pinned: [SSH_LOG_KEY] });
     expect(core.fileRequests).toHaveLength(2);
     expect(core.fileRequests[1].config['logs']).toMatchObject({ root: '/var/log' });
     expect(core.fileRequests[1].config['logs']).not.toHaveProperty('allowedFiles');

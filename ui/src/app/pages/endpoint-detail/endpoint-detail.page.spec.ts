@@ -226,6 +226,18 @@ async function cursorConnection(method: 'oauth' | 'token' = 'oauth') {
 }
 
 describe('Endpoint detail page', () => {
+  it('shows a manual app with its name and setup status and routes management to AI apps', async () => {
+    const base = clientsView().clients[0];
+    const manual = { ...base, client: 'manual-example' as const, name: 'Research assistant', manual: true, status: 'pending' as const, methods: [], links: [{ ...base.links[0], client: 'manual-example' as const, endpoint: 'dev', method: 'manual' as const, status: 'pending' as const }] };
+    setup(undefined, { api: { list: () => Promise.resolve({ ...clientsView(), clients: [manual] }) }, desktop: { available: false } });
+    const { el } = await render({ slug: 'dev', tab: 'clients' });
+    const panel = el.querySelector('#clients')!;
+    expect(text(panel)).toContain('Research assistant');
+    expect(text(panel)).toContain('Awaiting connection');
+    expect(panel.querySelector('[gwClientCard]')).toBeNull();
+    expect(panel.querySelector('a[href="/clients#cl-manual-example-t"]')).not.toBeNull();
+  });
+
   it('offers managed client cards on the selected endpoint in the Store Clients panel', async () => {
     const disconnectPreview = vi.fn();
     setup(undefined, { api: { list: () => Promise.resolve(clientsView()), disconnectPreview }, desktop: { available: true, windowsStore: true } });
@@ -424,10 +436,21 @@ describe('Endpoint detail page', () => {
     expect(text(el.querySelector('.gw-page-header__meta'))).toContain('MCP 2025-11-25 · 2026-07-28');
     expect(text(el.querySelector('#ep-signin'))).toBe('Tokens · OAuth off');
     expect(text(el.querySelector('a[href="/approvals"]'))).toBe('3 waiting for approval');
-    expect(el.querySelector('a[href="/activity?q=endpoint:dev"]')).not.toBeNull();
-    expect(el.querySelector('a[href="/playground?endpoint=dev"]')).not.toBeNull();
-    // One primary per level: none in the header.
-    expect(el.querySelectorAll('.gw-page-header .gw-btn--primary')).toHaveLength(0);
+    const actions = el.querySelector('.gw-page-header__actions')!;
+    expect(Array.from(actions.querySelectorAll('a, button')).filter(action => !action.closest('[role="menu"]')).map(action =>
+      action.getAttribute('aria-label') ?? text(action),
+    )).toEqual(['View activity of endpoint dev', 'More actions for endpoint dev']);
+    expect(actions.querySelector('a[href="/activity?q=endpoint:dev"]')).not.toBeNull();
+    const menu = actions.querySelector<HTMLElement>('#ep-menu')!;
+    expect(menu.hidden).toBe(true);
+    expect(menu.querySelector('a[href="/playground?endpoint=dev"]')?.getAttribute('role')).toBe('menuitem');
+    const importLink = menu.querySelector('a[href="/connection-import?endpoint=dev"]')!;
+    expect(text(importLink)).toBe('Import with AI');
+    expect(importLink.getAttribute('role')).toBe('menuitem');
+    expect(importLink.getAttribute('tabindex')).toBe('-1');
+    expect(importLink.querySelector('svg[lucideIcon="lightbulb"]')).not.toBeNull();
+    expect(button(menu, 'Share endpoint').getAttribute('aria-disabled')).toBe('true');
+    expect(button(menu, 'Share endpoint').getAttribute('title')).toContain('GateRook desktop app');
 
     expect(text(el.querySelector('#ep-map-title'))).toBe('How dev connects');
     expect(text(el.querySelector('.gw-setup-map--wiring'))).toContain('120 calls per min per token · 512 KB per result, from the dev policy');
@@ -441,6 +464,31 @@ describe('Endpoint detail page', () => {
     expect(el.querySelector('#tools')?.hasAttribute('hidden')).toBe(false);
     expect(el.querySelector('#connections')?.hasAttribute('hidden')).toBe(true);
     expect(text(el.querySelector('#ep-risk .gw-alert__title'))).toBe('Risky combination in endpoint dev');
+  });
+
+  it('opens sharing from the actions menu and returns focus to the menu trigger after cancel', async () => {
+    const createEndpointShare = vi.fn();
+    setup(undefined, {
+      api: { list: () => Promise.resolve(clientsView()) },
+      desktop: { endpointShareAvailable: true, createEndpointShare },
+    });
+    const { fixture, el } = await render();
+    const trigger = el.querySelector<HTMLButtonElement>('.gw-page-header__actions [aria-haspopup="menu"]')!;
+    const menu = el.querySelector<HTMLElement>('#ep-menu')!;
+    trigger.click();
+    await settle(fixture);
+    expect(menu.hidden).toBe(false);
+    button(menu, 'Share endpoint').click();
+    await settle(fixture);
+    const dialog = el.querySelector<HTMLDialogElement>('#ep-share-dialog')!;
+    expect(menu.hidden).toBe(true);
+    expect(dialog.open).toBe(true);
+    expect(document.activeElement?.id).toBe('ep-share-pass');
+    button(dialog, 'Cancel').click();
+    await settle(fixture);
+    expect(dialog.open).toBe(false);
+    expect(document.activeElement).toBe(trigger);
+    expect(createEndpointShare).not.toHaveBeenCalled();
   });
 
   it('opens the tab named in ?tab= and mirrors a picked tab in the URL', async () => {
@@ -501,8 +549,10 @@ describe('Endpoint detail page', () => {
       expect(row.querySelector('input[type="radio"]')).toBeNull();
     }
     for (const toggle of el.querySelectorAll<HTMLInputElement>('#connections input[role="switch"]')) {
-      expect(toggle.checked).toBe(false);
-      expect(toggle.getAttribute('aria-disabled')).toBe('true');
+      expect(toggle.checked).toBe(true);
+      expect(toggle.getAttribute('aria-disabled')).toBeNull();
+      expect(toggle.getAttribute('aria-label')).toContain('across all endpoints');
+      expect(text(el.querySelector('#' + toggle.getAttribute('aria-describedby')))).toContain('Endpoint dev is off');
     }
     const t = toasts().at(-1)!;
     expect(t.title).toBe('Endpoint dev disabled');

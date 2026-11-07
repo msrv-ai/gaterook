@@ -68,7 +68,7 @@ export const SKELETON_DELAY_MS = 300;
 const NO_ANSWER = 'The core didn’t answer. Try again.';
 
 /**
- * Connections (design/pages/connections.html; ARCHITECTURE.md §8.4 "connections"): every resource agents can reach
+ * Connections (ARCHITECTURE.md §8.4 "connections"): every resource agents can reach
  * and whether it answers right now.
  *
  * - The header counts the connections by health and says when they were last checked; Add connection is the page's
@@ -108,6 +108,7 @@ export class ConnectionsPage {
   readonly type = input<string | undefined>();
   readonly env = input<string | undefined>();
   readonly health = input<string | undefined>();
+  readonly notConnectedTo = input<string | undefined>();
 
   private readonly deleteDialog = viewChild.required<GwDialog>('deleteDialog');
   private readonly keepDialog = viewChild.required<GwDialog>('keepDialog');
@@ -194,13 +195,14 @@ export class ConnectionsPage {
     });
     // A link with filters (also while the page is open: the palette or another page navigates here again).
     effect(() => {
-      const preset = { q: this.q(), type: this.type(), env: this.env(), health: this.health() };
+      const preset = { q: this.q(), type: this.type(), env: this.env(), health: this.health(), notConnectedTo: this.notConnectedTo() };
       untracked(() =>
         this.filters.set({
           q: preset.q ?? '',
           type: preset.type?.trim() || 'all',
           env: parseEnv(preset.env),
           health: parseHealth(preset.health),
+          notConnectedTo: preset.notConnectedTo?.trim() || null,
         }),
       );
     });
@@ -234,6 +236,11 @@ export class ConnectionsPage {
 
   protected setEnv(env: EnvFilter): void {
     this.filters.update((f) => ({ ...f, env }));
+  }
+
+  protected clearEndpointFilter(): void {
+    this.filters.update((f) => ({ ...f, notConnectedTo: null }));
+    this.focusAfterRender(() => this.search()?.nativeElement);
   }
 
   /** "Clear filters" (no rows match): everything back to all, the keyboard back in the search. */

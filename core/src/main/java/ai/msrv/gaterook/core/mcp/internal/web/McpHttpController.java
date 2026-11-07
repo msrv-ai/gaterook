@@ -7,7 +7,12 @@ import ai.msrv.gaterook.core.mcp.McpGateway;
 import ai.msrv.gaterook.core.mcp.internal.Era;
 import ai.msrv.gaterook.core.mcp.internal.EraResolver;
 import ai.msrv.gaterook.core.mcp.internal.JsonRpc;
+import ai.msrv.gaterook.core.connectors.ConnectionNotified;
+import ai.msrv.gaterook.core.mcp.internal.Listening;
 import ai.msrv.gaterook.core.mcp.internal.McpToolNotifications;
+import ai.msrv.gaterook.core.mcp.internal.PromptsHandler;
+import ai.msrv.gaterook.core.mcp.internal.ResourceSubscriptions;
+import ai.msrv.gaterook.core.mcp.internal.ResourcesHandler;
 import ai.msrv.gaterook.core.platform.Authenticator;
 import ai.msrv.gaterook.core.platform.Bootstrap;
 import ai.msrv.gaterook.core.platform.Caller;
@@ -20,8 +25,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -45,12 +60,18 @@ import tools.jackson.databind.node.ObjectNode;
  * {@code WWW-Authenticate: Bearer realm="gaterook"}; nothing of an anonymous request's body is read or held), only
  * {@code application/json} (415, which also keeps cross-site forms out), a body of at most 1 MiB (413) and within the
  * principal's hourly budget ({@link RequestBudget}, 429), then one object (a batch is {@code -32600}). Other methods
- * are 405 with {@code Allow: GET, POST}. Host and Origin were checked by {@code LocalGuardFilter} already.
+ * are 405 with {@code Allow: GET, POST}. Host and Origin were checked already: by {@code LocalGuardFilter} on the
+ * local port, by {@code PublicIngressFilter} on the public one.
  */
 @RestController
 class McpHttpController {
 
   static final int MAX_BODY = 1 << 20;
+  /** Notifications of one call waiting for the client; more are dropped (progress says the same again later). */
+  static final int STREAMED = 256;
+  /** Calls that may stream run here, while the request's thread writes what they say. */
+  private static final ExecutorService WORKERS = Executors.newThreadPerTaskExecutor(Thread.ofVirtual()
+      .name("mcp-call-", 0).factory());
 
   private final McpGateway gateway;
   private final CallerAuthenticator authenticator;
@@ -59,12 +80,16 @@ class McpHttpController {
   private final EndpointSnapshotService snapshots;
   private final ToolCatalog catalogs;
   private final McpToolNotifications notifications;
+  private final ResourcesHandler resources;
+  private final PromptsHandler prompts;
+  private final ResourceSubscriptions subscriptions;
   private final RequestBudget budget;
   private final Duration heartbeat;
 
   McpHttpController(McpGateway gateway, CallerAuthenticator authenticator, Bootstrap bootstrap, JsonMapper json,
       EndpointSnapshotService snapshots, ToolCatalog catalogs, McpToolNotifications notifications,
-      RequestBudget budget, @Value("${gateway.mcp.heartbeat:15s}") Duration heartbeat) {
+      ResourcesHandler resources, PromptsHandler prompts, ResourceSubscriptions subscriptions, RequestBudget budget,
+      @Value("${gateway.mcp.heartbeat:15s}") Duration heartbeat) {
     this.gateway = gateway;
     this.authenticator = authenticator;
     this.bootstrap = bootstrap;
@@ -72,12 +97,16 @@ class McpHttpController {
     this.snapshots = snapshots;
     this.catalogs = catalogs;
     this.notifications = notifications;
+    this.resources = resources;
+    this.prompts = prompts;
+    this.subscriptions = subscriptions;
     this.budget = budget;
     this.heartbeat = heartbeat;
   }
 
   @PostMapping("/mcp/{slug}")
-  ResponseEntity<byte[]> post(@PathVariable String slug, HttpServletRequest http) throws IOException {
+  ResponseEntity<byte[]> post(@PathVariable String slug, HttpServletRequest http,
+      HttpServletResponse servletResponse) throws IOException {
     Ingress ingress = ingressOf(http);
     // Nothing is answered or read before the token. Through the tunnel claude.ai starts its sign-in on a 401 only,
     // and an anonymous caller learns nothing about the endpoint, not even which bodies it takes (report 02 §3); on
@@ -121,11 +150,114 @@ class McpHttpController {
     if (!root.isObject()) {
       return write(400, McpGateway.error(JsonRpc.INVALID_REQUEST, "A request is one JSON object"));
     }
+    if ("subscriptions/listen".equals(root.path("method").asString(null))) {
+      return listen(slug, caller.get(), (ObjectNode) root, ingress, http, servletResponse);
+    }
+    if ("tools/call".equals(root.path("method").asString(null)) && acceptsEvents(http.getHeader(HttpHeaders.ACCEPT))) {
+      return streaming(slug, caller.get(), (ObjectNode) root, http, servletResponse);
+    }
     McpGateway.Response response = gateway.handle(slug, caller.get(), (ObjectNode) root, http::getHeader);
     if (response.body() == null) {
       return ResponseEntity.status(response.status()).build();
     }
     return write(response.status(), response.body());
+  }
+
+  /**
+   * A call whose client takes an event stream: it runs on a thread of its own, and the answer stays JSON unless the
+   * call says something first (its progress, a log message); then the POST is answered with an event stream that
+   * carries those and ends with the answer. A client that closes the stream of a 2026-07-28 request cancels it.
+   */
+  private ResponseEntity<byte[]> streaming(String slug, Caller caller, ObjectNode request, HttpServletRequest http,
+      HttpServletResponse response) throws IOException {
+    // The worker reads the headers while this thread may write: a copy, not the container's request.
+    Map<String, String> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    for (String name : java.util.Collections.list(http.getHeaderNames())) {
+      headers.put(name, http.getHeader(name));
+    }
+    boolean modern = request.path("params").path("_meta").path(EraResolver.META_VERSION).isString();
+    // The call's notifications and, last, its answer: the request's thread wakes for either at once.
+    LinkedBlockingQueue<Object> queue = new LinkedBlockingQueue<>();
+    AtomicInteger waiting = new AtomicInteger();
+    AtomicBoolean gone = new AtomicBoolean();
+    List<Runnable> onClose = new java.util.concurrent.CopyOnWriteArrayList<>();
+    McpGateway.Stream stream = new McpGateway.Stream() {
+      @Override
+      public boolean send(ObjectNode notification) {
+        if (gone.get() || waiting.incrementAndGet() > STREAMED) {
+          waiting.decrementAndGet();
+          return false;
+        }
+        return queue.offer(notification);
+      }
+
+      @Override
+      public void onClose(Runnable action) {
+        if (modern) {
+          onClose.add(action);
+        }
+      }
+    };
+    CompletableFuture.supplyAsync(() -> gateway.handle(slug, caller, request, headers::get, stream), WORKERS)
+        .whenComplete((done, failure) -> queue.add(new Answered(done, failure)));
+    ServletOutputStream out = null;
+    try {
+      while (true) {
+        Object next = queue.take();
+        if (next instanceof Answered a) {
+          if (a.failure() != null) {
+            LoggerFactory.getLogger(McpHttpController.class).error("A call on {} failed", slug, a.failure());
+            if (out == null) {
+              return write(500, McpGateway.error(JsonRpc.INTERNAL_ERROR, "Internal error in GateRook. See its log."));
+            }
+            return null;
+          }
+          McpGateway.Response done = a.response();
+          if (out == null) {
+            return done.body() == null ? ResponseEntity.status(done.status()).build()
+                : write(done.status(), done.body());
+          }
+          if (!gone.get() && done.body() != null) {
+            writeFrame(out, event(done.body()));
+          }
+          return null;
+        }
+        waiting.decrementAndGet();
+        if (out == null) {
+          out = openStream(response);
+        }
+        if (!gone.get()) {
+          try {
+            writeFrame(out, event((ObjectNode) next));
+          } catch (IOException e) {
+            // The client went away: over 2026-07-28 that cancels the call.
+            gone.set(true);
+            onClose.forEach(Runnable::run);
+          }
+        }
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    } catch (IOException e) {
+      // The client went away with the answer.
+    }
+    return null;
+  }
+
+  /** What the call came to: its answer, or what went wrong inside the core. */
+  private record Answered(McpGateway.Response response, Throwable failure) {}
+
+  private static ServletOutputStream openStream(HttpServletResponse response) throws IOException {
+    response.setStatus(HttpServletResponse.SC_OK);
+    response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
+    response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+    response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+    response.setHeader("X-Accel-Buffering", "no");
+    return response.getOutputStream();
+  }
+
+  private String event(ObjectNode message) {
+    return "event: message\ndata: " + json.writeValueAsString(message) + "\n\n";
   }
 
   /**
@@ -174,8 +306,11 @@ class McpHttpController {
       response.setHeader("X-Accel-Buffering", "no");
       ServletOutputStream out = response.getOutputStream();
       writeFrame(out, ": connected\n\n");
+      String resourceHash = resources.offerHash(initial.get());
+      String promptHash = prompts.offerHash(initial.get());
+      String owner = ResourceSubscriptions.legacy(caller.get().principalId());
       while (!subscription.isClosed()) {
-        boolean changed = subscription.awaitChange(heartbeat);
+        McpToolNotifications.Wake wake = subscription.await(heartbeat);
         if (subscription.isClosed() || authenticate(ingress, slug, http).isEmpty()) {
           break;
         }
@@ -184,14 +319,27 @@ class McpHttpController {
         if (current.isEmpty()) {
           break;
         }
-        if (changed) {
+        if (wake.catalog()) {
           String nextHash = catalogs.forEndpoint(current.get()).listHash();
           if (!nextHash.equals(listHash)) {
-            writeFrame(out, "event: message\ndata: {\"jsonrpc\":\"2.0\","
-                + "\"method\":\"notifications/tools/list_changed\"}\n\n");
+            writeFrame(out, event(notice("notifications/tools/list_changed", null)));
             listHash = nextHash;
           }
-        } else {
+          String nextResources = resources.offerHash(current.get());
+          if (!nextResources.equals(resourceHash)) {
+            writeFrame(out, event(notice("notifications/resources/list_changed", null)));
+            resourceHash = nextResources;
+          }
+          String nextPrompts = prompts.offerHash(current.get());
+          if (!nextPrompts.equals(promptHash)) {
+            writeFrame(out, event(notice("notifications/prompts/list_changed", null)));
+            promptHash = nextPrompts;
+          }
+        }
+        for (ObjectNode n : said(wake, current.get(), owner, true, true)) {
+          writeFrame(out, event(n));
+        }
+        if (!wake.any()) {
           writeFrame(out, ": keepalive\n\n");
         }
       }
@@ -199,6 +347,139 @@ class McpHttpController {
       Thread.currentThread().interrupt();
     } catch (IOException e) {
       // A disconnected client ends this subscription without affecting other clients or configuration changes.
+    }
+    return null;
+  }
+
+  /**
+   * What the connections of {@code snapshot} said, as notifications: their changed lists (when the client wants them)
+   * and the updates of resources {@code owner} subscribed to. Connections of other endpoints are none of its business.
+   */
+  private List<ObjectNode> said(McpToolNotifications.Wake wake, EndpointSnapshot snapshot, Object owner,
+      boolean resourceLists, boolean promptLists) {
+    List<ObjectNode> out = new java.util.ArrayList<>();
+    for (ConnectionNotified n : wake.notices()) {
+      if (snapshot.connections().stream().noneMatch(w -> w.config().id().equals(n.connectionId()))) {
+        continue;
+      }
+      switch (n.kind()) {
+        case RESOURCES_CHANGED -> {
+          if (resourceLists) {
+            out.add(notice("notifications/resources/list_changed", null));
+          }
+        }
+        case PROMPTS_CHANGED -> {
+          if (promptLists) {
+            out.add(notice("notifications/prompts/list_changed", null));
+          }
+        }
+        case RESOURCE_UPDATED -> {
+          if (n.uri() != null && subscriptions.has(owner, n.uri())) {
+            out.add(notice("notifications/resources/updated", json.createObjectNode().put("uri", n.uri())));
+          }
+        }
+      }
+    }
+    return out;
+  }
+
+  private ObjectNode notice(String method, ObjectNode params) {
+    ObjectNode n = json.createObjectNode();
+    n.put("jsonrpc", "2.0");
+    n.put("method", method);
+    if (params != null) {
+      n.set("params", params);
+    }
+    return n;
+  }
+
+  /**
+   * {@code subscriptions/listen} of 2026-07-28 (ARCHITECTURE.md §5.5): the POST is answered with an event stream that
+   * acknowledges what it honors, then carries what the client opted in to — the tool, resource and prompt lists when
+   * they change, the updates of the resources it subscribed to — each with the stream's id, and keepalives. Access is
+   * checked again before each, as on the GET stream; when the gateway ends the stream (it stops, the endpoint goes, a
+   * newer stream of the principal takes its place), the request's answer closes it.
+   */
+  private ResponseEntity<byte[]> listen(String slug, Caller caller, ObjectNode request, Ingress ingress,
+      HttpServletRequest http, HttpServletResponse response) throws IOException {
+    Optional<EndpointSnapshot> initial = snapshots.bySlug(slug);
+    Listening.Outcome o = Listening.check(request, http::getHeader, initial, resources);
+    if (!o.accepted()) {
+      return write(o.status(), o.error());
+    }
+    if (!acceptsEvents(http.getHeader(HttpHeaders.ACCEPT))) {
+      return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE).build();
+    }
+    EndpointSnapshot first = initial.orElseThrow();
+    Optional<McpToolNotifications.Subscription> opened = notifications.subscribe(first.id(), caller.principalId());
+    if (opened.isEmpty()) {
+      return write(429, McpGateway.error(JsonRpc.OVER_BUDGET, "The gateway holds " + McpToolNotifications.OVERALL
+          + " notification streams already. Try again later."));
+    }
+    McpToolNotifications.Subscription subscription = opened.get();
+    try (subscription) {
+      for (String uri : o.resources()) {
+        subscriptions.add(subscription, first.id(), uri);
+      }
+      ServletOutputStream out = openStream(response);
+      ObjectNode ack = json.createObjectNode();
+      ack.set("notifications", o.honored());
+      writeFrame(out, event(Listening.notification("notifications/subscriptions/acknowledged", ack, o.id())));
+      String listHash = catalogs.forEndpoint(first).listHash();
+      String resourceHash = resources.offerHash(first);
+      String promptHash = prompts.offerHash(first);
+      boolean ended = false;
+      while (true) {
+        McpToolNotifications.Wake wake = subscription.await(heartbeat);
+        if (subscription.isClosed()) {
+          ended = true;
+          break;
+        }
+        if (authenticate(ingress, slug, http).isEmpty()) {
+          break;
+        }
+        Optional<EndpointSnapshot> current = snapshots.get(first.id()).filter(x -> x.slug().equals(slug));
+        if (current.isEmpty()) {
+          ended = true;
+          break;
+        }
+        List<ObjectNode> tell = new java.util.ArrayList<>();
+        if (wake.catalog()) {
+          String nextHash = catalogs.forEndpoint(current.get()).listHash();
+          if (!nextHash.equals(listHash) && o.wants("toolsListChanged")) {
+            tell.add(notice("notifications/tools/list_changed", null));
+          }
+          listHash = nextHash;
+          String nextResources = resources.offerHash(current.get());
+          if (!nextResources.equals(resourceHash) && o.wants("resourcesListChanged")) {
+            tell.add(notice("notifications/resources/list_changed", null));
+          }
+          resourceHash = nextResources;
+          String nextPrompts = prompts.offerHash(current.get());
+          if (!nextPrompts.equals(promptHash) && o.wants("promptsListChanged")) {
+            tell.add(notice("notifications/prompts/list_changed", null));
+          }
+          promptHash = nextPrompts;
+        }
+        tell.addAll(said(wake, current.get(), subscription, o.wants("resourcesListChanged"),
+            o.wants("promptsListChanged")));
+        for (ObjectNode n : tell) {
+          ObjectNode params = n.get("params") instanceof ObjectNode x ? x : json.createObjectNode();
+          writeFrame(out, event(Listening.notification(n.get("method").asString(), params, o.id())));
+        }
+        if (!wake.any()) {
+          writeFrame(out, ": keepalive\n\n");
+        }
+      }
+      if (ended) {
+        writeFrame(out, event(Listening.ended(o.id())));
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    } catch (IOException e) {
+      // The client closed its stream: that ends the subscription.
+    } finally {
+      subscriptions.forget(subscription);
     }
     return null;
   }

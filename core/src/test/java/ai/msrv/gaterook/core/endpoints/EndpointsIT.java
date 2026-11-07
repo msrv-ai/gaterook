@@ -11,6 +11,7 @@ import ai.msrv.gaterook.core.connections.ConnectionService;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.endpoints.internal.EndpointRows;
 import ai.msrv.gaterook.core.endpoints.internal.ToolPairs;
+import ai.msrv.gaterook.core.endpoints.internal.TokenRows;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.ApiTokenEntity;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.ApiTokenRepository;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.ClientGrantEntity;
@@ -80,6 +81,42 @@ class EndpointsIT {
   }
 
   @Test
+  void connectionDetailIncludesAvailableToolsWithoutStoredGrantsUntilTheUserChoosesModes() {
+    core.connection("recovered-db", "pgfake", Env.DEV, "db.test");
+    core.connection("other-recovered-db", "pgfake", Env.DEV, "db.test");
+    endpoints.create("recovered-tools", null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add("recovered-tools", "recovered-db", null);
+    wiring.add("recovered-tools", "other-recovered-db", null);
+    ConnectionService connections = core.bean(ConnectionService.class);
+    var before = connections.get("recovered-db");
+    assertThat(before.usedBy()).isNotEmpty();
+
+    // Reproduce an existing attachment whose tools were unavailable when its grants were reconciled.
+    core.jdbc().update("delete from endpoint_tool where connection_id = ?", before.id());
+    snapshots.invalidateAll();
+    var recovered = connections.get("recovered-db").usedBy();
+    assertThat(recovered).extracting(ai.msrv.gaterook.core.connections.ConnectionUsage.UsedBy::tool)
+        .containsExactlyElementsOf(before.usedBy().stream().map(u -> u.tool()).toList());
+    assertThat(recovered).allSatisfy(u -> {
+      assertThat(u.endpoint()).isEqualTo("recovered-tools");
+      assertThat(u.mode()).isEqualTo("Off");
+    });
+    assertThat(core.jdbc().queryForObject("select count(*) from endpoint_tool where connection_id = ?",
+        Integer.class, before.id())).isZero();
+    assertThat(mode(snapshots.bySlug("recovered-tools").orElseThrow(), "sql_query", "other-recovered-db"))
+        .isEqualTo(Mode.READ_ONLY);
+
+    tools.setMode("recovered-tools", "sql_query", "recovered-db", Mode.READ_ONLY, null, 0, null);
+    assertThat(connections.get("recovered-db").usedBy()).hasSize(recovered.size())
+        .anySatisfy(u -> {
+          assertThat(u.tool()).isEqualTo("sql_query");
+          assertThat(u.mode()).isEqualTo("Read only");
+        });
+    assertThat(mode(snapshots.bySlug("recovered-tools").orElseThrow(), "sql_query", "recovered-db"))
+        .isEqualTo(Mode.READ_ONLY);
+  }
+
+  @Test
   void anEmptyEndpointTakesTheEnvOfItsFirstConnectionAndProdNeverMixes() {
     EndpointService.Summary created = endpoints.create("empty-ep", "for tests", EndpointService.StartFrom.EMPTY, null);
     assertThat(created.env()).isEqualTo(Env.DEV);
@@ -117,7 +154,8 @@ class EndpointsIT {
     EndpointSnapshot s = wiring.add("mixed", "m-my", null);
     ToolCatalog.Catalog list = catalog.forEndpoint(s);
     assertThat(list.tools()).extracting(ToolCatalog.PublishedTool::name)
-        .containsExactly("approval_card", "approval_card_action", "approval_status", "sql_execute", "sql_query");
+        .containsExactly("approval_card", "approval_card_action", "approval_status", "connection_import_progress", "connection_import_schema",
+            "open_connection_import", "sql_execute", "sql_query", "submit_connection_import");
     ToolCatalog.PublishedTool query = list.tool("sql_query").orElseThrow();
     assertThat(query.inputSchema().at("/properties/connection/enum")).extracting(n -> n.asString())
         .containsExactly("m-my", "m-pg");
@@ -185,7 +223,8 @@ class EndpointsIT {
     EndpointService.StartPreview preview = endpoints.previewStart(EndpointService.StartFrom.READ_ONLY_DEV);
     assertThat(preview.connections()).contains("s-dev-db", "s-dev-vm", "s-dev-api").doesNotContain("s-dev-mcp",
         "s-prod-db");
-    EndpointService.Summary ro = endpoints.create("s-readonly", null, EndpointService.StartFrom.READ_ONLY_DEV, null);
+    EndpointService.Summary ro = endpoints.create("s-readonly", null, EndpointService.StartFrom.READ_ONLY_DEV,
+        preview.connections(), null);
     assertThat(ro.access()).isEqualTo("read-only");
     assertThat(ro.tools()).as("the card's count is the list's after Create").isEqualTo(preview.tools());
     assertThat(ro.connections()).isEqualTo(preview.connections().size());
@@ -201,7 +240,7 @@ class EndpointsIT {
 
     EndpointService.StartPreview incidentPreview = endpoints.previewStart(EndpointService.StartFrom.INCIDENT_RESPONSE);
     EndpointService.Summary incident = endpoints.create("s-incident", null,
-        EndpointService.StartFrom.INCIDENT_RESPONSE, null);
+        EndpointService.StartFrom.INCIDENT_RESPONSE, incidentPreview.connections(), null);
     assertThat(incident.env()).isEqualTo(Env.PROD);
     assertThat(incident.tools()).isEqualTo(incidentPreview.tools());
     EndpointSnapshot p = snapshots.bySlug("s-incident").orElseThrow();
@@ -302,8 +341,11 @@ class EndpointsIT {
     String signedGrant = core.bean(ClientGrants.class).create(null, "codex", "tok-ep", "codex-laptop", null).id();
     String grantId = new TransactionTemplate(core.bean(PlatformTransactionManager.class)).execute(s -> {
       ClientGrantEntity g = core.bean(ClientGrantRepository.class).findById(signedGrant).orElseThrow();
-      core.bean(ApiTokenRepository.class).save(ApiTokenEntity.bridge(g, TokenService.hash(bridge), Instant.now(),
-          Instant.now().plusSeconds(900)));
+      ApiTokenEntity t = ApiTokenEntity.bridge(g, TokenService.hash(bridge), Instant.now(),
+          Instant.now().plusSeconds(900));
+      // Token rows are signed too, as ClientGrants signs the ones it issues.
+      core.bean(TokenRows.class).sign(t);
+      core.bean(ApiTokenRepository.class).save(t);
       return g.getId();
     });
     assertThat(auth.authenticate(new Authenticator.Request(Ingress.LOCAL, "tok-ep", bridge, null)))
@@ -434,6 +476,68 @@ class EndpointsIT {
     assertThat(ok.blocked()).isFalse();
     assertThat(mode(ok, "sql_execute", "t-db")).as("Read only of a mutation still counts as Approval")
         .isEqualTo(Mode.APPROVAL);
+  }
+
+  @Test
+  void reviewingAnEditedEndpointKeepsTheRulesItsOwnChangesKeep() {
+    core.connection("xl-dev", "pgfake", Env.DEV, "db.test");
+    core.connection("xl-prod", "pgfake", Env.PROD, "db.test");
+    endpoints.create("xl-ep", null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add("xl-ep", "xl-dev", null);
+    endpoints.create("xl-prod-ep", null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add("xl-prod-ep", "xl-prod", null);
+    String id = endpoints.get("xl-ep").id();
+    // A prod connection's wiring moved onto the dev endpoint, and one of its tools set to Bypass, outside GateRook.
+    core.jdbc().update("update endpoint_connection set endpoint_id = ? where connection_id = (select id from "
+        + "connection where name = 'xl-prod')", id);
+    core.jdbc().update("update endpoint_tool set mode = 'BYPASS' where tool_key = 'sql_execute' and endpoint_id = ?",
+        id);
+    snapshots.invalidateAll();
+    assertThat(snapshots.bySlug("xl-ep").orElseThrow().blocked()).isTrue();
+
+    assertThatThrownBy(() -> endpoints.confirmIntegrity("xl-ep", "looked"))
+        .isInstanceOfSatisfying(ProblemException.class, e -> {
+          assertThat(e.kind()).isEqualTo(ProblemException.Kind.UNPROCESSABLE);
+          assertThat(e.getMessage()).contains("xl-prod is a prod connection on xl-ep");
+        });
+    assertThat(snapshots.bySlug("xl-ep").orElseThrow().blocked()).as("nothing signed").isTrue();
+    assertThat(endpoints.get("xl-ep").env()).isEqualTo(Env.DEV);
+
+    endpoints.confirmIntegrity("xl-ep", "looked", "reset-invalid");
+    EndpointSnapshot reviewed = snapshots.bySlug("xl-ep").orElseThrow();
+    assertThat(reviewed.blocked()).isFalse();
+    assertThat(reviewed.env()).as("dev tokens never reach a prod connection").isEqualTo(Env.DEV);
+    assertThat(reviewed.connections()).extracting(w -> w.config().name()).containsExactly("xl-dev");
+    assertThat(mode(reviewed, "sql_execute", "xl-dev")).as("Bypass is set only in GateRook")
+        .isEqualTo(Mode.APPROVAL);
+    assertThat(core.jdbc().queryForObject("select change_to from setup_change where subject = 'Endpoint xl-ep "
+        + "changed outside GateRook'", String.class)).contains("xl-prod removed", "sql_execute Bypass");
+
+    // A read-only endpoint keeps only the modes it allows.
+    core.connection("xl-ro-db", "pgfake", Env.DEV, "db.test");
+    endpoints.create("xl-ro-ep", null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add("xl-ro-ep", "xl-ro-db", null);
+    endpoints.updateSettings("xl-ro-ep", new EndpointService.SettingsUpdate(null, "read-only", null, null, null, null,
+        null), endpoints.get("xl-ro-ep").version(), "freeze");
+    core.jdbc().update("update endpoint_tool set mode = 'APPROVAL' where tool_key = 'sql_query' and endpoint_id = "
+        + "(select id from endpoint where slug = 'xl-ro-ep')");
+    assertThatThrownBy(() -> endpoints.confirmIntegrity("xl-ro-ep", "looked")).isInstanceOf(ProblemException.class)
+        .hasMessageContaining("xl-ro-ep is read only: sql_query on xl-ro-db can only be Off there");
+    endpoints.confirmIntegrity("xl-ro-ep", "looked", "reset-invalid");
+    EndpointSnapshot ro = snapshots.bySlug("xl-ro-ep").orElseThrow();
+    assertThat(ro.blocked()).isFalse();
+    assertThat(ro.pairs().stream().filter(p -> p.tool().name().equals("sql_query")).findFirst().orElseThrow()
+        .storedMode()).isEqualTo(Mode.OFF);
+
+    // A prod endpoint is never published.
+    core.connection("xl-pub-prod", "pgfake", Env.PROD, "db.test");
+    endpoints.create("xl-pub-ep", null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add("xl-pub-ep", "xl-pub-prod", null);
+    core.jdbc().update("update endpoint set published = true where slug = 'xl-pub-ep'");
+    assertThatThrownBy(() -> endpoints.confirmIntegrity("xl-pub-ep", "looked")).isInstanceOf(ProblemException.class)
+        .hasMessageContaining("never published");
+    endpoints.confirmIntegrity("xl-pub-ep", "looked", "reset-invalid");
+    assertThat(snapshots.bySlug("xl-pub-ep").orElseThrow().published()).isFalse();
   }
 
   @Test
@@ -926,8 +1030,11 @@ class EndpointsIT {
     String signedGrant = core.bean(ClientGrants.class).create(null, "codex", "v-ep", "codex-laptop", null).id();
     String grantId = new TransactionTemplate(core.bean(PlatformTransactionManager.class)).execute(s -> {
       ClientGrantEntity g = core.bean(ClientGrantRepository.class).findById(signedGrant).orElseThrow();
-      core.bean(ApiTokenRepository.class).save(ApiTokenEntity.bridge(g, TokenService.hash(bridge), Instant.now(),
-          Instant.now().plusSeconds(900)));
+      ApiTokenEntity t = ApiTokenEntity.bridge(g, TokenService.hash(bridge), Instant.now(),
+          Instant.now().plusSeconds(900));
+      // Token rows are signed too, as ClientGrants signs the ones it issues.
+      core.bean(TokenRows.class).sign(t);
+      core.bean(ApiTokenRepository.class).save(t);
       return g.getId();
     });
     String grants = core.pendingApproval(endpointId, "v-ep", dbId, "v-db", "sql_execute", grantId);
@@ -1098,32 +1205,76 @@ class EndpointsIT {
   }
 
   @Test
-  void aReadOnlyConfirmationOfAnMcpServerToolIsBoundToTheServersVersion() {
-    ConnectionService connections = core.bean(ConnectionService.class);
-    core.connection("srv-mcp", "mcpfake", Env.DEV, "mcp.test");
+  void mcpReadsStartReadOnlyAndBulkModesKeepMutationsOutOfReadOnly() {
+    core.connection("srv-mcp", "mcpfake", Env.DEV, "modes.test");
     endpoints.create("srv-ep", null, EndpointService.StartFrom.EMPTY, null);
     EndpointSnapshot s = wiring.add("srv-ep", "srv-mcp", null);
     EndpointSnapshot.Pair search = pair(s, "gh_search");
     assertThat(search.toolKey()).isEqualTo("mcp:srv-mcp:gh_search");
-    assertThat(search.mode()).as("MCP server tools start in Approval").isEqualTo(Mode.APPROVAL);
-    assertThat(search.provenanceVersion()).as("the server's version, not the type card's 0.4.0").isEqualTo("1.0.0");
-    tools.confirmReadOnly("srv-ep", search.toolKey(), "srv-mcp",
-        ToolPairs.definitionHash(search.tool()), "only reads");
-    assertThat(core.jdbc().queryForObject("select json_extract(ro_confirmation, '$.version') from endpoint_tool "
-        + "where tool_key = 'mcp:srv-mcp:gh_search'", String.class)).isEqualTo("1.0.0");
-    EndpointSnapshot.Pair confirmed = pair(snapshots.bySlug("srv-ep").orElseThrow(), "gh_search");
-    tools.setMode("srv-ep", confirmed.toolKey(), "srv-mcp", Mode.READ_ONLY, null, confirmed.rowVersion(), null);
-    assertThat(pair(snapshots.bySlug("srv-ep").orElseThrow(), "gh_search").mode()).isEqualTo(Mode.READ_ONLY);
+    assertThat(search.mode()).isEqualTo(Mode.READ_ONLY);
+    assertThat(search.readOnlyConfirmed()).as("no per-tool confirmation is needed").isFalse();
+    assertThat(pair(s, "gh_write").mode()).isEqualTo(Mode.APPROVAL);
+    assertThat(tools.list("srv-ep").stream().flatMap(g -> g.tools().stream())
+        .filter(t -> t.name().equals("gh_search")).findFirst().orElseThrow().readOnlyAllowed()).isTrue();
+    assertThat(core.bean(PolicyEngine.class).decide(search.view(), search.config(), Classification.read()).outcome())
+        .isEqualTo(Decision.Outcome.ALLOW);
 
-    // The upstream server reports a new version: the confirmation no longer counts.
-    var config = TestCore.config("mcp.test");
+    assertThat(tools.bulk("srv-ep", "srv-mcp", "OFF", null).changed()).hasSize(2);
+    EndpointTools.BulkResult reads = tools.bulk("srv-ep", "srv-mcp", "READ_ONLY", null);
+    assertThat(reads.changed()).containsExactly(search.toolKey());
+    assertThat(reads.skipped()).extracting(EndpointTools.Skipped::toolKey).containsExactly("mcp:srv-mcp:gh_write");
+    assertThat(mode(snapshots.bySlug("srv-ep").orElseThrow(), "gh_write", "srv-mcp")).isEqualTo(Mode.OFF);
+    assertThat(tools.bulk("srv-ep", "srv-mcp", "DEFAULT", null).changed())
+        .containsExactly("mcp:srv-mcp:gh_write");
+    assertThat(mode(snapshots.bySlug("srv-ep").orElseThrow(), "gh_write", "srv-mcp")).isEqualTo(Mode.APPROVAL);
+
+    tools.bulk("srv-ep", "srv-mcp", "APPROVAL", null);
+    EndpointSnapshot.Pair approval = pair(snapshots.bySlug("srv-ep").orElseThrow(), "gh_search");
+    tools.setMode("srv-ep", approval.toolKey(), "srv-mcp", Mode.READ_ONLY, null, approval.rowVersion(), null);
+    assertThat(pair(snapshots.bySlug("srv-ep").orElseThrow(), "gh_search").mode()).isEqualTo(Mode.READ_ONLY);
+    assertThatThrownBy(() -> tools.setMode("srv-ep", "mcp:srv-mcp:gh_write", "srv-mcp", Mode.READ_ONLY,
+        null, 0, null)).isInstanceOf(ProblemException.class).hasMessageContaining("changes data");
+  }
+
+  @Test
+  void mcpRefreshPreservesChoicesDefaultsNewReadsAndDemotesToolsThatStartChangingData() {
+    ConnectionService connections = core.bean(ConnectionService.class);
+    core.connection("refresh-mcp", "mcpfake", Env.DEV, "modes.test");
+    Map<String, Mode> choices = Map.of("mcp-off", Mode.OFF, "mcp-approval", Mode.APPROVAL,
+        "mcp-bypass", Mode.BYPASS, "mcp-read", Mode.READ_ONLY, "mcp-read-endpoint", Mode.READ_ONLY);
+    for (var choice : choices.entrySet()) {
+      String slug = choice.getKey();
+      endpoints.create(slug, null, EndpointService.StartFrom.EMPTY, null);
+      if (slug.equals("mcp-read-endpoint")) {
+        endpoints.updateSettings(slug, new EndpointService.SettingsUpdate(null, "read-only", null, null,
+            null, null, null), endpoints.get(slug).version(), null);
+      }
+      EndpointSnapshot.Pair search = pair(wiring.add(slug, "refresh-mcp", null), "gh_search");
+      tools.setMode(slug, search.toolKey(), "refresh-mcp", choice.getValue(), null, search.rowVersion(), null);
+    }
+    var config = TestCore.config("modes.test");
     ((ObjectNode) config.get("connection")).put("note", "2.0.0");
-    connections.update("srv-mcp", Env.DEV, config, connections.get("srv-mcp").version(), "server upgraded", null);
-    TestCore.await(() -> {
-      EndpointSnapshot.Pair p = pair(snapshots.bySlug("srv-ep").orElseThrow(), "gh_search");
-      return !p.readOnlyConfirmed() && p.mode() == Mode.APPROVAL;
-    }, "the confirmation of the old server version to lapse");
-    assertThat(pair(snapshots.bySlug("srv-ep").orElseThrow(), "gh_search").provenanceVersion()).isEqualTo("2.0.0");
+    connections.update("refresh-mcp", Env.DEV, config, connections.get("refresh-mcp").version(), null, null);
+    TestCore.await(() -> choices.keySet().stream().allMatch(slug -> {
+      var pairs = snapshots.bySlug(slug).orElseThrow().pairs();
+      return pairs.size() == 4 && pairs.stream().filter(p -> p.tool().name().equals("gh_recent"))
+          .allMatch(p -> p.mode() == Mode.READ_ONLY);
+    }), "new declared reads to start in Read only");
+    for (var choice : choices.entrySet()) {
+      EndpointSnapshot s = snapshots.bySlug(choice.getKey()).orElseThrow();
+      assertThat(pair(s, "gh_search").storedMode()).isEqualTo(choice.getValue());
+      assertThat(pair(s, "gh_search").mode()).isEqualTo(choice.getValue());
+      assertThat(pair(s, "gh_new_write").mode()).isEqualTo(Mode.OFF);
+    }
+
+    ((ObjectNode) config.get("connection")).put("note", "3.0.0");
+    connections.update("refresh-mcp", Env.DEV, config, connections.get("refresh-mcp").version(), null, null);
+    TestCore.await(() -> pair(snapshots.bySlug("mcp-read").orElseThrow(), "gh_search").storedMode()
+        == Mode.APPROVAL && pair(snapshots.bySlug("mcp-read-endpoint").orElseThrow(), "gh_search").storedMode()
+        == Mode.OFF, "changed tools to require approval or stay Off on a read-only endpoint");
+    for (String slug : List.of("mcp-off", "mcp-approval", "mcp-bypass")) {
+      assertThat(pair(snapshots.bySlug(slug).orElseThrow(), "gh_search").storedMode()).isEqualTo(choices.get(slug));
+    }
   }
 
   @Test

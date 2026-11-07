@@ -380,6 +380,15 @@ final class SqlClassifier {
       // CALL, SHOW TABLES, SET…: the parser can't list what they touch.
       tables = null;
     }
+    if (st instanceof ExplainStatement e && e.getTable() != null) {
+      // EXPLAIN <table> is a MySQL synonym for DESCRIBE <table>; the parser's table walk ignores getTable(), so
+      // without this the table it would read goes unchecked against the allowlist and selected databases.
+      tables = List.of(e.getTable().getFullyQualifiedName());
+    } else if (st instanceof ShowStatement) {
+      // SHOW exposes server- or catalog-wide metadata the parser can't bound to tables. Leaving the table set empty
+      // let it pass a restricted connection; a null set makes it fail the allowlist and database-selection checks.
+      tables = null;
+    }
     Kind kind = kindOf(st, c, syntax);
     boolean customConversion = syntax == SqlSyntax.SQLSERVER && c.castTypes.stream()
         .anyMatch(t -> !SQLSERVER_CAST_TYPES.contains(SQLSERVER_TYPE_ARGUMENTS.matcher(t).replaceFirst("")
@@ -389,9 +398,10 @@ final class SqlClassifier {
     }
     List<String> targets = targets(st, kind, tables);
     String type = customConversion ? "custom type conversion" : c.assignsVariable ? VARIABLE_ASSIGNMENT : type(st);
-    if (kind == Kind.READ) {
-      // A read runs without a person: every call the server would make meets the function rules, including the
-      // ones in positions the parser's walk doesn't reach.
+    if (kind == Kind.READ || tables == null) {
+      // A read runs without a person, and a statement whose tables the parser can't enumerate (CALL) is walked for
+      // functions nowhere else: scan the text so a denied function in either is refused, in positions the parser's
+      // walk doesn't reach.
       c.functions.addAll(SqlCalls.calls(piece, syntax, c.notCalls));
     }
     return new StatementFacts(kind, type, tables, targets, List.copyOf(c.functions));
@@ -547,6 +557,13 @@ final class SqlClassifier {
     private void typeName(ColDataType type) {
       if (type != null && type.getDataType() != null && counted.add(type)) {
         String name = type.getDataType().strip();
+        // Only a type that carries a length or precision writes a "name(" token the scanner could mistake for a
+        // call and so must cancel. A bare type (CAST(NULL AS fn), NULL::fn) writes none, so counting it here let a
+        // cast of a function's name hide a real call of that function in a position the parser's walk skips.
+        List<String> arguments = type.getArgumentsStringList();
+        if (!((arguments != null && !arguments.isEmpty()) || name.indexOf('(') >= 0)) {
+          return;
+        }
         notCalls.merge(SqlCalls.key(List.of(name.substring(name.lastIndexOf(' ') + 1).split("\\."))), 1,
             Integer::sum);
       }

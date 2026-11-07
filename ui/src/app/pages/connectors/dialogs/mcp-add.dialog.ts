@@ -8,6 +8,7 @@ import { GwTabs } from '../../../kit/tabs';
 import { joinAnd, tokenizeCommand } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
 import { signingTarget } from '../mcp-cloud';
+import { OfficialMcpPublisher, matchingOfficialMcpServerNames, officialMcpPublisher } from '../mcp-official-publishers';
 import { PastedServer, parsePastedServer, serverName } from '../mcp-paste';
 import { RegistryUse, fromRegistry, registryUse, templateParts } from '../mcp-registry';
 import { failureText } from './failure';
@@ -19,9 +20,10 @@ export interface RegistryResult {
   readonly use: RegistryUse;
   /** The host of its URL, or the package command (`npx @sentry/mcp-server@0.42.0`). */
   readonly target: string;
+  readonly officialPublisher: OfficialMcpPublisher | null;
 }
 
-export function registryResult(server: McpRegistryServer): RegistryResult {
+export function registryResult(server: McpRegistryServer, registry: string | null = null): RegistryResult {
   const use = registryUse(server);
   let target = '';
   if (use.kind === 'remote') {
@@ -33,7 +35,18 @@ export function registryResult(server: McpRegistryServer): RegistryResult {
   } else if (use.kind === 'package') {
     target = `${use.runtime} ${use.pkg.identifier}${use.pkg.version ? `@${use.pkg.version}` : ''}`;
   }
-  return { server, title: server.title || server.name.split('/')[1] || server.name, use, target };
+  return { server, title: server.title || server.name.split('/')[1] || server.name, use, target,
+    officialPublisher: officialMcpPublisher(server, registry) };
+}
+
+/** Keep upstream order within each group and one row per server, including across pages. */
+function rankRegistryResults(rows: readonly RegistryResult[]): readonly RegistryResult[] {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    if (seen.has(row.server.name)) return false;
+    seen.add(row.server.name);
+    return true;
+  }).sort((a, b) => Number(!!b.officialPublisher) - Number(!!a.officialPublisher));
 }
 
 /** The line under the results that says where they come from. */
@@ -59,8 +72,10 @@ export interface McpReviewed {
   readonly transport: 'stdio' | 'http';
   /** The command or URL as typed (empty for a catalog server: the core resolves it). */
   readonly target: string;
-  /** The variables (or headers) as typed; empty for a catalog server, whose review names them. */
+  /** The requested variables or headers, including a generated Authorization header for a Bearer token. */
   readonly variables: readonly { readonly name: string }[];
+  /** The Authorization header is entered as a token, with its Bearer prefix added at connection time. */
+  readonly bearer?: boolean;
   readonly opener: HTMLElement | null;
 }
 
@@ -83,14 +98,15 @@ export interface McpFormErrors {
 }
 
 /**
- * Sign-in options of a server at a URL (Advanced). OAuth: an app the person created, because the server doesn't let
+ * Sign-in options of a server at a URL. Bearer: a token entered in the review and sent in the Authorization header.
+ * OAuth: an app the person created, because the server doesn't let
  * apps register themselves, or a callback the server accepts; empty, GateRook signs in as itself, with its published
  * client details or by registering, and listens on any free port. Google Cloud or AWS: the credentials each request
  * is authorized with instead (§7.6), a token from Google sign-in on this computer or a service account key, or SigV4
  * with an AWS profile or access key. A key is typed in the review.
  */
 export interface McpSignInOptions {
-  readonly with?: 'oauth' | 'google' | 'aws';
+  readonly with?: 'oauth' | 'bearer' | 'google' | 'aws';
   readonly clientId: string;
   readonly scopes: string;
   readonly callbackPort: string;
@@ -180,9 +196,11 @@ export function mcpRequest(
   if (transport === 'http') {
     const way = signIn.with ?? 'oauth';
     const scopes = signIn.scopes.trim().replace(/\s+/g, ' ');
-    if (scopes && !SCOPES.test(scopes)) errors.scopes = 'Separate scopes with spaces; a scope has no quotes or backslashes.';
+    if (way !== 'bearer' && scopes && !SCOPES.test(scopes)) errors.scopes = 'Separate scopes with spaces; a scope has no quotes or backslashes.';
     const keyed = bindings.some((b) => b.name.toLowerCase() === 'authorization');
-    if (way === 'google') {
+    if (way === 'bearer') {
+      if (!keyed) bindings.push({ name: 'Authorization' });
+    } else if (way === 'google') {
       auth = googleAuth(signIn, scopes, errors);
       if (keyed) errors.variables = 'Google Cloud credentials send the Authorization header. Remove that header, or sign in another way.';
     } else if (way === 'aws') {
@@ -307,7 +325,7 @@ let nextId = 0;
               </div>
               <div class="gw-field">
                 <label class="gw-field__label" [for]="uid + '-name'">Name</label>
-                <input class="gw-input gw-input--mono" [id]="uid + '-name'" type="text" autofocus required placeholder="sentry-mcp" spellcheck="false" autocomplete="off" [value]="name()" (input)="name.set(value($event)); suggested.set(null); clear('name')" [attr.aria-invalid]="errors().name ? 'true' : null" [attr.aria-describedby]="uid + '-name-hint' + (errors().name ? ' ' + uid + '-name-err' : '')">
+                <input class="gw-input gw-input--mono" [id]="uid + '-name'" type="text" [attr.autofocus]="tab() === 'manual' ? '' : null" required placeholder="sentry-mcp" spellcheck="false" autocomplete="off" [value]="name()" (input)="name.set(value($event)); suggested.set(null); clear('name')" [attr.aria-invalid]="errors().name ? 'true' : null" [attr.aria-describedby]="uid + '-name-hint' + (errors().name ? ' ' + uid + '-name-err' : '')">
                 <p class="gw-field__hint" [id]="uid + '-name-hint'">Lowercase letters, digits and <span class="gw-mono">-</span>. It also prefixes the tool names.</p>
                 @if (errors().name) {<p class="gw-field__error" [id]="uid + '-name-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().name }}</p>}
               </div>
@@ -317,7 +335,7 @@ let nextId = 0;
                   <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-transport'" value="stdio" [checked]="transport() === 'stdio'" (change)="setTransport('stdio')"><span class="gw-segmented__label"><svg lucideIcon="terminal" class="gw-icon gw-icon--sm"></svg>stdio</span></label>
                   <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-transport'" value="http" [checked]="transport() === 'http'" (change)="setTransport('http')"><span class="gw-segmented__label"><svg lucideIcon="globe" class="gw-icon gw-icon--sm"></svg>HTTP</span></label>
                 </div>
-                <p class="gw-field__hint" [id]="uid + '-transport-hint'">stdio: the gateway starts a command on this computer. HTTP: it calls a URL with Streamable HTTP and signs in to it for you when the server asks.</p>
+                <p class="gw-field__hint" [id]="uid + '-transport-hint'">stdio: the gateway starts a command on this computer. HTTP: it calls a URL with Streamable HTTP, or the older SSE transport, and signs in to it for you when the server asks.</p>
               </fieldset>
               <div class="gw-field" [hidden]="transport() !== 'stdio'">
                 <label class="gw-field__label" [for]="uid + '-command'">Command</label>
@@ -331,23 +349,31 @@ let nextId = 0;
                 <p class="gw-field__hint" [id]="uid + '-url-hint'">HTTPS, or <span class="gw-mono">http://127.0.0.1</span> for a server on this computer. A server that asks for a sign-in gets one in your browser after the review.</p>
                 @if (errors().url) {<p class="gw-field__error" [id]="uid + '-url-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().url }}</p>}
               </div>
-              <div class="gw-stack gw-stack--sm" [hidden]="transport() !== 'http'">
-                <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [attr.aria-controls]="uid + '-signin'" [(expanded)]="signInOpen"><svg lucideIcon="sliders-horizontal" class="gw-icon gw-icon--sm"></svg> Sign-in options <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button></div>
-                <div class="gw-stack gw-stack--sm" [id]="uid + '-signin'" [hidden]="!signInOpen()">
+              <section class="gw-card" [hidden]="transport() !== 'http'" [attr.aria-labelledby]="uid + '-signin-title'">
+                <header class="gw-card__header">
+                  <div class="gw-card__heading">
+                    <h3 class="gw-card__title" [id]="uid + '-signin-title'"><svg lucideIcon="key-round" class="gw-icon"></svg> Sign-in options</h3>
+                    <p class="gw-card__description">Choose how GateRook authenticates with this server.</p>
+                  </div>
+                </header>
+                <div class="gw-card__body gw-stack gw-stack--sm">
                   <fieldset class="gw-field" [attr.aria-describedby]="uid + '-with-hint'">
                     <legend class="gw-field__label">Sign in with</legend>
                     <div class="gw-segmented">
                       <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-with'" value="oauth" [id]="uid + '-with-oauth'" [checked]="signInWith() === 'oauth'" (change)="setSignInWith('oauth')"><span class="gw-segmented__label"><svg lucideIcon="log-in" class="gw-icon gw-icon--sm"></svg>OAuth</span></label>
+                      <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-with'" value="bearer" [id]="uid + '-with-bearer'" [checked]="signInWith() === 'bearer'" (change)="setSignInWith('bearer')"><span class="gw-segmented__label"><svg lucideIcon="key-round" class="gw-icon gw-icon--sm"></svg>Bearer token</span></label>
                       <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-with'" value="google" [id]="uid + '-with-google'" [checked]="signInWith() === 'google'" (change)="setSignInWith('google')"><span class="gw-segmented__label"><svg lucideIcon="cloud" class="gw-icon gw-icon--sm"></svg>Google Cloud</span></label>
                       <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-with'" value="aws" [id]="uid + '-with-aws'" [checked]="signInWith() === 'aws'" (change)="setSignInWith('aws')"><span class="gw-segmented__label"><svg lucideIcon="cloud" class="gw-icon gw-icon--sm"></svg>AWS</span></label>
                     </div>
                     <p class="gw-field__hint" [id]="uid + '-with-hint'">@switch (signInWith()) {
+                      @case ('bearer') {Enter just your token in the review. GateRook adds the <span class="gw-mono">Authorization: Bearer</span> header automatically and stores it encrypted. No browser sign-in is needed.}
                       @case ('google') {Google’s MCP servers (<span class="gw-mono">https://&lt;service&gt;.googleapis.com/mcp</span>) take a token of your Google Cloud credentials. GateRook gets it and renews it: no OAuth app, no browser.}
                       @case ('aws') {MCP servers on AWS (<span class="gw-mono">https://aws-mcp.&lt;region&gt;.api.aws/mcp</span>, Bedrock AgentCore) take requests signed with SigV4. No browser sign-in that ends after 12 hours.}
-                      @default {Leave the fields empty: GateRook signs in as GateRook, with the client details it publishes or by registering itself, and listens on this computer for the browser. Fill them in for a server that asks you to create an OAuth app (GitHub and Slack do), or that accepts only certain redirect addresses.}
+                      @default {Sign in in your browser if the server asks. Use OAuth app options only if the provider requires your own app or a specific callback address.}
                     }</p>
                   </fieldset>
                   @switch (signInWith()) {
+                    @case ('bearer') {}
                     @case ('google') {
                       <fieldset class="gw-field">
                         <legend class="gw-field__label">Credentials</legend>
@@ -436,6 +462,8 @@ let nextId = 0;
                       </div>
                     }
                     @default {
+                  <div><button class="gw-btn gw-btn--sm" type="button" gwToggle [attr.aria-controls]="uid + '-signin'" [(expanded)]="signInOpen"><svg lucideIcon="sliders-horizontal" class="gw-icon gw-icon--sm"></svg> OAuth app options <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button></div>
+                  <div class="gw-stack gw-stack--sm" [id]="uid + '-signin'" [hidden]="!signInOpen()">
                   <div class="gw-field">
                     <label class="gw-field__label" [for]="uid + '-client'">OAuth client ID <span class="gw-field__optional">Optional</span></label>
                     <input class="gw-input gw-input--mono" [id]="uid + '-client'" type="text" spellcheck="false" autocomplete="off" [disabled]="transport() !== 'http'" [value]="clientId()" (input)="clientId.set(value($event)); clear('clientId')" [attr.aria-invalid]="errors().clientId ? 'true' : null" [attr.aria-describedby]="uid + '-client-hint' + (errors().clientId ? ' ' + uid + '-client-err' : '')">
@@ -454,16 +482,17 @@ let nextId = 0;
                     <p class="gw-field__hint" [id]="uid + '-port-hint'">Where the browser comes back to: <span class="gw-mono">http://localhost:&lt;port&gt;/callback</span>, or <span class="gw-mono">http://127.0.0.1:7471/callback</span> for an OAuth app. Default: any free port.</p>
                     @if (errors().callbackPort) {<p class="gw-field__error" [id]="uid + '-port-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().callbackPort }}</p>}
                   </div>
+                  </div>
                     }
                   }
                 </div>
-              </div>
+              </section>
               <fieldset class="gw-field">
-                <legend class="gw-field__label">Variables or headers</legend>
+                <legend class="gw-field__label">{{ transport() === 'http' && signInWith() === 'bearer' ? 'Additional headers' : 'Variables or headers' }}</legend>
                 @for (row of variables(); track $index; let i = $index) {
                   <div class="gw-field">
                     <label class="gw-field__label" [for]="uid + '-var-name-' + i">{{ transport() === 'http' ? 'Header' : 'Variable' }} name</label>
-                    <input class="gw-input gw-input--mono" [id]="uid + '-var-name-' + i" type="text" [placeholder]="transport() === 'http' ? 'Authorization' : 'SENTRY_AUTH_TOKEN'" spellcheck="false" autocomplete="off" [value]="row.name" (input)="setVariable(i, value($event))" [attr.aria-describedby]="uid + '-env-hint'">
+                    <input class="gw-input gw-input--mono" [id]="uid + '-var-name-' + i" type="text" [placeholder]="transport() === 'http' ? (signInWith() === 'bearer' ? 'X-API-Key' : 'Authorization') : 'SENTRY_AUTH_TOKEN'" spellcheck="false" autocomplete="off" [value]="row.name" (input)="setVariable(i, value($event))" [attr.aria-describedby]="uid + '-env-hint'">
                   </div>
                 }
                 <!-- The core takes no existing secret by name (C10: a server's
@@ -471,7 +500,7 @@ let nextId = 0;
                      review, right before the start, and stored encrypted as a secret of the server. -->
                 <p class="gw-field__hint" [id]="uid + '-env-hint'">The review asks for their values before the start. Each is stored encrypted as a secret of this server and never shown again. Only these reach the process, and the agent never sees them.</p>
                 @if (errors().variables) {<p class="gw-field__error" [id]="uid + '-var-err'" role="alert"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().variables }}</p>}
-                <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" (click)="addVariable()"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg>Add variable</button></div>
+                <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" (click)="addVariable()"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg>{{ transport() === 'http' ? 'Add header' : 'Add variable' }}</button></div>
               </fieldset>
               @if (error()) {
                 <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
@@ -487,10 +516,10 @@ let nextId = 0;
                 <label class="gw-field__label" [for]="uid + '-find-q'">Server name</label>
                 <div class="gw-search">
                   <svg lucideIcon="search" class="gw-icon gw-search__icon"></svg>
-                  <input class="gw-search__input" type="search" [id]="uid + '-find-q'" placeholder="linear, sentry, postgres" spellcheck="false" autocapitalize="off" autocomplete="off" [attr.aria-describedby]="uid + '-find-hint'" (input)="find(value($event))" (keydown.enter)="findNow($event)">
+                  <input class="gw-search__input" type="search" [id]="uid + '-find-q'" [attr.autofocus]="tab() === 'registry' ? '' : null" placeholder="linear, sentry, postgres" spellcheck="false" autocapitalize="off" autocomplete="off" [attr.aria-describedby]="uid + '-find-hint'" (input)="find(value($event))" (keydown.enter)="findNow($event)">
                   <button class="gw-search__clear" type="button" aria-label="Clear search"><svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg></button>
                 </div>
-                <p class="gw-field__hint" [id]="uid + '-find-hint'">Searches server names in the registry. Use fills in Manual entry; nothing runs or connects before the review.</p>
+                <p class="gw-field__hint" [id]="uid + '-find-hint'">Browse servers or search by name in the registry. Use fills in Manual entry; nothing runs or connects before the review.</p>
               </div>
               <p class="gw-text-small gw-fg-muted gw-tabular" role="status">{{ findStatus() }}</p>
               @if (findError(); as e) {
@@ -507,7 +536,10 @@ let nextId = 0;
                       <article class="gw-card" [attr.aria-labelledby]="uid + '-r' + i">
                         <header class="gw-card__header">
                           <div class="gw-card__heading">
-                            <h3 class="gw-card__title" [id]="uid + '-r' + i">{{ r.title }}</h3>
+                            <h3 class="gw-card__title" [id]="uid + '-r' + i">
+                              <button class="gw-btn gw-btn--link gw-truncate" type="button" [title]="r.title" (click)="use(r)" [attr.aria-disabled]="r.use.kind === 'none' ? 'true' : null" [attr.aria-describedby]="r.use.kind === 'none' ? uid + '-rn' + i : null"><span class="gw-text-h2 gw-truncate">{{ r.title }}</span></button>
+                              @if (r.officialPublisher; as publisher) {<span class="gw-badge gw-badge--info" [title]="'Official server by ' + publisher.name" [attr.aria-label]="'Official server by ' + publisher.name"><svg lucideIcon="shield-check" class="gw-icon"></svg>Official</span>}
+                            </h3>
                             <p class="gw-card__description gw-mono">{{ r.server.name }}@if (r.server.version) { · {{ r.server.version }}}</p>
                           </div>
                           <div class="gw-card__actions">
@@ -538,14 +570,19 @@ let nextId = 0;
                   }
                 </ul>
                 @if (nextCursor()) {
-                  <div><button class="gw-btn gw-btn--sm" type="button" (click)="more()" [attr.aria-busy]="moreBusy() ? 'true' : null" [attr.aria-disabled]="moreBusy() ? 'true' : null">@if (moreBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} Show more</button></div>
+                  <div><button class="gw-btn gw-btn--sm" type="button" (click)="more()" [attr.aria-busy]="moreBusy() ? 'true' : null" [attr.aria-disabled]="moreBusy() || searching() ? 'true' : null">@if (moreBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} Show more</button></div>
                 }
                 <p class="gw-text-caption gw-fg-muted">{{ source() }} The registry checks who published a name, not what the server does: the review shows what will run.</p>
-              } @else if (searched(); as q) {
+              } @else if (searched() !== null && !searching()) {
                 <div class="gw-empty gw-empty--compact">
                   <span class="gw-empty__icon"><svg lucideIcon="search-x" class="gw-icon"></svg></span>
-                  <p class="gw-empty__title">No server name contains “{{ q }}”</p>
-                  <p class="gw-empty__text">Try a shorter part of its name, or paste the configuration from the server’s docs in Manual entry.</p>
+                  @if (searched(); as q) {
+                    <p class="gw-empty__title">No server name contains “{{ q }}”</p>
+                    <p class="gw-empty__text">Try a shorter part of its name, or paste the configuration from the server’s docs in Manual entry.</p>
+                  } @else {
+                    <p class="gw-empty__title">No servers available</p>
+                    <p class="gw-empty__text">Search for a server by name, or paste its configuration in Manual entry.</p>
+                  }
                 </div>
               }
             </div>
@@ -580,8 +617,8 @@ export class GwMcpAddDialog {
   protected readonly scopes = signal('');
   protected readonly callbackPort = signal('');
   protected readonly signInOpen = signal(false);
-  /** OAuth in the browser (when the server asks), or the server's Google Cloud or AWS credentials (§7.6). */
-  protected readonly signInWith = signal<'oauth' | 'google' | 'aws'>('oauth');
+  /** OAuth in the browser, a Bearer token, or the server's Google Cloud or AWS credentials (§7.6). */
+  protected readonly signInWith = signal<'oauth' | 'bearer' | 'google' | 'aws'>('oauth');
   protected readonly gcpSource = signal<'adc' | 'serviceAccountKey'>('adc');
   protected readonly impersonate = signal('');
   protected readonly quotaProject = signal('');
@@ -604,7 +641,7 @@ export class GwMcpAddDialog {
   /** Manual entry (the fields, and a pasted configuration) or the Official MCP Registry tab. */
   protected readonly tab = signal<'manual' | 'registry'>('manual');
   private readonly tabs = viewChild.required(GwTabs);
-  /** The registry tab: the servers whose names contain the query, a page at a time (§7.5). */
+  /** The registry tab: browse servers or search their names, a page at a time (§7.5). */
   protected readonly found = signal<readonly RegistryResult[]>([]);
   /** The query the shown results answer; null before a search, or after the query became too short. */
   protected readonly searched = signal<string | null>(null);
@@ -622,7 +659,7 @@ export class GwMcpAddDialog {
 
   protected readonly findStatus = computed(() => {
     const q = this.query().trim();
-    if (this.searching()) return 'Searching the MCP registry…';
+    if (this.searching()) return q ? 'Searching the MCP registry…' : 'Loading servers from the MCP registry…';
     if (q && q.length < 3) return 'Type at least 3 characters of the server’s name.';
     if (this.searched() === null) return '';
     const n = this.found().length;
@@ -635,13 +672,16 @@ export class GwMcpAddDialog {
   });
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.findTimer && clearTimeout(this.findTimer));
+    inject(DestroyRef).onDestroy(() => {
+      this.findSeq++;
+      if (this.findTimer) clearTimeout(this.findTimer);
+    });
   }
 
-  /** Opens empty, as the kit's dialog: stdio, one variable row. */
-  open(opener: HTMLElement | null): void {
+  /** Opens an empty draft for the explicitly selected source; no server starts until its review is confirmed. */
+  open(opener: HTMLElement | null, source: 'manual' | 'registry' | 'url' = 'manual'): void {
     this.name.set('');
-    this.transport.set('stdio');
+    this.transport.set(source === 'url' ? 'http' : 'stdio');
     this.command.set('');
     this.url.set('');
     this.variables.set([{ name: '' }]);
@@ -665,15 +705,20 @@ export class GwMcpAddDialog {
     this.pasteError.set(null);
     const paste = this.host.querySelector<HTMLTextAreaElement>(`#${this.uid}-paste-text`);
     if (paste) paste.value = '';
-    this.tabs().selectById(`${this.uid}-tab-manual`);
     this.resetFind();
     this.chosen.set(null);
     const search = this.host.querySelector<HTMLInputElement>(`#${this.uid}-find-q`);
     if (search) search.value = '';
     this.query.set('');
+    this.tabs().selectById(`${this.uid}-tab-${source === 'registry' ? 'registry' : 'manual'}`);
     this.errors.set({});
     this.error.set(null);
     this.busy.set(false);
+    this.dialog.openAfterRender(opener);
+  }
+
+  /** Returns from the review with the existing draft and the original focus-return target. */
+  resume(opener: HTMLElement | null): void {
     this.dialog.openAfterRender(opener);
   }
 
@@ -734,6 +779,7 @@ export class GwMcpAddDialog {
     }
     this.variables.set(r.variables.length ? r.variables.map((name) => ({ name })) : [{ name: '' }]);
     if (r.auth) this.applySignIn(r.auth);
+    else if (this.signInWith() === 'bearer') this.setSignInWith('oauth');
     this.errors.set({});
     const kind = r.transport === 'http' ? 'header' : 'variable';
     return joinAnd([
@@ -745,6 +791,8 @@ export class GwMcpAddDialog {
 
   protected onTab(id: string): void {
     this.tab.set(id === `${this.uid}-tab-registry` ? 'registry' : 'manual');
+    if (this.tab() === 'registry' && !this.query().trim() && this.searched() === null
+      && !this.searching() && !this.findError()) void this.runFind('');
   }
 
   /** The query as typed: a search 350 ms after the last key, from 3 characters (the registry's minimum). */
@@ -752,12 +800,21 @@ export class GwMcpAddDialog {
     this.query.set(text);
     if (this.findTimer) clearTimeout(this.findTimer);
     this.findTimer = null;
+    // Invalidate in-flight results as soon as the query changes, including the debounce interval.
+    this.findSeq++;
+    this.moreBusy.set(false);
+    this.findError.set(null);
     const q = text.trim();
     if (q.length < 3) {
       this.resetFind();
+      if (!q) void this.runFind('');
       return;
     }
-    this.findTimer = setTimeout(() => void this.runFind(q), 350);
+    this.searching.set(true);
+    this.findTimer = setTimeout(() => {
+      this.findTimer = null;
+      void this.runFind(q);
+    }, 350);
   }
 
   /** Enter searches at once, and never submits the form around the field. */
@@ -766,15 +823,17 @@ export class GwMcpAddDialog {
     if (this.findTimer) clearTimeout(this.findTimer);
     this.findTimer = null;
     const q = this.query().trim();
-    if (q.length >= 3) void this.runFind(q);
+    if (!q || q.length >= 3) void this.runFind(q);
   }
 
   protected retryFind(): void {
     const q = this.query().trim();
-    if (q.length >= 3) void this.runFind(q);
+    if (!q || q.length >= 3) void this.runFind(q);
   }
 
   private resetFind(): void {
+    if (this.findTimer) clearTimeout(this.findTimer);
+    this.findTimer = null;
     this.findSeq++;
     this.found.set([]);
     this.searched.set(null);
@@ -792,7 +851,21 @@ export class GwMcpAddDialog {
     try {
       const page = await this.data.searchRegistry(q);
       if (seq !== this.findSeq) return;
-      this.found.set(page.servers.map(registryResult));
+      const shown = new Set(page.servers.map((server) => server.name));
+      // Exact-name searches bring known official publishers onto the first page even when the registry ranks them later.
+      const officialPages = await Promise.all(matchingOfficialMcpServerNames(q, page.registry)
+        .filter((name) => !shown.has(name))
+        .map(async (name) => {
+          try {
+            const officialPage = await this.data.searchRegistry(name);
+            return officialPage.registry === page.registry ? officialPage.servers.filter((server) => server.name === name) : [];
+          } catch {
+            return [];
+          }
+        }));
+      if (seq !== this.findSeq) return;
+      this.found.set(rankRegistryResults([...page.servers, ...officialPages.flat()]
+        .map((server) => registryResult(server, page.registry))));
       this.nextCursor.set(page.nextCursor ?? null);
       this.registry.set(page.registry);
       this.searched.set(q);
@@ -811,17 +884,23 @@ export class GwMcpAddDialog {
   protected async more(): Promise<void> {
     const cursor = this.nextCursor();
     const q = this.searched();
-    if (!cursor || q === null || this.moreBusy()) return;
+    if (!cursor || q === null || this.moreBusy() || this.searching() || q !== this.query().trim()) return;
     const seq = this.findSeq;
     this.moreBusy.set(true);
     try {
       const page = await this.data.searchRegistry(q, cursor);
       if (seq !== this.findSeq) return;
-      const first = this.found().length;
       const shown = new Set(this.found().map((r) => r.server.name));
-      this.found.update((rows) => [...rows, ...page.servers.filter((s) => !shown.has(s.name)).map(registryResult)]);
+      const added = page.servers.filter((server) => !shown.has(server.name))
+        .map((server) => registryResult(server, page.registry));
+      this.found.update((rows) => rankRegistryResults([...rows, ...added]));
       this.nextCursor.set(page.nextCursor ?? null);
-      setTimeout(() => this.host.querySelector<HTMLElement>(`#${this.uid}-use-${first}`)?.focus());
+      const first = this.found().find((row) => added.some((newRow) => newRow.server.name === row.server.name));
+      setTimeout(() => {
+        if (seq !== this.findSeq || q !== this.query().trim() || this.tab() !== 'registry' || !this.host.open || !first) return;
+        const index = this.found().findIndex((row) => row.server.name === first.server.name);
+        if (index >= 0) this.host.querySelector<HTMLElement>(`#${this.uid}-use-${index}`)?.focus();
+      });
     } catch (err) {
       if (seq === this.findSeq) this.findError.set(failureText(err, 'This build of the gateway core can’t search the MCP registry.'));
     } finally {
@@ -876,7 +955,7 @@ export class GwMcpAddDialog {
     if (this.errors()[field]) this.errors.update((e) => ({ ...e, [field]: undefined }));
   }
 
-  protected setSignInWith(way: 'oauth' | 'google' | 'aws'): void {
+  protected setSignInWith(way: 'oauth' | 'bearer' | 'google' | 'aws'): void {
     this.signInWith.set(way);
     this.errors.update((e) => ({ ...e, clientId: undefined, scopes: undefined, callbackPort: undefined, impersonate: undefined,
       quotaProject: undefined, profile: undefined, accessKeyId: undefined, roleArn: undefined, externalId: undefined,
@@ -944,9 +1023,8 @@ export class GwMcpAddDialog {
         name: this.name().trim(),
         transport: this.transport(),
         target: this.transport() === 'http' ? this.url().trim() : this.command().trim(),
-        variables: this.variables()
-          .map((v) => ({ name: v.name.trim() }))
-          .filter((v) => v.name),
+        variables: 'config' in r.source ? (r.source.config.headers ?? r.source.config.env ?? []) : [],
+        bearer: 'config' in r.source && r.source.config.transport === 'http' && way === 'bearer',
         opener,
       });
     } catch (err) {

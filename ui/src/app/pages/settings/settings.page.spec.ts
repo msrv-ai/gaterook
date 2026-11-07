@@ -44,7 +44,7 @@ import {
 import { SKELETON_DELAY_MS, SettingsPage } from './settings.page';
 
 /**
- * The Settings page against fake API services in the kit's world (design/pages/settings.html): what each section
+ * The Settings page against fake API services in the kit's world: what each section
  * shows, what each control asks the core, the save model (applies at once with a toast, or a Save bar), the dialogs
  * and their initial focus, and the "not in this build" state of the areas whose backend step isn't merged.
  */
@@ -231,7 +231,6 @@ function configure(): void {
       { provide: DesktopBridge, useFactory: () => desktop },
       { provide: CoreStore, useValue: { running: signal(true), instanceChanges: signal(0), version: signal<string | null>(kitHealth().version) } },
       { provide: ApprovalsStore, useValue: { pendingCount: signal(3) } },
-      { provide: SettingsStore, useValue: { put: () => undefined } },
       { provide: TunnelStore, useValue: { refresh: () => Promise.resolve(), stop: () => (calls.push('tunnel stop'), Promise.resolve()) } },
       { provide: TimeService, useValue: fakeTime },
     ],
@@ -685,7 +684,54 @@ describe('Settings page: Authorization', () => {
 });
 
 describe('Settings page: Notifications', () => {
-  it('without K2: says so, and every control that would act is unavailable with that reason', async () => {
+  it('in-app notifications default to 15 seconds and save independently of delivery channels', async () => {
+    // Existing homes may not have stored the newly introduced preference yet.
+    world.sections = () => Promise.resolve(kitSections({ general: { openAtLogin: true } }));
+    const el = await render();
+    const select = $<HTMLSelectElement>('#st-toast-duration', el)!;
+    expect(select.value).toBe('15');
+    expect(select.getAttribute('aria-disabled')).toBeNull();
+    expect(text($('#st-notif-why', el))).toContain('Not available in this build');
+
+    await type(select, '30');
+    expect(bodies['general']).toEqual({ toastDurationSeconds: 30, version: 3 });
+    expect(TestBed.inject(SettingsStore).section('general')?.values['toastDurationSeconds']).toBe(30);
+    expect(select.value).toBe('30');
+    expect(toasts()).toContain('Saved · In-app notification duration: 30 seconds.');
+    expect(TestBed.inject(ToastService).toasts().at(-1)?.timeout).toBe(30_000);
+  });
+
+  it('a rejected duration change keeps the saved duration and explains the failure beside the field', async () => {
+    world.sections = () => Promise.resolve(kitSections({ general: { toastDurationSeconds: 60 } }));
+    world.update = () => Promise.reject(problem(500, 'The settings table is locked.'));
+    const el = await render();
+    const select = $<HTMLSelectElement>('#st-toast-duration', el)!;
+    expect(select.value).toBe('60');
+
+    await type(select, '120');
+    expect(select.value).toBe('60');
+    expect(TestBed.inject(SettingsStore).section('general')?.values['toastDurationSeconds']).toBe(60);
+    expect(reason(select)).toContain("In-app notification duration wasn't saved. The settings table is locked.");
+    expect($('#st-toast-duration-error', el)?.getAttribute('role')).toBe('alert');
+    expect(toasts()).not.toContain('Saved · In-app notification duration: 2 minutes.');
+  });
+
+  it('cannot save duration until the general settings section is available', async () => {
+    world.sections = () => {
+      const { general: _general, ...sections } = kitSections();
+      return Promise.resolve(sections);
+    };
+    const el = await render();
+    const select = $<HTMLSelectElement>('#st-toast-duration', el)!;
+    expect(select.getAttribute('aria-disabled')).toBe('true');
+    expect(reason(select)).toContain('The app settings have not loaded.');
+
+    await type(select, '30');
+    expect(select.value).toBe('15');
+    expect(calls).not.toContain('put general');
+  });
+
+  it('without K2: says so, and every channel control that would act is unavailable with that reason', async () => {
     const el = await render();
     const n = $('#settings-notifications', el)!;
     expect(text($('#st-notif-why', n))).toContain('Not available in this build');
@@ -928,6 +974,22 @@ describe('Settings page: Audit & retention', () => {
     expect(toasts()).toContain('Retention saved');
     expect(text($('#st-export-why', a))).toContain('Not available in this build');
     expect(control(a, 'Export now').getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('a retention changed outside GateRook says that nothing is removed, and Keep saves the stored period', async () => {
+    const sections = kitSections({ audit: { retentionYears: 2 } });
+    world.sections = () => Promise.resolve({ ...sections, audit: { ...sections['audit']!, verified: false } });
+    const el = await render();
+    const a = $('#settings-audit', el)!;
+    const changed = $('#st-retention-changed', a)!;
+    expect(text(changed)).toContain('Retention was changed outside GateRook');
+    expect(text(changed)).toContain('Nothing is removed from the log until you review it.');
+    // Nothing was edited here: the review is the Keep action, not the Save bar.
+    expect(calls).not.toContain('put audit');
+    await click(control(changed, 'Keep 2 years'));
+    expect(bodies['audit']).toEqual({ retentionYears: 2, version: 3 });
+    expect(toasts()).toContain('Retention saved');
+    expect($('#st-retention-changed', a)).toBeNull();
   });
 
   it('with K5: one card per destination, a failing one with Retry and its error under a disclosure', async () => {

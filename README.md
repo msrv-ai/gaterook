@@ -9,7 +9,9 @@ GateRook is a desktop **MCP Firewall** for AI access to production infrastructur
 
 For macOS, download the `.dmg` installer from the latest release. Windows installs and updates through Microsoft Store.
 
-[Website](https://msrv.dev) · [Security model](docs/security.md) · [Issues](https://github.com/msrv-ai/gaterook/issues) · [Architecture](docs/ARCHITECTURE.md) · [Research](docs/research/README.md) · [Design kit](design/README.md)
+Installed apps check update metadata at `msrv.dev`; macOS update downloads remain on GitHub. Each app data directory gets a random 16-character installation ID on first launch. Update checks send this ID to count installations active within the last 30 days. Turn off **Settings → General → Check for updates automatically** to stop scheduled checks; a manual check still contacts the service. See [update checks](docs/development.md#update-checks-and-installation-identity) for details.
+
+[Website](https://msrv.dev) · [Security model](docs/security.md) · [Issues](https://github.com/msrv-ai/gaterook/issues) · [Architecture](docs/ARCHITECTURE.md) · [Research](docs/research/README.md)
 
 ## Put a firewall between AI and production
 
@@ -51,32 +53,34 @@ GateRook applies its MCP Firewall controls to built-in connectors and external M
 | Service | Supported capabilities |
 | --- | --- |
 | SQL databases | PostgreSQL, MySQL/MariaDB, [Oracle Database](docs/oracle.md), and [SQL Server](docs/sql-server.md): inspect schemas, query data, and review changes before execution |
-| Document and key-value stores | MongoDB document queries and updates; Redis key inspection and reads |
+| Document and key-value stores | MongoDB document queries and updates; [Redis](docs/redis.md) key inspection, reads, and reviewed value writes |
 | Search engines | OpenSearch and Elasticsearch: discover indices, query documents, and review administrative requests |
 | Logs | [GCP Cloud Logging](docs/gcp-logs.md), AWS CloudWatch Logs, Loki, and [selected log files over SSH](docs/ssh-log-files.md): search and read logs within configured limits |
 | Infrastructure and cloud | SSH commands and runbooks; Kubernetes resources, events, pod logs, and reviewed changes; AWS and GCP resource inspection and metrics |
 | HTTP APIs | Scoped HTTP requests and selected operations imported from an OpenAPI specification |
-| [MCP servers](docs/mcp-servers.md) | Remote Streamable HTTP servers and local stdio commands, added by URL, command, or pasted configuration; tools follow GateRook's access rules and approvals |
+| [MCP servers](docs/mcp-servers.md) | Remote Streamable HTTP/SSE servers and local stdio commands, added by URL, command, or pasted configuration; tools follow GateRook's access rules and approvals |
 | [Official MCP Registry](https://registry.modelcontextprotocol.io/) | Search public MCP servers from GateRook and fill in supported remote URLs or npm/PyPI commands for review before connecting |
+
+To discover connections in a repository, [import connections with AI](docs/ai-connection-import.md). Your AI app prepares configurations and credentials in a private import file; you review the connections and choose an endpoint for each in GateRook. You can save incomplete discoveries disabled and finish their setup later.
 
 For HTTP APIs, [import an OpenAPI file or prepare one with your AI app](docs/http-api-import.md). Review the server, authentication, and selected operations before saving them as MCP tools.
 
 ## Bring external MCP servers behind the firewall
 
-Connect existing MCP servers through GateRook to apply endpoint access rules, tool modes, approvals, and audit history to their tools. GateRook supports remote servers over **Streamable HTTP** and local commands over **stdio**.
+Connect existing MCP servers through GateRook to apply endpoint access rules, tool modes, approvals, and audit history to their tools. GateRook supports remote servers over **Streamable HTTP** or **SSE** and local commands over **stdio**.
 
 Open **Connectors → MCP servers → Add MCP server** and choose how to add one:
 
 - **Official MCP Registry:** search the [Official MCP Registry](https://registry.modelcontextprotocol.io/) by server name. Select **Use** to fill in a remote URL or a local npm/PyPI command, pinned to the package version when the registry provides one. Review the settings and supply required credentials or values before connecting or starting it.
 - **Manual entry:** enter a server URL or local command, or paste a configuration from the server's documentation, including Claude Desktop/Cursor JSON, VS Code JSON, or Codex TOML.
 
-For servers that support OAuth, sign in through your browser. GateRook stores the sign-in encrypted, renews it, and keeps the credentials out of AI apps. After adding a server, choose which endpoints may use it; tools start in **Approval** mode on selected endpoints and remain **Off** elsewhere.
+For servers that support OAuth, sign in through your browser. GateRook stores the sign-in encrypted, renews it, and keeps the credentials out of AI apps. After adding a server, choose which endpoints may use it. Tools declared read only start in **Read only** mode; other tools start in **Approval**, or **Off** on endpoints that only permit reads. Tools remain **Off** on unselected endpoints. Server declarations are not independently verified.
 
 See [the external MCP server guide](docs/mcp-servers.md) for setup, registry package support, cloud credentials, OAuth options, and troubleshooting.
 
 ## Keep credentials encrypted and under your control
 
-Manage credentials in **Secrets**. GateRook's local vault uses AES-256-GCM envelope encryption for stored values and keeps its master key outside the database. With OS credential protection enabled and a secure backend available, the master-key file is encrypted using a key protected by **macOS Keychain**, **Windows DPAPI**, or **Linux Secret Service / KWallet**. macOS unlock supports Touch ID or your Mac password; Windows adds Windows Hello when available. The Secrets page shows the current protection status.
+Manage credentials in **Secrets**. GateRook's local vault uses AES-256-GCM envelope encryption for stored values and keeps its master key outside the database. With OS credential protection enabled and a secure backend available, the master-key file is encrypted using a key protected by **macOS Keychain**, **Windows Hello / DPAPI**, or **Linux Secret Service / KWallet**. macOS unlock supports Touch ID or your Mac password. New Windows vaults bind their key to Windows Hello when available; otherwise unlock asks for your Windows account password. The Secrets page shows the current protection status.
 
 To use an existing secret store, open **Secrets → External stores** and connect a provider:
 
@@ -92,9 +96,11 @@ Select the store in a connection's credential fields and enter a secret referenc
 
 The Overview page brings pending approvals, connection health, and AI app access into one place. Use the On/Off switches there, in Endpoints, or in Connections to pause access without removing settings. A connection switch applies across all endpoints; an endpoint switch affects only that endpoint. Pausing stops new access, but does not cancel operations already executing. Paused tools remain visible to AI apps and return a message asking the user to enable access. Use the sidebar to manage connections, secrets, policies, and endpoints, or inspect tool calls in Activity.
 
+For an AI app that GateRook does not detect, open **AI apps → Add app manually**, enter its name and choose an endpoint. Copy the endpoint URL and the token shown once into the app's MCP settings using Streamable HTTP and Bearer authentication. The app stays in the list across restarts and scans, with **Awaiting connection** until its first authenticated request. Its card offers token replacement and removal; both revoke the previous token, so update or remove the MCP settings in the app too.
+
 ![GateRook Overview page showing connection health, AI app connection status, and navigation for managing access and reviewing activity.](docs/images/gaterook-overview.png)
 
-This repository contains the complete application, its tests, the canonical design kit, and everything needed for a local development build. The application is in development; a source build is not a signed release installer.
+This repository contains the complete application, its tests, runtime assets, and everything needed for a local development build. The application is in development; a source build is not a signed release installer.
 
 ## Build and run locally
 
@@ -107,14 +113,13 @@ git clone https://github.com/msrv-ai/gaterook.git
 cd gaterook
 # If you use nvm: nvm install && nvm use
 npm ci
-npm ci --prefix design
 npm run build
 npm start
 ```
 
-`npm run build` builds the design kit, all Java modules, the Angular UI, and the Electron main/preload bundle. It compiles tests but skips running them. `npm start` opens the desktop application, which manages its JVM core. Development data is stored in `desktop/.dev/home/`; stop the application with **Ctrl+C** in the terminal.
+`npm run build` builds all Java modules, the Angular UI, and the Electron main/preload bundle. It compiles tests but skips running them. `npm start` opens the desktop application, which manages its JVM core. Development data is stored in `desktop/.dev/home/`; stop the application with **Ctrl+C** in the terminal.
 
-With OS credential protection enabled, select **Unlock GateRook** to continue startup. macOS offers Touch ID when enrolled, with your Mac password as a fallback. Windows uses Windows Hello when available, including face, fingerprint, or PIN; otherwise it retains OS account protection. Authentication happens only in system dialogs. Denying access closes GateRook. Restarting the core within the same app session does not ask again.
+With OS credential protection enabled, select **Unlock GateRook** to continue startup. macOS offers Touch ID when enrolled, with your Mac password as a fallback. Windows uses Windows Hello when available, including face, fingerprint, or PIN; otherwise it asks for your Windows account password. On a computer with Windows Hello, a new GateRook home binds its encryption key to Windows Hello, so only Windows Hello opens it: if Hello is turned off, GateRook can't unlock until it is set up again, and if Windows removed the key, GateRook offers to restore your master-key backup. Authentication happens only in system dialogs. Denying access closes GateRook. Restarting the core within the same app session does not ask again.
 
 An existing macOS vault uses its previous Keychain access once to migrate the same encryption key. Later launches use native unlock. A locked Keychain or a changed helper signature may require its access/password dialog; GateRook uses that grant without adding a second Touch ID prompt.
 
@@ -127,6 +132,8 @@ npm start -- --demo --home ./desktop/.dev/demo --protection off
 Demo data is seeded only into a new home. Add `--fresh` only when you intend to delete that selected development home. Rebuild after source changes with `npm run build`.
 
 **Settings → Backup** offers passphrase-encrypted full backup and restore, including the database and master key. See [full backup and restore](docs/development.md#full-backup-and-restore) for recovery steps, included data and limits.
+
+To send an endpoint to another person, open it and choose **Share endpoint**. Select its connections and whether to include stored secrets, then save an encrypted `.grshare` file. The recipient opens **Endpoints → Import shared endpoint**, enters the passphrase and chooses which items to import. See [endpoint sharing](docs/development.md#endpoint-sharing) for what transfers and how review works.
 
 For browser UI development with a signed local API proxy:
 
@@ -145,7 +152,6 @@ npm test                          # Build and staging helper tests
 npm test -w bridge                # Token broker and stdio bridge
 npm test -w desktop               # Electron type checking and unit tests
 npm test -w ui                    # Angular component and behavior tests
-npm --prefix design run verify   # Design generation and validation
 mvn -B -ntp verify                # Java tests; some integration tests need local services
 ```
 
@@ -164,14 +170,11 @@ For the full connector integration suite, follow [the Docker test-services guide
 | [External MCP servers](docs/mcp-servers.md) | Official MCP Registry search, local and remote servers, pasted configurations, OAuth sign-in, cloud credentials, and troubleshooting |
 | [Oracle Database](docs/oracle.md) | Service connections, TLS, schema access, queries and Oracle-specific limits |
 | [SQL Server](docs/sql-server.md) | SQL authentication, database selection, permissions, and T-SQL limits |
+| [Redis](docs/redis.md) | Reading and writing values, expiration, key and database scopes, and write limits |
 | [GCP logs](docs/gcp-logs.md) | Logs Explorer filters, GKE logs, credentials, scopes, and endpoint access |
 | [SSH log files](docs/ssh-log-files.md) | Remote file selection, searching, latest records, time ranges, and continuation |
 | [Repository layout](docs/repository-layout.md) | Source directories and their responsibilities |
 | [Migration scope](docs/migration.md) | Source inclusion, compatibility, and publication boundaries |
-| [Design kit](design/README.md) | Tokens, styles, assets, reference pages, and verification |
-| [Design rules](design/DESIGN.md) | Visual language and interaction rules |
-| [Components](design/COMPONENTS.md) | Component and element APIs |
-| [UI blueprint](design/BLUEPRINT.md) | Screens, states, and the shared demo world |
 | [Contributor and AI rules](AGENTS.md) | English-only content and handling of internal AI files |
 
 The stack is Electron 45, Angular 22, Java 25, and Spring Boot 4.1. The core can also be built as a GraalVM native executable. Java plugins run in a separate JVM host. See the manifests and lockfiles for exact dependency versions.

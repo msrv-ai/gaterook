@@ -5,7 +5,7 @@ import { StoredSecret } from '../core/api/connections.api';
 import { SecretStore, SecretsApi } from '../core/api/secrets.api';
 import { JsonObject } from '../core/api/types';
 import { provideKitIcons } from '../kit/icons';
-import { SecretAction, createSchemaForm } from './schema-form';
+import { SecretAction, StoreOption, createSchemaForm } from './schema-form';
 import { GwSchemaForm } from './schema-form.component';
 
 const SCHEMA: JsonObject = {
@@ -70,7 +70,12 @@ async function setup(options: {
   TestBed.configureTestingModule({ providers: [provideKitIcons(), { provide: SecretsApi, useValue: api }] });
   const fixture = TestBed.createComponent(Host);
   const form = fixture.componentInstance.form;
-  form.source.set('vault');
+  // The connected Vaults, as the field's menu offers them; a field picked for Vault starts with its scheme.
+  form.stores.set((options.stores ?? [store()]).map((s): StoreOption => ({
+    kind: 'vault', store: s.name, title: `Vault · ${s.name}`, detail: null, available: true, reason: null })));
+  for (const node of form.compiled.all) {
+    if (node.kind === 'secret' && !initialStored.some((saved) => saved.field === node.pointer)) form.setSecret(node, 'vault://');
+  }
   const actions: SecretAction[] = [];
   form.onSecretAction((action) => actions.push(action));
   const settle = async () => {
@@ -88,9 +93,10 @@ async function setup(options: {
     button!.click();
     await settle();
   };
+  /** Types into the reference field: a path and key after the scheme the field keeps (`vault://`). */
   const type = async (value: string) => {
     reference().focus();
-    reference().value = value;
+    reference().value = value.includes('://') ? value : `vault://${value}`;
     reference().dispatchEvent(new Event('input', { bubbles: true }));
     await settle();
   };
@@ -102,10 +108,9 @@ async function setup(options: {
     await settle();
     return event;
   };
+  /** The Vault the person picks in the field's menu. */
   const chooseStore = async (value: string) => {
-    const field = control<HTMLSelectElement>('store');
-    field.value = value;
-    field.dispatchEvent(new Event('change', { bubbles: true }));
+    form.fieldStores.update((stores) => ({ ...stores, '/password': value }));
     await settle();
   };
   const choices = () => [...el.querySelectorAll<HTMLButtonElement>('[role="option"]')]
@@ -122,13 +127,44 @@ async function setup(options: {
 }
 
 describe('Vault reference autocomplete', () => {
+  it.each(['user', 'password'])('keeps the caret when editing a %s reference without available suggestions', async fieldName => {
+    const view = await setup({
+      schema: { ...SCHEMA, properties: { ...SCHEMA['properties'] as JsonObject, user: { type: 'string', title: 'User' } } },
+      configure: api => api.vaultReferences.mockResolvedValue({ references: [], complete: false, issues: [] }),
+    });
+    const node = view.form.compiled.all.find(node => node.pointer === `/${fieldName}`)!;
+    view.form.setFieldText(node, 'vault://kv/dev/orders#username');
+    await view.settle();
+    const input = view.el.querySelector<HTMLInputElement>(`#secret-${fieldName}`)!;
+    input.focus();
+    const position = 'vault://kv/'.length;
+    input.setSelectionRange(position, position);
+    input.setRangeText('p', position, position, 'end');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await view.settle();
+    expect(document.activeElement).toBe(input);
+    expect(input.value).toBe('vault://kv/pdev/orders#username');
+    expect(input.selectionStart).toBe(position + 1);
+    expect(input.selectionEnd).toBe(position + 1);
+
+    input.setRangeText('', position, position + 1, 'end');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.setSelectionRange(position, position + 3, 'backward');
+    await view.settle();
+    expect(input.value).toBe('vault://kv/dev/orders#username');
+    expect(input.selectionStart).toBe(position);
+    expect(input.selectionEnd).toBe(position + 3);
+    expect(input.selectionDirection).toBe('backward');
+    expect(view.form.fieldText(node)).toBe(input.value);
+  });
+
   it('loads all reference suggestions automatically, filters locally and inserts a complete selected reference', async () => {
     const view = await setup();
     expect(view.api.stores).toHaveBeenCalledTimes(1);
     expect(view.api.vaultReferences).toHaveBeenCalledExactlyOnceWith('vault-dev');
     expect(view.api.browseVault).not.toHaveBeenCalled();
     expect(view.api.testReference).not.toHaveBeenCalled();
-    expect(view.reference().value).toBe('');
+    expect(view.reference().value).toBe('vault://');
     expect(view.reference().getAttribute('role')).toBe('combobox');
     expect(view.reference().getAttribute('aria-autocomplete')).toBe('list');
     expect(view.el.textContent).not.toContain('Browse Vault');
@@ -141,15 +177,18 @@ describe('Vault reference autocomplete', () => {
     await view.type('orders#pass');
     expect(view.choiceLabels()).toEqual(['kv/dev/orders#password']);
     await view.choose('kv/dev/orders#password');
-    expect(view.reference().value).toBe('kv/dev/orders#password');
+    expect(view.reference().value).toBe('vault://kv/dev/orders#password');
     expect(view.reference().getAttribute('aria-expanded')).toBe('false');
     expect(view.form.submit()).toBe(true);
+    // The only Vault: the core binds the reference to it; a choice among several names one.
     expect(view.form.secretInputs()).toEqual({ '/password': {
-      source: 'reference', ref: 'vault://kv/dev/orders#password', store: 'vault-dev',
+      source: 'reference', ref: 'vault://kv/dev/orders#password',
     } });
     expect(view.form.value()).toEqual({});
     await view.click('Test reference');
-    expect(view.actions).toEqual([expect.objectContaining({ kind: 'test', ref: 'vault://kv/dev/orders#password', store: 'vault-dev' })]);
+    // No Vault was picked in the menu: the core binds the only one.
+    expect(view.actions).toEqual([expect.objectContaining({ kind: 'test', ref: 'vault://kv/dev/orders#password' })]);
+    expect(view.actions[0]).not.toHaveProperty('store');
     expect(view.api.vaultReferences).toHaveBeenCalledTimes(1);
   });
 
@@ -172,15 +211,15 @@ describe('Vault reference autocomplete', () => {
     await view.type('password');
     await view.key('Escape');
     expect(view.reference().getAttribute('aria-expanded')).toBe('false');
-    expect(view.reference().value).toBe('password');
+    expect(view.reference().value).toBe('vault://password');
     await view.key('ArrowUp');
     expect(view.reference().getAttribute('aria-expanded')).toBe('true');
     await view.key('Tab');
     expect(view.reference().getAttribute('aria-expanded')).toBe('false');
-    expect(view.reference().value).toBe('password');
+    expect(view.reference().value).toBe('vault://password');
   });
 
-  it.each(['kv/dev/orders?version=2#user', 'vault://kv/dev/orders#user?version=2'])(
+  it.each(['vault://kv/dev/orders?version=2#user', 'vault://kv/dev/orders#user?version=2'])(
     'selects a pinned key immediately when input, ArrowDown and Enter occur before another render: %s', async (typed) => {
       const view = await setup();
       await view.type('orders#pass');
@@ -199,12 +238,12 @@ describe('Vault reference autocomplete', () => {
       expect(down.defaultPrevented).toBe(true);
       expect(enter.defaultPrevented).toBe(true);
       expect(view.form.secretInputs()['/password']).toEqual({
-        source: 'reference', ref: 'vault://kv/dev/orders?version=2#username', store: 'vault-dev',
+        source: 'reference', ref: 'vault://kv/dev/orders?version=2#username',
       });
       expect(view.form.submitted()).toBe(false);
       expect(view.actions).toEqual([]);
       await view.settle();
-      expect(field.value).toBe('kv/dev/orders?version=2#username');
+      expect(field.value).toBe('vault://kv/dev/orders?version=2#username');
       expect(field.getAttribute('aria-expanded')).toBe('false');
       expect(view.api.vaultReferences).toHaveBeenCalledTimes(1);
     },
@@ -217,15 +256,18 @@ describe('Vault reference autocomplete', () => {
     await view.type('orders#pass');
     pending.resolve([store()]);
     await view.settle();
-    expect(view.reference().value).toBe('orders#pass');
+    expect(view.reference().value).toBe('vault://orders#pass');
     expect(view.reference().getAttribute('aria-expanded')).toBe('true');
     expect(view.choiceLabels()).toEqual(['kv/dev/orders#password']);
   });
 
-  it('waits for an explicit store choice when more than one Vault store exists, then loads automatically', async () => {
+  it('waits for a Vault picked in the field\'s menu when several are connected, then loads automatically', async () => {
     const view = await setup({ stores: [store(), store('vault-prod')] });
     expect(view.api.vaultReferences).not.toHaveBeenCalled();
-    expect(view.control<HTMLSelectElement>('store').value).toBe('');
+    // The Vault is picked in the field's menu; without one, the core asks each in turn.
+    expect(view.control<HTMLSelectElement>('store')).toBeNull();
+    expect(view.status()).toContain("Choose a Vault in the field's menu to load its keys");
+    expect(view.status()).toContain('each Vault is asked in turn');
     await view.chooseStore('vault-prod');
     expect(view.api.vaultReferences).toHaveBeenCalledExactlyOnceWith('vault-prod');
     await view.type('billing');
@@ -233,16 +275,17 @@ describe('Vault reference autocomplete', () => {
     expect(view.form.secretInputs()['/password']).toEqual({ source: 'reference', ref: 'vault://kv/stage/billing#password', store: 'vault-prod' });
   });
 
-  it('normalizes a saved store name to its ID before loading suggestions and saving a replacement', async () => {
-    const view = await setup({ stores: [{ ...store('vault-123'), name: 'Development Vault' }], saved: [{ ...saved, store: 'Development Vault' }] });
+  it("loads a saved store's suggestions by its ID and keeps its name for the replacement", async () => {
+    const view = await setup({ stores: [{ ...store('vault-123'), name: 'vault-dev-eu' }], saved: [{ ...saved, store: 'vault-dev-eu' }] });
     expect(view.api.vaultReferences).not.toHaveBeenCalled();
     await view.click('Change');
+    expect(view.form.fieldStores()).toEqual({ '/password': 'vault-dev-eu' });
     expect(view.api.vaultReferences).toHaveBeenCalledExactlyOnceWith('vault-123');
     await view.type('orders#pass');
     await view.choose('kv/dev/orders#password');
-    expect(view.form.secretInputs()['/password']).toEqual({ source: 'reference', ref: saved.name, store: 'vault-123' });
+    expect(view.form.secretInputs()['/password']).toEqual({ source: 'reference', ref: saved.name, store: 'vault-dev-eu' });
     await view.click('Test reference');
-    expect(view.actions).toEqual([expect.objectContaining({ kind: 'test', ref: saved.name, store: 'vault-123' })]);
+    expect(view.actions).toEqual([expect.objectContaining({ kind: 'test', ref: saved.name, store: 'vault-dev-eu' })]);
   });
 
   it('ignores a late catalog response from a previously selected store', async () => {
@@ -261,17 +304,20 @@ describe('Vault reference autocomplete', () => {
     expect(view.form.secretInputs()['/password']).toMatchObject({ ref: 'vault://kv/prod/orders#password', store: 'vault-prod' });
   });
 
-  it('does not apply a pending catalog after switching away from Vault', async () => {
+  it('does not apply a pending catalog after switching the field back to Text', async () => {
     const pending = deferred<ReferenceList>();
     const view = await setup({ configure: (api) => api.vaultReferences.mockReturnValueOnce(pending.promise) });
-    await view.type('manual-password');
-    view.form.source.set('local');
+    await view.type('kv/dev/orders#pass');
+    view.form.chooseSource(view.form.compiled.all.find((node) => node.pointer === '/password')!, null);
     await view.settle();
     expect(view.el.querySelector('gw-vault-picker')).toBeNull();
+    // A value typed as Text stays a value stored here.
+    view.reference().value = 'manual-password';
+    view.reference().dispatchEvent(new Event('input', { bubbles: true }));
     pending.resolve(references('vault://kv/dev/orders#password'));
     await view.settle();
     expect(view.form.secretInputs()).toEqual({ '/password': { source: 'local', value: 'manual-password' } });
-    expect(view.el.querySelector('[role="option"]')).toBeNull();
+    expect(view.el.querySelector('[aria-label="Vault paths and keys"] [role="option"]')).toBeNull();
   });
 
   it('keeps accessible suggestions usable while explaining a denied subtree', async () => {
@@ -294,16 +340,16 @@ describe('Vault reference autocomplete', () => {
     }) });
     expect(view.el.textContent).toContain(message);
     await view.type('vault://secret/dev/orders#password');
-    expect(view.reference().value).toBe('secret/dev/orders#password');
+    expect(view.reference().value).toBe('vault://secret/dev/orders#password');
     await view.click('Test reference');
-    expect(view.actions).toEqual([expect.objectContaining({ kind: 'test', ref: 'vault://secret/dev/orders#password', store: 'vault-dev' })]);
+    expect(view.actions).toEqual([expect.objectContaining({ kind: 'test', ref: 'vault://secret/dev/orders#password' })]);
     expect(view.form.submit()).toBe(true);
   });
 
   it('shows an empty catalog separately from a query that has no matches', async () => {
     const view = await setup({ configure: (api) => api.vaultReferences.mockResolvedValueOnce(references()) });
     expect(view.status()).toMatch(/No .* (keys|references)/i);
-    expect(view.reference().value).toBe('');
+    expect(view.reference().value).toBe('vault://');
     view.api.vaultReferences.mockResolvedValueOnce(references('vault://kv/dev/orders#password'));
     await view.click('Refresh list');
     await view.type('missing');
@@ -318,7 +364,7 @@ describe('Vault reference autocomplete', () => {
     view.api.vaultReferences.mockResolvedValueOnce(references('vault://kv/new#password'));
     await view.click('Refresh list');
     expect(view.api.vaultReferences).toHaveBeenCalledTimes(2);
-    expect(view.reference().value).toBe('kv/manual#password');
+    expect(view.reference().value).toBe('vault://kv/manual#password');
     await view.type('');
     await view.open();
     expect(view.choiceLabels()).toEqual(['kv/new#password']);
@@ -363,7 +409,7 @@ describe('Vault reference autocomplete', () => {
     const view = await setup({ stores: [] });
     expect(view.el.textContent).toContain('Connect Vault or OpenBao in Secrets');
     expect(view.api.vaultReferences).not.toHaveBeenCalled();
-    expect(view.reference().value).toBe('');
+    expect(view.reference().value).toBe('vault://');
   });
 
   it.each(['kv/dev/orders?version=2#pass', 'vault://kv/dev/orders#pass?version=2'])(
@@ -371,7 +417,7 @@ describe('Vault reference autocomplete', () => {
       const view = await setup();
       await view.type(typed);
       await view.choose('kv/dev/orders#password');
-      expect(view.reference().value).toBe('kv/dev/orders?version=2#password');
+      expect(view.reference().value).toBe('vault://kv/dev/orders?version=2#password');
       expect(view.form.secretInputs()['/password']).toMatchObject({ ref: 'vault://kv/dev/orders?version=2#password' });
     },
   );
@@ -387,7 +433,7 @@ describe('Vault reference autocomplete', () => {
     else view.form.replace(node, false);
     await view.settle();
     expect(view.form.secretInputs()).toEqual({});
-    expect(view.form.vaultStores()).toEqual({});
+    if (action === 'discard') expect(view.form.fieldStores()).toEqual({});
     expect(view.el.querySelector('gw-vault-picker')).toBeNull();
     await view.click('Test reference');
     expect(view.actions).toEqual([expect.objectContaining({ kind: 'test', ref: saved.name, store: 'vault-dev' })]);
@@ -402,9 +448,14 @@ describe('Vault reference autocomplete', () => {
     view.form.setStored([refreshed]);
     await view.settle();
     expect(view.form.secretInputs()).toEqual({});
-    expect(view.form.vaultStores()).toEqual({});
     await view.click('Test reference');
     expect(view.actions).toEqual([expect.objectContaining({ kind: 'test', ref: refreshed.name, store: 'vault-dev' })]);
+  });
+
+  it("tests a stored reference by its URI, not by the secret's name", async () => {
+    const view = await setup({ saved: [{ ...saved, name: 'orders/password', ref: 'vault://kv/dev/orders#password' }] });
+    await view.click('Test reference');
+    expect(view.actions).toEqual([expect.objectContaining({ kind: 'test', ref: 'vault://kv/dev/orders#password', store: 'vault-dev' })]);
   });
 
   it('shares automatic catalog loading between multiple secret fields', async () => {
@@ -415,6 +466,7 @@ describe('Vault reference autocomplete', () => {
     expect(view.el.querySelectorAll('gw-vault-picker')).toHaveLength(2);
     expect(view.api.stores).toHaveBeenCalledTimes(1);
     expect(view.api.vaultReferences).toHaveBeenCalledExactlyOnceWith('vault-dev');
+    // A scheme alone names nothing yet.
     expect(view.form.secretInputs()).toEqual({});
   });
 });

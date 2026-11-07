@@ -8,15 +8,16 @@
       <p class="gw-card__description">A SQL query with typed parameters. The agent calls it with arguments and never sees or writes the SQL.</p>
     }
   </div>
-  @if (editing()) {
-    <div class="gw-card__actions">
+  <div class="gw-card__actions">
+    @if (editing()) {
       @if (t.playground; as p) {
         <a class="gw-btn gw-btn--sm" routerLink="/playground" [queryParams]="{ endpoint: p.endpoint, tool: p.tool }"><svg lucideIcon="flask-conical" class="gw-icon gw-icon--sm"></svg> Try in Playground</a>
       } @else {
         <a class="gw-btn gw-btn--sm" routerLink="/playground"><svg lucideIcon="flask-conical" class="gw-icon gw-icon--sm"></svg> Try in Playground</a>
       }
-    </div>
-  }
+    }
+    <button class="gw-btn gw-btn--sm" type="button" [disabled]="busy()" (click)="closed.emit()"><svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg> Close editor</button>
+  </div>
 </header>
 <div class="gw-card__body">
   @if (t.unreadable) {
@@ -167,17 +168,6 @@
           </div>
         </div>
       }
-      @if (warnings().length) {
-        <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
-          <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
-          <div class="gw-alert__content">
-            @for (m of warnings(); track $index) {
-              <p class="gw-alert__body">{{ m }}</p>
-            }
-          </div>
-        </div>
-      }
-
       <div class="gw-form__actions">
         <!-- The live region stays in place so the change of state is announced; it is empty while nothing changed. -->
         <p class="gw-form__note" role="status">@if (dirty()) {<svg lucideIcon="circle-dot" class="gw-icon"></svg>Unsaved changes}</p>

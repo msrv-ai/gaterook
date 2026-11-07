@@ -26,8 +26,8 @@ import { TOAST_CAP, ToastService } from './toast.service';
 import { TooltipDismiss } from './tooltip';
 
 /**
- * Parity of the kit's behaviours (design/assets/kit.js) as Angular directives: each test drives the DOM the way a
- * person does (click, keys) and checks the attributes kit.js would set.
+ * Parity of the kit's behaviours as Angular directives: each test drives the DOM the way a
+ * person does (click, keys) and checks the expected accessibility and state attributes.
  */
 
 const key = (el: Element, k: string, init: KeyboardEventInit = {}) => {
@@ -51,7 +51,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('kit.js parity: aria-disabled guard', () => {
+describe('shared UI behavior: aria-disabled guard', () => {
   @Component({
     imports: [],
     template: `
@@ -99,7 +99,7 @@ describe('kit.js parity: aria-disabled guard', () => {
   });
 });
 
-describe('kit.js parity: menus', () => {
+describe('shared UI behavior: menus', () => {
   @Component({
     imports: [GwMenu, GwMenuTrigger],
     template: `
@@ -158,7 +158,7 @@ describe('kit.js parity: menus', () => {
   });
 });
 
-describe('kit.js parity: tabs', () => {
+describe('shared UI behavior: tabs', () => {
   @Component({
     imports: [GwTabs],
     template: `
@@ -189,7 +189,7 @@ describe('kit.js parity: tabs', () => {
   });
 });
 
-describe('kit.js parity: dialogs', () => {
+describe('shared UI behavior: dialogs', () => {
   @Component({
     imports: [GwDialog, GwDialogOpen, GwDialogClose],
     template: `
@@ -228,9 +228,41 @@ describe('kit.js parity: dialogs', () => {
     host.d().close();
     expect(host.closed).toEqual(['delete', '']);
   });
+
+  it.each(['open', 'closing'] as const)('removes a destroyed %s dialog from the stack without removing another dialog', async (state) => {
+    const underlying = await render(Host);
+    const current = await render(Host);
+    const stack = TestBed.inject(DialogStack);
+    underlying.host.d().open();
+    current.host.d().open();
+    const underlyingDialog = q<HTMLDialogElement>(underlying.el, 'dialog');
+    const currentDialog = q<HTMLDialogElement>(current.el, 'dialog');
+    expect(stack.top()).toBe(currentDialog);
+    expect(stack.openCount()).toBe(2);
+
+    if (state === 'closing') {
+      // Native close events are asynchronous; the jsdom shim otherwise hides navigation-before-close races.
+      vi.spyOn(currentDialog, 'close').mockImplementation(() => {
+        currentDialog.removeAttribute('open');
+        queueMicrotask(() => currentDialog.dispatchEvent(new Event('close')));
+      });
+      current.host.d().close();
+    }
+    current.fixture.destroy();
+    await Promise.resolve();
+
+    expect(stack.top()).toBe(underlyingDialog);
+    expect(stack.openCount()).toBe(1);
+    expect(underlyingDialog.open).toBe(true);
+    expect(current.host.closed).toEqual([]);
+
+    underlying.fixture.destroy();
+    expect(stack.top()).toBeNull();
+    expect(stack.openCount()).toBe(0);
+  });
 });
 
-describe('kit.js parity: disclosure and View raw', () => {
+describe('shared UI behavior: disclosure and View raw', () => {
   @Component({
     imports: [GwToggle, GwExpand],
     template: `
@@ -256,7 +288,7 @@ describe('kit.js parity: disclosure and View raw', () => {
   });
 });
 
-describe('kit.js parity: copy', () => {
+describe('shared UI behavior: copy', () => {
   @Component({
     imports: [GwCopy, GwToast, GwDialog],
     template: `
@@ -345,7 +377,7 @@ describe('kit.js parity: copy', () => {
   });
 });
 
-describe('kit.js parity: announce', () => {
+describe('shared UI behavior: announce', () => {
   it('a polite and an assertive message in the same moment are both read', () => {
     vi.useFakeTimers();
     const announcer = TestBed.inject(Announcer);
@@ -355,7 +387,7 @@ describe('kit.js parity: announce', () => {
     vi.advanceTimersByTime(60);
     expect(document.querySelector('[role="status"]')?.textContent).toBe('Copied to clipboard');
     expect(document.querySelector('[role="alert"]')?.textContent).toBe('sql_execute on dev-db expired, denied automatically');
-    // The same region twice: the later text is the one left in it (kit.js: each call refills after 50 ms).
+    // The same region twice: the later text is the one left in it.
     announcer.announce('Sorted by Name, ascending');
     announcer.announce('Sorted by Name, descending');
     vi.advanceTimersByTime(60);
@@ -363,7 +395,7 @@ describe('kit.js parity: announce', () => {
   });
 });
 
-describe('kit.js parity: toasts', () => {
+describe('shared UI behavior: toasts', () => {
   it('stacks at most three, a toast with an action stays, icons follow the tone', () => {
     const toasts = TestBed.inject(ToastService);
     for (let i = 0; i < TOAST_CAP + 1; i++) toasts.show({ title: `t${i}` });
@@ -371,13 +403,13 @@ describe('kit.js parity: toasts', () => {
     const undo = toasts.show({ title: 'Disconnected', tone: 'success', actions: [{ label: 'Undo' }] });
     expect(undo.timeout).toBe(0);
     expect(undo.icon).toBe('circle-check');
-    expect(toasts.show({ title: 'x' }).timeout).toBe(6000);
+    expect(toasts.show({ title: 'x' }).timeout).toBe(15000);
     toasts.dismiss(undo.id);
     expect(toasts.toasts().some((t) => t.id === undo.id)).toBe(false);
   });
 });
 
-describe('kit.js parity: tables', () => {
+describe('shared UI behavior: tables', () => {
   @Component({
     imports: [GwSortRow, GwSelectable],
     template: `
@@ -423,7 +455,7 @@ describe('kit.js parity: tables', () => {
   });
 });
 
-describe('kit.js parity: small controls', () => {
+describe('shared UI behavior: small controls', () => {
   @Component({
     imports: [GwSidebarToggle, GwSearchClearButton, GwReveal, GwPressed, GwEnableWhen, GwChart, GwFileDrop],
     template: `
@@ -508,7 +540,7 @@ describe('kit.js parity: small controls', () => {
   });
 });
 
-describe('kit.js parity: keyboard shortcuts', () => {
+describe('shared UI behavior: keyboard shortcuts', () => {
   @Component({
     template: `<input id="search" aria-keyshortcuts="/"><textarea id="note"></textarea>`,
   })
@@ -539,7 +571,7 @@ describe('kit.js parity: keyboard shortcuts', () => {
   });
 });
 
-describe('kit.js parity: countdown', () => {
+describe('shared UI behavior: countdown', () => {
   const now = signal(Date.parse('2026-10-22T14:30:00+02:00'));
   const fakeTime = {
     now,
@@ -637,9 +669,9 @@ describe('kit.js parity: countdown', () => {
   });
 });
 
-// ───────────────────────── the rest of kit.js, one test per behaviour ─────────────────────────
+// ───────────────────────── additional shared interactions, one test per behaviour ─────────────────────────
 
-describe('kit.js parity: aria-disabled radios and Space released', () => {
+describe('shared UI behavior: aria-disabled radios and Space released', () => {
   @Component({
     template: `
       <div role="radiogroup">
@@ -677,7 +709,7 @@ describe('kit.js parity: aria-disabled radios and Space released', () => {
   });
 });
 
-describe('kit.js parity: menus, the rest', () => {
+describe('shared UI behavior: menus, the rest', () => {
   @Component({
     imports: [GwMenu, GwMenuTrigger],
     template: `
@@ -705,7 +737,7 @@ describe('kit.js parity: menus, the rest', () => {
     const trigger = q(el, '#trigger');
     const items = Array.from(el.querySelectorAll<HTMLElement>('#cols .gw-menu__item'));
     trigger.focus();
-    // A checked menuitemcheckbox is where the menu starts, as kit.js does for every checked item.
+    // A checked menuitemcheckbox is where the menu starts.
     key(trigger, 'ArrowDown');
     expect(q(el, '#cols').hidden).toBe(false);
     expect(document.activeElement).toBe(items[0]);
@@ -750,7 +782,7 @@ describe('kit.js parity: menus, the rest', () => {
   });
 });
 
-describe('kit.js parity: tabs from the URL fragment', () => {
+describe('shared UI behavior: tabs from the URL fragment', () => {
   @Component({
     imports: [GwTabs],
     template: `
@@ -764,7 +796,7 @@ describe('kit.js parity: tabs from the URL fragment', () => {
   })
   class Host {}
 
-  it('#<id> inside a hidden panel selects its tab first (kit.js tabFromHash)', async () => {
+  it('#<id> inside a hidden panel selects its tab first', async () => {
     const { el } = await render(Host);
     expect(q(el, '#prod').hidden).toBe(true);
     expect(selectFromFragment(document, 'prod-approvals')).toBe(true);
@@ -775,7 +807,7 @@ describe('kit.js parity: tabs from the URL fragment', () => {
     expect(selectFromFragment(document, 'nothing-here')).toBe(false);
   });
 
-  it('a same-route navigation that only changes the fragment selects the tab (kit.js hashchange)', async () => {
+  it('a same-route navigation that only changes the fragment selects the tab', async () => {
     @Component({ selector: 'gw-test-page', imports: [GwTabs], template: `<div role="tablist" gwTabs><button role="tab" id="a-tab" aria-controls="a" aria-selected="true">a</button><button role="tab" id="b-tab" aria-controls="b">b</button></div><div role="tabpanel" id="a">a</div><div role="tabpanel" id="b"><p id="b-inner">b</p></div>` })
     class Page {}
     @Component({ imports: [Page], hostDirectives: [GwFragmentTabs], template: `<gw-test-page />` })
@@ -793,7 +825,7 @@ describe('kit.js parity: tabs from the URL fragment', () => {
   });
 });
 
-describe('kit.js parity: dialog steps, guard and backdrop', () => {
+describe('shared UI behavior: dialog steps, guard and backdrop', () => {
   @Component({
     imports: [GwDialog, GwDialogOpen, GwDialogClose, GwDialogNext],
     template: `
@@ -861,7 +893,7 @@ describe('kit.js parity: dialog steps, guard and backdrop', () => {
   });
 });
 
-describe('kit.js parity: remembered disclosures', () => {
+describe('shared UI behavior: remembered disclosures', () => {
   @Component({
     imports: [GwToggle],
     template: `<button id="t" type="button" gwToggle gwTogglePersist="how-secrets" aria-controls="how">How it works</button><div id="how" hidden>Steps</div>`,
@@ -885,7 +917,7 @@ describe('kit.js parity: remembered disclosures', () => {
   });
 });
 
-describe('kit.js parity: tooltip Esc', () => {
+describe('shared UI behavior: tooltip Esc', () => {
   @Component({
     template: `<span class="gw-tooltip"><button id="tip" type="button" aria-describedby="tip-text">i</button><span class="gw-tooltip__bubble" id="tip-text" role="tooltip">Why</span></span><button id="other" type="button">x</button>`,
   })
@@ -902,7 +934,7 @@ describe('kit.js parity: tooltip Esc', () => {
   });
 });
 
-describe('kit.js parity: theme and contrast radios', () => {
+describe('shared UI behavior: theme and contrast radios', () => {
   @Component({
     imports: [GwThemeControl],
     template: `
@@ -940,7 +972,7 @@ describe('kit.js parity: theme and contrast radios', () => {
   });
 });
 
-describe('kit.js parity: chart roving focus', () => {
+describe('shared UI behavior: chart roving focus', () => {
   @Component({
     imports: [GwChart],
     template: `
@@ -980,7 +1012,7 @@ describe('kit.js parity: chart roving focus', () => {
   });
 });
 
-describe('kit.js parity: shortcuts, the rest', () => {
+describe('shared UI behavior: shortcuts, the rest', () => {
   @Component({ template: `<input id="search" aria-keyshortcuts="/"><dialog id="d"></dialog>` })
   class Host {}
 

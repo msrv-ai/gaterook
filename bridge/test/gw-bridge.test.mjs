@@ -209,6 +209,12 @@ describe('gw-bridge.mjs', () => {
       assert.equal(post.headers['mcp-protocol-version'], '2026-07-28');
       assert.equal(post.headers['mcp-method'], 'tools/call');
       assert.equal(post.headers['mcp-name'], 'sql_query');
+      // A task of the 2026-07-28 Tasks extension is named by its id.
+      await b.call({ jsonrpc: '2.0', id: 4, method: 'tasks/get', params: { taskId: 'tsk_abc',
+        _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28' } } });
+      const task = core.seen.filter((s) => s.url === '/mcp/dev').at(-1);
+      assert.equal(task.headers['mcp-method'], 'tasks/get');
+      assert.equal(task.headers['mcp-name'], 'tsk_abc');
       assert.equal(headerName('café'), `=?base64?${Buffer.from('café').toString('base64')}?=`);
     } finally {
       await b.stop();
@@ -229,6 +235,28 @@ describe('gw-bridge.mjs', () => {
       const bad = await b.call('{not json');
       assert.equal(bad.error.code, -32700);
       assert.equal(bad.id, null);
+    } finally {
+      await b.stop();
+    }
+  });
+
+  it('passes a call\'s progress on as it comes, before the answer', async () => {
+    const b = startBridge(home);
+    let finish;
+    try {
+      // The bridge's first request gets a token; this answer serves the call itself.
+      await b.call({ jsonrpc: '2.0', id: 1, method: 'ping' });
+      mcpAnswers.push(() => ({ status: 200, type: 'text/event-stream', stream: (res) => {
+        res.write('event: message\ndata: {"jsonrpc":"2.0","method":"notifications/progress",'
+          + '"params":{"progressToken":"p","progress":1,"total":2}}\n\n');
+        finish = () => res.end('event: message\ndata: {"jsonrpc":"2.0","id":7,"result":{"done":true}}\n\n');
+      } }));
+      b.send({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'x', _meta: { progressToken: 'p' } } });
+      const progress = await b.next();
+      assert.equal(progress.method, 'notifications/progress');
+      assert.equal(progress.params.progress, 1);
+      finish();
+      assert.deepEqual(await b.next(), { jsonrpc: '2.0', id: 7, result: { done: true } });
     } finally {
       await b.stop();
     }

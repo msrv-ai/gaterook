@@ -17,7 +17,7 @@ import { TextPart, literalParts } from '../shared/literals';
 
 /**
  * What the client-card element says, from the clients module's cards (ARCHITECTURE.md §6 clients, step K1). Pure
- * functions, tested against the kit's wording (design/elements/client-card.html).
+ * functions, tested against the kit's wording.
  */
 
 /** What a card needs to know about an endpoint: its name, class, access and tools (`GET /api/endpoints`). */
@@ -63,6 +63,7 @@ export function observedSignIn(link: ClientLink): boolean {
 
 /** The card's subtitle (`__via`): "Bridge extension (.mcpb) · 2 endpoints, one of them prod", or the config path. */
 export function viaText(card: ClientCard): { readonly text: string; readonly mono: boolean } {
+  if (card.manual) return { text: 'Configured manually', mono: false };
   if (card.links.length && card.links.every(observedSignIn)) return { text: 'Signed in through the browser', mono: false };
   if (usesBridgeExtension(card)) {
     const n = card.links.length;
@@ -84,7 +85,7 @@ export function tableLayout(card: ClientCard): boolean {
 
 /**
  * The Auth row: how the client authenticates, literals in code. `page`: in the words of the Clients screen
- * (pages/clients.html), which says it shorter than the element's demo for the bridge, the helper and a client that
+ *, which says it shorter than the element's demo for the bridge, the helper and a client that
  * isn't installed.
  */
 export function authParts(card: ClientCard, link: ClientLink | null, restart = false, page = false): TextPart[] {
@@ -107,6 +108,8 @@ export function authParts(card: ClientCard, link: ClientLink | null, restart = f
     }
   }
   switch (method) {
+    case 'manual':
+      return t(link?.tokenName ? `Token ${link.tokenName}, configured manually in the app` : 'Bearer token configured manually in the app', [link?.tokenName ?? null]);
     case 'mcpb':
       return t('A 15-minute token per endpoint, issued on the fly by the bridge and never written to a config');
     case 'helper':
@@ -220,6 +223,8 @@ export function restartAlert(card: ClientCard): { readonly title: string; readon
       return { title: 'Turn the server on in Cursor', body: 'The config is written. Cursor lists it in Settings › MCP; turn it on there.' };
     case 'antigravity':
       return { title: 'Refresh Antigravity to load the server', body: 'The config is written. Refresh it in Antigravity: Installed MCP Servers.' };
+    default:
+      return { title: `Finish connecting ${card.name}`, body: 'Add the endpoint URL and bearer token to the app, then connect to GateRook.' };
   }
 }
 
@@ -242,6 +247,11 @@ export function authNote(
 ): { readonly tone: 'info' | 'warning'; readonly icon: string; readonly title: string; readonly body: TextPart[] } {
   const file = card.configDisplay ?? 'the config';
   switch (method) {
+    case 'manual':
+      return {
+        tone: 'info', icon: 'key-round', title: 'Configure MCP in your app',
+        body: literalParts(`Add the endpoint URL and bearer token in ${card.name}. GateRook saves the app without editing its configuration.`, []),
+      };
     case 'token':
       return {
         tone: 'warning',
@@ -283,6 +293,8 @@ export function authNote(
 /** The kit's descriptions of the sign-in choices. */
 export function methodChoice(card: ClientCard, m: ClientMethod): { readonly icon: string; readonly description: string } {
   switch (m.id) {
+    case 'manual':
+      return { icon: 'key-round', description: 'Copy the endpoint URL and bearer token into your app.' };
     case 'token':
       return {
         icon: 'key-round',
@@ -365,7 +377,7 @@ export function disconnectFacts(
 }
 
 /**
- * What a Disconnect confirm says (pages/clients.html, pages/endpoint-detail.html): the endpoint the client loses at
+ * What a Disconnect confirm says: the endpoint the client loses at
  * once and, for a client on several endpoints, the ones it keeps; the button names the object.
  */
 export function disconnectWords(card: ClientCard, link: ClientLink, table: boolean): { readonly title: string; readonly body: TextPart[]; readonly button: string } {

@@ -8,7 +8,7 @@ import { DEMO_CONNECTOR_CARDS } from '../fixtures';
 import { GwLiveNote, liveRead } from '../live';
 
 /**
- * Dev only: design/elements/connector-card.html. The pickers are the dev core's types (`GET /api/connector-types`,
+ * Dev only: connector-card component. The pickers are the dev core's types (`GET /api/connector-types`,
  * as step 1 of Add connection gets them); the catalog grid is a fixture until the catalog, plugins and MCP servers
  * (K4, K6) are merged: the core lists only its built-in connectors and templates so far.
  */

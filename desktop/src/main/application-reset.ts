@@ -9,7 +9,7 @@ const MARKER = '.reset-pending';
 // development home intact; a configured GW_HOME is not permission to recursively erase an arbitrary folder.
 const OWNED_ENTRIES = new Set(['gateway.db', 'gateway.db-wal', 'gateway.db-shm', 'gateway.db-journal', 'core.lock',
   'master.keyset', 'master.keyset.osk', 'desktop.json', 'backups', 'logs', 'tmp', 'run', 'plugins', 'plugin-data',
-  'cache', 'connectors', 'clients', 'bin', 'mcp', 'demo-user-home', 'electron']);
+  'cache', 'connectors', 'clients', 'bin', 'mcp', 'connection-imports', 'demo-user-home', 'electron']);
 function ownedEntry(name: string): boolean {
   return OWNED_ENTRIES.has(name) || /^master\.keyset\.replaced-\d+$/.test(name)
     || /^\.master\.keyset\.tmp-\d+$/.test(name)

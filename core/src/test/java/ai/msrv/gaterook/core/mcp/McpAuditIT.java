@@ -22,6 +22,7 @@ import ai.msrv.gaterook.core.platform.IntegrityAlerts;
 import ai.msrv.gaterook.core.platform.LocalListener;
 import ai.msrv.gaterook.core.platform.ProblemException;
 import ai.msrv.gaterook.core.platform.SettingStore;
+import ai.msrv.gaterook.core.settings.SettingsService;
 import ai.msrv.gaterook.testfixtures.FakeConnectors;
 import ai.msrv.gaterook.testfixtures.TestCore;
 import java.nio.file.Path;
@@ -39,7 +40,7 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * The audit as MCP calls write it (ARCHITECTURE.md §4 "Audit", M1.5): one hash chain across every row, the Activity
  * query language over real rows, traces, a chain edited behind the core's back found at the next start, and the
- * retention that deletes only what is old enough and exported.
+ * retention that deletes only what is old enough and exported, by a period nobody changed outside GateRook.
  */
 class McpAuditIT {
 
@@ -202,6 +203,81 @@ class McpAuditIT {
       // Reported once, by the Setup change that stays; the chain goes on from the new anchor.
       assertThat(b.bean(IntegrityAlerts.class).has("audit", "chain")).isFalse();
       assertThat(b.bean(AuditQueries.class).changes("Audit history", null, 10)).hasSize(1);
+    }
+  }
+
+  @Test
+  void callsDeletedFromTheStartOfTheHistoryAreReported() {
+    try (TestCore a = world("audit-delete-start", "--gateway.audit.anchor-interval=200ms")) {
+      McpClient dev = client(a, "dev", "codex-laptop");
+      for (int i = 0; i < 4; i++) {
+        dev.legacyCall("sql_query", args("connection", "dev-db", "sql", "SELECT " + i));
+      }
+      awaitAnchoredHead(a);
+      IntegrityAlerts alerts = a.bean(IntegrityAlerts.class);
+      assertThat(alerts.has("audit", "chain")).isFalse();
+      long first = a.jdbc().queryForObject("select min(id) from tool_call", Long.class);
+      a.jdbc().execute("DROP TRIGGER tool_call_no_early_delete");
+      assertThat(a.jdbc().update("delete from tool_call where id < ?", first + 2)).isEqualTo(2);
+      a.jdbc().execute(NO_EARLY_DELETE);
+      TestCore.await(() -> alerts.has("audit", "chain"), "the integrity alert");
+      assertThat(a.bean(AuditQueries.class).changes("Audit history", null, 10)).singleElement()
+          .satisfies(ch -> assertThat(ch.reason()).contains("agent call rows before row " + (first + 2)
+              + " were removed"));
+    }
+  }
+
+  /**
+   * An anchor written before the start of the history carried its links trusts the first rows as they are once, then
+   * checks them: rows removed from the start afterwards are reported at the next start.
+   */
+  @Test
+  void anAnchorWithoutLinksTakesTheFirstRowsOnceThenChecksThem() throws Exception {
+    Path home;
+    try (TestCore a = world("audit-legacy-anchor", "--gateway.audit.anchor-interval=1h")) {
+      McpClient dev = client(a, "dev", "codex-laptop");
+      for (int i = 0; i < 4; i++) {
+        dev.legacyCall("sql_query", args("connection", "dev-db", "sql", "SELECT " + i));
+      }
+      home = a.home();
+    }
+    long kept;
+    try (TestCore b = TestCore.reopen(home, "--gateway.audit.anchor-interval=1h")) {
+      awaitAnchoredHead(b);
+      // An older version's retention removed the first row, and its anchor didn't name where the history starts.
+      long first = b.jdbc().queryForObject("select min(id) from tool_call", Long.class);
+      b.jdbc().execute("DROP TRIGGER tool_call_no_early_delete");
+      b.jdbc().update("delete from tool_call where id = ?", first);
+      b.jdbc().execute(NO_EARLY_DELETE);
+      kept = first + 1;
+      SettingStore settings = b.bean(SettingStore.class);
+      ObjectNode legacy = (ObjectNode) settings.find("audit.head-mac").orElseThrow().value().deepCopy();
+      legacy.remove("links");
+      legacy.remove("mac");
+      ((ObjectNode) legacy.get("verifiedFrom")).put("toolCall", 1).putNull("toolCallSha").put("setupChange", 1)
+          .putNull("setupChangeSha");
+      legacy.put("mac", java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(b.bean(
+          ai.msrv.gaterook.core.platform.HmacKeys.class).mac(ai.msrv.gaterook.core.platform.HmacKeys.Purpose.AUDIT_HEAD,
+          ai.msrv.gaterook.core.platform.CanonicalJson.bytes(legacy))));
+      settings.put("audit.head-mac", legacy, null);
+    }
+    try (TestCore c = TestCore.reopen(home, "--gateway.audit.anchor-interval=1h")) {
+      SettingStore settings = c.bean(SettingStore.class);
+      TestCore.await(() -> settings.find("audit.head-mac").orElseThrow().value().path("links").asBoolean(false),
+          "the anchor with links");
+      assertThat(c.bean(IntegrityAlerts.class).has("audit", "chain")).as("the first rows are trusted once").isFalse();
+      assertThat(settings.find("audit.head-mac").orElseThrow().value().at("/verifiedFrom/toolCall").asLong())
+          .isEqualTo(kept);
+      c.jdbc().execute("DROP TRIGGER tool_call_no_early_delete");
+      c.jdbc().update("delete from tool_call where id = ?", kept);
+      c.jdbc().execute(NO_EARLY_DELETE);
+    }
+    try (TestCore d = TestCore.reopen(home)) {
+      IntegrityAlerts alerts = d.bean(IntegrityAlerts.class);
+      TestCore.await(() -> alerts.has("audit", "chain"), "the integrity alert");
+      assertThat(d.bean(AuditQueries.class).changes("Audit history", null, 10)).singleElement()
+          .satisfies(ch -> assertThat(ch.reason()).contains("agent call rows before row " + (kept + 1)
+              + " were removed"));
     }
   }
 
@@ -396,14 +472,93 @@ class McpAuditIT {
       // What the agent did today is all there.
       assertThat(core.jdbc().queryForObject("select count(*) from tool_call where created_at > ?", Integer.class,
           Instant.now().minus(Duration.ofDays(1)).toEpochMilli())).isEqualTo(2);
-      assertThat(job.retentionYears()).isEqualTo(1);
+      assertThat(job.retentionYears()).hasValue(1);
       // The anchor followed the deletes: retention is no break of the history.
       assertThat(core.bean(IntegrityAlerts.class).has("audit", "chain")).isFalse();
       assertThat(core.bean(AuditQueries.class).changes("Audit history", null, 10)).isEmpty();
     }
   }
 
+  /**
+   * The retention is a signed setting (V87) that exists from the first start on: shortened, deleted or set outside
+   * GateRook, it removes nothing and raises the integrity alert, at the next start too, until the person saves
+   * Settings › Audit & retention again — as it reads, unchanged, as well.
+   */
+  @Test
+  void aRetentionChangedOutsideGateRookRemovesNothingUntilItIsSavedAgain() {
+    Path home;
+    try (TestCore core = world("audit-retention-signed")) {
+      McpClient dev = client(core, "dev", "codex-laptop");
+      dev.legacyCall("sql_query", args("connection", "dev-db", "sql", "SELECT 1"));
+      oldCalls(core);
+      AuditRetentionJob job = core.bean(AuditRetentionJob.class);
+      SettingsService sections = core.bean(SettingsService.class);
+      IntegrityAlerts alerts = core.bean(IntegrityAlerts.class);
+      assertThat(sections.get("audit").verified()).as("signed by the first start").isTrue();
+      assertThat(job.retentionYears()).hasValue(1);
+      sections.update("audit", JsonNodeFactory.instance.objectNode().put("retentionYears", 5),
+          sections.get("audit").version(), "keep five years");
+      assertThat(job.run().toolCalls()).isZero();
+
+      // Another program shortens it to the one year the triggers allow.
+      core.jdbc().update("update setting set value = '{\"retentionYears\":1}' where key = 'audit'");
+      assertThat(job.retentionYears()).isEmpty();
+      AuditRetentionJob.Run refused = job.run();
+      assertThat(refused.cutoff()).isNull();
+      assertThat(refused.toolCalls() + refused.setupChanges() + refused.traces()).isZero();
+      assertThat(oldCallCount(core)).isEqualTo(2);
+      assertThat(alerts.has(SettingStore.ALERT_KIND, "audit")).isTrue();
+      assertThat(sections.get("audit").verified()).isFalse();
+      // Deleted, it doesn't fall back to the default year either.
+      core.jdbc().update("delete from setting where key = 'audit'");
+      assertThat(job.run().toolCalls()).isZero();
+      assertThat(oldCallCount(core)).isEqualTo(2);
+      home = core.home();
+    }
+    try (TestCore core = TestCore.reopen(home)) {
+      // The next start says so before retention's first run.
+      TestCore.await(() -> core.bean(IntegrityAlerts.class).has(SettingStore.ALERT_KIND, "audit"),
+          "the integrity alert at start");
+      AuditRetentionJob job = core.bean(AuditRetentionJob.class);
+      assertThat(job.run().toolCalls()).isZero();
+
+      // The person saves the section as it reads, the default year, unchanged: that is the review.
+      SettingsService sections = core.bean(SettingsService.class);
+      SettingsService.Section shown = sections.get("audit");
+      assertThat(shown.verified()).isFalse();
+      assertThat(shown.values().path("retentionYears").asInt()).isEqualTo(1);
+      SettingsService.Section saved = sections.update("audit", JsonNodeFactory.instance.objectNode()
+          .put("retentionYears", 1), shown.version(), "reviewed after the alert");
+      assertThat(saved.verified()).isTrue();
+      assertThat(core.bean(IntegrityAlerts.class).has(SettingStore.ALERT_KIND, "audit")).isFalse();
+      assertThat(core.bean(AuditQueries.class).changes("Audit & retention changed outside GateRook", null, 10))
+          .singleElement().satisfies(ch -> {
+            assertThat(ch.from()).isEqualTo("Unverified");
+            assertThat(ch.to()).isEqualTo("Kept as stored");
+          });
+      assertThat(job.retentionYears()).hasValue(1);
+      assertThat(job.run().toolCalls()).isEqualTo(2);
+      assertThat(oldCallCount(core)).isZero();
+      assertThat(core.bean(IntegrityAlerts.class).has("audit", "chain")).isFalse();
+    }
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** Agent calls 400 and 800 days old, below the chain this database verifies, as an older install left them. */
+  static void oldCalls(TestCore core) {
+    long id = -2;
+    for (long days : new long[] {800, 400}) {
+      long at = Instant.now().minus(Duration.ofDays(days)).toEpochMilli();
+      core.jdbc().update("insert into tool_call (id, call_id, phase, created_at, hour_bucket, endpoint_slug, "
+          + "tool_name, decision, prev_sha256, row_sha256) values (?, ?, 'received', ?, ?, 'dev', 'sql_query', "
+          + "'allowed', ?, ?)", id++, "tc_old" + days, at, at / 3_600_000, "0".repeat(64), "0".repeat(64));
+    }
+  }
+
+  static int oldCallCount(TestCore core) {
+    return core.jdbc().queryForObject("select count(*) from tool_call where call_id like 'tc_old%'", Integer.class);
+  }
 
   /** V1's floor on deletes, as a script that dropped it puts it back. */
   static final String NO_EARLY_DELETE = "CREATE TRIGGER tool_call_no_early_delete BEFORE DELETE ON tool_call WHEN "

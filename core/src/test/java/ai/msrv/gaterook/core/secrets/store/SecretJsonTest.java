@@ -51,4 +51,17 @@ class SecretJsonTest {
     assertThat(SecretJson.isObject(b("plain"))).isFalse();
     assertThat(SecretJson.isObject(b("[1]"))).isFalse();
   }
+
+  @Test
+  void dottedKeyNamesAreReadLiterallyEvenBesideNestedObjects() {
+    byte[] body = b("{\"data\":{\"data\":{\"database\":{\"password\":\"cnry-nested\"},"
+        + "\"database.password\":\"cnry-literal\",\"database.username\":\"app\"}}}");
+    var password = SecretJson.pick(body, List.of("data", "data"), "database.password");
+    var username = SecretJson.pick(body, List.of("data", "data"), "database.username");
+    try {
+      assertThat(password.present()).isTrue();
+      assertThat(password.value()).isEqualTo(b("cnry-literal"));
+      assertThat(username.value()).isEqualTo(b("app"));
+    } finally { password.clear(); username.clear(); }
+  }
 }

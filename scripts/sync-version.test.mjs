@@ -19,7 +19,7 @@ function fixture(t, version = '2.7.3-rc.1') {
       devDependencies: { ...(directory === 'desktop' ? { '@gaterook/broker': '1.2.0' } : {}), unrelated: '1.2.0' } };
     writeFileSync(join(root, directory, 'package.json'), JSON.stringify(packages[directory], null, 2) + '\n');
   }
-  packages.design = { version: '1.2.0' };
+  packages['unrelated-package'] = { version: '1.2.0' };
   packages['node_modules/unrelated'] = { version: '1.2.0', resolved: 'https://example.com/unrelated.tgz', integrity: 'unchanged' };
   packages['node_modules/@gaterook/broker'] = { resolved: 'bridge', link: true };
   writeFileSync(join(root, 'package-lock.json'), JSON.stringify({ version: '1.2.0', lockfileVersion: 3, packages }, null, 2) + '\n');
@@ -44,7 +44,7 @@ test('a single POM change updates all npm application mirrors without changing d
   }
   assert.equal(json(root, 'desktop/package.json').devDependencies['@gaterook/broker'], '2.7.3-rc.1');
   assert.equal(lock.packages.desktop.devDependencies['@gaterook/broker'], '2.7.3-rc.1');
-  for (const path of ['design', 'node_modules/unrelated', 'node_modules/@gaterook/broker']) {
+  for (const path of ['unrelated-package', 'node_modules/unrelated', 'node_modules/@gaterook/broker']) {
     assert.deepEqual(lock.packages[path], before.packages[path]);
   }
   const modified = statSync(join(root, 'package-lock.json')).mtimeMs;

@@ -85,6 +85,12 @@ public final class Codecs {
       if (c.name() != null) {
         o.put("name", c.name());
       }
+      if (c.data() != null) {
+        o.put("data", c.data());
+      }
+      if (c.meta() != null) {
+        o.set("meta", c.meta());
+      }
     }
     n.set("structuredContent", r.structuredContent());
     n.put("isError", r.isError());
@@ -99,7 +105,8 @@ public final class Codecs {
     List<ToolResult.Content> content = new ArrayList<>();
     n.path("content").forEach(c -> content.add(new ToolResult.Content(c.path("type").asString("text"),
         c.path("text").asString(null), c.path("uri").asString(null), c.path("mimeType").asString(null),
-        c.path("name").asString(null))));
+        c.path("name").asString(null), c.path("data").asString(null), c.path("meta").isObject() ? c.get("meta")
+            : null)));
     JsonNode structured = n.path("structuredContent");
     return new ToolResult(List.copyOf(content), structured.isMissingNode() || structured.isNull() ? null : structured,
         n.path("isError").asBoolean(false), null, n.path("truncated").asBoolean(false),

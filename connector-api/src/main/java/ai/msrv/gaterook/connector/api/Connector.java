@@ -95,6 +95,57 @@ public interface Connector extends AutoCloseable {
     throw ConnectorException.badInput("No resource " + uri);
   }
 
+  /**
+   * Whether this connection shares resources only the resource itself can list ({@link #listResources}): an external
+   * MCP server the person let share its resources. No I/O.
+   */
+  default boolean sharesResources(ConnectionConfig cfg) {
+    return false;
+  }
+
+  /** Whether this connection shares prompts ({@link #listPrompts}): an external MCP server the person let share them. */
+  default boolean sharesPrompts(ConnectionConfig cfg) {
+    return false;
+  }
+
+  /**
+   * The resources a sharing connection lists now, in MCP's shape: {@code {"resources": […]}}, or with
+   * {@code templates} {@code {"resourceTemplates": […]}}; URIs as the endpoint publishes them, under the connection's
+   * own prefix. The core masks the answer like a result; {@code null}: none.
+   */
+  default JsonNode listResources(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, boolean templates)
+      throws ConnectorException {
+    return null;
+  }
+
+  /** The prompts a sharing connection lists now ({@code {"prompts": […]}}), named as the endpoint publishes them. */
+  default JsonNode listPrompts(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
+      throws ConnectorException {
+    return null;
+  }
+
+  /** {@code prompts/get} of one of {@link #listPrompts}: {@code {"description", "messages"}}, masked by the core. */
+  default JsonNode getPrompt(String name, JsonNode arguments, ConnectionConfig cfg, SecretResolver secrets,
+      ExecContext ctx) throws ConnectorException {
+    throw ConnectorException.badInput("No prompt " + name);
+  }
+
+  /**
+   * {@code completion/complete} of a prompt's argument or a resource template's variable this connection shares
+   * ({@code params} as the client sent them, names and URIs as the endpoint publishes them): {@code {"completion":
+   * {"values", "total", "hasMore"}}}, or {@code null} for none.
+   */
+  default JsonNode complete(JsonNode params, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
+      throws ConnectorException {
+    return null;
+  }
+
+  /**
+   * The resources of this connection clients subscribe to now ({@link #listResources}'s URIs), whenever that changes:
+   * a connection whose resource tells about updates asks it for them while it runs. No I/O in the call itself.
+   */
+  default void subscriptions(ConnectionConfig cfg, java.util.Set<String> uris) {}
+
   /** No-code template kinds: "sql-query" (SQL), "ssh-runbook" (SSH), "openapi" (HTTP). */
   default List<TemplateKind> templateKinds() {
     return List.of();

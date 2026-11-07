@@ -6,12 +6,15 @@ import { filter, map } from 'rxjs';
 import { GwRouteData } from './app.routes';
 import { isApiError } from './core/api/api-error';
 import { DesktopBridge } from './core/desktop/desktop-bridge';
+import { EndpointShareFiles } from './core/desktop/endpoint-share';
 import { EventStream } from './core/events/event-stream';
 import { ApprovalsStore } from './core/stores/approvals.store';
 import { ConsentStore } from './core/stores/consent.store';
+import { ConnectionImportsStore } from './core/stores/connection-imports.store';
 import { CoreStore } from './core/stores/core.store';
 import { SettingsStore } from './core/stores/settings.store';
 import { UpdatesStore } from './core/stores/updates.store';
+import { TimeService } from './core/time/time.service';
 import { ActivationGuard } from './kit/activation-guard';
 import { GwOAuthConsent } from './kit/elements/client-card/oauth-consent';
 import { GwCommandPalette } from './kit/elements/command-palette/command-palette';
@@ -28,10 +31,11 @@ import { DesktopNoticeToasts } from './shell/desktop-notice-toasts';
 import { NavigationHistory } from './shell/navigation-history';
 import { GwTitleStrategy } from './shell/title.strategy';
 
-/** One link of the sidebar (BLUEPRINT §2, pages/_shell.html): label, route and section icon. */
+/** One link of the sidebar (navigation): label, route and section icon. */
 interface NavLink {
   readonly label: string;
   readonly route: string;
+  readonly fragment?: string;
   readonly icon: string;
 }
 
@@ -57,7 +61,8 @@ const NAV: readonly NavGroup[] = [
     label: 'Resources',
     links: [
       { label: 'Connections', route: '/connections', icon: 'database' },
-      { label: 'Connectors', route: '/connectors', icon: 'puzzle' },
+      { label: 'Connectors', route: '/connectors', fragment: 'installed', icon: 'puzzle' },
+      { label: 'MCP servers', route: '/connectors', fragment: 'mcp-servers', icon: 'plug' },
       { label: 'Secrets', route: '/secrets', icon: 'key-round' },
     ],
   },
@@ -91,15 +96,15 @@ const WARNING_ICONS: Record<string, string> = {
 };
 
 /**
- * The window (pages/_shell.html, copied 1:1): skip link, titlebar (Back, section name, Search ⌘K, the approvals bell,
- * Appearance), the sidebar with the live approvals counter and core status, and main with the app-wide
+ * The window (_shell screen, copied 1:1): skip link, titlebar (Back, section name, Search ⌘K, the approvals bell,
+ * Report a bug, Appearance), the sidebar with the live approvals counter and core status, and main with the app-wide
  * banners, the page and the command palette. While the core isn't running the status screen is the whole window
  * (core-starting); Welcome uses the no-sidebar variant; the dev gallery has no frame at all.
  *
  * The app also routes what comes from outside, strictly by allowlist (`shell/deep-links.ts`): `gaterook://` deep
  * links from Electron (Review in an OS notification, Copy link in Activity) and the core's `ui.open` ("Open in app"
  * in Slack or Telegram) only navigate, and re-arm the decision buttons' 700 ms activation delay. `#fragment`s select
- * tabs on every navigation, the same-route ones included (GwFragmentTabs, kit.js `hashchange`).
+ * tabs on every navigation, the same-route ones included (GwFragmentTabs).
  *
  * Two things wait for a person on any page, so the window holds them, not a page: a local app sign-in (the
  * OAuth consent dialog, ARCHITECTURE.md §7.3 — the oldest waiting request, Deny focused, "Allow access" after 700 ms
@@ -136,6 +141,8 @@ export class App {
   private readonly consents = inject(ConsentStore);
   private readonly noticeToasts = inject(DesktopNoticeToasts);
   private readonly toasts = inject(ToastService);
+  private readonly imports = inject(ConnectionImportsStore);
+  private readonly time = inject(TimeService);
   protected readonly core = inject(CoreStore);
   protected readonly approvals = inject(ApprovalsStore);
   protected readonly desktop = inject(DesktopBridge);
@@ -143,7 +150,26 @@ export class App {
   protected readonly updates = inject(UpdatesStore);
 
   protected readonly nav = NAV;
+  protected readonly importTasks = computed(() => this.imports.tasks().map(task => {
+    const name = task.repository.split(/[\\/]/).filter(Boolean).at(-1) ?? task.repository;
+    const paused = !!task.progress && this.time.now() - Date.parse(task.progress.updatedAt) > 15 * 60_000;
+    const status = task.status === 'review' ? 'Ready to review' : paused ? 'Paused' : 'In progress';
+    return {
+      id: task.id, name, endpoint: task.endpoint, status,
+      icon: task.status === 'review' ? 'file-check' : paused ? 'clock' : 'activity',
+      label: `Import ${name}, ${status}, endpoint ${task.endpoint}`,
+      title: `${task.repository} · ${task.endpoint} · ${status}${task.progress ? '\n' + task.progress.message : ''}`,
+    };
+  }));
   protected readonly mac = this.desktop.platform === 'darwin';
+  /** The MCP shortcut and Connectors share a route, but only one sidebar item is current. */
+  protected readonly mcpServersSelected = toSignal(
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      map(() => ['mcp-servers', 'tab-mcp'].includes(this.router.parseUrl(this.router.url).fragment ?? '')),
+    ),
+    { initialValue: false },
+  );
 
   /** The deepest route's data after each navigation: the titlebar title and the frame (null before the first). */
   private readonly routeData = toSignal(
@@ -183,6 +209,7 @@ export class App {
 
   constructor() {
     this.core.start();
+    effect(() => this.toasts.setDuration(this.settings.section('general')?.values['toastDurationSeconds']));
     // Live data starts once the core answers. start() only subscribes once; every later return to running (the core
     // was away or restarted) reloads what the frame keeps, so the counter and the banner aren't stale until the
     // next event.
@@ -223,6 +250,11 @@ export class App {
 
     const destroy = inject(DestroyRef);
     destroy.onDestroy(this.desktop.onDeepLink((link) => this.openFromOutside(deepLinkUrl(link))));
+    const shareFiles = inject(EndpointShareFiles);
+    if (this.desktop.endpointShareAvailable) destroy.onDestroy(this.desktop.onEndpointShareFile((file) => {
+      shareFiles.select(file);
+      this.openFromOutside('/endpoint-import');
+    }));
     // "Open in app" from a chat: in the desktop app main brings the window forward on the path and hands it over as a
     // deep link (the queue as its first waiting request); a browser has no main, so the window opens it itself.
     destroy.onDestroy(

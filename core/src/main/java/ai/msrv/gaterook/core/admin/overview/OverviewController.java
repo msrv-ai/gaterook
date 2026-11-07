@@ -294,7 +294,7 @@ class OverviewController {
   }
 
   /**
-   * The setup map's five nodes in the kit's words (design/elements/setup-map.html, design/pages/overview.html): "Master
+   * The setup map's five nodes in the kit's words: "Master
    * key backed up · 11 secrets", "12 connections · billing-api unreachable", "3 environments · mutations need
    * approval", "3 endpoints · 2 active tokens", "2 connected · Cursor detected, not connected"; a first run reads
    * "Master key ready · no secrets yet", "None yet · start here", "Safe defaults · not reviewed yet", "None yet ·
@@ -409,6 +409,13 @@ class OverviewController {
         .toList();
     List<String> detected = cards.stream().filter(c -> "detected".equals(c.status())).map(ClientViews.Card::name)
         .toList();
+    List<String> pending = cards.stream().filter(c -> "pending".equals(c.status())).map(ClientViews.Card::name)
+        .toList();
+    if (!pending.isEmpty()) {
+      String summary = connected.isEmpty() ? pending.size() + " awaiting connection"
+          : connected.size() + " connected · " + pending.size() + " awaiting connection";
+      return new Node("clients", connected.size() + pending.size(), "attention", summary);
+    }
     if (cards.isEmpty() && !w.clients().isEmpty()) {
       return new Node("clients", w.clients().size(), "done", w.clients().size() + " connected");
     }

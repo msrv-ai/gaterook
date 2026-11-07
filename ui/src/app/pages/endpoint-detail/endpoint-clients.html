@@ -37,11 +37,23 @@
     @if (cards().length) {
       <ul class="gw-stack gw-stack--sm" [attr.aria-label]="'AI apps of endpoint ' + ep">
         @for (c of cards(); track c.client) {
+          @if (c.manual) {
+            @let look = clientLook(c.status);
+            <li class="gw-card gw-client-card gw-client-card--compact">
+              <div class="gw-client-card__row">
+                <span [gwClientMark]="c.client" [letter]="c.name.slice(0, 1).toUpperCase()"></span>
+                <div class="gw-client-card__main"><h3 class="gw-text-ui">{{ c.name }}</h3><span class="gw-text-caption gw-fg-muted">Configured manually</span></div>
+                <span class="gw-status gw-status--{{ look.tone }} gw-client-card__status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ look.text }}</span></span>
+                <div class="gw-client-card__actions"><a class="gw-btn gw-btn--sm" routerLink="/clients" [fragment]="appAnchor(c.client)">Manage app<span class="gw-sr-only"> {{ c.name }}</span></a></div>
+              </div>
+            </li>
+          } @else {
           <li gwClientCard variant="compact" [endpoint]="ep" [card]="c" [endpoints]="endpoints()" [defaultTtlDays]="data.authorization()?.['tokenTtlDays']"
             [connectPreview]="preview()" [connectLoading]="previewLoading()" [connectFailure]="connectFailureOf(c.client)" [failure]="failureOf(c.client)"
             [disconnectPreview]="leaving()" [canOpenConfig]="false" [reinstalling]="reinstalling()"
             (connectStart)="onConnectStart()" (previewRequest)="previewFor(c, $event.request)" (connect)="connect(c, $event.previewId, $event.request)"
             (disconnectStart)="disconnectFor($event)" (disconnect)="disconnect(c, $event.link, $event.previewId)" (reinstall)="reinstall(c, $event)"></li>
+          }
         }
       </ul>
     } @else {

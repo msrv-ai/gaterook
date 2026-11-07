@@ -83,7 +83,10 @@ public final class ApprovalDtos {
         a.decidedAt(), a.commentPolicy());
   }
 
-  /** An exact action as {@code gw-code-block}/{@code gw-diff} draw it: the inspector's segments, never re-formatted. */
+  /**
+   * An exact action as {@code gw-code-block}/{@code gw-diff} draw it: the inspector's segments, never re-formatted;
+   * a diff's hunks only when they show all of it ({@link #diff}).
+   */
   public static Action action(ActionPreview p) {
     ActionInspector.Inspection inspection = ActionInspector.inspect(p.text(), p.language());
     return new Action(p.kind() == null ? null : p.kind().name().toLowerCase(java.util.Locale.ROOT), p.language(),
@@ -186,35 +189,54 @@ public final class ApprovalDtos {
     return new Channels(desktop, slack, telegram);
   }
 
-  /** Splits a unified diff into hunks; lines before the first {@code @@} (file headers) are left out. */
+  /** What GNU diff and git write after a line that doesn't end with a line break; the only note a hunk may hold. */
+  private static final String NO_NEWLINE = "\\ No newline at end of file";
+
+  /**
+   * Splits a unified diff into hunks, or {@code null} when the hunks would not show all of it: the diff view draws
+   * the hunks and leaves out a file header ({@code --- }/{@code +++}) before the first one, a line's marker and the
+   * {@link #NO_NEWLINE} note. Anything else (no hunk at all, other text before the first, a line without a marker,
+   * another note) would be invisible there, so such a text is shown as it is.
+   */
   static Diff diff(String text) {
     List<Hunk> hunks = new ArrayList<>();
     String header = null;
     List<DiffLine> lines = null;
+    List<String> before = new ArrayList<>();
     int added = 0;
     int removed = 0;
     for (String line : text == null ? new String[0] : text.split("\n")) {
+      String bare = line.endsWith("\r") ? line.substring(0, line.length() - 1) : line;
       if (line.startsWith("@@")) {
         if (header != null) {
           hunks.add(new Hunk(header, List.copyOf(lines)));
         }
         header = line;
         lines = new ArrayList<>();
-      } else if (header != null) {
-        if (line.startsWith("+")) {
-          lines.add(new DiffLine("add", line.substring(1)));
-          added++;
-        } else if (line.startsWith("-")) {
-          lines.add(new DiffLine("del", line.substring(1)));
-          removed++;
-        } else if (!line.startsWith("\\")) {
-          lines.add(new DiffLine("context", line.isEmpty() ? "" : line.substring(1)));
-        }
+      } else if (header == null) {
+        before.add(line);
+      } else if (line.startsWith("+")) {
+        lines.add(new DiffLine("add", line.substring(1)));
+        added++;
+      } else if (line.startsWith("-")) {
+        lines.add(new DiffLine("del", line.substring(1)));
+        removed++;
+      } else if (bare.isEmpty() || line.startsWith(" ")) {
+        lines.add(new DiffLine("context", line.isEmpty() ? "" : line.substring(1)));
+      } else if (!bare.equals(NO_NEWLINE)) {
+        return null;
       }
     }
-    if (header != null) {
-      hunks.add(new Hunk(header, List.copyOf(lines)));
+    if (header == null || !fileHeader(before)) {
+      return null;
     }
+    hunks.add(new Hunk(header, List.copyOf(lines)));
     return new Diff(added, removed, List.copyOf(hunks));
+  }
+
+  /** Nothing, or one {@code --- old} / {@code +++ new} pair: what may precede the first hunk unseen. */
+  private static boolean fileHeader(List<String> lines) {
+    return lines.isEmpty()
+        || (lines.size() == 2 && lines.get(0).startsWith("--- ") && lines.get(1).startsWith("+++ "));
   }
 }

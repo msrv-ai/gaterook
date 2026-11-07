@@ -96,7 +96,7 @@ interface SectionView {
 }
 
 /**
- * One environment's tab panel of Policies (design/pages/policies.html `#dev`, `#stage`, `#prod`): the toolbar
+ * One environment's tab panel of Policies: the toolbar
  * (what it applies to, where its values come from, View activity, Reset), then one `gw-form` with the sections SQL,
  * SSH, Kubernetes, Cloud, HTTP egress, Logs, Masking, Limits and Approvals, each at `#<env>-<section>`.
  *
@@ -170,7 +170,7 @@ export class GwPolicyPanel {
   protected readonly form = form(this.model as unknown as WritableSignal<Record<string, unknown>>, (root) =>
     validateTree(root, (ctx) => this.validate(ctx.value() as Draft, ctx.fieldTree as unknown as Record<string, FieldTree<unknown>>)),
   );
-  /** Errors show once the person tried to save (DESIGN §8 "Forms"). */
+  /** Errors show once the person tried to save. */
   protected readonly tried = signal(false);
   /** What the core refused, per key, until that key changes. */
   private readonly serverErrors = signal<ReadonlyMap<string, { readonly message: string; readonly value: DraftValue | undefined }>>(new Map());

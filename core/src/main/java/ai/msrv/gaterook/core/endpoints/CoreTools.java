@@ -25,6 +25,10 @@ public final class CoreTools {
   public static final String APPROVAL_STATUS = "approval_status";
   public static final String APPROVAL_CARD = "approval_card";
   public static final String APPROVAL_CARD_ACTION = "approval_card_action";
+  public static final String OPEN_CONNECTION_IMPORT = "open_connection_import";
+  public static final String CONNECTION_IMPORT_SCHEMA = "connection_import_schema";
+  public static final String CONNECTION_IMPORT_PROGRESS = "connection_import_progress";
+  public static final String SUBMIT_CONNECTION_IMPORT = "submit_connection_import";
 
   /** The endpoint-wide tools with a mode, in the kit's order. */
   public static final List<String> WITH_MODE = List.of(LIST_CONNECTIONS, DESCRIBE_CONNECTION);
@@ -164,5 +168,68 @@ public final class CoreTools {
     input.put("additionalProperties", false);
     input.putObject("properties");
     return input;
+  }
+
+  public static ToolDefinition connectionImportSchema() {
+    ObjectNode input = importInput();
+    ((ObjectNode) input.get("properties")).putObject("type").put("type", "string").put("maxLength", 48)
+        .put("description", "Omit for the compact connector catalog. Set to one returned type ID to get its full configSchema, secretFields and referenceOnlyFields.");
+    return ToolDefinition.builder(CONNECTION_IMPORT_SCHEMA).title("Get connection import schemas")
+        .description("For a user-started import: omit type to list installed connectors and storeKinds; set type to a returned ID for its full configSchema, secretFields and referenceOnlyFields. The complete JSON is returned in text and structuredContent. Requires the session ID and submission token from the import prompt. Does not inspect repositories, read secrets or contact services.")
+        .inputSchema(input).annotations(Annotations.read()).nature(Nature.READ)
+        .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY).resultShape(ResultShape.JSON)
+        .risk(new Risk(false, false, Egress.NONE)).build();
+  }
+
+  public static ToolDefinition submitConnectionImport() {
+    ObjectNode input = importInput();
+    ObjectNode manifest = ((ObjectNode) input.get("properties")).putObject("manifest");
+    manifest.put("type", "object").put("additionalProperties", false);
+    manifest.putArray("required").add("version").add("connections");
+    ObjectNode properties = manifest.putObject("properties");
+    properties.putObject("version").put("const", 1);
+    properties.putObject("warnings").put("type", "array").put("maxItems", 30).putObject("items").put("type", "string").put("maxLength", 512);
+    properties.putObject("connections").put("type", "array").put("maxItems", 50).putObject("items").put("type", "object");
+    return ToolDefinition.builder(SUBMIT_CONNECTION_IMPORT).title("Submit discovered connections for review")
+        .description("Stage the discovery file at the private importFile path provided by a user-started import. Pass only sessionId and submissionToken; GateRook reads that one predetermined file and opens the review page. Never creates, modifies or deletes connections or settings. The user chooses connections and destination in GateRook. The optional inline manifest is a credential-free fallback and must contain no secrets. Use connection_import_schema for actual config fields. Submit once; do not replace submitted results.")
+        .inputSchema(input).annotations(new Annotations(false, false, true, false)).nature(Nature.MUTATION)
+        .defaultMode(Mode.BYPASS, Mode.BYPASS).resultShape(ResultShape.JSON)
+        .risk(new Risk(false, false, Egress.NONE)).build();
+  }
+
+  public static ToolDefinition connectionImportProgress() {
+    ObjectNode input = importInput();
+    ((tools.jackson.databind.node.ArrayNode) input.get("required")).add("message");
+    ((ObjectNode) input.get("properties")).putObject("message").put("type", "string")
+        .put("minLength", 1).put("maxLength", ConnectionImportService.MAX_PROGRESS_MESSAGE)
+        .put("description", "A short, single-line summary of the current analysis step. Never include credentials, tokens, configuration values or file contents.");
+    return ToolDefinition.builder(CONNECTION_IMPORT_PROGRESS).title("Report connection import progress")
+        .description("For a user-started import, call before analysis to report that work has started, then at meaningful steps while working. Send the session ID and submission token from the prompt and a short message. GateRook shows the latest update and marks progress paused after 15 minutes without updates. Only available before submission; does not create connections, submit results or extend the session lifetime.")
+        .inputSchema(input).annotations(new Annotations(false, false, false, false)).nature(Nature.MUTATION)
+        .defaultMode(Mode.BYPASS, Mode.BYPASS).resultShape(ResultShape.JSON)
+        .risk(new Risk(false, false, Egress.NONE)).build();
+  }
+
+  private static ObjectNode importInput() {
+    ObjectNode input = object();
+    input.putArray("required").add("sessionId").add("submissionToken");
+    ObjectNode properties = (ObjectNode) input.get("properties");
+    properties.putObject("sessionId").put("type", "string").put("pattern", "^ci_[a-z0-9]{12}$");
+    properties.putObject("submissionToken").put("type", "string").put("minLength", 36).put("maxLength", 36);
+    return input;
+  }
+
+  /** This app-only action navigates to a caller-owned review; it cannot change connections or settings. */
+  public static ToolDefinition openConnectionImport() {
+    ObjectNode input = object();
+    input.putArray("required").add("sessionId");
+    ((ObjectNode) input.get("properties")).putObject("sessionId").put("type", "string")
+        .put("pattern", "^ci_[a-z0-9]{12}$");
+    return ToolDefinition.builder(OPEN_CONNECTION_IMPORT).title("Open import in GateRook")
+        .description("Opens a submitted import owned by this caller and endpoint for review in GateRook. "
+            + "Navigation only: cannot create, change or delete connections, change settings, or accept an import.")
+        .inputSchema(input).annotations(new Annotations(false, false, true, false)).nature(Nature.MUTATION)
+        .defaultMode(Mode.BYPASS, Mode.BYPASS).resultShape(ResultShape.JSON)
+        .risk(new Risk(false, false, Egress.NONE)).build();
   }
 }

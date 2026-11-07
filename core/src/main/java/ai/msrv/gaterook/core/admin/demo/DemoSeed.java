@@ -64,7 +64,7 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The demo world of the kit (design/BLUEPRINT.md §9) for comparing the screens with the kit (ARCHITECTURE.md §2.4,
+ * The demo world of the kit for comparing the screens with the kit (ARCHITECTURE.md §2.4,
  * §8.1): with {@code GW_DEMO=1} (or {@code gateway.demo=true}) a core that just created its home fills it from
  * {@code classpath:demo/seed.json} before it reports ready.
  *
@@ -254,10 +254,17 @@ class DemoSeed {
     }
     for (JsonNode e : world.path("endpoints")) {
       String slug = e.path("slug").asString();
-      endpoints.create(slug, e.path("description").asString(null),
-          EndpointService.StartFrom.of(e.path("startFrom").asString("empty")), "Demo world");
+      EndpointService.StartFrom start = EndpointService.StartFrom.of(e.path("startFrom").asString("empty"));
+      List<String> selected = new ArrayList<>();
       for (JsonNode c : e.path("connections")) {
-        wiring.add(slug, c.asString(), null);
+        selected.add(c.asString());
+      }
+      endpoints.create(slug, e.path("description").asString(null),
+          start, start == EndpointService.StartFrom.EMPTY ? List.of() : selected, "Demo world");
+      if (start == EndpointService.StartFrom.EMPTY) {
+        for (String name : selected) {
+          wiring.add(slug, name, null);
+        }
       }
       if (e.has("access")) {
         endpoints.updateSettings(slug, new EndpointService.SettingsUpdate(null, e.path("access").asString(), null, null,
@@ -344,7 +351,7 @@ class DemoSeed {
   }
 
   /**
-   * An external MCP server as installing its catalog entry leaves it (BLUEPRINT §9: {@code github-mcp} v0.6.2, 26
+   * An external MCP server as installing its catalog entry leaves it (demo data: {@code github-mcp} v0.6.2, 26
    * tools, on no endpoint): its connection, its token encrypted here and the reviewed snapshot of its tools. The seed's
    * handshake stands in for the first start: no npm, no process.
    */
@@ -446,7 +453,7 @@ class DemoSeed {
   }
 
   /**
-   * The kit's clients (BLUEPRINT §9): Claude Desktop on {@code dev} and {@code incident-prod}, Codex on {@code dev} as
+   * The kit's clients: Claude Desktop on {@code dev} and {@code incident-prod}, Codex on {@code dev} as
    * {@code codex-laptop}, Cursor detected. They live in the demo user home, never the developer's own.
    */
   private List<ClientService.DemoGrant> clients(JsonNode c) {
@@ -479,7 +486,7 @@ class DemoSeed {
   }
 
   /**
-   * The kit's tunnel (BLUEPRINT §9): {@code stage-readonly} is the tunnel's endpoint, it was public through a quick
+   * The kit's tunnel: {@code stage-readonly} is the tunnel's endpoint, it was public through a quick
    * tunnel this morning and is off now, and claude.ai's sign-in of that session is in "Signed in" for 184 days. Times
    * are relative to the seeding, like the rest of the world.
    */

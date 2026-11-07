@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, DOCUMENT, DestroyRef, ElementRef, Injector, afterRenderEffect, computed, effect, inject, input, linkedSignal, signal, untracked, viewChild } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import { ChangeDetectionStrategy, Component, DOCUMENT, DestroyRef, ElementRef, Injector, TemplateRef, afterRenderEffect, computed, effect, inject, input, linkedSignal, output, signal, untracked, viewChild } from '@angular/core';
 import { isApiError } from '../core/api/api-error';
 import { SecretStore, VaultReferences } from '../core/api/secrets.api';
 import { GwAriaDisabled } from '../kit/aria-disabled';
@@ -8,10 +9,13 @@ import { SchemaForm } from './schema-form';
 import { selectableVaultKey, vaultReferenceParts } from './secret-sources';
 import { VaultReferenceCatalog } from './vault-reference-catalog';
 
-/** One editable reference with automatically loaded path/key suggestions. */
+/**
+ * The field of a `vault://` reference with automatically loaded path/key suggestions, from the Vault chosen in the
+ * field's menu (`lead`, put before the input) or the only one connected.
+ */
 @Component({
   selector: 'gw-vault-picker',
-  imports: [GwAriaDisabled],
+  imports: [GwAriaDisabled, NgTemplateOutlet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './vault-picker.html',
   host: { class: 'gw-field' },
@@ -25,24 +29,32 @@ export class GwVaultPicker {
   readonly node = input.required<SchemaNode>();
   readonly describedBy = input<string | null>(null);
   readonly invalid = input(false);
+  /** What goes before the input in its group: the field's menu of where its value comes from. */
+  readonly lead = input<TemplateRef<unknown> | null>(null);
+  /** The person typed: the field may become another control (a value instead of a reference). */
+  readonly typed = output<void>();
   readonly fieldId = computed(() => this.form().id(this.node()));
   readonly id = computed(() => `${this.fieldId()}-vault`);
   readonly field = viewChild<ElementRef<HTMLInputElement>>('field');
   readonly panel = viewChild<ElementRef<HTMLElement>>('panel');
-  readonly store = computed(() => this.form().secretStore(this.node()) ?? '');
+  /** The Vault chosen in the field's menu; without one, the only Vault connected. */
+  readonly store = computed(() => this.form().fieldStore(this.node()) ?? '');
   readonly stores = signal<readonly SecretStore[]>([]);
-  readonly selectedStore = computed(() => this.stores().find((store) => store.id === this.store() || store.name === this.store()) ?? null);
+  readonly selectedStore = computed(() => {
+    const stores = this.stores();
+    const chosen = this.store();
+    if (!chosen) return stores.length === 1 ? stores[0] : null;
+    return stores.find((store) => store.id === chosen || store.name === chosen) ?? null;
+  });
   readonly storesBusy = signal(false);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly result = signal<VaultReferences | null>(null);
-  readonly text = computed(() => {
-    const text = this.form().secrets()[this.node().pointer] ?? '';
-    return text.trim().startsWith('vault://') ? text.trim().slice('vault://'.length) : text;
-  });
-  readonly prefix = computed(() => !this.text().includes('://'));
+  /** The reference as typed, with its scheme. */
+  readonly text = computed(() => this.form().fieldText(this.node()));
   readonly matches = computed(() => {
-    const parts = vaultReferenceParts(this.text());
+    const typed = this.text().trim();
+    const parts = vaultReferenceParts(typed.toLowerCase().startsWith('vault://') ? typed.slice('vault://'.length) : typed);
     const query = (parts.uri.replace(/\?version=[1-9][0-9]*$/, '') + (parts.key ? `#${parts.key}` : '')).trim().toLowerCase();
     return (this.result()?.references ?? []).filter((ref) => ref.slice('vault://'.length).toLowerCase().includes(query));
   });
@@ -55,7 +67,8 @@ export class GwVaultPicker {
     if (this.storesBusy()) return 'Loading Vault stores…';
     if (this.error()) return this.error()!;
     if (!this.stores().length) return 'Connect Vault or OpenBao in Secrets to load reference suggestions.';
-    if (!this.selectedStore()) return 'Choose a Vault store to load its keys.';
+    if (!this.selectedStore()) return this.store() ? `${this.store()} isn't connected. Choose a connected Vault in the field's menu.`
+      : `Choose a Vault in the field's menu to load its keys. Without one, each Vault is asked in turn for ${this.text().trim() || 'the reference'}.`;
     if (this.loading()) return 'Loading Vault paths and key names…';
     const result = this.result();
     if (!result) return 'Reference suggestions are not loaded. Refresh the list to try again.';
@@ -102,7 +115,8 @@ export class GwVaultPicker {
   }
 
   private current(form: SchemaForm, node: SchemaNode): boolean {
-    return !this.destroyRef.destroyed && this.form() === form && this.node() === node && form.source() === 'vault' && form.visible(node);
+    return !this.destroyRef.destroyed && this.form() === form && this.node() === node && form.visible(node)
+      && form.fieldKind(node) === 'vault';
   }
 
   private async loadStores(form: SchemaForm, node: SchemaNode, refresh = false): Promise<void> {
@@ -114,9 +128,6 @@ export class GwVaultPicker {
     try {
       const stores = await this.catalog.stores(refresh);
       if (!this.current(form, node) || request !== this.storesRequest) return;
-      const selected = stores.find((store) => store.id === this.store() || store.name === this.store());
-      const next = selected ?? (!this.store() && stores.length === 1 ? stores[0] : null);
-      if (next) form.vaultStores.update((choices) => ({ ...choices, [node.pointer]: next.id }));
       this.stores.set(stores);
     } catch (error) {
       if (this.current(form, node) && request === this.storesRequest) this.error.set(isApiError(error) ? error.detail : 'Could not load Vault stores. Refresh the list to try again.');
@@ -153,17 +164,9 @@ export class GwVaultPicker {
     else void this.loadStores(this.form(), this.node(), true);
   }
 
-  chooseStore(id: string): void {
-    if (this.store() === id || !this.stores().some((store) => store.id === id)) return;
-    this.close();
-    this.form().vaultStores.update((choices) => ({ ...choices, [this.node().pointer]: id }));
-  }
-
   onInput(input: HTMLInputElement): void {
-    const text = input.value.trim();
-    const value = text.startsWith('vault://') ? text.slice('vault://'.length) : input.value;
-    this.form().setSecret(this.node(), value);
-    if (input.value !== value) input.value = value;
+    this.form().setFieldText(this.node(), input.value);
+    this.typed.emit();
     this.open();
   }
 
@@ -184,11 +187,11 @@ export class GwVaultPicker {
 
   choose(ref: string): void {
     if (!this.result()?.references.includes(ref)) return;
-    const previous = vaultReferenceParts(this.form().secretReference(this.node()));
+    const previous = vaultReferenceParts(this.form().fieldReference(this.node()));
     const next = vaultReferenceParts(ref);
     const version = previous.uri.match(/\?version=[1-9][0-9]*$/)?.[0] ?? '';
     const uri = version && previous.uri.slice(0, -version.length) === next.uri ? `${next.uri}${version}#${next.key}` : ref;
-    this.form().setSecret(this.node(), uri.slice('vault://'.length));
+    this.form().setFieldText(this.node(), uri);
     this.close();
     this.field()?.nativeElement.focus();
   }
@@ -212,8 +215,9 @@ export class GwVaultPicker {
     }
   }
 
+  /** Test reference: in the Vault chosen in the field's menu, else each in turn (the core asks them). */
   testReference(): void {
-    const store = this.form().secretStore(this.node());
-    this.form().emit({ kind: 'test', node: this.node(), ref: this.form().secretReference(this.node()), ...(store ? { store } : {}) });
+    const store = this.form().fieldStore(this.node());
+    this.form().emit({ kind: 'test', node: this.node(), ref: this.form().fieldReference(this.node()), ...(store ? { store } : {}) });
   }
 }

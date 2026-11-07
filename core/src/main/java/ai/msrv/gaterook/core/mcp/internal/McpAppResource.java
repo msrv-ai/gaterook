@@ -8,7 +8,7 @@ import java.util.Base64;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
-/** Static MCP Apps template. No approval data, credentials, routes, or per-request capabilities are embedded. */
+/** Static MCP Apps templates. No per-request data, credentials, or capabilities are embedded. */
 public final class McpAppResource {
 
   public static final String EXTENSION = "io.modelcontextprotocol/ui";
@@ -25,9 +25,13 @@ public final class McpAppResource {
   }
 
   public static ObjectNode read() {
+    return read(URI, Template.HTML);
+  }
+
+  static ObjectNode read(String uri, String html) {
     ObjectNode result = JsonNodeFactory.instance.objectNode();
-    ObjectNode content = result.putArray("contents").addObject().put("uri", URI).put("mimeType", MIME_TYPE)
-        .put("text", Template.HTML);
+    ObjectNode content = result.putArray("contents").addObject().put("uri", uri).put("mimeType", MIME_TYPE)
+        .put("text", html);
     ObjectNode ui = content.putObject("_meta").putObject("ui");
     ui.put("prefersBorder", true);
     ObjectNode csp = ui.putObject("csp");
@@ -39,21 +43,21 @@ public final class McpAppResource {
   }
 
   private static final class Template {
-    private static final String HTML = assemble();
+    private static final String HTML = assemble("approval-card");
   }
 
-  private static String assemble() {
-    // The same versioned design kit as the desktop UI; no remote fonts or assets in a sandboxed card.
+  static String assemble(String name) {
+    // The same bundled stylesheet as the desktop UI; no remote fonts or assets in a sandboxed card.
     String css = resource("gw-kit.css").replaceAll("(?s)@font-face\\s*\\{[^}]*}", "")
         .replaceAll("@charset\\s+\"[^\"]+\";", "");
-    String script = resource("approval-card.js");
+    String script = resource(name + ".js");
     if (css.contains("</style") || script.contains("</script")) {
       throw new IllegalStateException("MCP App assets contain an unescaped HTML closing tag");
     }
     String csp = "default-src 'none'; script-src 'sha256-" + hash(script) + "'; style-src 'sha256-" + hash(css)
         + "'; connect-src 'none'; img-src 'none'; font-src 'none'; frame-src 'none'; object-src 'none'; "
         + "base-uri 'none'; form-action 'none'";
-    return resource("approval-card.html").replace("{{CSP}}", csp)
+    return resource(name + ".html").replace("{{CSP}}", csp)
         .replace("{{KIT_CSS}}", css).replace("{{APP_JS}}", script);
   }
 

@@ -10,7 +10,7 @@ import { healthLook } from '../../kit/elements/shared/dictionaries';
 import { TileState, TilePart } from '../../kit/elements/status-tile/status-tile';
 
 /**
- * What Overview shows (design/pages/overview.html, BLUEPRINT §5 overview, COMPONENTS.md › status-tile), computed from
+ * What Overview shows (status-tile components), computed from
  * the admin API: pure functions of the answers, so the tests check them against the kit's wording without a clock or
  * a core. The page binds them; nothing here invents a number the core didn't give.
  */
@@ -249,8 +249,10 @@ export interface AppTile {
 
 /** An app the guide or the home screen offers to connect, or one to install (a card's state in the tile's words). */
 export function guideAppTile(card: ClientCard): AppTile {
-  const endpoints = [...new Set(card.links.filter((link) => link.status === 'connected' || link.status === 'needs-restart').map((link) => link.endpoint))];
+  const endpoints = [...new Set(card.links.filter((link) => link.status === 'connected' || link.status === 'needs-restart' || link.status === 'pending').map((link) => link.endpoint))];
   switch (card.status) {
+    case 'pending':
+      return { client: card.client, name: card.name, meta: 'Finish MCP setup in the app', endpoints, state: { tone: 'info', label: 'Awaiting connection' }, linked: true, action: null };
     case 'connected':
       return { client: card.client, name: card.name, meta: canUse(card, null), endpoints, state: { tone: 'success', label: 'Connected' }, linked: true, action: null };
     case 'needs-restart':

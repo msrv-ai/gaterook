@@ -1,0 +1,72 @@
+<dialog class="gw-dialog gw-dialog--md" [class.gw-dialog--danger]="target() && !result()" gwDialog gwDialogStatic [gwDialogGuard]="!!result()" aria-labelledby="manual-app-title" aria-describedby="manual-app-description" (cancel)="cancel($event)" (closed)="closed()">
+  <form (submit)="submit($event)">
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg lucideIcon="app-window" class="gw-icon gw-icon--lg"></svg></span>
+      <div>
+        <h2 class="gw-dialog__title" id="manual-app-title">{{ result() ? 'Connect ' + result()!.client.name : target() ? 'Replace token for ' + target()!.name : 'Add AI app manually' }}</h2>
+        <p class="gw-dialog__description" id="manual-app-description">{{ result() ? 'Add this MCP server in your app, then send a request to check the connection.' : target() ? 'The current token will stop working immediately. Update the MCP settings in your app with the new token.' : 'Name your app and choose the endpoint it can use. Then copy the MCP settings into your app.' }}</p>
+      </div>
+      @if (!result()) {
+        <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" [attr.aria-disabled]="busy() ? 'true' : null" (click)="cancel()"><svg lucideIcon="x" class="gw-icon"></svg></button>
+      }
+    </header>
+    <div class="gw-dialog__body gw-stack">
+      @if (result(); as r) {
+        <div class="gw-field">
+          <label class="gw-field__label" for="manual-app-url">Endpoint URL</label>
+          <div class="gw-copy-field">
+            <input class="gw-copy-field__value" id="manual-app-url" readonly [value]="r.setup.url" />
+            <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" [gwCopy]="r.setup.url"><span class="gw-copy-field__copy">Copy<span class="gw-sr-only"> endpoint URL</span></span><span class="gw-copy-field__copied">Copied</span></button>
+          </div>
+          <p class="gw-field__hint">Transport: Streamable HTTP. Authentication: Bearer token.</p>
+        </div>
+        <div class="gw-field">
+          <span class="gw-field__label" id="manual-app-token-label">Token</span>
+          <div class="gw-copy-field gw-copy-field--secret-once" role="group" aria-labelledby="manual-app-token-label">
+            <code class="gw-copy-field__value">{{ r.token.token }}</code>
+            <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" [gwCopy]="r.token.token" data-token-copy aria-describedby="manual-app-token-hint"><span class="gw-copy-field__copy">Copy<span class="gw-sr-only"> token</span></span><span class="gw-copy-field__copied">Copied</span></button>
+          </div>
+          <p class="gw-copy-field__hint" id="manual-app-token-hint">Shown once. Store it safely. @if (r.token.expiresAt) {Expires {{ time.date(r.token.expiresAt, true) }}.}</p>
+        </div>
+        <p class="gw-text-small gw-fg-secondary">If your app asks for an HTTP header, use <code class="gw-code">Authorization: Bearer &lt;token&gt;</code>, replacing <code class="gw-code">&lt;token&gt;</code> with the token above.</p>
+        <p class="gw-text-small gw-fg-secondary">{{ r.client.name }} is saved in AI apps. Its status changes from Awaiting connection when GateRook receives its first authenticated request.</p>
+        <div class="gw-checkbox"><input class="gw-checkbox__input" id="manual-app-stored" type="checkbox" required [checked]="stored()" (change)="stored.set($any($event.target).checked)" /><span class="gw-checkbox__control" aria-hidden="true"></span><label class="gw-checkbox__label" for="manual-app-stored">I've stored this token</label></div>
+      } @else {
+        @if (!target()) {
+          <div class="gw-field">
+            <label class="gw-field__label" for="manual-app-name">App name <span class="gw-field__required">Required</span></label>
+            <input class="gw-input" id="manual-app-name" autofocus required maxlength="80" autocomplete="off" placeholder="My AI app" [value]="name()" (input)="name.set($any($event.target).value)" [attr.aria-invalid]="attempted() && !name().trim() ? 'true' : null" aria-describedby="manual-app-name-hint" [disabled]="busy()" />
+            <p id="manual-app-name-hint" class="gw-field__hint">The name shown alongside your other AI apps.</p>
+            @if (attempted() && !name().trim()) {<p class="gw-field__error" role="alert">Enter an app name.</p>}
+          </div>
+          <div class="gw-field">
+            <label class="gw-field__label" for="manual-app-endpoint">Endpoint</label>
+            <select class="gw-select" id="manual-app-endpoint" required [value]="endpoint()" (change)="endpoint.set($any($event.target).value)" [disabled]="busy()">
+              @if (!endpoints().length) {<option value="">No endpoints available</option>}
+              @for (ep of endpoints(); track ep.slug) {<option [value]="ep.slug" [selected]="ep.slug === endpoint()" [disabled]="!!ep.blockedReason || ep.status === 'disabled'">{{ ep.slug }} · {{ ep.env }}{{ ep.status === 'disabled' ? ' · off' : '' }}</option>}
+            </select>
+          </div>
+        }
+        @if (selected(); as ep) {
+          <p class="gw-text-small gw-fg-secondary">This app gets the tools of <span class="gw-mono">{{ ep.slug }}</span> <span class="gw-env gw-env--sm gw-env--{{ ep.env }}">{{ ep.env }}</span>. It also gets tools you add to this endpoint later.</p>
+        }
+        <div class="gw-field">
+          <label class="gw-field__label" for="manual-app-lifetime">Token lifetime</label>
+          <select class="gw-select" id="manual-app-lifetime" [value]="ttl()" (change)="ttl.set(+$any($event.target).value)" [disabled]="busy()">
+            @for (days of lifetimes; track days) {<option [value]="days" [selected]="days === ttl()">{{ days }} {{ days === 1 ? 'day' : 'days' }}</option>}
+          </select>
+        </div>
+        @if (endpointReason(); as reason) {<p class="gw-field__hint" id="manual-app-unavailable">{{ reason }} <a class="gw-link" routerLink="/endpoints" (click)="cancel()">Open endpoints</a></p>}
+        @if (error(); as message) {<div class="gw-alert gw-alert--danger" role="alert"><div class="gw-alert__content"><p class="gw-alert__body">{{ message }}</p></div></div>}
+      }
+    </div>
+    <footer class="gw-dialog__footer">
+      @if (result()) {
+        <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-disabled]="!stored() ? 'true' : null" aria-describedby="manual-app-token-hint">Done</button>
+      } @else {
+        <button class="gw-btn" type="button" [attr.autofocus]="target() ? '' : null" [attr.aria-disabled]="busy() ? 'true' : null" (click)="cancel()">Cancel</button>
+        <button class="gw-btn" [class.gw-btn--primary]="!target()" [class.gw-btn--danger]="!!target()" type="submit" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() || endpointReason() ? 'true' : null" [attr.aria-describedby]="endpointReason() ? 'manual-app-unavailable' : null">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}{{ target() ? 'Replace token' : 'Add app' }}</button>
+      }
+    </footer>
+  </form>
+</dialog>

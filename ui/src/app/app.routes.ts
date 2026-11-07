@@ -4,9 +4,9 @@ import { onboardingGuard } from './shell/onboarding.guard';
 
 /**
  * What the shell needs from a route: the titlebar's section name and the frame around the page.
- * - `app` (default): titlebar, sidebar and main (pages/_shell.html);
+ * - `app` (default): titlebar, sidebar and main;
  * - `welcome`: the no-sidebar variant of Onboarding (titlebar with Appearance only);
- * - `none`: no frame at all, the page is the whole document (the dev-only element gallery, like design/elements).
+ * - `none`: no frame at all, the page is the whole document (the dev-only element gallery).
  */
 export interface GwRouteData {
   readonly section: string;
@@ -74,6 +74,18 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/http-import/http-import.page').then(m => m.HttpImportPage),
       },
       {
+        path: 'connection-import',
+        title: 'Import connections with AI',
+        data: data('Connections'),
+        loadComponent: () => import('./pages/connection-import/connection-import.page').then(m => m.ConnectionImportPage),
+      },
+      {
+        path: 'connection-import/:id',
+        title: 'Review connection import',
+        data: data('Connections'),
+        loadComponent: () => import('./pages/connection-import/connection-import.page').then(m => m.ConnectionImportPage),
+      },
+      {
         // The same page in edit mode (kit: connection-new.html?edit=<name>, titled "dev-db · Connections").
         path: 'connections/:name',
         title: (route: ActivatedRouteSnapshot) => `${route.paramMap.get('name') ?? ''} · Connections`,
@@ -97,6 +109,12 @@ export const routes: Routes = [
         title: 'Endpoints',
         data: data('Endpoints'),
         loadComponent: () => import('./pages/endpoints/endpoints.page').then((m) => m.EndpointsPage),
+      },
+      {
+        path: 'endpoint-import',
+        title: 'Import shared endpoint',
+        data: data('Endpoints'),
+        loadComponent: () => import('./pages/endpoint-import/endpoint-import.page').then((m) => m.EndpointImportPage),
       },
       {
         path: 'endpoints/:slug',

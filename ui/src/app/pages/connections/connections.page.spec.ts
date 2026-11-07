@@ -173,6 +173,10 @@ describe('Connections page', () => {
     expect(Array.from(el.querySelectorAll('.gw-page-header__meta .gw-status')).map(text)).toEqual(['10 healthy', '1 slow', '1 unreachable']);
     expect(text(el.querySelector('.gw-page-header__meta .gw-text-small'))).toBe('Last checked rel 12:29:42');
     expect(el.querySelectorAll('.gw-page-header .gw-btn--primary')).toHaveLength(1);
+    const importLink = el.querySelector('.gw-page-header a[href="/connection-import"]')!;
+    expect(text(importLink)).toBe('Import with AI');
+    expect(importLink.classList).toContain('gw-btn--primary');
+    expect(importLink.querySelector('svg[lucideIcon="lightbulb"]')).not.toBeNull();
     // how-it-works is folded when there are connections.
     expect(el.querySelector('.gw-how-it-works__toggle')?.getAttribute('aria-expanded')).toBe('false');
     expect(text(el.querySelector('#conn-count'))).toBe('12 connections');
@@ -220,6 +224,37 @@ describe('Connections page', () => {
     ]);
   });
 
+
+  it('replaces access with a Finish setup button only for incomplete connections', async () => {
+    let rows = [
+      row('draft-db', { setupRequired: true, enabled: false, usedBy: [], health: { state: 'unknown', latencyMs: null, message: null, checkedAt: null } }),
+      row('ready-db', { enabled: true }),
+    ];
+    setup(() => Promise.resolve(list(rows)));
+    const setEnabled = vi.fn(async (name: string, enabled: boolean) => {
+      rows = rows.map((connection) => connection.name === name ? { ...connection, enabled } : connection);
+      return rows.find((connection) => connection.name === name)!;
+    });
+    TestBed.inject(ConnectionsApi).setEnabled = setEnabled;
+    const { fixture, el } = await render();
+
+    const draft = rowOf(el, 'draft-db')!;
+    expect(draft.querySelector('[role="switch"]')).toBeNull();
+    expect(draft.querySelector('th')!.querySelectorAll('a')).toHaveLength(1);
+    const finish = draft.children[5].querySelector('a.gw-btn--sm')!;
+    expect(text(finish)).toBe('Finish setup for draft-db');
+    expect(finish.getAttribute('href')).toBe('/connections/draft-db');
+
+    const ready = rowOf(el, 'ready-db')!;
+    expect(ready.children[5].querySelector('a')).toBeNull();
+    const access = ready.querySelector<HTMLInputElement>('[role="switch"]')!;
+    expect(access.checked).toBe(true);
+    expect(access.getAttribute('aria-disabled')).toBeNull();
+    access.click();
+    await settle(fixture);
+    expect(setEnabled).toHaveBeenCalledExactlyOnceWith('ready-db', false);
+    expect(access.checked).toBe(false);
+  });
 
   it('shows what the core adds since step API: the type in its words, since when, the interval', async () => {
     const rows = kitRows().map((r) =>
@@ -350,6 +385,40 @@ describe('Connections page', () => {
     const { el } = await render({ q: 'stage' });
     expect(el.querySelector<HTMLInputElement>('#conn-q')!.value).toBe('stage');
     expect(shownNames(el)).toEqual(['aws-stage', 'billing-api', 'stage-db']);
+  });
+
+  it('opens connections outside an endpoint from a link and removes only that filter', async () => {
+    setup(() => Promise.resolve(list([
+      row('available-dev', { usedBy: [] }),
+      row('connected-dev', { usedBy: ['dev'] }),
+      row('available-prod', { usedBy: ['incident-prod'], env: 'prod' }),
+      row('available-cache', { usedBy: [], type: 'redis', typeName: 'Redis' }),
+    ])));
+    const { fixture, el } = await render({ notConnectedTo: 'dev', q: 'dev', type: 'postgres', env: 'dev', health: 'healthy' });
+    expect(shownNames(el)).toEqual(['available-dev']);
+    expect(text(el.querySelector('.gw-tag__label'))).toBe('Not connected to dev');
+    expect(text(el.querySelector('#conn-count'))).toBe('1 of 4 connections');
+
+    el.querySelector<HTMLButtonElement>('[aria-label="Remove not connected to dev filter"]')!.click();
+    await settle(fixture);
+    expect(shownNames(el)).toEqual(['available-dev', 'connected-dev']);
+    expect(el.querySelector('.gw-tag')).toBeNull();
+    expect(el.querySelector<HTMLInputElement>('#conn-q')!.value).toBe('dev');
+    expect(text(el.querySelector('[aria-controls="conn-type-menu"]'))).toBe('Type: PostgreSQL');
+    expect(text(el.querySelector('[aria-controls="conn-health-menu"]'))).toBe('Health: Healthy');
+    expect(el.querySelector<HTMLInputElement>('input[name="conn-env"][value="dev"]')!.checked).toBe(true);
+    expect(document.activeElement).toBe(el.querySelector('#conn-q'));
+  });
+
+  it('clears the endpoint filter when every connection is already connected', async () => {
+    setup(() => Promise.resolve(list(kitRows().map((connection) => ({ ...connection, usedBy: ['dev'] })))));
+    const { fixture, el } = await render({ notConnectedTo: 'dev' });
+    expect(shownNames(el)).toEqual([]);
+    expect(text(el.querySelector('.gw-empty__title'))).toBe('No connections match these filters');
+    el.querySelector<HTMLButtonElement>('#conn-clear')!.click();
+    await settle(fixture);
+    expect(shownNames(el)).toHaveLength(12);
+    expect(el.querySelector('.gw-tag')).toBeNull();
   });
 
   it('shows the first run: no toolbar or table, how-it-works open', async () => {

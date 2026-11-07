@@ -5,6 +5,7 @@ import { Router, provideRouter } from '@angular/router';
 import { App } from '../app';
 import { problemJsonInterceptor } from '../core/api/problem-json.interceptor';
 import { DesktopBridge } from '../core/desktop/desktop-bridge';
+import { EndpointShareFiles } from '../core/desktop/endpoint-share';
 import { EVENT_STREAM_FETCH, EventStream } from '../core/events/event-stream';
 import { CoreStore } from '../core/stores/core.store';
 import { ActivationGuard } from '../kit/activation-guard';
@@ -52,6 +53,17 @@ describe('deep links: navigation only, strictly by allowlist (§7.1)', () => {
     expect(uiOpenUrl({ path: '/overview' })).toBeNull();
     expect(uiOpenUrl({ path: 42 } as never)).toBeNull();
     expect(uiOpenUrl(null)).toBeNull();
+  });
+
+  it('opens AI import review only, never import actions or token-bearing links', () => {
+    const path = '/connection-import/ci_0123456789ab';
+    expect(uiOpenUrl({ path })).toBe(path);
+    expect(deepLinkUrl(`gaterook:/${path}`)).toBe(path);
+    for (const suffix of ['/commit', '?endpoint=prod', '?submissionToken=secret', '#import', '/../../settings']) {
+      expect(uiOpenUrl({ path: path + suffix })).toBeNull();
+    }
+    expect(deepLinkUrl('gaterook://connection-import/ci_short')).toBeNull();
+    expect(deepLinkUrl('gaterook://connection-import/new')).toBeNull();
   });
 });
 
@@ -118,6 +130,27 @@ describe('the shell routes what comes from outside and follows core restarts', (
     // Main resolves the queue to its first waiting request and hands it over.
     deepLink!('approvals/ap_vyt2xvc248kr');
     expect(go.mock.calls.map((c) => String(c[0]))).toEqual(['/approvals/ap_vyt2xvc248kr']);
+    fixture.destroy();
+  });
+
+  it('an OS share-file event selects a display name and opens review without importing', async () => {
+    let openFile!: (file: { readonly fileName: string }) => void;
+    const importEndpointShare = vi.fn();
+    TestBed.overrideProvider(DesktopBridge, { useValue: {
+      ...desktop,
+      endpointShareAvailable: true,
+      onEndpointShareFile: (callback: typeof openFile) => { openFile = callback; return () => undefined; },
+      importEndpointShare,
+    } });
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    const go = vi.spyOn(TestBed.inject(Router), 'navigateByUrl');
+    const rearm = vi.spyOn(TestBed.inject(ActivationGuard), 'rearm');
+    openFile({ fileName: 'team.grshare' });
+    expect(TestBed.inject(EndpointShareFiles).selected()?.fileName).toBe('team.grshare');
+    expect(go).toHaveBeenCalledExactlyOnceWith('/endpoint-import');
+    expect(rearm).toHaveBeenCalledOnce();
+    expect(importEndpointShare).not.toHaveBeenCalled();
     fixture.destroy();
   });
 

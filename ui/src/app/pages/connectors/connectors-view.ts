@@ -67,7 +67,7 @@ export function connectionsQuery(names: readonly string[]): string | null {
 // ── Process status ──────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * The state of a plugin's host or an MCP server's process in the kit's words (§7.5 states; BLUEPRINT §7 tones):
+ * The state of a plugin's host or an MCP server's process in the kit's words (§7.5 states; status vocabulary tones):
  * "Running · 54 MB", "Sleeping" (stopped after its idle time: it starts again on the next call), "Starting",
  * "Restarting" (crashed, waiting to start again), "Failed" (stopped restarting: Restart it), "Finishing calls".
  */
@@ -597,7 +597,7 @@ export function mcpServerView(
   const description =
     installed?.description ||
     fromCatalog?.description ||
-    (transport === 'http' ? `Calls ${url ?? 'its URL'} over Streamable HTTP.` : 'Runs over stdio on this computer.');
+    (transport === 'http' ? `Calls ${url ?? 'its URL'} over HTTP.` : 'Runs over stdio on this computer.');
   const prefix = typeof config['toolPrefix'] === 'string' && config['toolPrefix'] ? (config['toolPrefix'] as string) : defaultToolPrefix(row.name);
   const idle = config['idleStopMinutes'];
   return {

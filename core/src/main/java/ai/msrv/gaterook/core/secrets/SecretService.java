@@ -8,6 +8,7 @@ import ai.msrv.gaterook.core.platform.SetupChangeRecorder;
 import ai.msrv.gaterook.core.platform.Taint;
 import ai.msrv.gaterook.core.platform.WalCheckpoint;
 import ai.msrv.gaterook.core.secrets.internal.crypto.Envelope;
+import ai.msrv.gaterook.core.secrets.internal.SecretRows;
 import ai.msrv.gaterook.core.secrets.internal.persistence.SecretEntity;
 import ai.msrv.gaterook.core.secrets.internal.persistence.SecretKind;
 import ai.msrv.gaterook.core.secrets.internal.persistence.SecretOwnerKind;
@@ -74,6 +75,7 @@ public class SecretService {
   private static final Logger log = LoggerFactory.getLogger(SecretService.class);
 
   private final SecretRepository secrets;
+  private final SecretRows rows;
   private final SecretVersionRepository versions;
   private final MasterKeyService masterKey;
   private final Map<SecretOwner.Kind, SecretOwners> owners;
@@ -119,8 +121,9 @@ public class SecretService {
   public SecretService(SecretRepository secrets, SecretVersionRepository versions, MasterKeyService masterKey,
       List<SecretOwners> owners, ObjectProvider<SetupChangeRecorder> setupChanges, ApplicationEventPublisher publisher,
       WalCheckpoint checkpoint, PlatformTransactionManager transactions, Clock clock, StoreBinding binding,
-      StoreResolution resolution, SecretCache cache, LeaseManager leases) {
+      StoreResolution resolution, SecretCache cache, LeaseManager leases, SecretRows rows) {
     this.secrets = secrets;
+    this.rows = rows;
     this.versions = versions;
     this.masterKey = masterKey;
     Map<SecretOwner.Kind, SecretOwners> byKind = new EnumMap<>(SecretOwner.Kind.class);
@@ -143,7 +146,7 @@ public class SecretService {
 
   /**
    * The rows of Secrets: values stored here and references. Vault dynamic credentials aren't secrets of the table
-   * (BLUEPRINT §9: Secrets › Short-lived lists them).
+   * (demo data: Secrets › Short-lived lists them).
    */
   public List<SecretInfo> list() {
     return readTx.execute(s -> secrets.findAllByOrderByNameAsc().stream().filter(e -> e.getKind() != SecretKind.DYNAMIC)
@@ -202,6 +205,7 @@ public class SecretService {
             clock.instant()));
         addVersion(secret, 1, SecretVersionState.CURRENT, value);
         secret.setCurrentVersion(1);
+        rows.sign(secret);
         return info(secret);
       }));
     } finally {
@@ -244,6 +248,7 @@ public class SecretService {
         }
         secret.setCurrentVersion(number);
         secret.setRotatedAt(now);
+        rows.sign(secret);
         return info(secret);
       }));
     } finally {
@@ -263,6 +268,81 @@ public class SecretService {
    */
   public SecretInfo createReference(SecretOwner owner, String field, String name, String uri, boolean dynamic,
       String storeName, String pointer) {
+    SecretRef ref = checkedReference(uri, dynamic, pointer);
+    return writeTx.execute(s -> {
+      ExternalStoreEntity store = binding.storeFor(ref, storeName, pointer);
+      SecretEntity secret = new SecretEntity(name, dynamic ? SecretKind.DYNAMIC : SecretKind.REFERENCE, kind(owner),
+          owner.id(), field, clock.instant());
+      binding.point(secret, dynamic, ref, store);
+      return info(secrets.save(secret));
+    });
+  }
+
+  /**
+   * Whether a reference has one configured, integrity-verified store. This checks local metadata only: it never
+   * contacts the store, reads its credentials or proves that remote authentication and access will succeed.
+   */
+  public boolean referenceConnected(String uri, boolean dynamic, String storeName) {
+    SecretRef ref = checkedReference(uri, dynamic, "/secrets");
+    return Boolean.TRUE.equals(readTx.execute(s -> {
+      try {
+        List<ExternalStoreEntity> candidates = binding.candidates(ref, storeName, "/secrets");
+        // Several stores are asked in turn for a value; short-lived credentials need the one chosen.
+        return !(dynamic && candidates.size() > 1) && candidates.stream().anyMatch(binding.integrity()::verifyStore);
+      } catch (ProblemException e) {
+        // Missing or mismatched store choices are setup work; malformed references failed above.
+        return false;
+      }
+    }));
+  }
+
+  /**
+   * The store a reference reads from, by name, before it is stored: the one the person chose, the natural or only
+   * one of its kind, or with several connected the first, by name, that has it — each is asked in turn, and the
+   * value it answers is zeroed at once. {@code null} when none of its kind is connected (the reference then waits for
+   * one). Call it outside a transaction: it may ask the stores.
+   *
+   * @param dynamic short-lived credentials: several stores could issue them, so one must be chosen
+   * @param pointer JSON pointer of the request field, for a 422
+   * @throws ProblemException 422 when no connected store has it, or several could issue short-lived credentials
+   */
+  public String storeHolding(String uri, boolean dynamic, String storeName, String pointer) {
+    SecretRef ref = checkedReference(uri, dynamic, pointer);
+    List<String[]> candidates = readTx.execute(s -> binding.candidates(ref, storeName, pointer).stream()
+        .map(store -> new String[] {store.getId(), store.getName()}).toList());
+    if (candidates.isEmpty()) {
+      return null;
+    }
+    if (candidates.size() == 1) {
+      return candidates.getFirst()[1];
+    }
+    if (dynamic) {
+      throw ProblemException.unprocessable("Choose the store", "Several " + StoreResolution.title(ref.kind())
+          + " stores could issue " + ref.uri() + ": choose one of " + String.join(", ", candidates.stream()
+          .map(c -> c[1]).toList()) + ".", pointer);
+    }
+    List<String> answers = new java.util.ArrayList<>();
+    for (String[] candidate : candidates) {
+      Taint scratch = new Taint();
+      try (RemoteValue _ = resolution.readFresh(candidate[0], ref, call(scratch))) {
+        return candidate[1];
+      } catch (StoreException e) {
+        answers.add(answer(candidate[1], e));
+      } finally {
+        scratch.clear();
+      }
+    }
+    throw ProblemException.unprocessable("Not found in the stores", ref.uri() + " isn't in a connected "
+        + StoreResolution.title(ref.kind()) + ": " + String.join("; ", answers) + ".", pointer);
+  }
+
+  /** What one store said when it was asked for a reference in turn: "vault-prod doesn't have it". */
+  private static String answer(String store, StoreException e) {
+    return e.reason() == StoreException.Reason.NOT_FOUND || e.reason() == StoreException.Reason.GONE
+        ? store + " doesn't have it" : store + ": " + e.getMessage();
+  }
+
+  private static SecretRef checkedReference(String uri, boolean dynamic, String pointer) {
     SecretRef ref = StoreBinding.parse(uri, pointer);
     boolean creds = ref instanceof SecretRef.Vault v && v.credsPath();
     if (dynamic && !creds) {
@@ -275,13 +355,7 @@ public class SecretService {
           + " cannot be used as a secret reference. Use a Vault KV path and key, such as "
           + "vault://kv/dev/db#password.", pointer);
     }
-    return writeTx.execute(s -> {
-      ExternalStoreEntity store = binding.storeFor(ref, storeName, pointer);
-      SecretEntity secret = new SecretEntity(name, dynamic ? SecretKind.DYNAMIC : SecretKind.REFERENCE, kind(owner),
-          owner.id(), field, clock.instant());
-      binding.point(secret, dynamic, ref, store);
-      return info(secrets.save(secret));
-    });
+    return ref;
   }
 
   /**
@@ -539,6 +613,11 @@ public class SecretService {
       if (masterKey.locked()) {
         return new Resolved(SecretKind.LOCAL, secret.getName(), "v" + number, null, masterKey.lockedMessage());
       }
+      if (!rows.verify(secret)) {
+        // Moved to another owner or field, or set back to an older version, outside the core.
+        return new Resolved(SecretKind.LOCAL, secret.getName(), null, null, secret.getName() + " was changed outside "
+            + "GateRook: replace it with a new value under Secrets.");
+      }
       SecretVersionEntity version = versions.findBySecretIdAndSecretVersion(secret.getId(), number).orElse(null);
       if (version == null || version.getWrappedDek() == null) {
         return new Resolved(SecretKind.LOCAL, secret.getName(), "v" + number, null, secret.getName() + " version "
@@ -569,20 +648,34 @@ public class SecretService {
     }
   }
 
-  /** A draft's reference, read now through the store it binds to. */
+  /**
+   * A draft's reference, read now through the store it binds to; with several stores of its kind and none chosen,
+   * from the first, by name, that has it.
+   */
   Resolved resolveDraft(String field, DraftReference d, Taint taint) {
     try {
       SecretRef ref = StoreBinding.parse(d.uri(), "/secrets");
-      String storeId = readTx.execute(s -> {
-        ExternalStoreEntity store = binding.storeFor(ref, d.store(), "/secrets");
-        return store == null ? null : store.getId();
-      });
-      if (storeId == null) {
+      List<String[]> candidates = readTx.execute(s -> binding.candidates(ref, d.store(), "/secrets").stream()
+          .map(store -> new String[] {store.getId(), store.getName()}).toList());
+      if (candidates.isEmpty()) {
         return new Resolved(SecretKind.REFERENCE, field, null, null, field + " can't be resolved: "
             + StoreResolution.title(ref.kind()) + " isn't connected.");
       }
-      RemoteValue v = resolution.readFresh(storeId, ref, call(taint));
-      return new Resolved(SecretKind.REFERENCE, field, label(v.version()), v.value(), null);
+      if (candidates.size() == 1) {
+        RemoteValue v = resolution.readFresh(candidates.getFirst()[0], ref, call(taint));
+        return new Resolved(SecretKind.REFERENCE, field, label(v.version()), v.value(), null);
+      }
+      List<String> answers = new java.util.ArrayList<>();
+      for (String[] candidate : candidates) {
+        try {
+          RemoteValue v = resolution.readFresh(candidate[0], ref, call(taint));
+          return new Resolved(SecretKind.REFERENCE, field, label(v.version()), v.value(), null);
+        } catch (StoreException e) {
+          answers.add(answer(candidate[1], e));
+        }
+      }
+      return new Resolved(SecretKind.REFERENCE, field, null, null, field + " can't be resolved: "
+          + String.join("; ", answers) + ".");
     } catch (StoreException | ai.msrv.gaterook.core.platform.ProblemException e) {
       return new Resolved(SecretKind.REFERENCE, field, null, null, field + " can't be resolved: " + e.getMessage());
     }
@@ -726,7 +819,7 @@ public class SecretService {
     };
     String state;
     if (secret.getKind() != SecretKind.LOCAL) {
-      // "AWS SM · not connected" (BLUEPRINT §9): a reference whose kind of store isn't connected.
+      // "AWS SM · not connected": a reference whose kind of store isn't connected.
       state = !binding.integrity().verifyReference(secret) ? "changed-outside" : secret.getStore() == null
           ? "not-connected" : secret.getKind() == SecretKind.DYNAMIC ? "short-lived" : "reference";
     } else if (secret.getCurrentVersion() == null) {
@@ -785,6 +878,7 @@ public class SecretService {
     }
     secret.setCurrentVersion(number);
     secret.setRotatedAt(now);
+    rows.sign(secret);
     SetupChangeRecorder recorder = setupChanges.getIfAvailable();
     if (recorder == null) {
       throw new IllegalStateException("Setup changes can't be recorded: no recorder");

@@ -8,7 +8,7 @@ export interface SortChange {
 }
 
 /**
- * `<tr gwSortRow (sortChange)>` in a `thead` (kit.js "table sort"): a click on a column's `.gw-table__sort` button
+ * `<tr gwSortRow (sortChange)>` in a `thead`: a click on a column's `.gw-table__sort` button
  * cycles none → ascending → descending, resets the other `th[aria-sort]` of the row to `none`, and announces
  * "Sorted by Time, descending". The page re-sorts (or re-queries) from `sortChange`.
  */
@@ -32,7 +32,7 @@ export class GwSortRow {
 }
 
 /**
- * `<table gwSelectable>` (kit.js "select rows"): `input[data-gw-select-all]` in the head checks every
+ * `<table gwSelectable>`: `input[data-gw-select-all]` in the head checks every
  * `input[data-gw-select-row]`; each row checkbox mirrors into `tr[aria-selected]`; the head checkbox is checked when
  * all are and `indeterminate` when some are. `selectionChange` reports the checked rows' `value`s.
  */

@@ -44,7 +44,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * The kit's demo world (design/BLUEPRINT.md §9) on the assembled core with the real built-in connectors: the twelve
+ * The kit's demo world on the assembled core with the real built-in connectors: the twelve
  * connections, the endpoints {@code dev}, {@code stage-readonly} and {@code incident-prod} with the kit's modes, the
  * risk callouts (dev 3/3, stage-readonly 3/3, incident-prod contained), an endpoint with PostgreSQL and MySQL behind
  * one {@code sql_query}, and finally the deletion of {@code dev-db} and {@code dev}, after which the history still
@@ -81,7 +81,7 @@ class DemoWorldIT {
     catalog = core.getBean(ToolCatalog.class);
     jdbc = new JdbcTemplate(core.getBean(javax.sql.DataSource.class));
 
-    // Connections (BLUEPRINT §9 "Connections" and "Hosts"). Secret references and short-lived credentials arrive
+    // Connections. Secret references and short-lived credentials arrive
     // with S1; here every secret is encrypted locally.
     connection("dev-db", "postgres", Env.DEV, """
         {"connection":{"host":"db.dev.internal","port":5432,"database":"app"},"credentials":{"user":"gw_reader"}}""",
@@ -140,8 +140,9 @@ class DemoWorldIT {
     endpoints.updateSettings("stage-readonly", new EndpointService.SettingsUpdate(null, "read-only", null, null, null,
         null, null), endpoints.get("stage-readonly").version(), "claude.ai only reads");
 
-    // incident-prod: Start from "Incident response" picks the prod connections.
-    endpoints.create("incident-prod", "On-call", EndpointService.StartFrom.INCIDENT_RESPONSE, null);
+    // incident-prod: explicitly select the production connections for the Incident response preset.
+    endpoints.create("incident-prod", "On-call", EndpointService.StartFrom.INCIDENT_RESPONSE,
+        List.of("prod-replica", "prod-logs", "prod-vm"), null);
 
     // Tokens of dev and the three pending requests of 14:30.
     TokenService tokens = core.getBean(TokenService.class);
@@ -169,11 +170,11 @@ class DemoWorldIT {
 
   @Test
   @Order(1)
-  void devHasTwentyFourToolsWithTheCurrentDefaults() {
+  void devHasThirtyToolsWithTheCurrentDefaults() {
     EndpointService.Summary dev = endpoints.get("dev");
     assertThat(dev.url()).endsWith("/mcp/dev");
     assertThat(dev.connections()).isEqualTo(8);
-    assertThat(dev.tools()).as("14 read only · 5 approval · 5 off").isEqualTo(new EndpointService.ToolCounts(14, 5,
+    assertThat(dev.tools()).as("14 read only · 11 approval · 5 off").isEqualTo(new EndpointService.ToolCounts(14, 11,
         5));
     assertThat(dev.tokensActive()).isEqualTo(2);
     Map<String, Mode> modes = snapshots.bySlug("dev").orElseThrow().pairs().stream()
@@ -186,6 +187,9 @@ class DemoWorldIT {
         Map.entry("orders-mongo mongo_update", Mode.APPROVAL),
         Map.entry("orders-mongo mongo_update_many", Mode.APPROVAL),
         Map.entry("cache-redis redis_get", Mode.READ_ONLY), Map.entry("cache-redis redis_scan", Mode.READ_ONLY),
+        Map.entry("cache-redis redis_set", Mode.APPROVAL), Map.entry("cache-redis redis_hset", Mode.APPROVAL),
+        Map.entry("cache-redis redis_lpush", Mode.APPROVAL), Map.entry("cache-redis redis_rpush", Mode.APPROVAL),
+        Map.entry("cache-redis redis_sadd", Mode.APPROVAL), Map.entry("cache-redis redis_zadd", Mode.APPROVAL),
         Map.entry("dev-vm ssh_run", Mode.READ_ONLY), Map.entry("dev-vm ssh_exec", Mode.OFF),
         Map.entry("app-logs logs_search", Mode.READ_ONLY), Map.entry("app-logs logs_tail", Mode.OFF),
         Map.entry("dev-cluster k8s_get", Mode.READ_ONLY), Map.entry("dev-cluster k8s_logs", Mode.OFF),
@@ -386,7 +390,7 @@ class DemoWorldIT {
     EndpointService.Summary dev = endpoints.get("dev");
     assertThat(dev.connections()).isEqualTo(7);
     assertThat(dev.tools()).as("dev-db's 3 read only and 1 approval are gone").isEqualTo(
-        new EndpointService.ToolCounts(11, 4, 5));
+        new EndpointService.ToolCounts(11, 10, 5));
     assertThat(endpoints.get("sql-mix").connections()).isEqualTo(1);
   }
 

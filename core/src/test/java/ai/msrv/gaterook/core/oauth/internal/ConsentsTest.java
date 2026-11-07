@@ -53,7 +53,12 @@ class ConsentsTest {
   }
 
   private Consents.Pending pending(String id, String endpointId, String browserIp) {
-    Issuers.Server server = new Issuers.Server(Ingress.LOCAL, "http://127.0.0.1:7465", null);
+    return pending(id, endpointId, browserIp, Ingress.LOCAL);
+  }
+
+  private Consents.Pending pending(String id, String endpointId, String browserIp, Ingress ingress) {
+    Issuers.Server server = new Issuers.Server(ingress, ingress == Ingress.LOCAL ? "http://127.0.0.1:7465"
+        : "https://gw-smoke-7f3k.trycloudflare.com", null);
     Clients.Client client = new Clients.Client("row-1", "gwc_client", OAuthClientKind.DCR, Ingress.LOCAL, "127.0.0.1",
         "Cursor", List.of("http://127.0.0.1/callback"));
     return new Consents.Pending(id, "ABC-DEF", "cookie-hash", server, client, "http://127.0.0.1:5000/callback",
@@ -104,6 +109,32 @@ class ConsentsTest {
     assertThat(consents.open(pending("ar_owner", "endpoint-1", "192.0.2.10"))).isEqualTo(Consents.Room.OPEN);
     // The same browser may wait on another endpoint.
     assertThat(consents.open(pending("ar_b4", "endpoint-2", "198.51.100.7"))).isEqualTo(Consents.Room.OPEN);
+  }
+
+  @Test
+  void aBrowserIsItsAddressOnItsListenerAndTheTunnelsUnknownCallersAreOne() {
+    // Whatever arrives through the tunnel never uses up what this computer's own browser may open locally.
+    for (int i = 0; i < Consents.MAX_PER_IP_MINUTE; i++) {
+      assertThat(consents.admitBrowser(Ingress.TUNNEL, "127.0.0.1")).isTrue();
+    }
+    assertThat(consents.admitBrowser(Ingress.TUNNEL, "127.0.0.1")).isFalse();
+    assertThat(consents.admitBrowser(Ingress.LOCAL, "127.0.0.1")).isTrue();
+    // Callers the edge named no address for count together, apart from every address.
+    for (int i = 0; i < Consents.MAX_PER_IP_MINUTE; i++) {
+      assertThat(consents.admitBrowser(Ingress.TUNNEL, null)).isTrue();
+    }
+    assertThat(consents.admitBrowser(Ingress.TUNNEL, null)).isFalse();
+    assertThat(consents.admitBrowser(Ingress.TUNNEL, "203.0.113.5")).isTrue();
+
+    assertThat(consents.open(pending("ar_u1", "endpoint-1", null, Ingress.TUNNEL))).isEqualTo(Consents.Room.OPEN);
+    assertThat(consents.open(pending("ar_u2", "endpoint-1", null, Ingress.TUNNEL))).isEqualTo(Consents.Room.OPEN);
+    assertThat(consents.open(pending("ar_u3", "endpoint-1", null, Ingress.TUNNEL)))
+        .isEqualTo(Consents.Room.BROWSER_FULL);
+    for (String id : List.of("ar_t1", "ar_t2")) {
+      assertThat(consents.open(pending(id, "endpoint-1", "127.0.0.1", Ingress.TUNNEL))).isEqualTo(Consents.Room.OPEN);
+    }
+    assertThat(consents.open(pending("ar_l1", "endpoint-1", "127.0.0.1", Ingress.LOCAL))).as("this computer's browser")
+        .isEqualTo(Consents.Room.OPEN);
   }
 
   @Test

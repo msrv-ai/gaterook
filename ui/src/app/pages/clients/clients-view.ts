@@ -19,7 +19,7 @@ import { ClientFailure, ConfigEntry, andList, clientFailure, fileName, keeps } f
 import { TextPart, literalParts } from '../../kit/elements/shared/literals';
 
 /**
- * What the Clients screen says (design/pages/clients.html; ARCHITECTURE.md §8.4 "clients"), as pure functions of
+ * What the Clients screen says (ARCHITECTURE.md §8.4 "clients"), as pure functions of
  * the core's answers: the header's counts, where each card goes, the toasts and announcements of Connect,
  * Disconnect and Scan, "Connect failed", the manual setup's snippets and the claude.ai card's rows. Tested against the
  * kit's wording.
@@ -40,6 +40,7 @@ export function headerCounts(cards: readonly ClientCard[]): Count[] {
     if (count) out.push({ tone, text: `${formatCount(count)} ${text}` });
   };
   add(n('connected'), 'success', 'connected');
+  add(n('pending'), 'info', 'awaiting connection');
   add(n('needs-restart'), 'warning', n('needs-restart') === 1 ? 'needs restart' : 'need restart');
   add(n('error'), 'danger', n('error') === 1 ? 'needs you' : 'need you');
   add(n('detected'), 'info', 'detected, not connected');
@@ -49,14 +50,14 @@ export function headerCounts(cards: readonly ClientCard[]): Count[] {
 
 /** The scan found no AI app at all: "No AI apps found" stands in for the cards. */
 export function noClients(cards: readonly ClientCard[]): boolean {
-  return cards.every((c) => !c.detected && c.links.length === 0);
+  return cards.every((c) => !c.manual && !c.detected && c.links.length === 0);
 }
 
 /** What Scan again tells a screen reader when it is done (kit: "Scan finished. Nothing changed: …"). */
 export function scanSummary(before: readonly ClientCard[] | null, after: readonly ClientCard[]): string {
   const counts = headerCounts(after).map((c) => c.text).join(', ');
   const key = (cards: readonly ClientCard[]) => cards.map((c) => `${c.client}:${c.status}:${c.links.length}`).join('|');
-  if (!after.some((c) => c.detected || c.links.length)) return 'Scan finished. No AI apps found on this computer.';
+  if (noClients(after)) return 'Scan finished. No AI apps found on this computer.';
   return before && key(before) === key(after) ? `Scan finished. Nothing changed: ${counts}.` : `Scan finished: ${counts}.`;
 }
 
@@ -80,7 +81,7 @@ export function anchorBase(client: string): string {
 export function anchorClient(fragment: string | null): string | null {
   const m = /^cl-([a-z0-9-]+)-t$/.exec(fragment ?? '');
   if (!m) return null;
-  return Object.entries(ANCHOR).find(([, short]) => short === m[1])?.[0] ?? null;
+  return Object.entries(ANCHOR).find(([, short]) => short === m[1])?.[0] ?? (m[1].startsWith('manual-') ? m[1] : null);
 }
 
 /** The first connection and its endpoint, as Overview's guide names them (getting started, health). */
@@ -113,7 +114,7 @@ export function firstConnection(o: Overview): FirstConnection | null {
  * The header's description outside "in use" (kit): first run names the apps already found and says what comes first;
  * setup names the connection the app will read.
  */
-export function stageDescription(stage: 'first-run' | 'setup', cards: readonly ClientCard[], first: FirstConnection | null): { readonly text: string; readonly literals: readonly string[] } {
+export function stageDescription(stage: 'first-run' | 'setup', cards: readonly ClientCard[], first: FirstConnection | null, hasEndpoint = false): { readonly text: string; readonly literals: readonly string[] } {
   if (stage === 'setup') {
     const reading = first ? `, and it can start reading ${first.name}` : '';
     return {
@@ -123,9 +124,11 @@ export function stageDescription(stage: 'first-run' | 'setup', cards: readonly C
   }
   const found = cards.filter((c) => c.detected).map((c) => c.name);
   const lead = found.length ? `${andList(found)} ${found.length === 1 ? 'is' : 'are'} already on this computer. ` : '';
-  const them = found.length === 1 ? 'it has' : found.length ? 'they have' : 'your AI app has';
+  const next = hasEndpoint
+    ? 'Connect your AI app to an endpoint to import connections with AI, or add connections later.'
+    : 'Create an endpoint first, then connect your AI app.';
   return {
-    text: `${lead}Add a connection first, so ${them} something to work with. Connect then shows the exact change before anything is written.`,
+    text: `${lead}${next} Connect shows the exact change before anything is written.`,
     literals: [],
   };
 }

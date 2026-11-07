@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   External MCP servers (report 11): McpServerConnector per connection, McpServerSupervisor (process tree, idle
-  stop, backoff), GatewayStdioTransport, GatewayHttpTransport over the egress guard, NpmInstaller, ToolNameMapper and
-  tool snapshots. MCP Java SDK 2.1.0 as a client only (reactor-core from the Boot BOM).
+  stop, backoff), the gateway's own UpstreamClient for both protocol eras over GatewayStdioTransport,
+  GatewayHttpTransport and GatewaySseTransport on the egress guard, NpmInstaller, ToolNameMapper and tool snapshots.
+  MCP Java SDK 2.1.0 only for its Tool type, which the definition hash is taken over, and as the tests' servers.
   Spring only in the .boot subpackage. Built by step C10.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"

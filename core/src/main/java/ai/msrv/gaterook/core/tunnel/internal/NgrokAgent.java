@@ -3,7 +3,6 @@ package ai.msrv.gaterook.core.tunnel.internal;
 import ai.msrv.gaterook.core.tunnel.TunnelPublication;
 import java.io.IOException;
 import java.net.URI;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,13 +18,21 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * The ngrok agent as a child process (ARCHITECTURE.md A6, §7.3): {@code ngrok http 127.0.0.1:7466 --config
  * <run>/ngrok.yml --log stdout --log-format json --inspect=false [--url https://<reserved domain>]}, the authtoken in
- * {@code NGROK_AUTHTOKEN} only. The config pins the agent's local API to a loopback port of ours and switches its
- * update check and console off. The public URL comes from that API ({@code GET /api/tunnels}); the agent lists a
- * tunnel only once its session to the edge is up, which is ngrok's "ready".
+ * {@code NGROK_AUTHTOKEN} only. The config switches off the agent's local web interface and API
+ * ({@code web_addr: false}), its update check and its console. The public URL comes from the agent's own log: its
+ * JSON line {@code "msg":"started tunnel"} carries the {@code url}, and the agent writes it only once its session to
+ * the edge is up and the edge serves the endpoint, which is ngrok's "ready". Only this run's lines count
+ * ({@link AgentProcess#followLog()}).
  *
- * <p>Inspection is off: by default the agent keeps every request and response it carries — claude.ai's bearer tokens,
- * the token endpoint's access and refresh tokens, MCP results — and hands them to anyone on this computer who asks its
- * local API ({@code /api/requests/http}), while the core keeps only their hashes (ARCHITECTURE.md §9).
+ * <p>The local API stays off because it has no authentication (ngrok offers none): any process on this computer that
+ * reached its port — a sandboxed MCP server too, whose sandbox closes GateRook's files but not the network — could
+ * open more tunnels on the person's authtoken ({@code POST /api/tunnels}) or repoint this one. The agent's log is in
+ * GateRook's home, which that sandbox can't open. Inspection is off as well: the agent keeps none of the requests and
+ * responses it carries — claude.ai's bearer tokens, the token endpoint's access and refresh tokens, MCP results —
+ * of which the core keeps only hashes (ARCHITECTURE.md §9).
+ *
+ * <p>What remains is the OS account's trust boundary (ARCHITECTURE.md §9): a process of the same account that isn't
+ * sandboxed may still read the agent's environment, the authtoken in it.
  */
 public final class NgrokAgent implements TunnelAgent {
 
@@ -52,11 +59,11 @@ public final class NgrokAgent implements TunnelAgent {
     if (domain != null && !TunnelPublication.validHost(domain)) {
       throw new TunnelException("The ngrok domain must be a hostname like gw-acme.ngrok.app.");
     }
-    int web = TunnelAgent.freeLoopbackPort();
     Path config = r.runDir().resolve("ngrok.yml");
     try {
-      Files.writeString(config, "# Written by GateRook for its tunnel.\nversion: \"3\"\nagent:\n"
-          + "  web_addr: 127.0.0.1:" + web + "\n  update_check: false\n  console_ui: false\n", StandardCharsets.UTF_8);
+      Files.writeString(config, "# Written by GateRook for its tunnel: no local API, no update check, no console.\n"
+          + "version: \"3\"\nagent:\n  web_addr: false\n  update_check: false\n  console_ui: false\n",
+          StandardCharsets.UTF_8);
     } catch (IOException e) {
       throw new TunnelException("Can't write " + config + ": " + e.getMessage());
     }
@@ -68,24 +75,23 @@ public final class NgrokAgent implements TunnelAgent {
     AgentProcess process = AgentProcess.start(argv, AgentProcess.env("NGROK_AUTHTOKEN", r.secret()), r.runDir(),
         r.logsDir().resolve("ngrok.log"), r.runDir().resolve("tunnel.pid"), config.toString());
     try {
-      String host = awaitTunnel(process, web, domain);
-      return new Started(host, process, "agent API 127.0.0.1:" + web);
+      String host = awaitTunnel(process, domain);
+      return new Started(host, process, "local API off");
     } catch (TunnelException | InterruptedException | RuntimeException e) {
       process.stop();
       throw e;
     }
   }
 
-  private String awaitTunnel(AgentProcess process, int web, String domain) throws TunnelException,
-      InterruptedException {
+  private String awaitTunnel(AgentProcess process, String domain) throws TunnelException, InterruptedException {
+    AgentProcess.LogFollower log = process.followLog();
     long deadline = System.nanoTime() + readyWait.toNanos();
     while (System.nanoTime() < deadline) {
       if (!process.alive()) {
         throw new TunnelException(failure(process, "ngrok stopped (exit " + process.exitCode().orElse(-1) + ")."));
       }
-      Optional<HttpResponse<String>> rs = TunnelAgent.localGet(web, "/api/tunnels");
-      if (rs.isPresent() && rs.get().statusCode() == 200) {
-        Optional<String> host = httpsHost(rs.get().body());
+      for (String line : log.next()) {
+        Optional<String> host = startedHost(line);
         if (host.isPresent()) {
           if (domain != null && !domain.equals(host.get())) {
             throw new TunnelException("ngrok published " + host.get() + " instead of " + domain + ".");
@@ -99,11 +105,15 @@ public final class NgrokAgent implements TunnelAgent {
         + " s."));
   }
 
-  /** The host of the first {@code https://} tunnel the agent lists. */
-  static Optional<String> httpsHost(String body) {
+  /** The host of a {@code "started tunnel"} line of the agent's JSON log whose {@code url} is https, else empty. */
+  static Optional<String> startedHost(String line) {
+    if (!line.contains("started tunnel")) {
+      return Optional.empty();
+    }
     try {
-      for (JsonNode t : JSON.readTree(body).path("tunnels")) {
-        String url = t.path("public_url").asString("");
+      JsonNode entry = JSON.readTree(line);
+      if (entry.isObject() && entry.path("msg").asString("").equals("started tunnel")) {
+        String url = entry.path("url").asString("");
         if (url.startsWith("https://")) {
           String host = URI.create(url).getHost();
           if (host != null && TunnelPublication.validHost(host)) {
@@ -112,7 +122,7 @@ public final class NgrokAgent implements TunnelAgent {
         }
       }
     } catch (JacksonException | IllegalArgumentException ignored) {
-      // Not ready, or not ngrok answering.
+      // Not a line of ngrok's JSON log.
     }
     return Optional.empty();
   }

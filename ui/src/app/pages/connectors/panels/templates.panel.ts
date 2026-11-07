@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRend
 import { RouterLink } from '@angular/router';
 import { GwCodeBlock } from '../../../code/code-block';
 import { ConnectionRow } from '../../../core/api/connections.api';
-import { Template } from '../../../core/api/templates.api';
+import { Template, TemplateSaved } from '../../../core/api/templates.api';
 import { TimeService } from '../../../core/time/time.service';
 import { GwAriaDisabled } from '../../../kit/aria-disabled';
 import { GwToggle } from '../../../kit/disclosure';
@@ -65,6 +65,8 @@ export class GwTemplatesPanel {
 
   protected readonly target = signal<EditorTarget | null>(null);
   protected readonly opening = signal<string | null>(null);
+  protected readonly savedWarnings = signal<readonly string[]>([]);
+  private openRevision = 0;
 
   /** The connections a SQL query template can run on: types whose connector offers `sql-query`. */
   protected readonly sqlConnections = computed(() => {
@@ -117,6 +119,9 @@ export class GwTemplatesPanel {
   /** New template › SQL query: an empty editor under the table, focus on Tool name. */
   protected newSqlQuery(): void {
     if (this.kindReasons().sql) return;
+    this.openRevision++;
+    this.opening.set(null);
+    this.savedWarnings.set([]);
     this.target.set({
       template: null,
       draft: { name: '', description: '', sql: '', params: [] },
@@ -131,15 +136,17 @@ export class GwTemplatesPanel {
   protected async edit(row: TemplateRow, e: Event): Promise<void> {
     e.preventDefault();
     if (this.opening()) return;
+    const revision = ++this.openRevision;
     this.opening.set(row.template.id);
     let full: Template = row.template;
     try {
       full = await this.data.getTemplate(row.template.id);
     } catch {
       // Without the single read the list row stands in; its definition is unknown, so the editor says so.
-    } finally {
-      this.opening.set(null);
     }
+    if (revision !== this.openRevision) return;
+    this.opening.set(null);
+    this.savedWarnings.set([]);
     this.target.set({
       template: full,
       draft: full.definition ? fromDefinition(full.definition) : { name: full.name, description: '', sql: '', params: [] },
@@ -150,11 +157,23 @@ export class GwTemplatesPanel {
     this.revealEditor();
   }
 
-  /** The editor saved a template: it stays open on the saved version. */
-  protected onSaved(t: Template): void {
-    const current = this.target();
-    if (!current) return;
-    this.target.set({ ...current, template: t, connection: t.connection, draft: current.draft });
+  /** A successful save returns to the refreshed list, with any compiler warnings still visible. */
+  protected onSaved(result: TemplateSaved): void {
+    this.savedWarnings.set(result.compile?.warnings ?? []);
+    this.closeEditor(result.template?.id);
+  }
+
+  protected closeEditor(id = this.target()?.template?.id): void {
+    this.openRevision++;
+    this.opening.set(null);
+    this.target.set(null);
+    afterNextRender(() => {
+      if (this.host.hidden || this.target()) return;
+      const row = id ? this.host.ownerDocument.getElementById(`template-${id}`) : null;
+      const focus = row?.querySelector<HTMLElement>('th a') ?? this.host.querySelector<HTMLElement>('#new-template');
+      focus?.focus();
+      focus?.scrollIntoView?.({ block: 'nearest' });
+    }, { injector: this.injector });
   }
 
   protected act(type: TemplateAction['type'], template: Template, e: Event): void {

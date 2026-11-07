@@ -3,7 +3,7 @@ package ai.msrv.gaterook.core.mcp.internal;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -16,7 +16,8 @@ import tools.jackson.databind.node.ObjectNode;
  * <ol>
  *   <li>{@code params._meta["io.modelcontextprotocol/protocolVersion"]} is a string → modern: the version must be
  *       {@code 2026-07-28} ({@code -32022} otherwise); {@code MCP-Protocol-Version}, {@code Mcp-Method} and, for
- *       {@code tools/call}, {@code prompts/get} and {@code resources/read}, {@code Mcp-Name} must equal the body
+ *       {@code tools/call}, {@code prompts/get}, {@code resources/read} and the tasks' {@code tasks/get},
+ *       {@code tasks/update} and {@code tasks/cancel}, {@code Mcp-Name} must equal the body
  *       ({@code =?base64?…?=} decoded first; {@code -32020}); {@code clientCapabilities} must be there ({@code -32602});</li>
  *   <li>{@code initialize} → legacy; 2025-11-25, 2025-06-18 or 2025-03-26 as asked, else 2025-11-25;</li>
  *   <li>a {@code 2026-07-28} header without the {@code _meta} version → {@code -32602}, so a modern client doesn't fall
@@ -34,8 +35,9 @@ public final class EraResolver {
   public static final List<String> MODERN = List.of(Era.MODERN_VERSION);
   public static final List<String> LEGACY = List.of("2025-11-25", "2025-06-18", "2025-03-26");
 
-  /** The methods whose name or URI goes into {@code Mcp-Name}. */
-  private static final Set<String> NAMED = Set.of("tools/call", "prompts/get", "resources/read");
+  /** The methods whose name, URI or task goes into {@code Mcp-Name}, and the field it comes from. */
+  private static final Map<String, String> NAMED = Map.of("tools/call", "name", "prompts/get", "name",
+      "resources/read", "uri", "tasks/get", "taskId", "tasks/update", "taskId", "tasks/cancel", "taskId");
   private static final Pattern BASE64_SENTINEL = Pattern.compile("^=\\?base64\\?(.*)\\?=$");
 
   /** A request refused before any method runs: always HTTP 400. */
@@ -101,13 +103,13 @@ public final class EraResolver {
       if (!method.equals(header.apply("Mcp-Method"))) {
         throw new Rejected(id, JsonRpc.HEADER_MISMATCH, "Mcp-Method must be " + method, null);
       }
-      if (NAMED.contains(method)) {
-        String name = method.equals("resources/read") ? params.path("uri").asString(null)
-            : params.path("name").asString(null);
+      String field = NAMED.get(method);
+      if (field != null) {
+        String name = params.path(field).asString(null);
         String sent = decodeName(header.apply("Mcp-Name"));
         if (name == null || !name.equals(sent)) {
-          throw new Rejected(id, JsonRpc.HEADER_MISMATCH, "Mcp-Name must match the "
-              + (method.equals("resources/read") ? "uri" : "name") + " of the request", null);
+          throw new Rejected(id, JsonRpc.HEADER_MISMATCH, "Mcp-Name must match the " + field + " of the request",
+              null);
         }
       }
       JsonNode capabilities = meta.get(META_CAPABILITIES);

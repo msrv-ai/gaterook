@@ -23,6 +23,8 @@ record ConnectionSettings(String host, int port, String database, String sslMode
     List<String> allowedFunctions, boolean allowPublicKeyRetrieval, int statementTimeoutMs) {
 
   static final String PASSWORD = "/credentials/password";
+  /** The login's user: typed into the form, or a secret field too when a store holds it with the password. */
+  static final String USER = "/credentials/user";
 
   static ConnectionSettings of(ConnectionConfig cfg, SqlDialect dialect) {
     if (dialect.sqlServer()) {

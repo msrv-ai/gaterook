@@ -3,8 +3,8 @@ import { Env, JsonObject, ToolAnnotations, ToolMode } from '../core/api/types';
 import { ToolPolicyGroup } from '../kit/elements/tool-policy-list/tool-policy-view';
 
 /**
- * Endpoint tools of the demo world (BLUEPRINT §9) as `GET /api/endpoints/{slug}/tools` returns them, for the
- * tool-policy-list gallery (design/elements/tool-policy-list.html). Dev only.
+ * Endpoint tools of the demo world as `GET /api/endpoints/{slug}/tools` returns them, for the
+ * tool-policy-list gallery. Dev only.
  */
 
 const READ: ToolAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
@@ -91,10 +91,14 @@ export const DEMO_TOOL_GROUPS_PROD: ToolPolicyGroup[] = [
   },
 ];
 
-const declared = (name: string, annotations: ToolAnnotations): ToolRow =>
-  tool(name, 'APPROVAL', annotations, { declaredBy: 'github-mcp', readOnlyAllowed: false, reason: null });
+const declared = (name: string, annotations: ToolAnnotations): ToolRow => {
+  const readOnly = !!annotations.readOnlyHint && !annotations.destructiveHint;
+  return tool(name, readOnly ? 'READ_ONLY' : 'APPROVAL', annotations, {
+    toolKey: `mcp:github-mcp/${name}`, declaredBy: 'github-mcp', readOnlyAllowed: readOnly, reason: null,
+  });
+};
 
-/** github-mcp just added to endpoint dev: 4 of its 26 tools, all in Approval. */
+/** github-mcp just added to endpoint dev: declared reads use Read only; other tools use Approval. */
 export const DEMO_TOOL_GROUPS_EXTERNAL: ToolPolicyGroup[] = [
   {
     type: 'mcp-server',
@@ -132,7 +136,7 @@ export const DEMO_TOOL_DESCRIPTIONS: Record<string, string> = {
 
 const sections = (sql: JsonObject, ssh: JsonObject, http: JsonObject, limits: JsonObject): JsonObject => ({ sql, ssh, http, limits });
 
-/** The effective policy sections of the demo world (BLUEPRINT §9 numbers): dev, stage and prod. */
+/** The effective policy sections of the demo world : dev, stage and prod. */
 export const DEMO_POLICY_SECTIONS: Record<Env, JsonObject> = {
   dev: sections(
     { rowLimit: 1000, statementTimeoutMs: 5000, maxResponseKb: 512 },

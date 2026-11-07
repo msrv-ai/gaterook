@@ -35,6 +35,8 @@ import tools.jackson.databind.node.ObjectNode;
  * authorization server takes Client ID Metadata Documents, GateRook registers nothing: its client ID is its published
  * document's URL, on any free port, for the sign-in, its renewals and the revocation. A URL that carries the server's
  * key is warned about in the review and still connects, and neither the review, the list nor the log shows the key.
+ * Editing a server in Connections checks its sign-in as adding does, with its stored secrets in place of typed ones,
+ * and keeps the tool prefix and catalog entry it was added with.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class McpServerSignInIT {
@@ -423,7 +425,99 @@ class McpServerSignInIT {
     assertThat(wrong.body()).contains("isn't where Google Cloud credentials come from");
   }
 
+  @Test
+  @Order(13)
+  void editingAServerInConnectionsChecksItsSignInAsAddingDoes() throws Exception {
+    tracker.anonymous = true;
+    try {
+      ObjectNode add = CoreProcess.JSON.createObjectNode().put("acknowledge", true).put("reason", "edited tracker");
+      add.set("config", config("edit-mcp", tracker, false));
+      json(admin("POST", "/api/mcp-servers", add.toString()), 201);
+      String prefix = stored("edit-mcp").path("toolPrefix").asString();
+
+      // What the connection form sends without a sign-in; only the catalog names a catalog entry.
+      ObjectNode form = CoreProcess.JSON.createObjectNode().put("transport", "http").put("url", tracker.base + "/mcp")
+          .put("callTimeoutSeconds", 45).put("catalogEntry", "github-mcp@0.6.2");
+      json(edit("edit-mcp", form), 200);
+      assertThat(stored("edit-mcp").has("auth")).isFalse();
+      assertThat(stored("edit-mcp").path("toolPrefix").asString()).isEqualTo(prefix);
+      assertThat(stored("edit-mcp").has("catalogEntry")).isFalse();
+      form.remove("catalogEntry");
+      form.put("toolPrefix", prefix);
+
+      // OAuth as the form sends it: the cloud credentials' defaults beside it go.
+      ObjectNode oauth = form.deepCopy();
+      oauth.putObject("auth").put("type", "oauth").put("optional", true).put("callbackHost", "127.0.0.1")
+          .put("callbackPath", "/callback").putObject("credentials").put("lifetimeSeconds", 900)
+          .put("sessionSeconds", 900);
+      json(edit("edit-mcp", oauth), 200);
+      assertThat(stored("edit-mcp").at("/auth/type").asString()).isEqualTo("oauth");
+      assertThat(stored("edit-mcp").path("auth").has("credentials")).isFalse();
+
+      // Google sign-in on this computer: the credentials keep their source.
+      ObjectNode adc = form.deepCopy();
+      adc.putObject("auth").put("type", "google").putObject("credentials").put("lifetimeSeconds", 900);
+      json(edit("edit-mcp", adc), 200);
+      assertThat(stored("edit-mcp").at("/auth/credentials/source").asString()).isEqualTo("adc");
+
+      long version = json(admin("GET", "/api/connections/edit-mcp", null), 200).path("version").asLong();
+      ObjectNode cloudBeside = form.deepCopy();
+      cloudBeside.putObject("auth").put("type", "oauth").putObject("credentials").put("profile", "default");
+      refused(edit("edit-mcp", cloudBeside), "/config/auth", "belong to a server that signs in with Google Cloud");
+      ObjectNode twice = form.deepCopy();
+      twice.putObject("auth").put("type", "oauth");
+      twice.putArray("headers").addObject().put("name", "Authorization");
+      refused(edit("edit-mcp", twice), "/config/headers", "The OAuth sign-in sends the Authorization header");
+      ObjectNode stdio = CoreProcess.JSON.createObjectNode().put("transport", "stdio").put("toolPrefix", prefix);
+      stdio.putArray("command").add("node").add("server.js");
+      stdio.putObject("auth").put("type", "oauth");
+      refused(edit("edit-mcp", stdio), "/config/auth", "only a server at a URL signs in");
+      ObjectNode keyless = form.deepCopy();
+      keyless.putObject("auth").put("type", "google").putObject("credentials").put("source", "serviceAccountKey");
+      refused(edit("edit-mcp", keyless), "/config/auth/credentials/source",
+          "edit-mcp has no service account key stored");
+      ObjectNode accessKey = form.deepCopy();
+      accessKey.putObject("auth").put("type", "aws").putObject("credentials").put("source", "accessKey")
+          .put("accessKeyId", "AKIAIOSFODNN7EXAMPLE");
+      refused(edit("edit-mcp", accessKey), "/config/auth/credentials/source",
+          "edit-mcp has no secret access key stored");
+      refused(edit("edit-mcp", form.deepCopy().put("toolPrefix", "other_")), "/config/toolPrefix",
+          "Its tools are published under " + prefix);
+      assertThat(json(admin("GET", "/api/connections/edit-mcp", null), 200).path("version").asLong())
+          .as("nothing refused was saved").isEqualTo(version);
+
+      json(edit("edit-mcp", form), 200);
+      assertThat(stored("edit-mcp").has("auth")).isFalse();
+      Answer deleted = admin("DELETE", "/api/mcp-servers/edit-mcp", "{\"reason\":\"done\"}");
+      assertThat(deleted.status()).as(deleted.body()).isEqualTo(204);
+    } finally {
+      tracker.anonymous = false;
+    }
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** Saves {@code config} as Connections › Edit does: over the version and env stored now. */
+  private static Answer edit(String name, ObjectNode config) throws Exception {
+    JsonNode current = json(admin("GET", "/api/connections/" + name, null), 200);
+    ObjectNode body = CoreProcess.JSON.createObjectNode().put("env", current.path("env").asString())
+        .put("version", current.path("version").asLong());
+    body.set("config", config);
+    return admin("PUT", "/api/connections/" + name, body.toString());
+  }
+
+  /** The stored settings of a connection. */
+  private static JsonNode stored(String name) throws Exception {
+    return json(admin("GET", "/api/connections/" + name, null), 200).path("config");
+  }
+
+  /** A 422 about the field at {@code pointer} that says {@code detail}. */
+  private static void refused(Answer answer, String pointer, String detail) {
+    assertThat(answer.status()).as(answer.body()).isEqualTo(422);
+    JsonNode problem = CoreProcess.JSON.readTree(answer.body());
+    assertThat(problem.path("field").asString()).as(answer.body()).isEqualTo(pointer);
+    assertThat(problem.path("detail").asString()).contains(detail);
+  }
 
   /** One query parameter of {@code url}, decoded, or {@code null}. */
   private static String param(String url, String name) {

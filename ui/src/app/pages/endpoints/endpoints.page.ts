@@ -71,7 +71,7 @@ interface CreateModel {
 /**
  * The slug field of Create and Duplicate, the kit's `required`, `maxlength="40"` and `pattern` as Signal Forms rules
  * (it sets `required` and `maxlength` on the input itself). The form is `novalidate`: the messages are the page's, at
- * the field, after a submit attempt (DESIGN §8 "Forms"), worded by {@link slugError}.
+ * the field, after a submit attempt, worded by {@link slugError}.
  */
 function slugRules(path: SchemaPath<string>): void {
   required(path, { message: slugError('') ?? undefined });
@@ -90,19 +90,19 @@ const START_FROM: readonly { readonly id: StartFrom; readonly env: Env; readonly
     env: 'dev',
     icon: 'eye',
     title: 'Read-only dev',
-    description: 'All dev connections with their read-only tools on. Tools that change data stay off.',
+    description: 'Choose dev connections below. Their read-only tools start on; tools that change data stay off.',
   },
   {
     id: 'incident-response',
     env: 'prod',
     icon: 'siren',
     title: 'Incident response',
-    description: 'Prod replica and logs read only, runbooks on prod-vm after approval.',
+    description: 'Choose prod connections below. Read tools start on; tools that only change data stay off.',
   },
 ];
 
 /**
- * Endpoints (design/pages/endpoints.html; ARCHITECTURE.md §8.4 "endpoints"): every MCP URL with what it gives an
+ * Endpoints (ARCHITECTURE.md §8.4 "endpoints"): every MCP URL with what it gives an
  * agent, one card each.
  *
  * - The header counts the endpoints and says whether they run; Create endpoint is the page's one primary.
@@ -111,7 +111,7 @@ const START_FROM: readonly { readonly id: StartFrom; readonly env: Env; readonly
  *   health that names what is slow or unreachable; tools by mode; the clients; tokens (active, expired, one expiring
  *   soon); the approvals waiting; the compact risk callout with Review; View activity, Open in Playground, Configure.
  *   An endpoint changed outside GateRook says so and can be kept after review.
- * - Create asks for a slug (the URL shows as it is typed), a description and where to start, then opens the new
+ * - Create asks for a slug (the URL shows as it is typed), a description, a preset and explicit connections, then opens the new
  *   endpoint's page; Duplicate asks for the copy's slug; Disable acts at once with Undo in a toast; Delete asks in a
  *   `gw-dialog--danger` that names what stops working, Cancel has the focus.
  *
@@ -214,11 +214,13 @@ export class EndpointsPage {
     slugRules(p.slug);
     maxLength(p.description, DESCRIPTION_MAX, { message: `Use at most ${DESCRIPTION_MAX} characters.` });
   });
-  /** Errors show once the person tried to create (DESIGN §8 "Forms"), not while typing the first letters. */
+  /** Errors show once the person tried to create, not while typing the first letters. */
   protected readonly createTried = signal(false);
   protected readonly createError = signal<string | null>(null);
   protected readonly startFromError = signal<string | null>(null);
   protected readonly startFromMeta = computed(() => startFromMeta(this.data.connections(), this.data.starts()));
+  protected readonly chosenConnections = signal<readonly string[]>([]);
+  protected readonly connectionChoices = computed(() => this.data.starts()?.find((s) => s.startFrom === this.createModel().startFrom)?.connections ?? null);
 
   // ── Duplicate ─────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -285,7 +287,13 @@ export class EndpointsPage {
 
   protected setStartFrom(id: StartFrom): void {
     this.createModel.update((m) => ({ ...m, startFrom: id }));
+    this.chosenConnections.set([]);
     this.startFromError.set(null);
+  }
+
+  protected toggleConnection(name: string, event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.chosenConnections.update((names) => checked ? [...names.filter((n) => n !== name), name] : names.filter((n) => n !== name));
   }
 
   protected async submitCreate(e: Event): Promise<void> {
@@ -297,14 +305,15 @@ export class EndpointsPage {
       action: async () => {
         const m = this.createModel();
         const slug = m.slug.trim();
+        const connections = this.chosenConnections();
         try {
-          await this.data.create(slug, m.description.trim() || null, m.startFrom);
+          await this.data.create(slug, m.description.trim() || null, m.startFrom, connections);
         } catch (err) {
           return this.createProblem(err);
         }
+        this.toast(createdToast(slug, connections.length));
         this.createDialog().close('create');
-        this.toast(createdToast(slug, m.startFrom));
-        // "You add connections and pick modes on the next page" (the dialog's own words): open it.
+        // Open the endpoint to review its tool modes or add connections.
         void this.router.navigate(['/endpoints', slug]);
         return undefined;
       },
@@ -333,6 +342,7 @@ export class EndpointsPage {
 
   private resetCreate(): void {
     this.createModel.set({ slug: '', description: '', startFrom: 'empty' });
+    this.chosenConnections.set([]);
     this.createForm().reset();
     this.createTried.set(false);
     this.createError.set(null);
@@ -390,7 +400,7 @@ export class EndpointsPage {
 
   // ── Disable, enable ───────────────────────────────────────────────────────────────────────────────────────────
 
-  /** Disable is reversible, so it acts at once and offers Undo in a toast instead of asking first (DESIGN §8). */
+  /** Disable is reversible, so it acts at once and offers Undo in a toast instead of asking first. */
   protected async disable(e: EndpointSummary): Promise<void> {
     if (this.data.busy().has(e.slug)) return;
     // Said before the change: the tokens and clients it names are the ones the endpoint has now.
@@ -540,7 +550,7 @@ export class EndpointsPage {
     return scope.querySelector<HTMLElement>('[aria-invalid="true"]');
   }
 
-  /** Focus on the first field in error, once its error shows (DESIGN §8 "Forms"). */
+  /** Focus on the first field in error, once its error shows. */
   private focusFirstInvalid(scope: HTMLElement): void {
     this.focusAfterRender(() => this.firstInvalid(scope));
   }

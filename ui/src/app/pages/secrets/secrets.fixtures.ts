@@ -2,7 +2,7 @@ import { MasterKeyStatus, SecretRow, SecretStore, ShortLivedCredential } from '.
 import { Env } from '../../core/api/types';
 
 /**
- * The kit's world of design/pages/secrets.html (BLUEPRINT §9) as the core sends it (S1 shapes), for tests only:
+ * The Secrets demo data as the core sends it (S1 shapes), for tests only:
  * 14:30 +02:00 on 2026-10-22, 11 secrets, Vault and GCP SM connected, AWS SM not, five short-lived credentials.
  */
 export const NOW = Date.parse('2026-10-22T12:30:00Z');

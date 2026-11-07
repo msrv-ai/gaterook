@@ -84,10 +84,10 @@ class RedisSettingsTest {
     assertThat(s.keyAllowed("jobs:1".getBytes(StandardCharsets.UTF_8))).isTrue();
     assertThat(s.keyAllowed("session:1".getBytes(StandardCharsets.UTF_8))).isFalse();
     assertThat(s.whyNotAllowed("session:1".getBytes(StandardCharsets.UTF_8)))
-        .isEqualTo("it matches none of \"Keys the agent may read\"");
+        .isEqualTo("it matches none of \"Keys the agent may access\"");
     assertThat(s.keyAllowed("cache:secret:x".getBytes(StandardCharsets.UTF_8))).isFalse();
     assertThat(s.whyNotAllowed("cache:secret:x".getBytes(StandardCharsets.UTF_8)))
-        .isEqualTo("it matches a pattern of \"Keys the agent never reads\"");
+        .isEqualTo("it matches a pattern of \"Keys the agent never accesses\"");
     // No allowlist: everything but the denylist.
     RedisSettings open = parse(Configs.redis("cache", 6379).advanced("keyDenylist", new String[] {"*token*"}));
     assertThat(open.keyAllowed("session:1".getBytes(StandardCharsets.UTF_8))).isTrue();
@@ -125,7 +125,7 @@ class RedisSettingsTest {
           assertThat(allow.keyAllowed(tilde)).isFalse();
           assertThat(deny.keyAllowed(bang)).isFalse();
           assertThat(deny.keyAllowed(tilde)).isFalse();
-          assertThat(deny.whyNotAllowed(tilde)).isEqualTo("it matches a pattern of \"Keys the agent never reads\"");
+          assertThat(deny.whyNotAllowed(tilde)).isEqualTo("it matches a pattern of \"Keys the agent never accesses\"");
         }
       }
       assertThat(allow.listsDependOnSign()).isTrue();
@@ -140,9 +140,9 @@ class RedisSettingsTest {
   @Test
   void aKeyListPatternWithAControlCharacterIsRefused() {
     assertThatThrownBy(() -> parse(Configs.redis("cache", 6379).advanced("keyDenylist", new String[] {"a\nb"})))
-        .hasMessageStartingWith("Keys the agent never reads: each pattern is 1 to 256 characters");
+        .hasMessageStartingWith("Keys the agent never accesses: each pattern is 1 to 256 characters");
     assertThatThrownBy(() -> parse(Configs.redis("cache", 6379).advanced("keyAllowlist", new String[] {""})))
-        .hasMessageStartingWith("Keys the agent may read: each pattern");
+        .hasMessageStartingWith("Keys the agent may access: each pattern");
   }
 
   @Test

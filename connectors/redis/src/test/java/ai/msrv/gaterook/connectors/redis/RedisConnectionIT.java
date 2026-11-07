@@ -113,9 +113,9 @@ class RedisConnectionIT {
 
   private static List<String> probeKeys(LocalRedis r) {
     try (Jedis j = r.admin()) {
-      List<String> keys = new CopyOnWriteArrayList<>(j.keys(ReadOnlyCommandExecutor.PROBE_PREFIX + "*"));
+      List<String> keys = new CopyOnWriteArrayList<>(j.keys(RedisCommandExecutor.PROBE_PREFIX + "*"));
       j.select(1);
-      keys.addAll(j.keys(ReadOnlyCommandExecutor.PROBE_PREFIX + "*"));
+      keys.addAll(j.keys(RedisCommandExecutor.PROBE_PREFIX + "*"));
       return keys;
     }
   }

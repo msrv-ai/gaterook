@@ -19,7 +19,9 @@ import java.util.List;
  *
  * <p>{@code --protocol 1} is required and must match: the core and the host ship together, a mismatch is a build bug
  * ("Plugin runtime mismatch", exit 64). {@code --train} runs the built-in AOT training workload ({@link Train}). On
- * Linux the core starts this class through {@link SandboxExec}, which confines the process before it starts.
+ * Linux the core starts this class through {@link SandboxExec}, which confines the process before it starts. On
+ * Windows the host joins a job object with UI limits and turns process mitigations on before it reads the first
+ * request ({@link WindowsJob}), and drops to low integrity at load ({@link WindowsIntegrity}).
  */
 public final class Main {
 
@@ -51,6 +53,9 @@ public final class Main {
     }
     if (!noDumps && System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).startsWith("linux")) {
       System.err.println("plugin-host: couldn't turn core dumps off (prctl)");
+    }
+    for (String problem : WindowsJob.confineHost()) {
+      System.err.println("plugin-host: " + problem);
     }
     Host host = new Host(new FileInputStream(FileDescriptor.in), protocol, started);
     exit(host.start().join());

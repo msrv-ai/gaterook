@@ -1,493 +1,317 @@
 package ai.msrv.gaterook.connectors.mcpserver;
 
-import ai.msrv.gaterook.connectors.support.egress.EgressClients;
-import ai.msrv.gaterook.connector.api.ConnectorException;
-import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
-import io.modelcontextprotocol.json.McpJsonMapper;
-import io.modelcontextprotocol.json.TypeRef;
-import io.modelcontextprotocol.spec.McpClientTransport;
-import io.modelcontextprotocol.spec.McpSchema;
-import io.modelcontextprotocol.spec.McpTransportException;
-import io.modelcontextprotocol.spec.McpTransportSessionNotFoundException;
 import java.io.IOException;
-import java.io.InterruptedIOException;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.concurrent.atomic.AtomicReference;
 import okhttp3.Call;
-import okhttp3.HttpUrl;
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
-import okio.BufferedSource;
-import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;
-import reactor.core.scheduler.Schedulers;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Streamable HTTP to a remote MCP server (ARCHITECTURE.md §7.5) on the core's egress guard: the OkHttp client of the
- * connection's {@code GuardedEgress} resolves and connects under the environment's address policy (no metadata,
- * link-local or core ports, private ranges only as the policy allows), follows no redirect and never retries a POST.
+ * Streamable HTTP to a remote MCP server (ARCHITECTURE.md §7.5), both protocol eras, over {@link HttpCalls} and the
+ * core's egress guard.
  *
- * <p>Every message is one POST; the answer is JSON or an event stream that ends with the response, as the
- * 2025-03-26+ transport allows. The person's headers (values from secrets) go first and the transport's own
- * ({@code Content-Type}, {@code Accept}, {@code Mcp-Session-Id}, {@code MCP-Protocol-Version}) after them, so a
- * configured header can't replace them. There is no GET stream: server-initiated messages arrive only within a POST,
- * and the tool list is read again on every (re)start instead of on {@code list_changed}.
- *
- * <p>A server the person signed in to gets the core's {@code Authorization} header on every request, after the
- * person's headers. A 401 (or a 403 for {@code insufficient_scope}) is the one answer a POST is sent again for: the
- * server refused the token before it read the message, so nothing ran; the core renews the token once and the POST
- * goes again with it. A second refusal means the person has to sign in again.
- *
- * <p>A server that signs in with cloud credentials gets the headers of its {@link RequestCredentials} on every request
- * instead: a Google token, or a SigV4 signature over the method, URL and body as they go out. A 401 renews a token once;
- * a refusal after that, or a 403, names the credentials and quotes the server, which says what is missing.
+ * <p>Every message is one POST; the answer is JSON or an event stream that carries the call's progress and log
+ * messages and ends with the response. A JSON-RPC error that comes as an HTTP 4xx body (2026-07-28 answers an unknown
+ * method with 404, an unsupported revision with 400) reaches the client as the error it is. The 2025 revisions number
+ * a session ({@code Mcp-Session-Id} from {@code initialize}); a server that forgot it answers 404, and the next call
+ * opens another one. Such a server may also keep a GET stream open for what isn't an answer ({@link #listen}); a server
+ * of 2026-07-28 sends that on a {@code subscriptions/listen} request's stream instead, which stays open as long as the
+ * session.
  */
-final class GatewayHttpTransport implements McpClientTransport {
+final class GatewayHttpTransport implements Channel {
 
-  private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
-  /** POSTs block on network I/O: virtual threads, never a Reactor or caller platform thread. */
+  /** POSTs block on network I/O: virtual threads, never a caller's platform thread. */
   private static final ExecutorService IO = Executors.newThreadPerTaskExecutor(Thread.ofVirtual()
       .name("mcp-http-", 0).factory());
-  private static final Scheduler SCHEDULER = Schedulers.fromExecutorService(IO, "mcp-http");
 
-  private final URI url;
-  private final OkHttpClient client;
-  private final Map<String, String> headers;
-  private final McpJsonMapper mapper;
-  private final long maxBytes;
-  private final Duration timeout;
-  private final String server;
-  private final McpServerRuntime.Authorization authorization;
-  private final RequestCredentials credentials;
-  /** The URL as OkHttp sends it: what a signature covers. */
-  private final URI sent;
-  private volatile Function<Mono<McpSchema.JSONRPCMessage>, Mono<McpSchema.JSONRPCMessage>> handler;
-  private volatile Consumer<Throwable> exceptions = t -> {};
+  private final HttpCalls http;
+  private final Set<Call> calls = ConcurrentHashMap.newKeySet();
+  private volatile Sink sink;
   private volatile String sessionId;
-  private volatile String protocolVersion;
   private volatile boolean closed;
+  private volatile Thread listener;
 
-  /**
-   * @param headers the person's headers with their resolved values; kept for the session (a new secret version is a
-   *                new connection version, which starts a new session)
-   * @param timeout the longest one POST may take, its answer included
-   */
-  GatewayHttpTransport(URI url, OkHttpClient client, Map<String, String> headers, McpJsonMapper mapper, long maxBytes,
-      Duration timeout, String server) {
-    this(url, client, headers, mapper, maxBytes, timeout, server, null);
-  }
-
-  /** @param authorization the core's sign-in for every request, or {@code null} for a server without one */
-  GatewayHttpTransport(URI url, OkHttpClient client, Map<String, String> headers, McpJsonMapper mapper, long maxBytes,
-      Duration timeout, String server, McpServerRuntime.Authorization authorization) {
-    this(url, client, headers, mapper, maxBytes, timeout, server, authorization, null);
-  }
-
-  /** @param credentials what authorizes every request from the server's cloud credentials, or {@code null} */
-  GatewayHttpTransport(URI url, OkHttpClient client, Map<String, String> headers, McpJsonMapper mapper, long maxBytes,
-      Duration timeout, String server, McpServerRuntime.Authorization authorization, RequestCredentials credentials) {
-    if (authorization != null && credentials != null) {
-      throw new IllegalArgumentException("A server signs in one way");
-    }
-    this.url = url;
-    this.client = client.newBuilder().callTimeout(timeout).readTimeout(timeout).build();
-    this.headers = Map.copyOf(headers);
-    this.mapper = mapper;
-    this.maxBytes = maxBytes;
-    this.timeout = timeout;
-    this.server = server;
-    this.authorization = authorization;
-    this.credentials = credentials;
-    this.sent = HttpUrl.get(url.toString()).uri();
+  GatewayHttpTransport(HttpCalls http) {
+    this.http = http;
   }
 
   String sessionId() {
     return sessionId;
   }
 
-  /** The core's sign-in this session's requests carry, or {@code null}. */
-  McpServerRuntime.Authorization authorization() {
-    return authorization;
-  }
-
-  /** The cloud credentials this session's requests carry, or {@code null}. */
-  RequestCredentials credentials() {
-    return credentials;
+  HttpCalls http() {
+    return http;
   }
 
   @Override
-  public Mono<Void> connect(Function<Mono<McpSchema.JSONRPCMessage>, Mono<McpSchema.JSONRPCMessage>> handler) {
-    this.handler = handler;
-    return Mono.empty();
+  public void open(Sink sink) {
+    this.sink = sink;
   }
 
   @Override
-  public void setExceptionHandler(Consumer<Throwable> handler) {
-    this.exceptions = handler;
-  }
-
-  @Override
-  public Mono<Void> sendMessage(McpSchema.JSONRPCMessage message) {
+  public Exchange send(ObjectNode message, Map<String, String> headers) {
     if (closed) {
-      return Mono.error(new McpTransportException("The session with " + server + " is closed"));
+      return Exchange.failed(new Failure("The session with " + http.server() + " is closed"));
     }
-    return Mono.<Void>fromRunnable(() -> post(message)).subscribeOn(SCHEDULER);
+    CompletableFuture<Void> done = new CompletableFuture<>();
+    AtomicReference<Call> current = new AtomicReference<>();
+    IO.execute(() -> {
+      try {
+        post(message, headers, current);
+        done.complete(null);
+      } catch (RuntimeException e) {
+        done.completeExceptionally(e);
+      } finally {
+        Call c = current.get();
+        if (c != null) {
+          calls.remove(c);
+        }
+      }
+    });
+    return new Exchange() {
+      @Override
+      public CompletableFuture<Void> done() {
+        return done;
+      }
+
+      @Override
+      public void abort() {
+        Call c = current.get();
+        if (c != null) {
+          c.cancel();
+        }
+      }
+    };
   }
 
   @Override
-  public <T> T unmarshalFrom(Object data, TypeRef<T> typeRef) {
-    return mapper.convertValue(data, typeRef);
+  public boolean answersInExchange() {
+    return true;
+  }
+
+  @Override
+  public boolean alive() {
+    return !closed;
   }
 
   /** Ends the session on the server too ({@code DELETE} with the session id), best effort. */
   @Override
-  public Mono<Void> closeGracefully() {
-    return Mono.<Void>fromRunnable(() -> {
-      closed = true;
-      String id = sessionId;
-      if (id == null) {
-        return;
-      }
-      Request.Builder b = new Request.Builder().url(url.toString()).delete();
-      if (!personsHeaders(b)) {
-        return;
-      }
-      if (authorization != null) {
-        try {
-          b.header("Authorization", authorization.header());
-        } catch (McpServerRuntime.SignInRequired | ConnectorException | IllegalArgumentException e) {
-          // Without a sign-in the server can't be told; it forgets the session by itself.
-          return;
-        }
-      }
-      if (credentials != null) {
-        try {
-          credentials.headers("DELETE", sent, new byte[0]).forEach(b::header);
-        } catch (ConnectorException | IllegalArgumentException e) {
-          return;
-        }
-      }
-      b.header("Mcp-Session-Id", id);
-      Call call = client.newBuilder().callTimeout(Duration.ofSeconds(3)).build().newCall(b.build());
-      try (Response ignored = call.execute()) {
-        // 200, 204 or 405 (a server without explicit termination): all fine.
-      } catch (IOException e) {
-        // The server may already be gone.
-      }
-    }).subscribeOn(SCHEDULER);
+  public void close() {
+    closed = true;
+    Thread l = listener;
+    if (l != null) {
+      l.interrupt();
+    }
+    for (Call c : List.copyOf(calls)) {
+      c.cancel();
+    }
+    String id = sessionId;
+    if (id == null) {
+      return;
+    }
+    try (Response ignored = http.send("DELETE", http.url(), null, Map.of("Mcp-Session-Id", id),
+        HttpCalls.Budget.SHORT, null)) {
+      // 200, 204 or 405 (a server without explicit termination): all fine.
+    } catch (RuntimeException e) {
+      // The server may already be gone, or the sign-in with it: it forgets the session by itself.
+    }
   }
 
   // ── One message ─────────────────────────────────────────────────────────────────────────────────────────────
 
-  private void post(McpSchema.JSONRPCMessage message) {
-    String body;
-    try {
-      body = mapper.writeValueAsString(message);
-    } catch (IOException e) {
-      throw new McpTransportException("Couldn't write a message for " + server, e);
-    }
-    byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-    if (credentials != null) {
-      postSigned(message, bytes);
-      return;
-    }
-    String auth = authorization == null ? null : signIn(authorization::header);
-    for (int attempt = 1; ; attempt++) {
-      Refusal refusal = send(message, bytes, auth);
-      if (refusal == null) {
-        return;
-      }
-      String refusedWith = auth;
-      if (attempt >= 2 && refusal.status() == 401) {
-        // The renewed token was refused too: renewing again can't help this request. The sign-in itself stays (a
-        // server may take a moment to accept a new token); the person signs in again if it keeps happening.
-        throw new McpTransportException(server + " refused its renewed sign-in (HTTP 401).",
-            new McpServerRuntime.SignInRequired(server + " refused its renewed sign-in. If this keeps happening, "
-                + "sign in to it again in GateRook › Connectors › MCP servers."));
-      }
-      // Refused before the server read it: the core renews the token, and the same message goes once more with it.
-      String renewed = signIn(() -> authorization.refused(refusedWith, refusal.challenge(), refusal.status()));
-      if (attempt >= 2) {
-        throw new McpTransportException(server + " refused its sign-in again (HTTP " + refusal.status() + ").",
-            new McpServerRuntime.SignInRequired(server + " refused its sign-in. Sign in to it again in GateRook › "
-                + "Connectors › MCP servers."));
-      }
-      auth = renewed;
-    }
-  }
-
-  /**
-   * One message of a server that signs in with cloud credentials. A 401 renews a token and the message goes once more
-   * (the server refused it before reading it, so nothing ran); a refusal after that, or a 403, ends it with the
-   * server's words, which name the permission or role that is missing.
-   */
-  private void postSigned(McpSchema.JSONRPCMessage message, byte[] bytes) {
-    for (int attempt = 1; ; attempt++) {
-      Refusal refusal = send(message, bytes, null);
-      if (refusal == null) {
-        return;
-      }
-      if (attempt == 1 && refusal.status() == 401 && credentials.refused()) {
-        continue;
-      }
-      throw new McpTransportException(server + " refused GateRook's " + credentials.label() + " (HTTP "
-          + refusal.status() + ")" + refusal.detail());
-    }
-  }
-
-  /**
-   * What a server answered when it refused a token or a signature: the status, its {@code WWW-Authenticate} challenge,
-   * and for cloud credentials the start of what it said (": User … is not authorized …"), else "".
-   */
-  private record Refusal(int status, String challenge, String detail) {
-
-    Refusal(int status, String challenge) {
-      this(status, challenge, "");
-    }
-  }
-
-  /** A step of the core's sign-in; a missing one ends the POST with the reason before anything is sent. */
-  private interface SignInStep {
-    String run() throws McpServerRuntime.SignInRequired, ConnectorException;
-  }
-
-  private String signIn(SignInStep step) {
-    try {
-      String header = step.run();
-      if (header == null || header.isBlank()) {
-        throw new McpTransportException(server + " has no sign-in to send.",
-            new McpServerRuntime.SignInRequired(server + " isn't signed in. Sign in to it in GateRook › Connectors › "
-                + "MCP servers."));
-      }
-      return header;
-    } catch (McpServerRuntime.SignInRequired e) {
-      throw new McpTransportException(e.getMessage(), e);
-    } catch (ConnectorException e) {
-      throw new McpTransportException(e.getMessage(), e);
-    }
-  }
-
-  /**
-   * One POST of {@code message} with {@code auth} (or none): {@code null} once its answer was delivered, or the
-   * refusal of the token, when the server didn't read the message and it may go again with another one.
-   */
-  private Refusal send(McpSchema.JSONRPCMessage message, byte[] bytes, String auth) {
-    // One-shot: OkHttp would post a tools/call again by itself on a 503 with Retry-After: 0 (EgressClients.onceBody).
-    Request.Builder b = new Request.Builder().url(url.toString()).post(EgressClients.onceBody(bytes, JSON));
-    if (!personsHeaders(b)) {
-      throw new McpTransportException("A header for " + server + " (" + String.join(", ", unsendable())
-          + ") has a line break or a control character in its value, which HTTP can't send. Set its secret again.");
-    }
-    if (auth != null) {
-      try {
-        b.header("Authorization", auth);
-      } catch (IllegalArgumentException e) {
-        // OkHttp names the header, not its value (Authorization is never quoted).
-        throw new McpTransportException(server + " got a token HTTP can't send. Sign in to it again.",
-            new McpServerRuntime.SignInRequired(server + " got a token HTTP can't send. Sign in to it again in "
-                + "GateRook › Connectors › MCP servers."));
-      }
-    }
-    if (credentials != null) {
-      try {
-        credentials.headers("POST", sent, bytes).forEach(b::header);
-      } catch (ConnectorException e) {
-        throw new McpTransportException(e.getMessage(), e);
-      } catch (IllegalArgumentException e) {
-        throw new McpTransportException(server + " got a credential HTTP can't send.", e);
-      }
-    }
-    b.header("Content-Type", "application/json");
-    b.header("Accept", "application/json, text/event-stream");
-    boolean initialize = message instanceof McpSchema.JSONRPCRequest r && McpSchema.METHOD_INITIALIZE.equals(r.method());
+  private void post(ObjectNode message, Map<String, String> protocol, AtomicReference<Call> current) {
+    byte[] bytes = Texts.JSON.writeValueAsBytes(message);
+    String method = Texts.str(message.get("method"), "");
+    boolean initialize = "initialize".equals(method);
+    Map<String, String> extra = new LinkedHashMap<>(protocol);
+    extra.put("Content-Type", "application/json");
+    extra.put("Accept", "application/json, text/event-stream");
     String id = sessionId;
     if (id != null && !initialize) {
-      b.header("Mcp-Session-Id", id);
+      extra.put("Mcp-Session-Id", id);
     }
-    String version = protocolVersion;
-    if (version != null && !initialize) {
-      b.header("MCP-Protocol-Version", version);
-    }
-    Call call = client.newCall(b.build());
-    call.timeout().timeout(timeout.toMillis(), TimeUnit.MILLISECONDS);
-    try (Response response = call.execute()) {
+    // A listen request's answer is a stream as long as the session: no deadline of its own.
+    HttpCalls.Budget budget = "subscriptions/listen".equals(method) ? HttpCalls.Budget.STREAM
+        : HttpCalls.Budget.CALL;
+    Long awaited = Rpc.isRequest(message) ? Rpc.id(message) : null;
+    try (Response response = http.send("POST", http.url(), bytes, extra, budget, call -> {
+      current.set(call);
+      calls.add(call);
+      if (closed) {
+        call.cancel();
+      }
+    })) {
       int status = response.code();
-      String challenge = response.header("WWW-Authenticate");
-      if (authorization != null && (status == 401 || (status == 403 && insufficientScope(challenge)))) {
-        return new Refusal(status, challenge);
-      }
-      if (credentials != null && (status == 401 || status == 403)) {
-        return new Refusal(status, challenge, snippet(response.body()));
-      }
       String assigned = response.header("Mcp-Session-Id");
       if (initialize && assigned != null && !assigned.isBlank()) {
         sessionId = assigned.strip();
       }
       if (status == 404 && id != null && !initialize) {
-        // The server forgot the session: the client starts a new one (LifecycleInitializer.handleException).
+        // The server forgot the session: the request never reached it, and the next start opens another.
         sessionId = null;
-        McpTransportSessionNotFoundException gone = new McpTransportSessionNotFoundException(id);
-        exceptions.accept(gone);
-        throw gone;
+        throw new SessionGone(http.server() + " ended the session " + id);
       }
-      if (status >= 300 && status < 400) {
-        throw new McpTransportException(server + " answered with a redirect (HTTP " + status + "), which GateRook "
-            + "doesn't follow: check the URL.");
-      }
-      if (status == 401 && authorization == null && challenge != null
-          && challenge.toLowerCase(Locale.ROOT).contains("resource_metadata")) {
-        throw new McpTransportException(server + " wants you to sign in to it (OAuth): open it in GateRook › "
-            + "Connectors › MCP servers and choose Sign in.", new McpServerRuntime.SignInRequired(server
-                + " wants you to sign in to it. Open it in GateRook › Connectors › MCP servers and choose Sign in."));
-      }
-      if (status == 401 || status == 403) {
-        throw new McpTransportException(server + " refused the request (HTTP " + status + "): check the headers and "
-            + "their secrets.");
-      }
-      if (status >= 400) {
-        throw new McpTransportException(server + " answered HTTP " + status + snippet(response.body()));
-      }
-      if (status == 202 || status == 204) {
-        return null;
-      }
-      ResponseBody responseBody = response.body();
-      String type = response.header("Content-Type", "").toLowerCase(Locale.ROOT);
-      if (type.startsWith("text/event-stream")) {
-        readEvents(responseBody.source(), message);
-      } else {
-        for (McpSchema.JSONRPCMessage m : parse(readBounded(responseBody.source()))) {
-          deliver(m);
-        }
-      }
-      return null;
-    } catch (InterruptedIOException e) {
-      throw new McpTransportException(server + " didn't answer in " + timeout.toSeconds() + " s", e);
-    } catch (IOException e) {
-      throw new McpTransportException("Couldn't reach " + server + ": " + Texts.clean(e.getMessage(), 200, false), e);
-    }
-  }
-
-  /** A 403 that asks for more permissions ({@code error="insufficient_scope"}, RFC 6750 §3.1). */
-  static boolean insufficientScope(String challenge) {
-    if (challenge == null) {
-      return false;
-    }
-    String c = challenge.toLowerCase(Locale.ROOT).replace(" ", "");
-    return c.contains("error=\"insufficient_scope\"") || c.contains("error=insufficient_scope");
-  }
-
-  /**
-   * The person's headers on {@code b}; {@code false} when a value can't be sent. OkHttp's message for such a value
-   * quotes it (for every header but Authorization and Cookie): it is dropped, only the names are reported.
-   */
-  private boolean personsHeaders(Request.Builder b) {
-    try {
-      headers.forEach(b::header);
-      return true;
-    } catch (IllegalArgumentException e) {
-      return false;
-    }
-  }
-
-  /** The names of the person's headers whose values HTTP can't carry. */
-  private List<String> unsendable() {
-    List<String> out = new ArrayList<>();
-    headers.forEach((name, value) -> {
-      try {
-        new Request.Builder().header(name, value);
-      } catch (IllegalArgumentException e) {
-        out.add(name);
-      }
-    });
-    return out;
-  }
-
-  /**
-   * Server-sent events until the response to {@code sent} arrived (then the stream is left), or the stream ends.
-   * Each event's data is one JSON-RPC message; comments, ids and retries carry nothing for a POST stream.
-   */
-  private void readEvents(BufferedSource source, McpSchema.JSONRPCMessage sent) throws IOException {
-    Object awaited = sent instanceof McpSchema.JSONRPCRequest r ? r.id() : null;
-    StringBuilder data = new StringBuilder();
-    long read = 0;
-    while (true) {
-      String line = line(source, maxBytes - read);
-      if (line == null) {
+      if (status >= 400 && status != 401 && status != 403 && json(response) && answeredWithError(response,
+          awaited, status)) {
         return;
       }
-      read += line.length() + 1;
-      if (read > maxBytes) {
-        throw tooMuch();
+      Failure refusal = http.refusal(response);
+      if (refusal != null) {
+        throw refusal;
       }
-      if (line.isEmpty()) {
-        if (!data.isEmpty()) {
-          for (McpSchema.JSONRPCMessage m : parse(data.toString())) {
-            deliver(m);
-            if (awaited != null && m instanceof McpSchema.JSONRPCResponse resp && awaited.equals(resp.id())) {
-              return;
+      if (status == 202 || status == 204) {
+        return;
+      }
+      ResponseBody body = response.body();
+      if (body == null) {
+        return;
+      }
+      if (type(response).startsWith("text/event-stream")) {
+        http.readEvents(body.source(), e -> {
+          for (ObjectNode m : parse(e.data())) {
+            deliver(m, awaited);
+            if (awaited != null && Rpc.isResponse(m) && awaited.equals(Rpc.id(m))) {
+              return false;
             }
           }
-          data.setLength(0);
+          return !closed;
+        });
+      } else {
+        for (ObjectNode m : parse(http.readBounded(body.source()))) {
+          deliver(m, awaited);
         }
-      } else if (line.startsWith("data:")) {
-        if (!data.isEmpty()) {
-          data.append('\n');
-        }
-        data.append(line.startsWith("data: ") ? line.substring(6) : line.substring(5));
       }
+    } catch (IOException e) {
+      if (closed) {
+        throw new Failure("The session with " + http.server() + " is closed", 0, e);
+      }
+      throw new Failure("Lost the answer of " + http.server() + ": " + Texts.clean(e.getMessage(), 200, false), 0, e);
     }
   }
 
   /**
-   * The next line of an event stream without its end ({@code \n} or {@code \r\n}), or {@code null} at the end. At most
-   * {@code limit} bytes are ever held: {@code readUtf8Line()} would buffer a line without end for as long as the
-   * server sends it.
+   * A 4xx whose body is a JSON-RPC error: the answer to {@code awaited} reaches the client as that error; any other
+   * error body ({@code id: null}, "no valid session") ends the exchange with its message and status.
+   *
+   * @return whether the answer was delivered
    */
-  private String line(BufferedSource source, long limit) throws IOException {
-    long newline = source.indexOf((byte) '\n', 0, Math.max(0, limit) + 1);
-    if (newline < 0) {
-      if (source.request(Math.max(0, limit) + 1)) {
-        throw tooMuch();
+  private boolean answeredWithError(Response response, Long awaited, int status) throws IOException {
+    ResponseBody body = response.body();
+    if (body == null) {
+      return false;
+    }
+    String text = http.readBounded(body.source());
+    List<ObjectNode> messages = parse(text, false);
+    for (ObjectNode m : messages) {
+      if (Rpc.isResponse(m) && m.has("error") && awaited != null && awaited.equals(Rpc.id(m))) {
+        deliver(m, awaited);
+        return true;
       }
-      // The stream ended without a line break: what is left is its last line.
-      return source.exhausted() ? null : stripCr(source.readUtf8());
     }
-    String line = source.readUtf8(newline);
-    source.skip(1);
-    return stripCr(line);
-  }
-
-  private static String stripCr(String line) {
-    return line.endsWith("\r") ? line.substring(0, line.length() - 1) : line;
-  }
-
-  private McpTransportException tooMuch() {
-    return new McpTransportException(server + " sent more than " + (maxBytes / (1024 * 1024)) + " MB");
-  }
-
-  private String readBounded(BufferedSource source) throws IOException {
-    if (!source.request(maxBytes + 1)) {
-      return source.readUtf8();
+    for (ObjectNode m : messages) {
+      if (m.path("error").isObject()) {
+        throw new Failure(http.server() + " answered HTTP " + status + ": " + Rpc.Error.of(m.get("error"))
+            .getMessage(), status, null);
+      }
     }
-    throw tooMuch();
+    throw new Failure(http.server() + " answered HTTP " + status + ": " + Texts.clean(text, 300, false), status, null);
   }
 
-  private List<McpSchema.JSONRPCMessage> parse(String text) {
-    List<McpSchema.JSONRPCMessage> out = new ArrayList<>();
+  @Override
+  public void listen(Map<String, String> headers) {
+    if (closed || listener != null || sessionId == null) {
+      return;
+    }
+    synchronized (this) {
+      if (listener != null) {
+        return;
+      }
+      listener = Thread.ofVirtual().name("mcp-http-stream").start(() -> streamLoop(Map.copyOf(headers)));
+    }
+  }
+
+  /**
+   * The GET stream while the session lives: opened again after it drops (1, 2, 4 … 30 s apart), given up when the
+   * server has none (405) or refuses it.
+   */
+  private void streamLoop(Map<String, String> headers) {
+    long backoff = 1_000;
+    int refusals = 0;
+    while (!closed && !Thread.currentThread().isInterrupted()) {
+      Map<String, String> extra = new LinkedHashMap<>(headers);
+      extra.put("Accept", "text/event-stream");
+      String id = sessionId;
+      if (id == null) {
+        return;
+      }
+      extra.put("Mcp-Session-Id", id);
+      long opened = System.nanoTime();
+      try (Response response = http.send("GET", http.url(), null, extra, HttpCalls.Budget.STREAM, call -> {
+        calls.add(call);
+        if (closed) {
+          call.cancel();
+        }
+      })) {
+        int status = response.code();
+        if (status == 405 || status == 404 || !type(response).startsWith("text/event-stream")) {
+          // No stream for this server (or the session is gone, which the next request finds out).
+          return;
+        }
+        if (http.refusal(response) != null && ++refusals >= 3) {
+          return;
+        }
+        ResponseBody body = response.body();
+        if (status == 200 && body != null) {
+          http.readEvents(body.source(), e -> {
+            for (ObjectNode m : parse(e.data())) {
+              deliver(m, null);
+            }
+            return !closed;
+          });
+        }
+      } catch (IOException | RuntimeException e) {
+        // Dropped: opened again below while the session lives.
+      }
+      if (Duration.ofNanos(System.nanoTime() - opened).toSeconds() > 60) {
+        backoff = 1_000;
+      }
+      try {
+        Thread.sleep(backoff);
+      } catch (InterruptedException e) {
+        return;
+      }
+      backoff = Math.min(30_000, backoff * 2);
+    }
+  }
+
+  private static String type(Response response) {
+    return response.header("Content-Type", "").toLowerCase(Locale.ROOT);
+  }
+
+  private static boolean json(Response response) {
+    return type(response).startsWith("application/json");
+  }
+
+  private List<ObjectNode> parse(String text) {
+    return parse(text, true);
+  }
+
+  /** The JSON-RPC objects of a body or an event (one object or an array of them). */
+  private List<ObjectNode> parse(String text, boolean strict) {
+    List<ObjectNode> out = new ArrayList<>();
     if (text == null || text.isBlank()) {
       return out;
     }
@@ -495,37 +319,26 @@ final class GatewayHttpTransport implements McpClientTransport {
       JsonNode tree = Texts.JSON.readTree(text);
       if (tree.isArray()) {
         for (JsonNode element : tree) {
-          out.add(McpSchema.deserializeJsonRpcMessage(mapper, Texts.JSON.writeValueAsString(element)));
+          if (element instanceof ObjectNode o) {
+            out.add(o);
+          }
         }
-      } else {
-        out.add(McpSchema.deserializeJsonRpcMessage(mapper, text));
+      } else if (tree instanceof ObjectNode o) {
+        out.add(o);
       }
-    } catch (IOException | RuntimeException e) {
-      throw new McpTransportException(server + " answered with something that isn't JSON-RPC: "
-          + Texts.clean(text, 200, false));
+    } catch (RuntimeException e) {
+      if (strict) {
+        throw new Failure(http.server() + " answered with something that isn't JSON-RPC: "
+            + Texts.clean(text, 200, false));
+      }
     }
     return out;
   }
 
-  private void deliver(McpSchema.JSONRPCMessage m) {
-    if (m instanceof McpSchema.JSONRPCResponse r && r.result() instanceof Map<?, ?> result
-        && result.get("protocolVersion") instanceof String v && result.containsKey("capabilities")) {
-      // The InitializeResult: every later request names the revision both agreed on.
-      protocolVersion = v;
-    }
-    Function<Mono<McpSchema.JSONRPCMessage>, Mono<McpSchema.JSONRPCMessage>> h = handler;
-    if (h != null) {
-      h.apply(Mono.just(m)).subscribe(ignored -> {}, error -> {});
-    }
-  }
-
-  private static String snippet(ResponseBody body) {
-    try {
-      String text = body.source().request(301) ? body.source().readUtf8(300) : body.string();
-      String clean = Texts.clean(text, 300, false);
-      return clean == null || clean.isBlank() ? "" : ": " + clean;
-    } catch (IOException e) {
-      return "";
+  private void deliver(ObjectNode m, Long stream) {
+    Sink s = sink;
+    if (s != null) {
+      s.message(m, stream);
     }
   }
 }

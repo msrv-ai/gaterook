@@ -166,7 +166,7 @@ public final class StoreClients implements AutoCloseable {
     String ownerKey = versions.isEmpty() ? row.id() : row.id() + "|test";
     return switch (row.kind()) {
       case VAULT -> new VaultStore(VaultSettings.of(row.config(), ports), field -> signInSecret(row.id(), field,
-          versions), clock);
+          versions), clock, ports);
       case GCP_SM -> new GcpSmStore(GcpSmStore.Settings.of(row.config(), endpoints.gcpSecretManager()), cloud,
           new CloudCredentials.Owner(ownerKey, 0, row.name()), () -> resolver(row.id(), Set.of(GcpSmStore.KEY),
           versions));

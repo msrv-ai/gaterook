@@ -20,7 +20,7 @@ import { Look, healthLook } from '../../kit/elements/shared/dictionaries';
 import { SERIES, Series, joinQuery, niceMax, parseQuery, seriesCounts } from '../../kit/elements/log-explorer/log-view';
 
 /**
- * What Insights shows (design/pages/insights.html), computed from `GET /api/insights` (ARCHITECTURE.md §6): pure
+ * What Insights shows, computed from `GET /api/insights` (ARCHITECTURE.md §6): pure
  * functions of the answer, the range and "now", so the tests check them against the kit's wording without a clock or
  * a core. Every sentence on the page is written here from the core's numbers and names; nothing is invented.
  */
@@ -28,7 +28,7 @@ import { SERIES, Series, joinQuery, niceMax, parseQuery, seriesCounts } from '..
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
-/** The gateway's own budget per call (ARCHITECTURE.md M1.5: p95 of the overhead ≤ 50 ms; BLUEPRINT §9 "target ≤ 50 ms"). */
+/** The gateway's own budget per call (ARCHITECTURE.md M1.5: p95 of the overhead ≤ 50 ms). */
 export const OVERHEAD_TARGET_MS = 50;
 
 /** How many tools Top tools draws before the rest become one "N other tools" bar (kit: six). */

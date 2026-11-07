@@ -1,11 +1,11 @@
 // `window.gwDesktop` (ARCHITECTURE.md §7.1 "Preload"; the UI's contract: ui/src/app/core/desktop/desktop-bridge.ts).
 // A sandboxed preload: only `electron` can be required, and only `contextBridge` and `ipcRenderer` are used. The page
 // gets plain functions and structured-cloned data — never `ipcRenderer`, an IPC event (its `sender` would be
-// `ipcRenderer` itself) or a secret. The private-key picker returns only the explicitly chosen path. Arguments are
+// `ipcRenderer` itself) or a secret. File and repository pickers return only explicitly chosen paths. Arguments are
 // coerced to the types main expects; main checks them again,
 // and checks that the call comes from this window's top frame on app://gw/.
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC, type DesktopCoreState, type GeneralSettings, type RelayedEvent, type UpdateState } from '../shared/contract.ts';
+import { IPC, type DesktopCoreState, type EndpointShareExport, type EndpointShareFile, type EndpointShareImport, type GeneralSettings, type RelayedEvent, type UpdateState } from '../shared/contract.ts';
 
 type Off = () => void;
 
@@ -46,6 +46,12 @@ const gwDesktop = {
   },
   choosePrivateKeyFile(): Promise<string | null> {
     return ipcRenderer.invoke(IPC.choosePrivateKeyFile);
+  },
+  chooseRepository(): Promise<string | null> {
+    return ipcRenderer.invoke(IPC.chooseRepository);
+  },
+  chooseVaultTokenFile(): Promise<{ readonly token: string; readonly path: string } | null> {
+    return ipcRenderer.invoke(IPC.chooseVaultTokenFile);
   },
   signInToGoogle(): Promise<void> {
     return ipcRenderer.invoke(IPC.signInToGoogle);
@@ -100,6 +106,33 @@ const gwDesktop = {
   },
   resetApplication(confirmation: string): Promise<void> {
     return ipcRenderer.invoke(IPC.resetApplication, String(confirmation));
+  },
+  createEndpointShare(options: EndpointShareExport, passphrase: string): Promise<{ cancelled: boolean; fileName?: string }> {
+    return ipcRenderer.invoke(IPC.createEndpointShare, options, passphrase);
+  },
+  chooseEndpointShare(): Promise<EndpointShareFile | null> {
+    return ipcRenderer.invoke(IPC.chooseEndpointShare);
+  },
+  previewEndpointShare(passphrase: string): Promise<{ handle: string; preview: unknown }> {
+    return ipcRenderer.invoke(IPC.previewEndpointShare, passphrase);
+  },
+  importEndpointShare(options: EndpointShareImport): Promise<unknown> {
+    return ipcRenderer.invoke(IPC.importEndpointShare, options);
+  },
+  discardEndpointShare(handle?: string): Promise<void> {
+    return ipcRenderer.invoke(IPC.discardEndpointShare, handle);
+  },
+  onEndpointShareFile(cb: (file: EndpointShareFile) => void): Off {
+    let active = true;
+    let pushed = false;
+    const off = subscribe<EndpointShareFile>(IPC.endpointSharePush, (file) => {
+      pushed = true;
+      if (active) cb(file);
+    });
+    void ipcRenderer.invoke(IPC.pendingEndpointShare).then((file: EndpointShareFile | null) => {
+      if (active && !pushed && file) cb(file);
+    }).catch((e: unknown) => console.error('gwDesktop: could not read pending endpoint share', e));
+    return () => { active = false; off(); };
   },
   createFullBackup(passphrase: string): Promise<{ cancelled: boolean; fileName?: string }> {
     return ipcRenderer.invoke(IPC.createFullBackup, passphrase);

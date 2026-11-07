@@ -1,6 +1,6 @@
 import { duration } from '../../../core/time/time-format';
 
-/** A status as the kit draws it everywhere (BLUEPRINT §7 "Shared status vocabulary"): tone, icon and words. */
+/** A status as the kit draws it everywhere: tone, icon and words. */
 export interface Look {
   readonly tone: 'success' | 'warning' | 'danger' | 'neutral' | 'info' | 'brand';
   readonly icon: string;
@@ -58,6 +58,7 @@ export function healthLook(state: string | null | undefined, latencyMs?: number 
 /** An MCP client's state on this machine. */
 export const CLIENT_STATUS: Record<string, Look> = {
   connected: { tone: 'success', icon: 'circle-check', text: 'Connected' },
+  pending: { tone: 'info', icon: 'hourglass', text: 'Awaiting connection' },
   detected: { tone: 'info', icon: 'scan-search', text: 'Detected, not connected' },
   'needs-restart': { tone: 'warning', icon: 'rotate-cw', text: 'Needs restart' },
   'not-installed': { tone: 'neutral', icon: 'circle-dashed', text: 'Not installed' },

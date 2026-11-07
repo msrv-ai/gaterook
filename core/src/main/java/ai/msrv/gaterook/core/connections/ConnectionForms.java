@@ -2,6 +2,7 @@ package ai.msrv.gaterook.core.connections;
 
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.core.connections.internal.SchemaPointers;
+import ai.msrv.gaterook.core.connections.internal.SecretFields;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,6 +25,17 @@ public final class ConnectionForms {
    * @param kind    {@code value}, {@code login}, {@code pem} or {@code binary}
    */
   public record SecretField(String pointer, String kind, String title) {}
+
+  /** A login user may use a store reference only when a password of that login also uses a store reference. */
+  public record LoginUserReference(String pointer, List<String> passwordFields) {}
+
+  /** Supplemental reference-only fields, separate from fields that accept encrypted literal secrets. */
+  public static List<LoginUserReference> loginUserReferences(JsonNode configSchema) {
+    if (configSchema == null) return List.of();
+    List<String> passwords = SecretFields.templates(configSchema);
+    return SecretFields.loginUserTemplates(configSchema).stream()
+        .map(pointer -> new LoginUserReference(pointer, SecretFields.loginSecretsOf(passwords, pointer))).toList();
+  }
 
   /**
    * A field whose value on {@code env} differs from its default elsewhere.

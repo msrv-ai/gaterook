@@ -30,6 +30,9 @@ export function nextHealth(previous: ConnectionHealth | null | undefined, next: 
 
 /** One row of Connections (admin.connections.ConnectionsController.Row). */
 export interface ConnectionRow {
+  readonly setupRequired?: boolean;
+  readonly setupMissingFields?: readonly string[];
+  readonly setupSources?: readonly JsonObject[];
   readonly name: string;
   readonly type: string;
   readonly typeName: string;
@@ -71,6 +74,8 @@ export interface ConnectionList {
 }
 
 export interface StoredSecret {
+  /** Renderer-only import placeholder: prepared in the core, not yet saved as a connection secret. */
+  readonly staged?: boolean;
   readonly field: string;
   readonly secretId: string | null;
   readonly name: string | null;
@@ -79,6 +84,8 @@ export interface StoredSecret {
   readonly version: number | null;
   readonly source: string | null;
   readonly store?: string | null;
+  /** Where a reference points (`vault://kv/prod/db#password`), from `GET /api/secrets`; not a secret. */
+  readonly ref?: string | null;
   /**
    * What `GET /api/secrets` adds to the row of the same secret (the connection's detail doesn't carry it): when the
    * current version was set, and whether Rotate can issue a new value at the source (else why not).
@@ -96,6 +103,9 @@ export interface ConnectionUsedBy {
 
 /** `GET /api/connections/{name}` (connection-new `?edit=`). */
 export interface ConnectionDetail {
+  readonly setupRequired?: boolean;
+  readonly setupMissingFields?: readonly string[];
+  readonly setupSources?: readonly JsonObject[];
   readonly name: string;
   readonly type: string;
   readonly typeName: string;
@@ -176,7 +186,7 @@ export interface TestOutcome {
 export interface TestConfirmed {
   readonly kind: string;
   readonly config: JsonObject;
-  readonly retest: TestOutcome;
+  readonly retest: TestOutcome | null;
 }
 
 export interface TestDraftRequest {
@@ -203,6 +213,8 @@ export interface UpdateConnectionRequest extends WithReason {
   readonly config: JsonObject;
   readonly env: Env;
   readonly version: number;
+  /** Missing credentials supplied while finishing an imported connection's setup. */
+  readonly secrets?: SecretInputs;
   /**
    * What the person confirmed after the core asked (409 with `confirm`): `send-secret-to-new-host`, `danger`, or both,
    * separated by a comma.

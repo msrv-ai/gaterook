@@ -42,9 +42,11 @@ final class TestCtx implements ExecContext {
   private final JsonNode payload;
   private final BiPredicate<String, Integer> quota;
   private final Handles handles;
+  /** The core's guarded egress of the call, or {@code null}: then the call has none (a connector outside the core). */
+  private final Egress egress;
 
   private TestCtx(Env env, Limits limits, Clock clock, Duration timeout, JsonNode payload,
-      BiPredicate<String, Integer> quota, Handles handles) {
+      BiPredicate<String, Integer> quota, Handles handles, Egress egress) {
     this.env = env;
     this.limits = limits;
     this.clock = clock;
@@ -52,6 +54,7 @@ final class TestCtx implements ExecContext {
     this.payload = payload;
     this.quota = quota;
     this.handles = handles;
+    this.egress = egress;
   }
 
   static Limits dev() {
@@ -71,37 +74,43 @@ final class TestCtx implements ExecContext {
 
   static TestCtx of() {
     return new TestCtx(Env.DEV, dev(), Clock.systemUTC(), Duration.ofSeconds(10), null, (k, n) -> true,
-        new Handles(Clock.systemUTC()));
+        new Handles(Clock.systemUTC()), null);
   }
 
   TestCtx with(Limits l) {
-    return new TestCtx(env, l, clock, l.toolTimeout(), payload, quota, handles);
+    return new TestCtx(env, l, clock, l.toolTimeout(), payload, quota, handles, egress);
   }
 
   TestCtx env(Env e) {
     return new TestCtx(e, e == Env.PROD ? prod() : dev(), clock, (e == Env.PROD ? prod() : dev()).toolTimeout(),
-        payload, quota, handles);
+        payload, quota, handles, egress);
   }
 
   TestCtx clock(Clock c) {
-    return new TestCtx(env, limits, c, Duration.between(clock.instant(), deadline), payload, quota, new Handles(c));
+    return new TestCtx(env, limits, c, Duration.between(clock.instant(), deadline), payload, quota, new Handles(c),
+        egress);
   }
 
   TestCtx timeout(Duration d) {
-    return new TestCtx(env, limits, clock, d, payload, quota, handles);
+    return new TestCtx(env, limits, clock, d, payload, quota, handles, egress);
   }
 
   TestCtx quota(BiPredicate<String, Integer> q) {
-    return new TestCtx(env, limits, clock, Duration.between(clock.instant(), deadline), payload, q, handles);
+    return new TestCtx(env, limits, clock, Duration.between(clock.instant(), deadline), payload, q, handles, egress);
   }
 
   TestCtx approved(JsonNode p) {
-    return new TestCtx(env, limits, clock, Duration.between(clock.instant(), deadline), p, quota, handles);
+    return new TestCtx(env, limits, clock, Duration.between(clock.instant(), deadline), p, quota, handles, egress);
+  }
+
+  /** The same call with the core's guarded egress {@code e} (its policy names the core's own ports). */
+  TestCtx egress(Egress e) {
+    return new TestCtx(env, limits, clock, Duration.between(clock.instant(), deadline), payload, quota, handles, e);
   }
 
   /** A context of a later call: the same handle key, a fresh deadline. */
   TestCtx next() {
-    return new TestCtx(env, limits, clock, limits.toolTimeout(), payload, quota, handles);
+    return new TestCtx(env, limits, clock, limits.toolTimeout(), payload, quota, handles, egress);
   }
 
   @Override public String callId() { return "tc_logs_test"; }
@@ -130,7 +139,7 @@ final class TestCtx implements ExecContext {
 
   @Override
   public Egress egress() {
-    return (request, maxBytes) -> {
+    return egress != null ? egress : (request, maxBytes) -> {
       throw ConnectorException.denied("The Logs connector uses its own clients");
     };
   }

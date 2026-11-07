@@ -7,8 +7,9 @@ import java.time.Instant;
 import java.util.Arrays;
 
 /**
- * The login of one call: the form's user and the stored password, or both from a short-lived login (Vault dynamic
- * credentials: {@code SecretResolver.meta(...).source() == "dynamic"}, report 04 §6.7). The password is a copy that
+ * The login of one call: the form's user and the stored password, or both from a store — a short-lived login (Vault
+ * dynamic credentials: {@code SecretResolver.meta(...).source() == "dynamic"}, report 04 §6.7) or a user read from a
+ * store with its password (the user is then a secret field of the connection). The password is a copy that
  * {@link #close()} zeroes; resolving it put every form of it into the call's taint.
  *
  * @param version   changes with every new value or lease: a pool built on another version is replaced
@@ -24,7 +25,7 @@ record Credentials(String user, char[] password, String version, Instant notAfte
       return new Credentials(user, new char[0], "none", null);
     }
     SecretResolver.Meta meta = secrets.meta(field);
-    if ("dynamic".equals(meta.source())) {
+    if ("dynamic".equals(meta.source()) || secrets.isSet(ConnectionSettings.USER)) {
       try (SecretResolver.Login login = secrets.login(field)) {
         return new Credentials(login.username(), login.password().chars().clone(), login.version(), login.notAfter());
       }

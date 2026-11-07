@@ -4,14 +4,14 @@ import { GwIcon } from '../kit/icons';
 import { GwDemoHeader } from './demo-header';
 import { KIT_ELEMENTS } from './elements';
 
-/** Dev only: the list of the kit's elements, each rendered with demo data next to design/elements/<name>.html. */
+/** Dev only: the list of reusable elements, each rendered with demo data. */
 @Component({
   selector: 'gw-gallery-index',
   imports: [GwDemoHeader, RouterLink, GwIcon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-page', id: 'main', tabindex: '-1', role: 'main' },
   template: `
-    <header gwDemoHeader title="Elements" description="Every element of the design kit rendered by the app's own components with the demo world's data (BLUEPRINT §9). Compare each one with design/elements/<name>.html; npm run compare -w ui takes both screenshots."></header>
+    <header gwDemoHeader title="Elements" description="Reusable application components rendered with shared demo data. Open an element to inspect its states and interactions."></header>
     <section class="gw-section" aria-labelledby="g-list">
       <div class="gw-section__header">
         <h2 class="gw-section__title" id="g-list">Elements</h2>

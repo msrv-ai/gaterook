@@ -6,7 +6,7 @@ import { GwDemoHeader } from '../demo-header';
 import { kitElement } from '../elements';
 import { GwLiveNote, liveRead } from '../live';
 
-/** Dev only: design/elements/command-palette.html with the dev core's `GET /api/search` (the whole demo world). */
+/** Dev only: command-palette component with the dev core's `GET /api/search` (the whole demo world). */
 @Component({
   selector: 'gw-command-palette-demo',
   imports: [GwDemoHeader, GwCommandPalette, GwIcon, GwLiveNote],

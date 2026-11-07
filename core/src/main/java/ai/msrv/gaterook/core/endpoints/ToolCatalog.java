@@ -44,10 +44,33 @@ public class ToolCatalog {
    * @param inputSchema       every value the endpoint allows now: {@code connection} lists the connections of the
    *                          pairs as its enum, and the Playground offers them
    * @param clientInputSchema what MCP clients get: no enum that follows the endpoint's connections
+   * @param meta              the tool's {@code _meta} for clients (an MCP server's app: {@code ui}), or {@code null}
    */
   public record PublishedTool(String name, String title, String description, ObjectNode inputSchema,
       ObjectNode clientInputSchema, JsonNode outputSchema, ToolDefinition.Annotations annotations,
-      List<EndpointSnapshot.Pair> pairs, String declaredBy, boolean core) {}
+      List<EndpointSnapshot.Pair> pairs, String declaredBy, boolean core, JsonNode meta) {
+
+    public PublishedTool(String name, String title, String description, ObjectNode inputSchema,
+        ObjectNode clientInputSchema, JsonNode outputSchema, ToolDefinition.Annotations annotations,
+        List<EndpointSnapshot.Pair> pairs, String declaredBy, boolean core) {
+      this(name, title, description, inputSchema, clientInputSchema, outputSchema, annotations, pairs, declaredBy,
+          core, null);
+    }
+
+    /** Whether only an MCP App may call it ({@code ui.visibility: ["app"]}): a client without apps doesn't get it. */
+    public boolean appOnly() {
+      JsonNode visibility = meta == null ? null : meta.path("ui").path("visibility");
+      if (visibility == null || !visibility.isArray() || visibility.isEmpty()) {
+        return false;
+      }
+      for (JsonNode v : visibility) {
+        if ("model".equals(v.asString(""))) {
+          return false;
+        }
+      }
+      return true;
+    }
+  }
 
   /**
    * The list of one endpoint.
@@ -88,6 +111,10 @@ public class ToolCatalog {
       }
       out.add(coreTool(snapshot, CoreTools.approvalCard(), false));
       out.add(coreTool(snapshot, CoreTools.approvalCardAction(), false));
+      out.add(coreTool(snapshot, CoreTools.connectionImportSchema(), false));
+      out.add(coreTool(snapshot, CoreTools.connectionImportProgress(), false));
+      out.add(coreTool(snapshot, CoreTools.submitConnectionImport(), false));
+      out.add(coreTool(snapshot, CoreTools.openConnectionImport(), false));
     }
     out.add(coreTool(snapshot, CoreTools.approvalStatus(), false));
     out.sort(java.util.Comparator.comparing(PublishedTool::name));
@@ -162,7 +189,8 @@ public class ToolCatalog {
         ? "A connection named in this tool's description, or one added since: list_connections shows the current ones."
         : "A connection named in this tool's description.");
     return Optional.of(new PublishedTool(name, first.title(), description(first, kept, template, approval), input,
-        client, output == null ? null : output.deepCopy(), first.annotations(), List.copyOf(kept), declaredBy, false));
+        client, output == null ? null : output.deepCopy(), first.annotations(), List.copyOf(kept), declaredBy, false,
+        first.meta() == null ? null : first.meta().deepCopy()));
   }
 
   /**
@@ -296,6 +324,10 @@ public class ToolCatalog {
       n.set("outputSchema", t.outputSchema());
       n.set("annotations", ManifestCodec.writeTool(ToolDefinition.builder(t.name()).annotations(t.annotations())
           .build()).get("annotations"));
+      if (t.meta() != null) {
+        // Only where there is any: the hash of a list without apps stays what it was.
+        n.set("meta", t.meta());
+      }
     }
     return CanonicalJson.sha256Hex(list);
   }

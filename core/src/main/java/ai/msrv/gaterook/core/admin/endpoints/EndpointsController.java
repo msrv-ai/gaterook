@@ -1,5 +1,6 @@
 package ai.msrv.gaterook.core.admin.endpoints;
 
+import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.core.admin.ApiRequestException;
 import ai.msrv.gaterook.core.admin.Modes;
@@ -55,7 +56,7 @@ import tools.jackson.databind.JsonNode;
     EndpointsController.SplitPreview.class, EndpointsController.Check.class, EndpointsController.StartFrom.class})
 class EndpointsController {
 
-  record Create(String slug, String description, String startFrom, String reason) {}
+  record Create(String slug, String description, String startFrom, List<String> connections, String env, String reason) {}
 
   record Duplicate(String slug, String reason) {}
 
@@ -105,11 +106,11 @@ class EndpointsController {
       List<Revision> revisions, String defaultInstructions) {}
 
   /**
-   * One "Start from" card of New endpoint ({@code GET /api/endpoint-starts}): what the endpoint would start with
-   * now ("Read-only dev · 6 dev connections · 12 tools"), counted as its list row counts after Create.
+   * One "Start from" card of New endpoint ({@code GET /api/endpoint-starts}): available connections and the tool
+   * counts if all were selected. None are selected by default.
    *
-   * @param connections the connections it would wire, in the order it wires them
-   * @param tools       its pairs by mode, core tools included ({@code read + approval} are on)
+   * @param connections the connections available for explicit selection, in wiring order
+   * @param tools       pairs by mode with all candidates selected, core tools included
    */
   record StartFrom(String startFrom, String env, String access, List<String> connections,
       EndpointDtos.ToolCounts tools) {}
@@ -191,7 +192,7 @@ class EndpointsController {
   }
 
   /**
-   * New endpoint › Start from: each start with the connections and tools it would get now. Not under
+   * New endpoint › Start from: each start with the connections available for selection. Not under
    * {@code /api/endpoints/}: any word there may be an endpoint's slug.
    */
   @GetMapping("/api/endpoint-starts")
@@ -209,8 +210,16 @@ class EndpointsController {
   ResponseEntity<EndpointDtos.Summary> create(@RequestBody Create request) {
     EndpointService.Summary s = endpoints.create(request.slug(), request.description(),
         EndpointService.StartFrom.of(request.startFrom() == null ? "empty" : request.startFrom()),
-        Reasons.check(request.reason()));
+        request.connections(), initialEnv(request.env()), Reasons.check(request.reason()));
     return ResponseEntity.status(HttpStatus.CREATED).body(EndpointDtos.summary(s, 0, List.of()));
+  }
+
+  private static Env initialEnv(String id) {
+    if (id == null) return null;
+    try { return Env.of(id); }
+    catch (IllegalArgumentException e) {
+      throw ApiRequestException.unprocessable("Unknown environment", "Choose dev, stage or prod.", "/env");
+    }
   }
 
   @PostMapping("/api/endpoints/{slug}/duplicate")

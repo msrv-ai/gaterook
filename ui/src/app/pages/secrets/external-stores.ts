@@ -2,18 +2,23 @@ import {
   ChangeDetectionStrategy,
   Component,
   DOCUMENT,
+  DestroyRef,
   ElementRef,
   Injector,
   afterNextRender,
   computed,
+  effect,
   inject,
+  input,
+  output,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import { FormField, form, validate } from '@angular/forms/signals';
 import { RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
-import { SecretStore, SecretStoreCreate, SecretStoreKind } from '../../core/api/secrets.api';
+import { SecretStore, SecretStoreCreate, SecretStoreKind, SecretStoreTest } from '../../core/api/secrets.api';
 import { JsonObject } from '../../core/api/types';
 import { GwCodeBlock } from '../../code/code-block';
 import { Announcer } from '../../kit/announcer';
@@ -48,21 +53,46 @@ import {
   waitingFor,
   waitingText,
 } from './secrets-view';
-import { AWS_REGIONS, ConnectModel, FIELD_POINTERS, SecretKey, connectRequest, emptyConnectModel, externalId, fieldProblem, isPlainHttp, storeName } from './store-connect';
+import { AWS_REGIONS, ChosenFile, ConnectModel, FIELD_POINTERS, SecretKey, connectRequest, emptyConnectModel, externalId, fieldProblem, isPlainHttp, storeName } from './store-connect';
+import { DesktopBridge, desktopErrorText } from '../../core/desktop/desktop-bridge';
+import { matchingVault, vaultIdentity } from './vault-identity';
+
+export interface PreparedVaultCredential {
+  readonly field: string;
+  readonly source: string;
+  readonly path?: string;
+  readonly jsonPointer?: string;
+}
+
+export interface VaultConnectPrefill {
+  readonly name?: string;
+  readonly address?: string;
+  readonly namespace?: string;
+  readonly method?: 'token' | 'approle' | 'cli-token' | 'token-file';
+  readonly roleId?: string;
+  readonly prepared?: readonly PreparedVaultCredential[];
+}
+
+export type StoreConnected = { readonly store: SecretStore; readonly test: SecretStoreTest | null };
+export type StoreConnectHandler = (request: SecretStoreCreate, preparedFields: readonly string[]) => Promise<StoreConnected>;
 
 const NO_ANSWER = 'The core didn’t answer. Try again.';
 
-/** One card of External stores: a connected store, or the dashed card of a kind that has none. */
+/**
+ * One card of External stores: a connected store, the dashed card of a kind that has none, or the dashed card that
+ * connects another Vault (prod and stage often have their own).
+ */
 interface StoreCard {
   readonly key: string;
   readonly anchor: string;
   readonly info: StoreKindInfo;
   readonly store: SecretStore | null;
   readonly title: string;
+  readonly another?: boolean;
 }
 
 /**
- * Secrets › External stores (design/pages/secrets.html `#external-stores`; ARCHITECTURE.md §6 `/api/secret-stores`,
+ * Secrets › External stores (ARCHITECTURE.md §6 `/api/secret-stores`,
  * step S1): HashiCorp Vault / OpenBao, GCP Secret Manager and AWS Secrets Manager, read at call time and never copied
  * here. A connected store shows how it signs in and what reads through it, with Test and Disconnect; a kind without a
  * store is a dashed card with Connect and the references that wait for it. Until the core has the stores' API (S1 not
@@ -78,15 +108,20 @@ interface StoreCard {
   selector: 'section[gwExternalStores]',
   imports: [RouterLink, FormField, GwIcon, GwDialog, GwDialogClose, GwToggle, GwCodeBlock, GwCopy, GwReveal, GwJump],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'gw-section', id: 'external-stores', 'aria-labelledby': 'es-title' },
+  host: { '[class.gw-section]': '!dialogsOnly()', id: 'external-stores', '[attr.aria-labelledby]': 'dialogsOnly() ? null : "es-title"' },
   templateUrl: './external-stores.html',
 })
 export class GwExternalStores {
+  readonly dialogsOnly = input(false);
+  readonly preventDuplicateVault = input(false);
+  readonly submitOverride = input<StoreConnectHandler | null>(null);
+  readonly storeConnected = output<StoreConnected>();
   protected readonly data = inject(SecretsData);
   private readonly toasts = inject(ToastService);
   private readonly announcer = inject(Announcer);
   private readonly injector = inject(Injector);
   private readonly doc = inject(DOCUMENT);
+  private readonly destroy = inject(DestroyRef);
 
   private readonly connectDialog = viewChild.required<GwDialog>('connectDialog');
   private readonly plainHttpDialog = viewChild.required<GwDialog>('plainHttpDialog');
@@ -110,20 +145,26 @@ export class GwExternalStores {
   protected readonly stores = computed(() => this.data.stores().value);
   protected readonly summary = computed(() => storesSummary(this.stores() ?? []));
 
-  /** Kit order: Vault, GCP SM, AWS SM; each store of a kind, or one dashed card for a kind without any. */
+  /**
+   * Kit order: Vault, GCP SM, AWS SM; each store of a kind, or one dashed card for a kind without any. Connected Vaults
+   * are followed by a dashed card for another one, and are named in their titles once there are several or one has a
+   * name of its own.
+   */
   protected readonly cards = computed<StoreCard[]>(() => {
     const stores = this.stores() ?? [];
     const anchors = storeAnchors(stores);
     return STORE_KINDS.flatMap((info): StoreCard[] => {
       const mine = stores.filter((s) => s.kind === info.kind);
       if (!mine.length) return [{ key: info.kind, anchor: `store-${info.kind.replace(/-sm$/, '')}`, info, store: null, title: info.title }];
-      return mine.map((s) => ({
+      const cards: StoreCard[] = mine.map((s) => ({
         key: s.id,
         anchor: anchors.get(s.name) ?? s.id,
         info,
         store: s,
-        title: mine.length > 1 ? `${info.title} · ${s.name}` : info.title,
+        title: mine.length > 1 || (info.kind === 'vault' && s.name !== 'vault') ? `${info.title} · ${s.name}` : info.title,
       }));
+      if (info.kind === 'vault') cards.push({ key: 'vault-another', anchor: 'store-vault-another', info, store: null, title: info.title, another: true });
+      return cards;
     });
   });
 
@@ -167,6 +208,9 @@ export class GwExternalStores {
   protected readonly serverErrors = signal<{ readonly [key: string]: string }>({});
 
   protected readonly model = signal<ConnectModel>(emptyConnectModel());
+  protected readonly preparedCredentials = signal<readonly PreparedVaultCredential[]>([]);
+  protected readonly keptPrepared = signal<ReadonlySet<string>>(new Set());
+  private preparedTarget: string | null = null;
   protected readonly connectForm = form(
     this.model,
     (p) => {
@@ -174,13 +218,51 @@ export class GwExternalStores {
       for (const key of Object.keys(emptyConnectModel()) as (keyof ConnectModel)[]) {
         validate(p[key], () => {
           const kind = this.connecting()?.kind;
-          const problem = kind ? fieldProblem(kind, key, this.model()) : null;
+          const stores = this.stores() ?? [];
+          const existing = this.submitOverride() && this.preventDuplicateVault()
+            ? matchingVault(stores, this.model().address, this.model().namespace) : null;
+          // The import handler checks a possible previous successful request before rejecting a duplicate.
+          const taken = stores.filter(store => store.id !== existing?.id).map(store => store.name);
+          const problem = kind ? fieldProblem(kind, key, this.model(), taken) : null;
           return problem ? { kind: 'invalid', message: problem } : null;
         });
       }
     },
     { injector: this.injector },
   );
+
+  // ── Vault token file ──────────────────────────────────────────────────────────────────────────────────────────
+
+  protected readonly desktop = inject(DesktopBridge);
+  /** The token file chosen in the desktop app's dialog: its grant goes with the store, its path is only shown. */
+  protected readonly tokenFile = signal<ChosenFile | null>(null);
+  protected readonly choosingTokenFile = signal(false);
+  protected readonly tokenFileError = signal<string | null>(null);
+
+  protected setTokenSource(source: ConnectModel['tokenSource']): void {
+    this.model.update((m) => ({ ...m, tokenSource: source }));
+    this.secretErrors.set({});
+    if (source === 'stored') this.tokenFileError.set(null);
+  }
+
+  protected async chooseTokenFile(): Promise<void> {
+    if (!this.desktop.vaultTokenPickerAvailable || this.choosingTokenFile() || this.connectBusy()) return;
+    this.choosingTokenFile.set(true);
+    this.tokenFileError.set(null);
+    try {
+      const chosen = await this.desktop.chooseVaultTokenFile();
+      // The dialog may outlive the connect dialog.
+      if (chosen && this.connecting()?.kind === 'vault') {
+        this.tokenFile.set(chosen);
+        this.secretErrors.update((e) => { const next = { ...e }; delete next['tokenFile']; return next; });
+        this.serverErrors.update((e) => { const next = { ...e }; delete next['tokenFile']; return next; });
+      }
+    } catch (err) {
+      this.tokenFileError.set(desktopErrorText(err, 'Could not open the file dialog. Try again.'));
+    } finally {
+      this.choosingTokenFile.set(false);
+    }
+  }
 
   /** A field's error once the person tried to send (or the core named it). */
   protected fieldError(key: keyof ConnectModel | SecretKey): string | null {
@@ -194,18 +276,70 @@ export class GwExternalStores {
   }
 
   protected openConnect(info: StoreKindInfo, e: Event): void {
+    this.beginConnect(info, e.currentTarget as HTMLElement);
+  }
+
+  private beginConnect(info: StoreKindInfo, opener: HTMLElement): void {
     const rows = this.data.rows().value ?? [];
     // AWS: the region a waiting reference names (aws-sm://eu-central-1/…), so the store resolves it at once.
     const waitingRef = rows.find((r) => r.state === 'not-connected' && kindOfRef(r.ref) === info.kind)?.ref ?? null;
     const region = waitingRef && info.kind === 'aws-sm' ? (/^aws-sm:\/\/([a-z0-9-]+)\//.exec(waitingRef)?.[1] ?? null) : null;
-    this.model.set({ ...emptyConnectModel(), region: region && AWS_REGIONS.includes(region) ? region : 'us-east-1', externalId: externalId() });
+    const taken = (this.stores() ?? []).map((s) => s.name);
+    this.model.set({
+      ...emptyConnectModel(),
+      name: info.kind === 'vault' ? storeName('vault', emptyConnectModel(), taken) : '',
+      region: region && AWS_REGIONS.includes(region) ? region : 'us-east-1',
+      externalId: externalId(),
+    });
+    this.tokenFile.set(null);
+    this.tokenFileError.set(null);
     this.connecting.set(info);
     this.connectBusy.set(false);
     this.connectError.set(null);
     this.submitted.set(false);
     this.secretErrors.set({});
     this.serverErrors.set({});
-    this.connectDialog().openAfterRender(e.currentTarget as HTMLElement);
+    this.preparedCredentials.set([]); this.keptPrepared.set(new Set());
+    this.connectDialog().openAfterRender(opener);
+  }
+
+  constructor() {
+    effect(() => {
+      const model = this.model();
+      const target = `${vaultIdentity(model.address, model.namespace)}|${model.method}|${model.tokenSource}|${model.roleId}`;
+      if (target !== this.preparedTarget) {
+        this.preparedTarget = target;
+        untracked(() => this.keptPrepared.set(new Set()));
+      }
+    });
+  }
+
+  /** Opens the normal reviewed Vault form with non-secret discoveries; credentials remain write-only. */
+  openVault(prefill: VaultConnectPrefill, opener: HTMLElement): void {
+    if (this.connectBusy()) return;
+    if (this.preventDuplicateVault() && matchingVault(this.stores() ?? [], prefill.address ?? '', prefill.namespace ?? '')) return;
+    this.beginConnect(STORE_KINDS.find(info => info.kind === 'vault')!, opener);
+    this.model.update(model => ({ ...model, name: prefill.name || model.name, address: prefill.address ?? '',
+      namespace: prefill.namespace ?? '', method: prefill.method === 'token-file' ? 'token' : prefill.method ?? 'approle',
+      tokenSource: prefill.method === 'token-file' ? 'file' : 'stored', roleId: prefill.roleId ?? '' }));
+    this.preparedCredentials.set((prefill.prepared ?? []).filter(source => ['/auth/token', '/auth/secretId'].includes(source.field)));
+    const model = this.model();
+    const identity = vaultIdentity(model.address, model.namespace);
+    this.preparedTarget = `${identity}|${model.method}|${model.tokenSource}|${model.roleId}`;
+    const field = model.method === 'approle' ? '/auth/secretId' : model.method === 'token' && model.tokenSource === 'stored' ? '/auth/token' : null;
+    this.keptPrepared.set(new Set(identity && field && this.preparedCredential(field) ? [field] : []));
+  }
+
+  protected preparedCredential(field: string): PreparedVaultCredential | null {
+    return this.preparedCredentials().find(source => source.field === field) ?? null;
+  }
+
+  protected keepPrepared(field: string, checked: boolean): void {
+    if (this.connectBusy() || !this.preparedCredential(field)) return;
+    this.keptPrepared.update(fields => { const next = new Set(fields); if (checked) next.add(field); else next.delete(field); return next; });
+    const input = field === '/auth/token' ? this.vaultToken() : this.vaultSecretId();
+    if (checked && input) input.nativeElement.value = '';
+    this.secretErrors.set({});
   }
 
   /** Test and connect: create the store, then test it; a failed test leaves it connected and failing. */
@@ -221,6 +355,10 @@ export class GwExternalStores {
     this.submitted.set(true);
     this.serverErrors.set({});
     this.connectError.set(null);
+    if (info.kind === 'vault' && this.preventDuplicateVault() && !this.submitOverride()) {
+      const existing = matchingVault(this.stores() ?? [], this.model().address, this.model().namespace);
+      if (existing) { this.connectError.set({ title: 'This Vault is already configured', body: `Use ${existing.name} instead of creating another store for this address and namespace.` }); return; }
+    }
     const secrets = this.readSecrets(info.kind);
     if (this.connectForm().invalid() || Object.keys(this.secretErrors()).length) {
       this.focusFirstError();
@@ -234,13 +372,19 @@ export class GwExternalStores {
       return;
     }
     const taken = (this.stores() ?? []).map((s) => s.name);
-    const request: SecretStoreCreate = connectRequest(info.kind, storeName(info.kind, this.model(), taken), this.model(), secrets, plainHttp);
+    const request: SecretStoreCreate = connectRequest(info.kind, storeName(info.kind, this.model(), taken), this.model(), secrets, plainHttp, this.tokenFile());
     this.connectBusy.set(true);
     try {
-      const { store, test } = await this.data.connectStore(request);
+      const preparedFields = info.kind !== 'vault' ? [] : this.model().method === 'approle'
+        ? [...this.keptPrepared()].filter(field => field === '/auth/secretId')
+        : this.model().method === 'token' && this.model().tokenSource === 'stored' ? [...this.keptPrepared()].filter(field => field === '/auth/token') : [];
+      const { store, test } = await (this.submitOverride()?.(request, preparedFields) ?? this.data.connectStore(request));
+      if (this.destroy.destroyed) return;
       this.clearSecrets();
       this.connectDialog().close('connected');
-      this.toast(connectedToast(info.title, store, test));
+      // Several Vaults: the toast names the one connected.
+      this.toast(connectedToast(info.kind === 'vault' ? `${info.title} · ${store.name}` : info.title, store, test));
+      this.storeConnected.emit({ store, test });
     } catch (err) {
       this.applyError(err);
     } finally {
@@ -264,7 +408,10 @@ export class GwExternalStores {
     this.plainHttpDialog().close();
     this.pendingHttpAddress.set(null);
     this.clearSecrets();
+    this.tokenFile.set(null);
+    this.tokenFileError.set(null);
     this.connecting.set(null);
+    this.preparedCredentials.set([]); this.keptPrepared.set(new Set());
   }
 
   /** The sign-in values of the kind's form, from their fields (each required for its sign-in method). */
@@ -278,8 +425,9 @@ export class GwExternalStores {
       else out[pointer] = v;
     };
     if (kind === 'aws-sm' && m.awsSource === 'accessKey') take('secretAccessKey', '/credentials/secretAccessKey', this.awsSecret()?.nativeElement, 'Enter the secret access key.');
-    if (kind === 'vault' && m.method === 'approle') take('secretId', '/auth/secretId', this.vaultSecretId()?.nativeElement, 'Enter the AppRole secret ID.');
-    if (kind === 'vault' && m.method === 'token') take('token', '/auth/token', this.vaultToken()?.nativeElement, 'Enter the Vault token.');
+    if (kind === 'vault' && m.method === 'approle' && !this.keptPrepared().has('/auth/secretId')) take('secretId', '/auth/secretId', this.vaultSecretId()?.nativeElement, 'Enter the AppRole secret ID.');
+    if (kind === 'vault' && m.method === 'token' && m.tokenSource === 'stored' && !this.keptPrepared().has('/auth/token')) take('token', '/auth/token', this.vaultToken()?.nativeElement, 'Enter the Vault token.');
+    if (kind === 'vault' && m.method === 'token' && m.tokenSource === 'file' && !this.tokenFile()) errors['tokenFile'] = 'Choose the file that holds the Vault token.';
     if (kind === 'gcp-sm' && m.gcpSource === 'serviceAccountKey') take('serviceAccountKey', '/credentials/serviceAccountKey', this.gcpKey()?.nativeElement, 'Paste the service account key (JSON).');
     this.secretErrors.set(errors);
     return out;
@@ -387,7 +535,7 @@ export class GwExternalStores {
       this.focusFirstError();
       return;
     }
-    this.connectError.set({ title: isApiError(err) ? err.title : "It didn't connect", body: this.errorText(err) });
+    this.connectError.set({ title: isApiError(err) ? err.title : "It didn't connect", body: this.submitOverride() && err instanceof Error ? err.message : this.errorText(err) });
   }
 
   private focusFirstError(): void {

@@ -112,7 +112,7 @@ public class CoreToolsHandler {
       } else {
         ConnectorInvoker.Outcome described = describe(r, s, wired, args.path("object").asString(null), callId);
         resourceMs = described.resourceMs();
-        result = describeResult(s, wired, described, policies.maskPolicy(wired.config().env()));
+        result = describeResult(s, wired, described, describeMask(s, wired));
       }
     }
     Limits limits = policies.limits(s.env());
@@ -173,8 +173,15 @@ public class CoreToolsHandler {
     ToolCall call = new ToolCall(callId, CoreTools.DESCRIBE_CONNECTION, w.config().name(),
         JsonNodeFactory.instance.objectNode(), null);
     return invoker.describe(new ConnectorInvoker.Request(callId, w.config(), call, limits,
-        policies.maskPolicy(w.config().env()), r.span().traceId(), r.span().traceparent(),
+        describeMask(s, w), r.span().traceId(), r.span().traceparent(),
         () -> snapshots.requireAvailable(s.id(), w.config().name())), object);
+  }
+
+  /** The masking of describe_connection: the one its limits come from, a pair of the connection on the endpoint. */
+  private MaskPolicy describeMask(EndpointSnapshot s, EndpointSnapshot.Wired w) {
+    EndpointSnapshot.Pair any = s.pairs().stream().filter(p -> p.config().id().equals(w.config().id())).findFirst()
+        .orElse(null);
+    return any == null ? policies.maskPolicy(w.config().env()) : engine.maskPolicy(any.view(), w.config());
   }
 
   /**

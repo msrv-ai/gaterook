@@ -1,10 +1,6 @@
 package ai.msrv.gaterook.connectors.mcpserver;
 
-import io.modelcontextprotocol.json.McpJsonMapper;
-import io.modelcontextprotocol.json.TypeRef;
-import io.modelcontextprotocol.spec.McpClientTransport;
-import io.modelcontextprotocol.spec.McpSchema;
-import io.modelcontextprotocol.spec.McpTransportException;
+import ai.msrv.gaterook.connector.api.ConnectorException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -19,34 +15,32 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.UnaryOperator;
-import reactor.core.publisher.Mono;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The stdio transport of an MCP server's process (ARCHITECTURE.md §7.5), in place of the SDK's
+ * The stdio channel of an MCP server's process (ARCHITECTURE.md §7.5), in place of the SDK's
  * {@code StdioClientTransport}, which inherits the core's whole environment, hides the process (no pid, so no tree to
  * stop), logs every line it can't parse at ERROR and keeps platform threads of its own.
  *
  * <p>Here the process gets exactly the environment it is given and the work folder; stdout is read line by line on a
- * virtual thread (a line over {@code maxLine} characters or one that isn't JSON-RPC ends the session, with the reason
- * kept for the test: a server that writes logs to stdout corrupts the protocol), stderr goes to a sink that masks and
- * keeps it, and messages to the server are written by one writer thread so that answering a server's request never
- * waits for the server to read.
+ * virtual thread (a line over {@code maxLine} characters or one that isn't a JSON-RPC object ends the session, with the
+ * reason kept for the test: a server that writes logs to stdout corrupts the protocol), stderr goes to a sink that masks
+ * and keeps it, and messages to the server are written by one writer thread so that answering a server's request never
+ * waits for the server to read. Both protocol eras use it as it is: one JSON object per line.
  */
-final class GatewayStdioTransport implements McpClientTransport {
+final class GatewayStdioTransport implements Channel {
 
   private final List<String> argv;
   private final Map<String, String> env;
   private final Path workDir;
-  private final McpJsonMapper mapper;
   private final int maxLine;
   private final Consumer<String> stderr;
   private final UnaryOperator<String> mask;
-  private final BlockingQueue<McpSchema.JSONRPCMessage> outbound = new LinkedBlockingQueue<>();
+  private final BlockingQueue<ObjectNode> outbound = new LinkedBlockingQueue<>();
   private volatile Process process;
-  private volatile Function<Mono<McpSchema.JSONRPCMessage>, Mono<McpSchema.JSONRPCMessage>> handler;
-  private volatile Consumer<Throwable> exceptions = t -> {};
+  private volatile Sink sink;
   private volatile boolean closing;
   private volatile String failure;
 
@@ -55,19 +49,18 @@ final class GatewayStdioTransport implements McpClientTransport {
    * @param mask   masks the server's secrets in a line of stdout the transport quotes as the reason it stopped: that
    *               reason reaches the start's error, the process state the UI shows and the log
    */
-  GatewayStdioTransport(List<String> argv, Map<String, String> env, Path workDir, McpJsonMapper mapper, int maxLine,
+  GatewayStdioTransport(List<String> argv, Map<String, String> env, Path workDir, int maxLine,
       Consumer<String> stderr, UnaryOperator<String> mask) {
     this.argv = List.copyOf(argv);
     this.env = Map.copyOf(env);
     this.workDir = workDir;
-    this.mapper = mapper;
     this.maxLine = maxLine;
     this.stderr = stderr;
     this.mask = mask;
   }
 
   /**
-   * Spawns the process; before {@link #connect}, so that a command that can't start says why in the caller's thread.
+   * Spawns the process; before {@link #open}, so that a command that can't start says why in the caller's thread.
    *
    * @throws IOException as {@link ProcessBuilder#start} reports it ("No such file or directory")
    */
@@ -97,35 +90,34 @@ final class GatewayStdioTransport implements McpClientTransport {
   }
 
   @Override
-  public Mono<Void> connect(Function<Mono<McpSchema.JSONRPCMessage>, Mono<McpSchema.JSONRPCMessage>> handler) {
-    return Mono.fromRunnable(() -> {
-      Process p = process;
-      if (p == null) {
-        throw new IllegalStateException("The process wasn't started");
-      }
-      this.handler = handler;
-      Thread.ofVirtual().name("mcp-stdout-" + p.pid()).start(() -> read(p));
-    });
+  public void open(Sink sink) throws ConnectorException {
+    Process p = process;
+    if (p == null) {
+      throw new IllegalStateException("The process wasn't started");
+    }
+    this.sink = sink;
+    Thread.ofVirtual().name("mcp-stdout-" + p.pid()).start(() -> read(p));
   }
 
   @Override
-  public void setExceptionHandler(Consumer<Throwable> handler) {
-    this.exceptions = handler;
-  }
-
-  @Override
-  public Mono<Void> sendMessage(McpSchema.JSONRPCMessage message) {
+  public Exchange send(ObjectNode message, Map<String, String> headers) {
     Process p = process;
     if (closing || p == null || !p.isAlive()) {
-      return Mono.error(new McpTransportException(failure != null ? failure : "The server's process isn't running"));
+      return Exchange.failed(new Failure(failure != null ? failure : "The server's process isn't running"));
     }
     outbound.add(message);
-    return Mono.empty();
+    return Exchange.completed();
   }
 
   @Override
-  public <T> T unmarshalFrom(Object data, TypeRef<T> typeRef) {
-    return mapper.convertValue(data, typeRef);
+  public boolean answersInExchange() {
+    return false;
+  }
+
+  @Override
+  public boolean alive() {
+    Process p = process;
+    return !closing && p != null && p.isAlive();
   }
 
   /**
@@ -133,24 +125,22 @@ final class GatewayStdioTransport implements McpClientTransport {
    * supervisor then stops what is left of the process tree.
    */
   @Override
-  public Mono<Void> closeGracefully() {
-    return Mono.fromRunnable(() -> {
-      closing = true;
-      Process p = process;
-      if (p == null) {
-        return;
-      }
-      try {
-        p.getOutputStream().close();
-      } catch (IOException e) {
-        // Already closed by a dead process.
-      }
-      try {
-        p.waitFor(2, TimeUnit.SECONDS);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-      }
-    });
+  public void close() {
+    closing = true;
+    Process p = process;
+    if (p == null) {
+      return;
+    }
+    try {
+      p.getOutputStream().close();
+    } catch (IOException e) {
+      // Already closed by a dead process.
+    }
+    try {
+      p.waitFor(EXIT_GRACE.toMillis(), TimeUnit.MILLISECONDS);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
   }
 
   // ── Threads ─────────────────────────────────────────────────────────────────────────────────────────────────
@@ -163,23 +153,39 @@ final class GatewayStdioTransport implements McpClientTransport {
         if (line.isBlank()) {
           continue;
         }
-        McpSchema.JSONRPCMessage message;
-        try {
-          message = McpSchema.deserializeJsonRpcMessage(mapper, line);
-        } catch (IOException | RuntimeException e) {
+        ObjectNode message = parse(line);
+        if (message == null) {
           // Masked before the cut (a cut secret would show its start) and after the cleaning (which may join one).
           fail("Wrote non-JSON to stdout: " + mask.apply(Texts.clean(mask.apply(line), 200, false)));
           return;
         }
-        Function<Mono<McpSchema.JSONRPCMessage>, Mono<McpSchema.JSONRPCMessage>> h = handler;
-        if (h != null) {
-          h.apply(Mono.just(message)).subscribe(ignored -> {}, error -> {});
+        Sink s = sink;
+        if (s != null) {
+          s.message(message, null);
         }
       }
     } catch (LineReader.TooLongException e) {
       fail("Sent a message over " + (maxLine / (1024 * 1024)) + " MB on stdout");
     } catch (IOException e) {
       // The process ended; the supervisor hears it from its exit.
+    } finally {
+      Sink s = sink;
+      if (s != null) {
+        s.closed(failure != null ? failure : "The server's process ended");
+      }
+    }
+  }
+
+  /** One JSON-RPC object of a line, or {@code null} when the line is anything else. */
+  static ObjectNode parse(String line) {
+    try {
+      JsonNode tree = Texts.JSON.readTree(line);
+      if (tree instanceof ObjectNode o && "2.0".equals(Texts.str(o.get("jsonrpc"), null))) {
+        return o;
+      }
+      return null;
+    } catch (RuntimeException e) {
+      return null;
     }
   }
 
@@ -208,12 +214,12 @@ final class GatewayStdioTransport implements McpClientTransport {
     OutputStream out = p.getOutputStream();
     try {
       while (!closing && p.isAlive()) {
-        McpSchema.JSONRPCMessage m = outbound.poll(200, TimeUnit.MILLISECONDS);
+        ObjectNode m = outbound.poll(200, TimeUnit.MILLISECONDS);
         if (m == null) {
           continue;
         }
         // One message per line (MCP stdio): a line break inside a JSON string is already escaped by the writer.
-        byte[] json = mapper.writeValueAsString(m).getBytes(StandardCharsets.UTF_8);
+        byte[] json = Texts.JSON.writeValueAsString(m).getBytes(StandardCharsets.UTF_8);
         out.write(json);
         out.write('\n');
         out.flush();
@@ -222,7 +228,7 @@ final class GatewayStdioTransport implements McpClientTransport {
       Thread.currentThread().interrupt();
     } catch (IOException e) {
       if (!closing) {
-        exceptions.accept(new McpTransportException("The server stopped reading its input", e));
+        fail("The server stopped reading its input");
       }
     }
   }

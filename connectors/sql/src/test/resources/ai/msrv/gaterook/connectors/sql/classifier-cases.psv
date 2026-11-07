@@ -334,3 +334,28 @@ my | query | dev | SELECT 1 FROM DUAL | READ | allowlist=app.orders
 my | query | dev | SELECT * FROM orders | DENY table-not-allowed | allowlist=app.orders;nodb
 my | query | dev | SELECT * FROM app.orders | READ | allowlist=app.orders;nodb
 my | execute | dev | UPDATE secrets SET a = 1 | DENY table-not-allowed | allowlist=app.orders
+#
+# ── GR-06: a cast of a function's name must not hide a real call of it ─────────────────────────────────────
+pg | query | dev | SELECT CAST(NULL AS pg_terminate_backend) FROM orders WHERE note LIKE 'y' ESCAPE pg_terminate_backend(1)::text | DENY function-denied
+pg | query | dev | SELECT NULL::pg_terminate_backend FROM orders WHERE note LIKE 'y' ESCAPE pg_terminate_backend(1)::text | DENY function-denied
+pg | query | dev | SELECT CAST(NULL AS pg_read_file) FROM orders WHERE note SIMILAR TO 'x' ESCAPE pg_read_file('/etc/passwd')::text | DENY function-denied
+pg | query | dev | SELECT note::varchar(10), CAST(total AS numeric(10, 2)), now()::date FROM orders | READ
+#
+# ── GR-06: EXPLAIN <table> (a DESCRIBE synonym) is checked against the allowlist, not passed with no tables ─
+my | query | dev | EXPLAIN orders | READ
+my | query | dev | EXPLAIN orders | READ | allowlist=app.orders
+my | query | dev | EXPLAIN other.secret | DENY table-not-allowed | allowlist=app.orders
+my | query | dev | EXPLAIN other.secret | READ
+#
+# ── GR-06: SHOW exposes server-wide metadata, so a restricted connection fails closed ──────────────────────
+my | query | dev | SHOW DATABASES | READ
+my | query | dev | SHOW DATABASES | DENY table-not-allowed | allowlist=app.orders
+my | query | dev | SHOW VARIABLES | DENY table-not-allowed | allowlist=app.orders
+pg | query | dev | SHOW search_path | DENY table-not-allowed | allowlist=public.orders
+#
+# ── GR-06: a denied function inside CALL is refused, not sent for approval ──────────────────────────────────
+pg | query | dev | CALL p(pg_terminate_backend(1)) | DENY function-denied
+pg | execute | dev | CALL p(pg_terminate_backend(1)) | DENY function-denied
+my | query | dev | CALL p(GET_LOCK('a', 10)) | DENY function-denied
+my | execute | dev | CALL p(GET_LOCK('a', 10)) | DENY function-denied
+pg | execute | dev | CALL p(1) | MUTATION

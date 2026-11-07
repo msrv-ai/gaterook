@@ -33,7 +33,7 @@ import {
 } from './connections-view';
 import { SECRETS, SHORT_LIVED, at, detail, kitRows, outcome, row, secret } from './connections.fixtures';
 
-/** The page's wording and grouping against the kit page (design/pages/connections.html). */
+/** The page's wording and grouping against the kit page. */
 
 describe('Connections view: filters and counts', () => {
   it('sorts by name and filters by search, type, environment and health together', () => {
@@ -61,6 +61,20 @@ describe('Connections view: filters and counts', () => {
     expect(parseHealth(undefined)).toBe('all');
     expect(parseEnv('prod')).toBe('prod');
     expect(parseEnv('production')).toBe('all');
+  });
+
+  it('combines endpoint exclusion with search, type, environment and health', () => {
+    const rows = [
+      row('available-dev', { usedBy: [] }),
+      row('available-prod', { usedBy: ['incident-prod'], env: 'prod' }),
+      row('available-cache', { usedBy: [], type: 'redis', typeName: 'Redis' }),
+      row('available-unchecked', { usedBy: [], setupRequired: true, health: { state: 'unknown', latencyMs: null, message: null, checkedAt: null } }),
+      row('connected-dev', { usedBy: ['dev'] }),
+      row('connected-multiple', { usedBy: ['stage', 'dev'] }),
+    ];
+    expect(filtered(rows, { ...NO_FILTERS, notConnectedTo: 'dev' }).map((r) => r.name)).toEqual(['available-dev', 'available-prod', 'available-cache', 'available-unchecked']);
+    expect(filtered(rows, { ...NO_FILTERS, notConnectedTo: 'dev', q: 'available', type: 'postgres', env: 'dev', health: 'healthy' }).map((r) => r.name)).toEqual(['available-dev']);
+    expect(isFiltered({ ...NO_FILTERS, notConnectedTo: 'dev' })).toBe(true);
   });
 
   it('lists the types the connections have in the kit’s order, with counts', () => {
@@ -110,7 +124,7 @@ describe('Connections view: filters and counts', () => {
     expect(countText(0, 12)).toBe('0 of 12 connections');
   });
 
-  it('writes health like BLUEPRINT §7', () => {
+  it('writes health like status vocabulary', () => {
     const [, , billing, redis, , devDb] = kitRows();
     expect(healthCell(devDb)).toMatchObject({ tone: 'success', text: 'Healthy · 12 ms' });
     expect(healthCell(redis)).toMatchObject({ tone: 'warning', text: 'Slow · 1.8 s' });

@@ -9,7 +9,7 @@ import { DEMO_RISK, DEMO_SPLIT } from '../fixtures';
 import { GwLiveNote, demoFixture, liveRead } from '../live';
 
 /**
- * Dev only: design/elements/risk-callout.html. dev, stage-readonly and incident-prod are the dev core's
+ * Dev only: risk-callout component. dev, stage-readonly and incident-prod are the dev core's
  * (`GET /api/endpoints/{slug}/risk`, the endpoint list for the compact rows, the split preview); the partial
  * combination (an endpoint being built) and a dismissal are fixtures: the demo world has neither. The split options
  * are the page's suggestions, also fixtures.

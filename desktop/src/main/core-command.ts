@@ -79,7 +79,7 @@ export const CORE_ENV_ALLOWLIST: readonly string[] = [
   'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY', 'https_proxy', 'http_proxy', 'no_proxy', 'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE',
 ];
 
-/** Development builds pass these on too (the demo world of BLUEPRINT §9). */
+/** Development builds pass these on too (the demo world). */
 export const DEV_ENV_PASSTHROUGH: readonly string[] = ['GW_DEMO'];
 
 export function coreEnv(source: NodeJS.ProcessEnv, dev: boolean, options?: Pick<CoreArgsOptions, 'home' | 'platform'>): Record<string, string> {

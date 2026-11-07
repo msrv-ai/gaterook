@@ -1,22 +1,28 @@
 package ai.msrv.gaterook.pluginhost;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * The first stage of a plugin host on Linux (ARCHITECTURE.md §7.5, review 2026-10-27):
- * {@code java -cp plugin-host.jar ai.msrv.gaterook.pluginhost.SandboxExec [--ro <path>]… [--rw <path>]… -- <command…>}.
+ * {@code java -cp plugin-host.jar ai.msrv.gaterook.pluginhost.SandboxExec [--ro <path>]… [--rw <path>]…
+ * [--deny-tcp <port>]… -- <command…>}.
  *
  * <p>Landlock confines a thread and the threads it starts later, not a process ({@link Sandbox}), and a JVM has many
  * threads before {@code main}. So this small JVM confines its own main thread — no new privileges, a ruleset that
- * reads the system and the {@code --ro} paths and writes the {@code --rw} paths and devices — and then
- * {@code execve}s the command on that thread: the host's JVM starts inside the domain, every thread it ever makes is
- * confined, and nothing in it can lift the restriction. The pid and the pipes stay the same, so the core sees one
- * process. The command gets the environment it was given plus {@code MCP_GATEWAY_SANDBOX=landlock}, which the host
- * reports back in {@code plugin/load}.
+ * reads the system and the {@code --ro} paths, writes the {@code --rw} paths and devices, and neither binds nor
+ * connects a TCP socket to a {@code --deny-tcp} port (the core's own listeners: Landlock ABI 4 or later, else said on
+ * stderr), and from ABI 6 is scoped out of the session's abstract Unix sockets and the signals of other processes
+ * (else said on stderr too) — and then {@code execve}s the command on that thread: the host's JVM starts inside the
+ * domain, every thread it ever makes is confined, and nothing in it can lift the restriction. The pid and the pipes
+ * stay the same, so the core sees one process. The command gets the environment it was given plus
+ * {@code MCP_GATEWAY_SANDBOX=landlock}, which the host reports back in {@code plugin/load}.
  *
  * <p>{@code --probe} confines this process and exits 0 when that works: the core asks once whether this system can
  * sandbox a plugin. Without Landlock (another OS, a kernel before 5.13, the LSM off) it exits 4 and never runs the
@@ -36,7 +42,8 @@ public final class SandboxExec {
   private SandboxExec() {}
 
   /** The parsed command line: {@code command} is empty for {@code --probe}. */
-  record Request(List<String> readOnly, List<String> readWrite, boolean probe, List<String> command) {}
+  record Request(List<String> readOnly, List<String> readWrite, Set<Integer> deniedPorts, boolean probe,
+      List<String> command) {}
 
   public static void main(String[] args) {
     System.exit(run(List.of(args)));
@@ -63,8 +70,16 @@ public final class SandboxExec {
     readOnly.addAll(request.readOnly());
     List<String> readWrite = new ArrayList<>(Sandbox.SYSTEM_WRITE);
     readWrite.addAll(request.readWrite());
+    if (!request.deniedPorts().isEmpty() && abi < Sandbox.NET_ABI) {
+      System.err.println("plugin-host sandbox: Landlock ABI " + abi + " can't close TCP ports (ABI 4, Linux 6.7, "
+          + "can): the plugin can still reach GateRook's ports " + request.deniedPorts());
+    }
+    if (abi < Sandbox.SCOPE_ABI) {
+      System.err.println("plugin-host sandbox: Landlock ABI " + abi + " can't scope the plugin out of abstract Unix "
+          + "sockets and signals (ABI 6, Linux 6.12, can): the session's services stay reachable");
+    }
     try {
-      Sandbox.restrict(abi, readOnly, readWrite);
+      Sandbox.restrict(abi, readOnly, readWrite, request.deniedPorts());
     } catch (IllegalStateException e) {
       System.err.println("plugin-host sandbox: " + e.getMessage());
       return NO_SANDBOX;
@@ -82,6 +97,7 @@ public final class SandboxExec {
   static Request parse(List<String> args) {
     List<String> ro = new ArrayList<>();
     List<String> rw = new ArrayList<>();
+    Set<Integer> ports = new TreeSet<>();
     for (int i = 0; i < args.size(); i++) {
       String a = args.get(i);
       switch (a) {
@@ -89,14 +105,15 @@ public final class SandboxExec {
           if (i != args.size() - 1) {
             throw new IllegalArgumentException("--probe takes nothing after it");
           }
-          return new Request(List.copyOf(ro), List.copyOf(rw), true, List.of());
+          return new Request(List.copyOf(ro), List.copyOf(rw), Collections.unmodifiableSet(ports), true,
+              List.of());
         }
         case "--" -> {
           List<String> command = List.copyOf(args.subList(i + 1, args.size()));
           if (command.isEmpty() || !command.getFirst().startsWith("/")) {
             throw new IllegalArgumentException("the command after -- is an absolute path");
           }
-          return new Request(List.copyOf(ro), List.copyOf(rw), false, command);
+          return new Request(List.copyOf(ro), List.copyOf(rw), Collections.unmodifiableSet(ports), false, command);
         }
         case "--ro", "--rw" -> {
           if (i + 1 >= args.size() || !args.get(i + 1).startsWith("/")) {
@@ -104,9 +121,17 @@ public final class SandboxExec {
           }
           (a.equals("--ro") ? ro : rw).add(args.get(++i));
         }
+        case "--deny-tcp" -> {
+          String port = i + 1 < args.size() ? args.get(++i) : "";
+          if (!port.matches("[0-9]{1,5}") || Integer.parseInt(port) < 1 || Integer.parseInt(port) > 65_535) {
+            throw new IllegalArgumentException("--deny-tcp needs a port from 1 to 65535");
+          }
+          ports.add(Integer.parseInt(port));
+        }
         default -> throw new IllegalArgumentException("unexpected " + a);
       }
     }
-    throw new IllegalArgumentException("usage: SandboxExec [--ro <path>]… [--rw <path>]… -- <command…> | --probe");
+    throw new IllegalArgumentException("usage: SandboxExec [--ro <path>]… [--rw <path>]… [--deny-tcp <port>]… -- "
+        + "<command…> | --probe");
   }
 }

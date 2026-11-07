@@ -28,6 +28,8 @@ export interface McpReviewSecret {
   readonly label?: string;
   /** A multi-line value: a service account key's JSON. */
   readonly multiline?: boolean;
+  /** A token entered without the Authorization header's Bearer prefix. */
+  readonly bearer?: boolean;
 }
 
 /** What the review dialog shows: the core's review of the request, put in the kit's rows. */
@@ -140,7 +142,8 @@ export function mcpReviewView(r: McpReviewed): McpReviewView {
     workdir: serverPaths(name).workdir,
     sandbox: review.sandbox,
     secrets: [
-      ...names.map((n, i) => ({ name: n, pointer: `/${key}/${i}/secretRef` })),
+      ...names.map((n, i) => ({ name: n, pointer: `/${key}/${i}/secretRef`,
+        ...(http && r.bearer && n.toLowerCase() === 'authorization' ? { label: 'Bearer token', bearer: true } : {}) })),
       ...(cloudKey ? [{ name: cloudKey.label, pointer: cloudKey.pointer, label: cloudKey.label, multiline: cloudKey.multiline }] : []),
     ],
     named: names.map((n, i) => ({ name: n, pointer: `/${key}/${i}/secretRef` })),
@@ -166,7 +169,8 @@ export function signInConfig(config: McpServerConfig, clientId: string | null): 
 
 /**
  * The values typed for the review's secrets, by pointer, or the indexes of the ones left empty. A value is sent as
- * typed (a token's spaces are its own); only an empty field is refused.
+ * typed, except a dedicated Bearer token: surrounding whitespace and an optional prefix are normalized, then the
+ * Authorization prefix is added. An empty value is refused.
  */
 export function mcpSecretValues(
   secrets: readonly McpReviewSecret[],
@@ -175,9 +179,10 @@ export function mcpSecretValues(
   const out: { [pointer: string]: { source: 'local'; value: string } } = {};
   const missing: number[] = [];
   secrets.forEach((s, i) => {
-    const value = values[i] ?? '';
+    const typed = values[i] ?? '';
+    const value = s.bearer ? typed.trim().replace(/^Bearer(?:\s+|$)/i, '').trim() : typed;
     if (!value) missing.push(i);
-    else out[s.pointer] = { source: 'local', value };
+    else out[s.pointer] = { source: 'local', value: s.bearer ? `Bearer ${value}` : value };
   });
   return { secrets: out, missing };
 }
@@ -254,7 +259,7 @@ let nextId = 0;
                   {{ a.registration === 'metadata-document' ? 'GateRook signs in there as GateRook, with the client details it publishes.' : a.registration === 'dynamic' ? 'GateRook registers itself there as GateRook.' : a.registration === 'app' ? 'As your OAuth app.' : '' }}
                 </dd></div>
               }
-              <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value">Listed after the {{ w.http ? 'connection' : 'start' }} and Off everywhere. On an endpoint each starts as Approval: the server declares its own annotations and the gateway can't verify them.</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value">Listed after the {{ w.http ? 'connection' : 'start' }} and Off everywhere. On an endpoint, declared reads start as Read only and other tools start as Approval. The server declares its own annotations; the gateway can't verify them.</dd></div>
             </dl>
             @for (warning of w.warnings; track $index) {
               <div class="gw-alert gw-alert--warning gw-alert--compact">
@@ -312,7 +317,7 @@ let nextId = 0;
               @if ((a.kind === 'refused' || a.kind === 'unknown') && !w.secrets.length) {
                 <div class="gw-alert gw-alert--warning gw-alert--compact">
                   <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
-                  <div class="gw-alert__content"><p class="gw-alert__title">{{ a.kind === 'refused' ? 'It wants a key, not a sign-in' : 'GateRook couldn’t tell how to sign in' }}</p><p class="gw-alert__body">{{ a.message }}{{ a.kind === 'refused' ? ' Close the review and add the header that carries its key.' : ' Connecting may fail.' }}</p></div>
+                  <div class="gw-alert__content"><p class="gw-alert__title">{{ a.kind === 'refused' ? 'It wants a key, not a sign-in' : 'GateRook couldn’t tell how to sign in' }}</p><p class="gw-alert__body">{{ a.message }}{{ a.kind === 'refused' ? ' Go back to Sign-in options and choose Bearer token, or add the header that carries its key.' : ' Connecting may fail.' }}</p></div>
                 </div>
               }
             }
@@ -326,8 +331,9 @@ let nextId = 0;
                     @if (s.multiline) {
                       <textarea class="gw-textarea gw-textarea--code" [id]="uid + '-value-' + i" rows="4" required autocomplete="off" spellcheck="false" (input)="clearMissing(i)" [attr.aria-invalid]="missing().includes(i) ? 'true' : null" [attr.aria-describedby]="missing().includes(i) ? uid + '-value-err-' + i : null"></textarea>
                     } @else {
-                      <input class="gw-input gw-input--mono" [id]="uid + '-value-' + i" type="password" required autocomplete="new-password" spellcheck="false" (input)="clearMissing(i)" [attr.aria-invalid]="missing().includes(i) ? 'true' : null" [attr.aria-describedby]="missing().includes(i) ? uid + '-value-err-' + i : null">
+                      <input class="gw-input gw-input--mono" [id]="uid + '-value-' + i" type="password" required autocomplete="new-password" spellcheck="false" (input)="clearMissing(i)" [attr.aria-invalid]="missing().includes(i) ? 'true' : null" [attr.aria-describedby]="((s.bearer ? uid + '-value-hint-' + i : '') + (missing().includes(i) ? ' ' + uid + '-value-err-' + i : '')).trim() || null">
                     }
+                    @if (s.bearer) {<p class="gw-field__hint" [id]="uid + '-value-hint-' + i">Enter only the token. GateRook sends it as <span class="gw-mono">Authorization: Bearer &lt;token&gt;</span>.</p>}
                     @if (missing().includes(i)) {<p class="gw-field__error" [id]="uid + '-value-err-' + i"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ s.label ? 'Enter the ' + s.label.charAt(0).toLowerCase() + s.label.slice(1) + '.' : 'Enter the value of ' + s.name + '.' }}</p>}
                   </div>
                 }
@@ -348,6 +354,10 @@ let nextId = 0;
           </div>
         </div>
         <footer class="gw-dialog__footer">
+          @if (canGoBack()) {
+            <button class="gw-btn" type="button" (click)="goBack()" [attr.aria-disabled]="busy() || switching() ? 'true' : null" [attr.aria-describedby]="busy() || switching() ? uid + '-back-wait' : null"><svg lucideIcon="arrow-left" class="gw-icon"></svg>Back</button>
+            @if (busy() || switching()) {<span class="gw-sr-only" [id]="uid + '-back-wait'">Wait for the current request to finish before going back.</span>}
+          }
           <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
           <button class="gw-btn gw-btn--danger" type="submit" aria-disabled="true" [attr.aria-describedby]="uid + '-ack-label'" [gwEnableWhen]="'#' + uid + '-ack'" [attr.aria-busy]="busy() ? 'true' : null">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}{{ w.verb }} MCP server {{ w.name }}</button>
         </footer>
@@ -362,8 +372,11 @@ export class GwMcpReviewDialog {
 
   /** The server connected (or started): the page offers the endpoint step next. */
   readonly connected = output<McpServerConnected>();
+  /** Return to the setup form, carrying the original focus-return target through the dialog chain. */
+  readonly back = output<HTMLElement | null>();
 
   protected readonly uid = `mr-${++nextId}`;
+  protected readonly canGoBack = signal(false);
   private readonly source = signal<McpServerSource | null>(null);
   protected readonly view = signal<McpReviewView | null>(null);
   protected readonly busy = signal(false);
@@ -430,9 +443,18 @@ export class GwMcpReviewDialog {
     return (e.target as HTMLInputElement).value;
   }
 
-  show(reviewed: McpReviewed): void {
+  show(reviewed: McpReviewed, canGoBack = false): void {
+    this.canGoBack.set(canGoBack);
     this.render(reviewed);
     this.dialog.openAfterRender(reviewed.opener);
+  }
+
+  protected goBack(): void {
+    if (!this.canGoBack() || this.busy() || this.switching()) return;
+    const opener = this.dialog.returnTo;
+    this.dialog.returnTo = null;
+    this.dialog.close('back');
+    this.back.emit(opener);
   }
 
   /** Every review starts unacknowledged and with empty values (the fields are reused from the last one). */

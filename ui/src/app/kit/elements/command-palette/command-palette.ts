@@ -58,8 +58,7 @@ const GROUPS: readonly { readonly id: PaletteOption['group']; readonly label: st
 
 /**
  * The kit's pages: the label the sidebar gives each (the core's search names a page by its id; the words are the
- * kit's — "AI apps", not the core's "Clients"), its icon, sidebar group (hint) and the words of `data-keywords`
- * (pages/_shell.html).
+ * kit's — "AI apps", not the core's "Clients"), its icon, sidebar group (hint) and the words of `data-keywords`.
  */
 const PAGES: Record<string, { readonly label: string; readonly icon: string; readonly hint: string | null; readonly keywords: string }> = {
   overview: { label: 'Overview', icon: 'layout-dashboard', hint: null, keywords: 'home dashboard setup map health' },
@@ -157,7 +156,7 @@ export function paletteOptions(result: SearchResult, opts: { readonly pending: n
   return out;
 }
 
-/** kit.js palette filter: the option's text plus its keywords, case-insensitive, whitespace collapsed. */
+/** Palette filter: the option's text plus its keywords, case-insensitive, whitespace collapsed. */
 export function matches(o: PaletteOption, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
@@ -166,7 +165,7 @@ export function matches(o: PaletteOption, query: string): boolean {
 }
 
 /**
- * `<gw-command-palette>`: the kit's ⌘K palette (elements/command-palette.html, kit.js "palette"): an APG combobox
+ * `<gw-command-palette>`: the kit's ⌘K palette: an APG combobox
  * whose DOM focus never leaves the field. Typing filters the rows (text + keywords) and hides empty groups; ↑/↓
  * wrap, Home / End, and a pointer that really moves set the active row (`aria-activedescendant`, `aria-selected`,
  * `gw-menu__item--active`, scrolled into view inside the results only); Enter runs it. "4 results" / "No results"
@@ -245,7 +244,7 @@ export class GwCommandPalette implements OnInit {
     // A palette link navigates in place: close the palette when navigation starts.
     this.router.events.pipe(filter((e) => e instanceof NavigationStart)).subscribe(() => this.close());
     effect(() => {
-      // The first visible row is active whenever the filter changes (kit.js `filter()`).
+      // The first visible row is active whenever the filter changes.
       const first = this.visible()[0]?.id ?? null;
       const current = this.activeId();
       if (!current || !this.visibleIds().has(current)) this.activeId.set(first);

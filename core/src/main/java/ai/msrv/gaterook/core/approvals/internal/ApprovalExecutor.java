@@ -24,7 +24,6 @@ import ai.msrv.gaterook.core.platform.IntegrityAlerts;
 import ai.msrv.gaterook.core.platform.PrincipalStatus;
 import ai.msrv.gaterook.core.policy.Decision;
 import ai.msrv.gaterook.core.policy.PolicyEngine;
-import ai.msrv.gaterook.core.policy.PolicyService;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -91,7 +90,6 @@ public class ApprovalExecutor implements DisposableBean {
   private final EndpointSnapshotService snapshots;
   private final ConnectorRegistry registry;
   private final PolicyEngine engine;
-  private final PolicyService policies;
   private final List<PrincipalStatus> principals;
   private final ConnectorInvoker invoker;
   private final AuditWriter audit;
@@ -120,7 +118,7 @@ public class ApprovalExecutor implements DisposableBean {
 
   ApprovalExecutor(ApprovalRepository approvals, ApprovalEventRepository events, ApprovalRows rows,
       ApprovalWaiters waiters, EndpointSnapshotService snapshots, ConnectorRegistry registry, PolicyEngine engine,
-      PolicyService policies, List<PrincipalStatus> principals, ConnectorInvoker invoker, AuditWriter audit,
+      List<PrincipalStatus> principals, ConnectorInvoker invoker, AuditWriter audit,
       AuditQueries auditQueries, CallTracing tracing, IntegrityAlerts alerts, ApplicationEventPublisher publisher,
       JsonMapper json, Clock clock, PlatformTransactionManager tx) {
     this.approvals = approvals;
@@ -130,7 +128,6 @@ public class ApprovalExecutor implements DisposableBean {
     this.snapshots = snapshots;
     this.registry = registry;
     this.engine = engine;
-    this.policies = policies;
     this.principals = List.copyOf(principals);
     this.invoker = invoker;
     this.audit = audit;
@@ -301,7 +298,7 @@ public class ApprovalExecutor implements DisposableBean {
     long started = System.nanoTime();
     try (CallTracing.Started span = tracing.child("execute " + a.getTool(), a.getTraceContext(), tags)) {
       outcome = invoker.executeApproved(new ConnectorInvoker.Request(a.getCallId(), cfg, check.call(),
-          check.decision().limits(), policies.maskPolicy(cfg.env()), span.traceId(), span.traceparent(),
+          check.decision().limits(), check.decision().mask(), span.traceId(), span.traceparent(),
               () -> snapshots.requireAvailable(a.getEndpointId(), cfg.name())),
           new ConnectorInvoker.Approval(id, prepared, action.payload()));
       if (!outcome.ok()) {
@@ -329,6 +326,11 @@ public class ApprovalExecutor implements DisposableBean {
       return Check.refused("Endpoint " + a.getEndpointSlug() + " was deleted. Not executed.");
     }
     EndpointSnapshot s = snapshot.get();
+    if (!s.slug().equals(a.getEndpointSlug())) {
+      // Slugs never change: another endpoint's id in the row was written outside the core.
+      alerts.report("approval", a.getId(), a.getId(), "approval row");
+      return Check.refused(changed);
+    }
     if (s.blocked()) {
       return Check.refused(s.slug() + " was changed outside GateRook. Not executed.");
     }

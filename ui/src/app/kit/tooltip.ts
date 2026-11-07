@@ -2,7 +2,7 @@ import { DOCUMENT, Injectable, inject } from '@angular/core';
 import { MenuService } from './menu.service';
 
 /**
- * Tooltips are CSS-only (`gw-tooltip`, shown on `:hover` and `:focus-visible`); kit.js adds the one thing CSS can't:
+ * Tooltips are CSS-only (`gw-tooltip`, shown on `:hover` and `:focus-visible`); the directive adds the one thing CSS cannot:
  * Esc hides the bubble of the hovered or focused tooltip (WCAG 1.4.13 dismissible) until the pointer or focus leaves
  * it. Installed once for the whole document; no markup beyond the kit's.
  */

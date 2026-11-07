@@ -92,9 +92,9 @@ public class EndpointService {
   public enum StartFrom {
     /** No connections, every tool off. */
     EMPTY,
-    /** Every dev connection with its read-only tools on; the endpoint is read only. */
+    /** Selected dev connections with their read-only tools on; the endpoint is read only. */
     READ_ONLY_DEV,
-    /** Every prod connection: reads on, tools that only change data off, runbooks through approval. */
+    /** Selected prod connections: reads on, tools that only change data off, runbooks through approval. */
     INCIDENT_RESPONSE;
 
     public static StartFrom of(String id) {
@@ -207,6 +207,11 @@ public class EndpointService {
     return snapshots.bySlug(slug).orElseThrow(() -> notFound(slug));
   }
 
+  /** Fresh state for a reviewed multi-endpoint write, also callable inside its transaction. */
+  EndpointSnapshot uncachedSnapshot(String slug) {
+    return snapshots.uncached(require(slug).getId()).orElseThrow(() -> notFound(slug));
+  }
+
   public RiskAnalyzer.Report risk(String slug) {
     return risks.analyze(snapshot(slug));
   }
@@ -218,22 +223,40 @@ public class EndpointService {
 
   // ── Create, duplicate ───────────────────────────────────────────────────────────────────────────────────────
 
-  /** {@code POST /api/endpoints {slug, description?, startFrom}}. */
+  /** Creates an endpoint without connections. A preset alone never grants access to existing connections. */
   public Summary create(String slug, String description, StartFrom startFrom, String reason) {
+    return create(slug, description, startFrom, List.of(), reason);
+  }
+
+  /** Creates from the preset's default environment; only selected names are wired. */
+  public Summary create(String slug, String description, StartFrom startFrom, List<String> selectedConnections,
+      String reason) {
+    return create(slug, description, startFrom, selectedConnections, null, reason);
+  }
+
+  /** An empty endpoint may start in a chosen environment; connections still determine its environment once wired. */
+  public Summary create(String slug, String description, StartFrom startFrom, List<String> selectedConnections,
+      Env initialEnv, String reason) {
     checkSlug(slug);
     checkDescription(description);
+    Env presetEnv = startFrom == StartFrom.INCIDENT_RESPONSE ? Env.PROD : Env.DEV;
+    if (initialEnv != null && startFrom != StartFrom.EMPTY && initialEnv != presetEnv) {
+      throw ProblemException.unprocessable("Environment does not match preset",
+          "This preset uses " + presetEnv.id() + ". Start from empty to choose another environment.", "/env");
+    }
+    Env env = initialEnv == null ? presetEnv : initialEnv;
     String id = writeTx.execute(s -> {
       if (endpoints.existsBySlug(slug)) {
         throw ProblemException.conflict("Slug in use", "An endpoint /mcp/" + slug + " already exists.");
       }
+      List<ConnectionConfigs.Stored> selected = selectedStartConnections(startFrom, selectedConnections);
       EndpointAccess access = startFrom == StartFrom.READ_ONLY_DEV ? EndpointAccess.READ_ONLY : EndpointAccess.STANDARD;
-      Env env = startFrom == StartFrom.INCIDENT_RESPONSE ? Env.PROD : Env.DEV;
       EndpointEntity e = new EndpointEntity(slug, env, access, rows.map(defaultSettings()), clock.instant());
       e.setDescription(description);
       e = rows.save(e);
       wiring.ensureCoreTools(e, startFrom == StartFrom.EMPTY ? Mode.OFF : Mode.READ_ONLY);
       boolean readOnly = access == EndpointAccess.READ_ONLY;
-      for (ConnectionConfigs.Stored c : startConnections(startFrom)) {
+      for (ConnectionConfigs.Stored c : selected) {
         wiring.wire(e, c, registry.type(c.config().type()).orElseThrow().manifest(),
             offered -> startMode(startFrom, offered, readOnly));
       }
@@ -249,7 +272,7 @@ public class EndpointService {
   }
 
   /**
-   * What a start wires: the verified connections of its environment whose type is on — dev for Read-only dev, prod for
+   * What a start offers for selection: verified connections whose type is on — dev for Read-only dev, prod for
    * Incident response, none for Empty. External MCP servers join an endpoint only when the person adds them (the kit's
    * "6 dev connections" while github-mcp is installed): their tools all start in Approval, which a read-only endpoint
    * turns off, and an incident endpoint shouldn't call an outside server nobody chose for it.
@@ -270,6 +293,24 @@ public class EndpointService {
     return out;
   }
 
+  /** Rechecks the explicit selection at creation time, including connections changed since the preview. */
+  private List<ConnectionConfigs.Stored> selectedStartConnections(StartFrom startFrom, List<String> selected) {
+    if (selected == null || selected.isEmpty()) {
+      return List.of();
+    }
+    Set<String> names = new HashSet<>(selected);
+    if (names.contains(null) || names.size() != selected.size()) {
+      throw ProblemException.unprocessable("Invalid connections", "Select each connection only once.", "/connections");
+    }
+    List<ConnectionConfigs.Stored> available = startConnections(startFrom).stream()
+        .filter(c -> names.contains(c.name())).toList();
+    if (available.size() != names.size()) {
+      throw ProblemException.unprocessable("Connections unavailable",
+          "Some selected connections are no longer available for this preset. Review the selection.", "/connections");
+    }
+    return available;
+  }
+
   /** The mode a start gives an offered tool: the type's default, clamped on a read-only endpoint; incidents never write. */
   private static Mode startMode(StartFrom startFrom, ToolPairs.Offered offered, boolean readOnly) {
     Env wanted = startFrom == StartFrom.INCIDENT_RESPONSE ? Env.PROD : Env.DEV;
@@ -279,17 +320,16 @@ public class EndpointService {
   }
 
   /**
-   * One "Start from" card of New endpoint: what {@link #create} would make of a start now.
+   * One "Start from" card of New endpoint: the eligible connections and tool counts if all were selected.
    *
-   * @param connections the connections it would wire, in the order it wires them
-   * @param tools       its pairs by mode, the core tools included, as its list row counts them after Create
+   * @param connections the connections available for explicit selection, in wiring order
+   * @param tools       pairs by mode with all candidates selected, the core tools included
    */
   public record StartPreview(String startFrom, Env env, String access, List<String> connections, ToolCounts tools) {}
 
   /**
-   * {@link #create} without saving anything: the connections a start would wire and the modes their tools would get
-   * (the kit's "Read-only dev · 6 dev connections · 12 tools"). Every connection's tools are asked together, as they
-   * are once all of them are wired.
+   * Previews a preset with all eligible connections selected, without saving anything. Creation requires an
+   * explicit subset of these names; new or unselected connections never join implicitly.
    */
   public StartPreview previewStart(StartFrom startFrom) {
     boolean readOnly = startFrom == StartFrom.READ_ONLY_DEV;
@@ -316,8 +356,8 @@ public class EndpointService {
 
   /**
    * {@code POST /api/endpoints/{slug}/duplicate {slug}}: connections, modes, limits and settings; no tokens, no
-   * clients. Plugin and MCP server tools start in Approval again (their Read only confirmations stay with the
-   * original).
+   * clients. Plugin tools in Read only return to Approval (their confirmations stay with the original); MCP
+   * server tools retain their saved modes subject to the target endpoint's restrictions.
    */
   public Summary duplicate(String slug, String newSlug, String reason) {
     checkSlug(newSlug);
@@ -773,10 +813,13 @@ public class EndpointService {
    *
    * <p>What an ordinary change would refuse is not kept silently: limits and pair overrides that don't narrow or are
    * out of range, {@code protocol} or {@code approvalWait} that don't match {@link #SETTINGS_SCHEMA}, instructions over
-   * 4,000 characters answer 422 at their pointer with {@code confirm:"reset-invalid"}. An endpoint has no reset of its
-   * own, and an unverified one can't be edited, so repeating with that confirmation resets exactly those values to
-   * their defaults (a limit or override left out is the policy's again) and keeps the rest; the Setup change names
-   * them.
+   * 4,000 characters answer 422 at their pointer with {@code confirm:"reset-invalid"}. So do the rules that the
+   * endpoint's own changes keep: a connection on the other side of the prod line from the endpoint, a published prod
+   * endpoint, modes a read-only endpoint doesn't allow, and what skips a person's review that was set outside GateRook
+   * (Bypass, a temporary bypass, a Read only confirmation of a tool row that didn't verify). An endpoint has no reset of
+   * its own, and an unverified one can't be edited, so repeating with that confirmation resets exactly those values to
+   * their defaults (a limit or override left out is the policy's again; a connection across the prod line leaves the
+   * endpoint; Bypass becomes Approval) and keeps the rest; the Setup change names them.
    */
   public Summary confirmIntegrity(String slug, String reason) {
     return confirmIntegrity(slug, reason, null);
@@ -812,6 +855,13 @@ public class EndpointService {
    */
   private List<String> resetInvalid(EndpointEntity e, boolean reset) {
     List<String> out = new ArrayList<>();
+    // Before anything here changes a row: which tool rows are as the core signed them.
+    Set<String> unverifiedTools = new HashSet<>();
+    for (EndpointToolEntity t : tools.findByEndpointId(e.getId())) {
+      if (!rows.verify(t)) {
+        unverifiedTools.add(t.getId());
+      }
+    }
     JsonNode stored = rows.tree(e.getSettings());
     ObjectNode settings = stored.isObject() ? (ObjectNode) stored.deepCopy() : JsonNodeFactory.instance.objectNode();
     if (!stored.isObject()) {
@@ -875,7 +925,108 @@ public class EndpointService {
         out.add(Wiring.toolName(t.getToolKey()) + " overrides");
       }
     }
+    resetProdLine(e, reset, out);
+    resetUnreviewedGrants(e, unverifiedTools, reset, out);
+    if (e.getAccess() == EndpointAccess.READ_ONLY) {
+      resetReadOnlyModes(e, reset, out);
+    }
+    if (e.isPublished() && wiring.deriveEnv(e.getId(), e.getEnv()) == Env.PROD) {
+      invalid(reset, e.getSlug() + " has prod connections, and a prod endpoint is never published through the "
+          + "tunnel. Resetting withdraws it.", "/published");
+      e.setPublished(false);
+      out.add("published");
+    }
     return out;
+  }
+
+  /**
+   * Prod never mixes with dev or stage, and an endpoint doesn't cross between them ({@code EndpointUsage}): a
+   * connection on the other side of the line would carry the access made under one side's rules (named tokens,
+   * client grants, sign-ins) to the other. Resetting removes it from the endpoint, as removing it in GateRook would.
+   */
+  private void resetProdLine(EndpointEntity e, boolean reset, List<String> out) {
+    boolean prodEndpoint = e.getEnv() == Env.PROD;
+    for (EndpointConnectionEntity w : wiringRows.findByEndpointIdOrderByAddedAtAscIdAsc(e.getId())) {
+      Optional<ConnectionConfigs.Stored> c = connections.byId(w.getConnectionId());
+      if (c.isEmpty() || (c.get().config().env() == Env.PROD) == prodEndpoint) {
+        continue;
+      }
+      String name = c.get().name();
+      invalid(reset, name + " is a " + c.get().config().env().id() + " connection on " + e.getSlug() + ", a "
+          + e.getEnv().id() + " endpoint: prod never mixes with dev or stage. Resetting removes " + name + " from "
+          + e.getSlug() + ".", "/connections");
+      for (EndpointRemovalParticipant p : participants.orderedStream().toList()) {
+        p.onConnectionUnwiring(e.getId(), e.getSlug(), c.get().id(), name, "Changed outside GateRook");
+      }
+      wiring.unwire(e, c.get().id());
+      out.add(name + " removed");
+    }
+  }
+
+  /**
+   * What lets calls skip a person's review is set only in GateRook: on a tool row that didn't verify, Bypass becomes
+   * Approval, and a temporary bypass or a Read only confirmation is dropped (the person can set them again).
+   */
+  private void resetUnreviewedGrants(EndpointEntity e, Set<String> unverifiedTools, boolean reset, List<String> out) {
+    for (EndpointToolEntity t : tools.findByEndpointId(e.getId())) {
+      if (!unverifiedTools.contains(t.getId())) {
+        continue;
+      }
+      String tool = Wiring.toolName(t.getToolKey());
+      boolean changed = false;
+      if (t.getMode() == Mode.BYPASS) {
+        invalid(reset, tool + " was set to Bypass outside GateRook. Resetting sets it to Approval.", "/tools");
+        t.setMode(Mode.APPROVAL, clock.instant());
+        out.add(tool + " Bypass");
+        changed = true;
+      }
+      if (t.getTemporaryBypass() != null) {
+        invalid(reset, tool + " has a temporary bypass that was set outside GateRook. Resetting removes it.",
+            "/tools");
+        t.setTemporaryBypass(null, clock.instant());
+        out.add(tool + " temporary bypass");
+        changed = true;
+      }
+      if (t.getRoConfirmation() != null) {
+        invalid(reset, tool + " has a Read only confirmation that was set outside GateRook. Resetting removes it; "
+            + "confirm it again in GateRook.", "/tools");
+        t.setRoConfirmation(null, clock.instant());
+        out.add(tool + " Read only confirmation");
+        changed = true;
+      }
+      if (changed) {
+        tools.saveAndFlush(t);
+      }
+    }
+  }
+
+  /** A read-only endpoint keeps only the modes {@link ToolPairs#clampReadOnly} allows, as becoming read only does. */
+  private void resetReadOnlyModes(EndpointEntity e, boolean reset, List<String> out) {
+    EndpointSnapshot s = snapshots.uncached(e.getId()).orElseThrow(() -> notFound(e.getSlug()));
+    Map<String, Mode> clamped = new LinkedHashMap<>();
+    Map<String, String> names = new LinkedHashMap<>();
+    for (EndpointSnapshot.Pair p : s.pairs()) {
+      Mode mode = ToolPairs.clampReadOnly(p.tool(), p.storedMode());
+      if (p.rowId() != null && mode != p.storedMode()) {
+        clamped.put(p.rowId(), mode);
+        names.put(p.rowId(), p.tool().name() + " on " + p.connectionName());
+      }
+    }
+    for (EndpointSnapshot.CorePair c : s.coreTools()) {
+      Mode mode = ToolPairs.clampReadOnly(CoreTools.withMode(c.tool()), c.storedMode());
+      if (mode != c.storedMode()) {
+        clamped.put(c.rowId(), mode);
+        names.put(c.rowId(), c.tool());
+      }
+    }
+    for (Map.Entry<String, Mode> c : clamped.entrySet()) {
+      invalid(reset, e.getSlug() + " is read only: " + names.get(c.getKey()) + " can only be "
+          + ToolPairs.label(c.getValue()) + " there. Resetting sets it so.", "/tools");
+      EndpointToolEntity row = tools.findById(c.getKey()).orElseThrow();
+      row.setMode(c.getValue(), clock.instant());
+      tools.saveAndFlush(row);
+      out.add(names.get(c.getKey()) + " " + ToolPairs.label(c.getValue()));
+    }
   }
 
   /** Why one limit can't narrow ({@link PolicyService#checkNarrowing}), or empty. */

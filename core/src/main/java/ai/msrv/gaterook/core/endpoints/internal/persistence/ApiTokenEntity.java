@@ -13,6 +13,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.Instant;
 import java.util.Objects;
+import org.hibernate.annotations.OptimisticLock;
 
 /**
  * An endpoint token. Only {@code b64url(sha256(token))} is stored and it is looked up on every request, so revocation
@@ -66,6 +67,11 @@ public class ApiTokenEntity {
   @Version
   @Column(name = "version", nullable = false)
   private long version;
+
+  /** {@code TokenRows}: signed over the fields that decide access, so writing it never bumps the version. */
+  @OptimisticLock(excluded = true)
+  @Column(name = "mac")
+  private byte[] mac;
 
   protected ApiTokenEntity() {}
 
@@ -161,5 +167,13 @@ public class ApiTokenEntity {
 
   public long getVersion() {
     return version;
+  }
+
+  public byte[] getMac() {
+    return mac;
+  }
+
+  public void setMac(byte[] mac) {
+    this.mac = mac;
   }
 }

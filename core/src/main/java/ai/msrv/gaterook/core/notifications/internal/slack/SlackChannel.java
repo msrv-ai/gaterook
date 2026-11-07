@@ -61,9 +61,9 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>A click counts only when everything matches (report 13 §6.3): our installation's id in the button, the workspace
  * ({@code team.id}) and the app ({@code api_app_id}) of this connection, a linked account ({@code user.id}), and the
- * message ({@code channel} + {@code ts}) of a delivery of the same request; Approve is checked again
- * ({@link ChannelRules#decide}), and the request's versioned compare-and-set lets exactly one decision win. Everyone
- * else gets an ephemeral answer and nothing happens.
+ * message ({@code channel} + {@code ts}) of a delivery of the same request — one that still offers its buttons, for a
+ * decision; Approve is checked again ({@link ChannelRules#decide}), and the request's versioned compare-and-set lets
+ * exactly one decision win. Everyone else gets an ephemeral answer and nothing happens.
  */
 @Component
 public class SlackChannel implements ChatChannel, DisposableBean {
@@ -419,10 +419,12 @@ public class SlackChannel implements ChatChannel, DisposableBean {
         any = true;
       } catch (SlackApi.SlackException e) {
         if ("invalid_blocks".equals(e.error()) && verdict.showAction()) {
-          // Slack refused the code block (a language it doesn't know?): the action stays in the app, no Approve.
-          Eligibility.Verdict plain = new Eligibility.Verdict(false, verdict.deny(), false,
-              "Slack couldn't show this action: approve in the app.",
-              "Slack couldn't show this action, so it is shown only in GateRook.");
+          // Slack refused the code block (a language it doesn't know?): the action stays in the app, no Approve. The
+          // refused message never existed; the one sent instead is a delivery of its own, recorded without Approve:
+          // its buttons carry the same value, so only the delivery tells what the message offered.
+          Eligibility.Verdict plain = withoutAction(verdict);
+          deliveries.failed(d.id(), describe(e));
+          d = deliveries.start(n.id(), NotifyChannel.SLACK, target, plain.approve());
           try {
             String ts = post(target, SlackBlocks.request(n, plain, instance.id(), "1", zone, null), n.id());
             deliveries.sent(d.id(), target + ":" + ts);
@@ -444,6 +446,12 @@ public class SlackChannel implements ChatChannel, DisposableBean {
       return Delivered.sent();
     }
     return Delivered.failed("Slack failed: " + error);
+  }
+
+  /** The message Slack can show when it refuses the action's code block: without the action, and without Approve. */
+  private static Eligibility.Verdict withoutAction(Eligibility.Verdict v) {
+    return new Eligibility.Verdict(false, v.deny(), false, "Slack couldn't show this action: approve in the app.",
+        "Slack couldn't show this action, so it is shown only in GateRook.");
   }
 
   /**
@@ -508,7 +516,15 @@ public class SlackChannel implements ChatChannel, DisposableBean {
         continue;
       }
       try {
-        update(d.externalRef(), SlackBlocks.request(n, verdict, instance.id(), rev(), zone, text));
+        try {
+          update(d.externalRef(), SlackBlocks.request(n, verdict, instance.id(), rev(), zone, text));
+        } catch (SlackApi.SlackException e) {
+          if (!"invalid_blocks".equals(e.error()) || !verdict.showAction()) {
+            throw e;
+          }
+          // A message sent without the action (Slack refused its code block) shows the outcome without it too.
+          update(d.externalRef(), SlackBlocks.request(n, withoutAction(verdict), instance.id(), rev(), zone, text));
+        }
         if (outcome.done()) {
           deliveries.resolved(d.id());
         }
@@ -628,6 +644,11 @@ public class SlackChannel implements ChatChannel, DisposableBean {
         ephemeral(channel, user, "Opened in GateRook on " + instance.host() + ".");
       }
       case SlackBlocks.DENY, SlackBlocks.APPROVE -> {
+        if (!delivery.get().open()) {
+          // Its request ended, or the app that sent it went away (Disconnect): the message decides nothing more.
+          ephemeral(channel, user, rules.closed(subject));
+          return;
+        }
         ChannelRules.Clicked c = rules.decide(Eligibility.Channel.SLACK, subject, SlackBlocks.APPROVE.equals(actionId),
             check, user, delivery.get().offeredApprove(), SlackChannel::fits);
         if (!c.decided()) {

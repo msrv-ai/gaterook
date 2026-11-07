@@ -5,6 +5,7 @@ import ai.msrv.gaterook.core.notifications.internal.persistence.NotifyChannel;
 import ai.msrv.gaterook.core.notifications.internal.persistence.NotifyDeliveryEntity;
 import ai.msrv.gaterook.core.notifications.internal.persistence.NotifyDeliveryRepository;
 import java.time.Clock;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
@@ -14,7 +15,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * The messages sent about requests ({@code notify_delivery}). A click in Slack or Telegram is accepted only on a
  * message recorded here for the same request ({@code externalRef}: {@code <channel>:<ts>} in Slack,
- * {@code <chat>:<message id>} in Telegram), and only with the buttons the message was sent with.
+ * {@code <chat>:<message id>} in Telegram), only with the buttons the message was sent with, and only while it still
+ * offers them.
  */
 @Component
 public class DeliveryStore {
@@ -27,7 +29,13 @@ public class DeliveryStore {
    * @param offeredApprove it carried Approve when it was sent (a click on Approve needs it, and is checked again)
    */
   public record Delivery(String id, String approvalId, NotifyChannel channel, String target, String externalRef,
-      boolean offeredApprove, DeliveryState state) {}
+      boolean offeredApprove, DeliveryState state) {
+
+    /** The message still offers its buttons: sent, neither resolved nor closed ({@link DeliveryStore#closeOpen}). */
+    public boolean open() {
+      return state == DeliveryState.SENT;
+    }
+  }
 
   private final NotifyDeliveryRepository deliveries;
   private final Clock clock;
@@ -77,11 +85,14 @@ public class DeliveryStore {
   /**
    * The delivery that is the message at {@code externalRef}, for the request a button names. Looked up by request
    * first: a reference alone isn't unique — a new Telegram bot's private chat has the same chat id (the user's) and
-   * numbers its messages from the start.
+   * numbers its messages from the start, so where a closed delivery has the reference too, the open one is the
+   * message. A resolved delivery (its request ended, or {@link #closeOpen}) is found as well, for Open in app and the
+   * outcome a late click learns: only an {@link Delivery#open() open} one takes a decision.
    */
   public Optional<Delivery> at(NotifyChannel channel, String externalRef, String approvalId) {
     return readTx.execute(s -> deliveries.findByApprovalIdAndChannel(approvalId, channel).stream()
-        .filter(d -> externalRef.equals(d.getExternalRef())).map(DeliveryStore::view).findFirst());
+        .filter(d -> externalRef.equals(d.getExternalRef())).map(DeliveryStore::view)
+        .sorted(Comparator.comparing(d -> !d.open())).findFirst());
   }
 
   /** Messages still showing buttons. */

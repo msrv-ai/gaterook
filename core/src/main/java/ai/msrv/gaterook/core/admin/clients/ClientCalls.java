@@ -42,8 +42,8 @@ public class ClientCalls {
     List<OAuthService.ClientUse> signIns = oauth.localClientUses();
     List<Card> out = new ArrayList<>();
     for (Card c : cards) {
-      List<Link> links = observedLinks(c, signIns).stream().map(l -> withCall(l, revisions.computeIfAbsent(l.endpoint(),
-          this::revisions), signIns)).toList();
+      List<Link> links = observedLinks(c, signIns).stream().map(l -> "manual".equals(l.method()) ? l
+          : withCall(l, revisions.computeIfAbsent(l.endpoint(), this::revisions), signIns)).toList();
       out.add(c.withLinks(links));
     }
     return List.copyOf(out);
@@ -62,10 +62,13 @@ public class ClientCalls {
 
   /** One link with its last call and revision. */
   public Link withCall(Link link) {
+    if ("manual".equals(link.method())) return link;
     return withCall(link, revisions(link.endpoint()), link.provenBySignIn() ? oauth.localClientUses() : List.of());
   }
 
   private Link withCall(Link l, List<AuditQueries.Revision> revisions, List<OAuthService.ClientUse> signIns) {
+    // Token names are not unique. A manual app's own token usage is its evidence, never another token's audit label.
+    if ("manual".equals(l.method())) return l;
     String label = l.auditLabel();
     boolean signIn = l.provenBySignIn();
     if (label == null && !signIn) {
@@ -85,6 +88,7 @@ public class ClientCalls {
 
   /** Browser installation can create a working sign-in without a config entry owned by GateRook. */
   private List<Link> observedLinks(Card card, List<OAuthService.ClientUse> signIns) {
+    if (card.manual()) return card.links();
     Map<String, OAuthService.ClientUse> observed = new LinkedHashMap<>();
     for (OAuthService.ClientUse use : signIns) {
       if (use.client().equals(card.client()) && card.links().stream().noneMatch(l -> l.endpoint().equals(

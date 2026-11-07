@@ -26,13 +26,13 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest
 class GatewaySchemaTest {
 
-  /** The 33 tables of V1 (ARCHITECTURE.md §4), one entity each. */
+  /** The application tables, including manual apps introduced in V88, one enhanced entity each. */
   static final Set<String> TABLES = Set.of("setting", "policy", "external_store", "secret", "secret_version",
       "secret_lease", "master_key_state", "plugin", "connector_type", "connection", "mcp_server", "template",
       "template_blob", "template_version", "endpoint", "endpoint_connection", "endpoint_tool", "client_grant",
       "api_token", "client_link", "oauth_client", "oauth_grant", "oauth_token", "approval", "approval_event",
       "tool_call", "setup_change", "trace", "audit_export", "notification_channel", "notify_link",
-      "notify_delivery", "notify_pairing");
+      "notify_delivery", "notify_pairing", "manual_client");
 
   @DynamicPropertySource
   static void gateway(DynamicPropertyRegistry registry) {
@@ -74,7 +74,7 @@ class GatewaySchemaTest {
     // V2 and V3 (M1 range V1–V9): the template row's MAC, the audit's index of approval requests. Later steps add
     // migrations in their own ranges (§4), so the M1 ones are checked by number, not as the latest.
     assertThat(jdbc.queryForList("select version from flyway_schema_history where success = 1", String.class))
-        .contains("1", "2", "3");
+        .contains("1", "2", "3", "88");
     // V30 (notifications, K2): the MACs of linked accounts and of the channels' settings.
     assertThat(jdbc.queryForList("select name from pragma_table_info('notify_link')", String.class)).contains("mac");
     assertThat(jdbc.queryForList("select name from pragma_table_info('notification_channel')", String.class))

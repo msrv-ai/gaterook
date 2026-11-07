@@ -39,7 +39,7 @@ class ConnectTokenTest {
         "dev", "http://127.0.0.1:7465/mcp/dev", null, ClientAdapter.TOKEN_PLACEHOLDER, "writes", 60));
     String previewed = JsonEntryEditor.upsert(before, entry.rootKey(), entry.name(), entry.json());
 
-    String written = ClientService.withToken(before, previewed, "gwt_the-token");
+    String written = ClientService.withToken(previewed, entry.name(), "gwt_the-token");
 
     assertThat(JsonEntryEditor.entry(written, "mcpServers", "gateway-dev").orElseThrow().path("headers")
         .path("Authorization").asString()).isEqualTo("Bearer gwt_the-token");

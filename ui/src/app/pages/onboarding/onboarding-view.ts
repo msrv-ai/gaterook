@@ -6,7 +6,7 @@ import { MetaPart, joinNames } from '../../kit/elements/getting-started/getting-
 import { clientName } from '../../kit/elements/shared/client-mark';
 
 /**
- * What Welcome shows, as pure functions of the core's answers (design/pages/onboarding.html; ARCHITECTURE.md §6
+ * What Welcome shows, as pure functions of the core's answers (ARCHITECTURE.md §6
  * onboarding, §8.4): the four steps of the stepper and their state, the step card of each, the setup map in the
  * order of the steps, and the words of the toasts and announcements. No Angular here: the page and its spec share it.
  */

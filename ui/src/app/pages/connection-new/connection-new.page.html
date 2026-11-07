@@ -5,7 +5,7 @@
 @let done = ready();
 
 <!--
-  Three modes of one screen (pages/connection-new.html): the wizard (Choose type → Configure → Test → Add to endpoint),
+  Three modes of one screen: the wizard (Choose type → Configure → Test → Add to endpoint),
   the same wizard from Configure for ?duplicate=, and the edit view of one connection (/connections/<name>).
   First run: no connection, with no endpoint or the empty default. The wizard speaks to a beginner, step 4 reuses
   the default or creates the first endpoint, and after Save the "<name> is ready" card replaces the steps.
@@ -25,13 +25,15 @@
           @if (detail(); as d) {
             <p class="gw-page-header__description"><span>{{ d.typeLabel || d.typeName }}</span>@if (host()) { at <span class="gw-mono">{{ host() }}</span>}. Saved changes apply from the next call; calls in flight finish with the old settings.</p>
             <div class="gw-page-header__meta">
-              <gw-access-switch kind="connection" [name]="d.name" [enabled]="d.enabled !== false" [blocked]="!d.verified ? 'Review the change outside GateRook first.' : saving() ? 'Wait until the connection settings are saved.' : accessRefreshing() ? 'Updating connection access. Please wait.' : null" (changed)="accessChanged($event)" />
+              <gw-access-switch kind="connection" [name]="d.name" [enabled]="d.enabled !== false" [blocked]="d.setupRequired ? 'Finish this connection’s setup before enabling access.' : !d.verified ? 'Review the change outside GateRook first.' : saving() ? 'Wait until the connection settings are saved.' : accessRefreshing() ? 'Updating connection access. Please wait.' : null" (changed)="accessChanged($event)" />
               <span class="gw-text-small gw-fg-muted">Across all endpoints</span>
               <span class="gw-sr-only">environment</span> <span class="gw-env" [class]="'gw-env--' + d.env">{{ d.env }}</span>
-              @if (d.enabled === false) {
+              @if (d.setupRequired) {
+                <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Needs setup</span></span>
+              } @else if (d.enabled === false) {
                 <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Disabled by you</span></span>
               } @else if (editTesting()) {
-                <span class="gw-status gw-status--checking" id="edit-checking"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Checking {{ d.name }}</span></span>
+                <span class="gw-status gw-status--checking"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Checking {{ d.name }}</span></span>
               } @else if (healthView(); as hv) {
                 <span class="gw-status" [class]="'gw-status--' + hv.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ hv.text }}</span></span>
               }
@@ -70,22 +72,28 @@
         <a class="gw-btn gw-btn--ghost" routerLink="/connections">Cancel</a>
       } @else if (detail()) {
         <a class="gw-btn gw-btn--ghost" routerLink="/activity" [queryParams]="{ q: activityQuery(name()!) }"><svg lucideIcon="activity" class="gw-icon"></svg> View activity<span class="gw-sr-only"> of {{ name() }}</span></a>
-        <button
-          class="gw-btn"
-          type="button"
-          id="edit-test"
-          [attr.aria-busy]="editTesting() ? 'true' : null"
-          [attr.aria-disabled]="editTesting() ? 'true' : null"
-          [attr.aria-describedby]="editTesting() ? 'edit-checking' : null"
-          (click)="testStored()"
-        >@if (editTesting()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="plug-zap" class="gw-icon"></svg>} Test connection<span class="gw-sr-only"> {{ name() }}</span></button>
       }
     </div>
   </div>
 </header>
 
 @if (m === 'edit') {
-  @if (detail()?.enabled === false) {
+  @if (detail()?.setupRequired) {
+    <section class="gw-alert gw-alert--warning" aria-labelledby="finish-setup-title">
+      <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <h2 class="gw-alert__title" id="finish-setup-title">Finish setup for <span class="gw-mono">{{ name() }}</span></h2>
+        <p class="gw-alert__body">The available settings were imported. This connection is disabled and provides no tools until you complete its required setup. Save the completed settings below, then enable access when ready.</p>
+        @if (detail()?.setupMissingFields?.length) { <ul class="gw-alert__body">@for (missing of detail()!.setupMissingFields; track $index) { <li>{{ missing }}</li> }</ul> }
+        @if (detail()?.setupSources?.length) {
+          <p class="gw-alert__body">Credential sources to configure:</p>
+          <ul class="gw-alert__body">@for (source of detail()!.setupSources; track $index) {
+            <li><span class="gw-mono">{{ source['field'] }}</span> · {{ source['source'] }}@if (source['path']) { · <span class="gw-mono">{{ source['path'] }}</span>}@if (source['reference']) { · <span class="gw-mono">{{ source['reference'] }}</span>}@if (source['jsonPointer']) { · <span class="gw-mono">{{ source['jsonPointer'] }}</span>}@if (source['store']) { · store <span class="gw-mono">{{ source['store'] }}</span>}@if (source['instructions']) {<p>{{ source['instructions'] }}</p>}</li>
+          }</ul>
+        }
+      </div>
+    </section>
+  } @else if (detail()?.enabled === false) {
     <div class="gw-alert gw-alert--neutral gw-alert--compact" role="status">
       <svg lucideIcon="circle-off" class="gw-icon gw-alert__icon"></svg>
       <div class="gw-alert__content"><p class="gw-alert__title">Access is off across all endpoints.</p><p class="gw-alert__body">AI apps can still see this connection and ask you to enable it. Tool modes and credentials are kept.</p></div>
@@ -232,6 +240,13 @@
 
 <!-- ───────────── Step 2 · Configure (the edit view's settings) ───────────── -->
 @if (m === 'edit' ? detailState() === 'ready' : true) {
+  @if (m === 'edit') {
+    <div class="gw-tabs__list" role="tablist" gwTabs aria-label="Connection details">
+      <button class="gw-tabs__tab" type="button" role="tab" id="connection-settings-tab" aria-controls="connection-settings" aria-selected="true" tabindex="0"><svg lucideIcon="settings" class="gw-icon"></svg>Settings</button>
+      <button class="gw-tabs__tab" type="button" role="tab" id="connection-tools-tab" aria-controls="used-by" aria-selected="false" tabindex="-1"><svg lucideIcon="wrench" class="gw-icon"></svg>Tools</button>
+    </div>
+  }
+  <div id="connection-settings" class="gw-stack gw-stack--lg" [class.gw-tabs__panel]="m === 'edit'" [attr.role]="m === 'edit' ? 'tabpanel' : null" [attr.aria-labelledby]="m === 'edit' ? 'connection-settings-tab' : null" [attr.tabindex]="m === 'edit' ? 0 : null">
   <section class="gw-section" id="step-2" aria-labelledby="step-2-title" [hidden]="m !== 'edit' && (step() !== 2 || !!done)">
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="step-2-title" tabindex="-1">@if (m === 'edit') {Settings} @else {Configure {{ typeName() }}}</h2>
@@ -277,12 +292,14 @@
         [env]="startEnv()"
         [config]="startConfig()"
         [stored]="stored()"
+        [initialReferences]="setupReferences()"
         [metadata]="detail()?.metadata ?? null"
         [parts]="['connection', 'credentials', 'safety', 'advanced']"
         [policyDefaults]="prodLines()"
         [nameProblem]="nameProblem()"
         [confirmAction]="m === 'edit' ? 'save' : 'continue'"
         [busy]="saving()"
+        (submit)="showSettings()"
         (save)="onFormSubmit($event)"
         (discoverDatabases)="loadDatabases($event)"
         (discoverProjects)="loadProjects($event)"
@@ -314,16 +331,14 @@
             </div>
           }
         </ng-container>
-        <div class="gw-form__actions" gwFormActions>
-          @if (m === 'edit') {
-            <p class="gw-form__note"><svg lucideIcon="info" class="gw-icon"></svg>Applies from the next call</p>
-            <button class="gw-btn" type="button" (click)="discard()">Discard</button>
-            <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="saving() ? 'true' : null" [attr.aria-disabled]="saving() || accessBusy() || accessSyncError() || form()?.databaseLoading() ? 'true' : null" [attr.aria-describedby]="accessBusy() ? 'edit-access-saving' : accessSyncError() ? 'edit-access-error' : form()?.databaseLoading() ? 'cf-database-status' : null">@if (saving()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Save changes<span class="gw-sr-only"> to {{ name() }}</span></button>
-          } @else {
-            <button class="gw-btn gw-btn--ghost" type="button" (click)="go(1)"><svg lucideIcon="arrow-left" class="gw-icon"></svg> Back</button>
-            <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-disabled]="form()?.databaseLoading() ? 'true' : null" [attr.aria-describedby]="form()?.databaseLoading() ? 'cf-database-status' : null">Continue<span class="gw-sr-only"> to test</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
+        <ng-container ngProjectAs="[gwFormActions]">
+          @if (m !== 'edit') {
+            <div class="gw-form__actions">
+              <button class="gw-btn gw-btn--ghost" type="button" (click)="go(1)"><svg lucideIcon="arrow-left" class="gw-icon"></svg> Back</button>
+              <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-disabled]="form()?.databaseLoading() ? 'true' : null" [attr.aria-describedby]="form()?.databaseLoading() ? 'cf-database-status' : null">Continue<span class="gw-sr-only"> to test</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
+            </div>
           }
-        </div>
+        </ng-container>
       </form>
     } @else {
       <div class="gw-stack" aria-busy="true">
@@ -333,6 +348,18 @@
       </div>
     }
   </section>
+  @if (m === 'edit') {
+    <section class="gw-section" id="delete-connection" aria-labelledby="delete-title">
+      <header class="gw-section__header">
+        <h2 class="gw-section__title" id="delete-title">Delete connection</h2>
+        <p class="gw-section__description">Agents lose its tools on their next call and pending approvals for it are denied. Past calls stay in Activity.</p>
+        <div class="gw-section__actions">
+          <button class="gw-btn gw-btn--danger-ghost" type="button" aria-haspopup="dialog" #delBtn (click)="openDelete(delBtn)"><svg lucideIcon="trash-2" class="gw-icon"></svg> Delete connection<span class="gw-sr-only"> {{ name() }}</span></button>
+        </div>
+      </header>
+    </section>
+  }
+  </div>
 }
 
 @if (m !== 'edit') {
@@ -599,7 +626,7 @@
               </table>
             </div>
           } @else {
-            <p class="gw-text-small gw-fg-muted">The tools come from the server once it runs. Each one starts in Approval; you change modes on the endpoint.</p>
+            <p class="gw-text-small gw-fg-muted">The tools come from the server once it runs. Declared reads start as Read only; other tools start as Approval. You can change all tool modes on the endpoint.</p>
           }
         </div>
       </section>
@@ -636,14 +663,27 @@
     </section>
   }
 } @else if (detailState() === 'ready') {
-  <!-- ───────────── Edit view · Used by ───────────── -->
-  <section class="gw-section" id="used-by" aria-labelledby="used-by-title">
+  <!-- Keep both tab panels mounted so switching never discards a settings draft or tool selection. -->
+  <section class="gw-section gw-tabs__panel" id="used-by" role="tabpanel" aria-labelledby="connection-tools-tab" tabindex="0" hidden>
     <header class="gw-section__header">
-      <h2 class="gw-section__title" id="used-by-title">Used by</h2>
-      <p class="gw-section__description">The endpoints that expose <span class="gw-mono">{{ name() }}</span> and the mode of each of its tools there. Choose a mode next to an endpoint to change it immediately. Changes apply from the next call.</p>
+      <h2 class="gw-section__title" id="used-by-title">Tools</h2>
+      <p class="gw-section__description">The endpoints that expose <span class="gw-mono">{{ name() }}</span> and the mode of each of its tools there. Choose a mode for one tool, or use Set all to… to change all tools on the selected endpoints. Changes apply from the next call.</p>
     </header>
     @if (usedBy().length) {
       <gw-connection-tool-modes [connection]="name()!" [connectionVersion]="detail()!.version" [rows]="usedBy()" (changed)="toolModesChanged($event)" />
+    } @else if (uses().length) {
+      <div class="gw-card gw-card--dashed">
+        <div class="gw-empty gw-empty--compact">
+          <span class="gw-empty__icon"><svg lucideIcon="wrench" class="gw-icon"></svg></span>
+          <p class="gw-empty__title">No tools available</p>
+          <p class="gw-empty__text"><span class="gw-mono">{{ name() }}</span> is on an endpoint, but no tools are available there. Check its settings and endpoint tools.</p>
+          <div class="gw-empty__actions">
+            @for (use of uses(); track use.slug) {
+              <a class="gw-btn gw-btn--sm" [routerLink]="['/endpoints', use.slug]" [queryParams]="{ tab: 'tools' }">Open {{ use.slug }}</a>
+            }
+          </div>
+        </div>
+      </div>
     } @else {
       <div class="gw-card gw-card--dashed">
         <div class="gw-empty gw-empty--compact">
@@ -656,16 +696,24 @@
     }
   </section>
 
-  <!-- ───────────── Edit view · Delete ───────────── -->
-  <section class="gw-section" id="delete-connection" aria-labelledby="delete-title">
-    <header class="gw-section__header">
-      <h2 class="gw-section__title" id="delete-title">Delete connection</h2>
-      <p class="gw-section__description">Agents lose its tools on their next call and pending approvals for it are denied. Past calls stay in Activity.</p>
-      <div class="gw-section__actions">
-        <button class="gw-btn gw-btn--danger-ghost" type="button" aria-haspopup="dialog" #delBtn (click)="openDelete(delBtn)"><svg lucideIcon="trash-2" class="gw-icon"></svg> Delete connection<span class="gw-sr-only"> {{ name() }}</span></button>
-      </div>
-    </header>
-  </section>
+  @if (specState() === 'ready' && spec()) {
+    <!-- Connection settings remain saveable from either tab through the same mounted form. -->
+    <div class="gw-form__actions" id="edit-connection-actions">
+      <p class="gw-form__note"><svg lucideIcon="info" class="gw-icon"></svg>Connection settings apply from the next call</p>
+      <button class="gw-btn" type="button" (click)="discard()">Discard</button>
+      @if (editTesting()) {<span class="gw-sr-only" id="edit-checking">Checking {{ name() }}</span>}
+      <button
+        class="gw-btn"
+        type="button"
+        id="edit-test"
+        [attr.aria-busy]="editTesting() ? 'true' : null"
+        [attr.aria-disabled]="editTesting() || trusting() || saving() || form()?.databaseLoading() ? 'true' : null"
+        [attr.aria-describedby]="editTesting() ? 'edit-checking' : form()?.databaseLoading() ? 'cf-database-status' : null"
+        (click)="testEditDraft()"
+      >@if (editTesting()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="plug-zap" class="gw-icon"></svg>} Test connection<span class="gw-sr-only"> {{ name() }}</span></button>
+      <button class="gw-btn gw-btn--primary" type="submit" form="cf-form" [attr.aria-busy]="saving() ? 'true' : null" [attr.aria-disabled]="saving() || accessBusy() || accessSyncError() || form()?.databaseLoading() ? 'true' : null" [attr.aria-describedby]="accessBusy() ? 'edit-access-saving' : accessSyncError() ? 'edit-access-error' : form()?.databaseLoading() ? 'cf-database-status' : null">@if (saving()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Save changes<span class="gw-sr-only"> to {{ name() }}</span></button>
+    </div>
+  }
 }
 
 <!-- Rotate the stored secret of this connection (the same dialog as on Secrets) -->
@@ -684,14 +732,14 @@
   }
 </dialog>
 
-<!-- A prod secret keeps a comment with each new value: asked before Replace saves it -->
+<!-- A prod secret keeps a comment with each new value or reference: asked before Replace or Save changes it -->
 <dialog class="gw-dialog gw-dialog--sm" gwDialog gwDialogStatic #commentDialog="gwDialog" id="dlg-comment" aria-labelledby="dlg-comment-t" aria-describedby="dlg-comment-d">
   @if (replacingProd(); as r) {
     <form method="dialog" novalidate (submit)="confirmComment($event)">
       <header class="gw-dialog__header">
         <span class="gw-icon-tile"><svg lucideIcon="key-round" class="gw-icon"></svg></span>
         <h2 class="gw-dialog__title" id="dlg-comment-t">Save the new {{ r.word }} of <span class="gw-mono">{{ name() }}</span>?</h2>
-        <p class="gw-dialog__description" id="dlg-comment-d">A change of a prod secret keeps a comment in Activity. Nobody can view the value, here or in the API.</p>
+        <p class="gw-dialog__description" id="dlg-comment-d">@if (r.kind === 'references') {A change of a prod secret's reference keeps a comment in Activity. The values stay in their store.} @else {A change of a prod secret keeps a comment in Activity. Nobody can view the value, here or in the API.}</p>
         <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
       </header>
       <div class="gw-dialog__body">
@@ -711,7 +759,7 @@
           @if (commentError()) {
             <p class="gw-field__error" id="dlg-comment-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ commentError() }}</p>
           }
-          <p class="gw-field__hint" id="dlg-comment-hint">Required on prod: say why the {{ r.word }} changes now.</p>
+          <p class="gw-field__hint" id="dlg-comment-hint">Required on prod: say why the {{ r.word }} {{ r.plural ? 'change' : 'changes' }} now.</p>
         </div>
       </div>
       <footer class="gw-dialog__footer">
@@ -722,7 +770,7 @@
   }
 </dialog>
 
-<!-- The header's test stopped before the credentials left: compare what the server showed, then trust it -->
+<!-- The draft test stopped before the credentials left: compare what the server showed, then trust it -->
 <dialog class="gw-dialog gw-dialog--md gw-dialog--warning" gwDialog #trustDialog="gwDialog" id="dlg-trust" aria-labelledby="dlg-trust-t" aria-describedby="dlg-trust-d">
   @if (editConfirm(); as o) {
     <header class="gw-dialog__header">
@@ -742,12 +790,12 @@
     }
     <footer class="gw-dialog__footer">
       <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
-      <button class="gw-btn gw-btn--primary" type="button" [attr.aria-busy]="trusting() ? 'true' : null" [attr.aria-disabled]="trusting() ? 'true' : null" (click)="trustStored()">@if (trusting()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}{{ trustLabel(o) }}</button>
+      <button class="gw-btn gw-btn--primary" type="button" [attr.aria-busy]="trusting() ? 'true' : null" [attr.aria-disabled]="trusting() ? 'true' : null" (click)="trustEditDraft()">@if (trusting()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}{{ trustLabel(o) }}</button>
     </footer>
   }
 </dialog>
 
-<!-- Saving a new host with a stored secret: the core asks before the secret goes there (409 send-secret-to-new-host) -->
+<!-- Using a new host with a stored secret: the core asks before the secret goes there (409 send-secret-to-new-host) -->
 <dialog class="gw-dialog gw-dialog--md gw-dialog--warning" gwDialog #hostDialog="gwDialog" id="dlg-new-host" aria-labelledby="dlg-new-host-t" aria-describedby="dlg-new-host-d">
   @if (newHost(); as h) {
     <header class="gw-dialog__header">
@@ -758,7 +806,7 @@
     </header>
     <footer class="gw-dialog__footer">
       <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
-      <button class="gw-btn gw-btn--primary" type="button" (click)="sendToNewHost()">{{ h.fileRequest ? 'Send and browse folders' : h.projectRequest ? 'Send and load projects' : h.discoveryKey ? 'Send and load databases' : 'Send and save' }}<span class="gw-sr-only"> {{ name() }}</span></button>
+      <button class="gw-btn gw-btn--primary" type="button" (click)="sendToNewHost()">{{ h.fileRequest ? 'Send and browse folders' : h.projectRequest ? 'Send and load projects' : h.discoveryKey ? 'Send and load databases' : h.test ? 'Send and test' : 'Send and save' }}<span class="gw-sr-only"> {{ name() }}</span></button>
     </footer>
   }
 </dialog>

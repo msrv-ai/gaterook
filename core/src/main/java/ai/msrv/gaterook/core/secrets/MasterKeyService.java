@@ -132,6 +132,8 @@ public class MasterKeyService implements HmacKeys, InitializingBean, DisposableB
    */
   private final AtomicInteger sealsInFlight = new AtomicInteger();
   private final List<String> warnings = new CopyOnWriteArrayList<>();
+  /** The key this start opened is the one the database was protected with: only then can rows be vouched for. */
+  private volatile boolean keptAtStart;
   /**
    * Changes made before the application was ready, announced once it is: {@code @EventListener} methods (and with them
    * every {@code @TransactionalEventListener}) are registered only after all singletons exist, and a lost key replaced
@@ -207,6 +209,7 @@ public class MasterKeyService implements HmacKeys, InitializingBean, DisposableB
         }
         if (root.isPresent()) {
           derive(root.get());
+          keptAtStart = true;
         } else {
           newPurposeKeys();
         }
@@ -251,6 +254,15 @@ public class MasterKeyService implements HmacKeys, InitializingBean, DisposableB
         lock.lock(MasterKeyLock.Reason.MASTER_KEY_INVALID);
       }
     }
+  }
+
+  /**
+   * Whether this start opened the master key the database was already protected with, so its purpose keys are those
+   * that signed the stored rows. {@code false} while locked, and when the key or its purpose keys were made new at
+   * start: nothing stored before may then be vouched for (signed) as if this key had seen it.
+   */
+  public boolean keptAtStart() {
+    return keptAtStart && !lock.locked();
   }
 
   /** Announces what changed before the listeners existed (a key replaced at start, a resumed rotation). */
@@ -648,7 +660,7 @@ public class MasterKeyService implements HmacKeys, InitializingBean, DisposableB
   }
 
   /**
-   * The demo world's key (GW_DEMO=1, design/BLUEPRINT.md §9: "last backup 12 days ago", Secrets "Created Jul 14"): the
+   * The demo world's key (GW_DEMO=1: "last backup 12 days ago", Secrets "Created Jul 14"): the
    * keys in use are recorded as backed up, and the key as made, on the world's dates. No copy of the key is written: a
    * demo home is a normal home afterwards, and a backup without a passphrase lying in it would hand the key to anyone
    * who can read the file, past whatever guards the keyset (the Keychain on macOS) — review API #7. Never in a release

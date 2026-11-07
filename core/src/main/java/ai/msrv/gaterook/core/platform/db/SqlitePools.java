@@ -3,8 +3,13 @@ package ai.msrv.gaterook.core.platform.db;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Optional;
 import javax.sql.DataSource;
+import org.springframework.jdbc.datasource.AbstractDataSource;
 import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
 
 /**
@@ -20,7 +25,8 @@ import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
  * A {@link LazyConnectionDataSourceProxy} routes each transaction by its read-only flag; with {@code JpaTransactionManager}
  * that works because Spring marks the proxy connection read-only before Hibernate runs the first statement
  * ({@code DatabaseSelfCheck} proves it on every start). Pragmas go into the URL, applied on every connection:
- * {@code connectionInitSql} with sqlite-jdbc runs only its first statement, so it carries {@code query_only} alone.
+ * {@code connectionInitSql} with sqlite-jdbc runs only its first statement, so it carries {@code query_only} alone,
+ * and {@code trusted_schema=OFF}, which the URL can't carry, is set as each connection opens ({@link UntrustedSchema}).
  * A connection whose transaction SQLite may have ended by itself (a full disk), or that a broken file left unusable,
  * is replaced, not reused ({@link LostTransactionEviction}).
  */
@@ -79,7 +85,7 @@ public final class SqlitePools implements AutoCloseable {
       GatewayDatabaseProperties properties) {
     HikariConfig config = new HikariConfig();
     config.setPoolName(name);
-    config.setJdbcUrl(url);
+    config.setDataSource(new UntrustedSchema(url));
     config.setMaximumPoolSize(size);
     config.setMinimumIdle(1);
     config.setConnectionTimeout(properties.connectionTimeout().toMillis());
@@ -95,6 +101,42 @@ public final class SqlitePools implements AutoCloseable {
       config.setConnectionInitSql(initSql);
     }
     return new HikariDataSource(config);
+  }
+
+  /**
+   * Opens connections as Hikari's own driver data source would, then switches {@code trusted_schema} off: SQL kept in
+   * the schema (triggers, views, CHECK and DEFAULT expressions, indexes) may then call only the functions SQLite marks
+   * as harmless, so a trigger or view another program adds to the file can't run one with side effects inside the
+   * core's own statements.
+   */
+  static final class UntrustedSchema extends AbstractDataSource {
+
+    private final String url;
+
+    UntrustedSchema(String url) {
+      this.url = url;
+    }
+
+    @Override
+    public Connection getConnection() throws SQLException {
+      Connection connection = DriverManager.getConnection(url);
+      try (Statement statement = connection.createStatement()) {
+        statement.execute("PRAGMA trusted_schema=OFF");
+      } catch (SQLException | RuntimeException e) {
+        try {
+          connection.close();
+        } catch (SQLException closing) {
+          e.addSuppressed(closing);
+        }
+        throw e;
+      }
+      return connection;
+    }
+
+    @Override
+    public Connection getConnection(String username, String password) throws SQLException {
+      return getConnection();
+    }
   }
 
   /** The routing data source: writer by default, reader inside read-only transactions. */

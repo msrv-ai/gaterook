@@ -100,6 +100,16 @@ class SlackBlocksTest {
   }
 
   @Test
+  void theConnectorsWarningsAreShownWithTheAction() {
+    ApprovalNotice n = NoticeFixtures.withDetails(NoticeFixtures.dev(), java.util.List.of(NoticeFixtures.detail(
+        "Warning", "MySQL commits a schema change at once: it can't be rolled back.")));
+    ObjectNode msg = SlackBlocks.request(n, verdict(n, true), "ins_test0000001", "1", UTC, null);
+    assertThat(msg.at("/blocks/2/elements/0/elements/0/text").asString()).isEqualTo(NoticeFixtures.SQL);
+    assertThat(msg.toString()).contains("*Warning*").contains("it can't be rolled back.");
+    assertThat(actionIds(msg)).containsExactly("gw_approve", "gw_deny", "gw_open");
+  }
+
+  @Test
   void anActionThatLooksLikeASecretIsNeverSent() {
     ApprovalNotice n = NoticeFixtures.with(NoticeFixtures.dev(), new ApprovalNotice.Action("sql", "sql", "", 64, true,
         0, 0, false));

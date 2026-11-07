@@ -107,6 +107,24 @@ class ClientCallsTest {
     assertThat(calls.withLastCalls(List.of(original)).getFirst()).isEqualTo(original);
   }
 
+  @Test
+  void aManualAppCannotBorrowAnotherTokensSameLabelOrAnOAuthIdentity() {
+    String id = "manual-439867f1-056a-45a9-aa1f-d75c0a2a19e7";
+    String name = "custom-app-439867f1056a";
+    when(audit.lastCall("dev", name, null, CONNECTED_AT)).thenReturn(Optional.of(USED_AT));
+    when(oauth.localClientUses()).thenReturn(List.of(use("og_other", id, "dev", USED_AT)));
+    for (String state : List.of("pending", "connected", "error")) {
+      String text = state.equals("connected") ? "Connected" : state;
+      Link link = new Link(id, id, "dev", "dev", "manual", null, null, null, "gwt_test", null, name,
+          state, text, CONNECTED_AT, state.equals("connected") ? CONNECTED_AT : null, null, null, null, null, null);
+      Card card = new Card(id, "Custom app", state, text, null, null, false, List.of(), null, List.of(),
+          List.of(), List.of(link), true);
+      assertThat(calls.withCalls(List.of(card))).containsExactly(card);
+      assertThat(calls.withLastCalls(List.of(card))).containsExactly(card);
+      assertThat(calls.withCall(link)).isEqualTo(link);
+    }
+  }
+
   private static OAuthService.ClientUse use(String id, String client, String endpoint, Instant usedAt) {
     return new OAuthService.ClientUse(id, client, endpoint, "dev", CONNECTED_AT.minusSeconds(5), usedAt);
   }

@@ -27,7 +27,7 @@
 
 @let n = counts();
 <div class="gw-tabs">
-  <div class="gw-tabs__list" role="tablist" aria-label="Connectors" gwTabs>
+  <div class="gw-tabs__list" role="tablist" aria-label="Connectors" gwTabs (selectedChange)="onTabSelected($event)">
     <button class="gw-tabs__tab" type="button" role="tab" id="tab-installed" aria-selected="true" aria-controls="installed"><svg lucideIcon="package-check" class="gw-icon"></svg> Installed @if (n.installed !== null) {<span class="gw-tabs__count">{{ n.installed }}<span class="gw-sr-only"> connectors</span></span>}</button>
     <button class="gw-tabs__tab" type="button" role="tab" id="tab-catalog" aria-selected="false" aria-controls="catalog" tabindex="-1"><svg lucideIcon="library" class="gw-icon"></svg> Catalog @if (n.catalog !== null) {<span class="gw-tabs__count">{{ n.catalog }}<span class="gw-sr-only"> connectors</span></span>}</button>
     <button class="gw-tabs__tab" type="button" role="tab" id="tab-templates" aria-selected="false" aria-controls="templates" tabindex="-1"><svg lucideIcon="file-code" class="gw-icon"></svg> Templates @if (n.templates !== null) {<span class="gw-tabs__count">{{ n.templates }}<span class="gw-sr-only"> {{ n.templates === 1 ? 'template' : 'templates' }}</span></span>}</button>
@@ -44,9 +44,7 @@
 <dialog gwPluginInstallDialog gwDialogStatic (checked)="onChecked($event)"></dialog>
 <dialog gwPluginReviewDialog gwDialogStatic></dialog>
 <dialog gwPluginUpdateDialog></dialog>
-<dialog gwMcpAddDialog gwDialogStatic (reviewed)="onReviewed($event)"></dialog>
-<dialog gwMcpReviewDialog gwDialogStatic (connected)="onConnected($event)"></dialog>
-<dialog gwMcpEndpointDialog gwDialogStatic></dialog>
+<gw-mcp-setup-flow />
 <dialog gwMcpSignInDialog gwDialogStatic></dialog>
 <dialog gwConfirmDialog></dialog>
 <dialog gwTemplateInstallDialog gwDialogStatic></dialog>

@@ -82,6 +82,7 @@ import {
   withTargets,
 } from './endpoint-detail-view';
 import { GwEndpointSettings } from './endpoint-settings';
+import { GwEndpointShare } from './endpoint-share.component';
 
 /** The first render waits this long before it shows placeholders (kit: "when it takes longer than 300 ms"). */
 export const SKELETON_DELAY_MS = 300;
@@ -94,12 +95,12 @@ const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringif
 export const SPLIT_FRAGMENT = 'ep-dlg-split';
 
 /**
- * Endpoint detail (design/pages/endpoint-detail.html; ARCHITECTURE.md §8.4 "endpoint-detail"): one endpoint, the
+ * Endpoint detail (ARCHITECTURE.md §8.4 "endpoint-detail"): one endpoint, the
  * URL a client calls, and everything that decides what an agent can do through it.
  *
  * - The header: slug, what it is for, Running or Disabled, the URL to copy, the MCP revisions it answers, how
- *   clients sign in, the requests waiting for approval; View activity, Open in Playground and a menu (Duplicate,
- *   Disable with Undo, Delete).
+ *   clients sign in, the requests waiting for approval; View activity and a menu (Share endpoint, Import with AI,
+ *   Open in Playground, Duplicate, Disable with Undo, Delete).
  * - The risk callout (present / partial, limited / contained, dismissed) with Split endpoint and Dismiss.
  * - How it connects: clients → endpoint → connections (setup-map wiring), each card leading to its tab.
  * - Tabs, mirrored in `?tab=`: Tools & policies (tool-policy-list), Connections (unreachable ones first, Add and
@@ -132,6 +133,7 @@ export const SPLIT_FRAGMENT = 'ep-dlg-split';
     GwTokenIssueDialog,
     GwEndpointSettings,
     GwEndpointClients,
+    GwEndpointShare,
   ],
   providers: [EndpointDetailData],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -452,11 +454,11 @@ export class EndpointDetailPage {
   }
 
   /** "Set all to…": tools that can't take the mode stay as they are, and the announcement names them (kit). */
-  protected async bulk(b: { readonly connection: string | null; readonly mode: ToolMode }): Promise<void> {
+  protected async bulk(b: { readonly connection: string | null; readonly mode: ToolMode | 'DEFAULT' }): Promise<void> {
     try {
       const result = await this.data.bulk(b.connection, b.mode);
       const names = result.skipped.map((s) => s.toolKey.split('/').at(-1) ?? s.toolKey);
-      const label = b.mode === 'READ_ONLY' ? 'Read only' : b.mode === 'APPROVAL' ? 'Approval' : b.mode === 'BYPASS' ? 'Bypass' : 'Off';
+      const label = b.mode === 'DEFAULT' ? 'default modes' : b.mode === 'READ_ONLY' ? 'Read only' : b.mode === 'APPROVAL' ? 'Approval' : b.mode === 'BYPASS' ? 'Bypass' : 'Off';
       this.announcer.announce(`Set to ${label}${names.length ? `. ${names.join(' and ')} kept ${names.length > 1 ? 'their modes' : 'its mode'}` : ''}`);
     } catch (e) {
       this.toast({ tone: 'danger', title: "The modes weren't changed", body: this.errorText(e) });
@@ -583,7 +585,7 @@ export class EndpointDetailPage {
     }
   }
 
-  /** Disable is reversible: it acts at once and offers Undo (kit, DESIGN §8). */
+  /** Disable is reversible: it acts at once and offers Undo. */
   protected async disable(): Promise<void> {
     if (this.toggling()) return;
     this.toggling.set(true);

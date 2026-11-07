@@ -7,7 +7,7 @@
       </div>
       <div class="gw-toolbar__end">
         <div class="gw-menu-host">
-          <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="menu" [gwMenuTrigger]="newMenu"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg> New template <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+          <button class="gw-btn gw-btn--sm" id="new-template" type="button" aria-haspopup="menu" [gwMenuTrigger]="newMenu"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg> New template <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
           <div class="gw-menu gw-menu--right gw-menu--wide" gwMenu #newMenu="gwMenu" id="menu-new-template" role="menu" aria-label="New template" hidden>
             @let r = kindReasons();
             <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" [gwAriaDisabled]="!!r.sql" (click)="newSqlQuery()"><svg lucideIcon="database" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">SQL query<span class="gw-menu__hint">{{ r.sql ?? 'A named SELECT or statement with :parameters' }}</span></span></button>
@@ -17,6 +17,17 @@
         </div>
       </div>
     </div>
+
+    @if (savedWarnings().length) {
+      <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
+        <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content">
+          @for (warning of savedWarnings(); track $index) {
+            <p class="gw-alert__body">{{ warning }}</p>
+          }
+        </div>
+      </div>
+    }
 
     @if (data.templates.error(); as e) {
       <div class="gw-alert gw-alert--danger" role="alert">
@@ -145,6 +156,6 @@
   </div>
 
   @if (target(); as t) {
-    <section gwTemplateEditor [target]="t" [connections]="sqlConnections()" (saved)="onSaved($event)"></section>
+    <section gwTemplateEditor [target]="t" [connections]="sqlConnections()" (saved)="onSaved($event)" (closed)="closeEditor()"></section>
   }
 </div>

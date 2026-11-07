@@ -23,8 +23,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
@@ -42,8 +45,18 @@ import tools.jackson.databind.JsonNode;
  * its other threads, and with them the plugin's calls, unconfined (review 2026-10-27); on macOS the core wraps the
  * launch with {@code sandbox-exec} and an SBPL profile that denies reading GateRook's home, the credential
  * folders and the connected clients' configs (the API is deprecated, so this is UNVERIFIED in the kit's words).
- * Whether Landlock works here is asked once ({@code SandboxExec --probe}); where there is no sandbox the host runs
- * without one and the log says so.
+ * Both keep the plugin's own sockets from the core's listeners (its local and public ports; on Linux from Landlock ABI
+ * 4, else the plugin log says they stay open): the egress guard judges only what goes through {@code ctx.egress()},
+ * and a JDBC driver, a raw socket or an address literal never does. On Linux, from Landlock ABI 6, the host is also
+ * scoped out of the session's abstract Unix sockets and the signals of other processes, as MCP servers are; the core,
+ * outside that domain, still stops it. Whether Landlock works here is asked once
+ * ({@code SandboxExec --probe}); where there is no sandbox the host runs without one and the log says so.
+ *
+ * <p>On Windows the host's sandbox is low integrity, which it applies itself at {@code plugin/load}: an integrity level
+ * belongs to the process token, which every thread shares, so a host that lowers its own token before it reads the
+ * plugin confines all of it ({@code pluginhost.WindowsIntegrity}). The core asks for it with
+ * {@code MCP_GATEWAY_SANDBOX=low-integrity} once {@code WindowsIntegrity --probe} worked here, and points the host's
+ * {@code TEMP} at the plugin's data folder, which the host labels low.
  *
  * <p>The host's answers are untrusted once the plugin's code ran: a malformed {@code plugin/load} ends the process,
  * and the tools it reports must be the manifest's, by definition hash ("tools ⊆ manifest").
@@ -81,6 +94,10 @@ public final class HostLauncher {
   static final String SANDBOX_EXEC = "ai.msrv.gaterook.pluginhost.SandboxExec";
   /** Set in a host's environment by its sandbox ({@code SandboxExec} on Linux, the core for sandbox-exec). */
   static final String SANDBOX_ENV = "MCP_GATEWAY_SANDBOX";
+  /** The Windows sandbox, which the host applies itself at load. */
+  static final String LOW_INTEGRITY = "low-integrity";
+  /** Its probe: {@code WindowsIntegrity --probe}. */
+  static final String WINDOWS_INTEGRITY = "ai.msrv.gaterook.pluginhost.WindowsIntegrity";
 
   private final HostRuntimeLocator runtime;
   private final PluginPaths paths;
@@ -88,24 +105,30 @@ public final class HostLauncher {
   private final SealedHandles handles;
   private final AotCacheManager aot;
   private final HostPids pids;
+  /** The core's own listeners now: the local API, the tunnel's listener, the port it bound. */
+  private final Supplier<Set<Integer>> corePorts;
   private final java.time.Clock clock;
   private final String osName = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
   /** Whether {@code SandboxExec --probe} passed on this system: known after the first start on Linux. */
   private volatile Boolean landlock;
+  /** Whether {@code WindowsIntegrity --probe} passed: known after the first start on Windows. */
+  private volatile Boolean lowIntegrity;
 
+  /** @param corePorts the core's listeners ({@code EgressClients.Settings.corePorts()}), read at each start */
   public HostLauncher(HostRuntimeLocator runtime, PluginPaths paths, SecretCallbackRegistry secrets,
-      SealedHandles handles, AotCacheManager aot, java.time.Clock clock) {
-    this(runtime, paths, secrets, handles, aot, new HostPids(paths.pidFile()), clock);
+      SealedHandles handles, AotCacheManager aot, Supplier<Set<Integer>> corePorts, java.time.Clock clock) {
+    this(runtime, paths, secrets, handles, aot, new HostPids(paths.pidFile()), corePorts, clock);
   }
 
   HostLauncher(HostRuntimeLocator runtime, PluginPaths paths, SecretCallbackRegistry secrets, SealedHandles handles,
-      AotCacheManager aot, HostPids pids, java.time.Clock clock) {
+      AotCacheManager aot, HostPids pids, Supplier<Set<Integer>> corePorts, java.time.Clock clock) {
     this.runtime = runtime;
     this.paths = paths;
     this.secrets = secrets;
     this.handles = handles;
     this.aot = aot;
     this.pids = pids;
+    this.corePorts = corePorts;
     this.clock = clock;
   }
 
@@ -116,8 +139,9 @@ public final class HostLauncher {
 
   /**
    * The sandbox hosts run in on this system: {@code landlock} where Linux confines a probe of the first stage,
-   * {@code sandbox-exec} on macOS, else {@code null} (the host runs as the person's user, unconfined). A Linux probe
-   * that couldn't tell (it didn't finish) answers {@code null} here and is asked again next time.
+   * {@code sandbox-exec} on macOS, {@code low-integrity} where a Windows probe dropped to it, else {@code null} (the host
+   * runs as the person's user, unconfined). A probe that couldn't tell (it didn't finish) answers {@code null} here and
+   * is asked again next time.
    */
   public String sandboxKind() {
     try {
@@ -149,7 +173,67 @@ public final class HostLauncher {
     if (osName.startsWith("mac") && Files.isExecutable(Path.of("/usr/bin/sandbox-exec"))) {
       return "sandbox-exec";
     }
+    if (osName.startsWith("windows")) {
+      Boolean known = lowIntegrity;
+      if (known == null) {
+        synchronized (this) {
+          if (lowIntegrity == null) {
+            Boolean probed = probeLowIntegrity();
+            if (probed == null) {
+              throw new HostStartException("sandbox", "Couldn't tell whether this system can sandbox plugins: the "
+                  + "probe didn't finish. Try again.");
+            }
+            lowIntegrity = probed;
+          }
+          known = lowIntegrity;
+        }
+      }
+      return known ? LOW_INTEGRITY : null;
+    }
     return null;
+  }
+
+  /**
+   * Runs {@code WindowsIntegrity --probe}: {@code TRUE} when the probe labelled a folder low, dropped to low integrity
+   * and wrote there, {@code FALSE} when it said it couldn't (exit 4) or there is no runtime to ask, {@code null} when it
+   * couldn't tell.
+   */
+  private Boolean probeLowIntegrity() {
+    Optional<Path> javaExe = runtime.javaExecutable();
+    Optional<Path> hostJar = runtime.hostJar();
+    if (javaExe.isEmpty() || hostJar.isEmpty()) {
+      return Boolean.FALSE;
+    }
+    List<String> argv = List.of(javaExe.get().toAbsolutePath().toString(), "-Xlog:disable", "-XX:+UseSerialGC",
+        "-XX:TieredStopAtLevel=1", "-Xmx32m", "--enable-native-access=ALL-UNNAMED", "-cp",
+        hostJar.get().toAbsolutePath().toString(), WINDOWS_INTEGRITY, "--probe");
+    try {
+      Process p = new ProcessBuilder(argv).redirectErrorStream(true).start();
+      p.getOutputStream().close();
+      if (!p.waitFor(20, java.util.concurrent.TimeUnit.SECONDS)) {
+        p.destroyForcibly();
+        log.warn("The plugin sandbox probe didn't finish in 20 s");
+        return null;
+      }
+      String said = new String(p.getInputStream().readNBytes(4096), StandardCharsets.UTF_8).strip();
+      return switch (p.exitValue()) {
+        case 0 -> Boolean.TRUE;
+        case 4 -> {
+          log.warn("Plugins run unconfined: they can't run at low integrity here ({})", said);
+          yield Boolean.FALSE;
+        }
+        default -> {
+          log.warn("The plugin sandbox probe failed (exit {}): {}", p.exitValue(), said);
+          yield null;
+        }
+      };
+    } catch (IOException e) {
+      log.warn("The plugin sandbox probe couldn't run: {}", e.getMessage());
+      return null;
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return null;
+    }
   }
 
   /**
@@ -224,6 +308,11 @@ public final class HostLauncher {
     if ("sandbox-exec".equals(sandbox)) {
       // On Linux only the first stage says so: a host started without it must not claim a sandbox.
       pb.environment().put(SANDBOX_ENV, sandbox);
+    } else if (LOW_INTEGRITY.equals(sandbox)) {
+      // The host drops to low integrity at load; from then on it writes only where it is labelled low.
+      pb.environment().put(SANDBOX_ENV, sandbox);
+      pb.environment().put("TEMP", dataDir.resolve("tmp").toString());
+      pb.environment().put("TMP", dataDir.resolve("tmp").toString());
     }
     Process process;
     try {
@@ -343,7 +432,7 @@ public final class HostLauncher {
       argv.add("-p");
       argv.add(macProfile(spec, dataDir));
     } else if ("landlock".equals(sandbox)) {
-      argv.addAll(firstStage(java, hostJar, spec, dataDir, cache));
+      argv.addAll(firstStage(java, hostJar, spec, dataDir, cache, closedPorts()));
     }
     argv.add(java.toAbsolutePath().toString());
     cache.ifPresent(c -> argv.add("-XX:AOTCache=" + c));
@@ -376,12 +465,15 @@ public final class HostLauncher {
   }
 
   /**
-   * {@code java … -cp plugin-host.jar SandboxExec --ro … --rw … --}: the Linux first stage, which confines its main
-   * thread with Landlock and execs the host's JVM (the argv that follows). The host may read the JRE, its own JAR, the
-   * plugin's version folder and the AOT cache, and write only the plugin's data folder; the system paths are the
-   * stage's own (/usr, /etc, /proc/self, …).
+   * {@code java … -cp plugin-host.jar SandboxExec --ro … --rw … --deny-tcp … --}: the Linux first stage, which confines
+   * its main thread with Landlock and execs the host's JVM (the argv that follows). The host may read the JRE, its own
+   * JAR, the plugin's version folder and the AOT cache, write only the plugin's data folder, and neither bind nor
+   * connect a TCP socket to the core's ports (from Landlock ABI 4; by port, so on any host), and from ABI 6 it is
+   * scoped out of abstract Unix sockets and other processes' signals; the system paths are the stage's own (/usr,
+   * /etc, /proc/self, …).
    */
-  private List<String> firstStage(Path java, Path hostJar, Spec spec, Path dataDir, Optional<Path> cache) {
+  private List<String> firstStage(Path java, Path hostJar, Spec spec, Path dataDir, Optional<Path> cache,
+      Set<Integer> closedPorts) {
     List<String> argv = new ArrayList<>(List.of(java.toAbsolutePath().toString()));
     argv.addAll(firstStageFlags());
     argv.add("-Djava.io.tmpdir=" + dataDir.resolve("tmp"));
@@ -403,8 +495,23 @@ public final class HostLauncher {
       argv.add("--rw");
       argv.add(form);
     }
+    for (int port : closedPorts) {
+      argv.add("--deny-tcp");
+      argv.add(Integer.toString(port));
+    }
     argv.add("--");
     return argv;
+  }
+
+  /** The core's listeners as they are now, ascending: the TCP ports a plugin's sockets never bind or reach. */
+  Set<Integer> closedPorts() {
+    Set<Integer> ports = new TreeSet<>();
+    for (Integer port : corePorts.get()) {
+      if (port != null && port > 0 && port <= 65_535) {
+        ports.add(port);
+      }
+    }
+    return ports;
   }
 
   /** A small, quick JVM that writes nothing to stdout (the protocol channel of the host it becomes). */
@@ -439,8 +546,11 @@ public final class HostLauncher {
    * Antigravity's configs may hold a gateway token), and writing anywhere but the plugin's data folder and the devices
    * denied too (review 2026-10-27: a login item or a shell profile written from inside would run unconfined later).
    * Seatbelt compares a {@code subpath} with the canonical path only, so every denied path is written as given and as
-   * the kernel sees it ({@code /var} is {@code /private/var}). Still open (UNVERIFIED, like the deprecated API itself):
-   * the network, the rest of the person's files to read, and Mach services such as Launch Services.
+   * the kernel sees it ({@code /var} is {@code /private/var}). The network is open except the core's own listeners,
+   * which the plugin's sockets may neither connect to nor bind, on any address: a rule for {@code localhost} alone
+   * let {@code ::ffff:0.0.0.0} through, the IPv4-mapped wildcard that the kernel connects to {@code 127.0.0.1}
+   * (checked on macOS 27). Still open (UNVERIFIED, like the deprecated API itself): the rest of the person's files to
+   * read, and Mach services such as Launch Services.
    *
    * <p>Inside the denied home the host may read its plugin's version folder and the AOT cache, and read and write its
    * own data folder; and it may {@code stat} — metadata only, no listing, no content — the folders on the way to them:
@@ -483,12 +593,33 @@ public final class HostLauncher {
       parents.forEach(a -> b.append(" (literal ").append(sbpl(a.toString())).append(')'));
       b.append(")\n");
     }
+    Set<Integer> ports = closedPorts();
+    if (!ports.isEmpty()) {
+      // Seatbelt takes only * or localhost as a host here, and localhost misses the mapped wildcard: every host.
+      b.append("(deny network-outbound");
+      ports.forEach(port -> b.append(" (remote ip \"*:").append(port).append("\")"));
+      b.append(")\n(deny network-bind");
+      ports.forEach(port -> b.append(" (local ip \"*:").append(port).append("\")"));
+      b.append(")\n");
+    }
     return b.toString();
   }
 
-  /** Under the person's home, what a plugin host on macOS may not read (as {@code gw-bridge sandbox-exec}). */
-  static final List<String> MAC_DENIED = List.of(".ssh", ".aws", ".config/gcloud", ".kube", "Library/Keychains",
-      ".docker", ".netrc", ".codex", ".cursor", ".gemini", "Library/Application Support/Claude");
+  /**
+   * Under the person's home, what a plugin host on macOS may not read: GateRook's earlier home and its desktop app's
+   * storage, the credentials of tools and registries, and the configs of the AI apps. The same list as
+   * {@code gw-bridge sandbox-exec} ({@code Sandbox.DENIED}, which this module can't depend on; a test compares them).
+   */
+  static final List<String> MAC_DENIED = List.of(".mcp-gateway", "Library/Application Support/GateRook",
+      ".config/GateRook", ".ssh", ".aws", ".config/gcloud", ".kube", "Library/Keychains", ".docker", ".netrc",
+      ".gnupg", ".config/gh", ".config/op", ".vault-token", ".pgpass", ".my.cnf", ".mylogin.cnf", ".azure", ".oci",
+      ".password-store", ".npmrc", ".pypirc", ".git-credentials", ".config/git/credentials", ".cargo/credentials",
+      ".cargo/credentials.toml", ".gem/credentials", ".m2/settings.xml", ".m2/settings-security.xml",
+      ".gradle/gradle.properties", ".terraform.d/credentials.tfrc.json", ".cloudflared", ".config/ngrok", ".ngrok2",
+      "Library/Application Support/ngrok", ".codex", ".cursor", ".gemini", ".claude", ".claude.json",
+      ".config/github-copilot", "Library/Application Support/Claude", ".config/Claude",
+      "Library/Application Support/Cursor", ".config/Cursor", "Library/Application Support/Antigravity",
+      ".config/Antigravity");
 
   /** {@code p} absolute, and its canonical form when that differs (a path not there yet: through its deepest parent). */
   static List<String> forms(Path p) {

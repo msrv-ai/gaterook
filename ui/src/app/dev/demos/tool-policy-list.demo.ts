@@ -19,7 +19,7 @@ interface LiveDev {
 }
 
 /**
- * Dev only: design/elements/tool-policy-list.html. Endpoint dev is the dev core's: its tools
+ * Dev only: tool-policy-list component. Endpoint dev is the dev core's: its tools
  * (`GET /api/endpoints/dev/tools`), the connector types' tool descriptions and the effective policies
  * (`GET /api/policies`). The read-only prod endpoint and the external MCP server's tools are fixtures: the demo
  * world's incident-prod isn't read only and external MCP servers come with K4.
@@ -67,7 +67,7 @@ interface LiveDev {
     <section class="gw-section" aria-labelledby="tpl-f-title">
       <header class="gw-section__header">
         <h2 class="gw-section__title" id="tpl-f-title">Tools of an external MCP server</h2>
-        <p class="gw-section__description">The 26 tools of <code class="gw-code">github-mcp</code> just added to endpoint <code class="gw-code">dev</code> (4 shown). Their annotations come from the server, not from the gateway, so each row says “Declared by github-mcp, not verified” next to them. They start in Approval. A tool the server declares read only can go to Read only, but only after you confirm it for that one tool: picking the option opens the confirmation, and the tool keeps its mode until you allow it. A tool not declared read only, or declared destructive, offers Approval, Bypass or Off (native <code class="gw-code">disabled</code>: the option would remove the approval). The same holds for plugin tools.</p>
+        <p class="gw-section__description">The 26 tools of <code class="gw-code">github-mcp</code> just added to endpoint <code class="gw-code">dev</code> (4 shown). Their annotations come from the server, not from the gateway, so each row says “Declared by github-mcp, not verified” next to them. Declared reads start in Read only; other tools start in Approval. “Set all to…” changes every eligible tool in the group. A tool not declared read only, or declared destructive, offers Approval, Bypass or Off. Plugin tools still require an individual confirmation before Read only.</p>
       </header>
       <div gwToolPolicyList [groups]="externalGroups" slug="dev" noun="new tools" [showModeFilter]="false" [descriptions]="descriptions" [policies]="policies" (confirmReadOnly)="say($event.toolKey + ' is read only on dev')"></div>
     </section>

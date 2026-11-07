@@ -20,7 +20,7 @@
       "default": "stdio",
       "x-enumTitles": [
         "Command on this computer (stdio)",
-        "URL (Streamable HTTP)"
+        "URL (Streamable HTTP or SSE)"
       ]
     },
     "start": {
@@ -62,6 +62,24 @@
       "minimum": 1,
       "maximum": 16,
       "default": 4
+    },
+    "share": {
+      "type": "object",
+      "title": "Share with agents",
+      "additionalProperties": false,
+      "description": "What the server offers besides tools. Reads of its resources and prompts run without approval, through the endpoint's policy, masked and recorded in Activity.",
+      "properties": {
+        "resources": {
+          "type": "boolean",
+          "default": false,
+          "title": "Its resources and resource templates"
+        },
+        "prompts": {
+          "type": "boolean",
+          "default": false,
+          "title": "Its prompts and their completions"
+        }
+      }
     },
     "catalogEntry": {
       "type": "string",
@@ -134,6 +152,12 @@
               ]
             },
             "default": []
+          },
+          "offThisComputer": {
+            "type": "boolean",
+            "default": false,
+            "title": "Keep it off this computer (Windows)",
+            "description": "Runs it in an AppContainer: the internet and your network stay open, this computer's services and your files don't. Leave it off for a server that talks to a database on this computer or reads your files; it then runs at low integrity, which still keeps it out of GateRook's data."
           }
         }
       }

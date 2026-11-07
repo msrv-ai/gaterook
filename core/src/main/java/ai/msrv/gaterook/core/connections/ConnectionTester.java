@@ -7,6 +7,7 @@ import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.SecretUnavailableException;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.core.connections.internal.ConnectionTargets;
 import ai.msrv.gaterook.core.connections.internal.DraftSecrets;
@@ -26,6 +27,7 @@ import ai.msrv.gaterook.core.platform.ProblemException;
 import ai.msrv.gaterook.core.platform.SetupChangeRecorder;
 import ai.msrv.gaterook.core.platform.SetupChangeRecorder.SetupChange;
 import ai.msrv.gaterook.core.platform.Taint;
+import ai.msrv.gaterook.core.secrets.ScopedSecretResolver;
 import ai.msrv.gaterook.core.secrets.SecretService;
 import java.nio.CharBuffer;
 import java.time.Clock;
@@ -160,26 +162,18 @@ public class ConnectionTester implements DisposableBean {
       }
       ObjectNode draft = (ObjectNode) config.deepCopy();
       java.util.List<String> templates = SecretFields.templates(manifest.configSchema());
-      if (typed != null) {
-        typed.forEach((field, input) -> {
-          if (!SecretFields.matches(templates, field)) {
-            throw ProblemException.unprocessable("Not a secret field", field + " is not a secret field of this "
-                + "connector.", "/secrets");
-          }
-          if (input == null || (!input.isLocal() && (input.reference() == null || input.reference().isBlank()))) {
-            throw ProblemException.unprocessable("Secret missing", "Enter a value for " + field + ".", "/secrets");
-          }
-          if (input.isLocal()) {
-            values.put(field, input.value().clone());
-          } else {
-            // Read through its store for this one test (dynamic: leased and revoked when the test ends).
-            references.put(field, new SecretService.DraftReference(input.reference(), input.dynamic(),
-                input.store()));
-          }
-        });
-      }
       ConnectionConfigs.Stored stored = existing == null ? null : configs.byName(existing).orElseThrow(() ->
           ProblemException.notFound("Connection not found", "There is no connection " + existing + "."));
+      ConnectionService.checkSecrets(manifest.configSchema(), templates, typed)
+          .forEach((field, input) -> {
+            if (input.isLocal()) {
+              values.put(field, input.value().clone());
+            } else {
+              // Read through its store for this one test (dynamic: leased and revoked when the test ends).
+              references.put(field, new SecretService.DraftReference(input.reference(), input.dynamic(),
+                  input.store()));
+            }
+          });
       Set<String> present = new LinkedHashSet<>(values.keySet());
       present.addAll(references.keySet());
       Set<String> dynamic = new LinkedHashSet<>();
@@ -225,10 +219,10 @@ public class ConnectionTester implements DisposableBean {
           stored == null ? null : stored.config().metadata());
       Taint taint = new Taint();
       // Typed values first; then references typed into the form; then the stored secrets of the edited connection.
-      SecretResolver fallback = stored == null && references.isEmpty() ? null
+      ScopedSecretResolver fallback = stored == null && references.isEmpty() ? null
           : secrets.draftResolver(cfg, references, taint);
       try (DraftSecrets resolver = new DraftSecrets(secretFields, values, fallback, taint)) {
-        TestResult result = run(manifest, cfg, resolver, taint, operation, path);
+        TestResult result = run(manifest, cfg, resolver, fallback, taint, operation, path);
         // Trust applies to the draft: an edit saves the patched config with the rest of the form.
         return outcome(result, type, env, null, draft);
       }
@@ -273,6 +267,10 @@ public class ConnectionTester implements DisposableBean {
     if (!stored.verified()) {
       throw ProblemException.conflict("Changed outside GateRook", stored.name() + " was changed outside "
           + "GateRook. Review it first.");
+    }
+    if (ConnectionService.needsSetup(stored.config())) {
+      throw ProblemException.conflict("Needs setup", "Complete " + stored.name()
+          + " in the connection editor before testing it.");
     }
     ConnectorManifest manifest = usable(stored.config().type());
     Taint taint = new Taint();
@@ -356,20 +354,33 @@ public class ConnectionTester implements DisposableBean {
 
   /** Runs {@code test} under the deadline and masks what it says. */
   TestResult run(ConnectorManifest manifest, ConnectionConfig cfg, SecretResolver resolver, Taint taint) {
-    return run(manifest, cfg, resolver, taint, DraftOperation.TEST, null);
+    return run(manifest, cfg, resolver, resolver instanceof ScopedSecretResolver scoped ? scoped : null, taint,
+        DraftOperation.TEST, null);
   }
 
-  private TestResult run(ConnectorManifest manifest, ConnectionConfig cfg, SecretResolver resolver, Taint taint,
-      DraftOperation operation, String path) {
+  /**
+   * @param stores the resolver that reads the text fields kept in a store ({@link ConnectionTexts}), or {@code null}
+   *     when none can be
+   */
+  private TestResult run(ConnectorManifest manifest, ConnectionConfig cfg, SecretResolver resolver,
+      ScopedSecretResolver stores, Taint taint, DraftOperation operation, String path) {
     Connector connector = registry.connectorFor(cfg).orElseThrow(() -> ProblemException.unprocessable(
         "Unknown connector", "There is no connector type " + cfg.type() + ".", "/type"));
     CallContext ctx = contexts.builder(Ids.next("tst_"), cfg, policies.limits(cfg.env()))
         .timeout(timeout).taint(taint).build();
-    Future<TestResult> future = executor.submit(() -> switch (operation) {
-      case TEST -> connector.test(cfg, resolver, ctx);
-      case DATABASES -> connector.discoverDatabases(cfg, resolver, ctx);
-      case FILES -> connector.browseFiles(cfg, resolver, ctx, path);
-      case PROJECTS -> connector.discoverProjects(cfg, resolver, ctx);
+    Future<TestResult> future = executor.submit(() -> {
+      ConnectionConfig call;
+      try {
+        call = ConnectionTexts.fill(cfg, manifest, stores);
+      } catch (SecretUnavailableException e) {
+        return TestResult.failure("secret", e.getMessage(), null);
+      }
+      return switch (operation) {
+        case TEST -> connector.test(call, resolver, ctx);
+        case DATABASES -> connector.discoverDatabases(call, resolver, ctx);
+        case FILES -> connector.browseFiles(call, resolver, ctx, path);
+        case PROJECTS -> connector.discoverProjects(call, resolver, ctx);
+      };
     });
     TestResult result;
     try {
@@ -393,7 +404,8 @@ public class ConnectionTester implements DisposableBean {
       Thread.currentThread().interrupt();
       result = TestResult.failure("cancelled", "The test was cancelled.", null);
     }
-    return TestResults.mask(result, masker, taint);
+    return operation == DraftOperation.DATABASES ? TestResults.maskDatabaseDiscovery(result, masker, taint)
+        : TestResults.mask(result, masker, taint);
   }
 
   /**
@@ -445,7 +457,7 @@ public class ConnectionTester implements DisposableBean {
         .taint(taint).build();
     try (var resolver = secrets.resolver(cfg, taint)) {
       Future<?> future = executor.submit(() -> {
-        rotator.rotate(cfg, resolver, field, next, ctx);
+        rotator.rotate(ConnectionTexts.fill(cfg, manifest, resolver), resolver, field, next, ctx);
         return null;
       });
       try {

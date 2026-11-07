@@ -2,6 +2,7 @@ package ai.msrv.gaterook.core.connectors.plugins;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import ai.msrv.gaterook.connector.api.ConnectorException;
@@ -11,6 +12,9 @@ import ai.msrv.gaterook.core.platform.HmacKeys;
 import ai.msrv.gaterook.core.platform.SealedHandles;
 import ai.msrv.gaterook.plugin.protocol.Gpp;
 import ai.msrv.gaterook.plugin.protocol.GppJson;
+import ai.msrv.gaterook.plugin.protocol.WireCodec;
+import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,6 +23,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -42,6 +47,8 @@ class PluginSupervisorIT {
   private HostLauncher launcher;
   private PluginSupervisor supervisor;
   private final MutableClock clock = new MutableClock(Instant.parse("2026-10-25T00:00:00Z"));
+  /** The core's listeners, closed to every host's own sockets: the default ports unless a test listens on its own. */
+  private final AtomicReference<Set<Integer>> corePorts = new AtomicReference<>(Set.of(7465, 7466));
 
   @BeforeEach
   void setUp() {
@@ -52,7 +59,7 @@ class PluginSupervisorIT {
     HostRuntimeLocator runtime = new HostRuntimeLocator(null, hostJar().toAbsolutePath().toString());
     AotCacheManager aot = new AotCacheManager(runtime, paths, false);
     launcher = new HostLauncher(runtime, paths, new SecretCallbackRegistry(),
-        new SealedHandles(new FixedKeys(), GppJson.MAPPER, Clock.systemUTC()), aot, clock);
+        new SealedHandles(new FixedKeys(), GppJson.MAPPER, Clock.systemUTC()), aot, corePorts::get, clock);
     supervisor = new PluginSupervisor("jira-service-desk", launcher, clock);
   }
 
@@ -225,7 +232,70 @@ class PluginSupervisorIT {
         .isInstanceOfSatisfying(ConnectorException.class, e -> assertThat(e.getMessage()).contains("keeps crashing"));
   }
 
+  /**
+   * A plugin's own sockets (a JDBC driver, a raw socket, an address literal: nothing the egress client or the resolver
+   * hook sees) can neither reach the core's listeners nor take one over, while a port the core doesn't own stays open
+   * (a database the plugin serves). The OS sandbox the core starts the host in closes them: a profile for
+   * {@code sandbox-exec} on macOS, Landlock's TCP rules on Linux (ABI 4 or later). Windows' low integrity doesn't
+   * judge sockets: there the core refuses requests from a sandboxed process itself (SandboxedPeerFilterIT).
+   */
+  @Test
+  void aPluginsOwnSocketsCantReachOrTakeTheCoresPorts() throws Exception {
+    assumeTrue(fixtureJar("secret-thief") != null, "the secret-thief fixture isn't built");
+    assumeTrue(launcher.sandboxKind() != null, "no OS sandbox on this system");
+    assumeFalse(HostLauncher.LOW_INTEGRITY.equals(launcher.sandboxKind()),
+        "low integrity doesn't judge sockets: the core refuses sandboxed peers itself");
+    InetAddress loopback = InetAddress.getByName("127.0.0.1");
+    try (ServerSocket core = new ServerSocket(0, 50, loopback);
+        ServerSocket database = new ServerSocket(0, 50, loopback)) {
+      for (ServerSocket listener : List.of(core, database)) {
+        Thread.ofVirtual().start(() -> {
+          while (!listener.isClosed()) {
+            try {
+              listener.accept().close();
+            } catch (java.io.IOException e) {
+              // Closed at the end of the test.
+            }
+          }
+        });
+      }
+      int notListening;
+      try (ServerSocket probe = new ServerSocket(0, 1, loopback)) {
+        notListening = probe.getLocalPort();
+      }
+      corePorts.set(Set.of(core.getLocalPort(), notListening));
+      supervisor = new PluginSupervisor("fixture-secret-thief", launcher, clock);
+      supervisor.spec(spec("secret-thief", fixtureJar("secret-thief"), "fixture-secret-thief", "1.0.0"));
+
+      try (PluginSupervisor.Permit permit = supervisor.permit(deadline(30))) {
+        assumeFalse(permit.host().log().tail().stream().anyMatch(l -> l.contains("can't close TCP ports")),
+            "this kernel's Landlock has no network rules (ABI 4, Linux 6.7)");
+        tools.jackson.databind.node.ObjectNode args = GppJson.object().put("corePort", core.getLocalPort())
+            .put("bindPort", notListening).put("openPort", database.getLocalPort());
+        tools.jackson.databind.JsonNode result = permit.host().request(Gpp.CONNECTOR_EXECUTE,
+            execute("fixture-secret-thief", "thief_probe", args)).get(Duration.ofSeconds(30));
+        permit.returned();
+        tools.jackson.databind.JsonNode out = WireCodec.result(result).structuredContent();
+
+        // 127.0.0.1, localhost, the mapped address and the wildcard (which connects to this computer): all refused.
+        assertThat(out.path("coreSockets").asString()).contains("127.0.0.1 ", "localhost ", "0.0.0.0 ")
+            .doesNotContain("UNEXPECTEDLY");
+        assertThat(out.path("coreBind").asString()).doesNotContain("UNEXPECTEDLY", "not asked");
+        assertThat(out.path("openSocket").asString()).isEqualTo("reached");
+      }
+    }
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** A {@code connector/execute} of {@code tool} with {@code args}; its token is unknown: no secret is handed out. */
+  private tools.jackson.databind.JsonNode execute(String id, String tool, tools.jackson.databind.node.ObjectNode args) {
+    return new ai.msrv.gaterook.plugin.protocol.Messages.Execute(id + "@1.0.0", "ct_dummy",
+        new ai.msrv.gaterook.connector.api.ToolCall("tc_1", tool, "c1", args, null),
+        new ai.msrv.gaterook.connector.api.ConnectionConfig("c1", "c1", id, ai.msrv.gaterook.connector.api.Env.DEV,
+            1, GppJson.object(), java.util.Set.of(), null), 20_000, false, null, null, null, limits(), null, null,
+        ai.msrv.gaterook.plugin.protocol.Messages.EgressGrant.NONE).write();
+  }
 
   private tools.jackson.databind.JsonNode crashCall() {
     // A connector/execute of crash_now; no secret is asked, so the dummy token is never used.

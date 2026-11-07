@@ -17,8 +17,9 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The agents against the fake cloudflared and ngrok, as child processes with the real argv and environment
- * (ARCHITECTURE.md §7.3, report 02 §7.3): the address comes from the agent's local interface, the URL is ready only
- * once the edge is, a token travels in the environment only, and an agent that doesn't make it is killed.
+ * (ARCHITECTURE.md §7.3, report 02 §7.3): the address comes from the agent itself (cloudflared's metrics server,
+ * ngrok's log), the URL is ready only once the edge is, a token travels in the environment only, ngrok runs without
+ * its local API, and an agent that doesn't make it is killed.
  */
 class TunnelAgentsTest {
 
@@ -147,20 +148,29 @@ class TunnelAgentsTest {
   }
 
   @Test
-  void ngrokGetsItsUrlFromItsAgentApiAndItsAuthtokenInTheEnvironment() throws Exception {
+  void ngrokGetsItsUrlFromItsLogAndItsAuthtokenInTheEnvironment() throws Exception {
+    ngrok.control(Map.of("mode", "ready", "readyDelayMs", "1200"));
+    long t0 = System.nanoTime();
     started = new NgrokAgent().start(request(TunnelProvider.NGROK, ngrok.executable(), "gw-acme.ngrok.app",
         "2fakeNgrokAuthtoken_0123456789abcdefghij"));
+    assertThat(Duration.ofNanos(System.nanoTime() - t0)).as("waited for \"started tunnel\"")
+        .isGreaterThan(Duration.ofSeconds(1));
     assertThat(started.host()).isEqualTo("gw-acme.ngrok.app");
+    assertThat(started.detail()).isEqualTo("local API off");
     assertThat(ngrok.argv()).containsExactly("http", "127.0.0.1:7466", "--config", run.resolve("ngrok.yml")
         .toString(), "--log", "stdout", "--log-format", "json", "--inspect=false", "--url",
         "https://gw-acme.ngrok.app");
     assertThat(ngrok.report().getProperty("authtoken")).isEqualTo("2fakeNgrokAuthtoken_0123456789abcdefghij");
-    assertThat(Files.readString(run.resolve("ngrok.yml"))).contains("version: \"3\"").contains("web_addr: 127.0.0.1:")
-        .contains("update_check: false").contains("console_ui: false");
+    assertThat(Files.readString(run.resolve("ngrok.yml"))).contains("version: \"3\"").contains("web_addr: false")
+        .contains("update_check: false").contains("console_ui: false").doesNotContain("127.0.0.1");
+    assertThat(Files.readString(logs.resolve("ngrok.log"))).contains("starting ngrok")
+        .contains("\"msg\":\"started tunnel\"").doesNotContain("2fakeNgrokAuthtoken");
     started.process().stop();
     started = null;
 
-    // Without a reserved domain ngrok picks one; with one it must be that one.
+    // Without a reserved domain ngrok picks one; with one it must be that one. The log still holds the line of the
+    // run before, with gw-acme.ngrok.app: only this run's lines count.
+    ngrok.control(Map.of("mode", "ready"));
     started = new NgrokAgent().start(request(TunnelProvider.NGROK, ngrok.executable(), null, "tok"));
     assertThat(started.host()).endsWith(".ngrok-free.app");
     started.process().stop();
@@ -172,10 +182,11 @@ class TunnelAgentsTest {
 
     assertThatThrownBy(() -> new NgrokAgent().start(request(TunnelProvider.NGROK, ngrok.executable(), null, null)))
         .isInstanceOf(TunnelException.class).hasMessageContaining("authtoken");
+    // ngrok's own words, not the bare "ERROR:" its stderr ends with.
     ngrok.control(Map.of("mode", "exit-at-once"));
     assertThatThrownBy(() -> new NgrokAgent().start(request(TunnelProvider.NGROK, ngrok.executable(), null, "bad")))
-        .isInstanceOf(TunnelException.class).hasMessageContaining("ngrok stopped (exit 1)")
-        .hasMessageContaining("ERR_NGROK_107");
+        .isInstanceOf(TunnelException.class).hasMessage("ngrok stopped (exit 1). Last log line: authentication "
+        + "failed: The authtoken you specified is properly formed, but it is invalid. (ERR_NGROK_107)");
     ngrok.control(Map.of("mode", "never-ready"));
     assertThatThrownBy(() -> new NgrokAgent(Duration.ofSeconds(2)).start(request(TunnelProvider.NGROK,
         ngrok.executable(), null, "tok"))).isInstanceOf(TunnelException.class)
@@ -184,27 +195,47 @@ class TunnelAgentsTest {
   }
 
   @Test
-  void ngrokKeepsNothingOfTheTrafficItCarries() throws Exception {
-    // The real agent inspects by default: every request and answer it carries (bearer tokens, the token endpoint's
-    // tokens) would be listed to anyone on this computer at its local API.
-    int origin;
-    try (java.net.ServerSocket free = new java.net.ServerSocket(0, 0, java.net.InetAddress.getLoopbackAddress())) {
-      origin = free.getLocalPort();
-    }
-    started = new NgrokAgent().start(new TunnelAgent.StartRequest(TunnelProvider.NGROK, ngrok.executable(), origin,
-        null, "tok".toCharArray(), run, logs));
-    String token = "gwo_" + "c".repeat(43);
-    java.net.http.HttpClient http = java.net.http.HttpClient.newBuilder()
-        .proxy(java.net.http.HttpClient.Builder.NO_PROXY).build();
-    http.send(java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://127.0.0.1:" + ngrok.edgePort()
-        + "/mcp/smoke")).header("Authorization", "Bearer " + token).POST(java.net.http.HttpRequest.BodyPublishers
-        .ofString("{}")).build(), java.net.http.HttpResponse.BodyHandlers.discarding());
-    java.util.regex.Matcher web = java.util.regex.Pattern.compile("web_addr: 127\\.0\\.0\\.1:(\\d+)")
-        .matcher(Files.readString(run.resolve("ngrok.yml")));
-    assertThat(web.find()).isTrue();
-    String inspected = http.send(java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://127.0.0.1:"
-        + web.group(1) + "/api/requests/http")).build(), java.net.http.HttpResponse.BodyHandlers.ofString()).body();
-    assertThat(inspected).doesNotContain(token).contains("\"requests\":[]");
+  void ngrokRunsWithoutItsLocalApiAndReadsOnlyThisRunsLog() throws Exception {
+    // The agent's local API has no authentication: whoever reached its port could open tunnels on the person's
+    // authtoken. The fake refuses to start with one, as the config must switch it off.
+    Files.writeString(logs.resolve("ngrok.log"), "--- 2026-11-04T09:00:00Z starting ngrok ---\n"
+        + "{\"t\":\"2026-11-04T10:00:01+0100\",\"lvl\":\"info\",\"msg\":\"started tunnel\",\"obj\":\"tunnels\","
+        + "\"url\":\"https://gw-yesterday.ngrok-free.app\"}\n", StandardCharsets.UTF_8);
+    ngrok.control(Map.of("mode", "never-ready"));
+    assertThatThrownBy(() -> new NgrokAgent(Duration.ofSeconds(2)).start(request(TunnelProvider.NGROK,
+        ngrok.executable(), null, "tok"))).isInstanceOf(TunnelException.class)
+        .as("an earlier run's line is no answer").hasMessageContaining("didn't connect");
+    FakeAgents.awaitGone(ngrok.pid());
+
+    // A line written in two parts counts once it is whole.
+    ngrok.control(Map.of("mode", "ready", "hostname", "gw-split.ngrok-free.app", "splitLineMs", "700"));
+    started = new NgrokAgent(Duration.ofSeconds(10)).start(request(TunnelProvider.NGROK, ngrok.executable(), null,
+        "tok"));
+    assertThat(started.host()).isEqualTo("gw-split.ngrok-free.app");
+    assertThat(ngrok.argv()).contains("--inspect=false");
+    assertThat(Files.readString(run.resolve("ngrok.yml"))).contains("web_addr: false");
+  }
+
+  @Test
+  void anAgentsLogIsReadALineAtATimeFromThisRunsStart() throws Exception {
+    Path log = logs.resolve("follow.log");
+    Files.writeString(log, "an earlier run\n", StandardCharsets.UTF_8);
+    AgentProcess.LogFollower follower = new AgentProcess.LogFollower(log, Files.size(log));
+    assertThat(follower.next()).isEmpty();
+    append(log, "{\"msg\":\"started");
+    assertThat(follower.next()).as("a line still being written").isEmpty();
+    append(log, " tunnel\"}\nsecond\r\nthi");
+    assertThat(follower.next()).containsExactly("{\"msg\":\"started tunnel\"}", "second");
+    append(log, "rd\n" + "x".repeat(AgentProcess.LogFollower.LINE_LIMIT + 1) + "\nafter a long line\n");
+    assertThat(follower.next()).containsExactly("third", "after a long line");
+    Files.writeString(log, "emptied, then written again\n", StandardCharsets.UTF_8);
+    assertThat(follower.next()).containsExactly("emptied, then written again");
+    Files.delete(log);
+    assertThat(follower.next()).isEmpty();
+  }
+
+  private static void append(Path file, String text) throws java.io.IOException {
+    Files.writeString(file, text, StandardCharsets.UTF_8, java.nio.file.StandardOpenOption.APPEND);
   }
 
   @Test
@@ -270,14 +301,44 @@ class TunnelAgentsTest {
     assertThat(TunnelAgent.lastError(List.of("{\"lvl\":\"eror\",\"msg\":\"session closed\"}"))).contains("session");
     assertThat(TunnelAgent.lastError(List.of("INF all good"))).isNull();
     assertThat(TunnelAgent.lastError(List.of("2026-10-25T10:00:00Z ERR " + "x".repeat(400)))).hasSize(301);
+
+    // ngrok 3.39.11 refusing an authtoken: its JSON entries, then the same on stderr a piece per line.
+    String refused = "authentication failed: The authtoken you specified is properly formed, but it is invalid.\\n"
+        + "This usually happens when:\\n    - You reset your authtoken\\r\\n\\r\\nERR_NGROK_107\\r\\n";
+    assertThat(TunnelAgent.lastError(List.of(
+        "{\"t\":\"2026-11-05T15:59:11+0100\",\"lvl\":\"eror\",\"msg\":\"failed to reconnect session\",\"obj\":"
+            + "\"tunnels.session\",\"err\":\"" + refused + "\"}",
+        "{\"t\":\"2026-11-05T15:59:11+0100\",\"lvl\":\"info\",\"msg\":\"ERROR terminating with error obj=app\"}",
+        "{\"t\":\"2026-11-05T15:59:11+0100\",\"lvl\":\"crit\",\"msg\":\"command failed\",\"err\":\"" + refused + "\"}",
+        "ERROR:  authentication failed: The authtoken you specified is properly formed, but it is invalid.",
+        "ERROR:  ERR_NGROK_107", "ERROR:  https://ngrok.com/docs/errors/err_ngrok_107", "ERROR:  ",
+        "{\"t\":\"2026-11-05T15:59:11+0100\",\"lvl\":\"info\",\"msg\":\"no more state changes\",\"obj\":"
+            + "\"tunnels.session\"}"))).isEqualTo("authentication failed: The authtoken you specified is properly "
+        + "formed, but it is invalid. (ERR_NGROK_107)");
+    assertThat(TunnelAgent.lastError(List.of("{\"lvl\":\"crit\",\"msg\":\"command failed\",\"err\":\"ERR_NGROK_8012:"
+        + " upstream refused\"}"))).as("the code named once").isEqualTo("ERR_NGROK_8012: upstream refused");
+    assertThat(TunnelAgent.lastError(List.of("{\"lvl\":\"info\",\"msg\":\"no more state changes\"}"))).isNull();
+    assertThat(TunnelAgent.lastError(List.of("ERROR:  failed to start tunnel", "ERROR:  ")))
+        .isEqualTo("ERROR:  failed to start tunnel");
   }
 
   @Test
-  void ngrokListsOnlyAnHttpsTunnel() {
-    assertThat(NgrokAgent.httpsHost("{\"tunnels\":[{\"public_url\":\"http://a.ngrok.app\"},"
-        + "{\"public_url\":\"https://B.ngrok.app\"}]}")).contains("b.ngrok.app");
-    assertThat(NgrokAgent.httpsHost("{\"tunnels\":[]}")).isEmpty();
-    assertThat(NgrokAgent.httpsHost("<html>")).isEmpty();
-    assertThat(NgrokAgent.httpsHost("{\"tunnels\":[{\"public_url\":\"https://bad_host!\"}]}")).isEmpty();
+  void ngrokIsReadyOnlyWithAStartedTunnelLineOfAnHttpsUrl() {
+    assertThat(NgrokAgent.startedHost("{\"t\":\"2026-11-05T10:00:00+0100\",\"lvl\":\"info\",\"msg\":\"started "
+        + "tunnel\",\"obj\":\"tunnels\",\"name\":\"command_line\",\"addr\":\"http://127.0.0.1:7466\",\"url\":"
+        + "\"https://B.ngrok.app\"}")).contains("b.ngrok.app");
+    assertThat(NgrokAgent.startedHost("{\"lvl\":\"info\",\"msg\":\"started tunnel\",\"url\":\"http://a.ngrok.app\"}"))
+        .as("not https").isEmpty();
+    assertThat(NgrokAgent.startedHost("{\"lvl\":\"info\",\"msg\":\"started tunnel\",\"url\":\"tcp://0.tcp.ngrok"
+        + ".io:12345\"}")).isEmpty();
+    assertThat(NgrokAgent.startedHost("{\"lvl\":\"info\",\"msg\":\"client session established\",\"note\":"
+        + "\"started tunnel\",\"url\":\"https://a.ngrok.app\"}")).as("another message").isEmpty();
+    assertThat(NgrokAgent.startedHost("{\"lvl\":\"info\",\"msg\":\"started tunnel\",\"url\":\"https://bad_host!\"}"))
+        .isEmpty();
+    assertThat(NgrokAgent.startedHost("{\"lvl\":\"info\",\"msg\":\"started tunnel\"}")).isEmpty();
+    assertThat(NgrokAgent.startedHost("t=2026-11-05T10:00:00Z lvl=info msg=\"started tunnel\" "
+        + "url=https://a.ngrok.app")).as("not the JSON log").isEmpty();
+    assertThat(NgrokAgent.startedHost("[\"started tunnel\"]")).isEmpty();
+    assertThat(NgrokAgent.startedHost("<html>")).isEmpty();
   }
 }

@@ -7,8 +7,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Makes the exact action safe to read (ARCHITECTURE.md §8.5, §9 "Prompt-injection-safe approvals"; kit DESIGN §8
- * "The complete action must remain visible"): the text an approver sees is cut into segments the UI only paints —
+ * Makes the exact action safe to read (ARCHITECTURE.md §8.5, §9 "Prompt-injection-safe approvals"; the complete action must remain visible): the text an approver sees is cut into segments the UI only paints —
  * <ul>
  *   <li>{@code invisible}: control characters (tab included), bidi controls U+202A–202E and U+2066–2069, every
  *       default-ignorable code point (zero-width, variation selectors, tags, fillers), unassigned, private-use and
@@ -17,8 +16,8 @@ import java.util.Set;
  *       Source works there);</li>
  *   <li>{@code confusable}: a non-ASCII letter outside a string literal (a DELETE look-alike containing Cyrillic U+0415),
  *       where it can pass for a keyword or a name; inside a literal, a letter that passes for an ASCII one in a word
- *       with ASCII letters (a host, a field name), or in a literal whose every non-ASCII letter is one (a status
- *       value);</li>
+ *       with ASCII letters (a host, a field name), in a word of such letters among ASCII words between the same
+ *       spaces (a host's label), or in a literal whose every non-ASCII letter is one (a status value);</li>
  *   <li>{@code text}: everything else, as is.</li>
  * </ul>
  * String literals depend on the language: SQL has {@code '…'} (a double-quoted SQL identifier is a name, so a
@@ -385,8 +384,10 @@ public final class ActionInspector {
 
   /**
    * The look-alike letters inside literals that can change what the action does: in a word that also has ASCII
-   * letters ({@code stаtus}, {@code gіthub}), or in a literal whose every non-ASCII letter is one ({@code 'аре'}).
-   * Text of another script with letters of its own ({@code 'Ёжик'}, {@code 'Встреча с клиентом'}) is data.
+   * letters ({@code stаtus}, {@code gіthub}), in a word of look-alikes among ASCII words between the same spaces (the
+   * label {@code аре} of {@code https://аре.example.com/Б}), or in a literal whose every non-ASCII letter is one
+   * ({@code 'аре'}). Text of another script with letters of its own ({@code 'Ёжик'}, {@code 'Встреча с клиентом'},
+   * {@code https://example.com/путь}) is data; so is a word of look-alikes standing alone in such text.
    */
   private static boolean[] literalLookAlikes(String text, boolean[] literal) {
     boolean[] out = new boolean[text.length()];
@@ -408,21 +409,41 @@ public final class ActionInspector {
     return out;
   }
 
-  /** Marks the look-alikes of {@code [from, to)}: all of them, or those in words with ASCII letters. */
+  /**
+   * Marks the look-alikes of {@code [from, to)}: all of them, or those in words with ASCII letters, or those in words
+   * made only of look-alikes within a run between spaces that has ASCII letters (a host, a path, an identifier).
+   */
   private static void lookAlikeWords(String text, int from, int to, boolean all, boolean[] out) {
     int i = from;
     while (i < to) {
-      int start = i;
-      boolean ascii = false;
-      while (i < to && wordPart(text.codePointAt(i))) {
-        int c = text.codePointAt(i);
-        ascii |= c < 0x80 && Character.isLetter(c);
-        i += Character.charCount(c);
+      int runEnd = i;
+      boolean asciiRun = false;
+      while (runEnd < to && !Character.isWhitespace(text.codePointAt(runEnd))) {
+        int c = text.codePointAt(runEnd);
+        asciiRun |= c < 0x80 && Character.isLetter(c);
+        runEnd += Character.charCount(c);
       }
-      for (int j = start; j < i; j += Character.charCount(text.codePointAt(j))) {
-        out[j] = (all || ascii) && lookAlike(text.codePointAt(j));
+      while (i < runEnd) {
+        int start = i;
+        boolean ascii = false;
+        boolean onlyLookAlikes = true;
+        while (i < runEnd && wordPart(text.codePointAt(i))) {
+          int c = text.codePointAt(i);
+          if (Character.isLetter(c)) {
+            ascii |= c < 0x80;
+            onlyLookAlikes &= c < 0x80 || lookAlike(c);
+          }
+          i += Character.charCount(c);
+        }
+        boolean suspect = all || ascii || (onlyLookAlikes && asciiRun);
+        for (int j = start; j < i; j += Character.charCount(text.codePointAt(j))) {
+          out[j] = suspect && lookAlike(text.codePointAt(j));
+        }
+        if (i == start) {
+          i += Character.charCount(text.codePointAt(i));
+        }
       }
-      if (i == start) {
+      while (i < to && Character.isWhitespace(text.codePointAt(i))) {
         i += Character.charCount(text.codePointAt(i));
       }
     }

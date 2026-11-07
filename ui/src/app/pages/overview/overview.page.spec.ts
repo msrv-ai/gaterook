@@ -1,24 +1,27 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Router, provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { ApiError } from '../../core/api/api-error';
 import { ApprovalDetail, ApprovalsApi } from '../../core/api/approvals.api';
 import { ClientsApi, ClientsView } from '../../core/api/clients.api';
 import { ConnectionRow, ConnectionsApi, TestOutcome } from '../../core/api/connections.api';
+import { ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointSummary, EndpointsApi } from '../../core/api/endpoints.api';
 import { Overview, OverviewApi } from '../../core/api/overview.api';
-import { TunnelState } from '../../core/api/tunnel.api';
-import { DesktopBridge } from '../../core/desktop/desktop-bridge';
+import { McpServersApi, PluginsApi } from '../../core/api/plugins.api';
+import { SecretsApi } from '../../core/api/secrets.api';
+import { TemplatesApi } from '../../core/api/templates.api';
 import { EventStream } from '../../core/events/event-stream';
 import { CoreStore } from '../../core/stores/core.store';
-import { TunnelStore } from '../../core/stores/tunnel.store';
 import { TimeService } from '../../core/time/time.service';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
-import { NOW, ROWS, browserSignedIn, clientsBrowserSignedIn, clientsFound, clientsInUse, devDb, firstRun, overview, setup, tunnelOff } from './overview.fixtures';
+import { NOW, ROWS, clientsFound, clientsInUse, devDb, firstRun, overview, row } from './overview.fixtures';
 import { OverviewPage, SKELETON_DELAY_MS } from './overview.page';
+import { catalogIndex, sentryReview } from '../connectors/connectors.fixtures';
 import { endpoint, kitEndpoints } from '../endpoints/endpoints.fixtures';
+import { detail as endpointDetail, groups as endpointTools } from '../endpoint-detail/endpoint-detail.fixtures';
 
 /** The page against fake admin API services: what it shows in each state, and what it asks the core to do. */
 
@@ -79,17 +82,30 @@ let endpointsAnswer: () => Promise<EndpointSummary[]>;
 let connectionsAnswer: () => Promise<readonly ConnectionRow[]>;
 let events: FakeEvents;
 let tests: { name: string; answer: ReturnType<typeof deferred<TestOutcome>> }[];
-let tunnel: ReturnType<typeof signal<TunnelState | null>>;
+let savedConnections: ConnectionRow[];
+let savedEndpoints: EndpointSummary[];
+let connectionWrite: (name: string, enabled: boolean) => Promise<ConnectionRow>;
 
 function setupPage(first: () => Promise<Overview> = () => Promise.resolve(overview()), clients: () => Promise<ClientsView> = () => Promise.resolve(clientsInUse())): void {
   calls = [];
   overviewAnswers = [first];
-  clientsAnswer = clients;
-  endpointsAnswer = () => Promise.resolve(kitEndpoints());
-  connectionsAnswer = () => Promise.resolve(ROWS.map((row) => ['aws-stage', 'billing-api'].includes(row.name) ? { ...row, usedBy: [...row.usedBy, 'stage-readonly'] } : row));
+  clientsAnswer = async () => {
+    const view = await clients();
+    return { ...view, clients: view.clients.map((card) => ({ ...card, methods: [{ id: 'token', label: 'Token', prodAllowed: true, reason: null }] })) };
+  };
+  savedEndpoints = kitEndpoints();
+  savedConnections = ROWS.map((connection) => connection.name === 'github-mcp'
+    ? { ...connection, type: 'mcp-server', typeName: 'GitHub MCP' }
+    : ['aws-stage', 'billing-api'].includes(connection.name)
+      ? { ...connection, usedBy: [...connection.usedBy, 'stage-readonly'] } : connection);
+  endpointsAnswer = () => Promise.resolve(savedEndpoints);
+  connectionsAnswer = () => Promise.resolve(savedConnections);
+  connectionWrite = async (name, enabled) => {
+    savedConnections = savedConnections.map((connection) => connection.name === name ? { ...connection, enabled } : connection);
+    return savedConnections.find((connection) => connection.name === name)!;
+  };
   events = new FakeEvents();
   tests = [];
-  tunnel = signal<TunnelState | null>(tunnelOff());
   const overviewApi: Partial<OverviewApi> = {
     get: () => {
       calls.push('GET /api/overview');
@@ -105,9 +121,15 @@ function setupPage(first: () => Promise<Overview> = () => Promise.resolve(overvi
       } as unknown as ApprovalDetail),
   };
   const connectionsApi: Partial<ConnectionsApi> = {
-    list: async () => ({ items: [...await connectionsAnswer()], facets: { health: {}, env: {}, type: {} }, total: ROWS.length }),
-    get: () => Promise.resolve(devDb()),
+    list: async () => {
+      calls.push('GET /api/connections');
+      const items = [...await connectionsAnswer()];
+      return { items, facets: { health: {}, env: {}, type: {} }, total: items.length };
+    },
+    setEnabled: (name, enabled) => { calls.push(`connection ${name} ${enabled}`); return connectionWrite(name, enabled); },
+    get: (name) => Promise.resolve({ ...devDb(), name, usedBy: name === 'dev-db' ? devDb().usedBy : [] }),
     test: (name) => {
+      calls.push(`test ${name}`);
       const answer = deferred<TestOutcome>();
       tests.push({ name, answer });
       return answer.promise;
@@ -120,11 +142,43 @@ function setupPage(first: () => Promise<Overview> = () => Promise.resolve(overvi
       { provide: TimeService, useValue: fakeTime },
       { provide: OverviewApi, useValue: overviewApi },
       { provide: ApprovalsApi, useValue: approvalsApi },
-      { provide: ClientsApi, useValue: { list: () => clientsAnswer() } },
-      { provide: EndpointsApi, useValue: { list: () => endpointsAnswer() } },
+      { provide: ClientsApi, useValue: { list: () => { calls.push('GET /api/clients'); return clientsAnswer(); } } },
+      { provide: EndpointsApi, useValue: {
+        list: () => { calls.push('GET /api/endpoints'); return endpointsAnswer(); },
+        get: async (slug: string) => endpointDetail({ endpoint: savedEndpoints.find((endpoint) => endpoint.slug === slug) }),
+        tools: async () => endpointTools(),
+        disable: async (slug: string) => {
+          calls.push(`endpoint ${slug} false`);
+          savedEndpoints = savedEndpoints.map((endpoint) => endpoint.slug === slug ? { ...endpoint, status: 'disabled' } : endpoint);
+          return savedEndpoints.find((endpoint) => endpoint.slug === slug)!;
+        },
+        enable: async (slug: string) => {
+          calls.push(`endpoint ${slug} true`);
+          savedEndpoints = savedEndpoints.map((endpoint) => endpoint.slug === slug ? { ...endpoint, status: 'running' } : endpoint);
+          return savedEndpoints.find((endpoint) => endpoint.slug === slug)!;
+        },
+        previewConnection: async (slug: string, name: string) => {
+          calls.push(`preview ${slug} ${name}`);
+          return { connection: name, env: 'dev', tools: [{ toolKey: 'mcp:list', tool: 'List issues', mode: 'READ_ONLY', locked: null, declaredBy: 'server' }], warnings: [], refusal: null };
+        },
+        addConnection: async (slug: string, name: string) => { calls.push(`add ${slug} ${name}`); savedConnections = savedConnections.map((row) => row.name === name ? { ...row, usedBy: [...new Set([...row.usedBy, slug])] } : row); return {}; },
+      } },
       { provide: ConnectionsApi, useValue: connectionsApi },
+      { provide: ConnectorTypesApi, useValue: { catalog: async () => ({ groups: [], installed: [] }) } },
+      { provide: PluginsApi, useValue: { catalog: async () => catalogIndex() } },
+      { provide: SecretsApi, useValue: { list: async () => [] } },
+      { provide: TemplatesApi, useValue: { list: async () => [] } },
+      { provide: McpServersApi, useValue: {
+        review: async (source: { config: { name: string } }) => { calls.push('review mcp'); return sentryReview({ name: source.config.name, env: [] }); },
+        create: async (source: { config: { name: string } }) => {
+          const name = source.config.name;
+          calls.push(`create mcp ${name}`);
+          savedConnections.push(healthyMcp(name, []));
+          return { name, state: 'running', tools: 4 };
+        },
+        tools: async () => [],
+      } },
       { provide: EventStream, useValue: events },
-      { provide: TunnelStore, useValue: { start: () => undefined, available: signal(true), state: tunnel } },
       { provide: CoreStore, useValue: { running: signal(true), instanceChanges: signal(0) } },
     ],
   });
@@ -157,481 +211,576 @@ async function settle(fixture: ComponentFixture<unknown>): Promise<void> {
 const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
 const byText = <T extends HTMLElement>(root: ParentNode, selector: string, name: string) =>
   Array.from(root.querySelectorAll<T>(selector)).find((b) => text(b) === name || text(b).startsWith(name + ' ')) ?? null;
-/** A tile by its title; its name, state, meta and action as a person reads them. */
-const tile = (root: ParentNode, name: string) => Array.from(root.querySelectorAll<HTMLElement>('.gw-status-tile')).find((t) => text(t.querySelector('.gw-status-tile__title')).startsWith(name)) ?? null;
 const href = (a: Element | null) => a?.getAttribute('href') ?? null;
 
-describe('Overview page', () => {
-  it('leads Store users to the selected client setup card', async () => {
-    setupPage(() => Promise.resolve(setup()));
-    Object.assign(TestBed.inject(DesktopBridge), { windowsStore: true });
-    const { el } = await render();
-    expect(text(el)).toContain('click Connect');
-    expect(el.querySelector('a[href="/clients#cl-cd-t"]')).not.toBeNull();
-    expect(el.querySelector('a[href="/clients#cl-manual-t"]')).toBeNull();
+
+const service = (root: ParentNode, name: string) => [...root.querySelectorAll<HTMLElement>('[data-map-service]')].find((node) => node.dataset['mapService'] === name) ?? null;
+const services = (root: ParentNode) => [...root.querySelectorAll<HTMLElement>('[data-map-service]')].map((node) => node.dataset['mapService']);
+const app = (root: ParentNode, name: string) => root.querySelector<HTMLElement>(`[data-map-app="${name}"]`)!;
+const switchOf = (root: ParentNode) => root.querySelector<HTMLInputElement>('input[role="switch"]')!;
+const findButton = (root: ParentNode, name: string) => byText<HTMLButtonElement>(root, 'button', name)!;
+
+async function selectEndpoint(fixture: ComponentFixture<unknown>, el: HTMLElement, slug: string): Promise<void> {
+  const radio = [...el.querySelectorAll<HTMLInputElement>('input[name="overview-endpoint"]')].find((input) => input.value === slug)!;
+  radio.click();
+  await settle(fixture);
+}
+
+async function searchFor(fixture: ComponentFixture<unknown>, el: HTMLElement, value: string): Promise<HTMLInputElement> {
+  const input = el.querySelector<HTMLInputElement>('input[aria-label="Find a connection"]')!;
+  input.value = value;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  await settle(fixture);
+  return input;
+}
+
+async function showAll(fixture: ComponentFixture<unknown>, el: HTMLElement): Promise<void> {
+  findButton(el.querySelector('[aria-labelledby="ov-services-title"]')!, 'Show all').click();
+  await settle(fixture);
+}
+
+function healthyMcp(name: string, usedBy: string[]): ConnectionRow {
+  return { ...row(name, 'dev', usedBy), type: 'mcp-server', typeName: 'External MCP server' };
+}
+
+function openReview(el: HTMLElement): HTMLDialogElement | null {
+  return [...el.querySelectorAll<HTMLDialogElement>('dialog[open]')].find((dialog) => text(dialog).includes('Review service access')) ?? null;
+}
+
+beforeEach(() => setupPage());
+
+describe('Overview connection map', () => {
+  it('opens connection settings directly without selecting the card or changing access, including unfinished connections', async () => {
+    savedConnections = savedConnections.map((connection) => connection.name === 'dev-db'
+      ? { ...connection, enabled: false, setupRequired: true } : connection);
+    TestBed.inject(Router).resetConfig([{ path: 'connections/:name', children: [] }]);
+    const { fixture, el } = await render();
+    await showAll(fixture, el);
+    const card = service(el, 'dev-db')!;
+    const settings = card.querySelector<HTMLAnchorElement>('a[aria-label="Open settings for dev-db"]')!;
+    expect(href(settings)).toBe('/connections/dev-db');
+    expect(settings.closest('button')).toBeNull();
+    expect(settings.getAttribute('aria-disabled')).toBeNull();
+    settings.focus();
+    expect(document.activeElement).toBe(settings);
+    settings.click();
+    await settle(fixture);
+    expect(TestBed.inject(Router).url).toBe('/connections/dev-db');
+    expect(card.getAttribute('data-selected')).toBe('false');
+    expect(calls.some((call) => call.startsWith('connection ') || call.startsWith('endpoint '))).toBe(false);
   });
 
-  it('shows nothing for a moment, then the skeleton until the core answers', async () => {
+  it('toggles an endpoint from its card without selecting it or changing connections', async () => {
+    const { fixture, el } = await render();
+    const card = el.querySelector('[data-map-endpoint="stage-readonly"]')!.parentElement!;
+    const control = switchOf(card);
+    expect(control.checked).toBe(true);
+    control.click();
+    await settle(fixture);
+    expect(control.checked).toBe(false);
+    expect(calls).toContain('endpoint stage-readonly false');
+    expect(calls.some((call) => call.startsWith('connection '))).toBe(false);
+    expect(el.querySelector<HTMLInputElement>('input[name="overview-endpoint"]:checked')!.value).toBe('dev');
+    expect(text(el.querySelector('#ov-detail-title'))).toBe('Access through dev');
+    expect(text(card)).toContain('Access paused');
+  });
+
+  it('shows scoped connection tools and restores endpoint details when the selected endpoint is clicked', async () => {
+    const { fixture, el } = await render();
+    await showAll(fixture, el);
+    const details = el.querySelector('#ov-detail')!;
+    expect(details.querySelector('gw-access-switch[kind="endpoint"]')).not.toBeNull();
+    service(el, 'dev-db')!.querySelector<HTMLButtonElement>('button')!.click();
+    await settle(fixture);
+    expect(text(details)).toContain('sql_query');
+    expect(details.querySelector('gw-overview-connection-tools')).not.toBeNull();
+    expect(details.querySelector('gw-access-switch[kind="endpoint"]')).toBeNull();
+    await selectEndpoint(fixture, el, 'dev');
+    expect(details.querySelector('gw-overview-connection-tools')).toBeNull();
+    expect(details.querySelector('gw-access-switch[kind="endpoint"]')).not.toBeNull();
+    expect(text(details)).toContain('Access through dev');
+  });
+
+  it('changes both service membership and AI app access with the selected endpoint', async () => {
+    const { fixture, el } = await render();
+    await showAll(fixture, el);
+    expect(services(el)).toContain('dev-db');
+    expect(services(el)).not.toContain('prod-replica');
+    expect(text(app(el, 'codex'))).toContain('Connected');
+    expect(app(el, 'codex').querySelector('a')).toBeNull();
+
+    await selectEndpoint(fixture, el, 'incident-prod');
+    expect(services(el)).toEqual(['prod-logs', 'prod-replica', 'prod-vm']);
+    expect(text(app(el, 'codex'))).toContain('Not connected');
+    const connect = app(el, 'codex').querySelector('a')!;
+    expect(href(connect)).toBe('/clients?endpoint=incident-prod&connect=codex#cl-cx-t');
+    expect(connect.getAttribute('aria-label')).toBe('Connect Codex');
+    expect(connect.hasAttribute('aria-disabled')).toBe(false);
+    expect(text(app(el, 'claude-desktop'))).toContain('Connected');
+    expect(href(app(el, 'antigravity').querySelector('a'))).toBe('/clients#cl-ag-t');
+    expect(el.querySelector('a[href="/endpoints#create"]')).not.toBeNull();
+  });
+
+  it('starts compact, searches hidden long connection names and service types, and clears the filter', async () => {
+    const longName = 'orders-reporting-read-replica-for-international-finance-team';
+    savedConnections.push({ ...row(longName, 'dev', ['dev']), typeName: 'Reporting database' });
+    const { fixture, el } = await render();
+    expect(services(el)).toHaveLength(4);
+    expect(service(el, longName)).toBeNull();
+    const input = await searchFor(fixture, el, 'international-finance');
+    expect(services(el)).toEqual([longName]);
+    expect(text(service(el, longName))).toContain(longName);
+    expect(text(el.querySelector('#ov-services-scope'))).toBe('1 of 9 services on dev');
+    expect(text(service(el, longName)?.querySelector('button'))).toContain(longName);
+    await searchFor(fixture, el, 'Reporting database');
+    expect(services(el)).toEqual([longName]);
+    el.querySelector<HTMLButtonElement>('button[aria-label="Clear connection search"]')!.click();
+    await settle(fixture);
+    expect(input.value).toBe('');
+    expect(document.activeElement).toBe(input);
+    expect(services(el)).toHaveLength(4);
+    await showAll(fixture, el);
+    expect(services(el)).toContain(longName);
+    expect(services(el)).toHaveLength(9);
+  });
+
+  it('preserves a search while its scope changes and offers a usable empty state', async () => {
+    const { fixture, el } = await render();
+    await searchFor(fixture, el, 'prod-replica');
+    expect(text(el)).toContain('No matching connections');
+    expect(byText(el.querySelector('#ov-services')!, 'a', 'Import with AI')).toBeNull();
+    await selectEndpoint(fixture, el, 'incident-prod');
+    expect(services(el)).toEqual(['prod-replica']);
+    await searchFor(fixture, el, 'does-not-exist');
+    findButton(el.querySelector('#ov-services')!, 'Clear search').click();
+    await settle(fixture);
+    expect(services(el)).toEqual(['prod-logs', 'prod-replica', 'prod-vm']);
+  });
+
+  it('offers repository import for an empty selected endpoint and keeps its context', async () => {
+    savedConnections = savedConnections.map((connection) => ({ ...connection,
+      usedBy: connection.usedBy.filter((slug) => slug !== 'incident-prod') }));
+    TestBed.inject(Router).resetConfig([{ path: 'connection-import', children: [] }]);
+    const { fixture, el } = await render();
+    expect(byText(el.querySelector('#ov-services')!, 'a', 'Import with AI')).toBeNull();
+    await selectEndpoint(fixture, el, 'incident-prod');
+    const empty = el.querySelector('#ov-services')!;
+    expect(text(empty)).toContain('No services connected to this endpoint');
+    expect(text(empty)).toContain('analyze a repository and prepare connections for review');
+    const importLink = byText<HTMLAnchorElement>(empty, 'a', 'Import with AI')!;
+    expect(href(importLink)).toBe('/connection-import?endpoint=incident-prod');
+    const before = [...calls];
+    importLink.click();
+    await settle(fixture);
+    expect(TestBed.inject(Router).url).toBe('/connection-import?endpoint=incident-prod');
+    expect(calls).toEqual(before);
+  });
+
+  it('shows only enabled unreachable connections from the endpoint badge and resets both filters', async () => {
+    savedConnections.push({ ...row('disabled-service', 'dev', ['dev']), enabled: false, health: { state: 'unreachable', latencyMs: null, message: null, checkedAt: new Date(NOW).toISOString() } });
+    const { fixture, el } = await render();
+    await searchFor(fixture, el, 'redis');
+    const problems = el.querySelector<HTMLButtonElement>('button[aria-label="Show 1 unreachable connections on dev"]')!;
+    expect(problems).not.toBeNull();
+    expect(text(document.getElementById(problems.getAttribute('aria-describedby')!))).toContain('1 enabled connection is unreachable');
+    problems.click();
+    await settle(fixture);
+    expect(services(el)).toEqual(['billing-api']);
+    expect(problems.getAttribute('aria-pressed')).toBe('true');
+    expect(service(el, 'billing-api')?.classList).toContain('gw-card--invalid');
+    expect((el.querySelector('#ov-service-search') as HTMLInputElement).value).toBe('');
+    expect(service(el, 'cache-redis')).toBeNull();
+    expect(service(el, 'disabled-service')).toBeNull();
+    findButton(el.querySelector('.gw-alert--danger')!, 'Show all').click();
+    await settle(fixture);
+    expect(services(el)).toContain('cache-redis');
+    expect(services(el)).toContain('disabled-service');
+    expect(service(el, 'cache-redis')?.classList.contains('gw-card--invalid')).toBe(false);
+    expect(service(el, 'disabled-service')?.classList.contains('gw-card--invalid')).toBe(false);
+  });
+
+  it('distinguishes actual connected MCP services from installed services and opens an exact access review', async () => {
+    savedConnections.push(healthyMcp('issue-tracker-mcp', ['dev']));
+    const { fixture, el } = await render();
+    expect(text(service(el, 'issue-tracker-mcp')?.querySelector('.gw-status__label'))).toBe('Connected');
+    expect(text(el.querySelector('#ov-mcp .gw-card__description'))).toContain('dev');
+    const mcp = el.querySelector('#ov-mcp')!;
+    expect(text(mcp)).toContain('github-mcp');
+    expect(text(mcp)).toContain('Not connected to dev');
+    expect(text(mcp)).not.toContain('docs-mcp');
+    expect(mcp.querySelector('a[target="_blank"]')).toBeNull();
+    mcp.querySelector<HTMLButtonElement>('button[aria-label="Connect github-mcp to endpoint dev"]')!.click();
+    await settle(fixture);
+    expect(text(openReview(el))).toContain('Connect github-mcp to dev');
+    expect(text(openReview(el))).toContain('List issues');
+    expect(calls).toContain('preview dev github-mcp');
+    expect(calls.some((call) => call.startsWith('add '))).toBe(false);
+  });
+
+  it('opens and cancels MCP setup on Overview while preserving endpoint, search and focus', async () => {
+    const { fixture, el } = await render();
+    await selectEndpoint(fixture, el, 'stage-readonly');
+    await searchFor(fixture, el, 'mcp');
+    const opener = findButton(el.querySelector('#ov-mcp')!, 'Add an MCP service');
+    const beforeUrl = TestBed.inject(Router).url;
+    opener.click();
+    await settle(fixture);
+    const dialog = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    expect(dialog.open).toBe(true);
+    expect(el.querySelector('gw-mcp-setup-flow')).not.toBeNull();
+    findButton(dialog, 'Cancel').click();
+    await settle(fixture);
+    expect(dialog.open).toBe(false);
+    expect(TestBed.inject(Router).url).toBe(beforeUrl);
+    expect(el.querySelector<HTMLInputElement>('input[name="overview-endpoint"]:checked')!.value).toBe('stage-readonly');
+    expect(el.querySelector<HTMLInputElement>('#ov-service-search')!.value).toBe('mcp');
+    expect(document.activeElement).toBe(opener);
+    expect(calls.some((call) => call.startsWith('create mcp'))).toBe(false);
+  });
+
+  it('opens the URL form locally and closes it back to the original Add service button', async () => {
+    const { fixture, el } = await render();
+    const opener = findButton(el.querySelector('.gw-page-header__actions')!, 'Add service');
+    opener.click();
+    await settle(fixture);
+    findButton(el.querySelector('dialog[open]')!, 'Connect an MCP service by URL').click();
+    await settle(fixture);
+    const dialog = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    expect(dialog.open).toBe(true);
+    expect(dialog.querySelector<HTMLInputElement>('input[value="http"]')!.checked).toBe(true);
+    expect(el.querySelectorAll('dialog[open]')).toHaveLength(1);
+    findButton(dialog, 'Cancel').click();
+    await settle(fixture);
+    expect(document.activeElement).toBe(opener);
+    expect(TestBed.inject(Router).url).toBe('/');
+    expect(calls).not.toContain('review mcp');
+  });
+
+  it.each(['add', 'skip'])('keeps the complete reviewed MCP flow on Overview and refreshes the map: %s', async (finish) => {
+    const { fixture, el } = await render();
+    await selectEndpoint(fixture, el, 'stage-readonly');
+    const opener = findButton(el.querySelector('#ov-mcp')!, 'Add an MCP service');
+    opener.click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    const name = add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!;
+    const command = add.querySelector<HTMLInputElement>('input[placeholder^="npx"]')!;
+    for (const [input, value] of [[name, 'sample-mcp'], [command, 'npx -y @example/mcp@1.0.0']] as const) {
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    findButton(add, 'Review and start').click();
+    await settle(fixture);
+    const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
+    expect(review.open).toBe(true);
+    expect(calls).not.toContain('create mcp sample-mcp');
+    findButton(review, 'Back').click();
+    await settle(fixture);
+    expect(add.open).toBe(true);
+    expect(name.value).toBe('sample-mcp');
+    expect(command.value).toBe('npx -y @example/mcp@1.0.0');
+    findButton(add, 'Review and start').click();
+    await settle(fixture);
+    review.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click();
+    await settle(fixture);
+    findButton(review, 'Start MCP server sample-mcp').click();
+    await settle(fixture);
+    expect(calls).toContain('create mcp sample-mcp');
+    const step = el.querySelector<HTMLDialogElement>('dialog[gwMcpEndpointDialog]')!;
+    expect(step.open).toBe(true);
+    const reads = calls.filter((call) => call === 'GET /api/connections').length;
+    findButton(step, finish === 'add' ? 'Add to endpoint' : 'Not now').click();
+    await settle(fixture);
+    expect(step.open).toBe(false);
+    expect(calls.filter((call) => call === 'GET /api/connections').length).toBeGreaterThan(reads);
+    expect(TestBed.inject(Router).url).toBe('/');
+    expect(el.querySelector<HTMLInputElement>('input[name="overview-endpoint"]:checked')!.value).toBe('stage-readonly');
+    expect(document.activeElement).toBe(opener);
+    expect(text(el.querySelector('#ov-mcp'))).toContain('sample-mcp');
+    expect(calls.includes('add dev sample-mcp')).toBe(finish === 'add');
+  });
+
+  it('opens the service chooser with new-service routes and existing services scoped to the endpoint', async () => {
+    const { fixture, el } = await render();
+    findButton(el.querySelector('.gw-page-header__actions')!, 'Add service').click();
+    await settle(fixture);
+    const dialog = el.querySelector<HTMLDialogElement>('dialog[open]')!;
+    expect(text(dialog.querySelector('h2'))).toBe('Add a service');
+    expect(findButton(dialog, 'Connect an MCP service by URL')).toBe(document.activeElement);
+    expect(href(byText(dialog, 'a', 'Built-in connectors'))).toBe('/connections/new');
+    expect(href(byText(dialog, 'a', 'Connect existing services'))).toBe('/connections?notConnectedTo=dev');
+    expect(text(dialog)).not.toContain('Already in GateRook');
+    expect(text(dialog)).not.toContain('Browse services');
+    expect(calls.some((call) => call.startsWith('add '))).toBe(false);
+  });
+
+  it('waits for the global switch write, restores filtered rows and carries the saved setting across endpoints', async () => {
+    const write = deferred<ConnectionRow>();
+    connectionWrite = () => write.promise;
+    const { fixture, el } = await render();
+    el.querySelector<HTMLButtonElement>('button[aria-label="Show 1 unreachable connections on dev"]')!.click();
+    await settle(fixture);
+    const control = switchOf(service(el, 'billing-api')!);
+    expect(control.checked).toBe(true);
+    expect(control.getAttribute('aria-label')).toContain('across all endpoints');
+    control.click();
+    fixture.detectChanges();
+    expect(control.checked).toBe(true);
+    expect(control.disabled).toBe(true);
+    expect(calls.filter((call) => call.startsWith('connection '))).toEqual(['connection billing-api false']);
+    savedConnections = savedConnections.map((connection) => connection.name === 'billing-api' ? { ...connection, enabled: false } : connection);
+    write.resolve(savedConnections.find((connection) => connection.name === 'billing-api')!);
+    await settle(fixture);
+    expect(switchOf(service(el, 'billing-api')!).checked).toBe(false);
+    expect(text(service(el, 'billing-api'))).toContain('Connection off');
+    expect(services(el)).toContain('dev-db');
+    expect(el.querySelector('button[aria-label="Show 1 unreachable connections on dev"]')).toBeNull();
+    await selectEndpoint(fixture, el, 'stage-readonly');
+    expect(switchOf(service(el, 'billing-api')!).checked).toBe(false);
+    expect(text(service(el, 'billing-api'))).toContain('Connection off');
+  });
+
+  it('keeps the saved switch value and explains a failed access change', async () => {
+    connectionWrite = async () => { throw new ApiError('conflict', 409, { detail: 'This connection changed. Refresh and try again.' }); };
+    const { fixture, el } = await render();
+    const control = switchOf(service(el, 'billing-api')!);
+    control.click();
+    await settle(fixture);
+    expect(control.checked).toBe(true);
+    expect(control.disabled).toBe(false);
+    expect(text(service(el, 'billing-api'))).toContain('Unreachable');
+    expect(TestBed.inject(ToastService).toasts().at(-1)).toMatchObject({ tone: 'danger', title: 'Could not disable billing-api', body: 'This connection changed. Refresh and try again.' });
+  });
+
+  it('pauses only the endpoint while retaining connection settings and access through other endpoints', async () => {
+    const { fixture, el } = await render();
+    switchOf(el.querySelector('#ov-detail')!).click();
+    await settle(fixture);
+    const billing = service(el, 'billing-api')!;
+    const control = switchOf(billing);
+    expect(text(billing)).toContain('Endpoint off');
+    expect(control.checked).toBe(true);
+    expect(control.getAttribute('aria-disabled')).not.toBe('true');
+    expect(text(billing.querySelector('.gw-setup-map__network-toggle > span'))).toBe('On');
+    expect(text(document.getElementById(control.getAttribute('aria-describedby')!))).toContain('Changing this connection does not turn the endpoint on');
+    expect(text(app(el, 'codex'))).toContain('Endpoint off');
+    expect(text(el.querySelector('#ov-detail'))).toContain('All tools are off on this endpoint');
+    expect(calls).toContain('endpoint dev false');
+    expect(calls.some((call) => call.startsWith('connection '))).toBe(false);
+    await selectEndpoint(fixture, el, 'stage-readonly');
+    expect(switchOf(service(el, 'billing-api')!).checked).toBe(true);
+    expect(text(service(el, 'billing-api'))).toContain('Unreachable');
+    await selectEndpoint(fixture, el, 'dev');
+    switchOf(el.querySelector('#ov-detail')!).click();
+    await settle(fixture);
+    expect(switchOf(service(el, 'billing-api')!).checked).toBe(true);
+    expect(text(service(el, 'billing-api'))).toContain('Unreachable');
+  });
+
+  it('clears the problem-only view after an external pause so service switches remain visible', async () => {
+    const { fixture, el } = await render();
+    el.querySelector<HTMLButtonElement>('button[aria-label="Show 1 unreachable connections on dev"]')!.click();
+    await settle(fixture);
+    savedEndpoints = savedEndpoints.map((endpoint) => endpoint.slug === 'dev' ? { ...endpoint, status: 'disabled' } : endpoint);
+    events.emit('approval.requested', { id: 'refresh' });
+    await sleep(180);
+    await settle(fixture);
+    expect(el.querySelector('[aria-pressed="true"][aria-controls="ov-services ov-mcp"]')).toBeNull();
+    expect(services(el)).toContain('billing-api');
+    expect(services(el)).toContain('app-logs');
+    expect(text(service(el, 'billing-api'))).toContain('Endpoint off');
+  });
+
+  it('tests the selected unreachable connection once, reports its result and keeps the endpoint scope', async () => {
+    const { fixture, el } = await render();
+    service(el, 'billing-api')!.querySelector<HTMLButtonElement>('button')!.click();
+    await settle(fixture);
+    const test = findButton(el.querySelector('#ov-detail')!, 'Test connection again');
+    test.click();
+    fixture.detectChanges();
+    test.click();
+    expect(tests.map((request) => request.name)).toEqual(['billing-api']);
+    expect(test.getAttribute('aria-busy')).toBe('true');
+    tests[0].answer.resolve(unreachable);
+    await settle(fixture);
+    expect(test.hasAttribute('aria-busy')).toBe(false);
+    expect(text(service(el, 'billing-api'))).toContain('Unreachable');
+    expect(TestBed.inject(ToastService).toasts().at(-1)).toMatchObject({ tone: 'danger', title: 'billing-api is still unreachable', body: unreachable.error!.message });
+    expect((el.querySelector('input[name="overview-endpoint"]:checked') as HTMLInputElement).value).toBe('dev');
+  });
+
+  it('drops an obsolete problem filter when its endpoint is removed externally', async () => {
+    const { fixture, el } = await render();
+    el.querySelector<HTMLButtonElement>('button[aria-label="Show 1 unreachable connections on dev"]')!.click();
+    await settle(fixture);
+    savedEndpoints = savedEndpoints.filter((endpoint) => endpoint.slug !== 'dev');
+    events.emit('approval.requested', { id: 'refresh' });
+    await sleep(180);
+    await settle(fixture);
+    expect((el.querySelector('input[name="overview-endpoint"]:checked') as HTMLInputElement).value).toBe('stage-readonly');
+    expect(services(el)).toEqual(['aws-stage', 'billing-api', 'stage-db']);
+    expect(el.querySelector('[aria-pressed="true"][aria-controls="ov-services ov-mcp"]')).toBeNull();
+  });
+
+  it('shows the selected service path automatically and can replay, clear and restore it without sending a request', async () => {
+    const { fixture, el } = await render();
+    expect(text(el.querySelector('#ov-approvals'))).toContain('3 requests need your approval');
+    expect(href(byText(el.querySelector('#ov-approvals')!, 'a', 'Review requests'))).toBe('/approvals');
+    const before = [...calls];
+    service(el, 'billing-api')!.querySelector<HTMLButtonElement>('button')!.click();
+    await settle(fixture);
+    const showPath = findButton(el.querySelector('#ov-detail')!, 'Replay path');
+    expect(showPath.getAttribute('aria-controls')).toBe('ov-request-path');
+    expect(showPath.getAttribute('aria-expanded')).toBe('true');
+    const route = el.querySelector('ol[aria-label="Request route"]')!;
+    expect(route.children).toHaveLength(3);
+    expect(text(route.children[0])).toContain('Claude Desktop');
+    expect(text(route.children[1])).toContain('GateRook');
+    expect(text(route.children[1])).toContain('Endpoint dev');
+    expect(text(route.children[2])).toContain('billing-api');
+    expect(text(el.querySelector('#ov-detail'))).toContain('Example path only; no request is sent.');
+    expect(text(el.querySelector('#ov-detail'))).toContain('An unreachable service cannot complete the call.');
+    showPath.click();
+    await settle(fixture);
+    expect(el.querySelector('ol[aria-label="Request route"]')).not.toBe(route);
+    expect(calls).toEqual(before);
+    expect(tests).toEqual([]);
+    findButton(el.querySelector('#ov-detail')!, 'Clear').click();
+    await settle(fixture);
+    expect(text(el.querySelector('#ov-detail'))).not.toContain('Example path only');
+    expect(showPath.getAttribute('aria-expanded')).toBe('false');
+    expect(text(showPath)).toBe('Show path');
+    expect(document.activeElement).toBe(showPath);
+    showPath.click();
+    await settle(fixture);
+    expect(text(el.querySelector('ol[aria-label="Request route"]'))).toContain('billing-api');
+    service(el, 'cache-redis')!.querySelector<HTMLButtonElement>('button')!.click();
+    await settle(fixture);
+    expect(text(el.querySelector('ol[aria-label="Request route"]'))).toContain('cache-redis');
+    expect(text(el.querySelector('ol[aria-label="Request route"]'))).not.toContain('billing-api');
+    expect(calls).toEqual(before);
+    expect(tests).toEqual([]);
+    expect(href(byText(el, 'a', 'Activity'))).toBe('/activity');
+  });
+
+  it('keeps request paths hidden for disabled services and disconnected apps', async () => {
+    savedConnections = savedConnections.map((connection) => connection.name === 'cache-redis'
+      ? { ...connection, enabled: false } : connection);
+    const { fixture, el } = await render();
+    service(el, 'billing-api')!.querySelector<HTMLButtonElement>('button')!.click();
+    await settle(fixture);
+    expect(el.querySelector('ol[aria-label="Request route"]')).not.toBeNull();
+    service(el, 'cache-redis')!.querySelector<HTMLButtonElement>('button')!.click();
+    await settle(fixture);
+    expect(el.querySelector('ol[aria-label="Request route"]')).toBeNull();
+    expect(findButton(el.querySelector('#ov-detail')!, 'Show path').getAttribute('aria-disabled')).toBe('true');
+    expect(text(el.querySelector('#ov-trace-reason'))).toContain('Enable this connection');
+    app(el, 'antigravity').querySelector<HTMLButtonElement>('button')!.click();
+    await settle(fixture);
+    expect(el.querySelector('ol[aria-label="Request route"]')).toBeNull();
+    expect(text(el.querySelector('#ov-trace-reason'))).toContain('This app is not connected');
+  });
+});
+
+describe('Overview availability', () => {
+  it('waits briefly before showing loading placeholders and replaces them with the real map', async () => {
     const answer = deferred<Overview>();
-    setupPage(() => answer.promise);
+    overviewAnswers = [() => answer.promise];
     const { fixture, el } = await render();
     expect(el.querySelector('.gw-skeleton')).toBeNull();
     await sleep(SKELETON_DELAY_MS + 20);
     fixture.detectChanges();
-    expect(el.querySelectorAll('.gw-skeleton').length).toBeGreaterThan(0);
-    expect(text(el.querySelector('[role=status]'))).toBe('Loading the overview');
+    expect(el.querySelector('[aria-label="Loading connection map"]')).not.toBeNull();
+    expect(el.querySelector('.gw-skeleton')).not.toBeNull();
     answer.resolve(overview());
     await settle(fixture);
     expect(el.querySelector('.gw-skeleton')).toBeNull();
+    expect(service(el, 'billing-api')).not.toBeNull();
   });
 
-  describe('in use', () => {
-    it('puts what waits for approval first, then the connections, the AI apps and one line about Activity', async () => {
-      setupPage();
-      const { el } = await render();
-      expect(text(el.querySelector('.gw-page-header__description'))).toBe('What waits for your approval and what is connected.');
-      // The page's one action is a plain button: nothing on this screen is a primary.
-      expect(byText(el, '.gw-page-header__actions a', 'Add connection')!.classList.contains('gw-btn--primary')).toBe(false);
-      expect(el.querySelector('.gw-btn--primary')).toBeNull();
-
-      const wait = el.querySelector('#ov-wait')!;
-      expect(text(wait.querySelector('h2'))).toBe('Waiting for your approval , 3 requests');
-      expect(wait.querySelector('ul')!.getAttribute('aria-label')).toBe('Waiting for approval, 3 requests');
-      expect(Array.from(wait.querySelectorAll('.gw-approval-request__title')).map(text)).toEqual([
-        'k8s_rollout_restart on dev-cluster environment dev from Claude Desktop',
-        'sql_execute on dev-db environment dev from Codex',
-        'http_request on billing-api environment stage from Codex',
-      ]);
-      expect(href(byText(wait, 'a', 'Review'))).toBe('/approvals/ap_k8s000000001');
-
-      const sections = Array.from(el.querySelectorAll('h2')).map(text);
-      expect(sections).toEqual(['Waiting for your approval , 3 requests', 'Your connections', 'AI apps']);
-      expect(text(el.querySelector(':scope > p.gw-text-small:last-child'))).toBe('1,287 calls from your AI apps in the last 24 hours, 17 denied by policy. Each one is in Activity.');
-      expect(href(byText(el, 'a', 'Activity'))).toBe('/activity');
-    });
-
-    it('keeps health tiles and retry available when endpoint grouping cannot load', async () => {
-      setupPage();
-      endpointsAnswer = () => Promise.reject(new Error('Unavailable'));
-      const { fixture, el } = await render();
-      const section = el.querySelector('section[aria-labelledby="ov-conn-title"]')!;
-      expect(text(section.querySelector('.gw-section__description'))).toBe(
-        "12 connections: 10 healthy, 1 slow, 1 unreachable. The tag shows each one's environment: dev, stage or prod.",
-      );
-      const first = section.querySelector('ul[aria-label="Connections that need attention first"]')!;
-      expect(Array.from(first.querySelectorAll('.gw-status-tile__title')).map(text)).toEqual([
-        'billing-api environment stage',
-        'cache-redis environment dev',
-        'app-logs environment dev',
-        'dev-cluster environment dev',
-        'dev-db environment dev',
-        'dev-vm environment dev',
-      ]);
-
-      const billing = tile(first, 'billing-api')!;
-      expect(billing.classList).toContain('gw-card--interactive');
-      expect(href(billing.querySelector('.gw-card__link'))).toBe('/connections/billing-api');
-      expect(text(billing.querySelector('.gw-status'))).toBe('Unreachable');
-      expect(text(billing.querySelector('.gw-status-tile__main p'))).toBe('HTTP API · billing.stage.acme.dev');
-      expect(text(billing.querySelector('button'))).toBe('Test again billing-api');
-      expect(text(tile(first, 'cache-redis')!.querySelector('.gw-status'))).toBe('Slow · 1.8 s');
-      expect(tile(first, 'cache-redis')!.querySelector('button')).toBeNull();
-
-      // The disclosure sits before the folded list, which opens and closes with it.
-      const toggle = byText<HTMLButtonElement>(section, 'button', '6 more connections, all healthy')!;
-      const more = section.querySelector<HTMLElement>('#ov-conn-more')!;
-      expect(toggle.getAttribute('aria-controls')).toBe('ov-conn-more');
-      expect(toggle.getAttribute('aria-expanded')).toBe('false');
-      expect(more.hidden).toBe(true);
-      expect(more.getAttribute('aria-label')).toBe('More connections, all healthy');
-      toggle.click();
-      fixture.detectChanges();
-      expect(more.hidden).toBe(false);
-      expect(more.querySelectorAll('.gw-status-tile')).toHaveLength(6);
-    });
-
-    it('groups all connections by endpoint, repeats shared connections and names each endpoint\'s AI apps', async () => {
-      setupPage();
-      const { el } = await render();
-      const section = el.querySelector('section[aria-labelledby="ov-conn-title"]')!;
-      const groups = Array.from(section.querySelectorAll('section.gw-card'));
-      expect(groups.map((g) => text(g.querySelector('h3')))).toEqual(['Endpoint dev', 'Endpoint stage-readonly', 'Endpoint incident-prod', 'Not on an endpoint']);
-      expect(href(byText(section, 'a', 'All endpoints'))).toBe('/endpoints');
-      expect(href(groups[0].querySelector('h3 a'))).toBe('/endpoints/dev');
-      expect(groups.map((g) => g.querySelectorAll('.gw-status-tile').length)).toEqual([8, 3, 3, 1]);
-      expect(section.querySelectorAll('gw-access-switch[kind=endpoint] input[role=switch]')).toHaveLength(3);
-      expect(section.querySelectorAll('gw-access-switch[kind=connection] input[role=switch]')).toHaveLength(15);
-      expect(section.querySelector('#ov-conn-more')).toBeNull();
-      expect(section.querySelectorAll('.gw-status-tile h3')).toHaveLength(0);
-      expect(section.querySelectorAll('.gw-status-tile h4')).toHaveLength(15);
-      expect(text(groups[0].querySelector('.gw-tag-list'))).toContain('Claude Desktop · Connected');
-      expect(text(groups[0].querySelector('.gw-tag-list'))).toContain('Codex · Connected');
-      expect(text(groups[2].querySelector('.gw-tag-list'))).toBe('Claude Desktop · Connected');
-      expect(text(groups[1])).toContain('No AI apps linked.');
-      expect(href(byText(groups[1], 'a', 'Connect an AI app'))).toBe('/clients?endpoint=stage-readonly');
-      expect(text(groups[3])).toContain('github-mcp');
-      // The same unhealthy connection stays visible first in both endpoint groups.
-      for (const group of groups.slice(0, 2)) {
-        expect(text(group.querySelector('.gw-status-tile__title'))).toBe('billing-api environment stage');
-        expect(href(tile(group, 'billing-api')!.querySelector('.gw-card__link'))).toBe('/connections/billing-api');
-      }
-    });
-
-    it.each([false, true])('keeps each Store endpoint selected in client setup when AI app lookup fails: %s', async (lookupFails) => {
-      setupPage(undefined, () => lookupFails ? Promise.reject(new Error('Unavailable')) : Promise.resolve(clientsFound()));
-      Object.assign(TestBed.inject(DesktopBridge), { windowsStore: true });
-      endpointsAnswer = () => Promise.resolve([endpoint('default'), endpoint('reporting')]);
-      connectionsAnswer = () => Promise.resolve([{ ...ROWS[0], usedBy: ['default', 'reporting'] }]);
-      const { el } = await render();
-      const groups = el.querySelectorAll('section[aria-labelledby="ov-conn-title"] section.gw-card');
-      expect(groups).toHaveLength(2);
-      for (const [index, slug] of ['default', 'reporting'].entries()) {
-        expect(href(byText(groups[index], 'a', lookupFails ? 'Open AI apps' : 'Connect an AI app'))).toBe(`/clients?endpoint=${slug}`);
-      }
-    });
-
-    it('keeps empty and disabled endpoints visible with a useful next step', async () => {
-      setupPage();
-      endpointsAnswer = () => Promise.resolve([endpoint('empty', { status: 'disabled' }), endpoint('review', { blockedReason: 'Changed outside GateRook' })]);
-      connectionsAnswer = () => Promise.resolve([]);
-      const { el } = await render();
-      const groups = el.querySelectorAll('section[aria-labelledby="ov-conn-title"] section.gw-card');
-      expect(text(groups[0])).toContain('0 connections');
-      expect(text(groups[0])).toContain('Disabled');
-      expect(text(groups[0])).toContain('No connections on this endpoint.');
-      expect(href(byText(groups[0], 'a', 'Add connections'))).toBe('/endpoints/empty');
-      expect(text(groups[1])).toContain('Needs review');
-    });
-
-    it('shows every connection off only inside the disabled endpoint, including shared connections', async () => {
-      setupPage();
-      endpointsAnswer = () => Promise.resolve(kitEndpoints().map((e) => e.slug === 'dev' ? { ...e, status: 'disabled' } : e));
-      const { fixture, el } = await render();
-      const group = el.querySelector('section[aria-labelledby="ov-group-0"]')!;
-      expect(text(group)).toContain('All tools are off on this endpoint.');
-      expect(text(group.querySelector('.gw-tag-list'))).toContain('Claude Desktop · Endpoint off');
-      const tiles = Array.from(group.querySelectorAll('.gw-status-tile'));
-      expect(tiles).toHaveLength(8);
-      for (const tile of tiles) {
-        expect(tile.classList.contains('gw-card--muted')).toBe(true);
-        expect(text(tile.querySelector('.gw-status__label'))).toBe('Endpoint off');
-        const toggle = tile.querySelector<HTMLInputElement>('input[role="switch"]')!;
-        expect(toggle.checked).toBe(false);
-        expect(toggle.getAttribute('aria-disabled')).toBe('true');
-      }
-      const active = el.querySelector('section[aria-labelledby="ov-group-1"]')!;
-      expect(active.querySelector<HTMLInputElement>('input[aria-label="Access to connection billing-api across all endpoints"]')!.checked).toBe(true);
-      TestBed.inject(EndpointsApi).enable = async () => {
-        endpointsAnswer = () => Promise.resolve(kitEndpoints());
-        return kitEndpoints()[0];
-      };
-      group.querySelector<HTMLInputElement>('gw-access-switch[kind="endpoint"] input')!.click();
-      await settle(fixture);
-      expect(text(group)).not.toContain('All tools are off on this endpoint.');
-      expect(group.querySelector<HTMLInputElement>('input[aria-label="Access to connection billing-api across all endpoints"]')!.checked).toBe(true);
-    });
-
-    it('distinguishes unavailable AI app data from an endpoint with no connected apps', async () => {
-      setupPage(undefined, () => Promise.reject(new Error('Unavailable')));
-      const { el } = await render();
-      const section = el.querySelector('section[aria-labelledby="ov-conn-title"]')!;
-      expect(text(section)).toContain("AI app connections couldn't be loaded.");
-      expect(href(byText(section, 'a', 'Open AI apps'))).toBe('/clients?endpoint=dev');
-      expect(text(section)).not.toContain('No AI apps linked.');
-      expect(section.querySelectorAll('.gw-status-tile')).toHaveLength(15);
-    });
-
-    it('does not label connections as unassigned when their endpoint wiring cannot load', async () => {
-      setupPage();
-      connectionsAnswer = () => Promise.reject(new Error('Unavailable'));
-      const { fixture, el } = await render();
-      const section = el.querySelector('section[aria-labelledby="ov-conn-title"]')!;
-      expect(text(section)).toContain("Endpoint groups couldn't be loaded.");
-      expect(text(section)).not.toContain('Not on an endpoint');
-      connectionsAnswer = () => Promise.resolve(ROWS);
-      byText<HTMLButtonElement>(section, 'button', 'Try again')!.click();
-      await settle(fixture);
-      expect(text(section)).not.toContain("Endpoint groups couldn't be loaded.");
-      expect(section.querySelector('h3 a')).not.toBeNull();
-    });
-
-    it('synchronizes Test again and health updates across every copy of a shared connection', async () => {
-      setupPage();
-      const { fixture, el } = await render();
-      const shared = () => Array.from(el.querySelectorAll('.gw-status-tile')).filter((t) => text(t.querySelector('.gw-status-tile__title')) === 'billing-api environment stage');
-      expect(shared()).toHaveLength(2);
-      shared()[0].querySelector('button')!.click();
-      fixture.detectChanges();
-      shared()[1].querySelector('button')!.click();
-      fixture.detectChanges();
-      expect(tests).toHaveLength(1);
-      expect(shared().every((t) => t.querySelector('button')?.getAttribute('aria-busy') === 'true')).toBe(true);
-      tests[0].answer.resolve(unreachable);
-      await settle(fixture);
-      events.emit('connection.health', { name: 'billing-api', env: 'stage', state: 'healthy', latencyMs: 40, message: null, checkedAt: new Date(NOW).toISOString() });
-      fixture.detectChanges();
-      expect(shared().every((t) => text(t.querySelector('.gw-status')) === 'Healthy' && !t.querySelector('button'))).toBe(true);
-    });
-
-    it('lists the AI apps: the one to connect first, the connected local apps with what they can use', async () => {
-      setupPage();
-      const { el } = await render();
-      const apps = el.querySelector('section[aria-labelledby="ov-apps-title"]')!;
-      expect(apps.querySelector('ul')!.getAttribute('aria-label')).toBe('AI apps, the one to connect first');
-      expect(href(byText(apps, '.gw-section__actions a', 'All AI apps'))).toBe('/clients');
-      const tiles = Array.from(apps.querySelectorAll('.gw-status-tile'));
-      expect(tiles.map((t) => text(t.querySelector('.gw-status-tile__title')))).toEqual(['Cursor', 'Claude Desktop', 'Codex']);
-
-      const cursor = tile(apps, 'Cursor')!;
-      // Its action is the tile's only destination: no link of its own, not interactive.
-      expect(cursor.classList).not.toContain('gw-card--interactive');
-      expect(cursor.querySelector('.gw-card__link')).toBeNull();
-      expect(text(cursor.querySelector('.gw-status'))).toBe('Not connected');
-      expect(href(byText(cursor, 'a', 'Connect'))).toBe('/clients#cl-cu-t');
-      expect(text(byText(cursor, 'a', 'Connect'))).toBe('Connect Cursor');
-      expect(cursor.querySelector('.gw-tag-list')).toBeNull();
-
-      const claude = tile(apps, 'Claude Desktop')!;
-      expect(href(claude.querySelector('.gw-card__link'))).toBe('/clients#cl-cd-t');
-      expect(text(claude.querySelector('.gw-status-tile__main p'))).toBe('Can use 11 connections, 3 of them prod');
-      const endpoints = claude.querySelector('.gw-status-tile__main .gw-tag-list')!;
-      expect(endpoints.getAttribute('aria-label')).toBe('Connected endpoints for Claude Desktop');
-      expect(Array.from(endpoints.querySelectorAll('.gw-badge')).map(text)).toEqual(['dev', 'incident-prod']);
-      expect(text(tile(apps, 'Codex')!.querySelector('.gw-status-tile__main p'))).toBe('Can use 8 connections');
-      expect(Array.from(tile(apps, 'Codex')!.querySelectorAll('.gw-badge')).map(text)).toEqual(['dev']);
-      expect(tile(apps, 'claude.ai')).toBeNull();
-      // Antigravity isn't installed: it stays on AI apps.
-      expect(tile(apps, 'Antigravity')).toBeNull();
-    });
-
-    it('says quietly that nothing waits when the queue is empty', async () => {
-      setupPage(() => Promise.resolve(overview({ waiting: [], stats: { ...overview().stats, pending: 0 } })));
-      const { el } = await render();
-      expect(el.querySelector('#ov-wait')).toBeNull();
-      expect(text(el.querySelector('#ov-wait-none'))).toBe(
-        'Nothing waits for your approval. Calls that need your approval appear here and as a desktop notification. Tools in Bypass run without asking.',
-      );
-    });
-
-    it('Test again is busy in place while it tests, ignores more clicks, then says what it found', async () => {
-      setupPage();
-      const { fixture, el } = await render();
-      const billing = () => tile(el, 'billing-api')!;
-      const button = billing().querySelector('button')!;
-      button.click();
-      fixture.detectChanges();
-      button.click();
-      fixture.detectChanges();
-      expect(tests.map((t) => t.name)).toEqual(['billing-api']);
-      expect(button.getAttribute('aria-busy')).toBe('true');
-      expect(button.getAttribute('aria-disabled')).toBe('true');
-      expect(button.querySelector('.gw-spinner')).not.toBeNull();
-      const state = billing().querySelector('.gw-status--checking')!;
-      expect(state.getAttribute('role')).toBe('status');
-      expect(text(state)).toBe('Checking… billing-api');
-      expect(button.getAttribute('aria-describedby')).toBe(state.id);
-
-      tests[0].answer.resolve(unreachable);
-      await settle(fixture);
-      expect(button.hasAttribute('aria-busy')).toBe(false);
-      expect(text(billing().querySelector('.gw-status'))).toBe('Unreachable');
-      expect(TestBed.inject(ToastService).toasts().at(-1)).toMatchObject({
-        tone: 'danger',
-        title: 'billing-api is still unreachable',
-        body: 'billing.stage.acme.dev did not answer. Check the VPN or the host, then test again.',
-      });
-    });
-
-    it('a request that runs out here leaves at once; after the last one the quiet line takes its place', async () => {
-      setupPage(() => Promise.resolve(overview({ waiting: [overview().waiting[0]], stats: { ...overview().stats, pending: 1 } })));
-      const { fixture, el } = await render();
-      expect(el.querySelectorAll('#ov-wait li')).toHaveLength(1);
-      // The countdown hit zero (gw-countdown-end): the row goes, and the core is asked again shortly.
-      now.set(Date.parse(overview().waiting[0].expiresAt) + 1000);
-      await sleep(1100);
-      await settle(fixture);
-      expect(el.querySelector('#ov-wait')).toBeNull();
-      expect(el.querySelector('#ov-wait-none')).not.toBeNull();
-      now.set(NOW);
-    });
-
-    it("follows the core's events: a decided request leaves, a health change shows at once", async () => {
-      setupPage();
-      const { fixture, el } = await render();
-      events.emit('approval.resolved', { id: 'ap_sql000000001', status: 'rejected', via: 'app' });
-      fixture.detectChanges();
-      expect(el.querySelectorAll('#ov-wait li')).toHaveLength(2);
-      events.emit('connection.health', { name: 'billing-api', env: 'stage', state: 'healthy', latencyMs: 40, message: null, checkedAt: new Date(NOW).toISOString() });
-      fixture.detectChanges();
-      expect(text(tile(el, 'billing-api')!.querySelector('.gw-status'))).toBe('Healthy');
-      expect(tile(el, 'billing-api')!.querySelector('button')).toBeNull();
-    });
-  });
-
-  describe('first run', () => {
-    it('is a three-step guide: Add your first connection is current and the one primary', async () => {
-      setupPage(() => Promise.resolve(firstRun()), () => Promise.resolve(clientsFound()));
-      const { el } = await render();
-      expect(text(el.querySelector('.gw-page-header__description'))).toBe('Let your AI apps use your databases and servers without ever seeing a password.');
-      expect(el.querySelector('.gw-page-header__actions')).toBeNull();
-      const card = el.querySelector('section[aria-labelledby="ov-first-title"]')!;
-      expect(text(card.querySelector('h2'))).toBe('Get started');
-      expect(text(card.querySelector('.gw-card__description'))).toBe(
-        'Your AI app asks GateRook, and GateRook works with your database or server for it. Passwords stay on this computer.',
-      );
-      const guide = card.querySelector('ol.gw-stepper.gw-stepper--guide')!;
-      expect(guide.getAttribute('aria-labelledby')).toBe('ov-first-title');
-      const steps = Array.from(guide.querySelectorAll<HTMLElement>(':scope > li'));
-      expect(steps.map((s) => [s.dataset['state'], s.getAttribute('aria-current'), text(s.querySelector('h3'))])).toEqual([
-        ['current', 'step', 'Add your first connection'],
-        ['upcoming', null, 'Connect your AI app'],
-        ['upcoming', null, 'Check that it works'],
-      ]);
-      expect(steps.map((s) => text(s.querySelector('.gw-stepper__marker')))).toEqual(['1', '2', '3']);
-
-      const primaries = el.querySelectorAll('.gw-btn--primary');
-      expect(primaries).toHaveLength(1);
-      expect(text(primaries[0])).toBe('Add connection');
-      expect(href(primaries[0])).toBe('/connections/new');
-      expect(text(steps[2].querySelector('.gw-stepper__description'))).toBe(
-        'Restart your AI app if GateRook says so, then ask it: “Show me the tables in my database”. Its first request shows up here.',
-      );
-    });
-
-    it('shows the AI apps of this computer ahead; Connect waits and says why, How to install leads to the app', async () => {
-      setupPage(() => Promise.resolve(firstRun()), () => Promise.resolve(clientsFound()));
-      const { fixture, el } = await render();
-      const step = el.querySelectorAll<HTMLElement>('ol.gw-stepper--guide > li')[1];
-      const list = step.querySelector('ul')!;
-      expect(list.getAttribute('aria-label')).toBe('AI apps on this computer');
-      expect(Array.from(list.querySelectorAll('h4')).map(text)).toEqual(['Claude Desktop', 'Codex', 'Cursor', 'Antigravity']);
-      const connect = byText<HTMLButtonElement>(tile(list, 'Claude Desktop')!, 'button', 'Connect')!;
-      expect(text(connect)).toBe('Connect Claude Desktop');
-      expect(connect.getAttribute('aria-disabled')).toBe('true');
-      expect(connect.getAttribute('aria-describedby')).toBe('ov-first-why');
-      expect(text(el.querySelector('#ov-first-why'))).toBe('Add a connection first: your AI app needs something to work with.');
-      // aria-disabled: it stays in the Tab order and does nothing.
-      const router = TestBed.inject(Router);
-      const go = vi.spyOn(router, 'navigateByUrl');
-      connect.click();
-      fixture.detectChanges();
-      expect(go).not.toHaveBeenCalled();
-
-      const antigravity = tile(list, 'Antigravity')!;
-      expect(text(antigravity.querySelector('.gw-status'))).toBe('Not installed');
-      expect(text(antigravity.querySelector('.gw-status-tile__main p'))).toBe('Not found on this computer');
-      const install = byText(antigravity, 'a', 'How to install')!;
-      expect(install.classList).toContain('gw-btn--link');
-      expect(href(install)).toBe('/clients#cl-ag-t');
-    });
-
-    it('leaves the apps out when this core has no clients area', async () => {
-      setupPage(() => Promise.resolve(firstRun()), () => Promise.reject(new ApiError('not-available', 404, {})));
-      const { el } = await render();
-      expect(el.querySelector('.gw-status-tile')).toBeNull();
-      expect(el.querySelector('#ov-first-why')).toBeNull();
-      expect(el.querySelectorAll('ol.gw-stepper--guide > li')).toHaveLength(3);
-    });
-  });
-
-  describe('setup', () => {
-    it('marks step 1 done with the connection, makes Connect your AI app current and waits for the first request', async () => {
-      setupPage(() => Promise.resolve(setup()), () => Promise.resolve(clientsFound()));
-      const { el } = await render();
-      const card = el.querySelector('section[aria-labelledby="ov-setup-title"]')!;
-      expect(text(card.querySelector('h2'))).toBe('Almost done');
-      expect(text(card.querySelector('.gw-card__description'))).toBe('Your connection works. Connect the AI app you use, and it can start reading dev-db.');
-      const steps = Array.from(card.querySelectorAll<HTMLElement>('ol.gw-stepper--guide > li'));
-      expect(steps.map((s) => s.dataset['state'])).toEqual(['complete', 'current', 'upcoming']);
-      expect(text(steps[0].querySelector('h3'))).toBe('Add your first connection, completed');
-      expect(steps[0].querySelector('.gw-stepper__marker svg')).not.toBeNull();
-      expect(text(steps[0].querySelector('.gw-stepper__description'))).toBe('dev-db · PostgreSQL 16 · changes need your approval · Healthy');
-      expect(href(steps[0].querySelector('.gw-stepper__description a'))).toBe('/connections/dev-db');
-      // The master key was backed up (its getting-started step is done): no reminder, only Add another connection.
-      expect(text(steps[0].querySelector('.gw-stepper__content'))).toBe('The password is encrypted with a key kept on this computer. · Add another connection');
-
-      const connect = byText(tile(steps[1], 'Codex')!, 'a', 'Connect')!;
-      expect(href(connect)).toBe('/clients#cl-cx-t');
-      expect(connect.classList.contains('gw-btn--primary')).toBe(false);
-      expect(el.querySelector('.gw-btn--primary')).toBeNull();
-      expect(text(steps[2].querySelector('.gw-stepper__description'))).toBe(
-        'Restart your AI app if GateRook says so, then ask it: “Show me the tables in dev-db”. Its first request shows up here.',
-      );
-      expect(text(steps[2].querySelector('.gw-status'))).toBe('Waiting for the first request');
-    });
-
-    it('reminds to back up the master key until it is', async () => {
-      const o = setup();
-      const steps = o.gettingStarted.steps.map((s) => (s.id === 'master-key' ? { ...s, state: 'current' as const } : s));
-      setupPage(() => Promise.resolve({ ...o, gettingStarted: { ...o.gettingStarted, steps } }), () => Promise.resolve(clientsFound()));
-      const { el } = await render();
-      const content = el.querySelector('ol.gw-stepper--guide > li .gw-stepper__content')!;
-      expect(text(content)).toBe('The password is encrypted with a key kept on this computer. Back up the key so you can restore it. · Add another connection');
-      expect(href(byText(content, 'a', 'Back up the key'))).toBe('/secrets#master-key');
-    });
-
-    it('shows an observed browser sign-in as connected while setup progress catches up', async () => {
-      setupPage(() => Promise.resolve(setup()), () => Promise.resolve(clientsBrowserSignedIn()));
-      const { el } = await render();
-      const cursor = tile(el, 'Cursor')!;
-      expect(text(cursor.querySelector('.gw-status__label'))).toBe('Connected');
-      expect(byText(cursor, 'a', 'Connect')).toBeNull();
-      expect(href(cursor.querySelector('.gw-card__link'))).toBe('/clients#cl-cu-t');
-      expect(text(el)).toContain('Waiting for the first request');
-    });
-
-    it('leaves setup on OAuth authentication alone and keeps the first request unrecorded', async () => {
-      setupPage(() => Promise.resolve(setup()), () => Promise.resolve(clientsFound()));
-      const { fixture, el } = await render();
-      expect(el.querySelector('#ov-setup-title')).not.toBeNull();
-      overviewAnswers = [() => Promise.resolve(browserSignedIn())];
-      clientsAnswer = () => Promise.resolve(clientsBrowserSignedIn());
-      calls = [];
-      events.emit('oauth.grant.changed', { id: 'og_cursor', endpoint: 'dev' });
-      await sleep(1_050);
-      await settle(fixture);
-      expect(calls).toEqual(['GET /api/overview']);
-      expect(el.querySelector('#ov-setup-title')).toBeNull();
-      expect(text(tile(el, 'Cursor')?.querySelector('.gw-status__label'))).toBe('Connected');
-      expect(byText(tile(el, 'Cursor')!, 'a', 'Connect')).toBeNull();
-      expect(text(el)).toContain('No calls from your AI apps in the last 24 hours');
-    });
-
-    it('becomes the home screen once the core says an AI app is connected', async () => {
-      setupPage(() => Promise.resolve(setup()), () => Promise.resolve(clientsFound()));
-      const { fixture, el } = await render();
-      expect(el.querySelector('#ov-setup-title')).not.toBeNull();
-      overviewAnswers = [() => Promise.resolve(overview())];
-      clientsAnswer = () => Promise.resolve(clientsInUse());
-      events.emit('approval.requested', { id: 'ap_new' });
-      await sleep(200);
-      await settle(fixture);
-      expect(el.querySelector('#ov-setup-title')).toBeNull();
-      expect(text(el.querySelector('#ov-conn-title'))).toBe('Your connections');
-    });
-  });
-
-  it('says what failed when nothing loaded, and Try again loads it', async () => {
-    setupPage(() => Promise.reject(new ApiError('server', 500, { title: 'Internal error', detail: 'The database is locked.' })));
+  it('explains a failed first load and lets the user retry', async () => {
+    overviewAnswers = [() => Promise.reject(new ApiError('network', 0, { detail: 'The local gateway did not answer.' })), () => Promise.resolve(overview())];
     const { fixture, el } = await render();
-    const alert = el.querySelector('.gw-alert--danger')!;
-    expect(text(alert.querySelector('.gw-alert__title'))).toBe("The overview didn't load");
-    expect(text(alert.querySelector('.gw-alert__body'))).toBe('The database is locked.');
+    expect(text(el.querySelector('[role="alert"]'))).toContain('The local gateway did not answer.');
+    expect(el.querySelector('#ov-network')).toBeNull();
+    findButton(el, 'Try again').click();
+    await settle(fixture);
+    expect(service(el, 'billing-api')).not.toBeNull();
+    expect(text(el)).not.toContain("The overview didn't load");
+  });
+
+  it('keeps the last map after a failed refresh but blocks access mutations until it reloads', async () => {
+    const { fixture, el } = await render();
+    overviewAnswers = [() => Promise.reject(new Error('Gateway unavailable'))];
+    events.emit('approval.requested', { id: 'refresh' });
+    await sleep(180);
+    await settle(fixture);
+    expect(text(el)).toContain('This overview may be out of date.');
+    expect(service(el, 'billing-api')).not.toBeNull();
+    const control = switchOf(service(el, 'billing-api')!);
+    expect(control.getAttribute('aria-disabled')).toBe('true');
+    control.click();
+    expect(calls.some((call) => call.startsWith('connection '))).toBe(false);
+    expect(text(el)).toContain('Status unavailable');
     overviewAnswers = [() => Promise.resolve(overview())];
-    byText<HTMLButtonElement>(alert, 'button', 'Try again')!.click();
+    findButton(el, 'Try again').click();
     await settle(fixture);
-    expect(el.querySelector('.gw-alert--danger')).toBeNull();
-    expect(el.querySelector('#ov-conn-title')).not.toBeNull();
+    expect(control.hasAttribute('aria-disabled')).toBe(false);
+    expect(text(el)).not.toContain('This overview may be out of date.');
   });
 
-  it('keeps what it showed when a refresh fails, and says it may be out of date', async () => {
-    setupPage();
+  it.each(['connections', 'endpoints', 'clients'])('shows an unavailable %s area as unknown instead of invented access', async (area) => {
+    if (area === 'connections') connectionsAnswer = () => Promise.reject(new Error('No connection data'));
+    if (area === 'endpoints') endpointsAnswer = () => Promise.reject(new Error('No endpoint data'));
+    if (area === 'clients') clientsAnswer = () => Promise.reject(new Error('No client data'));
+    const { el } = await render();
+    if (area === 'connections') {
+      expect(text(el)).toContain('Connections could not be loaded.');
+      expect(text(el)).toContain('Connection data unavailable');
+      expect((el.querySelector('#ov-service-search') as HTMLInputElement).disabled).toBe(true);
+      expect(services(el)).toEqual([]);
+      expect(el.querySelector('button[aria-label^="Show 1 unreachable"]')).toBeNull();
+    } else if (area === 'endpoints') {
+      expect(text(el)).toContain('Endpoints could not be loaded.');
+      expect(el.querySelector('input[name="overview-endpoint"]')).toBeNull();
+      expect((el.querySelector('#ov-service-search') as HTMLInputElement).disabled).toBe(true);
+      expect(app(el, 'codex').querySelector('a')?.getAttribute('aria-disabled')).toBe('true');
+      expect(text(el.querySelector('#ov-mcp'))).not.toContain('Not connected to an endpoint');
+      expect(el.querySelector('button[aria-label^="Connect github-mcp"]')).toBeNull();
+    } else {
+      expect(text(el)).toContain('AI app status is unavailable.');
+      expect(el.querySelector('[data-map-app]')).toBeNull();
+      expect(text(el)).toContain('Unknown apps');
+      expect(text(el)).not.toContain('0 apps');
+    }
+  });
+
+  it('supports first run without inventing endpoints and enables explicit setup once an empty endpoint exists', async () => {
+    overviewAnswers = [() => Promise.resolve(firstRun())];
+    savedConnections = [];
+    savedEndpoints = [];
+    clientsAnswer = async () => clientsFound();
     const { fixture, el } = await render();
-    overviewAnswers = [() => Promise.reject(new ApiError('server', 500, { title: 'Internal error', detail: 'Try again later.' }))];
-    events.emit('approval.requested', { id: 'ap_new' });
-    await sleep(200);
+    expect(text(el)).toContain('Connect your first service');
+    expect(services(el)).toEqual([]);
+    expect(href(byText(el.querySelector('#ov-services')!, 'a', 'Import with AI'))).toBe('/connection-import');
+    expect(text(el.querySelector('#ov-services'))).toContain('analyze a repository and prepare connections for review');
+    expect(el.querySelector('input[name="overview-endpoint"]')).toBeNull();
+    expect(app(el, 'codex').querySelector('a')?.getAttribute('aria-disabled')).toBe('true');
+    findButton(el.querySelector('.gw-page-header__actions')!, 'Add service').click();
     await settle(fixture);
-    expect(text(el.querySelector('.gw-alert--warning .gw-alert__title'))).toBe('This overview may be out of date.');
-    expect(el.querySelector('#ov-conn-title')).not.toBeNull();
+    const picker = el.querySelector<HTMLDialogElement>('dialog[open]')!;
+    expect(href(byText(picker, 'a', 'Built-in connectors'))).toBe('/connections/new');
+    findButton(picker, 'Cancel').click();
+    savedEndpoints = [endpoint('empty')];
+    clientsAnswer = async () => ({ ...clientsFound(), clients: clientsFound().clients.map((card) => ({ ...card, methods: [{ id: 'token', label: 'Token', prodAllowed: true, reason: null }] })) });
+    events.emit('approval.requested', { id: 'refresh' });
+    await sleep(180);
+    await settle(fixture);
+    const connect = app(el, 'codex').querySelector('a')!;
+    expect(href(connect)).toBe('/clients?endpoint=empty&connect=codex#cl-cx-t');
+    expect(connect.hasAttribute('aria-disabled')).toBe(false);
+    expect(text(el)).toContain('No services connected to this endpoint');
+    expect(href(byText(el.querySelector('#ov-services')!, 'a', 'Import with AI'))).toBe('/connection-import?endpoint=empty');
   });
 });

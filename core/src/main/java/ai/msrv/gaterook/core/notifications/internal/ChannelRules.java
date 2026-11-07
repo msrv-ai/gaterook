@@ -122,6 +122,15 @@ public class ChannelRules {
     }
   }
 
+  /**
+   * What a click on a message that takes no more decisions learns ({@link DeliveryStore.Delivery#open()}): the
+   * outcome once there is one, else that the request is decided in the app.
+   */
+  public String closed(String approvalId) {
+    return approvals.find(approvalId).filter(a -> !a.pending()).map(ChannelRules::alreadyText)
+        .orElse("This message no longer takes decisions. Open the request in GateRook.");
+  }
+
   /** "Already approved by you in GateRook": what a late click learns. */
   public static String alreadyText(ApprovalView a) {
     String via = Outcomes.via(a.decidedVia());

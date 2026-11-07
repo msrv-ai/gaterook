@@ -254,6 +254,14 @@ class OAuthNegativeIT {
         "application/x-www-form-urlencoded"), "grant_type=refresh_token&refresh_token=a&refresh_token=b");
     assertThat(twice.status()).isEqualTo(400);
     assertThat(twice.json().path("error").asString()).isEqualTo("invalid_request");
+
+    // An OAuth 2.1 client sends no redirect_uri at all (draft-ietf-oauth-v2-1 §10.2): its verifier binds the code.
+    OAuthFlow.Pkce v21 = OAuthFlow.Pkce.create();
+    String code21 = tunnel.allow(tunnel.waiting(OAuthFlow.params(world.clientId(), REDIRECT, v21, resource,
+        "st-neg"))).get("code");
+    TunnelWorld.Answer oauth21 = tunnel.token(new LinkedHashMap<>(Map.of("grant_type", "authorization_code", "code",
+        code21, "client_id", world.clientId(), "code_verifier", v21.verifier())));
+    assertThat(oauth21.status()).as(oauth21.body()).isEqualTo(200);
   }
 
   /** A new code, exchanged with one field changed: the token endpoint's error. */
@@ -294,6 +302,43 @@ class OAuthNegativeIT {
             world.clientId(), java.nio.charset.StandardCharsets.UTF_8));
     assertThat(revoked.status()).isEqualTo(200);
     assertThat(tunnel.mcp("stage-readonly", access, "tools/list").status()).isEqualTo(401);
+  }
+
+  @Test
+  void signInsAndTokensMadeOrRevivedOutsideTheCoreLetNobodyIn() {
+    org.springframework.jdbc.core.JdbcTemplate db = new org.springframework.jdbc.core.JdbcTemplate(
+        world.bean(javax.sql.DataSource.class));
+    JsonNode tokens = tunnel.signIn(world.clientId(), REDIRECT, resource);
+    String access = tokens.path("access_token").asString();
+    assertThat(tunnel.mcp("stage-readonly", access, "tools/list").status()).isEqualTo(200);
+    String grant = db.queryForObject("select grant_id from oauth_token where hash = ?", String.class,
+        TokenService.hash(access));
+
+    // An access token row with the hash of a value someone knows, on that sign-in.
+    String forged = "gwo_" + "F".repeat(43);
+    long now = java.time.Instant.now().toEpochMilli();
+    db.update("insert into oauth_token (hash, grant_id, kind, created_at, expires_at) values (?, ?, 'ACCESS', ?, ?)",
+        TokenService.hash(forged), grant, now, now + 3_600_000L);
+    assertThat(tunnel.mcp("stage-readonly", forged, "tools/list").status()).isEqualTo(401);
+
+    // The sign-in edited (here its scope): its tokens stop.
+    db.update("update oauth_grant set scope = 'mcp admin' where id = ?", grant);
+    assertThat(tunnel.mcp("stage-readonly", access, "tools/list").status()).isEqualTo(401);
+
+    // A revocation undone.
+    JsonNode again = tunnel.signIn(world.clientId(), REDIRECT, resource);
+    String second = again.path("access_token").asString();
+    String secondGrant = db.queryForObject("select grant_id from oauth_token where hash = ?", String.class,
+        TokenService.hash(second));
+    assertThat(tunnel.mcp("stage-readonly", second, "tools/list").status()).isEqualTo(200);
+    assertThat(tunnel.post(TunnelWorld.CLAUDE, "/oauth/revoke", Map.of("Content-Type",
+        "application/x-www-form-urlencoded"), "token=" + again.path("refresh_token").asString()).status())
+        .isEqualTo(200);
+    assertThat(tunnel.mcp("stage-readonly", second, "tools/list").status()).isEqualTo(401);
+    db.update("update oauth_grant set state = 'active', revoked_at = null, revoke_reason = null where id = ?",
+        secondGrant);
+    db.update("update oauth_token set consumed_at = null where grant_id = ?", secondGrant);
+    assertThat(tunnel.mcp("stage-readonly", second, "tools/list").status()).as("signed revoked").isEqualTo(401);
   }
 
   // ── Tokens on MCP calls ─────────────────────────────────────────────────────────────────────────────────────
@@ -399,6 +444,44 @@ class OAuthNegativeIT {
     // The same address opens the sign-in page.
     OAuthFlow.Waiting w = tunnel.waiting(params(resource));
     assertThat(tunnel.decide(w, "deny").status()).isEqualTo(204);
+  }
+
+  @Test
+  void aPageOfAnotherSiteIsRefusedAndTheSignInPagesOwnPollPasses() {
+    for (String origin : List.of("https://evil.example", "null", "https://claude.ai", "http://" + host)) {
+      assertThat(tunnel.get(TunnelWorld.BROWSER, "/oauth/authorize?" + OAuthFlow.query(params(resource)),
+          Map.of("Origin", origin)).status()).as(origin).isEqualTo(403);
+      assertThat(tunnel.post(TunnelWorld.CLAUDE, "/oauth/token", Map.of("Content-Type",
+          "application/x-www-form-urlencoded", "Origin", origin), "grant_type=refresh_token&refresh_token=gwr_x")
+          .status()).as(origin).isEqualTo(403);
+      assertThat(world.edge(TunnelWorld.CLAUDE, "POST", "/mcp/stage-readonly", Map.of("Content-Type",
+          "application/json", "Origin", origin), "{}").status()).as(origin).isEqualTo(403);
+    }
+    assertThat(api.ok("/api/oauth/consents").size()).as("no sign-in was opened").isZero();
+
+    OAuthFlow.Waiting w = tunnel.waiting(params(resource));
+    assertThat(tunnel.get(TunnelWorld.BROWSER, "/oauth/authorize/status?rid=" + w.rid(), Map.of("Cookie", w.cookie(),
+        "Origin", "https://" + host)).json().path("status").asString()).isEqualTo("pending");
+    assertThat(tunnel.get(TunnelWorld.BROWSER, "/oauth/authorize/status?rid=" + w.rid(), Map.of("Cookie", w.cookie(),
+        "Origin", "https://evil.example")).status()).isEqualTo(403);
+    assertThat(tunnel.decide(w, "deny").status()).isEqualTo(204);
+  }
+
+  @Test
+  void aSignInTheEdgeGaveNoAddressForShowsNoneRatherThanThisComputers() {
+    // Straight to 7466 from a program on this computer, without the edge's header or with a forged loopback one.
+    for (Map<String, String> headers : List.of(Map.<String, String>of(), Map.of("CF-Connecting-IP", "127.0.0.1"))) {
+      TunnelWorld.Answer page = world.direct(world.publicPort(), host, "GET", "/oauth/authorize?"
+          + OAuthFlow.query(params(resource)), headers, null);
+      assertThat(page.status()).as(page.body()).isEqualTo(200);
+      String rid = page.body().replaceAll("(?s).*data-rid=\"(ar_[A-Za-z0-9]+)\".*", "$1");
+      JsonNode consent = StreamSupport.stream(api.ok("/api/oauth/consents").spliterator(), false)
+          .filter(c -> c.path("id").asString().equals(rid)).findFirst().orElseThrow();
+      JsonNode ip = consent.path("ip");
+      assertThat(ip.isNull() || ip.isMissingNode()).as(consent.toString()).isTrue();
+      assertThat(api.post("/api/oauth/consents/" + rid, JsonNodeFactory.instance.objectNode().put("decision", "deny"))
+          .status()).isEqualTo(204);
+    }
   }
 
   @Test

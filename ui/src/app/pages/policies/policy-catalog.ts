@@ -2,7 +2,7 @@ import { Env, JsonValue } from '../../core/api/types';
 import { Display, KeySchema, PLAIN } from './policy-model';
 
 /**
- * What the kit's Policies page (design/pages/policies.html) says about each section and setting: labels, hints,
+ * What the kit's Policies page says about each section and setting: labels, hints,
  * placeholders, the names of the tag buttons, the words of the summaries. The values, defaults and limits come from
  * the core's schemas (`GET /api/policies/schema`); a section or key the kit doesn't know (a plugin's) is shown with
  * the schema's own title and description.

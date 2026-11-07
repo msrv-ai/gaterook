@@ -18,16 +18,16 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Snapshot entries of an MCP server's tools (one JSON object per tool, stored by the core in
  * {@code mcp_server.tools_snapshot}) and the {@link ToolDefinition}s published from them.
  *
- * <p>What the server declared is not trusted (report 11 §3.1): a tool is a READ only if it declares
- * {@code readOnlyHint: true} and not {@code destructiveHint: true}, and even then the endpoint runs it without
- * approval only after the person confirmed Read only for that tool and its definition; everything else is a
- * mutation. Unset annotations take the protocol's pessimistic defaults (destructive, not idempotent, open world).
+ * <p>A tool is a READ only if it declares {@code readOnlyHint: true} and not {@code destructiveHint: true}; it
+ * starts in Read only on an endpoint. Everything else is a mutation and starts in Approval. The declarations
+ * remain unverified. Unset annotations take the protocol's pessimistic defaults (destructive, not idempotent, open world).
  * Every tool counts as private data, untrusted content and a channel out for the risk callout: the gateway can't see
  * what a server does with what it is given.
  */
@@ -41,13 +41,53 @@ final class Snapshots {
 
   private Snapshots() {}
 
+  /**
+   * The entries of what a server lists now, under {@code prefix}, in its order. Each tool is read as the MCP Java
+   * SDK's {@code Tool}, the type its definition hash has always been taken over: a tool the server didn't change keeps
+   * its hash, keeping definition-change detection stable.
+   */
+  static Mapped fromJson(String prefix, List<ObjectNode> listed, Function<String, Optional<String>> reserved) {
+    List<McpSchema.Tool> tools = new ArrayList<>();
+    List<ObjectNode> raw = new ArrayList<>();
+    List<McpServerRuntime.Rejected> unreadable = new ArrayList<>();
+    for (ObjectNode t : listed) {
+      try {
+        tools.add(tool(t));
+        raw.add(t);
+      } catch (RuntimeException e) {
+        unreadable.add(new McpServerRuntime.Rejected(Texts.clean(Texts.str(t.get("name"), "(no name)"), 128, false),
+            "its definition isn't a valid MCP tool"));
+      }
+    }
+    Mapped mapped = of(prefix, tools, raw, reserved);
+    if (unreadable.isEmpty()) {
+      return mapped;
+    }
+    List<McpServerRuntime.Rejected> all = new ArrayList<>(mapped.rejected());
+    all.addAll(unreadable);
+    return new Mapped(mapped.tools(), List.copyOf(all));
+  }
+
+  /** A tool of a {@code tools/list} answer as the SDK's type. */
+  static McpSchema.Tool tool(ObjectNode json) {
+    return Session.MAPPER.convertValue(json, McpSchema.Tool.class);
+  }
+
   /** The entries of what a server lists now, under {@code prefix}, in its order. */
   static Mapped of(String prefix, List<McpSchema.Tool> listed, Function<String, Optional<String>> reserved) {
+    return of(prefix, listed, null, reserved);
+  }
+
+  /** @param raw the tools as the server sent them, in the same order ({@code null}: none) */
+  private static Mapped of(String prefix, List<McpSchema.Tool> listed, List<ObjectNode> raw,
+      Function<String, Optional<String>> reserved) {
     List<JsonNode> out = new ArrayList<>();
     List<McpServerRuntime.Rejected> rejected = new ArrayList<>();
     Set<String> taken = new HashSet<>();
     Set<String> originals = new HashSet<>();
-    for (McpSchema.Tool tool : listed) {
+    for (int index = 0; index < listed.size(); index++) {
+      McpSchema.Tool tool = listed.get(index);
+      ObjectNode json = raw == null ? null : raw.get(index);
       String original = tool.name();
       String shown = original == null ? "(no name)" : Texts.clean(original, 128, false);
       if (original != null && !originals.add(original)) {
@@ -88,10 +128,48 @@ final class Snapshots {
         entry.set("annotations", annotations);
       }
       entry.put("definitionHash", definitionHash(tool));
+      if (json != null) {
+        extras(json, entry);
+      }
       taken.add(name.exposed());
       out.add(entry);
     }
     return new Mapped(List.copyOf(out), List.copyOf(rejected));
+  }
+
+  /**
+   * What a tool declares beside its definition, kept in its entry: whether it must, may or must not run as a task
+   * ({@code execution.taskSupport}, 2025-11-25), and the MCP App it is shown with ({@code _meta.ui}: its
+   * {@code ui://} resource and who may call it). Neither is in the definition hash, so that a hash stays what it was;
+   * a tool that runs as a task is still called through the gateway, and an app is read through it.
+   */
+  static void extras(ObjectNode json, ObjectNode entry) {
+    String task = Texts.str(json.path("execution").get("taskSupport"), null);
+    if (task != null && (task.equals("required") || task.equals("optional"))) {
+      entry.put("taskSupport", task);
+    }
+    JsonNode ui = json.path("_meta").path("ui");
+    ObjectNode app = Texts.JSON.createObjectNode();
+    String uri = Texts.str(ui.get("resourceUri"), Texts.str(json.path("_meta").get("ui/resourceUri"), null));
+    if (uri != null && uri.startsWith("ui://") && uri.length() <= 2_048 && !Texts.invisible(uri)) {
+      app.put("resourceUri", uri);
+    }
+    if (ui.path("visibility").isArray()) {
+      ArrayNode visibility = app.putArray("visibility");
+      for (JsonNode v : ui.get("visibility")) {
+        if (v.isString() && (v.asString().equals("model") || v.asString().equals("app"))) {
+          visibility.add(v.asString());
+        }
+      }
+    }
+    if (app.has("resourceUri")) {
+      entry.set("ui", app);
+    }
+  }
+
+  /** {@link #definitionHash(McpSchema.Tool)} of a tool as the server sent it. */
+  static String definitionHash(ObjectNode json) {
+    return definitionHash(tool(json));
   }
 
   /**
@@ -109,7 +187,7 @@ final class Snapshots {
     return Texts.sha256(Texts.JSON.valueToTree(declared));
   }
 
-  /** The tool as an endpoint publishes it. */
+  /** The tool as an endpoint publishes it, {@code server} being the connection's name. */
   static ToolDefinition definition(JsonNode entry, String server) {
     JsonNode annotations = entry.path("annotations");
     boolean read = declaresReadOnly(annotations.isObject() ? (ObjectNode) annotations : null);
@@ -125,10 +203,20 @@ final class Snapshots {
         .title(Texts.str(entry.path("title"), original))
         .description(description)
         .inputSchema(entry.path("inputSchema").deepCopy())
-        // Every call of an external tool starts in Approval on an endpoint whatever is declared (ToolPairs.initial).
-        .defaultMode(Mode.APPROVAL, Mode.APPROVAL)
+        .defaultMode(read ? Mode.READ_ONLY : Mode.APPROVAL, read ? Mode.READ_ONLY : Mode.APPROVAL)
         .resultShape(ResultShape.JSON)
         .risk(new Risk(true, true, Egress.CHANNEL));
+    JsonNode ui = entry.path("ui");
+    if (ui.path("resourceUri").isString()) {
+      // Its app, by the URI the endpoint publishes it under: a client that renders apps reads it through the gateway.
+      ObjectNode meta = Texts.JSON.createObjectNode();
+      ObjectNode app = meta.putObject("ui");
+      app.put("resourceUri", Federation.exposed(server, ui.get("resourceUri").asString()));
+      if (ui.path("visibility").isArray()) {
+        app.set("visibility", ui.get("visibility").deepCopy());
+      }
+      b.meta(meta);
+    }
     if (read) {
       b.nature(Nature.READ).annotations(new Annotations(true, false, idempotent == null ? Boolean.FALSE : idempotent,
           openWorld == null ? Boolean.TRUE : openWorld));

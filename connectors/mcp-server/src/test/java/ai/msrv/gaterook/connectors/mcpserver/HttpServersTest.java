@@ -139,10 +139,13 @@ class HttpServersTest {
 
     assertThat(h.serverVersion()).isEqualTo("4.5.6");
     assertThat(h.protocolVersion()).isEqualTo("2025-11-25");
+    // A new server is asked in 2026-07-28 first; this one answers that revision with an error and gets initialize.
+    assertThat(versions.getFirst()).isEqualTo("2026-07-28");
     assertThat(h.tools()).extracting(t -> t.path("exposed").asString()).containsExactly("lookup_lookup");
 
-    // The probe's session is its own; the stored server opens another one and keeps to it.
+    // The probe's session is its own; the stored server opens another one, keeps to it and speaks the reviewed era.
     sessions.clear();
+    versions.clear();
     McpServerRuntime.Snapshot snapshot = new McpServerRuntime.Snapshot("lookup_", h.serverVersion(),
         h.protocolVersion(), h.tools(), null);
     Connector c = runtime.connector(cfg(), snapshot);

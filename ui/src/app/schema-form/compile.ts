@@ -70,6 +70,13 @@ export interface SchemaNode {
   /** A secret typed over several lines (kubeconfig, a service account key): a textarea, never a password input. */
   readonly multiline: boolean;
   readonly collapsed: boolean;
+  /**
+   * An object the config may leave out although it requires members (an MCP server's Sign-in requires its type): it
+   * is sent, and its members are required, only once it is {@link inUse}.
+   */
+  readonly omittable: boolean;
+  /** The omittable objects around the field, outermost first: its `required` holds only while each is in use. */
+  readonly within: readonly (readonly string[])[];
   readonly when: readonly Condition[];
   readonly children: readonly SchemaNode[];
   /** The children laid out: a run of short fields shares one `gw-form__row`. */
@@ -287,15 +294,20 @@ function compileNode(
   seen: ReadonlySet<string>,
   when: readonly Condition[],
   inheritedSecret: string | null,
+  within: readonly (readonly string[])[],
 ): SchemaNode {
   const { schema: s, seen: next } = deref(raw, root, seen);
   const path = key === null ? [...parent] : [...parent, key];
   const kind = kindOf(s);
   const ownSecret = str(s['x-gateway-secret']);
+  // JSON Schema requires the members of an object only when it is there: one its parent doesn't require may be left
+  // out, which a form that always holds every object (with its defaults) has to decide from what is filled in.
+  const omittable = kind === 'object' && key !== null && !required && s['default'] === undefined && requiredOf(s).size > 0;
+  const inner = omittable ? [...within, path] : within;
   const children: SchemaNode[] = [];
   const has = (k: string, depth: number) => children.some((c) => c.key === k && c.when.length === depth);
   const add = (k: string, child: JsonValue | undefined, req: boolean, cond: readonly Condition[]) => {
-    if (isObject(child)) children.push(compileNode(k, child, path, req, root, next, cond, ownSecret ?? inheritedSecret));
+    if (isObject(child)) children.push(compileNode(k, child, path, req, root, next, cond, ownSecret ?? inheritedSecret, inner));
   };
   if (kind === 'object') {
     const props = isObject(s['properties']) ? s['properties'] : {};
@@ -331,7 +343,7 @@ function compileNode(
           for (const [k, child] of Object.entries(b['properties'])) {
             if (has(k, inherited.length) || !isObject(child)) continue;
             const node = compileNode(k, child, path, breq.has(k), root, next, [...inherited, { ...ifCond, negate }],
-              ownSecret ?? inheritedSecret);
+              ownSecret ?? inheritedSecret, inner);
             children.splice(chosenBy(ifCond.path), 0, node);
           }
         }
@@ -364,6 +376,7 @@ function compileNode(
           next,
           when,
           inheritedSecret,
+          inner,
         ),
       );
     }
@@ -405,6 +418,8 @@ function compileNode(
     optionsFrom: optionsPath(s['x-options-from']),
     multiline: kind === 'secret' && (isMultiline(s) || secret === 'pem' || secret === 'binary'),
     collapsed: s['x-collapsed'] === true,
+    omittable,
+    within,
     when,
     children,
     rows: kind === 'object' ? layoutRows(children) : [],
@@ -439,6 +454,8 @@ export function rootSection(fields: readonly SchemaNode[], title: string, rows: 
     optionsFrom: null,
     multiline: false,
     collapsed: false,
+    omittable: false,
+    within: [],
     when: [],
     children: [...fields],
     rows,
@@ -449,7 +466,7 @@ export function rootSection(fields: readonly SchemaNode[], title: string, rows: 
 export function compileSchema(input: JsonValue): CompiledForm {
   const schema = normalizeSchema(input);
   if (!isObject(schema)) return { sections: [], loose: [], all: [] };
-  const root = compileNode(null, { ...schema, type: 'object' }, [], true, schema, new Set(), [], null);
+  const root = compileNode(null, { ...schema, type: 'object' }, [], true, schema, new Set(), [], null, []);
   const { sections, loose } = displaySections(root.children);
   const all: SchemaNode[] = [];
   const walk = (n: SchemaNode) => {
@@ -583,6 +600,21 @@ export function isVisible(node: SchemaNode, model: JsonValue): boolean {
   });
 }
 
+/**
+ * Whether the omittable object at `path` is in use: a field in it that shows holds a value of its own (not empty,
+ * not the `default` or an `x-env-default` the form filled in), or one of its secrets was typed (`filled`, by
+ * pointer: secrets are never in the model). A stored sign-in has its type; a server without one has only defaults.
+ */
+export function inUse(form: CompiledForm, path: readonly string[], model: JsonValue, filled: ReadonlySet<string> = new Set()): boolean {
+  return form.all.some((n) => n.kind !== 'object' && n.path.length > path.length && path.every((k, i) => n.path[i] === k)
+    && isVisible(n, model) && (filled.has(n.pointer) || (n.kind !== 'secret' && ownValue(n, getAt(model, n.path)))));
+}
+
+function ownValue(node: SchemaNode, v: JsonValue): boolean {
+  if (v === null || v === '' || (Array.isArray(v) && !v.length)) return false;
+  return ![node.schema['default'], ...Object.values(node.envDefault)].some((d) => d !== undefined && sameJson(d, v));
+}
+
 /** The same JSON value however its keys are ordered (`5` and `5.0` are one number in JS already). */
 export function sameJson(a: JsonValue | undefined, b: JsonValue | undefined): boolean {
   const canon = (v: JsonValue | undefined): string =>
@@ -626,18 +658,27 @@ export function allowedValue(node: SchemaNode, env: string): JsonValue {
 }
 
 /**
- * What goes to the core: the model without the values of hidden branches, without empty values (`null`, `''`, an
- * empty list nothing required) and without secrets (they were never in it; a stray value is dropped all the same).
+ * What goes to the core: the model without the values of hidden branches, without omittable objects nobody filled in
+ * (`filled`: the secret fields typed into, by pointer), without empty values (`null`, `''`, an empty list nothing
+ * required) and without secrets (they were never in it; a stray value is dropped all the same).
  */
-export function cleanValue(form: CompiledForm, model: JsonObject): JsonObject {
+export function cleanValue(form: CompiledForm, model: JsonObject, filled: ReadonlySet<string> = new Set()): JsonObject {
   let out = model;
   // A field another branch shows at the same place keeps its value (Logs: Loki's url and OpenSearch's url are one
   // key); a hidden object goes as a whole, and its fields, after it in pre-order, don't put an empty one back.
   const shown = new Set(form.all.filter((n) => n.kind !== 'secret' && isVisible(n, model)).map((n) => n.pointer));
   const dropped: string[] = [];
+  const gone = (pointer: string) => dropped.some((p) => pointer === p || pointer.startsWith(`${p}/`));
   for (const n of form.all) {
     if (n.kind !== 'secret' && shown.has(n.pointer)) continue;
-    if (dropped.some((p) => n.pointer.startsWith(`${p}/`))) continue;
+    if (gone(n.pointer)) continue;
+    out = setAt(out, n.path, null);
+    dropped.push(n.pointer);
+  }
+  // Defaults alone don't make an omittable object present: an MCP server without a sign-in sends no `auth`, which
+  // would require its type.
+  for (const n of form.all) {
+    if (!n.omittable || !isVisible(n, model) || gone(n.pointer) || inUse(form, n.path, model, filled)) continue;
     out = setAt(out, n.path, null);
     dropped.push(n.pointer);
   }

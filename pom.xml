@@ -53,7 +53,7 @@
 
   <properties>
     <!-- Application version: change this value for the next release. -->
-    <revision>0.7.0</revision>
+    <revision>0.8.0</revision>
     <java.version>25</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
@@ -729,7 +729,7 @@
       <properties><it.tag.cloud>__enabled-cloud-it</it.tag.cloud></properties>
     </profile>
     <profile>
-      <!-- Real network: cloudflared up to a hostname (K3). -->
+      <!-- Real network: cloudflared up to a hostname, ngrok without its local API (K3). -->
       <id>network</id>
       <properties><it.tag.network>__enabled-network</it.tag.network></properties>
     </profile>

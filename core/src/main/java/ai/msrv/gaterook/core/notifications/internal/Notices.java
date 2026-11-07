@@ -78,17 +78,21 @@ public class Notices {
     // so theirs is the core's; every line shows its invisible characters as escapes, like the action.
     String summary = external ? a.tool() + (a.connectionName() == null ? "" : " on " + a.connectionName())
         : p == null ? null : p.summary();
-    // What runs besides the text: the target (a multi-database connection's database) and the connector's fields (a
-    // template's parameter values). A plugin's or MCP server's fields are its own words: not carried.
+    // What the app shows with the text: the target (a multi-database connection's database), the connector's fields
+    // (a template's parameter values), its impact (the estimated rows, the transaction) and its warnings. A plugin's
+    // or MCP server's fields are its own words: not carried; the warnings are the connector's, also of an MCP server's
+    // tool, and a person approving from a message reads them there as in the app.
     List<ApprovalNotice.Detail> details = new ArrayList<>();
     if (!external && p != null) {
       if (p.target() != null && !p.target().isBlank()) {
         details.add(detail("Target", p.target(), mask));
       }
-      for (ActionPreview.Field f : p.fields() == null ? List.<ActionPreview.Field>of() : p.fields()) {
-        if (f != null && f.value() != null && !f.value().isBlank()) {
-          details.add(detail(f.label() == null ? "" : f.label(), f.value(), mask));
-        }
+      details(details, p.fields(), mask);
+      details(details, p.impact(), mask);
+    }
+    for (String warning : p == null || p.warnings() == null ? List.<String>of() : p.warnings()) {
+      if (warning != null && !warning.isBlank()) {
+        details.add(detail("Warning", warning, mask));
       }
     }
     return new ApprovalNotice(a.id(), mask(a.tool(), a.env()), toolKey, mask(a.connectionName(), a.env()), a.env(),
@@ -97,14 +101,22 @@ public class Notices {
         a.createdAt(), a.expiresAt(), a.digest(), plugin, details);
   }
 
+  private void details(List<ApprovalNotice.Detail> out, List<ActionPreview.Field> fields, MaskPolicy mask) {
+    for (ActionPreview.Field f : fields == null ? List.<ActionPreview.Field>of() : fields) {
+      if (f != null && f.value() != null && !f.value().isBlank()) {
+        out.add(detail(f.label() == null ? "" : f.label(), f.value(), mask));
+      }
+    }
+  }
+
   /** A detail as a channel may show it: masked, its invisible characters as escapes, and what was found in it. */
   private ApprovalNotice.Detail detail(String label, String value, MaskPolicy mask) {
     String masked = masker.text(value, new Taint(), mask).text();
     ActionInspector.Inspection inspection = ActionInspector.inspect(masked, null);
     StringBuilder visible = new StringBuilder();
     inspection.segments().forEach(s -> visible.append(s.v()));
-    return new ApprovalNotice.Detail(visible(label), visible.toString(), inspection.hiddenChars(),
-        inspection.confusables());
+    return new ApprovalNotice.Detail(visible(masker.text(label, new Taint(), mask).text()), visible.toString(),
+        inspection.hiddenChars(), inspection.confusables());
   }
 
   /** {@code text} with its invisible and bidi characters as visible escapes ({@code ‹U+202E›}). */

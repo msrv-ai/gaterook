@@ -1,15 +1,17 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DOCUMENT, Injector, afterNextRender, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DOCUMENT, Injector, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
-import { ClientCard, ClientId, ClientLink, ConnectRequest } from '../../core/api/clients.api';
+import { ClientCard, ClientId, ClientLink, ConnectRequest, ManualClientId } from '../../core/api/clients.api';
 import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { CoreStore } from '../../core/stores/core.store';
 import { TimeService } from '../../core/time/time.service';
 import { Announcer } from '../../kit/announcer';
 import { GwCopy } from '../../kit/copy';
 import { GwToggle } from '../../kit/disclosure';
+import { GwDialog } from '../../kit/dialog';
+import { GwClientDisclosure } from '../../kit/elements/client-card/client-disclosure';
 import { ClientPreviewRequest, GwClientCard } from '../../kit/elements/client-card/client-card';
 import { ConfigEntry, INSTALL_URL, browserInstallUrl, reinstallToast, viaText } from '../../kit/elements/client-card/client-view';
 import { GwClientMark } from '../../kit/elements/shared/client-mark';
@@ -40,12 +42,13 @@ import {
 } from './clients-view';
 import { GwInlineConnectCard } from './inline-connect-card';
 import { GwManualSetup } from './manual-setup';
+import { ManualAppDialog } from './manual-app-dialog';
 
 /** The first render waits this long before it shows placeholders (kit: "when it takes longer than 300 ms"). */
 export const SKELETON_DELAY_MS = 300;
 
 /**
- * Clients (design/pages/clients.html; ARCHITECTURE.md §8.4 "clients"): which AI apps reach the gateway, and how.
+ * Clients (ARCHITECTURE.md §8.4 "clients"): which AI apps reach the gateway, and how.
  * Top to bottom, as the kit answers it:
  * 1. What does Connect do? — How it works (find → show the diff → back up and write → Disconnect undoes).
  * 2. Which apps are connected? — compact app rows with live status, in a stable order. Opening a row reveals the
@@ -61,8 +64,8 @@ export const SKELETON_DELAY_MS = 300;
  * works; the apps are quiet rows. Setup — a connection, no AI app yet — opens the app Overview's Connect names
  * (`#cl-<app>-t`) as one Connect review on top, its heading focused: what it can use (the connection, its tools, the
  * endpoint), what will change, "Connect <app>"; once connected here, "Check that it works" with the prompt to copy.
- * Manual setup is collapsed. First run — nothing set up — keeps the rows with
- * Connect unavailable and why, the header's Add connection as the page's only primary, and no manual setup.
+ * Manual setup is collapsed. First run keeps the same review flow when an endpoint exists, even without
+ * connections. Without an endpoint, Connect stays unavailable with a reason and an Endpoints link.
  */
 @Component({
   selector: 'gw-clients-page',
@@ -79,6 +82,9 @@ export const SKELETON_DELAY_MS = 300;
     GwClientCard,
     GwInlineConnectCard,
     GwManualSetup,
+    GwDialog,
+    GwClientDisclosure,
+    ManualAppDialog,
   ],
   providers: [ClientsData],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -108,8 +114,35 @@ export class ClientsPage {
   protected readonly connecting = signal<ClientId | null>(null);
   /** The link whose extension Reinstall is building. */
   protected readonly reinstalling = signal<string | null>(null);
+  protected readonly removingManual = signal<ClientCard | null>(null);
+  protected readonly removeBusy = signal(false);
+  protected readonly removeError = signal<string | null>(null);
+  private readonly removeDialog = viewChild.required<GwDialog>('removeManualDialog');
 
   protected readonly cards = this.data.cards;
+  /** An explicit Overview Connect action keeps its exact endpoint, even when the app already has other links. */
+  protected readonly requestedClient = computed(() => this.queryParams().get('connect'));
+  protected readonly requestedEndpoint = computed(() => this.data.endpointList().find((endpoint) => endpoint.slug === this.queryParams().get('endpoint')) ?? null);
+  protected readonly requestedSetupError = computed(() => {
+    const client = this.requestedClient();
+    if (!client) return null;
+    const endpoints = this.data.endpoints();
+    if (endpoints.error || endpoints.unavailable) return 'Endpoints could not be loaded. Try again before connecting this app.';
+    if (!this.data.loaded() || endpoints.value === null) return 'Loading the requested connection…';
+    const endpoint = this.requestedEndpoint();
+    if (!endpoint) return 'The requested endpoint is unavailable. Choose an endpoint in Overview and try again.';
+    if (endpoint.blockedReason) return endpoint.blockedReason;
+    if (endpoint.status === 'disabled') return `Turn on ${endpoint.slug} before connecting an AI app.`;
+    const card = this.cards().find((card) => card.client === client);
+    if (!card) return 'This AI app is unavailable. Scan this computer again.';
+    if (card.status === 'not-installed') return `Install ${card.name}, then scan this computer again.`;
+    if (!card.methods.length) return 'Automatic setup is unavailable for this app. Use manual setup below.';
+    if (card.links.some((link) => link.endpoint === endpoint.slug && link.status !== 'revoked')) return `${card.name} is already connected to ${endpoint.slug}.`;
+    return null;
+  });
+  protected readonly requestedSetup = computed(() => this.requestedClient() && !this.requestedSetupError() ? this.cards().find((card) => card.client === this.requestedClient()) ?? null : null);
+  protected readonly requestedEndpoints = computed(() => this.requestedEndpoint() ? [this.requestedEndpoint()!] : []);
+  protected readonly listedCards = computed(() => this.cards().filter((card) => card !== this.requestedSetup()));
   protected readonly selectedCard = computed(() => this.cards().find((c) => this.clientAnchor(c.client) === this.fragment()) ?? null);
   protected readonly counts = computed(() => headerCounts(this.cards()));
   protected readonly expandedApps = signal<ReadonlySet<string>>(new Set());
@@ -120,6 +153,12 @@ export class ClientsPage {
     const requested = this.queryParams().get('endpoint');
     const selected = endpoints.find((endpoint) => endpoint.slug === requested);
     return selected ? [selected, ...endpoints.filter((endpoint) => endpoint !== selected)] : endpoints;
+  });
+  protected readonly canConnect = computed(() => this.endpoints().length > 0);
+  protected readonly connectUnavailable = computed(() => {
+    const endpoints = this.data.endpoints();
+    if (endpoints.error || endpoints.unavailable) return "Endpoints couldn't be loaded.";
+    return endpoints.value === null ? 'Loading endpoints…' : 'Create an endpoint first to connect your AI app.';
   });
   protected readonly hand = computed(() => handTokens(this.data.tokens(), this.cards()));
   protected readonly scannedAt = computed(() => this.data.clients().value?.scannedAt ?? null);
@@ -132,11 +171,11 @@ export class ClientsPage {
   /** The header's description outside "in use". */
   protected readonly description = computed(() => {
     const st = this.stage();
-    return st === 'in-use' ? null : stageDescription(st, this.cards(), this.data.first());
+    return st === 'in-use' ? null : stageDescription(st, this.cards(), this.data.first(), this.canConnect());
   });
   /** Setup: the app whose Connect review is open on top (one at a time). */
   readonly review = signal<string | null>(null);
-  protected readonly setup = computed(() => setupLayout(this.cards(), this.review()));
+  protected readonly setup = computed(() => setupLayout(this.listedCards(), this.review()));
   /** Setup: apps connected here in this session: their cards say "Check that it works". */
   protected readonly fresh = signal<ReadonlySet<string>>(new Set());
   /** Setup: the first connection's endpoint. */
@@ -159,7 +198,7 @@ export class ClientsPage {
   /** The prompt "Check that it works" offers ("Show me the tables in dev-db"). */
   protected readonly prompt = computed(() => {
     const f = this.data.first();
-    return checkPrompt(f?.type ?? null, f?.name ?? null);
+    return f ? checkPrompt(f.type, f.name) : 'List the connections available through GateRook';
   });
   /** Manual setup remains available behind its disclosure. */
   protected readonly manualOpen = signal(false);
@@ -185,6 +224,12 @@ export class ClientsPage {
     // Arriving with an app's anchor (Overview's tiles and guide: `#cl-cu-t`): its review, row or card, once loaded.
     effect(() => {
       const f = this.fragment();
+      this.canConnect();
+      if (this.requestedClient()) {
+        const card = this.requestedSetup();
+        if (card) this.focus(`${anchorBase(card.client)}-requested-t`);
+        return;
+      }
       if (!f || !this.data.loaded() || !this.stageKnown()) return;
       untracked(() => this.arrive(f));
     });
@@ -244,7 +289,7 @@ export class ClientsPage {
     if (this.none()) {
       // With no detected apps, a selected missing app keeps its installation card above the empty state.
       this.focus(null, client);
-    } else if (st === 'setup' && !card.links.length && card.status !== 'not-installed') {
+    } else if (st !== 'in-use' && this.canConnect() && !card.links.length && card.status !== 'not-installed') {
       this.review.set(client);
       this.focus(`${base}-s-t`);
     } else if (st !== 'in-use' && !card.links.length) {
@@ -264,9 +309,40 @@ export class ClientsPage {
     });
   }
 
+  protected manualSaved(card: ClientCard): void {
+    this.expandApp(card.client, true);
+  }
+
+  protected manualUrl(card: ClientCard): string | null {
+    return this.endpoints().find((e) => e.slug === card.links[0]?.endpoint)?.url ?? null;
+  }
+
+  protected askRemoveManual(card: ClientCard, opener: HTMLElement): void {
+    this.removingManual.set(card);
+    this.removeError.set(null);
+    this.removeDialog().openAfterRender(opener);
+  }
+
+  protected async removeManual(): Promise<void> {
+    const card = this.removingManual();
+    if (!card || this.removeBusy()) return;
+    this.removeBusy.set(true);
+    this.removeError.set(null);
+    try {
+      await this.data.removeManual(card.client as ManualClientId);
+      this.removeDialog().close('removed');
+      this.toasts.show({ tone: 'success', title: `${card.name} removed`, body: 'Its token is revoked. Remove the MCP entry from your app when convenient.' });
+      this.focus('cl-local-t');
+    } catch (e) {
+      this.removeError.set(errorSentence(e));
+    } finally {
+      this.removeBusy.set(false);
+    }
+  }
+
   /** A row's Connect (setup): the same anchor again doesn't navigate, so the review opens here too. */
   protected openReview(card: ClientCard, e: MouseEvent): void {
-    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    if (!this.canConnect() || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
     this.review.set(card.client);
     this.focus(`${anchorBase(card.client)}-s-t`);
   }

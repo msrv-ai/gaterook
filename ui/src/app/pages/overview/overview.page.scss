@@ -1,0 +1,24 @@
+.gw-overview-service-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--gw-space-2);
+}
+
+// Reserve the action's space so hovering never shifts the name or access switch.
+.gw-overview-settings {
+  flex: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.gw-setup-map__network-service:is(:hover, :focus-within, [data-selected='true']) .gw-overview-settings {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .gw-overview-settings {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}

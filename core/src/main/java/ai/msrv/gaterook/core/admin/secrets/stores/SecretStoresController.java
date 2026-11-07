@@ -2,12 +2,16 @@ package ai.msrv.gaterook.core.admin.secrets.stores;
 
 import ai.msrv.gaterook.core.admin.ApiRequestException;
 import ai.msrv.gaterook.core.admin.Reasons;
+import ai.msrv.gaterook.core.platform.FileGrants;
+import ai.msrv.gaterook.core.endpoints.ConnectionImportService;
 import ai.msrv.gaterook.core.secrets.SecretInfo;
 import ai.msrv.gaterook.core.secrets.SecretStores;
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
 import org.springframework.http.ResponseEntity;
@@ -29,7 +33,7 @@ import tools.jackson.databind.JsonNode;
  * prefix of a value.
  */
 @RestController
-@RegisterReflectionForBinding({SecretStoresController.Create.class, SecretStoresController.Update.class,
+@RegisterReflectionForBinding({SecretStoresController.ImportCreate.class, SecretStoresController.Create.class, SecretStoresController.Update.class,
     SecretStoresController.Delete.class, SecretStoresController.Reason.class, SecretStoresController.RefTestRequest.class,
     SecretStoresController.ReplaceReference.class, SecretStoresController.Reference.class,
     SecretStoresController.VaultBrowseRequest.class, SecretStores.VaultBrowse.class, SecretStores.VaultEntry.class,
@@ -45,16 +49,29 @@ class SecretStoresController {
    * @param kind    {@code vault}, {@code gcp-sm}, {@code aws-sm}
    * @param config  the settings of the kind's form ({@code GET /api/secret-stores/form?kind=})
    * @param secrets its sign-in values by JSON pointer ({@code /auth/secretId}), encrypted here and zeroed
+   * @param files   files the person chose in GateRook's file dialog, by settings pointer: the one-time token of each
+   *                ({@code /auth/file} of a Vault token file); the API takes no raw path
    */
-  record Create(String kind, String name, JsonNode config, Map<String, char[]> secrets, String reason) {
+  record Create(String kind, String name, JsonNode config, Map<String, char[]> secrets, Map<String, String> files,
+      String reason) {
     @Override
     public String toString() {
       return "Create[" + kind + " " + name + ", " + (secrets == null ? 0 : secrets.size()) + " secret(s)]";
     }
   }
 
-  /** {@code PUT /api/secret-stores/{id}}: sign-in fields left out keep their stored values. */
-  record Update(String name, JsonNode config, Map<String, char[]> secrets, Long version, String reason) {
+  /** Prepared credentials are used only when the person selects their field before Connect. */
+  record ImportCreate(String name, JsonNode config, Map<String, char[]> secrets, Map<String, String> files,
+      List<String> preparedFields, String existingStore, String reason) {
+    @Override public String toString() { return "ImportCreate[credentials redacted]"; }
+  }
+
+  /**
+   * {@code PUT /api/secret-stores/{id}}: sign-in fields left out keep their stored values, a token file not chosen
+   * again stays the stored one.
+   */
+  record Update(String name, JsonNode config, Map<String, char[]> secrets, Map<String, String> files, Long version,
+      String reason) {
     @Override
     public String toString() {
       return "Update[" + name + ", " + (secrets == null ? 0 : secrets.size()) + " secret(s)]";
@@ -78,9 +95,13 @@ class SecretStoresController {
       String remoteVersion, String state) {}
 
   private final SecretStores stores;
+  private final FileGrants grants;
+  private final ConnectionImportService imports;
 
-  SecretStoresController(SecretStores stores) {
+  SecretStoresController(SecretStores stores, FileGrants grants, ConnectionImportService imports) {
     this.stores = stores;
+    this.grants = grants;
+    this.imports = imports;
   }
 
   @GetMapping("/api/secret-stores")
@@ -112,13 +133,67 @@ class SecretStoresController {
   ResponseEntity<SecretStores.StoreInfo> create(@RequestBody Create request) {
     Map<String, char[]> secrets = copy(request.secrets());
     try {
+      Map<String, Path> files = chosen(request.files());
       SecretStores.StoreInfo created = stores.create(request.kind(), request.name(), request.config(), secrets,
-          Reasons.check(request.reason()));
+          files, Reasons.check(request.reason()));
+      redeem(request.files());
       return ResponseEntity.created(URI.create("/api/secret-stores/" + created.id())).body(created);
     } finally {
       zero(secrets);
       zero(request.secrets());
     }
+  }
+
+  /** AI tools only stage these proposals; connecting one requires a signed local admin request. */
+  @PostMapping("/api/connection-imports/{sessionId}/stores/{proposalId}/connect")
+  SecretStores.StoreInfo connectImport(@PathVariable String sessionId, @PathVariable String proposalId,
+      @RequestBody ImportCreate request) {
+    try {
+      String storeId;
+      if (request.existingStore() != null) {
+        if (request.name() != null || request.config() != null || request.secrets() != null
+            || request.files() != null || request.preparedFields() != null) {
+          throw ApiRequestException.unprocessable("Choose one store action", "Choose an existing store or configure a new one.", "/existingStore");
+        }
+        storeId = imports.connectStore(sessionId, proposalId, null, null, null, (proposal, values) -> {
+          SecretStores.StoreInfo existing = stores.get(request.existingStore());
+          if (!"vault".equals(existing.kind()) || !existing.verified()) {
+            throw ApiRequestException.unprocessable("Choose a verified Vault store", "Review the selected store before using it.", "/existingStore");
+          }
+          VaultIdentity expected = vaultIdentity(proposal.path("config"));
+          if (expected == null || !expected.equals(vaultIdentity(existing.config()))) {
+            throw ApiRequestException.unprocessable("Vault address changed", "The existing store no longer matches the discovered address and namespace. Refresh and review it again.", "/existingStore");
+          }
+          return existing.id();
+        });
+      } else {
+        String method = request.config() == null ? "approle" : request.config().path("auth").path("method").asString("approle");
+        storeId = imports.connectStore(sessionId, proposalId, method, request.preparedFields(), request.secrets(), (proposal, values) -> {
+          Map<String, Path> files = chosen(request.files());
+          SecretStores.StoreInfo created = stores.create("vault", request.name(), request.config(), values, files,
+              Reasons.check(request.reason()));
+          redeem(request.files());
+          return created.id();
+        });
+      }
+      return stores.get(storeId);
+    } finally { zero(request.secrets()); }
+  }
+
+  private record VaultIdentity(String scheme, String host, int port, String path, String namespace) {}
+
+  /** Same authority, base path and case-sensitive namespace as the import UI, without DNS or secret reads. */
+  private static VaultIdentity vaultIdentity(JsonNode config) {
+    try {
+      URI uri = URI.create(config.path("address").asString("").strip()).normalize();
+      String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+      if (!(scheme.equals("https") || scheme.equals("http")) || uri.getHost() == null
+          || uri.getRawUserInfo() != null || uri.getRawQuery() != null || uri.getRawFragment() != null) return null;
+      int port = uri.getPort() < 0 ? scheme.equals("https") ? 443 : 80 : uri.getPort();
+      String path = uri.getRawPath() == null ? "" : uri.getRawPath().replaceAll("/+$", "");
+      String namespace = config.path("namespace").asString("").strip().replaceAll("^/+|/+$", "");
+      return new VaultIdentity(scheme, uri.getHost().toLowerCase(Locale.ROOT), port, path, namespace);
+    } catch (IllegalArgumentException e) { return null; }
   }
 
   @PutMapping("/api/secret-stores/{id}")
@@ -128,11 +203,46 @@ class SecretStoresController {
       if (request.version() == null) {
         throw ApiRequestException.unprocessable("Version missing", "Send the version you edited.", "/version");
       }
-      return stores.update(id, request.name(), request.config(), secrets, request.version(),
-          Reasons.check(request.reason()));
+      Map<String, Path> files = chosen(request.files());
+      SecretStores.StoreInfo updated = stores.update(id, request.name(), request.config(), secrets, files,
+          request.version(), Reasons.check(request.reason()));
+      redeem(request.files());
+      return updated;
     } finally {
       zero(secrets);
       zero(request.secrets());
+    }
+  }
+
+  /**
+   * The paths of the file tokens, still valid afterwards: a store refused for another reason (its address) can be
+   * sent again without choosing the file again.
+   */
+  private Map<String, Path> chosen(Map<String, String> files) {
+    Map<String, Path> out = new LinkedHashMap<>();
+    if (files != null) {
+      files.forEach((pointer, token) -> {
+        try {
+          out.put(pointer, grants.peek(token, FileGrants.Purpose.VAULT_TOKEN));
+        } catch (IllegalArgumentException e) {
+          throw ApiRequestException.unprocessable("Choose the file again", e.getMessage(), "/files/"
+              + pointer.replace("~", "~0").replace("/", "~1"));
+        }
+      });
+    }
+    return out;
+  }
+
+  /** Each file token is used once: by the store it was chosen for. */
+  private void redeem(Map<String, String> files) {
+    if (files != null) {
+      files.values().forEach(token -> {
+        try {
+          grants.take(token, FileGrants.Purpose.VAULT_TOKEN);
+        } catch (IllegalArgumentException alreadyUsed) {
+          // Another request with the same choice won: the store has the path either way.
+        }
+      });
     }
   }
 

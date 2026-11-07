@@ -22,6 +22,17 @@ class LocalWebConfig {
   /** After the tunnel's {@code PublicIngressFilter} ({@code HIGHEST_PRECEDENCE}), before everything else. */
   static final int GUARD_ORDER = Ordered.HIGHEST_PRECEDENCE + 10;
 
+  /** On Windows, before the guard: a process the core sandboxes is refused on every listener of the core. */
+  @Bean
+  FilterRegistrationBean<SandboxedPeerFilter> sandboxedPeerFilter() {
+    FilterRegistrationBean<SandboxedPeerFilter> registration = new FilterRegistrationBean<>(new SandboxedPeerFilter());
+    registration.setName("sandboxedPeerFilter");
+    registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 1);
+    registration.addUrlPatterns("/*");
+    registration.setDispatcherTypes(DispatcherType.REQUEST);
+    return registration;
+  }
+
   @Bean
   FilterRegistrationBean<LocalGuardFilter> localGuardFilter(Bootstrap bootstrap, ObjectProvider<SettingStore> settings,
       Clock clock) {

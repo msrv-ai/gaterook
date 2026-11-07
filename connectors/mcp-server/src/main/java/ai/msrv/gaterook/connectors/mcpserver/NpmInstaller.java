@@ -25,6 +25,12 @@ import tools.jackson.databind.node.ObjectNode;
  * on every start: the lockfile in the folder and npm's record of what it installed
  * ({@code node_modules/.package-lock.json}) both have to name it, so a package swapped or reinstalled outside the
  * gateway doesn't start.
+ *
+ * <p>{@code npm ci} runs in the sandbox the server will run in ({@link Launcher#argv}: {@code gw-bridge sandbox-exec}
+ * where it works), with the work folder as its {@code HOME}, its npm cache and its temporary folder: an install script
+ * writes nothing else, so nothing it plants (a login item, a shell profile, a package in a cache the person's own
+ * tools share) runs outside the sandbox later, and its sockets can't reach the core's own ports. Where there is no
+ * sandbox it runs as the person's user, as the server does, and the review says so.
  */
 final class NpmInstaller {
 
@@ -54,8 +60,8 @@ final class NpmInstaller {
       throw ConnectorException.badInput("The catalog's lockfile doesn't pin " + pkg.name() + "@" + pkg.version()
           + " with the integrity of the catalog entry, so it isn't installed.");
     }
+    Session.prepare(workDir);
     try {
-      Files.createDirectories(workDir);
       ObjectNode manifest = Texts.JSON.createObjectNode();
       manifest.put("name", "mcp-gateway-server");
       manifest.put("private", true);
@@ -66,12 +72,11 @@ final class NpmInstaller {
     } catch (IOException e) {
       throw ConnectorException.unavailable("Couldn't write the server's folder " + workDir + ": " + e.getMessage(), e);
     }
-    List<String> argv = new ArrayList<>(List.of(npm.get().toString(), "ci", "--no-audit", "--no-fund",
-        "--loglevel=error"));
+    List<String> args = new ArrayList<>(List.of("ci", "--no-audit", "--no-fund", "--loglevel=error"));
     if (pkg.ignoreScripts()) {
-      argv.add("--ignore-scripts");
+      args.add("--ignore-scripts");
     }
-    run(argv, workDir, env, timeout, "npm ci");
+    run(launcher.argv(npm.get(), args, workDir), workDir, env, timeout, "npm ci");
     verify(workDir, pkg.integrity());
     Path bin = binOf(workDir, pkg);
     long millis = (System.nanoTime() - started) / 1_000_000;

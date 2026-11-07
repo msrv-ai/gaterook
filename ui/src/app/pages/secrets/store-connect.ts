@@ -17,9 +17,13 @@ export interface ConnectModel {
   readonly roleArn: string;
   readonly externalId: string;
   // HashiCorp Vault
+  /** The store's name, which connections and references show: `vault`, `vault-prod`. */
+  readonly name: string;
   readonly address: string;
   readonly namespace: string;
   readonly method: 'approle' | 'token' | 'cli-token';
+  /** With a token: typed here and stored encrypted, or read from a file the person chooses at every sign-in. */
+  readonly tokenSource: 'stored' | 'file';
   readonly roleId: string;
   readonly caCert: string;
   // GCP Secret Manager
@@ -36,9 +40,11 @@ export function emptyConnectModel(): ConnectModel {
     accessKeyId: '',
     roleArn: '',
     externalId: '',
+    name: '',
     address: '',
     namespace: '',
     method: 'approle',
+    tokenSource: 'stored',
     roleId: '',
     caCert: '',
     project: '',
@@ -60,10 +66,17 @@ export const AWS_REGIONS: readonly string[] = [
  * Where each form key lives in the request, so a 422 the core sends with a JSON Pointer (`/config/credentials/roleArn`
  * or `/credentials/roleArn`) lands under its field. Sign-in values are keyed like their fields.
  */
-/** The sign-in values' fields (outside the model). */
-export type SecretKey = 'secretAccessKey' | 'secretId' | 'token' | 'serviceAccountKey';
+/** The sign-in values' fields (outside the model), and the token file chosen in the desktop app's dialog. */
+export type SecretKey = 'secretAccessKey' | 'secretId' | 'token' | 'serviceAccountKey' | 'tokenFile';
+
+/** A Vault token file the desktop app granted to the core: the grant to send, the path to show. */
+export interface ChosenFile {
+  readonly token: string;
+  readonly path: string;
+}
 
 export const FIELD_POINTERS: { readonly [K in keyof ConnectModel | SecretKey]?: string } = {
+  name: '/name',
   region: '/region',
   profile: '/credentials/profile',
   accessKeyId: '/credentials/accessKeyId',
@@ -78,7 +91,18 @@ export const FIELD_POINTERS: { readonly [K in keyof ConnectModel | SecretKey]?: 
   secretId: '/auth/secretId',
   token: '/auth/token',
   serviceAccountKey: '/credentials/serviceAccountKey',
+  tokenFile: '/files/~1auth~1file',
 };
+
+/** The core's rule for a store's name (`StoreAdmin.NAME`), and a name another store already has. */
+const STORE_NAME = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+
+export function storeNameProblem(name: string, taken: readonly string[]): string | null {
+  const v = name.trim();
+  if (!v) return 'Name the store, for example vault-prod.';
+  if (v.length > 64 || !STORE_NAME.test(v)) return `${v} isn't a store name. Use lower-case letters, digits and hyphens, like vault-prod.`;
+  return taken.includes(v) ? `A store named ${v} already exists. Choose another name.` : null;
+}
 
 const REGION = /^[a-z]{2}(-[a-z]+)+-[0-9]+$/;
 const ROLE_ARN = /^arn:aws[a-z-]*:iam::\d{12}:role\/[\w+=,.@/-]+$/;
@@ -109,8 +133,12 @@ export function isPlainHttp(address: string): boolean {
   }
 }
 
-/** The rule of one field for one kind, in the core's words; null when it is fine or not on this kind's form. */
-export function fieldProblem(kind: SecretStoreKind, key: keyof ConnectModel, m: ConnectModel): string | null {
+/**
+ * The rule of one field for one kind, in the core's words; null when it is fine or not on this kind's form.
+ *
+ * @param taken the names of the stores already connected
+ */
+export function fieldProblem(kind: SecretStoreKind, key: keyof ConnectModel, m: ConnectModel, taken: readonly string[] = []): string | null {
   const v = (m[key] ?? '').trim();
   switch (kind) {
     case 'aws-sm':
@@ -126,6 +154,7 @@ export function fieldProblem(kind: SecretStoreKind, key: keyof ConnectModel, m: 
       }
       return null;
     case 'vault':
+      if (key === 'name') return storeNameProblem(v, taken);
       if (key === 'address') return addressProblem(v);
       if (key === 'roleId' && m.method === 'approle') return v ? null : 'Enter the AppRole role ID.';
       if (key === 'caCert' && v && !v.includes('-----BEGIN CERTIFICATE-----')) return 'Paste a PEM certificate (-----BEGIN CERTIFICATE-----), or leave it empty.';
@@ -146,19 +175,24 @@ export function externalId(bytes: Uint8Array = crypto.getRandomValues(new Uint8A
 }
 
 /**
- * The store's name (S1 wants a unique one; the kit's dialog doesn't ask): the kind, made specific where it can
- * (`gcp-acme-stage`, `aws-eu-central-1`, `vault`), with `-2`, `-3` when taken.
+ * The store's name: the one the person gives a Vault (several Vaults are told apart by it), or for the other kinds the
+ * kind made specific where it can (`gcp-acme-stage`, `aws-eu-central-1`); with `-2`, `-3` when taken. Also the name a
+ * new Vault's field starts with (`vault`, then `vault-2`).
  */
 export function storeName(kind: SecretStoreKind, m: ConnectModel, taken: readonly string[]): string {
   const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+  if (kind === 'vault' && m.name.trim()) return m.name.trim();
   const base = kind === 'vault' ? 'vault' : kind === 'gcp-sm' ? `gcp-${slug(m.project) || 'secrets'}` : `aws-${slug(m.region) || 'secrets'}`;
   const name = base.slice(0, 60);
   if (!taken.includes(name)) return name;
   for (let i = 2; ; i++) if (!taken.includes(`${name}-${i}`)) return `${name}-${i}`;
 }
 
-/** The request for `POST /api/secret-stores`: only the fields of the kind's form and sign-in method. */
-export function connectRequest(kind: SecretStoreKind, name: string, m: ConnectModel, secrets: { readonly [pointer: string]: string }, allowPlainHttp = false): SecretStoreCreate {
+/**
+ * The request for `POST /api/secret-stores`: only the fields of the kind's form and sign-in method. A Vault token read
+ * from a file is the `token-file` method with the file's grant in `files`, never a path.
+ */
+export function connectRequest(kind: SecretStoreKind, name: string, m: ConnectModel, secrets: { readonly [pointer: string]: string }, allowPlainHttp = false, tokenFile: ChosenFile | null = null): SecretStoreCreate {
   const t = (s: string) => s.trim();
   let config: JsonObject;
   if (kind === 'aws-sm') {
@@ -171,12 +205,18 @@ export function connectRequest(kind: SecretStoreKind, name: string, m: ConnectMo
     }
     config = { region: t(m.region), credentials };
   } else if (kind === 'vault') {
-    const auth: JsonObject = { method: m.method };
+    const fromFile = m.method === 'token' && m.tokenSource === 'file';
+    const auth: JsonObject = { method: fromFile ? 'token-file' : m.method };
     if (m.method === 'approle') auth['roleId'] = t(m.roleId);
     config = { address: t(m.address).replace(/\/+$/, ''), auth };
     if (allowPlainHttp && isPlainHttp(m.address)) config['allowPlainHttp'] = true;
     if (t(m.namespace)) config['namespace'] = t(m.namespace);
     if (t(m.caCert)) config['caCert'] = m.caCert.trim();
+    if (fromFile) {
+      const files: { [pointer: string]: string } = {};
+      if (tokenFile) files['/auth/file'] = tokenFile.token;
+      return { kind, name, config, files };
+    }
   } else {
     const credentials: JsonObject = { source: m.gcpSource };
     if (t(m.impersonate)) credentials['impersonate'] = t(m.impersonate);

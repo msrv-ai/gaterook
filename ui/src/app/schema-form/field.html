@@ -17,7 +17,109 @@
   <ng-template #errorLine let-message>
     <p class="gw-field__error" [id]="errId"><svg lucideIcon="circle-alert" class="gw-icon"></svg>@for (part of errorParts(message); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {<ng-container>{{ part.text }}</ng-container>}}</p>
   </ng-template>
+  <!--
+    Where a field's value comes from (kit connection-form "Credentials"): Text, typed here, or a connected store whose
+    scheme it puts in front of the value (vault://). A value typed with a store's scheme is read from there as well.
+  -->
+  <ng-template #sourceMenu>
+    @let src = f.fieldSource(n);
+    <button class="gw-input-group__addon" type="button" [id]="id + '-src'" aria-haspopup="listbox"
+      [gwMenuTrigger]="srcMenu" [attr.aria-label]="'Source of the ' + lowerFirst(n.title) + ': ' + sourceLabel()">{{ sourceLabel() }}<svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm"></svg></button>
+    <div class="gw-menu gw-menu--wide" gwMenu #srcMenu="gwMenu" [id]="id + '-src-menu'" role="listbox"
+      [attr.aria-label]="'Source of the ' + lowerFirst(n.title)" hidden (picked)="pickSource($event.value)">
+      <button class="gw-menu__item" type="button" role="option" tabindex="-1" data-value="text"
+        [attr.aria-selected]="!src" [attr.aria-disabled]="textReason() ? 'true' : null">
+        <svg lucideIcon="check" class="gw-icon gw-menu__check"></svg>
+        <span class="gw-menu__label">Text<span class="gw-menu__hint">{{ textReason() ?? textHint() }}</span></span>
+      </button>
+      @for (o of f.stores(); track optionValue(o)) {
+        <button class="gw-menu__item" type="button" role="option" tabindex="-1" [attr.data-value]="optionValue(o)"
+          [attr.aria-selected]="!!src && src.kind === o.kind && src.store === o.store" [attr.aria-disabled]="o.available ? null : 'true'">
+          <svg lucideIcon="check" class="gw-icon gw-menu__check"></svg>
+          <span class="gw-menu__label">{{ o.title }}<span class="gw-menu__hint" [class.gw-mono]="o.available">{{ o.available ? (o.detail ?? schemeOf(o.kind)) : o.reason }}</span></span>
+        </button>
+      }
+    </div>
+  </ng-template>
 
+  @if (n.kind === 'text' && (f.credential(n) || f.fieldKind(n) || f.textState(n) === 'reference')) {
+    <!--
+      A text field next to a secret (a login's user, a client ID), or any text field that holds a reference: typed, or
+      read from a store like the secret.
+    -->
+    @let state = f.textState(n);
+    @let stored = storedSecret();
+    @let kind = f.fieldKind(n);
+    @let hint = referenceFieldHint();
+    @let textHintId = hint ? id + '-hint' : null;
+    <div class="gw-field" [class.gw-connection-form__user]="f.loginUsername(n)">
+      @if (state === 'reference') {
+        <span class="gw-field__label" [id]="id + '-l'"><ng-container [ngTemplateOutlet]="label" /></span>
+        <div
+          gwSecret
+          state="reference"
+          [labelledBy]="id + '-l'"
+          [describedBy]="join(errId, textHintId)"
+          [fieldName]="lowerFirst(n.title)"
+          [subject]="f.subject()"
+          [canRotate]="false"
+          [provider]="stored?.source ?? 'vault'"
+          [ref]="stored?.ref ?? stored?.name ?? ''"
+          [refNoun]="lowerFirst(n.title) + ' reference'"
+          changeable
+          (changeRef)="f.replace(n, true)"
+          (testReference)="testReference()"
+        ></div>
+      } @else {
+        <label class="gw-field__label" [for]="id"><ng-container [ngTemplateOutlet]="label" /></label>
+        @if (kind === 'vault') {
+          <gw-vault-picker [form]="f" [node]="n" [lead]="sourceMenu" [describedBy]="join(errId, textHintId)" [invalid]="!!error" (typed)="keepFocus()" />
+        } @else if (kind) {
+          <div class="gw-secret" data-state="empty">
+            <div class="gw-input-group">
+              <ng-container [ngTemplateOutlet]="sourceMenu" />
+              <input
+                class="gw-input gw-input--mono"
+                [id]="id"
+                [formField]="textField()"
+                autocomplete="off"
+                spellcheck="false"
+                [attr.placeholder]="referencePlaceholder()"
+                [attr.aria-describedby]="join(errId, textHintId, lockId)"
+                [attr.aria-invalid]="error ? 'true' : null"
+                (input)="keepFocus()"
+              />
+            </div>
+            <span class="gw-secret__actions"><button class="gw-btn" type="button" (click)="testReference()">Test reference</button></span>
+          </div>
+        } @else {
+          <div class="gw-input-group">
+            <ng-container [ngTemplateOutlet]="sourceMenu" />
+            <input
+              class="gw-input"
+              [class.gw-input--mono]="n.mono"
+              [id]="id"
+              [formField]="textField()"
+              autocomplete="off"
+              spellcheck="false"
+              [attr.aria-describedby]="join(errId, textHintId, lockId)"
+              [attr.aria-invalid]="error ? 'true' : null"
+              (input)="keepFocus()"
+            />
+          </div>
+        }
+      }
+      @if (error) {
+        <ng-container [ngTemplateOutlet]="errorLine" [ngTemplateOutletContext]="{ $implicit: error }" />
+      }
+      @if (hint) {
+        <p class="gw-field__hint" [id]="textHintId">{{ hint }}</p>
+      }
+      @if (lock) {
+        <ng-container [ngTemplateOutlet]="lockLine" />
+      }
+    </div>
+  } @else {
   @switch (n.kind) {
     @case ('object') {
       <fieldset class="gw-field" [attr.aria-describedby]="hintId">
@@ -135,10 +237,10 @@
 
     @case ('secret') {
       @let state = f.secretState(n);
-      @let copy = sourceCopy(f.source());
       @let stored = storedSecret();
+      @let kind = f.fieldKind(n);
       @let secretHintId = id + '-hint';
-      <div class="gw-field gw-connection-form__secret" [attr.data-source]="copy.kit">
+      <div class="gw-field gw-connection-form__secret">
         @if (state === 'stored' || state === 'reference') {
           <span class="gw-field__label" [id]="id + '-l'">{{ secretLabel(state) }}</span>
           <div
@@ -149,48 +251,62 @@
             [fieldName]="lowerFirst(n.title)"
             [subject]="f.subject()"
             [version]="stored?.version ?? null"
+            [prepared]="stored?.staged === true"
             [updatedAt]="stored?.updatedAt ?? null"
             [canRotate]="stored?.canRotate !== false"
             [rotateReasonId]="stored?.canRotate === false ? id + '-rotate-why' : null"
-            [provider]="f.source()"
-            [ref]="stored?.name ?? ''"
+            [provider]="stored?.state === 'short-lived' ? 'short-lived' : stored?.source ?? 'vault'"
+            [ref]="stored?.ref ?? stored?.name ?? ''"
             changeable
             (changeRef)="f.replace(n, true)"
             (replace)="f.replace(n, true)"
             (rotate)="rotateSecret()"
             (testReference)="testReference()"
           ></div>
-        } @else if (reference()) {
-          @let prefix = referencePrefix();
+        } @else if (state === 'editing') {
+          <!-- Replace: a new value of the secret stored here (Cancel / Save), never a reference. -->
           <label class="gw-field__label" [for]="id">{{ secretLabel(state) }}</label>
-          @if (f.source() === 'vault') {
-            <gw-vault-picker [form]="f" [node]="n" [describedBy]="join(errId, secretHintId)" [invalid]="!!error" />
-          } @else {
-            <div class="gw-secret" data-state="empty">
-              <div class="gw-input-group">
-                @if (prefix) {
-                  <span class="gw-input-group__affix gw-mono" [id]="id + '-prefix'">{{ prefix }}</span>
-                }
-                <input
-                  class="gw-input gw-input--mono"
-                  type="text"
-                  [id]="id"
-                  [value]="referenceText()"
-                  [attr.placeholder]="referencePlaceholder()"
-                  autocomplete="off"
-                  spellcheck="false"
-                  [attr.aria-describedby]="join(errId, prefix ? id + '-prefix' : null, secretHintId)"
-                  [attr.aria-invalid]="error ? 'true' : null"
-                  (input)="setReference($event)"
-                />
-              </div>
-              <span class="gw-secret__actions"><button class="gw-btn" type="button" (click)="testReference()">{{ copy.test }}</button></span>
+          @if (n.multiline) {
+            <div class="gw-secret" data-state="editing">
+              <textarea
+                class="gw-textarea gw-textarea--code"
+                [attr.rows]="n.language || n.secret === 'value' ? 8 : 4"
+                [id]="id"
+                [value]="secretTyped()"
+                autocomplete="off"
+                spellcheck="false"
+                [attr.placeholder]="multilinePlaceholder()"
+                [attr.aria-describedby]="join(errId, secretHintId)"
+                [attr.aria-invalid]="error ? 'true' : null"
+                (input)="f.setSecret(n, $any($event.target).value)"
+              ></textarea>
+              <span class="gw-secret__actions">
+                <button class="gw-btn gw-btn--ghost" type="button" (click)="f.replace(n, false)">Cancel</button>
+                <button class="gw-btn" type="button" (click)="saveSecret(secretTyped())">Save {{ lowerFirst(n.title) }}<span class="gw-sr-only"> for {{ f.subject() }}</span></button>
+              </span>
             </div>
+          } @else {
+            <div
+              gwSecret
+              state="editing"
+              [inputId]="id"
+              [value]="secretTyped()"
+              (valueChange)="f.setSecret(n, $event)"
+              [describedBy]="join(errId, secretHintId)"
+              [invalid]="!!error"
+              [fieldName]="lowerFirst(n.title)"
+              [subject]="f.subject()"
+              (cancel)="f.replace(n, false)"
+              (save)="saveSecret($event)"
+            ></div>
           }
-        } @else if (n.multiline) {
+        } @else if (kind === 'vault') {
+          <label class="gw-field__label" [for]="id">{{ secretLabel(state) }}</label>
+          <gw-vault-picker [form]="f" [node]="n" [lead]="sourceMenu" [describedBy]="join(errId, secretHintId)" [invalid]="!!error" (typed)="keepFocus()" />
+        } @else if (n.multiline && !kind) {
           <!-- A secret over several lines (PEM, base64, kubeconfig, a JSON key): a password input would join its lines. -->
           <label class="gw-field__label" [for]="id">{{ secretLabel(state) }}</label>
-          <div class="gw-secret" [attr.data-state]="state">
+          <div class="gw-secret" data-state="empty">
             <textarea
               class="gw-textarea gw-textarea--code"
               [attr.rows]="n.language || n.secret === 'value' ? 8 : 4"
@@ -201,38 +317,46 @@
               [attr.placeholder]="multilinePlaceholder()"
               [attr.aria-describedby]="join(errId, secretHintId)"
               [attr.aria-invalid]="error ? 'true' : null"
-              (input)="f.setSecret(n, $any($event.target).value)"
+              (input)="typeSecret($event)"
             ></textarea>
-            @if (state === 'editing') {
-              <span class="gw-secret__actions">
-                <button class="gw-btn gw-btn--ghost" type="button" (click)="f.replace(n, false)">Cancel</button>
-                <button class="gw-btn" type="button" (click)="saveSecret(secretTyped())">Save {{ lowerFirst(n.title) }}<span class="gw-sr-only"> for {{ f.subject() }}</span></button>
-              </span>
-            }
           </div>
         } @else {
+          <!-- A new value (a password field, shown only while it is typed) or a reference into a store (shown as typed). -->
           <label class="gw-field__label" [for]="id">{{ secretLabel(state) }}</label>
-          <div
-            gwSecret
-            [state]="state"
-            [inputId]="id"
-            [value]="secretTyped()"
-            (valueChange)="f.setSecret(n, $event)"
-            [placeholder]="state === 'empty' ? 'Paste or type the ' + lowerFirst(n.title) : null"
-            [describedBy]="join(errId, secretHintId)"
-            [invalid]="!!error"
-            [fieldName]="lowerFirst(n.title)"
-            [subject]="f.subject()"
-            (cancel)="f.replace(n, false)"
-            (save)="saveSecret($event)"
-          ></div>
+          <div class="gw-secret" data-state="empty">
+            <div class="gw-input-group">
+              <ng-container [ngTemplateOutlet]="sourceMenu" />
+              <input
+                #secretInput
+                class="gw-input"
+                [class.gw-input--mono]="!!kind"
+                [type]="kind ? 'text' : 'password'"
+                [id]="id"
+                [value]="secretTyped()"
+                [attr.placeholder]="kind ? referencePlaceholder() : 'Paste or type the ' + lowerFirst(n.title)"
+                [attr.autocomplete]="kind ? 'off' : 'new-password'"
+                spellcheck="false"
+                [attr.aria-describedby]="join(errId, secretHintId)"
+                [attr.aria-invalid]="error ? 'true' : null"
+                (input)="typeSecret($event)"
+              />
+              @if (!kind) {
+                <button class="gw-input-group__addon" type="button" [gwReveal]="secretInput" [attr.aria-controls]="id" [attr.aria-label]="'Show ' + lowerFirst(n.title)">
+                  <svg lucideIcon="eye" class="gw-icon"></svg><svg lucideIcon="eye-off" class="gw-icon"></svg>
+                </button>
+              }
+            </div>
+            @if (kind) {
+              <span class="gw-secret__actions"><button class="gw-btn" type="button" (click)="testReference()">Test reference</button></span>
+            }
+          </div>
         }
         @if (error) {
           <ng-container [ngTemplateOutlet]="errorLine" [ngTemplateOutletContext]="{ $implicit: error }" />
         }
         <p class="gw-field__hint" [id]="secretHintId">{{ secretHint(state) }}</p>
         @if (state === 'stored' && stored?.canRotate === false && stored?.rotateReason) {
-          <!-- Rotate stays in the Tab order (aria-disabled) and says why here (DESIGN.md §8 "Action hierarchy and disabled behavior"). -->
+          <!-- Rotate stays in the Tab order (aria-disabled) and says why here. -->
           <p class="gw-field__hint" [id]="id + '-rotate-why'">Rotate: {{ stored!.rotateReason }}</p>
         }
       </div>
@@ -295,6 +419,7 @@
                 spellcheck="false"
                 [attr.aria-describedby]="describedBy"
                 [attr.aria-invalid]="error ? 'true' : null"
+                (input)="keepFocus()"
               />
             }
           }
@@ -308,7 +433,7 @@
                   inputmode="numeric"
                   [value]="numberText()"
                   autocomplete="off"
-                  [attr.required]="n.required ? '' : null"
+                  [attr.required]="f.needed(n) ? '' : null"
                   [attr.aria-describedby]="describedBy"
                   [attr.aria-invalid]="error ? 'true' : null"
                   (input)="setNumber($event)"
@@ -324,7 +449,7 @@
                 inputmode="numeric"
                 [value]="numberText()"
                 autocomplete="off"
-                [attr.required]="n.required ? '' : null"
+                [attr.required]="f.needed(n) ? '' : null"
                 [attr.aria-describedby]="describedBy"
                 [attr.aria-invalid]="error ? 'true' : null"
                 (input)="setNumber($event)"
@@ -355,7 +480,9 @@
                 (blur)="f.touch(n)"
               >
                 @if (value() === null) {
-                  <option value="" selected>Choose…</option>
+                  <option value="" selected>{{ clearable() ? 'Not set' : 'Choose…' }}</option>
+                } @else if (clearable()) {
+                  <option value="">Not set</option>
                 }
                 @for (o of options; track $index) {
                   <option [value]="String(o.value)" [selected]="isChecked(o.value)" [disabled]="f.optionForbidden(n, o.value)">{{ o.description ? o.title + ' · ' + o.description : o.title }}</option>
@@ -428,5 +555,6 @@
         }
       </div>
     }
+  }
   }
 }
