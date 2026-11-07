@@ -33,7 +33,7 @@
               } @else if (d.enabled === false) {
                 <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Disabled by you</span></span>
               } @else if (editTesting()) {
-                <span class="gw-status gw-status--checking" id="edit-checking"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Checking {{ d.name }}</span></span>
+                <span class="gw-status gw-status--checking"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Checking {{ d.name }}</span></span>
               } @else if (healthView(); as hv) {
                 <span class="gw-status" [class]="'gw-status--' + hv.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ hv.text }}</span></span>
               }
@@ -72,15 +72,6 @@
         <a class="gw-btn gw-btn--ghost" routerLink="/connections">Cancel</a>
       } @else if (detail()) {
         <a class="gw-btn gw-btn--ghost" routerLink="/activity" [queryParams]="{ q: activityQuery(name()!) }"><svg lucideIcon="activity" class="gw-icon"></svg> View activity<span class="gw-sr-only"> of {{ name() }}</span></a>
-        <button
-          class="gw-btn"
-          type="button"
-          id="edit-test"
-          [attr.aria-busy]="editTesting() ? 'true' : null"
-          [attr.aria-disabled]="editTesting() ? 'true' : null"
-          [attr.aria-describedby]="editTesting() ? 'edit-checking' : null"
-          (click)="testStored()"
-        >@if (editTesting()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="plug-zap" class="gw-icon"></svg>} Test connection<span class="gw-sr-only"> {{ name() }}</span></button>
       }
     </div>
   </div>
@@ -710,6 +701,16 @@
     <div class="gw-form__actions" id="edit-connection-actions">
       <p class="gw-form__note"><svg lucideIcon="info" class="gw-icon"></svg>Connection settings apply from the next call</p>
       <button class="gw-btn" type="button" (click)="discard()">Discard</button>
+      @if (editTesting()) {<span class="gw-sr-only" id="edit-checking">Checking {{ name() }}</span>}
+      <button
+        class="gw-btn"
+        type="button"
+        id="edit-test"
+        [attr.aria-busy]="editTesting() ? 'true' : null"
+        [attr.aria-disabled]="editTesting() || trusting() || saving() || form()?.databaseLoading() ? 'true' : null"
+        [attr.aria-describedby]="editTesting() ? 'edit-checking' : form()?.databaseLoading() ? 'cf-database-status' : null"
+        (click)="testEditDraft()"
+      >@if (editTesting()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="plug-zap" class="gw-icon"></svg>} Test connection<span class="gw-sr-only"> {{ name() }}</span></button>
       <button class="gw-btn gw-btn--primary" type="submit" form="cf-form" [attr.aria-busy]="saving() ? 'true' : null" [attr.aria-disabled]="saving() || accessBusy() || accessSyncError() || form()?.databaseLoading() ? 'true' : null" [attr.aria-describedby]="accessBusy() ? 'edit-access-saving' : accessSyncError() ? 'edit-access-error' : form()?.databaseLoading() ? 'cf-database-status' : null">@if (saving()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Save changes<span class="gw-sr-only"> to {{ name() }}</span></button>
     </div>
   }
@@ -769,7 +770,7 @@
   }
 </dialog>
 
-<!-- The header's test stopped before the credentials left: compare what the server showed, then trust it -->
+<!-- The draft test stopped before the credentials left: compare what the server showed, then trust it -->
 <dialog class="gw-dialog gw-dialog--md gw-dialog--warning" gwDialog #trustDialog="gwDialog" id="dlg-trust" aria-labelledby="dlg-trust-t" aria-describedby="dlg-trust-d">
   @if (editConfirm(); as o) {
     <header class="gw-dialog__header">
@@ -789,12 +790,12 @@
     }
     <footer class="gw-dialog__footer">
       <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
-      <button class="gw-btn gw-btn--primary" type="button" [attr.aria-busy]="trusting() ? 'true' : null" [attr.aria-disabled]="trusting() ? 'true' : null" (click)="trustStored()">@if (trusting()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}{{ trustLabel(o) }}</button>
+      <button class="gw-btn gw-btn--primary" type="button" [attr.aria-busy]="trusting() ? 'true' : null" [attr.aria-disabled]="trusting() ? 'true' : null" (click)="trustEditDraft()">@if (trusting()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}{{ trustLabel(o) }}</button>
     </footer>
   }
 </dialog>
 
-<!-- Saving a new host with a stored secret: the core asks before the secret goes there (409 send-secret-to-new-host) -->
+<!-- Using a new host with a stored secret: the core asks before the secret goes there (409 send-secret-to-new-host) -->
 <dialog class="gw-dialog gw-dialog--md gw-dialog--warning" gwDialog #hostDialog="gwDialog" id="dlg-new-host" aria-labelledby="dlg-new-host-t" aria-describedby="dlg-new-host-d">
   @if (newHost(); as h) {
     <header class="gw-dialog__header">
@@ -805,7 +806,7 @@
     </header>
     <footer class="gw-dialog__footer">
       <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
-      <button class="gw-btn gw-btn--primary" type="button" (click)="sendToNewHost()">{{ h.fileRequest ? 'Send and browse folders' : h.projectRequest ? 'Send and load projects' : h.discoveryKey ? 'Send and load databases' : 'Send and save' }}<span class="gw-sr-only"> {{ name() }}</span></button>
+      <button class="gw-btn gw-btn--primary" type="button" (click)="sendToNewHost()">{{ h.fileRequest ? 'Send and browse folders' : h.projectRequest ? 'Send and load projects' : h.discoveryKey ? 'Send and load databases' : h.test ? 'Send and test' : 'Send and save' }}<span class="gw-sr-only"> {{ name() }}</span></button>
     </footer>
   }
 </dialog>

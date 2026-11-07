@@ -479,10 +479,11 @@ export class ConnectionNewPage {
   protected readonly commentDialog = viewChild<GwDialog>('commentDialog');
   /** The edit view's test that stopped for a confirmation (the trust dialog shows it). */
   protected readonly editConfirm = signal<TestOutcome | null>(null);
-  protected readonly confirmTitle = computed(() => testConfirmTitle(this.editConfirm(), this.host()));
+  private readonly editTestDraft = signal<{ readonly value: ConnectionFormValue; readonly confirm: string | null } | null>(null);
+  protected readonly confirmTitle = computed(() => testConfirmTitle(this.editConfirm(), testTarget(this.editTestDraft()?.value.config ?? null).address));
   protected readonly confirmFacts = computed(() => testFacts(this.editConfirm()?.needsConfirmation?.data));
   /** The core asked before sending the stored secret to a new host (409 `send-secret-to-new-host`). */
-  protected readonly newHost = signal<{ readonly title: string; readonly detail: string; readonly value: ConnectionFormValue; readonly discoveryKey?: string; readonly fileRequest?: FileBrowseRequest; readonly projectRequest?: ProjectDiscoveryRequest; readonly reason?: string | null } | null>(null);
+  protected readonly newHost = signal<{ readonly title: string; readonly detail: string; readonly value: ConnectionFormValue; readonly test?: boolean; readonly discoveryKey?: string; readonly fileRequest?: FileBrowseRequest; readonly projectRequest?: ProjectDiscoveryRequest; readonly reason?: string | null } | null>(null);
   /** A prod save the core stopped for the rights of the connection's user (409 `confirm: danger`). */
   protected readonly dangerDialog = viewChild<GwDialog>('dangerDialog');
   protected readonly danger = signal<{ readonly title: string; readonly detail: string; readonly retry: () => void } | null>(null);
@@ -565,6 +566,10 @@ export class ConnectionNewPage {
     this.step.set(mode === 'duplicate' ? 2 : 1);
     this.outcome.set(null);
     this.testState.set('idle');
+    this.editTesting.set(false);
+    this.trusting.set(false);
+    this.editConfirm.set(null);
+    this.editTestDraft.set(null);
     this.testedKey = null;
     this.draft.set(null);
     this.nameProblem.set(null);
@@ -1416,6 +1421,7 @@ export class ConnectionNewPage {
     if (pending?.fileRequest) void this.browseFiles(pending.fileRequest, 'send-secret-to-new-host');
     else if (pending?.projectRequest) void this.loadProjects(pending.projectRequest, 'send-secret-to-new-host');
     else if (pending?.discoveryKey) void this.loadDatabases({ key: pending.discoveryKey, value: pending.value }, 'send-secret-to-new-host');
+    else if (pending?.test) void this.testEditDraft(pending.value, 'send-secret-to-new-host');
     else if (pending) void this.saveEdit(pending.value, 'send-secret-to-new-host', pending.reason ?? null);
   }
 
@@ -1467,43 +1473,93 @@ export class ConnectionNewPage {
     this.version = detail.version;
   }
 
-  /** The header's Test connection: in place on the button, the result as a toast (kit), a host key in a dialog. */
-  async testStored(): Promise<void> {
-    const name = this.name()!;
-    if (this.editTesting()) return;
+  /** Test the current form without saving it; omitted credentials come from the edited connection. */
+  async testEditDraft(value = this.form()?.value(), confirm: string | null = null): Promise<void> {
+    const name = this.name();
+    const form = this.form();
+    const spec = this.spec();
+    if (!name || !form || !spec || !value || this.editTesting() || this.trusting() || this.saving() || form.databaseLoading()) return;
+    const gen = this.gen;
+    const key = draftKey(spec.type, value);
+    this.editConfirm.set(null);
+    this.editTestDraft.set(null);
+    this.formProblem.set(null);
     this.editTesting.set(true);
     this.announcer.announce(`Testing ${name}`);
     try {
-      const outcome = await this.connections.test(name);
+      const outcome = await this.connections.testDraft({ type: spec.type, env: value.env, config: value.config,
+        secrets: value.secrets, existing: name, ...(confirm ? { confirm } : {}) });
+      if (gen !== this.gen || form !== this.form()) return;
+      if (key !== draftKey(spec.type, form.value())) {
+        this.changedTestDraft();
+        return;
+      }
       if (outcome.needsConfirmation && outcome.confirmationId) {
+        this.editTestDraft.set({ value, confirm });
         this.editConfirm.set(outcome);
         this.trustDialog()?.openAfterRender();
       } else {
-        this.toasts.show(testToast(name, outcome, this.host()));
+        this.toasts.show(testToast(name, outcome, testTarget(value.config).address));
       }
-      await this.refreshHealth();
     } catch (e) {
-      this.toasts.show({ tone: 'danger', title: `Couldn't test ${name}`, body: isApiError(e) ? e.detail : "The core didn't answer." });
+      if (gen !== this.gen || form !== this.form()) return;
+      if (key !== draftKey(spec.type, form.value())) {
+        this.changedTestDraft();
+        return;
+      }
+      const error = isApiError(e) ? e : null;
+      if (error?.confirm === 'send-secret-to-new-host') {
+        this.newHost.set({ title: error.title, detail: error.detail, value, test: true });
+        this.hostDialog()?.openAfterRender();
+      } else if (error?.kind === 'unprocessable') {
+        this.applyFormErrors(error, true, value.name);
+      } else {
+        this.toasts.show({ tone: 'danger', title: `Couldn't test ${name}`, body: error?.detail ?? "The core didn't answer." });
+      }
     } finally {
-      this.editTesting.set(false);
+      if (gen === this.gen) this.editTesting.set(false);
     }
   }
 
-  protected async trustStored(): Promise<void> {
-    const name = this.name()!;
+  private changedTestDraft(): void {
+    this.trustDialog()?.close('changed');
+    this.editConfirm.set(null);
+    this.editTestDraft.set(null);
+    this.toasts.show({ tone: 'info', title: 'Connection settings changed', body: 'Test again to check the current settings.' });
+  }
+
+  /** Trust only the tested draft, then test it again with the same credentials and host consent. */
+  protected async trustEditDraft(): Promise<void> {
     const id = this.editConfirm()?.confirmationId;
-    if (!id || this.trusting()) return;
+    const pending = this.editTestDraft();
+    const form = this.form();
+    const spec = this.spec();
+    if (!id || !pending || !form || !spec || this.trusting()) return;
+    const key = draftKey(spec.type, pending.value);
+    if (key !== draftKey(spec.type, form.value())) {
+      this.changedTestDraft();
+      return;
+    }
+    const gen = this.gen;
     this.trusting.set(true);
     try {
-      const r = await this.connections.confirmTest(name, id);
+      const result = await this.connections.confirmDraft(id);
+      if (gen !== this.gen || form !== this.form()) return;
+      if (key !== draftKey(spec.type, form.value())) {
+        this.changedTestDraft();
+        return;
+      }
+      if (result.config) form.state().model.update((model) => merge(model, result.config) as JsonObject);
       this.trustDialog()?.close('trust');
-      if (r.retest) this.toasts.show(testToast(name, r.retest, this.host()));
-      await this.reloadDetail();
+      this.editConfirm.set(null);
+      this.editTestDraft.set(null);
     } catch (e) {
-      this.toasts.show({ tone: 'danger', title: "Couldn't trust it", body: isApiError(e) ? e.detail : 'Test again, then trust what it shows.' });
+      if (gen === this.gen) this.toasts.show({ tone: 'danger', title: "Couldn't trust it", body: isApiError(e) ? e.detail : 'Test again, then trust what it shows.' });
+      return;
     } finally {
-      this.trusting.set(false);
+      if (gen === this.gen) this.trusting.set(false);
     }
+    await this.testEditDraft(form.value(), pending.confirm);
   }
 
   protected onSecretAction(action: SecretAction): void {
