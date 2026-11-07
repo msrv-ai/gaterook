@@ -2,6 +2,7 @@ package ai.msrv.gaterook.core.platform;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ai.msrv.gaterook.testfixtures.WindowsKernel;
 import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -63,6 +64,7 @@ class NativeOsTest {
   @Test
   @EnabledOnOs(OS.WINDOWS)
   void theHomeIsClosedOnceAndThenLeftAlone(@TempDir Path dir) {
+    WindowsKernel.require("mandatory integrity labels");
     assertThat(NativeOs.closeToLowIntegrity(dir)).isNull();
     assertThat(NativeOs.closeToLowIntegrity(dir)).isNull();
   }
