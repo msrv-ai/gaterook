@@ -539,9 +539,10 @@ describe('Overview connection map', () => {
     const billing = service(el, 'billing-api')!;
     const control = switchOf(billing);
     expect(text(billing)).toContain('Endpoint off');
-    expect(control.checked).toBe(false);
-    expect(control.getAttribute('aria-disabled')).toBe('true');
-    expect(text(document.getElementById(control.getAttribute('aria-describedby')!))).toContain('saved connection setting is On');
+    expect(control.checked).toBe(true);
+    expect(control.getAttribute('aria-disabled')).not.toBe('true');
+    expect(text(billing.querySelector('.gw-setup-map__network-toggle > span'))).toBe('On');
+    expect(text(document.getElementById(control.getAttribute('aria-describedby')!))).toContain('Changing this connection does not turn the endpoint on');
     expect(text(app(el, 'codex'))).toContain('Endpoint off');
     expect(text(el.querySelector('#ov-detail'))).toContain('All tools are off on this endpoint');
     expect(calls).toContain('endpoint dev false');
