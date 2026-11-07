@@ -96,6 +96,14 @@ export interface EndpointShareImport {
   readonly includeSecrets: boolean;
   readonly endpointSlug?: string;
   readonly reason?: string;
+  readonly confirm?: 'danger';
+}
+export interface EndpointShareConfirmation {
+  readonly confirm: 'danger';
+  readonly status: 409;
+  readonly title: string;
+  readonly detail: string;
+  readonly errors: readonly { readonly field: string; readonly message: string }[];
 }
 
 /**

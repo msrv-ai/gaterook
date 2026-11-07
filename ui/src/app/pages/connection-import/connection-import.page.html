@@ -35,6 +35,7 @@
       <h2 class="gw-section__title" id="import-complete-title" tabindex="-1">Connections imported</h2>
       @if (result(); as saved) {
         <p>{{ saved.connections.length }} {{ saved.connections.length === 1 ? 'connection was' : 'connections were' }} imported@if (importedEndpoints().length === 1) { into endpoint <span class="gw-mono">{{ importedEndpoints()[0] }}</span>} @else { into {{ importedEndpoints().length }} endpoints}.</p>
+        <p class="gw-text-small gw-fg-secondary">Complete connections are on and ready to use with their selected endpoints. Only connections listed below as needing setup remain off.</p>
         <ul>@for (destination of importedDestinations(); track destination.connection) { <li><a class="gw-link gw-mono" [routerLink]="['/connections', destination.connection]">{{ destination.connection }}</a> in <a class="gw-link gw-mono" [routerLink]="['/endpoints', destination.endpoint]">{{ destination.endpoint }}</a></li> }</ul>
         @if (saved.needsSetup?.length) {
           <div class="gw-alert gw-alert--warning"><svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content">
@@ -153,7 +154,7 @@
     } @else {
       <section class="gw-stack" aria-labelledby="import-review-title">
         <h2 class="gw-section__title" id="import-review-title" tabindex="-1">Choose connections to import</h2>
-        <p class="gw-text-small">Available settings are prepared for import. Choose Skip import to skip a connection entirely, or open its settings to make changes. Incomplete connections are saved disabled; existing connections are never overwritten.</p>
+        <p class="gw-text-small">Available settings are prepared for import. Complete connections turn on immediately when you import; there is no separate save or enable step. Choose Skip import to skip a connection, or open its settings to make changes. Connections missing required setup stay off; existing connections are never overwritten.</p>
         @if (session()!.manifest!.warnings.length) {
           <div class="gw-stack gw-stack--sm">
             <div class="gw-alert gw-alert--warning gw-alert--compact">

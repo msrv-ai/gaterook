@@ -250,6 +250,26 @@ function openReview(el: HTMLElement): HTMLDialogElement | null {
 beforeEach(() => setupPage());
 
 describe('Overview connection map', () => {
+  it('opens connection settings directly without selecting the card or changing access, including unfinished connections', async () => {
+    savedConnections = savedConnections.map((connection) => connection.name === 'dev-db'
+      ? { ...connection, enabled: false, setupRequired: true } : connection);
+    TestBed.inject(Router).resetConfig([{ path: 'connections/:name', children: [] }]);
+    const { fixture, el } = await render();
+    await showAll(fixture, el);
+    const card = service(el, 'dev-db')!;
+    const settings = card.querySelector<HTMLAnchorElement>('a[aria-label="Open settings for dev-db"]')!;
+    expect(href(settings)).toBe('/connections/dev-db');
+    expect(settings.closest('button')).toBeNull();
+    expect(settings.getAttribute('aria-disabled')).toBeNull();
+    settings.focus();
+    expect(document.activeElement).toBe(settings);
+    settings.click();
+    await settle(fixture);
+    expect(TestBed.inject(Router).url).toBe('/connections/dev-db');
+    expect(card.getAttribute('data-selected')).toBe('false');
+    expect(calls.some((call) => call.startsWith('connection ') || call.startsWith('endpoint '))).toBe(false);
+  });
+
   it('toggles an endpoint from its card without selecting it or changing connections', async () => {
     const { fixture, el } = await render();
     const card = el.querySelector('[data-map-endpoint="stage-readonly"]')!.parentElement!;
@@ -519,9 +539,10 @@ describe('Overview connection map', () => {
     const billing = service(el, 'billing-api')!;
     const control = switchOf(billing);
     expect(text(billing)).toContain('Endpoint off');
-    expect(control.checked).toBe(false);
-    expect(control.getAttribute('aria-disabled')).toBe('true');
-    expect(text(document.getElementById(control.getAttribute('aria-describedby')!))).toContain('saved connection setting is On');
+    expect(control.checked).toBe(true);
+    expect(control.getAttribute('aria-disabled')).not.toBe('true');
+    expect(text(billing.querySelector('.gw-setup-map__network-toggle > span'))).toBe('On');
+    expect(text(document.getElementById(control.getAttribute('aria-describedby')!))).toContain('Changing this connection does not turn the endpoint on');
     expect(text(app(el, 'codex'))).toContain('Endpoint off');
     expect(text(el.querySelector('#ov-detail'))).toContain('All tools are off on this endpoint');
     expect(calls).toContain('endpoint dev false');

@@ -89,7 +89,7 @@ public class TemplateShares {
         "Template definitions are included. Read-only confirmations are cleared; SSH commands and non-GET HTTP operations require review.");
   }
 
-  /** Called inside the endpoint import transaction, before wiring its new, disabled connections. */
+  /** Called inside the endpoint import transaction, before wiring its new connections. */
   public Imported importFor(JsonNode values, String connectionName, boolean includeSecrets, String reason) {
     Map<String, String> ids = new LinkedHashMap<>();
     List<String> warnings = new ArrayList<>();

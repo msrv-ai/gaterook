@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { EndpointShareExport, EndpointShareImport, EndpointShareResult, EndpointShareReview } from './endpoint-share';
+import { EndpointShareExport, EndpointShareImport, EndpointShareImportOutcome, EndpointShareReview } from './endpoint-share';
 
 /**
  * A progress line of the core's start (stdout protocol, ARCHITECTURE.md §7.1). Main adds `runtime` itself (the
@@ -135,7 +135,7 @@ export interface GwDesktop {
   createEndpointShare?(options: EndpointShareExport, passphrase: string): Promise<FullBackupResult>;
   chooseEndpointShare?(): Promise<{ readonly fileName: string } | null>;
   previewEndpointShare?(passphrase: string): Promise<EndpointShareReview>;
-  importEndpointShare?(options: EndpointShareImport): Promise<EndpointShareResult>;
+  importEndpointShare?(options: EndpointShareImport): Promise<EndpointShareImportOutcome>;
   discardEndpointShare?(handle?: string): Promise<void>;
   onEndpointShareFile?(cb: (file: { readonly fileName: string }) => void): () => void;
   /**
@@ -318,7 +318,7 @@ export class DesktopBridge {
     return this.desktop!.previewEndpointShare!(passphrase);
   }
 
-  async importEndpointShare(options: EndpointShareImport): Promise<EndpointShareResult> {
+  async importEndpointShare(options: EndpointShareImport): Promise<EndpointShareImportOutcome> {
     if (!this.endpointShareAvailable) throw new Error('Importing shared endpoints requires an up-to-date GateRook desktop app.');
     return this.desktop!.importEndpointShare!(options);
   }

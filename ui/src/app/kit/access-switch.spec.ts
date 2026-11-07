@@ -111,29 +111,42 @@ describe('access switch', () => {
     expect(row.control.getAttribute('aria-disabled')).toBe('true');
   });
 
-  it('shows effective Off under a paused endpoint and restores the saved global setting', () => {
+  it('keeps the global switch On under a paused endpoint and can pause the connection independently', async () => {
     const s = setup();
     const row = s.render('connection');
     row.fixture.componentRef.setInput('pausedByEndpoint', 'incident-prod');
     row.fixture.detectChanges();
-    expect(row.control.checked).toBe(false);
-    expect(row.control.getAttribute('aria-disabled')).toBe('true');
-    expect(row.control.getAttribute('aria-label')).toContain('through endpoint incident-prod');
-    expect(row.fixture.nativeElement.textContent).toContain('saved connection setting is On');
-    row.control.click();
-    expect(row.control.checked).toBe(false);
-    expect(s.setEnabled).not.toHaveBeenCalled();
-    row.fixture.componentRef.setInput('pausedByEndpoint', null);
-    row.fixture.detectChanges();
     expect(row.control.checked).toBe(true);
     expect(row.control.getAttribute('aria-disabled')).toBeNull();
-    row.fixture.componentRef.setInput('enabled', false);
-    row.fixture.componentRef.setInput('pausedByEndpoint', 'incident-prod');
+    expect(row.control.getAttribute('aria-label')).toContain('across all endpoints');
+    expect(row.fixture.nativeElement.textContent).toContain('Endpoint incident-prod is off');
+    row.control.click();
+    expect(s.setEnabled).toHaveBeenCalledExactlyOnceWith('shared-prod', false);
+    s.resolve();
+    await row.fixture.whenStable();
     row.fixture.detectChanges();
+    expect(row.control.checked).toBe(false);
     row.fixture.componentRef.setInput('pausedByEndpoint', null);
     row.fixture.detectChanges();
     expect(row.control.checked).toBe(false);
-    expect(s.setEnabled).not.toHaveBeenCalled();
+    expect(s.enable).not.toHaveBeenCalled();
+    expect(s.disable).not.toHaveBeenCalled();
+  });
+
+  it('enables a global connection without silently enabling its paused endpoint', async () => {
+    const s = setup();
+    const row = s.render('connection', false);
+    row.fixture.componentRef.setInput('pausedByEndpoint', 'incident-prod');
+    row.fixture.detectChanges();
+    row.control.click();
+    expect(s.setEnabled).toHaveBeenCalledExactlyOnceWith('shared-prod', true);
+    s.resolve();
+    await row.fixture.whenStable();
+    row.fixture.detectChanges();
+    expect(row.control.checked).toBe(true);
+    expect(row.fixture.nativeElement.textContent).toContain('access through it remains paused');
+    expect(s.enable).not.toHaveBeenCalled();
+    expect(s.disable).not.toHaveBeenCalled();
   });
 
   it('keeps blocked access visibly Off without losing the saved setting or accessible name in a compact row', () => {

@@ -549,8 +549,10 @@ describe('Endpoint detail page', () => {
       expect(row.querySelector('input[type="radio"]')).toBeNull();
     }
     for (const toggle of el.querySelectorAll<HTMLInputElement>('#connections input[role="switch"]')) {
-      expect(toggle.checked).toBe(false);
-      expect(toggle.getAttribute('aria-disabled')).toBe('true');
+      expect(toggle.checked).toBe(true);
+      expect(toggle.getAttribute('aria-disabled')).toBeNull();
+      expect(toggle.getAttribute('aria-label')).toContain('across all endpoints');
+      expect(text(el.querySelector('#' + toggle.getAttribute('aria-describedby')))).toContain('Endpoint dev is off');
     }
     const t = toasts().at(-1)!;
     expect(t.title).toBe('Endpoint dev disabled');

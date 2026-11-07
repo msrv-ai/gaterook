@@ -71,8 +71,7 @@
           <div class="gw-status-screen__intro">
             <div class="gw-status-screen__text">
               <ng-container *ngTemplateOutlet="heading; context: { $implicit: 'Starting the gateway core' }" />
-              <!-- Decision 2, ARCHITECTURE §8.6.1: a native core, not a Java runtime; it starts in well under the kit's "few seconds". -->
-              <p class="gw-text-body-read">Starting the native core and the local API on <span class="gw-mono">{{ address() }}</span>. This usually takes about a second.</p>
+              <p class="gw-text-body-read">Preparing GateRook and starting local services. This may take a moment.</p>
             </div>
           </div>
           <div class="gw-progress gw-progress--indeterminate" role="progressbar" [attr.aria-labelledby]="uid + '-title'">

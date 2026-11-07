@@ -4,6 +4,7 @@ import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.connections.ConnectionConfigs;
 import ai.msrv.gaterook.core.connections.ConnectionShares;
+import ai.msrv.gaterook.core.connections.ConnectionService;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.endpoints.internal.EndpointRows;
 import ai.msrv.gaterook.core.endpoints.internal.ToolPairs;
@@ -43,7 +44,7 @@ import tools.jackson.databind.node.ObjectNode;
 public class EndpointShareService {
   public static final String FORMAT = "gaterook-endpoint-share";
   public static final int MAX_BYTES = 6 * 1024 * 1024;
-  private static final String REVIEW = "Imported endpoints and connections stay disabled until their settings are reviewed locally.";
+  private static final String REVIEW = "Import enables the new endpoint and complete connections. Connections missing settings or credentials stay disabled until setup is finished.";
   private static final String ACCESS = "Client grants, tokens, OAuth sign-ins, tunnels and temporary bypasses are not transferred. Bypass becomes Approval.";
   private final EndpointService endpoints;
   private final EndpointRepository repository;
@@ -154,6 +155,11 @@ public class EndpointShareService {
 
   public ObjectNode importBundle(JsonNode bundle, List<String> selected, boolean includeEndpoint,
       boolean includeSecrets, String requestedSlug, String reason) {
+    return importBundle(bundle, selected, includeEndpoint, includeSecrets, requestedSlug, reason, null);
+  }
+
+  public ObjectNode importBundle(JsonNode bundle, List<String> selected, boolean includeEndpoint,
+      boolean includeSecrets, String requestedSlug, String reason, String confirm) {
     validate(bundle);
     Set<String> ids = selection(selected);
     Map<String, JsonNode> entries = new LinkedHashMap<>();
@@ -162,76 +168,96 @@ public class EndpointShareService {
     for (String id : ids) if (!connections.supported(entries.get(id).path("type").asString())) throw invalid("Skip unavailable connectors before importing.");
     String slug = requestedSlug == null || requestedSlug.isBlank() ? uniqueSlug(bundle.path("endpoint").path("slug").asString()) : requestedSlug;
     if (includeEndpoint && !EndpointService.SLUG.matcher(slug).matches()) throw invalid("Use a lowercase endpoint name of up to 63 characters.");
-    return tx.execute(status -> {
-      if (includeEndpoint && repository.existsBySlug(slug)) throw ProblemException.conflict("Name in use", "Choose another endpoint name.");
-      ObjectNode result = object().put("endpointSlug", includeEndpoint ? slug : null);
-      ArrayNode imported = result.putArray("connections");
-      ArrayNode notes = result.putArray("warnings").add(REVIEW).add(ACCESS);
-      EndpointEntity endpoint = null;
-      if (includeEndpoint) {
-        JsonNode source = bundle.path("endpoint");
-        endpoint = new EndpointEntity(slug, Env.DEV, "read-only".equals(source.path("access").asString())
-            ? EndpointAccess.READ_ONLY : EndpointAccess.STANDARD, rows.map(source.path("settings")), clock.instant());
-        endpoint.setDescription(source.path("description").asString(null));
-        endpoint.setInstructions(source.path("instructions").asString(null));
-        endpoint.setOauthEnabled(false);
-        endpoint.disable(clock.instant());
-        endpoint = rows.save(endpoint);
-        for (JsonNode tool : bundle.path("coreTools")) rows.save(new EndpointToolEntity(endpoint, null,
-            tool.path("toolKey").asString(), safeCoreMode(tool, endpoint), clock.instant()));
-      }
-      for (String id : ids) {
-        JsonNode entry = entries.get(id);
-        var added = connections.importDraft(entry, includeSecrets, reason);
-        var sharedTemplates = templates.importFor(entry.path("templates"), added.name(), includeSecrets, reason);
-        sharedTemplates.warnings().forEach(notes::add);
-        imported.addObject().put("id", added.id()).put("name", added.name()).put("needsSetup", true);
-        if (endpoint != null) {
-          var stored = configs.byId(added.id()).orElseThrow();
-          Wiring.mixing(endpoint.getEnv(), !wiring.wired(endpoint.getId()).isEmpty(), stored.config().env(), slug, added.name())
-              .ifPresent(message -> { throw invalid(message); });
-          var manifest = registry.manifest(added.type()).orElseThrow();
-          wiring.wire(endpoint, stored, manifest, offered -> Mode.OFF);
-          Map<String, EndpointToolEntity> written = new LinkedHashMap<>();
-          toolRows.findByEndpointIdAndConnectionId(endpoint.getId(), added.id()).forEach(t -> written.put(t.getToolKey(), t));
-          for (var tool : manifest.tools()) {
-            String key = ToolPairs.key(manifest, stored.config(), tool.name());
-            if (!written.containsKey(key)) written.put(key, rows.save(new EndpointToolEntity(endpoint, added.id(), key, Mode.OFF, clock.instant())));
-          }
-          // Reserve every compiled tool as Off before applying the selected source modes. Otherwise completing
-          // the draft could treat an omitted first-version template tool as new and enable its default mode.
-          for (var compiled : templateService.compiledFor(added.id())) for (var tool : compiled.tools()) {
-            String key = compiled.toolKey(tool);
-            if (!written.containsKey(key)) written.put(key, rows.save(new EndpointToolEntity(endpoint, added.id(), key, Mode.OFF, clock.instant())));
-          }
-          for (JsonNode sourceTool : entry.path("tools")) {
-            String key = remapTool(sourceTool.path("toolKey").asString(), sharedTemplates.ids());
-            if (key == null) continue;
-            EndpointToolEntity target = written.get(key);
-            if (target == null) continue;
-            Mode mode = safeMode(sourceTool);
-            if ((key.startsWith("tpl:") || key.startsWith("plugin:")) && mode == Mode.READ_ONLY) mode = Mode.APPROVAL;
-            final String toolKey = key;
-            var definition = manifest.tools().stream().filter(t -> ToolPairs.key(manifest, stored.config(), t.name()).equals(toolKey)).findFirst();
-            if (mode == Mode.READ_ONLY && definition.isPresent() && !definition.get().readOnlyModeAllowed()) mode = Mode.APPROVAL;
-            if (endpoint.getAccess() == EndpointAccess.READ_ONLY) {
-              mode = definition.isPresent() ? ToolPairs.clampReadOnly(definition.get(), mode) : Mode.OFF;
-            }
-            target.setMode(mode, clock.instant());
-            if (sourceTool.path("overrides").isObject()) target.setOverrides(rows.map(sourceTool.path("overrides")), clock.instant());
-            rows.save(target);
-          }
-          endpoint.setEnv(wiring.deriveEnv(endpoint.getId(), endpoint.getEnv()));
-          endpoint = rows.save(endpoint);
+    if (includeEndpoint && repository.existsBySlug(slug)) throw ProblemException.conflict("Name in use", "Choose another endpoint name.");
+    Map<String, ConnectionShares.Prepared> prepared = new LinkedHashMap<>();
+    try {
+      Set<String> reservedNames = new HashSet<>();
+      for (String id : ids) prepared.put(id, connections.prepareImport(entries.get(id), includeSecrets, reservedNames));
+      if (includeEndpoint && prepared.values().stream().anyMatch(p -> p.env() == Env.PROD)
+          && prepared.values().stream().anyMatch(p -> p.env() != Env.PROD))
+        throw invalid("Production connections cannot share an endpoint with development or stage connections.");
+      List<ProblemException.FieldError> warnings = new ArrayList<>();
+      for (var item : prepared.entrySet()) {
+        try { connections.preflightImport(item.getValue(), confirm); }
+        catch (ProblemException e) {
+          if (e.kind() != ProblemException.Kind.CONFLICT || !ConnectionService.CONFIRM_DANGER.equals(e.confirm())) throw e;
+          warnings.add(new ProblemException.FieldError("/bundle/connections/" + item.getKey(), e.getMessage()));
         }
       }
-      if (endpoint != null) {
-        changes.record(new SetupChangeRecorder.SetupChange(SetupChangeRecorder.What.SETTINGS,
-            "Endpoint " + slug + " imported", null, "Disabled; selected connections copied", reason, endpoint.getEnv(), slug, null, null));
-        publisher.publishEvent(new EndpointChanged(endpoint.getId(), slug));
-      }
-      return result;
-    });
+      if (!warnings.isEmpty()) throw new ProblemException(ProblemException.Kind.CONFLICT,
+          "Review production access warnings", String.join("\n\n", warnings.stream().map(ProblemException.FieldError::message).toList()),
+          warnings.getFirst().field(), ConnectionService.CONFIRM_DANGER, warnings);
+      return tx.execute(status -> {
+        if (includeEndpoint && repository.existsBySlug(slug)) throw ProblemException.conflict("Name in use", "Choose another endpoint name.");
+        ObjectNode result = object().put("endpointSlug", includeEndpoint ? slug : null);
+        ArrayNode imported = result.putArray("connections");
+        ArrayNode notes = result.putArray("warnings").add(REVIEW).add(ACCESS);
+        EndpointEntity endpoint = null;
+        if (includeEndpoint) {
+          JsonNode source = bundle.path("endpoint");
+          endpoint = new EndpointEntity(slug, Env.DEV, "read-only".equals(source.path("access").asString())
+              ? EndpointAccess.READ_ONLY : EndpointAccess.STANDARD, rows.map(source.path("settings")), clock.instant());
+          endpoint.setDescription(source.path("description").asString(null));
+          endpoint.setInstructions(source.path("instructions").asString(null));
+          endpoint.setOauthEnabled(false);
+          endpoint = rows.save(endpoint);
+          for (JsonNode tool : bundle.path("coreTools")) rows.save(new EndpointToolEntity(endpoint, null,
+              tool.path("toolKey").asString(), safeCoreMode(tool, endpoint), clock.instant()));
+        }
+        for (String id : ids) {
+          JsonNode entry = entries.get(id);
+          var ready = prepared.get(id);
+          var added = connections.importPrepared(ready, reason);
+          var sharedTemplates = templates.importFor(entry.path("templates"), added.name(), includeSecrets, reason);
+          sharedTemplates.warnings().forEach(notes::add);
+          imported.addObject().put("id", added.id()).put("name", added.name()).put("needsSetup", ready.needsSetup());
+          if (endpoint != null) {
+            var stored = configs.byId(added.id()).orElseThrow();
+            Wiring.mixing(endpoint.getEnv(), !wiring.wired(endpoint.getId()).isEmpty(), stored.config().env(), slug, added.name())
+                .ifPresent(message -> { throw invalid(message); });
+            var manifest = registry.manifest(added.type()).orElseThrow();
+            wiring.wire(endpoint, stored, manifest, offered -> Mode.OFF);
+            Map<String, EndpointToolEntity> written = new LinkedHashMap<>();
+            toolRows.findByEndpointIdAndConnectionId(endpoint.getId(), added.id()).forEach(t -> written.put(t.getToolKey(), t));
+            for (var tool : manifest.tools()) {
+              String key = ToolPairs.key(manifest, stored.config(), tool.name());
+              if (!written.containsKey(key)) written.put(key, rows.save(new EndpointToolEntity(endpoint, added.id(), key, Mode.OFF, clock.instant())));
+            }
+            // Reserve every compiled tool as Off before applying the selected source modes. Reconciliation must
+            // not treat an omitted first-version template tool as new and enable its default mode.
+            for (var compiled : templateService.compiledFor(added.id())) for (var tool : compiled.tools()) {
+              String key = compiled.toolKey(tool);
+              if (!written.containsKey(key)) written.put(key, rows.save(new EndpointToolEntity(endpoint, added.id(), key, Mode.OFF, clock.instant())));
+            }
+            for (JsonNode sourceTool : entry.path("tools")) {
+              String key = remapTool(sourceTool.path("toolKey").asString(), sharedTemplates.ids());
+              if (key == null) continue;
+              EndpointToolEntity target = written.get(key);
+              if (target == null) continue;
+              Mode mode = safeMode(sourceTool);
+              if ((key.startsWith("tpl:") || key.startsWith("plugin:")) && mode == Mode.READ_ONLY) mode = Mode.APPROVAL;
+              final String toolKey = key;
+              var definition = manifest.tools().stream().filter(t -> ToolPairs.key(manifest, stored.config(), t.name()).equals(toolKey)).findFirst();
+              if (mode == Mode.READ_ONLY && definition.isPresent() && !definition.get().readOnlyModeAllowed()) mode = Mode.APPROVAL;
+              if (endpoint.getAccess() == EndpointAccess.READ_ONLY) {
+                mode = definition.isPresent() ? ToolPairs.clampReadOnly(definition.get(), mode) : Mode.OFF;
+              }
+              target.setMode(mode, clock.instant());
+              if (sourceTool.path("overrides").isObject()) target.setOverrides(rows.map(sourceTool.path("overrides")), clock.instant());
+              rows.save(target);
+            }
+            endpoint.setEnv(wiring.deriveEnv(endpoint.getId(), endpoint.getEnv()));
+            endpoint = rows.save(endpoint);
+          }
+        }
+        if (endpoint != null) {
+          changes.record(new SetupChangeRecorder.SetupChange(SetupChangeRecorder.What.SETTINGS,
+              "Endpoint " + slug + " imported", null, "Enabled; selected connections copied", reason, endpoint.getEnv(), slug, null, null));
+          publisher.publishEvent(new EndpointChanged(endpoint.getId(), slug));
+        }
+        return result;
+      });
+    } finally { prepared.values().forEach(ConnectionShares.Prepared::close); }
   }
 
   private void validate(JsonNode bundle) {

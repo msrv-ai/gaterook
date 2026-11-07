@@ -244,7 +244,7 @@ describe('starting', () => {
     expect(main.getAttribute('data-state')).toBe('starting');
     expect(text(document.getElementById(main.getAttribute('aria-labelledby')!))).toBe('Starting the gateway core');
     expect(text(page.querySelector('.gw-status-screen__text p'))).toBe(
-      'Starting the native core and the local API on 127.0.0.1:7465. This usually takes about a second.',
+      'Preparing GateRook and starting local services. This may take a moment.',
     );
     const steps = [...page.querySelectorAll('.gw-stepper__step')];
     expect(steps.map((s) => s.getAttribute('data-state'))).toEqual(['complete', 'complete', 'complete', 'current']);
@@ -259,10 +259,11 @@ describe('starting', () => {
     expect(text(page.querySelector('.gw-status-screen__meta'))).toBe('GateRook 0.4.0 · core on 127.0.0.1:7465 · log ~/.gaterook/logs/core.log');
   });
 
-  it('names the port Electron starts the core on, not the default', async () => {
+  it('keeps the startup summary free of connection details while showing the active port in diagnostics', async () => {
     const page = await render();
     await emit({ kind: 'starting', steps: [], port: 7475, publicPort: 7466 });
-    expect(text(page.querySelector('.gw-status-screen__text p'))).toContain('127.0.0.1:7475');
+    expect(text(page.querySelector('.gw-status-screen__text p'))).not.toMatch(/127\.0\.0\.1|7475/);
+    expect(text(page.querySelector('.gw-status-screen__meta'))).toContain('core on 127.0.0.1:7475');
     expect(text(page.querySelector('.gw-stepper__step[data-state=current]'))).toContain('Native core');
   });
 });
@@ -538,7 +539,7 @@ describe('port in use', () => {
     expect(document.activeElement).toBe(opener);
     await emit({ kind: 'starting', steps: [], port: 7481, publicPort: 7466, version: '0.4.0' });
     expect(text(page.querySelector('h1'))).toBe('Starting the gateway core');
-    expect(text(page.querySelector('.gw-status-screen__text p'))).toContain('127.0.0.1:7481');
+    expect(text(page.querySelector('.gw-status-screen__meta'))).toContain('core on 127.0.0.1:7481');
   });
 
   it('a new state closes the dialog: the port it was about is no longer the question', async () => {
