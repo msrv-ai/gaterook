@@ -152,6 +152,56 @@ class ConnectionImportServiceTest {
   }
 
   @Test
+  void taskListingShowsStartedAnalysesAndReviewsInStableNewestFirstOrder() {
+    var awaiting = start();
+    service.schema(awaiting.id(), awaiting.submissionToken(), "ep-source", null);
+    assertThat(service.tasks()).isEmpty();
+
+    when(clock.instant()).thenReturn(NOW.plusSeconds(10));
+    var running = service.start("/example/running-repository", "dev");
+    service.progress(running.id(), running.submissionToken(), "ep-source", "Checking configuration");
+    List<ConnectionImportService.Task> snapshot = service.tasks();
+    assertThat(snapshot).containsExactly(new ConnectionImportService.Task(running.id(), running.repository(), "dev",
+        running.expiresAt(), "awaiting", new ConnectionImportService.Progress(NOW.plusSeconds(10), NOW.plusSeconds(10),
+            "Checking configuration")));
+
+    when(clock.instant()).thenReturn(NOW.plusSeconds(20));
+    var review = start();
+    submit(review, manifest());
+    var anotherReview = start();
+    submit(anotherReview, manifest());
+    List<String> tied = List.of(review.id(), anotherReview.id()).stream().sorted().toList();
+    assertThat(service.tasks()).extracting(ConnectionImportService.Task::id)
+        .containsExactly(tied.get(0), tied.get(1), running.id());
+    assertThat(service.tasks().getFirst().status()).isEqualTo("review");
+    assertThat(service.tasks().getFirst().progress()).isNull();
+    assertThat(service.tasks()).extracting(ConnectionImportService.Task::id).doesNotContain(awaiting.id());
+
+    when(clock.instant()).thenReturn(NOW.plusSeconds(30));
+    service.progress(running.id(), running.submissionToken(), "ep-source", "Preparing the proposal");
+    assertThat(service.tasks().getLast().progress().message()).isEqualTo("Preparing the proposal");
+    assertThat(snapshot.getFirst().progress().message()).isEqualTo("Checking configuration");
+    assertThat(snapshot.getFirst().status()).isEqualTo("awaiting");
+    verifyNoInteractions(connections, wiring);
+  }
+
+  @Test
+  void taskListingDropsCancelledAndExpiredImportsAndCleansTheirFiles() {
+    var cancelled = start();
+    service.progress(cancelled.id(), cancelled.submissionToken(), "ep-source", "Checking configuration");
+    var expired = start();
+    submit(expired, manifest());
+    assertThat(service.tasks()).hasSize(2);
+    service.cancel(cancelled.id());
+    assertThat(service.tasks()).extracting(ConnectionImportService.Task::id).containsExactly(expired.id());
+    when(clock.instant()).thenReturn(NOW.plus(ConnectionImportService.LIFETIME));
+    assertThat(service.tasks()).isEmpty();
+    verify(files).delete(cancelled.id());
+    verify(files).delete(expired.id());
+    verifyNoInteractions(connections, wiring);
+  }
+
+  @Test
   void schemaAndSubmitRequireTheUserCapabilityAndItsOriginalEndpoint() {
     var session = start();
     for (String endpoint : List.of("other-endpoint", "")) {
@@ -368,6 +418,7 @@ class ConnectionImportServiceTest {
         Map.of("db", Map.of("/credentials/password", staged))));
     service.submit(session.id(), session.submissionToken(), "ep-source", "caller", null);
     verify(staged, never()).resolve();
+    assertThat(service.tasks()).extracting(ConnectionImportService.Task::id).containsExactly(session.id());
     assertThat(service.get(session.id()).manifest().toString()).contains("/credentials/db.txt")
         .doesNotContain("private-test-value");
     ConnectionService.Summary created = mock(ConnectionService.Summary.class);
@@ -378,6 +429,7 @@ class ConnectionImportServiceTest {
     verify(staged).clear();
     verify(wiring).add("dev", "reviewed-db", null);
     assertThat(service.get(session.id()).status()).isEqualTo("imported");
+    assertThat(service.tasks()).isEmpty();
     assertThatThrownBy(() -> service.commit(session.id(), "dev", List.of(selection("dev")), null))
         .isInstanceOf(ProblemException.class);
   }

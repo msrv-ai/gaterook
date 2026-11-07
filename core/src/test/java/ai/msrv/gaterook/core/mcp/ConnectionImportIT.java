@@ -164,6 +164,57 @@ class ConnectionImportIT {
     }
   }
 
+  @Test
+  void signedAdminCanListActiveTasksWithoutHandoffCapabilitiesOrStagedData() throws Exception {
+    assertThat(admin.sendUnsigned(HttpMethod.GET, "/api/connection-imports", null).status()).isEqualTo(401);
+    JsonNode running = session();
+    JsonNode awaiting = session();
+    JsonNode review = session();
+    try {
+      String message = "Checking repository configuration for the sidebar";
+      assertThat(agent.legacyCall("connection_import_progress", capability(running).put("message", message))
+          .result().path("isError").asBoolean()).isFalse();
+      ObjectNode discovered = manifest("sidebar-private-candidate");
+      ObjectNode candidate = (ObjectNode) discovered.path("connections").get(0);
+      candidate.putArray("evidence").add("config/sidebar-private-evidence.yml");
+      candidate.putObject("secrets").putObject("/credentials/password").put("source", "local")
+          .put("value", "sidebar-private-credential");
+      Files.writeString(Path.of(review.path("importFile").asString()), discovered.toString());
+      assertThat(agent.legacyCall("submit_connection_import", capability(review)).result().path("isError").asBoolean()).isFalse();
+
+      JsonNode listed = admin.ok("/api/connection-imports");
+      assertThat(listed.propertyNames()).containsExactly("items");
+      JsonNode runningTask = listedTask(listed, running);
+      JsonNode reviewTask = listedTask(listed, review);
+      assertThat(listedTask(listed, awaiting)).isNull();
+      assertThat(runningTask).isNotNull();
+      assertThat(reviewTask).isNotNull();
+      for (JsonNode task : listed.path("items")) {
+        assertThat(task.propertyNames()).containsExactlyInAnyOrder("id", "repository", "endpoint", "expiresAt", "status", "progress");
+        assertThat(task.path("status").asString()).isIn("awaiting", "review");
+      }
+      assertThat(runningTask.path("repository")).isEqualTo(running.path("repository"));
+      assertThat(runningTask.path("endpoint")).isEqualTo(running.path("endpoint"));
+      assertThat(runningTask.path("expiresAt")).isEqualTo(running.path("expiresAt"));
+      assertThat(runningTask.path("status").asString()).isEqualTo("awaiting");
+      assertThat(runningTask.at("/progress/message").asString()).isEqualTo(message);
+      assertThat(runningTask.path("progress").propertyNames()).containsExactlyInAnyOrder("startedAt", "updatedAt", "message");
+      assertThat(reviewTask.path("status").asString()).isEqualTo("review");
+      assertThat(reviewTask.path("progress").isNull()).isTrue();
+      assertThat(listed.toString()).doesNotContain("submissionToken", "importFile", "manifest", "secretSources",
+          "sidebar-private-candidate", "sidebar-private-evidence", "sidebar-private-credential",
+          running.path("submissionToken").asString(), running.path("importFile").asString(),
+          review.path("submissionToken").asString(), review.path("importFile").asString());
+
+      admin.expect(204, HttpMethod.DELETE, path(running), null);
+      assertThat(listedTask(admin.ok("/api/connection-imports"), running)).isNull();
+    } finally {
+      admin.expect(204, HttpMethod.DELETE, path(running), null);
+      admin.expect(204, HttpMethod.DELETE, path(awaiting), null);
+      admin.expect(204, HttpMethod.DELETE, path(review), null);
+    }
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"2025-11-25", "2026-07-28"})
   void contentOnlyClientsCanReadTheCatalogAndCompleteConnectorSchema(String revision) {
@@ -393,6 +444,13 @@ class ConnectionImportIT {
   }
 
   private static String path(JsonNode session) { return "/api/connection-imports/" + session.path("id").asString(); }
+
+  private static JsonNode listedTask(JsonNode listing, JsonNode session) {
+    for (JsonNode task : listing.path("items")) {
+      if (task.path("id").equals(session.path("id"))) return task;
+    }
+    return null;
+  }
 
   private static ObjectNode capability(JsonNode session) {
     return args("sessionId", session.path("id").asString(), "submissionToken", session.path("submissionToken").asString());

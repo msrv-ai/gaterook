@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { provideLocationMocks } from '@angular/common/testing';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -7,6 +7,9 @@ import { Router, provideRouter } from '@angular/router';
 import { App } from '../app';
 import { problemJsonInterceptor } from '../core/api/problem-json.interceptor';
 import { Onboarding } from '../core/api/overview.api';
+import { ConnectionImportTask } from '../core/api/connection-imports.api';
+import { ConnectionImportsStore } from '../core/stores/connection-imports.store';
+import { TimeService } from '../core/time/time.service';
 import { DesktopBridge } from '../core/desktop/desktop-bridge';
 import { EVENT_STREAM_FETCH, EventStream } from '../core/events/event-stream';
 import { DEMO_CONSENT as REMOTE_CONSENT } from '../dev/fixtures-clients';
@@ -163,6 +166,81 @@ describe('MCP servers sidebar shortcut', () => {
     el.querySelector<HTMLButtonElement>('.gw-titlebar__drag button')!.click();
     await vi.waitFor(() => expect(router.url).toBe('/connectors'));
     await expectSelection('tab-installed', 'Connectors');
+  });
+});
+
+describe('import tasks in the sidebar', () => {
+  const startedAt = '2026-11-07T12:00:00Z';
+  const task: ConnectionImportTask = {
+    id: 'ci_abcdefgh1234', repository: '/workspace/example', endpoint: 'default',
+    expiresAt: '2026-11-07T14:00:00Z', status: 'awaiting',
+    progress: { startedAt, updatedAt: startedAt, message: 'Checking repository configuration' },
+  };
+
+  beforeEach(() => configure([
+    { path: 'overview', component: Page, data: { section: 'Overview' } },
+    { path: 'connections', component: Page, data: { section: 'Connections' } },
+    { path: 'connection-import/:id', component: Page, data: { section: 'Import connections' } },
+  ]));
+
+  it('restores active imports from the core and links back from other screens and a collapsed sidebar', async () => {
+    vi.spyOn(TestBed.inject(TimeService), 'now').mockReturnValue(Date.parse(startedAt));
+    const { fixture, http, el } = await runningApp();
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/overview');
+    http.expectOne('/api/connection-imports').flush({ items: [task,
+      { ...task, id: 'ci_1234abcdefgh', repository: 'C:\\workspace\\example', endpoint: 'stage' },
+    ] });
+    await fixture.whenStable();
+    const links = () => Array.from(el.querySelectorAll<HTMLAnchorElement>('[aria-labelledby="gw-nav-imports"] a'));
+    expect(links().map(link => link.getAttribute('aria-label'))).toEqual([
+      'Import example, In progress, endpoint default', 'Import example, In progress, endpoint stage',
+    ]);
+    expect(text(links()[0])).toContain('In progress');
+    expect(links()[0].title).toContain(task.progress!.message);
+    expect(links()[0].getAttribute('href')).toBe('/connection-import/' + task.id);
+    links()[0].click();
+    await vi.waitFor(() => expect(router.url).toBe('/connection-import/' + task.id));
+    await fixture.whenStable();
+    expect(links()[0].getAttribute('aria-current')).toBe('page');
+    await router.navigateByUrl('/connection-import/' + task.id + '?app=cursor');
+    await fixture.whenStable();
+    expect(links()[0].getAttribute('aria-current')).toBe('page');
+    await router.navigateByUrl('/connections');
+    await fixture.whenStable();
+    expect(links()).toHaveLength(2);
+    expect(links()[0].hasAttribute('aria-current')).toBe(false);
+    el.querySelector<HTMLButtonElement>('.gw-sidebar__toggle')!.click();
+    links()[0].click();
+    await vi.waitFor(() => expect(router.url).toBe('/connection-import/' + task.id));
+    expect(links()[0].getAttribute('aria-label')).toBe('Import example, In progress, endpoint default');
+  });
+
+  it('shows pause, resume and review status, then removes finished imports', async () => {
+    const now = signal(Date.parse(startedAt));
+    vi.spyOn(TestBed.inject(TimeService), 'now').mockImplementation(now);
+    const { fixture, http, el } = await runningApp();
+    await TestBed.inject(Router).navigateByUrl('/overview');
+    http.expectOne('/api/connection-imports').flush({ items: [task] });
+    await fixture.whenStable();
+    const group = () => el.querySelector('[aria-labelledby="gw-nav-imports"]');
+    expect(text(group())).toContain('In progress');
+    now.update(value => value + 15 * 60_000 + 1);
+    fixture.detectChanges();
+    expect(text(group())).toContain('Paused');
+    const refresh = async (items: readonly ConnectionImportTask[]) => {
+      const pending = TestBed.inject(ConnectionImportsStore).refresh();
+      http.expectOne('/api/connection-imports').flush({ items });
+      await pending;
+      await fixture.whenStable();
+    };
+    await refresh([{ ...task, progress: { ...task.progress!, updatedAt: new Date(now()).toISOString(), message: 'Preparing results' } }]);
+    expect(text(group())).toContain('In progress');
+    await refresh([{ ...task, status: 'review' }]);
+    expect(text(group())).toContain('Ready to review');
+    expect(text(group())).not.toContain('Paused');
+    await refresh([]);
+    expect(group()).toBeNull();
   });
 });
 

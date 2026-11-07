@@ -73,7 +73,7 @@ export class ConnectionImportPage {
   readonly busy = signal(false);
   readonly error = signal('');
   readonly notice = signal('');
-  private readonly copiedPrompt = signal<{ text: string; client: ClientId } | null>(null);
+  private readonly copiedPrompt = signal<{ text: string; client: ClientId | null } | null>(null);
   readonly promptCopied = computed(() => this.copiedPrompt()?.text === this.prompt() && this.copiedPrompt()?.client === this.selectedClient());
   readonly unavailable = signal(false);
   readonly repository = signal('');
@@ -269,22 +269,25 @@ export class ConnectionImportPage {
 
   async handoff(client: 'claude' | 'codex' | 'cursor' | 'copy' | 'antigravity'): Promise<void> {
     if (!this.prompt() || this.expired()) return;
+    if (this.importProgress() && client !== 'copy' && client !== 'antigravity') return;
     const selected = this.appSelection();
     const launch = selected?.client === 'claude-desktop' ? 'claude' : selected?.client;
-    if (!selected?.ready || (client !== 'copy' && client !== launch)) { this.fail(new Error('Choose a connected AI app for this endpoint before sending the prompt.')); return; }
+    const copyActivePrompt = client === 'copy' && !!this.importProgress();
+    if (!copyActivePrompt && (!selected?.ready || (client !== 'copy' && client !== launch))) { this.fail(new Error('Choose a connected AI app for this endpoint before sending the prompt.')); return; }
     this.error.set('');
     try {
       if (client === 'copy' || client === 'antigravity') {
         const text = this.prompt();
+        const selectedClient = this.selectedClient();
         this.copiedPrompt.set(null);
         if (this.copyTimer) clearTimeout(this.copyTimer);
         const copied = await this.clipboard.write(text);
-        if (this.destroy.destroyed || text !== this.prompt() || selected.client !== this.selectedClient()) return;
+        if (this.destroy.destroyed || text !== this.prompt() || selectedClient !== this.selectedClient()) return;
         if (copied) {
-          this.copiedPrompt.set({ text, client: selected.client });
+          this.copiedPrompt.set({ text, client: selectedClient });
           this.copyTimer = setTimeout(() => this.copiedPrompt.set(null), COPIED_MS);
         }
-        this.notice.set(copied ? `Prompt copied. Paste it into ${selected.name} with repository access and GateRook connected.`
+        this.notice.set(copied ? this.importProgress() ? 'Prompt copied.' : `Prompt copied. Paste it into ${selected!.name} with repository access and GateRook connected.`
           : 'Could not copy. Expand the prompt and copy its text.');
       } else {
         await this.desktop.openAiPrompt(client, this.prompt());

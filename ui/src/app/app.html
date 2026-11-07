@@ -91,6 +91,19 @@
                 }
               </ul>
             </div>
+            @if ($first && importTasks().length) {
+              <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-imports">
+                <p class="gw-nav__group-label" id="gw-nav-imports">Imports</p>
+                <ul class="gw-nav__list">
+                  @for (task of importTasks(); track task.id) {
+                    <li><a class="gw-nav__item" [routerLink]="['/connection-import', task.id]" routerLinkActive ariaCurrentWhenActive="page" [attr.aria-label]="task.label" [title]="task.title">
+                      <svg [lucideIcon]="task.icon" class="gw-icon gw-nav__icon"></svg>
+                      <span class="gw-nav__label">{{ task.name }}<br><span class="gw-text-caption">{{ task.status }} · {{ task.endpoint }}</span></span>
+                    </a></li>
+                  }
+                </ul>
+              </div>
+            }
           }
         </nav>
 
