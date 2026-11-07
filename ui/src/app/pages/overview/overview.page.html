@@ -258,6 +258,15 @@
                   >
                     Clear search
                   </button>
+                } @else if (!problemsOnly() && data.endpoints() !== null) {
+                  <p class="gw-text-caption gw-fg-muted">
+                    Ask your AI app to analyze a repository and prepare connections for review.
+                  </p>
+                  <div>
+                    <a class="gw-btn gw-btn--primary gw-btn--sm" routerLink="/connection-import" [queryParams]="{ endpoint: endpoint()?.slug }">
+                      <svg lucideIcon="lightbulb" class="gw-icon"></svg>Import with AI
+                    </a>
+                  </div>
                 }
               </div>
             </li>
@@ -602,8 +611,11 @@
             ><button
               class="gw-btn gw-btn--sm"
               type="button"
+              id="ov-show-path"
               (click)="showPath()"
               [attr.aria-disabled]="traceReason() ? 'true' : null"
+              [attr.aria-expanded]="requestPath() ? 'true' : 'false'"
+              aria-controls="ov-request-path"
               aria-describedby="ov-trace-reason"
             >
               <svg lucideIcon="route" class="gw-icon gw-icon--sm"></svg>Show path</button
@@ -691,22 +703,9 @@
           Pausing an endpoint keeps its settings and does not affect other endpoints.
         </p>
       }
-      @if (trace(); as path) {
-        <div class="gw-alert gw-alert--info gw-alert--compact" role="status">
-          <svg lucideIcon="route" class="gw-icon gw-alert__icon"></svg>
-          <div class="gw-alert__content">
-            <p class="gw-alert__title">
-              {{ path.app }} → {{ endpoint()?.slug }} → {{ path.service }}
-            </p>
-            <p class="gw-alert__body">
-              Example path only; no request is sent. GateRook checks access rules, requests approval
-              when required and records the result. An unreachable service cannot complete the call.
-            </p>
-          </div>
-          <div class="gw-alert__actions">
-            <button class="gw-btn gw-btn--sm" type="button" (click)="clearPath()">Clear</button>
-          </div>
-        </div>
+      @if (requestPath(); as path) {
+        <gw-overview-request-path [app]="path.app" [service]="path.service" [endpoint]="path.endpoint"
+          [sequence]="path.sequence" [serviceMark]="mark(path.service)" (cleared)="clearPath()" />
       }
     </div>
   </section>

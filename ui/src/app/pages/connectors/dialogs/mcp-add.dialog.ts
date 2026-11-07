@@ -519,7 +519,7 @@ let nextId = 0;
                   <input class="gw-search__input" type="search" [id]="uid + '-find-q'" [attr.autofocus]="tab() === 'registry' ? '' : null" placeholder="linear, sentry, postgres" spellcheck="false" autocapitalize="off" autocomplete="off" [attr.aria-describedby]="uid + '-find-hint'" (input)="find(value($event))" (keydown.enter)="findNow($event)">
                   <button class="gw-search__clear" type="button" aria-label="Clear search"><svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg></button>
                 </div>
-                <p class="gw-field__hint" [id]="uid + '-find-hint'">Searches server names in the registry. Use fills in Manual entry; nothing runs or connects before the review.</p>
+                <p class="gw-field__hint" [id]="uid + '-find-hint'">Browse servers or search by name in the registry. Use fills in Manual entry; nothing runs or connects before the review.</p>
               </div>
               <p class="gw-text-small gw-fg-muted gw-tabular" role="status">{{ findStatus() }}</p>
               @if (findError(); as e) {
@@ -573,11 +573,16 @@ let nextId = 0;
                   <div><button class="gw-btn gw-btn--sm" type="button" (click)="more()" [attr.aria-busy]="moreBusy() ? 'true' : null" [attr.aria-disabled]="moreBusy() || searching() ? 'true' : null">@if (moreBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} Show more</button></div>
                 }
                 <p class="gw-text-caption gw-fg-muted">{{ source() }} The registry checks who published a name, not what the server does: the review shows what will run.</p>
-              } @else if (searched(); as q) {
+              } @else if (searched() !== null && !searching()) {
                 <div class="gw-empty gw-empty--compact">
                   <span class="gw-empty__icon"><svg lucideIcon="search-x" class="gw-icon"></svg></span>
-                  <p class="gw-empty__title">No server name contains “{{ q }}”</p>
-                  <p class="gw-empty__text">Try a shorter part of its name, or paste the configuration from the server’s docs in Manual entry.</p>
+                  @if (searched(); as q) {
+                    <p class="gw-empty__title">No server name contains “{{ q }}”</p>
+                    <p class="gw-empty__text">Try a shorter part of its name, or paste the configuration from the server’s docs in Manual entry.</p>
+                  } @else {
+                    <p class="gw-empty__title">No servers available</p>
+                    <p class="gw-empty__text">Search for a server by name, or paste its configuration in Manual entry.</p>
+                  }
                 </div>
               }
             </div>
@@ -636,7 +641,7 @@ export class GwMcpAddDialog {
   /** Manual entry (the fields, and a pasted configuration) or the Official MCP Registry tab. */
   protected readonly tab = signal<'manual' | 'registry'>('manual');
   private readonly tabs = viewChild.required(GwTabs);
-  /** The registry tab: the servers whose names contain the query, a page at a time (§7.5). */
+  /** The registry tab: browse servers or search their names, a page at a time (§7.5). */
   protected readonly found = signal<readonly RegistryResult[]>([]);
   /** The query the shown results answer; null before a search, or after the query became too short. */
   protected readonly searched = signal<string | null>(null);
@@ -654,7 +659,7 @@ export class GwMcpAddDialog {
 
   protected readonly findStatus = computed(() => {
     const q = this.query().trim();
-    if (this.searching()) return 'Searching the MCP registry…';
+    if (this.searching()) return q ? 'Searching the MCP registry…' : 'Loading servers from the MCP registry…';
     if (q && q.length < 3) return 'Type at least 3 characters of the server’s name.';
     if (this.searched() === null) return '';
     const n = this.found().length;
@@ -667,7 +672,10 @@ export class GwMcpAddDialog {
   });
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.findTimer && clearTimeout(this.findTimer));
+    inject(DestroyRef).onDestroy(() => {
+      this.findSeq++;
+      if (this.findTimer) clearTimeout(this.findTimer);
+    });
   }
 
   /** Opens an empty draft for the explicitly selected source; no server starts until its review is confirmed. */
@@ -697,12 +705,12 @@ export class GwMcpAddDialog {
     this.pasteError.set(null);
     const paste = this.host.querySelector<HTMLTextAreaElement>(`#${this.uid}-paste-text`);
     if (paste) paste.value = '';
-    this.tabs().selectById(`${this.uid}-tab-${source === 'registry' ? 'registry' : 'manual'}`);
     this.resetFind();
     this.chosen.set(null);
     const search = this.host.querySelector<HTMLInputElement>(`#${this.uid}-find-q`);
     if (search) search.value = '';
     this.query.set('');
+    this.tabs().selectById(`${this.uid}-tab-${source === 'registry' ? 'registry' : 'manual'}`);
     this.errors.set({});
     this.error.set(null);
     this.busy.set(false);
@@ -783,6 +791,8 @@ export class GwMcpAddDialog {
 
   protected onTab(id: string): void {
     this.tab.set(id === `${this.uid}-tab-registry` ? 'registry' : 'manual');
+    if (this.tab() === 'registry' && !this.query().trim() && this.searched() === null
+      && !this.searching() && !this.findError()) void this.runFind('');
   }
 
   /** The query as typed: a search 350 ms after the last key, from 3 characters (the registry's minimum). */
@@ -790,12 +800,21 @@ export class GwMcpAddDialog {
     this.query.set(text);
     if (this.findTimer) clearTimeout(this.findTimer);
     this.findTimer = null;
+    // Invalidate in-flight results as soon as the query changes, including the debounce interval.
+    this.findSeq++;
+    this.moreBusy.set(false);
+    this.findError.set(null);
     const q = text.trim();
     if (q.length < 3) {
       this.resetFind();
+      if (!q) void this.runFind('');
       return;
     }
-    this.findTimer = setTimeout(() => void this.runFind(q), 350);
+    this.searching.set(true);
+    this.findTimer = setTimeout(() => {
+      this.findTimer = null;
+      void this.runFind(q);
+    }, 350);
   }
 
   /** Enter searches at once, and never submits the form around the field. */
@@ -804,15 +823,17 @@ export class GwMcpAddDialog {
     if (this.findTimer) clearTimeout(this.findTimer);
     this.findTimer = null;
     const q = this.query().trim();
-    if (q.length >= 3) void this.runFind(q);
+    if (!q || q.length >= 3) void this.runFind(q);
   }
 
   protected retryFind(): void {
     const q = this.query().trim();
-    if (q.length >= 3) void this.runFind(q);
+    if (!q || q.length >= 3) void this.runFind(q);
   }
 
   private resetFind(): void {
+    if (this.findTimer) clearTimeout(this.findTimer);
+    this.findTimer = null;
     this.findSeq++;
     this.found.set([]);
     this.searched.set(null);
