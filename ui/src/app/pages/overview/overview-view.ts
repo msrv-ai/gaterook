@@ -249,8 +249,10 @@ export interface AppTile {
 
 /** An app the guide or the home screen offers to connect, or one to install (a card's state in the tile's words). */
 export function guideAppTile(card: ClientCard): AppTile {
-  const endpoints = [...new Set(card.links.filter((link) => link.status === 'connected' || link.status === 'needs-restart').map((link) => link.endpoint))];
+  const endpoints = [...new Set(card.links.filter((link) => link.status === 'connected' || link.status === 'needs-restart' || link.status === 'pending').map((link) => link.endpoint))];
   switch (card.status) {
+    case 'pending':
+      return { client: card.client, name: card.name, meta: 'Finish MCP setup in the app', endpoints, state: { tone: 'info', label: 'Awaiting connection' }, linked: true, action: null };
     case 'connected':
       return { client: card.client, name: card.name, meta: canUse(card, null), endpoints, state: { tone: 'success', label: 'Connected' }, linked: true, action: null };
     case 'needs-restart':

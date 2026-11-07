@@ -1,15 +1,17 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DOCUMENT, Injector, afterNextRender, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DOCUMENT, Injector, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
-import { ClientCard, ClientId, ClientLink, ConnectRequest } from '../../core/api/clients.api';
+import { ClientCard, ClientId, ClientLink, ConnectRequest, ManualClientId } from '../../core/api/clients.api';
 import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { CoreStore } from '../../core/stores/core.store';
 import { TimeService } from '../../core/time/time.service';
 import { Announcer } from '../../kit/announcer';
 import { GwCopy } from '../../kit/copy';
 import { GwToggle } from '../../kit/disclosure';
+import { GwDialog } from '../../kit/dialog';
+import { GwClientDisclosure } from '../../kit/elements/client-card/client-disclosure';
 import { ClientPreviewRequest, GwClientCard } from '../../kit/elements/client-card/client-card';
 import { ConfigEntry, INSTALL_URL, browserInstallUrl, reinstallToast, viaText } from '../../kit/elements/client-card/client-view';
 import { GwClientMark } from '../../kit/elements/shared/client-mark';
@@ -40,6 +42,7 @@ import {
 } from './clients-view';
 import { GwInlineConnectCard } from './inline-connect-card';
 import { GwManualSetup } from './manual-setup';
+import { ManualAppDialog } from './manual-app-dialog';
 
 /** The first render waits this long before it shows placeholders (kit: "when it takes longer than 300 ms"). */
 export const SKELETON_DELAY_MS = 300;
@@ -79,6 +82,9 @@ export const SKELETON_DELAY_MS = 300;
     GwClientCard,
     GwInlineConnectCard,
     GwManualSetup,
+    GwDialog,
+    GwClientDisclosure,
+    ManualAppDialog,
   ],
   providers: [ClientsData],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -108,6 +114,10 @@ export class ClientsPage {
   protected readonly connecting = signal<ClientId | null>(null);
   /** The link whose extension Reinstall is building. */
   protected readonly reinstalling = signal<string | null>(null);
+  protected readonly removingManual = signal<ClientCard | null>(null);
+  protected readonly removeBusy = signal(false);
+  protected readonly removeError = signal<string | null>(null);
+  private readonly removeDialog = viewChild.required<GwDialog>('removeManualDialog');
 
   protected readonly cards = this.data.cards;
   /** An explicit Overview Connect action keeps its exact endpoint, even when the app already has other links. */
@@ -297,6 +307,37 @@ export class ClientsPage {
       else next.delete(client);
       return next;
     });
+  }
+
+  protected manualSaved(card: ClientCard): void {
+    this.expandApp(card.client, true);
+  }
+
+  protected manualUrl(card: ClientCard): string | null {
+    return this.endpoints().find((e) => e.slug === card.links[0]?.endpoint)?.url ?? null;
+  }
+
+  protected askRemoveManual(card: ClientCard, opener: HTMLElement): void {
+    this.removingManual.set(card);
+    this.removeError.set(null);
+    this.removeDialog().openAfterRender(opener);
+  }
+
+  protected async removeManual(): Promise<void> {
+    const card = this.removingManual();
+    if (!card || this.removeBusy()) return;
+    this.removeBusy.set(true);
+    this.removeError.set(null);
+    try {
+      await this.data.removeManual(card.client as ManualClientId);
+      this.removeDialog().close('removed');
+      this.toasts.show({ tone: 'success', title: `${card.name} removed`, body: 'Its token is revoked. Remove the MCP entry from your app when convenient.' });
+      this.focus('cl-local-t');
+    } catch (e) {
+      this.removeError.set(errorSentence(e));
+    } finally {
+      this.removeBusy.set(false);
+    }
   }
 
   /** A row's Connect (setup): the same anchor again doesn't navigate, so the review opens here too. */

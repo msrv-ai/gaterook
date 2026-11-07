@@ -291,7 +291,9 @@ export class ConnectionImportPage {
   async handoffSelected(): Promise<void> {
     const app = this.appSelection();
     if (!app?.ready) return;
-    await this.handoff(!this.desktop.aiPromptAvailable ? 'copy' : app.client === 'claude-desktop' ? 'claude' : app.client);
+    const client = app.client;
+    const target = client === 'claude-desktop' ? 'claude' : client === 'codex' || client === 'cursor' || client === 'antigravity' ? client : 'copy';
+    await this.handoff(!this.desktop.aiPromptAvailable ? 'copy' : target);
   }
 
   backToSetup(): void {

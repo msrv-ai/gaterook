@@ -134,6 +134,7 @@ public class ClientService {
   private record EntryChoice(String name, boolean replacement, List<String> duplicates) {}
 
   private final ClientLinkRepository links;
+  private final ManualClients manualClients;
   private final ClientGrants grants;
   private final TokenService tokens;
   private final EndpointService endpoints;
@@ -151,10 +152,11 @@ public class ClientService {
   private final Map<ClientKind, Detection> detections = new EnumMap<>(ClientKind.class);
   private volatile Instant scannedAt;
 
-  public ClientService(ClientLinkRepository links, ClientGrants grants, TokenService tokens,
+  public ClientService(ClientLinkRepository links, ManualClients manualClients, ClientGrants grants, TokenService tokens,
       EndpointService endpoints, ToolCatalog catalog, LocalListener listener, ClientEnvironment env,
       EventBus events, SetupChangeRecorder setupChanges, Clock clock, PlatformTransactionManager transactions) {
     this.links = links;
+    this.manualClients = manualClients;
     this.grants = grants;
     this.tokens = tokens;
     this.endpoints = endpoints;
@@ -209,6 +211,7 @@ public class ClientService {
       List<Link> mine = active.stream().filter(l -> l.getClient() == a.kind()).map(l -> link(l, byId)).toList();
       out.add(card(a, d, mine));
     }
+    out.addAll(manualClients.cards());
     return out;
   }
 
@@ -1236,6 +1239,40 @@ public class ClientService {
 
   // ── Manual setup, the extension file ────────────────────────────────────────────────────────────────────────
 
+  /** Saves a user-named app and issues the credential to copy into its own MCP settings. */
+  public ClientViews.ManualAdded addManual(String name, String endpoint, Integer ttlDays) {
+    ClientViews.ManualAdded added = writeTx.execute(s -> manualAdded(manualClients.add(name, endpoint, ttlDays)));
+    publishManual(added.client().client(), endpoint, "pending");
+    return added;
+  }
+
+  /** Replaces the app's token; existing access ends as soon as this operation succeeds. */
+  public ClientViews.ManualAdded renewManualToken(String id, Integer ttlDays) {
+    ClientViews.ManualAdded added = writeTx.execute(s -> manualAdded(manualClients.renew(id, ttlDays)));
+    publishManual(id, added.setup().endpoint(), "pending");
+    return added;
+  }
+
+  public Disconnected removeManual(String id) {
+    Disconnected removed = manualClients.remove(id);
+    publishManual(id, null, "removed");
+    return removed;
+  }
+
+  private ClientViews.ManualAdded manualAdded(ManualClients.Added added) {
+    return new ClientViews.ManualAdded(added.client(), manual(added.client().links().getFirst().endpoint()),
+        added.token());
+  }
+
+  private void publishManual(String id, String endpoint, String status) {
+    ObjectNode data = JsonNodeFactory.instance.objectNode();
+    data.put("client", id);
+    data.put("link", id);
+    data.put("endpoint", endpoint);
+    data.put("status", status);
+    events.publish("clients.drift", data);
+  }
+
   /** {@code GET /api/clients/manual?endpoint=}: MCP Inspector and other apps, {@code ‹token›} in place of a token. */
   public Manual manual(String slug) {
     EndpointService.Summary e = endpoint(slug);
@@ -1308,6 +1345,7 @@ public class ClientService {
     // Removed ones too: every row that points at the endpoint goes before it.
     links.deleteAll(links.findAll().stream().filter(l -> l.getEndpointId().equals(endpointId)).toList());
     links.flush();
+    out.addAll(manualClients.endpointRemoving(endpointId));
     return out;
   }
 
@@ -1318,10 +1356,15 @@ public class ClientService {
     List<Link> views = active.stream().map(l -> link(l, byId)).toList();
     Set<String> clients = new java.util.LinkedHashSet<>();
     views.forEach(v -> clients.add(ClientAdapter.of(client(v.client())).displayName()));
+    List<Card> manual = manualClients.cards();
+    int clientCount = clients.size() + manual.size();
+    List<String> names = new ArrayList<>(clients);
+    manual.forEach(c -> names.add(c.name()));
     boolean attention = views.stream().anyMatch(v -> !Set.of("connected", "needs-restart").contains(v.status()));
+    attention |= manual.stream().anyMatch(c -> c.status().equals("error"));
     boolean namedTokens = endpoints.list().stream().anyMatch(e -> e.tokensActive() > 0);
-    return new ai.msrv.gaterook.core.platform.SetupProgress.Progress(clients.size(), !clients.isEmpty() || namedTokens,
-        attention, clients.isEmpty() ? null : String.join(", ", clients));
+    return new ai.msrv.gaterook.core.platform.SetupProgress.Progress(clientCount, clientCount > 0 || namedTokens,
+        attention, names.isEmpty() ? null : String.join(", ", names));
   }
 
   // ── The demo world ──────────────────────────────────────────────────────────────────────────────────────────
@@ -1743,6 +1786,9 @@ public class ClientService {
     for (ClientLinkEntity l : activeLinks()) {
       Link v = link(l, byId);
       out.put(v.id(), v.client() + " " + v.status() + (v.bridgeUpdate() == null ? "" : " bridge-update"));
+    }
+    for (Card app : manualClients.cards()) {
+      out.put(app.client(), app.client() + " " + app.status());
     }
     return out;
   }

@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ApiError } from '../../core/api/api-error';
-import { ClientsApi, ClientsView, ConnectPreview, ConnectRequest } from '../../core/api/clients.api';
+import { ClientsApi, ClientsView, ConnectPreview, ConnectRequest, ManualAppResult } from '../../core/api/clients.api';
 import { CoreApi } from '../../core/api/core.api';
 import { EndpointsApi, TokensApi, ToolGroup } from '../../core/api/endpoints.api';
 import { Overview, OverviewApi } from '../../core/api/overview.api';
@@ -11,7 +11,7 @@ import { OAuthApi, OAuthGrant, PublishPreview, TunnelApi, TunnelState } from '..
 import { EventStream } from '../../core/events/event-stream';
 import { TimeService } from '../../core/time/time.service';
 import { DEMO_CLIENTS, DEMO_GRANTS, DEMO_PUBLISH, DEMO_TUNNEL_OFF } from '../../dev/fixtures-clients';
-import { CALLS_THROTTLE_MS, ClientsData } from './clients.data';
+import { CALLS_THROTTLE_MS, MANUAL_POLL_MS, ClientsData } from './clients.data';
 import { firstRun as firstRunOverview, overview as inUseOverview, setup as setupOverview } from '../overview/overview.fixtures';
 import { NOW, codexDisconnect, connected, foundClients, kitClients, kitEndpoints, kitManual, kitTokens, previewFor, setupEndpoints } from './clients.fixtures';
 
@@ -72,6 +72,9 @@ function setup(): ClientsData {
     disconnect: (id, previewId) => (calls.push(`disconnect ${id} ${previewId}`), Promise.resolve({ linkId: id, entryRemoved: true, rejectedApprovals: 0, notes: [] })),
     removeClaudeBridge: () => (calls.push('remove-bridge'), Promise.resolve({ revoked: [], removedFiles: [], rejectedApprovals: 0, notes: [] })),
     manual: (slug) => (calls.push(`manual ${slug}`), Promise.resolve(kitManual())),
+    addManual: vi.fn(),
+    renewManual: vi.fn(),
+    removeManual: vi.fn(),
   };
   TestBed.configureTestingModule({
     providers: [
@@ -103,6 +106,86 @@ function setup(): ClientsData {
 }
 
 describe('ClientsData: loading', () => {
+  it('polls only pending manual apps, serializes drift reads, and stops after connection or destruction', async () => {
+    vi.useFakeTimers();
+    try {
+      const data = setup();
+      await data.start();
+      calls = [];
+      await vi.advanceTimersByTimeAsync(MANUAL_POLL_MS * 2);
+      expect(calls).toEqual([]);
+
+      const manual: ManualAppResult['client'] = { ...DEMO_CLIENTS.cursor, client: 'manual-example', manual: true, name: 'Research assistant', status: 'pending', detected: false, methods: [], links: [] };
+      const pending = { scannedAt: null, clients: [manual] };
+      answers.list = async () => pending;
+      await data.reloadClients();
+      calls = [];
+      let finish!: (view: ClientsView) => void;
+      answers.list = () => new Promise((resolve) => { finish = resolve; });
+      await vi.advanceTimersByTimeAsync(MANUAL_POLL_MS - 1);
+      expect(calls).toEqual([]);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(calls).toEqual(['list']);
+      events.emit('clients.drift', {});
+      events.emit('clients.drift', {});
+      await vi.advanceTimersByTimeAsync(MANUAL_POLL_MS * 3);
+      expect(calls).toEqual(['list']);
+
+      const connected = { ...pending, clients: [{ ...manual, status: 'connected' as const }] };
+      answers.list = async () => connected;
+      finish(connected);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(calls).toEqual(['list', 'list']);
+      expect(data.cards()[0].status).toBe('connected');
+      calls = [];
+      await vi.advanceTimersByTimeAsync(MANUAL_POLL_MS * 2);
+      expect(calls).toEqual([]);
+
+      answers.list = async () => pending;
+      await data.reloadClients();
+      calls = [];
+      TestBed.resetTestingModule();
+      await vi.advanceTimersByTimeAsync(MANUAL_POLL_MS * 2);
+      expect(calls).toEqual([]);
+    } finally {
+      TestBed.resetTestingModule();
+      vi.useRealTimers();
+    }
+  });
+
+  it('returns a new manual token without waiting for a reload, and retains the card when reload fails', async () => {
+    const data = setup();
+    await data.start();
+    const result: ManualAppResult = {
+      client: { ...DEMO_CLIENTS.cursor, client: 'manual-example', manual: true, name: 'Research assistant', status: 'pending', statusText: 'Awaiting connection', detected: false, methods: [], links: [] },
+      setup: kitManual(),
+      token: { id: 'token-example', name: 'research-assistant', token: 'new-token-once', prefix: 'new-token', expiresAt: '2027-01-01T00:00:00Z' },
+    };
+    const api = TestBed.inject(ClientsApi);
+    vi.mocked(api.addManual).mockResolvedValue(result);
+    let rejectReload!: (error: unknown) => void;
+    answers.list = () => new Promise((_, reject) => { rejectReload = reject; });
+    expect(await data.addManual({ name: 'Research assistant', endpoint: 'dev' })).toBe(result);
+    expect(data.cards().at(-1)).toBe(result.client);
+    rejectReload(new Error('Offline'));
+    await flush();
+    expect(data.cards().at(-1)).toBe(result.client);
+    expect(JSON.stringify(data.clients())).not.toContain('new-token-once');
+
+    vi.mocked(api.renewManual).mockResolvedValue({ ...result, token: { ...result.token, token: 'replacement-token' } });
+    expect((await data.renewManual('manual-example', 7)).token.token).toBe('replacement-token');
+    expect(data.cards().filter(card => card.client === 'manual-example')).toHaveLength(1);
+    rejectReload(new Error('Offline'));
+    await flush();
+
+    vi.mocked(api.removeManual).mockResolvedValue({ linkId: 'manual-example', entryRemoved: false, rejectedApprovals: 0, notes: [] });
+    await data.removeManual('manual-example');
+    expect(data.cards().some(card => card.client === 'manual-example')).toBe(false);
+    rejectReload(new Error('Offline'));
+    await flush();
+    data.stop();
+  });
+
   it('uses only existing selected endpoints and never silently substitutes another endpoint', async () => {
     const data = setup();
     data.selectManualEndpoint('incident-prod');

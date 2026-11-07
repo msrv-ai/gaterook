@@ -95,7 +95,7 @@
         <div class="gw-card__actions">
           <button class="gw-btn" type="button" [disabled]="busy()" (click)="backToSetup()">Back</button>
           @if (appSelection()?.ready) {
-            @if (desktop.aiPromptAvailable && appSelection()!.client !== 'antigravity') {
+            @if (desktop.aiPromptAvailable && ['claude-desktop', 'codex', 'cursor'].includes(appSelection()!.client)) {
               <button class="gw-btn gw-btn--primary" type="button" (click)="handoffSelected()">Open {{ appSelection()!.name }}</button>
               <button class="gw-btn" type="button" (click)="handoff('copy')">@if (promptCopied()) { <svg lucideIcon="check" class="gw-icon"></svg> }{{ promptCopied() ? 'Copied' : 'Copy prompt' }}</button>
             } @else {

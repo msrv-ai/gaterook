@@ -14,8 +14,8 @@
           @for (c of w.clients; track c.client) {
             @let look = clientLook(c);
             <li class="gw-setup-map__item">
-              <span [gwClientMark]="c.client" size="sm"></span>
-              <span class="gw-setup-map__name"><span>{{ clientName(c.client) }}</span></span>
+              <span [gwClientMark]="c.client" [letter]="c.name ? c.name.slice(0, 1).toUpperCase() : null" size="sm"></span>
+              <span class="gw-setup-map__name"><span>{{ c.name ?? clientName(c.client) }}</span></span>
               <span [class]="'gw-status gw-status--' + look.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ look.text }}</span></span>
             </li>
           }

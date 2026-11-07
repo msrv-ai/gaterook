@@ -4,7 +4,7 @@ import { ApiClient } from './api-client';
 import { ClientsApi } from './clients.api';
 
 function setup(windowsStore: boolean) {
-  const http = { get: vi.fn().mockResolvedValue({}), post: vi.fn().mockResolvedValue({}) };
+  const http = { get: vi.fn().mockResolvedValue({}), post: vi.fn().mockResolvedValue({}), delete: vi.fn().mockResolvedValue({}) };
   TestBed.configureTestingModule({ providers: [
     { provide: ApiClient, useValue: http },
     { provide: DesktopBridge, useValue: { windowsStore } },
@@ -13,6 +13,17 @@ function setup(windowsStore: boolean) {
 }
 
 describe('ClientsApi distribution behavior', () => {
+  it('uses separate manual app routes for creation, token renewal and removal', async () => {
+    const { api, http } = setup(false);
+    const request = { name: 'Research assistant', endpoint: 'dev', ttlDays: 30 };
+    await api.addManual(request);
+    await api.renewManual('manual-example', 7);
+    await api.removeManual('manual-example');
+    expect(http.post).toHaveBeenCalledWith('/api/clients/manual', request);
+    expect(http.post).toHaveBeenCalledWith('/api/clients/manual/manual-example/token', { ttlDays: 7 });
+    expect(http.delete).toHaveBeenCalledWith('/api/clients/manual/manual-example');
+  });
+
   it('surfaces core installation refusals instead of claiming the client is connected', async () => {
     const { api, http } = setup(true);
     const failure = new Error('Use the Claude Desktop extension in this distribution.');

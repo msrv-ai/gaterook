@@ -226,6 +226,18 @@ async function cursorConnection(method: 'oauth' | 'token' = 'oauth') {
 }
 
 describe('Endpoint detail page', () => {
+  it('shows a manual app with its name and setup status and routes management to AI apps', async () => {
+    const base = clientsView().clients[0];
+    const manual = { ...base, client: 'manual-example' as const, name: 'Research assistant', manual: true, status: 'pending' as const, methods: [], links: [{ ...base.links[0], client: 'manual-example' as const, endpoint: 'dev', method: 'manual' as const, status: 'pending' as const }] };
+    setup(undefined, { api: { list: () => Promise.resolve({ ...clientsView(), clients: [manual] }) }, desktop: { available: false } });
+    const { el } = await render({ slug: 'dev', tab: 'clients' });
+    const panel = el.querySelector('#clients')!;
+    expect(text(panel)).toContain('Research assistant');
+    expect(text(panel)).toContain('Awaiting connection');
+    expect(panel.querySelector('[gwClientCard]')).toBeNull();
+    expect(panel.querySelector('a[href="/clients#cl-manual-example-t"]')).not.toBeNull();
+  });
+
   it('offers managed client cards on the selected endpoint in the Store Clients panel', async () => {
     const disconnectPreview = vi.fn();
     setup(undefined, { api: { list: () => Promise.resolve(clientsView()), disconnectPreview }, desktop: { available: true, windowsStore: true } });

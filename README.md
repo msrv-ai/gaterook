@@ -31,6 +31,8 @@ Log queries have no maximum time range by default in any environment. To set one
 
 The Overview page brings pending approvals, connection health, and AI app access into one place. Use the On/Off switches there, in Endpoints, or in Connections to pause access without removing settings. A connection switch applies across all endpoints; an endpoint switch affects only that endpoint. Paused tools remain visible to AI apps and return a message asking the user to enable access. Use the sidebar to manage connections, secrets, policies, and endpoints, or inspect tool calls in Activity.
 
+For an AI app that GateRook does not detect, open **AI apps → Add app manually**, enter its name and choose an endpoint. Copy the endpoint URL and the token shown once into the app's MCP settings using Streamable HTTP and Bearer authentication. The app stays in the list across restarts and scans, with **Awaiting connection** until its first authenticated request. Its card offers token replacement and removal; both revoke the previous token, so update or remove the MCP settings in the app too.
+
 ![GateRook Overview page showing connection health, AI app connection status, and navigation for managing access and reviewing activity.](docs/images/gaterook-overview.png)
 
 This repository contains the complete application, its tests, the canonical design kit, and everything needed for a local development build. The application is in development; a source build is not a signed release installer.

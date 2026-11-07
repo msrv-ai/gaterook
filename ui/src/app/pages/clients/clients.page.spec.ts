@@ -3,7 +3,7 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { ApiError } from '../../core/api/api-error';
-import { ClientsApi, ClientsView, ConnectPreview, ConnectRequest, ConnectResult } from '../../core/api/clients.api';
+import { ClientCard, ClientsApi, ClientsView, ConnectPreview, ConnectRequest, ConnectResult, ManualAppResult } from '../../core/api/clients.api';
 import { CoreApi } from '../../core/api/core.api';
 import { EndpointSummary, EndpointsApi, TokensApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { Overview, OverviewApi } from '../../core/api/overview.api';
@@ -78,6 +78,25 @@ const fakeTime: Partial<TimeService> = {
   date: (at, year = false) => (at ? shortDate(at, now(), year) : ''),
   clock: (at, withSeconds = false) => (at ? clockTime(at, withSeconds) : ''),
 };
+
+function manualAppResult(): ManualAppResult {
+  const client: ClientCard = {
+    ...kitClients().clients[2], client: 'manual-local-assistant', name: 'Local assistant', manual: true,
+    status: 'pending', statusText: 'Awaiting connection', detected: false,
+    configPath: null, configDisplay: null, evidence: [], methods: [],
+    links: [{
+      ...connected('cursor', { endpoint: 'dev', method: 'token' }).link,
+      id: 'manual-local-assistant', client: 'manual-local-assistant', endpoint: 'dev', method: 'manual',
+      status: 'pending', statusText: 'Awaiting connection', tokenName: 'app-local-assistant',
+      configPath: null, configDisplay: null, entryName: null, grantPrefix: 'gwt_once',
+      usedAt: null, lastCallAt: null,
+    }],
+  };
+  return {
+    client, setup: kitManual(),
+    token: { id: 'tok_manual', name: 'app-local-assistant', prefix: 'gwt_once', token: 'gwt_once_manual_test_secret', expiresAt: '2027-04-24T12:30:00Z' },
+  };
+}
 
 function configure(): void {
   calls = [];
@@ -197,6 +216,91 @@ async function choose(select: HTMLSelectElement, value: string): Promise<void> {
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+describe('Clients page: manually added apps', () => {
+  it('adds a named app to the common list, retains it after scanning, and never keeps the token in its card', async () => {
+    const result = manualAppResult();
+    let added = false;
+    world.list = async () => ({ ...kitClients(), clients: [...kitClients().clients, ...(added ? [result.client] : [])] });
+    const addManual = vi.fn(async () => { added = true; return result; });
+    Object.assign(TestBed.inject(ClientsApi), { addManual });
+    const el = await render();
+    await click(control(el, 'Add app manually'));
+    const name = $<HTMLInputElement>('#manual-app-name')!;
+    name.value = '  Local assistant  ';
+    name.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle();
+    await click(control(openDialog()!, 'Add app'));
+    expect(addManual).toHaveBeenCalledExactlyOnceWith({ name: 'Local assistant', endpoint: 'dev', ttlDays: 184 });
+
+    const saved = $('article[data-client="manual-local-assistant"]', el)!;
+    expect(saved.closest('ul')?.getAttribute('aria-label')).toBe('AI apps on this computer');
+    expect(text($('.gw-status__label', saved))).toBe('Awaiting connection');
+    expect(text(saved)).toContain('Added manually');
+    expect(text(saved)).toContain('No request yet');
+    expect(text(saved)).not.toContain(result.token.token);
+    expect(disclosure(saved).getAttribute('aria-expanded')).toBe('true');
+    expect(text(openDialog())).toContain(result.token.token);
+    await click($<HTMLInputElement>('input[type="checkbox"]', openDialog()!)!);
+    await click(control(openDialog()!, 'Done'));
+    expect(text(el)).not.toContain(result.token.token);
+
+    await click(control(el, 'Scan again'));
+    expect($$('article[data-client="manual-local-assistant"]', el)).toHaveLength(1);
+    expect(calls.some((call) => /^(preview|connect|disconnect-preview) manual-/.test(call))).toBe(false);
+  });
+
+  it('opens a pending manual app by its anchor when no built-in app is detected and updates on connection events', async () => {
+    const result = manualAppResult();
+    let current = result.client;
+    world.list = async () => ({ ...noneFound(), clients: [...noneFound().clients, current] });
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/clients#cl-manual-local-assistant-t');
+    const el = await render();
+    const saved = $('article[data-client="manual-local-assistant"]', el)!;
+    expect(text(el)).not.toContain('No AI apps found');
+    expect(disclosure(saved).getAttribute('aria-expanded')).toBe('true');
+    expect(control(saved, 'Open config')).toBeUndefined();
+    expect(control(saved, 'Disconnect')).toBeUndefined();
+    expect(control(saved, 'View activity').getAttribute('href')).toContain('token:app-local-assistant');
+    current = { ...current, status: 'connected', statusText: 'Connected', links: current.links.map((link) => ({ ...link, status: 'connected', statusText: 'Connected', usedAt: '2026-10-22T14:29:00+02:00' })) };
+    events.emit('clients.drift', {});
+    await settle();
+    expect(text($('.gw-status__label', saved))).toBe('Connected');
+    expect(text(saved)).not.toContain('No request yet');
+  });
+
+  it('requires removal confirmation, preserves the app on failure, and revokes access through the manual API on retry', async () => {
+    const result = manualAppResult();
+    let removed = false;
+    world.list = async () => ({ ...kitClients(), clients: [...kitClients().clients, ...(removed ? [] : [result.client])] });
+    const removeManual = vi.fn(async () => {
+      removed = true;
+      return { linkId: result.client.client, entryRemoved: false, rejectedApprovals: 0, notes: [] };
+    });
+    removeManual.mockRejectedValueOnce(problem(503, { title: 'Unavailable', detail: 'The core is restarting. Try again.' }));
+    Object.assign(TestBed.inject(ClientsApi), { removeManual });
+    const el = await render();
+    const saved = $('article[data-client="manual-local-assistant"]', el)!;
+    await click(disclosure(saved));
+    await click(control(saved, 'Remove app'));
+    expect(removeManual).not.toHaveBeenCalled();
+    expect(text(openDialog())).toContain('Its token will be revoked');
+    expect(document.activeElement).toBe(control(openDialog()!, 'Cancel'));
+    await click(control(openDialog()!, 'Cancel'));
+    expect(removeManual).not.toHaveBeenCalled();
+    await click(control(saved, 'Remove app'));
+    await click(control(openDialog()!, 'Remove Local assistant'));
+    expect(text(openDialog())).toContain('The core is restarting. Try again.');
+    expect($('article[data-client="manual-local-assistant"]', el)).not.toBeNull();
+    await click(control(openDialog()!, 'Remove Local assistant'));
+    expect(removeManual).toHaveBeenNthCalledWith(2, 'manual-local-assistant');
+    expect($('article[data-client="manual-local-assistant"]', el)).toBeNull();
+    expect(openDialog()).toBeNull();
+    expect(toasts().at(-1)?.title).toBe('Local assistant removed');
+    expect(calls.some((call) => call.startsWith('disconnect '))).toBe(false);
+  });
+});
 
 describe('Clients page: what it shows', () => {
   it('shows an observed OAuth connection and routes its management to sign-ins without disconnecting a config', async () => {
@@ -753,7 +857,7 @@ describe('Clients page: first run and setup (kit ?state=first-run | setup)', () 
     );
     expect($$('.gw-page-header__meta .gw-status__label', el).map(text)).toEqual(['3 detected, not connected', '1 not installed']);
     // The header's Add connection is the page's only primary; nothing explains Connect yet, nothing to set up by hand.
-    expect($$('.gw-btn--primary', el).map((b) => [text(b), b.getAttribute('href')])).toEqual([['Add connection', '/connections/new']]);
+    expect($$('.gw-btn--primary', el).filter((b) => !b.closest('dialog')).map((b) => [text(b), b.getAttribute('href')])).toEqual([['Add connection', '/connections/new']]);
     expect($('.gw-how-it-works', el)).toBeNull();
     expect($('#cl-manual-t', el)).toBeNull();
     expect(text($('section[aria-labelledby="cl-local-t"] .gw-section__description', el))).toBe('These apps reach the gateway at 127.0.0.1:7465 directly, once you connect them.');

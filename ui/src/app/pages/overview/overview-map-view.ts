@@ -136,6 +136,9 @@ export function mapApps(cards: readonly ClientCard[] | null, endpoint: EndpointS
     } else if (connected) {
       state = { tone: 'success', label: 'Connected' };
       action = null;
+    } else if (active.some((link) => link.status === 'pending')) {
+      state = { tone: 'info', label: 'Awaiting connection' };
+      action = 'manage';
     } else if (active.some((link) => link.status === 'needs-restart')) {
       state = { tone: 'warning', label: 'Needs restart' };
       action = 'manage';
@@ -144,10 +147,10 @@ export function mapApps(cards: readonly ClientCard[] | null, endpoint: EndpointS
       action = 'manage';
     } else {
       state = { tone: 'neutral', label: 'Not connected' };
-      action = 'connect';
+      action = card.manual ? 'manage' : 'connect';
     }
     return {
-      card, client: card.client, name: card.name, ...APP_MARKS[card.client], state,
+      card, client: card.client, name: card.name, ...(APP_MARKS[card.client] ?? { mark: card.name.slice(0, 1).toUpperCase(), tone: 'generic' }), state,
       assigned, connected, pending: assigned && !connected, action,
       actionReason: action === 'connect' ? connectReason(card, endpoint) : null, fragment: appAnchor(card.client),
     };

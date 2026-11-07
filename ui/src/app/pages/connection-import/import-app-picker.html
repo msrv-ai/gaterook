@@ -71,6 +71,9 @@
           <h3 class="gw-text-ui"><span [gwClientMark]="app.client" size="sm"></span> {{ app.name }}</h3>
           @if (connected()) {
             <p class="gw-text-small"><strong>Connected to {{ endpoint.slug }}</strong>. Use this app to send the import prompt.</p>
+          } @else if (app.manual) {
+            <p class="gw-text-small">Finish MCP setup in {{ app.name }}, then check the connection here.</p>
+            <div class="gw-card__actions"><a class="gw-btn" routerLink="/clients" [fragment]="'cl-' + app.client + '-t'">Manage {{ app.name }}</a></div>
           } @else if (restart(); as link) {
             @if (link.method === 'mcpb') {
               <p class="gw-text-small">Finish installing and enabling the extension in Claude Desktop. GateRook is waiting for the app to connect to this endpoint.</p>

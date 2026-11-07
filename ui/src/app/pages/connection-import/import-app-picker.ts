@@ -101,6 +101,7 @@ export class ImportAppPicker {
   status(card: ClientCard): string {
     const links = card.links.filter(l => l.endpoint === this.endpoint()?.slug);
     if (links.some(l => l.status === 'connected')) return 'Connected';
+    if (links.some(l => l.status === 'pending')) return 'Awaiting connection';
     const restart = links.find(l => l.status === 'needs-restart');
     if (restart) {
       if (restart.method === 'mcpb') return 'Finish installation in Claude Desktop';
@@ -115,7 +116,7 @@ export class ImportAppPicker {
   }
 
   pendingSetup(card: ClientCard): boolean {
-    return card.links.some(link => link.endpoint === this.endpoint()?.slug && link.status === 'needs-restart')
+    return card.links.some(link => link.endpoint === this.endpoint()?.slug && (link.status === 'needs-restart' || link.status === 'pending'))
       || (this.pending()?.client === card.client && this.pending()?.endpoint === this.endpoint()?.slug);
   }
 

@@ -409,6 +409,13 @@ class OverviewController {
         .toList();
     List<String> detected = cards.stream().filter(c -> "detected".equals(c.status())).map(ClientViews.Card::name)
         .toList();
+    List<String> pending = cards.stream().filter(c -> "pending".equals(c.status())).map(ClientViews.Card::name)
+        .toList();
+    if (!pending.isEmpty()) {
+      String summary = connected.isEmpty() ? pending.size() + " awaiting connection"
+          : connected.size() + " connected · " + pending.size() + " awaiting connection";
+      return new Node("clients", connected.size() + pending.size(), "attention", summary);
+    }
     if (cards.isEmpty() && !w.clients().isEmpty()) {
       return new Node("clients", w.clients().size(), "done", w.clients().size() + " connected");
     }

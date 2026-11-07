@@ -60,6 +60,15 @@ describe('Overview connection map', () => {
 });
 
 describe('Overview AI app map', () => {
+  it('shows a named manual app with a generic mark and a pending setup path', () => {
+    const manual = app([{ ...link('codex', 'dev', 'dev'), client: 'manual-example', method: 'manual', status: 'pending' }], { client: 'manual-example', name: 'Research assistant', manual: true, status: 'pending', methods: [] });
+    expect(mapApps([manual], dev)?.[0]).toEqual(expect.objectContaining({
+      mark: 'R', tone: 'generic', assigned: true, connected: false, pending: true,
+      state: { tone: 'info', label: 'Awaiting connection' }, action: 'manage', fragment: 'cl-manual-example-t',
+    }));
+    expect(mapApps([manual], endpoint('other'))?.[0]).toEqual(expect.objectContaining({ assigned: false, action: 'manage', actionReason: null }));
+  });
+
   it('never treats global Connected or a similar endpoint slug as access to this endpoint', () => {
     const cards = [app([link('codex', 'dev-other', 'dev')])];
     expect(mapApps(cards, dev)?.[0]).toEqual(expect.objectContaining({

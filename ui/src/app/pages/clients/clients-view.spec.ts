@@ -44,6 +44,15 @@ const problem = (status: number, body: object) => ApiError.fromHttp(new HttpErro
 const { claudeDesktop, codex, cursor, antigravity } = DEMO_CLIENTS;
 
 describe('Clients view: header and layout', () => {
+  it('keeps manual apps visible and addressable while their first connection is pending', () => {
+    const manual: ClientCard = { ...cursor, client: 'manual-example', name: 'Research assistant', manual: true, detected: false, status: 'pending', links: [] };
+    expect(noClients([manual])).toBe(false);
+    expect(headerCounts([manual])).toEqual([{ tone: 'info', text: '1 awaiting connection' }]);
+    expect(scanSummary(null, [manual])).toBe('Scan finished: 1 awaiting connection.');
+    expect(anchorClient(`${anchorBase(manual.client)}-t`)).toBe(manual.client);
+    expect(anchorClient('cl-unknown-t')).toBeNull();
+  });
+
   it('counts the clients as the kit’s header does', () => {
     expect(headerCounts(kitClients().clients)).toEqual([
       { tone: 'success', text: '2 connected' },

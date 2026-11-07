@@ -58,6 +58,7 @@ export function healthLook(state: string | null | undefined, latencyMs?: number 
 /** An MCP client's state on this machine. */
 export const CLIENT_STATUS: Record<string, Look> = {
   connected: { tone: 'success', icon: 'circle-check', text: 'Connected' },
+  pending: { tone: 'info', icon: 'hourglass', text: 'Awaiting connection' },
   detected: { tone: 'info', icon: 'scan-search', text: 'Detected, not connected' },
   'needs-restart': { tone: 'warning', icon: 'rotate-cw', text: 'Needs restart' },
   'not-installed': { tone: 'neutral', icon: 'circle-dashed', text: 'Not installed' },

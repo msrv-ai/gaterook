@@ -1,11 +1,12 @@
 package ai.msrv.gaterook.core.clients;
 
+import ai.msrv.gaterook.core.endpoints.TokenService;
 import java.time.Instant;
 import java.util.List;
 
 /**
  * What the Clients screen shows and sends (ARCHITECTURE.md §6 clients, kit {@code client-card}). No record carries a
- * token: a named token goes straight from the core into the client's file, a bridge token straight to the broker.
+ * token except {@link ManualAdded}: a manual app receives its new token once for the user to copy.
  */
 public final class ClientViews {
 
@@ -17,21 +18,29 @@ public final class ClientViews {
   /**
    * One client card.
    *
-   * @param status   {@code connected}, {@code detected}, {@code not-installed}, {@code needs-restart} or {@code error}
+   * @param status   {@code connected}, {@code detected}, {@code not-installed}, {@code needs-restart},
+   *                 {@code pending} for manual setup, or {@code error}
    * @param configPath the user-level config file (absolute), {@code configDisplay} the same with {@code ~}
    * @param evidence what showed the client on this computer ({@code ~/.codex})
    * @param methods  how the client can be connected; the first available one is the default
    */
   public record Card(String client, String name, String status, String statusText, String configPath,
       String configDisplay, boolean detected, List<String> evidence, String version, List<String> warnings,
-      List<Method> methods, List<Link> links) {
+      List<Method> methods, List<Link> links, boolean manual) {
+
+    public Card(String client, String name, String status, String statusText, String configPath,
+        String configDisplay, boolean detected, List<String> evidence, String version, List<String> warnings,
+        List<Method> methods, List<Link> links) {
+      this(client, name, status, statusText, configPath, configDisplay, detected, evidence, version, warnings,
+          methods, links, false);
+    }
 
     /** Current browser access can coexist with an old managed config error, retained in the links. */
     public Card withLinks(List<Link> updated) {
       boolean connected = updated.stream().anyMatch(l -> l.status().equals("connected") && (!status.equals("error")
           || l.provenBySignIn() && l.configPath() == null));
       return new Card(client, name, connected ? "connected" : status, connected ? "Connected" : statusText,
-          configPath, configDisplay, detected, evidence, version, warnings, methods, List.copyOf(updated));
+          configPath, configDisplay, detected, evidence, version, warnings, methods, List.copyOf(updated), manual);
     }
   }
 
@@ -46,10 +55,10 @@ public final class ClientViews {
   /**
    * One managed config entry, or an observed OAuth sign-in with its grant id and no config path or entry name.
    *
-   * @param status     {@code connected}, {@code needs-restart}, {@code removed-outside}, {@code needs-repair},
-   *                   {@code revoked} or {@code error}
+   * @param status     {@code connected}, {@code pending}, {@code needs-restart}, {@code removed-outside},
+   *                   {@code needs-repair}, {@code revoked} or {@code error}
    * @param grantLabel the trusted label of the client's access ({@code codex-laptop}); {@code tokenName} for a named token
-   * @param grantPrefix {@code gr_Cx7q…}: lists show the grant's prefix only
+   * @param grantPrefix {@code gr_Cx7q…} or a manual app's token prefix: lists never show the value
    * @param usedAt     when the client last got a token or used its token, {@code null} before that
    * @param bridgeVersion the version the bridge of its grant reported with the last token request, or {@code null}
    * @param bridgeUpdate the newer bridge Reinstall puts in a Claude Desktop extension (this app's version) when the
@@ -159,6 +168,9 @@ public final class ClientViews {
   /** Manual setup (kit "Manual setup"): the endpoint URL and snippets with {@code ‹token›} in place of a token. */
   public record Manual(String endpoint, String url, String transport, List<OtherEndpoint> others,
       List<Snippet> snippets) {}
+
+  /** A manual app and its replacement or initial token, returned only by the operation that issues it. */
+  public record ManualAdded(Card client, Manual setup, TokenService.Issued token) {}
 
   public record OtherEndpoint(String slug, String url) {}
 

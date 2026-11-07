@@ -11,6 +11,9 @@ import {
   ConnectRequest,
   ConnectResult,
   DisconnectResult,
+  ManualAppRequest,
+  ManualAppResult,
+  ManualClientId,
   ManualSetup,
 } from '../../core/api/clients.api';
 import { EndpointSummary, EndpointsApi, TokenRow, TokensApi, ToolGroup } from '../../core/api/endpoints.api';
@@ -51,6 +54,8 @@ const IDLE: ConnectState = { preview: null, loading: false, failure: null, writt
 
 /** `audit.call` is frequent: the cards' "Last call" and a restart proven by a call are read again at most this often. */
 export const CALLS_THROTTLE_MS = 5_000;
+/** MCP initialization uses a manual token before a tool-call event exists. */
+export const MANUAL_POLL_MS = 5_000;
 
 /**
  * The Clients page's data (ARCHITECTURE.md §6 clients, tunnel / OAuth; §8.4 "clients"):
@@ -161,6 +166,10 @@ export class ClientsData {
   private readonly seq = new Map<ClientId, number>();
   private callsTimer: ReturnType<typeof setTimeout> | null = null;
   private lastCallsReload = 0;
+  private clientRead: Promise<unknown[]> | null = null;
+  private clientReadAgain = false;
+  private clientEntriesAgain = false;
+  private manualPollTimer: ReturnType<typeof setTimeout> | null = null;
   private publishFor: string | null = null;
 
   constructor() {
@@ -180,6 +189,7 @@ export class ClientsData {
   stop(): void {
     this.stopped = true;
     if (this.callsTimer) clearTimeout(this.callsTimer);
+    if (this.manualPollTimer) clearTimeout(this.manualPollTimer);
     this.unsubscribe.splice(0).forEach((u) => u());
   }
 
@@ -204,7 +214,7 @@ export class ClientsData {
   private async load(): Promise<void> {
     const failures: unknown[] = [];
     await Promise.all([
-      this.part(this.clientsSignal, () => this.clientsApi.list(), failures).then(() => this.loadEntries(false)),
+      this.readClients(false).then((errors) => failures.push(...errors)),
       this.part(this.endpointsSignal, () => this.endpointsApi.list(), failures).then(() => this.loadManual()),
       this.loadOverview(),
       this.loadTokenDefault(),
@@ -256,9 +266,47 @@ export class ClientsData {
 
   /** The cards again (after a write, a drift event or calls); `entries` re-reads Codex's entry too. */
   async reloadClients(entries = false): Promise<void> {
-    const failures: unknown[] = [];
-    await this.part(this.clientsSignal, () => this.clientsApi.list(), failures);
-    await this.loadEntries(entries);
+    await this.readClients(entries);
+  }
+
+  /** A drift event during a read queues one fresh pass; client-list requests never overlap. */
+  private readClients(entries: boolean): Promise<unknown[]> {
+    this.clientEntriesAgain ||= entries;
+    if (this.clientRead) {
+      this.clientReadAgain = true;
+      return this.clientRead;
+    }
+    this.clientRead = (async () => {
+      const failures: unknown[] = [];
+      do {
+        const forceEntries = this.clientEntriesAgain;
+        this.clientEntriesAgain = false;
+        this.clientReadAgain = false;
+        await this.part(this.clientsSignal, () => this.clientsApi.list(), failures);
+        await this.loadEntries(forceEntries);
+      } while (this.clientReadAgain && !this.stopped);
+      return failures;
+    })().finally(() => {
+      this.clientRead = null;
+      this.syncManualPoll();
+    });
+    return this.clientRead;
+  }
+
+  private syncManualPoll(): void {
+    const pending = !this.stopped && this.cards().some((card) => card.manual && card.status === 'pending');
+    if (!pending) {
+      if (this.manualPollTimer) clearTimeout(this.manualPollTimer);
+      this.manualPollTimer = null;
+      return;
+    }
+    if (this.manualPollTimer) return;
+    this.manualPollTimer = setTimeout(() => {
+      this.manualPollTimer = null;
+      if (this.stopped) return;
+      if (this.clientRead || this.refreshing() || this.scanning()) this.syncManualPoll();
+      else void this.reloadClients();
+    }, MANUAL_POLL_MS);
   }
 
   private onCall(): void {
@@ -308,6 +356,7 @@ export class ClientsData {
       return view;
     } finally {
       this.scanningSignal.set(null);
+      this.syncManualPoll();
     }
   }
 
@@ -462,6 +511,40 @@ export class ClientsData {
   }
 
   // ── Manual setup ──────────────────────────────────────────────────────────────────────────────────────────────
+
+  async addManual(request: ManualAppRequest): Promise<ManualAppResult> {
+    const result = await this.clientsApi.addManual(request);
+    this.acceptManual(result.client);
+    return result;
+  }
+
+  async renewManual(client: ManualClientId, ttlDays?: number | null): Promise<ManualAppResult> {
+    const result = await this.clientsApi.renewManual(client, ttlDays);
+    this.acceptManual(result.client);
+    return result;
+  }
+
+  async removeManual(client: ManualClientId): Promise<DisconnectResult> {
+    const result = await this.clientsApi.removeManual(client);
+    this.clientsSignal.update((part) => part.value ? { ...part, value: { ...part.value, clients: part.value.clients.filter((card) => card.client !== client) } } : part);
+    this.syncManualPoll();
+    void this.reloadClients();
+    void this.loadManual();
+    return result;
+  }
+
+  /** Keep the newly saved card immediately; a background reload cannot delay revealing its one-time token. */
+  private acceptManual(card: ClientCard): void {
+    if (this.stopped) return;
+    this.clientsSignal.update((part) => {
+      const cards = part.value?.clients ?? [];
+      const exists = cards.some((current) => current.client === card.client);
+      return { value: { scannedAt: part.value?.scannedAt ?? null, clients: exists ? cards.map((current) => current.client === card.client ? card : current) : [...cards, card] }, error: null, unavailable: false };
+    });
+    this.syncManualPoll();
+    void this.reloadClients();
+    void this.loadManual();
+  }
 
   selectManualEndpoint(slug: string | null): void {
     if (slug === this.requestedManualEndpoint()) return;

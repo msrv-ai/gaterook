@@ -2,20 +2,22 @@ import { Injectable, inject } from '@angular/core';
 import { ApiClient } from './api-client';
 import { isApiError } from './api-error';
 import { Diff, DiffLine } from './approvals.api';
+import { IssuedToken } from './endpoints.api';
 import { Env, Iso, WithReason } from './types';
 
 /**
  * The Clients screen (ARCHITECTURE.md §6 clients; step K1: `admin.clients.ClientsController`, `clients.ClientViews`).
- * No answer ever carries a token: a named token goes from the core straight into the client's file, a bridge token
- * straight to the broker.
+ * Automatic setup sends tokens straight to the client's file or bridge broker. Manual app creation and token
+ * renewal return a newly issued token once so the user can configure their app.
  */
 
-export type ClientId = 'claude-desktop' | 'codex' | 'cursor' | 'antigravity';
-export type ClientStatus = 'connected' | 'detected' | 'not-installed' | 'needs-restart' | 'error';
+export type ManualClientId = `manual-${string}`;
+export type ClientId = 'claude-desktop' | 'codex' | 'cursor' | 'antigravity' | ManualClientId;
+export type ClientStatus = 'connected' | 'detected' | 'not-installed' | 'needs-restart' | 'pending' | 'error';
 /** `.mcpb` bridge, stdio bridge entry, `http_headers_helper`, named token in the file, sign-in through the browser. */
-export type ClientMethodId = 'mcpb' | 'config-bridge' | 'helper' | 'token' | 'oauth';
+export type ClientMethodId = 'mcpb' | 'config-bridge' | 'helper' | 'token' | 'oauth' | 'manual';
 /** A link's own state; anything but `connected` and `needs-restart` puts the card in `error`. */
-export type ClientLinkStatus = 'connected' | 'needs-restart' | 'removed-outside' | 'needs-repair' | 'revoked' | 'error';
+export type ClientLinkStatus = 'connected' | 'needs-restart' | 'pending' | 'removed-outside' | 'needs-repair' | 'revoked' | 'error';
 
 /** One way to connect a client; `reason` says why it isn't offered on prod endpoints. */
 export interface ClientMethod {
@@ -66,6 +68,8 @@ export interface ClientLink {
 /** One client card. */
 export interface ClientCard {
   readonly client: ClientId;
+  /** User-named app configured manually; never passed to managed config editing. */
+  readonly manual?: boolean;
   readonly name: string;
   readonly status: ClientStatus;
   readonly statusText: string;
@@ -202,6 +206,19 @@ export interface ManualSetup {
   readonly snippets: { readonly id: string; readonly title: string; readonly language: string; readonly text: string }[];
 }
 
+export interface ManualAppRequest {
+  readonly name: string;
+  readonly endpoint: string;
+  readonly ttlDays?: number | null;
+}
+
+/** The token value is returned only on creation or renewal, never by listing saved apps. */
+export interface ManualAppResult {
+  readonly client: ClientCard;
+  readonly setup: ManualSetup;
+  readonly token: IssuedToken;
+}
+
 /**
  * The 422 problem+json of a config file the core won't edit (K1 `ClientsController.EditProblem`): `reason` is a code
  * (`invalid`, `jsonc`, `unexpected-shape`, `inline-table`…), `detail` the sentence to show, `line`/`column` where
@@ -300,5 +317,17 @@ export class ClientsApi {
 
   manual(endpoint: string): Promise<ManualSetup> {
     return this.api.get('/api/clients/manual', { endpoint });
+  }
+
+  addManual(request: ManualAppRequest): Promise<ManualAppResult> {
+    return this.api.post('/api/clients/manual', request);
+  }
+
+  renewManual(client: ManualClientId, ttlDays?: number | null): Promise<ManualAppResult> {
+    return this.api.post(ApiClient.path`/api/clients/manual/${client}/token`, { ttlDays });
+  }
+
+  removeManual(client: ManualClientId): Promise<DisconnectResult> {
+    return this.api.delete(ApiClient.path`/api/clients/manual/${client}`);
   }
 }

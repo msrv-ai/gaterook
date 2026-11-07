@@ -28,6 +28,7 @@
       }
     </div>
     <div class="gw-page-header__actions">
+      <button class="gw-btn" [class.gw-btn--primary]="st !== 'first-run'" type="button" aria-haspopup="dialog" (click)="manualApp.open($any($event.currentTarget))"><svg lucideIcon="plus" class="gw-icon"></svg> Add app manually</button>
       <button class="gw-btn" type="button" [attr.aria-busy]="data.scanning() === 'page' ? 'true' : null" [attr.aria-disabled]="data.scanning() ? 'true' : null" (click)="scan('page')">@if (data.scanning() === 'page') {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="refresh-cw" class="gw-icon"></svg>} Scan again</button>
       @if (st === 'first-run') {
         <!-- Connections can be added before or after connecting an AI app. -->
@@ -150,13 +151,57 @@
 </section>
 
 <ng-template #card let-c>
+  @if (c.manual) {
+    <article class="gw-card gw-client-card" [id]="clientAnchor(c.client)" [attr.data-client]="c.client">
+      <header gwClientDisclosure [client]="c.client" [name]="c.name" [tone]="statusLook(c.status).tone" [status]="c.statusText" [headingId]="anchorBase(c.client) + '-heading'" [panelId]="anchorBase(c.client) + '-details'" [expanded]="expandedApps().has(c.client)" (expandedChange)="expandApp(c.client, $event)"></header>
+      <div [id]="anchorBase(c.client) + '-details'" [hidden]="!expandedApps().has(c.client)">
+        <div class="gw-card__body gw-stack gw-client-card__body">
+          <p class="gw-card__description">Added manually · Streamable HTTP</p>
+          @if (c.links[0]; as link) {
+            <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><a class="gw-link gw-mono" [routerLink]="['/endpoints', link.endpoint]">{{ link.endpoint }}</a> <span class="gw-env gw-env--sm gw-env--{{ link.env }}">{{ link.env }}</span></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Authentication</dt><dd class="gw-kv__value">Bearer token <span class="gw-mono">{{ link.grantPrefix }}</span></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Last request</dt><dd class="gw-kv__value">@if (link.usedAt) {<time [attr.datetime]="link.usedAt" [title]="time.absolute(link.usedAt)">{{ time.relative(link.usedAt) }}</time>} @else {No request yet}</dd></div>
+            </dl>
+          }
+          @if (manualUrl(c); as url) {
+            <div class="gw-field">
+              <label class="gw-field__label" [for]="anchorBase(c.client) + '-url'">Endpoint URL</label>
+              <div class="gw-copy-field">
+                <input class="gw-copy-field__value" [id]="anchorBase(c.client) + '-url'" readonly [value]="url" />
+                <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" [gwCopy]="url"><span class="gw-copy-field__copy">Copy<span class="gw-sr-only"> endpoint URL for {{ c.name }}</span></span><span class="gw-copy-field__copied">Copied</span></button>
+              </div>
+            </div>
+          }
+          @if (c.status === 'pending') {<p class="gw-text-small gw-fg-secondary">Finish the MCP setup in {{ c.name }} using this URL and its token, then send a request. GateRook updates the status when the app connects.</p>}
+          @for (warning of c.warnings; track warning) {<p class="gw-text-small gw-fg-warning">{{ warning }}</p>}
+        </div>
+        <footer class="gw-card__footer gw-client-card__footer">
+          <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/activity" [queryParams]="{ q: 'token:' + c.links[0]?.tokenName + ' endpoint:' + c.links[0]?.endpoint }">View activity<span class="gw-sr-only"> of {{ c.name }}</span></a>
+          <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" (click)="manualApp.open($any($event.currentTarget), c)">Replace token<span class="gw-sr-only"> for {{ c.name }}</span></button>
+          <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askRemoveManual(c, $any($event.currentTarget))">Remove app<span class="gw-sr-only"> {{ c.name }}</span></button>
+        </footer>
+      </div>
+    </article>
+  } @else {
   @let s = data.connectState(c.client);
   <article gwClientCard page [collapsible]="st === 'in-use' || none()" [expanded]="expandedApps().has(c.client)" (expandedChange)="expandApp(c.client, $event)" [id]="clientAnchor(c.client)" [attr.data-client]="c.client" [card]="c" [defaultTtlDays]="data.defaultTokenTtlDays()" [endpoints]="endpoints()" [entry]="entryOf(c)" [scanning]="data.scanning() === c.client" [canOpenConfig]="desktopApp"
     [connectPreview]="s.preview" [connectLoading]="s.loading" [connectFailure]="s.written ? null : s.failure" [failure]="s.written ? s.failure : null" [disconnectPreview]="data.disconnectPreviewOf(c.client)" [reinstalling]="reinstalling()"
     (connectStart)="data.resetConnect($event)" (previewRequest)="onPreviewRequest($event)" (connect)="onConnect(c, $event.previewId, $event.request)"
     (addEndpoint)="onAddEndpoint(c, $event.endpoint)" (disconnectStart)="onDisconnectStart($event)" (disconnect)="onDisconnect(c, $event.link, $event.previewId)"
     (removeBridge)="onRemoveBridge(c)" (reinstall)="onReinstall(c, $event)" (openConfig)="onOpenConfig($event)" (scan)="scan(c)"></article>
+  }
 </ng-template>
+
+<gw-manual-app-dialog #manualApp [endpoints]="endpoints()" [defaultTtlDays]="data.defaultTokenTtlDays()" (saved)="manualSaved($event)" />
+<dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" gwDialog #removeManualDialog="gwDialog" gwDialogStatic aria-labelledby="cl-remove-manual-title" aria-describedby="cl-remove-manual-description" (cancel)="removeBusy() && $event.preventDefault()">
+  <header class="gw-dialog__header"><div><h2 class="gw-dialog__title" id="cl-remove-manual-title">Remove {{ removingManual()?.name }}?</h2><p class="gw-dialog__description" id="cl-remove-manual-description">Its token will be revoked and the app removed from this list. The MCP settings in the app stay in place.</p></div></header>
+  @if (removeError(); as message) {<div class="gw-dialog__body"><div class="gw-alert gw-alert--danger" role="alert"><div class="gw-alert__content"><p class="gw-alert__body">{{ message }}</p></div></div></div>}
+  <footer class="gw-dialog__footer">
+    <button class="gw-btn" type="button" autofocus [attr.aria-disabled]="removeBusy() ? 'true' : null" (click)="removeBusy() || removeManualDialog.close()">Cancel</button>
+    <button class="gw-btn gw-btn--danger" type="button" [attr.aria-busy]="removeBusy() ? 'true' : null" [attr.aria-disabled]="removeBusy() ? 'true' : null" (click)="removeManual()">@if (removeBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Remove {{ removingManual()?.name }}</button>
+  </footer>
+</dialog>
 
 <!--
   Setup and first run (kit clients.html ?state=setup | first-run): the app Overview's guide named (#cl-<app>-t) opens as

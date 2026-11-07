@@ -6,12 +6,14 @@ import ai.msrv.gaterook.core.clients.ClientViews;
 import ai.msrv.gaterook.core.clients.ClientViews.Clients;
 import ai.msrv.gaterook.core.clients.ClientViews.Link;
 import ai.msrv.gaterook.core.clients.ConfigEditException;
+import ai.msrv.gaterook.core.endpoints.TokenService;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Clients (ARCHITECTURE.md §6 clients, kit {@code pages/clients.html} and {@code client-card}): the clients found on
  * this computer, "What will change" before Connect, Disconnect as a reverse edit, Check, backups and Restore, Remove
  * bridge, manual setup. What a card says about calls (last call, the revision spoken) comes from the audit. No answer
- * holds a token: Connect writes a named token straight into the client's file.
+ * holds a token except manual app creation and token replacement, which show the new value once for setup.
  */
 @RestController
 @RegisterReflectionForBinding({ClientViews.Clients.class, ClientViews.Card.class, ClientViews.Method.class,
@@ -32,10 +34,11 @@ import org.springframework.web.bind.annotation.RestController;
     ClientViews.Diff.class,
     ClientViews.Hunk.class, ClientViews.Line.class, ClientViews.Connected.class, ClientViews.Disconnected.class,
     ClientViews.Check.class, ClientViews.Step.class, ClientViews.Backup.class, ClientViews.Restored.class,
-    ClientViews.BridgeRemoved.class, ClientViews.Manual.class, ClientViews.OtherEndpoint.class,
+    ClientViews.BridgeRemoved.class, ClientViews.Manual.class, ClientViews.ManualAdded.class,
+    TokenService.Issued.class, ClientViews.OtherEndpoint.class,
     ClientViews.Snippet.class, ClientsController.EditProblem.class, ClientsController.McpbFile.class,
     ClientsController.ConnectBody.class, ClientsController.BrowserSignInBody.class, ClientsController.Confirm.class,
-    ClientsController.RestoreBody.class})
+    ClientsController.RestoreBody.class, ClientsController.ManualBody.class, ClientsController.ManualTokenBody.class})
 class ClientsController {
 
   /** {@code POST …/connect/preview}: endpoint, method and the options of the method. */
@@ -43,6 +46,10 @@ class ClientsController {
       ClientService.CodexOptions codex) {}
 
   record BrowserSignInBody(String endpoint) {}
+
+  record ManualBody(String name, String endpoint, Integer ttlDays) {}
+
+  record ManualTokenBody(Integer ttlDays) {}
 
   /** {@code POST …/connect}, {@code …/disconnect}, {@code …/restore}: the preview to carry out. */
   record Confirm(String previewId, String reason) {}
@@ -155,6 +162,24 @@ class ClientsController {
   @GetMapping("/api/clients/manual")
   ClientViews.Manual manual(@RequestParam String endpoint) {
     return clients.manual(endpoint);
+  }
+
+  @PostMapping("/api/clients/manual")
+  ResponseEntity<ClientViews.ManualAdded> addManual(@RequestBody ManualBody body) {
+    return ResponseEntity.ok().header("Cache-Control", "no-store")
+        .body(clients.addManual(body.name(), body.endpoint(), body.ttlDays()));
+  }
+
+  @PostMapping("/api/clients/manual/{id}/token")
+  ResponseEntity<ClientViews.ManualAdded> renewManualToken(@PathVariable String id,
+      @RequestBody ManualTokenBody body) {
+    return ResponseEntity.ok().header("Cache-Control", "no-store")
+        .body(clients.renewManualToken(id, body.ttlDays()));
+  }
+
+  @DeleteMapping("/api/clients/manual/{id}")
+  ClientViews.Disconnected removeManual(@PathVariable String id) {
+    return clients.removeManual(id);
   }
 
   /** Electron main asks for the extension to open (preload {@code openMcpb(linkId)}); the path is checked there too. */

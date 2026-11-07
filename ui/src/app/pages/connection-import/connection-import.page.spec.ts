@@ -228,6 +228,19 @@ describe('AI connection import review', () => {
     expect(page.notice()).toContain('Antigravity');
   });
 
+  it('copies the import prompt for a connected custom app without trying a native launch', async () => {
+    const base = clientCards()[0];
+    clientCards.set([{ ...base, client: 'manual-example', name: 'Research assistant', manual: true, links: [{ ...base.links[0], client: 'manual-example', method: 'manual' }] }]);
+    page.session.set(awaiting);
+    page.selectedClient.set('manual-example');
+    fixture.detectChanges(); await fixture.whenStable();
+    await page.handoffSelected();
+    expect(copy).toHaveBeenCalledWith(connectionImportPrompt(awaiting));
+    expect(open).not.toHaveBeenCalled();
+    expect(page.notice()).toContain('Research assistant');
+    expect(fixture.nativeElement.textContent).not.toContain('Open Research assistant');
+  });
+
   it.each([
     { client: 'cursor' as const, native: true, label: 'Copy prompt' },
     { client: 'cursor' as const, native: false, label: 'Copy for Cursor' },

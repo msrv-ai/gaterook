@@ -67,6 +67,7 @@ export class GwSetupMap {
 
 /** A client of an endpoint on the wiring card: its id and state (K1 `/api/clients`). */
 export interface WiringClient {
+  readonly name?: string;
   readonly client: string;
   readonly status: string;
 }
@@ -166,7 +167,7 @@ export class GwSetupWiring {
   protected readonly flow = computed(() => {
     const w = this.wiring();
     if (w.flowText) return w.flowText;
-    const names = w.clients.filter((c) => c.status === 'connected').map((c) => clientName(c.client));
+    const names = w.clients.filter((c) => c.status === 'connected').map((c) => c.name ?? clientName(c.client));
     const who = names.length ? `${names.join(' and ')} call` : 'AI apps call';
     const n = w.connections.length;
     return `${who} endpoint ${w.slug} with their tokens; ${w.slug} runs its tools on ${n} ${n === 1 ? 'connection' : 'connections'}, which inject the secrets.`;
