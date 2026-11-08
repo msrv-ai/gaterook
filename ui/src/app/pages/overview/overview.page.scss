@@ -119,13 +119,31 @@
     .gw-setup-map__network-endpoint > .gw-choice-card {
       height: 100%;
     }
+  }
 
-    .gw-overview-app-grid {
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  .gw-overview-app-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
 
-      .gw-setup-map__network-node {
+    .gw-setup-map__network-app {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-content: center;
+
+      // Wrap the action before it squeezes the app name and status.
+      > .gw-setup-map__network-node {
+        flex: 1 1 14rem;
         min-height: var(--gw-space-16);
         padding-block: var(--gw-space-2);
+      }
+
+      > .gw-btn {
+        flex: none;
+        margin: var(--gw-space-2) var(--gw-space-3) var(--gw-space-2) auto;
+      }
+
+      .gw-status__label {
+        overflow-wrap: normal;
       }
     }
   }
