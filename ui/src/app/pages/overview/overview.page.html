@@ -551,15 +551,7 @@
                   ></span
                 >
               </button>
-              @if (app.action === 'install') {
-                <a
-                  class="gw-btn gw-btn--sm"
-                  routerLink="/clients"
-                  [fragment]="app.fragment"
-                  [attr.aria-label]="'Install ' + app.name + ': setup instructions'"
-                  >Install</a
-                >
-              } @else if (app.action === 'connect') {
+              @if (app.action === 'connect') {
                 <a
                   class="gw-btn gw-btn--sm"
                   routerLink="/clients"

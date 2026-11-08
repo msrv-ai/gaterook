@@ -17,7 +17,7 @@ import { TimeService } from '../../core/time/time.service';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
-import { NOW, ROWS, clientsFound, clientsInUse, devDb, firstRun, overview, row } from './overview.fixtures';
+import { NOW, ROWS, card, clientsFound, clientsInUse, devDb, firstRun, overview, row } from './overview.fixtures';
 import { OverviewPage, SKELETON_DELAY_MS } from './overview.page';
 import { catalogIndex, sentryReview } from '../connectors/connectors.fixtures';
 import { endpoint, kitEndpoints } from '../endpoints/endpoints.fixtures';
@@ -365,7 +365,12 @@ describe('Overview connection map', () => {
     expect(text(details)).toContain('Access through dev');
   });
 
-  it('changes both service membership and AI app access with the selected endpoint', async () => {
+  it('scopes services and detected AI apps to the selected endpoint and refreshes app detection', async () => {
+    const installedApps = await clientsAnswer();
+    clientsAnswer = async () => ({ ...installedApps, clients: [...installedApps.clients, {
+      ...card('vscode', 'VS Code', 'detected'),
+      methods: [{ id: 'oauth', label: 'Browser sign-in', prodAllowed: true, reason: null }],
+    }] });
     const { fixture, el } = await render();
     await showAll(fixture, el);
     expect(services(el)).toContain('dev-db');
@@ -384,8 +389,18 @@ describe('Overview connection map', () => {
     expect(connect.getAttribute('aria-label')).toBe('Connect Codex');
     expect(connect.hasAttribute('aria-disabled')).toBe(false);
     expect(text(app(el, 'claude-desktop'))).toContain('Connected');
-    expect(href(app(el, 'antigravity').querySelector('a'))).toBe('/clients#cl-ag-t');
+    expect(app(el, 'antigravity')).toBeNull();
+    expect(href(app(el, 'vscode').querySelector('a'))).toBe('/clients?endpoint=incident-prod&connect=vscode#cl-vs-t');
+    expect(app(el, 'vscode').querySelector('a')!.hasAttribute('aria-disabled')).toBe(false);
     expect(findButton(el, 'Add endpoint').getAttribute('aria-haspopup')).toBe('dialog');
+
+    clientsAnswer = async () => ({ ...installedApps, clients: [...installedApps.clients, card('vscode', 'VS Code', 'not-installed')]
+      .map((client) => ({ ...client, detected: false })) });
+    events.emit('clients.drift', { client: 'vscode' });
+    await sleep(1_050);
+    await settle(fixture);
+    expect(el.querySelector('[data-map-app]')).toBeNull();
+    expect(text(el)).toContain('No AI apps found on this computer.');
   });
 
   it('creates an endpoint in place on Overview and returns focus after cancelling', async () => {
@@ -791,7 +806,7 @@ describe('Overview connection map', () => {
     expect(el.querySelector('ol[aria-label="Request route"]')).toBeNull();
     expect(findButton(el.querySelector('#ov-detail')!, 'Show path').getAttribute('aria-disabled')).toBe('true');
     expect(text(el.querySelector('#ov-trace-reason'))).toContain('Enable this connection');
-    app(el, 'antigravity').querySelector<HTMLButtonElement>('button')!.click();
+    app(el, 'cursor').querySelector<HTMLButtonElement>('button')!.click();
     await settle(fixture);
     expect(el.querySelector('ol[aria-label="Request route"]')).toBeNull();
     expect(text(el.querySelector('#ov-trace-reason'))).toContain('This app is not connected');
