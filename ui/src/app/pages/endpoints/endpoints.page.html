@@ -88,6 +88,9 @@
               }
             </div>
             <div class="gw-card__actions">
+              @if (exportingSlug() === c.e.slug) {
+                <span class="gw-text-small gw-fg-muted" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Loading export…</span>
+              }
               <gw-access-switch kind="endpoint" [name]="c.e.slug" [enabled]="c.e.status !== 'disabled'" [blocked]="c.e.blockedReason" (changed)="data.refresh()" />
               @if (c.blocked) {
                 <span class="gw-status gw-status--warning" [id]="c.id + '-status'"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Needs review</span></span>
@@ -100,6 +103,7 @@
                 <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [attr.aria-label]="'More actions for endpoint ' + c.e.slug" aria-haspopup="menu" [gwMenuTrigger]="cardMenu"><svg lucideIcon="ellipsis" class="gw-icon"></svg></button>
                 <div class="gw-menu gw-menu--right" gwMenu #cardMenu="gwMenu" [id]="c.id + '-menu'" role="menu" [attr.aria-label]="'Actions for endpoint ' + c.e.slug" hidden>
                   <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" aria-haspopup="dialog" [attr.aria-disabled]="c.blocked ? 'true' : null" (click)="askDuplicate(c.e, $event)"><svg lucideIcon="copy-plus" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Duplicate@if (c.blocked) {<span class="gw-menu__hint">Review the change first</span>}</span></button>
+                  <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" aria-haspopup="dialog" [attr.aria-disabled]="exportUnavailableReason(c.e) ? 'true' : null" [attr.title]="exportUnavailableReason(c.e)" (click)="exportEndpoint(c.e, $event)"><svg lucideIcon="upload" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Export</span></button>
                   @if (c.e.status === 'disabled') {
                     <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" [attr.aria-disabled]="c.busy ? 'true' : null" (click)="enable(c.e)"><svg lucideIcon="play" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Enable</span></button>
                   } @else {
@@ -157,6 +161,8 @@
     }
   </ul>
 }
+
+<gw-endpoint-share #shareDialog [slug]="sharing()?.endpoint?.slug ?? ''" [connections]="sharing()?.connections ?? []" [blocked]="!!sharing()?.endpoint?.blockedReason" [showTrigger]="false" />
 
 <!--
   Create endpoint (kit #ep-create): a form dialog (static: a stray click outside never loses what was typed), the slug

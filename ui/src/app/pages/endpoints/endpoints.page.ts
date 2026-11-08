@@ -2,6 +2,7 @@ import { GwAccessSwitch } from '../../kit/access-switch';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   ElementRef,
   Injector,
   afterNextRender,
@@ -16,8 +17,9 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { FormField, SchemaPath, form, maxLength, required, submit, validate } from '@angular/forms/signals';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
-import { EndpointSummary } from '../../core/api/endpoints.api';
+import { EndpointDetail, EndpointSummary, EndpointsApi } from '../../core/api/endpoints.api';
 import { Env } from '../../core/api/types';
+import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { CoreStore } from '../../core/stores/core.store';
 import { TimeService } from '../../core/time/time.service';
 import { GwCodeBlock } from '../../code/code-block';
@@ -30,6 +32,7 @@ import { GwClientMark } from '../../kit/elements/shared/client-mark';
 import { GwIcon } from '../../kit/icons';
 import { GwMenu, GwMenuTrigger } from '../../kit/menu';
 import { ToastService } from '../../kit/toast.service';
+import { GwEndpointShare } from '../endpoint-detail/endpoint-share.component';
 import { EndpointsData } from './endpoints.data';
 import {
   DESCRIPTION_MAX,
@@ -107,7 +110,7 @@ const START_FROM: readonly { readonly id: StartFrom; readonly env: Env; readonly
  *
  * - The header counts the endpoints and says whether they run; Create endpoint is the page's one primary.
  * - A card: the slug (a link to its page) and description; Running / Disabled and the
- *   menu (Duplicate, Disable or Enable, Delete endpoint); the URL to copy; connections by environment; connection
+ *   menu (Duplicate, Export, Disable or Enable, Delete endpoint); the URL to copy; connections by environment; connection
  *   health that names what is slow or unreachable; tools by mode; the clients; tokens (active, expired, one expiring
  *   soon); the approvals waiting; the compact risk callout with Review; View activity, Open in Playground, Configure.
  *   An endpoint changed outside GateRook says so and can be kept after review.
@@ -134,6 +137,7 @@ const START_FROM: readonly { readonly id: StartFrom; readonly env: Env; readonly
     GwCodeBlock,
     GwRiskCallout,
     GwClientMark,
+    GwEndpointShare,
   ],
   providers: [EndpointsData],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -148,6 +152,9 @@ export class EndpointsPage {
   private readonly announcer = inject(Announcer);
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly endpointsApi = inject(EndpointsApi);
+  private readonly desktop = inject(DesktopBridge);
   private readonly host: HTMLElement = inject(ElementRef<HTMLElement>).nativeElement;
   private readonly fragment = toSignal(inject(ActivatedRoute).fragment, { initialValue: null });
 
@@ -155,6 +162,10 @@ export class EndpointsPage {
   private readonly duplicateDialog = viewChild.required<GwDialog>('duplicateDialog');
   private readonly deleteDialog = viewChild.required<GwDialog>('deleteDialog');
   private readonly keepDialog = viewChild.required<GwDialog>('keepDialog');
+  private readonly shareDialog = viewChild.required<GwEndpointShare>('shareDialog');
+
+  protected readonly sharing = signal<EndpointDetail | null>(null);
+  protected readonly exportingSlug = signal<string | null>(null);
 
   protected readonly slugMax = SLUG_MAX;
   protected readonly descriptionMax = DESCRIPTION_MAX;
@@ -274,6 +285,34 @@ export class EndpointsPage {
 
   protected url(slug: string): string {
     return `${this.base()}${slug.trim() || 'your-slug'}`;
+  }
+
+  protected exportUnavailableReason(endpoint: EndpointSummary): string | null {
+    if (!this.desktop.endpointShareAvailable) return 'Available in an up-to-date GateRook desktop app';
+    if (endpoint.blockedReason) return 'Review the endpoint before exporting it';
+    return this.exportingSlug() ? 'Loading endpoint for export' : null;
+  }
+
+  protected async exportEndpoint(endpoint: EndpointSummary, event: Event): Promise<void> {
+    if (this.exportUnavailableReason(endpoint)) return;
+    const opener = this.menuTrigger(event);
+    this.exportingSlug.set(endpoint.slug);
+    try {
+      const detail = await this.endpointsApi.get(endpoint.slug);
+      if (this.destroyRef.destroyed) return;
+      if (detail.endpoint.blockedReason) {
+        this.toast({ tone: 'warning', title: `Endpoint ${endpoint.slug} needs review`, body: 'Review the endpoint before exporting it.' });
+        return;
+      }
+      this.sharing.set(detail);
+      afterNextRender(() => this.shareDialog().openFrom(opener), { injector: this.injector });
+    } catch (err) {
+      if (!this.destroyRef.destroyed) {
+        this.toast({ tone: 'warning', title: `Endpoint ${endpoint.slug} couldn't be loaded for export`, body: this.errorText(err, NO_ANSWER) });
+      }
+    } finally {
+      this.exportingSlug.set(null);
+    }
   }
 
   // ── Create ────────────────────────────────────────────────────────────────────────────────────────────────────
