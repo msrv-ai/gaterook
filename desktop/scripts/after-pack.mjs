@@ -2,6 +2,7 @@ import { chmod, lstat, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getAppUpdatePublishConfiguration } from 'app-builder-lib/out/publish/PublishManager.js';
 import { serializeToYaml } from 'builder-util';
+import { verifyPackagedUi } from './verify-packaged-ui.mjs';
 
 /** Squirrel removes quarantine attributes after quitting; read-only JRE notices make that step fail. */
 async function makeOwnerWritable(path) {
@@ -15,8 +16,13 @@ async function makeOwnerWritable(path) {
   }
 }
 
-/** Prepare resources and include the update source before macOS signing, including directory-only packaging. */
+/** Validate Windows UI payloads and prepare macOS update resources before signing, including directory-only builds. */
 export default async function afterPack(context) {
+  if (context.electronPlatformName === 'win32') {
+    await verifyPackagedUi(context.packager.getResourcesDir(context.appOutDir),
+      join(context.packager.info.appDir, 'stage', 'ui'));
+    return;
+  }
   if (context.electronPlatformName !== 'darwin') return;
   const resources = context.packager.getResourcesDir(context.appOutDir);
   await makeOwnerWritable(resources);

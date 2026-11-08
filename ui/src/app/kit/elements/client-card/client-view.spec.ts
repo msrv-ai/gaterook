@@ -157,7 +157,7 @@ describe('client-card view', () => {
     const row = disconnectWords(DEMO_CLIENTS.claudeDesktop, cdDev, true);
     expect(row.title).toBe('Disconnect Claude Desktop from dev?');
     expect(words(row.body)).toBe('Claude Desktop loses access to endpoint dev at once. The bridge stays installed for incident-prod.');
-    expect(row.button).toBe('Disconnect Claude Desktop from dev');
+    expect(row.button).toBe('Disconnect from dev');
     expect(words(disconnectWords(DEMO_CLIENTS.claudeDesktop, cdProd, true).body)).toBe(
       'Claude Desktop loses access to endpoint incident-prod and its prod connections at once. The bridge stays installed for dev.',
     );

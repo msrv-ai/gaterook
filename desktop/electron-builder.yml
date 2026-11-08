@@ -20,6 +20,8 @@ files:
   - dist/icons/*.png
   - from: stage/ui
     to: ui
+    # Keep an explicit include: merging the same FileSet otherwise produces an empty filter.
+    filter: ['**/*']
   - "!node_modules/**/*"              # main is one bundle: nothing from node_modules ships
 extraResources:
   - from: dist/native                 # signed OS authentication helper; executable outside the asar

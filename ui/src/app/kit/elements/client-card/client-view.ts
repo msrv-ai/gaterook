@@ -398,7 +398,9 @@ export function disconnectFacts(
 
 /**
  * What a Disconnect confirm says: the endpoint the client loses at
- * once and, for a client on several endpoints, the ones it keeps; the button names the object.
+ * once and, for a client on several endpoints, the ones it keeps; the button names the object. The title already
+ * names the client, so a row's button names only the endpoint: "Disconnect Claude Desktop from default-2" needs more
+ * than the footer of a 400 px confirm and pushes its button onto a second line.
  */
 export function disconnectWords(card: ClientCard, link: ClientLink, table: boolean): { readonly title: string; readonly body: TextPart[]; readonly button: string } {
   const prod = link.env === 'prod';
@@ -408,7 +410,7 @@ export function disconnectWords(card: ClientCard, link: ClientLink, table: boole
     : `${card.name} loses access to endpoint ${link.endpoint} at once.`;
   if (table) {
     const rest = kept.length ? (link.method === 'mcpb' ? ` The bridge stays installed for ${andList(kept)}.` : ` It keeps ${andList(kept)}.`) : '';
-    return { title: `Disconnect ${card.name} from ${link.endpoint}?`, body: literalParts(loses + rest, [link.endpoint, ...kept]), button: `Disconnect ${card.name} from ${link.endpoint}` };
+    return { title: `Disconnect ${card.name} from ${link.endpoint}?`, body: literalParts(loses + rest, [link.endpoint, ...kept]), button: `Disconnect from ${link.endpoint}` };
   }
   const again = link.method === 'token' ? ' Its token stops working; connect again any time.' : ' Connect again any time; that creates a new access.';
   return { title: `Disconnect ${card.name}?`, body: literalParts(loses + again, [link.endpoint]), button: `Disconnect ${card.name}` };

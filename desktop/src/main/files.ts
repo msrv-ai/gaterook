@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process';
 import { lstat, realpath } from 'node:fs/promises';
 import { isAbsolute, join, sep } from 'node:path';
 import { dialog, shell, type BrowserWindow } from 'electron';
+import { openInClaudeDesktop } from './claude-launcher.ts';
 import { callCore, callCoreOk } from './core-client.ts';
 import { clientId, defaultFileName, filePurpose, linkId, openableConfig, revealableFolder, revealKind } from './file-purposes.ts';
 import type { Logger } from './log.ts';
@@ -96,6 +97,15 @@ export async function openMcpb(o: FilesOptions, id: unknown): Promise<void> {
     // Claude Desktop installs the extension it opens; `open -a` names it even when another app claims .mcpb.
     const opened = await new Promise<boolean>((resolve) => execFile('/usr/bin/open', ['-a', 'Claude', real], (e) => resolve(!e)));
     if (opened) return;
+  }
+  if (process.platform === 'win32') {
+    // No Windows app is registered for .mcpb (Claude Desktop's package declares no file type): its launcher takes it.
+    const launcher = await openInClaudeDesktop(real);
+    if (launcher) {
+      o.log(`Opened the extension with ${launcher}`);
+      return;
+    }
+    o.log('Claude Desktop launcher not found; opening the extension with the default app');
   }
   const error = await shell.openPath(real);
   if (error) throw new Error(`Couldn’t open the extension: ${error}`);
