@@ -38,9 +38,11 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
  * radios and status text remain the accessible representation of every connection.
  *
  * Put this directive on an SVG directly inside the map and pass the map element.
- * Mark the service/app wrappers with data-map-service / data-map-app and endpoint
- * labels with data-map-endpoint. Only configured input nodes that are currently
- * rendered receive paths; filtering a node never leaves a phantom connection.
+ * Mark the service/app wrappers with data-map-service / data-map-app, the gateway
+ * band with data-map-hub and endpoint labels with data-map-endpoint. Paths join
+ * the selected endpoint's column at the top and bottom of the gateway band.
+ * Only configured input nodes that are currently rendered receive paths;
+ * filtering a node never leaves a phantom connection.
  */
 @Directive({
   selector: 'svg[gwOverviewWires]',
@@ -107,53 +109,74 @@ export class GwOverviewWires {
     const state = this.state;
     if (!state?.root || !this.win) return;
     const root = state.root;
+    const hub = root.querySelector<HTMLElement>('[data-map-hub]');
     const endpoints = Array.from(root.querySelectorAll<HTMLElement>('[data-map-endpoint]'));
     const port = endpoints.find((el) => el.getAttribute('data-map-endpoint') === state.endpoint);
     const services = this.elements(root, 'data-map-service');
     const apps = this.elements(root, 'data-map-app');
-    this.observe([root, ...(port ? [port] : []), ...services.values(), ...apps.values()]);
+    this.observe([root, ...(hub ? [hub] : []), ...(port ? [port] : []), ...services.values(), ...apps.values()]);
     const desktop = this.win.matchMedia?.('(min-width: 1280px)').matches ?? this.win.innerWidth >= 1280;
-    if (!desktop || !port) return;
+    if (!desktop || !hub || !port) return;
     const origin = root.getBoundingClientRect();
     const endpoint = port.getBoundingClientRect();
-    if (!origin.width || !origin.height || !endpoint.width || !endpoint.height) return;
+    const gateway = hub.getBoundingClientRect();
+    if (!origin.width || !origin.height || !endpoint.width || !endpoint.height || !gateway.width || !gateway.height) return;
     this.svg.setAttribute('viewBox', `0 0 ${origin.width} ${origin.height}`);
+    const hubX = (endpoint.left + endpoint.right) / 2 - origin.left;
+    const hubTop = gateway.top - origin.top;
+    const hubBottom = gateway.bottom - origin.top;
     const wires: DrawnWire[] = [];
     const add = (node: OverviewWireNode, kind: 'service' | 'app', element: HTMLElement | undefined) => {
       if (!element) return;
       const bounds = element.getBoundingClientRect();
       if (!bounds.width || !bounds.height) return;
-      const left = kind === 'service';
-      const x1 = (left ? bounds.right : endpoint.right) - origin.left;
-      const y1 = (left ? bounds.top + bounds.bottom : endpoint.top + endpoint.bottom) / 2 - origin.top;
-      const x2 = (left ? endpoint.left : bounds.left) - origin.left;
-      const y2 = (left ? endpoint.top + endpoint.bottom : bounds.top + bounds.bottom) / 2 - origin.top;
-      const bend = Math.max(0, x2 - x1) * 0.55;
+      const service = kind === 'service';
+      const nodeX = (bounds.left + bounds.right) / 2 - origin.left;
+      const x1 = service ? nodeX : hubX;
+      const y1 = service ? bounds.bottom - origin.top : hubBottom;
+      const x2 = service ? hubX : nodeX;
+      const y2 = service ? hubTop : bounds.top - origin.top;
+      const bend = Math.max(0, y2 - y1) * 0.55;
       const path = this.svg.ownerDocument.createElementNS(SVG_NS, 'path');
       path.setAttribute('class', 'gw-setup-map__network-path');
-      path.setAttribute('d', `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`);
+      path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${y1 + bend}, ${x2} ${y2 - bend}, ${x2} ${y2}`);
       const muted = !state.endpointEnabled || !node.enabled;
       path.dataset['node'] = `${kind}:${node.id}`;
       path.dataset['muted'] = String(muted);
       path.dataset['pending'] = String(muted || !!node.pending);
       this.svg.append(path);
       wires.push({ key: `${kind}:${node.id}`, node, path,
-        request: `M ${x2} ${y2} C ${x2 - bend} ${y2}, ${x1 + bend} ${y1}, ${x1} ${y1}` });
+        request: `M ${x2} ${y2} C ${x2} ${y2 - bend}, ${x1} ${y1 + bend}, ${x1} ${y1}` });
     };
     state.services.forEach((node) => add(node, 'service', services.get(node.id)));
     state.apps.forEach((node) => add(node, 'app', apps.get(node.id)));
     const trace = state.trace;
-    const traceService = trace ? wires.find((wire) => wire.key === `service:${trace.service}` && wire.node.enabled) : undefined;
+    const traceService = trace ? wires.find((wire) => wire.key === `service:${trace.service}` && wire.node.enabled && !wire.node.pending) : undefined;
     const traceApp = trace ? wires.find((wire) => wire.key === `app:${trace.app}` && wire.node.enabled && !wire.node.pending) : undefined;
     const validTrace = state.endpointEnabled && traceService && traceApp;
     const selected = wires.find((wire) => wire.key === state.activeNode && wire.node.enabled && !wire.node.pending);
+    const selectedApp = selected?.key.startsWith('app:');
     wires.forEach((wire) => {
       const related = selected?.key.startsWith('service:')
         ? wire.key.startsWith('app:') && !wire.node.pending
-        : selected?.key.startsWith('app:') && wire.key.startsWith('service:');
-      const active = validTrace ? wire === traceService || wire === traceApp : !!selected && (wire === selected || related);
-      wire.path.dataset['active'] = String(state.endpointEnabled && wire.node.enabled && active);
+        : selectedApp && wire.key.startsWith('service:');
+      // A request example may animate one route while the selected app still
+      // highlights every connection it can access through this endpoint.
+      const active = validTrace && !selectedApp ? wire === traceService || wire === traceApp : !!selected && (wire === selected || related);
+      wire.path.dataset['active'] = String(state.endpointEnabled && wire.node.enabled && !wire.node.pending && active);
     });
+    for (const [kind, side, y] of [['service', 'in', hubTop], ['app', 'out', hubBottom]] as const) {
+      if (!wires.some((wire) => wire.key.startsWith(`${kind}:`))) continue;
+      const junction = this.svg.ownerDocument.createElementNS(SVG_NS, 'circle');
+      junction.setAttribute('class', 'gw-setup-map__network-junction');
+      junction.setAttribute('cx', String(hubX));
+      junction.setAttribute('cy', String(y));
+      junction.setAttribute('r', 'var(--gw-space-1)');
+      junction.setAttribute('fill', state.endpointEnabled ? 'var(--gw-color-brand-fg)' : 'var(--gw-color-border-strong)');
+      junction.dataset['side'] = side;
+      junction.dataset['muted'] = String(!state.endpointEnabled);
+      this.svg.append(junction);
+    }
     if (trace && validTrace) this.animate(trace, traceApp, traceService, root);
   }
 
