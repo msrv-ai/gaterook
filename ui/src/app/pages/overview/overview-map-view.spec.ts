@@ -14,15 +14,23 @@ const app = (links: ClientLink[] = [], over: Partial<ClientCard> = {}): ClientCa
 });
 
 describe('Overview connection map', () => {
-  it('scopes native services to exact endpoint membership and shows installed MCP servers separately', () => {
-    const rows = [native('dev-db'), native('other-db', { usedBy: ['dev-other'] }), mcp('docs', ['dev']), mcp('github', ['stage'])];
+  it('scopes services to exact endpoint membership and offers only MCP servers with no endpoint assignments', () => {
+    const rows = [
+      native('dev-db'), native('other-db', { usedBy: ['dev-other'] }),
+      mcp('docs', ['dev', 'stage']), mcp('github'),
+      mcp('other-mcp', ['dev-other'], { enabled: false, health: { state: 'unreachable', latencyMs: null, message: null, checkedAt: null } }),
+    ];
     const mapped = mapConnections(rows, [], dev)!;
     expect(mapped.map((item) => item.name)).toEqual(['dev-db', 'docs', 'github']);
     expect(mapped[0]).toEqual(expect.objectContaining({ assigned: true, mcp: false, icon: 'database', route: ['/connections', 'dev-db'], fragment: null }));
     expect(mapped[1]).toEqual(expect.objectContaining({ assigned: true, mcp: true, icon: 'plug', effectiveOn: true, state: { tone: 'success', label: 'Connected' } }));
     expect(mapped[2]).toEqual(expect.objectContaining({ assigned: false, mcp: true, effectiveOn: false, state: { tone: 'neutral', label: 'Not connected to dev' } }));
     expect(mapped[2].row).toEqual(rows[3]);
-    expect(mapConnections(rows, [], null)?.map((item) => [item.name, item.assigned])).toEqual([['docs', false], ['github', false]]);
+    expect(mapConnections(rows, [], endpoint('stage'))?.map((item) => [item.name, item.assigned])).toEqual([['docs', true], ['github', false]]);
+    expect(mapConnections(rows, [], endpoint('dev-other'))?.map((item) => [item.name, item.state.label])).toEqual([
+      ['other-db', 'Healthy'], ['github', 'Not connected to dev-other'], ['other-mcp', 'Connection off'],
+    ]);
+    expect(mapConnections(rows, [], null)?.map((item) => [item.name, item.assigned])).toEqual([['github', false]]);
     expect(mapConnections(null, [], dev)).toBeNull();
   });
 
