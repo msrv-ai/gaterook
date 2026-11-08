@@ -13,6 +13,10 @@ Installed apps check update metadata at `msrv.dev`; macOS update downloads remai
 
 [Website](https://msrv.dev) · [Security model](docs/security.md) · [Issues](https://github.com/msrv-ai/gaterook/issues) · [Architecture](docs/ARCHITECTURE.md) · [Research](docs/research/README.md)
 
+Watch how GateRook connects AI to your infrastructure while keeping you in control.
+
+https://github.com/user-attachments/assets/d304a5f2-925a-414a-8d50-f14323139319
+
 ## Put a firewall between AI and production
 
 | Security control | What GateRook enforces |
