@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, signal } from '@angular/core';
 import { PluginUpdatePreview } from '../../../core/api/plugins.api';
 import { GwDiff } from '../../../code/diff';
 import { GwDialog, GwDialogClose } from '../../../kit/dialog';
@@ -64,6 +64,9 @@ let nextId = 0;
               <span class="gw-checkbox__label" [id]="uid + '-ack-label'">I understand this code is not verified and runs on this computer as my user</span>
             </label>
           }
+          @if (progress()) {
+            <p class="gw-text-caption gw-fg-muted" role="status">{{ progress() }}</p>
+          }
           @if (error()) {
             <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
               <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
@@ -96,6 +99,13 @@ export class GwPluginUpdateDialog {
   /** Tools of the installed version, for "The 5 existing tools keep their modes". */
   private readonly toolsBefore = signal<number | null>(null);
   protected readonly busy = signal(false);
+  protected readonly progress = signal<string | null>(null);
+  private operation = 0;
+
+  constructor() {
+    this.dialog.closed.subscribe(() => { this.operation++; });
+    inject(DestroyRef).onDestroy(() => { this.operation++; });
+  }
   protected readonly error = signal<string | null>(null);
 
   protected readonly from = computed(() => v(this.preview()?.from) ?? '');
@@ -145,6 +155,8 @@ export class GwPluginUpdateDialog {
     this.preview.set(preview);
     this.connections.set(connections);
     this.toolsBefore.set(toolsBefore);
+    this.operation++;
+    this.progress.set(null);
     this.busy.set(false);
     this.error.set(null);
     this.dialog.openAfterRender(opener);
@@ -158,8 +170,12 @@ export class GwPluginUpdateDialog {
     if (!p.signed && !this.host.querySelector<HTMLInputElement>(`#${this.uid}-ack`)?.checked) return;
     this.busy.set(true);
     this.error.set(null);
+    const operation = ++this.operation;
+    const cancelled = () => operation !== this.operation || !this.host.open;
+    const preparation = { cancelled, progress: (message: string | null) => { if (!cancelled()) this.progress.set(message); } };
     try {
-      await this.data.updatePlugin(p.id, p.to, !p.signed);
+      await this.data.updatePlugin(p.id, p.to, !p.signed, preparation);
+      if (cancelled()) return;
       this.dialog.close('updated');
       const added = p.toolsAdded;
       this.toasts.show({
@@ -170,9 +186,10 @@ export class GwPluginUpdateDialog {
           : 'Loaded without a restart. The tools keep their modes.',
       });
     } catch (e) {
+      if (cancelled()) return;
       this.error.set(failureText(e, 'This build of the gateway core can’t update plugins yet.'));
     } finally {
-      this.busy.set(false);
+      if (operation === this.operation) { this.busy.set(false); this.progress.set(null); }
     }
   }
 }

@@ -153,12 +153,11 @@ export class GwTunnelSettings {
       dialog.returnTo = null;
       dialog.close('publish');
       afterNextRender(() => document.getElementById('st-tunnel-off-btn')?.focus(), { injector: this.injector });
-      const url = this.publicUrl();
       this.toasts.show({
         tone: 'warning',
         icon: 'globe',
-        title: `${slug} is public`,
-        body: `${this.anthropicOnly() ? 'Anthropic IP ranges' : 'Any address'} can reach ${url ?? 'its public URL'}. Add it in claude.ai under Settings, Connectors.`,
+        title: `Starting tunnel for ${slug}`,
+        body: 'The public URL appears when the tunnel is ready. First use downloads Cloudflare Tunnel support when needed.',
       });
     } catch (err) {
       this.publishError.set(this.errorText(err));

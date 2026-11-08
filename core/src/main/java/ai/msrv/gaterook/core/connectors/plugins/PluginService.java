@@ -3,6 +3,7 @@ package ai.msrv.gaterook.core.connectors.plugins;
 import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
+import ai.msrv.gaterook.core.connectors.Plugins.RuntimeStatus;
 import ai.msrv.gaterook.core.connectors.PluginGenerationSwitched;
 import ai.msrv.gaterook.core.connectors.internal.persistence.ConnectorTypeRepository;
 import ai.msrv.gaterook.core.connectors.internal.persistence.PluginEntity;
@@ -538,10 +539,16 @@ public class PluginService {
         "There is no plugin " + id + "."));
   }
 
+  public ai.msrv.gaterook.core.connectors.Plugins.RuntimeDetails runtimeDetails() { return runtime.runtimeDetails(); }
+
+  public RuntimeStatus runtimeStatus() { return runtime.runtimeStatus(); }
+
+  public RuntimeStatus prepareRuntime() { return runtime.prepareRuntime(); }
+
   private void requireRuntime() {
     if (!runtime.available()) {
-      throw ProblemException.conflict("No plugin runtime", runtime.unavailableReason()
-          .orElse("This build can't run plugins."));
+      RuntimeStatus status = runtime.prepareRuntime();
+      if (!"ready".equals(status.state())) throw ProblemException.conflict("Java support is not ready", status.message());
     }
   }
 

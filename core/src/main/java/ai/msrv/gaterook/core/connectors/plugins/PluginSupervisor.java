@@ -174,7 +174,11 @@ final class PluginSupervisor {
         mark(ConnectorProcessStatus.State.RUNNING, "pid " + started.pid());
         return started;
       } catch (HostLauncher.HostStartException e) {
-        recordFailure("couldn't start (" + e.phase() + "): " + e.getMessage());
+        if ("runtime".equals(e.phase())) {
+          mark(ConnectorProcessStatus.State.STOPPED, e.getMessage());
+        } else {
+          recordFailure("couldn't start (" + e.phase() + "): " + e.getMessage());
+        }
         throw ConnectorException.unavailable(pluginId + " couldn't start: " + e.getMessage(), null);
       }
     }

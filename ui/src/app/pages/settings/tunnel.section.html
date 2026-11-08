@@ -63,7 +63,8 @@
               @if (why === 'st-tunnel-none') {
                 <p class="gw-text-caption gw-fg-muted" id="st-tunnel-none">No endpoint is chosen for claude.ai yet. <a class="gw-link" routerLink="/endpoints">Choose one in Endpoints</a></p>
               } @else if (why === 'st-tunnel-starting') {
-                <p class="gw-text-caption gw-fg-muted" id="st-tunnel-starting">The tunnel is starting.</p>
+                <p class="gw-text-caption gw-fg-muted" id="st-tunnel-starting">@if (tunnel.provider !== 'ngrok' && !tunnel.cloudflared?.present) {Downloading Cloudflare Tunnel support for first use. Check your internet connection.} @else {The tunnel is starting.}</p>
+                <button class="gw-btn" type="button" [attr.aria-disabled]="busy() ? 'true' : null" (click)="stop()">Cancel</button>
               } @else {
                 <p class="gw-text-caption gw-fg-muted" id="st-tunnel-off-hint">claude.ai can't reach <span class="gw-mono">{{ slug() }}</span> while the tunnel is off. Turning it on asks you to confirm what is published.</p>
               }
@@ -143,7 +144,7 @@
             <span class="gw-choice-card__icon"><svg lucideIcon="cloud" class="gw-icon"></svg></span>
             <span class="gw-choice-card__title" id="st-prov-cf-t">Cloudflare Tunnel</span>
             <span class="gw-choice-card__description" id="st-prov-cf-d">No account needed. A quick tunnel gets a new address each time it starts; claude.ai must be pointed at the new URL. Use a named tunnel for a stable hostname.</span>
-            <span class="gw-choice-card__meta">@if (cloudflared(); as v) {cloudflared {{ v }}, bundled} @else {cloudflared, bundled}</span>
+            <span class="gw-choice-card__meta">@if (cloudflared(); as v) {cloudflared {{ v }}} @else {cloudflared} · @if (t()?.cloudflared?.sha256Ok) {Ready} @else {Downloads on first use}</span>
           </label>
           <label class="gw-choice-card">
             <input class="gw-choice-card__input" type="radio" value="ngrok" [formField]="providerForm.provider" [attr.aria-disabled]="off() ? 'true' : null" aria-labelledby="st-prov-ngrok-t" [attr.aria-describedby]="'st-prov-ngrok-d' + (off() ? ' st-tunnel-why' : '')">

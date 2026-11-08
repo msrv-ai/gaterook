@@ -206,6 +206,30 @@ npm run smoke -w desktop -- --only real
 
 Linux without a display needs `xvfb-run -a`. Native image and OS-specific sandbox checks have additional requirements.
 
+## Optional components and offline use
+
+The native desktop package downloads Cloudflared when a person turns on a Cloudflare tunnel and Java support when a plugin is first installed or used. App startup, plugin previews and runtime status reads do not download either component. Built-in connectors and the native stdio bridge remain usable without them.
+
+- Cloudflared uses the existing version and SHA-256 pins in `core/src/main/resources/ai/msrv/gaterook/core/tunnel/binaries.json`. It is cached in `<gateway-home>/bin/cloudflared/<version>/`. Tunnel startup runs in the background, displays first-use download progress, and can be cancelled. An offline or failed download leaves the endpoint unavailable publicly; turning the tunnel on again retries it.
+- Plugin Java support uses Azul Zulu OpenJDK JRE 25.0.5.0.3 from immutable HTTPS publisher URLs. The archive size, SHA-256, file hashes, executable bits and symbolic-link targets are pinned in `core/src/main/resources/ai/msrv/gaterook/core/connectors/plugin-runtimes.json`. Support is available for macOS arm64/x64, Windows x64 and Linux x64. Other platforms require an explicit bundled JRE. Downloads are bounded by the pinned size and a 15-minute deadline, verified before installation and committed by an atomic directory move. Interrupted downloads never become executable installations.
+- Java is cached in `<gateway-home>/runtimes/java/<archive-sha256>/`. Cache files are checked against application pins before launching a plugin. No downloaded manifest can add trusted files or URLs. File locks serialize installation across processes sharing a home. Only the runtime directory becomes readable to the plugin sandbox; it does not become writable. Vendor license files and symlinks are retained.
+- Install and Update show download progress before making the plugin change. Closing the review cancels that pending plugin action; shared Java preparation may finish and remain cached. Offline failures stay visible and require an explicit retry. A missing runtime on a plugin call starts preparation and returns an unavailable response; it does not count toward the plugin crash limit. Use **Restart** in Connectors to retry after a download failure.
+
+After successful preparation, these components need no network access to start from the verified cache. Cloudflare Tunnel itself still needs its provider connection, and a plugin may need access to its service. Caches survive application updates and are excluded from portable backups. A restored home, a new computer, a removed or damaged cache, or an application update pinning a new component version needs preparation again. Before going offline, install the required plugins and check that their connections work. JVM development runs continue to use their own JDK.
+
+For an intentional local package with optional support included:
+
+```bash
+scripts/jlink.sh
+node scripts/stage.mjs --jre target/plugin-host-jre --bundle-cloudflared
+```
+
+Default staging (`node scripts/stage.mjs`) omits both payloads. `--skip-cloudflared` remains accepted and overrides `--bundle-cloudflared`. `--jar` retains the local JRE fallback because the JVM core needs it to boot. A native package without a bundled JRE requires the native bridge, so AI client connectivity cannot accidentally depend on a plugin download. The existing macOS `afterPack` hook remains responsible for writable update resources, including an explicitly bundled JRE.
+
+To update Java pins, download the chosen ZIP and package metadata from the [Azul metadata API](https://api.azul.com/metadata/v1/zulu/packages/), review the immutable URL and publisher SHA-256, and run `python3 scripts/pin-plugin-runtime.py <platform> <metadata.json> <archive.zip>`. Keep these downloaded inputs in ignored local output directories. Review the generated pin changes and test the runtime, host protocol, AOT cache and OS sandbox on every supported platform before distributing a new pin. The helper updates build inputs only; it neither publishes nor installs a release.
+
+The admin API exposes `GET /api/plugins/runtime` and `POST /api/plugins/runtime/prepare`. States are `missing`, `downloading`, `ready`, `error` and `unsupported`; only the POST starts or retries preparation. Normal admin authentication applies. The optional real-archive test accepts `-Dgateway.test.runtimeArchive=/absolute/path/to/the/pinned-platform.zip`; it serves that local archive, verifies extraction, launches Java and loads a real plugin in the host sandbox without downloading from the internet. `OptionalComponentsProcessIT` additionally checks the native admin API, a real publisher download and cache reuse after restarting with an unreachable proxy; opt in with `-Dgateway.test.optionalComponents=true -Dgateway.core.binary=/absolute/path/to/gaterook-core`.
+
 ## Update checks and installation identity
 
 On first launch, an installed app creates a cryptographically random 16-character ASCII letter/digit ID in `install-id` inside its Electron application data directory. Updates retain the file. The ID is independent of account information, hardware, gateway settings and credentials. It is not part of gateway backup archives; deleting the application data directory creates a new ID on the next launch. An invalid, unreadable or unwritable identity never blocks opening the app or checking for updates: the check omits the ID and is not counted, while any existing identity file remains untouched.
@@ -227,7 +251,7 @@ npm start -- --core-binary app/target/gaterook-core
 
 Windows outputs use `.exe`. Native runtime libraries must remain next to the executable or in its adjacent `native-libs/` directory. `scripts/aot-check.sh` validates the AOT context without a full native compilation; `scripts/native-smoke.sh` exercises a built native core.
 
-Installer inputs and staging scripts are retained in `desktop/` and `scripts/`. Packaging also requires a plugin-host JRE (`scripts/jlink.sh`), platform binaries, and staged resources. Signing, notarization, release credentials, and publication are separate concerns. Do not treat a successful JVM build as installer validation or run publishing commands as part of local setup.
+Installer inputs and staging scripts are retained in `desktop/` and `scripts/`. Normal native packages include the native core, native bridge, plugin-host JAR and staged UI resources. They omit the optional Java runtime and Cloudflared binaries, even when a local JRE was previously built. Signing, notarization, release credentials, and publication are separate concerns. Do not treat a successful JVM build as installer validation or run publishing commands as part of local setup.
 
 On macOS, the packaging `afterPack` hook writes `Contents/Resources/app-update.yml` from the configured update source before signing, including directory-only builds. Keep this hook when overriding packaging settings: packaging a prebuilt application does not regenerate its update configuration. An installed app missing this file cannot check for updates; install a corrected signed build manually. Adding the file to an already signed application invalidates its resource seal.
 

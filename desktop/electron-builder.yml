@@ -26,13 +26,13 @@ extraResources:
     to: native
   - from: stage/core                  # the native core and libsqlitejdbc (signed with the app)
     to: core
-  - from: stage/jre                   # the plugin host's jlink JRE
+  - from: stage/jre                   # optional offline JRE; normal builds contain only a placeholder
     to: jre
   - from: stage/plugin-host
     to: plugin-host
   - from: stage/bridge                # gw-bridge (native, jar) and gw-bridge.mjs
     to: bridge
-  - from: stage/cloudflared           # <resources>/cloudflared/<os>-<arch>/cloudflared, pinned (A6)
+  - from: stage/cloudflared           # optional offline agent; normal builds download on first use
     to: cloudflared
 protocols:
   - name: GateRook

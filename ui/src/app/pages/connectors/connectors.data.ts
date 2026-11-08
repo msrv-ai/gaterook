@@ -16,6 +16,7 @@ import {
   PluginCheck,
   PluginUpdatePreview,
   PluginsApi,
+  RuntimePreparation,
 } from '../../core/api/plugins.api';
 import { SecretRow, SecretsApi } from '../../core/api/secrets.api';
 import { Template, TemplateSaved, TemplatesApi } from '../../core/api/templates.api';
@@ -267,7 +268,8 @@ export class ConnectorsData {
     return source instanceof File ? this.pluginsApi.checkFile(source) : this.pluginsApi.check(source);
   }
 
-  async installPlugin(stagingId: string, acknowledgeUnsigned: boolean): Promise<void> {
+  async installPlugin(stagingId: string, acknowledgeUnsigned: boolean, preparation?: RuntimePreparation): Promise<void> {
+    await this.pluginsApi.ensureRuntime(preparation);
     await this.pluginsApi.install(stagingId, acknowledgeUnsigned);
     await Promise.all([this.types.refresh(), this.catalog.refresh()]);
   }
@@ -278,6 +280,7 @@ export class ConnectorsData {
   }
 
   async restartPlugin(id: string): Promise<void> {
+    await this.pluginsApi.ensureRuntime();
     await this.pluginsApi.action(id, 'restart');
     await this.types.refresh();
   }
@@ -287,7 +290,8 @@ export class ConnectorsData {
   }
 
   /** `acknowledgeUnsigned` only for a release the catalog doesn't sign: the core refuses it without (§9). */
-  async updatePlugin(id: string, to: string, acknowledgeUnsigned = false): Promise<void> {
+  async updatePlugin(id: string, to: string, acknowledgeUnsigned = false, preparation?: RuntimePreparation): Promise<void> {
+    await this.pluginsApi.ensureRuntime(preparation);
     await this.pluginsApi.action(id, 'update', acknowledgeUnsigned ? { to, acknowledgeUnsigned } : { to });
     await Promise.all([this.types.refresh(), this.catalog.refresh()]);
   }

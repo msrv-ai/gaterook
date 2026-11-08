@@ -163,6 +163,8 @@ public final class PluginInstaller {
       throw ProblemException.unprocessable("Unsigned plugin", "This plugin isn't signed by the catalog. Confirm that "
           + "you trust it before installing it.", "/acknowledgeUnsigned");
     }
+    // A first download may have supplied Java modules since the preview was checked.
+    checkRequires(s.manifest());
     Path versionDir = paths.versionDir(s.manifest().id(), s.manifest().version());
     Path jar = paths.jar(s.manifest().id(), s.manifest().version());
     try {

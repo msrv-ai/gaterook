@@ -44,7 +44,9 @@ class AdminApiIT {
 
   @BeforeAll
   static void start() {
-    core = TestCore.start("admin-api", "--gateway.backup.catch-up-delay=1h");
+    // Report a complete development plugin runtime, including the host JAR used with this JVM's JDK.
+    core = TestCore.start("admin-api", "--gateway.backup.catch-up-delay=1h", "--gateway.pluginHostJar="
+        + Path.of("..", "plugin-host", "target", "plugin-host.jar").toAbsolutePath());
     api = new AdminMvc(core.context(), core.bean(LocalListener.class).port());
   }
 
@@ -72,6 +74,8 @@ class AdminApiIT {
     assertThat(api.sendUnsigned(HttpMethod.GET, "/api/health", null).status()).isEqualTo(401);
     assertThat(api.sendUnsigned(HttpMethod.POST, "/api/connections", "{}").status()).isEqualTo(401);
     assertThat(api.get("/api/health").status()).isEqualTo(200);
+    assertThat(api.sendUnsigned(HttpMethod.GET, "/api/plugins/runtime", null).status()).isEqualTo(401);
+    assertThat(api.sendUnsigned(HttpMethod.POST, "/api/plugins/runtime/prepare", "{}").status()).isEqualTo(401);
     // Not JSON: refused by the guard before any controller.
     assertThat(api.send(HttpMethod.GET, "/api/nope", null).status()).isEqualTo(404);
   }
@@ -102,6 +106,8 @@ class AdminApiIT {
     assertThat(info.path("logFile").asString()).endsWith("core.log");
     assertThat(info.path("pluginRuntime").path("present").asBoolean()).as("a JVM build lends its JDK").isTrue();
     assertThat(info.path("pluginRuntime").path("bundledJre").asBoolean()).isFalse();
+    assertThat(info.path("pluginRuntime").path("source").asString()).isEqualTo("development");
+    assertThat(api.ok("/api/plugins/runtime").path("state").asString()).isEqualTo("ready");
 
     JsonNode counters = api.ok("/api/nav/counters");
     assertThat(counters.path("pendingApprovals").asLong()).isZero();

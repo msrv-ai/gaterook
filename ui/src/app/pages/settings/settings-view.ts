@@ -104,7 +104,9 @@ export function runtimeRows(info: CoreInfo | null): KvRow[] {
   const p = info.pluginRuntime;
   const major = p.version ? p.version.split(/[.+-]/)[0] : null;
   const plugins: TextPart[] = !p.present
-    ? [t('Not found: Java plugins can’t start')]
+    ? [t(p.message ?? (p.state === 'missing' ? 'Downloads on first plugin use' : 'Not found: Java plugins can’t start'))]
+    : p.source === 'downloaded'
+      ? [t(major ? `Java ${major} support, cached for offline use` : 'Java support, cached for offline use')]
     : p.bundledJre
       ? [t(major ? `Bundled JRE ${major}` : 'Bundled JRE'), t(', started only for Java plugins')]
       : [t(major ? `JRE ${major} at ` : 'JRE at '), m(p.home)];

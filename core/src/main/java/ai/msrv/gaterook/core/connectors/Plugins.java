@@ -62,6 +62,17 @@ public class Plugins {
   /** A tool of a manifest: its name, whether it is declared read only, its declared annotations as one text. */
   public record ToolLine(String name, boolean readOnly, String annotations) {}
 
+  /** State is missing, downloading, ready, error or unsupported. Reads never initiate downloads. */
+  public record RuntimeStatus(String state, String version, long downloadBytes, String message) {}
+
+  public record RuntimeDetails(String home, String source, RuntimeStatus status) {}
+
+  public RuntimeDetails runtimeDetails() { return service.runtimeDetails(); }
+
+  public RuntimeStatus runtimeStatus() { return service.runtimeStatus(); }
+
+  public RuntimeStatus prepareRuntime() { return service.prepareRuntime(); }
+
   private final PluginService service;
 
   Plugins(PluginService service) {
