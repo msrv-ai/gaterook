@@ -445,13 +445,15 @@ class AdminApiIT {
 
     // New endpoint › Start from: what each start would wire now, counted as the list counts it after Create.
     JsonNode starts = api.ok("/api/endpoint-starts");
-    assertThat(each(starts, "startFrom")).containsExactly("empty", "read-only-dev", "incident-response");
+    assertThat(each(starts, "startFrom")).containsExactly("empty", "read-only-dev", "read-only-stage", "incident-response");
     assertThat(starts.get(0).path("tools").path("off").asInt()).as("Empty: the core tools, off").isEqualTo(2);
     JsonNode readOnlyDev = starts.get(1);
     assertThat(readOnlyDev.path("access").asString()).isEqualTo("read-only");
     assertThat(readOnlyDev.path("connections").toString()).contains("dev-db");
     assertThat(readOnlyDev.path("tools").path("approval").asInt()).as("a read-only endpoint asks nobody").isZero();
-    assertThat(starts.get(2).path("env").asString()).isEqualTo("prod");
+    assertThat(starts.get(2).path("env").asString()).isEqualTo("stage");
+    assertThat(starts.get(2).path("access").asString()).isEqualTo("read-only");
+    assertThat(starts.get(3).path("env").asString()).isEqualTo("prod");
 
     assertThat(api.expect(200, HttpMethod.POST, "/api/endpoints/dev/disable", "{\"reason\":\"pause\"}")
         .path("status").asString()).isEqualTo("disabled");

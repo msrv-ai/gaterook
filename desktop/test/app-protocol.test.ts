@@ -88,7 +88,7 @@ describe('app:// routing', () => {
     const csp = r.headers.get('content-security-policy') ?? '';
     const nonce = /'nonce-([^']+)'/.exec(csp)?.[1];
     assert.ok(nonce);
-    assert.match(await r.text(), new RegExp(`<gw-root ngCspNonce="${nonce.replace(/[+/]/g, '\\$&')}">`));
+    assert.ok((await r.text()).includes(`<gw-root ngCspNonce="${nonce}">`));
     assert.equal(r.headers.get('cache-control'), 'no-store');
     const again = await serveUi(root, { kind: 'index' });
     assert.notEqual(/'nonce-([^']+)'/.exec(again.headers.get('content-security-policy') ?? '')?.[1], nonce);

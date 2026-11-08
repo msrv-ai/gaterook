@@ -709,7 +709,7 @@ public class McpServerService {
   // ── The demo world ──────────────────────────────────────────────────────────────────────────────────────────
 
   /**
-   * A server of the demo world (GW_DEMO=1: {@code github-mcp} from the catalog): its
+   * A historical synthetic server of the demo world (GW_DEMO=1: {@code github-mcp}): its
    * connection, the secrets of its variables and the reviewed snapshot of its tools stored as an install stores them,
    * after a handshake the seed gives instead of a real one. Nothing is installed and nothing starts: the seed stands in
    * for the person's review and the first start, and the server starts like any other when a call needs it.

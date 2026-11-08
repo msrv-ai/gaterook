@@ -24,10 +24,7 @@ final class MySqlProbe implements SqlProbe {
 
   private static final Pattern GRANT = Pattern.compile("^GRANT (.+?) ON (\\S+(?:\\.\\S+)?) TO ",
       Pattern.CASE_INSENSITIVE);
-  /** {@code GRANT `r1`@`%`,`r2`@`%` TO …} (MySQL roles) or {@code GRANT `r1` TO …} (MariaDB). */
-  private static final Pattern ROLE_GRANT = Pattern.compile("^GRANT ((?:`[^`]+`(?:@`[^`]*`)?\\s*,?\\s*)+) TO ",
-      Pattern.CASE_INSENSITIVE);
-  private static final Pattern ROLE = Pattern.compile("`([^`]+)`(?:@`([^`]*)`)?");
+  private static final Pattern ROLE = Pattern.compile("`([^`]++)`(?:@`([^`]*+)`)?+");
 
   static final Set<String> WRITE = Set.of("INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER", "INDEX",
       "CREATE VIEW", "TRIGGER", "EVENT", "CREATE ROUTINE", "ALTER ROUTINE", "EXECUTE", "ALL PRIVILEGES", "ALL",
@@ -68,13 +65,7 @@ final class MySqlProbe implements SqlProbe {
     List<String> lines = grants(c, "SHOW GRANTS");
     Set<String> roles = new LinkedHashSet<>();
     for (String line : lines) {
-      Matcher m = ROLE_GRANT.matcher(line);
-      if (m.find() && !GRANT.matcher(line).find()) {
-        Matcher r = ROLE.matcher(m.group(1));
-        while (r.find()) {
-          roles.add(r.group(2) == null ? "`" + r.group(1) + "`" : "`" + r.group(1) + "`@`" + r.group(2) + "`");
-        }
-      }
+      roles.addAll(rolesInGrant(line));
     }
     List<String> all = new ArrayList<>(lines);
     if (!roles.isEmpty()) {
@@ -190,6 +181,43 @@ final class MySqlProbe implements SqlProbe {
       }
     }
     return out;
+  }
+
+  /** Parse a comma-separated role grant without retrying ambiguous whitespace matches. */
+  static List<String> rolesInGrant(String line) {
+    if (!line.regionMatches(true, 0, "GRANT ", 0, 6)) {
+      return List.of();
+    }
+    List<String> roles = new ArrayList<>();
+    int position = 6;
+    Matcher role = ROLE.matcher(line);
+    while (position < line.length()) {
+      if (!role.region(position, line.length()).lookingAt()) {
+        return List.of();
+      }
+      roles.add(role.group(2) == null ? "`" + role.group(1) + "`"
+          : "`" + role.group(1) + "`@`" + role.group(2) + "`");
+      int end = role.end();
+      position = end;
+      while (position < line.length() && asciiWhitespace(line.charAt(position))) {
+        position++;
+      }
+      if (position > end && line.regionMatches(true, position, "TO ", 0, 3)) {
+        return List.copyOf(roles);
+      }
+      if (position == line.length() || line.charAt(position) != ',') {
+        return List.of();
+      }
+      position++;
+      while (position < line.length() && asciiWhitespace(line.charAt(position))) {
+        position++;
+      }
+    }
+    return List.of();
+  }
+
+  private static boolean asciiWhitespace(char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\u000b' || c == '\f' || c == '\r';
   }
 
   /** {@code SELECT, INSERT, UPDATE (a, b)}: commas inside column lists don't split. */

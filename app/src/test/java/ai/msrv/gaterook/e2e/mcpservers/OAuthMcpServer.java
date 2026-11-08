@@ -75,17 +75,44 @@ final class OAuthMcpServer implements AutoCloseable {
      * servers that take the metadata documents of the AI apps' command-line clients match those with any port
      * (RFC 8252 §7.3).
      */
-    boolean accepts(String redirect) {
+    String redirect(String requested) {
+      String redirect = loopbackRedirect(requested);
       if (redirect == null) {
-        return false;
+        return null;
       }
       if (redirects.contains(redirect)) {
-        return true;
+        return redirect;
       }
       URI u = URI.create(redirect);
-      return "http".equals(u.getScheme()) && List.of("localhost", "127.0.0.1").contains(u.getHost())
-          && redirects.contains("http://" + u.getHost() + u.getRawPath());
+      return redirects.contains("http://" + u.getHost() + "/callback") ? redirect : null;
     }
+  }
+
+  /** The fixture only redirects to GateRook's loopback callback; rebuild its authority from validated components. */
+  static String loopbackRedirect(String value) {
+    if (value == null) {
+      return null;
+    }
+    final URI uri;
+    try {
+      uri = URI.create(value);
+    } catch (IllegalArgumentException e) {
+      return null;
+    }
+    if (!"http".equals(uri.getScheme()) || uri.getRawUserInfo() != null || uri.getRawQuery() != null
+        || uri.getRawFragment() != null || !"/callback".equals(uri.getRawPath())
+        || uri.getPort() < 1 || uri.getPort() > 65535) {
+      return null;
+    }
+    String host;
+    if ("localhost".equals(uri.getHost())) {
+      host = "localhost";
+    } else if ("127.0.0.1".equals(uri.getHost())) {
+      host = "127.0.0.1";
+    } else {
+      return null;
+    }
+    return "http://" + host + ":" + uri.getPort() + "/callback";
   }
 
   record Code(String client, String redirect, String challenge, String resource, String scope) {}
@@ -223,9 +250,8 @@ final class OAuthMcpServer implements AutoCloseable {
     JsonNode body = JSON.readTree(req.getInputStream());
     registrations.add(body);
     List<String> redirects = new java.util.ArrayList<>();
-    body.path("redirect_uris").forEach(r -> redirects.add(r.asString()));
-    if (redirects.isEmpty() || redirects.stream().anyMatch(r -> !r.startsWith("http://localhost:")
-        && !r.startsWith("http://127.0.0.1:"))) {
+    body.path("redirect_uris").forEach(r -> redirects.add(loopbackRedirect(r.asString())));
+    if (redirects.isEmpty() || redirects.contains(null)) {
       json(res, 400, obj().put("error", "invalid_redirect_uri"));
       return;
     }
@@ -258,8 +284,8 @@ final class OAuthMcpServer implements AutoCloseable {
     authorizationsSeen.add(req.getQueryString());
     String clientId = String.valueOf(req.getParameter("client_id"));
     Client c = clientId.startsWith("https://") ? metadataDocument(clientId) : clients.get(clientId);
-    String redirect = req.getParameter("redirect_uri");
-    if (c == null || !c.accepts(redirect)) {
+    String redirect = c == null ? null : c.redirect(req.getParameter("redirect_uri"));
+    if (redirect == null) {
       res.sendError(400, "Unknown client or redirect URI");
       return;
     }

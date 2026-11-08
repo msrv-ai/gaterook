@@ -61,6 +61,19 @@ test('rejects unresolved or invalid revisions before changing any mirror', (t) =
   }
 });
 
+test('comments cannot assemble revision tags or semantic version fragments', (t) => {
+  const root = fixture(t);
+  for (const content of [
+    '<rev<!-- ignored -->ision>1.2.3</revision>',
+    '<revision>1.<!-- ignored -->2.3</revision>',
+    '<revision>1.2.3-rc<!-- ignored -->1</revision>',
+  ]) {
+    writeFileSync(join(root, 'pom.xml'), `<project><properties>${content}</properties></project>`);
+    assert.throws(() => syncVersions(root), /literal semantic application version/);
+    assert.equal(json(root, 'package.json').version, '1.2.0');
+  }
+});
+
 test('validates the lockfile before writing package manifests', (t) => {
   const root = fixture(t, '3.1.0-SNAPSHOT');
   const lock = json(root, 'package-lock.json');

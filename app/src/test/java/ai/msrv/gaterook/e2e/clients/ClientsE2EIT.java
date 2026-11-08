@@ -230,6 +230,14 @@ class ClientsE2EIT {
     assertThat(info.out()).contains("gaterook-dev");
 
     JsonNode manifest = JSON.readTree(read(unpacked.resolve("manifest.json")));
+    ObjectNode invalid = (ObjectNode) manifest.deepCopy();
+    invalid.putArray("tools").addObject().put("name", 123);
+    Path invalidManifest = unpacked.resolve("invalid-manifest.json");
+    Files.writeString(invalidManifest, JSON.writeValueAsString(invalid));
+    Result rejected = run(List.of(node, mcpbCli.toString(), "validate", invalidManifest.toString()), Map.of(), 60);
+    assertThat(rejected.code()).as(rejected.out()).isNotZero();
+    assertThat(rejected.out()).contains("validation failed");
+
     List<String> args = new ArrayList<>();
     manifest.path("server").path("mcp_config").path("args").forEach(a -> args.add(a.asString()
         .replace("${__dirname}", unpacked.toString())));

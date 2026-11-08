@@ -82,7 +82,7 @@
     <java-diff-utils.version>4.17</java-diff-utils.version>
     <!-- Google client libraries disagree among themselves (google-auth 1.54.0, google-http-client 2.2.0, Tink):
          one version each for app's dependencyConvergence, the highest any of them asks for. -->
-    <guava.version>33.7.1-jre</guava.version>
+    <guava.version>33.7.2-jre</guava.version>
     <error_prone_annotations.version>2.50.0</error_prone_annotations.version>
     <j2objc-annotations.version>3.1</j2objc-annotations.version>
     <!-- One pin for everybody: Fabric8 8.0.0 brings 3.1.1, the OpenAPI loader of report 10 was checked on 3.0.1. -->
@@ -751,9 +751,9 @@
     </profile>
     <profile>
       <!--
-        Real external MCP servers (C10): @modelcontextprotocol/server-github 2025.4.8 and server-everything 2.0.0 from
-        app/src/test/node/mcp-servers/package-lock.json into ~/.cache/mcp-gateway-test/c10-mcp-servers; Node 24
-        (MCP_NODE, else the PATH).
+        Real external MCP server (C10): @modelcontextprotocol/server-everything 2.0.0 over stdio and Streamable HTTP,
+        using pinned lockfiles under app/src/test/resources/mcp-servers and connectors/mcp-server/src/test/resources/npm.
+        Node 24 comes from MCP_NODE or the PATH; installations use ~/.cache/mcp-gateway-test/c10-mcp-servers.
       -->
       <id>mcp-servers</id>
       <properties><it.tag.mcpservers>__enabled-mcp-servers</it.tag.mcpservers></properties>

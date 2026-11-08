@@ -54,11 +54,10 @@ import tools.jackson.databind.node.ObjectNode;
  * {@code ~/.cache/mcp-gateway-test/c10-mcp-servers} (npm's cache stays there between runs).
  *
  * <ul>
- *   <li>{@code @modelcontextprotocol/server-github} 2025.4.8: 26 tools, none declares annotations, all published as
- *       {@code github_*}; a package changed after the install doesn't start.</li>
  *   <li>{@code @modelcontextprotocol/server-everything} 2.0.0: over stdio, and over Streamable HTTP on this computer
  *       through the egress guard (allowed as the environment's private range), with a call; it serves both eras and is
- *       spoken to in 2026-07-28.</li>
+ *       spoken to in 2026-07-28. Input schemas and read-only declarations are preserved; a package whose integrity
+ *       record changes after installation cannot start.</li>
  *   <li>A package with an install script, served from this computer: {@code npm ci} runs it in the sandbox servers
  *       start in, which lets it write its work folder and nothing else.</li>
  * </ul>
@@ -153,35 +152,46 @@ class RealServersTest {
   }
 
   @Test
-  void serverGithubListsItsTwentySixToolsAndRefusesAChangedPackage() throws Exception {
-    McpServerRuntime.NpmPackage pkg = pkg("@modelcontextprotocol/server-github", "2025.4.8",
-        "server-github-2025.4.8", "mcp-server-github");
-    McpServerRuntime.NpmInstall installed = runtime.install("github-mcp", pkg, Duration.ofMinutes(5));
+  void serverEverythingPreservesSchemasAndRefusesAChangedPackage() throws Exception {
+    McpServerRuntime.NpmPackage pkg = pkg("@modelcontextprotocol/server-everything", "2.0.0",
+        "server-everything-2.0.0", "mcp-server-everything");
+    McpServerRuntime.NpmInstall installed = runtime.install("pinned-everything", pkg, Duration.ofMinutes(5));
     assertThat(installed.command()).containsExactly("node",
-        "node_modules/@modelcontextprotocol/server-github/dist/index.js");
+        "node_modules/@modelcontextprotocol/server-everything/dist/index.js");
     assertThat(installed.integrity()).isEqualTo(pkg.integrity());
 
-    ConnectionConfig cfg = stdio("cn_github", "github-mcp", installed.command(), "GITHUB_PERSONAL_ACCESS_TOKEN");
-    Fixtures.Secrets secrets = new Fixtures.Secrets().with("/env/0/secretRef", "ghp_" + "x".repeat(36));
+    List<String> command = new ArrayList<>(installed.command());
+    command.add("stdio");
+    ConnectionConfig cfg = stdio("cn_pinned", "pinned-everything", command, null);
+    Fixtures.Secrets secrets = new Fixtures.Secrets();
     McpServerRuntime.Handshake h = runtime.probe(cfg, secrets, Fixtures.Context.of(Duration.ofSeconds(60)));
 
-    assertThat(h.tools()).hasSize(26);
+    assertThat(h.tools()).hasSizeGreaterThanOrEqualTo(16);
     assertThat(h.rejected()).isEmpty();
-    assertThat(h.tools()).allSatisfy(t -> assertThat(t.path("exposed").asString()).startsWith("github_"));
-    assertThat(Snapshots.annotated(h.tools())).isZero();
-    assertThat(h.tools()).extracting(t -> t.path("original").asString()).contains("create_issue",
-        "search_repositories", "create_or_update_file", "merge_pull_request");
-    assertThat(h.notes()).contains("26 tools, 0 declare annotations");
+    assertThat(h.tools()).allSatisfy(t -> {
+      assertThat(t.path("exposed").asString()).startsWith("pinned_");
+      assertThat(t.at("/inputSchema/type").asString()).isEqualTo("object");
+    });
+    assertThat(h.tools()).filteredOn(t -> t.path("original").asString().equals("echo"))
+        .singleElement().satisfies(t -> {
+          assertThat(t.at("/inputSchema/properties/message/type").asString()).isEqualTo("string");
+          assertThat(t.at("/inputSchema/required")).extracting(JsonNode::asString).contains("message");
+        });
+    assertThat(h.tools()).extracting(t -> t.path("original").asString()).contains("echo", "get-env",
+        "gzip-file-as-resource");
 
     // Started as a stored catalog server: the integrity is checked first.
-    McpServerRuntime.Snapshot snapshot = new McpServerRuntime.Snapshot("github_", h.serverVersion(),
+    McpServerRuntime.Snapshot snapshot = new McpServerRuntime.Snapshot("pinned_", h.serverVersion(),
         h.protocolVersion(), h.tools(), pkg.integrity());
     Connector c = runtime.connector(cfg, snapshot);
-    assertThat(c.manifest().tools()).allSatisfy(t -> assertThat(t.mutating()).as(t.name()).isTrue());
+    assertThat(c.manifest().tools()).filteredOn(t -> t.name().equals("pinned_echo"))
+        .singleElement().satisfies(t -> assertThat(t.mutating()).isFalse());
+    assertThat(c.manifest().tools()).filteredOn(t -> t.name().equals("pinned_gzip_file_as_resource"))
+        .singleElement().satisfies(t -> assertThat(t.mutating()).isTrue());
     runtime.start(cfg, snapshot, secrets, Fixtures.Context.of(Duration.ofSeconds(60)), false);
     runtime.stop(cfg.id());
 
-    Path record = CACHE.resolve("home/mcp/github-mcp/node_modules/.package-lock.json");
+    Path record = CACHE.resolve("home/mcp/pinned-everything/node_modules/.package-lock.json");
     String original = Files.readString(record);
     try {
       Files.writeString(record, original.replace(pkg.integrity(), "sha512-changed"));

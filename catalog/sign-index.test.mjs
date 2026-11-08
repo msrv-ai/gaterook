@@ -25,7 +25,16 @@ import {
 const here = dirname(fileURLToPath(import.meta.url));
 const SCRIPT = join(here, 'sign-index.mjs');
 const SOURCE = JSON.parse(readFileSync(join(here, 'index.json'), 'utf8'));
-const LOCKFILE = readFileSync(join(here, 'mcp-servers', 'github-mcp-0.6.2.package-lock.json'));
+const NPM_FIXTURE = {
+  kind: 'mcp-server', id: 'fixture-mcp', version: '1.0.0', name: 'Fixture MCP server',
+  npm: { package: '@example/catalog-test-server', version: '1.0.0', integrity: 'sha512-AAAA',
+    lockfile: { url: 'fixture-mcp.package-lock.json' }, bin: 'fixture-mcp', ignoreScripts: true },
+};
+// This package exists only in memory: signing tests never download or install it.
+const LOCKFILE = Buffer.from(JSON.stringify({ lockfileVersion: 3, packages: {
+  'node_modules/@example/catalog-test-server': { version: '1.0.0', integrity: 'sha512-AAAA' },
+} }));
+const withMcpFixture = () => structuredClone({ ...SOURCE, entries: [...SOURCE.entries, NPM_FIXTURE] });
 const NOW = new Date('2026-10-26T12:00:00.123Z');
 
 /** The built files of a release, as fakes: every artifact the source index names. */
@@ -34,7 +43,7 @@ function artifacts() {
     ['gw-jira-service-desk-1.3.0.jar', Buffer.from('jira 1.3.0 jar')],
     ['gw-clickhouse-0.6.1.jar', Buffer.from('clickhouse 0.6.1 jar')],
     ['gw-rabbitmq-0.3.0.jar', Buffer.from('rabbitmq 0.3.0 jar')],
-    ['github-mcp-0.6.2.package-lock.json', LOCKFILE],
+    ['fixture-mcp.package-lock.json', LOCKFILE],
   ]);
 }
 
@@ -52,21 +61,26 @@ test('the source index of this folder signs: every artifact pinned, sequence, ti
   assert.equal(index.expiresAt, '2026-11-25T12:00:00Z');
   assert.deepEqual(index.entries.map((e) => `${e.kind}:${e.id}@${e.version}`), [
     'plugin:jira-service-desk@1.3.0', 'plugin:clickhouse@0.6.1', 'plugin:rabbitmq@0.3.0',
-    'template:pg-slow-queries@1.0.0', 'mcp-server:github-mcp@0.6.2',
+    'template:pg-slow-queries@1.0.0',
   ]);
   const clickhouse = index.entries.find((e) => e.id === 'clickhouse');
   assert.equal(clickhouse.artifact.sha256, sha256(Buffer.from('clickhouse 0.6.1 jar')));
   assert.equal(clickhouse.artifact.size, 'clickhouse 0.6.1 jar'.length);
   assert.equal(index.entries.find((e) => e.id === 'rabbitmq').signed, false);
-  const github = index.entries.find((e) => e.id === 'github-mcp');
-  assert.equal(github.npm.lockfile.sha256, sha256(LOCKFILE));
-  assert.equal(github.npm.lockfile.size, LOCKFILE.length);
   assert.deepEqual(index.revoked, []);
   // The kit's cards: names, tool counts, signed or not.
   assert.deepEqual(index.entries.map((e) => [e.name, e.tools, e.signed]), [
     ['Jira Service Desk', 6, true], ['ClickHouse', 6, true], ['RabbitMQ', 4, false],
-    ['PostgreSQL slow queries', 2, true], ['GitHub', 26, true],
+    ['PostgreSQL slow queries', 2, true],
   ]);
+});
+
+test('a test-only MCP server pins its npm lockfile without adding a product catalog entry', () => {
+  const index = prepareIndex(withMcpFixture(), { artifacts: artifacts(), sequence: 1, now: NOW });
+  const server = index.entries.find((e) => e.id === 'fixture-mcp');
+  assert.equal(server.npm.lockfile.sha256, sha256(LOCKFILE));
+  assert.equal(server.npm.lockfile.size, LOCKFILE.length);
+  assert.ok(!SOURCE.entries.some((e) => e.id === 'fixture-mcp'));
 });
 
 test('a signature holds over the exact bytes and breaks on a flipped byte', () => {
@@ -124,12 +138,12 @@ test('every artifact is pinned: a missing one, an http URL or a lockfile that pi
 
   const otherLock = artifacts();
   const lock = JSON.parse(LOCKFILE.toString('utf8'));
-  lock.packages['node_modules/@modelcontextprotocol/server-github'].integrity = 'sha512-AAAA';
-  otherLock.set('github-mcp-0.6.2.package-lock.json', Buffer.from(JSON.stringify(lock)));
-  assert.throws(() => prepareIndex(SOURCE, { artifacts: otherLock, sequence: 1, now: NOW }),
-    /doesn't pin @modelcontextprotocol\/server-github@2025\.4\.8/);
+  lock.packages['node_modules/@example/catalog-test-server'].integrity = 'sha512-BBBB';
+  otherLock.set('fixture-mcp.package-lock.json', Buffer.from(JSON.stringify(lock)));
+  assert.throws(() => prepareIndex(withMcpFixture(), { artifacts: otherLock, sequence: 1, now: NOW }),
+    /doesn't pin @example\/catalog-test-server@1\.0\.0/);
 
-  const scripts = structuredClone(SOURCE);
+  const scripts = structuredClone(withMcpFixture());
   scripts.entries[4].npm.ignoreScripts = false;
   assert.throws(() => prepareIndex(scripts, { artifacts: artifacts(), sequence: 1, now: NOW }), /--ignore-scripts/);
 });
@@ -164,7 +178,7 @@ test('the CLI signs with the key of the environment, verifies, and never writes 
     built, '--out', out, '--key-id', 'catalog-test', '--sequence', '5', '--now', NOW.toISOString()],
   { env: { PATH: process.env.PATH, [KEY_ENV]: seed }, encoding: 'utf8' });
   assert.equal(signed.status, 0, signed.stderr);
-  assert.match(signed.stdout, /Signed sequence 5, 5 entries/);
+  assert.match(signed.stdout, /Signed sequence 5, 4 entries/);
   assert.ok(signed.stdout.includes(trustLine('catalog-test', key)));
   const indexBytes = readFileSync(join(out, 'index.json'));
   const sigText = readFileSync(join(out, 'index.json.sig'), 'utf8');

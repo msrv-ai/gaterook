@@ -36,14 +36,15 @@ function latestHealth(row: ConnectionRow, health: readonly HealthRow[]): Connect
   });
 }
 
-/** Native services on this endpoint, plus real installed MCP servers that can be added to it. */
+/** Services on this endpoint, plus installed MCP servers with no endpoint assignments. */
 export function mapConnections(
   rows: readonly ConnectionRow[] | null,
   health: readonly HealthRow[],
   endpoint: EndpointSummary | null,
 ): MapConnection[] | null {
   if (rows === null) return null;
-  return rows.filter((row) => row.type === 'mcp-server' || (endpoint !== null && row.usedBy.includes(endpoint.slug))).map((original) => {
+  return rows.filter((row) => (endpoint !== null && row.usedBy.includes(endpoint.slug))
+    || (row.type === 'mcp-server' && row.usedBy.length === 0)).map((original) => {
     const row = { ...original, health: latestHealth(original, health) };
     const mcp = row.type === 'mcp-server';
     const assigned = endpoint !== null && row.usedBy.includes(endpoint.slug);

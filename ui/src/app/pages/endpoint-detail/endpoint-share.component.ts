@@ -33,11 +33,15 @@ export class GwEndpointShare {
   protected supported(connection: WiredConnection): boolean { return connection.type !== 'mcp-server'; }
 
   open(event: Event): void {
+    this.openFrom(event.currentTarget as HTMLElement);
+  }
+
+  openFrom(opener: HTMLElement | null): void {
     if (!this.available() || this.busy()) return;
     this.clear();
     this.picked.set(new Set(this.connections().filter((c) => this.supported(c)).map((c) => c.name)));
     this.includeSecrets.set(false);
-    this.dialog().open(event.currentTarget as HTMLElement);
+    this.dialog().open(opener);
   }
 
   protected toggle(name: string, checked: boolean): void {
