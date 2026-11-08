@@ -14,11 +14,10 @@ import {
   viewChild,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { FormField, SchemaPath, form, maxLength, required, submit, validate } from '@angular/forms/signals';
+import { FormField, form, submit } from '@angular/forms/signals';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
 import { EndpointDetail, EndpointSummary, EndpointsApi } from '../../core/api/endpoints.api';
-import { Env } from '../../core/api/types';
 import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { CoreStore } from '../../core/stores/core.store';
 import { TimeService } from '../../core/time/time.service';
@@ -34,18 +33,14 @@ import { GwMenu, GwMenuTrigger } from '../../kit/menu';
 import { ToastService } from '../../kit/toast.service';
 import { GwEndpointShare } from '../endpoint-detail/endpoint-share.component';
 import { EndpointsData } from './endpoints.data';
+import { GwEndpointCreate, endpointSlugRules } from './endpoint-create';
 import {
-  DESCRIPTION_MAX,
   DeleteFacts,
-  SLUG_MAX,
-  StartFrom,
   ToastText,
   blockedText,
   clientParts,
   connectionsByEnv,
   copySlug,
-  createField,
-  createdToast,
   deleteFacts,
   deletedToast,
   disableBody,
@@ -54,8 +49,6 @@ import {
   headerStatuses,
   healthParts,
   plural,
-  slugError,
-  startFromMeta,
   tokensFact,
   toolParts,
 } from './endpoints-view';
@@ -64,52 +57,6 @@ import {
 export const SKELETON_DELAY_MS = 300;
 
 const NO_ANSWER = 'The core didn’t answer. Try again.';
-
-interface CreateModel {
-  slug: string;
-  description: string;
-  startFrom: StartFrom;
-}
-
-/**
- * The slug field of Create and Duplicate, the kit's `required`, `maxlength="40"` and `pattern` as Signal Forms rules
- * (it sets `required` and `maxlength` on the input itself). The form is `novalidate`: the messages are the page's, at
- * the field, after a submit attempt, worded by {@link slugError}.
- */
-function slugRules(path: SchemaPath<string>): void {
-  required(path, { message: slugError('') ?? undefined });
-  maxLength(path, SLUG_MAX, { message: `Use at most ${SLUG_MAX} characters.` });
-  validate(path, ({ value }) => {
-    const message = value().trim() ? slugError(value()) : null;
-    return message ? { kind: 'pattern', message } : null;
-  });
-}
-
-/** The Start from cards of Create endpoint, ordered by environment. */
-const START_FROM: readonly { readonly id: StartFrom; readonly env: Env; readonly icon: string; readonly title: string; readonly description: string }[] = [
-  { id: 'empty', env: 'dev', icon: 'square-dashed', title: 'Empty', description: 'No connections and every tool off. Add only what the agent needs.' },
-  {
-    id: 'read-only-dev',
-    env: 'dev',
-    icon: 'eye',
-    title: 'Read-only dev',
-    description: 'Choose dev connections below. Their read-only tools start on; tools that change data stay off.',
-  },
-  {
-    id: 'read-only-stage',
-    env: 'stage',
-    icon: 'eye',
-    title: 'Read-only stage',
-    description: 'Choose stage connections below. Their read-only tools start on; tools that change data stay off.',
-  },
-  {
-    id: 'incident-response',
-    env: 'prod',
-    icon: 'siren',
-    title: 'Incident response',
-    description: 'Choose prod connections below. Read tools start on; tools that only change data stay off.',
-  },
-];
 
 /**
  * Endpoints (ARCHITECTURE.md §8.4 "endpoints"): every MCP URL with what it gives an
@@ -145,6 +92,7 @@ const START_FROM: readonly { readonly id: StartFrom; readonly env: Env; readonly
     GwRiskCallout,
     GwClientMark,
     GwEndpointShare,
+    GwEndpointCreate,
   ],
   providers: [EndpointsData],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -165,7 +113,7 @@ export class EndpointsPage {
   private readonly host: HTMLElement = inject(ElementRef<HTMLElement>).nativeElement;
   private readonly fragment = toSignal(inject(ActivatedRoute).fragment, { initialValue: null });
 
-  private readonly createDialog = viewChild.required<GwDialog>('createDialog');
+  private readonly createDialog = viewChild.required(GwEndpointCreate);
   private readonly duplicateDialog = viewChild.required<GwDialog>('duplicateDialog');
   private readonly deleteDialog = viewChild.required<GwDialog>('deleteDialog');
   private readonly keepDialog = viewChild.required<GwDialog>('keepDialog');
@@ -173,13 +121,6 @@ export class EndpointsPage {
 
   protected readonly sharing = signal<EndpointDetail | null>(null);
   protected readonly exportingSlug = signal<string | null>(null);
-
-  protected readonly slugMax = SLUG_MAX;
-  protected readonly descriptionMax = DESCRIPTION_MAX;
-  protected readonly startFrom = computed(() => {
-    const starts = this.data.starts();
-    return START_FROM.map((s) => ({ ...s, env: starts?.find((preview) => preview.startFrom === s.id)?.env ?? s.env }));
-  });
 
   /** Placeholders only when the first answer is slow. */
   protected readonly slow = signal(false);
@@ -225,26 +166,11 @@ export class EndpointsPage {
     });
   });
 
-  // ── Create ────────────────────────────────────────────────────────────────────────────────────────────────────
-
-  protected readonly createModel = signal<CreateModel>({ slug: '', description: '', startFrom: 'empty' });
-  protected readonly createForm = form(this.createModel, (p) => {
-    slugRules(p.slug);
-    maxLength(p.description, DESCRIPTION_MAX, { message: `Use at most ${DESCRIPTION_MAX} characters.` });
-  });
-  /** Errors show once the person tried to create, not while typing the first letters. */
-  protected readonly createTried = signal(false);
-  protected readonly createError = signal<string | null>(null);
-  protected readonly startFromError = signal<string | null>(null);
-  protected readonly startFromMeta = computed(() => startFromMeta(this.data.connections(), this.data.starts()));
-  protected readonly chosenConnections = signal<readonly string[]>([]);
-  protected readonly connectionChoices = computed(() => this.data.starts()?.find((s) => s.startFrom === this.createModel().startFrom)?.connections ?? null);
-
   // ── Duplicate ─────────────────────────────────────────────────────────────────────────────────────────────────
 
   protected readonly duplicating = signal<EndpointSummary | null>(null);
   protected readonly duplicateModel = signal({ slug: '' });
-  protected readonly duplicateForm = form(this.duplicateModel, (p) => slugRules(p.slug));
+  protected readonly duplicateForm = form(this.duplicateModel, (p) => endpointSlugRules(p.slug));
   protected readonly duplicateTried = signal(false);
   protected readonly duplicateError = signal<string | null>(null);
 
@@ -325,74 +251,17 @@ export class EndpointsPage {
   // ── Create ────────────────────────────────────────────────────────────────────────────────────────────────────
 
   protected openCreate(opener: HTMLElement | null): void {
-    this.resetCreate();
-    // The cards' counts as the core would start the endpoint now.
-    void this.data.loadStarts();
-    this.createDialog().openAfterRender(opener);
+    this.createDialog().open(opener);
   }
 
-  protected setStartFrom(id: StartFrom): void {
-    this.createModel.update((m) => ({ ...m, startFrom: id }));
-    this.chosenConnections.set([]);
-    this.startFromError.set(null);
-  }
-
-  protected toggleConnection(name: string, event: Event): void {
-    const checked = (event.target as HTMLInputElement).checked;
-    this.chosenConnections.update((names) => checked ? [...names.filter((n) => n !== name), name] : names.filter((n) => n !== name));
-  }
-
-  protected async submitCreate(e: Event): Promise<void> {
-    e.preventDefault();
-    this.createTried.set(true);
-    this.createError.set(null);
-    this.startFromError.set(null);
-    await submit(this.createForm, {
-      action: async () => {
-        const m = this.createModel();
-        const slug = m.slug.trim();
-        const connections = this.chosenConnections();
-        try {
-          await this.data.create(slug, m.description.trim() || null, m.startFrom, connections);
-        } catch (err) {
-          return this.createProblem(err);
-        }
-        this.toast(createdToast(slug, connections.length));
-        this.createDialog().close('create');
-        // Open the endpoint to review its tool modes or add connections.
-        void this.router.navigate(['/endpoints', slug]);
-        return undefined;
-      },
-      onInvalid: () => this.focusFirstInvalid(this.createDialog().element),
-    });
-  }
-
-  /** The core's refusal, on the field it names (409: the slug is taken), else in the dialog's alert. */
-  private createProblem(err: unknown) {
-    const field = isApiError(err) ? (err.kind === 'conflict' ? 'slug' : createField(err.field)) : null;
-    const message = this.errorText(err, NO_ANSWER);
-    const dialog = this.createDialog().element;
-    this.focusAfterRender(() => this.firstInvalid(dialog) ?? dialog.querySelector<HTMLElement>('[role="alert"]'));
-    if (field === 'slug') return [{ kind: 'server', message, fieldTree: this.createForm.slug }];
-    if (field === 'description') return [{ kind: 'server', message, fieldTree: this.createForm.description }];
-    if (field === 'startFrom') this.startFromError.set(message);
-    else this.createError.set(message);
-    return undefined;
+  protected onEndpointCreated(endpoint: EndpointSummary): void {
+    void this.data.refresh('full');
+    void this.router.navigate(['/endpoints', endpoint.slug]);
   }
 
   protected onCreateClosed(): void {
-    // Opened from the fragment link: drop `#create`, so the same link opens it again.
+    // Drop the fragment so the same Create endpoint link can open the dialog again.
     if (this.fragment() === 'create') void this.router.navigate([], { fragment: undefined, replaceUrl: true });
-    this.resetCreate();
-  }
-
-  private resetCreate(): void {
-    this.createModel.set({ slug: '', description: '', startFrom: 'empty' });
-    this.chosenConnections.set([]);
-    this.createForm().reset();
-    this.createTried.set(false);
-    this.createError.set(null);
-    this.startFromError.set(null);
   }
 
   // ── Duplicate ─────────────────────────────────────────────────────────────────────────────────────────────────

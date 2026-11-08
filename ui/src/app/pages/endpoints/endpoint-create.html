@@ -1,0 +1,102 @@
+<!--
+  Create endpoint (kit #ep-create): a form dialog (static: a stray click outside never loses what was typed), the slug
+  field has the focus. The URL shows as the slug is typed; errors show after a submit attempt, at the field.
+-->
+<dialog class="gw-dialog gw-dialog--md" gwDialog gwDialogStatic #createDialog="gwDialog" id="ep-create" aria-labelledby="ep-create-title" aria-describedby="ep-create-desc" (closed)="onCreateClosed()">
+  <form method="dialog" id="ep-create-form" novalidate (submit)="submitCreate($event)">
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile gw-icon-tile--brand"><svg lucideIcon="waypoints" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" id="ep-create-title">Create endpoint</h2>
+      <p class="gw-dialog__description" id="ep-create-desc">One MCP URL with its own connections, tool modes and tokens. Only connections you select are added. Review tool modes before connecting an AI app.</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-dialog__body">
+      <div class="gw-stack">
+        @let slugErr = fieldError(createTried(), createForm.slug().errors());
+        <div class="gw-field">
+          <label class="gw-field__label" for="ep-create-slug">Slug</label>
+          <div class="gw-input-group">
+            <span class="gw-input-group__affix">/mcp/</span>
+            <input class="gw-input gw-input--mono" id="ep-create-slug" type="text" placeholder="payments-dev" autocomplete="off" spellcheck="false" autocapitalize="off" autofocus [formField]="createForm.slug" [attr.aria-invalid]="slugErr ? 'true' : null" [attr.aria-describedby]="(slugErr ? 'ep-create-slug-err ' : '') + 'ep-create-url ep-create-slug-hint'">
+          </div>
+          @if (slugErr) {
+            <p class="gw-field__error" id="ep-create-slug-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ slugErr }}</p>
+          }
+          <p class="gw-field__hint" id="ep-create-url">URL: <span class="gw-mono" id="ep-create-url-value">{{ url(createModel().slug) }}</span></p>
+          <p class="gw-field__hint" id="ep-create-slug-hint">Lowercase letters, digits and hyphens. AI apps keep this URL, so pick a name you won't need to change.</p>
+        </div>
+        @let descErr = fieldError(createTried(), createForm.description().errors());
+        <div class="gw-field">
+          <label class="gw-field__label" for="ep-create-desc-input">Description <span class="gw-field__optional">Optional</span></label>
+          <input class="gw-input" id="ep-create-desc-input" type="text" placeholder="Payments service on dev: database and logs" autocomplete="off" [formField]="createForm.description" [attr.aria-invalid]="descErr ? 'true' : null" [attr.aria-describedby]="(descErr ? 'ep-create-desc-err ' : '') + 'ep-create-desc-hint'">
+          @if (descErr) {
+            <p class="gw-field__error" id="ep-create-desc-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ descErr }}</p>
+          }
+          <p class="gw-field__hint" id="ep-create-desc-hint">Shown in the endpoint list and in the command palette. Agents don't see it.</p>
+        </div>
+        <fieldset class="gw-field" [attr.aria-describedby]="startFromError() ? 'ep-create-tpl-err' : null">
+          <legend class="gw-field__label">Start from</legend>
+          <div class="gw-stack gw-stack--sm">
+            @for (s of startFrom(); track s.id) {
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="ep-create-start" [value]="s.id" [checked]="createModel().startFrom === s.id" (change)="setStartFrom(s.id)" [attr.aria-invalid]="startFromError() ? 'true' : null" [attr.aria-labelledby]="'ep-create-tpl-' + s.id + '-t'" [attr.aria-describedby]="'ep-create-tpl-' + s.id + '-d ep-create-tpl-' + s.id + '-m'">
+                <span class="gw-choice-card__icon"><svg [lucideIcon]="s.icon" class="gw-icon"></svg></span>
+                <span class="gw-choice-card__title" [id]="'ep-create-tpl-' + s.id + '-t'">
+                  <span>{{ s.title }}</span>
+                  <span><span class="gw-sr-only">environment </span><span [class]="'gw-env gw-env--' + s.env + ' gw-env--sm'">{{ s.env }}</span></span>
+                </span>
+                <span class="gw-choice-card__description" [id]="'ep-create-tpl-' + s.id + '-d'">{{ s.description }}</span>
+                <span class="gw-choice-card__meta" [id]="'ep-create-tpl-' + s.id + '-m'">{{ startFromMeta()[s.id] }}</span>
+              </label>
+            }
+          </div>
+          @if (startFromError(); as err) {
+            <p class="gw-field__error" id="ep-create-tpl-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ err }}</p>
+          }
+        </fieldset>
+        @if (createModel().startFrom !== 'empty') {
+          <fieldset class="gw-field" aria-describedby="ep-create-connections-hint">
+            <legend class="gw-field__label">Connections to add <span class="gw-field__optional">Optional</span></legend>
+            <p class="gw-field__hint" id="ep-create-connections-hint">Only selected connections are added. Leave all unchecked to create an empty endpoint.</p>
+            @if (startsLoading()) {
+              <p class="gw-text-small gw-fg-muted" role="status">Loading available connections…</p>
+            } @else if (connectionChoices(); as choices) {
+              @if (choices.length) {
+                <div class="gw-stack gw-stack--sm">
+                  @for (name of choices; track name) {
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" name="ep-create-connections" [value]="name" [checked]="chosenConnections().includes(name)" (change)="toggleConnection(name, $event)">
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label gw-mono">{{ name }}</span>
+                    </label>
+                  }
+                </div>
+              } @else {
+                <p class="gw-text-small gw-fg-muted">No connections are available for this preset. You can add connections after creating the endpoint.</p>
+              }
+            } @else {
+              <p class="gw-text-small gw-fg-muted" role="status">Available connections couldn't be loaded. Create an empty endpoint and add connections afterward.</p>
+            }
+          </fieldset>
+        }
+        <div class="gw-alert gw-alert--info gw-alert--compact">
+          <svg lucideIcon="user-check" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__body">Whatever you start from, a tool that changes data runs only after a person approves the exact action.</p></div>
+        </div>
+        @if (createError(); as err) {
+          <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert" tabindex="-1">
+            <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">The endpoint wasn't created</p>
+              <p class="gw-alert__body">{{ err }}</p>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" gwDialogClose>Cancel</button>
+      <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="createForm().submitting() ? 'true' : null" [attr.aria-disabled]="createForm().submitting() ? 'true' : null">@if (createForm().submitting()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Create endpoint</button>
+    </footer>
+  </form>
+</dialog>

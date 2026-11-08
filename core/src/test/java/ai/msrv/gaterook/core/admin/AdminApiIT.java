@@ -756,7 +756,7 @@ class AdminApiIT {
     assertThat(List.copyOf(all.propertyNames())).containsExactly("general", "appearance", "authorization",
         "approval-rules", "local-api", "audit", "backup");
     assertThat(all.path("general").path("values").path("autoUpdate").asBoolean()).isTrue();
-    assertThat(all.path("general").path("values").path("toastDurationSeconds").asInt()).isEqualTo(15);
+    assertThat(all.path("general").path("values").path("toastDurationSeconds").asInt()).isEqualTo(10);
     assertThat(all.path("authorization").path("values").path("tokenTtlDays").asInt()).isEqualTo(184);
     assertThat(all.path("audit").path("values").path("retentionYears").asInt()).isEqualTo(1);
     assertThat(all.path("backup").path("values").path("keep").asInt()).isEqualTo(7);
@@ -788,8 +788,8 @@ class AdminApiIT {
     }
     JsonNode resetDuration = api.expect(200, HttpMethod.PUT, "/api/settings/general",
         "{\"toastDurationSeconds\":null,\"version\":%d}".formatted(generalVersion));
-    assertThat(resetDuration.path("values").path("toastDurationSeconds").asInt()).isEqualTo(15);
-    assertThat(api.ok("/api/settings/general").path("values").path("toastDurationSeconds").asInt()).isEqualTo(15);
+    assertThat(resetDuration.path("values").path("toastDurationSeconds").asInt()).isEqualTo(10);
+    assertThat(api.ok("/api/settings/general").path("values").path("toastDurationSeconds").asInt()).isEqualTo(10);
     // The audit retention is a signed row from the first start on (V87), not a default read in its place.
     assertThat(all.path("audit").path("version").asLong()).isPositive();
     assertThat(all.path("audit").path("verified").asBoolean()).isTrue();

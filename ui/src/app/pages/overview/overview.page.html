@@ -150,7 +150,8 @@
         [trace]="trace()"
       ></svg>
       <section class="gw-setup-map__network-side gw-overview-services"
-        [class.gw-overview-services--mcp-wide]="mcpWide()" aria-labelledby="ov-services-title">
+        [class.gw-overview-services--mcp-wide]="mcpWide()"
+        [class.gw-overview-services--balanced]="!nativeCount()" aria-labelledby="ov-services-title">
         <header class="gw-stack gw-stack--sm">
           <h3 class="gw-text-overline gw-fg-muted" id="ov-services-title">Services</h3>
           <div class="gw-toolbar">
@@ -231,8 +232,8 @@
                   </button>
                 </div>
               </li>
-            } @else if (!filtered().length) {
-              <li class="gw-card gw-card--dashed">
+            } @else if (!native().length) {
+              <li class="gw-card gw-card--dashed gw-overview-native-empty">
                 <div class="gw-card__body gw-stack gw-stack--sm">
                   <p class="gw-text-small">
                     {{
@@ -241,7 +242,7 @@
                         : problemsOnly()
                           ? 'No enabled unreachable connections'
                           : endpoint()
-                            ? 'No services connected to this endpoint'
+                            ? 'No connectors on this endpoint'
                             : 'Create an endpoint to share services'
                     }}
                   </p>
@@ -373,7 +374,7 @@
               >GateRook</span
             >
           </h3>
-          <span class="gw-tooltip gw-tooltip--end"
+          <span class="gw-tooltip gw-tooltip--start"
             ><button
               class="gw-btn gw-btn--ghost gw-btn--sm"
               type="button"
@@ -398,9 +399,9 @@
             ></span
           >
           <p class="gw-text-caption gw-fg-secondary">Credentials stay local. Access checked.</p>
-          <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/endpoints" fragment="create">
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="endpointCreate().open($any($event.currentTarget))">
             <svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg>Add endpoint
-          </a>
+          </button>
         </div>
         <fieldset class="gw-setup-map__network-endpoints gw-field">
           <legend class="gw-sr-only">Endpoints</legend>
@@ -847,3 +848,4 @@
 </dialog>
 <gw-overview-setup (added)="added($event)" (mcpRequested)="openMcp($event.opener, $event.source)" />
 <gw-mcp-setup-flow (changed)="data.refresh()" />
+<gw-endpoint-create [connections]="data.connections()" (created)="onEndpointCreated($event)" />

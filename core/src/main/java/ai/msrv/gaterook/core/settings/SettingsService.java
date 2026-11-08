@@ -257,7 +257,7 @@ public class SettingsService {
           "startHidden":{"type":"boolean","default":true,"title":"Start minimized"},
           "autoUpdate":{"type":"boolean","default":true,"title":"Check for updates automatically"},
           "singleKeyShortcuts":{"type":"boolean","default":true,"title":"Single-key shortcuts"},
-          "toastDurationSeconds":{"type":"integer","enum":[5,10,15,30,60,120],"default":15,
+          "toastDurationSeconds":{"type":"integer","enum":[5,10,15,30,60,120],"default":10,
             "title":"In-app notification duration","x-unit":"seconds"}}}"""));
     out.put("appearance", parse("""
         {"type":"object","additionalProperties":false,"properties":{
