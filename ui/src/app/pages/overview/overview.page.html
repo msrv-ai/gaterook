@@ -308,7 +308,10 @@
                   <span class="gw-icon-tile gw-icon-tile--neutral"
                     ><svg lucideIcon="plug" class="gw-icon"></svg></span
                   ><span class="gw-setup-map__network-label"
-                    ><strong class="gw-text-h3 gw-truncate" [title]="connection.name">{{ connection.name }}</strong
+                    ><span class="gw-setup-map__network-meta"
+                      ><strong class="gw-text-h3 gw-truncate" [title]="connection.name">{{ connection.name }}</strong
+                      ><span class="gw-sr-only">environment</span
+                      ><span [class]="'gw-env gw-env--sm gw-env--' + connection.row.env">{{ connection.row.env }}</span></span
                     ><span class="gw-text-caption gw-fg-muted">Installed</span
                     ><span class="gw-status gw-status--neutral"
                       ><span class="gw-status__dot" aria-hidden="true"></span
@@ -759,7 +762,10 @@
         ></span>
       }
       <span class="gw-setup-map__network-label"
-        ><strong class="gw-text-h3 gw-truncate">{{ c.name }}</strong
+        ><span class="gw-setup-map__network-meta"
+          ><strong class="gw-text-h3 gw-truncate">{{ c.name }}</strong
+          ><span class="gw-sr-only">environment</span
+          ><span [class]="'gw-env gw-env--sm gw-env--' + c.row.env">{{ c.row.env }}</span></span
         ><span class="gw-setup-map__network-meta"
           ><span class="gw-text-caption gw-fg-muted gw-truncate">{{ c.typeLabel }}</span
           >

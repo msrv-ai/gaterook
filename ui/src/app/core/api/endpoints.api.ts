@@ -69,7 +69,7 @@ export interface EndpointSettings {
 }
 
 /** The ways to start a new endpoint (`POST /api/endpoints` `startFrom`). */
-export type StartFrom = 'empty' | 'read-only-dev' | 'incident-response';
+export type StartFrom = 'empty' | 'read-only-dev' | 'read-only-stage' | 'incident-response';
 
 /**
  * One "Start from" card of New endpoint (`GET /api/endpoint-starts`): eligible connections and the tool modes

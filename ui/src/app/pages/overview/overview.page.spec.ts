@@ -306,11 +306,14 @@ describe('Overview connection map', () => {
     await showAll(fixture, el);
     expect(services(el)).toContain('dev-db');
     expect(services(el)).not.toContain('prod-replica');
+    expect(text(service(el, 'dev-db')!.querySelector('.gw-env--dev'))).toBe('dev');
+    expect(text(service(el, 'aws-stage')!.querySelector('.gw-env--stage'))).toBe('stage');
     expect(text(app(el, 'codex'))).toContain('Connected');
     expect(app(el, 'codex').querySelector('a')).toBeNull();
 
     await selectEndpoint(fixture, el, 'incident-prod');
     expect(services(el)).toEqual(['prod-logs', 'prod-replica', 'prod-vm']);
+    expect(text(service(el, 'prod-replica')!.querySelector('.gw-env--prod'))).toBe('prod');
     expect(text(app(el, 'codex'))).toContain('Not connected');
     const connect = app(el, 'codex').querySelector('a')!;
     expect(href(connect)).toBe('/clients?endpoint=incident-prod&connect=codex#cl-cx-t');

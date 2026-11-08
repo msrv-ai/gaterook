@@ -1,5 +1,5 @@
 import { ConnectionRow } from '../../core/api/connections.api';
-import { EndpointStart, EndpointSummary, TokenRow } from '../../core/api/endpoints.api';
+import { EndpointStart, EndpointSummary, StartFrom, TokenRow } from '../../core/api/endpoints.api';
 import { OAuthGrant, TunnelState } from '../../core/api/tunnel.api';
 import { Env } from '../../core/api/types';
 import { duration } from '../../core/time/time-format';
@@ -25,8 +25,8 @@ export const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 export const SLUG_MAX = 40;
 export const DESCRIPTION_MAX = 120;
 
-/** What the Create dialog's "Start from" sends (`POST /api/endpoints {startFrom}`), in the kit's order. */
-export type StartFrom = 'empty' | 'read-only-dev' | 'incident-response';
+/** What the Create dialog's "Start from" sends (`POST /api/endpoints {startFrom}`). */
+export type { StartFrom } from '../../core/api/endpoints.api';
 
 export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
@@ -364,12 +364,14 @@ export function startFromMeta(connections: readonly ConnectionRow[] | null, star
   const count = (id: StartFrom, env: Env) =>
     start(id)?.connections.length ?? connections?.filter((c) => c.env === env && c.verified && c.type !== 'mcp-server').length ?? null;
   const dev = count('read-only-dev', 'dev');
+  const stage = count('read-only-stage', 'stage');
   const prod = count('incident-response', 'prod');
   const of = (n: number | null, env: Env) =>
     n === null ? `${env[0].toUpperCase()}${env.slice(1)} connections` : n === 0 ? `No ${env} connections available` : `${plural(n, `${env} connection`)} available`;
   return {
     empty: 'Start from scratch',
     'read-only-dev': of(dev, 'dev'),
+    'read-only-stage': of(stage, 'stage'),
     'incident-response': `${of(prod, 'prod')} · stricter prod limits`,
   };
 }

@@ -85,7 +85,7 @@ function slugRules(path: SchemaPath<string>): void {
   });
 }
 
-/** The Start from cards of Create endpoint, in the kit's order and words. */
+/** The Start from cards of Create endpoint, ordered by environment. */
 const START_FROM: readonly { readonly id: StartFrom; readonly env: Env; readonly icon: string; readonly title: string; readonly description: string }[] = [
   { id: 'empty', env: 'dev', icon: 'square-dashed', title: 'Empty', description: 'No connections and every tool off. Add only what the agent needs.' },
   {
@@ -94,6 +94,13 @@ const START_FROM: readonly { readonly id: StartFrom; readonly env: Env; readonly
     icon: 'eye',
     title: 'Read-only dev',
     description: 'Choose dev connections below. Their read-only tools start on; tools that change data stay off.',
+  },
+  {
+    id: 'read-only-stage',
+    env: 'stage',
+    icon: 'eye',
+    title: 'Read-only stage',
+    description: 'Choose stage connections below. Their read-only tools start on; tools that change data stay off.',
   },
   {
     id: 'incident-response',
