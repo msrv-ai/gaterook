@@ -2,15 +2,14 @@
   <h2 class="gw-sr-only">MCP servers</h2>
   <div class="gw-toolbar">
     <div class="gw-toolbar__start">
-      <p class="gw-text-small gw-fg-secondary">Each server runs as its own process and gets only the variables you pass. Its tools go through modes, approvals and audit like any other.</p>
+      <p class="gw-text-small gw-fg-secondary">Connect local or remote MCP servers. Their tools go through modes, approvals and audit.</p>
     </div>
-    @if (servers()?.length !== 0) {
-      <!-- With no server yet, the empty state below holds the one Add MCP server. -->
-      <div class="gw-toolbar__end">
-        <button class="gw-btn gw-btn--sm" type="button" (click)="add($event)"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg> Add MCP server</button>
-      </div>
-    }
+    <div class="gw-toolbar__end">
+      <button class="gw-btn gw-btn--primary" type="button" aria-haspopup="dialog" (click)="add($event)"><svg lucideIcon="plus" class="gw-icon"></svg> Add MCP server</button>
+    </div>
   </div>
+
+  <section gwMcpRegistrySearch #registrySearch (selected)="useRegistry($event)"></section>
 
   @if (data.connections.error(); as e) {
     <div class="gw-alert gw-alert--danger" role="alert">
@@ -40,16 +39,9 @@
       </div>
       <p class="gw-sr-only" role="status">Loading MCP servers</p>
     }
-  } @else if (!servers()!.length) {
-    <div class="gw-card">
-      <div class="gw-empty">
-        <span class="gw-empty__icon"><svg lucideIcon="plug" class="gw-icon gw-icon--lg"></svg></span>
-        <h3 class="gw-empty__title">No MCP servers yet</h3>
-        <p class="gw-empty__text">Put an MCP server you already use behind the gateway: its tools get modes, approvals and audit, and its secrets stay here.</p>
-        <div class="gw-empty__actions"><button class="gw-btn" type="button" (click)="add($event)"><svg lucideIcon="plus" class="gw-icon"></svg> Add MCP server</button></div>
-      </div>
-    </div>
-  } @else {
+  } @else if (!servers()!.length && !registrySearch.active()) {
+    <p class="gw-text-small gw-fg-muted">No MCP servers connected yet. Choose a server below or add your own.</p>
+  } @else if (servers()!.length) {
     <!-- Trust and the pinned version sit under the server name; the command truncates (full value in title), so the
          table fits at 1440 (kit). -->
     <div class="gw-table-wrap" role="region" aria-labelledby="mcp-cap" tabindex="0">
@@ -121,6 +113,34 @@
       </div>
     }
   }
+  <section class="gw-stack" aria-labelledby="mcp-featured-title" [hidden]="registrySearch.active()">
+    <div class="gw-stack gw-stack--sm">
+      <h2 class="gw-text-h2" id="mcp-featured-title">Popular for developers</h2>
+      <p class="gw-text-small gw-fg-secondary">20 picks for coding, testing and shipping. Choose one to set it up from the Official MCP Registry.</p>
+    </div>
+    <ul class="gw-grid gw-grid--auto" aria-label="Popular MCP servers for developers">
+      @for (s of featured; track s.registryName) {
+        <li>
+          <article class="gw-card gw-card--interactive gw-connector-card">
+            <header class="gw-card__header">
+              <div class="gw-connector-card__identity">
+                <span class="gw-icon-tile gw-icon-tile--lg"><img [src]="s.logo" width="32" height="32" alt="" loading="lazy"></span>
+                <div class="gw-card__heading">
+                  <h3 class="gw-card__title"><button class="gw-card__link" type="button" aria-haspopup="dialog" [attr.aria-label]="'Add ' + s.name + ' from Official MCP Registry'" (click)="addFeatured(s.registryName, $event)">{{ s.name }}</button></h3>
+                  <p class="gw-card__description">{{ s.category }}</p>
+                </div>
+              </div>
+            </header>
+            <div class="gw-card__body gw-connector-card__body"><p class="gw-text-small gw-fg-secondary">{{ s.description }}</p></div>
+            <footer class="gw-card__footer gw-card__footer--split">
+              <span class="gw-text-caption gw-fg-muted">Set up server</span>
+              <svg lucideIcon="arrow-up-right" class="gw-icon gw-icon--sm" aria-hidden="true"></svg>
+            </footer>
+          </article>
+        </li>
+      }
+    </ul>
+  </section>
 </div>
 
 <dialog class="gw-drawer gw-drawer--lg" gwDialog #runtime="gwDialog" id="mcp-runtime" aria-labelledby="mcp-runtime-title" aria-describedby="mcp-runtime-desc" (closed)="selectedServer.set(null)">

@@ -364,6 +364,15 @@ async function searchMcpRegistry(fixture: ComponentFixture<ConnectorsPage>, el: 
     results: () => Array.from(registry.querySelectorAll('[aria-label="Servers in the MCP registry"] article')) };
 }
 
+async function searchInlineRegistry(fixture: ComponentFixture<ConnectorsPage>, el: HTMLElement, query: string) {
+  const region = el.querySelector<HTMLElement>('section[gwMcpRegistrySearch]')!;
+  const search = region.querySelector<HTMLInputElement>('input[type="search"]')!;
+  type(search, query);
+  region.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  await settle(fixture);
+  return { region, search, results: () => Array.from(region.querySelectorAll('article')) };
+}
+
 function choose(select: HTMLSelectElement, value: string): void {
   select.value = value;
   select.dispatchEvent(new Event('change', { bubbles: true }));
@@ -1738,23 +1747,282 @@ describe('Connectors page: MCP servers', () => {
     expect(add.querySelector<HTMLInputElement>('input[placeholder="SENTRY_AUTH_TOKEN"]')!.value).toBe('');
   });
 
-  it('offers one Add MCP server in the empty state when there is none', async () => {
+  it('offers the add button and twenty discovery cards when no server is connected', async () => {
     setup({ rows: () => connectionRows().filter((r) => r.type !== 'mcp-server') });
     const { fixture, el } = await render();
     const panel = el.querySelector('#mcp-servers')!;
-    expect(text(panel.querySelector('.gw-empty__title'))).toBe('No MCP servers yet');
+    expect(text(panel)).toContain('No MCP servers connected yet. Choose a server below or add your own.');
+    expect(panel.querySelector('.gw-empty')).toBeNull();
+    expect(panel.querySelectorAll('[aria-label="Popular MCP servers for developers"] article')).toHaveLength(20);
     expect(Array.from(panel.querySelectorAll('button')).filter((b) => text(b).startsWith('Add MCP server'))).toHaveLength(1);
     expect(text(el.querySelector('#tab-mcp .gw-tabs__count'))).toBe('0 servers');
     expect(cardOf(el, 'installed', 'github-mcp')).toBeNull();
 
-    button(panel.querySelector('.gw-empty'), 'Add MCP server').click();
+    button(panel.querySelector('.gw-toolbar'), 'Add MCP server').click();
     await settle(fixture);
     expect(el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!.open).toBe(true);
+  });
+
+  it('keeps discovery beside connected servers without loading twenty registry entries', async () => {
+    setup();
+    const { el } = await render();
+    expect(el.querySelector('#mcp-github-mcp')).not.toBeNull();
+    const cards = el.querySelectorAll('[aria-label="Popular MCP servers for developers"] article');
+    expect(cards).toHaveLength(20);
+    for (const card of cards) {
+      expect(card.querySelector('button')?.getAttribute('aria-haspopup')).toBe('dialog');
+      expect(card.querySelector('button')?.getAttribute('aria-label')).toMatch(/^Add .+ from Official MCP Registry$/);
+      expect(card.querySelector('img')?.getAttribute('src')).toMatch(/^(mcp-logos|assets\/integrations)\//);
+    }
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual([]);
+  });
+
+  it('opens a discovery card with its exact live registry entry filled in and restores focus on cancel', async () => {
+    setup();
+    const { fixture, el } = await render();
+    button(el, 'MCP servers').click();
+    await settle(fixture);
+    const opener = button(el.querySelector('[aria-label="Popular MCP servers for developers"]'), 'Linear');
+    opener.focus();
+    opener.click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    expect(add.open).toBe(true);
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry app.linear/linear']);
+    expect(button(add, 'Manual entry').getAttribute('aria-selected')).toBe('true');
+    expect(add.querySelector<HTMLInputElement>('input[type="url"]')!.value).toBe('https://mcp.linear.app/mcp');
+    expect(text(add)).toContain('from Linear in the MCP registry.');
+    expect(calls).not.toContain('review');
+    expect(calls).not.toContain('create-server');
+    button(add.querySelector('footer'), 'Cancel').click();
+    await settle(fixture);
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it('uses the exact local package, pins the live version and ignores similarly named results', async () => {
+    setup({ registry: async () => ({ registry: 'registry.modelcontextprotocol.io', servers: [
+      { name: 'io.github.someone/playwright-mcp', title: 'Playwright', status: 'active', packages: [],
+        remotes: [{ type: 'streamable-http', url: 'https://example.com/lookalike', headers: [], variables: [] }] },
+      { name: 'io.github.microsoft/playwright-mcp', title: 'Playwright', status: 'active', remotes: [],
+        packages: [{ registryType: 'npm', identifier: '@playwright/mcp', version: '1.2.3', transport: 'stdio',
+          environmentVariables: [], runtimeArguments: [], packageArguments: [] }] },
+    ] }) });
+    const { fixture, el } = await render();
+    button(el.querySelector('[aria-label="Popular MCP servers for developers"]'), 'Playwright').click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry io.github.microsoft/playwright-mcp']);
+    expect(add.querySelector<HTMLInputElement>('input[placeholder^="npx"]')!.value).toBe('npx -y @playwright/mcp@1.2.3');
+    expect(calls).not.toContain('review');
+    expect(calls).not.toContain('create-server');
+  });
+
+  it.each(['missing', 'deprecated', 'unsupported', 'other-registry'])('does not preselect an invalid discovery entry: %s', async (scenario) => {
+    setup({ registry: async () => {
+      const page = await registryPage('', null);
+      return { ...page, registry: scenario === 'other-registry' ? 'registry.example.com' : page.registry,
+        servers: scenario === 'missing' ? page.servers.slice(1) : [{ ...page.servers[0],
+          status: scenario === 'deprecated' ? 'deprecated' : 'active',
+          remotes: scenario === 'unsupported' ? [] : page.servers[0].remotes }] };
+    } });
+    const { fixture, el } = await render();
+    button(el.querySelector('[aria-label="Popular MCP servers for developers"]'), 'Linear').click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    expect(button(add, 'Official MCP Registry').getAttribute('aria-selected')).toBe('true');
+    expect(add.querySelector('[role="alert"]')).not.toBeNull();
+    expect(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!.value).toBe('');
+    expect(calls).not.toContain('review');
+    expect(calls).not.toContain('create-server');
+  });
+
+  it('retries a failed discovery lookup and then preselects the same server', async () => {
+    let fail = true;
+    setup({ registry: (search, cursor) => fail ? Promise.reject(new Error('Registry unavailable')) : registryPage(search, cursor) });
+    const { fixture, el } = await render();
+    button(el.querySelector('[aria-label="Popular MCP servers for developers"]'), 'Linear').click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    expect(text(add.querySelector('[role="alert"]'))).toContain('Registry unavailable');
+    fail = false;
+    button(add, 'Try again').click();
+    await settle(fixture);
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry app.linear/linear', 'registry app.linear/linear']);
+    expect(add.querySelector<HTMLInputElement>('input[type="url"]')!.value).toBe('https://mcp.linear.app/mcp');
+    expect(button(add, 'Manual entry').getAttribute('aria-selected')).toBe('true');
+  });
+
+  it.each(['close', 'manual', 'search'])('drops a pending discovery selection after %s', async (action) => {
+    const pending = deferred<McpRegistryPage>();
+    setup({ registry: () => pending.promise });
+    const { fixture, el } = await render();
+    button(el.querySelector('[aria-label="Popular MCP servers for developers"]'), 'Linear').click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    expect(text(add.querySelector('[role="status"]'))).toBe('Searching the MCP registry…');
+    if (action === 'close') {
+      button(add.querySelector('footer'), 'Cancel').click();
+      await settle(fixture);
+      button(el.querySelector('#mcp-servers .gw-toolbar'), 'Add MCP server').click();
+      await settle(fixture);
+    } else if (action === 'manual') {
+      button(add, 'Manual entry').click();
+      await settle(fixture);
+      type(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!, 'my-server');
+    } else {
+      type(add.querySelector<HTMLInputElement>('input[type="search"]')!, 'st');
+    }
+    pending.resolve(await registryPage('', null));
+    await settle(fixture);
+    expect(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!.value).toBe(action === 'manual' ? 'my-server' : '');
+    expect(text(add)).not.toContain('from Linear in the MCP registry.');
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual(['registry app.linear/linear']);
   });
 
   it('shows Not listed yet when the core has no tool snapshot route', async () => {
     setup({ serverTools: () => Promise.reject(notAvailable()) });
     const { el } = await render();
     expect(text(el.querySelector('#mcp-github-mcp'))).toContain('Not listed yet');
+  });
+});
+
+describe('Connectors page: inline MCP Registry search', () => {
+  it('searches after three characters, opens the selected result and returns to it on cancel', async () => {
+    setup();
+    const { fixture, el } = await render();
+    button(el, 'MCP servers').click();
+    await settle(fixture);
+    const region = el.querySelector<HTMLElement>('section[gwMcpRegistrySearch]')!;
+    const search = region.querySelector<HTMLInputElement>('input[type="search"]')!;
+    const picks = el.querySelector<HTMLElement>('[aria-labelledby="mcp-featured-title"]')!;
+    expect(region.querySelector('label')?.textContent).toBe('Search MCP Registry');
+    type(search, 'li');
+    await settle(fixture);
+    expect(calls.filter((c) => c.startsWith('registry'))).toEqual([]);
+    expect(text(region.querySelector('[role="status"]'))).toContain('at least 3 characters');
+    type(search, 'linear');
+    await sleep(400);
+    await settle(fixture);
+    expect(picks.hidden).toBe(true);
+    expect(calls.filter((c) => c.startsWith('registry'))).toEqual(['registry linear']);
+    expect(region.querySelectorAll('article')).toHaveLength(2);
+    expect(text(region.querySelector('[role="status"]'))).toBe('2 servers so far');
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    expect(add.open).toBe(false);
+    const use = button(region, 'Use Linear');
+    use.focus();
+    use.click();
+    await settle(fixture);
+    expect(add.open).toBe(true);
+    expect(add.querySelector<HTMLInputElement>('input[type="url"]')!.value).toBe('https://mcp.linear.app/mcp');
+    expect(calls.filter((c) => c.startsWith('registry'))).toEqual(['registry linear']);
+    expect(calls).not.toContain('review');
+    expect(calls).not.toContain('create-server');
+    button(add.querySelector('footer'), 'Cancel').click();
+    await settle(fixture);
+    expect(document.activeElement).toBe(use);
+    expect(search.value).toBe('linear');
+    button(region, 'Use image-only').click();
+    await settle(fixture);
+    expect(add.open).toBe(false);
+  });
+
+  it('submits immediately and clearing the query restores popular cards without browsing the registry', async () => {
+    setup();
+    const { fixture, el } = await render();
+    const { region, search, results } = await searchInlineRegistry(fixture, el, 'linear');
+    expect(results()).toHaveLength(2);
+    expect(calls.filter((c) => c.startsWith('registry'))).toEqual(['registry linear']);
+    region.querySelector<HTMLButtonElement>('.gw-search__clear')!.click();
+    await settle(fixture);
+    expect(results()).toHaveLength(0);
+    expect(search.value).toBe('');
+    expect(el.querySelector<HTMLElement>('[aria-labelledby="mcp-featured-title"]')!.hidden).toBe(false);
+    await sleep(400);
+    expect(calls.filter((c) => c.startsWith('registry'))).toEqual(['registry linear']);
+  });
+
+  it('brings the official publisher into inline results before similarly named integrations', async () => {
+    setup({ registry: async (search) => ({ registry: 'registry.modelcontextprotocol.io',
+      servers: search === 'com.stripe/mcp' ? [stripeRegistryServers[2]] : stripeRegistryServers.slice(0, 2) }) });
+    const { fixture, el } = await render();
+    const { results } = await searchInlineRegistry(fixture, el, 'stripe');
+    expect(calls.filter((c) => c.startsWith('registry'))).toEqual(['registry stripe', 'registry com.stripe/mcp']);
+    expect(text(results()[0])).toContain('com.stripe/mcp');
+    expect(results()[0].querySelector('[aria-label="Official server by Stripe"]')).not.toBeNull();
+    expect(results()).toHaveLength(3);
+  });
+
+  it('paginates without duplicates, retries a failed next page and focuses the first added result', async () => {
+    let fail = true;
+    setup({ registry: async (search, cursor) => {
+      if (cursor && fail) throw new Error('Next page unavailable');
+      const page = await registryPage(search, cursor);
+      return cursor ? { ...page, servers: [(await registryPage(search, null)).servers[0], ...page.servers] } : page;
+    } });
+    const { fixture, el } = await render();
+    button(el, 'MCP servers').click();
+    const { region, results } = await searchInlineRegistry(fixture, el, 'linear');
+    button(region, 'Show more').click();
+    await settle(fixture);
+    expect(text(region.querySelector('[role="alert"]'))).toContain('Next page unavailable');
+    expect(results()).toHaveLength(2);
+    fail = false;
+    button(region, 'Try again').click();
+    await settle(fixture);
+    expect(results()).toHaveLength(3);
+    expect(text(region.querySelector('[role="status"]'))).toBe('3 servers');
+    expect(region.querySelector('[role="alert"]')).toBeNull();
+    expect(text(document.activeElement)).toBe('Use linear-mcp');
+    expect(calls.filter((c) => c.startsWith('registry'))).toEqual([
+      'registry linear', 'registry linear after app.linear/linear:1.0.2', 'registry linear after app.linear/linear:1.0.2',
+    ]);
+  });
+
+  it('shows a failed search with retry, then an empty result without opening a dialog', async () => {
+    let fail = true;
+    setup({ registry: async () => {
+      if (fail) throw new Error('Registry unavailable');
+      return { registry: 'registry.modelcontextprotocol.io', servers: [] };
+    } });
+    const { fixture, el } = await render();
+    const { region } = await searchInlineRegistry(fixture, el, 'unlisted');
+    expect(text(region.querySelector('[role="alert"]'))).toContain('Registry unavailable');
+    fail = false;
+    button(region, 'Try again').click();
+    await settle(fixture);
+    expect(region.querySelector('[role="alert"]')).toBeNull();
+    expect(text(region.querySelector('.gw-empty__title'))).toBe('No server name contains “unlisted”');
+    expect(el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!.open).toBe(false);
+  });
+
+  it('uses a result from a configured registry without assigning an official-publisher badge', async () => {
+    setup({ registry: async () => ({ registry: 'registry.example.com', servers: [stripeRegistryServers[2]] }) });
+    const { fixture, el } = await render();
+    const { region, results } = await searchInlineRegistry(fixture, el, 'stripe');
+    expect(text(region)).toContain('the MCP registry at registry.example.com');
+    expect(results()[0].querySelector('[aria-label="Official server by Stripe"]')).toBeNull();
+    button(region, 'Use mcp').click();
+    await settle(fixture);
+    expect(el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!.open).toBe(true);
+    expect(calls.filter((c) => c.startsWith('registry'))).toEqual(['registry stripe']);
+  });
+
+  it.each(['query', 'clear', 'destroy'])('discards an earlier inline result after %s', async (action) => {
+    const pending = deferred<McpRegistryPage>();
+    setup({ registry: () => pending.promise });
+    const { fixture, el } = await render();
+    const { region, search } = await searchInlineRegistry(fixture, el, 'linear');
+    if (action === 'query') type(search, 'st');
+    else if (action === 'clear') region.querySelector<HTMLButtonElement>('.gw-search__clear')!.click();
+    else fixture.destroy();
+    pending.resolve(await registryPage('linear', null));
+    if (action !== 'destroy') {
+      await settle(fixture);
+      expect(region.querySelectorAll('article')).toHaveLength(0);
+      expect(text(region)).not.toContain('mcp.linear.app');
+    }
+    await sleep(400);
+    expect(calls.filter((c) => c.startsWith('registry'))).toEqual(['registry linear']);
   });
 });

@@ -10,17 +10,24 @@ import { GwMenu, GwMenuTrigger } from '../../../kit/menu';
 import { ToastService } from '../../../kit/toast.service';
 import { McpServerView, joinAnd, plural, serverActivityQuery, serverPaths, serverStatus, signInText } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
+import { FEATURED_MCP_SERVERS } from '../mcp-featured-servers';
 import { failureDetails, failureText } from '../dialogs/failure';
+import { GwMcpRegistrySearch, McpRegistrySelection } from './mcp-registry-search';
 
 /**
  * What a server row asks the page to do: Add MCP server, Remove, or sign in to it again and sign out (their dialogs
  * live outside the tabs).
  */
-export interface McpServerAction {
+export type McpServerAction = {
   readonly type: 'add' | 'remove' | 'sign-in' | 'sign-out';
   readonly server: McpServerView | null;
   readonly opener: HTMLElement | null;
-}
+} | {
+  readonly type: 'add-registry';
+  readonly registryName: string;
+  readonly server: null;
+  readonly opener: HTMLElement | null;
+} | (McpRegistrySelection & { readonly type: 'use-registry'; readonly server: null });
 
 /**
  * `<div gwMcpServersPanel>` — Connectors › MCP servers (kit `#mcp-servers`): every external MCP server behind the
@@ -31,7 +38,7 @@ export interface McpServerAction {
  */
 @Component({
   selector: 'div[gwMcpServersPanel]',
-  imports: [GwAccessSwitch, RouterLink, GwIcon, GwMenu, GwMenuTrigger, GwToggle, GwCodeBlock, GwDialog, GwDialogClose],
+  imports: [GwAccessSwitch, RouterLink, GwIcon, GwMenu, GwMenuTrigger, GwToggle, GwCodeBlock, GwDialog, GwDialogClose, GwMcpRegistrySearch],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-tabs__panel', role: 'tabpanel', id: 'mcp-servers', 'aria-labelledby': 'tab-mcp', tabindex: '0' },
   templateUrl: './mcp-servers.panel.html',
@@ -43,6 +50,7 @@ export class GwMcpServersPanel {
 
   readonly slow = input(false);
   readonly action = output<McpServerAction>();
+  protected readonly featured = FEATURED_MCP_SERVERS;
 
   protected readonly restarting = signal<string | null>(null);
   protected readonly selectedServer = signal<McpServerView | null>(null);
@@ -61,6 +69,14 @@ export class GwMcpServersPanel {
 
   protected add(e: Event): void {
     this.action.emit({ type: 'add', server: null, opener: e.currentTarget as HTMLElement | null });
+  }
+
+  protected addFeatured(registryName: string, e: Event): void {
+    this.action.emit({ type: 'add-registry', registryName, server: null, opener: e.currentTarget as HTMLElement | null });
+  }
+
+  protected useRegistry(selection: McpRegistrySelection): void {
+    this.action.emit({ type: 'use-registry', server: null, ...selection });
   }
 
   protected remove(s: McpServerView, e: Event): void {
@@ -82,7 +98,7 @@ export class GwMcpServersPanel {
   }
 
   /** A menu item's dialog returns focus to the menu's trigger: the item itself is hidden once the menu closes. */
-  private fromMenu(type: McpServerAction['type'], s: McpServerView, e: Event): void {
+  private fromMenu(type: 'remove' | 'sign-in' | 'sign-out', s: McpServerView, e: Event): void {
     this.action.emit({ type, server: s, opener: this.menuOpener(e) });
   }
 

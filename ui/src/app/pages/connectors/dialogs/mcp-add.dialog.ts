@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, output, signal, viewChild } from '@angular/core';
-import { McpRegistryServer, McpServerAuthConfig, McpServerConfig, McpServerReview, McpServerSource } from '../../../core/api/plugins.api';
+import { McpServerAuthConfig, McpServerConfig, McpServerReview, McpServerSource } from '../../../core/api/plugins.api';
 import { GwDialog, GwDialogClose } from '../../../kit/dialog';
 import { GwToggle } from '../../../kit/disclosure';
 import { GwIcon } from '../../../kit/icons';
@@ -8,46 +8,10 @@ import { GwTabs } from '../../../kit/tabs';
 import { joinAnd, tokenizeCommand } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
 import { signingTarget } from '../mcp-cloud';
-import { OfficialMcpPublisher, matchingOfficialMcpServerNames, officialMcpPublisher } from '../mcp-official-publishers';
 import { PastedServer, parsePastedServer, serverName } from '../mcp-paste';
-import { RegistryUse, fromRegistry, registryUse, templateParts } from '../mcp-registry';
+import { fromRegistry, templateParts } from '../mcp-registry';
+import { RegistryResult, completeRegistryResults, rankRegistryResults, registryResult } from '../mcp-registry-results';
 import { failureText } from './failure';
-
-/** One result of Find a server: the entry, the name it is shown under, how it would be added and where it runs. */
-export interface RegistryResult {
-  readonly server: McpRegistryServer;
-  readonly title: string;
-  readonly use: RegistryUse;
-  /** The host of its URL, or the package command (`npx @sentry/mcp-server@0.42.0`). */
-  readonly target: string;
-  readonly officialPublisher: OfficialMcpPublisher | null;
-}
-
-export function registryResult(server: McpRegistryServer, registry: string | null = null): RegistryResult {
-  const use = registryUse(server);
-  let target = '';
-  if (use.kind === 'remote') {
-    try {
-      target = new URL(use.remote.url).host;
-    } catch {
-      target = use.remote.url;
-    }
-  } else if (use.kind === 'package') {
-    target = `${use.runtime} ${use.pkg.identifier}${use.pkg.version ? `@${use.pkg.version}` : ''}`;
-  }
-  return { server, title: server.title || server.name.split('/')[1] || server.name, use, target,
-    officialPublisher: officialMcpPublisher(server, registry) };
-}
-
-/** Keep upstream order within each group and one row per server, including across pages. */
-function rankRegistryResults(rows: readonly RegistryResult[]): readonly RegistryResult[] {
-  const seen = new Set<string>();
-  return rows.filter((row) => {
-    if (seen.has(row.server.name)) return false;
-    seen.add(row.server.name);
-    return true;
-  }).sort((a, b) => Number(!!b.officialPublisher) - Number(!!a.officialPublisher));
-}
 
 /** The line under the results that says where they come from. */
 const OFFICIAL_REGISTRY = 'registry.modelcontextprotocol.io';
@@ -653,6 +617,8 @@ export class GwMcpAddDialog {
   /** What the chosen result filled in, said under Find a server. */
   protected readonly chosen = signal<string | null>(null);
   private readonly query = signal('');
+  /** An exact-name shortcut awaiting its live registry entry; typing a search cancels the shortcut. */
+  private requestedServer: string | null = null;
   private findTimer: ReturnType<typeof setTimeout> | null = null;
   /** Each search counts up; an answer to an older one is dropped. */
   private findSeq = 0;
@@ -672,14 +638,12 @@ export class GwMcpAddDialog {
   });
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => {
-      this.findSeq++;
-      if (this.findTimer) clearTimeout(this.findTimer);
-    });
+    this.dialog.closed.subscribe(() => this.cancelFind());
+    inject(DestroyRef).onDestroy(() => this.cancelFind());
   }
 
   /** Opens an empty draft for the explicitly selected source; no server starts until its review is confirmed. */
-  open(opener: HTMLElement | null, source: 'manual' | 'registry' | 'url' = 'manual'): void {
+  open(opener: HTMLElement | null, source: 'manual' | 'registry' | 'url' = 'manual', registryName: string | null = null): void {
     this.name.set('');
     this.transport.set(source === 'url' ? 'http' : 'stdio');
     this.command.set('');
@@ -708,13 +672,22 @@ export class GwMcpAddDialog {
     this.resetFind();
     this.chosen.set(null);
     const search = this.host.querySelector<HTMLInputElement>(`#${this.uid}-find-q`);
-    if (search) search.value = '';
-    this.query.set('');
+    this.requestedServer = source === 'registry' ? registryName : null;
+    if (search) search.value = this.requestedServer ?? '';
+    this.query.set(this.requestedServer ?? '');
     this.tabs().selectById(`${this.uid}-tab-${source === 'registry' ? 'registry' : 'manual'}`);
     this.errors.set({});
     this.error.set(null);
     this.busy.set(false);
     this.dialog.openAfterRender(opener);
+    if (this.requestedServer) void this.runFind(this.requestedServer);
+  }
+
+  /** A result already loaded on the page uses the same form and review as the dialog's search. */
+  openResult(opener: HTMLElement | null, result: RegistryResult): void {
+    if (result.use.kind === 'none') return;
+    this.open(opener);
+    this.use(result);
   }
 
   /** Returns from the review with the existing draft and the original focus-return target. */
@@ -791,12 +764,14 @@ export class GwMcpAddDialog {
 
   protected onTab(id: string): void {
     this.tab.set(id === `${this.uid}-tab-registry` ? 'registry' : 'manual');
+    if (this.tab() === 'manual' && this.requestedServer) this.cancelFind();
     if (this.tab() === 'registry' && !this.query().trim() && this.searched() === null
       && !this.searching() && !this.findError()) void this.runFind('');
   }
 
   /** The query as typed: a search 350 ms after the last key, from 3 characters (the registry's minimum). */
   protected find(text: string): void {
+    this.requestedServer = null;
     this.query.set(text);
     if (this.findTimer) clearTimeout(this.findTimer);
     this.findTimer = null;
@@ -832,13 +807,20 @@ export class GwMcpAddDialog {
   }
 
   private resetFind(): void {
-    if (this.findTimer) clearTimeout(this.findTimer);
-    this.findTimer = null;
-    this.findSeq++;
+    this.cancelFind();
     this.found.set([]);
     this.searched.set(null);
     this.nextCursor.set(null);
     this.findError.set(null);
+    this.searching.set(false);
+    this.moreBusy.set(false);
+  }
+
+  private cancelFind(): void {
+    if (this.findTimer) clearTimeout(this.findTimer);
+    this.findTimer = null;
+    this.findSeq++;
+    this.requestedServer = null;
     this.searching.set(false);
     this.moreBusy.set(false);
   }
@@ -851,21 +833,23 @@ export class GwMcpAddDialog {
     try {
       const page = await this.data.searchRegistry(q);
       if (seq !== this.findSeq) return;
-      const shown = new Set(page.servers.map((server) => server.name));
-      // Exact-name searches bring known official publishers onto the first page even when the registry ranks them later.
-      const officialPages = await Promise.all(matchingOfficialMcpServerNames(q, page.registry)
-        .filter((name) => !shown.has(name))
-        .map(async (name) => {
-          try {
-            const officialPage = await this.data.searchRegistry(name);
-            return officialPage.registry === page.registry ? officialPage.servers.filter((server) => server.name === name) : [];
-          } catch {
-            return [];
-          }
-        }));
+      if (this.requestedServer) {
+        // Never substitute a similarly named integration or a copied ID from a different registry.
+        if (page.registry !== OFFICIAL_REGISTRY) throw new Error('This shortcut requires the Official MCP Registry. Search your configured registry or add the server manually.');
+        const server = page.servers.find((s) => s.name === this.requestedServer && s.status === 'active');
+        if (!server) throw new Error('This server is no longer available in the Official MCP Registry. Search for another server or add it manually.');
+        const result = registryResult(server, page.registry);
+        if (result.use.kind === 'none') throw new Error(result.use.reason);
+        this.found.set([result]);
+        this.nextCursor.set(null);
+        this.registry.set(page.registry);
+        this.searched.set(q);
+        this.use(result);
+        return;
+      }
+      const results = await completeRegistryResults(page, q, (name) => this.data.searchRegistry(name));
       if (seq !== this.findSeq) return;
-      this.found.set(rankRegistryResults([...page.servers, ...officialPages.flat()]
-        .map((server) => registryResult(server, page.registry))));
+      this.found.set(results);
       this.nextCursor.set(page.nextCursor ?? null);
       this.registry.set(page.registry);
       this.searched.set(q);
@@ -919,6 +903,7 @@ export class GwMcpAddDialog {
       this.findError.set(filled.error);
       return;
     }
+    this.requestedServer = null;
     // A sign-in chosen for the previous server isn't this one's: without one of its own, the review finds it.
     if (!filled.auth && this.signInWith() !== 'oauth') this.setSignInWith('oauth');
     this.pasted.set(null);
