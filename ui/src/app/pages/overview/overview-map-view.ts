@@ -92,7 +92,7 @@ export interface MapApp {
   readonly connected: boolean;
   /** A saved path that is paused, needs a restart, or needs repair. */
   readonly pending: boolean;
-  readonly action: 'connect' | 'install' | 'manage' | null;
+  readonly action: 'connect' | 'manage' | null;
   readonly actionReason: string | null;
   readonly fragment: string;
 }
@@ -117,21 +117,18 @@ function connectReason(card: ClientCard, endpoint: EndpointSummary | null): stri
   return null;
 }
 
-/** The selected endpoint's links are authoritative; a global Connected badge can belong to a different endpoint. */
+/** Only detected apps appear; their access comes from the selected endpoint's links, not a global Connected badge. */
 export function mapApps(cards: readonly ClientCard[] | null, endpoint: EndpointSummary | null): MapApp[] | null {
   if (cards === null) return null;
-  return cards.map((card) => {
+  return cards.filter((card) => card.detected).map((card) => {
     const links = endpoint ? card.links.filter((link) => link.endpoint === endpoint.slug) : [];
     const active = links.filter((link) => link.status !== 'revoked' && link.status !== 'removed-outside');
     const assigned = active.length > 0;
     const connected = assigned && active.some((link) => link.status === 'connected') && endpoint?.status === 'running'
-      && !endpoint.blockedReason && card.status !== 'not-installed';
+      && !endpoint.blockedReason;
     let state: TileState;
     let action: MapApp['action'];
-    if (card.status === 'not-installed') {
-      state = { tone: 'neutral', label: 'Not installed' };
-      action = 'install';
-    } else if (assigned && endpoint?.blockedReason) {
+    if (assigned && endpoint?.blockedReason) {
       state = { tone: 'warning', label: 'Access blocked' };
       action = 'manage';
     } else if (assigned && endpoint?.status === 'disabled') {
