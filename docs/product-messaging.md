@@ -2,7 +2,7 @@
 
 GateRook's product category is **MCP Firewall**. The central promise is controlled AI access to production infrastructure through encrypted credentials, scoped connector permissions, exact-action approvals, and append-only, tamper-evident audit logs. The [security model](security.md) defines the scope of these claims.
 
-This document provides reusable English copy for the repository and [public website](https://msrv.dev/). Website templates and publishing remain outside the application design kit. Page URLs, protocol identifiers, configuration keys, and existing product names stay stable.
+This document provides reusable English copy for the repository and [public website](https://gaterook.com/). Website templates and publishing remain outside the application design kit. Page URLs, protocol identifiers, configuration keys, and existing product names stay stable.
 
 ## Core positioning and promotional copy
 
@@ -66,36 +66,36 @@ Use the following copy for the corresponding routes. Connector descriptions name
 
 | Page | Headline | Intro or listing description |
 | --- | --- | --- |
-| [Home](https://msrv.dev/) | The MCP Firewall for AI access to production. | Protect connected services with encrypted credentials, scoped tools, exact-action approvals, and tamper-evident audit logs. |
-| [Integrations](https://msrv.dev/integrations/) | One MCP Firewall. Controlled access across your stack. | Bring databases, APIs, cloud services, logs, SSH, Kubernetes, and external MCP servers under endpoint policies and audit. |
-| [Documentation](https://msrv.dev/docs/) | Configure your MCP Firewall for production access. | Set up credentials, connector scope, tool policies, approvals, and activity review. |
-| [Getting started](https://msrv.dev/docs/getting-started/) | Put your first connection behind the MCP Firewall. | Connect a service, select its tools, choose an AI endpoint, and inspect the first request in Activity. |
-| [AWS](https://msrv.dev/docs/aws/) | Control AI access to AWS inventory and metrics. | Scope regions and IAM permissions for bounded resource inspection through GateRook. |
-| [Google Cloud Logging](https://msrv.dev/docs/cloud-logging/) | Keep AI log searches within your Google Cloud scope. | Select projects or log views and constrain queries and returned data. |
-| [CloudWatch](https://msrv.dev/docs/cloudwatch/) | Investigate CloudWatch logs with controlled AI access. | Select permitted log groups and bound searches with endpoint and log policies. |
-| [Elasticsearch](https://msrv.dev/docs/elasticsearch/) | Control Elasticsearch reads. Review API changes. | Scope indices and REST operations, bound results, and review changes by default. |
-| [GCP](https://msrv.dev/docs/gcp/) | Scope AI access to Google Cloud resources and logs. | Select projects and permitted resources while keeping service permissions under IAM control. |
-| [HTTP APIs](https://msrv.dev/docs/http/) | Protect API credentials. Control every exposed operation. | Import selected operations, restrict destinations, and apply tool modes before granting AI access. |
-| [Kubernetes](https://msrv.dev/docs/kubernetes/) | Scope cluster access. Review Kubernetes changes. | Limit namespaces and resources, inspect prepared changes, and audit execution. |
-| [Loki](https://msrv.dev/docs/loki/) | Give AI scoped access to Loki logs. | Configure log scope and query limits for investigations through controlled read tools. |
-| [MariaDB](https://msrv.dev/docs/mariadb/) | Put MariaDB queries and changes behind your MCP Firewall. | Restrict database access, bound reads, and require approval for changes by default. |
-| [External MCP servers](https://msrv.dev/docs/mcp-server/) | Put existing MCP servers behind your MCP Firewall. | Review server definitions, protect stored credentials, and expose only selected tools under explicit modes. |
-| [MongoDB](https://msrv.dev/docs/mongodb/) | Scope MongoDB reads. Review exact updates. | Restrict databases and collections, bound queries, and review prepared changes by default. |
-| [MySQL](https://msrv.dev/docs/mysql/) | Protect MySQL access with scoped reads and reviewed writes. | Combine restricted database grants with tool policies, query limits, and change approval by default. |
-| [OpenSearch](https://msrv.dev/docs/opensearch/) | Keep OpenSearch API actions under your control. | Limit index access, inspect REST requests, and review administrative changes by default. |
-| [Oracle](https://msrv.dev/docs/oracle/) | Control AI access to Oracle schemas and SQL changes. | Use restricted grants and verified transport with bounded reads and reviewed writes by default. |
-| [PostgreSQL](https://msrv.dev/docs/postgresql/) | Protect PostgreSQL access with an MCP Firewall. | Scope schemas and tables, bound queries, and review exact changes before execution by default. |
-| [Redis](https://msrv.dev/docs/redis/) | Limit which Redis keys AI can read. | Configure allowed key patterns and bounded read tools with credential protection and audit. |
-| [SQL Server](https://msrv.dev/docs/sql-server/) | Scope SQL Server reads. Review permitted writes. | Use SELECT-only grants for read access, verified TLS, and exact-action approval for writes by default. |
-| [SSH log files](https://msrv.dev/docs/ssh-logs/) | Expose selected SSH log files with controlled reads. | Select individual files, verify the host key, and bound the records returned to AI clients. |
-| [SSH](https://msrv.dev/docs/ssh/) | Keep AI server operations under explicit control. | Verify the host, restrict runbooks and commands, and review changes by default. |
-| [Articles](https://msrv.dev/articles/) | Practical security for AI access to infrastructure. | Explore connector trust, production boundaries, and reviewed execution through an MCP Firewall. |
-| [PostgreSQL comparison](https://msrv.dev/articles/gaterook-vs-postgres-mcp-pro/) | GateRook vs Postgres MCP Pro: PostgreSQL access controls. | Compare the access model and documented controls; retain dated evidence and avoid unsupported superiority claims. |
-| [MCP security article](https://msrv.dev/articles/why-gaterook-is-safer-than-raw-mcp-servers/) | How GateRook adds an MCP Firewall to AI workflows. | Explain credential isolation, scoped tools, exact-action approvals, and audit, alongside the remaining trust boundaries. |
-| [Release notes](https://msrv.dev/release-notes/) | GateRook MCP Firewall release notes. | Follow changes to connector controls, approvals, credential protection, and the desktop application. |
-| [Privacy](https://msrv.dev/privacy/) | Privacy Policy | Use “desktop MCP Firewall” in the factual product description. Preserve the policy's data-handling statements. |
-| [Terms](https://msrv.dev/terms/) | Terms of Use | Preserve the legal terms; product-category wording does not add a security warranty. |
-| [FairVerdict](https://msrv.dev/fairverdict/) | A fairer verdict. A clearer choice. | Preserve this separate product's existing positioning. |
+| [Home](https://gaterook.com/) | The MCP Firewall for AI access to production. | Protect connected services with encrypted credentials, scoped tools, exact-action approvals, and tamper-evident audit logs. |
+| [Integrations](https://gaterook.com/integrations/) | One MCP Firewall. Controlled access across your stack. | Bring databases, APIs, cloud services, logs, SSH, Kubernetes, and external MCP servers under endpoint policies and audit. |
+| [Documentation](https://gaterook.com/docs/) | Configure your MCP Firewall for production access. | Set up credentials, connector scope, tool policies, approvals, and activity review. |
+| [Getting started](https://gaterook.com/docs/getting-started/) | Put your first connection behind the MCP Firewall. | Connect a service, select its tools, choose an AI endpoint, and inspect the first request in Activity. |
+| [AWS](https://gaterook.com/docs/aws/) | Control AI access to AWS inventory and metrics. | Scope regions and IAM permissions for bounded resource inspection through GateRook. |
+| [Google Cloud Logging](https://gaterook.com/docs/cloud-logging/) | Keep AI log searches within your Google Cloud scope. | Select projects or log views and constrain queries and returned data. |
+| [CloudWatch](https://gaterook.com/docs/cloudwatch/) | Investigate CloudWatch logs with controlled AI access. | Select permitted log groups and bound searches with endpoint and log policies. |
+| [Elasticsearch](https://gaterook.com/docs/elasticsearch/) | Control Elasticsearch reads. Review API changes. | Scope indices and REST operations, bound results, and review changes by default. |
+| [GCP](https://gaterook.com/docs/gcp/) | Scope AI access to Google Cloud resources and logs. | Select projects and permitted resources while keeping service permissions under IAM control. |
+| [HTTP APIs](https://gaterook.com/docs/http/) | Protect API credentials. Control every exposed operation. | Import selected operations, restrict destinations, and apply tool modes before granting AI access. |
+| [Kubernetes](https://gaterook.com/docs/kubernetes/) | Scope cluster access. Review Kubernetes changes. | Limit namespaces and resources, inspect prepared changes, and audit execution. |
+| [Loki](https://gaterook.com/docs/loki/) | Give AI scoped access to Loki logs. | Configure log scope and query limits for investigations through controlled read tools. |
+| [MariaDB](https://gaterook.com/docs/mariadb/) | Put MariaDB queries and changes behind your MCP Firewall. | Restrict database access, bound reads, and require approval for changes by default. |
+| [External MCP servers](https://gaterook.com/docs/mcp-server/) | Put existing MCP servers behind your MCP Firewall. | Review server definitions, protect stored credentials, and expose only selected tools under explicit modes. |
+| [MongoDB](https://gaterook.com/docs/mongodb/) | Scope MongoDB reads. Review exact updates. | Restrict databases and collections, bound queries, and review prepared changes by default. |
+| [MySQL](https://gaterook.com/docs/mysql/) | Protect MySQL access with scoped reads and reviewed writes. | Combine restricted database grants with tool policies, query limits, and change approval by default. |
+| [OpenSearch](https://gaterook.com/docs/opensearch/) | Keep OpenSearch API actions under your control. | Limit index access, inspect REST requests, and review administrative changes by default. |
+| [Oracle](https://gaterook.com/docs/oracle/) | Control AI access to Oracle schemas and SQL changes. | Use restricted grants and verified transport with bounded reads and reviewed writes by default. |
+| [PostgreSQL](https://gaterook.com/docs/postgresql/) | Protect PostgreSQL access with an MCP Firewall. | Scope schemas and tables, bound queries, and review exact changes before execution by default. |
+| [Redis](https://gaterook.com/docs/redis/) | Limit which Redis keys AI can read. | Configure allowed key patterns and bounded read tools with credential protection and audit. |
+| [SQL Server](https://gaterook.com/docs/sql-server/) | Scope SQL Server reads. Review permitted writes. | Use SELECT-only grants for read access, verified TLS, and exact-action approval for writes by default. |
+| [SSH log files](https://gaterook.com/docs/ssh-logs/) | Expose selected SSH log files with controlled reads. | Select individual files, verify the host key, and bound the records returned to AI clients. |
+| [SSH](https://gaterook.com/docs/ssh/) | Keep AI server operations under explicit control. | Verify the host, restrict runbooks and commands, and review changes by default. |
+| [Articles](https://gaterook.com/articles/) | Practical security for AI access to infrastructure. | Explore connector trust, production boundaries, and reviewed execution through an MCP Firewall. |
+| [PostgreSQL comparison](https://gaterook.com/articles/gaterook-vs-postgres-mcp-pro/) | GateRook vs Postgres MCP Pro: PostgreSQL access controls. | Compare the access model and documented controls; retain dated evidence and avoid unsupported superiority claims. |
+| [MCP security article](https://gaterook.com/articles/why-gaterook-is-safer-than-raw-mcp-servers/) | How GateRook adds an MCP Firewall to AI workflows. | Explain credential isolation, scoped tools, exact-action approvals, and audit, alongside the remaining trust boundaries. |
+| [Release notes](https://gaterook.com/release-notes/) | GateRook MCP Firewall release notes. | Follow changes to connector controls, approvals, credential protection, and the desktop application. |
+| [Privacy](https://gaterook.com/privacy/) | Privacy Policy | Use “desktop MCP Firewall” in the factual product description. Preserve the policy's data-handling statements. |
+| [Terms](https://gaterook.com/terms/) | Terms of Use | Preserve the legal terms; product-category wording does not add a security warranty. |
+| [FairVerdict](https://gaterook.com/fairverdict/) | A fairer verdict. A clearer choice. | Preserve this separate product's existing positioning. |
 
 ## Shared page copy and metadata
 

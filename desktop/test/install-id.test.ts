@@ -35,8 +35,8 @@ describe('installation identity', () => {
 
   it('redacts query parameters and any occurrence of the known identity', () => {
     const id = '0123456789AbCdEf';
-    assert.equal(redactInstallId(`GET https://msrv.dev/api/updates/latest.yml?install_id=${id}&noCache=1\n${id}`, id),
-      'GET https://msrv.dev/api/updates/latest.yml?install_id=[redacted]&noCache=1\n[redacted]');
+    assert.equal(redactInstallId(`GET https://gaterook.com/api/updates/latest.yml?install_id=${id}&noCache=1\n${id}`, id),
+      'GET https://gaterook.com/api/updates/latest.yml?install_id=[redacted]&noCache=1\n[redacted]');
     assert.equal(redactInstallId(`install_id%3D${id}`), 'install_id%3D[redacted]');
   });
 });

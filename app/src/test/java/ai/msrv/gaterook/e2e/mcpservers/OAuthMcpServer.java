@@ -46,7 +46,7 @@ final class OAuthMcpServer implements AutoCloseable {
   private static final SecureRandom RANDOM = new SecureRandom();
 
   /** The URL of GateRook's Client ID Metadata Document. */
-  static final String GATEROOK_CLIENT = "https://msrv.dev/oauth/gaterook-client.json";
+  static final String GATEROOK_CLIENT = "https://gaterook.com/oauth/gaterook-client.json";
 
   /** A key the server also takes in its URL ({@code /mcp?apiKey=…}), as some servers' docs give it. */
   static final String URL_KEY = "trk-url-key-5d1e7a";
@@ -57,9 +57,9 @@ final class OAuthMcpServer implements AutoCloseable {
    */
   private static final Map<String, String> PUBLISHED = Map.of(GATEROOK_CLIENT, """
       {
-        "client_id": "https://msrv.dev/oauth/gaterook-client.json",
+        "client_id": "https://gaterook.com/oauth/gaterook-client.json",
         "client_name": "GateRook",
-        "client_uri": "https://msrv.dev/",
+        "client_uri": "https://gaterook.com/",
         "application_type": "native",
         "redirect_uris": ["http://localhost/callback", "http://127.0.0.1/callback"],
         "grant_types": ["authorization_code", "refresh_token"],

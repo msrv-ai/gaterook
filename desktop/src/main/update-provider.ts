@@ -6,7 +6,7 @@ import { GenericProvider } from 'electron-updater/out/providers/GenericProvider.
 import type { ProviderRuntimeOptions } from 'electron-updater/out/providers/Provider.js';
 import { INSTALL_ID_PATTERN } from './install-id.ts';
 
-export const UPDATE_ORIGIN = 'https://msrv.dev';
+export const UPDATE_ORIGIN = 'https://gaterook.com';
 
 export function updateFeedUrl(platform: NodeJS.Platform, arch: string): string {
   if (!['darwin', 'win32'].includes(platform) || !['arm64', 'x64'].includes(arch)) {

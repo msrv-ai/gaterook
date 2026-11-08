@@ -25,8 +25,8 @@ describe('site update provider', () => {
       const { provider, requests } = fixture(platform);
       const info = await provider.getLatestVersion();
       assert.equal(requests.length, 1);
-      assert.equal(requests[0]?.hostname, 'msrv.dev');
-      const request = new URL(requests[0]!.path!, 'https://msrv.dev');
+      assert.equal(requests[0]?.hostname, 'gaterook.com');
+      const request = new URL(requests[0]!.path!, 'https://gaterook.com');
       assert.equal(request.pathname, `/api/updates/${platform}/arm64/${filename}`);
       assert.equal(request.searchParams.get('install_id'), ID);
       const files = provider.resolveFiles(info);
@@ -46,7 +46,7 @@ describe('site update provider', () => {
         return `version: 0.7.0\nfiles:\n  - url: ${ZIP}\n    sha512: digest\n    size: 10\n`;
       } } } as ProviderRuntimeOptions);
     const info = await provider.getLatestVersion();
-    const request = new URL(requests[0]!.path!, 'https://msrv.dev');
+    const request = new URL(requests[0]!.path!, 'https://gaterook.com');
     assert.equal(request.pathname, '/api/updates/darwin/arm64/latest-mac.yml');
     assert.equal(request.searchParams.has('install_id'), false);
     assert.equal(provider.resolveFiles(info)[0]!.url.href, ZIP);

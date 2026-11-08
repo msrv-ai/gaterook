@@ -78,7 +78,7 @@ class OAuthClientTest {
   @Test
   void byItsMetadataDocumentGateRookSignsInAsTheDocumentsUrlWithoutASecret() throws Exception {
     OAuthClient.Client c = OAuthClient.metadataDocument(URI.create("http://localhost:50123/callback"));
-    assertThat(c.id()).isEqualTo(OAuthClient.METADATA_DOCUMENT).isEqualTo("https://msrv.dev/oauth/gaterook-client.json");
+    assertThat(c.id()).isEqualTo(OAuthClient.METADATA_DOCUMENT).isEqualTo("https://gaterook.com/oauth/gaterook-client.json");
     assertThat(c.secret()).isNull();
     assertThat(c.authMethod()).isEqualTo("none");
     assertThat(c.registered()).as("nothing registered, nothing to reuse").isFalse();

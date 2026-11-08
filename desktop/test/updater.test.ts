@@ -94,7 +94,7 @@ describe('explicit desktop updates', () => {
     assert.equal(requests.length, 2);
     assert.equal(requests[0], requests[1]);
     const url = new URL(requests[0]!);
-    assert.equal(url.origin, 'https://msrv.dev');
+    assert.equal(url.origin, 'https://gaterook.com');
     assert.equal(url.pathname, '/api/updates/win32/x64/store.json');
     assert.equal(url.searchParams.get('install_id'), readFileSync(f.identityPath, 'utf8').trim());
     assert.equal(f.loads(), 0);
@@ -138,7 +138,7 @@ describe('explicit desktop updates', () => {
     const f = fixture(t, { log: (message) => logs.push(message) });
     await f.updates.check();
     const id = readFileSync(f.identityPath, 'utf8').trim();
-    const message = `Cannot request https://msrv.dev/api/updates/win32/x64/latest.yml?install_id=${id}`;
+    const message = `Cannot request https://gaterook.com/api/updates/win32/x64/latest.yml?install_id=${id}`;
     f.driver.logger?.error(message);
     f.driver.emit('error', new Error(message));
     assert.equal(logs.join('\n').includes(id), false);
@@ -159,7 +159,7 @@ describe('explicit desktop updates', () => {
     assert.equal(f.driver.allowPrerelease, false);
     assert.equal(f.driver.allowDowngrade, false);
     assert.equal(typeof f.driver.feed, 'object');
-    assert.equal((f.driver.feed as { url: string }).url, 'https://msrv.dev/api/updates/win32/x64/');
+    assert.equal((f.driver.feed as { url: string }).url, 'https://gaterook.com/api/updates/win32/x64/');
     assert.equal((f.driver.feed as unknown as { installId: string }).installId, readFileSync(f.identityPath, 'utf8').trim());
   });
 

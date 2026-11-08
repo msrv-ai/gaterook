@@ -17,6 +17,10 @@ Before finishing work in an AI-managed linked worktree, release its checked-out 
 - Preserve all commits and uncommitted changes. Do not reset, force checkout, delete branches, or modify another worktree to release a branch. If detaching is blocked, report the blocker without discarding work.
 - Leave a branch checked out only when the user explicitly asks for it. Do not change the user's primary checkout solely for this cleanup.
 
+## Product addresses
+
+Use `https://gaterook.com` for the application website, documentation links, OAuth metadata and update services. Public support is `support@gaterook.com`. Preserve technical application IDs and Java package names; a website-domain change is not a package-identity rename.
+
 ## Repository scope
 
 This repository contains the complete application source, tests and fixtures, runtime assets, architecture and curated research, and the manifests, lockfiles, toolchain pins, and scripts required to build, test, and run locally. Keep these inputs together so a clone builds without another checkout. Deployment credentials and production operations do not belong here.
