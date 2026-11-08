@@ -58,10 +58,22 @@
     grid-column: 1 / -1;
   }
 
-  @media (min-width: 960px) {
-    .gw-setup-map__network-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+  .gw-overview-native-list > .gw-setup-map__network-grid,
+  .gw-overview-mcp-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  }
+
+  .gw-overview-endpoint-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+    align-items: stretch;
+  }
+
+  .gw-setup-map__network-endpoint {
+    max-width: 24rem;
+  }
+
+  .gw-setup-map__network-endpoint > .gw-choice-card {
+    height: 100%;
   }
 
   @media (min-width: 1280px) {
@@ -69,29 +81,13 @@
 
     .gw-overview-services {
       display: grid;
-      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       align-items: start;
       gap: var(--gw-space-3) var(--gw-space-4);
 
       > :is(header, search, p, .gw-alert) {
         grid-column: 1 / -1;
       }
-    }
-
-    .gw-overview-services--mcp-wide {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-
-      .gw-overview-native-list > .gw-setup-map__network-grid {
-        grid-template-columns: minmax(0, 1fr);
-      }
-
-      .gw-overview-mcp-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-    }
-
-    .gw-overview-services--balanced {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .gw-setup-map__network-hub {
@@ -111,13 +107,7 @@
 
       > .gw-overview-endpoint-grid {
         flex: 1;
-        grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
-        align-items: stretch;
       }
-    }
-
-    .gw-setup-map__network-endpoint > .gw-choice-card {
-      height: 100%;
     }
   }
 

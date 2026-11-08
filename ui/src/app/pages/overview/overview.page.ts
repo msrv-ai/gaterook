@@ -140,10 +140,6 @@ export class OverviewPage {
     return this.expanded() || this.query().trim() || this.problemsOnly() ? rows : rows.slice(0, 4);
   });
   protected readonly nativeCount = computed(() => this.assigned().filter((c) => !c.mcp).length);
-  // Keep the column balance stable when search or the compact list hides cards.
-  protected readonly mcpWide = computed(
-    () => this.nativeCount() > 0 && (this.connections()?.filter((c) => c.mcp).length ?? 0) > this.nativeCount(),
-  );
   protected readonly mcp = computed(() => this.filtered().filter((c) => c.mcp));
   protected readonly unassignedMcp = computed(() =>
     this.problemsOnly() || this.data.endpoints() === null

@@ -257,21 +257,13 @@ function openReview(el: HTMLElement): HTMLDialogElement | null {
 beforeEach(() => setupPage());
 
 describe('Overview connection map', () => {
-  it.each([
-    { nativeCount: 6, mcpWide: false },
-    { nativeCount: 5, mcpWide: false },
-    { nativeCount: 4, mcpWide: true },
-  ])('allocates the wider services column by total counts, with $nativeCount connections and five MCP services', async ({ nativeCount, mcpWide }) => {
+  it.each([6, 5, 4])('filters and expands %i connections alongside assigned and unassigned MCP services', async (nativeCount) => {
     savedConnections = [
       ...Array.from({ length: nativeCount }, (_, index) => row(`database-${index}`, 'dev', ['dev'])),
       row('stage-database', 'stage', ['stage-readonly']),
       ...Array.from({ length: 5 }, (_, index) => healthyMcp(`docs-mcp-${index}`, index < 2 ? ['dev'] : [])),
     ];
     const { fixture, el } = await render();
-    const columns = el.querySelector<HTMLElement>('.gw-overview-services')!;
-    const isMcpWide = () => columns.classList.contains('gw-overview-services--mcp-wide');
-    expect(columns).not.toBeNull();
-    expect(isMcpWide()).toBe(mcpWide);
     expect(el.querySelectorAll('#ov-services [data-map-service]')).toHaveLength(4);
     expect(el.querySelectorAll('#ov-mcp [data-map-service]')).toHaveLength(2);
     expect(el.querySelector('#ov-mcp button[aria-label="Connect docs-mcp-4 to endpoint dev"]')).not.toBeNull();
@@ -279,18 +271,14 @@ describe('Overview connection map', () => {
     if (nativeCount > 4) {
       await showAll(fixture, el);
       expect(el.querySelectorAll('#ov-services [data-map-service]')).toHaveLength(nativeCount);
-      expect(isMcpWide()).toBe(mcpWide);
     }
     await searchFor(fixture, el, 'docs-mcp-0');
     expect(services(el)).toEqual(['docs-mcp-0']);
-    expect(isMcpWide()).toBe(mcpWide);
     await searchFor(fixture, el, 'database-0');
     expect(services(el)).toEqual(['database-0']);
-    expect(isMcpWide()).toBe(mcpWide);
     await searchFor(fixture, el, '');
     await selectEndpoint(fixture, el, 'stage-readonly');
     expect(services(el)).toEqual(['stage-database']);
-    expect(isMcpWide()).toBe(true);
   });
 
   it('selects an AI app without changing access and clears selection when its endpoint changes', async () => {
