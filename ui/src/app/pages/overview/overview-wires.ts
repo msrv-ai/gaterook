@@ -171,8 +171,6 @@ export class GwOverviewWires {
       junction.setAttribute('class', 'gw-setup-map__network-junction');
       junction.setAttribute('cx', String(hubX));
       junction.setAttribute('cy', String(y));
-      junction.setAttribute('r', 'var(--gw-space-1)');
-      junction.setAttribute('fill', state.endpointEnabled ? 'var(--gw-color-brand-fg)' : 'var(--gw-color-border-strong)');
       junction.dataset['side'] = side;
       junction.dataset['muted'] = String(!state.endpointEnabled);
       this.svg.append(junction);
