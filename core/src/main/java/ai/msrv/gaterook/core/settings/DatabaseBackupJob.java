@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -15,6 +16,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -38,9 +40,8 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The daily copy of the gateway database (ARCHITECTURE.md M1.6, kit Settings › Backup: "At 03:00, or at the next start
- * if the computer was off. The last 7 copies are kept."). At 03:00 local time, and once shortly after a start when the
- * newest copy is older than 24 hours (a laptop that sleeps at night never sees 03:00), it writes
+ * The weekly copy of the gateway database. Every Sunday at 03:00 local time, and once shortly after a start when the
+ * newest copy is at least seven days old (or there is none), it writes
  * {@code backups/gateway-YYYY-MM-DD.db} with {@code VACUUM INTO}; "Back up now" writes
  * {@code gateway-YYYY-MM-DD-HHmm.db} there or to a file the person chose. After every copy the folder keeps the newest
  * seven {@code gateway-*.db}: the copies before migrations ({@code pre-migration-*.db}) and the clients' config
@@ -56,13 +57,14 @@ public class DatabaseBackupJob implements ApplicationListener<ApplicationReadyEv
   /** Copies the folder keeps. */
   public static final int KEEP = 7;
 
-  /** When the daily copy runs, local time. */
+  /** When the weekly copy runs, local time. */
   public static final LocalTime AT = LocalTime.of(3, 0);
+  public static final DayOfWeek ON = DayOfWeek.SUNDAY;
 
   /** How old the newest copy may be at a start before a catch-up copy is made. */
-  public static final Duration CATCH_UP_AFTER = Duration.ofHours(24);
+  public static final Duration CATCH_UP_AFTER = Duration.ofDays(7);
 
-  /** Copies this job writes and prunes: daily ({@code gateway-2026-10-22.db}) and Back up now ({@code …-1430.db}). */
+  /** Copies this job writes and prunes: automatic ({@code gateway-2026-10-25.db}) and Back up now ({@code …-1430.db}). */
   static final Pattern COPY = Pattern.compile("gateway-\\d{4}-\\d{2}-\\d{2}(-\\d{4,6})?(-\\d+)?\\.db");
 
   private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -78,6 +80,7 @@ public class DatabaseBackupJob implements ApplicationListener<ApplicationReadyEv
   /**
    * Settings › Backup ({@code GET /api/backup}).
    *
+   * @param daily whether automatic backups are enabled; the legacy API name is retained for compatibility
    * @param lastError why the last attempt failed, or {@code null} when it succeeded
    */
   public record Status(boolean daily, String at, Instant lastBackupAt, String lastFile, String folder, int keep,
@@ -85,7 +88,7 @@ public class DatabaseBackupJob implements ApplicationListener<ApplicationReadyEv
 
   private final GatewayDatabase database;
   private final Path folder;
-  private final BooleanSupplier daily;
+  private final BooleanSupplier enabled;
   private final Supplier<Optional<JsonNode>> loadState;
   private final Consumer<ObjectNode> saveState;
   private final Clock clock;
@@ -96,16 +99,16 @@ public class DatabaseBackupJob implements ApplicationListener<ApplicationReadyEv
   private volatile Instant nextRunAt;
 
   /**
-   * @param daily        whether the daily copy is on (Settings › Backup)
+   * @param enabled      whether the weekly copy is on (Settings › Backup)
    * @param loadState    the last attempt as stored, {@code saveState} stores it
    * @param catchUpDelay how long after the start the catch-up copy waits, so that the start itself stays fast
    */
-  public DatabaseBackupJob(GatewayDatabase database, Path folder, BooleanSupplier daily,
+  public DatabaseBackupJob(GatewayDatabase database, Path folder, BooleanSupplier enabled,
       Supplier<Optional<JsonNode>> loadState, Consumer<ObjectNode> saveState, Clock clock, ZoneId zone,
       Duration catchUpDelay) {
     this.database = Objects.requireNonNull(database, "database");
     this.folder = Objects.requireNonNull(folder, "folder");
-    this.daily = Objects.requireNonNull(daily, "daily");
+    this.enabled = Objects.requireNonNull(enabled, "enabled");
     this.loadState = Objects.requireNonNull(loadState, "loadState");
     this.saveState = Objects.requireNonNull(saveState, "saveState");
     this.clock = Objects.requireNonNull(clock, "clock");
@@ -122,19 +125,20 @@ public class DatabaseBackupJob implements ApplicationListener<ApplicationReadyEv
     }
     ScheduledThreadPoolExecutor scheduler = new ScheduledThreadPoolExecutor(1,
         Thread.ofVirtual().name("database-backup").factory());
-    // The next 03:00 is hours away: a stop must not wait for it.
+    // The next Sunday at 03:00 may be days away: a stop must not wait for it.
     scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
     executor = scheduler;
     executor.schedule(this::catchUpQuietly, catchUpDelay.toMillis(), TimeUnit.MILLISECONDS);
     scheduleNext();
   }
 
-  /** The next 03:00 local time strictly after {@code now}. */
+  /** The next Sunday at 03:00 local time strictly after {@code now}. */
   Instant nextRun(Instant now) {
     ZonedDateTime local = now.atZone(zone);
-    ZonedDateTime candidate = local.toLocalDate().atTime(AT).atZone(zone);
+    LocalDate sunday = local.toLocalDate().with(TemporalAdjusters.nextOrSame(ON));
+    ZonedDateTime candidate = sunday.atTime(AT).atZone(zone);
     if (!candidate.toInstant().isAfter(now)) {
-      candidate = local.toLocalDate().plusDays(1).atTime(AT).atZone(zone);
+      candidate = sunday.plusWeeks(1).atTime(AT).atZone(zone);
     }
     return candidate.toInstant();
   }
@@ -148,7 +152,7 @@ public class DatabaseBackupJob implements ApplicationListener<ApplicationReadyEv
     // Planned again after each run rather than at a fixed rate: daylight saving time moves 03:00.
     executor.schedule(() -> {
       try {
-        dailyQuietly();
+        weeklyQuietly();
       } finally {
         scheduleNext();
       }
@@ -163,35 +167,35 @@ public class DatabaseBackupJob implements ApplicationListener<ApplicationReadyEv
     }
   }
 
-  private void dailyQuietly() {
+  private void weeklyQuietly() {
     try {
-      if (daily.getAsBoolean()) {
-        daily();
+      if (enabled.getAsBoolean()) {
+        automaticCopy();
       }
     } catch (RuntimeException e) {
-      log.warn("Daily backup of the database failed: {}", e.getMessage());
+      log.warn("Weekly backup of the database failed: {}", e.getMessage());
     }
   }
 
   // ── Copies ──────────────────────────────────────────────────────────────────────────────────────────────────
 
   /**
-   * The copy a start owes when the computer was off at 03:00: made when the daily copy is on and the newest copy is
-   * older than {@link #CATCH_UP_AFTER} (or there is none).
+   * The copy a start owes when the computer was off: made when the weekly copy is on and the newest copy is
+   * at least {@link #CATCH_UP_AFTER} old (or there is none).
    */
   public Optional<Copy> catchUp() {
-    if (!daily.getAsBoolean()) {
+    if (!enabled.getAsBoolean()) {
       return Optional.empty();
     }
     Optional<Instant> newest = copies().stream().findFirst().map(DatabaseBackupJob::modified);
     if (newest.isPresent() && newest.get().isAfter(clock.instant().minus(CATCH_UP_AFTER))) {
       return Optional.empty();
     }
-    return daily();
+    return automaticCopy();
   }
 
-  /** Today's daily copy, unless one was made today already. */
-  public Optional<Copy> daily() {
+  /** The scheduled or catch-up copy, unless one was made today already. */
+  Optional<Copy> automaticCopy() {
     Path target = folder.resolve("gateway-" + DAY.format(LocalDate.ofInstant(clock.instant(), zone)) + ".db");
     if (Files.exists(target)) {
       return Optional.empty();
@@ -298,7 +302,7 @@ public class DatabaseBackupJob implements ApplicationListener<ApplicationReadyEv
       lastAt = newest.map(DatabaseBackupJob::modified).orElse(null);
       lastFile = newest.map(p -> p.getFileName().toString()).orElse(null);
     }
-    return new Status(daily.getAsBoolean(), AT.toString(), lastAt, lastFile, folder.toAbsolutePath().toString(), KEEP,
+    return new Status(enabled.getAsBoolean(), AT.toString(), lastAt, lastFile, folder.toAbsolutePath().toString(), KEEP,
         state.path("lastError").isString() ? state.get("lastError").asString() : null,
         instant(state.path("lastAttemptAt")), nextRunAt);
   }

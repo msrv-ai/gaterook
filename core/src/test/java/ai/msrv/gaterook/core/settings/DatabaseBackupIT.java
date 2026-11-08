@@ -15,7 +15,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
- * The backup job inside a whole core: a start owes a copy when there is none from the last 24 hours, and the copy it
+ * The backup job inside a whole core: a start owes a copy when there is none from the last seven days, and the copy it
  * makes leaves the folder with seven (M1.6). {@link DatabaseBackupJobTest} covers the rules one by one.
  */
 class DatabaseBackupIT {
@@ -32,7 +32,7 @@ class DatabaseBackupIT {
       assertThat(status.nextRunAt()).isAfter(Instant.now());
     }
 
-    // The computer was off for a while: the copies are days old, none is from today.
+    // The computer was off for a while: the copies are weeks old, none is from today.
     Path folder = home.resolve("backups");
     for (String name : copies(home)) {
       Files.delete(folder.resolve(name));
@@ -41,7 +41,7 @@ class DatabaseBackupIT {
     for (int day = 1; day <= 8; day++) {
       Path old = folder.resolve("gateway-2026-09-0" + day + ".db");
       Files.writeString(old, "an old copy");
-      Files.setLastModifiedTime(old, FileTime.from(now.minus(Duration.ofDays(10 - day))));
+      Files.setLastModifiedTime(old, FileTime.from(now.minus(Duration.ofDays(7L * (10 - day)))));
     }
     Files.writeString(folder.resolve("pre-migration-2.db"), "before V3");
 
