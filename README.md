@@ -15,7 +15,7 @@ Installed apps check update metadata at `msrv.dev`; macOS update downloads remai
 
 Watch how GateRook connects AI to your infrastructure while keeping you in control.
 
-https://github.com/user-attachments/assets/d304a5f2-925a-414a-8d50-f14323139319
+https://github.com/user-attachments/assets/019835d6-2b7b-4c91-be5c-28eba543087a
 
 ## Put a firewall between AI and production
 
