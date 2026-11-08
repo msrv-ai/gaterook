@@ -464,8 +464,8 @@ export function exportCard(d: AuditExportDestination): ExportCard {
 
 // ── Backup ──────────────────────────────────────────────────────────────────────────────────────────────────────
 
-export function dailyHint(at: string, keep: number): string {
-  return `At ${at}, or at the next start if the computer was off. The last ${count(keep)} copies are kept.`;
+export function weeklyHint(at: string, keep: number): string {
+  return `Every Sunday at ${at} (local time). At startup, a copy is made if the last backup is at least 7 days old or none exists. The last ${count(keep)} copies are kept.`;
 }
 
 /** "Today at 03:00", "Yesterday at 03:00", "Oct 20 at 03:00". */

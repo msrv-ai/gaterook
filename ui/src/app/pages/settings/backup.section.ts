@@ -9,14 +9,14 @@ import { GwReveal } from '../../kit/reveal';
 import { ToastService } from '../../kit/toast.service';
 import { SettingsData } from './settings.data';
 import { GwFullBackup } from './full-backup.component';
-import { boolOf, dailyHint, dayAt, dbBackedUpToast, fileOf, folderOf, keyBackedUpToast, keyBackupFileName, keyBackupLead, numOf, onOff, protectsText, savedToast, strOf } from './settings-view';
+import { boolOf, weeklyHint, dayAt, dbBackedUpToast, fileOf, folderOf, keyBackedUpToast, keyBackupFileName, keyBackupLead, numOf, onOff, protectsText, savedToast, strOf } from './settings-view';
 
 const NO_ANSWER = 'The core didn’t answer. Try again.';
 
 /**
  * Settings › Backup: what restoring this gateway elsewhere needs.
  *
- * - Database applies at once: the daily copy (`PUT /api/settings/backup {daily}`; 03:00 or the next start, 7 kept),
+ * - Database applies at once: the weekly copy (`PUT /api/settings/backup {daily}`; Sunday at 03:00, 7 kept),
  *   the files from `/api/health` and `/api/backup`, Back up now (`POST /api/backup/db`, into the backup folder) and
  *   Open backup folder (desktop only, else unavailable with the reason).
  * - Master key: the key file, what it protects, the last copy; Back up master key opens the kit's dialog
@@ -44,10 +44,10 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
         </header>
         <div class="gw-form__rows">
           <div class="gw-switch">
-            <input class="gw-switch__input" type="checkbox" role="switch" id="st-daily-backup" [checked]="daily()" [attr.aria-busy]="busy() === 'daily' ? 'true' : null" aria-describedby="st-daily-backup-hint" (change)="setDaily($event)">
+            <input class="gw-switch__input" type="checkbox" role="switch" id="st-weekly-backup" [checked]="weekly()" [attr.aria-busy]="busy() === 'weekly' ? 'true' : null" aria-describedby="st-weekly-backup-hint" (change)="setWeekly($event)">
             <span class="gw-switch__control" aria-hidden="true"></span>
-            <label class="gw-switch__label" for="st-daily-backup">Back up the database every day</label>
-            <p class="gw-switch__hint" id="st-daily-backup-hint">{{ hint() }}</p>
+            <label class="gw-switch__label" for="st-weekly-backup">Back up the database every week</label>
+            <p class="gw-switch__hint" id="st-weekly-backup-hint">{{ hint() }}</p>
           </div>
           @let b = data.backup().value;
           <dl class="gw-kv">
@@ -161,12 +161,13 @@ export class GwBackupSettings {
   private readonly passphrase = viewChild<ElementRef<HTMLInputElement>>('passphrase');
 
   private readonly values = computed(() => this.data.section('backup')?.values);
-  protected readonly daily = computed(() => this.data.backup().value?.daily ?? boolOf(this.values(), 'daily', true));
+  /** The API retains the legacy `daily` toggle for existing preferences. */
+  protected readonly weekly = computed(() => this.data.backup().value?.daily ?? boolOf(this.values(), 'daily', true));
   protected readonly hint = computed(() => {
     const b = this.data.backup().value;
-    return dailyHint(b?.at ?? strOf(this.values(), 'at', '03:00'), b?.keep ?? numOf(this.values(), 'keep', 7));
+    return weeklyHint(b?.at ?? strOf(this.values(), 'at', '03:00'), b?.keep ?? numOf(this.values(), 'keep', 7));
   });
-  protected readonly busy = signal<'daily' | 'now' | null>(null);
+  protected readonly busy = signal<'weekly' | 'now' | null>(null);
   protected readonly dayAt = (at: string) => dayAt(at, this.time.minute());
 
   protected readonly protects = computed(() => protectsText(this.data.masterKey().value?.protects ?? 0, this.data.references()));
@@ -188,20 +189,20 @@ export class GwBackupSettings {
     return folder.endsWith('/') ? folder : `${folder}/`;
   }
 
-  protected async setDaily(e: Event): Promise<void> {
+  protected async setWeekly(e: Event): Promise<void> {
     const input = e.target as HTMLInputElement;
     const on = input.checked;
     if (this.busy()) {
       input.checked = !on;
       return;
     }
-    this.busy.set('daily');
+    this.busy.set('weekly');
     try {
       await this.data.save('backup', { daily: on });
-      this.toasts.show(savedToast('Back up the database every day', onOff(on)));
+      this.toasts.show(savedToast('Back up the database every week', onOff(on)));
     } catch (err) {
       input.checked = !on;
-      this.toasts.show({ tone: 'danger', title: 'The daily backup wasn’t changed', body: this.errorText(err) });
+      this.toasts.show({ tone: 'danger', title: 'The weekly backup wasn’t changed', body: this.errorText(err) });
     } finally {
       this.busy.set(null);
     }

@@ -10,7 +10,7 @@ import { JsonObject } from '../../core/api/types';
 /**
  * The kit's Settings world as the core's answers, for the page's tests:
  * port 7465, endpoints dev / stage-readonly / incident-prod, a token of dev that runs out in 3 days, approval rules that
- * announce in the desktop and Slack, retention 1 year, a daily backup at 03:00.
+ * announce in the desktop and Slack, retention 1 year, a weekly backup on Sunday at 03:00.
  */
 
 export const NOW = Date.parse('2026-10-22T12:30:00Z');
@@ -73,7 +73,7 @@ export const kitBackup = (over: Partial<BackupStatus> = {}): BackupStatus => ({
   keep: 7,
   lastError: null,
   lastAttemptAt: '2026-10-22T01:00:00Z',
-  nextRunAt: '2026-10-23T01:00:00Z',
+  nextRunAt: '2026-10-25T02:00:00Z',
   ...over,
 });
 

@@ -26,6 +26,7 @@ export interface SettingsSection {
 
 /** `GET /api/backup` (settings.DatabaseBackupJob.Status). */
 export interface BackupStatus {
+  /** Legacy field name for the weekly automatic-backup toggle. */
   readonly daily: boolean;
   readonly at: string;
   readonly lastBackupAt: Iso | null;
