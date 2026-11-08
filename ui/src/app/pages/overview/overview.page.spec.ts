@@ -401,6 +401,7 @@ describe('Overview connection map', () => {
 
   it('distinguishes actual connected MCP services from installed services and opens an exact access review', async () => {
     savedConnections.push(healthyMcp('issue-tracker-mcp', ['dev']));
+    savedConnections.push(healthyMcp('docs-mcp', ['stage-readonly']));
     const { fixture, el } = await render();
     expect(text(service(el, 'issue-tracker-mcp')?.querySelector('.gw-status__label'))).toBe('Connected');
     expect(text(el.querySelector('#ov-mcp .gw-card__description'))).toContain('dev');
@@ -409,6 +410,16 @@ describe('Overview connection map', () => {
     expect(text(mcp)).toContain('Not connected to dev');
     expect(text(mcp)).not.toContain('docs-mcp');
     expect(mcp.querySelector('a[target="_blank"]')).toBeNull();
+    await searchFor(fixture, el, 'docs-mcp');
+    expect(text(mcp)).not.toContain('docs-mcp');
+    await searchFor(fixture, el, '');
+    await selectEndpoint(fixture, el, 'stage-readonly');
+    expect(text(service(el, 'docs-mcp')?.querySelector('.gw-status__label'))).toBe('Connected');
+    expect(text(mcp)).not.toContain('issue-tracker-mcp');
+    expect(text(mcp)).toContain('github-mcp');
+    expect(text(mcp)).toContain('Not connected to stage-readonly');
+    await selectEndpoint(fixture, el, 'dev');
+    expect(text(mcp)).not.toContain('docs-mcp');
     mcp.querySelector<HTMLButtonElement>('button[aria-label="Connect github-mcp to endpoint dev"]')!.click();
     await settle(fixture);
     expect(text(openReview(el))).toContain('Connect github-mcp to dev');
@@ -496,8 +507,10 @@ describe('Overview connection map', () => {
     expect(TestBed.inject(Router).url).toBe('/');
     expect(el.querySelector<HTMLInputElement>('input[name="overview-endpoint"]:checked')!.value).toBe('stage-readonly');
     expect(document.activeElement).toBe(opener);
-    expect(text(el.querySelector('#ov-mcp'))).toContain('sample-mcp');
+    expect(text(el.querySelector('#ov-mcp')).includes('sample-mcp')).toBe(finish === 'skip');
     expect(calls.includes('add dev sample-mcp')).toBe(finish === 'add');
+    await selectEndpoint(fixture, el, 'dev');
+    expect(text(el.querySelector('#ov-mcp'))).toContain('sample-mcp');
   });
 
   it('opens the service chooser with new-service routes and existing services scoped to the endpoint', async () => {

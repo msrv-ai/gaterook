@@ -342,7 +342,9 @@
                 {{
                   connections() === null || data.endpoints() === null
                     ? 'MCP connection status is unavailable.'
-                    : 'No MCP services added yet.'
+                    : endpoint()
+                      ? 'No MCP services connected to this endpoint.'
+                      : 'No MCP services added yet.'
                 }}
               </p>
             }
