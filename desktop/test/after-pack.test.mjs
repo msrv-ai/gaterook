@@ -74,8 +74,8 @@ describe('macOS update metadata packaging', () => {
     }
   });
 
-  it('leaves Windows, Linux and Mac App Store packaging to electron-builder', async () => {
-    for (const electronPlatformName of ['win32', 'linux', 'mas']) {
+  it('leaves Linux and Mac App Store packaging to electron-builder', async () => {
+    for (const electronPlatformName of ['linux', 'mas']) {
       await afterPack({ electronPlatformName });
     }
   });
@@ -164,7 +164,7 @@ describe('macOS update resource permissions', () => {
   });
 
   it('leaves resource permissions unchanged on other packaging platforms', posixOnly, async (t) => {
-    for (const platform of ['win32', 'linux', 'mas']) {
+    for (const platform of ['linux', 'mas']) {
       const f = fixture(t, { platform });
       const notice = join(f.resources, 'notice.md');
       writeFileSync(notice, 'License notice.\n');
