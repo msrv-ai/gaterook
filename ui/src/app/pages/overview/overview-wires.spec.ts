@@ -9,11 +9,15 @@ import { GwOverviewWires, OverviewWireNode, OverviewWireTrace } from './overview
       <svg gwOverviewWires [mapRoot]="map" [endpoint]="endpoint()" [endpointEnabled]="enabled()"
         [services]="services()" [apps]="apps()" [activeNode]="active()" [trace]="trace()"></svg>
       @if (showService()) { <div data-map-service="warehouse"></div> }
+      <div data-map-service="docs-mcp"></div>
       <div data-map-service="paused"></div>
       <div data-map-service="unshared"></div>
-      <label data-map-endpoint="dev"></label>
-      <label data-map-endpoint="prod"></label>
+      <section data-map-hub>
+        <label data-map-endpoint="dev"></label>
+        <label data-map-endpoint="prod"></label>
+      </section>
       <div data-map-app="claude"></div>
+      <div data-map-app="codex"></div>
       <div data-map-app="cursor"></div>
       <div data-map-app="unconfigured"></div>
     </div>`,
@@ -22,10 +26,11 @@ class WireHost {
   readonly endpoint = signal<string | null>('dev');
   readonly enabled = signal(true);
   readonly services = signal<readonly OverviewWireNode[]>([
-    { id: 'warehouse', enabled: true }, { id: 'paused', enabled: false }, { id: 'absent', enabled: true },
+    { id: 'warehouse', enabled: true }, { id: 'docs-mcp', enabled: true },
+    { id: 'paused', enabled: false }, { id: 'absent', enabled: true },
   ]);
   readonly apps = signal<readonly OverviewWireNode[]>([
-    { id: 'claude', enabled: true }, { id: 'cursor', enabled: true, pending: true },
+    { id: 'claude', enabled: true }, { id: 'codex', enabled: true }, { id: 'cursor', enabled: true, pending: true },
   ]);
   readonly active = signal<string | null>(null);
   readonly trace = signal<OverviewWireTrace | null>(null);
@@ -38,6 +43,7 @@ function rect(x: number, y: number, width: number, height: number): DOMRect {
 
 let desktop = true;
 let reduced = false;
+let hubHeight = 200;
 let frame = 0;
 let frames: Map<number, FrameRequestCallback>;
 let resizeCallback: ResizeObserverCallback;
@@ -47,6 +53,7 @@ let observe: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   desktop = true;
   reduced = false;
+  hubHeight = 200;
   frame = 0;
   frames = new Map();
   disconnect = vi.fn();
@@ -64,11 +71,12 @@ beforeEach(() => {
   });
   vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => { frames.delete(id); });
   vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
-    if (this.hasAttribute('data-map-root')) return rect(100, 50, 1_000, 500);
+    if (this.hasAttribute('data-map-root')) return rect(100, 50, 1_000, 1_000);
     if (this.hasAttribute('data-map-service')) return rect(120, 150, 200, 60);
-    if (this.getAttribute('data-map-endpoint') === 'dev') return rect(500, 190, 180, 84);
-    if (this.getAttribute('data-map-endpoint') === 'prod') return rect(500, 300, 180, 84);
-    if (this.hasAttribute('data-map-app')) return rect(800, 180, 200, 72);
+    if (this.hasAttribute('data-map-hub')) return rect(120, 450, 960, hubHeight);
+    if (this.getAttribute('data-map-endpoint') === 'dev') return rect(400, 470, 200, 160);
+    if (this.getAttribute('data-map-endpoint') === 'prod') return rect(640, 470, 200, 160);
+    if (this.hasAttribute('data-map-app')) return rect(800, 850, 200, 72);
     return rect(0, 0, 0, 0);
   });
 });
@@ -98,20 +106,26 @@ async function render() {
 }
 
 describe('Overview network wires', () => {
-  it('draws only configured visible nodes with geometry relative to the selected endpoint', async () => {
+  it('joins visible configured nodes vertically at the selected endpoint column and gateway edges', async () => {
     const { fixture, host, svg, path } = await render();
     expect(svg.getAttribute('aria-hidden')).toBe('true');
-    expect(svg.getAttribute('viewBox')).toBe('0 0 1000 500');
+    expect(svg.getAttribute('viewBox')).toBe('0 0 1000 1000');
     expect(Array.from(svg.querySelectorAll('path')).map((el) => el.dataset['node'])).toEqual([
-      'service:warehouse', 'service:paused', 'app:claude', 'app:cursor',
+      'service:warehouse', 'service:docs-mcp', 'service:paused', 'app:claude', 'app:codex', 'app:cursor',
     ]);
-    expect(path('service:warehouse').getAttribute('d')).toBe('M 220 130 C 319 130, 301 182, 400 182');
+    expect(path('service:warehouse').getAttribute('d')).toBe('M 120 160 C 120 292, 400 268, 400 400');
+    expect(path('app:claude').getAttribute('d')).toBe('M 400 600 C 400 710, 800 690, 800 800');
+    expect(Array.from(svg.querySelectorAll('.gw-setup-map__network-junction')).map((junction) => [
+      junction.getAttribute('cx'), junction.getAttribute('cy'), junction.getAttribute('data-side'),
+    ])).toEqual([['400', '400', 'in'], ['400', '600', 'out']]);
     expect(path('service:paused').dataset['muted']).toBe('true');
     expect(path('service:paused').dataset['pending']).toBe('true');
     expect(path('app:cursor').dataset['pending']).toBe('true');
     host.endpoint.set('prod');
     await settle(fixture);
-    expect(path('service:warehouse').getAttribute('d')).toContain('400 292');
+    expect(path('service:warehouse').getAttribute('d')).toBe('M 120 160 C 120 292, 640 268, 640 400');
+    expect(path('app:claude').getAttribute('d')).toBe('M 640 600 C 640 710, 800 690, 800 800');
+    expect(svg.querySelector('.gw-setup-map__network-junction')?.getAttribute('cx')).toBe('640');
   });
 
   it('highlights an enabled service and connected app, without implying pending or paused access', async () => {
@@ -119,14 +133,43 @@ describe('Overview network wires', () => {
     host.active.set('service:warehouse');
     await settle(fixture);
     expect(Array.from(svg.querySelectorAll('[data-active="true"]')).map((el) => el.getAttribute('data-node')))
-      .toEqual(['service:warehouse', 'app:claude']);
+      .toEqual(['service:warehouse', 'app:claude', 'app:codex']);
     host.active.set('app:claude');
     await settle(fixture);
+    expect(Array.from(svg.querySelectorAll('[data-active="true"]')).map((el) => el.getAttribute('data-node')))
+      .toEqual(['service:warehouse', 'service:docs-mcp', 'app:claude']);
     expect(path('service:paused').dataset['active']).toBe('false');
     host.enabled.set(false);
     await settle(fixture);
     expect(svg.querySelector('[data-active="true"]')).toBeNull();
-    expect(svg.querySelectorAll('[data-muted="true"]')).toHaveLength(4);
+    expect(svg.querySelectorAll('path[data-muted="true"]')).toHaveLength(6);
+    expect(svg.querySelectorAll('.gw-setup-map__network-junction[data-muted="true"]')).toHaveLength(2);
+  });
+
+  it('highlights every accessible native and MCP service when an app also has a single-route example', async () => {
+    const { fixture, host, svg } = await render();
+    host.active.set('app:claude');
+    host.trace.set({ service: 'warehouse', app: 'claude', sequence: 1 });
+    await settle(fixture);
+    expect(Array.from(svg.querySelectorAll('[data-active="true"]')).map((el) => el.getAttribute('data-node')))
+      .toEqual(['service:warehouse', 'service:docs-mcp', 'app:claude']);
+    host.trace.set(null);
+    host.active.set('app:cursor');
+    await settle(fixture);
+    expect(svg.querySelector('[data-active="true"]')).toBeNull();
+  });
+
+  it('moves the outgoing junction when the gateway band resizes and clears paths without an endpoint', async () => {
+    const { fixture, host, svg, path } = await render();
+    expect(observe).toHaveBeenCalledWith(fixture.nativeElement.querySelector('[data-map-hub]'));
+    hubHeight = 250;
+    resizeCallback([], {} as ResizeObserver);
+    await settle(fixture);
+    expect(path('app:claude').getAttribute('d')).toBe('M 400 650 C 400 732.5, 800 717.5, 800 800');
+    expect(svg.querySelector('[data-side="out"]')?.getAttribute('cy')).toBe('650');
+    host.endpoint.set(null);
+    await settle(fixture);
+    expect(svg.childElementCount).toBe(0);
   });
 
   it('removes filtered paths and clears decorative geometry below the desktop breakpoint', async () => {
@@ -142,7 +185,7 @@ describe('Overview network wires', () => {
     desktop = true;
     resizeCallback([], {} as ResizeObserver);
     await settle(fixture);
-    expect(svg.querySelectorAll('path')).toHaveLength(3);
+    expect(svg.querySelectorAll('path')).toHaveLength(5);
   });
 
   it('keeps the requested route static for reduced motion and refuses a paused trace', async () => {
@@ -167,10 +210,10 @@ describe('Overview network wires', () => {
       const motion = svg.querySelector('animateMotion')!;
       expect(motion.getAttribute('repeatCount')).toBe('1');
       expect(motion.getAttribute('dur')).toBe('1680ms');
-      expect(motion.getAttribute('path')).toContain('L 400 182');
+      expect(motion.getAttribute('path')).toBe('M 800 800 C 800 690, 400 710, 400 600 L 400 400 C 400 268, 120 292, 120 160');
       expect(begin).toHaveBeenCalledOnce();
       motion.dispatchEvent(new Event('endEvent'));
-      expect(svg.querySelector('circle')).toBeNull();
+      expect(svg.querySelector('.gw-setup-map__network-pulse')).toBeNull();
       host.active.set('app:claude');
       await settle(fixture);
       expect(begin).toHaveBeenCalledOnce();
