@@ -102,7 +102,7 @@ For an AI app that GateRook does not detect, open **AI apps → Add app manually
 
 ![GateRook Overview page showing connection health, AI app connection status, and navigation for managing access and reviewing activity.](docs/images/gaterook-overview.png)
 
-This repository contains the complete application, its tests, runtime assets, and everything needed for a local development build. The application is in development; a source build is not a signed release installer.
+This repository contains the complete application, its tests, runtime assets, and everything needed for a local development build.
 
 ## Build and run locally
 
