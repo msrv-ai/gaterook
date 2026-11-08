@@ -4,9 +4,10 @@ import { ActivatedRoute, Router, provideRouter } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { ApiError } from '../../core/api/api-error';
 import { ConnectionsApi } from '../../core/api/connections.api';
-import { EndpointStart, EndpointSummary, EndpointsApi, TokensApi } from '../../core/api/endpoints.api';
+import { EndpointDetail, EndpointStart, EndpointSummary, EndpointsApi, TokensApi } from '../../core/api/endpoints.api';
 import { Template, TemplatesApi } from '../../core/api/templates.api';
 import { OAuthApi } from '../../core/api/tunnel.api';
+import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { EventStream } from '../../core/events/event-stream';
 import { CoreStore } from '../../core/stores/core.store';
 import { TunnelStore } from '../../core/stores/tunnel.store';
@@ -16,6 +17,7 @@ import { Announcer } from '../../kit/announcer';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
+import { detail, wired } from '../endpoint-detail/endpoint-detail.fixtures';
 import { NOW, TUNNEL_OFF, at, kitConnections, kitEndpoints, kitTokens } from './endpoints.fixtures';
 import { EndpointsPage, SKELETON_DELAY_MS } from './endpoints.page';
 
@@ -63,6 +65,8 @@ let events: FakeEvents;
 let fragment: BehaviorSubject<string | null>;
 let rows: EndpointSummary[];
 let listAnswer: () => Promise<EndpointSummary[]>;
+let detailAnswer: (slug: string) => Promise<EndpointDetail>;
+const desktop = { endpointShareAvailable: false, createEndpointShare: vi.fn() };
 let createAnswer: () => Promise<EndpointSummary>;
 let duplicateAnswer: (slug: string, newSlug: string) => Promise<EndpointSummary>;
 let deleteAnswer: () => Promise<{ clients: string[]; tokensRevoked: string[]; rejectedApprovals: number }>;
@@ -73,13 +77,16 @@ afterEach(() => (startsAnswer = null));
 
 const byslug = (slug: string) => rows.find((r) => r.slug === slug)!;
 
-function setup(list: EndpointSummary[] = kitEndpoints()): void {
+function setup(list: EndpointSummary[] = kitEndpoints(), exportAvailable = false): void {
   calls = [];
   createRequests = [];
   events = new FakeEvents();
   fragment = new BehaviorSubject<string | null>(null);
   rows = list;
   listAnswer = () => Promise.resolve(rows);
+  detailAnswer = (slug) => Promise.resolve(detail({ endpoint: byslug(slug) }));
+  desktop.endpointShareAvailable = exportAvailable;
+  desktop.createEndpointShare.mockReset().mockResolvedValue({ cancelled: false, fileName: 'endpoint.grshare' });
   createAnswer = () => Promise.resolve({ ...kitEndpoints()[0], slug: 'payments-dev' });
   duplicateAnswer = (slug, newSlug) => {
     const copy = { ...byslug(slug), slug: newSlug, url: `http://127.0.0.1:7465/mcp/${newSlug}` };
@@ -93,6 +100,10 @@ function setup(list: EndpointSummary[] = kitEndpoints()): void {
     list: () => {
       calls.push('list');
       return listAnswer();
+    },
+    get: (slug: string) => {
+      calls.push(`get ${slug}`);
+      return detailAnswer(slug);
     },
     create: (r: Parameters<EndpointsApi['create']>[0]) => {
       calls.push(`create ${r.slug} ${r.description ?? '-'} ${r.startFrom}`);
@@ -134,6 +145,7 @@ function setup(list: EndpointSummary[] = kitEndpoints()): void {
       { provide: ActivatedRoute, useValue: { fragment } },
       { provide: TimeService, useValue: fakeTime },
       { provide: EndpointsApi, useValue: endpoints },
+      { provide: DesktopBridge, useValue: desktop },
       { provide: TokensApi, useValue: { list: (slug: string) => Promise.resolve(kitTokens()[slug] ?? []) } },
       { provide: ConnectionsApi, useValue: { list: () => Promise.resolve({ items: kitConnections(), facets: { health: {}, env: {}, type: {} }, total: 12 }) } },
       { provide: TemplatesApi, useValue: { list: () => Promise.resolve(RUNBOOKS) } },
@@ -190,6 +202,7 @@ const type = (input: HTMLInputElement, value: string) => {
   input.dispatchEvent(new Event('input'));
 };
 const click = (el: HTMLElement, selector: string) => el.querySelector<HTMLElement>(selector)!.click();
+const button = (el: ParentNode, label: string) => Array.from(el.querySelectorAll<HTMLButtonElement>('button')).find((b) => text(b) === label)!;
 
 describe('Endpoints page', () => {
   it('shows nothing for a moment, then skeleton cards, then the endpoints', async () => {
@@ -244,7 +257,7 @@ describe('Endpoints page', () => {
     ]);
     const menu = el.querySelector('#ep-dev-menu')!;
     expect(menu.getAttribute('aria-label')).toBe('Actions for endpoint dev');
-    expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map(text)).toEqual(['Duplicate', 'Disable', 'Delete endpoint']);
+    expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map(text)).toEqual(['Duplicate', 'Export', 'Disable', 'Delete endpoint']);
 
     const stage = card(el, 'stage-readonly');
     expect(stage.querySelector('.gw-card__actions .gw-badge')).toBeNull();
@@ -504,11 +517,134 @@ describe('Endpoints page', () => {
     ]);
   });
 
+  it('exports the selected endpoint with its freshly loaded connections and excludes secrets by default', async () => {
+    setup(undefined, true);
+    const connections = wired().slice(0, 2).map((c) => ({ ...c, name: `stage-${c.name}` }));
+    detailAnswer = (slug) => Promise.resolve(detail({ endpoint: byslug(slug), connections }));
+    const { fixture, el } = await render();
+    const menu = el.querySelector<HTMLElement>('#ep-stage-readonly-menu')!;
+    const trigger = card(el, 'stage-readonly').querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')!;
+    trigger.click();
+    await settle(fixture);
+    const exportButton = button(menu, 'Export');
+    expect(exportButton.getAttribute('role')).toBe('menuitem');
+    expect(exportButton.getAttribute('tabindex')).toBe('-1');
+    expect(exportButton.getAttribute('aria-haspopup')).toBe('dialog');
+    expect(exportButton.querySelector('svg[lucideIcon="upload"]')).not.toBeNull();
+    exportButton.click();
+    await settle(fixture);
+
+    expect(calls.filter((c) => c.startsWith('get '))).toEqual(['get stage-readonly']);
+    expect(menu.hidden).toBe(true);
+    expect(el.querySelectorAll('#ep-share-dialog')).toHaveLength(1);
+    const dialog = el.querySelector<HTMLDialogElement>('#ep-share-dialog')!;
+    expect(dialog.open).toBe(true);
+    expect(text(dialog.querySelector('h2'))).toBe('Share stage-readonly');
+    expect(document.activeElement?.id).toBe('ep-share-pass');
+    expect(Array.from(dialog.querySelectorAll('fieldset .gw-checkbox__label .gw-mono')).map(text)).toEqual(connections.map((c) => c.name));
+    const choices = dialog.querySelectorAll<HTMLInputElement>('fieldset input[type="checkbox"]');
+    expect(Array.from(choices).map((c) => c.checked)).toEqual([true, true]);
+    choices[1].click();
+    dialog.querySelector<HTMLInputElement>('#ep-share-pass')!.value = 'a unique shared passphrase';
+    dialog.querySelector<HTMLInputElement>('#ep-share-repeat')!.value = 'a unique shared passphrase';
+    button(dialog, 'Save share file').click();
+    await settle(fixture);
+    expect(desktop.createEndpointShare).toHaveBeenCalledExactlyOnceWith(
+      { endpointSlug: 'stage-readonly', connectionNames: [connections[0].name], includeSecrets: false },
+      'a unique shared passphrase',
+    );
+    expect(dialog.open).toBe(false);
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('returns focus to the selected card menu trigger after cancelling export', async () => {
+    setup(undefined, true);
+    const { fixture, el } = await render();
+    const trigger = card(el, 'dev').querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')!;
+    trigger.click();
+    await settle(fixture);
+    button(el.querySelector('#ep-dev-menu')!, 'Export').click();
+    await settle(fixture);
+    const dialog = el.querySelector<HTMLDialogElement>('#ep-share-dialog')!;
+    expect(dialog.open).toBe(true);
+    button(dialog, 'Cancel').click();
+    await settle(fixture);
+    expect(dialog.open).toBe(false);
+    expect(document.activeElement).toBe(trigger);
+    expect(desktop.createEndpointShare).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { available: false, blockedReason: null, reason: /GateRook desktop app/ },
+    { available: true, blockedReason: 'tool sql_execute', reason: /Review/ },
+  ])('explains why export is unavailable ($available, $blockedReason)', async ({ available, blockedReason, reason }) => {
+    setup(kitEndpoints().map((e) => ({ ...e, blockedReason })), available);
+    const { fixture, el } = await render();
+    const exportButton = button(el.querySelector('#ep-dev-menu')!, 'Export');
+    expect(exportButton.getAttribute('aria-disabled')).toBe('true');
+    expect(exportButton.getAttribute('title')).toMatch(reason);
+    exportButton.click();
+    await settle(fixture);
+    expect(calls.some((c) => c.startsWith('get '))).toBe(false);
+    expect(el.querySelector<HTMLDialogElement>('#ep-share-dialog')!.open).toBe(false);
+    expect(desktop.createEndpointShare).not.toHaveBeenCalled();
+  });
+
+  it('prevents concurrent export loads and lets a failed load be retried', async () => {
+    setup(undefined, true);
+    const answer = deferred<EndpointDetail>();
+    detailAnswer = () => answer.promise;
+    const { fixture, el } = await render();
+    const exportButton = button(el.querySelector('#ep-dev-menu')!, 'Export');
+    exportButton.click();
+    button(el.querySelector('#ep-stage-readonly-menu')!, 'Export').click();
+    await settle(fixture);
+    expect(calls.filter((c) => c.startsWith('get '))).toEqual(['get dev']);
+    expect(el.querySelector<HTMLDialogElement>('#ep-share-dialog')!.open).toBe(false);
+    answer.reject(new ApiError('server', 500, { detail: 'Connections could not be loaded.' }));
+    await settle(fixture);
+    expect(toasts().at(-1)).toMatchObject({ tone: 'warning', body: 'Connections could not be loaded.' });
+    expect(el.querySelector<HTMLDialogElement>('#ep-share-dialog')!.open).toBe(false);
+    expect(exportButton.getAttribute('aria-disabled')).not.toBe('true');
+    detailAnswer = (slug) => Promise.resolve(detail({ endpoint: byslug(slug) }));
+    exportButton.click();
+    await settle(fixture);
+    expect(calls.filter((c) => c.startsWith('get '))).toEqual(['get dev', 'get dev']);
+    expect(el.querySelector<HTMLDialogElement>('#ep-share-dialog')!.open).toBe(true);
+    expect(desktop.createEndpointShare).not.toHaveBeenCalled();
+  });
+
+  it('requires review when the endpoint becomes blocked after the cards loaded', async () => {
+    setup(undefined, true);
+    detailAnswer = (slug) => Promise.resolve(detail({ endpoint: { ...byslug(slug), blockedReason: 'tool sql_execute' } }));
+    const { fixture, el } = await render();
+    button(el.querySelector('#ep-dev-menu')!, 'Export').click();
+    await settle(fixture);
+    expect(calls).toContain('get dev');
+    expect(toasts().at(-1)).toMatchObject({ tone: 'warning' });
+    expect(el.querySelector<HTMLDialogElement>('#ep-share-dialog')!.open).toBe(false);
+    expect(desktop.createEndpointShare).not.toHaveBeenCalled();
+  });
+
+  it('does not open export after leaving the page while connections load', async () => {
+    setup(undefined, true);
+    const answer = deferred<EndpointDetail>();
+    detailAnswer = () => answer.promise;
+    const { fixture, el } = await render();
+    button(el.querySelector('#ep-dev-menu')!, 'Export').click();
+    fixture.destroy();
+    answer.resolve(detail());
+    await sleep(0);
+    expect(el.querySelector<HTMLDialogElement>('#ep-share-dialog')!.open).toBe(false);
+    expect(toasts()).toHaveLength(0);
+    expect(desktop.createEndpointShare).not.toHaveBeenCalled();
+  });
+
   it('disables at once with Undo in a toast', async () => {
     setup();
     const { fixture, el } = await render();
     const announce = vi.spyOn(TestBed.inject(Announcer), 'announce');
-    click(el, '#ep-dev-menu .gw-menu__item:nth-of-type(2)');
+    button(el.querySelector('#ep-dev-menu')!, 'Disable').click();
     await settle(fixture);
     expect(calls).toContain('disable dev');
     expect(text(el.querySelector('#ep-dev-status'))).toBe('Disabled');
@@ -517,7 +653,7 @@ describe('Endpoints page', () => {
     const toast = toasts().at(-1)!;
     expect(toast).toMatchObject({ tone: 'neutral', title: 'Endpoint dev disabled', body: 'Claude Desktop and Codex get an error on their next call. Tokens and settings are kept.' });
     // The menu offers Enable now.
-    expect(Array.from(el.querySelectorAll('#ep-dev-menu [role="menuitem"]')).map(text)).toEqual(['Duplicate', 'Enable', 'Delete endpoint']);
+    expect(Array.from(el.querySelectorAll('#ep-dev-menu [role="menuitem"]')).map(text)).toEqual(['Duplicate', 'Export', 'Enable', 'Delete endpoint']);
 
     toast.actions[0].onClick!();
     await settle(fixture);
