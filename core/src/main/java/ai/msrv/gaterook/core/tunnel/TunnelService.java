@@ -319,7 +319,8 @@ public class TunnelService implements DisposableBean {
         }
         throw ProblemException.unprocessable("Can't publish", refusal.get(), "/endpoint");
       }
-      Path binary = binary(s.provider());
+      // A first Cloudflare download must not hold the request or the tunnel lock: Stop stays available.
+      Path binary = s.provider() == TunnelProvider.NGROK ? binary(s.provider()) : null;
       Optional<String> previous = publishedEndpoint().filter(p -> !p.equals(slug));
       writeTx.executeWithoutResult(tx -> {
         previous.ifPresent(p -> endpoints.setPublished(p, false));
@@ -357,6 +358,8 @@ public class TunnelService implements DisposableBean {
     char[] secret = null;
     TunnelAgent.Started started = null;
     try {
+      if (binary == null) binary = binaries.cloudflared();
+      if (Thread.currentThread().isInterrupted() || now.generation() != generation) return;
       secret = secret(provider, taint);
       TunnelAgent.StartRequest request = new TunnelAgent.StartRequest(provider, binary, bootstrap.publicPort(),
           hostname, secret, runDir(), logsDir());

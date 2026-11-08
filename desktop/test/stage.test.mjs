@@ -22,25 +22,31 @@ function fakes() {
   writeFileSync(join(f, 'target', 'native-libs', 'libsqlitejdbc.dylib'), 'sqlite');
   writeFileSync(join(f, 'target', 'app.jar'), 'jar');
   writeFileSync(join(f, 'gw-bridge.mjs'), '// bridge');
+  writeFileSync(join(f, 'gw-bridge'), 'native bridge');
   return {
     f,
     sources: { uiDist: join(f, 'ui'), nativeCore: join(f, 'target', 'gaterook-core'), jar: join(f, 'target', 'app.jar'),
-      jre: join(f, 'missing', 'jre'), pluginHost: join(f, 'missing', 'plugin-host.jar'), bridgeMjs: join(f, 'gw-bridge.mjs'), bridgeNative: join(f, 'missing', 'gw-bridge'),
+      jre: join(f, 'missing', 'jre'), pluginHost: join(f, 'missing', 'plugin-host.jar'), bridgeMjs: join(f, 'gw-bridge.mjs'), bridgeNative: join(f, 'gw-bridge'),
       bridgeJar: join(f, 'missing', 'gw-bridge.jar') },
   };
 }
 
 describe('stage.mjs', () => {
-  it('takes the plugin host\'s JRE from scripts/jlink.sh\'s folder when --jre names none', async () => {
+  it('omits optional support by default even when a local JRE exists', async () => {
     const { f, sources } = fakes();
     mkdirSync(join(f, 'jre', 'bin'), { recursive: true });
     writeFileSync(join(f, 'jre', 'release'), 'JAVA_RUNTIME_VERSION="25.0.2+10-LTS"\n');
     const out = join(dir, 'out-jre');
     const report = await stage({ out, platform: 'darwin-arm64', core: null, jar: false, jre: null, skipCloudflared: true },
       { ...sources, jre: join(f, 'jre') });
+    assert.ok(!existsSync(join(out, 'jre', 'release')));
+    assert.ok(existsSync(join(out, 'jre', 'README.txt')));
+    assert.ok(report.includes('cloudflared: downloaded on first use'));
+    await stage({ out, platform: 'darwin-arm64', jre: join(f, 'jre') }, sources);
     assert.ok(existsSync(join(out, 'jre', 'release')));
     assert.ok(!existsSync(join(out, 'jre', 'README.txt')));
-    assert.ok(report.includes(`jre ← ${join(f, 'jre')}`));
+    await stage({ out, platform: 'darwin-arm64', jar: true }, { ...sources, jre: join(f, 'jre') });
+    assert.ok(existsSync(join(out, 'jre', 'release')));
   });
 
   it('stages the UI, the native core with its SQLite library, the bridge, placeholders and the icon', async () => {
@@ -99,6 +105,12 @@ describe('stage.mjs', () => {
       sources), /libsqlitejdbc\.so/);
   });
 
+  it('requires a native bridge when the core has no bundled Java fallback', async () => {
+    const { sources } = fakes();
+    await assert.rejects(stage({ out: join(dir, 'out-no-bridge'), platform: 'darwin-arm64' },
+      { ...sources, bridgeNative: join(dir, 'missing-bridge') }), /native bridge is required/);
+  });
+
   it('never clears a folder it didn\'t make', async () => {
     const { sources } = fakes();
     const precious = join(dir, 'precious');
@@ -119,6 +131,8 @@ describe('stage.mjs', () => {
     assert.equal(platformKey('linux', 'x64'), 'linux-x64');
     assert.equal(sqliteLibName('windows-x64'), 'sqlitejdbc.dll');
     assert.deepEqual(parseArgs(['--jar', '--skip-cloudflared', '--platform', 'linux-arm64']).platform, 'linux-arm64');
+    assert.equal(parseArgs([]).bundleCloudflared, false);
+    assert.equal(parseArgs(['--bundle-cloudflared']).bundleCloudflared, true);
     assert.throws(() => parseArgs(['--nope']), /unknown argument/);
   });
 });

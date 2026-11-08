@@ -66,6 +66,10 @@ describe('settings-view: General › Core', () => {
     const dev = { ...info, runtime: 'jvm', vm: 'OpenJDK 25', pluginRuntime: { bundledJre: false, home: '/opt/jdk', version: '25.0.5', present: true } };
     expect(runtimeRows(dev).map((r) => text(r.value))).toEqual(['Java VM, a development build · OpenJDK 25', 'JRE 25 at /opt/jdk']);
     expect(text(runtimeRows({ ...dev, pluginRuntime: { ...dev.pluginRuntime, present: false } })[1].value)).toBe('Not found: Java plugins can’t start');
+    expect(text(runtimeRows({ ...dev, pluginRuntime: { ...dev.pluginRuntime, source: 'downloaded', state: 'ready' } })[1].value))
+      .toBe('Java 25 support, cached for offline use');
+    expect(text(runtimeRows({ ...dev, pluginRuntime: { ...dev.pluginRuntime, present: false, state: 'missing' } })[1].value))
+      .toBe('Downloads on first plugin use');
     expect(runtimeRows(null)).toEqual([]);
   });
 

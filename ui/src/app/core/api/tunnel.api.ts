@@ -14,7 +14,7 @@ export interface TunnelState {
   readonly since: Iso | null;
   /** Anthropic IP ranges only (Settings › Tunnel › Callers, the single switch). */
   readonly callers: { readonly anthropicOnly: boolean } | null;
-  readonly cloudflared: { readonly version: string; readonly sha256Ok: boolean } | null;
+  readonly cloudflared: { readonly version: string; readonly present?: boolean; readonly sha256Ok: boolean } | null;
   readonly error: string | null;
   readonly history: { readonly from: Iso; readonly to: Iso | null; readonly endpoint: string; readonly calls: number }[];
   /** The reserved ngrok domain of Settings › Tunnel while the provider is ngrok, else null (step API). */

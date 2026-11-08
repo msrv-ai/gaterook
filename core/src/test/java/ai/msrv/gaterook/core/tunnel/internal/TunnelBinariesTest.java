@@ -93,10 +93,8 @@ class TunnelBinariesTest {
     Path resources = Files.createDirectories(home.resolve("resources"));
     TunnelBinaries binaries = new TunnelBinaries(home, resources.toString(), pins.toString());
 
-    assertThatThrownBy(binaries::cloudflared).isInstanceOf(TunnelException.class)
-        .hasMessageContaining("missing from this installation");
     assertThat(binaries.cloudflaredStatus().present()).isFalse();
-    assertThat(binaries.cloudflaredStatus().error()).isEqualTo("cloudflared is missing");
+    assertThat(binaries.cloudflaredStatus().error()).isNull();
 
     Path file = resources.resolve("cloudflared").resolve(PLATFORM).resolve("cloudflared");
     Files.createDirectories(file.getParent());
@@ -117,12 +115,12 @@ class TunnelBinariesTest {
   }
 
   @Test
-  void aDevelopmentRunDownloadsThePinnedCloudflaredOnce() throws Exception {
+  void aPackagedRunDownloadsThePinnedCloudflaredOnce() throws Exception {
     byte[] agent = "#!/bin/sh\necho dev cloudflared\n".getBytes(StandardCharsets.US_ASCII);
     server.enqueue(new MockResponse.Builder().code(200).body(new Buffer().write(agent)).build());
     Path pins = pins(TunnelBinaries.sha256(agent), "none", TunnelBinaries.sha256(agent),
         server.url("/cloudflared-linux-amd64").toString());
-    TunnelBinaries binaries = new TunnelBinaries(home, "", pins.toString());
+    TunnelBinaries binaries = new TunnelBinaries(home, home.resolve("resources").toString(), pins.toString());
     Path file = binaries.cloudflared();
     assertThat(file).isEqualTo(home.resolve("bin/cloudflared/2026.10.0/cloudflared"));
     assertThat(Files.readAllBytes(file)).isEqualTo(agent);
@@ -131,6 +129,28 @@ class TunnelBinariesTest {
     }
     assertThat(binaries.cloudflared()).isEqualTo(file);
     assertThat(server.getRequestCount()).isEqualTo(1);
+  }
+
+  @Test
+  void cloudflaredCanRetryAnOfflineFirstUseAndReuseTheCacheAfterRestart() throws Exception {
+    byte[] agent = "verified cloudflared".getBytes(StandardCharsets.US_ASCII);
+    Path pins = pins(TunnelBinaries.sha256(agent), "none", TunnelBinaries.sha256(agent), server.url("/agent").toString());
+    TunnelBinaries binaries = new TunnelBinaries(home, home.resolve("resources").toString(), pins.toString());
+    assertThat(binaries.cloudflaredStatus().present()).isFalse();
+    assertThat(server.getRequestCount()).isZero();
+    server.enqueue(new MockResponse.Builder().code(503).build());
+    assertThatThrownBy(binaries::cloudflared).hasMessageContaining("retry");
+    assertThat(binaries.cloudflaredStatus().error()).contains("internet");
+    server.enqueue(new MockResponse.Builder().body(new Buffer().write(agent)).build());
+    Path file = binaries.cloudflared();
+    TunnelBinaries restarted = new TunnelBinaries(home, home.resolve("resources").toString(), pins.toString());
+    assertThat(restarted.cloudflared()).isEqualTo(file);
+    assertThat(server.getRequestCount()).isEqualTo(2);
+    Files.writeString(file, "corrupted cache");
+    server.enqueue(new MockResponse.Builder().body(new Buffer().write(agent)).build());
+    assertThat(restarted.cloudflared()).isEqualTo(file);
+    assertThat(Files.readAllBytes(file)).isEqualTo(agent);
+    assertThat(server.getRequestCount()).isEqualTo(3);
   }
 
   @Test

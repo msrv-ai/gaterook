@@ -75,7 +75,7 @@ public final class AotCacheManager {
   }
 
   private void train(Path hostJar, Path cache) {
-    Path javaExe = runtime.javaExecutable().orElse(null);
+    Path javaExe = runtime.verifiedJavaExecutable().orElse(null);
     if (javaExe == null) {
       return;
     }

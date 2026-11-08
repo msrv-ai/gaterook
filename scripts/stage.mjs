@@ -4,16 +4,16 @@
 //   ui/                          the built Angular UI (into the asar, served as app://gw/)
 //   core/gaterook-core[.exe]      the native core + libsqlitejdbc next to it (-Dorg.sqlite.lib.path=<resources>/core)
 //   core/app.jar                 instead, with --jar: the JVM fallback (a CI artifact only, never an installer)
-//   jre/                         the jlink JRE of the plugin host (scripts/jlink.sh → target/plugin-host-jre), else a placeholder
+//   jre/                         optional offline JRE (--jre), or the JVM fallback runtime with --jar
 //   plugin-host/plugin-host.jar  the plugin host (step K4), else a placeholder
 //   bridge/                      gw-bridge.mjs (Claude Desktop extensions), the native gw-bridge, gw-bridge.jar
-//   cloudflared/<platform>/      the pinned cloudflared (scripts/stage-cloudflared.mjs, hashes checked)
+//   cloudflared/<platform>/      optional offline cloudflared (--bundle-cloudflared, hashes checked)
 //   icons/icon.png               the app icon from assets/gaterook/gaterook-icon.png
 //
 //   node scripts/stage.mjs                         this machine's platform, the native core of app/target
 //   node scripts/stage.mjs --core <binary>         another native core (its native-libs/ folder comes along)
 //   node scripts/stage.mjs --jar                   the JVM fallback instead of the native core
-//   node scripts/stage.mjs --jre <dir>             another JRE to put in jre/ (the plugin host's)
+//   node scripts/stage.mjs --jre <dir> --bundle-cloudflared  include optional support for offline use
 //   node scripts/stage.mjs --platform darwin-arm64 --skip-cloudflared --out <dir>
 //
 // Missing optional parts become placeholders (README.txt saying what goes there); a missing UI or core is an error.
@@ -40,7 +40,7 @@ export function sqliteLibName(key) {
 
 export function parseArgs(argv) {
   const o = { out: join(root, 'desktop', 'stage'), platform: platformKey(), core: null, jar: false, jre: null,
-    skipCloudflared: false };
+    skipCloudflared: false, bundleCloudflared: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--out') o.out = resolve(argv[++i]);
@@ -48,6 +48,7 @@ export function parseArgs(argv) {
     else if (a === '--core') o.core = resolve(argv[++i]);
     else if (a === '--jar') o.jar = true;
     else if (a === '--jre') o.jre = resolve(argv[++i]);
+    else if (a === '--bundle-cloudflared') o.bundleCloudflared = true;
     else if (a === '--skip-cloudflared') o.skipCloudflared = true;
     else throw new Error(`unknown argument ${a}`);
   }
@@ -125,15 +126,14 @@ export async function stage(o, sources = {}) {
     report.push(`core/${name} + ${lib} ← ${binary}`);
   }
 
-  // The plugin host's JRE (scripts/jlink.sh, or --jre) and jar (mvn -pl plugin-host package): placeholders without them.
-  const jre = o.jre ?? (existsSync(join(src.jre, 'bin')) ? src.jre : null);
+  // Never pick up a stale local JRE for a native build. --jar still needs Java to boot the core.
+  const jre = o.jre ?? (o.jar && existsSync(join(src.jre, 'bin')) ? src.jre : null);
   if (jre) {
     if (!existsSync(join(jre, 'bin'))) throw new Error(`${jre} is not a JRE (no bin/)`);
     cpSync(jre, join(o.out, 'jre'), { recursive: true, verbatimSymlinks: true });
     report.push(`jre ← ${jre}`);
   } else {
-    placeholder(join(o.out, 'jre'), 'The plugin host\'s jlink JRE goes here (scripts/jlink.sh, step N1): java.se + the jdk modules of '
-      + 'ARCHITECTURE.md §7.1, with --release-info=add:JAVA_RUNTIME_VERSION=….');
+    placeholder(join(o.out, 'jre'), 'Java support is downloaded on first plugin use. For an offline bundle, stage with --jre <dir>.');
     report.push('jre: placeholder');
   }
   if (existsSync(src.pluginHost)) {
@@ -150,6 +150,9 @@ export async function stage(o, sources = {}) {
   writeFileSync(join(bridgeDir, 'gw-bridge.mjs'),
     readFileSync(src.bridgeMjs, 'utf8').replaceAll('@project.version@', readApplicationVersion()));
   const bridges = ['gw-bridge.mjs'];
+  if (!o.jar && !jre && !existsSync(src.bridgeNative)) {
+    throw new Error('a native bridge is required when Java support is optional: build bridge-cli with -Pnative');
+  }
   if (existsSync(src.bridgeNative)) {
     copyFile(src.bridgeNative, join(o.out, 'bridge', basename(src.bridgeNative)), 0o755);
     bridges.push(basename(src.bridgeNative));
@@ -161,9 +164,9 @@ export async function stage(o, sources = {}) {
   report.push(`bridge: ${bridges.join(', ')}`);
 
   // cloudflared, pinned and checked by its own script (A6, decision 8).
-  if (o.skipCloudflared) {
-    placeholder(join(o.out, 'cloudflared', o.platform), 'cloudflared goes here: node scripts/stage-cloudflared.mjs');
-    report.push('cloudflared: skipped');
+  if (!o.bundleCloudflared || o.skipCloudflared) {
+    placeholder(join(o.out, 'cloudflared', o.platform), 'Cloudflare Tunnel support is downloaded on first use. For an offline bundle, stage with --bundle-cloudflared.');
+    report.push('cloudflared: downloaded on first use');
   } else {
     const r = spawnSync(process.execPath, [join(root, 'scripts', 'stage-cloudflared.mjs'), '--platform', o.platform, '--out', o.out],
       { stdio: 'inherit' });

@@ -195,14 +195,15 @@ public final class HostLauncher {
 
   /**
    * Runs {@code WindowsIntegrity --probe}: {@code TRUE} when the probe labelled a folder low, dropped to low integrity
-   * and wrote there, {@code FALSE} when it said it couldn't (exit 4) or there is no runtime to ask, {@code null} when it
+   * and wrote there, {@code FALSE} when it said it couldn't (exit 4), {@code null} when there is no runtime to ask or it
    * couldn't tell.
    */
   private Boolean probeLowIntegrity() {
-    Optional<Path> javaExe = runtime.javaExecutable();
+    Optional<Path> javaExe = runtime.verifiedJavaExecutable();
     Optional<Path> hostJar = runtime.hostJar();
     if (javaExe.isEmpty() || hostJar.isEmpty()) {
-      return Boolean.FALSE;
+      // Java can arrive after the preview. Unknown must not be cached as an unsupported OS sandbox.
+      return null;
     }
     List<String> argv = List.of(javaExe.get().toAbsolutePath().toString(), "-Xlog:disable", "-XX:+UseSerialGC",
         "-XX:TieredStopAtLevel=1", "-Xmx32m", "--enable-native-access=ALL-UNNAMED", "-cp",
@@ -238,13 +239,14 @@ public final class HostLauncher {
 
   /**
    * Runs {@code SandboxExec --probe}: {@code TRUE} when Landlock confined it, {@code FALSE} when it said this system
-   * has no Landlock (exit 4) or there is no runtime to ask, {@code null} when it couldn't tell.
+   * has no Landlock (exit 4), {@code null} when there is no runtime to ask or it couldn't tell.
    */
   private Boolean probeLandlock() {
-    Optional<Path> javaExe = runtime.javaExecutable();
+    Optional<Path> javaExe = runtime.verifiedJavaExecutable();
     Optional<Path> hostJar = runtime.hostJar();
     if (javaExe.isEmpty() || hostJar.isEmpty()) {
-      return Boolean.FALSE;
+      // Java can arrive after the preview. Unknown must not be cached as an unsupported OS sandbox.
+      return null;
     }
     List<String> argv = new ArrayList<>(List.of(javaExe.get().toAbsolutePath().toString()));
     argv.addAll(firstStageFlags());
@@ -290,7 +292,8 @@ public final class HostLauncher {
    * @throws HostStartException when the process won't start, the handshake fails or the plugin won't load
    */
   public HostProcess start(Spec spec, String logLevel) throws HostStartException {
-    Path java = runtime.javaExecutable().orElseThrow(() -> new HostStartException("hello",
+    runtime.requireForLaunch();
+    Path java = runtime.verifiedJavaExecutable().orElseThrow(() -> new HostStartException("runtime",
         runtime.unavailableReason().orElse("no Java runtime for plugins")));
     Path hostJar = runtime.hostJar().orElseThrow(() -> new HostStartException("hello", "plugin-host.jar is missing"));
     int instance = INSTANCES.incrementAndGet();
@@ -388,7 +391,9 @@ public final class HostLauncher {
 
   private void load(HostProcess host, Spec spec, Path dataDir, String sandboxKind) throws HostStartException {
     // enabled: the host must be running in the sandbox it was started in, or it refuses to load the plugin.
-    Messages.Sandbox sandbox = new Messages.Sandbox(sandboxKind != null, spec.readOnlyPaths(),
+    List<String> readOnly = new ArrayList<>(spec.readOnlyPaths());
+    runtime.managedHome().ifPresent(p -> readOnly.add(p.toString()));
+    Messages.Sandbox sandbox = new Messages.Sandbox(sandboxKind != null, readOnly,
         List.of(dataDir.toString()));
     Messages.Load load = new Messages.Load(spec.generation(), host.instance(), spec.jar().toString(), spec.sha256(),
         dataDir.toString(), sandbox);
@@ -583,7 +588,12 @@ public final class HostLauncher {
     b.append("(allow file-read* (subpath ").append(sbpl(version.toString())).append("))\n");
     b.append("(allow file-read* (subpath ").append(sbpl(cache.toString())).append("))\n");
     java.util.Set<Path> parents = new java.util.LinkedHashSet<>();
-    for (Path p : List.of(data, version, cache)) {
+    List<Path> readable = new ArrayList<>(List.of(data, version, cache));
+    runtime.jreHome().map(HostLauncher::real).ifPresent(p -> {
+      b.append("(allow file-read* (subpath ").append(sbpl(p.toString())).append("))\n");
+      readable.add(p);
+    });
+    for (Path p : readable) {
       for (Path a = p.getParent(); a != null && a.startsWith(homeDir); a = a.getParent()) {
         parents.add(a);
       }

@@ -172,6 +172,7 @@ function setup(over: Partial<Answers> = {}): void {
     },
   };
   const plugins: Partial<PluginsApi> = {
+    ensureRuntime: async () => {},
     catalog: () => {
       record('catalog');
       return answers.catalog();
