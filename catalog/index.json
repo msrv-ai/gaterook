@@ -80,30 +80,6 @@
           ]
         }
       ]
-    },
-    {
-      "kind": "mcp-server",
-      "id": "github-mcp",
-      "version": "0.6.2",
-      "name": "GitHub",
-      "description": "Issues, pull requests and code search. Needs a GitHub token.",
-      "icon": "plug",
-      "signed": true,
-      "serverName": "github-mcp",
-      "transport": "stdio",
-      "npm": {
-        "package": "@modelcontextprotocol/server-github",
-        "version": "2025.4.8",
-        "integrity": "sha512-8N43bQw9MlUB0piTZHK2JMh8kYPKxH57d4Z7Wb8PS4by2MkZ0FzI5xPImg3xumpev82VZw2VWHQJJJYp+WkwEw==",
-        "lockfile": {"url": "github-mcp-0.6.2.package-lock.json", "sha256": null, "size": null},
-        "bin": "mcp-server-github",
-        "node": ">=18",
-        "ignoreScripts": true
-      },
-      "env": [{"name": "GITHUB_PERSONAL_ACCESS_TOKEN", "secret": true}],
-      "args": [],
-      "toolPrefix": "github_",
-      "tools": 26
     }
   ],
   "revoked": []

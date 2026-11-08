@@ -5,6 +5,10 @@
  * `$` and `\` take a backslash, then the value's own escaping doubles every backslash again, and `%` is doubled.
  */
 export function desktopExecArg(arg: string): string {
-  const quoted = arg.replace(/(["`$\\])/g, '\\$1');
-  return `"${quoted.replace(/\\/g, '\\\\').replace(/%/g, '%%')}"`;
+  const quoted = arg.replace(/["`$\\%]/g, (character) => {
+    if (character === '%') return '%%';
+    if (character === '\\') return '\\\\\\\\';
+    return `\\\\${character}`;
+  });
+  return `"${quoted}"`;
 }

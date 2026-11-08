@@ -120,6 +120,26 @@ class CimdResolverTest {
   }
 
   @Test
+  void allowedAuthorityPreservesRawDocumentPaths() throws Exception {
+    String encodedId = "https://LOCALHOST:" + server.getPort() + "/oauth/client%20metadata";
+    serve(200, document(encodedId), null);
+    assertThat(resolver().resolve(encodedId).clientId()).isEqualTo(encodedId);
+    assertThat(server.takeRequest().getTarget()).isEqualTo("/oauth/client%20metadata");
+  }
+
+  @Test
+  void lookalikeAndEmbeddedAuthoritiesNeverReachTheMetadataServer() {
+    CimdResolver resolver = resolver();
+    for (String id : List.of("https://localhost.evil.example/oauth/meta", "https://localhost@evil.example/oauth/meta",
+        "https://evil.example@localhost/oauth/meta", "https://localhost\\@evil.example/oauth/meta",
+        "https://localhost/oauth/meta?target=https://evil.example", "https://localhost/oauth/meta#evil.example")) {
+      assertThat(resolver.accepts(id)).as(id).isFalse();
+      assertThatThrownBy(() -> resolver.resolve(id)).as(id).isInstanceOf(CimdResolver.CimdException.class);
+    }
+    assertThat(server.getRequestCount()).isZero();
+  }
+
+  @Test
   void anyOtherDocumentRefusesTheClient() throws Exception {
     CimdResolver resolver = resolver();
     serve(200, document("https://claude.ai/oauth/mcp-oauth-client-metadata"), null);

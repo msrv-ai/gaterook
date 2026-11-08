@@ -40,7 +40,7 @@ public final class ActivityQueryParser {
   public static final Set<String> FIELDS = Set.of("decision", "tool", "client", "endpoint", "connection", "env",
       "token", "rule", "runbook", "trace", "duration");
 
-  private static final Pattern TOKEN = Pattern.compile("(-?)(?:([a-z]+):)?(\"[^\"]*\"|\\S+)");
+  private static final Pattern TOKEN = Pattern.compile("(-?)(?:([a-z]++):)?(\"[^\"]*+\"|\\S++)");
   private static final Pattern DURATION = Pattern.compile("(>=|<=|>|<|=)?(\\d+(?:\\.\\d+)?)(ms|s|m|min|h)?");
 
   /** One field of the query: positive values (any matches) and excluded ones (none may match). */

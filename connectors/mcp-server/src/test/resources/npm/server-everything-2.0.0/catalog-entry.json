@@ -1,0 +1,24 @@
+{
+  "kind": "mcp-server",
+  "id": "fixture-mcp",
+  "version": "1.0.0",
+  "name": "Fixture MCP server",
+  "description": "A test-only server for catalog installation.",
+  "icon": "plug",
+  "signed": true,
+  "serverName": "fixture-mcp",
+  "transport": "stdio",
+  "npm": {
+    "package": "@modelcontextprotocol/server-everything",
+    "version": "2.0.0",
+    "integrity": "sha512-Dah6yqdsz4qJ7rolykZM3gobhgyscjewpre/3LO2r0Q0RN4z0FzdhNzK6bJtZuJ2q4qbJL+s2upSUn9KgeSdpg==",
+    "lockfile": {"url": "fixture-mcp.package-lock.json", "sha256": null, "size": null},
+    "bin": "mcp-server-everything",
+    "node": ">=24",
+    "ignoreScripts": true
+  },
+  "env": [{"name": "TEST_MCP_TOKEN", "secret": true}],
+  "args": ["stdio"],
+  "toolPrefix": "fixture_",
+  "tools": 2
+}

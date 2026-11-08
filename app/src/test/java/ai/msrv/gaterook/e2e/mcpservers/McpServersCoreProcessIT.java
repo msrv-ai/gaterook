@@ -190,6 +190,22 @@ class McpServersCoreProcessIT {
 
   @Test
   @Order(5)
+  void bulkOffIncludesUnannotatedMutations() throws Exception {
+    JsonNode tools = json(admin("GET", "/api/mcp-servers/notes-mcp/tools", null), 200);
+    assertThat(tools).filteredOn(t -> t.path("name").asString().equals("notes_create_note"))
+        .singleElement().satisfies(t -> {
+          assertThat(t.path("annotations").isNull() || t.path("annotations").isMissingNode()).isTrue();
+          assertThat(t.path("nature").asString()).isEqualTo("mutation");
+        });
+    json(admin("PUT", "/api/endpoints/notes/tools", mode(row("notes_create_note"), "APPROVAL")), 200);
+    JsonNode bulk = json(admin("POST", "/api/endpoints/notes/tools/bulk",
+        "{\"group\":\"notes-mcp\",\"mode\":\"OFF\"}"), 200);
+    assertThat(bulk.path("changed")).hasSize(3);
+    assertThat(rows()).hasSize(3).allSatisfy(t -> assertThat(t.path("mode").asString()).isEqualTo("OFF"));
+  }
+
+  @Test
+  @Order(6)
   void stopStopsTheProcessAndDeleteLeavesNothing() throws Exception {
     JsonNode stopped = json(admin("POST", "/api/mcp-servers/notes-mcp/stop", null), 200);
     assertThat(stopped.path("state").asString()).isEqualTo("stopped");
@@ -210,7 +226,7 @@ class McpServersCoreProcessIT {
   }
 
   @Test
-  @Order(6)
+  @Order(7)
   void theLogsHaveNoSecret() throws Exception {
     assertThat(core.coreLog()).doesNotContain(TOKEN);
     Path serverLog = core.home.resolve("logs/mcp/notes-mcp.log");

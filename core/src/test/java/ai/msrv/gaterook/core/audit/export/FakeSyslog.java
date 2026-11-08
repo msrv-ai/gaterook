@@ -26,8 +26,8 @@ import tools.jackson.databind.json.JsonMapper;
  */
 public final class FakeSyslog implements AutoCloseable {
 
-  private static final Pattern RFC5424 = Pattern.compile(
-      "<(\\d{1,3})>1 (\\S+) (\\S+) (\\S+) (\\S+) (\\S+) (-|\\[.*?]) (.*)", Pattern.DOTALL);
+  private static final Pattern RFC5424_HEADER = Pattern.compile(
+      "<(\\d{1,3})>1 (\\S++) (\\S++) (\\S++) (\\S++) (\\S++) ");
   private static final JsonMapper JSON = JsonMapper.builder().build();
 
   /** One message as received. */
@@ -170,18 +170,56 @@ public final class FakeSyslog implements AutoCloseable {
           return;
         }
         String text = new String(body, StandardCharsets.UTF_8);
-        Matcher m = RFC5424.matcher(text);
-        if (!m.matches()) {
+        Message message = parseMessage(text, number, client);
+        if (message == null) {
           problems.add("not RFC 5424: " + text);
           continue;
         }
-        messages.add(new Message(number, Integer.parseInt(m.group(1)), m.group(2), m.group(3), m.group(4),
-            m.group(5), m.group(6), m.group(7), m.group(8), client));
+        messages.add(message);
         kept++;
       }
     } catch (IOException e) {
       // The client closed or the handshake failed: what came before is kept.
     }
+  }
+
+  /** Parse the header and structured data in one pass, including escaped closing brackets. */
+  static Message parseMessage(String text, int connection, boolean clientCertificate) {
+    Matcher header = RFC5424_HEADER.matcher(text);
+    if (!header.lookingAt()) {
+      return null;
+    }
+    int start = header.end();
+    int end = start;
+    if (end < text.length() && text.charAt(end) == '-') {
+      end++;
+    } else {
+      while (end < text.length() && text.charAt(end) == '[') {
+        end++;
+        boolean closed = false;
+        while (end < text.length()) {
+          char c = text.charAt(end++);
+          if (c == '\\') {
+            if (end == text.length()) {
+              return null;
+            }
+            end++;
+          } else if (c == ']') {
+            closed = true;
+            break;
+          }
+        }
+        if (!closed) {
+          return null;
+        }
+      }
+    }
+    if (end == start || end >= text.length() || text.charAt(end) != ' ') {
+      return null;
+    }
+    return new Message(connection, Integer.parseInt(header.group(1)), header.group(2), header.group(3),
+        header.group(4), header.group(5), header.group(6), text.substring(start, end), text.substring(end + 1),
+        clientCertificate);
   }
 
   /** {@code MSG-LEN SP}: digits, then one space; -1 at the end of the stream. */

@@ -377,6 +377,8 @@ public class PluginService {
 
   public void uninstall(String id, String reason) {
     PluginEntity row = require(id);
+    Path pluginDir = paths.pluginDir(id);
+    Path dataDir = paths.dataDir(id);
     source.remove(id);
     try {
       writeTx.executeWithoutResult(s -> {
@@ -390,8 +392,8 @@ public class PluginService {
       registerLive(row);
       throw ProblemException.conflict("In use", "Connections still use " + id + ". Remove them first.");
     }
-    deleteDir(paths.pluginDir(id));
-    deleteDir(paths.dataDir(id));
+    deleteDir(pluginDir);
+    deleteDir(dataDir);
     registry.synchronize();
   }
 
