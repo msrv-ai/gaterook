@@ -17,6 +17,8 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.JsonNode;
@@ -61,6 +63,60 @@ class OAuthClientStatusIT {
     if (world != null) {
       world.close();
     }
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = Env.class, names = {"DEV", "PROD"})
+  void vsCodeRegistersItsCallbacksAndConnectsOnlyAfterTokenExchange(Env env) {
+    String slug = env == Env.PROD ? "vscode-prod" : "dev";
+    if (env == Env.PROD) world.endpoint(slug, env);
+    String target = "http://127.0.0.1:" + world.localPort() + "/mcp/" + slug;
+    api.expect(200, HttpMethod.POST, "/api/clients/vscode/browser-sign-in", "{\"endpoint\":\"" + slug + "\"}");
+    assertThat(local.mcp(slug, null, "initialize").header("www-authenticate"))
+        .contains("/.well-known/oauth-protected-resource/mcp/" + slug);
+    String redirect = "http://127.0.0.1:33418/";
+    TunnelWorld.Answer registered = local.post(null, "/oauth/register", Map.of("Content-Type", "application/json"),
+        """
+        {"client_name":"Visual Studio Code","redirect_uris":["http://127.0.0.1:33418/",
+          "https://vscode.dev/redirect","https://insiders.vscode.dev/redirect"],
+          "grant_types":["authorization_code","refresh_token"],"token_endpoint_auth_method":"none"}
+        """);
+    assertThat(registered.status()).as(registered.body()).isEqualTo(201);
+    String client = registered.json().path("client_id").asString();
+    var pkce = OAuthFlow.Pkce.create();
+    var denied = local.waiting(OAuthFlow.params(client, redirect, pkce, target, "vscode-denied"));
+    assertThat(local.consent(denied).path("env").asString()).isEqualTo(env.id());
+    assertThat(local.decide(denied, "deny").status()).isEqualTo(204);
+    assertThat(jdbc.queryForObject("select count(*) from oauth_grant", Integer.class)).isZero();
+    var waiting = local.waiting(OAuthFlow.params(client, redirect, pkce, target, "vscode-status"));
+    assertThat(local.consent(waiting).path("clientName").asString()).isEqualTo("Visual Studio Code");
+    String code = local.allow(waiting).get("code");
+    assertThat(vscode().path("links")).isEmpty();
+    var exchanged = local.exchange(client, redirect, code, pkce, target);
+    assertThat(exchanged.status()).as(exchanged.body()).isEqualTo(200);
+    assertThat(vscode().path("status").asString()).isEqualTo("connected");
+    JsonNode link = vscode().path("links").get(0);
+    assertThat(link.path("configPath").isNull()).isTrue();
+    assertThat(link.path("env").asString()).isEqualTo(env.id());
+    String access = exchanged.json().path("access_token").asString();
+    assertThat(local.mcp(slug, access, "tools/list").status()).isEqualTo(200);
+    var refreshed = local.refresh(client, exchanged.json().path("refresh_token").asString(), target);
+    assertThat(refreshed.status()).isEqualTo(200);
+    assertThat(local.mcp(slug, refreshed.json().path("access_token").asString(), "tools/list").status()).isEqualTo(200);
+    if (env == Env.PROD) {
+      assertThat(local.mcp("dev", access, "tools/list").status()).isEqualTo(401);
+      api.expect(422, HttpMethod.POST, "/api/tunnel/publish", "{\"endpoint\":\"" + slug + "\"}");
+    }
+    api.expect(204, HttpMethod.DELETE, "/api/oauth/grants/" + link.path("id").asString(), null);
+    assertThat(local.mcp(slug, refreshed.json().path("access_token").asString(), "tools/list").status()).isEqualTo(401);
+    assertThat(vscode().path("links")).isEmpty();
+    assertThat(vscode().path("status").asString()).isNotEqualTo("connected");
+    assertThat(jdbc.queryForObject("select count(*) from client_link", Integer.class)).isZero();
+  }
+
+  private JsonNode vscode() {
+    return StreamSupport.stream(api.ok("/api/clients").path("clients").spliterator(), false)
+        .filter(c -> c.path("client").asString().equals("vscode")).findFirst().orElseThrow();
   }
 
   @Test

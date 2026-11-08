@@ -332,7 +332,7 @@
       <header class="gw-dialog__header">
         <span class="gw-icon-tile"><svg lucideIcon="plug-zap" class="gw-icon"></svg></span>
         <h2 class="gw-dialog__title" [id]="uid + '-cn-t'">Connect {{ c().name }}</h2>
-        <p class="gw-dialog__description" [id]="uid + '-cn-d'">@if (bridge()) {Installs the bridge extension in Claude Desktop. Nothing is written to its config, and no token is stored.} @else {Adds one server to <span class="gw-mono">{{ c().configDisplay }}</span>. Nothing else in the file changes, and a backup is kept.}</p>
+        <p class="gw-dialog__description" [id]="uid + '-cn-d'">@if (c().client === 'vscode' || (c().client === 'cursor' && flow.method() === 'oauth')) {Opens {{ c().name }}'s installation dialog to add the endpoint and sign in.} @else if (bridge()) {Installs the bridge extension in Claude Desktop. Nothing is written to its config, and no token is stored.} @else {Adds one server to <span class="gw-mono">{{ c().configDisplay }}</span>. Nothing else in the file changes, and a backup is kept.}</p>
         <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
       </header>
       <div class="gw-dialog__body">

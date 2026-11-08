@@ -222,6 +222,8 @@ const ANCHORS: Record<string, string> = {
   codex: 'cx',
   cursor: 'cu',
   antigravity: 'ag',
+  vscode: 'vs',
+  'microsoft-copilot': 'mc',
   'claude-ai': 'ai',
 };
 
@@ -250,6 +252,10 @@ export interface AppTile {
 /** An app the guide or the home screen offers to connect, or one to install (a card's state in the tile's words). */
 export function guideAppTile(card: ClientCard): AppTile {
   const endpoints = [...new Set(card.links.filter((link) => link.status === 'connected' || link.status === 'needs-restart' || link.status === 'pending').map((link) => link.endpoint))];
+  if (card.client === 'microsoft-copilot' && !card.links.length && card.detected) {
+    return { client: card.client, name: card.name, meta: card.warnings[0] ?? 'Integration unavailable', endpoints,
+      state: { tone: 'neutral', label: 'Detected · setup unavailable' }, linked: false, action: null };
+  }
   switch (card.status) {
     case 'pending':
       return { client: card.client, name: card.name, meta: 'Finish MCP setup in the app', endpoints, state: { tone: 'info', label: 'Awaiting connection' }, linked: true, action: null };

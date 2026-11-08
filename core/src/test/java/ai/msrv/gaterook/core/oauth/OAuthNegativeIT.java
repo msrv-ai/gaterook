@@ -47,11 +47,7 @@ class OAuthNegativeIT {
     for (String slug : List.of("dev", "other", "stage-readonly")) {
       oauth(slug, true);
     }
-    try {
-      oauth("incident-prod", true);
-    } catch (RuntimeException refused) {
-      // A prod endpoint may refuse OAuth outright; the checks below hold either way.
-    }
+    oauth("incident-prod", true);
     world.cloudflared().control(Map.of("mode", "ready", "hostname", "gw-neg-4k2m.trycloudflare.com"));
     world.publish("stage-readonly");
     host = world.host();
@@ -522,11 +518,11 @@ class OAuthNegativeIT {
     assertThat(as.has("client_id_metadata_document_supported")).isFalse();
     assertThat(local.get(null, "/.well-known/oauth-protected-resource", Map.of()).status()).isEqualTo(404);
 
-    // Prod is never signed in to, OAuth on or not.
+    // Local production sign-in requires explicit OAuth enablement and the same desktop consent.
     assertThat(local.get(null, "/.well-known/oauth-protected-resource/mcp/incident-prod", Map.of()).status())
-        .isEqualTo(404);
+        .isEqualTo(200);
     assertThat(local.mcp("incident-prod", null, "initialize").header("www-authenticate"))
-        .isEqualTo("Bearer realm=\"gaterook\"");
+        .contains("/.well-known/oauth-protected-resource/mcp/incident-prod");
 
     // Cursor's and Antigravity's own callbacks, and loopback ones; nothing else.
     String cursor = register("cursor://anysphere.cursor-mcp/oauth/callback", "Cursor");

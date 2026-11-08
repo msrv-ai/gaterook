@@ -70,7 +70,7 @@ export function checkSummary(after: readonly ClientCard[], client: ClientCard['c
 
 // ── First run and setup (kit clients.html ?state=first-run | setup) ─────────────────────────────────────────────
 
-const ANCHOR: Readonly<Record<string, string>> = { 'claude-desktop': 'cd', codex: 'cx', cursor: 'cu', antigravity: 'ag', 'claude-ai': 'ai' };
+const ANCHOR: Readonly<Record<string, string>> = { 'claude-desktop': 'cd', codex: 'cx', cursor: 'cu', antigravity: 'ag', vscode: 'vs', 'microsoft-copilot': 'mc', 'claude-ai': 'ai' };
 
 /** `cl-cd`: the base of an app's ids on this page (`cl-cd-t` its card's heading, `cl-cd-row` its row, `cl-cd-s` its review). */
 export function anchorBase(client: string): string {
