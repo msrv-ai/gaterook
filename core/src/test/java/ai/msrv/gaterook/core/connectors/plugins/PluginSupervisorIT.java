@@ -51,12 +51,15 @@ class PluginSupervisorIT {
   private final AtomicReference<Set<Integer>> corePorts = new AtomicReference<>(Set.of(7465, 7466));
 
   @BeforeEach
-  void setUp() {
+  void setUp() throws Exception {
     assumeTrue(hostJar() != null && Files.isRegularFile(hostJar()), "plugin-host.jar isn't built");
     System.setProperty("gateway.pluginHostJar", hostJar().toAbsolutePath().toString());
     GatewayPaths gatewayPaths = GatewayPaths.open(home);
     paths = new PluginPaths(gatewayPaths);
-    HostRuntimeLocator runtime = new HostRuntimeLocator(null, hostJar().toAbsolutePath().toString());
+    // The checkout may live under a protected client directory such as .codex. Stage the test runtime in the
+    // gateway's readable cache, just as the packaged runtime is outside the user's protected client files.
+    Path runtimeJar = Files.copy(hostJar(), paths.cache().resolve("plugin-host.jar"));
+    HostRuntimeLocator runtime = new HostRuntimeLocator(null, runtimeJar.toAbsolutePath().toString());
     AotCacheManager aot = new AotCacheManager(runtime, paths, false);
     launcher = new HostLauncher(runtime, paths, new SecretCallbackRegistry(),
         new SealedHandles(new FixedKeys(), GppJson.MAPPER, Clock.systemUTC()), aot, corePorts::get, clock);

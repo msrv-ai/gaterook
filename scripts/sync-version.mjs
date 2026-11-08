@@ -12,7 +12,8 @@ const SEMVER = new RegExp(`^${NUMBER}\\.${NUMBER}\\.${NUMBER}(?:-${PRERELEASE}(?
 
 /** Read the literal Maven CI-friendly revision without needing Maven or installed npm dependencies. */
 export function readApplicationVersion(root = ROOT) {
-  const pom = readFileSync(join(root, 'pom.xml'), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+  // Keep tokens separated: removing a comment must not join tag or version fragments.
+  const pom = readFileSync(join(root, 'pom.xml'), 'utf8').replace(/<!--[\s\S]*?-->/g, ' ');
   const properties = /<properties>([\s\S]*?)<\/properties>/.exec(pom)?.[1] ?? '';
   const revisions = [...properties.matchAll(/<revision>([^<]*)<\/revision>/g)];
   const version = revisions[0]?.[1].trim();

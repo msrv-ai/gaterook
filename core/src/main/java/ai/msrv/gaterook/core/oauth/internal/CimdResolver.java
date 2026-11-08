@@ -123,16 +123,19 @@ final class CimdResolver {
     URI url = OAuthUris.clientIdUrl(clientId, allowLoopback).orElseThrow(() -> new CimdException("The client id "
         + "isn't a URL of a client metadata document."));
     String host = url.getHost().toLowerCase(Locale.ROOT);
-    if (!allowedHosts.contains(host)) {
-      throw new CimdException("Client " + host + " isn't allowed to sign in here.");
-    }
+    String allowedHost = allowedHosts.stream().filter(host::equals).findFirst()
+        .orElseThrow(() -> new CimdException("Client " + host + " isn't allowed to sign in here."));
     ClientMetadata cached = cache.get(clientId);
     Instant now = clock.instant();
     if (cached != null && cached.until().isAfter(now)) {
       return cached;
     }
-    requirePublic(host);
-    HttpResponse<byte[]> rs = fetch(url, host);
+    requirePublic(allowedHost);
+    // Build the request authority from configuration, never from the supplied client identifier. Keep the raw
+    // path so percent-encoded metadata document names retain their meaning; clientIdUrl has rejected other parts.
+    URI target = URI.create("https://" + allowedHost + (url.getPort() == -1 ? "" : ":" + url.getPort())
+        + "/" + url.getRawPath().substring(1));
+    HttpResponse<byte[]> rs = fetch(target, allowedHost);
     if (rs.statusCode() != 200) {
       throw new CimdException("The client's metadata answered HTTP " + rs.statusCode() + ".");
     }

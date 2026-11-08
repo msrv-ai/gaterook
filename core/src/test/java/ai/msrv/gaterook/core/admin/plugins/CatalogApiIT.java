@@ -100,7 +100,7 @@ class CatalogApiIT {
     JARS.put("gw-rabbitmq-0.3.0.jar", jar(Path.of("..", "plugins", "rabbitmq", "src", "main", "resources",
         "mcp-gateway-plugin.json")));
     JARS.forEach((name, bytes) -> serve("/catalog/" + name, bytes));
-    serve("/catalog/github-mcp-0.6.2.package-lock.json", lockfile());
+    serve("/catalog/fixture-mcp.package-lock.json", lockfile());
     publish(index(5, Instant.now().plus(30, ChronoUnit.DAYS), List.of()));
 
     core = TestCore.start("catalog-api", "--gateway.plugins.catalog-url=https://127.0.0.1:" + server.getPort()
@@ -151,8 +151,8 @@ class CatalogApiIT {
             + "not reviewed. | 4 tools | puzzle | not installed",
         "template | pg-slow-queries | PostgreSQL slow queries | v1.0.0 | Signed | pg_slow_queries and pg_locks as "
             + "read-only SQL tools. No code runs. | 2 tools | file-code | not installed",
-        "mcp-server | github-mcp | GitHub | v0.6.2 | Signed | Issues, pull requests and code search. Needs a GitHub "
-            + "token. | 26 tools | plug | not installed",
+        "mcp-server | fixture-mcp | Fixture MCP server | v1.0.0 | Signed | A test-only server for catalog "
+            + "installation. | 2 tools | plug | not installed",
         "template | fake-slow | Fake slow queries | v1.0.0 | Signed | A test template of two reads. | 2 tools | "
             + "file-code | not installed");
     assertThat(c.path("entries").get(3).path("connectionTypes")).extracting(JsonNode::asString)
@@ -212,17 +212,17 @@ class CatalogApiIT {
   @Order(4)
   void anMcpServerOfTheCatalogPinsItsLockfile() throws Exception {
     McpServerCatalog catalog = core.bean(McpServerCatalog.class);
-    McpServerCatalog.Entry e = catalog.entry("github-mcp@0.6.2").orElseThrow();
-    assertThat(e.name()).isEqualTo("github-mcp");
+    McpServerCatalog.Entry e = catalog.entry("fixture-mcp@1.0.0").orElseThrow();
+    assertThat(e.name()).isEqualTo("fixture-mcp");
     assertThat(e.signed()).isTrue();
-    assertThat(e.variables()).containsExactly("GITHUB_PERSONAL_ACCESS_TOKEN");
-    assertThat(e.pkg().name()).isEqualTo("@modelcontextprotocol/server-github");
-    assertThat(e.pkg().version()).isEqualTo("2025.4.8");
-    assertThat(e.pkg().integrity()).startsWith("sha512-8N43bQw9");
-    assertThat(e.pkg().bin()).isEqualTo("mcp-server-github");
+    assertThat(e.variables()).containsExactly("TEST_MCP_TOKEN");
+    assertThat(e.pkg().name()).isEqualTo("@modelcontextprotocol/server-everything");
+    assertThat(e.pkg().version()).isEqualTo("2.0.0");
+    assertThat(e.pkg().integrity()).startsWith("sha512-Dah6yqds");
+    assertThat(e.pkg().bin()).isEqualTo("mcp-server-everything");
     assertThat(e.pkg().ignoreScripts()).isTrue();
     assertThat(e.pkg().lockfile()).isEqualTo(lockfile());
-    assertThat(catalog.entry("github-mcp@9.9.9")).isEmpty();
+    assertThat(catalog.entry("fixture-mcp@9.9.9")).isEmpty();
   }
 
   @Test
@@ -446,7 +446,7 @@ class CatalogApiIT {
 
   /**
    * The catalog's source index ({@code catalog/index.json}) as a release signs it: sequence, times, the SHA-256 and
-   * size of every artifact it serves, revocations; plus one template for the fake SQL type of this core.
+   * size of every artifact it serves, revocations; plus test-only MCP server and fake SQL template entries.
    */
   private static byte[] index(long sequence, Instant expiresAt, List<String> revoked) throws Exception {
     ObjectNode index = (ObjectNode) JSON.readTree(Files.readString(Path.of("..", "catalog", "index.json")));
@@ -454,6 +454,7 @@ class CatalogApiIT {
     index.put("generatedAt", Instant.now().truncatedTo(ChronoUnit.SECONDS).toString());
     index.put("expiresAt", expiresAt.truncatedTo(ChronoUnit.SECONDS).toString());
     ArrayNode entries = (ArrayNode) index.get("entries");
+    entries.add(JSON.readTree(Files.readAllBytes(npmFixture().resolve("catalog-entry.json"))));
     for (JsonNode e : entries) {
       if (e.path("kind").asString().equals("plugin")) {
         byte[] jar = JARS.get(e.path("artifact").path("url").asString());
@@ -504,8 +505,12 @@ class CatalogApiIT {
     return out.toByteArray();
   }
 
+  private static Path npmFixture() {
+    return Path.of("..", "connectors", "mcp-server", "src", "test", "resources", "npm", "server-everything-2.0.0");
+  }
+
   private static byte[] lockfile() throws IOException {
-    return Files.readAllBytes(Path.of("..", "catalog", "mcp-servers", "github-mcp-0.6.2.package-lock.json"));
+    return Files.readAllBytes(npmFixture().resolve("package-lock.json"));
   }
 
   private static byte[] raw(KeyPair pair) {

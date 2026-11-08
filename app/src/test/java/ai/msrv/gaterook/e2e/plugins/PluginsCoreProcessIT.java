@@ -42,6 +42,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -54,7 +55,7 @@ import tools.jackson.databind.node.ObjectNode;
  * request — "Plugin updated to 1.3.0, ask again" — while the new {@code jira_request_sla} starts Off; Roll back returns
  * to 1.2.0; deleting a plugin a connection uses answers 409. On the way: the plugin's {@code connector_type} row points
  * at its plugin row, its type carries the signed badge, the catalog's template {@code pg-slow-queries} compiles on a
- * PostgreSQL connection as two reads, and the catalog's {@code github-mcp} reviews as {@code node <bin>}.
+ * PostgreSQL connection as two reads, and a test-only catalog server reviews as {@code node <bin> stdio}.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class PluginsCoreProcessIT {
@@ -73,6 +74,9 @@ class PluginsCoreProcessIT {
   private static String token;
   private static String pending;
 
+  @TempDir
+  static Path home;
+
   @BeforeAll
   static void start() throws Exception {
     catalog = new MockWebServer();
@@ -90,17 +94,18 @@ class PluginsCoreProcessIT {
     FILES.put("/catalog/gw-jira-service-desk-1.3.0.jar", Files.readAllBytes(jiraJar("1.3.0")));
     FILES.put("/catalog/gw-clickhouse-0.6.1.jar", Files.readAllBytes(plugin("clickhouse", "gw-clickhouse-0.6.1.jar")));
     FILES.put("/catalog/gw-rabbitmq-0.3.0.jar", Files.readAllBytes(plugin("rabbitmq", "gw-rabbitmq-0.3.0.jar")));
-    FILES.put("/catalog/github-mcp-0.6.2.package-lock.json", Files.readAllBytes(catalogDir().resolve("mcp-servers")
-        .resolve("github-mcp-0.6.2.package-lock.json")));
+    FILES.put("/catalog/fixture-mcp.package-lock.json", Files.readAllBytes(npmFixture().resolve("package-lock.json")));
     byte[] index = index(1, List.of());
     FILES.put("/catalog/index.json", index);
     FILES.put("/catalog/index.json.sig", signature(key, index));
 
-    Path home = CoreProcess.newHome("plugins");
     Path ca = home.resolve("catalog-ca.pem");
     Files.writeString(ca, CA.certificatePem());
+    // A checkout inside a protected client directory must not become readable by plugin hosts.
+    Path runtimeJar = Files.copy(Path.of(System.getProperty("gateway.pluginHostJar")),
+        Files.createDirectories(home.resolve("cache")).resolve("plugin-host.jar"));
     List<String> flags = new ArrayList<>(List.of(
-        "-Dgateway.pluginHostJar=" + Path.of(System.getProperty("gateway.pluginHostJar")).toAbsolutePath(),
+        "-Dgateway.pluginHostJar=" + runtimeJar.toAbsolutePath(),
         "-Dgateway.plugins.catalog-url=https://127.0.0.1:" + catalog.getPort() + "/catalog/",
         "-Dgateway.plugins.catalog-keys=e2e-k6=" + Base64.getUrlEncoder().withoutPadding().encodeToString(raw(key)),
         "-Dgateway.test.catalog.ca=" + ca, "-Dgateway.plugins.aot-cache=false"));
@@ -311,38 +316,39 @@ class PluginsCoreProcessIT {
   @Test
   @Order(6)
   void theCatalogsMcpServerReviewsAsNodeAndItsBin() throws Exception {
-    JsonNode review = json(admin("POST", "/api/mcp-servers/review", "{\"catalog\":\"github-mcp@0.6.2\"}"), 200);
+    JsonNode review = json(admin("POST", "/api/mcp-servers/review", "{\"catalog\":\"fixture-mcp@1.0.0\"}"), 200);
     // node as found on the PATH the gateway gives servers, then the package's executable: never npx.
-    assertThat(review.path("argv")).hasSize(2);
+    assertThat(review.path("argv")).hasSize(3);
     assertThat(review.path("argv").get(0).asString()).endsWith("node");
     assertThat(review.path("argv").get(1).asString())
-        .isEqualTo("node_modules/@modelcontextprotocol/server-github/dist/index.js");
-    assertThat(review.path("env")).extracting(JsonNode::asString).containsExactly("GITHUB_PERSONAL_ACCESS_TOKEN");
-    assertThat(review.path("catalogEntry").asString()).isEqualTo("github-mcp@0.6.2");
+        .isEqualTo("node_modules/@modelcontextprotocol/server-everything/dist/index.js");
+    assertThat(review.path("env")).extracting(JsonNode::asString).containsExactly("TEST_MCP_TOKEN");
+    assertThat(review.path("argv").get(2).asString()).isEqualTo("stdio");
+    assertThat(review.path("catalogEntry").asString()).isEqualTo("fixture-mcp@1.0.0");
     assertThat(review.path("notPinned").asBoolean()).isFalse();
     assertThat(core.coreLog()).doesNotContain(TOKEN).doesNotContain("cnry-pg-e2e-pass");
   }
 
   /**
-   * The catalog's {@code github-mcp} added for real (profile {@code mcp-servers}: npm's registry): the C10 runtime runs
+   * A test-only catalog server added for real (profile {@code mcp-servers}: npm's registry): the C10 runtime runs
    * {@code npm ci --ignore-scripts} from the lockfile the catalog pinned, checks the integrity, starts {@code node
-   * <bin>} with the token, and the catalog's card says "Installed as github-mcp" (kit Catalog).
+   * <bin>} with the token, and the catalog's card says "Installed as fixture-mcp".
    */
   @Test
   @Order(7)
   @Tag("mcp-servers")
-  void theCatalogsGithubMcpInstallsWithNpmCiAndItsCardSaysInstalled() throws Exception {
-    String ghToken = "ghp_" + "k6e2e".repeat(7);
-    JsonNode added = json(admin("POST", "/api/mcp-servers", "{\"catalog\":\"github-mcp@0.6.2\",\"acknowledge\":true,"
-        + "\"secrets\":{\"/env/0/secretRef\":{\"source\":\"local\",\"value\":\"" + ghToken + "\"}}}"), 201);
-    assertThat(added.path("name").asString()).isEqualTo("github-mcp");
-    assertThat(added.path("tools").asInt()).isEqualTo(26);
-    assertThat(Files.isRegularFile(core.home.resolve("mcp/github-mcp/node_modules/@modelcontextprotocol/"
-        + "server-github/package.json"))).isTrue();
+  void aTestCatalogMcpServerInstallsWithNpmCiAndItsCardSaysInstalled() throws Exception {
+    String serverToken = "cnry-mcp-" + "k6e2e".repeat(7);
+    JsonNode added = json(admin("POST", "/api/mcp-servers", "{\"catalog\":\"fixture-mcp@1.0.0\",\"acknowledge\":true,"
+        + "\"secrets\":{\"/env/0/secretRef\":{\"source\":\"local\",\"value\":\"" + serverToken + "\"}}}"), 201);
+    assertThat(added.path("name").asString()).isEqualTo("fixture-mcp");
+    assertThat(added.path("tools").asInt()).isPositive();
+    assertThat(Files.isRegularFile(core.home.resolve("mcp/fixture-mcp/node_modules/@modelcontextprotocol/"
+        + "server-everything/package.json"))).isTrue();
 
-    JsonNode github = entry(json(admin("GET", "/api/catalog", null), 200), "github-mcp");
-    assertThat(github.path("installed").asString()).isEqualTo("github-mcp");
-    assertThat(core.coreLog()).doesNotContain(ghToken);
+    JsonNode fixture = entry(json(admin("GET", "/api/catalog", null), 200), "fixture-mcp");
+    assertThat(fixture.path("installed").asString()).isEqualTo("fixture-mcp");
+    assertThat(core.coreLog()).doesNotContain(serverToken);
   }
 
   /**
@@ -380,6 +386,10 @@ class PluginsCoreProcessIT {
     return Path.of(System.getProperty("gateway.pluginsDir"), module, "target", file);
   }
 
+  private static Path npmFixture() {
+    return catalogDir().getParent().resolve("connectors/mcp-server/src/test/resources/npm/server-everything-2.0.0");
+  }
+
   private static Path catalogDir() {
     return Path.of(System.getProperty("gateway.catalogDir"));
   }
@@ -392,11 +402,13 @@ class PluginsCoreProcessIT {
   }
 
   /**
-   * The catalog's source index signed as a release signs it, with the hashes of the JARs and lockfile served; the
+   * The source index with a test-only MCP entry, signed with the hashes of the JARs and lockfile served; the
    * plugins named in {@code unsigned} are listed with {@code signed:false}.
    */
   private static byte[] index(long sequence, List<String> revoked, String... unsigned) throws IOException {
     ObjectNode index = (ObjectNode) CoreProcess.JSON.readTree(Files.readString(catalogDir().resolve("index.json")));
+    ((ArrayNode) index.get("entries")).add(CoreProcess.JSON.readTree(
+        Files.readAllBytes(npmFixture().resolve("catalog-entry.json"))));
     index.put("sequence", sequence);
     ArrayNode r = index.putArray("revoked");
     revoked.forEach(sha -> r.addObject().put("sha256", sha).put("reason", "leaked e2e build"));

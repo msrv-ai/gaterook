@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.core.connectors.plugins;
 
 import ai.msrv.gaterook.core.platform.GatewayPaths;
+import ai.msrv.gaterook.core.platform.ProblemException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -30,44 +31,47 @@ public final class PluginPaths {
 
   /** {@code plugins/}. */
   public Path plugins() {
-    return dir(paths.home().resolve("plugins"));
+    return dir(checked(paths.home().resolve("plugins")));
   }
 
   /** {@code plugins/.staging/}. */
   public Path staging() {
-    return dir(plugins().resolve(".staging"));
+    return dir(checked(plugins().resolve(".staging")));
   }
 
   /** {@code plugins/<id>/}. */
   public Path pluginDir(String id) {
-    return plugins().resolve(id);
+    return child(plugins(), id);
   }
 
   /** {@code plugins/<id>/<version>/}. */
   public Path versionDir(String id, String version) {
-    return pluginDir(id).resolve(version);
+    return child(pluginDir(id), version);
   }
 
   /** {@code plugins/<id>/<version>/plugin.jar}. */
   public Path jar(String id, String version) {
-    return versionDir(id, version).resolve("plugin.jar");
+    return checked(versionDir(id, version).resolve("plugin.jar"));
   }
 
   /** {@code plugin-data/<id>/} (0700), the plugin's writable work folder. */
   public Path dataDir(String id) {
-    Path dir = dir(paths.home().resolve("plugin-data").resolve(id));
-    dir(dir.resolve("tmp"));
+    Path dir = dir(child(paths.home().resolve("plugin-data"), id));
+    dir(checked(dir.resolve("tmp")));
     return dir;
   }
 
   /** {@code cache/} for the host's AOT cache. */
   public Path cache() {
-    return dir(paths.home().resolve("cache"));
+    return dir(checked(paths.home().resolve("cache")));
   }
 
   /** {@code logs/plugins/<id>.log}. */
   public Path log(String id) {
-    return dir(paths.logs().resolve("plugins")).resolve(id + ".log");
+    if (id == null) {
+      throw ProblemException.unprocessable("Invalid plugin path", "A plugin ID is required.", "/plugin");
+    }
+    return child(dir(checked(paths.logs().resolve("plugins"))), id + ".log");
   }
 
   /** {@code run/plugin-hosts.json}: the pids of running hosts, for orphan cleanup on the next start. */
@@ -77,6 +81,39 @@ public final class PluginPaths {
 
   GatewayPaths gatewayPaths() {
     return paths;
+  }
+
+  /** Resolves exactly one portable path component, then checks the managed filesystem boundary. */
+  private Path child(Path parent, String name) {
+    if (name == null || !name.matches("[A-Za-z0-9][A-Za-z0-9._+-]{0,199}")) {
+      throw ProblemException.unprocessable("Invalid plugin path",
+          "A plugin ID or version must be a single safe path component.", "/plugin");
+    }
+    Path root = parent.toAbsolutePath().normalize();
+    Path child = root.resolve(name).normalize();
+    if (!child.startsWith(root) || child.equals(root)) {
+      throw ProblemException.unprocessable("Invalid plugin path",
+          "Plugin files must remain in their managed directory.", "/plugin");
+    }
+    return checked(child);
+  }
+
+  /** Managed paths may not follow a plugin-created link into another plugin or outside the gateway home. */
+  private Path checked(Path path) {
+    Path root = paths.home().toAbsolutePath().normalize();
+    Path target = path.toAbsolutePath().normalize();
+    if (!target.startsWith(root) || target.equals(root)) {
+      throw ProblemException.unprocessable("Invalid plugin path",
+          "Plugin files must remain in the gateway home.", "/plugin");
+    }
+    Path current = root;
+    for (Path name : root.relativize(target)) {
+      current = current.resolve(name);
+      if (Files.isSymbolicLink(current)) {
+        throw ProblemException.conflict("Unsafe plugin path", "Managed plugin paths cannot be symbolic links.");
+      }
+    }
+    return target;
   }
 
   private static Path dir(Path dir) {

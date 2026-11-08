@@ -1,13 +1,14 @@
 # Catalog
 
 The signed catalog of plugins, templates and MCP servers (ARCHITECTURE.md §7.5 "Catalog", report 11 §4.4).
+The source index currently lists Java plugins and SQL templates. MCP server entries remain supported by the signing
+format and are covered by test-only fixtures.
 The core shows it in Connectors › Catalog, installs from it, and trusts it only by an Ed25519 signature over the raw
 bytes of `index.json`, made with a key whose public half a release ships (`gateway.plugins.catalog-keys`).
 
 | File | What |
 |---|---|
 | `index.json` | The source index: the entries as the kit's Catalog shows them. Artifact hashes, `sequence` and the times are filled in when it is signed. |
-| `mcp-servers/github-mcp-0.6.2.package-lock.json` | The lockfile `npm ci --ignore-scripts` installs `github-mcp` from; the index pins its SHA-256. |
 | `sign-index.mjs` | Signs the index: pins every artifact, sets `sequence`, `generatedAt`, `expiresAt` (≤ 90 days), keeps `revoked[]`. |
 | `sign-index.test.mjs` | `node --test 'catalog/*.test.mjs'` |
 | `publish.sh` | Builds the plugin JARs, signs, verifies and creates the GitHub release (only when explicitly requested). |

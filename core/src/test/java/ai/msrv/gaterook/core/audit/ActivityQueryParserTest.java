@@ -2,8 +2,10 @@ package ai.msrv.gaterook.core.audit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import ai.msrv.gaterook.core.platform.ProblemException;
+import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -33,6 +35,17 @@ class ActivityQueryParserTest {
     assertThat(ActivityQueryParser.parse("").isEmpty()).isTrue();
     assertThat(ActivityQueryParser.parse(null).isEmpty()).isTrue();
     assertThat(ActivityQueryParser.parse("tool:\"\"").isEmpty()).isTrue();
+  }
+
+  @Test
+  void longWordsAndUnterminatedQuotesDoNotBacktrack() {
+    assertTimeoutPreemptively(Duration.ofSeconds(2), () -> {
+      String word = "a".repeat(100_000);
+      assertThat(ActivityQueryParser.parse(word).words()).containsExactly(word);
+      assertThat(ActivityQueryParser.parse("tool:" + word).clauses().getFirst().values()).containsExactly(word);
+      assertThat(ActivityQueryParser.parse("\"" + word).words()).containsExactly("\"" + word);
+      assertThat(ActivityQueryParser.parse("- " + word).words()).containsExactly("-", word);
+    });
   }
 
   @Test

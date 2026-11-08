@@ -351,9 +351,9 @@ class DemoSeed {
   }
 
   /**
-   * An external MCP server as installing its catalog entry leaves it (demo data: {@code github-mcp} v0.6.2, 26
+   * A historical synthetic MCP server snapshot (demo data: {@code github-mcp} v0.6.2, 26
    * tools, on no endpoint): its connection, its token encrypted here and the reviewed snapshot of its tools. The seed's
-   * handshake stands in for the first start: no npm, no process.
+   * handshake stands in for the first start: no npm, no process. It is no longer offered by the source catalog.
    */
   private void mcpServer(JsonNode m) {
     String name = m.path("name").asString();

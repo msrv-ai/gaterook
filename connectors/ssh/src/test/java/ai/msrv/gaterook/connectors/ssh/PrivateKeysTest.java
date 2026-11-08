@@ -5,13 +5,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import java.io.ByteArrayOutputStream;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AlgorithmParameters;
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
+import java.security.spec.RSAPrivateCrtKeySpec;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
@@ -76,9 +79,12 @@ class PrivateKeysTest {
 
   @Test
   void refusesShortRsaAndGarbage() throws Exception {
-    KeyPairGenerator g = KeyPairGenerator.getInstance("RSA");
-    g.initialize(1024);
-    char[] rsa1024 = pem("PRIVATE KEY", g.generateKeyPair().getPrivate().getEncoded());
+    // Structurally valid PKCS#8 with deliberately inconsistent RSA parameters: never usable for cryptography.
+    BigInteger p = BigInteger.ONE.shiftLeft(511).add(BigInteger.ONE);
+    BigInteger q = BigInteger.ONE.shiftLeft(512).add(BigInteger.ONE);
+    RSAPrivateCrtKeySpec shortKey = new RSAPrivateCrtKeySpec(p.multiply(q), BigInteger.valueOf(65537),
+        BigInteger.ONE, p, q, BigInteger.ONE, BigInteger.ONE, BigInteger.ONE);
+    char[] rsa1024 = pem("PRIVATE KEY", KeyFactory.getInstance("RSA").generatePrivate(shortKey).getEncoded());
 
     assertThatThrownBy(() -> PrivateKeys.parse(rsa1024, null, "k"))
         .isInstanceOfSatisfying(ConnectorException.class,

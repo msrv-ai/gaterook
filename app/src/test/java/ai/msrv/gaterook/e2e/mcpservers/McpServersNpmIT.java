@@ -16,11 +16,15 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
@@ -36,10 +40,11 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Real servers from npm on the assembled core (profile {@code mcp-servers}; with {@code -Dgateway.core.binary} the
- * native executable: the MCP SDK's records in the image, both transports): {@code @modelcontextprotocol/server-github}
- * 2025.4.8 over stdio — 26 tools, all {@code github_*}, all Approval on an endpoint and all Off after a bulk change —
- * and {@code @modelcontextprotocol/server-everything} 2.0.0 over Streamable HTTP on this computer, reached once the
- * environment's policy allows its address, with an approved {@code echo}. The packages are installed with
+ * native executable: the MCP SDK's records in the image, both transports):
+ * {@code @modelcontextprotocol/server-everything} 2.0.0 over stdio and Streamable HTTP. The tools retain their input
+ * schemas and declared read-only modes, mutations require approval, and a bulk change turns every tool Off.
+ * HTTP is reached only once the environment's policy allows its address, with an explicitly approved {@code echo}.
+ * The package is installed with
  * {@code npm ci --ignore-scripts} from the lockfiles in {@code src/test/resources/mcp-servers} into
  * {@code ~/.cache/mcp-gateway-test/c10-mcp-servers/app}; Node 24 from {@code MCP_NODE} or the PATH.
  */
@@ -50,9 +55,8 @@ class McpServersNpmIT {
   private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
   private static final Path CACHE = Path.of(System.getProperty("user.home"), ".cache", "mcp-gateway-test",
       "c10-mcp-servers", "app");
-  private static final String GITHUB_TOKEN = "ghp_" + "e2e".repeat(12);
+  private static final String SERVER_TOKEN = "fixture-token-" + "e2e".repeat(12);
   private static CoreProcess core;
-  private static Path github;
   private static Path everything;
   private static Process everythingHttp;
   private static int everythingPort;
@@ -60,7 +64,6 @@ class McpServersNpmIT {
 
   @BeforeAll
   static void start() throws Exception {
-    github = install("@modelcontextprotocol/server-github", "2025.4.8", "server-github-2025.4.8");
     everything = install("@modelcontextprotocol/server-everything", "2.0.0", "server-everything-2.0.0");
     try (ServerSocket s = new ServerSocket(0, 0, InetAddress.getLoopbackAddress())) {
       everythingPort = s.getLocalPort();
@@ -89,33 +92,45 @@ class McpServersNpmIT {
 
   @Test
   @Order(1)
-  void serverGithubBringsTwentySixToolsThatStartInApprovalAndGoOff() throws Exception {
+  void serverEverythingPreservesSchemasAndModesBeforeAllToolsAreTurnedOff() throws Exception {
     ObjectNode request = CoreProcess.JSON.createObjectNode().put("acknowledge", true);
-    ObjectNode config = request.putObject("config").put("name", "github-mcp").put("transport", "stdio");
+    ObjectNode config = request.putObject("config").put("name", "stdio-everything").put("transport", "stdio");
     ArrayNode command = config.putArray("command");
     command.add(node());
-    command.add(github.resolve("node_modules/@modelcontextprotocol/server-github/dist/index.js").toString());
-    config.putArray("env").addObject().put("name", "GITHUB_PERSONAL_ACCESS_TOKEN");
-    request.putObject("secrets").putObject("/env/0/secretRef").put("source", "local").put("value", GITHUB_TOKEN);
+    command.add(everything.resolve("node_modules/@modelcontextprotocol/server-everything/dist/index.js").toString());
+    command.add("stdio");
+    config.putArray("env").addObject().put("name", "MCP_FIXTURE_TOKEN");
+    request.putObject("secrets").putObject("/env/0/secretRef").put("source", "local").put("value", SERVER_TOKEN);
     JsonNode added = json(admin("POST", "/api/mcp-servers", request.toString()), 201);
-    assertThat(added.path("tools").asInt()).isEqualTo(26);
+    int toolCount = added.path("tools").asInt();
+    assertThat(toolCount).isGreaterThanOrEqualTo(16);
 
-    JsonNode tools = json(admin("GET", "/api/mcp-servers/github-mcp/tools", null), 200);
-    assertThat(tools).hasSize(26).allSatisfy(t -> {
-      assertThat(t.path("name").asString()).startsWith("github_");
-      assertThat(t.path("annotations").isNull() || t.path("annotations").isMissingNode()).as(t.toString()).isTrue();
-      assertThat(t.path("nature").asString()).isEqualTo("mutation");
+    JsonNode tools = json(admin("GET", "/api/mcp-servers/stdio-everything/tools", null), 200);
+    Map<String, String> expectedModes = new LinkedHashMap<>();
+    assertThat(tools).hasSize(toolCount).allSatisfy(t -> {
+      assertThat(t.path("name").asString()).startsWith("stdio_");
+      assertThat(t.at("/inputSchema/type").asString()).isEqualTo("object");
+      expectedModes.put(t.path("name").asString(), "read".equals(t.path("nature").asString())
+          ? "READ_ONLY" : "APPROVAL");
+      if (t.path("original").asString().equals("echo")) {
+        assertThat(t.at("/inputSchema/properties/message/type").asString()).isEqualTo("string");
+        assertThat(t.at("/inputSchema/required")).extracting(JsonNode::asString).contains("message");
+      }
     });
+    assertThat(expectedModes).containsEntry("stdio_echo", "READ_ONLY")
+        .containsEntry("stdio_gzip_file_as_resource", "APPROVAL");
 
-    json(admin("POST", "/api/endpoints", "{\"slug\":\"gh\",\"startFrom\":\"empty\"}"), 201);
-    json(admin("POST", "/api/endpoints/gh/connections/github-mcp", "{}"), 200);
-    List<JsonNode> rows = rows("gh", "github-mcp");
-    assertThat(rows).hasSize(26).allSatisfy(t -> assertThat(t.path("mode").asString()).isEqualTo("APPROVAL"));
-    JsonNode bulk = json(admin("POST", "/api/endpoints/gh/tools/bulk", "{\"group\":\"github-mcp\",\"mode\":\"OFF\"}"),
-        200);
-    assertThat(bulk.path("changed")).hasSize(26);
-    assertThat(rows("gh", "github-mcp")).allSatisfy(t -> assertThat(t.path("mode").asString()).isEqualTo("OFF"));
-    assertThat(core.coreLog()).doesNotContain(GITHUB_TOKEN);
+    json(admin("POST", "/api/endpoints", "{\"slug\":\"stdio\",\"startFrom\":\"empty\"}"), 201);
+    json(admin("POST", "/api/endpoints/stdio/connections/stdio-everything", "{}"), 200);
+    List<JsonNode> rows = rows("stdio", "stdio-everything");
+    assertThat(rows).hasSize(toolCount).allSatisfy(t -> assertThat(t.path("mode").asString())
+        .isEqualTo(expectedModes.get(t.path("name").asString())));
+    JsonNode bulk = json(admin("POST", "/api/endpoints/stdio/tools/bulk",
+        "{\"group\":\"stdio-everything\",\"mode\":\"OFF\"}"), 200);
+    assertThat(bulk.path("changed")).hasSize(toolCount);
+    assertThat(rows("stdio", "stdio-everything"))
+        .allSatisfy(t -> assertThat(t.path("mode").asString()).isEqualTo("OFF"));
+    assertThat(core.coreLog()).doesNotContain(SERVER_TOKEN);
   }
 
   @Test
@@ -136,6 +151,11 @@ class McpServersNpmIT {
 
     json(admin("POST", "/api/endpoints", "{\"slug\":\"every\",\"startFrom\":\"empty\"}"), 201);
     json(admin("POST", "/api/endpoints/every/connections/everything-http", "{}"), 200);
+    JsonNode echo = rows("every", "everything-http").stream()
+        .filter(t -> t.path("name").asString().equals("everything_echo")).findFirst().orElseThrow();
+    json(admin("PUT", "/api/endpoints/every/tools", "{\"toolKey\":\"" + echo.path("toolKey").asString()
+        + "\",\"connection\":\"everything-http\",\"mode\":\"APPROVAL\",\"version\":"
+        + echo.path("version").asLong() + "}"), 200);
     JsonNode settings = json(admin("GET", "/api/endpoints/every/settings", null), 200);
     json(admin("PUT", "/api/endpoints/every/settings", "{\"approvalWait\":{\"firstWaitSeconds\":0},\"version\":"
         + settings.path("version").asLong() + "}"), 200);
@@ -171,11 +191,16 @@ class McpServersNpmIT {
     Files.createDirectories(dir);
     Files.writeString(dir.resolve("package.json"), "{\"name\":\"mcp-gateway-server\",\"private\":true,"
         + "\"dependencies\":{\"" + name + "\":\"" + version + "\"}}\n");
+    byte[] lock;
     try (InputStream in = McpServersNpmIT.class.getResourceAsStream("/mcp-servers/" + resource
         + "/package-lock.json")) {
-      Files.write(dir.resolve("package-lock.json"), in.readAllBytes());
+      lock = in.readAllBytes();
     }
-    if (Files.isRegularFile(dir.resolve("node_modules/" + name + "/package.json"))) {
+    Files.write(dir.resolve("package-lock.json"), lock);
+    String fingerprint = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(lock));
+    Path installedLock = dir.resolve(".installed-lock-sha256");
+    if (Files.isRegularFile(dir.resolve("node_modules/" + name + "/package.json"))
+        && Files.isRegularFile(installedLock) && fingerprint.equals(Files.readString(installedLock))) {
       return dir;
     }
     String npm = Path.of(node()).getParent() == null ? "npm" : Path.of(node()).resolveSibling("npm").toString();
@@ -184,6 +209,7 @@ class McpServersNpmIT {
     String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
     assertThat(p.waitFor(5, TimeUnit.MINUTES)).isTrue();
     assertThat(p.exitValue()).as(out).isZero();
+    Files.writeString(installedLock, fingerprint);
     return dir;
   }
 
