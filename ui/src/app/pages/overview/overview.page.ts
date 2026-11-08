@@ -71,6 +71,7 @@ export const SKELETON_DELAY_MS = 300;
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-page' },
   templateUrl: './overview.page.html',
+  styleUrl: './overview.page.scss',
 })
 export class OverviewPage {
   protected readonly data = inject(OverviewData);
