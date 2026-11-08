@@ -1,7 +1,8 @@
 import { ApiError } from '../../../core/api/api-error';
 import { clickhouseCheck, sentryReview } from '../connectors.fixtures';
 import { failureDetails, failureText } from './failure';
-import { mcpRequest, registryResult } from './mcp-add.dialog';
+import { mcpRequest } from './mcp-add.dialog';
+import { registryResult } from '../mcp-registry-results';
 import { connectedToast } from './mcp-endpoint.dialog';
 import { McpServerAuthConfig } from '../../../core/api/plugins.api';
 import { mcpReviewView, mcpSecretValues, signInConfig } from './mcp-review.dialog';

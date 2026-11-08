@@ -40,13 +40,13 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The tunnel agents and their pins (ARCHITECTURE.md A6, decision 8; {@code binaries.json} next to this class).
- * {@code cloudflared} comes with the installer: {@code <resources>/cloudflared/<platform>/cloudflared[.exe]}, staged by
- * {@code scripts/stage-cloudflared.mjs} from the same pins. The ngrok agent is downloaded when the person chooses
+ * {@code cloudflared} is downloaded on first tunnel use. Older installers may supply a verified copy in
+ * {@code <resources>/cloudflared/<platform>/cloudflared[.exe]}. The ngrok agent is downloaded when the person chooses
  * ngrok, into {@code <home>/bin/ngrok/<version>/}. Either is hashed before every start and refused unless its
  * SHA-256 is the pinned one: a binary swapped on disk never runs with the person's tunnel token.
  *
- * <p>A development run (no {@code gateway.resources}, never a release) downloads the pinned cloudflared on first use
- * into {@code <home>/bin/cloudflared/<version>/} instead. Tests of a non-release build replace the pins with
+ * <p>Downloaded cloudflared is retained in {@code <home>/bin/cloudflared/<version>/} across app updates.
+ * Tests of a non-release build replace the pins with
  * {@code gateway.test.tunnel-pins} (a file of the same shape whose platform entries may name a local {@code path}).
  */
 public final class TunnelBinaries {
@@ -81,6 +81,7 @@ public final class TunnelBinaries {
   private final Duration downloadDeadline;
   private final Map<Path, Stamp> stamps = new ConcurrentHashMap<>();
   private volatile String ngrokError;
+  private volatile String cloudflaredError;
 
   public TunnelBinaries(Path home, String resources, String testPins) {
     this(home, resources, testPins, DOWNLOAD_DEADLINE);
@@ -124,11 +125,15 @@ public final class TunnelBinaries {
     Pin pin = pin("cloudflared").orElseThrow(() -> new TunnelException("Cloudflare Tunnel isn't available for "
         + platform + "."));
     Path file = cloudflaredLocation(pin);
-    if (!Files.isRegularFile(file)) {
-      if (resources == null && !BuildFlags.RELEASE && pin.path() == null) {
+    boolean managed = pin.path() == null && file.startsWith(home.resolve("bin"));
+    if (managed && (!Files.isRegularFile(file) || !matches(pin, file))) {
+      cloudflaredError = "Downloading Cloudflare Tunnel support. This is only needed once.";
+      try {
         install(pin, file);
-      } else {
-        throw new TunnelException("cloudflared is missing from this installation (" + file + "). Reinstall GateRook.");
+        cloudflaredError = null;
+      } catch (TunnelException e) {
+        cloudflaredError = e.getMessage() + " Connect to the internet and turn the tunnel on again to retry.";
+        throw new TunnelException(cloudflaredError);
       }
     }
     verify(pin, file);
@@ -143,7 +148,7 @@ public final class TunnelBinaries {
     Path file = cloudflaredLocation(pin.get());
     boolean present = Files.isRegularFile(file);
     boolean ok = present && matchesCached(pin.get(), file);
-    String error = !present ? (resources == null && !BuildFlags.RELEASE ? null : "cloudflared is missing")
+    String error = !present ? cloudflaredError
         : ok ? null : "cloudflared doesn't match its pinned SHA-256";
     return new Status("cloudflared", pin.get().version(), present, ok, file.toString(), error);
   }
@@ -153,7 +158,8 @@ public final class TunnelBinaries {
       return pin.path();
     }
     if (resources != null) {
-      return resources.resolve("cloudflared").resolve(platform).resolve(pin.binary());
+      Path bundled = resources.resolve("cloudflared").resolve(platform).resolve(pin.binary());
+      if (Files.isRegularFile(bundled)) return bundled;
     }
     return home.resolve("bin").resolve("cloudflared").resolve(pin.version()).resolve(pin.binary());
   }
@@ -215,6 +221,16 @@ public final class TunnelBinaries {
   private synchronized void install(Pin pin, Path target) throws TunnelException {
     if (Files.isRegularFile(target) && matches(pin, target)) {
       return;
+    }
+    if (pin.path() == null) {
+      Path root = home.toAbsolutePath().normalize();
+      Path destination = target.toAbsolutePath().normalize();
+      if (!destination.startsWith(root)) throw new TunnelException("Unsafe tunnel support directory.");
+      Path current = root;
+      for (Path name : root.relativize(destination)) {
+        current = current.resolve(name);
+        if (Files.isSymbolicLink(current)) throw new TunnelException("Tunnel support storage cannot be a symbolic link.");
+      }
     }
     log.info("Downloading {} {} for {}", pin.tool(), pin.version(), platform);
     byte[] asset = download(pin);

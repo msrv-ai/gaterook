@@ -115,7 +115,7 @@ public final class GatewayPaths implements AutoCloseable {
     return home.resolve("logs");
   }
 
-  /** Database backups, daily and pre-migration (never the master key). */
+  /** Database backups, weekly and pre-migration (never the master key). */
   public Path backups() {
     return home.resolve("backups");
   }

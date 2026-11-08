@@ -257,7 +257,7 @@ public class SettingsService {
           "startHidden":{"type":"boolean","default":true,"title":"Start minimized"},
           "autoUpdate":{"type":"boolean","default":true,"title":"Check for updates automatically"},
           "singleKeyShortcuts":{"type":"boolean","default":true,"title":"Single-key shortcuts"},
-          "toastDurationSeconds":{"type":"integer","enum":[5,10,15,30,60,120],"default":15,
+          "toastDurationSeconds":{"type":"integer","enum":[5,10,15,30,60,120],"default":10,
             "title":"In-app notification duration","x-unit":"seconds"}}}"""));
     out.put("appearance", parse("""
         {"type":"object","additionalProperties":false,"properties":{
@@ -282,8 +282,8 @@ public class SettingsService {
             "x-unit":"years"}}}"""));
     out.put("backup", parse("""
         {"type":"object","additionalProperties":false,"properties":{
-          "daily":{"type":"boolean","default":true,"title":"Back up the database every day"},
-          "at":{"const":"03:00","title":"Time of the daily copy"},
+          "daily":{"type":"boolean","default":true,"title":"Back up the database every week"},
+          "at":{"const":"03:00","title":"Time of the weekly copy on Sunday"},
           "keep":{"const":7,"title":"Copies kept"}}}"""));
     return Map.copyOf(out);
   }

@@ -49,6 +49,8 @@ See [persistence and integrity](ARCHITECTURE.md#4-persistence-and-integrity), th
 
 Production connections require production endpoints. GateRook prevents mixing them across the production boundary, publishing production endpoints through its built-in tunnel, or approving production actions through Slack or Telegram. Issuing the first production bridge token for each grant requires desktop consent; that consent persists for the specific client and endpoint until revoked, while tool approval rules apply independently.
 
+Local OAuth access, including VS Code, requires OAuth to be enabled on the endpoint and an explicit desktop consent for that sign-in. Its tokens remain bound to the local ingress and endpoint resource; revocation stops access. The same production tools and action approval rules apply. OAuth does not allow publishing production endpoints through the tunnel.
+
 For a production connection, select a restricted upstream identity, verify transport, expose only the tools needed for the task, and keep changes in Approval mode when human review is required. Database grants, cloud IAM permissions, SSH account privileges, and the selected tool modes determine the available authority together.
 
 ## Understand connector and host trust

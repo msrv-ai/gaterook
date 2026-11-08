@@ -33,7 +33,7 @@ import org.sqlite.SQLiteDataSource;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The daily database copy (M1.6 "backup: consistent copy with retention of seven") on a real SQLite file in WAL mode, with a
+ * The weekly database copy (M1.6 "backup: consistent copy with retention of seven") on a real SQLite file in WAL mode, with a
  * clock the test moves: the catch-up copy a start owes, the 03:00 schedule, "Back up now", and the folder pruned to
  * seven copies without touching anything else in it.
  */
@@ -47,7 +47,7 @@ class DatabaseBackupJobTest {
   private Path folder;
   private MovableClock clock;
   private GatewayDatabase database;
-  private final AtomicBoolean daily = new AtomicBoolean(true);
+  private final AtomicBoolean enabled = new AtomicBoolean(true);
   private final AtomicReference<ObjectNode> state = new AtomicReference<>();
   private DatabaseBackupJob job;
 
@@ -68,7 +68,7 @@ class DatabaseBackupJobTest {
     reads.setUrl(url);
     database = new GatewayDatabase(file, url, reads);
     clock = new MovableClock(NOW);
-    job = new DatabaseBackupJob(database, folder, daily::get, () -> Optional.ofNullable(state.get()), state::set,
+    job = new DatabaseBackupJob(database, folder, enabled::get, () -> Optional.ofNullable(state.get()), state::set,
         clock, ZONE, Duration.ZERO);
   }
 
@@ -98,11 +98,33 @@ class DatabaseBackupJobTest {
   }
 
   @Test
-  void aStartAfterMoreThanADayWithoutACopyCatchesUp() throws Exception {
-    old("gateway-2026-10-22.db", NOW.minus(Duration.ofHours(25)));
+  void aStartAfterMoreThanAWeekWithoutACopyCatchesUp() throws Exception {
+    old("gateway-2026-10-16.db", NOW.minus(Duration.ofDays(8)));
 
     assertThat(job.catchUp()).isPresent();
     assertThat(folder.resolve("gateway-2026-10-24.db")).exists();
+  }
+
+  @Test
+  void aStartWithACopyLessThanAWeekOldDoesNotCatchUp() throws Exception {
+    old("gateway-2026-10-18.db", NOW.minus(Duration.ofDays(7)).plusSeconds(1));
+
+    assertThat(job.catchUp()).isEmpty();
+    assertThat(names()).containsExactly("gateway-2026-10-18.db");
+  }
+
+  @Test
+  void aStartWithACopyExactlyAWeekOldCatchesUp() throws Exception {
+    old("gateway-2026-10-17.db", NOW.minus(Duration.ofDays(7)));
+
+    assertThat(job.catchUp()).isPresent();
+  }
+
+  @Test
+  void aRecentManualCopyAlsoPreventsCatchUp() throws Exception {
+    old("gateway-2026-10-18-1430.db", NOW.minus(Duration.ofDays(6)));
+
+    assertThat(job.catchUp()).isEmpty();
   }
 
   @Test
@@ -115,22 +137,22 @@ class DatabaseBackupJobTest {
   }
 
   @Test
-  void aCopyBeforeAMigrationDoesNotCountAsTheDailyOne() throws Exception {
+  void aCopyBeforeAMigrationDoesNotCountAsTheWeeklyOne() throws Exception {
     old("pre-migration-3.db", NOW.minus(Duration.ofHours(1)));
 
     assertThat(job.catchUp()).as("the folder has none of this job's copies").isPresent();
   }
 
   @Test
-  void theDailyCopySwitchedOffMeansNoCatchUpEither() {
-    daily.set(false);
+  void theWeeklyCopySwitchedOffMeansNoCatchUpEither() {
+    enabled.set(false);
 
     assertThat(job.catchUp()).isEmpty();
     assertThat(folder).doesNotExist();
   }
 
   @Test
-  void theCatchUpRunsSoonAfterTheStartAndTheDailyIsPlannedAtThree() throws Exception {
+  void theCatchUpRunsSoonAfterTheStartAndTheWeeklyIsPlannedOnSundayAtThree() throws Exception {
     job.onApplicationEvent(null);
 
     Path written = folder.resolve("gateway-2026-10-24.db");
@@ -149,23 +171,32 @@ class DatabaseBackupJobTest {
   // ── The 03:00 schedule ──────────────────────────────────────────────────────────────────────────────────────
 
   @Test
-  void theNextRunIsTheNextThreeOClockLocalTime() {
-    assertThat(job.nextRun(at(2026, 10, 24, 2, 59))).isEqualTo(at(2026, 10, 24, 3, 0));
-    assertThat(job.nextRun(at(2026, 10, 24, 3, 0))).as("strictly after").isEqualTo(at(2026, 10, 25, 3, 0));
+  void theNextRunIsSundayAtThreeOClockLocalTime() {
+    assertThat(job.nextRun(at(2026, 10, 24, 2, 59))).isEqualTo(at(2026, 10, 25, 3, 0));
+    assertThat(job.nextRun(at(2026, 10, 25, 2, 59))).isEqualTo(at(2026, 10, 25, 3, 0));
+    assertThat(job.nextRun(at(2026, 10, 25, 3, 0))).as("strictly after").isEqualTo(at(2026, 11, 1, 3, 0));
     assertThat(job.nextRun(at(2026, 10, 24, 14, 30))).isEqualTo(at(2026, 10, 25, 3, 0));
-    // The night clocks go back, two 03:00 are 25 hours apart: planned again after each run, not at a fixed rate.
-    assertThat(Duration.between(job.nextRun(at(2026, 10, 23, 14, 30)), job.nextRun(at(2026, 10, 24, 14, 30))))
-        .isEqualTo(Duration.ofHours(25));
+    assertThat(job.nextRun(at(2026, 10, 26, 14, 30))).isEqualTo(at(2026, 11, 1, 3, 0));
+    assertThat(job.nextRun(at(2026, 12, 31, 14, 30))).isEqualTo(at(2027, 1, 3, 3, 0));
   }
 
   @Test
-  void theDailyCopyIsMadeOncePerDay() {
+  void theWeeklyScheduleKeepsLocalTimeAcrossDaylightSavingChanges() {
+    assertThat(job.nextRun(at(2026, 3, 28, 14, 30))).isEqualTo(at(2026, 3, 29, 3, 0));
+    assertThat(Duration.between(job.nextRun(at(2026, 3, 21, 14, 30)), job.nextRun(at(2026, 3, 28, 14, 30))))
+        .isEqualTo(Duration.ofHours(7 * 24 - 1));
+    assertThat(Duration.between(job.nextRun(at(2026, 10, 17, 14, 30)), job.nextRun(at(2026, 10, 24, 14, 30))))
+        .isEqualTo(Duration.ofHours(7 * 24 + 1));
+  }
+
+  @Test
+  void scheduledAndCatchUpCopiesDoNotDuplicateTheSameDay() {
     clock.set(at(2026, 10, 24, 3, 0));
-    assertThat(job.daily()).isPresent();
+    assertThat(job.automaticCopy()).isPresent();
     clock.set(at(2026, 10, 24, 23, 59));
-    assertThat(job.daily()).as("today's copy exists").isEmpty();
+    assertThat(job.automaticCopy()).as("today's copy exists").isEmpty();
     clock.set(at(2026, 10, 25, 3, 0));
-    assertThat(job.daily()).isPresent();
+    assertThat(job.automaticCopy()).isPresent();
     assertThat(names()).containsExactlyInAnyOrder("gateway-2026-10-24.db", "gateway-2026-10-25.db");
   }
 

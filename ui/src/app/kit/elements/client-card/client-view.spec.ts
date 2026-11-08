@@ -11,6 +11,7 @@ import {
   bridgeUpdateWords,
   browserInstallUrl,
   cursorInstallLink,
+  vsCodeInstallLink,
   changeSummary,
   choiceMeta,
   clientFailure,
@@ -34,6 +35,19 @@ const words = (parts: readonly { text: string }[]) => parts.map((p) => p.text).j
 const [dev, stage, prod] = DEMO_CLIENT_ENDPOINTS;
 
 describe('client-card view', () => {
+  it('hands VS Code only a loopback HTTP endpoint and rejects command or credential installation links', () => {
+    const link = vsCodeInstallLink(dev);
+    const browser = new URL(browserInstallUrl(link)!);
+    expect(browser.origin + browser.pathname).toBe('https://vscode.dev/redirect');
+    expect(browser.searchParams.get('url')).toBe(link);
+    const payload = JSON.parse(decodeURIComponent(new URL(link).search.slice(1)));
+    expect(payload).toEqual({ name: 'gaterook-dev', type: 'http', url: dev.url });
+    for (const config of [{ ...payload, command: 'sh' }, { ...payload, headers: {} },
+      { ...payload, name: 'gaterook-other' }, { ...payload, url: 'https://example.com/mcp/dev' }]) {
+      expect(browserInstallUrl(`vscode:mcp/install?${encodeURIComponent(JSON.stringify(config))}`)).toBeNull();
+    }
+  });
+
   it('labels registered OAuth clients by name and metadata clients by host', () => {
     const grant = { ...DEMO_GRANTS[0], client: 'localhost', clientName: ' Cursor ', clientKind: 'dcr' as const };
     expect(oauthClientLabel(grant)).toBe('Cursor');
@@ -143,7 +157,7 @@ describe('client-card view', () => {
     const row = disconnectWords(DEMO_CLIENTS.claudeDesktop, cdDev, true);
     expect(row.title).toBe('Disconnect Claude Desktop from dev?');
     expect(words(row.body)).toBe('Claude Desktop loses access to endpoint dev at once. The bridge stays installed for incident-prod.');
-    expect(row.button).toBe('Disconnect Claude Desktop from dev');
+    expect(row.button).toBe('Disconnect from dev');
     expect(words(disconnectWords(DEMO_CLIENTS.claudeDesktop, cdProd, true).body)).toBe(
       'Claude Desktop loses access to endpoint incident-prod and its prod connections at once. The bridge stays installed for dev.',
     );

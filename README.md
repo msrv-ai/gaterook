@@ -9,6 +9,8 @@ GateRook is a desktop **MCP Firewall** for AI access to production infrastructur
 
 For macOS, download the `.dmg` installer from the latest release. Windows installs and updates through Microsoft Store.
 
+Cloudflare Tunnel support and Java support for plugins download on first use. They are verified and cached locally for later use without another download. First use needs internet access; built-in connectors do not need these downloads. See [optional components and offline use](docs/development.md#optional-components-and-offline-use).
+
 [Website](https://msrv.dev) · [Security model](docs/security.md) · [Issues](https://github.com/msrv-ai/gaterook/issues) · [Architecture](docs/ARCHITECTURE.md) · [Research](docs/research/README.md)
 
 Watch how GateRook connects AI to your infrastructure while keeping you in control.
@@ -99,6 +101,8 @@ Select the store in a connection's credential fields and enter a secret referenc
 The Overview page brings pending approvals, connection health, and AI app access into one place. Use the On/Off switches there, in Endpoints, or in Connections to pause access without removing settings. A connection switch applies across all endpoints; an endpoint switch affects only that endpoint. Pausing stops new access, but does not cancel operations already executing. Paused tools remain visible to AI apps and return a message asking the user to enable access. Use the sidebar to manage connections, secrets, policies, and endpoints, or inspect tool calls in Activity.
 
 For an AI app that GateRook does not detect, open **AI apps → Add app manually**, enter its name and choose an endpoint. Copy the endpoint URL and the token shown once into the app's MCP settings using Streamable HTTP and Bearer authentication. The app stays in the list across restarts and scans, with **Awaiting connection** until its first authenticated request. Its card offers token replacement and removal; both revoke the previous token, so update or remove the MCP settings in the app too.
+
+For **VS Code**, select **Connect**, choose an endpoint (including PROD), then install the server in VS Code and complete browser sign-in. GateRook detects the stable desktop edition on Windows, macOS, and Linux. **Microsoft Copilot from the Microsoft Store** is detected separately on Windows; its card explains that custom MCP setup is unavailable. See [VS Code and Microsoft Copilot setup](docs/development.md#vs-code-and-microsoft-copilot).
 
 ![GateRook Overview page showing connection health, AI app connection status, and navigation for managing access and reviewing activity.](docs/images/gaterook-overview.png)
 

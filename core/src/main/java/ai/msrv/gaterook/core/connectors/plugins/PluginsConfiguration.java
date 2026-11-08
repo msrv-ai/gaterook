@@ -41,9 +41,14 @@ class PluginsConfiguration {
   private static final Logger log = LoggerFactory.getLogger(PluginsConfiguration.class);
 
   @Bean
+  PluginRuntime pluginRuntime(ai.msrv.gaterook.core.platform.GatewayPaths paths) {
+    return new PluginRuntime(paths.home());
+  }
+
+  @Bean
   HostRuntimeLocator hostRuntimeLocator(@Value("${gateway.resources:}") String resources,
-      @Value("${gateway.pluginHostJar:}") String pluginHostJar) {
-    HostRuntimeLocator locator = new HostRuntimeLocator(resources, pluginHostJar);
+      @Value("${gateway.pluginHostJar:}") String pluginHostJar, PluginRuntime downloads) {
+    HostRuntimeLocator locator = new HostRuntimeLocator(resources, pluginHostJar, downloads);
     locator.unavailableReason().ifPresent(reason -> log.info("Plugin host runtime: {}", reason));
     return locator;
   }

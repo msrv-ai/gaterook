@@ -6,6 +6,8 @@ const MARKS: Record<string, { readonly kind: string; readonly text: string; read
   codex: { kind: 'codex', text: 'Cx', name: 'Codex' },
   cursor: { kind: 'cursor', text: 'Cu', name: 'Cursor' },
   antigravity: { kind: 'antigravity', text: 'Ag', name: 'Antigravity' },
+  vscode: { kind: 'generic', text: 'VS', name: 'VS Code' },
+  'microsoft-copilot': { kind: 'generic', text: 'Cp', name: 'Microsoft Copilot' },
   'claude-ai': { kind: 'claudeai', text: 'ai', name: 'claude.ai' },
   inspector: { kind: 'inspector', text: 'In', name: 'MCP Inspector' },
 };

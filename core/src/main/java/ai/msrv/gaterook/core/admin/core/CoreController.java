@@ -15,6 +15,7 @@ import ai.msrv.gaterook.core.platform.StartupFacts;
 import ai.msrv.gaterook.core.secrets.MasterKeyService;
 import ai.msrv.gaterook.core.secrets.MasterKeyStatus;
 import ai.msrv.gaterook.core.settings.CoreInfo;
+import ai.msrv.gaterook.core.connectors.Plugins;
 import ai.msrv.gaterook.core.settings.DatabaseBackupJob;
 import ai.msrv.gaterook.core.tunnel.TunnelService;
 import java.time.Clock;
@@ -106,6 +107,7 @@ class CoreController {
   private final AuditWriter audit;
   private final DatabaseBackupJob backups;
   private final CoreInfo coreInfo;
+  private final Plugins plugins;
   private final ApprovalService approvals;
   private final ConnectionService connections;
   private final EndpointService endpoints;
@@ -115,7 +117,7 @@ class CoreController {
   CoreController(Bootstrap bootstrap, LocalListener listener, StartupFacts facts, GatewayDatabase database,
       MasterKeyService masterKey, MasterKeyLock lock, IntegrityAlerts alerts, AuditWriter audit,
       DatabaseBackupJob backups, CoreInfo coreInfo, ApprovalService approvals, ConnectionService connections,
-      EndpointService endpoints, TunnelService tunnel, Clock clock) {
+      EndpointService endpoints, TunnelService tunnel, Clock clock, Plugins plugins) {
     this.bootstrap = bootstrap;
     this.listener = listener;
     this.facts = facts;
@@ -126,6 +128,7 @@ class CoreController {
     this.audit = audit;
     this.backups = backups;
     this.coreInfo = coreInfo;
+    this.plugins = plugins;
     this.approvals = approvals;
     this.connections = connections;
     this.endpoints = endpoints;
@@ -167,7 +170,10 @@ class CoreController {
 
   @GetMapping("/api/core/info")
   CoreInfo.Info info() {
-    return coreInfo.info();
+    Plugins.RuntimeDetails runtime = plugins.runtimeDetails();
+    Plugins.RuntimeStatus status = runtime.status();
+    return coreInfo.info(new CoreInfo.PluginRuntime("bundled".equals(runtime.source()), runtime.home(), status.version(),
+        "ready".equals(status.state()), runtime.source(), status.state(), status.message()));
   }
 
   @GetMapping("/api/nav/counters")

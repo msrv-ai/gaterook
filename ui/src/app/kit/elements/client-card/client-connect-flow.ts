@@ -16,6 +16,7 @@ import {
   authNote,
   browserInstallUrl,
   cursorInstallLink,
+  vsCodeInstallLink,
   changeSummary,
   choiceMeta,
   defaultTokenName,
@@ -137,7 +138,7 @@ export class GwClientConnectFlow {
   protected readonly tokenValid = computed(() => TOKEN_NAME.test(this.tokenName()) && this.tokenName().length <= 40);
   protected readonly expiry = computed(() => expiresOn(this.time.minute(), this.ttlDays()));
   protected readonly configName = computed(() => fileName(this.card().configDisplay));
-  readonly browserOnly = computed(() => this.card().client === 'cursor' && this.method() === 'oauth');
+  readonly browserOnly = computed(() => ['cursor', 'vscode'].includes(this.card().client) && this.method() === 'oauth');
 
   protected readonly files = computed(() =>
     (this.preview()?.files ?? []).map((f) => ({
@@ -169,7 +170,7 @@ export class GwClientConnectFlow {
   protected readonly intro = computed(() => {
     const name = this.card().name;
     if (!this.card().methods.length) return 'Automatic setup is unavailable for this app. Review the warning below.';
-    if (this.browserOnly()) return 'Choose an endpoint, then open Cursor in your browser to add it and sign in.';
+    if (this.browserOnly()) return `Choose an endpoint, then open ${name}'s installation dialog to add it and sign in.`;
     if (!this.showSelect()) {
       // The setup review (kit): the endpoint is named above, so the line says what Connect does.
       if (this.choices().length > 1) return `Found on this computer. Choose how ${name} signs in and check the change. Nothing is written until you click Connect ${name}.`;
@@ -204,7 +205,7 @@ export class GwClientConnectFlow {
   /** "Add to Cursor" carries only the endpoint URL; offered with sign-in through the browser. */
   protected readonly deeplink = computed(() => {
     const endpoint = this.selected();
-    if (this.browserOnly() && endpoint) return cursorInstallLink(endpoint);
+    if (this.browserOnly() && endpoint) return this.card().client === 'vscode' ? vsCodeInstallLink(endpoint) : cursorInstallLink(endpoint);
     return this.method() === 'oauth' ? (this.current()?.link ?? null) : null;
   });
   protected readonly browserLink = computed(() => browserInstallUrl(this.deeplink()));

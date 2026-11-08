@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, output, viewChild } from '@angular/
 import { GwMcpAddDialog, McpReviewed } from './dialogs/mcp-add.dialog';
 import { GwMcpEndpointDialog, McpServerConnected } from './dialogs/mcp-endpoint.dialog';
 import { GwMcpReviewDialog } from './dialogs/mcp-review.dialog';
+import { RegistryResult } from './mcp-registry-results';
 
 export type McpSetupSource = 'manual' | 'registry' | 'url';
 
@@ -25,6 +26,14 @@ export class GwMcpSetupFlow {
 
   open(opener: HTMLElement | null, source: McpSetupSource = 'manual'): void {
     this.add().open(opener, source);
+  }
+
+  openRegistry(opener: HTMLElement | null, registryName: string): void {
+    this.add().open(opener, 'registry', registryName);
+  }
+
+  openRegistryResult(opener: HTMLElement | null, result: RegistryResult): void {
+    this.add().openResult(opener, result);
   }
 
   /** Catalog entries begin at the same review without a manual-entry draft to return to. */

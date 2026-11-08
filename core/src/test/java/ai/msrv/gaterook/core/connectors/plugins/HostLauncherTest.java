@@ -59,6 +59,17 @@ class HostLauncherTest {
   }
 
   @Test
+  void missingOptionalJavaDoesNotPermanentlyDisableTheWindowsOrLinuxSandbox() {
+    HostRuntimeLocator missing = new HostRuntimeLocator(null, hostJar.toString(), null, true);
+    HostLauncher waiting = new HostLauncher(missing, paths, new SecretCallbackRegistry(),
+        new SealedHandles((purpose, data) -> new byte[32], GppJson.MAPPER, Clock.systemUTC()),
+        new AotCacheManager(missing, paths, false), corePorts::get, Clock.systemUTC());
+    // null means unknown: sandboxForStart retries after preparation. false would cache an unsandboxed launch.
+    assertThat((Boolean) org.springframework.test.util.ReflectionTestUtils.invokeMethod(waiting, "probeLowIntegrity")).isNull();
+    assertThat((Boolean) org.springframework.test.util.ReflectionTestUtils.invokeMethod(waiting, "probeLandlock")).isNull();
+  }
+
+  @Test
   void onLinuxTheHostStartsInsideTheFirstStagesLandlockDomain() throws Exception {
     Path jar = Files.createDirectories(paths.versionDir("jira-service-desk", "1.3.0")).resolve("plugin.jar");
     Files.writeString(jar, "plugin");

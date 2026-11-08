@@ -137,7 +137,7 @@ class ClientsIT {
   void theScanFindsTheClientsOfTheSandboxHome() {
     JsonNode page = api.expect(200, HttpMethod.POST, "/api/clients/scan", null);
     assertThat(page.path("clients").findValuesAsString("client")).containsExactly("claude-desktop", "codex", "cursor",
-        "antigravity");
+        "antigravity", "vscode");
     assertThat(card(page, "cursor").path("status").asString()).isEqualTo("detected");
     assertThat(card(page, "cursor").path("configDisplay").asString()).isEqualTo("~/.cursor/mcp.json");
     assertThat(card(page, "codex").path("status").asString()).isEqualTo("detected");

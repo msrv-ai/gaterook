@@ -110,8 +110,9 @@ class PluginsCoreProcessIT {
         "-Dgateway.plugins.catalog-keys=e2e-k6=" + Base64.getUrlEncoder().withoutPadding().encodeToString(raw(key)),
         "-Dgateway.test.catalog.ca=" + ca, "-Dgateway.plugins.aot-cache=false"));
     if (CoreProcess.nativeBinary()) {
-      // A native core has no java.home: the bundle's jre is this test's JDK.
-      Path resources = home.resolve("resources");
+      // A native core has no java.home. Keep the test-only JDK link in the sandbox-readable cache;
+      // a real offline bundle lives outside the gateway home.
+      Path resources = home.resolve("cache/resources");
       Files.createDirectories(resources);
       Files.createSymbolicLink(resources.resolve("jre"), Path.of(System.getProperty("java.home")));
       flags.add("-Dgateway.resources=" + resources);

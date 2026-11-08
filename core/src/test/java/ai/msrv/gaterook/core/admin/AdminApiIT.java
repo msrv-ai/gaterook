@@ -44,7 +44,9 @@ class AdminApiIT {
 
   @BeforeAll
   static void start() {
-    core = TestCore.start("admin-api", "--gateway.backup.catch-up-delay=1h");
+    // Report a complete development plugin runtime, including the host JAR used with this JVM's JDK.
+    core = TestCore.start("admin-api", "--gateway.backup.catch-up-delay=1h", "--gateway.pluginHostJar="
+        + Path.of("..", "plugin-host", "target", "plugin-host.jar").toAbsolutePath());
     api = new AdminMvc(core.context(), core.bean(LocalListener.class).port());
   }
 
@@ -72,6 +74,8 @@ class AdminApiIT {
     assertThat(api.sendUnsigned(HttpMethod.GET, "/api/health", null).status()).isEqualTo(401);
     assertThat(api.sendUnsigned(HttpMethod.POST, "/api/connections", "{}").status()).isEqualTo(401);
     assertThat(api.get("/api/health").status()).isEqualTo(200);
+    assertThat(api.sendUnsigned(HttpMethod.GET, "/api/plugins/runtime", null).status()).isEqualTo(401);
+    assertThat(api.sendUnsigned(HttpMethod.POST, "/api/plugins/runtime/prepare", "{}").status()).isEqualTo(401);
     // Not JSON: refused by the guard before any controller.
     assertThat(api.send(HttpMethod.GET, "/api/nope", null).status()).isEqualTo(404);
   }
@@ -102,6 +106,8 @@ class AdminApiIT {
     assertThat(info.path("logFile").asString()).endsWith("core.log");
     assertThat(info.path("pluginRuntime").path("present").asBoolean()).as("a JVM build lends its JDK").isTrue();
     assertThat(info.path("pluginRuntime").path("bundledJre").asBoolean()).isFalse();
+    assertThat(info.path("pluginRuntime").path("source").asString()).isEqualTo("development");
+    assertThat(api.ok("/api/plugins/runtime").path("state").asString()).isEqualTo("ready");
 
     JsonNode counters = api.ok("/api/nav/counters");
     assertThat(counters.path("pendingApprovals").asLong()).isZero();
@@ -756,7 +762,7 @@ class AdminApiIT {
     assertThat(List.copyOf(all.propertyNames())).containsExactly("general", "appearance", "authorization",
         "approval-rules", "local-api", "audit", "backup");
     assertThat(all.path("general").path("values").path("autoUpdate").asBoolean()).isTrue();
-    assertThat(all.path("general").path("values").path("toastDurationSeconds").asInt()).isEqualTo(15);
+    assertThat(all.path("general").path("values").path("toastDurationSeconds").asInt()).isEqualTo(10);
     assertThat(all.path("authorization").path("values").path("tokenTtlDays").asInt()).isEqualTo(184);
     assertThat(all.path("audit").path("values").path("retentionYears").asInt()).isEqualTo(1);
     assertThat(all.path("backup").path("values").path("keep").asInt()).isEqualTo(7);
@@ -788,8 +794,8 @@ class AdminApiIT {
     }
     JsonNode resetDuration = api.expect(200, HttpMethod.PUT, "/api/settings/general",
         "{\"toastDurationSeconds\":null,\"version\":%d}".formatted(generalVersion));
-    assertThat(resetDuration.path("values").path("toastDurationSeconds").asInt()).isEqualTo(15);
-    assertThat(api.ok("/api/settings/general").path("values").path("toastDurationSeconds").asInt()).isEqualTo(15);
+    assertThat(resetDuration.path("values").path("toastDurationSeconds").asInt()).isEqualTo(10);
+    assertThat(api.ok("/api/settings/general").path("values").path("toastDurationSeconds").asInt()).isEqualTo(10);
     // The audit retention is a signed row from the first start on (V87), not a default read in its place.
     assertThat(all.path("audit").path("version").asLong()).isPositive();
     assertThat(all.path("audit").path("verified").asBoolean()).isTrue();

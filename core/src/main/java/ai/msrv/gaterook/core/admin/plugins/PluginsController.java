@@ -37,7 +37,7 @@ import tools.jackson.databind.JsonNode;
     PluginsController.ToolView.class, PluginsController.InstallRequest.class, PluginsController.CheckRequest.class,
     PluginsController.UpdatePreview.class, PluginsController.Package.class, PluginsController.Diff.class,
     PluginsController.Hunk.class, PluginsController.DiffLine.class, PluginsController.Reason.class,
-    PluginsController.ToRequest.class, PluginsController.Done.class})
+    PluginsController.ToRequest.class, PluginsController.Done.class, Plugins.RuntimeStatus.class})
 class PluginsController {
 
   /** {@code problem}: why the last check failed or why nothing installs from the catalog now, else {@code null}. */
@@ -81,6 +81,12 @@ class PluginsController {
   record Reason(String reason) {}
 
   record Done(boolean ok) {}
+
+  @GetMapping("/api/plugins/runtime")
+  Plugins.RuntimeStatus runtimeStatus() { return plugins.runtimeStatus(); }
+
+  @PostMapping("/api/plugins/runtime/prepare")
+  Plugins.RuntimeStatus prepareRuntime() { return plugins.prepareRuntime(); }
 
   private final Plugins plugins;
   private final ConnectionConfigs connections;

@@ -2,9 +2,9 @@ package ai.msrv.gaterook.core.clients.internal.persistence;
 
 import ai.msrv.gaterook.core.platform.KebabCaseEnumConverter;
 
-/** {@code client_link.client}: the four clients the app connects in one click. */
+/** Known desktop clients; detection does not imply that a client supports MCP integration. */
 public enum ClientKind {
-  CLAUDE_DESKTOP, CODEX, CURSOR, ANTIGRAVITY;
+  CLAUDE_DESKTOP, CODEX, CURSOR, ANTIGRAVITY, VSCODE, MICROSOFT_COPILOT;
 
   /** The id stored in rows and grants ({@code claude-desktop}). */
   public String id() {

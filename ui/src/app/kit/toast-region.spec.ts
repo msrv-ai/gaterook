@@ -41,10 +41,10 @@ describe('toast display duration', () => {
     fixture.detectChanges();
   };
 
-  it('removes a notification after 15 seconds by default', () => {
+  it('removes a notification after 10 seconds by default', () => {
     toasts.show({ title: 'Endpoint dev enabled' });
     fixture.detectChanges();
-    advance(14999);
+    advance(9999);
     expect(fixture.nativeElement.textContent).toContain('Endpoint dev enabled');
     advance(1);
     expect(fixture.nativeElement.querySelector('.gw-toast')).toBeNull();
@@ -97,7 +97,7 @@ describe('toast display duration', () => {
     expect(toasts.toasts()).toHaveLength(1);
     if (first === 'pointer') keyboard('focusout');
     else pointer('mouseleave');
-    advance(9999);
+    advance(4999);
     expect(toasts.toasts()).toHaveLength(1);
     advance(1);
     expect(toasts.toasts()).toEqual([]);
@@ -113,9 +113,9 @@ describe('toast display duration', () => {
     expect(dismiss).not.toHaveBeenCalled();
   });
 
-  it.each([undefined, null, 0, -1, 16, '30', NaN, Infinity])('falls back to 15 seconds for an invalid saved duration: %s', (value) => {
+  it.each([undefined, null, 0, -1, 16, '30', NaN, Infinity])('falls back to 10 seconds for an invalid saved duration: %s', (value) => {
     toasts.setDuration(value);
-    expect(toasts.show({ title: 'Saved' }).timeout).toBe(15000);
+    expect(toasts.show({ title: 'Saved' }).timeout).toBe(10000);
   });
 });
 
@@ -218,7 +218,7 @@ describe('toast feedback during modal decisions', () => {
     advance(5000);
     fixture.componentInstance.first().open();
     fixture.detectChanges();
-    advance(9999);
+    advance(4999);
     expect(toasts.toasts()).toHaveLength(1);
     advance(1);
     expect(toasts.toasts()).toEqual([]);
@@ -238,7 +238,7 @@ describe('toast feedback during modal decisions', () => {
     fixture.componentInstance.first().open();
     fixture.detectChanges();
     // Browsers need not dispatch pointer/focus leave events when the element is hidden.
-    advance(9999);
+    advance(4999);
     expect(toasts.toasts()).toHaveLength(1);
     advance(1);
     expect(toasts.toasts()).toEqual([]);

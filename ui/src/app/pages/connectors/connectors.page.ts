@@ -413,6 +413,14 @@ export class ConnectorsPage {
   // ── MCP servers ───────────────────────────────────────────────────────────────────────────────────────────────
 
   protected onServerAction(a: McpServerAction): void {
+    if (a.type === 'use-registry') {
+      this.mcpSetup().openRegistryResult(a.opener, a.result);
+      return;
+    }
+    if (a.type === 'add-registry') {
+      this.mcpSetup().openRegistry(a.opener, a.registryName);
+      return;
+    }
     if (a.type === 'add' || !a.server) {
       this.mcpSetup().open(a.opener);
       return;

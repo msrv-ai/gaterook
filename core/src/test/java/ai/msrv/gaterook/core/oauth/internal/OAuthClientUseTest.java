@@ -77,6 +77,9 @@ class OAuthClientUseTest {
     }, paused -> {
       assertThat(paused.client()).isEqualTo("cursor");
       assertThat(paused.endpoint()).isEqualTo("disabled");
+    }, production -> {
+      assertThat(production.endpoint()).isEqualTo("prod");
+      assertThat(production.env()).isEqualTo("prod");
     });
   }
 

@@ -41,6 +41,9 @@ export interface CoreInfo {
     readonly home: string;
     readonly version: string | null;
     readonly present: boolean;
+    readonly source?: 'bundled' | 'downloaded' | 'development';
+    readonly state?: 'missing' | 'downloading' | 'ready' | 'error' | 'unsupported';
+    readonly message?: string | null;
   };
 }
 

@@ -8,7 +8,7 @@ import { clockTime } from '../../core/time/time-format';
 import {
   announceParts,
   channelStatus,
-  dailyHint,
+  weeklyHint,
   dbBackedUpToast,
   endpointUrlsAt,
   envRuleRows,
@@ -66,6 +66,10 @@ describe('settings-view: General › Core', () => {
     const dev = { ...info, runtime: 'jvm', vm: 'OpenJDK 25', pluginRuntime: { bundledJre: false, home: '/opt/jdk', version: '25.0.5', present: true } };
     expect(runtimeRows(dev).map((r) => text(r.value))).toEqual(['Java VM, a development build · OpenJDK 25', 'JRE 25 at /opt/jdk']);
     expect(text(runtimeRows({ ...dev, pluginRuntime: { ...dev.pluginRuntime, present: false } })[1].value)).toBe('Not found: Java plugins can’t start');
+    expect(text(runtimeRows({ ...dev, pluginRuntime: { ...dev.pluginRuntime, source: 'downloaded', state: 'ready' } })[1].value))
+      .toBe('Java 25 support, cached for offline use');
+    expect(text(runtimeRows({ ...dev, pluginRuntime: { ...dev.pluginRuntime, present: false, state: 'missing' } })[1].value))
+      .toBe('Downloads on first plugin use');
     expect(runtimeRows(null)).toEqual([]);
   });
 
@@ -321,8 +325,8 @@ describe('settings-view: Audit & retention', () => {
 });
 
 describe('settings-view: Backup', () => {
-  it('the daily hint, the copy’s toast, what the key protects', () => {
-    expect(dailyHint('03:00', 7)).toBe('At 03:00, or at the next start if the computer was off. The last 7 copies are kept.');
+  it('the weekly hint, the copy’s toast, what the key protects', () => {
+    expect(weeklyHint('03:00', 7)).toBe('Every Sunday at 03:00 (local time). At startup, a copy is made if the last backup is at least 7 days old or none exists. The last 7 copies are kept.');
     expect(dbBackedUpToast({ path: '/Users/you/.gaterook/backups/gateway-2026-10-22-1430.db', file: 'gateway-2026-10-22-1430.db', at: '2026-10-22T12:30:00Z', sizeBytes: 1 })).toEqual({
       tone: 'success',
       title: 'Database backed up',

@@ -82,13 +82,11 @@ describe('Overview connection map', () => {
 });
 
 describe('Overview AI app map', () => {
-  it('shows a named manual app with a generic mark and a pending setup path', () => {
-    const manual = app([{ ...link('codex', 'dev', 'dev'), client: 'manual-example', method: 'manual', status: 'pending' }], { client: 'manual-example', name: 'Research assistant', manual: true, status: 'pending', methods: [] });
-    expect(mapApps([manual], dev)?.[0]).toEqual(expect.objectContaining({
-      mark: 'R', tone: 'generic', assigned: true, connected: false, pending: true,
-      state: { tone: 'info', label: 'Awaiting connection' }, action: 'manage', fragment: 'cl-manual-example-t',
-    }));
-    expect(mapApps([manual], endpoint('other'))?.[0]).toEqual(expect.objectContaining({ assigned: false, action: 'manage', actionReason: null }));
+  it('omits undetected apps even when they have saved or manually configured access', () => {
+    const manual = app([{ ...link('codex', 'dev', 'dev'), client: 'manual-example', method: 'manual', status: 'pending' }], { client: 'manual-example', name: 'Research assistant', manual: true, detected: false, status: 'pending', methods: [] });
+    const missing = app([link('codex', 'dev', 'dev')], { detected: false });
+    expect(mapApps([manual, missing], dev)).toEqual([]);
+    expect(mapApps([manual, missing], endpoint('other'))).toEqual([]);
   });
 
   it('never treats global Connected or a similar endpoint slug as access to this endpoint', () => {
@@ -101,9 +99,9 @@ describe('Overview AI app map', () => {
   });
 
   it('counts observed OAuth sign-in without a config file or tool call as connected to its endpoint', () => {
-    const cards = [app([link('codex', 'dev', 'dev', { method: 'oauth', configPath: null, lastCallAt: null })])];
+    const cards = [app([link('vscode', 'dev', 'dev', { method: 'oauth', configPath: null, lastCallAt: null })], { client: 'vscode', name: 'VS Code' })];
     expect(mapApps(cards, dev)?.[0]).toEqual(expect.objectContaining({
-      assigned: true, connected: true, pending: false, state: { tone: 'success', label: 'Connected' }, action: null, fragment: 'cl-cx-t',
+      mark: 'VS', assigned: true, connected: true, pending: false, state: { tone: 'success', label: 'Connected' }, action: null, fragment: 'cl-vs-t',
     }));
     expect(mapApps(cards, endpoint('dev', { status: 'disabled' }))?.[0]).toEqual(expect.objectContaining({
       assigned: true, connected: false, pending: true, state: { tone: 'neutral', label: 'Endpoint off' }, action: 'manage',
@@ -122,12 +120,10 @@ describe('Overview AI app map', () => {
     expect(mapped('revoked')).toEqual(expect.objectContaining({ assigned: false, pending: false, state: { tone: 'neutral', label: 'Not connected' }, action: 'connect' }));
   });
 
-  it('gives install and allowed-method guidance instead of offering unsupported or paused access', () => {
+  it('hides uninstalled apps and explains unsupported or paused access for detected apps', () => {
     const noProdMethod = app([], { methods: [{ id: 'token', label: 'Token', prodAllowed: false, reason: 'Not supported on production' }] });
     expect(mapApps([noProdMethod], endpoint('production', { env: 'prod' }))?.[0].actionReason).toContain('No supported connection method');
     expect(mapApps([app()], endpoint('dev', { status: 'disabled' }))?.[0].actionReason).toContain('Turn on this endpoint');
-    expect(mapApps([app([], { status: 'not-installed' })], dev)?.[0]).toEqual(expect.objectContaining({
-      connected: false, state: { tone: 'neutral', label: 'Not installed' }, action: 'install', actionReason: null,
-    }));
+    expect(mapApps([app([], { status: 'not-installed', detected: false })], dev)).toEqual([]);
   });
 });

@@ -20,6 +20,12 @@ Only names of headers and variables are taken from a paste. The review asks for 
 
 ### Find a server in the MCP registry
 
+The **MCP servers** page includes **Popular for developers**: 20 cards with local logos, categories and short descriptions. The selection balances public repository interest, package downloads and common development workflows; it is a curated selection, not an installation ranking. The cards remain available alongside connected servers, and **Add MCP server** opens an empty form for any other server.
+
+Use **Search MCP Registry** directly on the page to search beyond these picks. Results appear after at least three characters; Enter searches immediately. **Show more** loads the next page, and **Use** opens the add dialog with the selected result filled in. Clearing the search restores the popular cards. Searches use the same configured registry and official-publisher identification as the dialog.
+
+Choose a card to open the add dialog and fill **Manual entry** from that exact server's current entry in the Official MCP Registry. GateRook checks the registry source and exact publisher name before filling the form. An unavailable, deprecated or unsupported entry shows an error with retry and manual-entry options. Nothing connects or starts until you continue through the existing review.
+
 Open the **Official MCP Registry** tab and type at least three characters of a server's name, such as `linear`. GateRook searches the [Official MCP Registry](https://registry.modelcontextprotocol.io), where publishers list their public servers, and shows the latest version of each match. General results load 20 at a time; known official matches are also looked up by their exact names so they can appear on the first page. **Use** fills **Manual entry** as a pasted configuration does and returns to it, where **Review and connect** or **Review and start** continues:
 
 - A server at a URL gets its Streamable HTTP address, else its SSE address, and the names of the headers it needs.

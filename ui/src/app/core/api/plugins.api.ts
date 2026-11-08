@@ -86,9 +86,46 @@ export interface PluginUpdatePreview {
   readonly toolsRemoved: string[];
 }
 
+export interface PluginRuntimeStatus {
+  readonly state: 'missing' | 'downloading' | 'ready' | 'error' | 'unsupported';
+  readonly version: string | null;
+  readonly downloadBytes: number;
+  readonly message: string | null;
+}
+
+export interface RuntimePreparation {
+  readonly progress?: (message: string | null) => void;
+  readonly cancelled?: () => boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class PluginsApi {
   private readonly api = inject(ApiClient);
+
+  runtimeStatus(): Promise<PluginRuntimeStatus> {
+    return this.api.get('/api/plugins/runtime');
+  }
+
+  /** Preparation is explicit and shared by the core; closing a dialog cancels its deferred plugin action. */
+  async ensureRuntime(options: RuntimePreparation = {}): Promise<void> {
+    const checkCancelled = () => {
+      if (options.cancelled?.()) throw new DOMException('Plugin action cancelled', 'AbortError');
+    };
+    checkCancelled();
+    options.progress?.('Checking Java support…');
+    let status = await this.api.post<PluginRuntimeStatus>('/api/plugins/runtime/prepare');
+    const deadline = Date.now() + 16 * 60_000;
+    for (;;) {
+      checkCancelled();
+      options.progress?.(status.message);
+      if (status.state === 'ready') return;
+      if (status.state !== 'downloading') throw new Error(status.message ?? 'Java support is unavailable.');
+      if (Date.now() > deadline) throw new Error('Java support is taking too long. Check the connection and retry.');
+      await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+      checkCancelled();
+      status = await this.runtimeStatus();
+    }
+  }
 
   catalog(): Promise<CatalogIndex> {
     return this.api.get('/api/catalog');

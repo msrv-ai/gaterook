@@ -374,7 +374,7 @@ export class ClientsData {
 
   /** The exact change for a selection; only the newest selection's answer is kept. */
   async preview(card: ClientCard, request: ConnectRequest): Promise<void> {
-    if (card.client === 'cursor' && request.method === 'oauth') {
+    if (['cursor', 'vscode'].includes(card.client) && request.method === 'oauth') {
       this.resetConnect(card.client);
       return;
     }

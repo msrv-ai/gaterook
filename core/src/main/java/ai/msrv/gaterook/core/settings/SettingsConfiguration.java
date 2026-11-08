@@ -19,13 +19,14 @@ class SettingsConfiguration {
 
   /**
    * @param zone          the time zone of 03:00; empty means this computer's (tests pin one)
-   * @param catchUpDelay  how long after the start a missed daily copy is made
+   * @param catchUpDelay  how long after the start a missed weekly copy is made
    */
   @Bean
   DatabaseBackupJob databaseBackupJob(GatewayDatabase database, GatewayPaths paths, SettingsService settings,
       SettingStore store, Clock clock, @Value("${gateway.backup.zone:}") String zone,
       @Value("${gateway.backup.catch-up-delay:1m}") Duration catchUpDelay) {
     return new DatabaseBackupJob(database, paths.backups(),
+        // Keep the persisted toggle name so existing enabled/disabled preferences survive the schedule change.
         () -> settings.value("backup", "daily").asBoolean(true),
         () -> store.find(BACKUP_STATE).map(SettingStore.Setting::value),
         state -> store.put(BACKUP_STATE, state, null), clock,

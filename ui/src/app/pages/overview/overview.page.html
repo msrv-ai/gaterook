@@ -149,8 +149,7 @@
         [activeNode]="activeNode()"
         [trace]="trace()"
       ></svg>
-      <section class="gw-setup-map__network-side gw-overview-services"
-        [class.gw-overview-services--mcp-wide]="mcpWide()" aria-labelledby="ov-services-title">
+      <section class="gw-setup-map__network-side gw-setup-map__network-side--services" aria-labelledby="ov-services-title">
         <header class="gw-stack gw-stack--sm">
           <h3 class="gw-text-overline gw-fg-muted" id="ov-services-title">Services</h3>
           <div class="gw-toolbar">
@@ -208,7 +207,7 @@
           </div>
         }
         <p class="gw-text-caption gw-fg-muted">Connection switches apply to all endpoints.</p>
-        <div class="gw-stack gw-stack--sm gw-overview-native-list">
+        <div class="gw-stack gw-stack--sm gw-setup-map__network-native">
           <ul
             class="gw-setup-map__network-grid"
             id="ov-services"
@@ -231,8 +230,8 @@
                   </button>
                 </div>
               </li>
-            } @else if (!filtered().length) {
-              <li class="gw-card gw-card--dashed">
+            } @else if (!native().length) {
+              <li class="gw-card gw-card--dashed gw-setup-map__network-empty">
                 <div class="gw-card__body gw-stack gw-stack--sm">
                   <p class="gw-text-small">
                     {{
@@ -241,7 +240,7 @@
                         : problemsOnly()
                           ? 'No enabled unreachable connections'
                           : endpoint()
-                            ? 'No services connected to this endpoint'
+                            ? 'No connectors on this endpoint'
                             : 'Create an endpoint to share services'
                     }}
                   </p>
@@ -302,7 +301,7 @@
             </div>
           </header>
           <div class="gw-card__body gw-stack gw-stack--sm">
-            <div class="gw-overview-mcp-grid">
+            <div class="gw-setup-map__network-mcp-grid">
               @for (connection of mcp(); track connection.name) {
                 <ng-container
                   [ngTemplateOutlet]="connectionRow"
@@ -373,7 +372,7 @@
               >GateRook</span
             >
           </h3>
-          <span class="gw-tooltip gw-tooltip--end"
+          <span class="gw-tooltip gw-tooltip--start"
             ><button
               class="gw-btn gw-btn--ghost gw-btn--sm"
               type="button"
@@ -398,16 +397,16 @@
             ></span
           >
           <p class="gw-text-caption gw-fg-secondary">Credentials stay local. Access checked.</p>
-          <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/endpoints" fragment="create">
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="endpointCreate().open($any($event.currentTarget))">
             <svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg>Add endpoint
-          </a>
+          </button>
         </div>
         <fieldset class="gw-setup-map__network-endpoints gw-field">
           <legend class="gw-sr-only">Endpoints</legend>
           <p class="gw-sr-only" id="ov-endpoint-help">
             A separate set of services and permissions for each workflow.
           </p>
-          <div class="gw-setup-map__network-grid gw-overview-endpoint-grid">
+          <div class="gw-setup-map__network-grid">
             @for (ep of data.endpoints() ?? []; track ep.slug; let i = $index) {
               <div class="gw-setup-map__network-endpoint">
                 <label
@@ -501,7 +500,7 @@
           </div>
         </fieldset>
       </section>
-      <section class="gw-setup-map__network-side" aria-labelledby="ov-apps-title">
+      <section class="gw-setup-map__network-side gw-setup-map__network-side--apps" aria-labelledby="ov-apps-title">
         <header class="gw-toolbar">
           <div class="gw-toolbar__start">
             <div class="gw-stack gw-stack--sm">
@@ -521,7 +520,7 @@
             </a>
           </div>
         </header>
-        <ul class="gw-setup-map__network-grid gw-overview-app-grid" aria-label="AI app access">
+        <ul class="gw-setup-map__network-grid" aria-label="AI app access">
           @for (app of apps() ?? []; track app.client) {
             <li
               class="gw-card gw-setup-map__network-app"
@@ -550,15 +549,7 @@
                   ></span
                 >
               </button>
-              @if (app.action === 'install') {
-                <a
-                  class="gw-btn gw-btn--sm"
-                  routerLink="/clients"
-                  [fragment]="app.fragment"
-                  [attr.aria-label]="'Install ' + app.name + ': setup instructions'"
-                  >Install</a
-                >
-              } @else if (app.action === 'connect') {
+              @if (app.action === 'connect') {
                 <a
                   class="gw-btn gw-btn--sm"
                   routerLink="/clients"
@@ -781,11 +772,11 @@
           ></span
         ></span
       ></button>
-    <div class="gw-overview-service-actions">
+    <div class="gw-setup-map__network-actions">
       @if (!c.mcp) {
         <span class="gw-tooltip gw-tooltip--end">
           <a
-            class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-overview-settings"
+            class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-setup-map__network-settings"
             [routerLink]="c.route"
             [attr.aria-label]="'Open settings for ' + c.name"
             [attr.aria-describedby]="'ov-settings-tip-' + c.name"
@@ -847,3 +838,4 @@
 </dialog>
 <gw-overview-setup (added)="added($event)" (mcpRequested)="openMcp($event.opener, $event.source)" />
 <gw-mcp-setup-flow (changed)="data.refresh()" />
+<gw-endpoint-create [connections]="data.connections()" (created)="onEndpointCreated($event)" />

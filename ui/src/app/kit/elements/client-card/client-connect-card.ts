@@ -24,7 +24,7 @@ let nextId = 0;
         } @else {
           <h3 class="gw-card__title" [id]="uid + '-t'">Connect {{ card().name }}</h3>
         }
-        <p class="gw-card__description">@if (browserOnly()) {Opens Cursor in your browser to add the endpoint and sign in.} @else if (bridge()) {Installs the bridge extension in Claude Desktop. Nothing is written to its config, and no token is stored.} @else {Adds one server to <span class="gw-mono">{{ card().configDisplay }}</span>. Nothing else in the file changes, and a backup is kept.}</p>
+        <p class="gw-card__description">@if (browserOnly()) {Opens {{ card().name }}'s installation dialog to add the endpoint and sign in.} @else if (bridge()) {Installs the bridge extension in Claude Desktop. Nothing is written to its config, and no token is stored.} @else {Adds one server to <span class="gw-mono">{{ card().configDisplay }}</span>. Nothing else in the file changes, and a backup is kept.}</p>
       </div>
     </header>
     <div class="gw-card__body">
@@ -56,7 +56,7 @@ export class GwClientConnectCard {
   protected readonly uid = `ccf-${++nextId}`;
   private readonly flow = viewChild<GwClientConnectFlow>('flow');
   protected readonly bridge = computed(() => usesBridgeExtension(this.card()));
-  protected readonly browserOnly = computed(() => this.card().client === 'cursor' && this.flow()?.method() === 'oauth');
+  protected readonly browserOnly = computed(() => ['cursor', 'vscode'].includes(this.card().client) && this.flow()?.method() === 'oauth');
   protected readonly blocked = computed(() => !this.flow()?.request() || (!this.browserOnly() && (!this.preview() || this.loading() || !!this.failure())));
 
   constructor() {

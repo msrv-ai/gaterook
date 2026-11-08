@@ -17,7 +17,7 @@ import { TimeService } from '../../core/time/time.service';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
-import { NOW, ROWS, clientsFound, clientsInUse, devDb, firstRun, overview, row } from './overview.fixtures';
+import { NOW, ROWS, card, clientsFound, clientsInUse, devDb, firstRun, overview, row } from './overview.fixtures';
 import { OverviewPage, SKELETON_DELAY_MS } from './overview.page';
 import { catalogIndex, sentryReview } from '../connectors/connectors.fixtures';
 import { endpoint, kitEndpoints } from '../endpoints/endpoints.fixtures';
@@ -145,6 +145,13 @@ function setupPage(first: () => Promise<Overview> = () => Promise.resolve(overvi
       { provide: ClientsApi, useValue: { list: () => { calls.push('GET /api/clients'); return clientsAnswer(); } } },
       { provide: EndpointsApi, useValue: {
         list: () => { calls.push('GET /api/endpoints'); return endpointsAnswer(); },
+        starts: async () => [],
+        create: async (request: Parameters<EndpointsApi['create']>[0]) => {
+          calls.push(`create endpoint ${request.slug}`);
+          const created = endpoint(request.slug);
+          savedEndpoints.push(created);
+          return created;
+        },
         get: async (slug: string) => endpointDetail({ endpoint: savedEndpoints.find((endpoint) => endpoint.slug === slug) }),
         tools: async () => endpointTools(),
         disable: async (slug: string) => {
@@ -179,7 +186,7 @@ function setupPage(first: () => Promise<Overview> = () => Promise.resolve(overvi
         tools: async () => [],
       } },
       { provide: EventStream, useValue: events },
-      { provide: CoreStore, useValue: { running: signal(true), instanceChanges: signal(0) } },
+      { provide: CoreStore, useValue: { running: signal(true), instanceChanges: signal(0), address: signal('127.0.0.1:7465') } },
     ],
   });
   TestBed.inject(AriaDisabledGuard).install();
@@ -250,21 +257,13 @@ function openReview(el: HTMLElement): HTMLDialogElement | null {
 beforeEach(() => setupPage());
 
 describe('Overview connection map', () => {
-  it.each([
-    { nativeCount: 6, mcpWide: false },
-    { nativeCount: 5, mcpWide: false },
-    { nativeCount: 4, mcpWide: true },
-  ])('allocates the wider services column by total counts, with $nativeCount connections and five MCP services', async ({ nativeCount, mcpWide }) => {
+  it.each([6, 5, 4])('filters and expands %i connections alongside assigned and unassigned MCP services', async (nativeCount) => {
     savedConnections = [
       ...Array.from({ length: nativeCount }, (_, index) => row(`database-${index}`, 'dev', ['dev'])),
       row('stage-database', 'stage', ['stage-readonly']),
       ...Array.from({ length: 5 }, (_, index) => healthyMcp(`docs-mcp-${index}`, index < 2 ? ['dev'] : [])),
     ];
     const { fixture, el } = await render();
-    const columns = el.querySelector<HTMLElement>('.gw-overview-services')!;
-    const isMcpWide = () => columns.classList.contains('gw-overview-services--mcp-wide');
-    expect(columns).not.toBeNull();
-    expect(isMcpWide()).toBe(mcpWide);
     expect(el.querySelectorAll('#ov-services [data-map-service]')).toHaveLength(4);
     expect(el.querySelectorAll('#ov-mcp [data-map-service]')).toHaveLength(2);
     expect(el.querySelector('#ov-mcp button[aria-label="Connect docs-mcp-4 to endpoint dev"]')).not.toBeNull();
@@ -272,18 +271,14 @@ describe('Overview connection map', () => {
     if (nativeCount > 4) {
       await showAll(fixture, el);
       expect(el.querySelectorAll('#ov-services [data-map-service]')).toHaveLength(nativeCount);
-      expect(isMcpWide()).toBe(mcpWide);
     }
     await searchFor(fixture, el, 'docs-mcp-0');
     expect(services(el)).toEqual(['docs-mcp-0']);
-    expect(isMcpWide()).toBe(mcpWide);
     await searchFor(fixture, el, 'database-0');
     expect(services(el)).toEqual(['database-0']);
-    expect(isMcpWide()).toBe(mcpWide);
     await searchFor(fixture, el, '');
     await selectEndpoint(fixture, el, 'stage-readonly');
     expect(services(el)).toEqual(['stage-database']);
-    expect(isMcpWide()).toBe(true);
   });
 
   it('selects an AI app without changing access and clears selection when its endpoint changes', async () => {
@@ -358,7 +353,12 @@ describe('Overview connection map', () => {
     expect(text(details)).toContain('Access through dev');
   });
 
-  it('changes both service membership and AI app access with the selected endpoint', async () => {
+  it('scopes services and detected AI apps to the selected endpoint and refreshes app detection', async () => {
+    const installedApps = await clientsAnswer();
+    clientsAnswer = async () => ({ ...installedApps, clients: [...installedApps.clients, {
+      ...card('vscode', 'VS Code', 'detected'),
+      methods: [{ id: 'oauth', label: 'Browser sign-in', prodAllowed: true, reason: null }],
+    }] });
     const { fixture, el } = await render();
     await showAll(fixture, el);
     expect(services(el)).toContain('dev-db');
@@ -377,8 +377,54 @@ describe('Overview connection map', () => {
     expect(connect.getAttribute('aria-label')).toBe('Connect Codex');
     expect(connect.hasAttribute('aria-disabled')).toBe(false);
     expect(text(app(el, 'claude-desktop'))).toContain('Connected');
-    expect(href(app(el, 'antigravity').querySelector('a'))).toBe('/clients#cl-ag-t');
-    expect(el.querySelector('a[href="/endpoints#create"]')).not.toBeNull();
+    expect(app(el, 'antigravity')).toBeNull();
+    expect(href(app(el, 'vscode').querySelector('a'))).toBe('/clients?endpoint=incident-prod&connect=vscode#cl-vs-t');
+    expect(app(el, 'vscode').querySelector('a')!.hasAttribute('aria-disabled')).toBe(false);
+    expect(findButton(el, 'Add endpoint').getAttribute('aria-haspopup')).toBe('dialog');
+
+    clientsAnswer = async () => ({ ...installedApps, clients: [...installedApps.clients, card('vscode', 'VS Code', 'not-installed')]
+      .map((client) => ({ ...client, detected: false })) });
+    events.emit('clients.drift', { client: 'vscode' });
+    await sleep(1_050);
+    await settle(fixture);
+    expect(el.querySelector('[data-map-app]')).toBeNull();
+    expect(text(el)).toContain('No AI apps found on this computer.');
+  });
+
+  it('creates an endpoint in place on Overview and returns focus after cancelling', async () => {
+    const { fixture, el } = await render();
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate');
+    const url = router.url;
+    const opener = findButton(el, 'Add endpoint');
+    opener.focus();
+    opener.click();
+    await settle(fixture);
+    const dialog = el.querySelector<HTMLDialogElement>('#ep-create')!;
+    const slug = dialog.querySelector<HTMLInputElement>('#ep-create-slug')!;
+    expect(dialog.open).toBe(true);
+    expect(document.activeElement).toBe(slug);
+    expect(text(el.querySelector('h1'))).toBe('Overview');
+    expect(router.url).toBe(url);
+    findButton(dialog, 'Cancel').click();
+    await settle(fixture);
+    expect(dialog.open).toBe(false);
+    expect(document.activeElement).toBe(opener);
+
+    opener.click();
+    await settle(fixture);
+    slug.value = 'new-dev';
+    slug.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle(fixture);
+    findButton(dialog, 'Create endpoint').click();
+    await settle(fixture);
+    expect(calls.filter((call) => call.startsWith('create endpoint'))).toEqual(['create endpoint new-dev']);
+    expect(dialog.open).toBe(false);
+    expect(text(el.querySelector('#ov-services-scope'))).toBe('0 services on new-dev');
+    expect(el.querySelector<HTMLInputElement>('[data-map-endpoint="new-dev"] input')?.checked).toBe(true);
+    expect(text(el.querySelector('h1'))).toBe('Overview');
+    expect(router.url).toBe(url);
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it('starts compact, searches hidden long connection names and service types, and clears the filter', async () => {
@@ -425,7 +471,7 @@ describe('Overview connection map', () => {
     expect(byText(el.querySelector('#ov-services')!, 'a', 'Import with AI')).toBeNull();
     await selectEndpoint(fixture, el, 'incident-prod');
     const empty = el.querySelector('#ov-services')!;
-    expect(text(empty)).toContain('No services connected to this endpoint');
+    expect(text(empty)).toContain('No connectors on this endpoint');
     expect(text(empty)).toContain('analyze a repository and prepare connections for review');
     const importLink = byText<HTMLAnchorElement>(empty, 'a', 'Import with AI')!;
     expect(href(importLink)).toBe('/connection-import?endpoint=incident-prod');
@@ -748,7 +794,7 @@ describe('Overview connection map', () => {
     expect(el.querySelector('ol[aria-label="Request route"]')).toBeNull();
     expect(findButton(el.querySelector('#ov-detail')!, 'Show path').getAttribute('aria-disabled')).toBe('true');
     expect(text(el.querySelector('#ov-trace-reason'))).toContain('Enable this connection');
-    app(el, 'antigravity').querySelector<HTMLButtonElement>('button')!.click();
+    app(el, 'cursor').querySelector<HTMLButtonElement>('button')!.click();
     await settle(fixture);
     expect(el.querySelector('ol[aria-label="Request route"]')).toBeNull();
     expect(text(el.querySelector('#ov-trace-reason'))).toContain('This app is not connected');
@@ -853,7 +899,7 @@ describe('Overview availability', () => {
     const connect = app(el, 'codex').querySelector('a')!;
     expect(href(connect)).toBe('/clients?endpoint=empty&connect=codex#cl-cx-t');
     expect(connect.hasAttribute('aria-disabled')).toBe(false);
-    expect(text(el)).toContain('No services connected to this endpoint');
+    expect(text(el)).toContain('No connectors on this endpoint');
     expect(href(byText(el.querySelector('#ov-services')!, 'a', 'Import with AI'))).toBe('/connection-import?endpoint=empty');
   });
 });

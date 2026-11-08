@@ -1,0 +1,61 @@
+<form role="search" aria-label="MCP Registry" class="gw-stack gw-stack--sm" (submit)="searchNow($event)">
+  <label class="gw-field__label" [for]="uid + '-query'">Search MCP Registry</label>
+  <div class="gw-toolbar">
+    <div class="gw-toolbar__start">
+      <div class="gw-search">
+        <svg lucideIcon="search" class="gw-icon gw-search__icon"></svg>
+        <input class="gw-search__input" type="search" [id]="uid + '-query'" [value]="query()" placeholder="Search servers, e.g. GitHub, Sentry, Postgres" spellcheck="false" autocapitalize="off" autocomplete="off" [attr.aria-describedby]="uid + '-hint'" (input)="find($event)">
+        <button class="gw-search__clear" type="button" aria-label="Clear registry search"><svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg></button>
+      </div>
+    </div>
+    <div class="gw-toolbar__end">
+      <button class="gw-btn" type="submit" [attr.aria-disabled]="query().trim().length < 3 || searching() ? 'true' : null" [attr.aria-busy]="searching() ? 'true' : null">@if (searching()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} Search</button>
+    </div>
+  </div>
+  <p class="gw-field__hint" [id]="uid + '-hint'">Search by server name across the registry. Choose a result to review its connection settings.</p>
+</form>
+<p class="gw-text-small gw-fg-muted gw-tabular" role="status">{{ status() }}</p>
+@if (error(); as message) {
+  <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+    <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content"><p class="gw-alert__title">The registry search didn't work</p><p class="gw-alert__body">{{ message }}</p></div>
+    <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-disabled]="searching() || moreBusy() ? 'true' : null">Try again</button></div>
+  </div>
+}
+@if (results().length) {
+  <ul class="gw-grid gw-grid--auto" aria-label="Registry search results">
+    @for (r of results(); track r.server.name; let i = $index) {
+      <li>
+        <article class="gw-card" [attr.aria-labelledby]="uid + '-title-' + i">
+          <header class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" [id]="uid + '-title-' + i"><span class="gw-truncate" [title]="r.title">{{ r.title }}</span></h3>
+              <p class="gw-card__description gw-truncate gw-mono" [title]="r.server.name">{{ r.server.name }}@if (r.server.version) { · {{ r.server.version }}}</p>
+            </div>
+          </header>
+          <div class="gw-card__body gw-stack gw-stack--sm">
+            @if (r.server.description) {<p class="gw-text-small gw-fg-secondary">{{ r.server.description }}</p>}
+            @if (r.officialPublisher; as publisher) {<p><span class="gw-badge gw-badge--info" [attr.aria-label]="'Official server by ' + publisher.name"><svg lucideIcon="shield-check" class="gw-icon"></svg>Official</span></p>}
+            @if (r.server.status === 'deprecated') {<p><span class="gw-badge gw-badge--warning">Deprecated</span></p>}
+            <p class="gw-text-caption gw-fg-muted gw-mono gw-truncate" [title]="r.target">{{ r.target }}</p>
+            @if (r.use.kind === 'none') {<p class="gw-text-caption gw-fg-muted" [id]="uid + '-reason-' + i">{{ r.use.reason }}</p>}
+          </div>
+          <footer class="gw-card__footer gw-card__footer--split">
+            <span class="gw-badge gw-badge--outline">{{ r.use.kind === 'remote' ? 'HTTP' : r.use.kind === 'package' ? 'stdio' : 'Unsupported' }}</span>
+            <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" [id]="uid + '-use-' + i" (click)="choose(r, $event)" [attr.aria-disabled]="r.use.kind === 'none' ? 'true' : null" [attr.aria-describedby]="r.use.kind === 'none' ? uid + '-reason-' + i : null">Use<span class="gw-sr-only"> {{ r.title }}</span></button>
+          </footer>
+        </article>
+      </li>
+    }
+  </ul>
+  @if (nextCursor()) {
+    <div><button class="gw-btn" type="button" (click)="more()" [attr.aria-disabled]="moreBusy() ? 'true' : null" [attr.aria-busy]="moreBusy() ? 'true' : null">@if (moreBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} Show more</button></div>
+  }
+  <p class="gw-text-caption gw-fg-muted">From {{ registry() === 'registry.modelcontextprotocol.io' ? 'the Official MCP Registry' : 'the MCP registry at ' + registry() }}. Nothing connects or starts before you review it.</p>
+} @else if (searched() !== null && !searching() && !error()) {
+  <div class="gw-empty gw-empty--compact">
+    <span class="gw-empty__icon"><svg lucideIcon="search-x" class="gw-icon"></svg></span>
+    <p class="gw-empty__title">No server name contains “{{ searched() }}”</p>
+    <p class="gw-empty__text">Try a shorter name, or use Add MCP server to enter its configuration.</p>
+  </div>
+}

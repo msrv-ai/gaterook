@@ -101,7 +101,7 @@ export class GwInlineConnectCard {
   private readonly flow = viewChild<GwClientConnectFlow>('flow');
   protected readonly opened = signal(false);
   protected readonly look = computed(() => clientStatusLook(this.failure() ? 'error' : this.card().status));
-  protected readonly browserOnly = computed(() => this.card().client === 'cursor' && this.flow()?.method() === 'oauth');
+  protected readonly browserOnly = computed(() => ['cursor', 'vscode'].includes(this.card().client) && this.flow()?.method() === 'oauth');
   protected readonly via = computed(() => this.browserOnly() ? { text: 'Sign in through the browser', mono: false } : viaText(this.card()));
   protected readonly headingId = computed(() => `${this.anchor() ?? this.uid}-t`);
   protected readonly busy = computed(() => (!this.browserOnly() && this.loading()) || this.connecting());

@@ -403,7 +403,7 @@ describe('shared UI behavior: toasts', () => {
     const undo = toasts.show({ title: 'Disconnected', tone: 'success', actions: [{ label: 'Undo' }] });
     expect(undo.timeout).toBe(0);
     expect(undo.icon).toBe('circle-check');
-    expect(toasts.show({ title: 'x' }).timeout).toBe(15000);
+    expect(toasts.show({ title: 'x' }).timeout).toBe(10000);
     toasts.dismiss(undo.id);
     expect(toasts.toasts().some((t) => t.id === undo.id)).toBe(false);
   });

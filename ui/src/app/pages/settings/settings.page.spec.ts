@@ -684,12 +684,12 @@ describe('Settings page: Authorization', () => {
 });
 
 describe('Settings page: Notifications', () => {
-  it('in-app notifications default to 15 seconds and save independently of delivery channels', async () => {
+  it('in-app notifications default to 10 seconds and save independently of delivery channels', async () => {
     // Existing homes may not have stored the newly introduced preference yet.
     world.sections = () => Promise.resolve(kitSections({ general: { openAtLogin: true } }));
     const el = await render();
     const select = $<HTMLSelectElement>('#st-toast-duration', el)!;
-    expect(select.value).toBe('15');
+    expect(select.value).toBe('10');
     expect(select.getAttribute('aria-disabled')).toBeNull();
     expect(text($('#st-notif-why', el))).toContain('Not available in this build');
 
@@ -727,7 +727,7 @@ describe('Settings page: Notifications', () => {
     expect(reason(select)).toContain('The app settings have not loaded.');
 
     await type(select, '30');
-    expect(select.value).toBe('15');
+    expect(select.value).toBe('10');
     expect(calls).not.toContain('put general');
   });
 
@@ -1039,15 +1039,17 @@ describe('Settings page: Audit & retention', () => {
 });
 
 describe('Settings page: Backup', () => {
-  it('the daily copy applies at once; Back up now names the file; the folder opens only from the desktop app', async () => {
+  it('the weekly copy applies at once; Back up now names the file; the folder opens only from the desktop app', async () => {
     const el = await render();
     const b = $('#settings-backup', el)!;
+    expect(text(b)).toContain('Back up the database every week');
+    expect(text(b)).toContain('Every Sunday at 03:00 (local time).');
     expect(text(b)).toContain('gateway-2026-10-22.db');
     expect(text(b)).toContain('8 secrets stored here · 3 secret references don’t need it');
     expect(text(b)).toContain('Copies of /Users/you/.gaterook/ include master.keyset');
-    await toggle($<HTMLInputElement>('#st-daily-backup', b)!);
+    await toggle($<HTMLInputElement>('#st-weekly-backup', b)!);
     expect(bodies['backup']).toEqual({ daily: false, version: 3 });
-    expect(toasts()).toContain('Saved · Back up the database every day: off.');
+    expect(toasts()).toContain('Saved · Back up the database every week: off.');
     await click(control(b, 'Back up now'));
     expect(toasts()).toContain('Database backed up · Saved as gateway-2026-10-22-1430.db in /Users/you/.gaterook/backups/.');
     expect(control(b, 'Open backup folder').getAttribute('aria-disabled')).toBe('true');

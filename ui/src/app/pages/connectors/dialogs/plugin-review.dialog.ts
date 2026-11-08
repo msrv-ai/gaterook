@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { PluginCheck } from '../../../core/api/plugins.api';
 import { GwDialog, GwDialogClose } from '../../../kit/dialog';
 import { GwEnableWhen } from '../../../kit/enable-when';
@@ -76,6 +76,9 @@ let nextId = 0;
               <span class="gw-checkbox__label" [id]="uid + '-ack-label'">I understand this code is not verified and runs on this computer as my user</span>
             </label>
           }
+          @if (progress()) {
+            <p class="gw-text-caption gw-fg-muted" role="status">{{ progress() }}</p>
+          }
           @if (error()) {
             <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
               <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
@@ -105,6 +108,13 @@ export class GwPluginReviewDialog {
   private readonly check = signal<PluginCheck | null>(null);
   protected readonly facts = signal<PluginFacts | null>(null);
   protected readonly busy = signal(false);
+  protected readonly progress = signal<string | null>(null);
+  private operation = 0;
+
+  constructor() {
+    this.dialog.closed.subscribe(() => { this.operation++; });
+    inject(DestroyRef).onDestroy(() => { this.operation++; });
+  }
   protected readonly error = signal<string | null>(null);
   protected readonly toolsText = computed(() => plural(this.facts()?.toolNames.length ?? 0, 'tool'));
 
@@ -117,6 +127,8 @@ export class GwPluginReviewDialog {
     }
     this.check.set(check);
     this.facts.set(pluginFacts(check, source));
+    this.operation++;
+    this.progress.set(null);
     this.busy.set(false);
     this.error.set(null);
     this.dialog.openAfterRender(opener);
@@ -132,8 +144,12 @@ export class GwPluginReviewDialog {
     if (!f.signed && !ack?.checked) return;
     this.busy.set(true);
     this.error.set(null);
+    const operation = ++this.operation;
+    const cancelled = () => operation !== this.operation || !this.host.open;
+    const preparation = { cancelled, progress: (message: string | null) => { if (!cancelled()) this.progress.set(message); } };
     try {
-      await this.data.installPlugin(check.stagingId, !f.signed);
+      await this.data.installPlugin(check.stagingId, !f.signed, preparation);
+      if (cancelled()) return;
       this.dialog.close('installed');
       const tools = f.toolNames.length;
       this.toasts.show({
@@ -142,9 +158,10 @@ export class GwPluginReviewDialog {
         body: `${tools === 1 ? 'Its tool is' : `Its ${tools} tools are`} Off until you add them to an endpoint. There each starts as Approval.`,
       });
     } catch (e) {
+      if (cancelled()) return;
       this.error.set(failureText(e, 'This build of the gateway core can’t install plugins yet.'));
     } finally {
-      this.busy.set(false);
+      if (operation === this.operation) { this.busy.set(false); this.progress.set(null); }
     }
   }
 }

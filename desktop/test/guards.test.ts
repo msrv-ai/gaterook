@@ -127,6 +127,24 @@ describe('deep links', () => {
 });
 
 describe('links opened outside the app', () => {
+  it('opens only URL-only GateRook installations through the VS Code browser redirect', () => {
+    const config = { name: 'gaterook-dev', type: 'http', url: 'http://127.0.0.1:7465/mcp/dev' };
+    const wrap = (value: unknown) => `https://vscode.dev/redirect?${new URLSearchParams({ url: `vscode:mcp/install?${encodeURIComponent(JSON.stringify(value))}` })}`;
+    assert.equal(allowedExternalUrl(wrap(config)), wrap(config));
+    for (const payload of [null, [], {}, { ...config, command: 'sh' }, { ...config, headers: { Authorization: 'Bearer secret' } },
+      { ...config, type: 'stdio' }, { ...config, name: 'another-server' }, { ...config, name: 'gaterook-other' },
+      { ...config, url: 'https://example.com/mcp/dev' }, { ...config, url: 'http://127.0.0.1:7465/admin' },
+      { ...config, url: 'http://127.0.0.1:99999/mcp/dev' }, { ...config, url: config.url + '?token=secret' }]) {
+      assert.equal(allowedExternalUrl(wrap(payload)), null);
+    }
+    for (const bad of [wrap(config) + '&extra=value', wrap(config) + '#fragment',
+      wrap(config).replace('mcp%2Finstall', 'other%2Fcommand'),
+      'https://vscode.dev/redirect?url=https%3A%2F%2Fexample.com', 'https://vscode.dev/redirect?url=%',
+      'https://vscode.dev/other', 'https://vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%25']) {
+      assert.equal(allowedExternalUrl(bad), null, bad);
+    }
+  });
+
   it('only https on documentation hosts or exact project URLs', () => {
     assert.equal(allowedExternalUrl('https://modelcontextprotocol.io/docs'), 'https://modelcontextprotocol.io/docs');
     assert.equal(allowedExternalUrl('https://msrv.dev'), 'https://msrv.dev/');

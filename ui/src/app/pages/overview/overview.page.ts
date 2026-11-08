@@ -38,6 +38,7 @@ import { MapConnection, endpointUnreachable, mapApps, mapConnections } from './o
 import { GwOverviewSetup } from './overview-setup';
 import { GwOverviewWires, OverviewWireTrace } from './overview-wires';
 import { OverviewRequestPath } from './overview-request-path';
+import { GwEndpointCreate } from '../endpoints/endpoint-create';
 
 export const SKELETON_DELAY_MS = 300;
 
@@ -64,6 +65,7 @@ export const SKELETON_DELAY_MS = 300;
     GwOverviewWires,
     OverviewConnectionTools,
     OverviewRequestPath,
+    GwEndpointCreate,
   ],
   providers: [OverviewData, ConnectorsData],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -84,6 +86,7 @@ export class OverviewPage {
   private readonly mapTitle = viewChild<ElementRef<HTMLElement>>('mapTitle');
   protected readonly setup = viewChild.required(GwOverviewSetup);
   private readonly mcpSetup = viewChild.required(GwMcpSetupFlow);
+  protected readonly endpointCreate = viewChild.required(GwEndpointCreate);
   protected readonly slow = signal(false);
   protected readonly overview = this.data.overview;
   protected readonly loading = computed(() => !this.overview() && !this.data.error());
@@ -137,10 +140,6 @@ export class OverviewPage {
     return this.expanded() || this.query().trim() || this.problemsOnly() ? rows : rows.slice(0, 4);
   });
   protected readonly nativeCount = computed(() => this.assigned().filter((c) => !c.mcp).length);
-  // Keep the column balance stable when search or the compact list hides cards.
-  protected readonly mcpWide = computed(
-    () => (this.connections()?.filter((c) => c.mcp).length ?? 0) > this.nativeCount(),
-  );
   protected readonly mcp = computed(() => this.filtered().filter((c) => c.mcp));
   protected readonly unassignedMcp = computed(() =>
     this.problemsOnly() || this.data.endpoints() === null
@@ -338,6 +337,13 @@ export class OverviewPage {
     this.expanded.set(false);
     this.resetSelection();
     this.announcer.announce(`Showing access through endpoint ${slug}.`);
+  }
+
+  protected onEndpointCreated(endpoint: EndpointSummary): void {
+    this.data.addEndpoint(endpoint);
+    this.query.set('');
+    this.chooseEndpoint(endpoint.slug);
+    void this.data.refresh();
   }
   protected inspectEndpoint(slug: string): void {
     if (this.endpoint()?.slug === slug) this.resetSelection();

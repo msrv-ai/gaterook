@@ -110,9 +110,19 @@ To start over, open **Settings → General → Reset GateRook**, type `RESET`, a
 
 An interrupted reset is retried before the core starts on the next launch. The reset targets GateRook-owned paths in the selected home and its Electron session; unrelated files in a development home are retained. On macOS it deletes only that home's native unlock Keychain item. Shared OS safe-storage entries are retained because other homes may use them.
 
+## VS Code and Microsoft Copilot
+
+GateRook detects the stable VS Code desktop edition from its user data or standard installation locations on Windows, macOS, and Linux. Open **AI apps → VS Code → Connect**, choose an endpoint (DEV, STAGE, or PROD), and continue to VS Code's MCP installation dialog. Install the server in the desired profile, start it, and finish OAuth sign-in in the browser. GitHub Copilot's agent mode can then use that endpoint's tools. Remote VS Code sessions need their own reachable server configuration; the installation link here uses this computer's loopback address.
+
+The [official VS Code installation link](https://code.visualstudio.com/api/extension-guides/ai/mcp) carries only a server name, HTTP transport, and endpoint URL through Microsoft's HTTPS redirect page. GateRook enables OAuth for the selected endpoint; VS Code owns profile selection, configuration edits, and server trust. Existing JSONC files, comments, and other servers remain under VS Code's control. Installation alone does not count as connected: GateRook waits for a completed token exchange. Manage or revoke the resulting access in **Settings → Authorization → Signed in**; remove the server in VS Code separately. Production endpoints use the same local OAuth flow and require explicit desktop consent. The consent names the production environment and endpoint. Publishing a production endpoint through the tunnel remains prohibited.
+
+On Windows, the Microsoft Copilot card detects the consumer Store app's package data directory. This is installation evidence, not proof that the app is running or still registered after an uninstall. [Microsoft's consumer connector documentation](https://support.microsoft.com/en-us/Microsoft-Copilot/connecting-microsoft-copilot-to-other-services) does not document adding arbitrary MCP servers. GateRook therefore offers detection and an explanation, without writing a configuration or issuing access. GitHub Copilot in VS Code, Microsoft 365 Copilot, and Copilot Studio are separate products with different integration mechanisms.
+
 ## Windows Store client integration
 
 The MSIX desktop supports the same reviewed **Connect** flow for shared user-profile files. Claude Desktop uses an endpoint-specific MCPB under `~/.gaterook/clients/claude-desktop`; GateRook opens the bundle and Claude asks the user to install it. Codex uses `~/.codex/config.toml` (or `CODEX_HOME`) with the headers helper. Cursor uses `~/.cursor/mcp.json`, with its browser installation link as an OAuth alternative for non-production endpoints. Creating a bundle or opening an installation dialog does not establish a connection: the client must finish installation and use its access.
+
+VS Code uses its own installation dialog and OAuth flow, so GateRook does not create or edit its AppData configuration from inside the MSIX package.
 
 Default MSIX virtualization redirects new AppData files, while ordinary user-writable locations outside AppData remain shared. The core rejects Claude's configuration-file fallback and any client, runtime, or backup path that resolves into AppData, including redirected folders and symlinks/junctions. It checks again when applying a preview. This behavior does not require disabling virtualization. See [Microsoft's virtualization rules](https://learn.microsoft.com/en-us/windows/msix/desktop/flexible-virtualization) and [Claude Desktop extensions](https://www.anthropic.com/research/desktop-extensions).
 
@@ -124,7 +134,7 @@ For acceptance, use a disposable Windows profile and a real MSIX launch. Inspect
 
 In the desktop app, open **Settings → Backup → Create full backup**. Enter and repeat a unique passphrase of 12–1,024 characters, then save the `.grbackup` file outside the GateRook data folder. Store a copy away from this computer and keep the passphrase separately, for example in a password manager. GateRook cannot recover a forgotten passphrase. Creating the backup briefly stops and restarts the gateway to capture local plugin files; active calls may be interrupted.
 
-The encrypted file includes the database (connections, endpoints, policies, stored secrets, settings and audit history), its portable master key, desktop settings, installed plugin files, plugin data and local connector files. AES-256-GCM encrypts the backup data and manifest and authenticates them together with the format header. Each backup uses scrypt to derive its encryption key from the passphrase, with a fresh random salt and nonce. Full backups have a 256 MiB file limit. Daily database backups remain separate and do not include the master key.
+The encrypted file includes the database (connections, endpoints, policies, stored secrets, settings and audit history), its portable master key, desktop settings, installed plugin files, plugin data and local connector files. AES-256-GCM encrypts the backup data and manifest and authenticates them together with the format header. Each backup uses scrypt to derive its encryption key from the passphrase, with a fresh random salt and nonce. Full backups have a 256 MiB file limit. Weekly database backups remain separate and do not include the master key. They run every Sunday at 03:00 local time and keep the last seven copies. At startup, an enabled backup also runs if no copy exists or the newest copy is at least seven days old. The existing automatic-backup preference is preserved.
 
 Generated runtimes, caches, logs, previous backups, browser sessions and files referenced outside the GateRook data folder are excluded. External secret-store values remain external. Reinstall MCP runtimes and relink external private keys, configuration files and other references on the destination computer as needed. A full backup restores GateRook's local state; it does not copy external databases or services.
 
@@ -196,6 +206,30 @@ npm run smoke -w desktop -- --only real
 
 Linux without a display needs `xvfb-run -a`. Native image and OS-specific sandbox checks have additional requirements.
 
+## Optional components and offline use
+
+The native desktop package downloads Cloudflared when a person turns on a Cloudflare tunnel and Java support when a plugin is first installed or used. App startup, plugin previews and runtime status reads do not download either component. Built-in connectors and the native stdio bridge remain usable without them.
+
+- Cloudflared uses the existing version and SHA-256 pins in `core/src/main/resources/ai/msrv/gaterook/core/tunnel/binaries.json`. It is cached in `<gateway-home>/bin/cloudflared/<version>/`. Tunnel startup runs in the background, displays first-use download progress, and can be cancelled. An offline or failed download leaves the endpoint unavailable publicly; turning the tunnel on again retries it.
+- Plugin Java support uses Azul Zulu OpenJDK JRE 25.0.5.0.3 from immutable HTTPS publisher URLs. The archive size, SHA-256, file hashes, executable bits and symbolic-link targets are pinned in `core/src/main/resources/ai/msrv/gaterook/core/connectors/plugin-runtimes.json`. Support is available for macOS arm64/x64, Windows x64 and Linux x64. Other platforms require an explicit bundled JRE. Downloads are bounded by the pinned size and a 15-minute deadline, verified before installation and committed by an atomic directory move. Interrupted downloads never become executable installations.
+- Java is cached in `<gateway-home>/runtimes/java/<archive-sha256>/`. Cache files are checked against application pins before launching a plugin. No downloaded manifest can add trusted files or URLs. File locks serialize installation across processes sharing a home. Only the runtime directory becomes readable to the plugin sandbox; it does not become writable. Vendor license files and symlinks are retained.
+- Install and Update show download progress before making the plugin change. Closing the review cancels that pending plugin action; shared Java preparation may finish and remain cached. Offline failures stay visible and require an explicit retry. A missing runtime on a plugin call starts preparation and returns an unavailable response; it does not count toward the plugin crash limit. Use **Restart** in Connectors to retry after a download failure.
+
+After successful preparation, these components need no network access to start from the verified cache. Cloudflare Tunnel itself still needs its provider connection, and a plugin may need access to its service. Caches survive application updates and are excluded from portable backups. A restored home, a new computer, a removed or damaged cache, or an application update pinning a new component version needs preparation again. Before going offline, install the required plugins and check that their connections work. JVM development runs continue to use their own JDK.
+
+For an intentional local package with optional support included:
+
+```bash
+scripts/jlink.sh
+node scripts/stage.mjs --jre target/plugin-host-jre --bundle-cloudflared
+```
+
+Default staging (`node scripts/stage.mjs`) omits both payloads. `--skip-cloudflared` remains accepted and overrides `--bundle-cloudflared`. `--jar` retains the local JRE fallback because the JVM core needs it to boot. A native package without a bundled JRE requires the native bridge, so AI client connectivity cannot accidentally depend on a plugin download. The existing macOS `afterPack` hook remains responsible for writable update resources, including an explicitly bundled JRE.
+
+To update Java pins, download the chosen ZIP and package metadata from the [Azul metadata API](https://api.azul.com/metadata/v1/zulu/packages/), review the immutable URL and publisher SHA-256, and run `python3 scripts/pin-plugin-runtime.py <platform> <metadata.json> <archive.zip>`. Keep these downloaded inputs in ignored local output directories. Review the generated pin changes and test the runtime, host protocol, AOT cache and OS sandbox on every supported platform before distributing a new pin. The helper updates build inputs only; it neither publishes nor installs a release.
+
+The admin API exposes `GET /api/plugins/runtime` and `POST /api/plugins/runtime/prepare`. States are `missing`, `downloading`, `ready`, `error` and `unsupported`; only the POST starts or retries preparation. Normal admin authentication applies. The optional real-archive test accepts `-Dgateway.test.runtimeArchive=/absolute/path/to/the/pinned-platform.zip`; it serves that local archive, verifies extraction, launches Java and loads a real plugin in the host sandbox without downloading from the internet. `OptionalComponentsProcessIT` additionally checks the native admin API, a real publisher download and cache reuse after restarting with an unreachable proxy; opt in with `-Dgateway.test.optionalComponents=true -Dgateway.core.binary=/absolute/path/to/gaterook-core`.
+
 ## Update checks and installation identity
 
 On first launch, an installed app creates a cryptographically random 16-character ASCII letter/digit ID in `install-id` inside its Electron application data directory. Updates retain the file. The ID is independent of account information, hardware, gateway settings and credentials. It is not part of gateway backup archives; deleting the application data directory creates a new ID on the next launch. An invalid, unreadable or unwritable identity never blocks opening the app or checking for updates: the check omits the ID and is not counted, while any existing identity file remains untouched.
@@ -217,7 +251,7 @@ npm start -- --core-binary app/target/gaterook-core
 
 Windows outputs use `.exe`. Native runtime libraries must remain next to the executable or in its adjacent `native-libs/` directory. `scripts/aot-check.sh` validates the AOT context without a full native compilation; `scripts/native-smoke.sh` exercises a built native core.
 
-Installer inputs and staging scripts are retained in `desktop/` and `scripts/`. Packaging also requires a plugin-host JRE (`scripts/jlink.sh`), platform binaries, and staged resources. Signing, notarization, release credentials, and publication are separate concerns. Do not treat a successful JVM build as installer validation or run publishing commands as part of local setup.
+Installer inputs and staging scripts are retained in `desktop/` and `scripts/`. Normal native packages include the native core, native bridge, plugin-host JAR and staged UI resources. They omit the optional Java runtime and Cloudflared binaries, even when a local JRE was previously built. Signing, notarization, release credentials, and publication are separate concerns. Do not treat a successful JVM build as installer validation or run publishing commands as part of local setup.
 
 On macOS, the packaging `afterPack` hook writes `Contents/Resources/app-update.yml` from the configured update source before signing, including directory-only builds. Keep this hook when overriding packaging settings: packaging a prebuilt application does not regenerate its update configuration. An installed app missing this file cannot check for updates; install a corrected signed build manually. Adding the file to an already signed application invalidates its resource seal.
 
