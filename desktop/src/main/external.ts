@@ -23,7 +23,7 @@ const DOCUMENTATION_HOSTS: ReadonlySet<string> = new Set([
 ]);
 
 const PROJECT_URLS: ReadonlySet<string> = new Set([
-  'https://msrv.dev/',
+  'https://gaterook.com/',
   'https://www.linkedin.com/in/dobroskok/',
   'https://provenbase.com/',
   'https://apps.microsoft.com/detail/9nht9rb2f4hd',

@@ -11,7 +11,7 @@ For macOS, download the `.dmg` installer from the latest release. Windows instal
 
 Cloudflare Tunnel support and Java support for plugins download on first use. They are verified and cached locally for later use without another download. First use needs internet access; built-in connectors do not need these downloads. See [optional components and offline use](docs/development.md#optional-components-and-offline-use).
 
-[Website](https://msrv.dev) · [Security model](docs/security.md) · [Issues](https://github.com/msrv-ai/gaterook/issues) · [Architecture](docs/ARCHITECTURE.md) · [Research](docs/research/README.md)
+[Website](https://gaterook.com) · [Support](mailto:support@gaterook.com) · [Security model](docs/security.md) · [Issues](https://github.com/msrv-ai/gaterook/issues) · [Architecture](docs/ARCHITECTURE.md) · [Research](docs/research/README.md)
 
 Watch how GateRook connects AI to your infrastructure while keeping you in control.
 

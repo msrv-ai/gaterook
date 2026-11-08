@@ -80,7 +80,7 @@ GateRook speaks the MCP revisions `2026-07-28` and `2025-11-25` back to `2024-11
 
 Select **Sign in** in the review. GateRook opens the server's sign-in page in your default browser and listens on this computer, at `http://localhost:<free port>/callback`, for the browser to come back. After you allow access, the page says you are signed in and GateRook returns to the front. Then select **Connect MCP server**.
 
-The provider's consent page names GateRook. Where the provider accepts client metadata documents (in November 2026, Linear, Notion and Sentry among others), GateRook doesn't register with it. The provider reads the details GateRook publishes at `https://msrv.dev/oauth/gaterook-client.json`: its name, that it has no client secret, and that the browser comes back to this computer. Other servers get a registration that GateRook makes under its own name.
+The provider's consent page names GateRook. Where the provider accepts client metadata documents (in November 2026, Linear, Notion and Sentry among others), GateRook doesn't register with it. The provider reads the details GateRook publishes at `https://gaterook.com/oauth/gaterook-client.json`: its name, that it has no client secret, and that the browser comes back to this computer. Other servers get a registration that GateRook makes under its own name.
 
 The sign-in belongs to GateRook, not to the AI app. GateRook keeps it encrypted as a secret of the server and renews it before it expires. Every call of the server carries it, and no agent, AI app, log or answer receives it. Any of your AI apps can use the server's tools through an endpoint, under the endpoint's modes and approvals.
 

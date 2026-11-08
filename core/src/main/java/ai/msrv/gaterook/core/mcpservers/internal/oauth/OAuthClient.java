@@ -29,7 +29,7 @@ public final class OAuthClient {
    * the client ID where an authorization server accepts one. The authorization server fetches it and finds the name
    * GateRook, a native public client ({@code none}) and {@link #METADATA_DOCUMENT_REDIRECTS}.
    */
-  public static final String METADATA_DOCUMENT = "https://msrv.dev/oauth/gaterook-client.json";
+  public static final String METADATA_DOCUMENT = "https://gaterook.com/oauth/gaterook-client.json";
 
   /**
    * The redirect URIs the document lists: loopback without a port, which authorization servers match with any port
@@ -93,7 +93,7 @@ public final class OAuthClient {
   public static Client register(OAuthHttp http, Discovery.Server server, URI redirectUri) throws OAuthHttp.Failure {
     ObjectNode body = OAuthHttp.JSON.createObjectNode();
     body.put("client_name", CLIENT_NAME);
-    body.put("client_uri", "https://msrv.dev/");
+    body.put("client_uri", "https://gaterook.com/");
     ArrayNode redirects = body.putArray("redirect_uris");
     redirects.add(redirectUri.toString());
     ArrayNode grants = body.putArray("grant_types");
