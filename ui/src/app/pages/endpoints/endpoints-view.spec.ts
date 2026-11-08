@@ -203,9 +203,19 @@ describe('Endpoints view', () => {
     expect(startFromMeta(kitConnections())).toEqual({
       empty: 'Start from scratch',
       'read-only-dev': '6 dev connections available',
+      'read-only-stage': '3 stage connections available',
       'incident-response': '3 prod connections available · stricter prod limits',
     });
     expect(startFromMeta([])['read-only-dev']).toBe('No dev connections available');
+    expect(startFromMeta([])['read-only-stage']).toBe('No stage connections available');
+    expect(startFromMeta(null)['read-only-stage']).toBe('Stage connections');
+    expect(startFromMeta([
+      conn('stage-db', 'stage', 'healthy', 1, []),
+      conn('dev-db', 'dev', 'healthy', 1, []),
+      conn('prod-db', 'prod', 'healthy', 1, []),
+      { ...conn('unverified-stage', 'stage', 'healthy', 1, []), verified: false },
+      { ...conn('stage-mcp', 'stage', 'healthy', 1, []), type: 'mcp-server' },
+    ])['read-only-stage']).toBe('1 stage connection available');
     // A connection changed outside GateRook is skipped by the core.
     expect(startFromMeta([{ ...conn('a', 'dev', 'healthy', 1, []), verified: false }])['read-only-dev']).toBe('No dev connections available');
     expect(startFromMeta(null)['read-only-dev']).toBe('Dev connections');
@@ -224,14 +234,17 @@ describe('Endpoints view', () => {
         tools: { read: 12, approval: 0, off: 9 },
       },
       { startFrom: 'incident-response' as const, env: 'prod' as const, access: 'standard' as const, connections: ['prod-logs', 'prod-replica', 'prod-vm'], tools: { read: 7, approval: 0, off: 3 } },
+      { startFrom: 'read-only-stage' as const, env: 'stage' as const, access: 'read-only' as const, connections: ['stage-db'], tools: { read: 2, approval: 0, off: 1 } },
     ];
     expect(startFromMeta(kitConnections(), starts)).toEqual({
       empty: 'Start from scratch',
       'read-only-dev': '6 dev connections available',
+      'read-only-stage': '1 stage connection available',
       'incident-response': '3 prod connections available · stricter prod limits',
     });
     // The core's count of connections wins over the list's (it skips what it wouldn't wire).
     expect(startFromMeta(null, starts)['read-only-dev']).toBe('6 dev connections available');
+    expect(startFromMeta(null, starts)['read-only-stage']).toBe('1 stage connection available');
     expect(startFromMeta(kitConnections(), [{ ...starts[1], connections: [] }])['read-only-dev']).toBe('No dev connections available');
   });
 

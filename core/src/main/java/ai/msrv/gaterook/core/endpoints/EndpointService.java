@@ -59,10 +59,10 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Endpoints (ARCHITECTURE.md §2.2 {@code endpoints}, §6 endpoints and endpoint-detail): create from Empty, Read-only
- * dev or Incident response; duplicate; disable and enable; settings (access, instructions ≤ 4,000, stricter limits,
- * protocol); dismiss the risk warning; split; delete. The endpoint's env is derived from its connections and prod
- * never mixes. A read-only endpoint keeps every pair that could change data Off. Every change is signed and a Setup
- * change.
+ * dev, Read-only stage or Incident response; duplicate; disable and enable; settings (access, instructions ≤ 4,000,
+ * stricter limits, protocol); dismiss the risk warning; split; delete. The endpoint's env is derived from its
+ * connections and prod never mixes. A read-only endpoint keeps every pair that could change data Off. Every change
+ * is signed and a Setup change.
  */
 @Service
 public class EndpointService {
@@ -91,11 +91,21 @@ public class EndpointService {
   /** How a new endpoint starts (kit "Start from"). */
   public enum StartFrom {
     /** No connections, every tool off. */
-    EMPTY,
+    EMPTY(Env.DEV, EndpointAccess.STANDARD),
     /** Selected dev connections with their read-only tools on; the endpoint is read only. */
-    READ_ONLY_DEV,
+    READ_ONLY_DEV(Env.DEV, EndpointAccess.READ_ONLY),
+    /** Selected stage connections with their read-only tools on; the endpoint is read only. */
+    READ_ONLY_STAGE(Env.STAGE, EndpointAccess.READ_ONLY),
     /** Selected prod connections: reads on, tools that only change data off, runbooks through approval. */
-    INCIDENT_RESPONSE;
+    INCIDENT_RESPONSE(Env.PROD, EndpointAccess.STANDARD);
+
+    private final Env env;
+    private final EndpointAccess access;
+
+    StartFrom(Env env, EndpointAccess access) {
+      this.env = env;
+      this.access = access;
+    }
 
     public static StartFrom of(String id) {
       for (StartFrom s : values()) {
@@ -103,8 +113,8 @@ public class EndpointService {
           return s;
         }
       }
-      throw ProblemException.unprocessable("Unknown start", "Start from empty, read-only-dev or incident-response.",
-          "/startFrom");
+      throw ProblemException.unprocessable("Unknown start",
+          "Start from empty, read-only-dev, read-only-stage or incident-response.", "/startFrom");
     }
   }
 
@@ -239,7 +249,7 @@ public class EndpointService {
       Env initialEnv, String reason) {
     checkSlug(slug);
     checkDescription(description);
-    Env presetEnv = startFrom == StartFrom.INCIDENT_RESPONSE ? Env.PROD : Env.DEV;
+    Env presetEnv = startFrom.env;
     if (initialEnv != null && startFrom != StartFrom.EMPTY && initialEnv != presetEnv) {
       throw ProblemException.unprocessable("Environment does not match preset",
           "This preset uses " + presetEnv.id() + ". Start from empty to choose another environment.", "/env");
@@ -250,7 +260,7 @@ public class EndpointService {
         throw ProblemException.conflict("Slug in use", "An endpoint /mcp/" + slug + " already exists.");
       }
       List<ConnectionConfigs.Stored> selected = selectedStartConnections(startFrom, selectedConnections);
-      EndpointAccess access = startFrom == StartFrom.READ_ONLY_DEV ? EndpointAccess.READ_ONLY : EndpointAccess.STANDARD;
+      EndpointAccess access = startFrom.access;
       EndpointEntity e = new EndpointEntity(slug, env, access, rows.map(defaultSettings()), clock.instant());
       e.setDescription(description);
       e = rows.save(e);
@@ -272,16 +282,16 @@ public class EndpointService {
   }
 
   /**
-   * What a start offers for selection: verified connections whose type is on — dev for Read-only dev, prod for
-   * Incident response, none for Empty. External MCP servers join an endpoint only when the person adds them (the kit's
-   * "6 dev connections" while github-mcp is installed): their tools all start in Approval, which a read-only endpoint
-   * turns off, and an incident endpoint shouldn't call an outside server nobody chose for it.
+   * What a start offers for selection: verified connections whose type is on — dev for Read-only dev, stage for
+   * Read-only stage, prod for Incident response, none for Empty. External MCP servers join an endpoint only when the
+   * person adds them (the kit's "6 dev connections" while github-mcp is installed): their tools all start in Approval,
+   * which a read-only endpoint turns off, and an incident endpoint shouldn't call an outside server nobody chose for it.
    */
   private List<ConnectionConfigs.Stored> startConnections(StartFrom startFrom) {
     if (startFrom == StartFrom.EMPTY) {
       return List.of();
     }
-    Env wanted = startFrom == StartFrom.READ_ONLY_DEV ? Env.DEV : Env.PROD;
+    Env wanted = startFrom.env;
     List<ConnectionConfigs.Stored> out = new ArrayList<>();
     for (ConnectionConfigs.Stored c : connections.all()) {
       Optional<ConnectorType> type = registry.type(c.config().type());
@@ -313,8 +323,7 @@ public class EndpointService {
 
   /** The mode a start gives an offered tool: the type's default, clamped on a read-only endpoint; incidents never write. */
   private static Mode startMode(StartFrom startFrom, ToolPairs.Offered offered, boolean readOnly) {
-    Env wanted = startFrom == StartFrom.INCIDENT_RESPONSE ? Env.PROD : Env.DEV;
-    Mode mode = ToolPairs.initial(offered, wanted, readOnly);
+    Mode mode = ToolPairs.initial(offered, startFrom.env, readOnly);
     return startFrom == StartFrom.INCIDENT_RESPONSE
         && offered.definition().nature() == ToolDefinition.Nature.MUTATION ? Mode.OFF : mode;
   }
@@ -332,8 +341,8 @@ public class EndpointService {
    * explicit subset of these names; new or unselected connections never join implicitly.
    */
   public StartPreview previewStart(StartFrom startFrom) {
-    boolean readOnly = startFrom == StartFrom.READ_ONLY_DEV;
-    Env env = startFrom == StartFrom.INCIDENT_RESPONSE ? Env.PROD : Env.DEV;
+    boolean readOnly = startFrom.access == EndpointAccess.READ_ONLY;
+    Env env = startFrom.env;
     Mode core = startFrom == StartFrom.EMPTY ? Mode.OFF : Mode.READ_ONLY;
     int[] counts = new int[Mode.values().length];
     for (int i = 0; i < ai.msrv.gaterook.core.endpoints.CoreTools.WITH_MODE.size(); i++) {

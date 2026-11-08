@@ -332,6 +332,7 @@ describe('Endpoints page', () => {
       Promise.resolve([
         { startFrom: 'empty', env: 'dev', access: 'standard', connections: [], tools: { read: 0, approval: 0, off: 0 } },
         { startFrom: 'read-only-dev', env: 'dev', access: 'read-only', connections: ['a', 'b', 'c', 'd', 'e', 'f'], tools: { read: 12, approval: 0, off: 9 } },
+        { startFrom: 'read-only-stage', env: 'stage', access: 'read-only', connections: ['stage-db'], tools: { read: 2, approval: 0, off: 1 } },
         { startFrom: 'incident-response', env: 'prod', access: 'standard', connections: ['p', 'q', 'r'], tools: { read: 7, approval: 0, off: 3 } },
       ]);
     setup();
@@ -342,6 +343,7 @@ describe('Endpoints page', () => {
     expect(Array.from(el.querySelectorAll('#ep-create .gw-choice-card__meta')).map(text)).toEqual([
       'Start from scratch',
       '6 dev connections available',
+      '1 stage connection available',
       '3 prod connections available · stricter prod limits',
     ]);
   });
@@ -361,6 +363,7 @@ describe('Endpoints page', () => {
     expect(Array.from(dialog.querySelectorAll('.gw-choice-card__meta')).map(text)).toEqual([
       'Start from scratch',
       '6 dev connections available',
+      '3 stage connections available',
       '3 prod connections available · stricter prod limits',
     ]);
 
@@ -403,9 +406,9 @@ describe('Endpoints page', () => {
     expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/endpoints', 'payments-dev']);
   });
 
-  it.each(['read-only-dev', 'incident-response'] as const)('creates %s without adding its available connections by default', async (preset) => {
+  it.each(['read-only-dev', 'read-only-stage', 'incident-response'] as const)('creates %s without adding its available connections by default', async (preset) => {
     startsAnswer = () => Promise.resolve([
-      { startFrom: preset, env: preset === 'read-only-dev' ? 'dev' : 'prod', access: 'standard', connections: ['database', 'logs'], tools: { read: 4, approval: 1, off: 2 } },
+      { startFrom: preset, env: preset === 'incident-response' ? 'prod' : preset === 'read-only-stage' ? 'stage' : 'dev', access: preset === 'incident-response' ? 'standard' : 'read-only', connections: ['database', 'logs'], tools: { read: 4, approval: 0, off: 2 } },
     ]);
     setup();
     const { fixture, el } = await render();
@@ -420,6 +423,37 @@ describe('Endpoints page', () => {
     click(el, '#ep-create button[type="submit"]');
     await settle(fixture);
     expect(createRequests).toEqual([{ slug: 'fresh-endpoint', description: null, startFrom: preset, connections: [] }]);
+  });
+
+  it('offers the stage preset with its environment and creates it with only the selected stage connection', async () => {
+    startsAnswer = () => Promise.resolve([
+      { startFrom: 'read-only-dev', env: 'dev', access: 'read-only', connections: ['dev-db'], tools: { read: 2, approval: 0, off: 1 } },
+      { startFrom: 'read-only-stage', env: 'stage', access: 'read-only', connections: ['stage-db', 'stage-logs'], tools: { read: 4, approval: 0, off: 2 } },
+      { startFrom: 'incident-response', env: 'prod', access: 'standard', connections: ['prod-db'], tools: { read: 2, approval: 0, off: 1 } },
+    ]);
+    setup();
+    const { fixture, el } = await render();
+    click(el, '#ep-create-open');
+    await settle(fixture);
+    const radio = el.querySelector<HTMLInputElement>('input[name="ep-create-start"][value="read-only-stage"]')!;
+    const title = el.querySelector('#' + radio.getAttribute('aria-labelledby'))!;
+    expect(text(title)).toBe('Read-only stage environment stage');
+    expect(text(title.querySelector('.gw-env--stage'))).toBe('stage');
+    expect(text(el.querySelector('#ep-create-tpl-read-only-stage-d'))).toContain('tools that change data stay off.');
+    click(el, 'input[name="ep-create-start"][value="read-only-dev"]');
+    await settle(fixture);
+    click(el, 'input[name="ep-create-connections"][value="dev-db"]');
+    radio.click();
+    await settle(fixture);
+    expect(Array.from(el.querySelectorAll<HTMLInputElement>('input[name="ep-create-connections"]')).map((choice) => [choice.value, choice.checked]))
+      .toEqual([['stage-db', false], ['stage-logs', false]]);
+    click(el, 'input[name="ep-create-connections"][value="stage-logs"]');
+    type(el.querySelector<HTMLInputElement>('#ep-create-slug')!, 'logs-stage');
+    createAnswer = () => Promise.resolve({ ...kitEndpoints()[1], slug: 'logs-stage' });
+    click(el, '#ep-create button[type="submit"]');
+    await settle(fixture);
+    expect(createRequests).toEqual([{ slug: 'logs-stage', description: null, startFrom: 'read-only-stage', connections: ['stage-logs'] }]);
+    expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/endpoints', 'logs-stage']);
   });
 
   it('adds only checked connections and clears selection when changing presets or reopening Create', async () => {
