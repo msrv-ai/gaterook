@@ -11,7 +11,7 @@
       @if (description(); as d) {
         <p class="gw-page-header__description">@for (part of literalParts(d.text, d.literals); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {{{ part.text }}}}</p>
       } @else if (stageKnown()) {
-        <p class="gw-page-header__description">Connect AI apps to an endpoint in one click. You see the exact change to an app's config before anything is written, and Disconnect takes it back.</p>
+        <p class="gw-page-header__description">Connect supported AI apps to an endpoint. Review the config change or finish setup in the app's installation dialog.</p>
       }
       @if (cards().length) {
         <div class="gw-page-header__meta">
@@ -41,7 +41,7 @@
 <!-- How it works stays collapsed initially; the user's choice is remembered. -->
 @if (st === 'in-use' && stageKnown()) {
 <section gwHowItWorks [level]="2" [expanded]="false" summary="Connect writes one entry into the app's config, with a backup first. The app gets the tools of one endpoint and never a secret." stepsLabel="What one-click Connect does" persist="clients-how-it-works">
-  <li gwHowItWorksStep icon="scan-search" heading="We find the AI app">Claude Desktop, Codex, Cursor and Antigravity are found by the config files they keep on this computer.</li>
+  <li gwHowItWorksStep icon="scan-search" heading="We find the AI app">GateRook finds Claude Desktop, Codex, Cursor, Antigravity and VS Code from their local files. On Windows it also detects Microsoft Copilot and explains its integration limitations.</li>
   <li gwHowItWorksStep icon="file-diff" heading="Show what changes">You see the exact diff of the config file, for example <code class="gw-code">~/.cursor/mcp.json</code>, before anything is written.</li>
   <li gwHowItWorksStep icon="save" heading="Back up, then write">The file is copied next to itself, then one entry is added. Other MCP servers in it stay untouched.</li>
   <li gwHowItWorksStep icon="unplug" heading="Disconnect removes the entry and revokes the token">The file goes back to how it was, and the app's token stops working on its next call.</li>
@@ -112,7 +112,7 @@
       <ul class="gw-stack gw-stack--sm" role="list" aria-label="AI apps on this computer">
         @for (c of listedCards(); track c.client) {
           <li>
-            @if (c.status === 'detected' && !c.links.length) {
+            @if (c.status === 'detected' && !c.links.length && c.methods.length) {
               @let s = data.connectState(c.client);
               <article gwInlineConnectCard collapsible [expanded]="expandedApps().has(c.client)" (expandedChange)="expandApp(c.client, $event)" [id]="clientAnchor(c.client)" [attr.data-client]="c.client" [card]="c" [defaultTtlDays]="data.defaultTokenTtlDays()" [endpoints]="endpoints()" [preview]="s.preview" [loading]="s.loading" [failure]="s.failure" [connecting]="connecting() === c.client" [canOpenConfig]="desktopApp" (previewRequest)="onPreview(c, $event)" (connect)="onConnect(c, $event.previewId, $event.request)" (openConfig)="onOpenConfig(c.client)"></article>
             } @else {
@@ -261,6 +261,8 @@
                   @if (c.status === 'not-installed') {
                     <a class="gw-btn gw-btn--link gw-btn--sm" [href]="installUrl(c)" target="_blank" rel="noopener noreferrer">How to install<span class="gw-sr-only"> {{ c.name }} (opens in your browser)</span><svg lucideIcon="external-link" class="gw-icon gw-icon--sm"></svg></a>
                     <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" [attr.aria-busy]="data.scanning() === c.client ? 'true' : null" [attr.aria-disabled]="data.scanning() ? 'true' : null" (click)="scan(c)">@if (data.scanning() === c.client) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg>}Check again<span class="gw-sr-only"> for {{ c.name }}</span></button>
+                  } @else if (!c.methods.length) {
+                    <span class="gw-text-small gw-fg-secondary">{{ c.warnings[0] ?? 'Integration unavailable' }}</span>
                   } @else if (!canConnect()) {
                     <button class="gw-btn gw-btn--sm" type="button" aria-disabled="true" aria-describedby="cl-first-why"><svg lucideIcon="plug-zap" class="gw-icon gw-icon--sm"></svg>Connect<span class="gw-sr-only"> {{ c.name }}</span></button>
                   } @else {

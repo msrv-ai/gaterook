@@ -1,5 +1,5 @@
 /**
- * Clients module (ARCHITECTURE.md §2.2). ClientAdapter for four clients, JsonEntryEditor, TomlBlockEditor,
+ * Clients module (ARCHITECTURE.md §2.2). Desktop client detection and setup, JsonEntryEditor, TomlBlockEditor,
  * ConfigFileWriter, DiffService, McpbBuilder, BridgeShimInstaller, ClientDriftWatcher, client_link and {@code
  * /internal/bridge/tokens}.
  *

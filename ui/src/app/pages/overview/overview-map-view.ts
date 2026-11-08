@@ -102,9 +102,12 @@ const APP_MARKS: Record<ClientId, { readonly mark: string; readonly tone: string
   codex: { mark: 'Cx', tone: 'codex' },
   cursor: { mark: 'Cu', tone: 'cursor' },
   antigravity: { mark: 'Ag', tone: 'antigravity' },
+  vscode: { mark: 'VS', tone: 'generic' },
+  'microsoft-copilot': { mark: 'Cp', tone: 'generic' },
 };
 
 function connectReason(card: ClientCard, endpoint: EndpointSummary | null): string | null {
+  if (!card.methods.length) return card.warnings[0] ?? 'Integration unavailable for this app.';
   if (!endpoint) return 'Create or select an endpoint first.';
   if (endpoint.blockedReason) return endpoint.blockedReason;
   if (endpoint.status === 'disabled') return 'Turn on this endpoint before connecting an AI app.';

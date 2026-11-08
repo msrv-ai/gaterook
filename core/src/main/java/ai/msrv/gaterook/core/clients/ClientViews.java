@@ -20,7 +20,8 @@ public final class ClientViews {
    *
    * @param status   {@code connected}, {@code detected}, {@code not-installed}, {@code needs-restart},
    *                 {@code pending} for manual setup, or {@code error}
-   * @param configPath the user-level config file (absolute), {@code configDisplay} the same with {@code ~}
+   * @param configPath the managed user-level config file (absolute), or null for client-owned or unavailable setup;
+   *                   {@code configDisplay} is the same path with {@code ~}
    * @param evidence what showed the client on this computer ({@code ~/.codex})
    * @param methods  how the client can be connected; the first available one is the default
    */

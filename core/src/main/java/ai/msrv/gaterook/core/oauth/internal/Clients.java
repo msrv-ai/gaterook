@@ -48,7 +48,8 @@ public class Clients {
 
   /** Exact redirects the local server registers besides loopback ones (report 03 §9.4). */
   static final List<String> LOCAL_REDIRECTS = List.of("https://antigravity.google/oauth-callback",
-      "cursor://anysphere.cursor-mcp/oauth/callback");
+      "cursor://anysphere.cursor-mcp/oauth/callback", "https://vscode.dev/redirect",
+      "https://insiders.vscode.dev/redirect");
 
   /** A client as both servers use it. */
   public record Client(String rowId, String clientId, OAuthClientKind kind, Ingress ingress, String host, String name,

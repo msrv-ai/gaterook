@@ -101,6 +101,33 @@ class BrowserSignInIT {
   }
 
   @Test
+  void vsCodeInstallationCarriesOnlyTheEndpointAndCannotUseManagedConfigRoutes() throws IOException {
+    endpoints.create("vscode-dev", null, EndpointService.StartFrom.EMPTY, null);
+    Path file = core.bean(ClientService.class).environment().userHome().resolve(".config/Code/User/mcp.json");
+    Files.createDirectories(file.getParent());
+    String original = "{ // Keep user comments\n \"servers\": {},\n}\n";
+    Files.writeString(file, original);
+    Map<String, Integer> before = accessRows();
+    JsonNode handoff = api.expect(200, HttpMethod.POST, "/api/clients/vscode/browser-sign-in",
+        "{\"endpoint\":\"vscode-dev\"}");
+    String link = handoff.path("link").asString();
+    assertThat(link).startsWith("vscode:mcp/install?");
+    JsonNode payload = JsonMapper.builder().build().readTree(URLDecoder.decode(
+        link.substring(link.indexOf('?') + 1), StandardCharsets.UTF_8));
+    assertThat(payload.properties()).hasSize(3);
+    assertThat(payload.path("name").asString()).isEqualTo("gaterook-vscode-dev");
+    assertThat(payload.path("type").asString()).isEqualTo("http");
+    assertThat(payload.path("url").asString()).isEqualTo("http://127.0.0.1:" + port + "/mcp/vscode-dev");
+    assertThat(endpoints.snapshot("vscode-dev").oauthEnabled()).isTrue();
+    api.expect(422, HttpMethod.POST, "/api/clients/vscode/connect/preview", "{\"endpoint\":\"vscode-dev\"}");
+    api.expect(422, HttpMethod.POST, "/api/clients/microsoft-copilot/connect/preview", "{\"endpoint\":\"vscode-dev\"}");
+    api.expect(422, HttpMethod.POST, "/api/clients/microsoft-copilot/browser-sign-in", "{\"endpoint\":\"vscode-dev\"}");
+    assertThat(Files.readString(file)).isEqualTo(original);
+    assertThat(accessRows()).isEqualTo(before);
+    assertThat(core.bean(ClientService.class).backups("vscode")).isEmpty();
+  }
+
+  @Test
   void disallowedClientsAndEndpointsCannotEnableBrowserSignIn() {
     endpoints.create("browser-policy", null, EndpointService.StartFrom.EMPTY, null);
     endpoints.create("browser-disabled", null, EndpointService.StartFrom.EMPTY, null);
@@ -119,10 +146,17 @@ class BrowserSignInIT {
     JsonNode prod = api.expect(422, HttpMethod.POST, "/api/clients/cursor/browser-sign-in",
         "{\"endpoint\":\"browser-prod\"}");
     assertThat(prod.path("title").asString()).isEqualTo("Not on a prod endpoint");
+    api.expect(422, HttpMethod.POST, "/api/clients/vscode/browser-sign-in", "{\"endpoint\":\"browser-disabled\"}");
     for (String slug : List.of("browser-policy", "browser-disabled", "browser-prod")) {
       assertThat(endpoints.snapshot(slug).oauthEnabled()).as(slug).isFalse();
     }
     assertThat(accessRows()).isEqualTo(before);
+    api.expect(200, HttpMethod.POST, "/api/clients/vscode/browser-sign-in", "{\"endpoint\":\"browser-prod\"}");
+    assertThat(endpoints.snapshot("browser-prod").oauthEnabled()).isTrue();
+    assertThat(accessRows()).isEqualTo(before);
+    assertThat(core.bean(ClientService.class).clients().clients().stream()
+        .filter(c -> c.client().equals("vscode")).findFirst().orElseThrow().methods())
+        .singleElement().satisfies(m -> assertThat(m.prodAllowed()).isTrue());
   }
 
   private static void assertLink(String link, String slug) {

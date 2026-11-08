@@ -170,6 +170,8 @@ describe('MCP servers sidebar shortcut', () => {
 });
 
 describe('import tasks in the sidebar', () => {
+  const sidebarPreference = 'gw-sidebar-collapsed';
+  let previousSidebarPreference: string | null;
   const startedAt = '2026-11-07T12:00:00Z';
   const task: ConnectionImportTask = {
     id: 'ci_abcdefgh1234', repository: '/workspace/example', endpoint: 'default',
@@ -177,15 +179,25 @@ describe('import tasks in the sidebar', () => {
     progress: { startedAt, updatedAt: startedAt, message: 'Checking repository configuration' },
   };
 
-  beforeEach(() => configure([
-    { path: 'overview', component: Page, data: { section: 'Overview' } },
-    { path: 'connections', component: Page, data: { section: 'Connections' } },
-    { path: 'connection-import/:id', component: Page, data: { section: 'Import connections' } },
-  ]));
+  beforeEach(() => {
+    previousSidebarPreference = localStorage.getItem(sidebarPreference);
+    localStorage.setItem(sidebarPreference, '');
+    configure([
+      { path: 'overview', component: Page, data: { section: 'Overview' } },
+      { path: 'connections', component: Page, data: { section: 'Connections' } },
+      { path: 'connection-import/:id', component: Page, data: { section: 'Import connections' } },
+    ]);
+  });
+
+  afterEach(() => {
+    if (previousSidebarPreference === null) localStorage.removeItem(sidebarPreference);
+    else localStorage.setItem(sidebarPreference, previousSidebarPreference);
+  });
 
   it('restores active imports from the core and links back from other screens and a collapsed sidebar', async () => {
     vi.spyOn(TestBed.inject(TimeService), 'now').mockReturnValue(Date.parse(startedAt));
     const { fixture, http, el } = await runningApp();
+    expect(el.querySelector('.gw-shell')!.hasAttribute('data-collapsed')).toBe(false);
     const router = TestBed.inject(Router);
     await router.navigateByUrl('/overview');
     http.expectOne('/api/connection-imports').flush({ items: [task,
@@ -211,6 +223,7 @@ describe('import tasks in the sidebar', () => {
     expect(links()).toHaveLength(2);
     expect(links()[0].hasAttribute('aria-current')).toBe(false);
     el.querySelector<HTMLButtonElement>('.gw-sidebar__toggle')!.click();
+    expect(el.querySelector('.gw-shell')!.hasAttribute('data-collapsed')).toBe(true);
     links()[0].click();
     await vi.waitFor(() => expect(router.url).toBe('/connection-import/' + task.id));
     expect(links()[0].getAttribute('aria-label')).toBe('Import example, In progress, endpoint default');

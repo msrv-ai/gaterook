@@ -58,8 +58,12 @@ public abstract sealed class ClientAdapter {
   /** Ways this client can be connected; the first is the default. */
   public abstract List<LinkMethod> methods();
 
-  /** The user-level config file the client reads (it may not exist yet). */
+  /** The user-level file GateRook manages, or null when setup belongs to the client. */
   public abstract Path configPath(ClientEnvironment env);
+
+  public boolean available(ClientEnvironment env) { return true; }
+
+  public List<String> setupWarnings() { return List.of(); }
 
   public abstract Detection detect(ClientEnvironment env);
 
@@ -72,7 +76,8 @@ public abstract sealed class ClientAdapter {
   }
 
   public static List<ClientAdapter> all() {
-    return List.of(new ClaudeDesktop(), new Codex(), new Cursor(), new Antigravity());
+    return List.of(new ClaudeDesktop(), new Codex(), new Cursor(), new Antigravity(), new VsCode(),
+        new MicrosoftCopilot());
   }
 
   public static ClientAdapter of(ClientKind kind) {
@@ -109,6 +114,74 @@ public abstract sealed class ClientAdapter {
   static void addIfExists(List<String> evidence, Path p, ClientEnvironment env) {
     if (exists(p)) {
       evidence.add(env.display(p));
+    }
+  }
+
+  /** VS Code owns installation, profile selection and JSONC edits through its MCP installation dialog. */
+  public static final class VsCode extends ClientAdapter {
+    @Override public ClientKind kind() { return ClientKind.VSCODE; }
+    @Override public String displayName() { return "VS Code"; }
+    @Override public List<LinkMethod> methods() { return List.of(LinkMethod.OAUTH); }
+    @Override public Path configPath(ClientEnvironment env) { return null; }
+
+    @Override
+    public Detection detect(ClientEnvironment env) {
+      List<String> evidence = new ArrayList<>();
+      switch (env.os()) {
+        case MAC -> {
+          addIfExists(evidence, env.userHome().resolve("Library/Application Support/Code"), env);
+          addIfExists(evidence, env.userHome().resolve("Applications/Visual Studio Code.app"), env);
+          if (!env.sandboxed()) addIfExists(evidence, Path.of("/Applications/Visual Studio Code.app"), env);
+        }
+        case WINDOWS -> {
+          addIfExists(evidence, env.appData().resolve("Code"), env);
+          addIfExists(evidence, env.localAppData().resolve("Programs/Microsoft VS Code/Code.exe"), env);
+          env.variable("ProgramFiles").ifPresent(p ->
+              addIfExists(evidence, Path.of(p).resolve("Microsoft VS Code/Code.exe"), env));
+        }
+        case LINUX -> {
+          Path config = env.variable("XDG_CONFIG_HOME").map(Path::of).orElse(env.userHome().resolve(".config"));
+          addIfExists(evidence, config.resolve("Code"), env);
+          if (!env.sandboxed()) {
+            addIfExists(evidence, Path.of("/usr/share/code/code"), env);
+            addIfExists(evidence, Path.of("/snap/bin/code"), env);
+          }
+        }
+      }
+      return new Detection(!evidence.isEmpty(), null, List.copyOf(evidence), null);
+    }
+
+    @Override
+    public Entry entry(ClientEnvironment env, LinkMethod method, String name, EntryValues v) {
+      throw new IllegalArgumentException("Use VS Code's MCP installation dialog");
+    }
+  }
+
+  /** Consumer Copilot from Microsoft Store has no documented custom MCP installation flow. */
+  public static final class MicrosoftCopilot extends ClientAdapter {
+    @Override public ClientKind kind() { return ClientKind.MICROSOFT_COPILOT; }
+    @Override public String displayName() { return "Microsoft Copilot"; }
+    @Override public List<LinkMethod> methods() { return List.of(); }
+    @Override public Path configPath(ClientEnvironment env) { return null; }
+    @Override public boolean available(ClientEnvironment env) { return env.os() == Os.WINDOWS; }
+    @Override public List<String> setupWarnings() {
+      return List.of("Microsoft Copilot from the Microsoft Store has no documented way to add a custom MCP "
+          + "server. GateRook can detect it but cannot connect it. For MCP access, use GitHub Copilot in VS Code.");
+    }
+
+    @Override
+    public Detection detect(ClientEnvironment env) {
+      List<String> evidence = new ArrayList<>();
+      if (available(env)) {
+        Path packageData = env.localAppData().resolve("Packages/Microsoft.Copilot_8wekyb3d8bbwe");
+        if (Files.isDirectory(packageData)) evidence.add(env.display(packageData));
+      }
+      return new Detection(!evidence.isEmpty(), null, List.copyOf(evidence), null);
+    }
+
+    @Override
+    public Entry entry(ClientEnvironment env, LinkMethod method, String name, EntryValues v) {
+      throw new IllegalArgumentException("Microsoft Copilot has no supported custom MCP configuration");
     }
   }
 

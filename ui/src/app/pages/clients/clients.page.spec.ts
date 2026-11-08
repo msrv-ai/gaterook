@@ -18,6 +18,7 @@ import { DEMO_GRANTS, DEMO_PUBLISH, DEMO_TUNNEL_OFF } from '../../dev/fixtures-c
 import { Announcer } from '../../kit/announcer';
 import { ClipboardWriter } from '../../kit/clipboard';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
+import { browserInstallUrl, vsCodeInstallLink } from '../../kit/elements/client-card/client-view';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
 import { SKELETON_DELAY_MS, ClientsPage } from './clients.page';
@@ -190,7 +191,7 @@ const $$ = <E extends Element = HTMLElement>(sel: string, root: ParentNode = doc
 /** A control by its words (sr-only parts included, as a screen reader reads it). */
 const control = (root: ParentNode, words: string) => $$<HTMLElement>('button, a', root).find((b) => text(b) === words || text(b).startsWith(words))!;
 /** A client's card by its stable app identity, independent of the compact heading's status text. */
-const clientId: Readonly<Record<string, string>> = { 'Claude Desktop': 'claude-desktop', Codex: 'codex', Cursor: 'cursor', Antigravity: 'antigravity' };
+const clientId: Readonly<Record<string, string>> = { 'Claude Desktop': 'claude-desktop', Codex: 'codex', Cursor: 'cursor', Antigravity: 'antigravity', 'VS Code': 'vscode', 'Microsoft Copilot': 'microsoft-copilot' };
 const card = (name: string) => $(`article[data-client="${clientId[name]}"]`)!;
 const disclosure = (app: ParentNode) => $<HTMLButtonElement>('button.gw-client-card__row[aria-controls]', app)!;
 const details = (app: ParentNode) => document.getElementById(disclosure(app).getAttribute('aria-controls')!)!;
@@ -575,6 +576,42 @@ describe('Clients page: Connect inline', () => {
     expect(copy.hasAttribute('data-copied')).toBe(true);
     await click(control(cursor, 'Open in browser'));
     expect(calls).toEqual(['browser-sign-in cursor dev', 'open https://cursor.com/install-mcp?name=gaterook-dev&config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9']);
+  });
+
+  it.each(['dev', 'incident-prod'])('connects VS Code to %s through its installation dialog without a config write', async (endpoint) => {
+    const card: ClientCard = { ...kitClients().clients[2], client: 'vscode', name: 'VS Code', status: 'detected',
+      detected: true, links: [], configPath: null, configDisplay: null,
+      methods: [{ id: 'oauth', label: 'Sign in through the browser', prodAllowed: true, reason: null }] };
+    world.list = async () => ({ scannedAt: null, clients: [card] });
+    await render();
+    const vscode = await expandCard('VS Code');
+    await choose($<HTMLSelectElement>('select', vscode)!, endpoint);
+    const link = vsCodeInstallLink({ slug: endpoint, url: `http://127.0.0.1:7465/mcp/${endpoint}` });
+    const prepare = vi.spyOn(TestBed.inject(ClientsApi), 'browserSignIn').mockResolvedValue({ link });
+    const connect = vi.spyOn(TestBed.inject(ClientsApi), 'connect');
+    expect(calls.some((c) => c.startsWith('preview vscode'))).toBe(false);
+    expect(control(vscode, 'Open config')).toBeUndefined();
+    await click(control(vscode, 'Connect VS Code'));
+    expect(prepare).toHaveBeenCalledExactlyOnceWith('vscode', endpoint);
+    expect(calls).toContain(`open ${browserInstallUrl(link)}`);
+    expect(connect).not.toHaveBeenCalled();
+    expect(toasts().at(-1)?.title).toBe('Continue in VS Code');
+  });
+
+  it('shows the Store Copilot limitation without offering a working Connect action', async () => {
+    const warning = 'Microsoft Copilot cannot connect to custom MCP servers. Use GitHub Copilot in VS Code.';
+    const card: ClientCard = { ...kitClients().clients[2], client: 'microsoft-copilot', name: 'Microsoft Copilot',
+      status: 'detected', detected: true, links: [], configPath: null, configDisplay: null, methods: [], warnings: [warning] };
+    world.list = async () => ({ scannedAt: null, clients: [card] });
+    await render();
+    const copilot = await expandCard('Microsoft Copilot');
+    expect(text(copilot)).toContain(warning);
+    const connect = control(copilot, 'Connect Microsoft Copilot');
+    expect(connect.getAttribute('aria-disabled')).toBe('true');
+    calls = [];
+    await click(connect);
+    expect(calls).toEqual([]);
+    expect(control(copilot, 'Open config')).toBeUndefined();
   });
 
   it('opens the browser after OAuth preparation and never writes client config', async () => {

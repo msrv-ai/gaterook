@@ -1,6 +1,8 @@
-# GateRook desktop architecture
+# GateRook MCP Firewall architecture
 
-GateRook runs an Angular renderer inside Electron and a separate Java/Spring Boot core on loopback. The core owns credentials, policy, approvals, execution, and audit. A development build runs the core on JVM 25; the native-image build uses the same source. Dynamic Java extensions run in isolated JVM plugin hosts.
+GateRook is a desktop MCP Firewall that controls AI access to connected infrastructure. It runs an Angular renderer inside Electron and a separate Java/Spring Boot core on loopback. The core owns encrypted credentials, policy enforcement, exact-action approvals, execution, and tamper-evident audit. A development build runs the core on JVM 25; the native-image build uses the same source. Dynamic Java extensions run in isolated JVM plugin hosts.
+
+The [security model](security.md) explains these controls and their production boundaries. MCP Firewall describes the application-level enforcement on calls routed through GateRook; it does not imply an OS-wide network firewall or protection of alternate access paths. Existing gateway identifiers remain compatibility contracts.
 
 This document describes the imported application and its architectural contracts. [Product decisions](DECISIONS.md) take precedence over exploratory [research](research/README.md). Research findings retain their original evidence dates and unresolved questions; they are not fresh compatibility certifications. Runtime contracts live in the source, schemas, migrations, and tests linked below. Implementation progress logs are intentionally excluded.
 
@@ -310,6 +312,8 @@ Every bridge token request reports the bridge's version, and the grant keeps the
 New named tokens default to 184 days, covering at least six calendar months. Settings → Authorization can select a shorter default, and issuance accepts an explicit lifetime from 1 to 184 days. Existing saved defaults and issued expiry dates are preserved. Bridge credentials remain automatic, 15-minute credentials bound to the running core; their renewal does not ask the user to sign in.
 
 An active local OAuth sign-in becomes connection evidence after token exchange, before any tool call. Cursor's browser Connect enables OAuth for the endpoint and opens its URL-only installer link; Cursor owns the config change, and GateRook creates no managed config entry. The client views match the sign-in to the registered app and endpoint, including browser installations made outside GateRook's config editor. These observed connections link to OAuth sign-in management; they do not imply ownership of a config file or expose the managed-entry Disconnect action. Grant changes refresh client status on the AI apps, endpoint, and Overview screens. Last call remains an audited tool call, separate from sign-in activity.
+
+VS Code uses the same observed OAuth lifecycle with its official MCP installation link. Its adapter has no managed configuration path: VS Code selects the profile and edits its own JSONC. The desktop only opens the official HTTPS redirect wrapping a URL-only GateRook loopback HTTP configuration; commands, headers, arbitrary destinations, and other VS Code handlers are rejected. Local dynamic registration accepts VS Code's exact hosted callbacks in addition to loopback callbacks. VS Code installation is offered for all environments, including production. Local OAuth authorizes production access only when OAuth is enabled on that endpoint and the person allows the specific sign-in in the desktop. Client names classify cards, not authorization: the endpoint, ingress, resource, PKCE and consent are the access boundary. Production remains prohibited on tunnel authorization and resource access. The Windows consumer Microsoft Copilot adapter detects package data but offers no connection methods, because no custom MCP setup is documented for that app.
 
 ### 7.3 Tunnel and OAuth
 

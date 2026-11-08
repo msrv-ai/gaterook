@@ -22,7 +22,7 @@
   <version>${revision}</version>
   <packaging>pom</packaging>
   <name>GateRook</name>
-  <description>Desktop gateway through which AI agents use infrastructure via MCP without seeing secrets.</description>
+  <description>Desktop MCP Firewall for AI access to production infrastructure with encrypted credentials, exact-action approvals, and tamper-evident audit logs.</description>
 
   <modules>
     <module>connector-api</module>
@@ -53,7 +53,7 @@
 
   <properties>
     <!-- Application version: change this value for the next release. -->
-    <revision>0.6.0</revision>
+    <revision>0.8.1</revision>
     <java.version>25</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 

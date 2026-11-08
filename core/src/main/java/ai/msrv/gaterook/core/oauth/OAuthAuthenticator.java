@@ -1,6 +1,5 @@
 package ai.msrv.gaterook.core.oauth;
 
-import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshotService;
 import ai.msrv.gaterook.core.oauth.internal.Issuers;
 import ai.msrv.gaterook.core.oauth.internal.OAuthServer;
@@ -63,7 +62,7 @@ public class OAuthAuthenticator implements Authenticator, PrincipalStatus {
       metadata = p.get().origin() + "/.well-known/oauth-protected-resource/mcp/" + endpointSlug;
     } else if (ingress == Ingress.LOCAL) {
       boolean signsIn = snapshots.bySlug(endpointSlug).filter(e -> e.oauthEnabled() && e.enabled()
-          && e.env() != Env.PROD).isPresent();
+          && !e.blocked()).isPresent();
       if (!signsIn) {
         return Optional.empty();
       }

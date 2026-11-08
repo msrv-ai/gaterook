@@ -201,6 +201,7 @@ public class ClientService {
     Map<String, EndpointService.Summary> byId = endpointsById();
     List<Card> out = new ArrayList<>();
     for (ClientAdapter a : ClientAdapter.all()) {
+      if (!a.available(env)) continue;
       Detection d;
       synchronized (this) {
         d = detections.get(a.kind());
@@ -236,7 +237,7 @@ public class ClientService {
       status = "not-installed";
       text = "Not installed";
     }
-    List<String> warnings = new ArrayList<>();
+    List<String> warnings = new ArrayList<>(a.setupWarnings());
     if (a.kind() == ClientKind.CODEX && Codex.tooOld(d.version())) {
       warnings.add("Update Codex: versions before " + Codex.HELPER_SINCE + " ignore http_headers_helper and connect "
           + "without a token.");
@@ -245,15 +246,19 @@ public class ClientService {
     for (LinkMethod m : a.methods()) {
       try {
         storePolicy.method(a.kind(), m);
-        storePolicy.runtime();
-        storePolicy.path(m == LinkMethod.MCPB ? env.mcpbDirectory() : d.configPath());
+        if (d.configPath() != null) {
+          storePolicy.runtime();
+          storePolicy.path(m == LinkMethod.MCPB ? env.mcpbDirectory() : d.configPath());
+        }
         methods.add(method(a.kind(), m));
       } catch (ProblemException ex) {
         if (!warnings.contains(ex.getMessage())) warnings.add(ex.getMessage());
       }
     }
-    return new Card(a.kind().id(), a.displayName(), status, text, d.configPath().toString(),
-        env.display(d.configPath()), d.installed(), d.evidence(), d.version(), List.copyOf(warnings), methods, mine);
+    return new Card(a.kind().id(), a.displayName(), status, text,
+        d.configPath() == null ? null : d.configPath().toString(),
+        d.configPath() == null ? null : env.display(d.configPath()), d.installed(), d.evidence(), d.version(),
+        List.copyOf(warnings), methods, mine);
   }
 
   private static Method method(ClientKind client, LinkMethod m) {
@@ -264,8 +269,8 @@ public class ClientService {
       case HELPER -> new Method("helper", "gw-bridge headers (http_headers_helper)", true, null);
       case TOKEN -> new Method("token", "Token in the file", false, "Use the bridge or sign-in for prod: a token in "
           + "a file outlives the incident.");
-      case OAUTH -> new Method("oauth", "Sign in through the browser", false, "Sign-in through the browser isn't "
-          + "offered for prod endpoints.");
+      case OAUTH -> new Method("oauth", "Sign in through the browser", client == ClientKind.VSCODE,
+          client == ClientKind.VSCODE ? null : "Sign-in through the browser isn't offered for prod endpoints.");
     };
   }
 
@@ -276,6 +281,8 @@ public class ClientService {
       case CODEX -> "Restart Codex: Settings › MCP servers › Restart";
       case CURSOR -> "Turn the server on in Cursor: Settings › MCP";
       case ANTIGRAVITY -> "Refresh in Antigravity: Installed MCP Servers";
+      case VSCODE -> "Install the server in VS Code, start it and complete browser sign-in";
+      case MICROSOFT_COPILOT -> "Custom MCP connections are unavailable in Microsoft Copilot";
     };
   }
 
@@ -388,15 +395,15 @@ public class ClientService {
 
   // ── Connect ─────────────────────────────────────────────────────────────────────────────────────────────────
 
-  /** Enables the endpoint's OAuth sign-in and hands installation to Cursor without reading or editing its config. */
+  /** Enables OAuth and hands installation to the client without reading or editing its config. */
   public ClientViews.BrowserSignIn browserSignIn(String clientId, String slug) {
     ClientKind client = client(clientId);
-    if (client != ClientKind.CURSOR) {
-      throw ProblemException.unprocessable("Browser installation is not offered", "Only Cursor supports this "
+    if (client != ClientKind.CURSOR && client != ClientKind.VSCODE) {
+      throw ProblemException.unprocessable("Browser installation is not offered", "Only Cursor and VS Code support this "
           + "browser installation link.", "/client");
     }
     if (slug == null || slug.isBlank()) {
-      throw ProblemException.unprocessable("Choose an endpoint", "Pick the endpoint Cursor gets.", "/endpoint");
+      throw ProblemException.unprocessable("Choose an endpoint", "Pick the endpoint the app gets.", "/endpoint");
     }
     return writeTx.execute(tx -> {
       EndpointSnapshot e = endpoints.snapshot(slug);
@@ -407,16 +414,22 @@ public class ClientService {
         throw ProblemException.unprocessable("Endpoint is disabled", "Enable endpoint " + slug + " before "
             + "starting browser sign-in.", "/endpoint");
       }
-      if (e.env() == Env.PROD) {
+      if (e.env() == Env.PROD && client != ClientKind.VSCODE) {
         throw ProblemException.unprocessable("Not on a prod endpoint", "Sign-in through the browser isn't offered "
             + "for prod endpoints: use the bridge.", "/endpoint");
       }
       if (!e.oauthEnabled()) {
         endpoints.updateSettings(slug, new EndpointService.SettingsUpdate(null, null, null, null, null, null, true),
-            e.version(), "Sign-in through the browser for Cursor");
+            e.version(), "Sign-in through the browser for " + ClientAdapter.of(client).displayName());
       }
-      return new ClientViews.BrowserSignIn(addToCursorLink("gaterook-" + e.slug(), listener.origin() + "/mcp/"
-          + e.slug()));
+      String name = "gaterook-" + e.slug();
+      String url = listener.origin() + "/mcp/" + e.slug();
+      if (client == ClientKind.VSCODE) {
+        ObjectNode config = JSON.createObjectNode().put("name", name).put("type", "http").put("url", url);
+        return new ClientViews.BrowserSignIn("vscode:mcp/install?" + URLEncoder.encode(config.toString(),
+            StandardCharsets.UTF_8).replace("+", "%20"));
+      }
+      return new ClientViews.BrowserSignIn(addToCursorLink(name, url));
     });
   }
 
@@ -424,6 +437,7 @@ public class ClientService {
   public Preview previewConnect(String clientId, ConnectRequest r) {
     ClientKind client = client(clientId);
     ClientAdapter a = ClientAdapter.of(client);
+    requireManagedConfig(a);
     if (r == null || r.endpoint() == null) {
       throw ProblemException.unprocessable("Choose an endpoint", "Pick the endpoint " + a.displayName() + " gets.",
           "/endpoint");
@@ -1135,6 +1149,7 @@ public class ClientService {
   /** {@code POST /api/clients/{client}/restore/preview {backupId}}: the current file → the copy. */
   public Preview previewRestore(String clientId, String backupId) {
     ClientKind client = client(clientId);
+    requireManagedConfig(ClientAdapter.of(client));
     storePolicy.method(client, LinkMethod.CONFIG_BRIDGE);
     storePolicy.runtime();
     storePolicy.path(ClientAdapter.of(client).configPath(env));
@@ -1204,7 +1219,7 @@ public class ClientService {
   public void purgeBackupsHolding(ClientKind client, String tokenId) {
     List<Path> candidates = new ArrayList<>(writer.backups(client.id()));
     Path config = ClientAdapter.of(client).configPath(env);
-    Path dir = config.toAbsolutePath().getParent();
+    Path dir = config == null ? null : config.toAbsolutePath().getParent();
     if (dir != null && Files.isDirectory(dir)) {
       try (Stream<Path> s = Files.list(dir)) {
         s.filter(p -> p.getFileName().toString().startsWith(config.getFileName() + ".bak-")).forEach(candidates::add);
@@ -1802,7 +1817,7 @@ public class ClientService {
       }
     }
     for (ClientAdapter a : ClientAdapter.all()) {
-      out.add(a.configPath(env));
+      if (a.configPath(env) != null) out.add(a.configPath(env));
     }
     return out;
   }
@@ -1814,11 +1829,24 @@ public class ClientService {
   Map<String, Boolean> configsPresent() {
     Map<String, Boolean> out = new LinkedHashMap<>();
     for (ClientAdapter a : ClientAdapter.all()) {
+      if (!a.available(env)) continue;
       Path config = a.configPath(env);
+      if (config == null) {
+        out.put(a.kind().id(), a.detect(env).installed());
+        continue;
+      }
       Path folder = config.toAbsolutePath().getParent();
       out.put(a.kind().id(), Files.exists(config) || folder != null && Files.isDirectory(folder));
     }
     return out;
+  }
+
+  private void requireManagedConfig(ClientAdapter adapter) {
+    if (adapter.configPath(env) == null) {
+      throw ProblemException.unprocessable("Configuration is not managed by GateRook",
+          adapter.kind() == ClientKind.VSCODE ? "Use VS Code's installation dialog and browser sign-in."
+              : "Microsoft Copilot does not offer custom MCP setup.", "/client");
+    }
   }
 
   /** Kebab case of an enum ({@code CONFIG_BRIDGE} → {@code config-bridge}). */

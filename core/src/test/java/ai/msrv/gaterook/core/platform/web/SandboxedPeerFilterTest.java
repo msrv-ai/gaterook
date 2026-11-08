@@ -3,6 +3,7 @@ package ai.msrv.gaterook.core.platform.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ai.msrv.gaterook.core.platform.NativeOs;
+import ai.msrv.gaterook.testfixtures.WindowsKernel;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -75,6 +76,7 @@ class SandboxedPeerFilterTest {
   @Test
   @EnabledOnOs(OS.WINDOWS)
   void onWindowsAConnectionFromThisProcessIsFoundAtMediumIntegrity() throws Exception {
+    WindowsKernel.require("loopback ownership and medium token integrity (Wine exposes IPv4-mapped IPv6 sockets and high integrity)");
     try (ServerSocket server = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"));
         Socket client = new Socket(InetAddress.getByName("127.0.0.1"), server.getLocalPort());
         Socket accepted = server.accept()) {

@@ -273,6 +273,26 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>default</id>
+            <configuration>
+              <excludedGroups>${it.excludedGroups},isolated-secret-fingerprints</excludedGroups>
+            </configuration>
+          </execution>
+          <!-- Deliberately learning protocol words must not affect another test's process-lifetime fingerprints. -->
+          <execution>
+            <id>isolated-secret-fingerprints</id>
+            <goals><goal>integration-test</goal><goal>verify</goal></goals>
+            <configuration>
+              <includes><include>**/EndpointShareIT.java</include></includes>
+              <groups>isolated-secret-fingerprints</groups>
+              <reuseForks>false</reuseForks>
+              <reportsDirectory>${project.build.directory}/failsafe-reports/isolated-secret-fingerprints</reportsDirectory>
+              <summaryFile>${project.build.directory}/failsafe-reports/isolated-secret-fingerprints/failsafe-summary.xml</summaryFile>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

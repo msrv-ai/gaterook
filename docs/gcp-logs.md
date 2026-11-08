@@ -1,4 +1,6 @@
-# GCP logs
+# Control AI access to GCP logs
+
+Use GateRook's MCP Firewall to give AI clients bounded access to the Google Cloud logs they need for investigation. Select the projects or log views, enable tools per endpoint, and apply query, output, and masking limits before results reach the client. Calls use GateRook's shared [execution controls and audit protection](security.md).
 
 The GCP Cloud Logging connector exposes `gcp_logging_search` and `gcp_logging_tail`. Both tools read Cloud Logging through the connection's Google credentials and selected projects or log views. They accept the native Logging query language used in Logs Explorer, including multiline filters and `--` comments outside quoted values.
 
@@ -31,7 +33,7 @@ Call `gcp_logging_search` with these arguments. Replace the namespace and contai
 
 Results contain timestamps, severity, messages, labels, and available structured payloads, newest first. To read older entries, repeat the same query and source with the returned `nextCursor` as `cursor`. `source` must be one of the configured resource scopes; omit it to search all configured scopes. `describe_connection` reports the available sources, query language, and an example filter.
 
-## Limits and narrower access
+## Restrict log scope and returned data
 
 Log queries have no maximum time range by default. In **Policies → Logs**, set **Longest time range** to a positive number of hours to limit the query period, or use `0` for no limit. Explicit endpoint and tool limits can further narrow that period. Pagination keeps the original query window and checks it against the current limits. Line, response-size, timeout, and masking limits still apply. The dedicated connector's `scopeFilter` further restricts entries within the selected projects or log views.
 

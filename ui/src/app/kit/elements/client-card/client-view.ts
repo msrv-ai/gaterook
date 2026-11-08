@@ -64,7 +64,9 @@ export function observedSignIn(link: ClientLink): boolean {
 /** The card's subtitle (`__via`): "Bridge extension (.mcpb) · 2 endpoints, one of them prod", or the config path. */
 export function viaText(card: ClientCard): { readonly text: string; readonly mono: boolean } {
   if (card.manual) return { text: 'Configured manually', mono: false };
+  if (card.client === 'microsoft-copilot') return { text: 'Microsoft Store app · custom MCP setup unavailable', mono: false };
   if (card.links.length && card.links.every(observedSignIn)) return { text: 'Signed in through the browser', mono: false };
+  if (card.client === 'vscode') return { text: 'MCP installation in VS Code · browser sign-in', mono: false };
   if (usesBridgeExtension(card)) {
     const n = card.links.length;
     const prod = card.links.filter((l) => l.env === 'prod').length;
@@ -132,6 +134,7 @@ export function authParts(card: ClientCard, link: ClientLink | null, restart = f
 /** Auth before Connect: what the client's methods mean. */
 function detectedAuth(card: ClientCard): string {
   const ids = card.methods.map((m) => m.id);
+  if (!ids.length) return 'Integration unavailable';
   if (ids[0] === 'mcpb') return 'A 15-minute token per endpoint, issued on the fly by the bridge and never written to a config';
   if (ids[0] === 'helper') return 'A 15-minute token handed to http_headers_helper on the fly, never written to the config';
   if (ids.includes('token') && ids.includes('oauth')) {
@@ -140,6 +143,7 @@ function detectedAuth(card: ClientCard): string {
       : 'You choose on Connect: a token in the file (plain text), or sign-in through the browser';
   }
   if (ids.includes('token')) return 'Token in headers, written to its config in plain text';
+  if (ids.includes('oauth')) return 'Sign in through the browser; no token in the config';
   return 'Set on Connect';
 }
 
@@ -178,7 +182,14 @@ export const INSTALL_URL: Record<ClientId, string> = {
   codex: 'https://developers.openai.com/codex',
   cursor: 'https://cursor.com/downloads',
   antigravity: 'https://antigravity.google/',
+  vscode: 'https://code.visualstudio.com/download',
+  'microsoft-copilot': 'https://apps.microsoft.com/detail/9nht9rb2f4hd',
 };
+
+/** VS Code reviews this URL-only MCP configuration before installing it in the selected profile. */
+export function vsCodeInstallLink(endpoint: Pick<ClientEndpoint, 'slug' | 'url'>): string {
+  return `vscode:mcp/install?${encodeURIComponent(JSON.stringify({ name: `gaterook-${endpoint.slug}`, type: 'http', url: endpoint.url }))}`;
+}
 
 /** Cursor's URL-only install link, also available before a managed config preview exists. */
 export function cursorInstallLink(endpoint: Pick<ClientEndpoint, 'slug' | 'url'>): string {
@@ -187,11 +198,20 @@ export function cursorInstallLink(endpoint: Pick<ClientEndpoint, 'slug' | 'url'>
   return `cursor://anysphere.cursor-deeplink/mcp/install?${new URLSearchParams({ name: `gaterook-${endpoint.slug}`, config })}`;
 }
 
-/** Open Cursor's MCP install link through its HTTPS handoff in the default browser. */
+/** Open a supported MCP installation link through its official HTTPS browser handoff. */
 export function browserInstallUrl(link: string | null | undefined): string | null {
   if (!link) return null;
   try {
     const source = new URL(link);
+    if (source.protocol === 'vscode:' && source.pathname === 'mcp/install' && !source.host && !source.hash) {
+      const config = JSON.parse(decodeURIComponent(source.search.slice(1)));
+      if (!config || Object.keys(config).sort().join(',') !== 'name,type,url' || config.type !== 'http'
+          || typeof config.name !== 'string' || !/^gaterook-[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(config.name)
+          || typeof config.url !== 'string' || !/^http:\/\/127\.0\.0\.1:[0-9]+\/mcp\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(config.url)) return null;
+      const endpoint = new URL(config.url);
+      if (endpoint.port === '0' || config.name !== `gaterook-${endpoint.pathname.slice(5)}`) return null;
+      return `https://vscode.dev/redirect?${new URLSearchParams({ url: link })}`;
+    }
     if (source.protocol !== 'cursor:' || source.hostname !== 'anysphere.cursor-deeplink' || source.pathname !== '/mcp/install' || source.username || source.password || source.port || source.hash) return null;
     const name = source.searchParams.get('name');
     const config = source.searchParams.get('config');
@@ -326,7 +346,7 @@ export function choiceMeta(m: ClientMethod): string {
   }
 }
 
-/** The methods offered for an endpoint (prod refuses tokens in files and browser sign-in), and why others aren't. */
+/** The methods offered for an endpoint, according to the core's production policy. */
 export function methodsFor(card: ClientCard, env: Env | null): { readonly offered: ClientMethod[]; readonly refused: ClientMethod[] } {
   const offered = card.methods.filter((m) => env !== 'prod' || m.prodAllowed);
   return { offered, refused: card.methods.filter((m) => !offered.includes(m)) };

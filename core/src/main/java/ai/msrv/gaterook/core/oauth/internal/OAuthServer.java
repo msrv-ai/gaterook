@@ -135,13 +135,14 @@ public class OAuthServer {
 
   /**
    * The endpoint {@code server} signs in to by {@code slug}: on the tunnel the published one; locally one with
-   * OAuth on (Endpoint › Settings, Clients › Connect with sign-in), never prod. Both: enabled and intact.
+   * OAuth on (Endpoint › Settings, Clients › Connect with sign-in), including prod. Both: enabled and intact;
+   * production endpoints are never available through the tunnel.
    */
   Optional<EndpointSnapshot> endpointFor(Issuers.Server server, String slug) {
     if (server.tunnel() && !slug.equals(server.publication().endpointSlug())) {
       return Optional.empty();
     }
-    return snapshots.bySlug(slug).filter(e -> e.enabled() && !e.blocked() && e.env() != Env.PROD)
+    return snapshots.bySlug(slug).filter(e -> e.enabled() && !e.blocked() && (!server.tunnel() || e.env() != Env.PROD))
         .filter(e -> server.tunnel() || e.oauthEnabled());
   }
 
@@ -464,7 +465,7 @@ public class OAuthServer {
         .flatMap(g -> grants.live(g.id()).flatMap(live -> clients.forToken(
             new Issuers.Server(Ingress.LOCAL, "", null), live.clientId()))
             .flatMap(client -> snapshots.get(g.endpointId()).filter(e -> !e.blocked()
-                && e.oauthEnabled() && e.env() != Env.PROD && issuers.localResource(e.slug()).equals(g.resource()))
+                && e.oauthEnabled() && issuers.localResource(e.slug()).equals(g.resource()))
                 .map(e -> new ClientUse(g.id(), clientHint(client.host(), client.name()), e.slug(), e.env().id(),
                     g.createdAt(), g.lastUsedAt()))).stream())
         .filter(use -> use.client() != null).toList();
@@ -478,7 +479,7 @@ public class OAuthServer {
 
   /**
    * The caller behind an OAuth access token: the grant must be live, of this request's ingress and for this endpoint,
-   * which isn't prod; through the tunnel its resource must be the tunnel's current URL of the endpoint (a quick
+   * through the tunnel the endpoint cannot be prod and its resource must be the tunnel's current URL (a quick
    * tunnel's new hostname leaves older sign-ins behind), locally {@code http://127.0.0.1:<port>/mcp/<slug>} of an
    * endpoint that still signs in with OAuth.
    */
@@ -503,7 +504,7 @@ public class OAuthServer {
       }
       expected = published.get().resource();
     } else {
-      if (!endpoint.get().oauthEnabled() || endpoint.get().env() == Env.PROD) {
+      if (!endpoint.get().oauthEnabled()) {
         return Optional.empty();
       }
       expected = issuers.localResource(request.endpointSlug());
@@ -535,6 +536,10 @@ public class OAuthServer {
     }
     if (name.contains("antigravity") || host.contains("antigravity")) {
       return "antigravity";
+    }
+    if (name.equals("visual studio code") || name.equals("vscode") || name.equals("vs code")
+        || host.equals("vscode.dev") || host.equals("insiders.vscode.dev")) {
+      return "vscode";
     }
     return null;
   }

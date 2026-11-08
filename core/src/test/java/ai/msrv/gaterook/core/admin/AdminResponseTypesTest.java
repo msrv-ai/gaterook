@@ -2,6 +2,7 @@ package ai.msrv.gaterook.core.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ai.msrv.gaterook.core.clients.ClientViews;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
@@ -16,6 +17,7 @@ import java.lang.reflect.WildcardType;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -29,16 +31,20 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * The static half of "no field for a secret's value" (ARCHITECTURE.md §9, M1.6): every type an admin controller
  * answers with is walked — records, their components, lists, maps, optionals — and none has a property named like a
- * secret value that could hold text. The only exceptions are the two answers whose job is to show a one-time token once: a new endpoint
- * token and Electron main's file grant. {@link AdminApiIT} checks the same on the answers themselves, JSON trees
- * included.
+ * secret value that could hold text. The only exceptions are issuing a new endpoint token, creating or renewing a
+ * manual app's token, and Electron main's file grant. Each exception names the handler and response type.
+ * {@link AdminApiIT} checks the same on the answers themselves, JSON trees included.
  */
 class AdminResponseTypesTest {
 
-  /** {@code Type#getTypeName()} of the records allowed to carry a {@code token}. */
-  private static final Set<String> SHOWS_A_TOKEN_ONCE = Set.of(
-      "ai.msrv.gaterook.core.admin.tokens.TokensController$IssuedToken",
-      "ai.msrv.gaterook.core.admin.core.FileGrantController$Granted");
+  /** Only these handlers may return a {@code token} property on these exact records. */
+  private static final Map<String, Set<String>> SHOWS_A_TOKEN_ONCE = Map.of(
+      "TokensController.issue", Set.of("ai.msrv.gaterook.core.admin.tokens.TokensController$IssuedToken"),
+      "FileGrantController.grant", Set.of("ai.msrv.gaterook.core.admin.core.FileGrantController$Granted"),
+      "ClientsController.addManual", Set.of("ai.msrv.gaterook.core.clients.ClientViews$ManualAdded",
+          "ai.msrv.gaterook.core.endpoints.TokenService$Issued"),
+      "ClientsController.renewManualToken", Set.of("ai.msrv.gaterook.core.clients.ClientViews$ManualAdded",
+          "ai.msrv.gaterook.core.endpoints.TokenService$Issued"));
 
   @Test
   void noResponseTypeHasAPropertyForASecretValue() {
@@ -60,15 +66,44 @@ class AdminResponseTypesTest {
           continue;
         }
         handlers++;
-        walk(m.getGenericReturnType(), controller.getSimpleName() + "." + m.getName(), seen, problems, allowed);
+        response(m.getGenericReturnType(), controller.getSimpleName() + "." + m.getName(), seen, problems, allowed);
       }
     }
     assertThat(handlers).as("handlers found").isGreaterThanOrEqualTo(100);
     assertThat(seen.size()).as("response types walked").isGreaterThan(100);
     assertThat(allowed).containsExactlyInAnyOrder(
-        "ai.msrv.gaterook.core.admin.tokens.TokensController$IssuedToken.token",
-        "ai.msrv.gaterook.core.admin.core.FileGrantController$Granted.token");
+        "ai.msrv.gaterook.core.admin.tokens.TokensController$IssuedToken.token (answered by TokensController.issue)",
+        "ai.msrv.gaterook.core.admin.core.FileGrantController$Granted.token (answered by FileGrantController.grant)",
+        "ai.msrv.gaterook.core.clients.ClientViews$ManualAdded.token (answered by ClientsController.addManual)",
+        "ai.msrv.gaterook.core.endpoints.TokenService$Issued.token (answered by ClientsController.addManual)",
+        "ai.msrv.gaterook.core.clients.ClientViews$ManualAdded.token (answered by ClientsController.renewManualToken)",
+        "ai.msrv.gaterook.core.endpoints.TokenService$Issued.token (answered by ClientsController.renewManualToken)");
     assertThat(problems).isEmpty();
+  }
+
+  @Test
+  void anIssuanceResponseReusedByAReadHandlerStillReportsItsToken() {
+    Set<Class<?>> seen = new HashSet<>();
+    List<String> problems = new ArrayList<>();
+    List<String> allowed = new ArrayList<>();
+    response(ClientViews.ManualAdded.class, "ClientsController.addManual", seen, problems, allowed);
+    response(ClientViews.ManualAdded.class, "ClientsController.renewManualToken", seen, problems, allowed);
+    assertThat(problems).isEmpty();
+    assertThat(allowed).hasSize(4);
+
+    response(ClientViews.ManualAdded.class, "ClientsController.list", seen, problems, allowed);
+    assertThat(problems).containsExactly(
+        "ai.msrv.gaterook.core.clients.ClientViews$ManualAdded.token (answered by ClientsController.list)",
+        "ai.msrv.gaterook.core.endpoints.TokenService$Issued.token (answered by ClientsController.list)");
+    assertThat(allowed).hasSize(4);
+  }
+
+  private static void response(Type type, String handler, Set<Class<?>> seen, List<String> problems,
+      List<String> allowed) {
+    // A type allowed on one issuing handler must still be checked on every other handler that returns it.
+    Set<Class<?>> responseTypes = new HashSet<>();
+    walk(type, handler, responseTypes, problems, allowed);
+    seen.addAll(responseTypes);
   }
 
   private static boolean isHandler(Method m) {
@@ -99,11 +134,11 @@ class AdminResponseTypesTest {
         for (RecordComponent rc : c.getRecordComponents()) {
           String name = jsonName(c, rc);
           if (AdminMvc.SECRET_PROPERTIES.contains(name) && canHoldText(rc.getType())) {
-            String where = c.getTypeName() + "." + name;
-            if (SHOWS_A_TOKEN_ONCE.contains(c.getTypeName()) && name.equals("token")) {
+            String where = c.getTypeName() + "." + name + " (answered by " + path + ")";
+            if (SHOWS_A_TOKEN_ONCE.getOrDefault(path, Set.of()).contains(c.getTypeName()) && name.equals("token")) {
               allowed.add(where);
             } else {
-              problems.add(where + " (answered by " + path + ")");
+              problems.add(where);
             }
           }
           walk(rc.getGenericType(), path, seen, problems, allowed);

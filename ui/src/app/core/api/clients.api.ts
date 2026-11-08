@@ -12,7 +12,7 @@ import { Env, Iso, WithReason } from './types';
  */
 
 export type ManualClientId = `manual-${string}`;
-export type ClientId = 'claude-desktop' | 'codex' | 'cursor' | 'antigravity' | ManualClientId;
+export type ClientId = 'claude-desktop' | 'codex' | 'cursor' | 'antigravity' | 'vscode' | 'microsoft-copilot' | ManualClientId;
 export type ClientStatus = 'connected' | 'detected' | 'not-installed' | 'needs-restart' | 'pending' | 'error';
 /** `.mcpb` bridge, stdio bridge entry, `http_headers_helper`, named token in the file, sign-in through the browser. */
 export type ClientMethodId = 'mcpb' | 'config-bridge' | 'helper' | 'token' | 'oauth' | 'manual';

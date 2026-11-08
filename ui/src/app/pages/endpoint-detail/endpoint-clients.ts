@@ -86,7 +86,7 @@ export class GwEndpointClients {
   protected async previewFor(card: ClientCard, request: ConnectRequest): Promise<void> {
     const seq = ++this.previewSeq;
     this.previewFailure.set(null);
-    if (card.client === 'cursor' && request.method === 'oauth') {
+    if (['cursor', 'vscode'].includes(card.client) && request.method === 'oauth') {
       this.preview.set(null);
       this.previewLoading.set(false);
       return;
@@ -106,15 +106,15 @@ export class GwEndpointClients {
 
   protected async connect(card: ClientCard, previewId: string | null, request: ConnectRequest | null): Promise<void> {
     this.setFailure(card.client, null);
-    if (card.client === 'cursor' && request?.method === 'oauth') {
+    if (['cursor', 'vscode'].includes(card.client) && request?.method === 'oauth') {
       try {
         const result = await this.clientsApi.browserSignIn(card.client, request.endpoint);
         const url = browserInstallUrl(result.link);
-        if (!url) throw new Error('The core did not return a valid Cursor installation link.');
+        if (!url) throw new Error('The core did not return a valid MCP installation link.');
         await this.desktop.openExternal(url);
-        this.toasts.show({ tone: 'success', title: 'Continue in Cursor', body: 'Add GateRook in Cursor, then complete sign-in. The connection status updates automatically.' });
+        this.toasts.show({ tone: 'success', title: `Continue in ${card.name}`, body: `Add GateRook in ${card.name}, then complete sign-in. The connection status updates automatically.` });
       } catch (e) {
-        this.toasts.show({ tone: 'danger', title: "Cursor browser sign-in wasn't opened", body: isApiError(e) ? e.detail : e instanceof Error ? e.message : NO_ANSWER });
+        this.toasts.show({ tone: 'danger', title: `${card.name} browser sign-in wasn't opened`, body: isApiError(e) ? e.detail : e instanceof Error ? e.message : NO_ANSWER });
       }
       return;
     }

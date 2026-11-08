@@ -1,4 +1,6 @@
-# Import an HTTP API
+# Put HTTP APIs behind the MCP Firewall
+
+Import selected API operations into GateRook's MCP Firewall to control which tools AI clients can call, restrict their destinations, and review changes before execution by default. Authentication values stored as secrets stay encrypted in GateRook; the AI calls the exposed tools through an endpoint. See the [security model](security.md) for execution controls, audit protection, and their boundaries.
 
 Open **Connectors → Templates → New template → OpenAPI import**, or choose **Import HTTP API** in the HTTP API connection form. The import wizard turns selected operations in an OpenAPI 3.0 or 3.1 document into MCP tools on a new or existing HTTP API connection.
 
@@ -14,7 +16,7 @@ The prompt asks the AI to find an existing specification first, then use officia
 
 Return to GateRook and choose **Upload file** or **Paste YAML or JSON** below the AI prompt. You can upload `openapi.yaml` or paste its complete contents into the text area without Markdown code fences. Switching back and forth preserves the pasted text. The current flow uses a manual handoff; it does not receive the result automatically from an AI app. No skill installation is required. Only the website, documentation URL, and function description you enter go into the prompt. Do not put credentials in those fields; enter credentials in GateRook's connection form.
 
-## Review and save
+## Review operations before granting access
 
 1. Read the description. GateRook keeps the inspected bytes for preview and save, so a URL changing later cannot silently change the imported operations.
 2. Review the proposed server and authentication. Choose the environment and enter credentials, or use an existing verified HTTP API connection. You can test the connection before proceeding. The file supplies suggestions, never credentials.

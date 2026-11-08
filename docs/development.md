@@ -110,9 +110,19 @@ To start over, open **Settings → General → Reset GateRook**, type `RESET`, a
 
 An interrupted reset is retried before the core starts on the next launch. The reset targets GateRook-owned paths in the selected home and its Electron session; unrelated files in a development home are retained. On macOS it deletes only that home's native unlock Keychain item. Shared OS safe-storage entries are retained because other homes may use them.
 
+## VS Code and Microsoft Copilot
+
+GateRook detects the stable VS Code desktop edition from its user data or standard installation locations on Windows, macOS, and Linux. Open **AI apps → VS Code → Connect**, choose an endpoint (DEV, STAGE, or PROD), and continue to VS Code's MCP installation dialog. Install the server in the desired profile, start it, and finish OAuth sign-in in the browser. GitHub Copilot's agent mode can then use that endpoint's tools. Remote VS Code sessions need their own reachable server configuration; the installation link here uses this computer's loopback address.
+
+The [official VS Code installation link](https://code.visualstudio.com/api/extension-guides/ai/mcp) carries only a server name, HTTP transport, and endpoint URL through Microsoft's HTTPS redirect page. GateRook enables OAuth for the selected endpoint; VS Code owns profile selection, configuration edits, and server trust. Existing JSONC files, comments, and other servers remain under VS Code's control. Installation alone does not count as connected: GateRook waits for a completed token exchange. Manage or revoke the resulting access in **Settings → Authorization → Signed in**; remove the server in VS Code separately. Production endpoints use the same local OAuth flow and require explicit desktop consent. The consent names the production environment and endpoint. Publishing a production endpoint through the tunnel remains prohibited.
+
+On Windows, the Microsoft Copilot card detects the consumer Store app's package data directory. This is installation evidence, not proof that the app is running or still registered after an uninstall. [Microsoft's consumer connector documentation](https://support.microsoft.com/en-us/Microsoft-Copilot/connecting-microsoft-copilot-to-other-services) does not document adding arbitrary MCP servers. GateRook therefore offers detection and an explanation, without writing a configuration or issuing access. GitHub Copilot in VS Code, Microsoft 365 Copilot, and Copilot Studio are separate products with different integration mechanisms.
+
 ## Windows Store client integration
 
 The MSIX desktop supports the same reviewed **Connect** flow for shared user-profile files. Claude Desktop uses an endpoint-specific MCPB under `~/.gaterook/clients/claude-desktop`; GateRook opens the bundle and Claude asks the user to install it. Codex uses `~/.codex/config.toml` (or `CODEX_HOME`) with the headers helper. Cursor uses `~/.cursor/mcp.json`, with its browser installation link as an OAuth alternative for non-production endpoints. Creating a bundle or opening an installation dialog does not establish a connection: the client must finish installation and use its access.
+
+VS Code uses its own installation dialog and OAuth flow, so GateRook does not create or edit its AppData configuration from inside the MSIX package.
 
 Default MSIX virtualization redirects new AppData files, while ordinary user-writable locations outside AppData remain shared. The core rejects Claude's configuration-file fallback and any client, runtime, or backup path that resolves into AppData, including redirected folders and symlinks/junctions. It checks again when applying a preview. This behavior does not require disabling virtualization. See [Microsoft's virtualization rules](https://learn.microsoft.com/en-us/windows/msix/desktop/flexible-virtualization) and [Claude Desktop extensions](https://www.anthropic.com/research/desktop-extensions).
 

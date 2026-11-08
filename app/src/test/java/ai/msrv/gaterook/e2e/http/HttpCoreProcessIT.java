@@ -357,12 +357,15 @@ class HttpCoreProcessIT {
     request.putArray("connectionIds").add("billing-api");
     JsonNode imported = json(admin("POST", "/internal/endpoint-shares/import", request.toString()), 200);
     assertThat(imported.path("endpointSlug").asString()).isEqualTo("billing-shared");
+    assertThat(imported.path("connections").get(0).path("needsSetup").asBoolean(true)).isFalse();
     String name = imported.path("connections").get(0).path("name").asString();
     assertThat(name).isEqualTo("billing-api-2");
     JsonNode connection = json(admin("GET", "/api/connections/" + name, null), 200);
     assertThat(connection.path("config")).isEqualTo(bundle.path("connections").get(0).path("config"));
+    assertThat(connection.path("enabled").asBoolean()).isTrue();
+    assertThat(connection.path("setupRequired").asBoolean(true)).isFalse();
     JsonNode endpoint = json(admin("GET", "/api/endpoints/billing-shared", null), 200);
-    assertThat(endpoint.at("/endpoint/status").asString()).isEqualTo("disabled");
+    assertThat(endpoint.at("/endpoint/status").asString()).isEqualTo("running");
     JsonNode listed = json(admin("GET", "/api/templates", null), 200);
     var copy = java.util.stream.StreamSupport.stream(listed.spliterator(), false)
         .filter(t -> name.equals(t.path("connection").asString())).findFirst().orElseThrow();

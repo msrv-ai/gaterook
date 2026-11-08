@@ -1,9 +1,9 @@
 {
   "name": "@gaterook/desktop",
   "productName": "GateRook",
-  "version": "0.6.0",
+  "version": "0.8.1",
   "private": true,
-  "description": "GateRook desktop app: Electron main and preload around the gateway core (ARCHITECTURE.md §7.1).",
+  "description": "GateRook MCP Firewall: encrypted credentials, scoped AI access, exact-action approvals, and tamper-evident audit logs.",
   "author": "GateRook",
   "homepage": "https://msrv.dev",
   "license": "Apache-2.0",
@@ -22,7 +22,7 @@
     "node": ">=24.15.0"
   },
   "devDependencies": {
-    "@gaterook/broker": "0.6.0",
+    "@gaterook/broker": "0.8.1",
     "@types/node": "24.19.2",
     "electron": "45.0.0",
     "electron-builder": "26.17.0",

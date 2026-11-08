@@ -79,8 +79,9 @@ class AccessSwitchIT {
         assertThat(agent.legacy("resources/read", args("uri", "mcpgw://connections/shared-db/schema"))
             .error().path("message").asString()).contains("Connection shared-db", "disabled by the user");
       }
-      assertThat(first.legacyCall("list_connections", args()).result()
-          .at("/structuredContent/connections/0/enabled").asBoolean(true)).isFalse();
+      var listed = first.legacyCall("list_connections", args());
+      assertThat(listed.result().at("/structuredContent/connections/0/enabled").asBoolean(true))
+          .as("disabled connection in list_connections response: %s", listed.body()).isFalse();
       assertThat(FakeConnectors.EXECUTIONS).hasSize(1);
       assertThat(FakeConnectors.RESOURCE_READS).isEmpty();
       assertThatThrownBy(() -> snapshots.requireAvailable(endpoints.get("first").id(), "shared-db"))

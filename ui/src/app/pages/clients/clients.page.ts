@@ -136,7 +136,7 @@ export class ClientsPage {
     const card = this.cards().find((card) => card.client === client);
     if (!card) return 'This AI app is unavailable. Scan this computer again.';
     if (card.status === 'not-installed') return `Install ${card.name}, then scan this computer again.`;
-    if (!card.methods.length) return 'Automatic setup is unavailable for this app. Use manual setup below.';
+    if (!card.methods.length) return card.warnings[0] ?? 'Automatic setup is unavailable for this app.';
     if (card.links.some((link) => link.endpoint === endpoint.slug && link.status !== 'revoked')) return `${card.name} is already connected to ${endpoint.slug}.`;
     return null;
   });
@@ -289,7 +289,7 @@ export class ClientsPage {
     if (this.none()) {
       // With no detected apps, a selected missing app keeps its installation card above the empty state.
       this.focus(null, client);
-    } else if (st !== 'in-use' && this.canConnect() && !card.links.length && card.status !== 'not-installed') {
+    } else if (st !== 'in-use' && this.canConnect() && card.methods.length && !card.links.length && card.status !== 'not-installed') {
       this.review.set(client);
       this.focus(`${base}-s-t`);
     } else if (st !== 'in-use' && !card.links.length) {
@@ -342,7 +342,7 @@ export class ClientsPage {
 
   /** A row's Connect (setup): the same anchor again doesn't navigate, so the review opens here too. */
   protected openReview(card: ClientCard, e: MouseEvent): void {
-    if (!this.canConnect() || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    if (!this.canConnect() || !card.methods.length || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
     this.review.set(card.client);
     this.focus(`${anchorBase(card.client)}-s-t`);
   }
@@ -404,15 +404,15 @@ export class ClientsPage {
     if (this.connecting()) return;
     this.connecting.set(card.client);
     try {
-      if (card.client === 'cursor' && request?.method === 'oauth') {
+      if (['cursor', 'vscode'].includes(card.client) && request?.method === 'oauth') {
         try {
           const result = await this.data.browserSignIn(card.client, request.endpoint);
           const url = browserInstallUrl(result.link);
-          if (!url) throw new Error('The core returned an invalid Cursor install link.');
+          if (!url) throw new Error('The core returned an invalid MCP installation link.');
           await this.desktop.openExternal(url);
-          this.toasts.show({ tone: 'info', title: 'Continue in Cursor', body: `Add ${request.endpoint} in Cursor, then finish signing in through the browser.` });
+          this.toasts.show({ tone: 'info', title: `Continue in ${card.name}`, body: `Add ${request.endpoint} in ${card.name}, then finish signing in through the browser.` });
         } catch (e) {
-          this.toasts.show({ tone: 'danger', title: 'Cursor sign-in did not open', body: errorSentence(e) });
+          this.toasts.show({ tone: 'danger', title: `${card.name} sign-in did not open`, body: errorSentence(e) });
         }
         return;
       }

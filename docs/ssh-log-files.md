@@ -1,4 +1,6 @@
-# SSH log files
+# Give AI scoped access to SSH log files
+
+GateRook's MCP Firewall lets AI clients investigate selected remote logs through bounded read tools. You control the allowed files and endpoint tools; GateRook verifies the SSH host key, builds the commands, masks returned records, and records tool activity in its append-only, tamper-evident audit trail. See the [security model](security.md) for the shared controls and their limits.
 
 The **SSH log files** connection reads explicitly selected remote files using bounded commands on the SSH host. Configure it in **Connections → Add connection → SSH log files** with a host, user, password or local private-key path, and trusted server key. Browse the remote folders over SFTP, select a root and allow individual files. Selecting a folder alone does not grant access to every file in it. New rotated filenames must be selected explicitly.
 

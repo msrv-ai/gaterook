@@ -40,6 +40,25 @@ class StoreClientsIT {
   }
 
   @Test
+  void vsCodeUsesItsInstallerWithoutWritingVirtualizedAppDataAndCopilotIsDetectionOnly() throws IOException {
+    Path copilot = Files.createDirectories(home.resolve("AppData/Local/Packages/Microsoft.Copilot_8wekyb3d8bbwe"));
+    endpoints.create("store-vscode", null, EndpointService.StartFrom.EMPTY, null);
+    var cards = clients.scan().clients();
+    var vscode = cards.stream().filter(c -> c.client().equals("vscode")).findFirst().orElseThrow();
+    assertThat(vscode.methods()).extracting(ClientViews.Method::id).containsExactly("oauth");
+    assertThat(vscode.warnings()).isEmpty();
+    var consumer = cards.stream().filter(c -> c.client().equals("microsoft-copilot")).findFirst().orElseThrow();
+    assertThat(consumer.detected()).isTrue();
+    assertThat(consumer.methods()).isEmpty();
+    assertThat(consumer.configPath()).isNull();
+    var before = accessRows();
+    assertThat(clients.browserSignIn("vscode", "store-vscode").link()).startsWith("vscode:mcp/install?");
+    assertThat(Files.exists(home.resolve("AppData/Roaming/Code"))).isFalse();
+    assertThat(accessRows()).isEqualTo(before);
+    Files.delete(copilot);
+  }
+
+  @Test
   void claudeOffersOnlyTheExtensionAndDeniedConfigSetupCreatesNoAccessOrFiles() throws IOException {
     endpoints.create("store-claude", null, EndpointService.StartFrom.EMPTY, null);
     var card = clients.clients().clients().stream().filter(c -> c.client().equals("claude-desktop")).findFirst().orElseThrow();
