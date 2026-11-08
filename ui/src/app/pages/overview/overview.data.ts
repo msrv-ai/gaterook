@@ -210,6 +210,11 @@ export class OverviewData {
     this.endpointsSignal.update((rows) => rows?.map((row) => row.slug === slug ? { ...row, status: enabled ? 'running' : 'disabled' } : row) ?? null);
   }
 
+  /** Keep the new endpoint selectable while its connections and counters refresh. */
+  addEndpoint(endpoint: EndpointSummary): void {
+    this.endpointsSignal.update((rows) => [...(rows ?? []).filter((row) => row.slug !== endpoint.slug), endpoint]);
+  }
+
   /** A request left the queue (decided, or it ran out of time here): off the list at once. */
   dropWaiting(id: string): void {
     this.overviewSignal.update((o) => (o ? { ...o, waiting: o.waiting.filter((w) => w.id !== id) } : o));

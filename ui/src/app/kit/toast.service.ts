@@ -14,7 +14,7 @@ export interface ToastOptions {
   readonly tone?: ToastTone;
   /** A Lucide icon; by default the tone's (success circle-check, warning triangle-alert, danger circle-x…). */
   readonly icon?: string;
-  /** ms; defaults to the saved duration (15 s initially), or 0 (stays) when it has actions. */
+  /** ms; defaults to the saved duration (10 s initially), or 0 (stays) when it has actions. */
   readonly timeout?: number;
   readonly actions?: readonly ToastAction[];
 }
@@ -43,7 +43,7 @@ const TONE_ICONS: Record<ToastTone, string> = {
 /** At most three toasts stand at once; a fourth pushes the oldest out. */
 export const TOAST_CAP = 3;
 
-export const DEFAULT_TOAST_DURATION_SECONDS = 15;
+export const DEFAULT_TOAST_DURATION_SECONDS = 10;
 export const TOAST_DURATION_SECONDS = [5, 10, 15, 30, 60, 120] as const;
 
 export function normalizeToastDurationSeconds(value: unknown): number {

@@ -145,6 +145,13 @@ function setupPage(first: () => Promise<Overview> = () => Promise.resolve(overvi
       { provide: ClientsApi, useValue: { list: () => { calls.push('GET /api/clients'); return clientsAnswer(); } } },
       { provide: EndpointsApi, useValue: {
         list: () => { calls.push('GET /api/endpoints'); return endpointsAnswer(); },
+        starts: async () => [],
+        create: async (request: Parameters<EndpointsApi['create']>[0]) => {
+          calls.push(`create endpoint ${request.slug}`);
+          const created = endpoint(request.slug);
+          savedEndpoints.push(created);
+          return created;
+        },
         get: async (slug: string) => endpointDetail({ endpoint: savedEndpoints.find((endpoint) => endpoint.slug === slug) }),
         tools: async () => endpointTools(),
         disable: async (slug: string) => {
@@ -179,7 +186,7 @@ function setupPage(first: () => Promise<Overview> = () => Promise.resolve(overvi
         tools: async () => [],
       } },
       { provide: EventStream, useValue: events },
-      { provide: CoreStore, useValue: { running: signal(true), instanceChanges: signal(0) } },
+      { provide: CoreStore, useValue: { running: signal(true), instanceChanges: signal(0), address: signal('127.0.0.1:7465') } },
     ],
   });
   TestBed.inject(AriaDisabledGuard).install();
@@ -378,7 +385,43 @@ describe('Overview connection map', () => {
     expect(connect.hasAttribute('aria-disabled')).toBe(false);
     expect(text(app(el, 'claude-desktop'))).toContain('Connected');
     expect(href(app(el, 'antigravity').querySelector('a'))).toBe('/clients#cl-ag-t');
-    expect(el.querySelector('a[href="/endpoints#create"]')).not.toBeNull();
+    expect(findButton(el, 'Add endpoint').getAttribute('aria-haspopup')).toBe('dialog');
+  });
+
+  it('creates an endpoint in place on Overview and returns focus after cancelling', async () => {
+    const { fixture, el } = await render();
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate');
+    const url = router.url;
+    const opener = findButton(el, 'Add endpoint');
+    opener.focus();
+    opener.click();
+    await settle(fixture);
+    const dialog = el.querySelector<HTMLDialogElement>('#ep-create')!;
+    const slug = dialog.querySelector<HTMLInputElement>('#ep-create-slug')!;
+    expect(dialog.open).toBe(true);
+    expect(document.activeElement).toBe(slug);
+    expect(text(el.querySelector('h1'))).toBe('Overview');
+    expect(router.url).toBe(url);
+    findButton(dialog, 'Cancel').click();
+    await settle(fixture);
+    expect(dialog.open).toBe(false);
+    expect(document.activeElement).toBe(opener);
+
+    opener.click();
+    await settle(fixture);
+    slug.value = 'new-dev';
+    slug.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle(fixture);
+    findButton(dialog, 'Create endpoint').click();
+    await settle(fixture);
+    expect(calls.filter((call) => call.startsWith('create endpoint'))).toEqual(['create endpoint new-dev']);
+    expect(dialog.open).toBe(false);
+    expect(text(el.querySelector('#ov-services-scope'))).toBe('0 services on new-dev');
+    expect(el.querySelector<HTMLInputElement>('[data-map-endpoint="new-dev"] input')?.checked).toBe(true);
+    expect(text(el.querySelector('h1'))).toBe('Overview');
+    expect(router.url).toBe(url);
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it('starts compact, searches hidden long connection names and service types, and clears the filter', async () => {
@@ -425,7 +468,7 @@ describe('Overview connection map', () => {
     expect(byText(el.querySelector('#ov-services')!, 'a', 'Import with AI')).toBeNull();
     await selectEndpoint(fixture, el, 'incident-prod');
     const empty = el.querySelector('#ov-services')!;
-    expect(text(empty)).toContain('No services connected to this endpoint');
+    expect(text(empty)).toContain('No connectors on this endpoint');
     expect(text(empty)).toContain('analyze a repository and prepare connections for review');
     const importLink = byText<HTMLAnchorElement>(empty, 'a', 'Import with AI')!;
     expect(href(importLink)).toBe('/connection-import?endpoint=incident-prod');
@@ -853,7 +896,7 @@ describe('Overview availability', () => {
     const connect = app(el, 'codex').querySelector('a')!;
     expect(href(connect)).toBe('/clients?endpoint=empty&connect=codex#cl-cx-t');
     expect(connect.hasAttribute('aria-disabled')).toBe(false);
-    expect(text(el)).toContain('No services connected to this endpoint');
+    expect(text(el)).toContain('No connectors on this endpoint');
     expect(href(byText(el.querySelector('#ov-services')!, 'a', 'Import with AI'))).toBe('/connection-import?endpoint=empty');
   });
 });

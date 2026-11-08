@@ -684,12 +684,12 @@ describe('Settings page: Authorization', () => {
 });
 
 describe('Settings page: Notifications', () => {
-  it('in-app notifications default to 15 seconds and save independently of delivery channels', async () => {
+  it('in-app notifications default to 10 seconds and save independently of delivery channels', async () => {
     // Existing homes may not have stored the newly introduced preference yet.
     world.sections = () => Promise.resolve(kitSections({ general: { openAtLogin: true } }));
     const el = await render();
     const select = $<HTMLSelectElement>('#st-toast-duration', el)!;
-    expect(select.value).toBe('15');
+    expect(select.value).toBe('10');
     expect(select.getAttribute('aria-disabled')).toBeNull();
     expect(text($('#st-notif-why', el))).toContain('Not available in this build');
 
@@ -727,7 +727,7 @@ describe('Settings page: Notifications', () => {
     expect(reason(select)).toContain('The app settings have not loaded.');
 
     await type(select, '30');
-    expect(select.value).toBe('15');
+    expect(select.value).toBe('10');
     expect(calls).not.toContain('put general');
   });
 
