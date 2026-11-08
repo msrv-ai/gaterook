@@ -684,7 +684,7 @@ describe('Clients page: Disconnect and Remove bridge', () => {
     const dialog = openDialog()!;
     expect(text($('.gw-dialog__title', dialog))).toBe('Disconnect Claude Desktop from dev?');
     expect(text(dialog)).toContain('The bridge stays installed for incident-prod.');
-    await click(control(dialog, 'Disconnect Claude Desktop from dev'));
+    await click(control(dialog, 'Disconnect from dev'));
     expect(calls).toContain('disconnect cl_cd_dev pv_cd_dev_out');
     expect(toasts().at(-1)?.body).toBe('incident-prod still works through the bridge.');
 
