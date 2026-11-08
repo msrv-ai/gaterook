@@ -9,8 +9,6 @@ GateRook is a desktop **MCP Firewall** for AI access to production infrastructur
 
 For macOS, download the `.dmg` installer from the latest release. Windows installs and updates through Microsoft Store.
 
-Installed apps check update metadata at `msrv.dev`; macOS update downloads remain on GitHub. Each app data directory gets a random 16-character installation ID on first launch. Update checks send this ID to count installations active within the last 30 days. Turn off **Settings → General → Check for updates automatically** to stop scheduled checks; a manual check still contacts the service. See [update checks](docs/development.md#update-checks-and-installation-identity) for details.
-
 [Website](https://msrv.dev) · [Security model](docs/security.md) · [Issues](https://github.com/msrv-ai/gaterook/issues) · [Architecture](docs/ARCHITECTURE.md) · [Research](docs/research/README.md)
 
 Watch how GateRook connects AI to your infrastructure while keeping you in control.
