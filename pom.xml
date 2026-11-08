@@ -82,7 +82,7 @@
     <java-diff-utils.version>4.17</java-diff-utils.version>
     <!-- Google client libraries disagree among themselves (google-auth 1.54.0, google-http-client 2.2.0, Tink):
          one version each for app's dependencyConvergence, the highest any of them asks for. -->
-    <guava.version>33.6.0-jre</guava.version>
+    <guava.version>33.7.1-jre</guava.version>
     <error_prone_annotations.version>2.50.0</error_prone_annotations.version>
     <j2objc-annotations.version>3.1</j2objc-annotations.version>
     <!-- One pin for everybody: Fabric8 8.0.0 brings 3.1.1, the OpenAPI loader of report 10 was checked on 3.0.1. -->
