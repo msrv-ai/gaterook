@@ -97,5 +97,5 @@ deb:
 
 publish:
   provider: github                        # release metadata remains on GitHub; installed apps select the site feed at runtime
-  owner: msrv-ai
+  owner: gaterook
   repo: gaterook

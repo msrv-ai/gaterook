@@ -6,7 +6,7 @@ All documentation and AI-authored repository content must be English only, inclu
 
 ## Before making changes
 
-Read `README.md`, `docs/repository-layout.md`, and the instructions for affected directories. Check the working tree, branch, and origin (`https://github.com/msrv-ai/gaterook`). Preserve existing changes and do not rewrite history or clean unrelated files.
+Read `README.md`, `docs/repository-layout.md`, and the instructions for affected directories. Check the working tree, branch, and origin (`https://github.com/gaterook/gaterook`). Preserve existing changes and do not rewrite history or clean unrelated files.
 
 ## Release branches after AI work
 

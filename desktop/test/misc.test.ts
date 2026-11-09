@@ -183,7 +183,7 @@ describe('updates', () => {
   });
 
   // app-update.yml as electron-builder writes it: a signed Windows build names its publisher.
-  const feed = 'owner: msrv-ai\nrepo: gaterook\nprovider: github\nupdaterCacheDirName: gaterook-desktop-updater\n';
+  const feed = 'owner: gaterook\nrepo: gaterook\nprovider: github\nupdaterCacheDirName: gaterook-desktop-updater\n';
   const signed = `${feed}publisherName:\n  - GateRook Inc.\n`;
 
   it('only an installed, signed Windows or macOS build updates itself', () => {

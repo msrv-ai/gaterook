@@ -6,7 +6,7 @@ import type { ProviderRuntimeOptions } from 'electron-updater/out/providers/Prov
 import { SiteUpdateProvider, siteUpdateOptions, updateFeedUrl } from '../src/main/update-provider.ts';
 
 const ID = '0123456789AbCdEf';
-const ZIP = 'https://github.com/msrv-ai/gaterook/releases/download/v0.7.0/GateRook-0.7.0-arm64.zip';
+const ZIP = 'https://github.com/gaterook/gaterook/releases/download/v0.7.0/GateRook-0.7.0-arm64.zip';
 
 function fixture(platform: 'darwin' | 'win32') {
   const requests: RequestOptions[] = [];
