@@ -94,7 +94,12 @@ function setup(
     },
     delete: (slug, confirm) => {
       calls.push(`delete ${slug} ${confirm}`);
-      return Promise.resolve({ clients: ['claude-desktop', 'codex'], tokensRevoked: ['codex-laptop'], rejectedApprovals: 3 });
+      return Promise.resolve({
+        clients: ['Claude Desktop', 'Codex'],
+        tokensRevoked: ['codex-laptop'],
+        rejectedApprovals: 3,
+        notes: ['Remove the extension "GateRook · dev" in Claude Desktop: Settings › Extensions.'],
+      });
     },
     previewConnection: (slug, name) =>
       Promise.resolve(name === 'prod-replica' ? preview(name, { refusal: 'prod-replica is a prod connection: it goes only on a prod endpoint, and dev is stage' }) : preview(name)),
@@ -566,7 +571,7 @@ describe('Endpoint detail page', () => {
     expect(calls.some((call) => call.startsWith('mode '))).toBe(false);
   });
 
-  it('deletes after the confirmation, with what stops working, then goes to Endpoints', async () => {
+  it('deletes after the confirmation, with what stops working and the AI apps it disconnects, then goes to Endpoints', async () => {
     setup();
     const { fixture, el } = await render();
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
@@ -574,11 +579,11 @@ describe('Endpoint detail page', () => {
     await settle(fixture);
     const dialog = el.querySelector('#ep-dlg-delete')!;
     expect(text(dialog.querySelector('#ep-del-desc'))).toBe(
-      'Claude Desktop and Codex lose access at once, its tokens are revoked and the 3 requests waiting for approval are denied. Connections, their secrets and the audit log stay.',
+      'Claude Desktop and Codex are disconnected at once, its tokens are revoked and the 3 requests waiting for approval are denied. Connections, their secrets and the audit log stay.',
     );
     expect(Array.from(dialog.querySelectorAll('.gw-kv__row')).map(kv)).toEqual([
       'URL http://127.0.0.1:7465/mcp/dev',
-      'AI apps Claude Desktop, Codex',
+      'AI apps Claude Desktop, Codex (disconnected)',
       'Tokens codex-laptop, inspector-debug (revoked)',
       'Waiting 3 approval requests (denied)',
     ]);
@@ -586,7 +591,14 @@ describe('Endpoint detail page', () => {
     button(dialog, 'Delete endpoint dev').click();
     await settle(fixture);
     expect(calls).toContain('delete dev dev');
-    expect(toasts().at(-1)?.title).toBe('Endpoint dev deleted');
+    // The toast says what the core did: who was disconnected, what it revoked and denied, what is left to do.
+    expect(toasts().at(-1)).toMatchObject({
+      tone: 'success',
+      title: 'Endpoint dev deleted',
+      body:
+        'Claude Desktop and Codex are disconnected. Its URL stops answering. The audit log keeps every call. 1 token revoked, 3 waiting requests denied. '
+        + 'Remove the extension "GateRook · dev" in Claude Desktop: Settings › Extensions.',
+    });
     expect(navigate).toHaveBeenCalledWith(['/endpoints']);
   });
 

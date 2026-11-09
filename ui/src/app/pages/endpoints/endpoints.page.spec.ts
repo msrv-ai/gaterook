@@ -4,7 +4,7 @@ import { ActivatedRoute, Router, provideRouter } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { ApiError } from '../../core/api/api-error';
 import { ConnectionsApi } from '../../core/api/connections.api';
-import { EndpointDetail, EndpointStart, EndpointSummary, EndpointsApi, TokensApi } from '../../core/api/endpoints.api';
+import { EndpointDeleted, EndpointDetail, EndpointStart, EndpointSummary, EndpointsApi, TokensApi } from '../../core/api/endpoints.api';
 import { Template, TemplatesApi } from '../../core/api/templates.api';
 import { OAuthApi } from '../../core/api/tunnel.api';
 import { DesktopBridge } from '../../core/desktop/desktop-bridge';
@@ -69,11 +69,19 @@ let detailAnswer: (slug: string) => Promise<EndpointDetail>;
 const desktop = { endpointShareAvailable: false, createEndpointShare: vi.fn() };
 let createAnswer: () => Promise<EndpointSummary>;
 let duplicateAnswer: (slug: string, newSlug: string) => Promise<EndpointSummary>;
-let deleteAnswer: () => Promise<{ clients: string[]; tokensRevoked: string[]; rejectedApprovals: number }>;
+let deleteAnswer: () => Promise<EndpointDeleted>;
 let keepAnswer: (confirm: string | undefined) => Promise<EndpointSummary>;
 /** `GET /api/endpoint-starts` (step API); null: a core without it. */
 let startsAnswer: (() => Promise<EndpointStart[]>) | null = null;
 afterEach(() => (startsAnswer = null));
+
+/** The core's answer to deleting dev: its AI apps disconnected, and what is left to do in Claude Desktop. */
+const DELETED: EndpointDeleted = {
+  clients: ['Claude Desktop', 'Codex'],
+  tokensRevoked: ['inspector-debug', 'codex-laptop'],
+  rejectedApprovals: 3,
+  notes: ['Remove the extension "GateRook · dev" in Claude Desktop: Settings › Extensions.'],
+};
 
 const byslug = (slug: string) => rows.find((r) => r.slug === slug)!;
 
@@ -94,7 +102,7 @@ function setup(list: EndpointSummary[] = kitEndpoints(), exportAvailable = false
     rows = [...rows.slice(0, i + 1), copy, ...rows.slice(i + 1)];
     return Promise.resolve(copy);
   };
-  deleteAnswer = () => Promise.resolve({ clients: ['claude-desktop', 'codex'], tokensRevoked: ['inspector-debug', 'codex-laptop'], rejectedApprovals: 3 });
+  deleteAnswer = () => Promise.resolve(DELETED);
   keepAnswer = () => Promise.resolve({ ...byslug('dev'), blockedReason: null });
   const endpoints: Partial<Record<keyof EndpointsApi, unknown>> = {
     list: () => {
@@ -696,7 +704,7 @@ describe('Endpoints page', () => {
     expect(announce).toHaveBeenCalledWith('Endpoint dev is running again');
   });
 
-  it('deletes after a danger confirmation that says what stops working', async () => {
+  it('deletes after a danger confirmation that says what stops working and that the AI apps are disconnected', async () => {
     setup();
     const { fixture, el } = await render();
     click(el, '#ep-dev-menu .gw-menu__item--danger');
@@ -707,11 +715,11 @@ describe('Endpoints page', () => {
     expect(text(dialog.querySelector('#ep-del-title'))).toBe('Delete endpoint dev?');
     expect(text(document.activeElement)).toBe('Cancel');
     expect(text(dialog.querySelector('#ep-del-desc'))).toBe(
-      'Claude Desktop and Codex lose access at once, its tokens are revoked and the 3 requests waiting for approval are denied. Connections, their secrets and the audit log stay.',
+      'Claude Desktop and Codex are disconnected at once, its tokens are revoked and the 3 requests waiting for approval are denied. Connections, their secrets and the audit log stay.',
     );
     expect(Array.from(dialog.querySelectorAll('.gw-kv__row')).map((r) => `${text(r.querySelector('dt'))}: ${text(r.querySelector('dd'))}`)).toEqual([
       'URL: http://127.0.0.1:7465/mcp/dev',
-      'AI apps: Claude Desktop, Codex',
+      'AI apps: Claude Desktop, Codex (disconnected)',
       'Tokens: codex-laptop, inspector-debug (revoked)',
       'Waiting: 3 approval requests (denied)',
     ]);
@@ -723,7 +731,7 @@ describe('Endpoints page', () => {
     expect(dialog.open).toBe(true);
     expect(text(dialog.querySelector('[role="alert"]'))).toBe("dev wasn't deleted Type dev to confirm.");
 
-    deleteAnswer = () => Promise.resolve({ clients: ['claude-desktop', 'codex'], tokensRevoked: ['inspector-debug', 'codex-laptop'], rejectedApprovals: 3 });
+    deleteAnswer = () => Promise.resolve(DELETED);
     rows = rows.filter((r) => r.slug !== 'dev');
     click(dialog, '.gw-btn--danger');
     await settle(fixture);
@@ -733,7 +741,9 @@ describe('Endpoints page', () => {
     expect(toasts().at(-1)).toMatchObject({
       tone: 'success',
       title: 'Endpoint dev deleted',
-      body: 'Its URL stops answering. The audit log keeps every call. 2 tokens revoked, 3 waiting requests denied.',
+      body:
+        'Claude Desktop and Codex are disconnected. Its URL stops answering. The audit log keeps every call. 2 tokens revoked, 3 waiting requests denied. '
+        + 'Remove the extension "GateRook · dev" in Claude Desktop: Settings › Extensions.',
     });
     // The card that took its place has the keyboard.
     expect(document.activeElement).toBe(el.querySelector('#ep-stage-readonly-link'));

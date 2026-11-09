@@ -135,8 +135,14 @@ public class EndpointService {
   public record SettingsUpdate(String description, String access, String instructions, JsonNode limits,
       JsonNode protocol, JsonNode approvalWait, Boolean oauthEnabled) {}
 
-  /** What a deletion revoked and rejected; the audit stays. */
-  public record DeleteSummary(List<String> clients, List<String> tokensRevoked, int rejectedApprovals) {}
+  /**
+   * What a deletion disconnected, revoked and rejected; the audit stays.
+   *
+   * @param clients the clients disconnected, by name
+   * @param notes   what is left for the person to do in a client, one sentence each
+   */
+  public record DeleteSummary(List<String> clients, List<String> tokensRevoked, int rejectedApprovals,
+      List<String> notes) {}
 
   /** Before and after of a split. */
   public record SplitPreview(String newSlug, RiskAnalyzer.Report before, RiskAnalyzer.Report remaining,
@@ -495,7 +501,7 @@ public class EndpointService {
 
   /**
    * {@code DELETE /api/endpoints/{slug} {confirmSlug}}: its tokens and grants go, its pending requests are rejected,
-   * its client links stop; the audit and the requests' history keep the slug.
+   * the clients connected to it are disconnected; the audit and the requests' history keep the slug.
    */
   public DeleteSummary delete(String slug, String confirmSlug, String reason) {
     if (!slug.equals(confirmSlug)) {
@@ -521,10 +527,12 @@ public class EndpointService {
         publisher.publishEvent(new PrincipalRevoked(Caller.Kind.BRIDGE, g.getId(), id, slug));
       }
       List<String> clients = new ArrayList<>();
+      List<String> notes = new ArrayList<>();
       int rejected = 0;
       for (EndpointRemovalParticipant p : participants.orderedStream().toList()) {
         EndpointRemovalParticipant.Removal r = p.onEndpointRemoving(id, slug, reason);
         clients.addAll(r.clients());
+        notes.addAll(r.notes());
         rejected += r.rejectedApprovals();
       }
       // Rows that point at the endpoint go first: the database would cascade, Hibernate's context wouldn't know.
@@ -540,7 +548,7 @@ public class EndpointService {
       setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.SETTINGS,
           "Endpoint " + slug + " deleted", null, null, reason, env, slug, null, null));
       publisher.publishEvent(new EndpointRemoved(id, slug));
-      return new DeleteSummary(List.copyOf(clients), List.copyOf(revoked), rejected);
+      return new DeleteSummary(List.copyOf(clients), List.copyOf(revoked), rejected, List.copyOf(notes));
     });
   }
 

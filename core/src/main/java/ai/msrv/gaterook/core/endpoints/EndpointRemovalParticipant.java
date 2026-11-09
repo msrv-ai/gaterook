@@ -5,13 +5,22 @@ import java.util.List;
 /**
  * SPI: a module that keeps something of an endpoint takes part when the endpoint is deleted, a connection leaves it or
  * one of its principals is revoked, inside that transaction: {@code approvals} rejects the pending requests,
- * {@code clients} reports the client links that stop working. Throwing vetoes the change. It also says what access to
- * the endpoint it holds ({@link #liveAccess}).
+ * {@code clients} disconnects the clients linked to a deleted endpoint. Throwing vetoes the change. It also says what
+ * access to the endpoint it holds ({@link #liveAccess}).
  */
 public interface EndpointRemovalParticipant {
 
-  /** What one participant did, for the summary of {@code DELETE /api/endpoints/{slug}}. */
-  record Removal(List<String> clients, int rejectedApprovals) {
+  /**
+   * What one participant did, for the summary of {@code DELETE /api/endpoints/{slug}}.
+   *
+   * @param clients the clients disconnected, by name ({@code Claude Desktop})
+   * @param notes   what is left for the person to do, one sentence each ("Remove the extension … in Claude Desktop")
+   */
+  record Removal(List<String> clients, int rejectedApprovals, List<String> notes) {
+
+    public Removal(List<String> clients, int rejectedApprovals) {
+      this(clients, rejectedApprovals, List.of());
+    }
 
     public static Removal none() {
       return new Removal(List.of(), 0);

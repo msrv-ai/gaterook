@@ -81,7 +81,7 @@ function setup(): EndpointsData {
     },
     delete: (slug: string, confirm: string) => {
       calls.push(`delete ${slug} ${confirm}`);
-      return Promise.resolve({ clients: [], tokensRevoked: ['inspector-debug'], rejectedApprovals: 3 });
+      return Promise.resolve({ clients: [], tokensRevoked: ['inspector-debug'], rejectedApprovals: 3, notes: [] });
     },
     confirmIntegrity: (slug: string, body: { confirm?: string }) => {
       calls.push(`keep ${slug} ${body.confirm ?? '-'}`);

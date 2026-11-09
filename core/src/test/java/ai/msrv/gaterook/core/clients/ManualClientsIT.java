@@ -169,6 +169,11 @@ class ManualClientsIT {
     String id = added.path("client").path("client").asString();
     var deleted = core.bean(EndpointService.class).delete("manual-delete", "manual-delete", null);
     assertThat(deleted.clients()).contains("Endpoint companion");
+    // GateRook doesn't own the app's configuration: the person is told to remove it there.
+    assertThat(deleted.notes()).contains("Remove the MCP configuration for manual-delete in Endpoint companion: its "
+        + "token is revoked.");
+    assertThat(core.jdbc().queryForList("select change_to from setup_change where what = 'client' and subject = ?",
+        String.class, "Endpoint companion → manual-delete")).last().isEqualTo("Removed; token revoked");
     assertThat(core.jdbc().queryForObject("select count(*) from manual_client where id = ?", Integer.class,
         id.substring(7))).isZero();
     assertThat(api.get("/api/clients").json().path("clients").findValuesAsString("client")).doesNotContain(id);
