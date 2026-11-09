@@ -594,10 +594,15 @@ final class Session {
     }
   }
 
-  /** {@code " to <target>"} for a link, else nothing. */
+  /**
+   * {@code " to <target>"} for a link, else nothing. The target is whatever the server wrote, so it is cleaned like any
+   * text of a server ({@link Texts#clean}) before it reaches the error the agent reads or the server's log, whose notes
+   * are not cleaned.
+   */
   private static String leadsTo(Path link) {
     try {
-      return " to " + Files.readSymbolicLink(link);
+      String target = Texts.clean(Files.readSymbolicLink(link).toString(), 200, false);
+      return target.isEmpty() ? "" : " to " + target;
     } catch (IOException | RuntimeException e) {
       return "";
     }

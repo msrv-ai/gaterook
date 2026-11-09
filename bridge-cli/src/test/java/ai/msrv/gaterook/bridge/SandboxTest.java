@@ -329,6 +329,7 @@ class SandboxTest {
   }
 
   @Test
+  @DisabledOnOs(OS.WINDOWS)
   void aGrantIsWrittenAsGivenWithTheSystemsAliasesSpelledOutAndNeverAsWhereALinkLeads() {
     Sandbox.Closed closed = closed(Path.of("/Users/gaterook-test-person"),
         Path.of("/Users/gaterook-test-person/.gaterook"));

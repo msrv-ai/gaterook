@@ -2,12 +2,14 @@ package ai.msrv.gaterook.connectors.mcpserver;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Clock;
@@ -110,6 +112,46 @@ class WorkFolderTest {
     assertThat(home.resolve("gone")).doesNotExist();
   }
 
+  /**
+   * Where a link leads is the server's to write, and any text will do. It goes into the error the person and the agent
+   * read and into the server's log, so a line break, a terminal escape and an invisible character are removed (as from
+   * every other text of a server, {@link Texts}): the reason stays one plain line.
+   */
+  @Test
+  void whereALinkLeadsIsShownAndLoggedAsOnePlainLine() throws Exception {
+    Path work = Files.createDirectories(home.resolve("mcp/server"));
+    Path file = home.resolve("logs/server.log");
+    Path target = Path.of("first\nsecond\u001b[31m");
+    try {
+      target = Path.of(target + Character.toString(0xE0049)); // a tag character, invisible
+    } catch (InvalidPathException e) {
+      // A file system that can't name it has no such link to show.
+    }
+    Path tmp = Files.createSymbolicLink(work.resolve("tmp"), target);
+    Throwable refused;
+    try (ServerLog log = new ServerLog(file, Clock.systemUTC())) {
+      refused = catchThrowable(() -> Session.prepare(work, log));
+    }
+
+    assertThat(refused).isInstanceOf(ConnectorException.class);
+    assertThat(hasHiddenCharacter(refused.getMessage())).as(refused.getMessage()).isFalse();
+    assertThat(refused).hasMessageContaining("temp folder " + tmp)
+        .hasMessageContaining("symbolic link to first second");
+    List<String> lines = Files.readAllLines(file);
+    assertThat(lines).hasSize(1);
+    assertThat(hasHiddenCharacter(lines.getFirst())).as(lines.getFirst()).isFalse();
+    assertThat(lines.getFirst()).contains("[gaterook]").contains("symbolic link to first second");
+  }
+
+  @Test
+  void aTargetOfNothingButInvisibleCharactersIsLeftOut() throws Exception {
+    Path work = Files.createDirectories(home.resolve("mcp/server"));
+    Files.createSymbolicLink(work.resolve("tmp"), Path.of("\n\u001b"));
+
+    assertThatThrownBy(() -> Session.prepare(work)).isInstanceOf(ConnectorException.class)
+        .hasMessageContaining("is a symbolic link. GateRook");
+  }
+
   @Test
   void aStartIsRefusedBeforeAnythingRunsAndTheServersLogSaysWhy() throws Exception {
     Map<String, String> coreEnv = Map.of("PATH", System.getenv().getOrDefault("PATH", "/usr/bin:/bin"),
@@ -141,5 +183,10 @@ class WorkFolderTest {
     } finally {
       runtime.close();
     }
+  }
+
+  /** Whether {@code text} has a character that breaks its line or hides in it: a control or a format character. */
+  private static boolean hasHiddenCharacter(String text) {
+    return text.codePoints().anyMatch(Texts::hidden);
   }
 }
