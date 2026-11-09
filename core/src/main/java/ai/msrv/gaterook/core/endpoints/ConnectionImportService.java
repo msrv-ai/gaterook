@@ -2,6 +2,7 @@ package ai.msrv.gaterook.core.endpoints;
 
 import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.Env;
+import ai.msrv.gaterook.connectors.support.PersonOnly;
 import ai.msrv.gaterook.core.connections.ConnectionForms;
 import ai.msrv.gaterook.core.connections.ConnectionService;
 import ai.msrv.gaterook.core.connections.SecretInput;
@@ -672,9 +673,12 @@ public class ConnectionImportService {
         .put("name", connector.manifest().name()).put("supported", supported(connector.id()));
     if (!supported(connector.id())) out.put("reason", unsupportedReason(connector.id()));
     if (schema) {
-      out.set("configSchema", connector.manifest().configSchema().deepCopy());
+      // The agent may write what the person's form lets a proposal set: the settings only the person makes are not offered.
+      out.set("configSchema", ConnectionForms.withoutPersonOnlyFields(connector.manifest().configSchema()));
       ArrayNode fields = out.putArray("secretFields");
       ConnectionForms.secretFields(connector.manifest().configSchema()).forEach(f -> fields.add(f.pointer()));
+      ArrayNode personOnly = out.putArray("personOnlyFields");
+      ConnectionForms.personOnlyFields(connector.manifest().configSchema()).forEach(personOnly::add);
       ArrayNode references = out.putArray("referenceOnlyFields");
       for (ConnectionForms.LoginUserReference field : ConnectionForms.loginUserReferences(connector.manifest().configSchema())) {
         ObjectNode reference = references.addObject().put("pointer", field.pointer()).put("kind", "login-user");
@@ -892,6 +896,13 @@ public class ConnectionImportService {
         if (definitions.isEmpty()) throw invalid("Config contains a field absent from the connector schema. Request connection_import_schema first.", "/manifest");
         if (definitions.stream().anyMatch(s -> s.path("writeOnly").asBoolean(false))) {
           throw invalid("Do not include credential fields in config. Use credentialHints.", "/manifest");
+        }
+        if (definitions.stream().anyMatch(PersonOnly::isMarked)) {
+          // A trusted host key, certificate, cluster or credential command stands for the person's own decision, and an
+          // opt-in to a local command is theirs to make: the person sets them in GateRook, never a proposal.
+          throw invalid("Leave " + path + "/" + property.getKey() + " out of config. It records a decision that only "
+              + "the person makes in GateRook (Test connection, then Trust) or turns on a local command; the person "
+              + "sets it there.", "/manifest");
         }
         ObjectNode union = JsonNodeFactory.instance.objectNode();
         union.putArray("anyOf").addAll(definitions);

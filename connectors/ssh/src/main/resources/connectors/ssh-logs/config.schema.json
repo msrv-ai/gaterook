@@ -216,6 +216,7 @@
       "properties": {
         "pinned": {
           "type": "array",
+          "x-person-only": true,
           "maxItems": 8,
           "items": {
             "type": "string",
@@ -226,6 +227,7 @@
         },
         "knownHosts": {
           "type": "string",
+          "x-person-only": true,
           "x-widget": "textarea",
           "maxLength": 64000,
           "description": "Optional known_hosts lines, hashed lines too.",

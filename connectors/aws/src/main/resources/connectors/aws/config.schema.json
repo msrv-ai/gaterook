@@ -25,6 +25,7 @@
     },
     "accountId": {
       "type": "string",
+      "x-person-only": true,
       "pattern": "^\\d{12}$",
       "description": "Filled by Test connection; calls fail if the account changes"
     },

@@ -7,6 +7,7 @@ import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.TestResult;
+import ai.msrv.gaterook.connectors.support.PersonOnly;
 import ai.msrv.gaterook.connectors.support.egress.EgressClients;
 import ai.msrv.gaterook.connectors.support.egress.GuardedEgress;
 import java.io.IOException;
@@ -100,6 +101,11 @@ class HttpTestProbeTest {
     assertThat(asks.needsConfirmation().data().path("pin").asString()).startsWith("sha256/");
     assertThat(server.getRequestCount()).as("no request, no credential before trust").isZero();
     assertThat(secrets.resolved).isEmpty();
+    // Trust is the person's decision: what the patch writes is a setting only the person makes (x-person-only).
+    assertThat(asks.needsConfirmation().configPatch().path("tls").propertyNames()).containsExactly("caCertificates");
+    assertThat(PersonOnly.covers(connector.manifest().configSchema(), "/tls/caCertificates")).isTrue();
+    // Pinning the certificate by hand is the person's call as well.
+    assertThat(PersonOnly.covers(connector.manifest().configSchema(), "/tls/pins")).isTrue();
 
     // The core applies the patch (a Setup change) and tests again: now trusted, and the token is accepted.
     ObjectNode config = (ObjectNode) fresh.config().deepCopy();

@@ -10,6 +10,7 @@ import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
+import ai.msrv.gaterook.connectors.support.PersonOnly;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -173,6 +174,7 @@ class KubeconfigTest {
         .isEqualTo("https://k8s.dev.internal:6443");
     String ca = first.needsConfirmation().configPatch().at("/pinnedCluster/caSha256").asString();
     assertThat(ca).hasSize(64);
+    K8sTestKit.assertPersonOnly(first.needsConfirmation().configPatch());
 
     // The file now points elsewhere: calls stop until the person trusts the new cluster.
     Files.writeString(file, kubeconfig("token: t").replace("k8s.dev.internal", "evil.example"));
@@ -218,6 +220,9 @@ class KubeconfigTest {
     assertThat(confirm.needsConfirmation().data().path("env").toString()).isEqualTo("[\"AWS_PROFILE\"]");
     String fingerprint = confirm.needsConfirmation().configPatch().path("trustedExec").asString();
     assertThat(fingerprint).hasSize(64);
+    K8sTestKit.assertPersonOnly(confirm.needsConfirmation().configPatch());
+    // Opting in to the command is the person's too: it carries the mark like the fingerprint that follows it.
+    assertThat(PersonOnly.covers(new KubernetesConnector().manifest().configSchema(), "/allowExecPlugin")).isTrue();
 
     // Another command than the one allowed doesn't run.
     String other = kubeconfig(user.replace("get-token", "get-other-token"));

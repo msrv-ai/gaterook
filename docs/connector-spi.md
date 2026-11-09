@@ -69,7 +69,7 @@ package ai.msrv.gaterook.connector.api; import java.util.*; import tools.jackson
  *  Plugins use builder(): the canonical constructor may grow. */
 public record ConnectorManifest(String id /* "postgres" */, String version, Kind kind, String name, String icon /* Lucide */,
     String group /* Databases | Remote access | Logs | Kubernetes | Cloud | HTTP and MCP */, String description,
-    JsonNode configSchema /* 2020-12 + x-…, writeOnly = secret */, JsonNode policySchema /* or null */,
+    JsonNode configSchema /* 2020-12 + x-…, writeOnly = secret, x-person-only = only the person sets it */, JsonNode policySchema /* or null */,
     List<ToolDefinition> tools, RequiredAccess access /* "Needs access to" */, boolean dynamicTools /* MCP servers */,
     String connectorApi) {
   public enum Kind { BUILT_IN, PLUGIN, MCP_SERVER }
@@ -225,7 +225,8 @@ public record TestResult(boolean ok, long latencyMs, String serverVersion, Strin
   public record Hint(Severity severity, String code, String field, String text) {}
   public record Check(String name, boolean ok, long ms, String detail) {}
   public record TestError(String code, String message /* what happened + what to do */, String technical) {}
-  public record Confirmation(String kind /* host-key | tls-cert | exec-plugin */, String text, JsonNode data, JsonNode configPatch) {}
+  public record Confirmation(String kind /* host-key | tls-cert | exec-plugin */, String text, JsonNode data,
+      JsonNode configPatch /* writes only x-person-only settings */) {}
   public static TestResult success(long latencyMs, String serverVersion, String identity, Permissions p) {
     return new TestResult(true, latencyMs, serverVersion, identity, p, List.of(), List.of(), null, null, null, null, null);
   }
@@ -417,3 +418,20 @@ public record ResourceDescriptor(String uri /* mcpgw://connections/dev-db/schema
 package ai.msrv.gaterook.connector.api;
 public final class ApiVersion { public static final String CURRENT = "1.0.0"; private ApiVersion() {} }  // plugins: requires.connectorApi
 ```
+
+## Settings only the person makes
+
+A connector marks a property of its `configSchema` with `"x-person-only": true` when the property records a decision that only the person makes, or turns on running a command on the person's computer:
+
+- everything a Test connection patch (`TestResult.Confirmation.configPatch`) writes after the person chose Trust: a pinned SSH host key, a trusted TLS certificate, a trusted Kubernetes cluster or credential command;
+- every setting whose description says that Test connection fills it in, including known-host lines and certificate pins that stand in for that decision;
+- every opt-in that lets the connector run a command with the person's rights, such as the Kubernetes option to run a kubeconfig's credential command.
+
+The mark covers the property and everything inside it, wherever the schema defines it: a conditional branch, an object, an array item or a local `$ref`. It does not change the connection form, a saved config or its validation; the person still edits these settings there.
+
+What the mark does:
+
+- An AI connection import refuses a proposal whose candidate config contains a marked property (HTTP 422, "Leave … out of config"), whatever its value. `connection_import_schema` leaves marked properties out of the returned `configSchema` and lists their pointers in `personOnlyFields`. Only the person's own Test connection, then Trust, or their edit in the connection form sets them.
+- Tests derive their expectations from it. The Kubernetes, SSH and HTTP unit tests check that each setting their Trust patch writes is covered by the mark, and a schema test checks that each setting described as filled in by Test connection or as running a command is marked, so a new setting cannot be added without it.
+
+A connector or plugin with a Trust step marks what its patch writes. An unmarked setting is something an agent's proposal may set.

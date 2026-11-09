@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.core.connections;
 
 import ai.msrv.gaterook.connector.api.Env;
+import ai.msrv.gaterook.core.connections.internal.PersonOnlyFields;
 import ai.msrv.gaterook.core.connections.internal.SchemaPointers;
 import ai.msrv.gaterook.core.connections.internal.SecretFields;
 import java.util.ArrayList;
@@ -35,6 +36,19 @@ public final class ConnectionForms {
     List<String> passwords = SecretFields.templates(configSchema);
     return SecretFields.loginUserTemplates(configSchema).stream()
         .map(pointer -> new LoginUserReference(pointer, SecretFields.loginSecretsOf(passwords, pointer))).toList();
+  }
+
+  /**
+   * The settings only the person makes ({@code x-person-only}): what Test connection records after "Trust" and the
+   * opt-ins that run a local command. As sorted pointer templates ({@code *} for an array index).
+   */
+  public static List<String> personOnlyFields(JsonNode configSchema) {
+    return PersonOnlyFields.templates(configSchema);
+  }
+
+  /** A copy of the schema without {@link #personOnlyFields}: what an AI agent may write into a proposal. */
+  public static JsonNode withoutPersonOnlyFields(JsonNode configSchema) {
+    return PersonOnlyFields.without(configSchema);
   }
 
   /**

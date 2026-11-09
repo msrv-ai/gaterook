@@ -95,6 +95,40 @@ class ConnectionImportIT {
     admin.expect(409, HttpMethod.POST, path(session) + "/commit", commit);
   }
 
+  /** What Test connection records after the person's Trust is theirs: a proposal cannot write it, their draft can. */
+  @Test void aProposalCannotWriteWhatOnlyThePersonSetsButTheirOwnTrustedSettingIsImported() {
+    JsonNode session = session();
+    String pin = "SHA256:" + "A".repeat(43);
+    ObjectNode request = capability(session);
+    ObjectNode proposal = manifest("trusted-example");
+    ((ObjectNode) proposal.path("connections").get(0).path("config").path("connection")).put("hostKey", pin);
+    request.set("manifest", proposal);
+
+    JsonNode refused = agent.legacyCall("submit_connection_import", request).result();
+    assertThat(refused.path("isError").asBoolean()).as(refused.toString()).isTrue();
+    assertThat(refused.toString()).contains("Leave /connection/hostKey out of config").doesNotContain(pin);
+    assertThat(admin.ok(path(session)).path("status").asString()).isEqualTo("awaiting");
+
+    // The schema offers no such setting and names it, so the AI leaves it out and says so in a warning.
+    JsonNode schema = agent.legacyCall("connection_import_schema", capability(session).put("type", "pgfake"))
+        .result().path("structuredContent");
+    assertThat(schema.at("/configSchema/properties/connection/properties").has("hostKey")).isFalse();
+    assertThat(schema.at("/configSchema/properties/connection/properties").has("host")).isTrue();
+    assertThat(schema.path("personOnlyFields").toString()).isEqualTo("[\"/connection/hostKey\"]");
+    request.set("manifest", manifest("trusted-example"));
+    assertThat(agent.legacyCall("submit_connection_import", request).result().path("isError").asBoolean()).isFalse();
+    assertThat(admin.ok(path(session)).toString()).doesNotContain(pin);
+
+    // Their own Trust, kept in their draft, is saved as they made it.
+    ObjectNode changed = commit("database", "trusted-example");
+    ObjectNode selection = (ObjectNode) changed.path("selections").get(0);
+    ((ObjectNode) selection.path("config").path("connection")).put("hostKey", pin);
+    selection.putObject("secrets").putObject("/credentials/password").put("source", "local")
+        .put("value", "trusted-import-test-password");
+    admin.expect(200, HttpMethod.POST, path(session) + "/commit", changed);
+    assertThat(admin.ok("/api/connections/trusted-example").at("/config/connection/hostKey").asString()).isEqualTo(pin);
+  }
+
   @Test void modernDiscoveryRequiresBothTheSessionCapabilityAndItsEndpoint() {
     JsonNode session = session();
     ObjectNode schema = capability(session).put("type", "pgfake");

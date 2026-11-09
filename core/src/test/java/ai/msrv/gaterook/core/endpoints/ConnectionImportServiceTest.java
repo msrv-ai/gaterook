@@ -61,10 +61,20 @@ class ConnectionImportServiceTest {
     when(connections.withStores(any())).thenAnswer(call -> new LinkedHashMap<>(call.<Map<String, SecretInput>>getArgument(0)));
     when(files.create(anyString())).thenAnswer(i -> "/private-imports/" + i.getArgument(0) + ".json");
     when(transactions.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+    // The person-only settings follow the layout of the real connectors: some are named by a placeholder and defined in
+    // a conditional branch (Kubernetes), some sit inside an object or an array item (SSH host keys, HTTP pins).
     ObjectNode schema = (ObjectNode) json.readTree("""
         {"type":"object","properties":{"host":{"type":"string"},"credentials":{"type":"object","x-gateway-secret":"login",
         "properties":{"username":{"type":"string"},"password":{"type":"string","writeOnly":true}}},
-        "replicas":{"type":"array","items":{"type":"object","properties":{"host":{"type":"string"}}}}}}
+        "replicas":{"type":"array","items":{"type":"object","properties":{"host":{"type":"string"},
+        "fingerprint":{"type":"string","x-person-only":true}}}},
+        "tls":{"type":"object","properties":{"minVersion":{"type":"string"},
+        "pins":{"type":"array","items":{"type":"string"},"x-person-only":true}}},
+        "trustedFingerprint":{"type":"string","x-person-only":true},
+        "pinnedHost":true,"allowExec":true},
+        "allOf":[{"if":{"properties":{"host":{"const":"local"}}},"then":{"properties":{
+        "pinnedHost":{"type":"object","x-person-only":true,"properties":{"serverUrl":{"type":"string"}}},
+        "allowExec":{"type":"boolean","default":false,"x-person-only":true}}}}]}
         """);
     ConnectorManifest manifest = ConnectorManifest.builder("pgfake", "1", ConnectorManifest.Kind.BUILT_IN)
         .name("Test SQL").configSchema(schema).build();
@@ -328,6 +338,65 @@ class ConnectionImportServiceTest {
       assertThat(service.get(session.id()).status()).isEqualTo("awaiting");
     }
     verifyNoInteractions(connections, wiring, events);
+  }
+
+  /** A proposal can stand in for neither the person's Trust decision nor their opt-in to local commands. */
+  @Test
+  void refusesSettingsOnlyThePersonMakesWhereverTheyAreWritten() {
+    var session = start();
+    for (String config : List.of("{\"trustedFingerprint\":\"0000\"}", "{\"trustedFingerprint\":null}",
+        "{\"pinnedHost\":{\"serverUrl\":\"https://k8s.example.test\"}}", "{\"pinnedHost\":{}}",
+        "{\"allowExec\":true}", "{\"allowExec\":false}",
+        "{\"tls\":{\"pins\":[\"sha256/example\"]}}", "{\"tls\":{\"minVersion\":\"1.3\",\"pins\":[]}}",
+        "{\"replicas\":[{\"host\":\"one.example.test\"},{\"host\":\"two.example.test\",\"fingerprint\":\"0000\"}]}")) {
+      ObjectNode manifest = manifest();
+      ((ObjectNode) manifest.path("connections").get(0)).set("config", json.readTree(config));
+      assertThatThrownBy(() -> submit(session, manifest)).as(config).isInstanceOfSatisfying(ProblemException.class, error -> {
+        assertThat(error.kind()).isEqualTo(ProblemException.Kind.UNPROCESSABLE);
+        assertThat(error.getMessage()).contains("Leave").contains("out of config").contains("GateRook");
+      });
+      assertThat(service.get(session.id()).status()).as(config).isEqualTo("awaiting");
+    }
+    verifyNoInteractions(connections, wiring, events);
+  }
+
+  @Test
+  void namesTheRefusedSettingSoTheAgentCanLeaveItOut() {
+    var session = start();
+    ObjectNode manifest = manifest();
+    ((ObjectNode) manifest.path("connections").get(0)).set("config",
+        json.readTree("{\"replicas\":[{\"host\":\"one.example.test\",\"fingerprint\":\"0000\"}]}"));
+    assertThatThrownBy(() -> submit(session, manifest)).isInstanceOf(ProblemException.class)
+        .hasMessageContaining("/replicas/*/fingerprint").hasMessageNotContaining("0000");
+  }
+
+  @Test
+  void ordinarySettingsBesideTheirPersonOnlyNeighboursAreStillAccepted() {
+    var session = start();
+    ObjectNode manifest = manifest();
+    ((ObjectNode) manifest.path("connections").get(0)).set("config", json.readTree("""
+        {"host":"db.invalid","tls":{"minVersion":"1.3"},"replicas":[{"host":"one.example.test"}],
+         "credentials":{"username":"reader"}}
+        """));
+    assertThat(submit(session, manifest).path("status").asString()).isEqualTo("review");
+    assertThat(service.get(session.id()).manifest().path("connections").get(0).path("config").path("tls")
+        .path("minVersion").asString()).isEqualTo("1.3");
+  }
+
+  @Test
+  void theSchemaTheAgentReadsLeavesPersonOnlySettingsOutAndSaysWhyTheyAreMissing() {
+    var session = start();
+    ObjectNode result = service.schema(session.id(), session.submissionToken(), "ep-source", "pgfake");
+    String schema = result.path("configSchema").toString();
+    assertThat(schema).doesNotContain("x-person-only", "fingerprint", "pins", "trustedFingerprint", "pinnedHost",
+        "allowExec");
+    assertThat(result.at("/configSchema/properties/tls/properties/minVersion/type").asString()).isEqualTo("string");
+    assertThat(result.at("/configSchema/properties/replicas/items/properties/host/type").asString()).isEqualTo("string");
+    assertThat(result.path("personOnlyFields")).isEqualTo(json.readTree("""
+        ["/allowExec","/pinnedHost","/replicas/*/fingerprint","/tls/pins","/trustedFingerprint"]
+        """));
+    // The connector's own schema is what the form and the validation read: pruning works on a copy.
+    assertThat(registry.manifest("pgfake").orElseThrow().configSchema().toString()).contains("x-person-only");
   }
 
   @Test
