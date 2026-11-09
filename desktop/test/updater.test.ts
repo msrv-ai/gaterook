@@ -53,7 +53,7 @@ class FakeUpdater extends EventEmitter implements UpdateDriver {
 function fixture(t: TestContext, overrides: Partial<UpdatesOptions> = {}) {
   const temp = tempDir('updater');
   t.after(() => temp.remove());
-  writeFileSync(join(temp.dir, 'app-update.yml'), 'provider: github\nowner: msrv-ai\nrepo: gaterook\npublisherName: GateRook\n');
+  writeFileSync(join(temp.dir, 'app-update.yml'), 'provider: github\nowner: gaterook\nrepo: gaterook\npublisherName: GateRook\n');
   const driver = new FakeUpdater();
   const states: UpdateState[] = [];
   const failures: string[] = [];
