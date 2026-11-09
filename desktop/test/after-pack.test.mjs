@@ -45,7 +45,7 @@ describe('macOS update metadata packaging', () => {
     const f = fixture(t);
     await afterPack(f.context);
     assert.deepEqual(load(readFileSync(f.metadata, 'utf8')), {
-      provider: 'github', owner: 'msrv-ai', repo: 'gaterook', updaterCacheDirName: 'gaterook-desktop-updater',
+      provider: 'github', owner: 'gaterook', repo: 'gaterook', updaterCacheDirName: 'gaterook-desktop-updater',
     });
   });
 
