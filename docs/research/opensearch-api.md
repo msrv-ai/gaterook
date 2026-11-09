@@ -13,7 +13,7 @@ Enable the desired tools on the endpoint as well. Existing endpoints have no con
 | Tool | Purpose | Authorization |
 | --- | --- | --- |
 | `opensearch_indices` | Resolve concrete indices, aliases, and data streams | READ. In log mode, restricted to configured patterns; in full mode, accepts an index selector and defaults to all indices. |
-| `opensearch_query` | Known read REST APIs with full Query DSL, aggregations, metadata, and diagnostics | READ, subject to endpoint policy. Requires full API access. Unrecognized operations are denied with a direction to use `opensearch_request`. |
+| `opensearch_query` | Known read REST APIs with full Query DSL, aggregations, metadata, and diagnostics | READ, subject to endpoint policy. Requires full API access. Unrecognized operations, and paths with an escape other than the UTF-8 escapes of non-ASCII text (such as `%2F`), are denied with a direction to use `opensearch_request`. |
 | `opensearch_request` | Arbitrary supported OpenSearch REST operations, including settings, writes, SQL/PPL, and plugins | MUTATION classification with Approval by default, including for GET. Explicit endpoint Bypass also authorizes the exact prepared request. Requires full API access. |
 
 Bypass is an explicit per-tool endpoint choice, never a default. It executes the same prepared request without creating a human approval; configuration checks, path validation, server permissions, and output limits still apply.
@@ -23,6 +23,8 @@ The configured `indices` and `scopeQuery` continue to govern `logs_search` and `
 ## Request and response contract
 
 Query and request tools accept `method`, a server-relative `path`, optional `query` parameters, optional `body`, and `contentType`. Supported methods include GET, HEAD, POST, PUT, PATCH, DELETE, and OPTIONS. GET and DELETE can carry bodies. Query values can be strings, numbers, booleans, or arrays of those values. Structured query values are URL-encoded; arrays produce repeated parameters.
+
+The request target, `path` with its `query` parameters, is one text: the same string is classified, shown in the preview, stored in the approved payload, summarized for the audit trail, signed (AWS SigV4) and written into the request line. It is printable ASCII. The HTTP client cannot carry any other character in a request line (it writes `?` or one raw byte), so a look-alike hyphen would otherwise end the path and start a query on the wire. Characters beyond ASCII in the path, in a query typed into it, and in `query` values and names are therefore written once as UTF-8 percent-escapes when the request is prepared (`ü` becomes `%C3%BC`, U+2010 becomes `%E2%80%90`), and escapes that are already present stay as written. Index names and document IDs with such text work as they do on the server. An unpaired surrogate in the path, a query parameter or the body cannot be encoded and is refused, as is a dot-only index selector in `opensearch_indices`. The transport sends a request only when its request line is exactly the prepared target.
 
 Use `application/json` for JSON objects, arrays, or JSON text. Use `application/x-ndjson` with a text body for bulk and multi-search. Each nonempty line must be valid JSON. GateRook adds a final newline when absent, and the preview and executed body use those same bytes. Request bodies are never silently truncated.
 
@@ -148,7 +150,7 @@ Examples of plugin-specific effects make a blanket plugin READ rule unsuitable: 
 
 ## Verification and practical limits
 
-The unit suite uses MockWebServer to verify full API defaults, explicit scoped mode, index discovery scope, unmodified DSL and aggregation results, query parameter encoding, approval replay, JSON Patch, NDJSON, Basic authentication, SigV4 writes, path rejection, HTTP error bodies, text output, and response/request budgets. `OpenSearchIT` exercises index creation, discovery, bulk ingestion, GET-body aggregation, index settings, dynamic cluster settings with restoration, deletion, and existing log behavior against a disposable server.
+The unit suite uses MockWebServer to verify full API defaults, explicit scoped mode, index discovery scope, unmodified DSL and aggregation results, query parameter encoding, approval replay, JSON Patch, NDJSON, Basic authentication, SigV4 writes, path rejection, HTTP error bodies, text output, and response/request budgets. For non-ASCII targets they assert that the request line the server receives equals the previewed target and that a SigV4 signature recomputed from the received request matches. `OpenSearchIT` and `ElasticsearchIT` exercise index creation, discovery, bulk ingestion, GET-body aggregation, index settings, dynamic cluster settings with restoration, deletion, existing log behavior, and index names and document IDs with look-alike and non-ASCII characters against a disposable server.
 
 Run the module checks using the JDK and Maven versions in [development](../development.md):
 
