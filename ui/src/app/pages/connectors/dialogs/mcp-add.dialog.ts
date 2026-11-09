@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, output, signal, viewChild } from '@angular/core';
 import { McpServerAuthConfig, McpServerConfig, McpServerReview, McpServerSource } from '../../../core/api/plugins.api';
+import { Env } from '../../../core/api/types';
 import { GwDialog, GwDialogClose } from '../../../kit/dialog';
 import { GwToggle } from '../../../kit/disclosure';
 import { GwIcon } from '../../../kit/icons';
@@ -293,6 +294,15 @@ let nextId = 0;
                 <p class="gw-field__hint" [id]="uid + '-name-hint'">Lowercase letters, digits and <span class="gw-mono">-</span>. It also prefixes the tool names.</p>
                 @if (errors().name) {<p class="gw-field__error" [id]="uid + '-name-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().name }}</p>}
               </div>
+              <fieldset class="gw-field" [disabled]="busy()" [attr.aria-describedby]="uid + '-environment-hint'">
+                <legend class="gw-field__label">Environment</legend>
+                <div class="gw-segmented">
+                  @for (env of environments; track env) {
+                    <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-environment'" [value]="env" [checked]="environment() === env" (change)="environment.set(env)"><span class="gw-segmented__label">{{ env.toUpperCase() }}</span></label>
+                  }
+                </div>
+                <p class="gw-field__hint" [id]="uid + '-environment-hint'">Choose the environment this server can access. Production servers require production endpoints.</p>
+              </fieldset>
               <fieldset class="gw-field" [attr.aria-describedby]="uid + '-transport-hint'">
                 <legend class="gw-field__label">Transport</legend>
                 <div class="gw-segmented">
@@ -573,6 +583,8 @@ export class GwMcpAddDialog {
 
   protected readonly uid = `ma-${++nextId}`;
   protected readonly name = signal('');
+  protected readonly environments: readonly Env[] = ['dev', 'stage', 'prod'];
+  protected readonly environment = signal<Env>('dev');
   protected readonly transport = signal<'stdio' | 'http'>('stdio');
   protected readonly command = signal('');
   protected readonly url = signal('');
@@ -645,6 +657,7 @@ export class GwMcpAddDialog {
   /** Opens an empty draft for the explicitly selected source; no server starts until its review is confirmed. */
   open(opener: HTMLElement | null, source: 'manual' | 'registry' | 'url' = 'manual', registryName: string | null = null): void {
     this.name.set('');
+    this.environment.set('dev');
     this.transport.set(source === 'url' ? 'http' : 'stdio');
     this.command.set('');
     this.url.set('');
@@ -998,13 +1011,14 @@ export class GwMcpAddDialog {
     }
     this.busy.set(true);
     try {
-      const review = await this.data.reviewServer(r.source);
+      const source = { ...r.source, env: this.environment() };
+      const review = await this.data.reviewServer(source);
       const opener = this.dialog.returnTo;
       this.dialog.returnTo = null;
       this.dialog.close('next');
       this.reviewed.emit({
         review,
-        source: r.source,
+        source,
         name: this.name().trim(),
         transport: this.transport(),
         target: this.transport() === 'http' ? this.url().trim() : this.command().trim(),

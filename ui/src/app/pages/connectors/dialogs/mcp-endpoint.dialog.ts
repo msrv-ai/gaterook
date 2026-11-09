@@ -94,6 +94,7 @@ let nextId = 0;
         </header>
         <div class="gw-dialog__body">
           <div class="gw-stack">
+            <p class="gw-text-small">Environment <span [class]="'gw-env gw-env--sm gw-env--' + s.env">{{ s.env }}</span></p>
             @if (loadError(); as e) {
               <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
                 <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>

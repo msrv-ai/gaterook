@@ -1,9 +1,9 @@
 import { ChangeDetectionStrategy, Component, ElementRef, inject, output, signal, viewChild } from '@angular/core';
 import { SecretInputs } from '../../../core/api/connections.api';
 import { McpServerAuthReview, McpServerConfig, McpServerReview, McpServerSource, McpSignIn } from '../../../core/api/plugins.api';
+import { Env } from '../../../core/api/types';
 import { GwCopy } from '../../../kit/copy';
 import { GwDialog, GwDialogClose } from '../../../kit/dialog';
-import { GwEnableWhen } from '../../../kit/enable-when';
 import { GwIcon } from '../../../kit/icons';
 import { formatArgv, npmPackage, serverPaths } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
@@ -204,7 +204,7 @@ let nextId = 0;
  */
 @Component({
   selector: 'dialog[gwMcpReviewDialog]',
-  imports: [GwIcon, GwDialogClose, GwEnableWhen, GwCopy, GwMcpSignIn],
+  imports: [GwIcon, GwDialogClose, GwCopy, GwMcpSignIn],
   hostDirectives: [{ directive: GwDialog, inputs: ['gwDialogStatic'], outputs: ['closed'] }],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
@@ -224,7 +224,19 @@ let nextId = 0;
         </header>
         <div class="gw-dialog__body">
           <div class="gw-stack">
+            @if (catalogSource()) {
+              <fieldset class="gw-field" [disabled]="busy() || switching()" [attr.aria-describedby]="uid + '-environment-hint'">
+                <legend class="gw-field__label">Environment</legend>
+                <div class="gw-segmented">
+                  @for (env of environments; track env) {
+                    <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-environment'" [value]="env" [checked]="environment() === env" (change)="changeEnvironment(env)"><span class="gw-segmented__label">{{ env.toUpperCase() }}</span></label>
+                  }
+                </div>
+                <p class="gw-field__hint" [id]="uid + '-environment-hint'">Choose the environment this server can access. Production servers require production endpoints.</p>
+              </fieldset>
+            }
             <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Environment</dt><dd class="gw-kv__value"><span [class]="'gw-env gw-env--sm gw-env--' + environment()">{{ environment() }}</span></dd></div>
               <div class="gw-kv__row"><dt class="gw-kv__key">{{ w.targetKey }}</dt><dd class="gw-kv__value"><code class="gw-code">{{ w.target }}</code></dd></div>
               @if (w.version; as ver) {
                 <div class="gw-kv__row"><dt class="gw-kv__key">Version</dt><dd class="gw-kv__value">
@@ -341,7 +353,7 @@ let nextId = 0;
               </fieldset>
             }
             <label class="gw-checkbox">
-              <input class="gw-checkbox__input" type="checkbox" [id]="uid + '-ack'" required>
+              <input #ack class="gw-checkbox__input" type="checkbox" [id]="uid + '-ack'" [checked]="acknowledged()" (change)="acknowledged.set(ack.checked)" required>
               <span class="gw-checkbox__control" aria-hidden="true"></span>
               <span class="gw-checkbox__label" [id]="uid + '-ack-label'">{{ w.trust }}</span>
             </label>
@@ -359,7 +371,7 @@ let nextId = 0;
             @if (busy() || switching()) {<span class="gw-sr-only" [id]="uid + '-back-wait'">Wait for the current request to finish before going back.</span>}
           }
           <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
-          <button class="gw-btn gw-btn--danger" type="submit" aria-disabled="true" [attr.aria-describedby]="uid + '-ack-label'" [gwEnableWhen]="'#' + uid + '-ack'" [attr.aria-busy]="busy() ? 'true' : null">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}{{ w.verb }} MCP server {{ w.name }}</button>
+          <button class="gw-btn gw-btn--danger" type="submit" [attr.aria-disabled]="!acknowledged() || busy() || switching() ? 'true' : null" [attr.aria-describedby]="uid + '-ack-label'" [attr.aria-busy]="busy() || switching() ? 'true' : null">@if (busy() || switching()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}{{ w.verb }} MCP server {{ w.name }}</button>
         </footer>
       </form>
     }
@@ -377,9 +389,13 @@ export class GwMcpReviewDialog {
 
   protected readonly uid = `mr-${++nextId}`;
   protected readonly canGoBack = signal(false);
+  protected readonly environments: readonly Env[] = ['dev', 'stage', 'prod'];
+  protected readonly environment = signal<Env>('dev');
+  protected readonly catalogSource = signal(false);
   private readonly source = signal<McpServerSource | null>(null);
   protected readonly view = signal<McpReviewView | null>(null);
   protected readonly busy = signal(false);
+  protected readonly acknowledged = signal(false);
   protected readonly error = signal<string | null>(null);
   /** The value fields left empty at the last Start (by index). */
   protected readonly missing = signal<readonly number[]>([]);
@@ -394,6 +410,31 @@ export class GwMcpReviewDialog {
   protected readonly signedIn = signal<McpSignIn | null>(null);
   private signedInConfig: McpServerConfig | null = null;
   private readonly signInBlock = viewChild(GwMcpSignIn);
+
+  /** Catalog entries skip the setup form, so changing their environment refreshes the review here. */
+  protected async changeEnvironment(env: Env): Promise<void> {
+    let r = this.reviewed;
+    if (!r || this.busy() || this.switching() || env === this.environment()) return;
+    const previous = this.environment();
+    this.environment.set(env);
+    this.switching.set(true);
+    this.error.set(null);
+    try {
+      const source = { ...r.source, env };
+      const review = await this.data.reviewServer(source);
+      if (this.reviewed === r && this.host.open) {
+        r = { ...r, source, review };
+        this.render(r);
+      }
+    } catch (err) {
+      if (this.reviewed === r && this.host.open) {
+        this.environment.set(previous);
+        this.error.set(failureText(err, 'The server could not be reviewed for this environment.'));
+      }
+    } finally {
+      if (this.reviewed === r) this.switching.set(false);
+    }
+  }
 
   /** Why Sign in can't start: a server that needs an OAuth app has no client ID yet, or no secret where it needs one. */
   protected signInBlocked(): string | null {
@@ -419,8 +460,9 @@ export class GwMcpReviewDialog {
     this.switching.set(true);
     this.error.set(null);
     try {
-      const review = await this.data.reviewServer({ config });
-      this.render({ ...r, review, source: { config } });
+      const source = { ...r.source, config };
+      const review = await this.data.reviewServer(source);
+      this.render({ ...r, review, source });
     } catch (err) {
       this.error.set(failureText(err, 'This build of the gateway core can’t run MCP servers yet.'));
     } finally {
@@ -436,7 +478,7 @@ export class GwMcpReviewDialog {
     this.signedInConfig = config;
     this.signedIn.set(null);
     const secret = this.host.querySelector<HTMLInputElement>(`#${this.uid}-client-secret`)?.value ?? '';
-    return this.data.startSignIn({ config, ...(secret ? { secrets: { [CLIENT_SECRET]: { source: 'local', value: secret } } } : {}) });
+    return this.data.startSignIn({ config, env: source.env, ...(secret ? { secrets: { [CLIENT_SECRET]: { source: 'local', value: secret } } } : {}) });
   };
 
   protected fieldValue(e: Event): string {
@@ -445,6 +487,7 @@ export class GwMcpReviewDialog {
 
   show(reviewed: McpReviewed, canGoBack = false): void {
     this.canGoBack.set(canGoBack);
+    this.switching.set(false);
     this.render(reviewed);
     this.dialog.openAfterRender(reviewed.opener);
   }
@@ -459,11 +502,7 @@ export class GwMcpReviewDialog {
 
   /** Every review starts unacknowledged and with empty values (the fields are reused from the last one). */
   private render(reviewed: McpReviewed): void {
-    const ack = this.host.querySelector<HTMLInputElement>(`#${this.uid}-ack`);
-    if (ack?.checked) {
-      ack.checked = false;
-      ack.dispatchEvent(new Event('change', { bubbles: true }));
-    }
+    this.acknowledged.set(false);
     this.wipe();
     this.signInBlock()?.reset();
     this.signedIn.set(null);
@@ -472,6 +511,8 @@ export class GwMcpReviewDialog {
     this.clientSecretTyped.set(false);
     this.reviewed = reviewed;
     this.source.set(reviewed.source);
+    this.environment.set(reviewed.source.env ?? 'dev');
+    this.catalogSource.set('catalog' in reviewed.source);
     this.view.set(mcpReviewView(reviewed));
     this.busy.set(false);
     this.error.set(null);
@@ -499,8 +540,7 @@ export class GwMcpReviewDialog {
     e.preventDefault();
     const source = this.source();
     const w = this.view();
-    const ack = this.host.querySelector<HTMLInputElement>(`#${this.uid}-ack`);
-    if (!source || !w || this.busy() || !ack?.checked) return;
+    if (!source || !w || this.busy() || this.switching() || !this.acknowledged()) return;
     const fields = this.valueFields();
     const values = mcpSecretValues(
       w.secrets,
@@ -525,9 +565,9 @@ export class GwMcpReviewDialog {
     const request: McpServerSource =
       'config' in source
         ? signIn && this.signedInConfig
-          ? { config: this.signedInConfig, ...secrets, signIn: signIn.id }
-          : { config: this.withoutSignIn(source.config, w), ...secrets }
-        : { catalog: source.catalog, ...secrets };
+          ? { ...source, config: this.signedInConfig, ...secrets, signIn: signIn.id }
+          : { ...source, config: this.withoutSignIn(source.config, w), ...secrets }
+        : { ...source, ...secrets };
     try {
       const started = await this.data.addServer(request);
       this.wipe();
@@ -538,7 +578,7 @@ export class GwMcpReviewDialog {
       this.dialog.close('started');
       this.connected.emit({
         name: started?.name || w.name,
-        env: 'dev',
+        env: source.env ?? 'dev',
         http: w.http,
         tools: typeof started?.tools === 'number' ? started.tools : null,
         opener,

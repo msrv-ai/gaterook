@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { ApiClient } from './api-client';
 import { Diff } from './approvals.api';
 import { SecretInputs } from './connections.api';
-import { Iso, JsonObject, JsonValue, WithReason } from './types';
+import { Env, Iso, JsonObject, JsonValue, WithReason } from './types';
 
 /** The signed catalog (steps K4/K6): plugins, templates, MCP servers. Offline: the last good index. */
 export interface CatalogIndex {
@@ -313,9 +313,9 @@ export interface McpServerConfig {
  * A server typed in Add MCP server, or a signed catalog entry (`github-mcp@0.6.2`); `secrets` only to add it, and
  * `signIn` the finished sign-in of a server that signs in with OAuth.
  */
-export type McpServerSource =
+export type McpServerSource = { readonly env?: Env } & (
   | { readonly config: McpServerConfig; readonly secrets?: SecretInputs; readonly signIn?: string }
-  | { readonly catalog: string; readonly secrets?: SecretInputs };
+  | { readonly catalog: string; readonly secrets?: SecretInputs });
 
 /**
  * One page of the MCP registry's search (`GET /api/mcp-registry/servers`, §7.5): the latest version of each server
@@ -428,7 +428,7 @@ export class McpServersApi {
   }
 
   /** Starts a sign-in to the server under review (its config with `auth.type: "oauth"`). */
-  startSignIn(source: { readonly config: McpServerConfig; readonly secrets?: SecretInputs }): Promise<McpSignIn> {
+  startSignIn(source: { readonly config: McpServerConfig; readonly env?: Env; readonly secrets?: SecretInputs }): Promise<McpSignIn> {
     return this.api.post('/api/mcp-sign-ins', source);
   }
 
