@@ -428,6 +428,11 @@ describe('MCP server review', () => {
     // A key the person passes as the Authorization header is their choice instead of the sign-in.
     expect(remote({ kind: 'oauth', registration: 'dynamic' }, ['Authorization']).signIn).toBeNull();
     expect(remote({ kind: 'oauth', registration: 'app' }, [], 'Iv23li0abc').appClient).toBe('Iv23li0abc');
+    // GateRook's own app (GitHub): a sign-in with a one-time code, no client of the person's.
+    const github = remote({ kind: 'oauth', issuer: 'https://github.com/login/oauth', authorizationHost: 'github.com', registration: 'gaterook-app' });
+    expect(github.signIn).toBe('required');
+    expect(github.appClient).toBeNull();
+    expect(github.secrets).toEqual([]);
   });
 
   const cloudy = (auth: NonNullable<Parameters<typeof sentryReview>[0]>['auth'], chosen?: McpServerAuthConfig, url = 'https://bigtableadmin.googleapis.com/mcp') =>

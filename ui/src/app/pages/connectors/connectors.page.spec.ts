@@ -10,8 +10,10 @@ import { SecretsApi } from '../../core/api/secrets.api';
 import { Template, TemplateSaved, TemplatesApi } from '../../core/api/templates.api';
 import { EventStream } from '../../core/events/event-stream';
 import { CoreStore } from '../../core/stores/core.store';
+import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { TimeService } from '../../core/time/time.service';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
+import { ClipboardWriter } from '../../kit/clipboard';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
 import {
@@ -1883,7 +1885,7 @@ describe('Connectors page: MCP servers', () => {
     const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
     expect(review.open).toBe(true);
     expect(text(review.querySelector('.gw-alert--warning'))).toContain('It wants a key, not a sign-in');
-    expect(text(review.querySelector('.gw-alert--warning'))).toContain('Go back');
+    expect(text(review.querySelector('.gw-alert--warning'))).toContain('go back');
     check(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
     await settle(fixture);
     button(review, 'Back').click();
@@ -1956,6 +1958,110 @@ describe('Connectors page: MCP servers', () => {
     await settle(fixture);
     expect(bearer.checked).toBe(false);
     expect(add.querySelector<HTMLInputElement>('input[type="radio"][value="oauth"]')!.checked).toBe(true);
+  });
+
+  it('switches a refused review to a Bearer token in place, without going back', async () => {
+    setup();
+    const reviewApi = vi.spyOn(TestBed.inject(McpServersApi), 'review')
+      .mockResolvedValueOnce(sentryReview({ name: 'private-mcp', transport: 'http', url: 'https://mcp.example.com/mcp', argv: [], env: [],
+        auth: { kind: 'refused', message: 'It refused the request (HTTP 401) and publishes no OAuth metadata.' } }))
+      .mockResolvedValueOnce(sentryReview({ name: 'private-mcp', transport: 'http', url: 'https://mcp.example.com/mcp', argv: [],
+        env: ['Authorization'], auth: { kind: 'refused', message: 'It refused the request (HTTP 401) and publishes no OAuth metadata.' } }));
+    const { fixture, el } = await render();
+    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    type(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!, 'private-mcp');
+    check(add.querySelector<HTMLInputElement>('input[type="radio"][value="http"]')!);
+    type(add.querySelector<HTMLInputElement>('input[type="url"]')!, 'https://mcp.example.com/mcp');
+    await settle(fixture);
+    button(add, 'Review and connect').click();
+    await settle(fixture);
+
+    const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
+    button(review, 'Use a Bearer token').click();
+    await settle(fixture);
+    const config = { name: 'private-mcp', transport: 'http', url: 'https://mcp.example.com/mcp', headers: [{ name: 'Authorization' }] };
+    expect(reviewApi).toHaveBeenCalledTimes(2);
+    expect(reviewApi).toHaveBeenLastCalledWith({ config, env: 'dev' });
+    expect(review.open).toBe(true);
+    expect(review.querySelector('.gw-alert--warning')).toBeNull();
+    const token = review.querySelector<HTMLInputElement>('input[type="password"]')!;
+    expect(text(review.querySelector(`label[for="${token.id}"]`))).toBe('Bearer token');
+    expect(document.activeElement).toBe(token);
+    type(token, 'example-token');
+    check(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
+    await settle(fixture);
+    button(review, 'Connect MCP server private-mcp').click();
+    await settle(fixture);
+    expect(bodies['create-server']).toEqual({
+      config,
+      env: 'dev',
+      secrets: { '/headers/0/secretRef': { source: 'local', value: 'Bearer example-token' } },
+      acknowledge: true,
+    });
+  });
+
+  it('signs in with a one-time code where GateRook has its own app, the code first, then the page', async () => {
+    setup();
+    const api = TestBed.inject(McpServersApi);
+    vi.spyOn(api, 'review').mockResolvedValue(sentryReview({ name: 'githubcopilot-mcp', transport: 'http', argv: [], env: [],
+      url: 'https://api.githubcopilot.com/mcp/',
+      auth: { kind: 'oauth', issuer: 'https://github.com/login/oauth', authorizationHost: 'github.com', registration: 'gaterook-app', scope: 'repo read:org offline_access' } }));
+    const signIn: McpSignIn = { id: 'msi_device000001', server: 'githubcopilot-mcp', state: 'waiting', authorizationHost: 'github.com',
+      authorizationUrl: 'https://github.com/login/device', userCode: 'WDJB-MJHT' };
+    api.startSignIn = vi.fn().mockResolvedValue(signIn);
+    api.signIn = vi.fn().mockResolvedValue({ ...signIn, state: 'signed-in', authorizationUrl: null, userCode: null });
+    api.cancelSignIn = vi.fn().mockResolvedValue(undefined);
+    const desktop = TestBed.inject(DesktopBridge);
+    vi.spyOn(desktop, 'opensSignIns', 'get').mockReturnValue(true);
+    const open = vi.spyOn(desktop, 'openMcpSignIn').mockResolvedValue(undefined);
+    const write = vi.spyOn(TestBed.inject(ClipboardWriter), 'write').mockResolvedValue(true);
+    const { fixture, el } = await render();
+    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    type(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!, 'githubcopilot-mcp');
+    check(add.querySelector<HTMLInputElement>('input[type="radio"][value="http"]')!);
+    type(add.querySelector<HTMLInputElement>('input[type="url"]')!, 'https://api.githubcopilot.com/mcp/');
+    await settle(fixture);
+    button(add, 'Review and connect').click();
+    await settle(fixture);
+
+    const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
+    expect(text(review)).toContain('GateRook signs in there with its own app');
+    expect(text(review)).not.toContain('needs your own OAuth app');
+    expect(review.querySelector('input[id$="-client"]')).toBeNull();
+    expect(review.querySelector('input[type="password"]')).toBeNull();
+    expect(text(review.querySelector('[gwMcpSignIn] .gw-empty__text'))).toContain('You sign in with a one-time code at github.com, in a browser on any device.');
+    const start = review.querySelector<HTMLButtonElement>('[gwMcpSignIn] .gw-empty__actions button')!;
+    expect(text(start)).toBe('Sign in with github.com');
+    start.click();
+    await settle(fixture);
+    expect(api.startSignIn).toHaveBeenCalledWith(expect.objectContaining({
+      config: expect.objectContaining({ auth: { type: 'oauth' } }),
+    }));
+    // The code first: the page opens once the person has it.
+    expect(open).not.toHaveBeenCalled();
+    expect(text(review.querySelector('[gwMcpSignIn] .gw-empty__title'))).toBe('Enter this code at github.com');
+    expect(review.querySelector<HTMLInputElement>('input[id$="-code"]')!.value).toBe('WDJB-MJHT');
+    expect(text(review)).not.toContain('The browser can’t reach GateRook?');
+    const copyAndOpen = button(review, 'Copy code and open github.com');
+    expect(copyAndOpen.classList).toContain('gw-btn--primary');
+    expect(document.activeElement).toBe(copyAndOpen);
+    copyAndOpen.click();
+    await settle(fixture);
+    expect(write).toHaveBeenCalledWith('WDJB-MJHT');
+    expect(open).toHaveBeenCalledWith('msi_device000001');
+    expect(calls).not.toContain('create-server');
+
+    // As any finished sign-in in the review, it connects the server.
+    events.emit('mcp-server.sign-in', { id: signIn.id });
+    await settle(fixture);
+    expect(bodies['create-server']).toMatchObject({ signIn: signIn.id, config: { auth: { type: 'oauth' } } });
+    expect(review.open).toBe(false);
+    const step = el.querySelector<HTMLDialogElement>('dialog[gwMcpEndpointDialog]')!;
+    expect(text(step.querySelector('.gw-alert--success .gw-alert__title'))).toBe('Signed in to githubcopilot-mcp');
   });
 
   it('does not carry Bearer mode to a pasted configuration with its own Authorization header', async () => {

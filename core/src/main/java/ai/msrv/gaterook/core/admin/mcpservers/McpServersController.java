@@ -70,7 +70,8 @@ class McpServersController {
   /**
    * How a server at a URL wants clients to sign in: {@code kind} {@code none}, {@code oauth}, {@code optional},
    * {@code refused} (a key in a header) or {@code unknown}; {@code registration} {@code metadata-document} (GateRook's
-   * published client metadata), {@code dynamic} (GateRook registers itself), {@code app} (the person's OAuth app) or
+   * published client metadata), {@code dynamic} (GateRook registers itself), {@code gaterook-app} (GateRook's own app
+   * there, with a one-time code the person enters on the provider's page), {@code app} (the person's OAuth app) or
    * {@code app-required}, with the {@code redirectUri} to register; {@code cloud} {@code google} or {@code aws} for a
    * server that can sign in with its cloud's credentials instead, and {@code secretRequired} for an OAuth app the
    * provider takes only with its client secret.
@@ -78,9 +79,13 @@ class McpServersController {
   record Auth(String kind, String issuer, String authorizationHost, String scope, String registration,
       String redirectUri, String message, String cloud, Boolean secretRequired) {}
 
-  /** A sign-in in progress: {@code state} {@code waiting}, {@code signed-in}, {@code failed}, {@code cancelled}, {@code expired}. */
+  /**
+   * A sign-in in progress: {@code state} {@code waiting}, {@code signed-in}, {@code failed}, {@code cancelled},
+   * {@code expired}; a device sign-in's {@code userCode} while it waits, which the person enters at
+   * {@code authorizationUrl}.
+   */
   record SignIn(String id, String state, String server, String issuer, String authorizationHost, String redirectUri,
-      String authorizationUrl, String expiresAt, String scope, String message) {}
+      String authorizationUrl, String expiresAt, String scope, String message, String userCode) {}
 
   /** A stored server's sign-in: {@code state} {@code signed-in}, {@code needs-sign-in}, {@code signed-out} or {@code none}. */
   record SignInStatus(String server, String state, String issuer, String scope, String expiresAt, boolean renewable,
@@ -229,7 +234,8 @@ class McpServersController {
 
   private static SignIn signIn(McpServerSignIns.SignInView v) {
     return new SignIn(v.id(), v.state(), v.server(), v.issuer(), v.authorizationHost(), v.redirectUri(),
-        v.authorizationUrl(), v.expiresAt() == null ? null : v.expiresAt().toString(), v.scope(), v.message());
+        v.authorizationUrl(), v.expiresAt() == null ? null : v.expiresAt().toString(), v.scope(), v.message(),
+        v.userCode());
   }
 
   private static SignInStatus status(McpServerSignIns.StatusView v) {

@@ -48,6 +48,26 @@ class SignInBundleTest {
   }
 
   @Test
+  void aDeviceSignInWithGateRooksOwnAppKeepsItsClientWithoutARedirect() {
+    Discovery.Server server = new Discovery.Server("https://github.example/login/oauth",
+        URI.create("https://github.example/login/oauth/authorize"),
+        URI.create("https://github.example/login/oauth/access_token"), null, null, List.of("offline_access"),
+        List.of("S256"), List.of(), true, false, false, URI.create("https://github.example/login/device/code"),
+        List.of(Discovery.DEVICE_GRANT));
+    OAuthClient.Client client = OAuthClient.ownApp("Ov23liGateRookTest");
+    SignInBundle b = SignInBundle.signedIn("https://api.githubcopilot.com/mcp/", "https://api.githubcopilot.com/mcp/",
+        server, client, "repo offline_access", new OAuthClient.Tokens("gho_1", NOW.plusSeconds(28800), "ghr_1",
+            "repo"), NOW);
+    SignInBundle back = SignInBundle.fromJson(new String(b.toJson()));
+    assertThat(back).isEqualTo(b);
+    assertThat(back.client()).isEqualTo(client);
+    assertThat(back.client().redirectUri()).isNull();
+    // Renewed as a public client: GitHub takes a device sign-in's refresh token without a client secret.
+    assertThat(back.client().authMethod()).isEqualTo("none");
+    assertThat(back.renewable()).isTrue();
+  }
+
+  @Test
   void aRenewalKeepsTheRefreshTokenWhenNoNewOneCameAndTheSignInTime() {
     SignInBundle renewed = bundle().renewed(new OAuthClient.Tokens("at-2", NOW.plusSeconds(7200), null, null),
         NOW.plusSeconds(3500));

@@ -203,9 +203,11 @@ export interface McpServerAuthReview {
   readonly scope?: string | null;
   /**
    * `metadata-document`: the server reads GateRook's published client details, nothing is registered; `dynamic`:
-   * GateRook registers itself; `app`: the OAuth app the person named; `app-required`: they need one.
+   * GateRook registers itself; `gaterook-app`: GateRook's own app at a provider that admits only registered apps
+   * (GitHub), signed in with a one-time code the person enters on the provider's page; `app`: the OAuth app the person
+   * named; `app-required`: they need one.
    */
-  readonly registration?: 'metadata-document' | 'dynamic' | 'app' | 'app-required' | null;
+  readonly registration?: 'metadata-document' | 'dynamic' | 'gaterook-app' | 'app' | 'app-required' | null;
   /** The redirect URI to register for an OAuth app. */
   readonly redirectUri?: string | null;
   readonly message?: string | null;
@@ -268,6 +270,11 @@ export interface McpSignIn {
   readonly expiresAt?: string | null;
   readonly scope?: string | null;
   readonly message?: string | null;
+  /**
+   * A device sign-in's one-time code, while it waits: the person enters it on the page at `authorizationUrl`, and the
+   * browser doesn't come back to this computer.
+   */
+  readonly userCode?: string | null;
 }
 
 /** The sign-in of a stored server: GateRook renews it; `needs-sign-in` until the person signs in again. */
@@ -449,7 +456,7 @@ export class McpServersApi {
     return this.api.get(ApiClient.path`/api/mcp-servers/${name}/sign-in`);
   }
 
-  /** Signs in to a stored server again: the new tokens replace the old ones once the browser comes back. */
+  /** Signs in to a stored server again: the new tokens replace the old ones once the person allowed access. */
   signInAgain(name: string): Promise<McpSignIn> {
     return this.api.post(ApiClient.path`/api/mcp-servers/${name}/sign-in`);
   }
