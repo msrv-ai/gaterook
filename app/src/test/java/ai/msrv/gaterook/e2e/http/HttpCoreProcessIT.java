@@ -446,6 +446,49 @@ class HttpCoreProcessIT {
     assertThat(allowedUrls("stage")).containsExactlyElementsOf(full);
   }
 
+  // ── Rename ──────────────────────────────────────────────────────────────────────────────────────────────────
+
+  @Test
+  @Order(50)
+  void aRenamedConnectionKeepsItsPrivateRangeAndAgentsReachItByItsNewNameOnly() throws Exception {
+    Answer renamed = null;
+    for (int attempt = 0; attempt < 20 && (renamed == null || renamed.status() == 409); attempt++) {
+      // A policy change of an earlier test may still give the connection a new version meanwhile.
+      Thread.sleep(attempt == 0 ? 0 : 50);
+      JsonNode current = json(admin("GET", "/api/connections/billing-api", null), 200);
+      ObjectNode update = CoreProcess.JSON.createObjectNode().put("name", "billing-v2").put("env", "dev")
+          .put("version", current.path("version").asLong());
+      update.set("config", current.path("config"));
+      renamed = admin("PUT", "/api/connections/billing-api", update.toString());
+    }
+    assertThat(json(renamed, 200).path("name").asString()).isEqualTo("billing-v2");
+    assertThat(admin("GET", "/api/connections/billing-api", null).status()).isEqualTo(404);
+    assertThat(json(admin("GET", "/api/policies/dev", null), 200).at("/sections/http/allowedPrivateRanges"))
+        .singleElement().satisfies(range -> {
+          assertThat(range.path("cidr").asString()).isEqualTo("127.0.0.1/32");
+          assertThat(range.path("connections")).extracting(JsonNode::asString).containsExactly("billing-v2");
+        });
+
+    SEEN.clear();
+    JsonNode stale = call(60, "http_get", "{\"connection\":\"billing-api\",\"path\":\"/invoices\"}");
+    assertThat(stale.at("/result/isError").asBoolean()).as(stale.toString()).isTrue();
+    assertThat(stale.toString()).contains("Connection billing-api is not available on billing. Available: "
+        + "billing-v2.");
+    JsonNode r = call(61, "http_get", "{\"connection\":\"billing-v2\",\"path\":\"/invoices\"}");
+    assertThat(r.at("/result/isError").asBoolean(true)).as(r.toString()).isFalse();
+    assertThat(r.toString()).doesNotContain(TOKEN);
+    assertThat(SEEN).singleElement().satisfies(s -> assertThat(s.header("Authorization"))
+        .isEqualTo("Bearer " + TOKEN));
+
+    // A new connection under the old name gets nothing that was allowed to the renamed one.
+    json(admin("POST", "/api/connections", """
+        {"name":"billing-api","type":"http","env":"dev","config":{"baseUrls":["%s"],"auth":{"type":"none"}}}"""
+        .formatted(base)), 201);
+    JsonNode test = json(admin("POST", "/api/connections/billing-api/test", null), 200);
+    assertThat(test.at("/error/code").asString()).as(test.toString()).isEqualTo("http.private-address");
+    assertThat(SEEN).hasSize(1);
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────────────────────────────────────────────────
 
   private record Answer(int status, String body) {}

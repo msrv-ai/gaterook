@@ -1251,7 +1251,7 @@ export class ConnectionNewPage {
   private applyFormErrors(error: ApiError, focus = true, submittedName = this.current().name): void {
     if (focus) this.showSettings();
     const others = this.form()?.applyServerError(error) ?? error.errors;
-    const name = this.mode() !== 'edit' ? others.find((item) => item.field === '/name') : undefined;
+    const name = others.find((item) => item.field === '/name');
     if (name) this.nameProblem.set({ name: submittedName, message: name.message });
     const rest = others.filter((item) => item !== name);
     const problem = rest.length || !error.errors.length
@@ -1370,31 +1370,40 @@ export class ConnectionNewPage {
       }
     }
     this.saving.set(true);
+    // A new name is saved with the settings; the rest of the page then follows the connection to its new address.
+    const renamed = value.name !== name ? value.name : null;
     try {
       // New secrets and fields read from a store go with the settings; a stored one changes through its own control.
       const secrets = Object.fromEntries(Object.entries(value.secrets).filter(([field]) => !changed.has(field)
         && !existingFields.has(field)));
       await this.connections.update(name, { config: value.config, env: value.env, version: this.version, confirm,
-        ...(Object.keys(secrets).length ? { secrets } : {}) });
+        ...(renamed ? { name: renamed } : {}), ...(Object.keys(secrets).length ? { secrets } : {}) });
       // The settings are saved first: a reference the core refuses then leaves them as saved, and says why.
       const failed = await this.applyReferenceChanges(changes, reason);
+      const saved = renamed ?? name;
       if (failed.length) {
         const fields = this.spec()?.secretFields ?? [];
         this.toasts.show({
           tone: 'danger',
-          title: `The ${secretWord(fields, failed[0].field)} reference of ${name} didn't change`,
+          title: `The ${secretWord(fields, failed[0].field)} reference of ${saved} didn't change`,
           body: `${failed[0].detail} The other settings are saved.`,
         });
       } else {
         this.toasts.show({
           tone: 'success',
-          title: `Connection ${name} saved`,
-          body: completingSetup ? 'Setup is complete. Access stays off until you enable this connection.'
+          title: renamed ? `Connection ${name} renamed to ${renamed}` : `Connection ${name} saved`,
+          body: renamed ? 'Agents use the new name from their next tool list. Its endpoints, policies and secret names follow it; past calls keep the old name.'
+            : completingSetup ? 'Setup is complete. Access stays off until you enable this connection.'
             : changes.length ? 'The new settings and references apply from the next call. Calls in flight finish with the old ones.'
             : 'The new settings apply from the next call. Calls in flight finish with the old ones.',
         });
       }
-      await this.reloadDetail();
+      if (renamed) {
+        this.announcer.announce(`Renamed to ${renamed}`);
+        await this.router.navigate(['/connections', renamed], { replaceUrl: true });
+      } else {
+        await this.reloadDetail();
+      }
     } catch (e) {
       const err = isApiError(e) ? e : null;
       if (err?.kind === 'conflict' && err.confirm === 'danger') {
@@ -1402,6 +1411,12 @@ export class ConnectionNewPage {
       } else if (err?.kind === 'conflict' && err.confirm === 'send-secret-to-new-host') {
         this.newHost.set({ title: err.title, detail: err.detail, value, reason });
         this.hostDialog()?.openAfterRender();
+      } else if (renamed && err?.kind === 'conflict' && err.title === 'Name in use') {
+        // Said under the Name until it changes; nothing was saved.
+        this.nameProblem.set({ name: renamed, message: err.detail });
+        this.showSettings();
+        const nameId = `${this.form()?.idPrefix() ?? 'cf'}-name`;
+        afterNextRender(() => this.doc.getElementById(nameId)?.focus(), { injector: this.injector });
       } else if (err?.kind === 'conflict') {
         this.toasts.show({ tone: 'warning', title: `${name} changed meanwhile`, body: `${err.detail} Its current settings are shown again.` });
         await this.reloadDetail().catch(() => undefined);

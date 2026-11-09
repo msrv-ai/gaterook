@@ -57,6 +57,8 @@ The server is then listed in **Connections** with the other connections, where y
 
 Editing a server checks its sign-in as adding it does. Its tool prefix stays the one it was added with, because endpoints and agents know its tools by it: to use another prefix, add the server again. A cloud key (a service account key or a secret access key) can be replaced there but not added: to switch to a key, add the server again with it.
 
+A server can be renamed in the same form. Its tools keep their prefix and their modes on every endpoint, so agents call them as before. A server on this computer stops, and its folder (its installed package and home) and its log move to the new name; the next call starts it there. Its resources are then listed under `mcpgw://connections/<new name>/mcp/…`. **Activity** keeps the old name for calls made before the rename.
+
 ### Connect with a Bearer token
 
 For an HTTP server, **Sign-in options** appears directly below the URL, with the authentication choices always visible. Choose **Bearer token**, then **Review and connect**. Enter only the token in the review: GateRook adds the `Authorization` header and the `Bearer ` prefix automatically. An existing `Bearer ` prefix is accepted without adding it twice. The token is stored encrypted when you connect and never shown again.

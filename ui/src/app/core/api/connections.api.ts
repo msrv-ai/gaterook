@@ -210,6 +210,11 @@ export interface CreateConnectionRequest extends WithReason {
 }
 
 export interface UpdateConnectionRequest extends WithReason {
+  /**
+   * A new name, saved with the settings: endpoints, policies and the secrets' names follow it, past calls keep the old
+   * one. 409 when another connection has it, 422 (`/name`) when it isn't a slug.
+   */
+  readonly name?: string;
   readonly config: JsonObject;
   readonly env: Env;
   readonly version: number;

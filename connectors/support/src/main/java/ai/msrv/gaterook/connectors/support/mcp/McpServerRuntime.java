@@ -89,9 +89,30 @@ public interface McpServerRuntime extends AutoCloseable {
    */
   NpmInstall install(String serverName, NpmPackage pkg, Duration timeout) throws ConnectorException;
 
+  /**
+   * Moves what the runtime keeps under a stored server's name when its connection is renamed: the work folder
+   * {@code mcp/<from>} (its installed package, {@code HOME} and temporary folder) and the log
+   * {@code logs/mcp/<from>.log} become {@code mcp/<to>} and {@code logs/mcp/<to>.log}. The server stops first, as a
+   * Stop stops it, and no session of it starts until the move is committed or rolled back. A folder or log already
+   * named {@code to}, left by a server deleted earlier, is set aside, deleted on commit and put back on rollback.
+   *
+   * @throws ConnectorException when the server doesn't stop in time or a file can't be moved; nothing stays moved then
+   */
+  Relocation relocate(String connectionId, String from, String to) throws ConnectorException;
+
   /** Stops every process (core shutdown). */
   @Override
   void close();
+
+  /** A rename's move of a server's folder and log, held until the core knows whether the rename was saved. */
+  interface Relocation {
+
+    /** The rename was saved: what {@code to} held before is deleted, and the server may start again. */
+    void commit();
+
+    /** The rename wasn't saved: everything moves back, and the server may start again. */
+    void rollback();
+  }
 
   /** What the core gives the runtime. */
   interface Host {

@@ -37,6 +37,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -495,6 +496,44 @@ public class SecretService {
   public List<String> deleteForOwnerFields(SecretOwner owner, Collection<String> fields) {
     return destroy(secrets.findByOwnerKindAndOwnerId(kind(owner), owner.id()).stream()
         .filter(e -> fields.contains(e.getField())).toList());
+  }
+
+  /**
+   * Renames the secrets of {@code owner} that are named after its old name ({@code dev-db/password} becomes
+   * {@code prod-db/password}, with {@code -2}, {@code -3} … when that name is taken): its connection was renamed. A
+   * name is a label for people: no value, version, reference or MAC changes. Call in the owner's transaction.
+   *
+   * @return each renamed secret's old name → its new name
+   */
+  public Map<String, String> renameForOwner(SecretOwner owner, String from, String to) {
+    return writeTx.execute(s -> {
+      Map<String, String> renamed = new LinkedHashMap<>();
+      String prefix = from + "/";
+      for (SecretEntity secret : secrets.findByOwnerKindAndOwnerId(kind(owner), owner.id())) {
+        if (!secret.getName().startsWith(prefix)) {
+          continue;
+        }
+        String base = to + "/" + secret.getName().substring(prefix.length());
+        String name = fit(base, "");
+        for (int n = 2; nameTakenByAnother(name, secret.getId()); n++) {
+          name = fit(base, "-" + n);
+        }
+        renamed.put(secret.getName(), name);
+        secret.setName(name);
+        secrets.saveAndFlush(secret);
+      }
+      return renamed;
+    });
+  }
+
+  /** {@code base} and {@code suffix} within the 128 characters of a secret's name. */
+  private static String fit(String base, String suffix) {
+    int room = 128 - suffix.length();
+    return (base.length() > room ? base.substring(0, room) : base) + suffix;
+  }
+
+  private boolean nameTakenByAnother(String name, String id) {
+    return secrets.findByName(name).filter(e -> !e.getId().equals(id)).isPresent();
   }
 
   /**

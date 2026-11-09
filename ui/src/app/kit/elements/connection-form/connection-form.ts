@@ -15,7 +15,7 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
-import { FormField, form, readonly, required, validate } from '@angular/forms/signals';
+import { FormField, form, required, validate } from '@angular/forms/signals';
 import { RouterLink } from '@angular/router';
 import { ConnectionFormSpec, EnvChange } from '../../../core/api/connector-types.api';
 import { SecretInputs, StoredSecret, TestOutcome } from '../../../core/api/connections.api';
@@ -311,8 +311,6 @@ export class GwConnectionForm {
     this.common,
     (p) => {
       required(p.name, { message: 'Name the connection, for example dev-db.' });
-      // A connection keeps its name: agents, policies and the audit refer to it.
-      readonly(p.name, () => this.mode() === 'edit');
       validate(p.name, ({ value }) =>
         value() && !SLUG.test(value())
           ? { kind: 'slug', message: `${value()} is not a slug. Use lowercase letters, digits and dashes, for example ${slugify(value())}.` }
@@ -599,6 +597,12 @@ export class GwConnectionForm {
 
   protected readonly nameValid = computed(() => SLUG.test(this.common().name));
 
+  /** The saved name while the edit view's Name holds another one: Save renames the connection. */
+  protected readonly renamedFrom = computed(() => {
+    const saved = this.name();
+    return this.mode() === 'edit' && saved && this.common().name !== saved ? saved : null;
+  });
+
   /** The Name field: always in a new connection; in the edit view only on the page (read-only there, kit page). */
   protected readonly showName = computed(() => this.mode() !== 'edit' || this.pageCopy());
 
@@ -700,7 +704,7 @@ export class GwConnectionForm {
       const first = this.invalidFields()[0];
       if (first) this.state().focus(first);
     }
-    const nameOk = this.mode() === 'edit' || !this.commonForm.name().invalid();
+    const nameOk = !this.commonForm.name().invalid();
     if (!nameOk) {
       // The name comes first on the page: it takes the focus over the schema's first error (registered after it, so
       // it runs after it).
