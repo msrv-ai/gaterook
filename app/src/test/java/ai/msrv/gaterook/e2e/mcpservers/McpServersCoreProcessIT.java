@@ -294,12 +294,13 @@ class McpServersCoreProcessIT {
     return out;
   }
 
-  /** Edit's Save with only a new name: the settings as they are, the version just read. */
+  /** Edit's Save with only a new name: the settings as the connection form sends them, the version just read. */
   private static void rename(String from, String to) throws Exception {
     JsonNode current = json(admin("GET", "/api/connections/" + from, null), 200);
     ObjectNode update = CoreProcess.JSON.createObjectNode().put("name", to).put("env", current.path("env")
         .asString()).put("version", current.path("version").asLong());
-    update.set("config", current.path("config"));
+    // The form sends every member of the stdio branch with its default, the AppContainer switch among them.
+    update.set("config", ((ObjectNode) current.path("config").deepCopy()).put("offThisComputer", false));
     assertThat(json(admin("PUT", "/api/connections/" + from, update.toString()), 200).path("name").asString())
         .isEqualTo(to);
   }
