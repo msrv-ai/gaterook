@@ -102,7 +102,7 @@ class AwsCoreProcessIT {
     assertThat(core.untilReady(READY).getLast().path("ready").asBoolean()).as(core.stderr()).isTrue();
     String config = """
         {"regions":["eu-central-1"],"accountAlias":"acme-dev","credentials":{"source":"accessKey",
-         "accessKeyId":"AKIAZ7GWSTAGEDEMO000","roleArn":"arn:aws:iam::%s:role/gw-readonly",
+         "accessKeyId":"AKIASTAGE0001EXAMPLE","roleArn":"arn:aws:iam::%s:role/gw-readonly",
          "externalId":"gw-ext-3f9a1c2b7d4e"}}""".formatted(ACCOUNT);
     String secrets = "{\"/credentials/secretAccessKey\":{\"source\":\"local\",\"value\":\"" + BASE_SECRET + "\"}}";
 

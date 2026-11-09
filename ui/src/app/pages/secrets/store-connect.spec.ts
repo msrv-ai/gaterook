@@ -73,8 +73,8 @@ describe('connect a store', () => {
       name: 'aws-eu-central-1',
       config: { region: 'eu-central-1', credentials: { source: 'profile', profile: 'acme-stage', roleArn: 'arn:aws:iam::412398765012:role/r', externalId: 'gw-ext-3f9a0e01abff' } },
     });
-    const key = connectRequest('aws-sm', 'a', { ...m, awsSource: 'accessKey', accessKeyId: 'AKIAABCDEFGHIJKLMNOP' }, { '/credentials/secretAccessKey': 's3cr3t' });
-    expect(key.config).toEqual({ region: 'us-east-1', credentials: { source: 'accessKey', accessKeyId: 'AKIAABCDEFGHIJKLMNOP' } });
+    const key = connectRequest('aws-sm', 'a', { ...m, awsSource: 'accessKey', accessKeyId: 'AKIAIOSFODNN7EXAMPLE' }, { '/credentials/secretAccessKey': 's3cr3t' });
+    expect(key.config).toEqual({ region: 'us-east-1', credentials: { source: 'accessKey', accessKeyId: 'AKIAIOSFODNN7EXAMPLE' } });
     expect(key.secrets).toEqual({ '/credentials/secretAccessKey': 's3cr3t' });
 
     const vault = connectRequest('vault', 'vault', { ...m, address: 'https://vault.acme.internal/', roleId: 'gaterook', namespace: 'team' }, { '/auth/secretId': 'x' });

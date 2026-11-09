@@ -12,7 +12,7 @@ import tools.jackson.databind.node.ObjectNode;
 /** Connections, calls and policies of the tests, written as the forms, agents and the core write them. */
 final class Configs {
 
-  static final String ACCESS_KEY_ID = "AKIAZ7GWSTAGEDEMO000";
+  static final String ACCESS_KEY_ID = "AKIASTAGE0001EXAMPLE";
   static final String ROLE = "arn:aws:iam::412398765012:role/gw-readonly";
   static final String SECRET_FIELD = "/credentials/secretAccessKey";
 

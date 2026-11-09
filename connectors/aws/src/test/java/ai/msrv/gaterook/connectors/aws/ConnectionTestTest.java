@@ -88,7 +88,7 @@ class ConnectionTestTest {
         + "2011-06-15/\"><GetCallerIdentityResult><Arn>arn:aws:iam::412398765012:root</Arn><UserId>4123</UserId>"
         + "<Account>412398765012</Account></GetCallerIdentityResult></GetCallerIdentityResponse>"));
     ConnectionConfig stage = Configs.of("aws-keys", Env.STAGE, """
-        {"regions":["eu-central-1"],"credentials":{"source":"accessKey","accessKeyId":"AKIAZ7GWSTAGEDEMO000"}}""");
+        {"regions":["eu-central-1"],"credentials":{"source":"accessKey","accessKeyId":"AKIASTAGE0001EXAMPLE"}}""");
 
     TestResult r = connector.test(stage, Configs.secrets(), TestCtx.of().env(Env.STAGE));
 
@@ -104,7 +104,7 @@ class ConnectionTestTest {
   void prodReadsOnlyThroughARoleWithTheSessionPolicy() {
     // §9 "Stricter production rules": no AWS without the session policy on prod, and only an assumed role carries one.
     ConnectionConfig prod = Configs.of("aws-prod", Env.PROD, """
-        {"regions":["eu-central-1"],"credentials":{"source":"accessKey","accessKeyId":"AKIAZ7GWSTAGEDEMO000"}}""");
+        {"regions":["eu-central-1"],"credentials":{"source":"accessKey","accessKeyId":"AKIASTAGE0001EXAMPLE"}}""");
 
     TestResult r = connector.test(prod, Configs.secrets(), TestCtx.of().env(Env.PROD));
 
@@ -122,7 +122,7 @@ class ConnectionTestTest {
   void anotherAccountThanTheConnectionsFails() {
     ConnectionConfig cfg = Configs.of("aws-x", Env.DEV, """
         {"regions":["eu-central-1"],"accountId":"111111111111","credentials":{"source":"accessKey",
-         "accessKeyId":"AKIAZ7GWSTAGEDEMO000"}}""");
+         "accessKeyId":"AKIASTAGE0001EXAMPLE"}}""");
 
     TestResult r = connector.test(cfg, Configs.secrets(), TestCtx.of());
 
@@ -162,7 +162,7 @@ class ConnectionTestTest {
   void aKeyWithoutARoleIsCheckedAgainstItsAccountOncePerVersion() throws Exception {
     ConnectionConfig cfg = Configs.of("aws-key", Env.DEV, """
         {"regions":["eu-central-1"],"accountId":"111111111111","credentials":{"source":"accessKey",
-         "accessKeyId":"AKIAZ7GWSTAGEDEMO000"}}""");
+         "accessKeyId":"AKIASTAGE0001EXAMPLE"}}""");
     var call = Configs.call("aws_describe", cfg.name(), "{\"type\":\"AWS::SQS::Queue\"}");
     connector.classify(call, cfg, Configs.policy(Env.DEV));
 

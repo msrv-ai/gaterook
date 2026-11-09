@@ -45,7 +45,7 @@ class ReadOnlyGuardTest {
     clients = new Clients();
     AwsCredentialsProvider counting = () -> {
       resolved.incrementAndGet();
-      return AwsBasicCredentials.create("AKIAZ7GWSTAGEDEMO000", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY");
+      return AwsBasicCredentials.create("AKIASTAGE0001EXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY");
     };
     signed = AwsRequestOverrideConfiguration.builder().credentialsProvider(counting).build();
   }

@@ -181,13 +181,13 @@ class AwsClassifyTest {
   void brokenSettingsDenyEveryCall() {
     ConnectionConfig mismatched = Configs.of("aws-x", Env.STAGE, """
         {"regions":["eu-central-1"],"accountId":"111111111111","credentials":{"source":"accessKey",
-         "accessKeyId":"AKIAZ7GWSTAGEDEMO000","roleArn":"arn:aws:iam::412398765012:role/gw-readonly"}}""");
+         "accessKeyId":"AKIASTAGE0001EXAMPLE","roleArn":"arn:aws:iam::412398765012:role/gw-readonly"}}""");
     Classification c = classify(mismatched, "aws_describe", "{\"type\":\"AWS::EC2::VPC\"}", Configs.policy(Env.STAGE));
     assertThat(c.ruleId()).isEqualTo("stage.cloud.config_invalid");
     assertThat(c.reason()).contains("account 412398765012, but the connection says 111111111111");
 
     ConnectionConfig noPolicyOnProd = Configs.of("aws-p", Env.PROD, """
-        {"regions":["eu-central-1"],"credentials":{"source":"accessKey","accessKeyId":"AKIAZ7GWSTAGEDEMO000",
+        {"regions":["eu-central-1"],"credentials":{"source":"accessKey","accessKeyId":"AKIASTAGE0001EXAMPLE",
          "roleArn":"arn:aws:iam::412398765012:role/gw-readonly","sessionPolicy":"none"}}""");
     assertThat(classify(noPolicyOnProd, "aws_describe", "{\"type\":\"AWS::EC2::VPC\"}", Configs.policy(Env.PROD))
         .ruleId()).isEqualTo("prod.cloud.config_invalid");
