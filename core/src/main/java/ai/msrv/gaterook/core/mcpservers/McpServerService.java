@@ -807,11 +807,22 @@ public class McpServerService {
    */
   public ConnectionService.Summary update(String name, Env env, JsonNode config, long version, String reason,
       String confirm) {
+    return update(name, null, env, config, version, reason, confirm);
+  }
+
+  /**
+   * The same, renamed to {@code newName} in the same save when it is given and differs ({@link ConnectionService}).
+   * Its tools keep their prefix, so agents call them as before; its folder and log move with the name
+   * ({@link McpServerRenames}). The server stops first, outside the writing transaction, so the move doesn't wait for
+   * it there; the next call starts it from its new folder.
+   */
+  public ConnectionService.Summary update(String name, String newName, Env env, JsonNode config, long version,
+      String reason, String confirm) {
     ConnectionConfigs.Stored c = configs.byName(name).filter(x -> TYPE.equals(x.config().type()))
         .orElseThrow(() -> notFound(name));
     if (!c.verified() || !(config instanceof ObjectNode request)) {
       // Refused there as any connection's would be: changed outside GateRook, or no settings.
-      return connections.update(name, env, config, version, reason, confirm);
+      return connections.update(name, newName, env, config, version, reason, confirm, Map.of());
     }
     String prefix = stored(name).snapshot().toolPrefix();
     ObjectNode next = request.deepCopy();
@@ -835,7 +846,12 @@ public class McpServerService {
             + "with its key.", "/config/auth/credentials/source");
       }
     });
-    return connections.update(name, env, next, version, reason, confirm);
+    McpServerRuntime rt = runtime.getIfAvailable();
+    if (rt != null && newName != null && !newName.equals(name) && ConnectionService.NAME.matcher(newName).matches()
+        && newName.length() <= 64 && configs.byName(newName).isEmpty()) {
+      rt.stop(c.id());
+    }
+    return connections.update(name, newName, env, next, version, reason, confirm, Map.of());
   }
 
   /** The person reviewed a row changed outside GateRook and keeps it as it is. */

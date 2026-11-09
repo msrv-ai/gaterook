@@ -36,8 +36,10 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 
 /**
  * Environment policies (ARCHITECTURE.md §2.2 {@code policy}, kit Policies): one row per environment that
@@ -351,6 +353,79 @@ public class PolicyService implements SmartInitializingSingleton {
       announce(env);
     });
     return get(env);
+  }
+
+  /**
+   * A connection was renamed (ARCHITECTURE.md §8.6 contract 13): where an environment's own settings name {@code from}
+   * — the connections a private range is allowed to, {@code http.allowedPrivateRanges[].connections} — they name
+   * {@code to} instead, so the range stays with that connection and never passes to a new one that takes the old name.
+   * Environments that inherit a changed row follow it. Joins the caller's transaction; a Setup change for each
+   * environment whose effective policy changes.
+   *
+   * @throws ProblemException 409 when a row that names {@code from} was changed outside GateRook
+   */
+  public void renameConnection(String from, String to, String reason) {
+    writeTx.executeWithoutResult(s -> {
+      for (Env env : Env.values()) {
+        PolicyEntity row = repository.findById(env.id()).orElse(null);
+        if (row == null) {
+          continue;
+        }
+        ObjectNode explicit = (ObjectNode) rowMac.tree(row.getSections());
+        if (!renameIn(explicit.path("http").path("allowedPrivateRanges"), from, to)) {
+          continue;
+        }
+        requireVerified(row);
+        List<Env> affected = affected(env);
+        Map<Env, ObjectNode> before = new EnumMap<>(Env.class);
+        affected.forEach(e -> before.put(e, effective(e)));
+        row.update(row.getInherits(), map(explicit), clock.instant());
+        row = repository.saveAndFlush(row);
+        sign(row);
+        clearCache();
+        PolicySchemas schemas = schemas();
+        for (Env e : affected) {
+          ObjectNode details = JsonNodeFactory.instance.objectNode().put("renamedFrom", from);
+          if (e != env) {
+            details.put("inheritedFrom", env.id());
+          }
+          for (String[] change : changes(schemas, before.get(e), effective(e))) {
+            setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.POLICY,
+                e.id() + " policy · " + change[0], change[1], change[2], reason, e, null, to, details));
+          }
+        }
+        announce(env);
+      }
+    });
+  }
+
+  /**
+   * Replaces {@code from} with {@code to} in the {@code connections} of each range (dropped where {@code to} is named
+   * already); whether anything changed.
+   */
+  static boolean renameIn(JsonNode ranges, String from, String to) {
+    boolean changed = false;
+    for (JsonNode range : ranges) {
+      if (!(range.path("connections") instanceof ArrayNode names)) {
+        continue;
+      }
+      boolean named = false;
+      for (JsonNode n : names) {
+        named |= to.equals(n.asString(null));
+      }
+      for (int i = names.size() - 1; i >= 0; i--) {
+        if (from.equals(names.get(i).asString(null))) {
+          if (named) {
+            names.remove(i);
+          } else {
+            names.set(i, StringNode.valueOf(to));
+            named = true;
+          }
+          changed = true;
+        }
+      }
+    }
+    return changed;
   }
 
   /**

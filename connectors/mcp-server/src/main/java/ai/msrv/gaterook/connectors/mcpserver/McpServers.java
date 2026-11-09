@@ -47,7 +47,10 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
   private final CloudCredentials cloud;
   private final Map<String, Supervisor> supervisors = new ConcurrentHashMap<>();
   private final Map<String, ServerLog> logs = new ConcurrentHashMap<>();
-  private final java.util.Set<Thread> closingSessions = ConcurrentHashMap.newKeySet();
+  /** The workers closing sessions, each with the connection whose session it closes. */
+  private final Map<Thread, String> closingSessions = new ConcurrentHashMap<>();
+  /** Connections whose folder and log move for a rename: none of their sessions starts until the move is settled. */
+  private final java.util.Set<String> relocating = ConcurrentHashMap.newKeySet();
   private volatile Host host;
   private volatile PidFile pids;
   private volatile Launcher launcher;
@@ -215,6 +218,191 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
   }
 
   @Override
+  public Relocation relocate(String connectionId, String from, String to) throws ConnectorException {
+    Objects.requireNonNull(connectionId, "connectionId");
+    if (!folderName(from) || !folderName(to)) {
+      throw ConnectorException.badInput("A server's folder is named by its connection, so " + from + " can't become "
+          + to + ".");
+    }
+    if (from.equals(to)) {
+      return NO_RELOCATION;
+    }
+    if (closed) {
+      throw ConnectorException.unavailable("GateRook is quitting.", null);
+    }
+    if (!relocating.add(connectionId)) {
+      throw ConnectorException.unavailable(from + " is being renamed already.", null);
+    }
+    Moves moves = new Moves();
+    try {
+      stopForMove(connectionId, from);
+      closeLog(from);
+      closeLog(to);
+      // Set aside under a name no connection can have (a dot first), in the same folder: a rename, never a copy.
+      String aside = ".replaced-" + to + "-" + java.util.UUID.randomUUID();
+      moves.replace(workDir(from), workDir(to), workDir(from).resolveSibling(aside));
+      for (int i = 0; i < ServerLog.KEEP; i++) {
+        String suffix = i == 0 ? "" : "." + i;
+        Path log = logFile(from);
+        moves.replace(log.resolveSibling(log.getFileName() + suffix),
+            logFile(to).resolveSibling(logFile(to).getFileName() + suffix), log.resolveSibling(aside + ".log" + suffix));
+      }
+    } catch (ConnectorException | RuntimeException e) {
+      moves.undo();
+      relocating.remove(connectionId);
+      throw e;
+    }
+    return new Relocation() {
+      private final java.util.concurrent.atomic.AtomicBoolean settled = new java.util.concurrent.atomic.AtomicBoolean();
+
+      @Override
+      public void commit() {
+        if (settled.compareAndSet(false, true)) {
+          moves.dropAside();
+          relocating.remove(connectionId);
+        }
+      }
+
+      @Override
+      public void rollback() {
+        if (settled.compareAndSet(false, true)) {
+          closeLog(to);
+          moves.undo();
+          relocating.remove(connectionId);
+        }
+      }
+    };
+  }
+
+  /** How long a rename waits for a server's process to stop before its folder moves. */
+  static final Duration RELOCATE_STOP_WAIT = Duration.ofSeconds(10);
+
+  private static final Relocation NO_RELOCATION = new Relocation() {
+    @Override
+    public void commit() {}
+
+    @Override
+    public void rollback() {}
+  };
+
+  /** Stops a server whose folder is about to move and waits until its process and its draining sessions are gone. */
+  private void stopForMove(String connectionId, String name) throws ConnectorException {
+    Supervisor s = supervisors.remove(connectionId);
+    if (s != null) {
+      s.stop("Stopped for a rename");
+    }
+    long deadline = System.nanoTime() + RELOCATE_STOP_WAIT.toNanos();
+    while ((s != null && !s.idle()) || closingSessions.containsValue(connectionId)) {
+      if (System.nanoTime() > deadline) {
+        throw ConnectorException.unavailable(name + " didn't stop within " + RELOCATE_STOP_WAIT.toSeconds()
+            + " s, so its folder wasn't moved. Try again.", null);
+      }
+      try {
+        Thread.sleep(25);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw ConnectorException.unavailable(name + " was being stopped for a rename.", e);
+      }
+    }
+  }
+
+  private void requireNotRelocating(String connectionId, String name) throws ConnectorException {
+    if (relocating.contains(connectionId)) {
+      throw ConnectorException.unavailable(name + " is being renamed. Try again in a moment.", null);
+    }
+  }
+
+  private void closeLog(String name) {
+    ServerLog log = logs.remove(folder(name));
+    if (log != null) {
+      log.close();
+    }
+  }
+
+  private static boolean folderName(String name) {
+    return name != null && name.length() <= 64 && FOLDER.matcher(name).matches();
+  }
+
+  /**
+   * The moves of one relocation, in order: undone in reverse when the rename isn't saved; what was set aside is deleted
+   * once it is. Symbolic links are moved and deleted as links, never followed.
+   */
+  private static final class Moves {
+
+    private final java.util.Deque<Path[]> done = new java.util.ArrayDeque<>();
+    private final List<Path> aside = new ArrayList<>();
+
+    /** Sets {@code to} aside when it exists, then moves {@code from} there when it exists. */
+    void replace(Path from, Path to, Path asidePath) throws ConnectorException {
+      if (java.nio.file.Files.exists(to, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+        move(to, asidePath);
+        aside.add(asidePath);
+      }
+      if (java.nio.file.Files.exists(from, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+        move(from, to);
+      }
+    }
+
+    private void move(Path from, Path to) throws ConnectorException {
+      if (java.nio.file.Files.exists(to, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+        throw ConnectorException.unavailable("Couldn't move " + from + ": " + to + " exists.", null);
+      }
+      try {
+        java.nio.file.Files.move(from, to, java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+      } catch (java.io.IOException e) {
+        throw ConnectorException.unavailable("Couldn't move " + from + " to " + to + ": " + e.getMessage(), e);
+      }
+      done.push(new Path[] {from, to});
+    }
+
+    void undo() {
+      while (!done.isEmpty()) {
+        Path[] m = done.pop();
+        try {
+          java.nio.file.Files.move(m[1], m[0], java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        } catch (java.io.IOException e) {
+          LOG.log(System.Logger.Level.WARNING, "Couldn''t move {0} back to {1}: {2}", m[1], m[0], e.toString());
+        }
+      }
+      aside.clear();
+    }
+
+    void dropAside() {
+      for (Path p : aside) {
+        deleteTree(p);
+      }
+      aside.clear();
+      done.clear();
+    }
+
+    private static void deleteTree(Path root) {
+      try {
+        java.nio.file.Files.walkFileTree(root, new java.nio.file.SimpleFileVisitor<>() {
+          @Override
+          public java.nio.file.FileVisitResult visitFile(Path file, java.nio.file.attribute.BasicFileAttributes a)
+              throws java.io.IOException {
+            java.nio.file.Files.delete(file);
+            return java.nio.file.FileVisitResult.CONTINUE;
+          }
+
+          @Override
+          public java.nio.file.FileVisitResult postVisitDirectory(Path dir, java.io.IOException e)
+              throws java.io.IOException {
+            if (e != null) {
+              throw e;
+            }
+            java.nio.file.Files.delete(dir);
+            return java.nio.file.FileVisitResult.CONTINUE;
+          }
+        });
+      } catch (java.io.IOException e) {
+        LOG.log(System.Logger.Level.WARNING, "Couldn''t delete {0}, which a renamed MCP server replaced: {1}", root,
+            e.toString());
+      }
+    }
+  }
+
+  @Override
   public void close() {
     closed = true;
     Thread t = ticker;
@@ -241,7 +429,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
         LOG.log(System.Logger.Level.WARNING, "MCP session shutdown did not finish within 10 seconds");
         break;
       }
-      Thread worker = closingSessions.stream().findFirst().orElse(null);
+      Thread worker = closingSessions.keySet().stream().findFirst().orElse(null);
       if (worker == null) break;
       try {
         worker.join(Duration.ofNanos(remaining));
@@ -261,6 +449,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
     if (closed) {
       throw ConnectorException.unavailable("GateRook is quitting.", null);
     }
+    requireNotRelocating(cfg.id(), cfg.name());
     ServerConfig server = ServerConfig.of(cfg);
     // A call speaks the era the review recorded; a person's Test, Start or Restart finds out again.
     Session.Request request = new Session.Request(cfg, server, snapshot.toolPrefix(), snapshot.npmIntegrity(),
@@ -303,6 +492,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
   public Session open(Session.Request request, Supervisor owner) throws ConnectorException {
     String name = request.cfg().name();
     String id = request.cfg().id();
+    requireNotRelocating(id, name);
     Session s = Session.open(request, workDir(name), launcher(), log(name), pids(), now(),
         x -> toolsChanged(x, request, owner), owner::exited, (what, uri) -> notice(id, name, what, uri));
     s.subscribe(upstream(name, subscriptions.getOrDefault(id, java.util.Set.of())));
@@ -403,7 +593,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
         closingSessions.remove(Thread.currentThread());
       }
     });
-    closingSessions.add(worker);
+    closingSessions.put(worker, session.connectionId);
     worker.start();
   }
 

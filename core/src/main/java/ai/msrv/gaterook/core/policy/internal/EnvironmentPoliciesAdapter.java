@@ -56,4 +56,9 @@ class EnvironmentPoliciesAdapter implements EnvironmentPolicies {
     }
     return List.copyOf(out);
   }
+
+  @Override
+  public void renameConnection(String from, String to, String reason) {
+    policies.renameConnection(from, to, reason);
+  }
 }

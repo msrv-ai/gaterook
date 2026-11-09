@@ -23,8 +23,8 @@
       <!-- A first connection (kit connection-new ?state=first-run): what the name is for, in a beginner's words. -->
       <p class="gw-field__hint" [id]="p + '-name-hint'">Lowercase letters, digits and dashes, like <span class="gw-mono">dev-db</span>. Your AI apps use this name to pick the connection.</p>
     } @else if (pageCopy()) {
-      <!-- Add connection's own words; the edit view says the name stays. -->
-      <p class="gw-field__hint" [id]="p + '-name-hint'">A slug: lowercase letters, digits and dashes. Agents call tools with it and Activity filters by <span class="gw-mono">connection:{{ name && nameValid() ? name : placeholderName }}</span>.@if (mode() === 'edit') { It can't be renamed: agents, policies and past calls refer to it.}</p>
+      <!-- Add connection's own words; the edit view says what a new name changes and what keeps the old one. -->
+      <p class="gw-field__hint" [id]="p + '-name-hint'">A slug: lowercase letters, digits and dashes. Agents call tools with it and Activity filters by <span class="gw-mono">connection:{{ name && nameValid() ? name : placeholderName }}</span>.@if (renamedFrom(); as was) { Saving renames <span class="gw-mono">{{ was }}</span> from the next call: endpoints, policies and secret names follow, and past calls keep <span class="gw-mono">{{ was }}</span>.} @else if (mode() === 'edit') { Renaming applies from the next call: endpoints, policies and secret names follow, and past calls keep the old name.}</p>
     } @else {
       <p class="gw-field__hint" [id]="p + '-name-hint'">A slug: lowercase letters, digits and dashes. Agents and Activity see it as <span class="gw-mono">connection:{{ name && nameValid() ? name : placeholderName }}</span>.</p>
     }

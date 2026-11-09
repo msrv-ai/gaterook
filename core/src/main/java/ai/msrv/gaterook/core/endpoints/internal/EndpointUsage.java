@@ -4,6 +4,7 @@ import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.connections.ConnectionConfigs;
 import ai.msrv.gaterook.core.connections.ConnectionRemovalParticipant;
+import ai.msrv.gaterook.core.connections.ConnectionRenameParticipant;
 import ai.msrv.gaterook.core.connections.ConnectionUsage;
 import ai.msrv.gaterook.core.endpoints.EndpointChanged;
 import ai.msrv.gaterook.core.endpoints.EndpointRemovalParticipant;
@@ -14,6 +15,7 @@ import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointEntity;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointToolEntity;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointToolRepository;
 import ai.msrv.gaterook.core.platform.IntegrityAlerts;
+import ai.msrv.gaterook.core.platform.ProblemException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,11 +29,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * What the connections module asks of endpoints: "Used by", whether a connection may change env, and its part in a
- * connection's deletion (its pairs leave every endpoint, which derive their env again).
+ * connection's deletion (its pairs leave every endpoint, which derive their env again) and rename (an MCP server's
+ * pairs follow its new name).
  */
 @Component
 @Order(10)
-class EndpointUsage implements ConnectionUsage, ConnectionRemovalParticipant {
+class EndpointUsage implements ConnectionUsage, ConnectionRemovalParticipant, ConnectionRenameParticipant {
 
   private final EndpointConnectionRepository wiring;
   private final EndpointToolRepository tools;
@@ -116,6 +119,33 @@ class EndpointUsage implements ConnectionUsage, ConnectionRemovalParticipant {
       }
       return Optional.<String>empty();
     });
+  }
+
+  /**
+   * An MCP server's tools are keyed by its connection's name ({@code mcp:<name>:<tool>}): each of its pairs takes the
+   * key of the new name with its mode, overrides and confirmation, and is signed again, so the rename neither turns the
+   * tools Off nor leaves pairs behind under the old name. A pair changed outside GateRook vetoes the rename: it is never
+   * signed again before the person reviews its endpoint.
+   */
+  @Override
+  public void onRenaming(String connectionId, String from, String to, String reason) {
+    String before = "mcp:" + from + ":";
+    String after = "mcp:" + to + ":";
+    for (EndpointToolEntity t : tools.findByConnectionId(connectionId)) {
+      if (!t.getToolKey().startsWith(before)) {
+        continue;
+      }
+      EndpointEntity e = t.getEndpoint();
+      String key = after + t.getToolKey().substring(before.length());
+      if (!rows.verify(t) || tools.findByEndpointIdAndConnectionIdAndToolKey(e.getId(), connectionId, key)
+          .isPresent()) {
+        alerts.report("endpoint", e.getId(), e.getSlug(), "tool " + t.getToolKey());
+        throw ProblemException.conflict("Changed outside GateRook", "Endpoint " + e.getSlug() + " was changed "
+            + "outside GateRook. Review it before you rename " + from + ".");
+      }
+      t.rekey(key, clock.instant());
+      rows.save(t);
+    }
   }
 
   @Override
