@@ -20,7 +20,7 @@ import {
 } from '../../core/api/plugins.api';
 import { SecretRow, SecretsApi } from '../../core/api/secrets.api';
 import { Template, TemplateSaved, TemplatesApi } from '../../core/api/templates.api';
-import { JsonObject } from '../../core/api/types';
+import { Env, JsonObject } from '../../core/api/types';
 import { EventStream } from '../../core/events/event-stream';
 import { McpServerView, mcpServerView } from './connectors-view';
 
@@ -330,7 +330,7 @@ export class ConnectorsData {
   }
 
   /** Starts a sign-in to the server under review; the review shows it until the browser comes back. */
-  startSignIn(source: { readonly config: McpServerConfig; readonly secrets?: SecretInputs }): Promise<McpSignIn> {
+  startSignIn(source: { readonly config: McpServerConfig; readonly env?: Env; readonly secrets?: SecretInputs }): Promise<McpSignIn> {
     return this.serversApi.startSignIn(source);
   }
 

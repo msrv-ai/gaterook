@@ -5,7 +5,7 @@ import { ApiError } from '../../core/api/api-error';
 import { ConnectionRow, ConnectionsApi } from '../../core/api/connections.api';
 import { ConnectorCatalog, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointsApi } from '../../core/api/endpoints.api';
-import { CatalogIndex, McpRegistryPage, McpServersApi, PluginsApi } from '../../core/api/plugins.api';
+import { CatalogIndex, McpRegistryPage, McpServersApi, McpSignIn, PluginsApi } from '../../core/api/plugins.api';
 import { SecretsApi } from '../../core/api/secrets.api';
 import { Template, TemplateSaved, TemplatesApi } from '../../core/api/templates.api';
 import { EventStream } from '../../core/events/event-stream';
@@ -651,7 +651,7 @@ describe('Connectors page: Catalog', () => {
     expect(cardOf(el, 'catalog', 'ClickHouse')).not.toBeNull();
   });
 
-  it('installs github-mcp from the catalog with the value of its variable, typed in the review and sent once', async () => {
+  it.each(['dev', 'stage', 'prod'] as const)('installs github-mcp from the catalog in %s with its secret sent once', async (env) => {
     // Review 2026-10-26 (K6, E1): the catalog install sent no value and the core answered 422 "Secret missing".
     setup({ catalog: () => Promise.resolve(catalogIndex(catalogEntries().map((e) => (e.kind === 'mcp-server' ? { ...e, installed: null } : e)))) });
     const { fixture, el } = await render();
@@ -664,6 +664,9 @@ describe('Connectors page: Catalog', () => {
     expect(text(review.querySelector('.gw-dialog__title'))).toBe('Start MCP server github-mcp?');
     expect(text(document.activeElement)).toBe('Cancel');
     expect(Array.from(review.querySelectorAll('footer button')).map(text)).not.toContain('Back');
+    check(review.querySelector<HTMLInputElement>(`input[name$="-environment"][value="${env}"]`)!);
+    await settle(fixture);
+    expect(bodies['review']).toEqual({ catalog: 'github@0.6.2', ...(env === 'dev' ? {} : { env }) });
     const rows = Object.fromEntries(Array.from(review.querySelectorAll('.gw-kv__row')).map((r) => [text(r.querySelector('dt')), text(r.querySelector('dd'))]));
     expect(rows['Command']).toBe('node /Users/me/.gaterook/mcp/github-mcp/dist/index.js');
     expect(rows['Secrets passed']).toBe('GITHUB_PERSONAL_ACCESS_TOKEN, from a new secret of github-mcp, encrypted here');
@@ -689,6 +692,7 @@ describe('Connectors page: Catalog', () => {
     await settle(fixture);
     expect(bodies['create-server']).toEqual({
       catalog: 'github@0.6.2',
+      ...(env === 'dev' ? {} : { env }),
       secrets: { '/env/0/secretRef': { source: 'local', value: 'ghp_cnry_123' } },
       acknowledge: true,
     });
@@ -701,8 +705,39 @@ describe('Connectors page: Catalog', () => {
     expect(step.open).toBe(true);
     button(step, 'Add to endpoint').click();
     await settle(fixture);
-    expect(calls).toContain('add-to-endpoint dev github-mcp');
+    expect(calls).toContain(`add-to-endpoint ${env === 'prod' ? 'incident-prod' : 'dev'} github-mcp`);
     expect(toasts().at(-1)?.title).toBe('MCP server github-mcp started');
+  });
+  it('blocks catalog installation during an environment review and restores the previous choice on failure', async () => {
+    setup({ catalog: () => Promise.resolve(catalogIndex(catalogEntries().map((e) => (e.kind === 'mcp-server' ? { ...e, installed: null } : e)))) });
+    const { fixture, el } = await render();
+    button(cardOf(el, 'catalog', 'GitHub'), 'Install').click();
+    await settle(fixture);
+    const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
+    const pending = deferred<ReturnType<typeof sentryReview>>();
+    const reviewApi = vi.spyOn(TestBed.inject(McpServersApi), 'review').mockReturnValueOnce(pending.promise);
+    const value = review.querySelector<HTMLInputElement>('input[type="password"]')!;
+    const ack = review.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    type(value, 'example-token');
+    check(ack);
+    check(review.querySelector<HTMLInputElement>('input[name$="-environment"][value="prod"]')!);
+    await settle(fixture);
+    const start = button(review, 'Start MCP server github-mcp');
+    expect(start.getAttribute('aria-disabled')).toBe('true');
+    review.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await settle(fixture);
+    expect(calls).not.toContain('create-server');
+    pending.reject(new ApiError('unprocessable', 422, { detail: 'Production settings could not be reviewed.' }));
+    await settle(fixture);
+    expect(review.querySelector<HTMLInputElement>('input[name$="-environment"][value="dev"]')!.checked).toBe(true);
+    expect(text(review.querySelector('[role="alert"]'))).toContain('Production settings could not be reviewed.');
+    expect(value.value).toBe('example-token');
+    reviewApi.mockResolvedValueOnce(sentryReview({ name: 'github-mcp', catalogEntry: 'github@0.6.2' }));
+    check(review.querySelector<HTMLInputElement>('input[name$="-environment"][value="prod"]')!);
+    await settle(fixture);
+    expect(ack.checked).toBe(false);
+    expect(value.value).toBe('');
+    expect(start.getAttribute('aria-disabled')).toBe('true');
   });
 });
 
@@ -1107,6 +1142,7 @@ describe('Connectors page: MCP servers', () => {
     await settle(fixture);
     // The review gets the names only: no value travels before the person starts the server.
     expect(bodies['review']).toEqual({
+      env: 'dev',
       config: { name: 'sentry-mcp', transport: 'stdio', command: ['npx', '-y', '@sentry/mcp-server@0.12.0'], env: [{ name: 'SENTRY_AUTH_TOKEN' }] },
     });
 
@@ -1130,6 +1166,7 @@ describe('Connectors page: MCP servers', () => {
     start.click();
     await settle(fixture);
     expect(bodies['create-server']).toEqual({
+      env: 'dev',
       config: { name: 'sentry-mcp', transport: 'stdio', command: ['npx', '-y', '@sentry/mcp-server@0.12.0'], env: [{ name: 'SENTRY_AUTH_TOKEN' }] },
       secrets: { '/env/0/secretRef': { source: 'local', value: 'sntrys_value' } },
       acknowledge: true,
@@ -1156,6 +1193,88 @@ describe('Connectors page: MCP servers', () => {
     expect(toasts().at(-1)?.title).toBe('MCP server sentry-mcp started');
     expect(toasts().at(-1)?.body).toBe('Its 12 tools are on dev. Declared reads start as Read only; other tools start as Approval. Change their modes on the endpoint.');
     expect(toasts().at(-1)?.actions?.[0]?.label).toBe('Open endpoint dev');
+  });
+
+  it.each([
+    ['stdio', 'stage'], ['stdio', 'prod'], ['http', 'stage'], ['http', 'prod'],
+  ] as const)('keeps the selected environment for a %s server in %s through review and endpoint assignment', async (transport, env) => {
+    setup();
+    const { fixture, el } = await render();
+    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    type(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!, 'sentry-mcp');
+    const envInput = add.querySelector<HTMLInputElement>(`input[name$="-environment"][value="${env}"]`)!;
+    expect(envInput.closest('fieldset')?.querySelector('legend')?.textContent).toBe('Environment');
+    check(envInput);
+    check(add.querySelector<HTMLInputElement>(`input[name$="-transport"][value="${transport}"]`)!);
+    type(add.querySelector<HTMLInputElement>(transport === 'http' ? 'input[type="url"]' : 'input[placeholder^="npx"]')!,
+      transport === 'http' ? 'https://mcp.example.com/mcp' : 'npx -y @sentry/mcp-server@0.12.0');
+    await settle(fixture);
+    const verb = transport === 'http' ? 'connect' : 'start';
+    button(add, `Review and ${verb}`).click();
+    await settle(fixture);
+    expect(bodies['review']).toMatchObject({ env });
+    const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
+    expect(text(review.querySelector('.gw-env'))).toBe(env);
+    button(review, 'Back').click();
+    await settle(fixture);
+    expect(envInput.checked).toBe(true);
+    button(add, `Review and ${verb}`).click();
+    await settle(fixture);
+    const secret = review.querySelector<HTMLInputElement>('input[type="password"]');
+    if (secret) type(secret, 'example-token');
+    check(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
+    await settle(fixture);
+    button(review, `${transport === 'http' ? 'Connect' : 'Start'} MCP server sentry-mcp`).click();
+    await settle(fixture);
+    expect(bodies['create-server']).toMatchObject({ env });
+    const step = el.querySelector<HTMLDialogElement>('dialog[gwMcpEndpointDialog]')!;
+    expect(text(step.querySelector('.gw-env'))).toBe(env);
+    const target = env === 'prod' ? 'incident-prod' : 'dev';
+    const boxes = Array.from(step.querySelectorAll<HTMLInputElement>('input[name="endpoints"]'));
+    expect(boxes.filter((b) => b.checked).map((b) => b.value)).toEqual([target]);
+    expect(boxes.find((b) => b.value !== target)?.getAttribute('aria-disabled')).toBe('true');
+    button(step, 'Add to endpoint').click();
+    await settle(fixture);
+    expect(calls).toContain(`add-to-endpoint ${target} sentry-mcp`);
+    expect(calls.filter((c) => c.startsWith('add-to-endpoint'))).toHaveLength(1);
+    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
+    await settle(fixture);
+    expect(add.querySelector<HTMLInputElement>('input[name$="-environment"][value="dev"]')!.checked).toBe(true);
+  });
+
+  it('uses the production environment for both OAuth sign-in and server creation', async () => {
+    setup();
+    const api = TestBed.inject(McpServersApi);
+    vi.spyOn(api, 'review').mockResolvedValue(sentryReview({ name: 'sentry-mcp', transport: 'http', argv: [], env: [],
+      url: 'https://mcp.example.com/mcp', auth: { kind: 'oauth', registration: 'dynamic', authorizationHost: 'mcp.example.com' } }));
+    const signIn: McpSignIn = { id: 'sign-in-prod', server: 'sentry-mcp', state: 'waiting' };
+    api.startSignIn = vi.fn().mockResolvedValue(signIn);
+    api.signIn = vi.fn().mockResolvedValue({ ...signIn, state: 'signed-in' });
+    api.cancelSignIn = vi.fn().mockResolvedValue(undefined);
+    const { fixture, el } = await render();
+    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    type(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!, 'sentry-mcp');
+    check(add.querySelector<HTMLInputElement>('input[name$="-environment"][value="prod"]')!);
+    check(add.querySelector<HTMLInputElement>('input[name$="-transport"][value="http"]')!);
+    type(add.querySelector<HTMLInputElement>('input[type="url"]')!, 'https://mcp.example.com/mcp');
+    await settle(fixture);
+    button(add, 'Review and connect').click();
+    await settle(fixture);
+    const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
+    button(review, 'Sign in with mcp.example.com').click();
+    await settle(fixture);
+    expect(api.startSignIn).toHaveBeenCalledWith(expect.objectContaining({ env: 'prod' }));
+    events.emit('mcp-server.sign-in', { id: signIn.id });
+    await settle(fixture);
+    check(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
+    await settle(fixture);
+    button(review, 'Connect MCP server sentry-mcp').click();
+    await settle(fixture);
+    expect(bodies['create-server']).toMatchObject({ env: 'prod', signIn: signIn.id });
   });
 
   it('leaves the tools of a new server Off when the endpoint step is skipped', async () => {
@@ -1351,7 +1470,7 @@ describe('Connectors page: MCP servers', () => {
 
     button(add, 'Review and connect').click();
     await settle(fixture);
-    expect(bodies['review']).toEqual({ config: { name: 'linear-mcp', transport: 'http', url: 'https://mcp.linear.app/mcp', headers: [] } });
+    expect(bodies['review']).toEqual({ env: 'dev', config: { name: 'linear-mcp', transport: 'http', url: 'https://mcp.linear.app/mcp', headers: [] } });
     expect(bodies['create-server']).toBeUndefined();
   });
 
@@ -1539,6 +1658,7 @@ describe('Connectors page: MCP servers', () => {
     await settle(fixture);
     // The server takes its key in the URL: the core gets it as typed.
     expect(bodies['create-server']).toEqual({
+      env: 'dev',
       config: { name: 'search-mcp', transport: 'http', url: 'https://mcp.example.com/mcp?apiKey=sk-example-123', headers: [] },
       acknowledge: true,
     });
@@ -1625,7 +1745,7 @@ describe('Connectors page: MCP servers', () => {
 
     const config = { name: 'private-mcp', transport: 'http', url: 'https://mcp.example.com/mcp', headers: [{ name: 'Authorization' }] };
     expect(reviewApi).toHaveBeenCalledTimes(2);
-    expect(reviewApi).toHaveBeenLastCalledWith({ config });
+    expect(reviewApi).toHaveBeenLastCalledWith({ config, env: 'dev' });
     expect(review.open).toBe(true);
     expect(add.open).toBe(false);
     expect(review.querySelector('.gw-alert--warning')).toBeNull();
@@ -1653,7 +1773,7 @@ describe('Connectors page: MCP servers', () => {
     button(add, 'Review and connect').click();
     await settle(fixture);
     expect(reviewApi).toHaveBeenCalledTimes(3);
-    expect(reviewApi).toHaveBeenLastCalledWith({ config });
+    expect(reviewApi).toHaveBeenLastCalledWith({ config, env: 'dev' });
     expect(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked).toBe(false);
     token = review.querySelector<HTMLInputElement>('input[type="password"]')!;
     expect(token.value).toBe('');
@@ -1664,6 +1784,7 @@ describe('Connectors page: MCP servers', () => {
     await settle(fixture);
     expect(bodies['create-server']).toEqual({
       config,
+      env: 'dev',
       secrets: { '/headers/0/secretRef': { source: 'local', value: 'Bearer example-token' } },
       acknowledge: true,
     });
