@@ -1244,37 +1244,170 @@ describe('Connectors page: MCP servers', () => {
     expect(add.querySelector<HTMLInputElement>('input[name$="-environment"][value="dev"]')!.checked).toBe(true);
   });
 
-  it('uses the production environment for both OAuth sign-in and server creation', async () => {
-    setup();
+  /** sentry-mcp at mcp.example.com, which answers only with a sign-in (or, with `optional`, without one too). */
+  function signInServer(kind: 'oauth' | 'optional' = 'oauth', headers: string[] = []) {
     const api = TestBed.inject(McpServersApi);
-    vi.spyOn(api, 'review').mockResolvedValue(sentryReview({ name: 'sentry-mcp', transport: 'http', argv: [], env: [],
-      url: 'https://mcp.example.com/mcp', auth: { kind: 'oauth', registration: 'dynamic', authorizationHost: 'mcp.example.com' } }));
-    const signIn: McpSignIn = { id: 'sign-in-prod', server: 'sentry-mcp', state: 'waiting' };
+    vi.spyOn(api, 'review').mockResolvedValue(sentryReview({ name: 'sentry-mcp', transport: 'http', argv: [], env: headers,
+      url: 'https://mcp.example.com/mcp', auth: { kind, registration: 'dynamic', authorizationHost: 'mcp.example.com' } }));
+    const signIn: McpSignIn = { id: 'sign-in-1', server: 'sentry-mcp', state: 'waiting', authorizationHost: 'mcp.example.com' };
     api.startSignIn = vi.fn().mockResolvedValue(signIn);
-    api.signIn = vi.fn().mockResolvedValue({ ...signIn, state: 'signed-in' });
+    api.signIn = vi.fn().mockResolvedValue({ ...signIn, state: 'signed-in', scope: 'org:read project:write' });
     api.cancelSignIn = vi.fn().mockResolvedValue(undefined);
-    const { fixture, el } = await render();
+    return { api, signIn };
+  }
+
+  /** Add MCP server › its URL in `env` › Review and connect. */
+  async function reviewUrl(fixture: ComponentFixture<ConnectorsPage>, el: HTMLElement, env?: 'stage' | 'prod') {
     button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
     await settle(fixture);
     const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
     type(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!, 'sentry-mcp');
-    check(add.querySelector<HTMLInputElement>('input[name$="-environment"][value="prod"]')!);
+    if (env) check(add.querySelector<HTMLInputElement>(`input[name$="-environment"][value="${env}"]`)!);
     check(add.querySelector<HTMLInputElement>('input[name$="-transport"][value="http"]')!);
     type(add.querySelector<HTMLInputElement>('input[type="url"]')!, 'https://mcp.example.com/mcp');
     await settle(fixture);
     button(add, 'Review and connect').click();
     await settle(fixture);
-    const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
-    button(review, 'Sign in with mcp.example.com').click();
+    return el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
+  }
+
+  /** The large Sign in of the review's centred call to sign in. */
+  const heroSignIn = (review: Element) => review.querySelector<HTMLButtonElement>('[gwMcpSignIn] .gw-empty__actions button')!;
+
+  it('asks for a required sign-in with one large primary Sign in, without the trust checkbox or Connect', async () => {
+    setup();
+    signInServer();
+    const { fixture, el } = await render();
+    const review = await reviewUrl(fixture, el);
+    const hero = review.querySelector('[gwMcpSignIn] .gw-card.gw-card--muted .gw-empty.gw-empty--compact')!;
+    expect(text(hero.querySelector('.gw-empty__title'))).toBe('Sign in to connect sentry-mcp');
+    expect(text(hero.querySelector('.gw-empty__text'))).toContain('sentry-mcp answers only with your sign-in.');
+    expect(hero.querySelector('.gw-empty__icon')!.classList).toContain('gw-icon-tile--brand');
+    const signIn = heroSignIn(review);
+    expect(text(signIn)).toBe('Sign in with mcp.example.com');
+    expect(Array.from(signIn.classList)).toEqual(expect.arrayContaining(['gw-btn--primary', 'gw-btn--lg']));
+    expect(signIn.getAttribute('aria-disabled')).toBeNull();
+    expect(text(review.querySelector(`#${signIn.getAttribute('aria-describedby')}`))).toBe('GateRook connects it as soon as you allow access.');
+    // Signing in is the confirmation: no checkbox to tick, no Connect to press, and Cancel keeps the initial focus.
+    expect(review.querySelector('input[type="checkbox"]')).toBeNull();
+    expect(Array.from(review.querySelectorAll('.gw-dialog__footer button')).map(text)).toEqual(['Back', 'Cancel']);
+    expect(review.querySelector('.gw-dialog__footer [autofocus]')?.textContent?.trim()).toBe('Cancel');
+    expect(review.querySelectorAll('.gw-btn--primary')).toHaveLength(1);
+  });
+
+  it('connects right after the sign-in, in its environment, and the endpoint step says it is signed in', async () => {
+    setup();
+    const { api, signIn } = signInServer();
+    const { fixture, el } = await render();
+    const review = await reviewUrl(fixture, el, 'prod');
+    heroSignIn(review).click();
     await settle(fixture);
     expect(api.startSignIn).toHaveBeenCalledWith(expect.objectContaining({ env: 'prod' }));
+    expect(text(review.querySelector('[gwMcpSignIn] .gw-empty__title'))).toBe('Allow access in your browser');
+    expect(calls).not.toContain('create-server');
     events.emit('mcp-server.sign-in', { id: signIn.id });
     await settle(fixture);
-    check(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
+    expect(bodies['create-server']).toMatchObject({ env: 'prod', signIn: signIn.id, acknowledge: true });
+    expect(calls.filter((c) => c === 'create-server')).toHaveLength(1);
+    expect(review.open).toBe(false);
+    const step = el.querySelector<HTMLDialogElement>('dialog[gwMcpEndpointDialog]')!;
+    expect(step.open).toBe(true);
+    const signed = step.querySelector('.gw-alert--success')!;
+    expect(text(signed.querySelector('.gw-alert__title'))).toBe('Signed in to sentry-mcp');
+    expect(text(signed.querySelector('.gw-alert__body'))).toBe('It connected with your sign-in at mcp.example.com; the agent never sees it.');
+    // The step's description starts with it, so a screen reader hears it as the dialog opens.
+    expect(step.getAttribute('aria-describedby')?.split(' ')[0]).toBe(signed.id);
+    expect(step.querySelector('input[name="endpoints"]')).not.toBeNull();
+  });
+
+  it('shows the sign-in and the connection on its way while the server connects', async () => {
+    setup();
+    const { api, signIn } = signInServer();
+    const created = deferred<{ name: string; state: 'running'; tools: number }>();
+    api.create = vi.fn(() => created.promise) as never;
+    const { fixture, el } = await render();
+    const review = await reviewUrl(fixture, el);
+    heroSignIn(review).click();
     await settle(fixture);
-    button(review, 'Connect MCP server sentry-mcp').click();
+    events.emit('mcp-server.sign-in', { id: signIn.id });
     await settle(fixture);
-    expect(bodies['create-server']).toMatchObject({ env: 'prod', signIn: signIn.id });
+    const hero = review.querySelector('[gwMcpSignIn] .gw-empty')!;
+    expect(hero.querySelector('.gw-empty__icon')!.classList).toContain('gw-icon-tile--success');
+    expect(text(hero.querySelector('.gw-empty__title'))).toBe('Signed in at mcp.example.com');
+    expect(text(hero.querySelector('.gw-status--checking'))).toBe('Connecting sentry-mcp');
+    expect(button(review, 'Back').getAttribute('aria-disabled')).toBe('true');
+    expect(Array.from(review.querySelectorAll('.gw-dialog__footer button')).map(text)).toEqual(['Back', 'Cancel']);
+    created.resolve({ name: 'sentry-mcp', state: 'running', tools: 12 });
+    await settle(fixture);
+    expect(review.open).toBe(false);
+    expect(el.querySelector<HTMLDialogElement>('dialog[gwMcpEndpointDialog]')!.open).toBe(true);
+  });
+
+  it('starts over with a new sign-in when the server doesn’t connect with the one it got', async () => {
+    setup();
+    const { api, signIn } = signInServer();
+    api.create = vi.fn().mockRejectedValue(new ApiError('unprocessable', 422, { detail: 'sentry-mcp answered HTTP 500.' }));
+    const { fixture, el } = await render();
+    const review = await reviewUrl(fixture, el);
+    heroSignIn(review).click();
+    await settle(fixture);
+    events.emit('mcp-server.sign-in', { id: signIn.id });
+    await settle(fixture);
+    expect(api.create).toHaveBeenCalledTimes(1);
+    expect(review.open).toBe(true);
+    const failed = review.querySelector('[role="alert"].gw-alert--danger')!;
+    expect(text(failed.querySelector('.gw-alert__title'))).toBe("sentry-mcp didn't connect");
+    expect(Array.from(failed.querySelectorAll('.gw-alert__body')).map(text)).toEqual([
+      'sentry-mcp answered HTTP 500.',
+      'A sign-in is used once: sign in again to try once more.',
+    ]);
+    // The alert sits above the call to sign in, which is back at its start: the large Sign in tries again.
+    expect(failed.compareDocumentPosition(review.querySelector('[gwMcpSignIn]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(text(heroSignIn(review))).toBe('Sign in with mcp.example.com');
+    expect(review.querySelector('input[type="checkbox"]')).toBeNull();
+    expect(Array.from(review.querySelectorAll('.gw-dialog__footer button')).map(text)).toEqual(['Back', 'Cancel']);
+    heroSignIn(review).click();
+    await settle(fixture);
+    expect(api.startSignIn).toHaveBeenCalledTimes(2);
+    expect(review.querySelector('[role="alert"].gw-alert--danger')).toBeNull();
+  });
+
+  it('keeps Sign in waiting for the values the server connects with', async () => {
+    setup();
+    const { api } = signInServer('oauth', ['X-Workspace']);
+    const { fixture, el } = await render();
+    const review = await reviewUrl(fixture, el);
+    const signIn = heroSignIn(review);
+    expect(signIn.getAttribute('aria-disabled')).toBe('true');
+    expect(text(review.querySelector(`#${signIn.getAttribute('aria-describedby')}`))).toBe('Enter the value of X-Workspace first.');
+    signIn.click();
+    await settle(fixture);
+    expect(api.startSignIn).not.toHaveBeenCalled();
+    type(review.querySelector<HTMLInputElement>('input[type="password"]')!, 'acme');
+    await settle(fixture);
+    expect(heroSignIn(review).getAttribute('aria-disabled')).toBeNull();
+    expect(text(review.querySelector(`#${heroSignIn(review).getAttribute('aria-describedby')}`))).toBe('GateRook connects it as soon as you allow access.');
+  });
+
+  it('offers an optional sign-in beside Connect without one, and a sign-in connects on its own', async () => {
+    setup();
+    const { signIn } = signInServer('optional');
+    const { fixture, el } = await render();
+    const review = await reviewUrl(fixture, el);
+    expect(text(review.querySelector('[gwMcpSignIn] .gw-empty__title'))).toBe('Sign in to sentry-mcp');
+    const optional = heroSignIn(review);
+    expect(optional.classList).toContain('gw-btn--lg');
+    expect(optional.classList).not.toContain('gw-btn--primary');
+    expect(text(review.querySelector('.gw-checkbox__label'))).toBe('I trust this server with the calls of my AI apps');
+    const connect = button(review, 'Connect MCP server sentry-mcp');
+    expect(connect.classList).toContain('gw-btn--danger');
+    expect(connect.getAttribute('aria-disabled')).toBe('true');
+    optional.click();
+    await settle(fixture);
+    events.emit('mcp-server.sign-in', { id: signIn.id });
+    await settle(fixture);
+    expect(bodies['create-server']).toMatchObject({ signIn: signIn.id, acknowledge: true });
+    expect(el.querySelector('dialog[gwMcpEndpointDialog] .gw-alert--success')).not.toBeNull();
   });
 
   it('leaves the tools of a new server Off when the endpoint step is skipped', async () => {
@@ -1295,6 +1428,9 @@ describe('Connectors page: MCP servers', () => {
     button(review, 'Start MCP server sentry-mcp').click();
     await settle(fixture);
     const step = el.querySelector<HTMLDialogElement>('dialog[gwMcpEndpointDialog]')!;
+    // Nothing signed in: the step has no sign-in alert, and its description is its own.
+    expect(step.querySelector('.gw-alert--success')).toBeNull();
+    expect(step.getAttribute('aria-describedby')).toMatch(/^med-\d+-d$/);
     button(step, 'Not now').click();
     await settle(fixture);
     expect(step.open).toBe(false);
