@@ -20,7 +20,10 @@ export interface McpServerConnected {
   readonly http: boolean;
   /** How many tools it listed, when the core said. */
   readonly tools: number | null;
-  /** It connected with a sign-in made in the review: the host of the sign-in page. Absent or null: no sign-in. */
+  /**
+   * It connected with a sign-in made in the review: the host of the sign-in page as the words name it (null for an IP
+   * address or localhost, which name nothing). Absent or null: no sign-in.
+   */
   readonly signedIn?: { readonly host: string | null } | null;
   readonly opener: HTMLElement | null;
 }

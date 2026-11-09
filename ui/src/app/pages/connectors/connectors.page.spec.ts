@@ -1244,12 +1244,16 @@ describe('Connectors page: MCP servers', () => {
     expect(add.querySelector<HTMLInputElement>('input[name$="-environment"][value="dev"]')!.checked).toBe(true);
   });
 
-  /** sentry-mcp at mcp.example.com, which answers only with a sign-in (or, with `optional`, without one too). */
-  function signInServer(kind: 'oauth' | 'optional' = 'oauth', headers: string[] = []) {
+  /**
+   * sentry-mcp, which answers only with a sign-in (or, with `optional`, without one too) at `host`: mcp.example.com, or
+   * an address such as a server under development on this computer has.
+   */
+  function signInServer(kind: 'oauth' | 'optional' = 'oauth', headers: string[] = [], host = 'mcp.example.com') {
     const api = TestBed.inject(McpServersApi);
+    const url = host === 'mcp.example.com' ? 'https://mcp.example.com/mcp' : `http://${host}:7781/mcp`;
     vi.spyOn(api, 'review').mockResolvedValue(sentryReview({ name: 'sentry-mcp', transport: 'http', argv: [], env: headers,
-      url: 'https://mcp.example.com/mcp', auth: { kind, registration: 'dynamic', authorizationHost: 'mcp.example.com' } }));
-    const signIn: McpSignIn = { id: 'sign-in-1', server: 'sentry-mcp', state: 'waiting', authorizationHost: 'mcp.example.com' };
+      url, auth: { kind, registration: 'dynamic', authorizationHost: host } }));
+    const signIn: McpSignIn = { id: 'sign-in-1', server: 'sentry-mcp', state: 'waiting', authorizationHost: host };
     api.startSignIn = vi.fn().mockResolvedValue(signIn);
     api.signIn = vi.fn().mockResolvedValue({ ...signIn, state: 'signed-in', scope: 'org:read project:write' });
     api.cancelSignIn = vi.fn().mockResolvedValue(undefined);
@@ -1387,6 +1391,24 @@ describe('Connectors page: MCP servers', () => {
     await settle(fixture);
     expect(heroSignIn(review).getAttribute('aria-disabled')).toBeNull();
     expect(text(review.querySelector(`#${heroSignIn(review).getAttribute('aria-describedby')}`))).toBe('GateRook connects it as soon as you allow access.');
+  });
+
+  it('names no address in the sign-in of a server on this computer', async () => {
+    setup();
+    const { signIn } = signInServer('oauth', [], '127.0.0.1');
+    const { fixture, el } = await render();
+    const review = await reviewUrl(fixture, el);
+    const row = Array.from(review.querySelectorAll('.gw-kv__row')).find((r) => text(r.querySelector('.gw-kv__key')) === 'Sign-in')!;
+    expect(text(row.querySelector('.gw-kv__value'))).toBe('OAuth on this computer. GateRook registers itself there as GateRook.');
+    expect(text(heroSignIn(review))).toBe('Sign in');
+    heroSignIn(review).click();
+    await settle(fixture);
+    expect(text(review.querySelector('[gwMcpSignIn] .gw-empty [role="status"]'))).toBe('Waiting for you to sign in. GateRook connects the server as soon as the browser comes back.');
+    expect(text(review.querySelector('[gwMcpSignIn]'))).not.toContain('127.0.0.1');
+    events.emit('mcp-server.sign-in', { id: signIn.id });
+    await settle(fixture);
+    const step = el.querySelector<HTMLDialogElement>('dialog[gwMcpEndpointDialog]')!;
+    expect(text(step.querySelector('.gw-alert--success .gw-alert__body'))).toBe('It connected with your sign-in; the agent never sees it.');
   });
 
   it('offers an optional sign-in beside Connect without one, and a sign-in connects on its own', async () => {

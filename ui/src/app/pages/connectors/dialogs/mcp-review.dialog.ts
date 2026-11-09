@@ -6,7 +6,7 @@ import { Env } from '../../../core/api/types';
 import { GwCopy } from '../../../kit/copy';
 import { GwDialog, GwDialogClose } from '../../../kit/dialog';
 import { GwIcon } from '../../../kit/icons';
-import { formatArgv, npmPackage, serverPaths } from '../connectors-view';
+import { formatArgv, npmPackage, onThisComputer, serverPaths, signInHost } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
 import { cloudSecret, cloudSignInText } from '../mcp-cloud';
 import { failureText } from './failure';
@@ -277,7 +277,7 @@ let nextId = 0;
               }
               @if (w.signIn && w.auth; as a) {
                 <div class="gw-kv__row"><dt class="gw-kv__key">Sign-in</dt><dd class="gw-kv__value">
-                  OAuth at <span class="gw-mono">{{ a.authorizationHost || a.issuer }}</span>{{ w.signIn === 'optional' ? ', optional: the server also answers without it, with less access' : '' }}.
+                  @if (onThisComputer(a.authorizationHost)) {OAuth on this computer} @else {OAuth at <span class="gw-mono">{{ a.authorizationHost || a.issuer }}</span>}{{ w.signIn === 'optional' ? ', optional: the server also answers without it, with less access' : '' }}.
                   {{ a.registration === 'metadata-document' ? 'GateRook signs in there as GateRook, with the client details it publishes.' : a.registration === 'dynamic' ? 'GateRook registers itself there as GateRook.' : a.registration === 'app' ? 'As your OAuth app.' : '' }}
                 </dd></div>
               }
@@ -414,6 +414,7 @@ export class GwMcpReviewDialog {
   readonly back = output<HTMLElement | null>();
 
   protected readonly uid = `mr-${++nextId}`;
+  protected readonly onThisComputer = onThisComputer;
   protected readonly canGoBack = signal(false);
   protected readonly environments: readonly Env[] = ['dev', 'stage', 'prod'];
   protected readonly environment = signal<Env>('dev');
@@ -654,7 +655,7 @@ export class GwMcpReviewDialog {
         env: source.env ?? 'dev',
         http: w.http,
         tools: typeof started?.tools === 'number' ? started.tools : null,
-        signedIn: signIn ? { host: signIn.authorizationHost || w.auth?.authorizationHost || null } : null,
+        signedIn: signIn ? { host: signInHost(signIn.authorizationHost || w.auth?.authorizationHost) } : null,
         opener,
       });
     } catch (err) {

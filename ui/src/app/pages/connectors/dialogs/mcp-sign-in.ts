@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, ElementRef, inject, input, output, signal } from '@angular/core';
 import { McpServersApi, McpSignIn } from '../../../core/api/plugins.api';
 import { DesktopBridge } from '../../../core/desktop/desktop-bridge';
 import { EventStream } from '../../../core/events/event-stream';
@@ -6,6 +6,7 @@ import { Announcer } from '../../../kit/announcer';
 import { GwCopy } from '../../../kit/copy';
 import { GwToggle } from '../../../kit/disclosure';
 import { GwIcon } from '../../../kit/icons';
+import { signInHost } from '../connectors-view';
 import { failureText } from './failure';
 
 /** How often a waiting sign-in is looked at besides its events (a stream that reconnects may miss one). */
@@ -50,7 +51,7 @@ let nextId = 0;
           @if (s?.state === 'waiting') {
             <span class="gw-empty__icon gw-icon-tile--brand"><span class="gw-spinner" aria-hidden="true"></span></span>
             <h3 class="gw-empty__title">Allow access in your browser</h3>
-            <p class="gw-empty__text" role="status">Waiting for you to sign in{{ s?.authorizationHost ? ' at ' + s?.authorizationHost : '' }}. GateRook connects the server as soon as the browser comes back.</p>
+            <p class="gw-empty__text" role="status">Waiting for you to sign in{{ at(s?.authorizationHost) }}. GateRook connects the server as soon as the browser comes back.</p>
             <div class="gw-empty__actions">
               @if (desktop.opensSignIns) {
                 <button class="gw-btn" type="button" (click)="open()"><svg lucideIcon="external-link" class="gw-icon"></svg> Open the sign-in page again</button>
@@ -59,7 +60,7 @@ let nextId = 0;
             </div>
           } @else if (s?.state === 'signed-in') {
             <span class="gw-empty__icon gw-icon-tile--success"><svg lucideIcon="circle-check" class="gw-icon"></svg></span>
-            <h3 class="gw-empty__title">Signed in{{ s?.authorizationHost ? ' at ' + s?.authorizationHost : '' }}</h3>
+            <h3 class="gw-empty__title">Signed in{{ at(s?.authorizationHost) }}</h3>
             @if (connecting()) {
               <span class="gw-status gw-status--checking" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Connecting <span class="gw-mono">{{ server() }}</span></span></span>
             } @else if (s?.scope) {
@@ -70,7 +71,7 @@ let nextId = 0;
             <h3 class="gw-empty__title">{{ optional() ? 'Sign in to' : 'Sign in to connect' }} <span class="gw-mono">{{ server() }}</span></h3>
             <p class="gw-empty__text">@if (optional()) {It also answers without a sign-in, with less access.} @else {<span class="gw-mono">{{ server() }}</span> answers only with your sign-in.} You sign in as you would in Claude Desktop, Cursor or Codex, but the browser hands it to GateRook, not to the AI app.</p>
             <div class="gw-empty__actions">
-              <button class="gw-btn gw-btn--lg" [class.gw-btn--primary]="!optional()" type="button" [id]="uid + '-start'" (click)="begin()" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() || blocked() ? 'true' : null" [attr.aria-describedby]="uid + '-hint'">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="log-in" class="gw-icon"></svg>} Sign in{{ host() ? ' with ' + host() : '' }}</button>
+              <button class="gw-btn gw-btn--lg" [class.gw-btn--primary]="!optional()" type="button" [id]="uid + '-start'" (click)="begin()" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() || blocked() ? 'true' : null" [attr.aria-describedby]="uid + '-hint'">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="log-in" class="gw-icon"></svg>} Sign in{{ named() ? ' with ' + named() : '' }}</button>
             </div>
             <p class="gw-text-caption gw-fg-muted" [id]="uid + '-hint'">{{ blocked() || (optional()
               ? 'GateRook connects it as soon as you allow access. To connect without a sign-in, confirm below.'
@@ -79,12 +80,12 @@ let nextId = 0;
         </div>
       </div>
     } @else if (!s || s.state === 'cancelled') {
-      <div><button class="gw-btn" type="button" [id]="uid + '-start'" [attr.autofocus]="autofocus() ? '' : null" (click)="begin()" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() || blocked() ? 'true' : null" [attr.aria-describedby]="uid + '-hint'">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="log-in" class="gw-icon"></svg>} Sign in{{ host() ? ' with ' + host() : '' }}</button></div>
+      <div><button class="gw-btn" type="button" [id]="uid + '-start'" [attr.autofocus]="autofocus() ? '' : null" (click)="begin()" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() || blocked() ? 'true' : null" [attr.aria-describedby]="uid + '-hint'">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="log-in" class="gw-icon"></svg>} Sign in{{ named() ? ' with ' + named() : '' }}</button></div>
       <p class="gw-field__hint" [id]="uid + '-hint'">{{ blocked() || 'Opens your browser. After you allow access there, the browser comes back to GateRook on this computer. GateRook keeps the sign-in encrypted and renews it; the agent never sees it.' }}</p>
     } @else if (s.state === 'waiting') {
-      <span class="gw-status gw-status--checking" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Waiting for you to sign in{{ s.authorizationHost ? ' at ' + s.authorizationHost : '' }} in your browser</span></span>
+      <span class="gw-status gw-status--checking" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Waiting for you to sign in{{ at(s.authorizationHost) }} in your browser</span></span>
     } @else if (s.state === 'signed-in') {
-      <span class="gw-status gw-status--success" role="status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Signed in{{ s.authorizationHost ? ' at ' + s.authorizationHost : '' }}</span></span>
+      <span class="gw-status gw-status--success" role="status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Signed in{{ at(s.authorizationHost) }}</span></span>
       @if (s.scope) {<p class="gw-field__hint">Permissions asked for: <span class="gw-mono">{{ s.scope }}</span></p>}
     } @else {
       <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
@@ -145,7 +146,7 @@ export class GwMcpSignIn {
 
   /** Starts the sign-in at the core: a draft's (`POST /api/mcp-sign-ins`) or a stored server's. */
   readonly start = input.required<() => Promise<McpSignIn>>();
-  /** The host of the sign-in page, for the button ("Sign in with mcp.linear.app"). */
+  /** The host of the sign-in page, for the button ("Sign in with mcp.linear.app"); an IP address or localhost isn't named. */
   readonly host = input<string | null>(null);
   /** Why Sign in can't start yet (a client ID is missing), or null. */
   readonly blocked = input<string | null>(null);
@@ -162,6 +163,8 @@ export class GwMcpSignIn {
   readonly signedIn = output<McpSignIn>();
 
   protected readonly uid = `msi-${++nextId}`;
+  /** The host Sign in names, or null: "Sign in with 127.0.0.1" names nothing to the person. */
+  protected readonly named = computed(() => signInHost(this.host()));
   readonly signIn = signal<McpSignIn | null>(null);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -179,6 +182,12 @@ export class GwMcpSignIn {
       this.stopPolling();
       this.abandon();
     });
+  }
+
+  /** " at mcp.linear.app" for the words of a sign-in, or nothing for an IP address or localhost. */
+  protected at(host: string | null | undefined): string {
+    const named = signInHost(host);
+    return named ? ` at ${named}` : '';
   }
 
   /** Forgets the sign-in (a new review, a closed dialog): the core forgets it too. */
