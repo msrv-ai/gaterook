@@ -2,6 +2,7 @@ package ai.msrv.gaterook.core.mcpservers.internal.oauth;
 
 import ai.msrv.gaterook.connectors.support.BuiltIn;
 import java.net.URI;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -16,7 +17,8 @@ import tools.jackson.databind.node.ObjectNode;
  * GateRook as an OAuth 2.1 client of an MCP server's authorization server: a public client on the person's computer
  * with PKCE S256, the {@code resource} of the MCP server in every authorization and token request (RFC 8707), and
  * as client ID its own Client ID Metadata Document where the server accepts one, else dynamic registration (RFC 7591)
- * under its own name, or the client ID of an OAuth app the person created. It never presents itself as another
+ * under its own name, else its own app registered at that server ({@link GateRookApps}, with the device authorization
+ * grant of RFC 8628), or the client ID of an OAuth app the person created. It never presents itself as another
  * application: no other client's ID, name or redirect URI.
  */
 public final class OAuthClient {
@@ -66,6 +68,39 @@ public final class OAuthClient {
           + "]";
     }
   }
+
+  /**
+   * What a device authorization request issued (RFC 8628 §3.2).
+   *
+   * @param userCode                the code the person enters on the provider's page
+   * @param verificationUri         that page
+   * @param verificationUriComplete that page with the code in it, where the provider offers one; else {@code null}
+   * @param interval                how long to wait between two polls of the token endpoint
+   */
+  public record DeviceCode(String deviceCode, String userCode, URI verificationUri, URI verificationUriComplete,
+      Instant expiresAt, Duration interval) {
+
+    @Override
+    public String toString() {
+      return "DeviceCode[‹redacted›, userCode=" + userCode + ", verificationUri=" + verificationUri + ", expiresAt="
+          + expiresAt + ", interval=" + interval + "]";
+    }
+  }
+
+  /**
+   * One poll of the token endpoint for a device code: still waiting, with the interval to keep from now on, or the
+   * tokens.
+   */
+  public record DevicePoll(Tokens tokens, Duration interval) {
+
+    public boolean pending() {
+      return tokens == null;
+    }
+  }
+
+  /** Longest wait between two polls a server may ask for, and the longest life of a device code GateRook keeps. */
+  static final Duration MAX_INTERVAL = Duration.ofSeconds(60);
+  static final Duration MAX_DEVICE_LIFE = Duration.ofMinutes(30);
 
   private OAuthClient() {}
 
@@ -127,6 +162,110 @@ public final class OAuthClient {
     String method = j.path("token_endpoint_auth_method").asString(secret == null ? "none" : "client_secret_basic");
     return new Client(j.path("client_id").asString(), secret, normalizeMethod(method, secret), true,
         redirectUri.toString());
+  }
+
+  /**
+   * GateRook's own app at an authorization server ({@link GateRookApps}): its public client ID, no secret, and no
+   * redirect URI, because the device authorization grant has no redirect.
+   */
+  public static Client ownApp(String clientId) {
+    return new Client(clientId, null, "none", false, null);
+  }
+
+  /**
+   * Asks the server's device authorization endpoint for a code (RFC 8628 §3.1), with the scopes and the resource
+   * (RFC 8707). The page the person enters the code on must be HTTPS on the authorization server's own host, or
+   * HTTP on this computer, so that the answer can't send the person to another site.
+   */
+  public static DeviceCode deviceAuthorization(OAuthHttp http, Discovery.Server server, Client client, String scope,
+      String resource, Instant now) throws OAuthHttp.Failure {
+    Map<String, String> form = new LinkedHashMap<>();
+    form.put("scope", scope == null || scope.isBlank() ? null : scope);
+    form.put("resource", resource);
+    URI endpoint = server.deviceAuthorization();
+    OAuthHttp.Answer a = post(http, endpoint, client, form);
+    JsonNode j = a.json();
+    if (!a.ok() || j == null || !j.isObject() || j.path("error").isString()) {
+      throw OAuthHttp.failure("Starting the sign-in", endpoint, a);
+    }
+    String deviceCode = text(j, "device_code");
+    String userCode = text(j, "user_code");
+    // Google's older answers say verification_url.
+    String page = text(j, "verification_uri") != null ? text(j, "verification_uri") : text(j, "verification_url");
+    if (deviceCode == null || userCode == null || page == null) {
+      throw new OAuthHttp.Failure("Starting the sign-in: " + OAuthHttp.host(endpoint) + " answered without a code "
+          + "and the page to enter it on.");
+    }
+    if (userCode.length() > 64 || !userCode.chars().allMatch(c -> c > 0x20 && c < 0x7f)) {
+      throw new OAuthHttp.Failure("Starting the sign-in: " + OAuthHttp.host(endpoint) + " answered with a code "
+          + "GateRook can't show.");
+    }
+    URI verification = serversPage(OAuthHttp.checked(page, "The page to enter the code on"), server);
+    URI complete = null;
+    if (text(j, "verification_uri_complete") != null) {
+      try {
+        complete = serversPage(OAuthHttp.checked(text(j, "verification_uri_complete"), "The page with the code"),
+            server);
+      } catch (OAuthHttp.Failure e) {
+        // The page without the code works too: the person types it.
+        complete = null;
+      }
+    }
+    long life = seconds(j.path("expires_in"), 900);
+    long interval = seconds(j.path("interval"), 5);
+    return new DeviceCode(deviceCode, userCode, verification, complete,
+        now.plusSeconds(Math.clamp(life, 60, MAX_DEVICE_LIFE.toSeconds())),
+        Duration.ofSeconds(Math.clamp(interval, 1, MAX_INTERVAL.toSeconds())));
+  }
+
+  /**
+   * Polls the token endpoint for the tokens of {@code code} (RFC 8628 §3.4, §3.5): pending while the person hasn't
+   * finished on the provider's page, at a slower pace after {@code slow_down}; the tokens once they allowed access.
+   * GitHub answers these errors with HTTP 200, the RFC with 400: both are read.
+   *
+   * @throws OAuthHttp.Failure with {@code access_denied} when the person didn't allow access, {@code expired_token} when
+   *                           the code expired, or another error after which the sign-in can't go on (no {@code error}
+   *                           when the server couldn't be reached)
+   */
+  public static DevicePoll pollDevice(OAuthHttp http, URI tokenEndpoint, Client client, DeviceCode code,
+      Duration interval, String resource, Instant now) throws OAuthHttp.Failure {
+    Map<String, String> form = new LinkedHashMap<>();
+    form.put("grant_type", Discovery.DEVICE_GRANT);
+    form.put("device_code", code.deviceCode());
+    form.put("resource", resource);
+    OAuthHttp.Answer a = post(http, tokenEndpoint, client, form);
+    JsonNode j = a.json();
+    String error = j != null && j.path("error").isString() ? j.path("error").asString() : null;
+    if (error == null) {
+      return new DevicePoll(read("Signing in", tokenEndpoint, a, null, now), interval);
+    }
+    return switch (error) {
+      case "authorization_pending" -> new DevicePoll(null, interval);
+      case "slow_down" -> {
+        // RFC 8628 §3.5: five seconds more for this and every later poll; GitHub also names the new interval.
+        long named = seconds(j.path("interval"), 0);
+        long next = Math.max(interval.toSeconds() + 5, named);
+        yield new DevicePoll(null, Duration.ofSeconds(Math.min(next, MAX_INTERVAL.toSeconds())));
+      }
+      case "access_denied" -> throw new OAuthHttp.Failure("Access wasn't allowed on " + OAuthHttp.host(code
+          .verificationUri()) + ", so the sign-in ended.", error, null);
+      case "expired_token", "token_expired" -> throw new OAuthHttp.Failure("The code expired before it was entered. "
+          + "Start the sign-in again.", "expired_token", null);
+      default -> throw OAuthHttp.failure("Signing in", tokenEndpoint, a);
+    };
+  }
+
+  /** The page the device authorization answer names, when it is on the authorization server's host. */
+  private static URI serversPage(URI page, Discovery.Server server) throws OAuthHttp.Failure {
+    String issuerHost = URI.create(server.issuer()).getHost();
+    String authorizationHost = server.authorization().getHost();
+    if (page.getHost() == null || !(page.getHost().equalsIgnoreCase(issuerHost)
+        || page.getHost().equalsIgnoreCase(authorizationHost))) {
+      throw new OAuthHttp.Failure("Starting the sign-in: " + OAuthHttp.host(server.deviceAuthorization())
+          + " named a page on another host (" + OAuthHttp.clean(page.getHost()) + ") to enter the code on, so GateRook "
+          + "doesn't open it.");
+    }
+    return page;
   }
 
   /** The client of an OAuth app the person created: its ID, secret (or none) and the redirect URI it accepts. */
@@ -198,9 +337,17 @@ public final class OAuthClient {
 
   private static Tokens tokens(String step, OAuthHttp http, URI endpoint, Client client, Map<String, String> form,
       String previousRefresh, Instant now) throws OAuthHttp.Failure {
-    OAuthHttp.Answer a = post(http, endpoint, client, form);
+    return read(step, endpoint, post(http, endpoint, client, form), previousRefresh, now);
+  }
+
+  /**
+   * The tokens of a token endpoint's answer. An answer with an {@code error} is a refusal even with HTTP 200, as GitHub
+   * sends them ({@code bad_refresh_token}): its code is kept, so a refused renewal asks for a new sign-in.
+   */
+  private static Tokens read(String step, URI endpoint, OAuthHttp.Answer a, String previousRefresh, Instant now)
+      throws OAuthHttp.Failure {
     JsonNode j = a.json();
-    if (!a.ok() || j == null || !j.isObject()) {
+    if (!a.ok() || j == null || !j.isObject() || j.path("error").isString()) {
       throw OAuthHttp.failure(step, endpoint, a);
     }
     if (!j.path("access_token").isString() || j.path("access_token").asString().isBlank()) {
@@ -256,5 +403,17 @@ public final class OAuthClient {
     } catch (NumberFormatException e) {
       return -1;
     }
+  }
+
+  /** A whole number of seconds, as a number or a string, or {@code fallback} when it is neither or not positive. */
+  private static long seconds(JsonNode n, long fallback) {
+    long v = n.isNumber() ? n.asLong() : n.isString() ? parseLong(n.asString()) : -1;
+    return v > 0 ? v : fallback;
+  }
+
+  /** A non-blank string member, or {@code null}. */
+  private static String text(JsonNode j, String name) {
+    JsonNode n = j.path(name);
+    return n.isString() && !n.asString().isBlank() ? n.asString() : null;
   }
 }

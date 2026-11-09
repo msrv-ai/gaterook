@@ -39,6 +39,11 @@ import tools.jackson.databind.node.ObjectNode;
  * PKCE and resource and then redirects with {@code code}, {@code state} and {@code iss}, public clients only at the
  * token endpoint, rotating refresh tokens bound to their client (a reused one is refused) and revocation; it also
  * answers a request whose URL carries its key ({@link #URL_KEY}). The "person" always allows: the test plays the browser.
+ *
+ * <p>{@link #registeredAppsOnly} behaves as GitHub's authorization server does (2026-11-09): neither registration nor
+ * documents, no authentication methods listed, the device authorization grant for the one app it knows
+ * ({@link #APP_CLIENT}), its errors answered with HTTP 200. There the test plays the person who enters the code
+ * ({@link #approve}, {@link #deny}).
  */
 final class OAuthMcpServer implements AutoCloseable {
 
@@ -47,6 +52,9 @@ final class OAuthMcpServer implements AutoCloseable {
 
   /** The URL of GateRook's Client ID Metadata Document. */
   static final String GATEROOK_CLIENT = "https://gaterook.com/oauth/gaterook-client.json";
+
+  /** The client ID of GateRook's own app at a {@link #registeredAppsOnly} server: the only client it admits. */
+  static final String APP_CLIENT = "gaterook-test-app";
 
   /** A key the server also takes in its URL ({@code /mcp?apiKey=…}), as some servers' docs give it. */
   static final String URL_KEY = "trk-url-key-5d1e7a";
@@ -117,6 +125,9 @@ final class OAuthMcpServer implements AutoCloseable {
 
   record Code(String client, String redirect, String challenge, String resource, String scope) {}
 
+  /** A device code it issued, and the code the person enters for it. */
+  record Device(String userCode, String client, String scope) {}
+
   final List<JsonNode> registrations = new CopyOnWriteArrayList<>();
   /** The metadata documents read, by URL, once per authorization request that named one. */
   final List<String> documentsRead = new CopyOnWriteArrayList<>();
@@ -135,7 +146,16 @@ final class OAuthMcpServer implements AutoCloseable {
   /** The client each refresh token was issued to: only that client may redeem it. */
   final Map<String, String> refreshClients = new ConcurrentHashMap<>();
   final Set<String> usedRefresh = ConcurrentHashMap.newKeySet();
+  /** The device authorization requests, as sent. */
+  final List<Map<String, String>> deviceRequests = new CopyOnWriteArrayList<>();
+  final Map<String, Device> devices = new ConcurrentHashMap<>();
+  /** The user code of every device code issued, kept after the device code is used up. */
+  final Map<String, String> userCodes = new ConcurrentHashMap<>();
+  /** The user codes the person entered and allowed, or cancelled, on the page. */
+  final Set<String> approved = ConcurrentHashMap.newKeySet();
+  final Set<String> denied = ConcurrentHashMap.newKeySet();
   private final boolean metadataDocuments;
+  private final boolean registeredApps;
   private final Tomcat tomcat;
   private final McpSyncServer mcp;
   final int port;
@@ -148,7 +168,17 @@ final class OAuthMcpServer implements AutoCloseable {
 
   /** @param metadataDocuments it also accepts Client ID Metadata Documents and says so in its metadata */
   OAuthMcpServer(Path work, boolean metadataDocuments) throws Exception {
+    this(work, metadataDocuments, false);
+  }
+
+  /** An authorization server like GitHub's: apps registered with it only, signing in with the device grant. */
+  static OAuthMcpServer registeredAppsOnly(Path work) throws Exception {
+    return new OAuthMcpServer(work, false, true);
+  }
+
+  private OAuthMcpServer(Path work, boolean metadataDocuments, boolean registeredApps) throws Exception {
     this.metadataDocuments = metadataDocuments;
+    this.registeredApps = registeredApps;
     HttpServletStreamableServerTransportProvider transport = HttpServletStreamableServerTransportProvider.builder()
         .jsonMapper(new JacksonMcpJsonMapper(JSON)).mcpEndpoint("/mcp").build();
     mcp = McpServer.sync(transport).serverInfo("tracker", "3.1.0")
@@ -171,11 +201,17 @@ final class OAuthMcpServer implements AutoCloseable {
         .put("resource", base() + "/mcp").set("authorization_servers", JSON.createArrayNode().add(base()))));
     servlet(ctx, "as", "/.well-known/oauth-authorization-server", (req, res) -> {
       ObjectNode m = obj().put("issuer", base()).put("authorization_endpoint", base() + "/authorize")
-          .put("token_endpoint", base() + "/token").put("registration_endpoint", base() + "/register")
-          .put("revocation_endpoint", base() + "/revoke").put("authorization_response_iss_parameter_supported", true);
+          .put("token_endpoint", base() + "/token").put("authorization_response_iss_parameter_supported", true);
       m.putArray("response_types_supported").add("code");
       m.putArray("code_challenge_methods_supported").add("S256");
-      m.putArray("token_endpoint_auth_methods_supported").add("none");
+      if (registeredApps) {
+        m.put("device_authorization_endpoint", base() + "/login/device/code");
+        m.putArray("grant_types_supported").add("authorization_code").add("refresh_token")
+            .add("urn:ietf:params:oauth:grant-type:device_code");
+      } else {
+        m.put("registration_endpoint", base() + "/register").put("revocation_endpoint", base() + "/revoke");
+        m.putArray("token_endpoint_auth_methods_supported").add("none");
+      }
       m.putArray("scopes_supported").add("issues:read").add("offline_access");
       if (metadataDocuments) {
         m.put("client_id_metadata_document_supported", true);
@@ -183,6 +219,7 @@ final class OAuthMcpServer implements AutoCloseable {
       json(res, 200, m);
     });
     servlet(ctx, "register", "/register", this::register);
+    servlet(ctx, "device", "/login/device/code", this::deviceCode);
     servlet(ctx, "authorize", "/authorize", this::authorize);
     servlet(ctx, "token", "/token", this::token);
     servlet(ctx, "revoke", "/revoke", (req, res) -> {
@@ -244,7 +281,43 @@ final class OAuthMcpServer implements AutoCloseable {
     refresh.clear();
   }
 
+  /** The person entered {@code userCode} on the provider's page and allowed access. */
+  void approve(String userCode) {
+    approved.add(userCode);
+  }
+
+  /** The person entered {@code userCode} on the provider's page and cancelled. */
+  void deny(String userCode) {
+    denied.add(userCode);
+  }
+
+  /** How often the token endpoint was polled for the device code of {@code userCode}. */
+  long polls(String userCode) {
+    return tokenRequests.stream().filter(f -> userCode.equals(userCodes.get(String.valueOf(f.get("device_code")))))
+        .count();
+  }
+
   // ── The authorization server ────────────────────────────────────────────────────────────────────────────────
+
+  /** GitHub's device authorization endpoint: its own app only, errors with HTTP 200. */
+  private void deviceCode(HttpServletRequest req, HttpServletResponse res) throws IOException {
+    Map<String, String> form = form(req);
+    deviceRequests.add(form);
+    if (!registeredApps || !APP_CLIENT.equals(form.get("client_id")) || form.containsKey("client_secret")
+        || req.getHeader("Authorization") != null) {
+      json(res, 200, obj().put("error", "incorrect_client_credentials").put("error_description", "The client_id "
+          + "and/or client_secret passed are incorrect."));
+      return;
+    }
+    String deviceCode = "trk-dc-" + random();
+    String userCode = (random() + random()).replaceAll("[^A-Za-z]", "").toUpperCase(java.util.Locale.ROOT)
+        .substring(0, 8);
+    userCode = userCode.substring(0, 4) + "-" + userCode.substring(4);
+    devices.put(deviceCode, new Device(userCode, form.get("client_id"), form.get("scope")));
+    userCodes.put(deviceCode, userCode);
+    json(res, 200, obj().put("device_code", deviceCode).put("user_code", userCode)
+        .put("verification_uri", base() + "/login/device").put("expires_in", 900).put("interval", 1));
+  }
 
   private void register(HttpServletRequest req, HttpServletResponse res) throws IOException {
     JsonNode body = JSON.readTree(req.getInputStream());
@@ -334,6 +407,22 @@ final class OAuthMcpServer implements AutoCloseable {
         }
         usedRefresh.add(old);
         issue(res, client, "issues:read offline_access");
+      }
+      case "urn:ietf:params:oauth:grant-type:device_code" -> {
+        // As GitHub answers: HTTP 200 with the error.
+        String deviceCode = String.valueOf(form.get("device_code"));
+        Device d = devices.get(deviceCode);
+        if (!registeredApps || d == null || !d.client().equals(form.get("client_id"))) {
+          json(res, 200, obj().put("error", "incorrect_device_code"));
+        } else if (denied.contains(d.userCode())) {
+          devices.remove(deviceCode);
+          json(res, 200, obj().put("error", "access_denied"));
+        } else if (!approved.contains(d.userCode())) {
+          json(res, 200, obj().put("error", "authorization_pending"));
+        } else {
+          devices.remove(deviceCode);
+          issue(res, d.client(), d.scope());
+        }
       }
       default -> json(res, 400, obj().put("error", "unsupported_grant_type"));
     }

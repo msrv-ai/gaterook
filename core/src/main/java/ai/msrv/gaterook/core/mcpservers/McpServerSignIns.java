@@ -12,6 +12,7 @@ import ai.msrv.gaterook.core.connectors.CallContext;
 import ai.msrv.gaterook.core.connectors.CallContexts;
 import ai.msrv.gaterook.core.connectors.EnvironmentPolicies;
 import ai.msrv.gaterook.core.mcpservers.internal.oauth.Discovery;
+import ai.msrv.gaterook.core.mcpservers.internal.oauth.GateRookApps;
 import ai.msrv.gaterook.core.mcpservers.internal.oauth.LoopbackCallback;
 import ai.msrv.gaterook.core.mcpservers.internal.oauth.OAuthClient;
 import ai.msrv.gaterook.core.mcpservers.internal.oauth.OAuthHttp;
@@ -47,6 +48,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -70,6 +72,11 @@ import tools.jackson.databind.node.ObjectNode;
  * GateRook, never to the app. When the browser can't come back (another device, a blocked port), the person pastes the
  * address it ended on; its {@code state} must match.
  *
+ * <p>An authorization server that admits neither the metadata document nor a registration, but where GateRook has its
+ * own app ({@link GateRookApps}: GitHub), gets a device sign-in instead (RFC 8628): the flow asks for a one-time code,
+ * the person enters it on the provider's page, and the flow polls the token endpoint until they allowed access. There
+ * is no redirect and no listener, so the browser may be on any device.
+ *
  * <p>The tokens of a stored server are one encrypted secret of the server ({@link SignInBundle}), renewed in place:
  * no Setup change, no new connection version, so a renewal never restarts anything. A renewal the server refuses
  * (revoked, expired, more permissions wanted) leaves the server "needs sign-in" until the person signs in again; its
@@ -89,9 +96,13 @@ public class McpServerSignIns {
   public static final int APP_CALLBACK_PORT = 7471;
   static final String DEFAULT_PATH = "/callback";
 
+  /** Polls of a device sign-in in a row that may fail to reach the server before the sign-in fails. */
+  static final int MAX_POLL_TROUBLE = 5;
+
   private static final Logger log = LoggerFactory.getLogger(McpServerSignIns.class);
+  /** Refusals of a renewal that call for a new sign-in; {@code bad_refresh_token} is GitHub's. */
   private static final Set<String> REFUSED_GRANT = Set.of("invalid_grant", "invalid_client", "unauthorized_client",
-      "invalid_scope", "access_denied");
+      "invalid_scope", "access_denied", "bad_refresh_token");
 
   /**
    * How a server wants to be signed in to, for the review before it is added.
@@ -116,9 +127,11 @@ public class McpServerSignIns {
    * @param state            {@code waiting} (the browser is open), {@code signed-in}, {@code failed}, {@code cancelled}
    *                         or {@code expired}
    * @param authorizationUrl the page the browser opens, for copying when it can't be opened
+   * @param userCode         a device sign-in's one-time code, which the person enters on that page, while it waits;
+   *                         otherwise {@code null}
    */
   public record SignInView(String id, String state, String server, String issuer, String authorizationHost,
-      String redirectUri, String authorizationUrl, Instant expiresAt, String scope, String message) {}
+      String redirectUri, String authorizationUrl, Instant expiresAt, String scope, String message, String userCode) {}
 
   /**
    * The sign-in of a stored server.
@@ -145,12 +158,19 @@ public class McpServerSignIns {
   private final ObjectProvider<McpServerRuntime> runtime;
   private final Clock clock;
   private final TransactionTemplate writeTx;
+  private final GateRookApps apps;
   private final Map<String, Flow> flows = new ConcurrentHashMap<>();
   private final Map<String, Holder> holders = new ConcurrentHashMap<>();
 
+  /**
+   * @param githubIssuer   the authorization server of GateRook's GitHub app: GitHub's, or a GitHub Enterprise Server's
+   * @param githubClientId that app's client ID; empty turns it off, and GitHub's MCP server then needs the person's app
+   */
   public McpServerSignIns(SecretService secrets, CallContexts contexts, EnvironmentPolicies policies,
       ConnectionConfigs configs, EventBus events, ObjectProvider<SetupChangeRecorder> setupChanges,
-      ObjectProvider<McpServerRuntime> runtime, Clock clock, PlatformTransactionManager transactions) {
+      ObjectProvider<McpServerRuntime> runtime, Clock clock, PlatformTransactionManager transactions,
+      @Value("${gateway.mcp-sign-in.github.issuer:" + GateRookApps.GITHUB_ISSUER + "}") String githubIssuer,
+      @Value("${gateway.mcp-sign-in.github.client-id:" + GateRookApps.GITHUB_CLIENT_ID + "}") String githubClientId) {
     this.secrets = secrets;
     this.contexts = contexts;
     this.policies = policies;
@@ -160,6 +180,7 @@ public class McpServerSignIns {
     this.runtime = runtime;
     this.clock = clock;
     this.writeTx = new TransactionTemplate(transactions);
+    this.apps = new GateRookApps(List.of(new GateRookApps.App(githubIssuer, githubClientId)));
   }
 
   // ── Review ──────────────────────────────────────────────────────────────────────────────────────────────────
@@ -180,9 +201,12 @@ public class McpServerSignIns {
         case OAUTH, OPTIONAL -> {
           JsonNode auth = cfg.config().path("auth");
           boolean app = auth.path("clientId").isString();
+          // GateRook's own app comes after the ways that need nothing registered in advance: those sign in through
+          // the browser's redirect, without a code to enter.
           String registration = app ? "app"
               : OAuthClient.acceptsMetadataDocument(d.server(), redirectFor(auth, false)) ? "metadata-document"
-              : d.server().dynamicRegistration() ? "dynamic" : "app-required";
+              : d.server().dynamicRegistration() ? "dynamic"
+              : ownApp(d.server()).isPresent() ? "gaterook-app" : "app-required";
           boolean appRequired = "app-required".equals(registration);
           Boolean secret = app || appRequired ? !d.server().authMethods().contains("none") : null;
           // A Desktop app client of Google takes any loopback address: there is nothing to register.
@@ -219,12 +243,13 @@ public class McpServerSignIns {
     sweep();
     try {
       flows.values().stream().filter(f -> f.name.equals(t.name()) && f.phase.equals("waiting")).toList()
-          .forEach(f -> f.end("cancelled", "Replaced by a new sign-in."));
+          .forEach(f -> f.endIfWaiting("cancelled", "Replaced by a new sign-in."));
       if (flows.size() >= MAX_FLOWS) {
         throw ProblemException.conflict("Too many sign-ins", "Finish or cancel a sign-in that is waiting first.");
       }
       Flow flow = begin(t);
       flows.put(flow.id, flow);
+      flow.startPolling();
       publish(flow);
       return flow.view();
     } catch (OAuthHttp.Failure e) {
@@ -265,10 +290,21 @@ public class McpServerSignIns {
         flow.client = OAuthClient.metadataDocument(flow.callback.redirectUri());
       } else {
         OAuthClient.Client previous = previousClient(t, d);
+        Optional<GateRookApps.App> own = ownApp(d.server());
         if (previous != null && flow.tryListen(URI.create(previous.redirectUri()))) {
           flow.client = previous;
         } else if (d.server().dynamicRegistration()) {
           flow.client = register(http, d, flow, auth);
+        } else if (own.isPresent()) {
+          // A device sign-in: a code to enter on the provider's page, no redirect to listen for.
+          flow.client = OAuthClient.ownApp(own.get().clientId());
+          flow.device = OAuthClient.deviceAuthorization(http, d.server(), flow.client, scope, d.resource(),
+              clock.instant());
+          flow.authorizationUrl = flow.device.verificationUriComplete() != null
+              ? flow.device.verificationUriComplete() : flow.device.verificationUri();
+          Instant latest = clock.instant().plus(FLOW_TTL);
+          flow.expiresAt = flow.device.expiresAt().isBefore(latest) ? flow.device.expiresAt() : latest;
+          return flow;
         } else {
           throw new OAuthHttp.Failure(d.server().issuer() + " doesn't let apps register themselves. Create an OAuth "
               + "app there for GateRook with the redirect URI " + redirectFor(auth, true) + ", then enter its "
@@ -353,6 +389,10 @@ public class McpServerSignIns {
     if (!f.phase.equals("waiting")) {
       return f.view();
     }
+    if (f.device != null) {
+      throw ProblemException.unprocessable("Nothing to paste", "This sign-in ends on "
+          + f.device.verificationUri().getHost() + ": enter the code there and allow access.", "/address");
+    }
     URI u;
     try {
       u = URI.create(address == null ? "" : address.strip());
@@ -374,10 +414,8 @@ public class McpServerSignIns {
   /** {@code DELETE …/sign-ins/{id}}. */
   void cancel(String id) {
     Flow f = flows.get(id);
-    if (f != null && f.phase.equals("waiting")) {
-      f.end("cancelled", "Cancelled.");
-    }
     if (f != null) {
+      f.endIfWaiting("cancelled", "Cancelled.");
       flows.remove(id);
     }
   }
@@ -495,7 +533,7 @@ public class McpServerSignIns {
 
   // ── A flow ──────────────────────────────────────────────────────────────────────────────────────────────────
 
-  /** One sign-in in progress; its listener lives as long as it waits. */
+  /** One sign-in in progress; its listener, or a device sign-in's poller, lives as long as it waits. */
   private final class Flow {
     final String id;
     final String connectionId;
@@ -510,6 +548,9 @@ public class McpServerSignIns {
     URI authorizationUrl;
     Instant expiresAt;
     LoopbackCallback callback;
+    /** A device sign-in's code (RFC 8628), or {@code null} for one whose browser comes back to the listener. */
+    OAuthClient.DeviceCode device;
+    volatile Thread poller;
     volatile String phase = "waiting";
     volatile String message;
     volatile SignInBundle bundle;
@@ -586,21 +627,88 @@ public class McpServerSignIns {
         return failedPage();
       }
       try {
-        OAuthClient.Tokens tokens = OAuthClient.exchange(httpOf(cfg), server.token(), client, code,
-            pkce.verifier(), discovery.resource(), clock.instant());
-        learn(tokens);
-        SignInBundle b = SignInBundle.signedIn(Discovery.canonical(discovery.serverUrl()), discovery.resource(), server,
-            client, scope, tokens, clock.instant());
-        if (connectionId != null) {
-          signedInAgain(this, b);
-        }
-        bundle = b;
-        end("signed-in", null);
+        signedIn(OAuthClient.exchange(httpOf(cfg), server.token(), client, code, pkce.verifier(),
+            discovery.resource(), clock.instant()));
         return new LoopbackCallback.Page(200, "Signed in to " + name, "GateRook keeps this sign-in. You can close "
             + "this tab and go back to GateRook.", true);
       } catch (OAuthHttp.Failure | RuntimeException e) {
         end("failed", e.getMessage());
         return failedPage();
+      }
+    }
+
+    /**
+     * The tokens of this sign-in: its bundle (a stored server's replaces the old one, and its sessions start over),
+     * then it ends signed in. Tokens that arrive after the sign-in ended otherwise (cancelled) are dropped.
+     */
+    synchronized void signedIn(OAuthClient.Tokens tokens) {
+      if (!phase.equals("waiting")) {
+        return;
+      }
+      learn(tokens);
+      SignInBundle b = SignInBundle.signedIn(Discovery.canonical(discovery.serverUrl()), discovery.resource(),
+          discovery.server(), client, scope, tokens, clock.instant());
+      if (connectionId != null) {
+        signedInAgain(this, b);
+      }
+      bundle = b;
+      end("signed-in", null);
+    }
+
+    /** A device sign-in polls the token endpoint from a thread of its own, until it ends one way or another. */
+    void startPolling() {
+      if (device != null) {
+        poller = Thread.ofVirtual().name("mcp-sign-in-" + id).start(this::poll);
+      }
+    }
+
+    private void poll() {
+      Duration interval = device.interval();
+      int trouble = 0;
+      while (phase.equals("waiting")) {
+        try {
+          Thread.sleep(interval);
+        } catch (InterruptedException e) {
+          // Ended meanwhile: cancelled, replaced or expired.
+          return;
+        }
+        if (!phase.equals("waiting")) {
+          return;
+        }
+        if (!clock.instant().isBefore(expiresAt)) {
+          endIfWaiting("expired", "Nobody entered the code in time. Start the sign-in again.");
+          return;
+        }
+        try {
+          OAuthClient.DevicePoll p = OAuthClient.pollDevice(httpOf(cfg), discovery.server().token(), client, device,
+              interval, discovery.resource(), clock.instant());
+          trouble = 0;
+          if (!p.pending()) {
+            signedIn(p.tokens());
+            return;
+          }
+          interval = p.interval();
+        } catch (OAuthHttp.Failure e) {
+          if (e.error() == null && ++trouble < MAX_POLL_TROUBLE && phase.equals("waiting")) {
+            // The server couldn't be reached for a moment: the code is still good, the next poll may get through.
+            continue;
+          }
+          endIfWaiting("expired_token".equals(e.error()) ? "expired" : "failed", e.getMessage());
+          return;
+        } catch (RuntimeException e) {
+          endIfWaiting("failed", e.getMessage());
+          return;
+        }
+      }
+    }
+
+    /**
+     * Ends the sign-in unless something else ended it first: a cancel, an expiry and a device sign-in's poller take
+     * turns with the redirect and the tokens.
+     */
+    synchronized void endIfWaiting(String next, String why) {
+      if (phase.equals("waiting")) {
+        end(next, why);
       }
     }
 
@@ -613,6 +721,7 @@ public class McpServerSignIns {
       message = why;
       endedAt = clock.instant();
       closeListener();
+      stopPolling();
       if (next.equals("signed-in")) {
         // A new server's sign-in waits for Connect as long as a sign-in may take.
         expiresAt = endedAt.plus(FLOW_TTL);
@@ -624,13 +733,24 @@ public class McpServerSignIns {
 
     void close() {
       closeListener();
+      stopPolling();
+    }
+
+    /** The poller stops at its next look; one asleep between two polls wakes for it. */
+    void stopPolling() {
+      Thread t = poller;
+      if (t != null && t != Thread.currentThread()) {
+        t.interrupt();
+      }
     }
 
     SignInView view() {
       Discovery.Server s = discovery.server();
-      return new SignInView(id, phase, name, s.issuer(), s.authorization().getHost(),
-          client == null ? null : client.redirectUri(), phase.equals("waiting") && authorizationUrl != null
-              ? authorizationUrl.toString() : null, expiresAt, scope, message);
+      boolean waiting = phase.equals("waiting");
+      String host = device != null ? device.verificationUri().getHost() : s.authorization().getHost();
+      return new SignInView(id, phase, name, s.issuer(), host, client == null ? null : client.redirectUri(),
+          waiting && authorizationUrl != null ? authorizationUrl.toString() : null, expiresAt, scope, message,
+          waiting && device != null ? device.userCode() : null);
     }
   }
 
@@ -653,7 +773,7 @@ public class McpServerSignIns {
     for (Flow f : List.copyOf(flows.values())) {
       boolean waiting = f.phase.equals("waiting");
       if (waiting && f.expiresAt != null && now.isAfter(f.expiresAt)) {
-        f.end("expired", "Nobody finished the sign-in in " + FLOW_TTL.toMinutes() + " minutes.");
+        f.endIfWaiting("expired", "Nobody finished the sign-in in " + FLOW_TTL.toMinutes() + " minutes.");
       }
       Instant ended = f.endedAt;
       boolean unused = f.phase.equals("signed-in") && f.expiresAt != null && now.isAfter(f.expiresAt);
@@ -946,6 +1066,11 @@ public class McpServerSignIns {
     GuardedEgress guarded = GuardedEgress.of(ctx).orElseThrow(() -> new IllegalStateException(
         "No egress guard for the sign-in"));
     return new OAuthHttp(guarded.client(), HTTP_TIMEOUT, "GateRook/" + BuiltIn.VERSION);
+  }
+
+  /** GateRook's own app at the server's authorization server, where that server takes the device authorization grant. */
+  private Optional<GateRookApps.App> ownApp(Discovery.Server server) {
+    return server.deviceGrant() ? apps.at(server.issuer()) : Optional.empty();
   }
 
   /** The scopes to ask for: the person's, the 401 challenge's, the resource's, plus offline_access where offered. */

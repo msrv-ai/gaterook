@@ -11,7 +11,7 @@ let nextId = 0;
 
 /**
  * `<dialog gwMcpSignInDialog>`: signs in to a stored MCP server again — after the server refused to renew the sign-in,
- * wants more permissions, or after Sign out. The new tokens replace the old ones once the browser comes back, and the
+ * wants more permissions, or after Sign out. The new tokens replace the old ones once the person allowed access, and the
  * server's session starts over with them; its tools and modes stay as they are. Initial focus: Sign in.
  */
 @Component({
@@ -30,7 +30,7 @@ let nextId = 0;
       <header class="gw-dialog__header">
         <span class="gw-icon-tile"><svg lucideIcon="log-in" class="gw-icon"></svg></span>
         <h2 class="gw-dialog__title" [id]="uid + '-t'">Sign in to <span class="gw-mono">{{ s.name }}</span></h2>
-        <p class="gw-dialog__description" [id]="uid + '-d'">{{ s.signIn?.message || 'The new sign-in replaces the old one once the browser comes back. Its tools and their modes stay as they are.' }}</p>
+        <p class="gw-dialog__description" [id]="uid + '-d'">{{ s.signIn?.message || 'The new sign-in replaces the old one once you allow access. Its tools and their modes stay as they are.' }}</p>
         <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
       </header>
       <div class="gw-dialog__body">

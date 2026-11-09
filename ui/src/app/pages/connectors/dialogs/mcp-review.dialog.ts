@@ -268,7 +268,7 @@ let nextId = 0;
               @if (w.signIn && w.auth; as a) {
                 <div class="gw-kv__row"><dt class="gw-kv__key">Sign-in</dt><dd class="gw-kv__value">
                   OAuth at <span class="gw-mono">{{ a.authorizationHost || a.issuer }}</span>{{ w.signIn === 'optional' ? ', optional: the server also answers without it, with less access' : '' }}.
-                  {{ a.registration === 'metadata-document' ? 'GateRook signs in there as GateRook, with the client details it publishes.' : a.registration === 'dynamic' ? 'GateRook registers itself there as GateRook.' : a.registration === 'app' ? 'As your OAuth app.' : '' }}
+                  {{ a.registration === 'metadata-document' ? 'GateRook signs in there as GateRook, with the client details it publishes.' : a.registration === 'dynamic' ? 'GateRook registers itself there as GateRook.' : a.registration === 'gaterook-app' ? 'GateRook signs in there with its own app: you enter a one-time code on its page, with nothing to set up.' : a.registration === 'app' ? 'As your OAuth app.' : '' }}
                 </dd></div>
               }
               <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value">Listed after the {{ w.http ? 'connection' : 'start' }} and Off everywhere. On an endpoint, declared reads start as Read only and other tools start as Approval. The server declares its own annotations; the gateway can't verify them.</dd></div>
@@ -322,14 +322,17 @@ let nextId = 0;
                     <p class="gw-field__hint" [id]="uid + '-client-secret-hint'">{{ a.secretRequired ? 'The provider takes the app only with its secret.' : 'Only when the app has one.' }} It is stored encrypted as a secret of {{ w.name }} and never shown again.</p>
                   </div>
                 }
-                <div gwMcpSignIn [start]="startSignIn" [host]="a.authorizationHost ?? null" [blocked]="signInBlocked()" (signedIn)="signedIn.set($event)"></div>
-                <p class="gw-field__hint" [id]="uid + '-signin-hint'">You sign in as you would in Claude Desktop, Cursor or Codex, but the browser hands the sign-in to GateRook, not to the AI app.</p>
+                <div gwMcpSignIn [start]="startSignIn" [host]="a.authorizationHost ?? null" [blocked]="signInBlocked()" [device]="a.registration === 'gaterook-app'" (signedIn)="signedIn.set($event)"></div>
+                <p class="gw-field__hint" [id]="uid + '-signin-hint'">You sign in as you would in Claude Desktop, Cursor or Codex, but the sign-in goes to GateRook, not to the AI app.</p>
               </fieldset>
             } @else if (w.auth; as a) {
               @if ((a.kind === 'refused' || a.kind === 'unknown') && !w.secrets.length) {
                 <div class="gw-alert gw-alert--warning gw-alert--compact">
                   <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
-                  <div class="gw-alert__content"><p class="gw-alert__title">{{ a.kind === 'refused' ? 'It wants a key, not a sign-in' : 'GateRook couldn’t tell how to sign in' }}</p><p class="gw-alert__body">{{ a.message }}{{ a.kind === 'refused' ? ' Go back to Sign-in options and choose Bearer token, or add the header that carries its key.' : ' Connecting may fail.' }}</p></div>
+                  <div class="gw-alert__content"><p class="gw-alert__title">{{ a.kind === 'refused' ? 'It wants a key, not a sign-in' : 'GateRook couldn’t tell how to sign in' }}</p><p class="gw-alert__body">{{ a.message }}{{ a.kind === 'refused' ? ' Use a Bearer token, or go back and add the header that carries its key.' : ' Connecting may fail.' }}</p></div>
+                  @if (a.kind === 'refused' && w.http && !w.cloud) {
+                    <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" [attr.aria-busy]="switching() ? 'true' : null" [attr.aria-disabled]="switching() ? 'true' : null" (click)="useBearer()">@if (switching()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Use a Bearer token</button></div>
+                  }
                 </div>
               }
             }
@@ -465,6 +468,34 @@ export class GwMcpReviewDialog {
       this.render({ ...r, review, source });
     } catch (err) {
       this.error.set(failureText(err, 'This build of the gateway core can’t run MCP servers yet.'));
+    } finally {
+      this.switching.set(false);
+    }
+  }
+
+  /**
+   * The same server, reviewed again with a Bearer token in its Authorization header, for one that refused the request
+   * without offering a sign-in: as choosing Bearer token in Sign-in options does, without going back.
+   */
+  protected async useBearer(): Promise<void> {
+    const r = this.reviewed;
+    if (!r || !('config' in r.source) || this.switching()) return;
+    const headers = r.source.config.headers ?? [];
+    const config: McpServerConfig = {
+      ...r.source.config,
+      auth: undefined,
+      headers: headers.some((h) => h.name.toLowerCase() === 'authorization') ? headers : [...headers, { name: 'Authorization' }],
+    };
+    this.switching.set(true);
+    this.error.set(null);
+    try {
+      const source = { ...r.source, config };
+      const review = await this.data.reviewServer(source);
+      if (this.reviewed !== r || !this.host.open) return;
+      this.render({ ...r, review, source, variables: config.headers ?? [], bearer: true });
+      setTimeout(() => this.host.querySelector<HTMLElement>(`input[id^="${this.uid}-value-"]`)?.focus());
+    } catch (err) {
+      if (this.reviewed === r) this.error.set(failureText(err, 'The server could not be reviewed with a Bearer token.'));
     } finally {
       this.switching.set(false);
     }

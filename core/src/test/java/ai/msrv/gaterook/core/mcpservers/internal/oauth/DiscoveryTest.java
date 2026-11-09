@@ -95,6 +95,59 @@ class DiscoveryTest {
   }
 
   @Test
+  void anAuthorizationServerForRegisteredAppsOnlyMayOfferTheDeviceGrant() throws Exception {
+    // GitHub (2026-11-09): api.githubcopilot.com/mcp/ names github.com/login/oauth, which has neither registration nor
+    // metadata documents, lists no authentication methods, and takes the device authorization grant.
+    unauthorized("/mcp/", "Bearer error=\"invalid_request\", error_description=\"No access token was provided in this "
+        + "request\", resource_metadata=\"" + base + "/.well-known/oauth-protected-resource/mcp/\"");
+    json("/.well-known/oauth-protected-resource/mcp/", "{\"resource\":\"" + base + "/mcp/\",\"authorization_servers\":"
+        + "[\"" + base + "/login/oauth\"],\"scopes_supported\":[\"repo\",\"read:org\"],\"bearer_methods_supported\":"
+        + "[\"header\"],\"resource_name\":\"GitHub MCP Server\"}");
+    json("/.well-known/oauth-authorization-server/login/oauth", "{\"issuer\":\"" + base + "/login/oauth\","
+        + "\"authorization_endpoint\":\"" + base + "/login/oauth/authorize\",\"token_endpoint\":\"" + base
+        + "/login/oauth/access_token\",\"response_types_supported\":[\"code\"],\"grant_types_supported\":"
+        + "[\"authorization_code\",\"refresh_token\",\"urn:ietf:params:oauth:grant-type:device_code\"],"
+        + "\"code_challenge_methods_supported\":[\"S256\"],\"device_authorization_endpoint\":\"" + base
+        + "/login/device/code\",\"authorization_response_iss_parameter_supported\":true,"
+        + "\"scopes_supported\":[\"offline_access\"]}");
+
+    Discovery.Result d = Discovery.discover(http, URI.create(base + "/mcp/"));
+
+    assertThat(d.kind()).isEqualTo(Discovery.Kind.OAUTH);
+    assertThat(d.metadata().scopes()).containsExactly("repo", "read:org");
+    Discovery.Server s = d.server();
+    assertThat(s.issuer()).isEqualTo(base + "/login/oauth");
+    assertThat(s.dynamicRegistration()).isFalse();
+    assertThat(s.clientMetadataDocuments()).isFalse();
+    assertThat(s.authMethods()).isEmpty();
+    assertThat(s.deviceAuthorization()).hasToString(base + "/login/device/code");
+    assertThat(s.deviceGrant()).isTrue();
+  }
+
+  @Test
+  void aDeviceEndpointIsUsedOnlyWhereTheGrantIsListedAndTheUrlPassesTheRules() throws Exception {
+    unauthorized("/mcp", "Bearer resource_metadata=\"" + base + "/prm\"");
+    json("/prm", "{\"resource\":\"" + base + "/mcp\",\"authorization_servers\":[\"" + base + "\"]}");
+    String withDevice = authServer(base, false).replaceFirst("}$", ",\"device_authorization_endpoint\":\"" + base
+        + "/device\"}");
+
+    json("/.well-known/oauth-authorization-server", withDevice);
+    assertThat(Discovery.discover(http, URI.create(base + "/mcp")).server().deviceGrant())
+        .as("no grants listed: the endpoint says it").isTrue();
+
+    json("/.well-known/oauth-authorization-server", withDevice.replaceFirst("}$",
+        ",\"grant_types_supported\":[\"authorization_code\",\"refresh_token\"]}"));
+    assertThat(Discovery.discover(http, URI.create(base + "/mcp")).server().deviceGrant())
+        .as("grants listed without it").isFalse();
+
+    json("/.well-known/oauth-authorization-server", authServer(base, false).replaceFirst("}$",
+        ",\"device_authorization_endpoint\":\"http://device.example.com/code\"}"));
+    Discovery.Server plain = Discovery.discover(http, URI.create(base + "/mcp")).server();
+    assertThat(plain.deviceAuthorization()).as("plain HTTP elsewhere: left out, the rest still signs in").isNull();
+    assertThat(plain.deviceGrant()).isFalse();
+  }
+
+  @Test
   void withoutResourceMetadataInThe401ThePathInsertedWellKnownUriIsTried() throws Exception {
     unauthorized("/api/mcp", "Bearer realm=\"zapier\"");
     // Slack and Asana: the resource is the origin, a prefix of the URL.

@@ -1,4 +1,4 @@
-import { McpRegistryArgument, McpRegistryPackage, McpRegistryRemote, McpRegistryServer } from '../../core/api/plugins.api';
+import { McpRegistryArgument, McpRegistryInput, McpRegistryPackage, McpRegistryRemote, McpRegistryServer } from '../../core/api/plugins.api';
 import { joinAnd } from './connectors-view';
 import { PastedServer, SSE_NOTE, fromArgv, fromUrl, serverName, valuesNote } from './mcp-paste';
 
@@ -40,7 +40,7 @@ export function registryUse(s: McpRegistryServer): RegistryUse {
 /**
  * What an entry fills in Add MCP server, as a pasted configuration would: the name, the URL or the command with the
  * package's pinned version, and the names of the headers or variables the server needs (required or secret ones; the
- * review asks for their values). Parts the person must fill in stay visible — `{tenant_id}` in a URL, `<workspace>`
+ * review asks for their values), except an optional Authorization header, which the review's sign-in replaces. Parts the person must fill in stay visible — `{tenant_id}` in a URL, `<workspace>`
  * in a command — and Add MCP server refuses to review them until they are replaced.
  */
 export function fromRegistry(s: McpRegistryServer): PastedServer | { readonly error: string } {
@@ -51,9 +51,23 @@ export function fromRegistry(s: McpRegistryServer): PastedServer | { readonly er
   return 'error' in result ? result : { ...result, notes: [...result.notes, ...notes] };
 }
 
+/**
+ * The token a server also takes besides its sign-in: an Authorization header its entry doesn't mark required (GitHub's,
+ * "PAT or App token"). Filled in, it would replace the sign-in the review finds; Bearer token in Sign-in options
+ * sends one instead.
+ */
+function optionalToken(h: McpRegistryInput): boolean {
+  return !h.required && h.name.toLowerCase() === 'authorization';
+}
+
 function fromRemote(s: McpRegistryServer, remote: McpRegistryRemote): PastedServer | { readonly error: string } {
-  const headers = remote.headers.filter((h) => h.required || h.secret).map((h) => h.name);
-  const notes = headers.length ? [valuesNote(headers.length)] : [];
+  const headers = remote.headers.filter((h) => (h.required || h.secret) && !optionalToken(h)).map((h) => h.name);
+  const notes = [
+    ...(headers.length ? [valuesNote(headers.length)] : []),
+    ...(remote.headers.some(optionalToken)
+      ? ['It also takes a token in Authorization: to send one instead of signing in, choose Bearer token under Sign-in options.']
+      : []),
+  ];
   const template = templateParts(remote.url);
   if (!template.length) return fromUrl('', remote.url, headers, notes);
   // A template ({tenant_id}) isn't a URL yet: it stays as the registry gives it, with the parts to replace named.

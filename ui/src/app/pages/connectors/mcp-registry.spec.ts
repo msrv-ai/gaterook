@@ -30,22 +30,38 @@ describe('MCP registry entries in Add MCP server', () => {
     });
   });
 
-  it('asks for the secret and required headers by name only, and prefers a remote to a package', () => {
+  it('leaves out an optional Authorization header, so the review finds the sign-in, and prefers a remote to a package', () => {
+    // GitHub's entry (2026-11-09): a PAT or App token besides the OAuth sign-in its server offers.
     const github = entry({
       name: 'io.github.github/github-mcp-server',
       remotes: [{ type: 'streamable-http', url: 'https://api.githubcopilot.com/mcp/', variables: [], headers: [
-        { name: 'Authorization', description: 'PAT or App token', required: false, secret: true },
+        { name: 'Authorization', description: 'Authorization header with authentication token (PAT or App token)', required: false, secret: true },
         { name: 'X-MCP-Toolsets', description: 'Toolsets to enable', required: false, secret: false },
       ] }],
-      packages: [{ registryType: 'oci', identifier: 'ghcr.io/github/github-mcp-server:2.0.3', transport: 'stdio',
+      packages: [{ registryType: 'oci', identifier: 'ghcr.io/github/github-mcp-server:2.1.0', transport: 'stdio',
         environmentVariables: [], runtimeArguments: [], packageArguments: [] }],
     });
     const r = fromRegistry(github);
     if ('error' in r) throw new Error(r.error);
     expect(r.transport).toBe('http');
     expect(r.url).toBe('https://api.githubcopilot.com/mcp/');
-    expect(r.variables).toEqual(['Authorization']);
-    expect(r.notes).toEqual(['Its value isn’t copied: the review asks for it and stores it encrypted.']);
+    expect(r.variables).toEqual([]);
+    expect(r.notes).toEqual(['It also takes a token in Authorization: to send one instead of signing in, choose Bearer token under Sign-in options.']);
+  });
+
+  it('asks for the secret and required headers by name only, a required Authorization header too', () => {
+    const keyed = entry({
+      name: 'com.example/search',
+      remotes: [{ type: 'streamable-http', url: 'https://mcp.example.com/mcp', variables: [], headers: [
+        { name: 'Authorization', description: 'Bearer <api key>', required: true, secret: true },
+        { name: 'X-Workspace', description: 'Workspace', required: false, secret: true },
+        { name: 'X-Debug', description: 'Debug output', required: false, secret: false },
+      ] }],
+    });
+    const r = fromRegistry(keyed);
+    if ('error' in r) throw new Error(r.error);
+    expect(r.variables).toEqual(['Authorization', 'X-Workspace']);
+    expect(r.notes).toEqual(['Their values aren’t copied: the review asks for each and stores it encrypted.']);
   });
 
   it('keeps a URL template visible and names the parts to replace', () => {

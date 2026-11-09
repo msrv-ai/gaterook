@@ -21,6 +21,9 @@ import tools.jackson.databind.node.ObjectNode;
  */
 public final class Discovery {
 
+  /** The grant type of the device authorization grant (RFC 8628 §3.4). */
+  public static final String DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
+
   /** What the unauthenticated look at the server found. */
   public enum Kind {
     /** It answered {@code initialize} without a sign-in. */
@@ -58,20 +61,39 @@ public final class Discovery {
    * @param issParameter            it adds {@code iss} to its redirects (RFC 9207)
    * @param clientMetadataDocuments it accepts an HTTPS URL as client ID (Client ID Metadata Documents)
    * @param defaults                no metadata was found: the 2025-03-26 default endpoints of the server's origin
+   * @param deviceAuthorization     the device authorization endpoint (RFC 8628), or {@code null}
+   * @param grantTypes              {@code grant_types_supported}; empty when it doesn't say
    */
   public record Server(String issuer, URI authorization, URI token, URI registration, URI revocation,
       List<String> scopes, List<String> challengeMethods, List<String> authMethods, boolean issParameter,
-      boolean clientMetadataDocuments, boolean defaults) {
+      boolean clientMetadataDocuments, boolean defaults, URI deviceAuthorization, List<String> grantTypes) {
 
     public Server {
       scopes = List.copyOf(scopes);
       challengeMethods = List.copyOf(challengeMethods);
       authMethods = List.copyOf(authMethods);
+      grantTypes = List.copyOf(grantTypes);
+    }
+
+    /** A server without the device authorization grant. */
+    public Server(String issuer, URI authorization, URI token, URI registration, URI revocation, List<String> scopes,
+        List<String> challengeMethods, List<String> authMethods, boolean issParameter, boolean clientMetadataDocuments,
+        boolean defaults) {
+      this(issuer, authorization, token, registration, revocation, scopes, challengeMethods, authMethods, issParameter,
+          clientMetadataDocuments, defaults, null, List.of());
     }
 
     /** It lets a client register itself, and the registration endpoint passes the URL rules. */
     public boolean dynamicRegistration() {
       return registration != null;
+    }
+
+    /**
+     * It takes the device authorization grant: it names the endpoint, which passes the URL rules, and lists the grant
+     * where it lists its grants.
+     */
+    public boolean deviceGrant() {
+      return deviceAuthorization != null && (grantTypes.isEmpty() || grantTypes.contains(DEVICE_GRANT));
     }
   }
 
@@ -236,13 +258,24 @@ public final class Discovery {
         ? OAuthHttp.checked(j.path("registration_endpoint").asString(), "The registration endpoint") : null;
     URI revocation = j.path("revocation_endpoint").isString()
         ? OAuthHttp.checked(j.path("revocation_endpoint").asString(), "The revocation endpoint") : null;
+    URI device = null;
+    if (j.path("device_authorization_endpoint").isString()) {
+      try {
+        device = OAuthHttp.checked(j.path("device_authorization_endpoint").asString(),
+            "The device authorization endpoint");
+      } catch (OAuthHttp.Failure e) {
+        // Only GateRook's own apps use it (GateRookApps): every other sign-in at this server works without it.
+        device = null;
+      }
+    }
     return new Server(issuer,
         OAuthHttp.checked(j.path("authorization_endpoint").asString(), "The authorization endpoint"),
         OAuthHttp.checked(j.path("token_endpoint").asString(), "The token endpoint"), registration, revocation,
         OAuthHttp.strings(j.path("scopes_supported")), methods,
         OAuthHttp.strings(j.path("token_endpoint_auth_methods_supported")),
         j.path("authorization_response_iss_parameter_supported").asBoolean(false),
-        j.path("client_id_metadata_document_supported").asBoolean(false), defaults);
+        j.path("client_id_metadata_document_supported").asBoolean(false), defaults, device,
+        OAuthHttp.strings(j.path("grant_types_supported")));
   }
 
   /**

@@ -28,7 +28,7 @@ Choose a card to open the add dialog and fill **Manual entry** from that exact s
 
 Open the **Official MCP Registry** tab and type at least three characters of a server's name, such as `linear`. GateRook searches the [Official MCP Registry](https://registry.modelcontextprotocol.io), where publishers list their public servers, and shows the latest version of each match. General results load 20 at a time; known official matches are also looked up by their exact names so they can appear on the first page. **Use** fills **Manual entry** as a pasted configuration does and returns to it, where **Review and connect** or **Review and start** continues:
 
-- A server at a URL gets its Streamable HTTP address, else its SSE address, and the names of the headers it needs.
+- A server at a URL gets its Streamable HTTP address, else its SSE address, and the names of the headers it needs. An `Authorization` header that the entry doesn't mark required is left out: it is a token the server takes besides its sign-in (GitHub's entry names one for a personal access token), and the review finds the sign-in. To send a token instead, choose **Bearer token** under **Sign-in options**.
 - An npm package gets `npx -y <package>@<version>`, a PyPI package `uvx --from <package>==<version> <package>`, both pinned to the version the registry names, and the names of the variables the server needs. A package that the registry lists only as a Docker image, an MCP bundle or a NuGet package can't be added from the search; paste the configuration from its docs instead.
 - Parts that only you know stay visible: `{tenant_id}` in a URL, `<workspace>` in a command. **Review and connect** waits until you replace them.
 
@@ -41,7 +41,7 @@ The registry checks who published a name: a domain such as `app.linear` belongs 
 - **Sign-in with OAuth.** You sign in in your browser, as in Claude Desktop, Cursor or Codex.
 - **Optional sign-in.** The server also answers without one, with less access. If you connect without signing in, you can sign in later from the server's row.
 - **No sign-in.** Connect directly.
-- **It wants a key.** It refused the request without offering a sign-in. Select **Back**, then choose **Bearer token** in **Sign-in options**, or add the custom header the server requires.
+- **It wants a key.** It refused the request without offering a sign-in. Select **Use a Bearer token** to enter the token in the review, or select **Back** and add the custom header the server requires.
 
 Some servers take their key in the URL, as their docs give it: `https://mcp.example.com/<key>/mcp` or `…/mcp?apiKey=<key>`. Such a server still connects, but the review warns you. GateRook stores the URL with the server's settings, not encrypted as a secret, and the provider or a proxy on the way may log it. If the server also accepts the key in a header, add that header instead. The review shows the URL with `‹masked›` in place of the key, and the lists show it without the key. Agents never see the URL.
 
@@ -80,6 +80,8 @@ GateRook speaks the MCP revisions `2026-07-28` and `2025-11-25` back to `2024-11
 
 Select **Sign in** in the review. GateRook opens the server's sign-in page in your default browser and listens on this computer, at `http://localhost:<free port>/callback`, for the browser to come back. After you allow access, the page says you are signed in and GateRook returns to the front. Then select **Connect MCP server**.
 
+For GitHub's server (`https://api.githubcopilot.com/mcp/`), the sign-in uses a one-time code instead, because GitHub admits only apps registered with it. GateRook has its own GitHub app for this, so there is nothing to set up. Select **Sign in with github.com**: the review shows a code such as `WDJB-MJHT`. Select **Copy code and open github.com**, paste the code on GitHub's page and allow access to GateRook there. GateRook finishes the sign-in by itself. Nothing comes back to this computer, so you can also enter the code in a browser on another device. The code works once, and the sign-in waits for it for 10 minutes. GitHub renews this sign-in for GateRook without a client secret. If an organization restricts OAuth apps, its repositories stay out of reach until an owner approves GateRook; GitHub's authorization page lets you request that.
+
 The provider's consent page names GateRook. Where the provider accepts client metadata documents (in November 2026, Linear, Notion and Sentry among others), GateRook doesn't register with it. The provider reads the details GateRook publishes at `https://gaterook.com/oauth/gaterook-client.json`: its name, that it has no client secret, and that the browser comes back to this computer. Other servers get a registration that GateRook makes under its own name.
 
 The sign-in belongs to GateRook, not to the AI app. GateRook keeps it encrypted as a secret of the server and renews it before it expires. Every call of the server carries it, and no agent, AI app, log or answer receives it. Any of your AI apps can use the server's tools through an endpoint, under the endpoint's modes and approvals.
@@ -90,13 +92,13 @@ The server's row shows **Signed in**, **Needs sign-in** or **Signed out**. A ser
 
 ## Servers that need your own OAuth app
 
-Some servers neither accept GateRook's published details nor let apps register themselves. At the time of writing (November 2026) these include GitHub's, Slack's and Asana's v2 server. The review then says so and shows the redirect URI to register, `http://127.0.0.1:7471/callback`:
+Some servers neither accept GateRook's published details nor let apps register themselves. At the time of writing (November 2026) these include Slack's and Asana's v2 server. GitHub's is one too, but it signs in with GateRook's own GitHub app, as [Sign in](#sign-in) describes. The review then says so and shows the redirect URI to register, `http://127.0.0.1:7471/callback`:
 
 1. Create an OAuth app for GateRook in the provider's developer settings, with that redirect URI.
 2. In **Add MCP server › Sign-in options › OAuth app options**, enter its client ID, or enter it in the review.
 3. If the app has a client secret, enter it in the review. It is stored as a write-only secret of the server.
 
-**OAuth app options** also set the **Scopes** to ask for, and a **Callback port** for a server or an app that accepts only one redirect address.
+**OAuth app options** also set the **Scopes** to ask for, and a **Callback port** for a server or an app that accepts only one redirect address. A client ID entered there replaces GateRook's own GitHub app.
 
 ## Servers on Google Cloud
 
@@ -136,6 +138,9 @@ A few providers admit only clients on their own allowlist, by name or by redirec
 | It answered HTTP 404 or 405 | Check the URL. Streamable HTTP addresses usually end in `/mcp`, SSE addresses in `/sse`. |
 | The provider's page says the client or its redirect address is invalid | The provider couldn't use the details GateRook publishes. Cancel the sign-in in GateRook and try again later. If it keeps happening and the provider lets you create an OAuth app, enter that app's client ID in **Sign-in options**. |
 | Needs you to sign in again | Sign in from the server's row. |
+| Access wasn't allowed on github.com | The sign-in was cancelled on GitHub's page. Select **Try again** for a new code. |
+| The code expired before it was entered | Select **Try again** for a new code, and enter it within 10 minutes. |
+| GitHub's tools don't see an organization's repositories | The organization restricts OAuth apps. Request approval for GateRook on GitHub's authorization page, or ask an organization owner to approve it. |
 | Refused its renewed sign-in | The provider took a new token back at once. Sign in again if it keeps happening. |
 | Refused GateRook's Google Cloud credentials | The account lacks `roles/mcp.toolUser` or the product's roles, or the API isn't enabled. Google's message names what is missing. |
 | No Google sign-in on this computer | Run `gcloud auth application-default login`, or use a service account key. |

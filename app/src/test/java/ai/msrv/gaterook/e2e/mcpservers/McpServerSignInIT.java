@@ -36,7 +36,9 @@ import tools.jackson.databind.node.ObjectNode;
  * document's URL, on any free port, for the sign-in, its renewals and the revocation. A URL that carries the server's
  * key is warned about in the review and still connects, and neither the review, the list nor the log shows the key.
  * Editing a server in Connections checks its sign-in as adding does, with its stored secrets in place of typed ones,
- * and keeps the tool prefix and catalog entry it was added with.
+ * and keeps the tool prefix and catalog entry it was added with. Where the authorization server admits only apps
+ * registered with it, as GitHub's does, GateRook signs in with its own app and a one-time code the person enters on the
+ * provider's page (the device grant): no redirect, no client secret, for the sign-in and its renewals alike.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class McpServerSignInIT {
@@ -50,13 +52,19 @@ class McpServerSignInIT {
   private static OAuthMcpServer tracker;
   /** Client ID Metadata Documents beside dynamic registration, as Linear's, Notion's or Sentry's today. */
   private static OAuthMcpServer board;
+  /** Registered apps only, with the device grant, as GitHub's authorization server: GateRook's own app signs in. */
+  private static OAuthMcpServer forge;
 
   @BeforeAll
   static void start() throws Exception {
     Path work = Files.createDirectories(Path.of("target", "mcp-sign-in-e2e").toAbsolutePath());
     tracker = new OAuthMcpServer(Files.createTempDirectory(work, "tomcat-"));
     board = new OAuthMcpServer(Files.createTempDirectory(work, "tomcat-"), true);
-    core = CoreProcess.start(CoreProcess.newHome("mcp-sign-in-e2e"), CoreProcess.freePort(), List.of()).bootstrap();
+    forge = OAuthMcpServer.registeredAppsOnly(Files.createTempDirectory(work, "tomcat-"));
+    // GateRook's GitHub app, pointed at the fake as at a GitHub Enterprise Server.
+    core = CoreProcess.start(CoreProcess.newHome("mcp-sign-in-e2e"), CoreProcess.freePort(), List.of(
+        "-Dgateway.mcp-sign-in.github.issuer=" + forge.base,
+        "-Dgateway.mcp-sign-in.github.client-id=" + OAuthMcpServer.APP_CLIENT)).bootstrap();
     core.untilReady(Duration.ofSeconds(90));
     // The fake runs on this computer: dev may reach 127.0.0.1, as a person allows for a server under development.
     JsonNode policy = json(admin("GET", "/api/policies/dev", null), 200);
@@ -76,6 +84,9 @@ class McpServerSignInIT {
     }
     if (board != null) {
       board.close();
+    }
+    if (forge != null) {
+      forge.close();
     }
   }
 
@@ -498,6 +509,130 @@ class McpServerSignInIT {
   // ── Helpers ─────────────────────────────────────────────────────────────────────────────────────────────────
 
   /** Saves {@code config} as Connections › Edit does: over the version and env stored now. */
+  @Test
+  @Order(14)
+  void whereOnlyRegisteredAppsSignInGateRookUsesItsOwnAppWithAOneTimeCode() throws Exception {
+    ObjectNode review = CoreProcess.JSON.createObjectNode();
+    review.set("config", config("forge-mcp", forge, false));
+    JsonNode r = json(admin("POST", "/api/mcp-servers/review", review.toString()), 200);
+    assertThat(r.at("/auth/kind").asString()).as(r.toString()).isEqualTo("oauth");
+    assertThat(r.at("/auth/registration").asString()).isEqualTo("gaterook-app");
+    assertThat(absent(r.at("/auth/redirectUri"))).as("nothing for the person to register").isTrue();
+    assertThat(absent(r.at("/auth/secretRequired"))).isTrue();
+    assertThat(forge.deviceRequests).as("a review asks for no code").isEmpty();
+
+    ObjectNode request = CoreProcess.JSON.createObjectNode();
+    request.set("config", config("forge-mcp", forge, true));
+    JsonNode started = json(admin("POST", "/api/mcp-sign-ins", request.toString()), 201);
+    String id = started.path("id").asString();
+    String code = started.path("userCode").asString();
+    assertThat(started.path("state").asString()).isEqualTo("waiting");
+    assertThat(code).matches("[A-Z]{4}-[A-Z]{4}");
+    assertThat(started.path("authorizationUrl").asString()).isEqualTo(forge.base + "/login/device");
+    assertThat(absent(started.path("redirectUri"))).as("no redirect: nothing listens").isTrue();
+    assertThat(forge.deviceRequests).singleElement().satisfies(f -> assertThat(f)
+        .containsEntry("client_id", OAuthMcpServer.APP_CLIENT).containsEntry("scope", "issues:read offline_access")
+        .containsEntry("resource", forge.base + "/mcp").doesNotContainKey("client_secret"));
+    // Electron opens the page to enter the code on, as it opens a sign-in page.
+    assertThat(json(admin("GET", "/internal/mcp-sign-ins/" + id + "/authorization", null), 200).path("url")
+        .asString()).isEqualTo(forge.base + "/login/device");
+    Answer pasted = admin("POST", "/api/mcp-sign-ins/" + id + "/address",
+        "{\"address\":\"http://localhost:1/callback?code=x&state=y\"}");
+    assertThat(pasted.status()).isEqualTo(422);
+    assertThat(pasted.body()).contains("enter the code there");
+
+    // The token endpoint says pending until the person has entered the code and allowed access.
+    awaitPolls(code, 2);
+    assertThat(json(admin("GET", "/api/mcp-sign-ins/" + id, null), 200).path("state").asString())
+        .isEqualTo("waiting");
+    forge.approve(code);
+    JsonNode done = awaitState(id, "signed-in");
+    assertThat(absent(done.path("userCode"))).as("the code is gone once the sign-in ended").isTrue();
+    assertThat(forge.tokenRequests.getLast()).containsEntry("grant_type",
+        "urn:ietf:params:oauth:grant-type:device_code").containsEntry("client_id", OAuthMcpServer.APP_CLIENT)
+        .containsEntry("resource", forge.base + "/mcp").doesNotContainKey("client_secret");
+
+    ObjectNode add = request.deepCopy().put("signIn", id).put("acknowledge", true).put("reason", "code forge");
+    JsonNode added = json(admin("POST", "/api/mcp-servers", add.toString()), 201);
+    assertThat(added.path("tools").asInt()).isEqualTo(1);
+    JsonNode status = json(admin("GET", "/api/mcp-servers/forge-mcp/sign-in", null), 200);
+    assertThat(status.path("state").asString()).isEqualTo("signed-in");
+    assertThat(status.path("registered").asBoolean()).as("GateRook's own app, not a registration").isFalse();
+    assertThat(status.path("renewable").asBoolean()).isTrue();
+    assertThat(forge.bearersSeen).contains("Bearer " + forge.issued.getLast());
+  }
+
+  @Test
+  @Order(15)
+  void aDeviceSignInIsRenewedWithoutASecretAndSigningInAgainShowsANewCode() throws Exception {
+    forge.expireAccessTokens();
+    Answer restarted = admin("POST", "/api/mcp-servers/forge-mcp/restart", null);
+    assertThat(restarted.status()).as(restarted.body()).isEqualTo(200);
+    // GitHub takes a device sign-in's refresh token from the app's client ID alone.
+    assertThat(forge.tokenRequests.getLast()).containsEntry("grant_type", "refresh_token")
+        .containsEntry("client_id", OAuthMcpServer.APP_CLIENT).doesNotContainKey("client_secret");
+
+    JsonNode again = json(admin("POST", "/api/mcp-servers/forge-mcp/sign-in", null), 201);
+    String code = again.path("userCode").asString();
+    assertThat(code).matches("[A-Z]{4}-[A-Z]{4}");
+    forge.approve(code);
+    awaitState(again.path("id").asString(), "signed-in");
+    assertThat(json(admin("POST", "/api/mcp-servers/forge-mcp/test", null), 200).path("tools").asInt())
+        .isEqualTo(1);
+  }
+
+  @Test
+  @Order(16)
+  void aDeviceSignInEndsWhenAccessIsntAllowedAndStopsPollingWhenCancelled() throws Exception {
+    ObjectNode request = CoreProcess.JSON.createObjectNode();
+    request.set("config", config("forge-draft", forge, true));
+    JsonNode declined = json(admin("POST", "/api/mcp-sign-ins", request.toString()), 201);
+    forge.deny(declined.path("userCode").asString());
+    JsonNode failed = awaitState(declined.path("id").asString(), "failed");
+    assertThat(failed.path("message").asString()).isEqualTo("Access wasn't allowed on 127.0.0.1, so the sign-in "
+        + "ended.");
+
+    JsonNode cancelled = json(admin("POST", "/api/mcp-sign-ins", request.toString()), 201);
+    String code = cancelled.path("userCode").asString();
+    awaitPolls(code, 1);
+    assertThat(admin("DELETE", "/api/mcp-sign-ins/" + cancelled.path("id").asString(), null).status())
+        .isIn(200, 204);
+    long polls = forge.polls(code);
+    Thread.sleep(3500);
+    assertThat(forge.polls(code)).as("a poll on its way may still arrive, then none").isLessThanOrEqualTo(polls + 1);
+
+    Answer deleted = admin("DELETE", "/api/mcp-servers/forge-mcp", "{\"reason\":\"done\"}");
+    assertThat(deleted.status()).as(deleted.body()).isEqualTo(204);
+    assertNoToken(core.coreLog());
+  }
+
+  /** Waits for sign-in {@code id} to reach {@code state}: a device sign-in ends at its poller's next look. */
+  private static JsonNode awaitState(String id, String state) throws Exception {
+    long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
+    JsonNode s;
+    do {
+      s = json(admin("GET", "/api/mcp-sign-ins/" + id, null), 200);
+      if (state.equals(s.path("state").asString())) {
+        return s;
+      }
+      Thread.sleep(100);
+    } while (System.nanoTime() < deadline);
+    throw new AssertionError("The sign-in stayed " + s.path("state").asString() + ": " + s);
+  }
+
+  /** Waits until the token endpoint was polled {@code n} times for the device code of {@code userCode}. */
+  private static void awaitPolls(String userCode, long n) throws InterruptedException {
+    long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
+    while (forge.polls(userCode) < n && System.nanoTime() < deadline) {
+      Thread.sleep(50);
+    }
+    assertThat(forge.polls(userCode)).isGreaterThanOrEqualTo(n);
+  }
+
+  private static boolean absent(JsonNode n) {
+    return n.isMissingNode() || n.isNull();
+  }
+
   private static Answer edit(String name, ObjectNode config) throws Exception {
     JsonNode current = json(admin("GET", "/api/connections/" + name, null), 200);
     ObjectNode body = CoreProcess.JSON.createObjectNode().put("env", current.path("env").asString())
@@ -554,7 +689,8 @@ class McpServerSignInIT {
   }
 
   private static void assertNoToken(String text) {
-    assertThat(text).doesNotContain("trk-at-").doesNotContain("trk-rt-").doesNotContain("trk-code-");
+    assertThat(text).doesNotContain("trk-at-").doesNotContain("trk-rt-").doesNotContain("trk-code-")
+        .doesNotContain("trk-dc-");
   }
 
   private static String secretId(JsonNode secrets) {

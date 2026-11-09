@@ -2,6 +2,7 @@ package ai.msrv.gaterook.core.mcpservers.internal.oauth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import java.net.InetAddress;
 import java.net.URI;
@@ -226,6 +227,155 @@ class OAuthClientTest {
     server.enqueue(json(200, "{\"access_token\":\"at\",\"token_type\":\"DPoP\"}"));
     assertThatThrownBy(() -> OAuthClient.exchange(http, URI.create(base + "/token"), c, "x", "v", "r", NOW))
         .hasMessageContaining("DPoP");
+  }
+
+  /** An authorization server like GitHub's: registered apps only, the device grant, errors answered with HTTP 200. */
+  private Discovery.Server forge() {
+    return new Discovery.Server(base + "/login/oauth", URI.create(base + "/login/oauth/authorize"),
+        URI.create(base + "/login/oauth/access_token"), null, null, List.of("offline_access"), List.of("S256"),
+        List.of(), true, false, false, URI.create(base + "/login/device/code"),
+        List.of("authorization_code", "refresh_token", Discovery.DEVICE_GRANT));
+  }
+
+  private OAuthClient.DeviceCode device(String userCode) {
+    return new OAuthClient.DeviceCode("dc-1", userCode, URI.create(base + "/login/device"), null,
+        NOW.plusSeconds(900), Duration.ofSeconds(5));
+  }
+
+  @Test
+  void gateRooksOwnAppIsAPublicClientWithoutARedirect() {
+    OAuthClient.Client c = OAuthClient.ownApp("Ov23liGateRookTest");
+    assertThat(c.id()).isEqualTo("Ov23liGateRookTest");
+    assertThat(c.secret()).isNull();
+    assertThat(c.authMethod()).isEqualTo("none");
+    assertThat(c.registered()).as("nothing GateRook registered at sign-in, nothing to reuse").isFalse();
+    assertThat(c.redirectUri()).isNull();
+  }
+
+  @Test
+  void aDeviceCodeIsAskedForWithTheClientIdScopesAndResourceOnly() throws Exception {
+    server.enqueue(json(200, "{\"device_code\":\"dc-1\",\"user_code\":\"WDJB-MJHT\",\"verification_uri\":\"" + base
+        + "/login/device\",\"expires_in\":899,\"interval\":5}"));
+    OAuthClient.DeviceCode d = OAuthClient.deviceAuthorization(http, forge(), OAuthClient.ownApp("app-1"),
+        "repo read:org offline_access", "https://api.githubcopilot.com/mcp/", NOW);
+
+    assertThat(d.userCode()).isEqualTo("WDJB-MJHT");
+    assertThat(d.verificationUri()).hasToString(base + "/login/device");
+    assertThat(d.verificationUriComplete()).isNull();
+    assertThat(d.expiresAt()).isEqualTo(NOW.plusSeconds(899));
+    assertThat(d.interval()).isEqualTo(Duration.ofSeconds(5));
+    assertThat(d.toString()).doesNotContain("dc-1");
+    RecordedRequest r = server.takeRequest();
+    assertThat(r.getUrl().encodedPath()).isEqualTo("/login/device/code");
+    assertThat(r.getHeaders().get("Authorization")).isNull();
+    assertThat(OAuthHttp.query(r.getBody().utf8())).containsOnly(Map.entry("client_id", "app-1"),
+        Map.entry("scope", "repo read:org offline_access"), Map.entry("resource", "https://api.githubcopilot.com/mcp/"));
+  }
+
+  @Test
+  void aDeviceAnswerIsKeptWithinBoundsAndOnTheServersHost() {
+    server.enqueue(json(200, "{\"device_code\":\"dc-1\",\"user_code\":\"WDJB-MJHT\",\"verification_uri\":"
+        + "\"https://elsewhere.example/device\",\"expires_in\":900}"));
+    assertThatThrownBy(() -> OAuthClient.deviceAuthorization(http, forge(), OAuthClient.ownApp("app-1"), null, null,
+        NOW)).isInstanceOf(OAuthHttp.Failure.class).hasMessageContaining("another host (elsewhere.example)");
+
+    server.enqueue(json(200, "{\"device_code\":\"dc-1\",\"user_code\":\"<script>\\u0007\",\"verification_uri\":\""
+        + base + "/login/device\"}"));
+    assertThatThrownBy(() -> OAuthClient.deviceAuthorization(http, forge(), OAuthClient.ownApp("app-1"), null, null,
+        NOW)).hasMessageContaining("a code GateRook can't show");
+
+    // A page with the code in it, and numbers outside what GateRook keeps.
+    server.enqueue(json(200, "{\"device_code\":\"dc-1\",\"user_code\":\"ABCD-EFGH\",\"verification_uri\":\"" + base
+        + "/login/device\",\"verification_uri_complete\":\"" + base + "/login/device?user_code=ABCD-EFGH\","
+        + "\"expires_in\":86400,\"interval\":\"0\"}"));
+    OAuthClient.DeviceCode d = assertDoesNotThrow(() -> OAuthClient.deviceAuthorization(http, forge(),
+        OAuthClient.ownApp("app-1"), null, null, NOW));
+    assertThat(d.verificationUriComplete()).hasToString(base + "/login/device?user_code=ABCD-EFGH");
+    assertThat(d.expiresAt()).isEqualTo(NOW.plus(OAuthClient.MAX_DEVICE_LIFE));
+    assertThat(d.interval()).as("the RFC's default when it says nothing usable").isEqualTo(Duration.ofSeconds(5));
+  }
+
+  @Test
+  void aRefusedDeviceRequestAnsweredWithHttp200KeepsItsErrorCode() {
+    server.enqueue(json(200, "{\"error\":\"device_flow_disabled\",\"error_description\":\"Device Flow must be "
+        + "explicitly enabled for this App\"}"));
+    assertThatThrownBy(() -> OAuthClient.deviceAuthorization(http, forge(), OAuthClient.ownApp("app-1"), null, null,
+        NOW)).isInstanceOfSatisfying(OAuthHttp.Failure.class, e -> {
+          assertThat(e.error()).isEqualTo("device_flow_disabled");
+          assertThat(e.getMessage()).contains("Device Flow must be explicitly enabled");
+        });
+  }
+
+  @Test
+  void pollingWaitsSlowsDownAndReadsTheTokensWithoutASecret() throws Exception {
+    URI token = URI.create(base + "/login/oauth/access_token");
+    OAuthClient.Client c = OAuthClient.ownApp("app-1");
+    server.enqueue(json(200, "{\"error\":\"authorization_pending\",\"error_description\":\"The authorization request "
+        + "is still pending.\"}"));
+    server.enqueue(json(200, "{\"error\":\"slow_down\",\"interval\":10}"));
+    server.enqueue(json(400, "{\"error\":\"slow_down\"}"));
+    server.enqueue(json(400, "{\"error\":\"authorization_pending\"}"));
+    server.enqueue(json(200, "{\"access_token\":\"gho_device\",\"expires_in\":28800,\"refresh_token\":\"ghr_device\","
+        + "\"refresh_token_expires_in\":15897600,\"token_type\":\"bearer\",\"scope\":\"repo,read:org\"}"));
+
+    Duration five = Duration.ofSeconds(5);
+    OAuthClient.DevicePoll p = OAuthClient.pollDevice(http, token, c, device("WDJB-MJHT"), five, "res", NOW);
+    assertThat(p.pending()).isTrue();
+    assertThat(p.interval()).isEqualTo(five);
+    p = OAuthClient.pollDevice(http, token, c, device("WDJB-MJHT"), p.interval(), "res", NOW);
+    assertThat(p.interval()).as("GitHub names the new interval").isEqualTo(Duration.ofSeconds(10));
+    p = OAuthClient.pollDevice(http, token, c, device("WDJB-MJHT"), p.interval(), "res", NOW);
+    assertThat(p.interval()).as("the RFC: five seconds more, also with HTTP 400").isEqualTo(Duration.ofSeconds(15));
+    p = OAuthClient.pollDevice(http, token, c, device("WDJB-MJHT"), p.interval(), "res", NOW);
+    assertThat(p.pending()).isTrue();
+    p = OAuthClient.pollDevice(http, token, c, device("WDJB-MJHT"), p.interval(), "res", NOW);
+
+    assertThat(p.pending()).isFalse();
+    assertThat(p.tokens().accessToken()).isEqualTo("gho_device");
+    assertThat(p.tokens().refreshToken()).isEqualTo("ghr_device");
+    assertThat(p.tokens().expiresAt()).isEqualTo(NOW.plusSeconds(28800));
+    for (int i = 0; i < 5; i++) {
+      RecordedRequest r = server.takeRequest();
+      assertThat(r.getHeaders().get("Authorization")).isNull();
+      assertThat(OAuthHttp.query(r.getBody().utf8())).containsOnly(Map.entry("grant_type", Discovery.DEVICE_GRANT),
+          Map.entry("device_code", "dc-1"), Map.entry("resource", "res"), Map.entry("client_id", "app-1"));
+    }
+  }
+
+  @Test
+  void pollingEndsWhenAccessIsntAllowedOrTheCodeExpires() {
+    URI token = URI.create(base + "/login/oauth/access_token");
+    OAuthClient.Client c = OAuthClient.ownApp("app-1");
+    server.enqueue(json(200, "{\"error\":\"access_denied\"}"));
+    assertThatThrownBy(() -> OAuthClient.pollDevice(http, token, c, device("A"), Duration.ofSeconds(5), null, NOW))
+        .isInstanceOfSatisfying(OAuthHttp.Failure.class, e -> {
+          assertThat(e.error()).isEqualTo("access_denied");
+          assertThat(e.getMessage()).isEqualTo("Access wasn't allowed on 127.0.0.1, so the sign-in ended.");
+        });
+    for (String expired : List.of("expired_token", "token_expired")) {
+      server.enqueue(json(200, "{\"error\":\"" + expired + "\"}"));
+      assertThatThrownBy(() -> OAuthClient.pollDevice(http, token, c, device("A"), Duration.ofSeconds(5), null, NOW))
+          .isInstanceOfSatisfying(OAuthHttp.Failure.class, e -> assertThat(e.error()).isEqualTo("expired_token"));
+    }
+    server.enqueue(json(200, "{\"error\":\"incorrect_client_credentials\",\"error_description\":\"The client_id "
+        + "and/or client_secret passed are incorrect.\"}"));
+    assertThatThrownBy(() -> OAuthClient.pollDevice(http, token, c, device("A"), Duration.ofSeconds(5), null, NOW))
+        .isInstanceOfSatisfying(OAuthHttp.Failure.class, e -> {
+          assertThat(e.error()).isEqualTo("incorrect_client_credentials");
+          assertThat(e.getMessage()).contains("are incorrect");
+        });
+  }
+
+  @Test
+  void aRefusedRenewalAnsweredWithHttp200KeepsItsErrorCode() {
+    // GitHub refuses a refresh token it no longer takes with HTTP 200.
+    server.enqueue(json(200, "{\"error\":\"bad_refresh_token\",\"error_description\":\"The refresh token passed is "
+        + "incorrect or expired.\"}"));
+    assertThatThrownBy(() -> OAuthClient.refresh(http, URI.create(base + "/token"), OAuthClient.ownApp("app-1"),
+        "ghr_old", "res", NOW)).isInstanceOfSatisfying(OAuthHttp.Failure.class, e -> {
+          assertThat(e.error()).isEqualTo("bad_refresh_token");
+          assertThat(e.getMessage()).contains("incorrect or expired").doesNotContain("ghr_old");
+        });
   }
 
   private static MockResponse json(int code, String body) {
