@@ -93,7 +93,7 @@ class AwsSmStoreTest {
     server.start(InetAddress.getByName("127.0.0.1"), 0);
     cloud = new CloudCredentials(new CloudEndpoints(null, null, null, server.url("/").uri(), null, null),
         Clock.systemUTC());
-    AwsSpec spec = new AwsSpec(AwsSpec.Source.ACCESS_KEY, "AKIACNRYBASEKEY00001", AwsSmStore.SECRET_KEY, null, ROLE,
+    AwsSpec spec = new AwsSpec(AwsSpec.Source.ACCESS_KEY, "AKIACNRY00001EXAMPLE", AwsSmStore.SECRET_KEY, null, ROLE,
         "gw-ext-5d1e9a0c4b2f", 900, "eu-central-1");
     store = new AwsSmStore(new AwsSmStore.Settings("eu-central-1", spec, 60, server.url("/").uri()), cloud,
         new CloudCredentials.Owner("store-aws", 1, "aws-sm"),

@@ -109,7 +109,7 @@ class DemoWorldIT {
         {"auth":"token","server":"https://k8s.dev.internal:6443","namespace":"app-dev"}""", "/token");
     connection("aws-stage", "aws", Env.STAGE, """
         {"regions":["eu-central-1"],"accountAlias":"acme-stage","credentials":{"source":"accessKey",
-         "accessKeyId":"AKIAZ7GWSTAGEDEMO000","roleArn":"arn:aws:iam::123456789012:role/gw-readonly"}}""",
+         "accessKeyId":"AKIASTAGE0001EXAMPLE","roleArn":"arn:aws:iam::123456789012:role/gw-readonly"}}""",
         "/credentials/secretAccessKey");
     connection("billing-api", "http", Env.STAGE, """
         {"baseUrls":["https://billing.stage.acme.dev"],"auth":{"type":"bearer"}}""", "/auth/token");
@@ -301,7 +301,7 @@ class DemoWorldIT {
   void prodRefusesWhatTheConnectorsForbidThere() {
     // Each built-in schema's "Prod is stricter" lock, on the real manifests: refused on prod, accepted elsewhere.
     assertForbiddenOnProd("aws", """
-        {"regions":["eu-central-1"],"credentials":{"source":"accessKey","accessKeyId":"AKIAZ7GWPRODDEMO0000",
+        {"regions":["eu-central-1"],"credentials":{"source":"accessKey","accessKeyId":"AKIAPROD00001EXAMPLE",
          "roleArn":"arn:aws:iam::123456789012:role/gw-readonly","sessionPolicy":"none"}}""",
         "/credentials/secretAccessKey", "/config/credentials/sessionPolicy", "sessionPolicy can't be none on prod.");
     assertForbiddenOnProd("http", """
@@ -319,7 +319,7 @@ class DemoWorldIT {
 
     // Moving a connection to prod checks it against prod's locks.
     connection("aws-sandbox", "aws", Env.DEV, """
-        {"regions":["eu-central-1"],"credentials":{"source":"accessKey","accessKeyId":"AKIAZ7GWSANDBOX00000",
+        {"regions":["eu-central-1"],"credentials":{"source":"accessKey","accessKeyId":"AKIASANDBOX01EXAMPLE",
          "roleArn":"arn:aws:iam::123456789012:role/gw-readonly","sessionPolicy":"none"}}""",
         "/credentials/secretAccessKey");
     ConnectionService.Detail sandbox = connections.get("aws-sandbox");

@@ -729,7 +729,7 @@ describe('Secrets page: external stores', () => {
     await render();
     await click(control($('#store-aws')!, 'Connect'));
     await type($<HTMLSelectElement>('#aws-source')!, 'accessKey');
-    await type($<HTMLInputElement>('#aws-key-id')!, 'AKIAABCDEFGHIJKLMNOP');
+    await type($<HTMLInputElement>('#aws-key-id')!, 'AKIAIOSFODNN7EXAMPLE');
     await type($<HTMLInputElement>('#aws-role')!, 'arn:aws:iam::412398765012:role/gw-secrets-reader');
     await submit('#dlg-connect-store');
     expect(text($('#aws-secret-err'))).toBe('Enter the secret access key.');

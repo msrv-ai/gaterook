@@ -48,7 +48,7 @@
      "health": {"state": "HEALTHY", "latencyMs": 38}},
     {"name": "aws-stage", "type": "aws", "env": "stage", "secret": "/credentials/secretAccessKey",
      "config": {"regions": ["eu-central-1"], "accountAlias": "acme-stage", "credentials": {"source": "accessKey",
-       "accessKeyId": "AKIAZ7GWSTAGEDEMO000", "roleArn": "arn:aws:iam::412398765012:role/gw-readonly", "externalId": "gw-ext-7c41d2"}},
+       "accessKeyId": "AKIASTAGE0001EXAMPLE", "roleArn": "arn:aws:iam::412398765012:role/gw-readonly", "externalId": "gw-ext-7c41d2"}},
      "facts": {"serverVersion": "AWS · eu-central-1 · 412398765012 acme-stage", "account": "412398765012"},
      "health": {"state": "HEALTHY", "latencyMs": 96}},
     {"name": "billing-api", "type": "http", "env": "stage",

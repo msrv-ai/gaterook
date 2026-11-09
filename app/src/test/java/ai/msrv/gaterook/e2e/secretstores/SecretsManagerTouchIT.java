@@ -112,7 +112,7 @@ class SecretsManagerTouchIT {
   void referencesResolveThroughAssumeRoleAndNothingLeaks() throws Exception {
     JsonNode store = json(admin("POST", "/api/secret-stores", """
         {"kind":"aws-sm","name":"aws-sm","config":{"region":"eu-central-1","credentials":{"source":"accessKey",
-         "accessKeyId":"AKIATOUCHBASEKEY0001","roleArn":"arn:aws:iam::412398765012:role/gw-secrets-read"}},
+         "accessKeyId":"AKIATOUCH0001EXAMPLE","roleArn":"arn:aws:iam::412398765012:role/gw-secrets-read"}},
          "secrets":{"/credentials/secretAccessKey":"%s"},"reason":"touch"}""".formatted(BASE_SECRET)), 201);
     String externalId = store.path("config").path("credentials").path("externalId").asString();
     assertThat(externalId).startsWith("gw-ext-");
@@ -145,7 +145,7 @@ class SecretsManagerTouchIT {
         .doesNotContain("stage/billing-api"));
     RecordedRequest assume = requests.stream().filter(r -> r.getBody().utf8().contains("Action=AssumeRole"))
         .findFirst().orElseThrow();
-    assertThat(assume.getHeaders().get("Authorization")).contains("Credential=AKIATOUCHBASEKEY0001/");
+    assertThat(assume.getHeaders().get("Authorization")).contains("Credential=AKIATOUCH0001EXAMPLE/");
     List<RecordedRequest> reads = requests.stream().filter(r -> "secretsmanager.GetSecretValue".equals(r.getHeaders()
         .get("X-Amz-Target"))).toList();
     assertThat(reads).hasSizeGreaterThanOrEqualTo(2).allSatisfy(r -> {
