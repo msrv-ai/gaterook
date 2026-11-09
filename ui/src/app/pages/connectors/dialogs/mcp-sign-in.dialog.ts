@@ -3,7 +3,7 @@ import { McpSignIn } from '../../../core/api/plugins.api';
 import { GwDialog, GwDialogClose } from '../../../kit/dialog';
 import { GwIcon } from '../../../kit/icons';
 import { ToastService } from '../../../kit/toast.service';
-import { McpServerView } from '../connectors-view';
+import { McpServerView, signInHost } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
 import { GwMcpSignIn } from './mcp-sign-in';
 
@@ -62,7 +62,7 @@ export class GwMcpSignInDialog {
     this.server.set(server);
     let host: string | null = null;
     try {
-      host = server.signIn?.issuer ? new URL(server.signIn.issuer).host : null;
+      host = server.signIn?.issuer ? signInHost(new URL(server.signIn.issuer).host) : null;
     } catch {
       host = null;
     }
@@ -75,10 +75,11 @@ export class GwMcpSignInDialog {
     if (!server) return;
     await this.data.loadSignIn(server.name);
     this.dialog.close('signed-in');
+    const from = signInHost(s.authorizationHost);
     this.toasts.show({
       tone: 'success',
       title: `Signed in to ${server.name}`,
-      body: `GateRook keeps the new sign-in${s.authorizationHost ? ` from ${s.authorizationHost}` : ''} and renews it. Its next call uses it.`,
+      body: `GateRook keeps the new sign-in${from ? ` from ${from}` : ''} and renews it. Its next call uses it.`,
     });
   }
 }

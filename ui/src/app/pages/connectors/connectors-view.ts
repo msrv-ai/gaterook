@@ -636,10 +636,34 @@ function authType(config: JsonObject): string | null {
     : null;
 }
 
+/** A host without brackets or port: `[::1]:7781` → `::1`, `127.0.0.1:7781` → `127.0.0.1`. */
+function bareHost(host: string | null | undefined): string {
+  return (host ?? '').trim().replace(/^\[(.*)\](?::\d+)?$/, '$1').replace(/^([^:]+):\d+$/, '$1');
+}
+
+/**
+ * The host a sign-in names in its words ("Sign in with mcp.linear.app", "Signed in at mcp.linear.app"), without its
+ * port; or null when it would name nothing to the person: an IP address or localhost (a server under development on
+ * this computer, a provider reached by address). The words then leave the host out; the review's Sign-in row still
+ * says where the sign-in happens.
+ */
+export function signInHost(host: string | null | undefined): string | null {
+  const h = bareHost(host);
+  if (!h || onThisComputer(h)) return null;
+  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(h) || h.includes(':') ? null : h;
+}
+
+/** Whether a host is this computer: localhost (and `*.localhost`), a 127.x.x.x address or ::1. */
+export function onThisComputer(host: string | null | undefined): boolean {
+  const h = bareHost(host).toLowerCase();
+  return h === 'localhost' || h.endsWith('.localhost') || /^127(?:\.\d{1,3}){3}$/.test(h) || h === '::1';
+}
+
 /** The sign-in of a server in words for its row: "Signed in at mcp.linear.app", "Needs sign-in". */
 export function signInText(s: McpServerView): { readonly tone: 'success' | 'warning' | 'neutral'; readonly text: string } | null {
   if (!s.oauth) return null;
-  const at = s.signIn?.issuer ? ` at ${hostOf(s.signIn.issuer)}` : '';
+  const host = s.signIn?.issuer ? signInHost(hostOf(s.signIn.issuer)) : null;
+  const at = host ? ` at ${host}` : '';
   switch (s.signIn?.state) {
     case 'signed-in':
       return { tone: 'success', text: `Signed in${at}` };
