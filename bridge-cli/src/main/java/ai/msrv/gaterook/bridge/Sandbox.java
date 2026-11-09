@@ -53,10 +53,15 @@ import java.util.stream.IntStream;
  * profile or a package in a cache shared with the person's own tools, written from inside, would run unconfined later.
  * The core gives a server its work folder as {@code HOME}, so {@code npx} and {@code uvx} keep their caches there.
  * Reading is open there except for the denied paths, so {@code --ro} adds nothing; {@code --no-defaults} can't be
- * honored and is refused with exit 4 unless {@code --allow-unsandboxed}. On Linux with Landlock ABI 6 or later the
- * command is also kept from abstract Unix sockets and signals outside its own tree. On Windows the command runs at
- * low integrity in a job that ends it with the bridge ({@link WindowsSandbox}), or, with {@code --appcontainer}, in an
- * AppContainer of its work folder that the bridge creates it in ({@link WindowsAppContainer}); {@code --ro} and
+ * honored and is refused with exit 4 unless {@code --allow-unsandboxed}. Seatbelt judges the path a link leads to, and
+ * a command that writes in its {@code --rw} folder can replace an entry of it, such as the {@code tmp} that is its
+ * {@code TMPDIR}, with a link before its next start. So a writable path of the profile ({@code --rw}, {@code TMPDIR})
+ * is written as given and with the system's own aliases ({@code /tmp}, {@code /var}) spelled out, never as where a
+ * link leads, and is refused (exit 3) when it is, or lies behind, a symbolic link ({@link Closed#link}). On Linux with
+ * Landlock ABI 6 or later the command is also kept from abstract Unix sockets and signals outside its own tree. On
+ * Windows the command runs at low integrity in a job that ends it with the bridge ({@link WindowsSandbox}), or, with
+ * {@code --appcontainer}, in an AppContainer of its work folder that the bridge creates it in
+ * ({@link WindowsAppContainer}); {@code --ro} and
  * {@code --deny-tcp} need nothing there (the core refuses its sandboxed processes' connections itself). Elsewhere, or
  * when Landlock is unavailable, it refuses with exit 4, unless {@code --allow-unsandboxed} says to run it as it is (the
  * core then shows "Not sandboxed on this system"). Exit codes: 3 wrong arguments, 4 no sandbox, 126/127 the command
@@ -181,6 +186,15 @@ final class Sandbox {
         return 3;
       }
     }
+    String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+    if (os.startsWith("mac")) {
+      // Nothing is started behind a link the command could have put there: see macProfile.
+      String why = linkRefusal(closed, r.readWrite(), env.get("TMPDIR"));
+      if (why != null) {
+        err.println("gw-bridge: " + why + ": it can't be opened to the command");
+        return 3;
+      }
+    }
     Path executable = resolve(r.command().getFirst(), env);
     if (executable == null) {
       err.println("gw-bridge: " + r.command().getFirst() + ": command not found");
@@ -188,7 +202,6 @@ final class Sandbox {
     }
     List<String> argv = new ArrayList<>(r.command());
     argv.set(0, executable.toString());
-    String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
     if (os.startsWith("linux")) {
       int abi = landlockAbi();
       if (abi < 1) {
@@ -226,7 +239,7 @@ final class Sandbox {
             + "GateRook's data and the credentials");
       }
       List<String> wrapped = new ArrayList<>(List.of("/usr/bin/sandbox-exec", "-p", macProfile(closed,
-          r.readWrite(), r.deniedPorts())));
+          r.readWrite(), r.deniedPorts(), env.get("TMPDIR"))));
       wrapped.addAll(argv);
       return exec(wrapped, env, err);
     }
@@ -333,6 +346,14 @@ final class Sandbox {
       ".config/Antigravity");
 
   /**
+   * The folders the system itself keeps behind a link, and where they lead (macOS puts {@code /tmp}, {@code /var} and
+   * {@code /etc} in {@code /private}). A writable path may pass them: no command can re-point them, and a grant for
+   * the folder is written for both names ({@link Closed#grantForms}).
+   */
+  static final Map<String, String> SYSTEM_ALIASES = Map.of("/tmp", "/private/tmp", "/var", "/private/var", "/etc",
+      "/private/etc");
+
+  /**
    * What no grant may open: the person's home (from the account, not {@code HOME}, which the core sets to the work
    * folder), GateRook's home ({@code GW_HOME}, which its shim exports) and the {@link #DENIED} paths in the home.
    */
@@ -374,6 +395,94 @@ final class Sandbox {
         }
       }
       return null;
+    }
+
+    /**
+     * Why {@code path} can't be a writable path of the macOS profile because of a symbolic link ({@link #link}), or
+     * {@code null}.
+     */
+    String linkRefusal(Path path) {
+      Path link = link(path);
+      if (link == null) {
+        return null;
+      }
+      return path + (link.equals(path.toAbsolutePath().normalize()) ? " is a symbolic link"
+          : " lies behind the symbolic link " + link);
+    }
+
+    /**
+     * The first symbolic link on the way to {@code path}, the path itself last, that the command could have put there,
+     * or {@code null}. Seatbelt judges the path a link leads to, and a command that writes in a folder can replace an
+     * entry of it by a link, so a writable path must name the folder itself. Below the nearer of the person's home and
+     * GateRook's home (as given or as resolved) every component must be a real folder, and so must every component of
+     * a path in neither, except the system's own aliases ({@link Sandbox#SYSTEM_ALIASES}). The links at or above the
+     * two homes are the person's own (GateRook's home kept on another disk, a home that is a link), and the profile
+     * lets the command write nothing there, so it can't re-point them.
+     */
+    Path link(Path path) {
+      Path abs = path.toAbsolutePath().normalize();
+      Path anchor = anchor(abs);
+      Path root = abs.getRoot();
+      for (int i = anchor == null ? 0 : anchor.getNameCount(); i < abs.getNameCount(); i++) {
+        Path prefix = root.resolve(abs.subpath(0, i + 1));
+        if (Files.isSymbolicLink(prefix) && !systemAlias(prefix)) {
+          return prefix;
+        }
+      }
+      return null;
+    }
+
+    /**
+     * The forms a writable path is written in: as given, with the system's own alias spelled out ({@code /var/x} is
+     * {@code /private/var/x} to the kernel) and, where it lies in the home or GateRook's home, with that folder as the
+     * file system resolves it. Never the resolved form of what lies below: that is where a link a command can re-point
+     * would lead ({@link #link}).
+     */
+    List<String> grantForms(Path path) {
+      Path abs = path.toAbsolutePath().normalize();
+      java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
+      out.add(abs.toString());
+      for (Map.Entry<String, String> alias : SYSTEM_ALIASES.entrySet()) {
+        Path name = Path.of(alias.getKey());
+        if (abs.startsWith(name)) {
+          out.add(Path.of(alias.getValue()).resolve(name.relativize(abs)).toString());
+        }
+      }
+      Path anchor = anchor(abs);
+      Path real = anchor == null ? null : realPath(anchor);
+      if (real != null) {
+        out.add(real.resolve(anchor.relativize(abs)).toString());
+      }
+      return List.copyOf(out);
+    }
+
+    /** The nearer of the home and GateRook's home, as given or resolved, that holds {@code abs}; else {@code null}. */
+    private Path anchor(Path abs) {
+      Path nearest = null;
+      for (Path base : List.of(home, gateway)) {
+        Path given = base.toAbsolutePath().normalize();
+        Path resolved = realPath(given);
+        for (Path candidate : resolved == null ? List.of(given) : List.of(given, resolved)) {
+          if (abs.startsWith(candidate) && (nearest == null || candidate.getNameCount() > nearest.getNameCount())) {
+            nearest = candidate;
+          }
+        }
+      }
+      return nearest;
+    }
+
+    private static Path realPath(Path p) {
+      try {
+        return p.toRealPath();
+      } catch (IOException e) {
+        return null;
+      }
+    }
+
+    /** Whether {@code link} is one of {@link Sandbox#SYSTEM_ALIASES} on this system. */
+    private static boolean systemAlias(Path link) {
+      String target = SYSTEM_ALIASES.get(link.toString());
+      return target != null && Path.of(target).equals(realPath(link));
     }
 
     private static List<Path> forms(Path p) {
@@ -664,7 +773,15 @@ final class Sandbox {
    * in SBPL, whichever is narrower, so the allows that reopen the work folders come after the denial, and a
    * {@code --rw} path that would reopen a denied one is refused before ({@link Closed#refusal}). Seatbelt compares
    * {@code subpath} with the canonical path only — a rule for {@code /tmp/x} doesn't stop reading
-   * {@code /private/tmp/x} — so every path is written as given and as the kernel sees it.
+   * {@code /private/tmp/x} — so a denied path is written as given and as the kernel sees it.
+   *
+   * <p>A path the command may write is written differently, as {@link Closed#grantForms} has it: as given, with the
+   * system's own aliases spelled out, and below the person's home or GateRook's home never as where a link leads. The
+   * command writes in its {@code --rw} folder, so it can replace an entry of it, such as the {@code tmp} that is its
+   * {@code TMPDIR}, by a link before its next start; a grant that followed the link would let that start write wherever
+   * it leads. {@code tmpDir} (the command's {@code TMPDIR}, or {@code null}) is granted only when it is none of the
+   * paths {@link Closed#refusal} keeps closed and no link lies on its way ({@link Closed#link}); {@link #run} refuses
+   * the start before that, so the profile is also right when a link is put there after the check.
    *
    * <p>The network is open but for the {@code --deny-tcp} ports, which the command may neither connect to nor bind,
    * on every host: Seatbelt takes only {@code *} or {@code localhost} as a host, and a rule for {@code localhost} lets
@@ -672,18 +789,20 @@ final class Sandbox {
    * on macOS 27).
    */
   static String macProfile(Map<String, String> env, List<String> readWrite, Set<Integer> deniedPorts) {
-    return macProfile(Closed.of(env), readWrite, deniedPorts);
+    return macProfile(Closed.of(env), readWrite, deniedPorts, env.get("TMPDIR"));
   }
 
-  static String macProfile(Closed closed, List<String> readWrite, Set<Integer> deniedPorts) {
+  static String macProfile(Closed closed, List<String> readWrite, Set<Integer> deniedPorts, String tmpDir) {
     StringBuilder b = new StringBuilder("(version 1)\n(allow default)\n(deny file-write* (subpath \"/\"))\n");
     List<Path> writable = new ArrayList<>(List.of(Path.of("/dev"), Path.of("/tmp"), Path.of("/private/tmp")));
-    String tmp = System.getenv("TMPDIR");
-    if (tmp != null && !tmp.isBlank() && closed.refusal(Path.of(tmp), true) == null) {
-      writable.add(Path.of(tmp));
+    if (tmpDir != null && !tmpDir.isBlank()) {
+      Path tmp = Path.of(tmpDir);
+      if (closed.refusal(tmp, true) == null && closed.link(tmp) == null) {
+        writable.add(tmp);
+      }
     }
     for (Path p : writable) {
-      for (String form : canonicalForms(p)) {
+      for (String form : closed.grantForms(p)) {
         b.append("(allow file-write* (subpath ").append(sbplString(form)).append("))\n");
       }
     }
@@ -695,7 +814,7 @@ final class Sandbox {
     }
     b.append(")\n");
     for (String rw : readWrite) {
-      for (String form : canonicalForms(Path.of(rw))) {
+      for (String form : closed.grantForms(Path.of(rw))) {
         b.append("(allow file-read* file-write* (subpath ").append(sbplString(form)).append("))\n");
       }
     }
@@ -704,7 +823,7 @@ final class Sandbox {
     // a file.
     java.util.LinkedHashSet<String> above = new java.util.LinkedHashSet<>();
     for (String rw : readWrite) {
-      for (String form : canonicalForms(Path.of(rw))) {
+      for (String form : closed.grantForms(Path.of(rw))) {
         for (Path p = Path.of(form).getParent(); p != null; p = p.getParent()) {
           above.add(p.toString());
         }
@@ -729,7 +848,32 @@ final class Sandbox {
     return b.toString();
   }
 
-  /** {@code p} absolute, and its canonical form when that differs (a path not there yet: via its deepest parent). */
+  /**
+   * Why the macOS profile can't name one of its writable paths — a {@code --rw} path, or the command's {@code TMPDIR}
+   * ({@code tmpDir}, or {@code null}) — because it is, or lies behind, a symbolic link ({@link Closed#link}); else
+   * {@code null}.
+   */
+  static String linkRefusal(Closed closed, List<String> readWrite, String tmpDir) {
+    for (String rw : readWrite) {
+      String why = closed.linkRefusal(Path.of(rw));
+      if (why != null) {
+        return "--rw " + why;
+      }
+    }
+    if (tmpDir != null && !tmpDir.isBlank()) {
+      String why = closed.linkRefusal(Path.of(tmpDir));
+      if (why != null) {
+        return "TMPDIR " + why;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * {@code p} absolute, and its canonical form when that differs (a path not there yet: via its deepest parent). For
+   * what is kept closed, never for what is opened: the canonical form of a path the command can write below is where
+   * its links lead ({@link Closed#grantForms}).
+   */
   static List<String> canonicalForms(Path p) {
     Path abs = p.toAbsolutePath().normalize();
     java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();

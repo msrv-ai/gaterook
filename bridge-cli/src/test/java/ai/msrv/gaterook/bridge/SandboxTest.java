@@ -68,10 +68,10 @@ class SandboxTest {
 
     // On macOS: last, every host ("localhost" lets ::ffff:0.0.0.0 reach 127.0.0.1), ascending whatever the order given.
     Sandbox.Closed closed = closed(dir.resolve("home"), dir.resolve("home/.gaterook"));
-    assertThat(Sandbox.macProfile(closed, List.of(), new java.util.LinkedHashSet<>(List.of(7466, 7465))))
+    assertThat(Sandbox.macProfile(closed, List.of(), new java.util.LinkedHashSet<>(List.of(7466, 7465)), null))
         .endsWith("(deny network-outbound (remote ip \"*:7465\") (remote ip \"*:7466\"))\n"
             + "(deny network-bind (local ip \"*:7465\") (local ip \"*:7466\"))\n");
-    assertThat(Sandbox.macProfile(closed, List.of(), Set.of())).doesNotContain("network");
+    assertThat(Sandbox.macProfile(closed, List.of(), Set.of(), null)).doesNotContain("network");
   }
 
   /**
@@ -252,6 +252,130 @@ class SandboxTest {
     }
   }
 
+  /**
+   * Seatbelt judges the path a link leads to, and a command that writes in a folder can replace an entry of it by a
+   * link: a writable path may not be, or lie behind, a link below the person's home or GateRook's home, nor in a path
+   * outside both; the links at or above those are the person's own.
+   */
+  @Test
+  @DisabledOnOs(OS.WINDOWS)
+  void aWritablePathMayNotBeOrLieBehindALinkTheCommandCouldHavePutThere() throws Exception {
+    Path real = dir.toRealPath();
+    Path home = Files.createDirectories(real.resolve("home"));
+    Path gateway = Files.createDirectories(home.resolve(".gaterook"));
+    Path work = Files.createDirectories(gateway.resolve("mcp/server"));
+    Path documents = Files.createDirectories(home.resolve("Documents"));
+    Sandbox.Closed closed = closed(home, gateway);
+
+    // Real folders all the way, whether or not the last one is there yet.
+    assertThat(closed.link(work)).isNull();
+    assertThat(closed.link(work.resolve("tmp"))).isNull();
+    assertThat(closed.linkRefusal(work)).isNull();
+    assertThat(Sandbox.linkRefusal(closed, List.of(work.toString()), work.resolve("tmp").toString())).isNull();
+    assertThat(Sandbox.linkRefusal(closed, List.of(), null)).isNull();
+    assertThat(Sandbox.linkRefusal(closed, List.of(), " ")).isNull();
+
+    // The command replaced tmp: the link itself, and what lies behind it, is named.
+    Path tmp = Files.createSymbolicLink(work.resolve("tmp"), documents);
+    assertThat(closed.link(tmp)).isEqualTo(tmp);
+    assertThat(closed.linkRefusal(tmp)).isEqualTo(tmp + " is a symbolic link");
+    assertThat(closed.link(tmp.resolve("scratch"))).isEqualTo(tmp);
+    assertThat(closed.linkRefusal(tmp.resolve("scratch")))
+        .isEqualTo(tmp.resolve("scratch") + " lies behind the symbolic link " + tmp);
+    assertThat(Sandbox.linkRefusal(closed, List.of(work.toString()), tmp.toString()))
+        .isEqualTo("TMPDIR " + tmp + " is a symbolic link");
+    // The first link on the way, and a work folder that is a link.
+    Path linked = Files.createSymbolicLink(gateway.resolve("mcp/linked"), work);
+    assertThat(closed.link(linked.resolve("tmp"))).isEqualTo(linked);
+    assertThat(Sandbox.linkRefusal(closed, List.of(linked.toString()), null))
+        .isEqualTo("--rw " + linked + " is a symbolic link");
+
+    // In neither home, every component counts.
+    Path elsewhere = Files.createDirectories(real.resolve("elsewhere/folder"));
+    Path alias = Files.createSymbolicLink(real.resolve("elsewhere/alias"), elsewhere);
+    assertThat(closed.link(elsewhere)).isNull();
+    assertThat(closed.link(alias.resolve("scratch"))).isEqualTo(alias);
+  }
+
+  @Test
+  @DisabledOnOs(OS.WINDOWS)
+  void theLinksOfThePersonsOwnSetupAtOrAboveTheirHomesAreFollowedAndNothingBelow() throws Exception {
+    Path real = dir.toRealPath();
+    // ~/.gaterook kept on another disk.
+    Path home = Files.createDirectories(real.resolve("home"));
+    Path disk = Files.createDirectories(real.resolve("disk/gateway"));
+    Path gateway = Files.createSymbolicLink(home.resolve(".gaterook"), disk);
+    Path work = Files.createDirectories(disk.resolve("mcp/server"));
+    Sandbox.Closed closed = closed(home, gateway);
+
+    Path viaLink = gateway.resolve("mcp/server");
+    assertThat(closed.link(viaLink)).isNull();
+    assertThat(closed.link(work)).isNull();
+    assertThat(closed.grantForms(viaLink)).contains(viaLink.toString(), work.toString());
+    assertThat(closed.grantForms(work)).contains(work.toString());
+    // Below it a link is the command's to re-point, whoever made it.
+    Files.createSymbolicLink(disk.resolve("mcp/alias"), work);
+    assertThat(closed.link(gateway.resolve("mcp/alias"))).isEqualTo(gateway.resolve("mcp/alias"));
+    assertThat(closed.link(disk.resolve("mcp/alias"))).isEqualTo(disk.resolve("mcp/alias"));
+
+    // A home that is itself a link.
+    Path volume = Files.createDirectories(real.resolve("volume/person"));
+    Path homeLink = Files.createSymbolicLink(real.resolve("person"), volume);
+    Path owned = Files.createDirectories(volume.resolve(".gaterook/mcp/server"));
+    Sandbox.Closed linkedHome = closed(homeLink, homeLink.resolve(".gaterook"));
+    Path given = homeLink.resolve(".gaterook/mcp/server");
+    assertThat(linkedHome.link(given)).isNull();
+    assertThat(linkedHome.grantForms(given)).contains(given.toString(), owned.toString());
+  }
+
+  @Test
+  void aGrantIsWrittenAsGivenWithTheSystemsAliasesSpelledOutAndNeverAsWhereALinkLeads() {
+    Sandbox.Closed closed = closed(Path.of("/Users/gaterook-test-person"),
+        Path.of("/Users/gaterook-test-person/.gaterook"));
+
+    assertThat(closed.grantForms(Path.of("/var/folders/ab/cd/T/"))).containsExactly("/var/folders/ab/cd/T",
+        "/private/var/folders/ab/cd/T");
+    assertThat(closed.grantForms(Path.of("/tmp"))).containsExactly("/tmp", "/private/tmp");
+    assertThat(closed.grantForms(Path.of("/etc/hosts"))).containsExactly("/etc/hosts", "/private/etc/hosts");
+    assertThat(closed.grantForms(Path.of("/private/tmp"))).containsExactly("/private/tmp");
+    assertThat(closed.grantForms(Path.of("/dev"))).containsExactly("/dev");
+    assertThat(closed.grantForms(Path.of("/tmpfiles"))).containsExactly("/tmpfiles");
+    assertThat(closed.grantForms(Path.of("/Users/gaterook-test-person/.gaterook/mcp/server")))
+        .containsExactly("/Users/gaterook-test-person/.gaterook/mcp/server");
+  }
+
+  /**
+   * The H2 shape on the profile itself: whatever a link leads to, the profile names neither it nor anything in it, for
+   * a {@code TMPDIR} that is a link as for a {@code --rw} path that is one.
+   */
+  @Test
+  @DisabledOnOs(OS.WINDOWS)
+  void aLinkNeverContributesItsTargetToTheProfile() throws Exception {
+    Path real = dir.toRealPath();
+    Path home = Files.createDirectories(real.resolve("home"));
+    Path gateway = Files.createDirectories(home.resolve(".gaterook"));
+    Path work = Files.createDirectories(gateway.resolve("mcp/server"));
+    Path documents = Files.createDirectories(home.resolve("Documents"));
+    Sandbox.Closed closed = closed(home, gateway);
+    Path tmp = Files.createSymbolicLink(work.resolve("tmp"), documents);
+    Path linked = Files.createSymbolicLink(gateway.resolve("mcp/linked"), documents);
+
+    String viaTmp = Sandbox.macProfile(closed, List.of(work.toString()), Set.of(), tmp.toString());
+    assertThat(viaTmp).doesNotContain(documents.toString()).doesNotContain("Documents")
+        .contains("(allow file-read* file-write* (subpath \"" + work + "\"))");
+    String viaWorkFolder = Sandbox.macProfile(closed, List.of(linked.toString()), Set.of(), null);
+    assertThat(viaWorkFolder).doesNotContain(documents.toString()).doesNotContain("Documents")
+        .contains("(subpath \"" + linked + "\")");
+
+    // A real tmp is granted as it always was; a TMPDIR that holds the home is not granted at all.
+    Files.delete(tmp);
+    Files.createDirectories(tmp);
+    assertThat(Sandbox.macProfile(closed, List.of(work.toString()), Set.of(), tmp.toString()))
+        .contains("(allow file-write* (subpath \"" + tmp + "\"))");
+    assertThat(Sandbox.macProfile(closed, List.of(), Set.of(), home.toString()))
+        .doesNotContain("(allow file-write* (subpath \"" + home + "\"))");
+  }
+
   @Test
   void onMacOsNoDefaultsIsRefusedRatherThanIgnored() throws Exception {
     assumeTrue(System.getProperty("os.name").startsWith("Mac") && Files.isExecutable(Path.of("/usr/bin/sandbox-exec")),
@@ -348,6 +472,126 @@ class SandboxTest {
     // Metadata only, and after the denial: later rules win in SBPL.
     assertThat(profile.indexOf("(allow file-read-metadata")).isGreaterThan(profile.indexOf("(deny file-read* file-write*"));
     assertThat(profile).doesNotContain("(allow file-read* file-write* (subpath \"" + gateway + "\"))");
+  }
+
+  /**
+   * A server writes in its work folder, so it can replace the {@code tmp} inside it with a link before its next start,
+   * and Seatbelt judges the resolved path: a profile that followed the link would let the next start write wherever the
+   * link leads. The launcher refuses such a {@code TMPDIR} (and a work folder behind a link): nothing starts, nothing
+   * outside is written.
+   */
+  @Test
+  void onMacOsATempFolderThatBecameALinkIsRefusedInsteadOfBecomingAWriteGrant() throws Exception {
+    assumeTrue(System.getProperty("os.name").startsWith("Mac") && Files.isExecutable(Path.of("/usr/bin/sandbox-exec")),
+        "macOS with sandbox-exec");
+    Path gateway = Files.createDirectories(dir.resolve("gateway-home"));
+    Path work = Files.createDirectories(gateway.resolve("mcp/server"));
+    Path tmp = Files.createDirectories(work.resolve("tmp"));
+    Path sibling = Files.createDirectories(dir.resolve("sibling"));
+    // @TempDir is behind /var, one of the system's own aliases: no link to refuse, and the profile names both forms.
+    assertThat(dir.toRealPath()).isNotEqualTo(dir.toAbsolutePath());
+    assertThat(Sandbox.Closed.of(Map.of("GW_HOME", gateway.toString())).link(tmp)).isNull();
+    Map<String, String> env = Map.of("GW_HOME", gateway.toString(), "TMPDIR", tmp.toString());
+    String script = "echo x > \"" + sibling.resolve("planted") + "\" 2>/dev/null && echo sibling-written "
+        + "|| echo sibling-refused; echo y > \"$TMPDIR/own\" && echo wrote-tmp";
+    List<String> args = List.of("sandbox-exec", "--rw", work.toString(), "--", "/bin/sh", "-c", script);
+
+    // A real tmp is writable, a sibling folder of the work folder is not.
+    BridgeProcess.Result real = BridgeProcess.run(args, env, "", Duration.ofSeconds(30));
+    assertThat(real.out()).as(real.err()).contains("sibling-refused").contains("wrote-tmp")
+        .doesNotContain("sibling-written");
+    assertThat(real.code()).isZero();
+
+    // The server replaced tmp with a link to the sibling folder: the next start is refused, and nothing was run.
+    Files.delete(tmp.resolve("own"));
+    Files.delete(tmp);
+    Files.createSymbolicLink(tmp, sibling);
+    BridgeProcess.Result linked = BridgeProcess.run(args, env, "", Duration.ofSeconds(30));
+    assertThat(linked.code()).as(linked.out() + linked.err()).isEqualTo(3);
+    assertThat(linked.err()).contains("TMPDIR").contains("symbolic link").contains("can't be opened to the command");
+    assertThat(linked.out()).isEmpty();
+    try (var written = Files.list(sibling)) {
+      assertThat(written).isEmpty();
+    }
+  }
+
+  @Test
+  void onMacOsAWorkFolderBehindALinkIsRefusedToo() throws Exception {
+    assumeTrue(System.getProperty("os.name").startsWith("Mac") && Files.isExecutable(Path.of("/usr/bin/sandbox-exec")),
+        "macOS with sandbox-exec");
+    Path gateway = Files.createDirectories(dir.resolve("gateway-home"));
+    Path elsewhere = Files.createDirectories(dir.resolve("elsewhere"));
+    Files.createDirectories(gateway.resolve("mcp"));
+    Path work = Files.createSymbolicLink(gateway.resolve("mcp/server"), elsewhere);
+
+    BridgeProcess.Result r = BridgeProcess.run(List.of("sandbox-exec", "--rw", work.toString(), "--", "/bin/sh", "-c",
+        "echo started > \"" + elsewhere.resolve("planted") + "\""), Map.of("GW_HOME", gateway.toString()), "",
+        Duration.ofSeconds(30));
+
+    assertThat(r.code()).as(r.out() + r.err()).isEqualTo(3);
+    assertThat(r.err()).contains("--rw " + work + " is a symbolic link").contains("can't be opened to the command");
+    assertThat(elsewhere.resolve("planted")).doesNotExist();
+  }
+
+  /** A person's own link above GateRook's home (the folder kept on another disk) is followed, as it always was. */
+  @Test
+  void onMacOsALinkAtGateRooksHomeIsThePersonsOwnAndStillWorks() throws Exception {
+    assumeTrue(System.getProperty("os.name").startsWith("Mac") && Files.isExecutable(Path.of("/usr/bin/sandbox-exec")),
+        "macOS with sandbox-exec");
+    Path real = dir.toRealPath();
+    Path disk = Files.createDirectories(real.resolve("disk/gateway-home"));
+    Path gateway = Files.createSymbolicLink(real.resolve("gateway-home"), disk);
+    Path work = Files.createDirectories(gateway.resolve("mcp/server"));
+    Path tmp = Files.createDirectories(work.resolve("tmp"));
+    Path sibling = Files.createDirectories(real.resolve("sibling"));
+    String script = "echo y > \"$TMPDIR/own\" && echo wrote-tmp; echo y > \"" + work.resolve("own")
+        + "\" && echo wrote-work; echo y > \"" + sibling.resolve("planted") + "\" 2>/dev/null || echo sibling-refused";
+
+    BridgeProcess.Result r = BridgeProcess.run(List.of("sandbox-exec", "--rw", work.toString(), "--", "/bin/sh", "-c",
+        script), Map.of("GW_HOME", gateway.toString(), "TMPDIR", tmp.toString()), "", Duration.ofSeconds(30));
+
+    assertThat(r.out()).as(r.err()).contains("wrote-tmp").contains("wrote-work").contains("sibling-refused");
+    assertThat(r.code()).isZero();
+    assertThat(sibling.resolve("planted")).doesNotExist();
+  }
+
+  /**
+   * The profile alone, as {@code sandbox-exec -p} gets it, built with the links already there (as when one is put
+   * there between the check and the start): the kernel refuses a write through the link, and the folders the links lead
+   * to are not opened either, while the work folder itself is writable.
+   */
+  @Test
+  void onMacOsTheProfileBuiltBehindALinkOpensNothingThatItLeadsTo() throws Exception {
+    assumeTrue(System.getProperty("os.name").startsWith("Mac") && Files.isExecutable(Path.of("/usr/bin/sandbox-exec")),
+        "macOS with sandbox-exec");
+    Path home = Path.of(System.getProperty("user.home"));
+    Path gateway = Files.createDirectories(dir.resolve("gateway-home"));
+    Path work = Files.createDirectories(gateway.resolve("mcp/server"));
+    Path ofTmp = Files.createDirectories(dir.resolve("led-to-by-tmp"));
+    Path ofWork = Files.createDirectories(dir.resolve("led-to-by-the-work-folder"));
+    Path tmp = Files.createSymbolicLink(work.resolve("tmp"), ofTmp);
+    Path linkedWork = Files.createSymbolicLink(dir.resolve("linked-work-folder"), ofWork);
+    String profile = Sandbox.macProfile(closed(home, gateway), List.of(work.toString(), linkedWork.toString()),
+        Set.of(), tmp.toString());
+    String script = "echo y > \"" + tmp + "/via-tmp\" 2>/dev/null || echo tmp-refused; "
+        + "echo y > \"" + ofTmp + "/direct\" 2>/dev/null || echo target-of-tmp-refused; "
+        + "echo y > \"" + linkedWork + "/via-link\" 2>/dev/null || echo linked-work-refused; "
+        + "echo y > \"" + ofWork + "/direct\" 2>/dev/null || echo target-of-work-refused; "
+        + "echo y > \"" + work + "/own\" && echo wrote-work";
+
+    Process p = new ProcessBuilder("/usr/bin/sandbox-exec", "-p", profile, "/bin/sh", "-c", script).start();
+    p.getOutputStream().close();
+    String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+    String err = new String(p.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+    assertThat(p.waitFor(30, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+
+    assertThat(out).as(err).contains("tmp-refused").contains("target-of-tmp-refused").contains("linked-work-refused")
+        .contains("target-of-work-refused").contains("wrote-work");
+    for (Path led : List.of(ofTmp, ofWork)) {
+      try (var written = Files.list(led)) {
+        assertThat(written).isEmpty();
+      }
+    }
   }
 
   @Test
