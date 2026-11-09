@@ -310,6 +310,7 @@ public final class FullBackupDatabase {
         f.set("overrides", tree(r, "overrides"));
         f.set("roConfirmation", tree(r, "ro_confirmation"));
         f.set("temporaryBypass", tree(r, "temporary_bypass"));
+        if (r.getString("reviewed_definition") != null) f.put("reviewedDefinition", r.getString("reviewed_definition"));
         verified(mac, "endpoint_tool", r, f);
         f.remove("temporaryBypass");
         update(c, "UPDATE endpoint_tool SET temporary_bypass=NULL, updated_at=?, version=version+1, mac=? WHERE id=?",

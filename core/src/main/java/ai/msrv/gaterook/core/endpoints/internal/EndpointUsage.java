@@ -8,6 +8,7 @@ import ai.msrv.gaterook.core.connections.ConnectionRenameParticipant;
 import ai.msrv.gaterook.core.connections.ConnectionUsage;
 import ai.msrv.gaterook.core.endpoints.EndpointChanged;
 import ai.msrv.gaterook.core.endpoints.EndpointRemovalParticipant;
+import ai.msrv.gaterook.core.endpoints.EndpointSnapshot;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshotService;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointConnectionEntity;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointConnectionRepository;
@@ -18,7 +19,9 @@ import ai.msrv.gaterook.core.platform.IntegrityAlerts;
 import ai.msrv.gaterook.core.platform.ProblemException;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
@@ -71,19 +74,34 @@ class EndpointUsage implements ConnectionUsage, ConnectionRemovalParticipant, Co
   public List<UsedBy> usedBy(String connectionId) {
     return readTx.execute(s -> {
       List<UsedBy> out = new ArrayList<>();
+      Map<String, EndpointSnapshot> byEndpoint = new HashMap<>();
+      for (EndpointConnectionEntity w : wiring.findByConnectionId(connectionId)) {
+        snapshots.uncached(w.getEndpoint().getId()).ifPresent(snapshot -> byEndpoint.put(snapshot.id(), snapshot));
+      }
       for (EndpointToolEntity t : tools.findByConnectionId(connectionId)) {
-        out.add(new UsedBy(Wiring.toolName(t.getToolKey()), t.getEndpoint().getSlug(), ToolPairs.label(t.getMode())));
+        if (!unlisted(t, byEndpoint.get(t.getEndpoint().getId()))) {
+          out.add(new UsedBy(Wiring.toolName(t.getToolKey()), t.getEndpoint().getSlug(),
+              ToolPairs.label(t.getMode())));
+        }
       }
       // Newly available tools have no stored grant until the person chooses a mode. Include the snapshot's Off
       // pairs so they can be configured here, while retaining saved defaults for connections still needing setup.
-      for (EndpointConnectionEntity w : wiring.findByConnectionId(connectionId)) {
-        snapshots.uncached(w.getEndpoint().getId()).ifPresent(snapshot -> snapshot.pairs().stream()
-            .filter(p -> p.config().id().equals(connectionId) && p.rowId() == null)
-            .forEach(p -> out.add(new UsedBy(p.tool().name(), snapshot.slug(), ToolPairs.label(p.storedMode())))));
+      for (EndpointSnapshot snapshot : byEndpoint.values()) {
+        snapshot.pairs().stream().filter(p -> p.config().id().equals(connectionId) && p.rowId() == null)
+            .forEach(p -> out.add(new UsedBy(p.tool().name(), snapshot.slug(), ToolPairs.label(p.storedMode()))));
       }
       out.sort(java.util.Comparator.comparing(UsedBy::endpoint).thenComparing(UsedBy::tool));
       return out;
     });
+  }
+
+  /**
+   * The row of an external server's tool that the server doesn't list now: it is kept for the day the tool comes back
+   * with the mode a person chose, and isn't in use meanwhile.
+   */
+  private static boolean unlisted(EndpointToolEntity t, EndpointSnapshot snapshot) {
+    return snapshot != null && t.getToolKey().startsWith("mcp:") && snapshot.pairs().stream()
+        .noneMatch(p -> p.toolKey().equals(t.getToolKey()) && p.config().id().equals(t.getConnectionId()));
   }
 
   @Override

@@ -430,9 +430,35 @@ public class EndpointService {
     });
     for (EndpointToolEntity t : tools.findByEndpointIdAndConnectionId(target.getId(), connectionId)) {
       EndpointToolEntity old = stored.get(t.getToolKey());
-      if (old != null && old.getOverrides() != null) {
+      if (old == null) {
+        continue;
+      }
+      boolean copied = false;
+      if (old.getOverrides() != null) {
         t.setOverrides(old.getOverrides(), clock.instant());
+        copied = true;
+      }
+      // An external server's tool carries the definition its mode was set for, not the one it has today.
+      if (t.getReviewedDefinition() != null && !t.getReviewedDefinition().equals(old.getReviewedDefinition())) {
+        t.setReviewedDefinition(old.getReviewedDefinition(), clock.instant());
+        copied = true;
+      }
+      if (copied) {
         rows.save(t);
+      }
+    }
+    if (m.kind() == ConnectorManifest.Kind.MCP_SERVER) {
+      // What an external server doesn't list now keeps its choices in the copy too: the tool comes back with them.
+      for (EndpointToolEntity old : stored.values()) {
+        if (tools.findByEndpointIdAndConnectionIdAndToolKey(target.getId(), connectionId, old.getToolKey())
+            .isEmpty()) {
+          // Without its definition a tool can't be clamped for a read-only endpoint: Off is what it can always be.
+          EndpointToolEntity kept = new EndpointToolEntity(target, connectionId, old.getToolKey(),
+              readOnly ? Mode.OFF : old.getMode(), clock.instant());
+          kept.setOverrides(old.getOverrides(), clock.instant());
+          kept.setReviewedDefinition(old.getReviewedDefinition(), clock.instant());
+          rows.save(kept);
+        }
       }
     }
   }
@@ -982,7 +1008,8 @@ public class EndpointService {
 
   /**
    * What lets calls skip a person's review is set only in GateRook: on a tool row that didn't verify, Bypass becomes
-   * Approval, and a temporary bypass or a Read only confirmation is dropped (the person can set them again).
+   * Approval, and a temporary bypass, a Read only confirmation or the reviewed definition of an external MCP server's
+   * tool (which Read only and Bypass need) is dropped (the person can set them again).
    */
   private void resetUnreviewedGrants(EndpointEntity e, Set<String> unverifiedTools, boolean reset, List<String> out) {
     for (EndpointToolEntity t : tools.findByEndpointId(e.getId())) {
@@ -1009,6 +1036,13 @@ public class EndpointService {
             + "confirm it again in GateRook.", "/tools");
         t.setRoConfirmation(null, clock.instant());
         out.add(tool + " Read only confirmation");
+        changed = true;
+      }
+      if (t.getReviewedDefinition() != null) {
+        invalid(reset, tool + " has a reviewed definition that was set outside GateRook. Resetting removes it, and "
+            + "Read only or Bypass go back to Approval until you set them again in GateRook.", "/tools");
+        t.setReviewedDefinition(null, clock.instant());
+        out.add(tool + " reviewed definition");
         changed = true;
       }
       if (changed) {

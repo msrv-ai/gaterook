@@ -6,6 +6,7 @@ import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.endpoints.internal.EndpointRows;
 import ai.msrv.gaterook.core.endpoints.internal.TemporaryBypass;
 import ai.msrv.gaterook.core.endpoints.internal.ToolPairs;
+import ai.msrv.gaterook.core.endpoints.internal.Wiring;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointEntity;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointRepository;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointToolEntity;
@@ -18,10 +19,12 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -212,7 +215,7 @@ public class EndpointTools {
         }
         EndpointToolEntity row = tools.findById(core.rowId()).orElseThrow();
         checkVersion(row, version);
-        apply(e, row, toolKey, null, mode, null, reason);
+        apply(e, row, toolKey, null, mode, null, reason, null);
         return;
       }
       EndpointSnapshot.Pair p = pair(s, toolKey, connection);
@@ -229,7 +232,8 @@ public class EndpointTools {
       } else {
         checkVersion(row, version);
       }
-      apply(e, row, p.tool().name(), p.connectionName(), mode, overrides, reason);
+      apply(e, row, p.tool().name(), p.connectionName(), mode, overrides, reason,
+          ToolPairs.reviewedDefinition(offered(p)));
     });
   }
 
@@ -268,17 +272,53 @@ public class EndpointTools {
           continue;
         }
         EndpointToolEntity existing = p.rowId() == null ? null : tools.findById(p.rowId()).orElseThrow();
-        if (target == p.storedMode() && (existing == null || existing.getTemporaryBypass() == null)) {
+        String reviewed = ToolPairs.reviewedDefinition(offered(p));
+        if (target == p.storedMode() && (existing == null || existing.getTemporaryBypass() == null
+            && !redefines(target, reviewed, existing))) {
           continue;
         }
         EndpointToolEntity row = p.rowId() == null
             ? rows.save(new EndpointToolEntity(e, p.config().id(), p.toolKey(), Mode.OFF, clock.instant()))
             : existing;
-        apply(e, row, p.tool().name(), p.connectionName(), target, null, reason);
+        apply(e, row, p.tool().name(), p.connectionName(), target, null, reason, reviewed);
         changed.add(p.toolKey());
+      }
+      if ("OFF".equals(mode) || "APPROVAL".equals(mode)) {
+        holdUnlisted(e, s, connection, Mode.valueOf(mode), reason, changed);
       }
     });
     return new BulkResult(List.copyOf(changed), List.copyOf(skipped));
+  }
+
+  /**
+   * An external server's tool that it doesn't list now keeps its row, and its mode, for the day it comes back. "Set all
+   * to…" Off or Approval holds such a tool too, so that a server hiding a tool for a while is no way round turning
+   * everything off. Only toward a stricter mode: what a person can't see is not raised.
+   */
+  private void holdUnlisted(EndpointEntity e, EndpointSnapshot s, String connection, Mode target, String reason,
+      List<String> changed) {
+    if (target == Mode.APPROVAL && s.readOnly()) {
+      // The listed tools are skipped there as well: a read-only endpoint has no Approval.
+      return;
+    }
+    Set<String> listed = new HashSet<>();
+    s.pairs().forEach(p -> listed.add(p.config().id() + "\0" + p.toolKey()));
+    for (EndpointSnapshot.Wired w : s.connections()) {
+      if (connection != null && !connection.equals(w.config().name())) {
+        continue;
+      }
+      for (EndpointToolEntity row : tools.findByEndpointIdAndConnectionId(e.getId(), w.config().id())) {
+        boolean stricter = row.getMode() != target
+            && (target == Mode.OFF || row.getMode() == Mode.READ_ONLY || row.getMode() == Mode.BYPASS);
+        if (!row.getToolKey().startsWith("mcp:") || listed.contains(w.config().id() + "\0" + row.getToolKey())
+            || !stricter && row.getTemporaryBypass() == null) {
+          continue;
+        }
+        apply(e, row, Wiring.toolName(row.getToolKey()), w.config().name(), stricter ? target : row.getMode(), null,
+            reason, null);
+        changed.add(row.getToolKey());
+      }
+    }
   }
 
   /**
@@ -328,17 +368,25 @@ public class EndpointTools {
 
   // ── Internals ───────────────────────────────────────────────────────────────────────────────────────────────
 
+  /**
+   * @param reviewed the definition the person sees for an external MCP server's tool ({@code null} for any other):
+   *                 Read only and Bypass are recorded for it (ARCHITECTURE.md §7.5)
+   */
   private void apply(EndpointEntity e, EndpointToolEntity row, String tool, String connection, Mode mode,
-      JsonNode overrides, String reason) {
+      JsonNode overrides, String reason, String reviewed) {
     Mode before = row.getMode();
     boolean overridesChanged = overrides != null && !overrides.equals(rows.tree(row.getOverrides()));
     boolean hadBypass = row.getTemporaryBypass() != null;
+    boolean redefined = redefines(mode, reviewed, row);
     String beforeBypass = hadBypass ? "Temporary bypass until " + row.getTemporaryBypass().get("until") : null;
-    if (before == mode && !overridesChanged && !hadBypass) {
+    if (before == mode && !overridesChanged && !hadBypass && !redefined) {
       return;
     }
     if (before != mode || hadBypass) {
       row.setMode(mode, clock.instant());
+    }
+    if (redefined) {
+      row.setReviewedDefinition(reviewed, clock.instant());
     }
     if (overridesChanged) {
       row.setOverrides(overrides.isEmpty() ? null : rows.map(overrides), clock.instant());
@@ -349,12 +397,23 @@ public class EndpointTools {
       setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.MODE, subject,
           hadBypass ? beforeBypass : ToolPairs.label(before),
           ToolPairs.label(mode), reason, e.getEnv(), e.getSlug(), connection, null));
+    } else if (redefined) {
+      // The mode stayed but it now stands for the definition the person has looked at.
+      setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.MODE, subject,
+          ToolPairs.label(before) + " (earlier definition)", ToolPairs.label(mode), reason, e.getEnv(), e.getSlug(),
+          connection, null));
     }
     if (overridesChanged) {
       setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.MODE, subject + " · limits", null,
           overrides.toString(), reason, e.getEnv(), e.getSlug(), connection, null));
     }
     publisher.publishEvent(new EndpointChanged(e.getId(), e.getSlug()));
+  }
+
+  /** Whether setting {@code mode} records another definition: only Read only and Bypass stand for one. */
+  private static boolean redefines(Mode mode, String reviewed, EndpointToolEntity row) {
+    return reviewed != null && (mode == Mode.READ_ONLY || mode == Mode.BYPASS)
+        && !reviewed.equals(row.getReviewedDefinition());
   }
 
   private static Optional<String> refusal(EndpointSnapshot s, EndpointSnapshot.Pair p, Mode mode) {

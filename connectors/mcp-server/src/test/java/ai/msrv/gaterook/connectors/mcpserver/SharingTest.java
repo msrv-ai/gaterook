@@ -3,6 +3,7 @@ package ai.msrv.gaterook.connectors.mcpserver;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ai.msrv.gaterook.connector.api.ActionPreview;
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.Connector;
 import ai.msrv.gaterook.connector.api.ConnectorException;
@@ -204,6 +205,58 @@ class SharingTest {
          "argument":{"name":"name","value":"w"}}"""), cfg, secrets, ctx());
     assertThat(byTemplate.path("completion").path("values")).extracting(JsonNode::asString)
         .containsExactly("welcome");
+  }
+
+  /**
+   * The hash of what a server declares for a tool doesn't cover the app it shows, so the app is pinned beside it: a
+   * server that moves the app of a reviewed tool stops the tool until the core took the list in, and an approval
+   * prepared for the old app doesn't run against the new one.
+   */
+  @Test
+  void anAppMovedAfterTheReviewStopsTheToolAndAnApprovalOfTheOldOneDoesntRun() throws Exception {
+    ConnectionConfig cfg = cfg("dual", "");
+    McpServerRuntime.Handshake h = runtime.probe(cfg, secrets, ctx());
+    // Reviewed in 2025-11-25: its session speaks that era, which tells a changed list as a notification.
+    Connector reviewed = runtime.connector(cfg, new McpServerRuntime.Snapshot("raw_", h.serverVersion(),
+        "2025-11-25", h.tools(), null));
+    JsonNode before = Snapshots.find(h.tools(), "raw_chart").orElseThrow();
+    ActionPreview pinned = reviewed.describeAction(Fixtures.call("raw_chart", "{}"), cfg);
+    assertThat(pinned.payload().path("ui").path("resourceUri").asString()).isEqualTo("ui://charts/view.html");
+    assertThat(reviewed.execute(Fixtures.call("raw_chart", "{}"), cfg, secrets, ctx()).content()).isNotEmpty();
+
+    int announced = host.handshakes.size();
+    ActionPreview change = reviewed.describeAction(Fixtures.call("raw_change", "{}"), cfg);
+    reviewed.execute(Fixtures.call("raw_change", "{}"), cfg, secrets, Fixtures.Context.approved(change.payload()));
+    await(() -> host.handshakes.size() > announced);
+
+    JsonNode after = Snapshots.find(host.handshakes.getLast().tools(), "raw_chart").orElseThrow();
+    assertThat(after.path("ui").path("resourceUri").asString()).isEqualTo("ui://charts/moved.html");
+    assertThat(after.path("definitionHash").asString()).as("what it declares for the chart is the same")
+        .isEqualTo(before.path("definitionHash").asString());
+    assertThatThrownBy(() -> reviewed.execute(Fixtures.call("raw_chart", "{}"), cfg, secrets, ctx()))
+        .isInstanceOfSatisfying(ConnectorException.class, e -> {
+          assertThat(e.kind()).isEqualTo(ConnectorException.Kind.DENIED);
+          assertThat(e.getMessage()).contains("changed chart since it was reviewed");
+        });
+
+    // The core took the new list in: a call prepared before it is another call than the one that would run now.
+    Connector taken = runtime.connector(cfg, new McpServerRuntime.Snapshot("raw_", h.serverVersion(), "2025-11-25",
+        host.handshakes.getLast().tools(), null));
+    assertThatThrownBy(() -> taken.execute(Fixtures.call("raw_chart", "{}"), cfg, secrets,
+        Fixtures.Context.approved(pinned.payload())))
+        .isInstanceOfSatisfying(ConnectorException.class, e -> {
+          assertThat(e.kind()).isEqualTo(ConnectorException.Kind.DENIED);
+          assertThat(e.getMessage()).contains("changed chart after the call was approved");
+        });
+    ActionPreview now = taken.describeAction(Fixtures.call("raw_chart", "{}"), cfg);
+    assertThat(now.payload().path("ui").path("resourceUri").asString()).isEqualTo("ui://charts/moved.html");
+    assertThat(taken.execute(Fixtures.call("raw_chart", "{}"), cfg, secrets,
+        Fixtures.Context.approved(now.payload())).content()).isNotEmpty();
+    // A payload prepared before approvals named the app has no "ui" at all, and still runs against an unchanged one.
+    ObjectNode older = (ObjectNode) now.payload().deepCopy();
+    older.remove("ui");
+    assertThat(taken.execute(Fixtures.call("raw_chart", "{}"), cfg, secrets, Fixtures.Context.approved(older))
+        .content()).isNotEmpty();
   }
 
   @Test

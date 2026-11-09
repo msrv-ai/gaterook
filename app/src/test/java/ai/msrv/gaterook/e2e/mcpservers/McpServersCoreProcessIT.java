@@ -229,8 +229,46 @@ class McpServersCoreProcessIT {
     assertThat(again.at("/result/content/0/text").asString()).as(again.toString()).isEqualTo("found: bread");
   }
 
+  /**
+   * What the server lists at its next start decides nothing the person decided (ARCHITECTURE.md §7.5): another
+   * description takes Read only back to Approval until the person sets it again, and a tool the server stops listing
+   * and lists again keeps the Off it was given instead of becoming a declared read again.
+   */
   @Test
   @Order(6)
+  void aToolTheServerChangesOrUnlistsCanNeitherKeepReadOnlyNorUndoAnOff() throws Exception {
+    Path variant = core.home.resolve("mcp/notes-mcp/variant");
+    assertThat(row("notes_search").path("storedMode").asString()).isEqualTo("READ_ONLY");
+
+    java.nio.file.Files.writeString(variant, "changed");
+    json(admin("POST", "/api/mcp-servers/notes-mcp/restart", null), 200);
+    awaitStored("notes_search", "APPROVAL");
+    assertThat(row("notes_whoami").path("storedMode").asString()).isEqualTo("APPROVAL");
+    JsonNode held = call(30, "notes_search", "{\"q\":\"groceries\"}");
+    assertThat(held.at("/result/structuredContent/status").asString()).as(held.toString()).isEqualTo("pending");
+
+    // The person sets it for what it is now, and it runs; then turns it Off.
+    json(admin("PUT", "/api/endpoints/notes/tools", mode(row("notes_search"), "READ_ONLY")), 200);
+    JsonNode found = call(31, "notes_search", "{\"q\":\"bread\"}");
+    assertThat(found.at("/result/content/0/text").asString()).as(found.toString()).isEqualTo("found: bread");
+    json(admin("PUT", "/api/endpoints/notes/tools", mode(row("notes_search"), "OFF")), 200);
+
+    // Unlisted: not published. Listed again with its first description, as a declared read: still Off.
+    java.nio.file.Files.writeString(variant, "gone");
+    json(admin("POST", "/api/mcp-servers/notes-mcp/restart", null), 200);
+    awaitRows(names -> !names.contains("notes_search"));
+    java.nio.file.Files.delete(variant);
+    json(admin("POST", "/api/mcp-servers/notes-mcp/restart", null), 200);
+    awaitRows(names -> names.contains("notes_search"));
+    assertThat(row("notes_search").path("storedMode").asString()).isEqualTo("OFF");
+    assertThat(row("notes_whoami").path("storedMode").asString()).isEqualTo("APPROVAL");
+
+    json(admin("PUT", "/api/endpoints/notes/tools", mode(row("notes_search"), "READ_ONLY")), 200);
+    assertThat(row("notes_search").path("mode").asString()).isEqualTo("READ_ONLY");
+  }
+
+  @Test
+  @Order(7)
   void bulkOffIncludesUnannotatedMutations() throws Exception {
     JsonNode tools = json(admin("GET", "/api/mcp-servers/notes-mcp/tools", null), 200);
     assertThat(tools).filteredOn(t -> t.path("name").asString().equals("notes_create_note"))
@@ -246,7 +284,7 @@ class McpServersCoreProcessIT {
   }
 
   @Test
-  @Order(7)
+  @Order(8)
   void stopStopsTheProcessAndDeleteLeavesNothing() throws Exception {
     JsonNode stopped = json(admin("POST", "/api/mcp-servers/notes-mcp/stop", null), 200);
     assertThat(stopped.path("state").asString()).isEqualTo("stopped");
@@ -267,7 +305,7 @@ class McpServersCoreProcessIT {
   }
 
   @Test
-  @Order(8)
+  @Order(9)
   void theLogsHaveNoSecret() throws Exception {
     assertThat(core.coreLog()).doesNotContain(TOKEN);
     Path serverLog = core.home.resolve("logs/mcp/notes-mcp.log");
@@ -307,6 +345,29 @@ class McpServersCoreProcessIT {
 
   private static JsonNode row(String name) throws Exception {
     return rows().stream().filter(t -> t.path("name").asString().equals(name)).findFirst().orElseThrow();
+  }
+
+  /** Waits for the core to follow a list the server gave (it reconciles the endpoints after it took it in). */
+  private static void awaitRows(java.util.function.Predicate<List<String>> published) throws Exception {
+    long deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
+    while (System.nanoTime() < deadline) {
+      if (published.test(rows().stream().map(t -> t.path("name").asString()).toList())) {
+        return;
+      }
+      Thread.sleep(100);
+    }
+    throw new AssertionError("The endpoint didn't follow the server's list: " + rows());
+  }
+
+  private static void awaitStored(String name, String mode) throws Exception {
+    long deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
+    while (System.nanoTime() < deadline) {
+      if (mode.equals(row(name).path("storedMode").asString())) {
+        return;
+      }
+      Thread.sleep(100);
+    }
+    throw new AssertionError(name + " didn't go to " + mode + ": " + row(name));
   }
 
   private static String mode(JsonNode row, String mode) {

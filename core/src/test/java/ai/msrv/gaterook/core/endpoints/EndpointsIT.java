@@ -1272,9 +1272,11 @@ class EndpointsIT {
     TestCore.await(() -> pair(snapshots.bySlug("mcp-read").orElseThrow(), "gh_search").storedMode()
         == Mode.APPROVAL && pair(snapshots.bySlug("mcp-read-endpoint").orElseThrow(), "gh_search").storedMode()
         == Mode.OFF, "changed tools to require approval or stay Off on a read-only endpoint");
-    for (String slug : List.of("mcp-off", "mcp-approval", "mcp-bypass")) {
+    for (String slug : List.of("mcp-off", "mcp-approval")) {
       assertThat(pair(snapshots.bySlug(slug).orElseThrow(), "gh_search").storedMode()).isEqualTo(choices.get(slug));
     }
+    // Bypass was set for the definition the tool had: a changed tool needs a person again (ARCHITECTURE.md §7.5).
+    assertThat(pair(snapshots.bySlug("mcp-bypass").orElseThrow(), "gh_search").storedMode()).isEqualTo(Mode.APPROVAL);
   }
 
   @Test

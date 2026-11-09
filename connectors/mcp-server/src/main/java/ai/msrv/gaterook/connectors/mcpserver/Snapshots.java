@@ -140,14 +140,23 @@ final class Snapshots {
   /**
    * What a tool declares beside its definition, kept in its entry: whether it must, may or must not run as a task
    * ({@code execution.taskSupport}, 2025-11-25), and the MCP App it is shown with ({@code _meta.ui}: its
-   * {@code ui://} resource and who may call it). Neither is in the definition hash, so that a hash stays what it was;
-   * a tool that runs as a task is still called through the gateway, and an app is read through it.
+   * {@code ui://} resource and who may call it). Neither is in the definition hash, so that a hash stays what it was
+   * (approvals pinned to it stay valid); a tool that runs as a task is still called through the gateway, and an app is
+   * read through it. The app is pinned beside the hash instead ({@link #sameApp}), wherever the hash is compared.
    */
   static void extras(ObjectNode json, ObjectNode entry) {
     String task = Texts.str(json.path("execution").get("taskSupport"), null);
     if (task != null && (task.equals("required") || task.equals("optional"))) {
       entry.put("taskSupport", task);
     }
+    ObjectNode app = appOf(json);
+    if (app != null) {
+      entry.set("ui", app);
+    }
+  }
+
+  /** The MCP App a tool as the server listed it shows, as the entry keeps it; {@code null} when it names none. */
+  static ObjectNode appOf(ObjectNode json) {
     JsonNode ui = json.path("_meta").path("ui");
     ObjectNode app = Texts.JSON.createObjectNode();
     String uri = Texts.str(ui.get("resourceUri"), Texts.str(json.path("_meta").get("ui/resourceUri"), null));
@@ -162,9 +171,18 @@ final class Snapshots {
         }
       }
     }
-    if (app.has("resourceUri")) {
-      entry.set("ui", app);
-    }
+    return app.has("resourceUri") ? app : null;
+  }
+
+  /** The app an entry, or an approved payload made from one, names ({@code ui}); {@code null} when it names none. */
+  static JsonNode reviewedApp(JsonNode holder) {
+    JsonNode ui = holder.path("ui");
+    return ui.isObject() ? ui : null;
+  }
+
+  /** Whether the server still lists the app the entry was reviewed with: the definition hash doesn't cover it. */
+  static boolean sameApp(JsonNode entry, ObjectNode listed) {
+    return java.util.Objects.equals(reviewedApp(entry), appOf(listed));
   }
 
   /** {@link #definitionHash(McpSchema.Tool)} of a tool as the server sent it. */
@@ -174,7 +192,8 @@ final class Snapshots {
 
   /**
    * SHA-256 of what the server declared for a tool (name, title, description, both schemas, annotations), before any
-   * cleaning: any change the server makes shows, even one the gateway would have normalized away.
+   * cleaning: any change the server makes shows, even one the gateway would have normalized away. The app a tool shows
+   * is not in it ({@link #extras}).
    */
   static String definitionHash(McpSchema.Tool tool) {
     Map<String, Object> declared = new LinkedHashMap<>();

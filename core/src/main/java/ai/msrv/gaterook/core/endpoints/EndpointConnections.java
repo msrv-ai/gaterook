@@ -27,14 +27,20 @@ import ai.msrv.gaterook.core.platform.IntegrityAlerts;
 import ai.msrv.gaterook.core.platform.ProblemException;
 import ai.msrv.gaterook.core.platform.SetupChangeRecorder;
 import ai.msrv.gaterook.core.platform.SetupChangeRecorder.SetupChange;
+import ai.msrv.gaterook.core.platform.StartupFacts;
 import ai.msrv.gaterook.core.templates.TemplateChanged;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -46,10 +52,21 @@ import org.springframework.transaction.support.TransactionTemplate;
  * The connections of an endpoint (ARCHITECTURE.md §6 connection-new step 4, endpoint-detail Connections): what adding
  * one would do ({@code preview}: modes, locks, warnings, refusals), adding and removing it. Also keeps the pairs in step
  * with templates: a new template's tools start with their defaults, tools a template gains later start Off, a tool that
- * starts changing data leaves Read only for Approval.
+ * starts changing data leaves Read only for Approval. An external MCP server's tools are its own: one whose definition
+ * changed leaves Read only and Bypass for Approval, and the row of one it stops listing stays for when it comes back
+ * (ARCHITECTURE.md §7.5).
  */
 @Service
-public class EndpointConnections {
+public class EndpointConnections implements SmartInitializingSingleton {
+
+  private static final Logger log = LoggerFactory.getLogger(EndpointConnections.class);
+
+  /**
+   * The most rows the tools of one external MCP server can have on an endpoint, those it no longer lists included.
+   * Beyond it a new tool gets no row, which is Off until a person sets a mode: the server chooses the names it lists,
+   * and what a person decided for a name is never removed to make room.
+   */
+  static final int MAX_SERVER_ROWS = 2_000;
 
   /** The mode a tool would get, and why it can't be another one. */
   public record PreviewTool(String toolKey, String tool, String mode, String locked, String declaredBy) {}
@@ -77,6 +94,7 @@ public class EndpointConnections {
   private final ObjectProvider<SetupChangeRecorder> setupChanges;
   private final ApplicationEventPublisher publisher;
   private final IntegrityAlerts alerts;
+  private final StartupFacts facts;
   private final Clock clock;
   private final TransactionTemplate writeTx;
 
@@ -85,7 +103,7 @@ public class EndpointConnections {
       Wiring wiring, ToolPairs pairs, ConnectionConfigs connections,
       ConnectorRegistry registry, EndpointSnapshotService snapshots, RiskAnalyzer risks,
       ObjectProvider<EndpointRemovalParticipant> participants, ObjectProvider<SetupChangeRecorder> setupChanges,
-      ApplicationEventPublisher publisher, IntegrityAlerts alerts, Clock clock,
+      ApplicationEventPublisher publisher, IntegrityAlerts alerts, StartupFacts facts, Clock clock,
       PlatformTransactionManager transactions) {
     this.endpoints = endpoints;
     this.wiringRows = wiringRows;
@@ -103,6 +121,7 @@ public class EndpointConnections {
     this.setupChanges = setupChanges;
     this.publisher = publisher;
     this.alerts = alerts;
+    this.facts = facts;
     this.clock = clock;
     this.writeTx = new TransactionTemplate(transactions);
   }
@@ -257,7 +276,8 @@ public class EndpointConnections {
           boolean sameView = m.config().id().equals(connectionId) || (m.usable() && sharesViews
               && m.config().type().equals(c.config().type()));
           if (sameView) {
-            changed |= reconcileOne(e, m.config(), offered.get(m.config().id()));
+            changed |= reconcileOne(e, m.config(), offered.get(m.config().id()),
+                m.manifest().kind() == ConnectorManifest.Kind.MCP_SERVER);
           }
         }
         Env env = wiring.deriveEnv(e.getId(), e.getEnv());
@@ -274,50 +294,159 @@ public class EndpointConnections {
     });
   }
 
-  private boolean reconcileOne(EndpointEntity e, ConnectionConfig c, List<ToolPairs.Offered> offeredHere) {
+  /**
+   * @param external whether the connection is an external MCP server: its tools keep their rows when it stops listing
+   *                 them, and what runs without a person only holds for the definition it was set for
+   */
+  private boolean reconcileOne(EndpointEntity e, ConnectionConfig c, List<ToolPairs.Offered> offeredHere,
+      boolean external) {
     Map<String, EndpointToolEntity> stored = new HashMap<>();
     for (EndpointToolEntity t : tools.findByEndpointIdAndConnectionId(e.getId(), c.id())) {
       stored.put(t.getToolKey(), t);
     }
     boolean readOnly = e.getAccess() == EndpointAccess.READ_ONLY;
     boolean changed = false;
-    java.util.Set<String> offeredKeys = new java.util.HashSet<>();
+    int rowCount = stored.size();
+    Set<String> offeredKeys = new HashSet<>();
     for (ToolPairs.Offered offered : offeredHere) {
       offeredKeys.add(offered.toolKey());
       EndpointToolEntity row = stored.get(offered.toolKey());
-      ToolDefinition d = offered.definition();
       if (row == null) {
+        if (external && rowCount >= MAX_SERVER_ROWS) {
+          continue;
+        }
         boolean freshTemplate = offered.template() != null && offered.template().version() == 1;
         Mode mode = freshTemplate || offered.automaticReadOnly()
             ? ToolPairs.initial(offered, e.getEnv(), readOnly) : Mode.OFF;
-        rows.save(new EndpointToolEntity(e, c.id(), offered.toolKey(), mode, clock.instant()));
+        EndpointToolEntity created = new EndpointToolEntity(e, c.id(), offered.toolKey(), mode, clock.instant());
+        created.setReviewedDefinition(ToolPairs.reviewedDefinition(offered), clock.instant());
+        rows.save(created);
+        rowCount++;
         changed = true;
-      } else if (row.getMode() == Mode.READ_ONLY && !d.readOnlyModeAllowed()) {
-        if (!rows.verify(row)) {
-          // Never signed again unchecked: the endpoint stays off until the person reviews it.
-          alerts.report("endpoint", e.getId(), e.getSlug(), "tool " + row.getToolKey());
-          continue;
-        }
-        // Approval where it can wait for a person; a read-only endpoint holds what changes data Off (as setMode and
-        // the snapshot do), and the row and the Setup change say what the endpoint really does.
-        Mode next = readOnly ? ToolPairs.clampReadOnly(d, Mode.APPROVAL) : Mode.APPROVAL;
-        row.setMode(next, clock.instant());
-        rows.save(row);
-        setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.MODE,
-            d.name() + " on " + c.name() + ", endpoint " + e.getSlug(), "Read only", ToolPairs.label(next),
-            d.name() + " now changes data" + (readOnly ? " and " + e.getSlug() + " is read only" : ""), e.getEnv(),
-            e.getSlug(), c.name(), null));
-        changed = true;
+      } else {
+        changed |= review(e, c, row, offered, readOnly);
       }
     }
-    for (EndpointToolEntity row : stored.values()) {
-      if (!offeredKeys.contains(row.getToolKey())) {
-        tools.delete(row);
-        changed = true;
+    if (!external) {
+      for (EndpointToolEntity row : stored.values()) {
+        if (!offeredKeys.contains(row.getToolKey())) {
+          tools.delete(row);
+          changed = true;
+        }
       }
     }
     tools.flush();
     return changed;
+  }
+
+  /**
+   * What a row keeps of its mode once its tool is offered as it is now. Read only goes when the tool now changes data.
+   * For an external MCP server's tool, Read only and Bypass go too when its definition isn't the one they were set for
+   * (the server changed it, or nothing is recorded), and so does a temporary bypass: the tool needs a person again,
+   * and the person can set the mode again for what it is now (ARCHITECTURE.md §7.5). What falls goes to Approval,
+   * or Off where the endpoint is read only and can't wait for a person (as {@code setMode} and the snapshot hold it);
+   * the row and the Setup change say what the endpoint really does.
+   *
+   * @return whether the row changed
+   */
+  private boolean review(EndpointEntity e, ConnectionConfig c, EndpointToolEntity row, ToolPairs.Offered offered,
+      boolean readOnly) {
+    ToolDefinition d = offered.definition();
+    Mode before = row.getMode();
+    boolean unattended = before == Mode.READ_ONLY || before == Mode.BYPASS;
+    boolean changesData = before == Mode.READ_ONLY && !d.readOnlyModeAllowed();
+    boolean redefined = (unattended || row.getTemporaryBypass() != null) && !ToolPairs.reviewed(row, offered);
+    boolean falls = changesData || redefined && unattended;
+    boolean dropsGrant = redefined && row.getTemporaryBypass() != null;
+    if (!falls && !dropsGrant) {
+      return false;
+    }
+    if (!rows.verify(row)) {
+      // Never signed again unchecked: the endpoint stays off until the person reviews it.
+      alerts.report("endpoint", e.getId(), e.getSlug(), "tool " + row.getToolKey());
+      return false;
+    }
+    Mode next = falls ? ToolPairs.demoted(d, readOnly) : before;
+    String grant = row.getTemporaryBypass() == null ? null
+        : "Temporary bypass until " + row.getTemporaryBypass().get("until");
+    if (next != before) {
+      row.setMode(next, clock.instant());
+    } else {
+      row.setTemporaryBypass(null, clock.instant());
+    }
+    rows.save(row);
+    String why = changesData
+        ? d.name() + " now changes data" + (readOnly ? " and " + e.getSlug() + " is read only" : "")
+        : "The definition of " + d.name() + " changed since its mode was set";
+    setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.MODE,
+        d.name() + " on " + c.name() + ", endpoint " + e.getSlug(), next == before ? grant : ToolPairs.label(before),
+        ToolPairs.label(next), why, e.getEnv(), e.getSlug(), c.name(), null));
+    return true;
+  }
+
+  // ── The upgrade that records definitions ────────────────────────────────────────────────────────────────────
+
+  /**
+   * The start that applies V89 records, for the tools of external MCP servers that already have a row, the
+   * definitions the endpoints publish for them now, so that the Read only and Bypass modes people set before it keep
+   * working until a server changes a definition. Rows written before V89 are trusted as they are (the same stance as
+   * {@code LegacyRowSigning}); it runs before any server starts, so nothing a server lists after the upgrade is
+   * recorded as reviewed. A start that can't verify the rows (the master key stays locked) records nothing, and those
+   * tools are in Approval until a person sets them again.
+   */
+  @Override
+  public void afterSingletonsInstantiated() {
+    if (facts.firstRun() || !facts.migratedNow("89")) {
+      return;
+    }
+    try {
+      recordReviewedDefinitions();
+    } catch (RuntimeException ex) {
+      log.warn("The definitions of external MCP server tools weren't recorded ({}): their Read only and Bypass modes "
+          + "stay in Approval until they are set again", ex.toString());
+    }
+  }
+
+  /** @return how many rows got the definition their tool has now */
+  int recordReviewedDefinitions() {
+    Integer recorded = writeTx.execute(s -> {
+      int count = 0;
+      for (EndpointEntity e : endpoints.findAll()) {
+        List<ToolPairs.Member> members = wiring.members(e.getId());
+        Map<String, List<ToolPairs.Offered>> offered = pairs.offered(members, e.getSlug(), e.getEnv());
+        int before = count;
+        for (ToolPairs.Member m : members) {
+          if (!m.usable() || m.manifest().kind() != ConnectorManifest.Kind.MCP_SERVER) {
+            continue;
+          }
+          Map<String, ToolPairs.Offered> byKey = new HashMap<>();
+          offered.get(m.config().id()).forEach(o -> byKey.put(o.toolKey(), o));
+          for (EndpointToolEntity row : tools.findByEndpointIdAndConnectionId(e.getId(), m.config().id())) {
+            ToolPairs.Offered o = byKey.get(row.getToolKey());
+            if (o == null || row.getReviewedDefinition() != null || !rows.verify(row)) {
+              continue;
+            }
+            row.setReviewedDefinition(ToolPairs.reviewedDefinition(o), clock.instant());
+            rows.save(row);
+            count++;
+          }
+        }
+        if (count > before) {
+          publisher.publishEvent(new EndpointChanged(e.getId(), e.getSlug()));
+        }
+      }
+      if (count > 0) {
+        setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.SETTINGS,
+            "Rows from an older version", "no definition recorded", "recorded for " + count
+                + (count == 1 ? " MCP server tool" : " MCP server tools"), "GateRook records the definitions "
+                + "external MCP servers publish for the tools that already had a mode, once, when it upgrades the "
+                + "database. From now on a tool whose definition changes goes back to Approval.", null, null, null,
+            null));
+        log.info("Recorded the definitions of {} MCP server tools as reviewed", count);
+      }
+      return count;
+    });
+    return recorded == null ? 0 : recorded;
   }
 
   // ── Internals ───────────────────────────────────────────────────────────────────────────────────────────────

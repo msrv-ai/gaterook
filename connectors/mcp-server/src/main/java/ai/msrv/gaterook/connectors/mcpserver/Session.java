@@ -448,11 +448,15 @@ final class Session {
     return tools;
   }
 
-  /** What a list of tools declares, as one hash of their definition hashes in order. */
+  /** What a list of tools declares, as one hash of their definition hashes and apps in order. */
   static String listHash(List<ObjectNode> tools) {
     StringBuilder out = new StringBuilder();
     for (ObjectNode t : tools) {
       out.append(Snapshots.definitionHash(t)).append(',');
+      ObjectNode app = Snapshots.appOf(t);
+      if (app != null) {
+        out.append(app).append(',');
+      }
     }
     return Texts.sha256(out.toString());
   }
