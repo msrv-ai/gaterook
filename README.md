@@ -4,14 +4,14 @@
 
 GateRook is a desktop **MCP Firewall** for AI access to production infrastructure. Protect connected databases, logs, APIs, cloud services, and external MCP servers with encrypted credentials, scoped tool permissions, exact-action approvals, and append-only, tamper-evident audit logs. You control which services AI apps can reach and how their actions run through GateRook.
 
-[![Download for macOS (Apple Silicon)](https://img.shields.io/badge/Download_for_macOS-Apple_Silicon-6C56EE?style=for-the-badge)](https://github.com/msrv-ai/gaterook/releases/latest)
+[![Download for macOS (Apple Silicon)](https://img.shields.io/badge/Download_for_macOS-Apple_Silicon-6C56EE?style=for-the-badge)](https://github.com/gaterook/gaterook/releases/latest)
 [![Get GateRook for Windows from Microsoft Store](https://img.shields.io/badge/Windows-Microsoft_Store-6C56EE?style=for-the-badge)](https://apps.microsoft.com/detail/9ncv7wxz9wsv)
 
 For macOS, download the `.dmg` installer from the latest release. Windows installs and updates through Microsoft Store.
 
 Cloudflare Tunnel support and Java support for plugins download on first use. They are verified and cached locally for later use without another download. First use needs internet access; built-in connectors do not need these downloads. See [optional components and offline use](docs/development.md#optional-components-and-offline-use).
 
-[Website](https://gaterook.com) · [Support](mailto:support@gaterook.com) · [Security model](docs/security.md) · [Issues](https://github.com/msrv-ai/gaterook/issues) · [Architecture](docs/ARCHITECTURE.md) · [Research](docs/research/README.md)
+[Website](https://gaterook.com) · [Support](mailto:support@gaterook.com) · [Security model](docs/security.md) · [Issues](https://github.com/gaterook/gaterook/issues) · [Architecture](docs/ARCHITECTURE.md) · [Research](docs/research/README.md)
 
 Watch how GateRook connects AI to your infrastructure while keeping you in control.
 
@@ -115,7 +115,7 @@ Install **JDK 25**, **Maven 3.9 or newer**, and **Node.js 24.22.1** (pinned in `
 The native unlock helper also needs **Xcode Command Line Tools with Swift** on macOS, or **Visual Studio C++ build tools and the Windows 11 SDK** on Windows. On Windows, run builds from a Developer Command Prompt matching your Node.js architecture. Linux needs no additional unlock compiler.
 
 ```bash
-git clone https://github.com/msrv-ai/gaterook.git
+git clone https://github.com/gaterook/gaterook.git
 cd gaterook
 # If you use nvm: nvm install && nvm use
 npm ci
