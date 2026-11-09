@@ -25,6 +25,24 @@ export interface ImportStoreProposal {
 
 export type ImportStoreConnect = (Omit<SecretStoreCreate, 'kind'> & { readonly preparedFields?: readonly string[] }) | { readonly existingStore: string };
 
+/** One setting of a candidate that is not the connector's default, as the review card shows it. */
+export interface ImportSetting {
+  /** The setting's place in the config, `connection.host` or `replicas[0].host`. */
+  readonly path: string;
+  /** Its value as one line, shortened from the end so that a URL keeps its host. Never a credential. */
+  readonly value: string;
+  /** It says where credentials go (a host or a URL), so the core lists it first. */
+  readonly target: boolean;
+}
+
+/** What a candidate would save, in the core's words: where it connects and the settings that are not defaults. */
+export interface ImportSummary {
+  readonly target: string | null;
+  readonly settings: readonly ImportSetting[];
+  /** Settings the list leaves out to stay short. */
+  readonly omitted: number;
+}
+
 export interface ImportCandidate {
   readonly id: string;
   readonly name: string;
@@ -36,6 +54,8 @@ export interface ImportCandidate {
   readonly warnings: readonly string[];
   readonly supported: boolean;
   readonly unsupportedReason: string | null;
+  /** What the proposal would save; absent for a candidate the import cannot create. */
+  readonly summary?: ImportSummary | null;
   /** Sources staged by the core. Credential values are never returned to the renderer. */
   readonly secretSources?: readonly { readonly field: string; readonly source: 'local' | 'file' | 'reference' | 'vault-dynamic'; readonly path?: string; readonly reference?: string; readonly jsonPointer?: string; readonly store?: string }[];
 }
@@ -115,6 +135,11 @@ export class ConnectionImportsApi {
 
   connectStore(id: string, proposal: string, request: ImportStoreConnect): Promise<SecretStore> {
     return this.api.post(ApiClient.path`/api/connection-imports/${id}/stores/${proposal}/connect`, request);
+  }
+
+  /** The card's words for a draft the person changed: the core summarizes the exact config a commit would save. */
+  summary(id: string, candidateId: string, env: Env, config: JsonObject): Promise<ImportSummary> {
+    return this.api.post(ApiClient.path`/api/connection-imports/${id}/summary`, { candidateId, env, config });
   }
 
   commit(id: string, selections: readonly ImportSelection[], reason?: string): Promise<ConnectionImportResult> {

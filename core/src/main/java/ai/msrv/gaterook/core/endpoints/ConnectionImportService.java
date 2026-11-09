@@ -345,6 +345,31 @@ public class ConnectionImportService {
     }
   }
 
+  /**
+   * What the review card says about a draft the person changed in the editor: the words it used for the proposal, for
+   * the exact config a commit would save. Reads nothing and changes nothing.
+   */
+  public ObjectNode summarize(String id, String candidateId, String env, JsonNode config) {
+    Pending pending = pending(id);
+    synchronized (pending) {
+      requireActive(pending);
+      if (!"review".equals(pending.status)) {
+        throw ProblemException.conflict("Import not ready", "Submit discovery results and review them first.");
+      }
+      JsonNode candidate = null;
+      for (JsonNode known : pending.manifest.path("connections")) {
+        if (known.path("id").asString().equals(candidateId)) candidate = known;
+      }
+      if (candidate == null || !candidate.path("supported").asBoolean(false)) {
+        throw invalid("Choose a candidate from this import.", "/candidateId");
+      }
+      if (config == null || !config.isObject()) throw invalid("Provide the candidate's config object.", "/config");
+      ConnectorManifest connector = registry.manifest(candidate.path("type").asString())
+          .orElseThrow(() -> invalid("Unknown connector type.", "/candidateId"));
+      return ConnectionImportSummary.of(config, connector.configSchema(), env(env));
+    }
+  }
+
   private void show(Pending pending) {
     if (pending.lastOpened.plusSeconds(3).isAfter(clock.instant())) return;
     pending.lastOpened = clock.instant();
@@ -789,7 +814,7 @@ public class ConnectionImportService {
       if (!ConnectionService.NAME.matcher(name).matches()) throw invalid("Use lowercase connection names with hyphens.", "/manifest/connections");
       String type = text(candidate.path("type"), 48);
       if (!type.matches("[a-z][a-z0-9-]{0,47}")) throw invalid("Invalid connector type identifier.", "/manifest/connections");
-      env(text(candidate.path("env"), 5));
+      Env candidateEnv = env(text(candidate.path("env"), 5));
       JsonNode config = candidate.path("config");
       if (!config.isObject()) throw invalid("Each candidate needs a config object.", "/manifest/connections");
       ConnectorManifest connector = registry.manifest(type).orElse(null);
@@ -809,7 +834,11 @@ public class ConnectionImportService {
       if (!supported(type)) {
         entry.put("unsupportedReason", unsupportedReason(type));
         warnings.add(unsupportedReason(type));
-      } else entry.putNull("unsupportedReason");
+      } else {
+        entry.putNull("unsupportedReason");
+        // The review shows where the candidate connects and its non-default settings on its card, not behind a click.
+        if (connector != null) entry.set("summary", ConnectionImportSummary.of(config, connector.configSchema(), candidateEnv));
+      }
       out.add(entry);
     }
     return normalized;
@@ -924,7 +953,7 @@ public class ConnectionImportService {
   private static final java.util.regex.Pattern STORE_REFERENCE = java.util.regex.Pattern.compile(
       "\\s*(?:vault|gcp-sm|aws-sm)://", java.util.regex.Pattern.CASE_INSENSITIVE);
 
-  private static List<JsonNode> propertySchemas(JsonNode schema, JsonNode root, String key, Set<String> refs, int depth) {
+  static List<JsonNode> propertySchemas(JsonNode schema, JsonNode root, String key, Set<String> refs, int depth) {
     List<JsonNode> out = new ArrayList<>();
     if (depth > 24) return out;
     JsonNode direct = schema.path("properties").get(key);
@@ -933,7 +962,7 @@ public class ConnectionImportService {
     return out;
   }
 
-  private static List<JsonNode> itemSchemas(JsonNode schema, JsonNode root, Set<String> refs, int depth) {
+  static List<JsonNode> itemSchemas(JsonNode schema, JsonNode root, Set<String> refs, int depth) {
     List<JsonNode> out = new ArrayList<>();
     if (depth > 24) return out;
     if (schema.path("items").isObject()) out.add(schema.path("items"));

@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.core.connections;
 
 import ai.msrv.gaterook.connector.api.Env;
+import ai.msrv.gaterook.core.connections.internal.ConnectionTargets;
 import ai.msrv.gaterook.core.connections.internal.PersonOnlyFields;
 import ai.msrv.gaterook.core.connections.internal.SchemaPointers;
 import ai.msrv.gaterook.core.connections.internal.SecretFields;
@@ -36,6 +37,27 @@ public final class ConnectionForms {
     List<String> passwords = SecretFields.templates(configSchema);
     return SecretFields.loginUserTemplates(configSchema).stream()
         .map(pointer -> new LoginUserReference(pointer, SecretFields.loginSecretsOf(passwords, pointer))).toList();
+  }
+
+  /**
+   * Where a config sends its credentials, in the list's words ({@code db.dev.internal:5432/app}, the form's default
+   * port included): never user info, a query or a fragment. Empty when the config names no target.
+   */
+  public static String targetOf(JsonNode config, JsonNode configSchema) {
+    return config == null ? "" : ConnectionTargets.display(config, configSchema, null);
+  }
+
+  /** Whether a property of this name says where the connection sends its credentials ({@code host}, {@code url}). */
+  public static boolean isTargetKey(String key) {
+    return ConnectionTargets.isTargetKey(key);
+  }
+
+  /**
+   * Text of a config as one short line: invisible and confusable characters as visible escapes, line breaks as a space,
+   * at most {@code max} characters (the last one "…"). {@code null} when nothing is left.
+   */
+  public static String oneLine(String text, int max) {
+    return ConnectionTargets.oneLine(text, max);
   }
 
   /**

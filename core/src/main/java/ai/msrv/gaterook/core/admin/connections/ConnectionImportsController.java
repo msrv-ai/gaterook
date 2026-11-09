@@ -31,6 +31,7 @@ class ConnectionImportsController {
   record Selection(String candidateId, String name, String env, JsonNode config,
       Map<String, ConnectionsController.SecretSource> secrets, String confirm, Boolean allowIncomplete, String endpoint) {}
   record Commit(String endpoint, List<Selection> selections, String reason) {}
+  record SummaryRequest(String candidateId, String env, JsonNode config) {}
 
   private final ConnectionImportService imports;
 
@@ -51,6 +52,12 @@ class ConnectionImportsController {
   ResponseEntity<Void> cancel(@PathVariable String id) {
     imports.cancel(id);
     return ResponseEntity.noContent().build();
+  }
+
+  /** The card's words for a draft the person changed: its target and non-default settings, from the config as it stands. */
+  @PostMapping("/api/connection-imports/{id}/summary")
+  JsonNode summary(@PathVariable String id, @RequestBody SummaryRequest request) {
+    return imports.summarize(id, request.candidateId(), request.env(), request.config());
   }
 
   @PostMapping("/api/connection-imports/{id}/commit")
