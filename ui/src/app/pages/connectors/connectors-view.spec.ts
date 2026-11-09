@@ -17,11 +17,14 @@ import {
   mcpServerView,
   npmPackage,
   onEndpointsText,
+  onThisComputer,
   pluginUpdate,
   processStatus,
   serverActivityQuery,
   serverPaths,
   serverStatus,
+  signInHost,
+  signInText,
   templateEndpoints,
   templateModes,
   templateSignature,
@@ -290,6 +293,25 @@ describe('connectors view: Templates', () => {
 });
 
 describe('connectors view: MCP servers', () => {
+  it('names the host of a sign-in only when it is a name, never an IP address or localhost', () => {
+    expect(signInHost('mcp.sentry.dev')).toBe('mcp.sentry.dev');
+    expect(signInHost('mcp.example.com:8443')).toBe('mcp.example.com');
+    for (const host of ['127.0.0.1', '127.0.0.1:7781', 'localhost', 'auth.localhost', '10.1.2.3', '[::1]', '[::1]:7781', '::1', 'fe80::1', ' ', null, undefined]) {
+      expect(signInHost(host), String(host)).toBeNull();
+    }
+    expect(['127.0.0.1', '127.1.2.3:7781', 'localhost', 'Auth.LOCALHOST', '[::1]:7781', '::1'].map(onThisComputer)).toEqual([true, true, true, true, true, true]);
+    expect(['10.1.2.3', 'mcp.sentry.dev', 'localhost.example.com', '', null].map(onThisComputer)).toEqual([false, false, false, false, false]);
+    // The row of a server says where it is signed in only by a name.
+    const signedIn = (issuer: string) => signInText(mcpServerView(
+      connection('tracker-mcp', 'mcp-server'),
+      detail('tracker-mcp', { transport: 'http', url: 'http://127.0.0.1:7781/mcp', auth: { type: 'oauth' } }),
+      null, null, null, null,
+      { server: 'tracker-mcp', state: 'signed-in', issuer },
+    ));
+    expect(signedIn('https://mcp.sentry.dev')).toEqual({ tone: 'success', text: 'Signed in at mcp.sentry.dev' });
+    expect(signedIn('http://127.0.0.1:7781')).toEqual({ tone: 'success', text: 'Signed in' });
+  });
+
   it('splits a command line at whitespace with quotes, never as a shell', () => {
     expect(tokenizeCommand('npx -y @sentry/mcp-server@0.12.0').argv).toEqual(['npx', '-y', '@sentry/mcp-server@0.12.0']);
     expect(tokenizeCommand(`node "/Users/me/My Tools/index.js" --flag='a b' ""`).argv).toEqual(['node', '/Users/me/My Tools/index.js', '--flag=a b', '']);

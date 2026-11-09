@@ -142,7 +142,8 @@ class EndpointsController {
 
   record Removed(List<String> stoppedTools) {}
 
-  record Deleted(List<String> clients, List<String> tokensRevoked, int rejectedApprovals) {}
+  /** {@code clients}: the clients disconnected, by name; {@code notes}: what is left to do in them. */
+  record Deleted(List<String> clients, List<String> tokensRevoked, int rejectedApprovals, List<String> notes) {}
 
   record SplitPreview(String newSlug, EndpointDtos.Risk before, EndpointDtos.Risk remaining, EndpointDtos.Risk moved,
       List<String> movedTools) {}
@@ -242,7 +243,7 @@ class EndpointsController {
   Deleted delete(@PathVariable String slug, @RequestBody(required = false) Delete request) {
     EndpointService.DeleteSummary d = endpoints.delete(slug, request == null ? null : request.confirmSlug(),
         request == null ? null : Reasons.check(request.reason()));
-    return new Deleted(d.clients(), d.tokensRevoked(), d.rejectedApprovals());
+    return new Deleted(d.clients(), d.tokensRevoked(), d.rejectedApprovals(), d.notes());
   }
 
   @PostMapping("/api/endpoints/{slug}/confirm-integrity")

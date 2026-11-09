@@ -38,6 +38,16 @@ export interface EndpointSummary {
   readonly version: number;
 }
 
+/** What `DELETE /api/endpoints/{slug}` did (admin.endpoints.EndpointsController.Deleted). */
+export interface EndpointDeleted {
+  /** The AI apps disconnected, by name: their entries left their configs and their access ended. */
+  readonly clients: string[];
+  readonly tokensRevoked: string[];
+  readonly rejectedApprovals: number;
+  /** What is left for the person in an AI app ("Remove the extension … in Claude Desktop: Settings › Extensions."). */
+  readonly notes: string[];
+}
+
 export interface WiredConnection {
   readonly enabled?: boolean;
   readonly name: string;
@@ -191,7 +201,7 @@ export class EndpointsApi {
     return this.api.post(ApiClient.path`/api/endpoints/${slug}/enable`, body);
   }
 
-  delete(slug: string, confirmSlug: string, reason?: string | null): Promise<{ readonly clients: string[]; readonly tokensRevoked: string[]; readonly rejectedApprovals: number }> {
+  delete(slug: string, confirmSlug: string, reason?: string | null): Promise<EndpointDeleted> {
     return this.api.delete(ApiClient.path`/api/endpoints/${slug}`, { confirmSlug, reason });
   }
 

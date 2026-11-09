@@ -38,7 +38,7 @@ class DynamicLoginValidationTest {
           """)).build();
   private final SecretService secrets = mock(SecretService.class);
   private final ConnectionService service = new ConnectionService(null, null, null, null, secrets,
-      new SchemaValidator(), new Masker(), null, null, null, null, null, null, Clock.systemUTC(),
+      new SchemaValidator(), new Masker(), null, null, null, null, null, null, null, null, Clock.systemUTC(),
       mock(PlatformTransactionManager.class));
 
   @Test

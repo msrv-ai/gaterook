@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, ElementRef, inject, input, output, signal } from '@angular/core';
 import { McpServersApi, McpSignIn } from '../../../core/api/plugins.api';
 import { DesktopBridge } from '../../../core/desktop/desktop-bridge';
 import { EventStream } from '../../../core/events/event-stream';
@@ -7,6 +7,7 @@ import { COPY_FAILED, ClipboardWriter } from '../../../kit/clipboard';
 import { GwCopy } from '../../../kit/copy';
 import { GwToggle } from '../../../kit/disclosure';
 import { GwIcon } from '../../../kit/icons';
+import { signInHost } from '../connectors-view';
 import { failureText } from './failure';
 
 /** How often a waiting sign-in is looked at besides its events (a stream that reconnects may miss one). */
@@ -22,6 +23,11 @@ let nextId = 0;
  * address the browser ended on when the redirect can't reach this computer. It ends signed in (`signedIn`), failed or
  * expired, with Try again.
  *
+ * The `hero` layout is the review's call to sign in, where the sign-in also connects the new `server`: kit `gw-empty
+ * --compact` in a `gw-card --muted`, with a tile, what happens, and one large Sign in button, the dialog's primary
+ * action unless the sign-in is `optional`. Waiting and signed in keep that place, with the tile as the state
+ * (spinner, check); a failure is an alert above it, and the large button tries again.
+ *
  * A device sign-in (GateRook's own app at a provider such as GitHub, §7.6) shows its one-time code instead: Copy code
  * and open copies it and opens the provider's page, where the person enters it and allows access; the core finishes
  * by itself. Nothing comes back to this computer, so there is no address to paste, and the page may be opened on any
@@ -34,13 +40,76 @@ let nextId = 0;
   host: { class: 'gw-stack gw-stack--sm' },
   template: `
     @let s = signIn();
-    @if (!s || s.state === 'cancelled') {
-      <div><button class="gw-btn" type="button" [id]="uid + '-start'" [attr.autofocus]="autofocus() ? '' : null" (click)="begin()" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() || blocked() ? 'true' : null" [attr.aria-describedby]="uid + '-hint'">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="log-in" class="gw-icon"></svg>} Sign in{{ host() ? ' with ' + host() : '' }}</button></div>
+    @if (hero()) {
+      @if (error()) {
+        <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+          <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__title">The sign-in didn’t start</p><p class="gw-alert__body">{{ error() }}</p></div>
+        </div>
+      } @else if (s?.state === 'failed' || s?.state === 'expired') {
+        <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+          <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__title">{{ s?.state === 'expired' ? 'The sign-in expired' : 'The sign-in didn’t finish' }}</p><p class="gw-alert__body">{{ s?.message }}</p></div>
+        </div>
+      }
+      <div class="gw-card gw-card--muted">
+        <div class="gw-empty gw-empty--compact">
+          @if (s?.state === 'waiting' && s?.userCode) {
+            <span class="gw-empty__icon gw-icon-tile--brand"><span class="gw-spinner" aria-hidden="true"></span></span>
+            <h3 class="gw-empty__title">Enter this code{{ at(s?.authorizationHost) }}</h3>
+            <div class="gw-copy-field">
+              <label class="gw-sr-only" [for]="uid + '-code'">One-time code</label>
+              <input class="gw-copy-field__value" [id]="uid + '-code'" type="text" readonly [value]="s?.userCode" [attr.aria-describedby]="uid + '-code-hint'">
+              <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" [gwCopyFrom]="'#' + uid + '-code'">
+                <span class="gw-copy-field__copy"><svg lucideIcon="copy" class="gw-icon gw-icon--sm"></svg> Copy<span class="gw-sr-only"> code</span></span>
+                <span class="gw-copy-field__copied"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Copied</span>
+              </button>
+            </div>
+            <p class="gw-empty__text" role="status" [id]="uid + '-code-hint'">Waiting for you to enter it{{ at(s?.authorizationHost) }} and allow access. GateRook connects the server as soon as you have. The code works once.</p>
+            <div class="gw-empty__actions">
+              @if (desktop.opensSignIns) {
+                <button class="gw-btn gw-btn--primary" type="button" [id]="uid + '-open'" (click)="copyAndOpen()"><svg lucideIcon="external-link" class="gw-icon"></svg> Copy code and open {{ pageName(s?.authorizationHost) }}</button>
+              }
+              <button class="gw-btn gw-btn--ghost" type="button" (click)="cancel()">Cancel sign-in</button>
+            </div>
+          } @else if (s?.state === 'waiting') {
+            <span class="gw-empty__icon gw-icon-tile--brand"><span class="gw-spinner" aria-hidden="true"></span></span>
+            <h3 class="gw-empty__title">Allow access in your browser</h3>
+            <p class="gw-empty__text" role="status">Waiting for you to sign in{{ at(s?.authorizationHost) }}. GateRook connects the server as soon as the browser comes back.</p>
+            <div class="gw-empty__actions">
+              @if (desktop.opensSignIns) {
+                <button class="gw-btn" type="button" (click)="open()"><svg lucideIcon="external-link" class="gw-icon"></svg> Open the sign-in page again</button>
+              }
+              <button class="gw-btn gw-btn--ghost" type="button" (click)="cancel()">Cancel sign-in</button>
+            </div>
+          } @else if (s?.state === 'signed-in') {
+            <span class="gw-empty__icon gw-icon-tile--success"><svg lucideIcon="circle-check" class="gw-icon"></svg></span>
+            <h3 class="gw-empty__title">Signed in{{ at(s?.authorizationHost) }}</h3>
+            @if (connecting()) {
+              <span class="gw-status gw-status--checking" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Connecting <span class="gw-mono">{{ server() }}</span></span></span>
+            } @else if (s?.scope) {
+              <p class="gw-empty__text">Permissions asked for: <span class="gw-mono">{{ s?.scope }}</span></p>
+            }
+          } @else {
+            <span class="gw-empty__icon" [class.gw-icon-tile--brand]="!optional()"><svg lucideIcon="key-round" class="gw-icon"></svg></span>
+            <h3 class="gw-empty__title">{{ optional() ? 'Sign in to' : 'Sign in to connect' }} <span class="gw-mono">{{ server() }}</span></h3>
+            <p class="gw-empty__text">@if (optional()) {It also answers without a sign-in, with less access.} @else {<span class="gw-mono">{{ server() }}</span> answers only with your sign-in.} {{ device() ? 'You sign in with a one-time code' + at(host()) + ', in a browser on any device. GateRook gets the sign-in, not the AI app.' : 'You sign in as you would in Claude Desktop, Cursor or Codex, but the browser hands it to GateRook, not to the AI app.' }}</p>
+            <div class="gw-empty__actions">
+              <button class="gw-btn gw-btn--lg" [class.gw-btn--primary]="!optional()" type="button" [id]="uid + '-start'" (click)="begin()" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() || blocked() ? 'true' : null" [attr.aria-describedby]="uid + '-hint'">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="log-in" class="gw-icon"></svg>} Sign in{{ named() ? ' with ' + named() : '' }}</button>
+            </div>
+            <p class="gw-text-caption gw-fg-muted" [id]="uid + '-hint'">{{ blocked() || (optional()
+              ? 'GateRook connects it as soon as you allow access. To connect without a sign-in, confirm below.'
+              : 'GateRook connects it as soon as you allow access.') }}</p>
+          }
+        </div>
+      </div>
+    } @else if (!s || s.state === 'cancelled') {
+      <div><button class="gw-btn" type="button" [id]="uid + '-start'" [attr.autofocus]="autofocus() ? '' : null" (click)="begin()" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() || blocked() ? 'true' : null" [attr.aria-describedby]="uid + '-hint'">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="log-in" class="gw-icon"></svg>} Sign in{{ named() ? ' with ' + named() : '' }}</button></div>
       <p class="gw-field__hint" [id]="uid + '-hint'">{{ blocked() || (device()
-        ? 'Shows a one-time code to enter on ' + (host() || 'the provider') + ', in a browser on any device. Nothing to set up. GateRook keeps the sign-in encrypted and renews it; the agent never sees it.'
+        ? 'Shows a one-time code to enter' + at(host()) + ', in a browser on any device. GateRook keeps the sign-in encrypted and renews it; the agent never sees it.'
         : 'Opens your browser. After you allow access there, the browser comes back to GateRook on this computer. GateRook keeps the sign-in encrypted and renews it; the agent never sees it.') }}</p>
     } @else if (s.state === 'waiting' && s.userCode) {
-      <span class="gw-status gw-status--checking" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Waiting for you to enter the code{{ s.authorizationHost ? ' at ' + s.authorizationHost : '' }}</span></span>
+      <span class="gw-status gw-status--checking" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Waiting for you to enter the code{{ at(s.authorizationHost) }}</span></span>
       <div class="gw-field">
         <label class="gw-field__label" [for]="uid + '-code'">One-time code</label>
         <div class="gw-copy-field">
@@ -50,31 +119,42 @@ let nextId = 0;
             <span class="gw-copy-field__copied"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Copied</span>
           </button>
         </div>
-        <p class="gw-field__hint" [id]="uid + '-code-hint'">Enter it on {{ s.authorizationHost || 'the provider' }}’s page and allow access there. GateRook finishes the sign-in by itself. The code works once and expires in a few minutes.</p>
+        <p class="gw-field__hint" [id]="uid + '-code-hint'">Enter it{{ at(s.authorizationHost) }} and allow access there. GateRook finishes the sign-in by itself. The code works once and expires in a few minutes.</p>
       </div>
-      @if (!desktop.opensSignIns && s.authorizationUrl) {
-        <div class="gw-field">
-          <label class="gw-field__label" [for]="uid + '-page'">Page to enter the code on</label>
-          <div class="gw-copy-field">
-            <input class="gw-copy-field__value" [id]="uid + '-page'" type="text" readonly [value]="s.authorizationUrl" [attr.aria-describedby]="uid + '-page-hint'">
-            <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" [gwCopyFrom]="'#' + uid + '-page'">
-              <span class="gw-copy-field__copy"><svg lucideIcon="copy" class="gw-icon gw-icon--sm"></svg> Copy<span class="gw-sr-only"> page address</span></span>
-              <span class="gw-copy-field__copied"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Copied</span>
-            </button>
-          </div>
-          <p class="gw-field__hint" [id]="uid + '-page-hint'">Open it in a browser on any device.</p>
-        </div>
-      }
       <div class="gw-toolbar">
         <div class="gw-toolbar__start">
           @if (desktop.opensSignIns) {
-            <button class="gw-btn gw-btn--sm" type="button" [id]="uid + '-open'" (click)="copyAndOpen()"><svg lucideIcon="external-link" class="gw-icon gw-icon--sm"></svg> Copy code and open {{ s.authorizationHost || 'the page' }}</button>
+            <button class="gw-btn gw-btn--sm" type="button" [id]="uid + '-open'" (click)="copyAndOpen()"><svg lucideIcon="external-link" class="gw-icon gw-icon--sm"></svg> Copy code and open {{ pageName(s.authorizationHost) }}</button>
           }
           <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" (click)="cancel()">Cancel sign-in</button>
         </div>
       </div>
     } @else if (s.state === 'waiting') {
-      <span class="gw-status gw-status--checking" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Waiting for you to sign in{{ s.authorizationHost ? ' at ' + s.authorizationHost : '' }} in your browser</span></span>
+      <span class="gw-status gw-status--checking" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Waiting for you to sign in{{ at(s.authorizationHost) }} in your browser</span></span>
+    } @else if (s.state === 'signed-in') {
+      <span class="gw-status gw-status--success" role="status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Signed in{{ at(s.authorizationHost) }}</span></span>
+      @if (s.scope) {<p class="gw-field__hint">Permissions asked for: <span class="gw-mono">{{ s.scope }}</span></p>}
+    } @else {
+      <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+        <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content"><p class="gw-alert__title">{{ s.state === 'expired' ? 'The sign-in expired' : 'The sign-in didn’t finish' }}</p><p class="gw-alert__body">{{ s.message }}</p></div>
+        <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="begin()">Try again<span class="gw-sr-only"> to sign in</span></button></div>
+      </div>
+    }
+    @if (s?.state === 'waiting' && s.userCode && !desktop.opensSignIns && s.authorizationUrl) {
+      <div class="gw-field">
+        <label class="gw-field__label" [for]="uid + '-page'">Page to enter the code on</label>
+        <div class="gw-copy-field">
+          <input class="gw-copy-field__value" [id]="uid + '-page'" type="text" readonly [value]="s.authorizationUrl" [attr.aria-describedby]="uid + '-page-hint'">
+          <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" [gwCopyFrom]="'#' + uid + '-page'">
+            <span class="gw-copy-field__copy"><svg lucideIcon="copy" class="gw-icon gw-icon--sm"></svg> Copy<span class="gw-sr-only"> page address</span></span>
+            <span class="gw-copy-field__copied"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Copied</span>
+          </button>
+        </div>
+        <p class="gw-field__hint" [id]="uid + '-page-hint'">Open it in a browser on any device.</p>
+      </div>
+    }
+    @if (s?.state === 'waiting' && !s.userCode) {
       @if (!desktop.opensSignIns && s.authorizationUrl) {
         <div class="gw-field">
           <label class="gw-field__label" [for]="uid + '-page'">Sign-in page</label>
@@ -90,10 +170,12 @@ let nextId = 0;
       }
       <div class="gw-toolbar">
         <div class="gw-toolbar__start">
-          @if (desktop.opensSignIns) {
-            <button class="gw-btn gw-btn--sm" type="button" (click)="open()"><svg lucideIcon="external-link" class="gw-icon gw-icon--sm"></svg> Open the sign-in page again</button>
+          @if (!hero()) {
+            @if (desktop.opensSignIns) {
+              <button class="gw-btn gw-btn--sm" type="button" (click)="open()"><svg lucideIcon="external-link" class="gw-icon gw-icon--sm"></svg> Open the sign-in page again</button>
+            }
+            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" (click)="cancel()">Cancel sign-in</button>
           }
-          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" (click)="cancel()">Cancel sign-in</button>
           <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [attr.aria-controls]="uid + '-paste'">The browser can’t reach GateRook? <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
         </div>
       </div>
@@ -106,17 +188,8 @@ let nextId = 0;
         </div>
         <div><button class="gw-btn gw-btn--sm" type="button" (click)="paste()" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() ? 'true' : null">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Finish sign-in</button></div>
       </div>
-    } @else if (s.state === 'signed-in') {
-      <span class="gw-status gw-status--success" role="status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Signed in{{ s.authorizationHost ? ' at ' + s.authorizationHost : '' }}</span></span>
-      @if (s.scope) {<p class="gw-field__hint">Permissions asked for: <span class="gw-mono">{{ s.scope }}</span></p>}
-    } @else {
-      <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
-        <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
-        <div class="gw-alert__content"><p class="gw-alert__title">{{ s.state === 'expired' ? 'The sign-in expired' : 'The sign-in didn’t finish' }}</p><p class="gw-alert__body">{{ s.message }}</p></div>
-        <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="begin()">Try again<span class="gw-sr-only"> to sign in</span></button></div>
-      </div>
     }
-    @if (error()) {
+    @if (error() && !hero()) {
       <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
         <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
         <div class="gw-alert__content"><p class="gw-alert__title">The sign-in didn’t start</p><p class="gw-alert__body">{{ error() }}</p></div>
@@ -134,7 +207,7 @@ export class GwMcpSignIn {
 
   /** Starts the sign-in at the core: a draft's (`POST /api/mcp-sign-ins`) or a stored server's. */
   readonly start = input.required<() => Promise<McpSignIn>>();
-  /** The host of the sign-in page, for the button ("Sign in with mcp.linear.app"). */
+  /** The host of the sign-in page, for the button ("Sign in with mcp.linear.app"); an IP address or localhost isn't named. */
   readonly host = input<string | null>(null);
   /** Why Sign in can't start yet (a client ID is missing), or null. */
   readonly blocked = input<string | null>(null);
@@ -142,9 +215,19 @@ export class GwMcpSignIn {
   readonly device = input(false);
   /** Sign in is the dialog's initial focus (the dialog of a stored server). */
   readonly autofocus = input(false);
+  /** The review's layout: a centred call to sign in, whose sign-in also connects the new server. */
+  readonly hero = input(false);
+  /** The name of the server the hero connects. */
+  readonly server = input('');
+  /** The server also answers without a sign-in: the hero's button isn't the dialog's primary action. */
+  readonly optional = input(false);
+  /** The server is connecting with the finished sign-in: the hero says so under Signed in. */
+  readonly connecting = input(false);
   readonly signedIn = output<McpSignIn>();
 
   protected readonly uid = `msi-${++nextId}`;
+  /** The host Sign in names, or null: "Sign in with 127.0.0.1" names nothing to the person. */
+  protected readonly named = computed(() => signInHost(this.host()));
   readonly signIn = signal<McpSignIn | null>(null);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -162,6 +245,17 @@ export class GwMcpSignIn {
       this.stopPolling();
       this.abandon();
     });
+  }
+
+  /** " at mcp.linear.app" for the words of a sign-in, or nothing for an IP address or localhost. */
+  protected at(host: string | null | undefined): string {
+    const named = signInHost(host);
+    return named ? ` at ${named}` : '';
+  }
+
+  /** The page a device sign-in opens, by its host ("github.com"), or "the page" for an IP address or localhost. */
+  protected pageName(host: string | null | undefined): string {
+    return signInHost(host) ?? 'the page';
   }
 
   /** Forgets the sign-in (a new review, a closed dialog): the core forgets it too. */

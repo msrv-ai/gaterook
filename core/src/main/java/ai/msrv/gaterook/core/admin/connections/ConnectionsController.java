@@ -86,8 +86,12 @@ class ConnectionsController {
   record Create(String name, String type, String env, JsonNode config, Map<String, SecretSource> secrets,
       String reason, String confirm) {}
 
-  /** {@code PUT /api/connections/{name}}: settings and env; secrets stay as stored. */
-  record Update(JsonNode config, String env, Long version, String reason, String confirm, Map<String, SecretSource> secrets) {}
+  /**
+   * {@code PUT /api/connections/{name}}: settings and env; secrets stay as stored. {@code name}: a new name for the
+   * connection, saved with the settings ({@code null} or the same name keeps it).
+   */
+  record Update(JsonNode config, String env, Long version, String reason, String confirm, Map<String, SecretSource> secrets,
+      String name) {}
 
   record Delete(String confirmName, String reason) {}
 
@@ -366,8 +370,9 @@ class ConnectionsController {
     try {
       if (server && !secrets.isEmpty()) throw ApiRequestException.unprocessable("Use secret replacement", "Use the MCP server's secret controls.", "/secrets");
       ConnectionService.Summary s = server
-          ? mcpServers.update(name, env, request.config(), request.version(), reason, request.confirm())
-          : connections.update(name, env, request.config(), request.version(), reason, request.confirm(), secrets);
+          ? mcpServers.update(name, request.name(), env, request.config(), request.version(), reason, request.confirm())
+          : connections.update(name, request.name(), env, request.config(), request.version(), reason,
+              request.confirm(), secrets);
       return row(s, configs.byId(s.id()).orElse(null));
     } finally { clear(secrets, request.secrets()); }
   }

@@ -81,6 +81,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -1338,30 +1340,110 @@ public class ClientService {
 
   // ── Endpoint removal (EndpointRemovalParticipant through ClientLinks) ───────────────────────────────────────
 
+  /** What an endpoint's deletion did to its clients: the ones disconnected, by name, and what is left to do in them. */
+  record EndpointRemoval(List<String> clients, List<String> notes) {}
+
   /**
-   * The endpoint goes: its links end in the same transaction (the database would cascade them; Hibernate's context
-   * must not hold them), its extensions are deleted, and the entries in client configs are named so the person can
-   * remove them. Returns one line per client.
+   * The endpoint goes, and every client connected to it is disconnected as Disconnect does it: GateRook's entry leaves
+   * the client's config by a reverse edit, backed up first so that what the person changed since stays, and the
+   * extension GateRook built is deleted; Claude Desktop keeps an installed extension until the person removes it there.
+   * An entry changed outside GateRook stays, and a file that can't be edited is named: neither stops the deletion,
+   * whose revocations end the access anyway.
+   *
+   * <p>Runs in the deletion's transaction before the endpoint's tokens go, so the copies of a config that still hold
+   * one of them are deleted first (§7.2). The links end here too (the database would cascade them; Hibernate's context
+   * must not hold them), each with a Setup change; the clients' views hear of it after the commit.
    */
-  List<String> endpointRemoving(String endpointId, String slug) {
-    List<String> out = new ArrayList<>();
-    for (ClientLinkEntity l : links.findByEndpointIdAndRemovedAtIsNull(endpointId)) {
+  EndpointRemoval endpointRemoving(String endpointId, String slug, String reason) {
+    EndpointService.Summary endpoint = endpointById(endpointId);
+    Env envOf = endpoint == null ? null : endpoint.env();
+    Set<String> clients = new java.util.LinkedHashSet<>();
+    List<String> notes = new ArrayList<>();
+    List<ClientLinkEntity> active = links.findByEndpointIdAndRemovedAtIsNull(endpointId);
+    for (ClientLinkEntity l : active) {
       String name = ClientAdapter.of(l.getClient()).displayName();
-      if (l.getMethod() == LinkMethod.MCPB) {
-        deleteExtension(l.getConfigPath());
-        out.add(name + " (remove the extension \"GateRook · " + slug + "\" in Claude Desktop)");
-      } else if (l.getConfigPath() != null) {
-        out.add(name + " (its entry " + l.getEntryName() + " in " + env.display(Path.of(l.getConfigPath()))
-            + " stops working)");
-      } else {
-        out.add(name);
+      clients.add(name);
+      boolean removed = false;
+      String failure = null;
+      try {
+        guardLinkMutation(l);
+        if (l.getMethod() == LinkMethod.MCPB) {
+          removed = deleteExtension(l.getConfigPath());
+        } else if (l.getConfigPath() != null) {
+          removed = removeEntry(l, slug, notes);
+        }
+      } catch (IOException | RuntimeException e) {
+        // Only file work is in here: the client's file stays as it is, the deletion goes on.
+        failure = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+        log.warn("Endpoint {} deleted: couldn't take {}'s entry out of its config: {}", slug, l.getClient().id(),
+            failure);
       }
+      if (l.getMethod() == LinkMethod.MCPB) {
+        notes.add("Remove the extension \"" + McpbBuilder.displayName(slug, envOf) + "\" in Claude Desktop: Settings "
+            + "› Extensions.");
+      } else if (failure != null) {
+        notes.add("GateRook couldn't edit " + env.display(Path.of(l.getConfigPath())) + ": remove the entry "
+            + l.getEntryName() + " by hand.");
+      }
+      if (l.getTokenId() != null) {
+        // The backup the edit made holds the token too; the token row goes after this.
+        purgeBackupsHolding(l.getClient(), l.getTokenId());
+      }
+      ObjectNode details = JsonNodeFactory.instance.objectNode();
+      details.put("method", KebabCase.of(l.getMethod()));
+      details.put("entryRemoved", removed);
+      setupChanges.record(new SetupChange(SetupChangeRecorder.What.CLIENT, name + " → " + slug, "Connected",
+          "Disconnected", reason, envOf, slug, null, details));
     }
     // Removed ones too: every row that points at the endpoint goes before it.
     links.deleteAll(links.findAll().stream().filter(l -> l.getEndpointId().equals(endpointId)).toList());
     links.flush();
-    out.addAll(manualClients.endpointRemoving(endpointId));
-    return out;
+    List<ManualClients.Removed> manual = manualClients.endpointRemoving(endpointId, slug, envOf, reason);
+    for (ManualClients.Removed m : manual) {
+      clients.add(m.name());
+      notes.add("Remove the MCP configuration for " + slug + " in " + m.name() + ": its token is revoked.");
+    }
+    afterCommit(() -> {
+      active.forEach(l -> publishRemoved(l, slug));
+      manual.forEach(m -> publishManual(m.id(), slug, "removed"));
+    });
+    return new EndpointRemoval(List.copyOf(clients), List.copyOf(notes));
+  }
+
+  /**
+   * Takes GateRook's entry out of the link's config file, as Disconnect does: only while it is still ours, keeping
+   * everything else of the file. An entry changed outside GateRook stays and is noted; one already gone needs nothing.
+   */
+  private boolean removeEntry(ClientLinkEntity l, String slug, List<String> notes) throws IOException {
+    Path file = Path.of(l.getConfigPath());
+    Snapshot snapshot = ConfigFileWriter.read(file);
+    storePolicy.snapshot(snapshot);
+    Optional<JsonNode> entry = snapshot.exists() ? entryOf(l, snapshot.content()) : Optional.empty();
+    if (entry.isEmpty()) {
+      return false;
+    }
+    if (!ours(entry.get(), slug, l.getGrantId())) {
+      notes.add("The entry " + l.getEntryName() + " in " + env.display(file) + " was changed outside GateRook, so it "
+          + "stays: remove it by hand if you don't need it.");
+      return false;
+    }
+    String after = remove(l, snapshot.content());
+    writer.write(snapshot, after, l.getClient().id(), ConfigFileWriter.holdsToken(after));
+    return true;
+  }
+
+  /** Runs {@code action} once the current transaction commits, or now outside one. */
+  private static void afterCommit(Runnable action) {
+    if (TransactionSynchronizationManager.isSynchronizationActive()) {
+      TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+        @Override
+        public void afterCommit() {
+          action.run();
+        }
+      });
+    } else {
+      action.run();
+    }
   }
 
   /** Overview's "Connect a client" and the Clients node (platform.SetupProgress). */

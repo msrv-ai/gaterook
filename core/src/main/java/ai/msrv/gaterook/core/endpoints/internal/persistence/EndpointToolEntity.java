@@ -38,7 +38,8 @@ public class EndpointToolEntity {
   @Column(name = "connection_id", length = 36, updatable = false)
   private String connectionId;
 
-  @Column(name = "tool_key", length = 256, nullable = false, updatable = false)
+  /** Changes only when an MCP server's connection is renamed ({@link #rekey}). */
+  @Column(name = "tool_key", length = 256, nullable = false)
   private String toolKey;
 
   @Enumerated(EnumType.STRING)
@@ -105,6 +106,15 @@ public class EndpointToolEntity {
 
   public ToolDefinition.Mode getMode() {
     return mode;
+  }
+
+  /**
+   * The key of the same pair after its MCP server's connection was renamed ({@code mcp:<old>:<tool>} becomes
+   * {@code mcp:<new>:<tool>}): mode, overrides and confirmation stay; the row gets a new version to sign.
+   */
+  public void rekey(String toolKey, Instant now) {
+    this.toolKey = Objects.requireNonNull(toolKey, "toolKey");
+    this.updatedAt = Objects.requireNonNull(now, "now");
   }
 
   public void setMode(ToolDefinition.Mode mode, Instant now) {

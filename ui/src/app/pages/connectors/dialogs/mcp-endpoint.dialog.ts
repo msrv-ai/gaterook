@@ -20,6 +20,11 @@ export interface McpServerConnected {
   readonly http: boolean;
   /** How many tools it listed, when the core said. */
   readonly tools: number | null;
+  /**
+   * It connected with a sign-in made in the review: the host of the sign-in page as the words name it (null for an IP
+   * address or localhost, which name nothing). Absent or null: no sign-in.
+   */
+  readonly signedIn?: { readonly host: string | null } | null;
   readonly opener: HTMLElement | null;
 }
 
@@ -71,6 +76,8 @@ let nextId = 0;
  * chosen, and each tool starting in its default mode there. Add to endpoint asks the core again per endpoint
  * (`POST /api/endpoints/{slug}/connections/preview`) before `POST /api/endpoints/{slug}/connections/{name}`. Not now
  * leaves its tools Off everywhere. It opens once the endpoints loaded; initial focus is the first endpoint it may join.
+ * A server that connected with the review's sign-in opens with a short success alert that it is signed in, part of the
+ * dialog's description, so the step reads as the end of the sign-in.
  */
 @Component({
   selector: 'dialog[gwMcpEndpointDialog]',
@@ -80,7 +87,7 @@ let nextId = 0;
   host: {
     class: 'gw-dialog gw-dialog--md',
     '[attr.aria-labelledby]': 'server() ? uid + "-t" : null',
-    '[attr.aria-describedby]': 'server() ? uid + "-d" : null',
+    '[attr.aria-describedby]': 'server() ? (server()?.signedIn ? uid + "-signed " : "") + uid + "-d" : null',
     '(close)': 'finish()',
   },
   template: `
@@ -94,6 +101,15 @@ let nextId = 0;
         </header>
         <div class="gw-dialog__body">
           <div class="gw-stack">
+            @if (s.signedIn; as signed) {
+              <div class="gw-alert gw-alert--success" [id]="uid + '-signed'">
+                <svg lucideIcon="circle-check" class="gw-icon gw-alert__icon"></svg>
+                <div class="gw-alert__content">
+                  <p class="gw-alert__title">Signed in to <span class="gw-mono">{{ s.name }}</span></p>
+                  <p class="gw-alert__body">It connected with your sign-in{{ signed.host ? ' at ' + signed.host : '' }}; the agent never sees it.</p>
+                </div>
+              </div>
+            }
             <p class="gw-text-small">Environment <span [class]="'gw-env gw-env--sm gw-env--' + s.env">{{ s.env }}</span></p>
             @if (loadError(); as e) {
               <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">

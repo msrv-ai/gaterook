@@ -2977,6 +2977,12 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                 ]
               },
               "default": []
+            },
+            "offThisComputer": {
+              "type": "boolean",
+              "default": false,
+              "title": "Keep it off this computer (Windows)",
+              "description": "Runs it in an AppContainer: the internet and your network stay open, this computer's services and your files don't. Leave it off for a server that talks to a database on this computer or reads your files; it then runs at low integrity, which still keeps it out of GateRook's data."
             }
           }
         }
@@ -3192,7 +3198,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
       }
     ],
     "patternProperties": {
-      "^(command|env|inheritEnv|url|headers|auth)$": {}
+      "^(command|env|inheritEnv|offThisComputer|url|headers|auth)$": {}
     }
   },
   "ssh-logs": {
@@ -12285,6 +12291,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "/command",
       "/env",
       "/inheritEnv",
+      "/offThisComputer",
       "/url",
       "/headers",
       "/start",
@@ -12450,6 +12457,24 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/inheritEnv",
         "kind": "json",
         "title": "Pass these variables of this computer",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"stdio\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/offThisComputer",
+        "kind": "checkbox",
+        "title": "Keep it off this computer (Windows)",
         "required": false,
         "secret": null,
         "mono": false,
@@ -13089,7 +13114,8 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "resources": false,
         "prompts": false
       },
-      "command": []
+      "command": [],
+      "offThisComputer": false
     },
     "prodDefaults": {
       "transport": "stdio",
@@ -13102,7 +13128,8 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "resources": false,
         "prompts": false
       },
-      "command": []
+      "command": [],
+      "offThisComputer": false
     }
   }
 };

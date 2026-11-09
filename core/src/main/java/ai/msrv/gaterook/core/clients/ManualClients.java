@@ -1,5 +1,6 @@
 package ai.msrv.gaterook.core.clients;
 
+import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.core.clients.ClientViews.Card;
 import ai.msrv.gaterook.core.clients.ClientViews.Disconnected;
 import ai.msrv.gaterook.core.clients.ClientViews.Link;
@@ -104,13 +105,24 @@ class ManualClients {
     });
   }
 
-  /** Runs inside endpoint deletion's transaction, before the endpoint and its tokens are removed. */
-  List<String> endpointRemoving(String endpointId) {
+  /** A registration that went with its endpoint: its client id ({@code manual-…}) and the app's name. */
+  record Removed(String id, String name) {}
+
+  /**
+   * Runs inside endpoint deletion's transaction, before the endpoint and its tokens are removed: the registrations go,
+   * each with a Setup change as Remove makes it. The token goes with the endpoint; the app's own configuration is the
+   * person's to remove.
+   */
+  List<Removed> endpointRemoving(String endpointId, String slug, Env env, String reason) {
     List<ManualClientEntity> removed = apps.findByEndpointId(endpointId);
-    List<String> names = removed.stream().map(ManualClientEntity::getName).toList();
+    List<Removed> out = removed.stream().map(a -> new Removed(PREFIX + a.getId(), a.getName())).toList();
+    for (ManualClientEntity app : removed) {
+      changes.record(new SetupChange(SetupChangeRecorder.What.CLIENT, app.getName() + " → " + slug, "Manual app",
+          "Removed; token revoked", reason, env, slug, null, null));
+    }
     apps.deleteAll(removed);
     apps.flush();
-    return names;
+    return out;
   }
 
   private Card card(ManualClientEntity app, EndpointService.Summary e) {

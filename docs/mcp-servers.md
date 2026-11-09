@@ -38,8 +38,8 @@ The registry checks who published a name: a domain such as `app.linear` belongs 
 
 **Review and connect** sends one request to the server without a sign-in and shows what it found:
 
-- **Sign-in with OAuth.** You sign in in your browser, as in Claude Desktop, Cursor or Codex.
-- **Optional sign-in.** The server also answers without one, with less access. If you connect without signing in, you can sign in later from the server's row.
+- **Sign-in with OAuth.** You sign in in your browser, as in Claude Desktop, Cursor or Codex. Signing in confirms the server: GateRook connects it as soon as you allow access, with no other step.
+- **Optional sign-in.** The server also answers without one, with less access. Sign in to connect it with your sign-in, or confirm the review and connect without one. Without a sign-in, you can sign in later from the server's row.
 - **No sign-in.** Connect directly.
 - **It wants a key.** It refused the request without offering a sign-in. Select **Use a Bearer token** to enter the token in the review, or select **Back** and add the custom header the server requires.
 
@@ -56,6 +56,8 @@ Read-only annotations come from the server and remain labeled **Declared by …,
 The server is then listed in **Connections** with the other connections, where you test, edit or delete it. In **Connectors › MCP servers** you can also restart it, sign in to it again or sign out.
 
 Editing a server checks its sign-in as adding it does. Its tool prefix stays the one it was added with, because endpoints and agents know its tools by it: to use another prefix, add the server again. A cloud key (a service account key or a secret access key) can be replaced there but not added: to switch to a key, add the server again with it.
+
+A server can be renamed in the same form. Its tools keep their prefix and their modes on every endpoint, so agents call them as before. A server on this computer stops, and its folder (its installed package and home) and its log move to the new name; the next call starts it there. Its resources are then listed under `mcpgw://connections/<new name>/mcp/…`. **Activity** keeps the old name for calls made before the rename.
 
 ### Connect with a Bearer token
 
@@ -78,9 +80,9 @@ GateRook speaks the MCP revisions `2026-07-28` and `2025-11-25` back to `2024-11
 
 ## Sign in
 
-Select **Sign in** in the review. GateRook opens the server's sign-in page in your default browser and listens on this computer, at `http://localhost:<free port>/callback`, for the browser to come back. After you allow access, the page says you are signed in and GateRook returns to the front. Then select **Connect MCP server**.
+Select **Sign in** in the review. GateRook opens the server's sign-in page in your default browser and listens on this computer, at `http://localhost:<free port>/callback`, for the browser to come back. After you allow access, the page says you are signed in and GateRook returns to the front. It connects the server right away, and the endpoint step opens with a note that the server is signed in. Values the server needs besides the sign-in, such as a header, are entered in the review first: **Sign in** waits for them. If the server doesn't connect, the review says why. A sign-in is used once, so sign in again to try once more.
 
-For GitHub's server (`https://api.githubcopilot.com/mcp/`), the sign-in uses a one-time code instead, because GitHub admits only apps registered with it. GateRook has its own GitHub app for this, so there is nothing to set up. Select **Sign in with github.com**: the review shows a code such as `WDJB-MJHT`. Select **Copy code and open github.com**, paste the code on GitHub's page and allow access to GateRook there. GateRook finishes the sign-in by itself. Nothing comes back to this computer, so you can also enter the code in a browser on another device. The code works once, and the sign-in waits for it for 10 minutes. GitHub renews this sign-in for GateRook without a client secret. If an organization restricts OAuth apps, its repositories stay out of reach until an owner approves GateRook; GitHub's authorization page lets you request that.
+For GitHub's server (`https://api.githubcopilot.com/mcp/`), the sign-in uses a one-time code instead, because GitHub admits only apps registered with it. GateRook has its own GitHub app for this, so there is nothing to set up. Select **Sign in with github.com**: the review shows a code such as `WDJB-MJHT`. Select **Copy code and open github.com**, paste the code on GitHub's page and allow access to GateRook there. GateRook finishes the sign-in by itself and connects the server. Nothing comes back to this computer, so you can also enter the code in a browser on another device. The code works once, and the sign-in waits for it for 10 minutes. GitHub renews this sign-in for GateRook without a client secret. If an organization restricts OAuth apps, its repositories stay out of reach until an owner approves GateRook; GitHub's authorization page lets you request that.
 
 The provider's consent page names GateRook. Where the provider accepts client metadata documents (in November 2026, Linear, Notion and Sentry among others), GateRook doesn't register with it. The provider reads the details GateRook publishes at `https://gaterook.com/oauth/gaterook-client.json`: its name, that it has no client secret, and that the browser comes back to this computer. Other servers get a registration that GateRook makes under its own name.
 
@@ -138,8 +140,8 @@ A few providers admit only clients on their own allowlist, by name or by redirec
 | It answered HTTP 404 or 405 | Check the URL. Streamable HTTP addresses usually end in `/mcp`, SSE addresses in `/sse`. |
 | The provider's page says the client or its redirect address is invalid | The provider couldn't use the details GateRook publishes. Cancel the sign-in in GateRook and try again later. If it keeps happening and the provider lets you create an OAuth app, enter that app's client ID in **Sign-in options**. |
 | Needs you to sign in again | Sign in from the server's row. |
-| Access wasn't allowed on github.com | The sign-in was cancelled on GitHub's page. Select **Try again** for a new code. |
-| The code expired before it was entered | Select **Try again** for a new code, and enter it within 10 minutes. |
+| Access wasn't allowed on github.com | The sign-in was cancelled on GitHub's page. Sign in again for a new code. |
+| The code expired before it was entered | Sign in again for a new code, and enter it within 10 minutes. |
 | GitHub's tools don't see an organization's repositories | The organization restricts OAuth apps. Request approval for GateRook on GitHub's authorization page, or ask an organization owner to approve it. |
 | Refused its renewed sign-in | The provider took a new token back at once. Sign in again if it keeps happening. |
 | Refused GateRook's Google Cloud credentials | The account lacks `roles/mcp.toolUser` or the product's roles, or the API isn't enabled. Google's message names what is missing. |

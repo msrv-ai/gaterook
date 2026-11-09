@@ -1875,8 +1875,67 @@ describe('Connection: edit view', () => {
     expect(p.el.querySelector('#used-by tbody a.gw-btn')?.getAttribute('href')).toBe('/activity?q=connection:dev-db%20tool:sql_list_schemas%20endpoint:dev');
     expect(text(p.q('#step-2-title'))).toBe('Settings');
     expect(p.el.querySelector('.gw-stepper')).toBeNull();
-    expect((document.getElementById('cf-name') as HTMLInputElement).readOnly).toBe(true);
+    expect((document.getElementById('cf-name') as HTMLInputElement).readOnly).toBe(false);
+    expect(text(p.q('#cf-name-hint'))).toContain('Renaming applies from the next call: endpoints, policies and secret names follow, and past calls keep the old name.');
     expect(text(p.q('.gw-secret[data-state=stored]'))).toContain('version 3');
+  });
+
+  it('renames the connection with its settings and opens it under the new name', async () => {
+    const p = await open('/connections/dev-db');
+    vi.mocked(TestBed.inject(ConnectionsApi).update).mockImplementationOnce(async (_name, r) => {
+      core.updates.push(structuredClone(r));
+      core.detail = { ...structuredClone(DETAIL), name: r.name!, version: DETAIL.version + 1,
+        secrets: [{ ...DETAIL.secrets[0], name: `${r.name}/password` }] };
+      return {} as never;
+    });
+    await p.type('cf-name', 'dev-reader');
+    expect(text(p.q('#cf-name-hint'))).toContain('Saving renames dev-db from the next call');
+    expect(text(p.q('#cf-name-hint'))).toContain('past calls keep dev-db.');
+
+    p.button('Save changes').click();
+    await p.settle();
+
+    expect(TestBed.inject(ConnectionsApi).update).toHaveBeenCalledWith('dev-db', expect.objectContaining({ name: 'dev-reader' }));
+    expect(core.updates).toHaveLength(1);
+    expect(core.updates[0]).toMatchObject({ name: 'dev-reader', version: DETAIL.version, env: 'dev' });
+    expect(TestBed.inject(ToastService).toasts().at(-1)).toMatchObject({ tone: 'success', title: 'Connection dev-db renamed to dev-reader' });
+    expect(TestBed.inject(Router).url).toBe('/connections/dev-reader');
+    await p.settle();
+    expect(text(p.q('h1'))).toBe('Edit connection dev-reader');
+    expect((document.getElementById('cf-name') as HTMLInputElement).value).toBe('dev-reader');
+    expect(text(p.q('#cf-name-hint'))).toContain('Renaming applies from the next call');
+  });
+
+  it('sends no name when the name stays', async () => {
+    const p = await open('/connections/dev-db');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates).toHaveLength(1);
+    expect(core.updates[0]).not.toHaveProperty('name');
+    expect(TestBed.inject(Router).url).toBe('/connections/dev-db');
+  });
+
+  it('says under the Name that another connection has it, and stays on the connection', async () => {
+    core.updateFails = [new ApiError('conflict', 409, { title: 'Name in use', detail: 'A connection named qa-db already exists.' })];
+    const p = await open('/connections/dev-db');
+    await p.type('cf-name', 'qa-db');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(core.updates).toHaveLength(1);
+    expect(text(p.q('#cf-name-err'))).toBe('A connection named qa-db already exists.');
+    expect(document.activeElement?.id).toBe('cf-name');
+    expect(TestBed.inject(Router).url).toBe('/connections/dev-db');
+    await p.type('cf-name', 'qa-db-2');
+    expect(p.q('#cf-name-err')).toBeNull();
+  });
+
+  it('refuses a new name that is not a slug before anything is sent', async () => {
+    const p = await open('/connections/dev-db');
+    await p.type('cf-name', 'Dev DB');
+    p.button('Save changes').click();
+    await p.settle();
+    expect(text(p.q('#cf-name-err'))).toContain('Dev DB is not a slug.');
+    expect(core.updates).toEqual([]);
   });
 
   it('shows an attached connection with no tools without claiming its endpoint is missing', async () => {

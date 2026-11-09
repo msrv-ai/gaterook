@@ -190,6 +190,47 @@ class McpServersCoreProcessIT {
 
   @Test
   @Order(5)
+  void aRenameMovesTheServersFolderLogAndSecretNamesAndKeepsItsToolsAndModes() throws Exception {
+    List<String> modes = rows("notes-mcp").stream().map(t -> t.path("name").asString() + "=" + t.path("mode")
+        .asString()).sorted().toList();
+    assertThat(core.home.resolve("mcp/notes-mcp")).isDirectory();
+
+    rename("notes-mcp", "notes-v2");
+
+    assertThat(core.home.resolve("mcp/notes-mcp")).doesNotExist();
+    assertThat(core.home.resolve("mcp/notes-v2")).isDirectory();
+    assertThat(core.home.resolve("logs/mcp/notes-mcp.log")).doesNotExist();
+    assertThat(core.home.resolve("logs/mcp/notes-v2.log")).exists();
+    assertThat(admin("GET", "/api/connections/notes-mcp", null).status()).isEqualTo(404);
+    assertThat(json(admin("GET", "/api/connections/notes-v2", null), 200).at("/secrets/0/name").asString())
+        .isEqualTo("notes-v2/notes-token");
+    assertThat(rows("notes-v2").stream().map(t -> t.path("name").asString() + "=" + t.path("mode").asString())
+        .sorted().toList()).isEqualTo(modes);
+    JsonNode list = mcp("{\"jsonrpc\":\"2.0\",\"id\":20,\"method\":\"tools/list\",\"params\":{}}");
+    List<String> names = new ArrayList<>();
+    list.at("/result/tools").forEach(t -> {
+      if (t.path("name").asString().startsWith("notes_")) {
+        names.add(t.path("name").asString());
+        assertThat(t.path("description").asString()).contains("notes-v2 (1.0.0, dev)");
+      }
+    });
+    assertThat(names).containsExactlyInAnyOrder("notes_search", "notes_whoami");
+    JsonNode found = call(21, "notes_search", "{\"q\":\"milk\"}");
+    assertThat(found.at("/result/isError").asBoolean(true)).as(found.toString()).isFalse();
+    assertThat(found.at("/result/content/0/text").asString()).isEqualTo("found: milk");
+    assertThat(java.nio.file.Files.readString(core.home.resolve("logs/mcp/notes-v2.log"))).doesNotContain(TOKEN);
+
+    rename("notes-v2", "notes-mcp");
+
+    assertThat(core.home.resolve("mcp/notes-v2")).doesNotExist();
+    assertThat(core.home.resolve("mcp/notes-mcp")).isDirectory();
+    assertThat(rows("notes-mcp")).hasSize(3);
+    JsonNode again = call(22, "notes_search", "{\"q\":\"bread\"}");
+    assertThat(again.at("/result/content/0/text").asString()).as(again.toString()).isEqualTo("found: bread");
+  }
+
+  @Test
+  @Order(6)
   void bulkOffIncludesUnannotatedMutations() throws Exception {
     JsonNode tools = json(admin("GET", "/api/mcp-servers/notes-mcp/tools", null), 200);
     assertThat(tools).filteredOn(t -> t.path("name").asString().equals("notes_create_note"))
@@ -205,7 +246,7 @@ class McpServersCoreProcessIT {
   }
 
   @Test
-  @Order(6)
+  @Order(7)
   void stopStopsTheProcessAndDeleteLeavesNothing() throws Exception {
     JsonNode stopped = json(admin("POST", "/api/mcp-servers/notes-mcp/stop", null), 200);
     assertThat(stopped.path("state").asString()).isEqualTo("stopped");
@@ -226,7 +267,7 @@ class McpServersCoreProcessIT {
   }
 
   @Test
-  @Order(7)
+  @Order(8)
   void theLogsHaveNoSecret() throws Exception {
     assertThat(core.coreLog()).doesNotContain(TOKEN);
     Path serverLog = core.home.resolve("logs/mcp/notes-mcp.log");
@@ -240,13 +281,28 @@ class McpServersCoreProcessIT {
   private record Answer(int status, String body) {}
 
   private static List<JsonNode> rows() throws Exception {
+    return rows("notes-mcp");
+  }
+
+  private static List<JsonNode> rows(String connection) throws Exception {
     List<JsonNode> out = new ArrayList<>();
     json(admin("GET", "/api/endpoints/notes/tools", null), 200).forEach(g -> {
-      if (g.path("connection").asString().equals("notes-mcp")) {
+      if (g.path("connection").asString().equals(connection)) {
         g.path("tools").forEach(out::add);
       }
     });
     return out;
+  }
+
+  /** Edit's Save with only a new name: the settings as the connection form sends them, the version just read. */
+  private static void rename(String from, String to) throws Exception {
+    JsonNode current = json(admin("GET", "/api/connections/" + from, null), 200);
+    ObjectNode update = CoreProcess.JSON.createObjectNode().put("name", to).put("env", current.path("env")
+        .asString()).put("version", current.path("version").asLong());
+    // The form sends every member of the stdio branch with its default, the AppContainer switch among them.
+    update.set("config", ((ObjectNode) current.path("config").deepCopy()).put("offThisComputer", false));
+    assertThat(json(admin("PUT", "/api/connections/" + from, update.toString()), 200).path("name").asString())
+        .isEqualTo(to);
   }
 
   private static JsonNode row(String name) throws Exception {

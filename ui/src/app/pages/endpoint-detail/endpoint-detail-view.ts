@@ -378,12 +378,13 @@ export function deleteFacts(e: EndpointSummary, cards: readonly ClientCard[], to
   const clients = cards.filter((c) => c.links.some((l) => l.endpoint === e.slug)).map((c) => c.name);
   const named = tokens ? revocableNames(tokens) : [];
   const waiting = e.approvalsWaiting;
-  const who = clients.length ? `${andList(clients)} lose${clients.length === 1 ? 's' : ''} access at once` : 'AI apps lose access at once';
+  // Deleting disconnects them as Disconnect does: their entries leave their configs, their access ends.
+  const who = clients.length ? `${andList(clients)} ${clients.length === 1 ? 'is' : 'are'} disconnected at once` : 'AI apps lose access at once';
   const toks = named.length || !tokens ? ', its tokens are revoked' : '';
   const reqs = waiting ? ` and the ${plural(waiting, 'request')} waiting for approval ${waiting === 1 ? 'is' : 'are'} denied` : '';
   return {
     description: `${who}${toks}${reqs}. Connections, their secrets and the audit log stay.`,
-    clients: clients.length ? clients.join(', ') : 'None',
+    clients: clients.length ? `${clients.join(', ')} (disconnected)` : 'None',
     tokens: !tokens ? 'Unknown' : named.length ? `${named.join(', ')} (revoked)` : 'None active',
     waiting: waiting ? `${plural(waiting, 'approval request')} (denied)` : null,
   };

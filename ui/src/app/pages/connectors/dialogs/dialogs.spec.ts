@@ -414,6 +414,9 @@ describe('MCP server review', () => {
     expect(withHeader.risk).toBe('Every call sends your sign-in and these secrets to this URL. Nobody has verified the server behind it.');
     expect(withHeader.trust).toBe('I trust this server with my sign-in and these secrets');
     expect(remote({ kind: 'optional', registration: 'dynamic' }).signIn).toBe('optional');
+    // With an optional sign-in, the checkbox is for connecting without one: a sign-in confirms the server by itself.
+    expect(remote({ kind: 'optional', registration: 'dynamic' }).trust).toBe('I trust this server with the calls of my AI apps');
+    expect(remote({ kind: 'optional', registration: 'dynamic' }, ['X-Workspace']).trust).toBe('I trust this server with these secrets');
     expect(remote({ kind: 'none' }).signIn).toBeNull();
     // Nothing secret goes with the calls of a server without a sign-in or headers: the review doesn't say otherwise.
     expect(remote({ kind: 'none' }).risk).toBe('Every call goes to this URL. Nobody has verified the server behind it.');

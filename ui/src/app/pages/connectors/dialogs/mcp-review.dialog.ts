@@ -1,11 +1,12 @@
-import { ChangeDetectionStrategy, Component, ElementRef, inject, output, signal, viewChild } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import { afterNextRender, ChangeDetectionStrategy, Component, ElementRef, inject, Injector, output, signal, viewChild } from '@angular/core';
 import { SecretInputs } from '../../../core/api/connections.api';
 import { McpServerAuthReview, McpServerConfig, McpServerReview, McpServerSource, McpSignIn } from '../../../core/api/plugins.api';
 import { Env } from '../../../core/api/types';
 import { GwCopy } from '../../../kit/copy';
 import { GwDialog, GwDialogClose } from '../../../kit/dialog';
 import { GwIcon } from '../../../kit/icons';
-import { formatArgv, npmPackage, serverPaths } from '../connectors-view';
+import { formatArgv, npmPackage, onThisComputer, serverPaths, signInHost } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
 import { cloudSecret, cloudSignInText } from '../mcp-cloud';
 import { failureText } from './failure';
@@ -39,7 +40,10 @@ export interface McpReviewView {
   /** Start (stdio) or Connect (HTTP). */
   readonly verb: 'Start' | 'Connect';
   readonly risk: string;
-  /** The words of the confirmation the person checks before the start. */
+  /**
+   * The words of the confirmation the person checks before the start. A required sign-in confirms the server itself
+   * (no checkbox); with an optional one, the checkbox is for connecting without a sign-in.
+   */
   readonly trust: string;
   readonly targetKey: 'Command' | 'URL';
   /** The command as it will run (resolved argv) or the URL. */
@@ -128,7 +132,7 @@ export function mcpReviewView(r: McpReviewed): McpReviewView {
     trust: cloud
       ? `I trust this server with my ${cloud === 'google' ? 'Google Cloud' : 'AWS'} credentials${names.length ? ' and these secrets' : ''}`
       : http
-      ? signIn
+      ? signIn === 'required'
         ? `I trust this server with my sign-in${names.length ? ' and these secrets' : ''}`
         : names.length
           ? 'I trust this server with these secrets'
@@ -193,18 +197,24 @@ let nextId = 0;
  * `<dialog gwMcpReviewDialog>` (kit `dlg-review-mcp`): the review before an MCP server first starts — what runs, which
  * version, as whom, with which secrets — in `gw-dialog--danger` (untrusted code next to secrets). "Start MCP server
  * sentry-mcp" stays `aria-disabled` until "I trust this code with these secrets on this computer" (for a server at a URL:
- * "I trust this server with my sign-in") is checked; focus
+ * "I trust this server with the calls of my AI apps") is checked; focus
  * starts on Cancel. Starting it (`POST /api/mcp-servers {…, secrets, acknowledge: true}`) lists its tools, Off
  * everywhere.
  *
+ * A server that answers only with an OAuth sign-in has neither the checkbox nor Connect: the review ends in a centred
+ * call to sign in whose large button is the primary action, and the finished sign-in — the person allowed this server
+ * their account — is the confirmation. The server connects right after it, and the endpoint step says it is signed in.
+ * An optional sign-in connects the same way; without one, the checkbox and Connect remain. The values the sign-in
+ * connects with (variables, the OAuth app's ID and secret) are typed first: Sign in waits for them.
+ *
  * The values of its variables (or headers) are typed here, for a typed server and a catalog one alike: the core keeps
- * each as a new secret of the server (it takes no existing secret by name). They are write-only: never in a signal,
- * read from the fields once when the server starts, sent with that one request and wiped from the fields when the
- * dialog closes or shows another review.
+ * each as a new secret of the server (it takes no existing secret by name). They are write-only: never in a signal
+ * (only whether a field is empty is), read from the fields once when the server starts, sent with that one request and
+ * wiped from the fields when the dialog closes or shows another review.
  */
 @Component({
   selector: 'dialog[gwMcpReviewDialog]',
-  imports: [GwIcon, GwDialogClose, GwCopy, GwMcpSignIn],
+  imports: [NgTemplateOutlet, GwIcon, GwDialogClose, GwCopy, GwMcpSignIn],
   hostDirectives: [{ directive: GwDialog, inputs: ['gwDialogStatic'], outputs: ['closed'] }],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
@@ -267,7 +277,7 @@ let nextId = 0;
               }
               @if (w.signIn && w.auth; as a) {
                 <div class="gw-kv__row"><dt class="gw-kv__key">Sign-in</dt><dd class="gw-kv__value">
-                  OAuth at <span class="gw-mono">{{ a.authorizationHost || a.issuer }}</span>{{ w.signIn === 'optional' ? ', optional: the server also answers without it, with less access' : '' }}.
+                  @if (onThisComputer(a.authorizationHost)) {OAuth on this computer} @else {OAuth at <span class="gw-mono">{{ a.authorizationHost || a.issuer }}</span>}{{ w.signIn === 'optional' ? ', optional: the server also answers without it, with less access' : '' }}.
                   {{ a.registration === 'metadata-document' ? 'GateRook signs in there as GateRook, with the client details it publishes.' : a.registration === 'dynamic' ? 'GateRook registers itself there as GateRook.' : a.registration === 'gaterook-app' ? 'GateRook signs in there with its own app: you enter a one-time code on its page, with nothing to set up.' : a.registration === 'app' ? 'As your OAuth app.' : '' }}
                 </dd></div>
               }
@@ -290,9 +300,9 @@ let nextId = 0;
               </div>
             }
             @if (w.signIn && w.auth; as a) {
-              <fieldset class="gw-field" [attr.aria-describedby]="uid + '-signin-hint'">
-                <legend class="gw-field__label">Sign in to {{ w.name }}</legend>
-                @if (a.registration === 'app-required' || a.registration === 'app') {
+              @if (a.registration === 'app-required' || a.registration === 'app') {
+                <fieldset class="gw-field">
+                  <legend class="gw-field__label">Your OAuth app</legend>
                   @if (a.registration === 'app-required') {
                     <div class="gw-alert gw-alert--warning gw-alert--compact">
                       <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
@@ -321,10 +331,8 @@ let nextId = 0;
                     <input class="gw-input gw-input--mono" [id]="uid + '-client-secret'" type="password" autocomplete="new-password" spellcheck="false" (input)="clientSecretTyped.set(fieldValue($event) !== '')" [attr.aria-describedby]="uid + '-client-secret-hint'">
                     <p class="gw-field__hint" [id]="uid + '-client-secret-hint'">{{ a.secretRequired ? 'The provider takes the app only with its secret.' : 'Only when the app has one.' }} It is stored encrypted as a secret of {{ w.name }} and never shown again.</p>
                   </div>
-                }
-                <div gwMcpSignIn [start]="startSignIn" [host]="a.authorizationHost ?? null" [blocked]="signInBlocked()" [device]="a.registration === 'gaterook-app'" (signedIn)="signedIn.set($event)"></div>
-                <p class="gw-field__hint" [id]="uid + '-signin-hint'">You sign in as you would in Claude Desktop, Cursor or Codex, but the sign-in goes to GateRook, not to the AI app.</p>
-              </fieldset>
+                </fieldset>
+              }
             } @else if (w.auth; as a) {
               @if ((a.kind === 'refused' || a.kind === 'unknown') && !w.secrets.length) {
                 <div class="gw-alert gw-alert--warning gw-alert--compact">
@@ -344,9 +352,9 @@ let nextId = 0;
                   <div class="gw-field">
                     <label class="gw-field__label" [for]="uid + '-value-' + i">@if (s.label) {{{ s.label }}} @else {Value of <span class="gw-mono">{{ s.name }}</span>}</label>
                     @if (s.multiline) {
-                      <textarea class="gw-textarea gw-textarea--code" [id]="uid + '-value-' + i" rows="4" required autocomplete="off" spellcheck="false" (input)="clearMissing(i)" [attr.aria-invalid]="missing().includes(i) ? 'true' : null" [attr.aria-describedby]="missing().includes(i) ? uid + '-value-err-' + i : null"></textarea>
+                      <textarea class="gw-textarea gw-textarea--code" [id]="uid + '-value-' + i" rows="4" required autocomplete="off" spellcheck="false" (input)="valueInput(i, $event)" [attr.aria-invalid]="missing().includes(i) ? 'true' : null" [attr.aria-describedby]="missing().includes(i) ? uid + '-value-err-' + i : null"></textarea>
                     } @else {
-                      <input class="gw-input gw-input--mono" [id]="uid + '-value-' + i" type="password" required autocomplete="new-password" spellcheck="false" (input)="clearMissing(i)" [attr.aria-invalid]="missing().includes(i) ? 'true' : null" [attr.aria-describedby]="((s.bearer ? uid + '-value-hint-' + i : '') + (missing().includes(i) ? ' ' + uid + '-value-err-' + i : '')).trim() || null">
+                      <input class="gw-input gw-input--mono" [id]="uid + '-value-' + i" type="password" required autocomplete="new-password" spellcheck="false" (input)="valueInput(i, $event)" [attr.aria-invalid]="missing().includes(i) ? 'true' : null" [attr.aria-describedby]="((s.bearer ? uid + '-value-hint-' + i : '') + (missing().includes(i) ? ' ' + uid + '-value-err-' + i : '')).trim() || null">
                     }
                     @if (s.bearer) {<p class="gw-field__hint" [id]="uid + '-value-hint-' + i">Enter only the token. GateRook sends it as <span class="gw-mono">Authorization: Bearer &lt;token&gt;</span>.</p>}
                     @if (missing().includes(i)) {<p class="gw-field__error" [id]="uid + '-value-err-' + i"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ s.label ? 'Enter the ' + s.label.charAt(0).toLowerCase() + s.label.slice(1) + '.' : 'Enter the value of ' + s.name + '.' }}</p>}
@@ -355,16 +363,23 @@ let nextId = 0;
                 <p class="gw-field__hint" [id]="uid + '-values-hint'">{{ w.secrets.length === 1 ? 'It is' : 'Each is' }} stored encrypted as a secret of {{ w.name }} when it {{ w.http ? 'connects' : 'starts' }}, and never shown again. The agent never sees {{ w.secrets.length === 1 ? 'it' : 'them' }}.</p>
               </fieldset>
             }
-            <label class="gw-checkbox">
-              <input #ack class="gw-checkbox__input" type="checkbox" [id]="uid + '-ack'" [checked]="acknowledged()" (change)="acknowledged.set(ack.checked)" required>
-              <span class="gw-checkbox__control" aria-hidden="true"></span>
-              <span class="gw-checkbox__label" [id]="uid + '-ack-label'">{{ w.trust }}</span>
-            </label>
-            @if (error()) {
-              <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
-                <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
-                <div class="gw-alert__content"><p class="gw-alert__title">{{ w.name }} didn't {{ w.http ? 'connect' : 'start' }}</p><p class="gw-alert__body">{{ error() }}</p></div>
-              </div>
+            <!-- A server that answers only with a sign-in: signing in is the confirmation, and the server connects
+                 right after it. The large Sign in button is the dialog's one primary action; no checkbox, no Connect. -->
+            @if (w.signIn === 'required' && error()) {
+              <ng-container [ngTemplateOutlet]="failure" />
+            }
+            @if (w.signIn && w.auth; as a) {
+              <div gwMcpSignIn [hero]="true" [server]="w.name" [optional]="w.signIn === 'optional'" [connecting]="busy()" [start]="startSignIn" [host]="a.authorizationHost ?? null" [blocked]="signInBlocked()" [device]="a.registration === 'gaterook-app'" (signedIn)="onSignedIn($event)"></div>
+            }
+            @if (w.signIn !== 'required') {
+              <label class="gw-checkbox">
+                <input #ack class="gw-checkbox__input" type="checkbox" [id]="uid + '-ack'" [checked]="acknowledged()" (change)="acknowledged.set(ack.checked)" required>
+                <span class="gw-checkbox__control" aria-hidden="true"></span>
+                <span class="gw-checkbox__label" [id]="uid + '-ack-label'">{{ w.trust }}</span>
+              </label>
+              @if (error()) {
+                <ng-container [ngTemplateOutlet]="failure" />
+              }
             }
           </div>
         </div>
@@ -374,9 +389,19 @@ let nextId = 0;
             @if (busy() || switching()) {<span class="gw-sr-only" [id]="uid + '-back-wait'">Wait for the current request to finish before going back.</span>}
           }
           <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
-          <button class="gw-btn gw-btn--danger" type="submit" [attr.aria-disabled]="!acknowledged() || busy() || switching() ? 'true' : null" [attr.aria-describedby]="uid + '-ack-label'" [attr.aria-busy]="busy() || switching() ? 'true' : null">@if (busy() || switching()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}{{ w.verb }} MCP server {{ w.name }}</button>
+          <!-- With a required sign-in, Connect shows only when a finished sign-in couldn't connect on its own (a value
+               emptied while the browser was open). -->
+          @if (w.signIn !== 'required' || (signedIn() && !busy())) {
+            <button class="gw-btn" [class.gw-btn--danger]="w.signIn !== 'required'" [class.gw-btn--primary]="w.signIn === 'required'" type="submit" [attr.aria-disabled]="!confirmed() || busy() || switching() ? 'true' : null" [attr.aria-describedby]="w.signIn === 'required' ? null : uid + '-ack-label'" [attr.aria-busy]="busy() || switching() ? 'true' : null">@if (busy() || switching()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}{{ w.verb }} MCP server {{ w.name }}</button>
+          }
         </footer>
       </form>
+      <ng-template #failure>
+        <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert" [id]="uid + '-error'">
+          <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__title">{{ w.name }} didn't {{ w.http ? 'connect' : 'start' }}</p><p class="gw-alert__body">{{ error() }}</p>@if (signInAgain()) {<p class="gw-alert__body">A sign-in is used once: sign in again to try once more.</p>}</div>
+        </div>
+      </ng-template>
     }
   `,
 })
@@ -384,6 +409,7 @@ export class GwMcpReviewDialog {
   private readonly data = inject(ConnectorsData);
   private readonly dialog = inject(GwDialog);
   private readonly host: HTMLDialogElement = inject(ElementRef<HTMLDialogElement>).nativeElement;
+  private readonly injector = inject(Injector);
 
   /** The server connected (or started): the page offers the endpoint step next. */
   readonly connected = output<McpServerConnected>();
@@ -391,6 +417,7 @@ export class GwMcpReviewDialog {
   readonly back = output<HTMLElement | null>();
 
   protected readonly uid = `mr-${++nextId}`;
+  protected readonly onThisComputer = onThisComputer;
   protected readonly canGoBack = signal(false);
   protected readonly environments: readonly Env[] = ['dev', 'stage', 'prod'];
   protected readonly environment = signal<Env>('dev');
@@ -400,8 +427,12 @@ export class GwMcpReviewDialog {
   protected readonly busy = signal(false);
   protected readonly acknowledged = signal(false);
   protected readonly error = signal<string | null>(null);
+  /** The error came after a sign-in, which the core took: trying again takes a new sign-in. */
+  protected readonly signInAgain = signal(false);
   /** The value fields left empty at the last Start (by index). */
   protected readonly missing = signal<readonly number[]>([]);
+  /** The value fields that aren't empty (by index): a sign-in connects with them, so Sign in waits for all. */
+  protected readonly typed = signal<readonly number[]>([]);
   /** The client ID typed in the review, for a server that needs the person's OAuth app. */
   protected readonly clientId = signal('');
   /** Whether a client secret was typed (its value stays in the field): Google takes no app without one. */
@@ -439,14 +470,42 @@ export class GwMcpReviewDialog {
     }
   }
 
-  /** Why Sign in can't start: a server that needs an OAuth app has no client ID yet, or no secret where it needs one. */
+  /**
+   * Why Sign in can't start: a server that needs an OAuth app has no client ID yet, or no secret where it needs one; or
+   * a value it connects with is still empty (the server connects right after the sign-in).
+   */
   protected signInBlocked(): string | null {
     const w = this.view();
-    const app = w?.auth?.registration === 'app-required' || w?.auth?.registration === 'app';
-    if (!w || !app) return null;
-    if (w.auth?.registration === 'app-required' && !w.appClient && !this.clientId().trim()) return 'Enter the client ID of your OAuth app first.';
-    if (w.auth?.secretRequired && !this.clientSecretTyped()) return 'Enter the client secret of your OAuth app first.';
+    if (!w) return null;
+    const app = w.auth?.registration === 'app-required' || w.auth?.registration === 'app';
+    if (app && w.auth?.registration === 'app-required' && !w.appClient && !this.clientId().trim()) return 'Enter the client ID of your OAuth app first.';
+    if (app && w.auth?.secretRequired && !this.clientSecretTyped()) return 'Enter the client secret of your OAuth app first.';
+    const empty = w.secrets.find((_, i) => !this.typed().includes(i));
+    if (empty) return empty.label ? `Enter the ${empty.label.charAt(0).toLowerCase() + empty.label.slice(1)} first.` : `Enter the value of ${empty.name} first.`;
     return null;
+  }
+
+  /** Whether the server may connect: the trust confirmation is checked, or a finished sign-in confirmed it. */
+  protected confirmed(): boolean {
+    return this.acknowledged() || !!this.signedIn();
+  }
+
+  /** A value field changed: its error goes, and whether it is empty is noted (never the value). */
+  protected valueInput(i: number, e: Event): void {
+    this.clearMissing(i);
+    const filled = (e.target as HTMLInputElement | HTMLTextAreaElement).value !== '';
+    if (filled !== this.typed().includes(i)) this.typed.update((t) => (filled ? [...t, i] : t.filter((x) => x !== i)));
+  }
+
+  /**
+   * The browser came back signed in. The person allowed this server their account, so the sign-in confirms the server
+   * as the checkbox does, and it connects now, without another click.
+   */
+  protected onSignedIn(s: McpSignIn): void {
+    this.signedIn.set(s);
+    this.error.set(null);
+    this.signInAgain.set(false);
+    void this.connect();
   }
 
   /**
@@ -501,10 +560,15 @@ export class GwMcpReviewDialog {
     }
   }
 
-  /** Sign in (`POST /api/mcp-sign-ins`): the reviewed config with the sign-in, the app's secret if one was typed. */
+  /**
+   * Sign in (`POST /api/mcp-sign-ins`): the reviewed config with the sign-in, the app's secret if one was typed. A new
+   * sign-in is the next try: the last failure goes.
+   */
   protected readonly startSignIn = (): Promise<McpSignIn> => {
     const source = this.source();
     if (!source || !('config' in source)) return Promise.reject(new Error('Only a server at a URL signs in.'));
+    this.error.set(null);
+    this.signInAgain.set(false);
     const config = signInConfig(source.config, this.clientId());
     this.signedInConfig = config;
     this.signedIn.set(null);
@@ -547,6 +611,7 @@ export class GwMcpReviewDialog {
     this.view.set(mcpReviewView(reviewed));
     this.busy.set(false);
     this.error.set(null);
+    this.signInAgain.set(false);
     this.missing.set([]);
   }
 
@@ -563,15 +628,23 @@ export class GwMcpReviewDialog {
   /** The typed values leave the page: the fields are emptied (closing, another review, a started server). */
   protected wipe(): void {
     this.valueFields().forEach((f) => (f.value = ''));
+    this.typed.set([]);
     const secret = this.host.querySelector<HTMLInputElement>(`#${this.uid}-client-secret`);
     if (secret) secret.value = '';
   }
 
   protected async start(e: Event): Promise<void> {
     e.preventDefault();
+    await this.connect();
+  }
+
+  /** Connects (or starts) the reviewed server: after the trust confirmation, or right after a sign-in. */
+  private async connect(): Promise<void> {
     const source = this.source();
     const w = this.view();
-    if (!source || !w || this.busy() || this.switching() || !this.acknowledged()) return;
+    if (!source || !w || this.busy() || this.switching()) return;
+    // Enter in a field submits a review whose sign-in is required too: it has no Connect to wait for.
+    if (!this.confirmed() && w.signIn !== 'required') return;
     const fields = this.valueFields();
     const values = mcpSecretValues(
       w.secrets,
@@ -585,11 +658,12 @@ export class GwMcpReviewDialog {
     const signIn = this.signedIn();
     if (w.signIn === 'required' && !signIn) {
       this.error.set(`Sign in to ${w.name} first: it answers only with a sign-in.`);
-      this.host.querySelector<HTMLElement>('[gwMcpSignIn] button')?.focus();
+      this.host.querySelector<HTMLElement>('[gwMcpSignIn] .gw-empty__actions button')?.focus();
       return;
     }
     this.busy.set(true);
     this.error.set(null);
+    this.signInAgain.set(false);
     const clientSecret = this.host.querySelector<HTMLInputElement>(`#${this.uid}-client-secret`)?.value ?? '';
     const all: SecretInputs = { ...values.secrets, ...(signIn && clientSecret ? { [CLIENT_SECRET]: { source: 'local' as const, value: clientSecret } } : {}) };
     const secrets = Object.keys(all).length ? { secrets: all } : {};
@@ -612,11 +686,21 @@ export class GwMcpReviewDialog {
         env: source.env ?? 'dev',
         http: w.http,
         tools: typeof started?.tools === 'number' ? started.tools : null,
+        signedIn: signIn ? { host: signInHost(signIn.authorizationHost || w.auth?.authorizationHost) } : null,
         opener,
       });
     } catch (err) {
       // The values stay in their fields for another try; closing the dialog wipes them.
       this.error.set(failureText(err, 'This build of the gateway core can’t run MCP servers yet.'));
+      if (signIn) {
+        // The core takes a sign-in once, even when the server then doesn't answer: the next try is a new sign-in.
+        this.signInBlock()?.reset();
+        this.signedIn.set(null);
+        this.signedInConfig = null;
+        this.signInAgain.set(true);
+        // The alert lands above the sign-in, which may be scrolled to: bring it into view.
+        afterNextRender(() => this.host.querySelector(`#${this.uid}-error`)?.scrollIntoView?.({ block: 'nearest' }), { injector: this.injector });
+      }
     } finally {
       this.busy.set(false);
     }

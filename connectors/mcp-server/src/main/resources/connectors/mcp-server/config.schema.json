@@ -373,6 +373,6 @@
     }
   ],
   "patternProperties": {
-    "^(command|env|inheritEnv|url|headers|auth)$": {}
+    "^(command|env|inheritEnv|offThisComputer|url|headers|auth)$": {}
   }
 }

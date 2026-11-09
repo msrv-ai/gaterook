@@ -159,11 +159,11 @@ describe('Endpoints view', () => {
     expect(disableBody(endpoint('lonely'), all, [], NOW)).toBe('Agents get an error on their next call. Settings are kept.');
   });
 
-  it('says what Delete does, in the kit’s words', () => {
+  it('says what Delete does: the AI apps are disconnected, in the kit’s words', () => {
     expect(deleteFacts(dev, tokens['dev'], NOW)).toEqual({
       description:
-        'Claude Desktop and Codex lose access at once, its tokens are revoked and the 3 requests waiting for approval are denied. Connections, their secrets and the audit log stay.',
-      clients: 'Claude Desktop, Codex',
+        'Claude Desktop and Codex are disconnected at once, its tokens are revoked and the 3 requests waiting for approval are denied. Connections, their secrets and the audit log stay.',
+      clients: 'Claude Desktop, Codex (disconnected)',
       tokens: 'codex-laptop, inspector-debug (revoked)',
       waiting: '3 approval requests (denied)',
     });
@@ -175,8 +175,8 @@ describe('Endpoints view', () => {
     });
     expect(deleteFacts(prod, tokens['incident-prod'], NOW)).toEqual({
       description:
-        'Claude Desktop loses access to the prod connections at once, and its URL stops answering. Connections, their secrets and the audit log stay.',
-      clients: 'Claude Desktop, through its bridge',
+        'Claude Desktop is disconnected and loses access to the prod connections at once, and its URL stops answering. Connections, their secrets and the audit log stay.',
+      clients: 'Claude Desktop, through its bridge (disconnected)',
       tokens: 'None stored',
       waiting: null,
     });
@@ -193,9 +193,18 @@ describe('Endpoints view', () => {
     expect(createdToast('payments-dev', 0)).toEqual({ tone: 'success', title: 'Endpoint payments-dev created', body: 'No connections added. Add connections and pick tool modes next.' });
     expect(createdToast('ro', 2).body).toBe('2 connections added. Review their tool modes next.');
     expect(duplicatedToast('dev-copy', 'dev')).toEqual({ tone: 'success', title: 'Endpoint dev-copy created', body: 'A copy of dev without tokens or AI app links.' });
-    expect(deletedToast('dev', { tokensRevoked: [], rejectedApprovals: 0 }).body).toBe('Its URL stops answering. The audit log keeps every call.');
-    expect(deletedToast('dev', { tokensRevoked: ['a', 'b'], rejectedApprovals: 3 }).body).toBe(
-      'Its URL stops answering. The audit log keeps every call. 2 tokens revoked, 3 waiting requests denied.',
+    expect(deletedToast('dev', { clients: [], tokensRevoked: [], rejectedApprovals: 0, notes: [] })).toEqual({
+      tone: 'success',
+      title: 'Endpoint dev deleted',
+      body: 'Its URL stops answering. The audit log keeps every call.',
+    });
+    expect(deletedToast('dev', { clients: ['Codex'], tokensRevoked: ['a', 'b'], rejectedApprovals: 3, notes: [] }).body).toBe(
+      'Codex is disconnected. Its URL stops answering. The audit log keeps every call. 2 tokens revoked, 3 waiting requests denied.',
+    );
+    // What the core leaves to the person comes last: Claude Desktop keeps an installed extension.
+    const note = 'Remove the extension "GateRook · dev" in Claude Desktop: Settings › Extensions.';
+    expect(deletedToast('dev', { clients: ['Claude Desktop', 'Codex'], tokensRevoked: [], rejectedApprovals: 0, notes: [note] }).body).toBe(
+      `Claude Desktop and Codex are disconnected. Its URL stops answering. The audit log keeps every call. ${note}`,
     );
   });
 

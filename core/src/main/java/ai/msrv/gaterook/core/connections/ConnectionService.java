@@ -15,6 +15,7 @@ import ai.msrv.gaterook.core.connections.internal.persistence.ConnectionEntity;
 import ai.msrv.gaterook.core.connections.internal.persistence.ConnectionRepository;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.connectors.ConnectorType;
+import ai.msrv.gaterook.core.connectors.EnvironmentPolicies;
 import ai.msrv.gaterook.core.platform.IntegrityAlerts;
 import ai.msrv.gaterook.core.platform.Masker;
 import ai.msrv.gaterook.core.platform.ProblemException;
@@ -139,6 +140,8 @@ public class ConnectionService {
   private final IntegrityAlerts alerts;
   private final ObjectProvider<ConnectionUsage> usage;
   private final ObjectProvider<ConnectionRemovalParticipant> participants;
+  private final ObjectProvider<ConnectionRenameParticipant> renameParticipants;
+  private final ObjectProvider<EnvironmentPolicies> policies;
   private final ObjectProvider<SetupChangeRecorder> setupChanges;
   private final ObjectProvider<ConnectionTester> tester;
   private final ApplicationEventPublisher publisher;
@@ -148,9 +151,10 @@ public class ConnectionService {
   public ConnectionService(ConnectionRepository repository, ConnectionRows rows, ConnectionConfigs configs,
       ConnectorRegistry registry, SecretService secrets, SchemaValidator validator, Masker masker,
       IntegrityAlerts alerts, ObjectProvider<ConnectionUsage> usage,
-      ObjectProvider<ConnectionRemovalParticipant> participants, ObjectProvider<SetupChangeRecorder> setupChanges,
-      ObjectProvider<ConnectionTester> tester, ApplicationEventPublisher publisher, Clock clock,
-      PlatformTransactionManager transactions) {
+      ObjectProvider<ConnectionRemovalParticipant> participants,
+      ObjectProvider<ConnectionRenameParticipant> renameParticipants, ObjectProvider<EnvironmentPolicies> policies,
+      ObjectProvider<SetupChangeRecorder> setupChanges, ObjectProvider<ConnectionTester> tester,
+      ApplicationEventPublisher publisher, Clock clock, PlatformTransactionManager transactions) {
     this.repository = repository;
     this.rows = rows;
     this.configs = configs;
@@ -161,6 +165,8 @@ public class ConnectionService {
     this.alerts = alerts;
     this.usage = usage;
     this.participants = participants;
+    this.renameParticipants = renameParticipants;
+    this.policies = policies;
     this.setupChanges = setupChanges;
     this.tester = tester;
     this.publisher = publisher;
@@ -363,16 +369,39 @@ public class ConnectionService {
    * @throws ProblemException 409 {@code send-secret-to-new-host} when a target changes and secrets are stored
    */
   public Summary update(String name, Env env, JsonNode config, long version, String reason, String confirm) {
-    return update(name, env, config, version, reason, confirm, Map.of());
+    return update(name, null, env, config, version, reason, confirm, Map.of());
   }
 
   /** Completing an imported draft can supply previously missing credentials in the same validated transaction. */
   public Summary update(String name, Env env, JsonNode config, long version, String reason, String confirm,
       Map<String, SecretInput> newSecrets) {
+    return update(name, null, env, config, version, reason, confirm, newSecrets);
+  }
+
+  /**
+   * The same edit, saved under {@code newName} when it is given and differs ({@code PUT /api/connections/{name}} with
+   * {@code name}; ARCHITECTURE.md §8.6 contract 13). In the edit's transaction the row takes the new name and a new
+   * signed version, and what refers to the connection by name follows it: its secrets' names, the policies' private
+   * ranges allowed to it, the keys of an MCP server's tools on its endpoints with their modes, and the server's folder
+   * and log ({@link ConnectionRenameParticipant}). What only records the past keeps the old name: the audit, approval
+   * requests and Setup changes. Agents see the new name from their next tool list.
+   *
+   * @throws ProblemException 422 for an invalid name, 409 for a name in use
+   */
+  public Summary update(String name, String newName, Env env, JsonNode config, long version, String reason,
+      String confirm, Map<String, SecretInput> newSecrets) {
     try {
       Objects.requireNonNull(env, "env");
       ConnectionConfigs.Stored current = stored(name);
       requireVerified(current);
+      String target = newName == null || newName.equals(name) ? name : newName;
+      boolean renaming = !target.equals(name);
+      if (renaming) {
+        checkName(target);
+        if (repository.existsByName(target)) {
+          throw nameInUse(target);
+        }
+      }
       ConnectorManifest manifest = usableType(current.config().type());
       boolean completing = needsSetup(current.config());
       // New secrets and text fields read from a store join an edit; a stored one changes through its Secrets control.
@@ -456,9 +485,17 @@ public class ConnectionService {
             throw ProblemException.unprocessable("Can't change the environment", problem.get(), "/env");
           }
         }
+        if (renaming) {
+          // Again in the writing transaction: another save may have taken the name since the check above.
+          if (repository.existsByName(target)) {
+            throw nameInUse(target);
+          }
+          row.rename(target, clock.instant());
+        }
+        ObjectNode storedBefore = rows.storedConfig(row);
         for (Map.Entry<String, SecretInput> entry : bound.entrySet()) {
           SecretInput input = entry.getValue();
-          String secretName = uniqueSecretName(name, entry.getKey(), cleaned);
+          String secretName = uniqueSecretName(target, entry.getKey(), cleaned);
           SecretInfo info = input.isLocal()
               ? secrets.createLocal(SecretOwner.connection(row.getId()), entry.getKey(), secretName, input.value())
               : secrets.createReference(SecretOwner.connection(row.getId()), entry.getKey(), secretName,
@@ -471,6 +508,8 @@ public class ConnectionService {
           row.setMetadata(rows.map(metadata));
           row.setEnabled(false, clock.instant());
         }
+        boolean settingsChanged = completing || env != before || !bound.isEmpty() || !dropped.isEmpty()
+            || !next.equals(storedBefore);
         row.reconfigure(env, rows.map(next), clock.instant());
         row = repository.saveAndFlush(row);
         rows.sign(row);
@@ -478,17 +517,51 @@ public class ConnectionService {
           // A field the new config no longer has (another sign-in method): its secret goes away with it.
           secrets.deleteForOwnerFields(SecretOwner.connection(row.getId()), dropped.keySet());
         }
-        setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.CONNECTION,
-            "Connection " + name + " edited", before == env ? null : before.id(), before == env ? null : env.id(),
-            reason, env, null, name, newTarget.map(t -> (JsonNode) JsonNodeFactory.instance.objectNode()
-                .put("newTarget", t)).orElse(null)));
-        publisher.publishEvent(new ConnectionConfigured(name, row.getType(), env, cleaned.deepCopy(), reason));
-        publisher.publishEvent(new ConnectionChanged(row.getId(), name, env, row.getVersion()));
+        if (renaming) {
+          renameReferences(row, name, target, reason);
+        }
+        if (!renaming || settingsChanged) {
+          setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.CONNECTION,
+              "Connection " + target + " edited", before == env ? null : before.id(), before == env ? null : env.id(),
+              reason, env, null, target, newTarget.map(t -> (JsonNode) JsonNodeFactory.instance.objectNode()
+                  .put("newTarget", t)).orElse(null)));
+        }
+        publisher.publishEvent(new ConnectionConfigured(target, row.getType(), env, cleaned.deepCopy(), reason));
+        publisher.publishEvent(new ConnectionChanged(row.getId(), target, env, row.getVersion()));
       });
-      return summary(name);
+      return summary(target);
     } finally {
       if (newSecrets != null) newSecrets.values().forEach(SecretInput::clear);
     }
+  }
+
+  /**
+   * What refers to a renamed connection by its name takes the new one, inside the rename's transaction and after the
+   * row was signed with it: the names of its secrets, the policies' private ranges allowed to it, then the
+   * {@link ConnectionRenameParticipant}s (endpoints, MCP servers), and a Setup change. A participant that throws vetoes
+   * the rename.
+   */
+  private void renameReferences(ConnectionEntity row, String from, String to, String reason) {
+    Map<String, String> secretNames = secrets.renameForOwner(SecretOwner.connection(row.getId()), from, to);
+    EnvironmentPolicies environments = policies.getIfAvailable();
+    if (environments != null) {
+      environments.renameConnection(from, to, reason);
+    }
+    for (ConnectionRenameParticipant p : renameParticipants.orderedStream().toList()) {
+      p.onRenaming(row.getId(), from, to, reason);
+    }
+    ObjectNode details = null;
+    if (!secretNames.isEmpty()) {
+      details = JsonNodeFactory.instance.objectNode();
+      ObjectNode names = details.putObject("secrets");
+      secretNames.forEach(names::put);
+    }
+    setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.CONNECTION,
+        "Connection " + from + " renamed to " + to, from, to, reason, row.getEnv(), null, to, details));
+  }
+
+  private static ProblemException nameInUse(String name) {
+    return ProblemException.conflict("Name in use", "A connection named " + name + " already exists.");
   }
 
   /**

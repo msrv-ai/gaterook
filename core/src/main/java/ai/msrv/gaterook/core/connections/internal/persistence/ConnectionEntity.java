@@ -133,6 +133,12 @@ public class ConnectionEntity {
     return config;
   }
 
+  /** A new name (validated and free): what agents, endpoints and policies call it from now on. */
+  public void rename(String name, Instant now) {
+    this.name = Objects.requireNonNull(name, "name");
+    this.updatedAt = Objects.requireNonNull(now, "now");
+  }
+
   /** A new configuration; the optimistic lock bumps {@code version}, which invalidates connector pools. */
   public void reconfigure(Env env, Map<String, Object> config, Instant now) {
     this.env = Objects.requireNonNull(env, "env");

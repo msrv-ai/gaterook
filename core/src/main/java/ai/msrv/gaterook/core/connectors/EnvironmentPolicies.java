@@ -25,4 +25,15 @@ public interface EnvironmentPolicies {
    * every connection of the environment), as CIDR text; everything private is refused otherwise.
    */
   List<String> allowedPrivateRanges(Env env, String connectionName);
+
+  /**
+   * A connection was renamed: entries of each environment's policy that name {@code from}
+   * ({@code http.allowedPrivateRanges[].connections}) name {@code to} instead, so what they allow stays with the
+   * connection and never passes to another one that takes the old name later. Joins the caller's transaction; each
+   * environment it changes records a Setup change.
+   *
+   * @throws ai.msrv.gaterook.core.platform.ProblemException 409 when a policy that names {@code from} was changed
+   *     outside GateRook: it can't be signed again before the person reviews it
+   */
+  void renameConnection(String from, String to, String reason);
 }
