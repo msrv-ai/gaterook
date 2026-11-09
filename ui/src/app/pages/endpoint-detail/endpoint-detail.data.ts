@@ -7,6 +7,7 @@ import { ConnectorTypesApi } from '../../core/api/connector-types.api';
 import {
   ConnectionPreview,
   EndpointCheck,
+  EndpointDeleted,
   EndpointDetail,
   EndpointRisk,
   EndpointSettings,
@@ -562,7 +563,7 @@ export class EndpointDetailData {
     return s;
   }
 
-  async remove(): Promise<{ readonly clients: string[]; readonly tokensRevoked: string[]; readonly rejectedApprovals: number }> {
+  async remove(): Promise<EndpointDeleted> {
     const slug = this.requireSlug();
     // The dialog is the confirmation: the core wants the slug repeated, as the kit's Delete asks nothing typed.
     const result = await this.endpoints.delete(slug, slug);

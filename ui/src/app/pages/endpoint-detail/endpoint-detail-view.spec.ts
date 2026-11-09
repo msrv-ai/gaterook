@@ -228,12 +228,12 @@ describe('endpoint detail view', () => {
   });
 
   describe('delete, disable, duplicate', () => {
-    it('lists who loses access and what is revoked and denied (kit)', () => {
+    it('lists the AI apps it disconnects and what is revoked and denied (kit)', () => {
       const f = deleteFacts(summary(), endpointClients(clientsView(), 'dev'), tokens());
       expect(f.description).toBe(
-        'Claude Desktop and Codex lose access at once, its tokens are revoked and the 3 requests waiting for approval are denied. Connections, their secrets and the audit log stay.',
+        'Claude Desktop and Codex are disconnected at once, its tokens are revoked and the 3 requests waiting for approval are denied. Connections, their secrets and the audit log stay.',
       );
-      expect(f.clients).toBe('Claude Desktop, Codex');
+      expect(f.clients).toBe('Claude Desktop, Codex (disconnected)');
       expect(f.tokens).toBe('codex-laptop, inspector-debug (revoked)');
       expect(f.waiting).toBe('3 approval requests (denied)');
       expect(deleteFacts(summary({ approvalsWaiting: 0 }), [], []).waiting).toBeNull();

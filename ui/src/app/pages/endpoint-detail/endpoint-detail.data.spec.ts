@@ -94,7 +94,7 @@ function setup(): EndpointDetailData {
     },
     delete: (slug, confirm) => {
       calls.push(`delete ${slug} ${confirm}`);
-      return Promise.resolve({ clients: [], tokensRevoked: [], rejectedApprovals: 0 });
+      return Promise.resolve({ clients: [], tokensRevoked: [], rejectedApprovals: 0, notes: [] });
     },
     updateSettings: (slug, update) => {
       settingsBodies.push(update);

@@ -809,19 +809,101 @@ class ClientsIT {
 
   @Test
   @Order(80)
-  void deletingAnEndpointEndsItsLinksAndDeletesItsExtensions() throws Exception {
+  void deletingAnEndpointDisconnectsEveryClientConnectedToIt() throws Exception {
     core.bean(EndpointService.class).create("scratch", null, EndpointService.StartFrom.EMPTY, null);
-    JsonNode preview = api.expect(200, HttpMethod.POST, "/api/clients/claude-desktop/connect/preview", """
+    Path codex = userHome.resolve(".codex/config.toml");
+    Path cursor = userHome.resolve(".cursor/mcp.json");
+    String codexBeforeConnect = Files.readString(codex);
+    String cursorBeforeConnect = Files.readString(cursor);
+    JsonNode extension = connected("claude-desktop", """
         {"endpoint":"scratch","method":"mcpb"}""");
-    JsonNode connected = api.expect(200, HttpMethod.POST, "/api/clients/claude-desktop/connect",
-        "{\"previewId\":\"" + preview.path("previewId").asString() + "\"}");
-    Path mcpb = Path.of(connected.path("mcpbPath").asString());
+    Path mcpb = Path.of(extension.path("mcpbPath").asString());
+    String codexLinkId = connected("codex", """
+        {"endpoint":"scratch","method":"helper","grantLabel":"codex-scratch"}""").path("link").path("id").asString();
+    String cursorLinkId = connected("cursor", """
+        {"endpoint":"scratch","method":"token","token":{"name":"cursor-scratch","ttlDays":7}}""")
+        .path("link").path("id").asString();
     assertThat(mcpb).exists();
-    EndpointService.DeleteSummary deleted = core.bean(EndpointService.class).delete("scratch", "scratch", null);
-    assertThat(deleted.clients()).singleElement().satisfies(c -> assertThat(c).startsWith("Claude Desktop"));
+    assertThat(Files.readString(codex)).contains("[mcp_servers.gaterook-scratch]");
+    Matcher token = NAMED.matcher(JsonEntryEditor.entry(Files.readString(cursor), "mcpServers", "gaterook-scratch")
+        .orElseThrow().toString());
+    assertThat(token.find()).isTrue();
+    String cursorScratchToken = token.group();
+
+    JsonNode deleted = api.expect(200, HttpMethod.DELETE, "/api/endpoints/scratch",
+        "{\"confirmSlug\":\"scratch\",\"reason\":\"done with it\"}");
+
+    // Each client is disconnected as Disconnect does it: our entry leaves its file, what else is there stays.
+    assertThat(deleted.path("clients").valueStream().map(JsonNode::asString).toList())
+        .containsExactlyInAnyOrder("Claude Desktop", "Codex", "Cursor");
+    assertThat(deleted.path("tokensRevoked").valueStream().map(JsonNode::asString).toList())
+        .contains("codex-scratch", "cursor-scratch");
+    assertThat(Files.readString(codex)).isEqualTo(codexBeforeConnect);
+    assertThat(Files.readString(cursor)).isEqualTo(cursorBeforeConnect);
+    // Claude Desktop's own folders are never written: the extension GateRook built goes, the installed one is named.
     assertThat(mcpb).doesNotExist();
-    assertThat(core.jdbc().queryForObject("select count(*) from client_link where id = ?", Integer.class,
-        connected.path("link").path("id").asString())).isZero();
+    assertThat(deleted.path("notes").valueStream().map(JsonNode::asString).toList()).containsExactly(
+        "Remove the extension \"GateRook · scratch\" in Claude Desktop: Settings › Extensions.");
+    assertThat(core.jdbc().queryForObject("select count(*) from client_link where id in (?, ?, ?)", Integer.class,
+        extension.path("link").path("id").asString(), codexLinkId, cursorLinkId)).isZero();
+    for (String client : List.of("Claude Desktop", "Codex", "Cursor")) {
+      assertThat(setupChanges("client", client + " → scratch")).endsWith("Connected → Disconnected");
+    }
+    assertThat(core.jdbc().queryForList("select reason from setup_change where what = 'client' and subject = ? and "
+        + "change_to = 'Disconnected'", String.class, "Cursor → scratch")).containsExactly("done with it");
+    // No copy of Cursor's file outlives the token the deletion revoked, the one the reverse edit made included.
+    List<Path> copies = new ArrayList<>(list(core.home().resolve("backups/cursor")));
+    try (Stream<Path> s = Files.list(userHome.resolve(".cursor"))) {
+      s.filter(p -> p.getFileName().toString().startsWith("mcp.json.bak-")).forEach(copies::add);
+    }
+    assertThat(copies).allSatisfy(p -> assertThat(Files.readString(p)).doesNotContain(cursorScratchToken));
+  }
+
+  @Test
+  @Order(83)
+  void deletingAnEndpointKeepsWhatItCantTakeBackAndSaysSo() throws Exception {
+    core.bean(EndpointService.class).create("scratch-two", null, EndpointService.StartFrom.EMPTY, null);
+    Path codex = userHome.resolve(".codex/config.toml");
+    Path cursor = userHome.resolve(".cursor/mcp.json");
+    String codexBeforeConnect = Files.readString(codex);
+    String cursorBeforeConnect = Files.readString(cursor);
+    connected("codex", """
+        {"endpoint":"scratch-two","method":"helper","grantLabel":"codex-scratch-two"}""");
+    connected("cursor", """
+        {"endpoint":"scratch-two","method":"token","token":{"name":"cursor-scratch-two","ttlDays":7}}""");
+    try {
+      // The person points Cursor's entry elsewhere, and Codex's file stops parsing.
+      String cursorChanged = Files.readString(cursor).replace("/mcp/scratch-two\"", "/mcp/elsewhere\"");
+      Files.writeString(cursor, cursorChanged);
+      String codexBroken = Files.readString(codex) + "\n[[[not toml\n";
+      Files.writeString(codex, codexBroken);
+
+      EndpointService.DeleteSummary deleted = core.bean(EndpointService.class).delete("scratch-two", "scratch-two",
+          null);
+
+      // Neither stops the deletion, and neither file is touched; the notes say what to remove by hand.
+      assertThat(api.get("/api/endpoints/scratch-two").status()).isEqualTo(404);
+      assertThat(deleted.clients()).containsExactlyInAnyOrder("Codex", "Cursor");
+      assertThat(Files.readString(cursor)).isEqualTo(cursorChanged);
+      assertThat(Files.readString(codex)).isEqualTo(codexBroken);
+      assertThat(deleted.notes()).containsExactlyInAnyOrder(
+          "The entry gaterook-scratch-two in ~/.cursor/mcp.json was changed outside GateRook, so it stays: remove it "
+              + "by hand if you don't need it.",
+          "GateRook couldn't edit ~/.codex/config.toml: remove the entry gaterook-scratch-two by hand.");
+      assertThat(setupChanges("client", "Codex → scratch-two")).endsWith("Connected → Disconnected");
+      assertThat(core.jdbc().queryForObject("select count(*) from client_link where entry_name = ?", Integer.class,
+          "gaterook-scratch-two")).isZero();
+    } finally {
+      Files.writeString(codex, codexBeforeConnect);
+      Files.writeString(cursor, cursorBeforeConnect);
+    }
+  }
+
+  /** Connect through preview and Confirm, as the window does it. */
+  private static JsonNode connected(String client, String request) {
+    JsonNode preview = api.expect(200, HttpMethod.POST, "/api/clients/" + client + "/connect/preview", request);
+    return api.expect(200, HttpMethod.POST, "/api/clients/" + client + "/connect",
+        "{\"previewId\":\"" + preview.path("previewId").asString() + "\"}");
   }
 
   @Test

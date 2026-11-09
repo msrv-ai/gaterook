@@ -40,6 +40,7 @@ import { GwIcon } from '../../kit/icons';
 import { GwMenu, GwMenuTrigger } from '../../kit/menu';
 import { GwTabs } from '../../kit/tabs';
 import { ToastService } from '../../kit/toast.service';
+import { deletedToast } from '../endpoints/endpoints-view';
 import { jumpTo } from '../secrets/jump';
 import { GwEndpointClients } from './endpoint-clients';
 import { EndpointDetailData } from './endpoint-detail.data';
@@ -632,9 +633,9 @@ export class EndpointDetailPage {
     this.deleteBusy.set(true);
     this.deleteError.set(null);
     try {
-      await this.data.remove();
+      const result = await this.data.remove();
       this.deleteDialog()?.close('delete');
-      this.toast({ tone: 'success', title: `Endpoint ${slug} deleted`, body: 'Its URL stops answering. The audit log keeps every call.' });
+      this.toast(deletedToast(slug, result));
       void this.router.navigate(['/endpoints']);
     } catch (e) {
       this.deleteError.set(this.errorText(e));
