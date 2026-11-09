@@ -18,7 +18,7 @@ import { AriaDisabledGuard } from '../../kit/aria-disabled';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
 import { NOW, ROWS, card, clientsFound, clientsInUse, devDb, firstRun, overview, row } from './overview.fixtures';
-import { OverviewPage, SKELETON_DELAY_MS } from './overview.page';
+import { ENDPOINT_STORAGE_KEY, OverviewPage, SKELETON_DELAY_MS } from './overview.page';
 import { catalogIndex, sentryReview } from '../connectors/connectors.fixtures';
 import { endpoint, kitEndpoints } from '../endpoints/endpoints.fixtures';
 import { detail as endpointDetail, groups as endpointTools } from '../endpoint-detail/endpoint-detail.fixtures';
@@ -227,6 +227,15 @@ const app = (root: ParentNode, name: string) => root.querySelector<HTMLElement>(
 const switchOf = (root: ParentNode) => root.querySelector<HTMLInputElement>('input[role="switch"]')!;
 const findButton = (root: ParentNode, name: string) => byText<HTMLButtonElement>(root, 'button', name)!;
 
+const selectedEndpoint = (root: ParentNode) => root.querySelector<HTMLInputElement>('input[name="overview-endpoint"]:checked')?.value ?? null;
+
+/** Leaves Overview and opens it again: a new page instance, as after navigating back to the home page. */
+async function reopen(fixture: ComponentFixture<OverviewPage>): Promise<{ fixture: ComponentFixture<OverviewPage>; el: HTMLElement }> {
+  fixture.destroy();
+  document.body.innerHTML = '';
+  return render();
+}
+
 async function selectEndpoint(fixture: ComponentFixture<unknown>, el: HTMLElement, slug: string): Promise<void> {
   const radio = [...el.querySelectorAll<HTMLInputElement>('input[name="overview-endpoint"]')].find((input) => input.value === slug)!;
   radio.click();
@@ -254,7 +263,10 @@ function openReview(el: HTMLElement): HTMLDialogElement | null {
   return [...el.querySelectorAll<HTMLDialogElement>('dialog[open]')].find((dialog) => text(dialog).includes('Review service access')) ?? null;
 }
 
-beforeEach(() => setupPage());
+beforeEach(() => {
+  localStorage.clear();
+  setupPage();
+});
 
 describe('Overview connection map', () => {
   it.each([6, 5, 4])('filters and expands %i connections alongside assigned and unassigned MCP services', async (nativeCount) => {
@@ -333,6 +345,7 @@ describe('Overview connection map', () => {
     expect(calls).toContain('endpoint stage-readonly false');
     expect(calls.some((call) => call.startsWith('connection '))).toBe(false);
     expect(el.querySelector<HTMLInputElement>('input[name="overview-endpoint"]:checked')!.value).toBe('dev');
+    expect(localStorage.getItem(ENDPOINT_STORAGE_KEY)).toBeNull();
     expect(text(el.querySelector('#ov-detail-title'))).toBe('Access through dev');
     expect(text(card)).toContain('Access paused');
   });
@@ -422,6 +435,7 @@ describe('Overview connection map', () => {
     expect(dialog.open).toBe(false);
     expect(text(el.querySelector('#ov-services-scope'))).toBe('0 services on new-dev');
     expect(el.querySelector<HTMLInputElement>('[data-map-endpoint="new-dev"] input')?.checked).toBe(true);
+    expect(localStorage.getItem(ENDPOINT_STORAGE_KEY)).toBe('new-dev');
     expect(text(el.querySelector('h1'))).toBe('Overview');
     expect(router.url).toBe(url);
     expect(navigate).not.toHaveBeenCalled();
@@ -798,6 +812,72 @@ describe('Overview connection map', () => {
     await settle(fixture);
     expect(el.querySelector('ol[aria-label="Request route"]')).toBeNull();
     expect(text(el.querySelector('#ov-trace-reason'))).toContain('This app is not connected');
+  });
+});
+
+describe('Overview remembered endpoint', () => {
+  it('opens the endpoint chosen last, including one chosen from its problem badge', async () => {
+    let { fixture, el } = await render();
+    expect(selectedEndpoint(el)).toBe('dev');
+    expect(localStorage.getItem(ENDPOINT_STORAGE_KEY)).toBeNull();
+    await selectEndpoint(fixture, el, 'incident-prod');
+    expect(localStorage.getItem(ENDPOINT_STORAGE_KEY)).toBe('incident-prod');
+
+    ({ fixture, el } = await reopen(fixture));
+    expect(selectedEndpoint(el)).toBe('incident-prod');
+    expect(text(el.querySelector('#ov-services-scope'))).toMatch(/ services on incident-prod$/);
+    expect(text(el.querySelector('#ov-detail-title'))).toBe('Access through incident-prod');
+
+    el.querySelector<HTMLButtonElement>('button[aria-label="Show 1 unreachable connections on dev"]')!.click();
+    await settle(fixture);
+    expect(localStorage.getItem(ENDPOINT_STORAGE_KEY)).toBe('dev');
+    ({ el } = await reopen(fixture));
+    expect(selectedEndpoint(el)).toBe('dev');
+    expect(el.querySelector('[aria-pressed="true"][aria-controls="ov-services ov-mcp"]')).toBeNull();
+  });
+
+  it('lets an endpoint link take precedence without replacing the remembered endpoint', async () => {
+    localStorage.setItem(ENDPOINT_STORAGE_KEY, 'incident-prod');
+    await TestBed.inject(Router).navigateByUrl('/?endpoint=stage-readonly');
+    const { el } = await render();
+    expect(selectedEndpoint(el)).toBe('stage-readonly');
+    expect(localStorage.getItem(ENDPOINT_STORAGE_KEY)).toBe('incident-prod');
+  });
+
+  it('falls back to the first endpoint while the remembered one is missing and keeps it for later', async () => {
+    localStorage.setItem(ENDPOINT_STORAGE_KEY, 'incident-prod');
+    const removed = savedEndpoints;
+    savedEndpoints = removed.filter((endpoint) => endpoint.slug !== 'incident-prod');
+    let { fixture, el } = await render();
+    expect(selectedEndpoint(el)).toBe('dev');
+    expect(text(el.querySelector('#ov-detail-title'))).toBe('Access through dev');
+    expect(localStorage.getItem(ENDPOINT_STORAGE_KEY)).toBe('incident-prod');
+
+    savedEndpoints = removed;
+    ({ fixture, el } = await reopen(fixture));
+    expect(selectedEndpoint(el)).toBe('incident-prod');
+
+    savedEndpoints = removed.filter((endpoint) => endpoint.slug !== 'incident-prod');
+    events.emit('approval.requested', { id: 'refresh' });
+    await sleep(180);
+    await settle(fixture);
+    expect(selectedEndpoint(el)).toBe('dev');
+    expect(localStorage.getItem(ENDPOINT_STORAGE_KEY)).toBe('incident-prod');
+  });
+
+  it('still opens and switches endpoints when storage is blocked', async () => {
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new DOMException('Blocked', 'SecurityError'); });
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('Blocked', 'SecurityError'); });
+    try {
+      const { fixture, el } = await render();
+      expect(selectedEndpoint(el)).toBe('dev');
+      await selectEndpoint(fixture, el, 'stage-readonly');
+      expect(selectedEndpoint(el)).toBe('stage-readonly');
+      expect(setItem).toHaveBeenCalledWith(ENDPOINT_STORAGE_KEY, 'stage-readonly');
+    } finally {
+      getItem.mockRestore();
+      setItem.mockRestore();
+    }
   });
 });
 

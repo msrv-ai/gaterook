@@ -28,6 +28,7 @@ import { GwToggle } from '../../kit/disclosure';
 import { GwIcon } from '../../kit/icons';
 import { GwMenu, GwMenuTrigger } from '../../kit/menu';
 import { GwSearchClear, GwSearchClearButton } from '../../kit/search';
+import { safeStorage } from '../../kit/storage';
 import { ToastService } from '../../kit/toast.service';
 import { OverviewData } from './overview.data';
 import { ConnectorsData } from '../connectors/connectors.data';
@@ -41,6 +42,8 @@ import { OverviewRequestPath } from './overview-request-path';
 import { GwEndpointCreate } from '../endpoints/endpoint-create';
 
 export const SKELETON_DELAY_MS = 300;
+/** The endpoint last chosen on Overview, which the page opens on the next visit. */
+export const ENDPOINT_STORAGE_KEY = 'gw-overview-endpoint';
 
 /** Live connection map for Overview. */
 @Component({
@@ -99,8 +102,10 @@ export class OverviewPage {
   protected readonly activity = computed(() =>
     activityLine(this.overview()?.stats ?? { calls24h: 0, denied24h: 0 }),
   );
+  // An `?endpoint=` link wins over the remembered endpoint; a slug that no longer exists falls back to the first.
   protected readonly selectedSlug = signal<string | null>(
-    this.route.snapshot.queryParamMap.get('endpoint'),
+    this.route.snapshot.queryParamMap.get('endpoint') ??
+      (safeStorage.get(ENDPOINT_STORAGE_KEY) || null),
   );
   protected readonly endpoint = computed(
     () =>
@@ -332,7 +337,7 @@ export class OverviewPage {
     this.trace.set(null);
   }
   protected chooseEndpoint(slug: string): void {
-    this.selectedSlug.set(slug);
+    this.select(slug);
     this.problemsOnly.set(false);
     this.expanded.set(false);
     this.resetSelection();
@@ -361,7 +366,7 @@ export class OverviewPage {
   }
   protected showProblems(ep: EndpointSummary): void {
     if (!this.problemCount(ep)) return;
-    this.selectedSlug.set(ep.slug);
+    this.select(ep.slug);
     this.query.set('');
     this.problemsOnly.set(true);
     this.expanded.set(true);
@@ -404,7 +409,7 @@ export class OverviewPage {
     void this.data.refresh();
   }
   protected added(slug: string): void {
-    this.selectedSlug.set(slug);
+    this.select(slug);
     this.clearFilters();
     void this.data.refresh();
   }
@@ -480,6 +485,11 @@ export class OverviewPage {
       : error instanceof Error
         ? error.message
         : String(error);
+  }
+  /** Shows an endpoint the person chose and remembers it; automatic fallbacks never replace that choice. */
+  private select(slug: string): void {
+    this.selectedSlug.set(slug);
+    safeStorage.set(ENDPOINT_STORAGE_KEY, slug);
   }
   private focusNode(name: string, toggle = false): void {
     afterNextRender(
