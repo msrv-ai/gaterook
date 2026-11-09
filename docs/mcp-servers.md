@@ -38,8 +38,8 @@ The registry checks who published a name: a domain such as `app.linear` belongs 
 
 **Review and connect** sends one request to the server without a sign-in and shows what it found:
 
-- **Sign-in with OAuth.** You sign in in your browser, as in Claude Desktop, Cursor or Codex.
-- **Optional sign-in.** The server also answers without one, with less access. If you connect without signing in, you can sign in later from the server's row.
+- **Sign-in with OAuth.** You sign in in your browser, as in Claude Desktop, Cursor or Codex. Signing in confirms the server: GateRook connects it as soon as you allow access, with no other step.
+- **Optional sign-in.** The server also answers without one, with less access. Sign in to connect it with your sign-in, or confirm the review and connect without one. Without a sign-in, you can sign in later from the server's row.
 - **No sign-in.** Connect directly.
 - **It wants a key.** It refused the request without offering a sign-in. Select **Back**, then choose **Bearer token** in **Sign-in options**, or add the custom header the server requires.
 
@@ -78,7 +78,7 @@ GateRook speaks the MCP revisions `2026-07-28` and `2025-11-25` back to `2024-11
 
 ## Sign in
 
-Select **Sign in** in the review. GateRook opens the server's sign-in page in your default browser and listens on this computer, at `http://localhost:<free port>/callback`, for the browser to come back. After you allow access, the page says you are signed in and GateRook returns to the front. Then select **Connect MCP server**.
+Select **Sign in** in the review. GateRook opens the server's sign-in page in your default browser and listens on this computer, at `http://localhost:<free port>/callback`, for the browser to come back. After you allow access, the page says you are signed in and GateRook returns to the front. It connects the server right away, and the endpoint step opens with a note that the server is signed in. Values the server needs besides the sign-in, such as a header, are entered in the review first: **Sign in** waits for them. If the server doesn't connect, the review says why. A sign-in is used once, so sign in again to try once more.
 
 The provider's consent page names GateRook. Where the provider accepts client metadata documents (in November 2026, Linear, Notion and Sentry among others), GateRook doesn't register with it. The provider reads the details GateRook publishes at `https://gaterook.com/oauth/gaterook-client.json`: its name, that it has no client secret, and that the browser comes back to this computer. Other servers get a registration that GateRook makes under its own name.
 
