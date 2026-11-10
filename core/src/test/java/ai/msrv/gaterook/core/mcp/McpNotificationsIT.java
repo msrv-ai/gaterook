@@ -276,7 +276,7 @@ class McpNotificationsIT {
     wiring.add(slug, slug + "-db", null);
     for (String tool : CoreTools.WITH_MODE) {
       var pair = endpoints.snapshot(slug).coreTool(tool).orElseThrow();
-      modes.setMode(slug, tool, null, Mode.READ_ONLY, null, pair.rowVersion(), null);
+      modes.setMode(slug, tool, null, Mode.READ_ONLY, null, null, pair.rowVersion(), null);
     }
     return new Endpoint(slug, tokens.issue(slug, "notifications", 7, null));
   }
@@ -284,7 +284,7 @@ class McpNotificationsIT {
   private static void setMode(Endpoint endpoint, String tool, Mode mode) {
     var pair = endpoints.snapshot(endpoint.slug()).pairs().stream()
         .filter(p -> p.toolKey().equals(tool)).findFirst().orElseThrow();
-    modes.setMode(endpoint.slug(), tool, pair.connectionName(), mode, null, pair.rowVersion(), null);
+    modes.setMode(endpoint.slug(), tool, pair.connectionName(), mode, null, null, pair.rowVersion(), null);
   }
 
   private record Endpoint(String slug, TokenService.Issued token) {

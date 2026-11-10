@@ -125,11 +125,11 @@ class DemoWorldIT {
     }
     for (String coreTool : List.of("list_connections", "describe_connection")) {
       EndpointSnapshot s = snapshots.bySlug("dev").orElseThrow();
-      tools.setMode("dev", coreTool, null, Mode.READ_ONLY, null, s.coreTool(coreTool).orElseThrow().rowVersion(),
+      tools.setMode("dev", coreTool, null, Mode.READ_ONLY, null, null, s.coreTool(coreTool).orElseThrow().rowVersion(),
           null);
     }
     EndpointSnapshot.Pair httpGet = pair(snapshots.bySlug("dev").orElseThrow(), "http_get", "billing-api");
-    tools.setMode("dev", httpGet.toolKey(), "billing-api", Mode.OFF, null, httpGet.rowVersion(),
+    tools.setMode("dev", httpGet.toolKey(), "billing-api", Mode.OFF, null, null, httpGet.rowVersion(),
         "Responses carried customer data");
 
     // stage-readonly: the three stage connections, read only.
@@ -240,7 +240,7 @@ class DemoWorldIT {
     assertThat(mode(s, "http_get", "billing-api")).isEqualTo(Mode.READ_ONLY);
     assertThat(mode(s, "sql_query", "stage-db")).isEqualTo(Mode.READ_ONLY);
     EndpointSnapshot.Pair execute = pair(s, "sql_execute", "stage-db");
-    assertThatThrownBy(() -> tools.setMode("stage-readonly", "sql_execute", "stage-db", Mode.APPROVAL, null,
+    assertThatThrownBy(() -> tools.setMode("stage-readonly", "sql_execute", "stage-db", Mode.APPROVAL, null, null,
         execute.rowVersion(), null)).isInstanceOf(ProblemException.class)
         .hasMessageContaining("stage-readonly is read only");
   }

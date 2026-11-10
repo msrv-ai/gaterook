@@ -344,7 +344,7 @@ export class EndpointDetailData {
   }
 
   /** One pair's mode or limits; the core answers with every group (a change can move other pairs' locks). */
-  async setMode(change: { readonly toolKey: string; readonly connection: string | null; readonly mode: ToolMode; readonly overrides?: JsonObject | null; readonly version: number }): Promise<void> {
+  async setMode(change: { readonly toolKey: string; readonly connection: string | null; readonly mode: ToolMode; readonly definitionHash?: string | null; readonly overrides?: JsonObject | null; readonly version: number }): Promise<void> {
     const slug = this.requireSlug();
     try {
       this.groupsSignal.set(await this.endpoints.setMode(slug, change));
@@ -379,7 +379,7 @@ export class EndpointDetailData {
       const row = confirmed.find((g) => g.connection === c.connection)?.tools.find((t) => t.toolKey === c.toolKey);
       this.groupsSignal.set(
         row && row.mode !== 'READ_ONLY'
-          ? await this.endpoints.setMode(slug, { toolKey: c.toolKey, connection: c.connection, mode: 'READ_ONLY', version: row.version })
+          ? await this.endpoints.setMode(slug, { toolKey: c.toolKey, connection: c.connection, mode: 'READ_ONLY', definitionHash: c.definitionHash, version: row.version })
           : confirmed,
       );
     } catch (e) {

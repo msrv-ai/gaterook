@@ -106,7 +106,7 @@ class EndpointsIT {
     assertThat(mode(snapshots.bySlug("recovered-tools").orElseThrow(), "sql_query", "other-recovered-db"))
         .isEqualTo(Mode.READ_ONLY);
 
-    tools.setMode("recovered-tools", "sql_query", "recovered-db", Mode.READ_ONLY, null, 0, null);
+    tools.setMode("recovered-tools", "sql_query", "recovered-db", Mode.READ_ONLY, null, null, 0, null);
     assertThat(connections.get("recovered-db").usedBy()).hasSize(recovered.size())
         .anySatisfy(u -> {
           assertThat(u.tool()).isEqualTo("sql_query");
@@ -169,7 +169,7 @@ class EndpointsIT {
 
     EndpointSnapshot.Pair myQuery = s.pairs().stream().filter(p -> p.toolKey().equals("sql_query")
         && p.connectionName().equals("m-my")).findFirst().orElseThrow();
-    tools.setMode("mixed", "sql_query", "m-my", Mode.APPROVAL, null, myQuery.rowVersion(), "check queries");
+    tools.setMode("mixed", "sql_query", "m-my", Mode.APPROVAL, null, null, myQuery.rowVersion(), "check queries");
     ToolCatalog.Catalog after = catalog.forEndpoint(snapshots.bySlug("mixed").orElseThrow());
     assertThat(after.tool("sql_query").orElseThrow().outputSchema()).as("a pair in Approval drops it").isNull();
     assertThat(after.listHash()).isNotEqualTo(list.listHash());
@@ -187,12 +187,12 @@ class EndpointsIT {
     assertThat(mode(s, "sql_execute", "l-pg")).isEqualTo(Mode.APPROVAL);
     assertThat(mode(s, "jira_search", "l-jira")).as("a plugin's READ starts in Approval").isEqualTo(Mode.APPROVAL);
 
-    assertThatThrownBy(() -> tools.setMode("locks", "sql_execute", "l-pg", Mode.READ_ONLY, null, 0, null))
+    assertThatThrownBy(() -> tools.setMode("locks", "sql_execute", "l-pg", Mode.READ_ONLY, null, null, 0, null))
         .isInstanceOf(ProblemException.class).hasMessageContaining("changes data");
     EndpointSnapshot.Pair jira = s.pairs().stream().filter(p -> p.tool().name().equals("jira_search")).findFirst()
         .orElseThrow();
     assertThat(jira.declaredBy()).isEqualTo("FakeJira");
-    assertThatThrownBy(() -> tools.setMode("locks", jira.toolKey(), "l-jira", Mode.READ_ONLY, null,
+    assertThatThrownBy(() -> tools.setMode("locks", jira.toolKey(), "l-jira", Mode.READ_ONLY, null, null,
         jira.rowVersion(), null)).isInstanceOf(ProblemException.class).hasMessageContaining("Confirm");
 
     EndpointTools.BulkResult bulk = tools.bulk("locks", null, "READ_ONLY", "everything read only");
@@ -206,7 +206,7 @@ class EndpointsIT {
     EndpointSnapshot.Pair now = confirmed.pairs().stream().filter(p -> p.tool().name().equals("jira_search"))
         .findFirst().orElseThrow();
     assertThat(now.readOnlyConfirmed()).isTrue();
-    tools.setMode("locks", jira.toolKey(), "l-jira", Mode.READ_ONLY, null, now.rowVersion(), null);
+    tools.setMode("locks", jira.toolKey(), "l-jira", Mode.READ_ONLY, null, null, now.rowVersion(), null);
     assertThat(mode(snapshots.bySlug("locks").orElseThrow(), "jira_search", "l-jira")).isEqualTo(Mode.READ_ONLY);
   }
 
@@ -235,7 +235,7 @@ class EndpointsIT {
     assertThat(mode(s, "sql_execute", "s-dev-db")).isEqualTo(Mode.OFF);
     assertThat(mode(s, "ssh_run", "s-dev-vm")).as("runbooks that only read").isEqualTo(Mode.READ_ONLY);
     assertThat(mode(s, "http_request", "s-dev-api")).isEqualTo(Mode.OFF);
-    assertThatThrownBy(() -> tools.setMode("s-readonly", "sql_execute", "s-dev-db", Mode.APPROVAL, null, 0, null))
+    assertThatThrownBy(() -> tools.setMode("s-readonly", "sql_execute", "s-dev-db", Mode.APPROVAL, null, null, 0, null))
         .isInstanceOf(ProblemException.class).hasMessageContaining("s-readonly is read only");
 
     EndpointService.StartPreview incidentPreview = endpoints.previewStart(EndpointService.StartFrom.INCIDENT_RESPONSE);
@@ -666,10 +666,11 @@ class EndpointsIT {
     // A pair's override is checked the same way.
     EndpointSnapshot.Pair query = pair(s, "sql_query");
     assertThatThrownBy(() -> tools.setMode("g-ep", "sql_query", "g-db", Mode.READ_ONLY,
+        null,
         TestCore.json("{\"rowLimit\":0}"), query.rowVersion(), null)).isInstanceOfSatisfying(ProblemException.class,
         e -> assertThat(e.field()).isEqualTo("/overrides/rowLimit"));
-    tools.setMode("g-ep", "sql_query", "g-db", Mode.READ_ONLY, TestCore.json("{\"rowLimit\":5}"), query.rowVersion(),
-        null);
+    tools.setMode("g-ep", "sql_query", "g-db", Mode.READ_ONLY, null, TestCore.json("{\"rowLimit\":5}"),
+        query.rowVersion(), null);
     EndpointSnapshot.Pair narrowed = pair(snapshots.bySlug("g-ep").orElseThrow(), "sql_query");
     assertThat(core.bean(PolicyEngine.class).decide(narrowed.view(), narrowed.config(), Classification.read())
         .limits().maxRows()).isEqualTo(5);
@@ -782,7 +783,7 @@ class EndpointsIT {
     assertThat(core.bean(EndpointRepository.class).existsBySlug("w3-split")).isFalse();
     EndpointSnapshot.Pair query = warm.pairs().stream().filter(p -> p.toolKey().equals("sql_query")).findFirst()
         .orElseThrow();
-    assertThatThrownBy(() -> tools.setMode("w3-ep", "sql_query", "w3-a", Mode.APPROVAL, null, query.rowVersion(),
+    assertThatThrownBy(() -> tools.setMode("w3-ep", "sql_query", "w3-a", Mode.APPROVAL, null, null, query.rowVersion(),
         null)).isInstanceOf(ProblemException.class).hasMessageContaining("changed outside");
     assertThatThrownBy(() -> tools.bulk("w3-ep", null, "OFF", null)).isInstanceOf(ProblemException.class);
     long version = endpoints.get("w3-ep").version();
@@ -809,7 +810,7 @@ class EndpointsIT {
     core.connection("ro-db", "pgfake", Env.DEV, "db.test");
     endpoints.create("ro-ep", null, EndpointService.StartFrom.EMPTY, null);
     EndpointSnapshot s = wiring.add("ro-ep", "ro-db", null);
-    tools.setMode("ro-ep", "list_connections", null, Mode.APPROVAL, null,
+    tools.setMode("ro-ep", "list_connections", null, Mode.APPROVAL, null, null,
         s.coreTool("list_connections").orElseThrow().rowVersion(), "ask before listing");
     String id = endpoints.get("ro-ep").id();
     long version = endpoints.get("ro-ep").version();
@@ -829,12 +830,13 @@ class EndpointsIT {
 
     // A read-only endpoint holds its core tools Off or Read only, like every pair.
     long coreVersion = ro.coreTool("list_connections").orElseThrow().rowVersion();
-    assertThatThrownBy(() -> tools.setMode("ro-ep", "list_connections", null, Mode.APPROVAL, null, coreVersion, null))
+    assertThatThrownBy(() -> tools.setMode("ro-ep", "list_connections", null, Mode.APPROVAL, null, null, coreVersion,
+        null))
         .isInstanceOfSatisfying(ProblemException.class, e -> {
           assertThat(e.kind()).isEqualTo(ProblemException.Kind.UNPROCESSABLE);
           assertThat(e.getMessage()).contains("ro-ep is read only");
         });
-    tools.setMode("ro-ep", "list_connections", null, Mode.READ_ONLY, null, coreVersion, null);
+    tools.setMode("ro-ep", "list_connections", null, Mode.READ_ONLY, null, null, coreVersion, null);
     assertThat(snapshots.bySlug("ro-ep").orElseThrow().coreTool("list_connections").orElseThrow().mode())
         .isEqualTo(Mode.READ_ONLY);
   }
@@ -1230,9 +1232,10 @@ class EndpointsIT {
 
     tools.bulk("srv-ep", "srv-mcp", "APPROVAL", null);
     EndpointSnapshot.Pair approval = pair(snapshots.bySlug("srv-ep").orElseThrow(), "gh_search");
-    tools.setMode("srv-ep", approval.toolKey(), "srv-mcp", Mode.READ_ONLY, null, approval.rowVersion(), null);
+    tools.setMode("srv-ep", approval.toolKey(), "srv-mcp", Mode.READ_ONLY, null, null, approval.rowVersion(), null);
     assertThat(pair(snapshots.bySlug("srv-ep").orElseThrow(), "gh_search").mode()).isEqualTo(Mode.READ_ONLY);
     assertThatThrownBy(() -> tools.setMode("srv-ep", "mcp:srv-mcp:gh_write", "srv-mcp", Mode.READ_ONLY,
+        null,
         null, 0, null)).isInstanceOf(ProblemException.class).hasMessageContaining("changes data");
   }
 
@@ -1250,7 +1253,7 @@ class EndpointsIT {
             null, null, null), endpoints.get(slug).version(), null);
       }
       EndpointSnapshot.Pair search = pair(wiring.add(slug, "refresh-mcp", null), "gh_search");
-      tools.setMode(slug, search.toolKey(), "refresh-mcp", choice.getValue(), null, search.rowVersion(), null);
+      tools.setMode(slug, search.toolKey(), "refresh-mcp", choice.getValue(), null, null, search.rowVersion(), null);
     }
     var config = TestCore.config("modes.test");
     ((ObjectNode) config.get("connection")).put("note", "2.0.0");

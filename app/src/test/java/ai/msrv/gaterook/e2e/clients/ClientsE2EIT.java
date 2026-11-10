@@ -119,7 +119,7 @@ class ClientsE2EIT {
     endpoints.create("dev", null, EndpointService.StartFrom.EMPTY, null);
     for (String tool : CoreTools.WITH_MODE) {
       var pair = endpoints.snapshot("dev").coreTool(tool).orElseThrow();
-      modes.setMode("dev", tool, null, Mode.READ_ONLY, null, pair.rowVersion(), null);
+      modes.setMode("dev", tool, null, Mode.READ_ONLY, null, null, pair.rowVersion(), null);
     }
     // The broker as Electron's main process runs it, signing with the launch secret.
     ProcessBuilder pb = new ProcessBuilder(node, BROKER.toString(), "--home", home.toString(), "--origin",

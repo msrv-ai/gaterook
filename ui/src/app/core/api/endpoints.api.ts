@@ -112,7 +112,7 @@ export interface ToolRow {
   readonly mode: ToolMode;
   readonly storedMode: ToolMode;
   readonly readOnlyAllowed: boolean;
-  /** Why Read only is unavailable or the mode is locked. */
+  /** Why Read only is unavailable or the mode is locked, or why a stored Read only or Bypass is held in Approval. */
   readonly reason: string | null;
   readonly readOnlyConfirmed: boolean;
   readonly definitionHash: string | null;
@@ -229,10 +229,14 @@ export class EndpointsApi {
     return this.api.get(ApiClient.path`/api/endpoints/${slug}/tools`);
   }
 
-  /** The core answers with every group again (admin.endpoints `setMode`): one change can move other pairs' locks. */
+  /**
+   * The core answers with every group again (admin.endpoints `setMode`): one change can move other pairs' locks.
+   * `definitionHash` is the row's, sent when the person picks the mode: an external MCP server's tool keeps Read only
+   * or Bypass for that definition, and a tool that changed since gets 409. A save of the limits alone leaves it out.
+   */
   setMode(
     slug: string,
-    request: { readonly toolKey: string; readonly connection: string | null; readonly mode: ToolMode; readonly overrides?: JsonObject | null; readonly version: number } & WithReason,
+    request: { readonly toolKey: string; readonly connection: string | null; readonly mode: ToolMode; readonly definitionHash?: string | null; readonly overrides?: JsonObject | null; readonly version: number } & WithReason,
   ): Promise<ToolGroup[]> {
     return this.api.put(ApiClient.path`/api/endpoints/${slug}/tools`, request);
   }

@@ -560,15 +560,20 @@ final class Session {
   }
 
   /**
-   * The work folder, its {@code tmp} ({@code TMPDIR}) and the folder of all work folders, owner-only when new. Each
-   * must be a folder, never a link, and none is followed. The server writes in its work folder, so it can replace its
-   * {@code tmp} by a link before its next start, and a sandbox that names paths (macOS) would then open wherever the
-   * link leads: the start is refused with the reason, which is also said in the server's {@code log}, and the link is
-   * left for the person to delete.
+   * The work folder, its {@code tmp} ({@code TMPDIR}) and the folder of all work folders ({@code <GateRook home>/mcp}),
+   * owner-only when new. The work folder and its {@code tmp} must be folders, never links, and neither is followed.
+   * The server writes in its work folder, so it can replace its {@code tmp}, or its emptied work folder itself, by a
+   * link before its next start, and a sandbox that names paths (macOS) would then open wherever the link leads: the
+   * start is refused with the reason, which is also said in the server's {@code log}, and the link is left for the
+   * person to delete. A link at the folder of all work folders, or above it, is the person's own (the folder kept on
+   * another disk) and is followed: no server can write there, so none can put a link there or re-point one.
    */
   static void prepare(Path workDir, ServerLog log) throws ConnectorException {
     try {
-      folder(workDir.getParent(), "folder of all server folders", log);
+      Path folders = workDir.getParent();
+      if (!Files.isDirectory(folders)) {
+        ownerOnly(Files.createDirectories(folders));
+      }
       folder(workDir, "server's folder", log);
       folder(workDir.resolve("tmp"), "server's temp folder", log);
     } catch (IOException e) {
@@ -589,12 +594,16 @@ final class Session {
       throw ConnectorException.unavailable(message, null);
     }
     if (!Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS)) {
-      Files.createDirectories(dir);
-      PosixFileAttributeView posix = Files.getFileAttributeView(dir, PosixFileAttributeView.class,
-          LinkOption.NOFOLLOW_LINKS);
-      if (posix != null) {
-        posix.setPermissions(PosixFilePermissions.fromString("rwx------"));
-      } // Windows: the home folder's ACL protects it.
+      ownerOnly(Files.createDirectories(dir));
+    }
+  }
+
+  /** A folder just created, made owner-only; on Windows the home folder's ACL protects it. */
+  private static void ownerOnly(Path dir) throws IOException {
+    PosixFileAttributeView posix = Files.getFileAttributeView(dir, PosixFileAttributeView.class,
+        LinkOption.NOFOLLOW_LINKS);
+    if (posix != null) {
+      posix.setPermissions(PosixFilePermissions.fromString("rwx------"));
     }
   }
 

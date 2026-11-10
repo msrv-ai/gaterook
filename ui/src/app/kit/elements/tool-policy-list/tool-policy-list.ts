@@ -51,6 +51,8 @@ export interface ToolModeChange {
   readonly toolKey: string;
   readonly connection: string | null;
   readonly mode: ToolMode;
+  /** The definition the person chose the mode for, as the row showed it (`ToolRow.definitionHash`). */
+  readonly definitionHash: string | null;
   readonly version: number;
 }
 
@@ -312,7 +314,7 @@ export class GwToolPolicyList {
       return;
     }
     this.localModes.update((m) => ({ ...m, [r.key]: mode }));
-    this.modeChange.emit({ toolKey: r.tool.toolKey, connection: g.connection, mode, version: r.tool.version });
+    this.modeChange.emit({ toolKey: r.tool.toolKey, connection: g.connection, mode, definitionHash: r.tool.definitionHash, version: r.tool.version });
   }
 
   protected canManageTemporaryBypass(g: GroupView, r: RowView): boolean {

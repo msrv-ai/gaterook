@@ -132,7 +132,7 @@ class McpSubscriptionsIT {
       var pair = endpoints.snapshot("dev").pairs().stream().filter(p -> p.tool().name().equals("gh_search"))
           .findFirst().orElseThrow();
       core.bean(EndpointTools.class).setMode("dev", pair.toolKey(), CONNECTION, pair.mode() == Mode.OFF
-          ? Mode.APPROVAL : Mode.OFF, null, pair.rowVersion(), "Test");
+          ? Mode.APPROVAL : Mode.OFF, null, null, pair.rowVersion(), "Test");
       JsonNode tools = events.next();
       assertThat(tools.path("method").asString()).isEqualTo("notifications/tools/list_changed");
       assertThat(tools.path("params").path("_meta").path("io.modelcontextprotocol/subscriptionId").asLong())

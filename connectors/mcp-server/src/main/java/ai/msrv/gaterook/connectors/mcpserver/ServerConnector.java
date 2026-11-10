@@ -33,8 +33,9 @@ import tools.jackson.databind.node.ObjectNode;
  * <p>Before every call the definition the running server lists for the tool must hash as the snapshot does, and show
  * the same app: a server that changed a tool after it was reviewed (a rug pull) is refused until the core took the new
  * list in, and an approval made for one definition never runs against another. That the core took the list in does not
- * make the new definition the person's: the endpoints then hold the tool in Approval until its mode is set again
- * (ARCHITECTURE.md §7.5).
+ * make the new definition the person's: the endpoints then take a tool that ran without a person (Read only or Bypass)
+ * back to Approval, or to Off on a read-only endpoint, until its mode is set again, and a tool in Approval or Off stays
+ * there (ARCHITECTURE.md §7.5).
  */
 final class ServerConnector implements Connector {
 
@@ -202,7 +203,8 @@ final class ServerConnector implements Connector {
     }
     if (!hash.equals(Snapshots.definitionHash(live)) || !Snapshots.sameApp(entry, live)) {
       throw ConnectorException.denied(cfg.name() + " changed " + original + " since it was reviewed, so the call "
-          + "doesn't run. The new definition is in Connectors › MCP servers; its endpoints ask for approval again.");
+          + "doesn't run. The new definition is in Connectors › MCP servers; where the tool ran without approval, "
+          + "its endpoints ask for approval again.");
     }
     ObjectNode params = Texts.JSON.createObjectNode();
     params.put("name", original);

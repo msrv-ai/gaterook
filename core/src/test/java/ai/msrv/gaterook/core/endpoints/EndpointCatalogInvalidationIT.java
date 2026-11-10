@@ -57,7 +57,7 @@ class EndpointCatalogInvalidationIT {
 
       EndpointSnapshot.Pair query = snapshots.get(endpointId).orElseThrow().pairs().stream()
           .filter(p -> p.toolKey().equals("sql_query")).findFirst().orElseThrow();
-      core.bean(EndpointTools.class).setMode("default", "sql_query", "catalog-db", Mode.OFF, null,
+      core.bean(EndpointTools.class).setMode("default", "sql_query", "catalog-db", Mode.OFF, null, null,
           query.rowVersion(), null);
       assertThat(observed).hasSize(2);
       assertThat(observed.getLast().tool("sql_query")).isEmpty();

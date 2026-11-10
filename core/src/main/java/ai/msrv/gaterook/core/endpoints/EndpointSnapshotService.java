@@ -291,13 +291,21 @@ public class EndpointSnapshotService {
         Mode mode = storedMode;
         // An external server's tool runs without a person only with the definition its mode was set for. The stored
         // mode follows when the core has reconciled the endpoint (ARCHITECTURE.md §7.5); until then it is Approval.
+        String held = null;
         if ((mode == Mode.READ_ONLY || mode == Mode.BYPASS) && !ToolPairs.reviewed(row, offered)) {
+          held = (row != null && row.getReviewedDefinition() != null
+              ? "The definition of " + offered.definition().name() + " changed since it was set to "
+              : "No definition of " + offered.definition().name() + " is recorded for ")
+              + ToolPairs.label(mode) + ", so it doesn't run without a person until you set the mode again for the "
+              + "definition it has now.";
           mode = Mode.APPROVAL;
         }
+        // A temporary bypass is bound to the definition it was granted for, not to the row's reviewed one.
         Instant bypassUntil = problem == null
             ? TemporaryBypass.activeUntil(row, e, w.config(), offered, readOnly, clock.instant()) : null;
         if (bypassUntil != null) {
           mode = Mode.BYPASS;
+          held = null;
         }
         if (mode == Mode.READ_ONLY && offered.needsReadOnlyConfirmation() && !confirmed) {
           mode = Mode.APPROVAL;
@@ -320,7 +328,8 @@ public class EndpointSnapshotService {
             rows.tree(e.getSettings()).path("limits"), overrides);
         out.add(new EndpointSnapshot.Pair(row == null ? null : row.getId(), row == null ? 0 : row.getVersion(),
             offered.toolKey(), offered.definition(), manifest, w.config(), mode, storedMode, overrides,
-            offered.declaredBy(), confirmed, offered.provenanceVersion(), binding, view, contributions, bypassUntil));
+            offered.declaredBy(), confirmed, offered.provenanceVersion(), binding, view, contributions, bypassUntil,
+            held));
       }
     }
     if (blocked != null) {

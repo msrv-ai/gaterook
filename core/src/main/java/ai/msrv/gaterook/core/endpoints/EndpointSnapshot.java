@@ -53,11 +53,22 @@ public record EndpointSnapshot(String id, String slug, String description, Env e
    * @param template    the template binding of a compiled tool, or {@code null}
    * @param contributions what the templates of the pair's connection contribute to its tools (runbooks of
    *                      {@code ssh_run}); a runbook with {@code "freeText": true} makes {@code ssh_run} a full channel
+   * @param held        why an external MCP server's tool doesn't run in its stored Read only or Bypass (its row records
+   *                    another definition, or none: ARCHITECTURE.md §7.5), or {@code null}
    */
   public record Pair(String rowId, long rowVersion, String toolKey, ToolDefinition tool, ConnectorManifest manifest,
       ConnectionConfig config, Mode mode, Mode storedMode, JsonNode overrides, String declaredBy,
       boolean readOnlyConfirmed, String provenanceVersion, ToolCall.TemplateBinding template, PairView view,
-      List<JsonNode> contributions, Instant bypassUntil) {
+      List<JsonNode> contributions, Instant bypassUntil, String held) {
+
+    /** A pair that nothing holds. */
+    public Pair(String rowId, long rowVersion, String toolKey, ToolDefinition tool, ConnectorManifest manifest,
+        ConnectionConfig config, Mode mode, Mode storedMode, JsonNode overrides, String declaredBy,
+        boolean readOnlyConfirmed, String provenanceVersion, ToolCall.TemplateBinding template, PairView view,
+        List<JsonNode> contributions, Instant bypassUntil) {
+      this(rowId, rowVersion, toolKey, tool, manifest, config, mode, storedMode, overrides, declaredBy,
+          readOnlyConfirmed, provenanceVersion, template, view, contributions, bypassUntil, null);
+    }
 
     public String connectionName() {
       return config.name();

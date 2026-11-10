@@ -223,7 +223,7 @@ export class ConnectionToolModes {
         if (!current) throw new ApiError('conflict', 409, { detail: 'This tool is no longer available on the endpoint. Review its current tools.' });
         version = current.version;
       }
-      const groups = await this.api.setMode(endpoint, { toolKey: tool.toolKey, connection, mode, version });
+      const groups = await this.api.setMode(endpoint, { toolKey: tool.toolKey, connection, mode, definitionHash: tool.definitionHash, version });
       if (generation !== this.generation) return;
       this.apply(endpoint, connection, groups);
       this.toasts.show({ tone: 'success', title: `${tool.name}: ${MODES[mode].text} on ${endpoint}`, body: 'Applies from the next call.' });

@@ -7,6 +7,7 @@ import io.modelcontextprotocol.spec.McpSchema;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -49,6 +50,118 @@ class SnapshotsTest {
     assertThat(create.outputSchema()).isNull();
     assertThat(m.tools().get(2).has("annotations")).isFalse();
     assertThat(Snapshots.annotated(m.tools())).isEqualTo(2);
+  }
+
+  /**
+   * What a tool that declares nothing but its name and parameters is shown with: its name as its title, a description
+   * that names the server, and the protocol's pessimistic hints; a declared read gets the hints of one.
+   */
+  @Test
+  void aToolThatDeclaresLittleIsShownWithFallbacks() {
+    McpSchema.Tool bare = McpSchema.Tool.builder().name("ping").inputSchema(Map.of("type", "object")).build();
+    McpSchema.Tool read = tool("look", "", new McpSchema.ToolAnnotations(null, true, null, null, null, null));
+    Snapshots.Mapped m = Snapshots.of("x_", List.of(bare, read), n -> Optional.empty());
+
+    ToolDefinition shownBare = Snapshots.definition(m.tools().get(0), "probe");
+    ToolDefinition shownRead = Snapshots.definition(m.tools().get(1), "probe");
+
+    assertThat(shownBare.title()).isEqualTo("ping");
+    assertThat(shownBare.description()).isEqualTo("ping of the MCP server probe.");
+    assertThat(shownBare.annotations()).isEqualTo(new ToolDefinition.Annotations(false, true, false, true));
+    assertThat(shownRead.title()).isEqualTo("look");
+    assertThat(shownRead.description()).isEqualTo("look of the MCP server probe.");
+    assertThat(shownRead.annotations()).isEqualTo(new ToolDefinition.Annotations(true, false, false, true));
+  }
+
+  /** A server's tool as {@code tools/list} gives it, {@code change} applied: one of every part it can declare. */
+  private static ObjectNode declaring(Consumer<ObjectNode> change) {
+    ObjectNode t = Texts.JSON.createObjectNode().put("name", "find").put("title", "Find")
+        .put("description", "Finds the issues.");
+    t.putObject("inputSchema").put("type", "object").putObject("properties").putObject("q").put("type", "string");
+    t.putObject("outputSchema").put("type", "object");
+    t.putObject("annotations").put("readOnlyHint", false).put("destructiveHint", false).put("idempotentHint", true)
+        .put("openWorldHint", false);
+    ObjectNode ui = t.putObject("_meta").putObject("ui").put("resourceUri", "ui://issues/board.html");
+    ui.putArray("visibility").add("model");
+    change.accept(t);
+    return t;
+  }
+
+  /** The tool an endpoint publishes for {@code listed}, {@code server} being the connection's name. */
+  private static ToolDefinition published(ObjectNode listed, String server) {
+    return Snapshots.definition(Snapshots.fromJson("x_", List.of(listed), n -> Optional.empty()).tools().getFirst(),
+        server);
+  }
+
+  /** The published definition without what the server declared: what the agent and the hashes before a call see. */
+  private static ToolDefinition withoutDeclared(ToolDefinition t) {
+    return new ToolDefinition(t.name(), t.title(), t.description(), t.inputSchema(), t.outputSchema(),
+        t.annotations(), t.nature(), t.defaultMode(), t.prodDefaultMode(), t.resultShape(), t.risk(), t.meta());
+  }
+
+  /**
+   * The endpoints bind a person's Read only or Bypass to what a tool carries in {@code declared}: what the server
+   * declared and nothing {@link Snapshots#definition} derives. If this changes, every Read only and Bypass recorded
+   * before goes back to Approval on upgrade, so a change of what it covers must be deliberate.
+   */
+  @Test
+  void whatAToolDeclaredStaysWhatItIs() {
+    ToolDefinition t = published(declaring(x -> {}), "issues");
+
+    assertThat(Snapshots.definitionHash(declaring(x -> {})))
+        .isEqualTo("5de0ff4d6c072775b017990f64c41bf9eb060be680f2876160725f53b5fbbd4c");
+    assertThat(t.declared().toString()).isEqualTo("{\"definitionHash\":\"" + Snapshots.definitionHash(declaring(
+        x -> {})) + "\",\"ui\":{\"resourceUri\":\"ui://issues/board.html\",\"visibility\":[\"model\"]}}");
+    assertThat(published(declaring(x -> x.remove("_meta")), "issues").declared().path("ui").isNull()).isTrue();
+  }
+
+  @Test
+  void everythingTheServerDeclaresIsInWhatAToolDeclared() {
+    JsonNode declared = published(declaring(x -> {}), "issues").declared();
+    List<Consumer<ObjectNode>> parts = List.of(
+        x -> x.put("name", "search"),
+        x -> x.put("title", "Search"),
+        x -> x.remove("title"),
+        x -> x.put("description", "Finds the issues, and sends them elsewhere."),
+        x -> x.put("description", "Finds the issues. "),
+        x -> ((ObjectNode) x.get("inputSchema").get("properties").get("q")).put("type", "integer"),
+        x -> x.remove("outputSchema"),
+        x -> ((ObjectNode) x.get("annotations")).put("readOnlyHint", true),
+        x -> ((ObjectNode) x.get("annotations")).put("destructiveHint", true),
+        x -> ((ObjectNode) x.get("annotations")).put("idempotentHint", false),
+        x -> ((ObjectNode) x.get("annotations")).put("openWorldHint", true),
+        x -> ((ObjectNode) x.get("annotations")).remove("openWorldHint"),
+        x -> ((ObjectNode) x.get("_meta").get("ui")).put("resourceUri", "ui://issues/other.html"),
+        x -> ((ObjectNode) x.get("_meta").get("ui")).putArray("visibility").add("app"),
+        x -> x.remove("_meta"));
+    for (Consumer<ObjectNode> part : parts) {
+      assertThat(published(declaring(part), "issues").declared()).isNotEqualTo(declared);
+    }
+    assertThat(published(declaring(x -> {}), "renamed").declared()).as("the connection's name").isEqualTo(declared);
+  }
+
+  /**
+   * Where the server declares nothing, the published tool gets a fallback or a default, and a server that declares
+   * just that value publishes the same tool. What each declared tells them apart: a later change of a fallback or a
+   * default changes the published tool of one of them only, and what either declared stays as it is.
+   */
+  @Test
+  void whatIsPublishedTheSameIsToldApartByWhatWasDeclared() {
+    List<List<Consumer<ObjectNode>>> samePublished = List.of(
+        List.of(x -> x.remove("title"), x -> x.put("title", "find")),
+        List.of(x -> x.put("description", ""), x -> x.put("description", "find of the MCP server issues.")),
+        List.of(x -> x.remove("annotations"), x -> x.set("annotations", Texts.JSON.createObjectNode()
+            .put("readOnlyHint", false).put("destructiveHint", true).put("idempotentHint", false)
+            .put("openWorldHint", true))),
+        // A tool that may change data publishes no result schema, declared or not.
+        List.of(x -> x.remove("outputSchema"), x -> {}));
+    for (List<Consumer<ObjectNode>> pair : samePublished) {
+      ToolDefinition fallback = published(declaring(pair.get(0)), "issues");
+      ToolDefinition explicit = published(declaring(pair.get(1)), "issues");
+
+      assertThat(withoutDeclared(fallback)).as("published the same").isEqualTo(withoutDeclared(explicit));
+      assertThat(fallback.declared()).isNotEqualTo(explicit.declared());
+    }
   }
 
   @Test

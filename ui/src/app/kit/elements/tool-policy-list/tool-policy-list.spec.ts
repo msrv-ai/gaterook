@@ -164,6 +164,6 @@ describe('tool-policy-list MCP bulk modes', () => {
     read.click();
     await fixture.whenStable();
     expect(confirm).not.toHaveBeenCalled();
-    expect(modeChange).toHaveBeenCalledWith(expect.objectContaining({ toolKey: 'mcp:github-mcp/list_issues', mode: 'READ_ONLY' }));
+    expect(modeChange).toHaveBeenCalledWith(expect.objectContaining({ toolKey: 'mcp:github-mcp/list_issues', mode: 'READ_ONLY', definitionHash: 'sha256-list_issues' }));
   });
 });

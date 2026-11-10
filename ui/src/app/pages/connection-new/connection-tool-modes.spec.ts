@@ -113,7 +113,7 @@ describe('connection tool modes', () => {
     for (const [index, mode] of ['OFF', 'READ_ONLY', 'BYPASS', 'APPROVAL'].entries()) {
       await p.pick(mode);
       expect(p.api.setMode).toHaveBeenLastCalledWith('dev', {
-        toolKey: 'postgres/sql_query', connection: 'dev-db', mode, version: 4 + index,
+        toolKey: 'postgres/sql_query', connection: 'dev-db', mode, definitionHash: null, version: 4 + index,
       });
       expect(p.option(mode).getAttribute('aria-checked')).toBe('true');
     }
@@ -199,7 +199,7 @@ describe('connection tool modes', () => {
       toolKey: 'postgres/sql_query', connection: 'dev-db', definitionHash: 'sha256-current',
     });
     expect(p.api.setMode).toHaveBeenCalledExactlyOnceWith('dev', {
-      toolKey: 'postgres/sql_query', connection: 'dev-db', mode: 'READ_ONLY', version: 5,
+      toolKey: 'postgres/sql_query', connection: 'dev-db', mode: 'READ_ONLY', definitionHash: 'sha256-current', version: 5,
     });
     expect(p.trigger().textContent).toContain('Approval');
     expect(p.trigger().getAttribute('aria-disabled')).toBe('true');
@@ -230,7 +230,7 @@ describe('connection tool modes', () => {
     dialog.querySelector<HTMLButtonElement>('.gw-btn--primary')!.click();
     await p.settle();
     expect(p.api.setMode).toHaveBeenCalledExactlyOnceWith('dev', {
-      toolKey: 'postgres/sql_query', connection: 'dev-db', mode: 'READ_ONLY', version: 5,
+      toolKey: 'postgres/sql_query', connection: 'dev-db', mode: 'READ_ONLY', definitionHash: 'sha256-current', version: 5,
     });
     expect(p.trigger().textContent).toContain('Approval');
     expect(p.stored['dev'][0]).toMatchObject({ storedMode: 'APPROVAL', readOnlyConfirmed: true, version: 7 });
@@ -241,7 +241,7 @@ describe('connection tool modes', () => {
     expect(dialog.open).toBe(false);
     expect(p.api.confirmReadOnly).toHaveBeenCalledOnce();
     expect(p.api.setMode).toHaveBeenLastCalledWith('dev', {
-      toolKey: 'postgres/sql_query', connection: 'dev-db', mode: 'READ_ONLY', version: 7,
+      toolKey: 'postgres/sql_query', connection: 'dev-db', mode: 'READ_ONLY', definitionHash: 'sha256-current', version: 7,
     });
     expect(p.trigger().textContent).toContain('Read only');
   });

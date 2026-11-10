@@ -58,7 +58,8 @@ class EndpointCreationApiIT {
       assertThat(selected.pairs()).filteredOn(p -> p.tool().name().equals("sql_execute"))
           .extracting(p -> p.mode()).containsExactly(Mode.OFF);
       assertThatThrownBy(() -> core.bean(EndpointTools.class).setMode("selected-stage", "sql_execute", "stage-db",
-          Mode.APPROVAL, null, 0, null)).isInstanceOf(ProblemException.class).hasMessageContaining("is read only");
+          Mode.APPROVAL, null, null, 0, null)).isInstanceOf(ProblemException.class)
+          .hasMessageContaining("is read only");
 
       for (String connection : List.of("dev-db", "prod-db", "stage-mcp")) {
         JsonNode refused = api.expect(422, HttpMethod.POST, "/api/endpoints", """

@@ -42,7 +42,12 @@ import tools.jackson.databind.JsonNode;
 @Service
 public class EndpointTools {
 
-  /** One row of the tool list. */
+  /**
+   * One row of the tool list.
+   *
+   * @param reason why Read only isn't available, or else why the stored Read only or Bypass of an external MCP server's
+   *               tool is held ({@link EndpointSnapshot.Pair#held}), or {@code null}
+   */
   public record ToolRow(String toolKey, String name, ToolDefinition.Annotations annotations, String declaredBy,
       String mode, String storedMode, boolean readOnlyAllowed, String reason, boolean readOnlyConfirmed,
       String definitionHash, JsonNode overrides, String rowId, long version, Instant bypassUntil,
@@ -93,7 +98,7 @@ public class EndpointTools {
       String bypassRefusal = temporaryBypassRefusal(s, p);
       byConnection.computeIfAbsent(p.connectionName(), k -> new ArrayList<>()).add(new ToolRow(p.toolKey(),
           p.tool().name(), p.tool().annotations(), p.declaredBy(), label(p.mode()), label(p.storedMode()),
-          why.isEmpty(), why.orElse(null), p.readOnlyConfirmed(), ToolPairs.definitionHash(p.tool()), p.overrides(),
+          why.isEmpty(), why.orElse(p.held()), p.readOnlyConfirmed(), ToolPairs.definitionHash(p.tool()), p.overrides(),
           p.rowId(), p.rowVersion(), p.bypassUntil(), bypassRefusal == null, bypassRefusal));
     }
     List<Group> out = new ArrayList<>();
@@ -193,13 +198,21 @@ public class EndpointTools {
   }
 
   /**
-   * {@code PUT /api/endpoints/{slug}/tools {toolKey, connection, mode, overrides, version}}.
+   * {@code PUT /api/endpoints/{slug}/tools {toolKey, connection, mode, definitionHash, overrides, version}}.
    *
-   * @param connection the connection of the pair, or {@code null} for a core tool
-   * @param overrides  stricter limits of this pair only, or {@code null} to keep them
+   * <p>For an external MCP server's tool, Read only and Bypass hold only for the definition they were set for
+   * (ARCHITECTURE.md §7.5), and a definition is recorded only when a person chooses the mode for the one they were
+   * shown: {@code definitionHash} is the tool's {@link ToolPairs#definitionHash} as the tool list showed it. When it is
+   * the tool's current one, the current definition is recorded; when it is another, nothing changes and the answer is
+   * 409, since the tool changed while the person was looking at it. Without it (a save of the limits alone) the mode
+   * and the limits are stored as asked and no definition is recorded, so a tool held in Approval stays held.
+   *
+   * @param connection     the connection of the pair, or {@code null} for a core tool
+   * @param definitionHash the definition the person chose the mode for, or {@code null}
+   * @param overrides      stricter limits of this pair only, or {@code null} to keep them
    */
-  public void setMode(String slug, String toolKey, String connection, Mode mode, JsonNode overrides, long version,
-      String reason) {
+  public void setMode(String slug, String toolKey, String connection, Mode mode, String definitionHash,
+      JsonNode overrides, long version, String reason) {
     snapshot(slug);
     writeTx.executeWithoutResult(st -> {
       EndpointEntity e = requireEndpoint(slug);
@@ -226,6 +239,12 @@ public class EndpointTools {
       if (overrides != null) {
         checkOverrides(overrides);
       }
+      String reviewed = ToolPairs.reviewedDefinition(offered(p));
+      if (reviewed != null && definitionHash != null && (mode == Mode.READ_ONLY || mode == Mode.BYPASS)
+          && !ToolPairs.definitionHash(p.tool()).equals(definitionHash)) {
+        throw ProblemException.conflict("The tool changed", p.tool().name() + " changed while you were looking at "
+            + "it. Review it again.");
+      }
       EndpointToolEntity row = p.rowId() == null ? null : tools.findById(p.rowId()).orElse(null);
       if (row == null) {
         row = rows.save(new EndpointToolEntity(e, p.config().id(), p.toolKey(), Mode.OFF, clock.instant()));
@@ -233,7 +252,7 @@ public class EndpointTools {
         checkVersion(row, version);
       }
       apply(e, row, p.tool().name(), p.connectionName(), mode, overrides, reason,
-          ToolPairs.reviewedDefinition(offered(p)));
+          definitionHash == null ? null : reviewed);
     });
   }
 
@@ -369,8 +388,9 @@ public class EndpointTools {
   // ── Internals ───────────────────────────────────────────────────────────────────────────────────────────────
 
   /**
-   * @param reviewed the definition the person sees for an external MCP server's tool ({@code null} for any other):
-   *                 Read only and Bypass are recorded for it (ARCHITECTURE.md §7.5)
+   * @param reviewed the definition of an external MCP server's tool that the person chose the mode for, or
+   *                 {@code null} (any other tool, or a change that records none): Read only and Bypass are recorded
+   *                 for it (ARCHITECTURE.md §7.5)
    */
   private void apply(EndpointEntity e, EndpointToolEntity row, String tool, String connection, Mode mode,
       JsonNode overrides, String reason, String reviewed) {

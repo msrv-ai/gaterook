@@ -328,6 +328,40 @@ class SandboxTest {
     assertThat(linkedHome.grantForms(given)).contains(given.toString(), owned.toString());
   }
 
+  /**
+   * The folder of all work folders kept on another disk: a link at {@code <GateRook home>/mcp} is the person's own, as
+   * one at GateRook's home is, since no server can write there; below it a link is refused as everywhere.
+   */
+  @Test
+  @DisabledOnOs(OS.WINDOWS)
+  void aLinkAtTheFolderOfAllWorkFoldersIsThePersonsOwnAndNothingBelowIt() throws Exception {
+    Path real = dir.toRealPath();
+    Path home = Files.createDirectories(real.resolve("home"));
+    Path gateway = Files.createDirectories(home.resolve(".gaterook"));
+    Path disk = Files.createDirectories(real.resolve("disk/mcp"));
+    Files.createSymbolicLink(gateway.resolve("mcp"), disk);
+    Path onDisk = Files.createDirectories(disk.resolve("server"));
+    Path work = gateway.resolve("mcp/server");
+    Sandbox.Closed closed = closed(home, gateway);
+
+    assertThat(closed.link(work)).isNull();
+    assertThat(closed.link(work.resolve("tmp"))).isNull();
+    assertThat(Sandbox.linkRefusal(closed, List.of(work.toString()), work.resolve("tmp").toString())).isNull();
+    assertThat(closed.grantForms(work)).containsExactly(work.toString(), onDisk.toString());
+    assertThat(Sandbox.macProfile(closed, List.of(work.toString()), Set.of(), null))
+        .contains("(allow file-read* file-write* (subpath \"" + onDisk + "\"))");
+
+    // Below it, the work folder and its tmp are the server's to re-point.
+    Path tmp = Files.createSymbolicLink(onDisk.resolve("tmp"), home);
+    assertThat(Sandbox.linkRefusal(closed, List.of(work.toString()), work.resolve("tmp").toString()))
+        .isEqualTo("TMPDIR " + work.resolve("tmp") + " is a symbolic link");
+    assertThat(closed.link(tmp)).isEqualTo(tmp);
+    Path linked = Files.createSymbolicLink(disk.resolve("linked"), onDisk);
+    assertThat(closed.linkRefusal(gateway.resolve("mcp/linked"))).isEqualTo(gateway.resolve("mcp/linked")
+        + " is a symbolic link");
+    assertThat(closed.link(linked)).isEqualTo(linked);
+  }
+
   @Test
   @DisabledOnOs(OS.WINDOWS)
   void aGrantIsWrittenAsGivenWithTheSystemsAliasesSpelledOutAndNeverAsWhereALinkLeads() {
@@ -346,8 +380,9 @@ class SandboxTest {
   }
 
   /**
-   * The H2 shape on the profile itself: whatever a link leads to, the profile names neither it nor anything in it, for
-   * a {@code TMPDIR} that is a link as for a {@code --rw} path that is one.
+   * A link the command put in place of its {@code tmp} or its work folder, on the profile itself: whatever the link
+   * leads to, the profile names neither it nor anything in it, for a {@code TMPDIR} that is a link as for a
+   * {@code --rw} path that is one.
    */
   @Test
   @DisabledOnOs(OS.WINDOWS)

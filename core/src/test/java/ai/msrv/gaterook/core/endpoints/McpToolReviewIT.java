@@ -7,6 +7,7 @@ import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.connections.ConnectionService;
 import ai.msrv.gaterook.core.endpoints.internal.EndpointRows;
+import ai.msrv.gaterook.core.endpoints.internal.ToolPairs;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointToolEntity;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointToolRepository;
 import ai.msrv.gaterook.core.platform.ProblemException;
@@ -186,15 +187,20 @@ class McpToolReviewIT {
     assertThat(pair(server, "gh_search").storedMode()).isEqualTo(Mode.APPROVAL);
     assertThat(pair(server, "gh_search").bypassUntil()).isNull();
     assertThat(temporaryBypasses(server)).containsExactly("gh_write");
+    // gh_write keeps its definition, but its grant is bound to the connection and the endpoint as they were: the
+    // server's new list and the reconcile changed both, so it no longer applies.
+    assertThat(pair(server, "gh_write").mode()).isEqualTo(Mode.APPROVAL);
+    assertThat(pair(server, "gh_write").bypassUntil()).isNull();
 
     list(server, "write-desc");
     assertThat(pair(server, "gh_write").storedMode()).isEqualTo(Mode.APPROVAL);
     assertThat(pair(server, "gh_write").mode()).isEqualTo(Mode.APPROVAL);
     assertThat(temporaryBypasses(server)).isEmpty();
+    // The grant that had stopped applying is not shown as in force.
     assertThat(core.jdbc().queryForList("select change_from || ' > ' || change_to from setup_change where what = "
         + "'mode' and change_to = 'Approval' and subject like ?", String.class, "gh_write on " + server + ",%"))
-        .singleElement().satisfies(c -> assertThat(c).startsWith("Temporary bypass until ")
-            .endsWith(" > Approval"));
+        .singleElement().satisfies(c -> assertThat(c).startsWith("Approval, temporary bypass until ")
+            .endsWith(", no longer in force > Approval"));
   }
 
   @Test
@@ -345,8 +351,8 @@ class McpToolReviewIT {
       older.bean(EndpointConnections.class).add("up", "up-mcp", null);
       EndpointSnapshot.Pair list = older.bean(EndpointSnapshotService.class).bySlug("up").orElseThrow().pairs()
           .stream().filter(p -> p.tool().name().equals("gh_list")).findFirst().orElseThrow();
-      older.bean(EndpointTools.class).setMode("up", list.toolKey(), "up-mcp", Mode.BYPASS, null, list.rowVersion(),
-          null);
+      older.bean(EndpointTools.class).setMode("up", list.toolKey(), "up-mcp", Mode.BYPASS,
+          ToolPairs.definitionHash(list.tool()), null, list.rowVersion(), null);
       EndpointRows rows = older.bean(EndpointRows.class);
       EndpointToolRepository repository = older.bean(EndpointToolRepository.class);
       new TransactionTemplate(older.bean(PlatformTransactionManager.class)).executeWithoutResult(s -> {
@@ -396,6 +402,11 @@ class McpToolReviewIT {
     assertThat(core.jdbc().queryForList("select change_from || ' > ' || change_to from setup_change where what = "
         + "'mode' and change_to = 'Approval' and endpoint_slug = ? order by id", String.class, server))
         .containsExactlyInAnyOrder("Read only > Approval", "Read only > Approval", "Bypass > Approval");
+    // Nothing was recorded, so nothing changed since: the reason says what is missing.
+    assertThat(modeChanges(server, "gh_list")).last().isEqualTo("Bypass > Approval: No definition of gh_list is "
+        + "recorded for the mode it was set to");
+    assertThat(modeChanges(server, "gh_search")).last().isEqualTo("Read only > Approval: No definition of gh_search "
+        + "is recorded for the mode it was set to");
   }
 
   /** The connection's name is in what an endpoint publishes (the URI of a tool's app): a rename is no new definition. */
@@ -527,6 +538,264 @@ class McpToolReviewIT {
         .containsExactlyInAnyOrder("gh_list", "gh_write");
   }
 
+  // ── A temporary bypass has its own binding ──────────────────────────────────────────────────────────────────
+
+  @Test
+  void aTemporaryBypassGrantedAfterADefinitionChangeSurvivesAReconcileThatChangesNothing() {
+    String server = "rev-grant-demoted";
+    core.connection(server, "mcpfake", Env.DEV, "defs.test");
+    endpoints.create(server, null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add(server, server, null);
+    list(server, "desc");
+    assertThat(pair(server, "gh_search").storedMode()).isEqualTo(Mode.APPROVAL);
+
+    grant(server, "gh_search");
+    reconcile(server);
+
+    assertThat(pair(server, "gh_search").mode()).isEqualTo(Mode.BYPASS);
+    assertThat(pair(server, "gh_search").bypassUntil()).isNotNull();
+    assertThat(temporaryBypasses(server)).containsExactly("gh_search");
+    assertThat(modeChanges(server, "gh_search")).containsExactly(
+        "Read only > Approval: The definition of gh_search changed since its mode was set",
+        "Approval > Temporary bypass until " + pair(server, "gh_search").bypassUntil());
+  }
+
+  @Test
+  void aTemporaryBypassOfAToolInApprovalWhoseDefinitionChangedSurvivesAReconcileThatChangesNothing() {
+    String server = "rev-grant-approval";
+    core.connection(server, "mcpfake", Env.DEV, "defs.test");
+    endpoints.create(server, null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add(server, server, null);
+    // gh_write waits in Approval: its row keeps the definition it came in with.
+    list(server, "write-desc");
+    grant(server, "gh_write");
+
+    reconcile(server);
+    reconcile(server);
+
+    assertThat(pair(server, "gh_write").storedMode()).isEqualTo(Mode.APPROVAL);
+    assertThat(pair(server, "gh_write").mode()).isEqualTo(Mode.BYPASS);
+    assertThat(temporaryBypasses(server)).containsExactly("gh_write");
+  }
+
+  @Test
+  void aTemporaryBypassEndsWhenTheDefinitionItWasGrantedForChangesAndSaysSo() {
+    String server = "rev-grant-ends";
+    core.connection(server, "mcpfake", Env.DEV, "defs.test");
+    endpoints.create(server, null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add(server, server, null);
+    list(server, "desc");
+    grant(server, "gh_search");
+    Instant until = pair(server, "gh_search").bypassUntil();
+
+    list(server, "1.0.0");
+
+    assertThat(pair(server, "gh_search").mode()).isEqualTo(Mode.APPROVAL);
+    assertThat(temporaryBypasses(server)).isEmpty();
+    // The server's new list saved the connection, so the grant had stopped applying before the reconcile dropped it.
+    assertThat(modeChanges(server, "gh_search")).containsExactly(
+        "Read only > Approval: The definition of gh_search changed since its mode was set",
+        "Approval > Temporary bypass until " + until,
+        "Approval, temporary bypass until " + until + ", no longer in force > Approval: The definition of gh_search "
+            + "changed since its temporary bypass was granted");
+  }
+
+  @Test
+  void aTemporaryBypassOnARowWithoutARecordedDefinitionIsJudgedByItsOwnBinding() {
+    String server = "rev-grant-unrecorded";
+    core.connection(server, "mcpfake", Env.DEV, "defs.test");
+    endpoints.create(server, null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add(server, server, null);
+    record(server, "gh_write", null);
+    grant(server, "gh_write");
+
+    reconcile(server);
+
+    assertThat(pair(server, "gh_write").mode()).isEqualTo(Mode.BYPASS);
+    assertThat(temporaryBypasses(server)).containsExactly("gh_write");
+    assertThat(modeChanges(server, "gh_write")).singleElement().satisfies(c -> assertThat(c)
+        .startsWith("Approval > Temporary bypass until "));
+
+    // A stored Read only held in Approval (its row records an earlier definition) runs with the grant it is given.
+    record(server, "gh_search", "0".repeat(64));
+    grant(server, "gh_search");
+    String until = "temporary bypass until " + pair(server, "gh_search").bypassUntil();
+    assertThat(pair(server, "gh_search").mode()).isEqualTo(Mode.BYPASS);
+    assertThat(pair(server, "gh_search").held()).isNull();
+
+    // The reconcile lowers its stored mode and saves the endpoint, whose new version no grant is bound to: the grant
+    // ends with the mode change and the Setup change says so, instead of staying in the row without applying.
+    reconcile(server);
+    assertThat(pair(server, "gh_search").storedMode()).isEqualTo(Mode.APPROVAL);
+    assertThat(pair(server, "gh_search").mode()).isEqualTo(Mode.APPROVAL);
+    assertThat(pair(server, "gh_search").bypassUntil()).isNull();
+    assertThat(modeChanges(server, "gh_search")).last().isEqualTo("Read only, " + until + " > Approval: The "
+        + "definition of gh_search changed since its mode was set, and its temporary bypass ended with the mode change");
+    // gh_write's grant, bound to the endpoint as it was, stops applying with the same save.
+    assertThat(temporaryBypasses(server)).containsExactly("gh_write");
+    assertThat(pair(server, "gh_write").mode()).isEqualTo(Mode.APPROVAL);
+  }
+
+  // ── A definition is recorded when a person chooses the mode ─────────────────────────────────────────────────
+
+  @Test
+  void savingTheLimitsOfAHeldToolRecordsNoDefinitionAndKeepsItInApproval() {
+    String server = "rev-limits";
+    core.connection(server, "mcpfake", Env.DEV, "defs.test");
+    endpoints.create(server, null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add(server, server, null);
+    set(server, "gh_list", Mode.BYPASS);
+    record(server, "gh_list", "0".repeat(64));
+    record(server, "gh_search", null);
+    assertThat(pair(server, "gh_list").mode()).isEqualTo(Mode.APPROVAL);
+
+    saveLimits(server, "gh_list", "{\"rowLimit\":5}");
+    saveLimits(server, "gh_search", "{\"rowLimit\":5}");
+
+    for (String tool : List.of("gh_list", "gh_search")) {
+      assertThat(pair(server, tool).overrides().path("rowLimit").asInt()).isEqualTo(5);
+      assertThat(pair(server, tool).mode()).as(tool).isEqualTo(Mode.APPROVAL);
+    }
+    assertThat(pair(server, "gh_list").storedMode()).isEqualTo(Mode.BYPASS);
+    assertThat(reviewedDefinition(server, "gh_list")).isEqualTo("0".repeat(64));
+    assertThat(reviewedDefinition(server, "gh_search")).isNull();
+    // The tool list says why.
+    EndpointTools.ToolRow row = tools.list(server).getFirst().tools().stream()
+        .filter(t -> t.name().equals("gh_list")).findFirst().orElseThrow();
+    assertThat(row.mode()).isEqualTo("Approval");
+    assertThat(row.reason()).isEqualTo("The definition of gh_list changed since it was set to Bypass, so it doesn't "
+        + "run without a person until you set the mode again for the definition it has now.");
+    assertThat(tools.list(server).getFirst().tools().stream().filter(t -> t.name().equals("gh_search")).findFirst()
+        .orElseThrow().reason()).startsWith("No definition of gh_search is recorded for Read only");
+
+    // Chosen by a person for what it is now, it holds again.
+    set(server, "gh_list", Mode.BYPASS);
+    assertThat(pair(server, "gh_list").mode()).isEqualTo(Mode.BYPASS);
+    assertThat(tools.list(server).getFirst().tools().stream().filter(t -> t.name().equals("gh_list")).findFirst()
+        .orElseThrow().reason()).isNull();
+  }
+
+  @Test
+  void aModeChosenForADefinitionTheToolNoLongerHasIsRefusedAndChangesNothing() {
+    String server = "rev-stale";
+    core.connection(server, "mcpfake", Env.DEV, "defs.test");
+    endpoints.create(server, null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add(server, server, null);
+    EndpointSnapshot.Pair shown = pair(server, "gh_search");
+    String seen = ToolPairs.definitionHash(shown.tool());
+    record(server, "gh_search", "0".repeat(64));
+    // The server changed the tool after the page was loaded.
+    list(server, "desc");
+    EndpointSnapshot.Pair now = pair(server, "gh_search");
+
+    for (Mode mode : List.of(Mode.READ_ONLY, Mode.BYPASS)) {
+      assertThatThrownBy(() -> tools.setMode(server, now.toolKey(), server, mode, seen, null, now.rowVersion(), null))
+          .isInstanceOfSatisfying(ProblemException.class, e -> {
+            assertThat(e.kind()).isEqualTo(ProblemException.Kind.CONFLICT);
+            assertThat(e.getMessage()).contains("gh_search changed while you were looking at it");
+          });
+    }
+    assertThat(pair(server, "gh_search").rowVersion()).isEqualTo(now.rowVersion());
+    assertThat(pair(server, "gh_search").storedMode()).isEqualTo(Mode.APPROVAL);
+    // Stricter modes need no review: what the person saw doesn't matter for them.
+    tools.setMode(server, now.toolKey(), server, Mode.OFF, seen, null, now.rowVersion(), null);
+    assertThat(pair(server, "gh_search").storedMode()).isEqualTo(Mode.OFF);
+    // The definition the person was shown now records it.
+    set(server, "gh_search", Mode.READ_ONLY);
+    assertThat(pair(server, "gh_search").mode()).isEqualTo(Mode.READ_ONLY);
+    assertThat(reviewedDefinition(server, "gh_search")).isNotEqualTo("0".repeat(64)).isNotNull();
+  }
+
+  @Test
+  void aModeSetWithoutTheDefinitionItWasChosenForIsStoredButRecordsNone() {
+    String server = "rev-no-hash";
+    core.connection(server, "mcpfake", Env.DEV, "defs.test");
+    endpoints.create(server, null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add(server, server, null);
+    record(server, "gh_write", "0".repeat(64));
+    EndpointSnapshot.Pair p = pair(server, "gh_write");
+
+    tools.setMode(server, p.toolKey(), server, Mode.BYPASS, null, null, p.rowVersion(), null);
+
+    assertThat(pair(server, "gh_write").storedMode()).isEqualTo(Mode.BYPASS);
+    assertThat(pair(server, "gh_write").mode()).isEqualTo(Mode.APPROVAL);
+    assertThat(reviewedDefinition(server, "gh_write")).isEqualTo("0".repeat(64));
+  }
+
+  // ── Rows left without a definition ──────────────────────────────────────────────────────────────────────────
+
+  /**
+   * A row that keeps a stored Read only or Bypass without any recorded definition (the V89 start couldn't verify the
+   * rows) goes to Approval at the next start whose rows verify, Off on a read-only endpoint, with one Setup change; a
+   * row with a definition, a temporary bypass, a built-in tool and a row changed outside GateRook are left alone.
+   */
+  @Test
+  void aStartStoresApprovalForRowsThatStillHaveNoDefinitionOnce() throws Exception {
+    Path home;
+    try (TestCore older = TestCore.start("mcp-review-unrecorded")) {
+      older.connection("un-mcp", "mcpfake", Env.DEV, "defs.test");
+      older.connection("un-db", "pgfake", Env.DEV, "db.test");
+      EndpointService service = older.bean(EndpointService.class);
+      EndpointConnections wired = older.bean(EndpointConnections.class);
+      service.create("un", null, EndpointService.StartFrom.EMPTY, null);
+      service.create("un-ro", null, EndpointService.StartFrom.EMPTY, null);
+      service.updateSettings("un-ro", new EndpointService.SettingsUpdate(null, "read-only", null, null, null, null,
+          null), service.get("un-ro").version(), null);
+      for (String endpoint : List.of("un", "un-ro")) {
+        wired.add(endpoint, "un-mcp", null);
+      }
+      wired.add("un", "un-db", null);
+      EndpointSnapshotService s = older.bean(EndpointSnapshotService.class);
+      EndpointTools t = older.bean(EndpointTools.class);
+      EndpointSnapshot.Pair list = s.bySlug("un").orElseThrow().pairs().stream()
+          .filter(p -> p.tool().name().equals("gh_list")).findFirst().orElseThrow();
+      t.setMode("un", list.toolKey(), "un-mcp", Mode.BYPASS, ToolPairs.definitionHash(list.tool()), null,
+          list.rowVersion(), null);
+      EndpointSnapshot.Pair chart = s.bySlug("un").orElseThrow().pairs().stream()
+          .filter(p -> p.tool().name().equals("gh_chart")).findFirst().orElseThrow();
+      t.setTemporaryBypass("un", chart.toolKey(), "un-mcp", 30, chart.rowVersion(), null);
+      EndpointRows rows = older.bean(EndpointRows.class);
+      EndpointToolRepository repository = older.bean(EndpointToolRepository.class);
+      new TransactionTemplate(older.bean(PlatformTransactionManager.class)).executeWithoutResult(x -> {
+        for (EndpointToolEntity row : repository.findAll()) {
+          // gh_search on "un" keeps its record.
+          if (row.getToolKey().startsWith("mcp:") && (!row.getToolKey().endsWith(":gh_search")
+              || !row.getEndpoint().getSlug().equals("un"))) {
+            assertThat(rows.verify(row)).as(row.getToolKey()).isTrue();
+            row.setReviewedDefinition(null, Instant.now());
+            rows.save(row);
+          }
+        }
+      });
+      home = older.home();
+    }
+    try (Connection c = DriverManager.getConnection("jdbc:sqlite:" + home.resolve("gateway.db"));
+        Statement s = c.createStatement()) {
+      // Changed outside GateRook: never signed again by the start.
+      s.execute("UPDATE endpoint_tool SET overrides = '{\"rowLimit\":3}' WHERE tool_key = 'mcp:un-mcp:gh_search' AND "
+          + "endpoint_id = (SELECT id FROM endpoint WHERE slug = 'un-ro')");
+    }
+    String held = "select change_from || ' > ' || change_to from setup_change where subject = 'MCP server tools "
+        + "without a recorded definition'";
+    try (TestCore next = TestCore.reopen(home)) {
+      assertThat(stored(next, "un")).containsExactly("gh_chart=APPROVAL", "gh_list=APPROVAL", "gh_search=READ_ONLY",
+          "gh_write=APPROVAL", "sql_execute=APPROVAL", "sql_query=READ_ONLY");
+      assertThat(stored(next, "un-ro")).containsExactly("gh_chart=OFF", "gh_list=OFF", "gh_search=READ_ONLY",
+          "gh_write=OFF");
+      assertThat(next.jdbc().queryForList(held, String.class))
+          .containsExactly("Read only or Bypass > Approval for 2 MCP server tools, Off for 2 MCP server tools on "
+              + "read-only endpoints");
+      // The temporary bypass is the grant's own: it stays, and still applies.
+      EndpointSnapshot.Pair chart = next.bean(EndpointSnapshotService.class).bySlug("un").orElseThrow().pairs()
+          .stream().filter(p -> p.tool().name().equals("gh_chart")).findFirst().orElseThrow();
+      assertThat(chart.mode()).isEqualTo(Mode.BYPASS);
+    }
+    // Once: the next start finds nothing to do.
+    try (TestCore again = TestCore.reopen(home)) {
+      assertThat(again.jdbc().queryForList(held, String.class)).hasSize(1);
+    }
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────────────────────────────────────────────────
 
   /** The server lists as {@code note} says from now on: the connection is saved with it, and the endpoints follow. */
@@ -588,9 +857,29 @@ class McpToolReviewIT {
         .findFirst().orElseThrow();
   }
 
+  /** A person picks {@code mode} for the tool as the tool list shows it now. */
   private static void set(String endpoint, String tool, Mode mode) {
     EndpointSnapshot.Pair p = pair(endpoint, tool);
-    tools.setMode(endpoint, p.toolKey(), p.connectionName(), mode, null, p.rowVersion(), null);
+    tools.setMode(endpoint, p.toolKey(), p.connectionName(), mode, ToolPairs.definitionHash(p.tool()), null,
+        p.rowVersion(), null);
+  }
+
+  /** The endpoint page saves the limits of a tool: its stored mode, no definition. */
+  private static void saveLimits(String endpoint, String tool, String limits) {
+    EndpointSnapshot.Pair p = pair(endpoint, tool);
+    tools.setMode(endpoint, p.toolKey(), p.connectionName(), p.storedMode(), null, TestCore.json(limits),
+        p.rowVersion(), null);
+  }
+
+  /** Grants the tool a temporary bypass of 30 minutes. */
+  private static void grant(String endpoint, String tool) {
+    EndpointSnapshot.Pair p = pair(endpoint, tool);
+    tools.setTemporaryBypass(endpoint, p.toolKey(), p.connectionName(), 30, p.rowVersion(), null);
+  }
+
+  /** The endpoints reconcile the server's tools with nothing changed (a template change, a refresh). */
+  private static void reconcile(String connection) {
+    wiring.reconcile(connections.get(connection).id(), "test");
   }
 
   /** The tools an endpoint publishes now and the modes they run in, by name. */
@@ -604,6 +893,25 @@ class McpToolReviewIT {
     return core.jdbc().queryForList("select t.tool_key || '=' || t.mode from endpoint_tool t join endpoint e on e.id "
         + "= t.endpoint_id where e.slug = ? and t.connection_id is not null order by t.tool_key", String.class,
         endpoint).stream().map(row -> row.substring(row.lastIndexOf(':') + 1)).toList();
+  }
+
+  /** The mode Setup changes of one tool on its own endpoint, oldest first: "from > to: reason". */
+  private static List<String> modeChanges(String endpoint, String tool) {
+    return core.jdbc().queryForList("select change_from || ' > ' || change_to || coalesce(': ' || reason, '') from "
+        + "setup_change where what = 'mode' and endpoint_slug = ? and subject like ? order by id", String.class,
+        endpoint, tool + " on %");
+  }
+
+  private static String reviewedDefinition(String endpoint, String tool) {
+    return core.jdbc().queryForObject("select reviewed_definition from endpoint_tool where id = ?", String.class,
+        pair(endpoint, tool).rowId());
+  }
+
+  /** The modes stored in the rows of an endpoint's connections in {@code c}, by tool name. */
+  private static List<String> stored(TestCore c, String endpoint) {
+    return c.jdbc().queryForList("select t.tool_key || '=' || t.mode from endpoint_tool t join endpoint e on e.id = "
+        + "t.endpoint_id where e.slug = ? and t.connection_id is not null order by t.tool_key", String.class, endpoint)
+        .stream().map(row -> row.substring(row.lastIndexOf(':') + 1)).toList();
   }
 
   /** The tools of an endpoint that hold a temporary bypass in their rows. */

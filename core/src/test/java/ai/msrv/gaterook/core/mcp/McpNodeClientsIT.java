@@ -69,7 +69,7 @@ class McpNodeClientsIT {
       wiring.add(slug, "dev-db", null);
       for (String tool : CoreTools.WITH_MODE) {
         var pair = endpoints.snapshot(slug).coreTool(tool).orElseThrow();
-        modes.setMode(slug, tool, null, ai.msrv.gaterook.connector.api.ToolDefinition.Mode.READ_ONLY, null,
+        modes.setMode(slug, tool, null, ai.msrv.gaterook.connector.api.ToolDefinition.Mode.READ_ONLY, null, null,
             pair.rowVersion(), null);
       }
       endpoints.updateSettings(slug, new EndpointService.SettingsUpdate(null, null, null, null, null,

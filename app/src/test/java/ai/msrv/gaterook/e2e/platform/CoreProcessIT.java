@@ -166,8 +166,8 @@ class CoreProcessIT {
       seed.getBean(ai.msrv.gaterook.core.endpoints.EndpointConnections.class).add("dev", "dev-db", null);
       var snapshots = seed.getBean(ai.msrv.gaterook.core.endpoints.EndpointSnapshotService.class);
       seed.getBean(ai.msrv.gaterook.core.endpoints.EndpointTools.class).setMode("dev", "list_connections", null,
-          ai.msrv.gaterook.connector.api.ToolDefinition.Mode.READ_ONLY, null, snapshots.bySlug("dev").orElseThrow()
-              .coreTool("list_connections").orElseThrow().rowVersion(), null);
+          ai.msrv.gaterook.connector.api.ToolDefinition.Mode.READ_ONLY, null, null,
+          snapshots.bySlug("dev").orElseThrow().coreTool("list_connections").orElseThrow().rowVersion(), null);
       token = seed.getBean(ai.msrv.gaterook.core.endpoints.TokenService.class).issue("dev", "smoke", 7, null).token();
     }
 

@@ -195,26 +195,125 @@ class ToolPairsTest {
         ConnectorManifest.Kind.PLUGIN))).isTrue();
   }
 
+  /** A definition without the declared values the MCP server connector gives is recorded by its published hash. */
+  @Test
+  void aServerToolThatCarriesNothingDeclaredIsRecordedByItsPublishedDefinition() {
+    ToolDefinition search = ToolDefinition.builder("search").description("Searches.").build();
+
+    assertThat(ToolPairs.reviewedDefinition(external(search, ConnectorManifest.Kind.MCP_SERVER)))
+        .isEqualTo(ToolPairs.definitionHash(search));
+  }
+
+  /**
+   * What the connector declares for a server's tool doesn't name the connection, while what an endpoint publishes
+   * does (the URI of its app, a fallback description): a rename is no new definition.
+   */
   @Test
   void renamingAServerIsNoNewDefinitionForItsToolsButAnythingElseIs() {
     ToolPairs.Offered before = named("old-name", "search of the MCP server old-name.",
-        "ui://gaterook/connections/old-name/chart.html");
+        "ui://gaterook/connections/old-name/chart.html", declared(HASH, "ui://charts/chart.html"));
 
     assertThat(ToolPairs.reviewedDefinition(named("new-name", "search of the MCP server new-name.",
-        "ui://gaterook/connections/new-name/chart.html"))).isEqualTo(ToolPairs.reviewedDefinition(before));
+        "ui://gaterook/connections/new-name/chart.html", declared(HASH, "ui://charts/chart.html"))))
+        .isEqualTo(ToolPairs.reviewedDefinition(before));
     assertThat(ToolPairs.reviewedDefinition(named("new-name", "search of the MCP server new-name.",
-        "ui://gaterook/connections/new-name/other.html"))).isNotEqualTo(ToolPairs.reviewedDefinition(before));
+        "ui://gaterook/connections/new-name/other.html", declared(HASH, "ui://charts/other.html"))))
+        .isNotEqualTo(ToolPairs.reviewedDefinition(before));
     assertThat(ToolPairs.reviewedDefinition(named("new-name", "searches the MCP server new-name.",
-        "ui://gaterook/connections/new-name/chart.html"))).isNotEqualTo(ToolPairs.reviewedDefinition(before));
-    // The name of another connection is not this one's.
-    assertThat(ToolPairs.reviewedDefinition(named("new-name", "search of the MCP server new-name.",
-        "ui://gaterook/connections/old-name/chart.html"))).isNotEqualTo(ToolPairs.reviewedDefinition(before));
-    assertThat(ToolPairs.reviewedDefinition(named("old-name", "search of the MCP server old-name.", null)))
+        "ui://gaterook/connections/new-name/chart.html", declared(OTHER_HASH, "ui://charts/chart.html"))))
         .isNotEqualTo(ToolPairs.reviewedDefinition(before));
   }
 
-  private static ToolPairs.Offered named(String server, String description, String uri) {
-    ToolDefinition.Builder tool = ToolDefinition.builder("x_search").description(description);
+  /**
+   * The record of a fixed tool, as every endpoint row of a server's tool keeps it: if this changes, every Read only and
+   * Bypass recorded before goes back to Approval on upgrade, so a change of what the record covers must be deliberate.
+   */
+  @Test
+  void theRecordOfAFixedToolStaysWhatItIs() {
+    assertThat(ToolPairs.reviewedDefinition(shown(b -> {})))
+        .isEqualTo("b3d853c36197850714745ccc5b1f2009fe9d655bcbffd17fdf164846e09c3163");
+  }
+
+  @Test
+  void whatTheServerDeclaredIsTheRecordAndNothingGateRookDerivesIsInIt() {
+    String record = ToolPairs.reviewedDefinition(shown(b -> {}));
+    ObjectNode visibility = declared(HASH, "ui://issues/board.html");
+    ((ObjectNode) visibility.get("ui")).putArray("visibility").add("app");
+    List<java.util.function.Consumer<ToolDefinition.Builder>> declaredParts = List.of(
+        b -> b.declared(declared(OTHER_HASH, "ui://issues/board.html")),
+        b -> b.declared(declared(HASH, "ui://issues/other.html")),
+        b -> b.declared(declared(HASH, null)),
+        b -> b.declared(visibility));
+    for (var part : declaredParts) {
+      assertThat(ToolPairs.reviewedDefinition(shown(part))).isNotEqualTo(record);
+    }
+    // What the endpoint publishes, which GateRook derives from what was declared: the fallbacks of a title, a
+    // description and the hints, the result schema only a read publishes, the nature, the defaults, shape and risk.
+    ObjectNode otherSchema = JsonNodeFactory.instance.objectNode().put("type", "object");
+    otherSchema.putObject("properties").putObject("q").put("type", "integer");
+    List<java.util.function.Consumer<ToolDefinition.Builder>> derived = List.of(
+        b -> b.title("x_search"),
+        b -> b.description("search of the MCP server issues."),
+        b -> b.inputSchema(otherSchema),
+        b -> b.outputSchema(null).nature(ToolDefinition.Nature.MUTATION).defaultMode(Mode.APPROVAL, Mode.APPROVAL),
+        b -> b.annotations(new ToolDefinition.Annotations(true, false, true, true)),
+        b -> b.annotations(new ToolDefinition.Annotations(false, true, false, true)),
+        b -> b.meta(JsonNodeFactory.instance.objectNode().set("ui", JsonNodeFactory.instance.objectNode()
+            .put("resourceUri", "ui://gaterook/connections/issues/other.html"))),
+        b -> b.meta(null),
+        b -> b.defaultMode(Mode.READ_ONLY, Mode.APPROVAL),
+        b -> b.resultShape(ToolDefinition.ResultShape.TEXT),
+        b -> b.risk(new ToolDefinition.Risk(false, false, ToolDefinition.Egress.NONE)));
+    for (var part : derived) {
+      ToolDefinition.Builder changed = builder("x_search");
+      part.accept(changed);
+      assertThat(ToolPairs.reviewedDefinition(offeredBy("issues", changed.build()))).isEqualTo(record);
+      assertThat(ToolPairs.definitionHash(changed.build())).as("the published hash keeps covering it")
+          .isNotEqualTo(ToolPairs.definitionHash(builder("x_search").build()));
+    }
+  }
+
+  private static final String HASH = "1f".repeat(32);
+  private static final String OTHER_HASH = "2e".repeat(32);
+
+  /** What the MCP server connector declares for a tool: the hash of the tool as the server sent it, and its app. */
+  private static ObjectNode declared(String definitionHash, String app) {
+    ObjectNode declared = JsonNodeFactory.instance.objectNode().put("definitionHash", definitionHash);
+    if (app == null) {
+      declared.putNull("ui");
+    } else {
+      declared.putObject("ui").put("resourceUri", app);
+    }
+    return declared;
+  }
+
+  /** A server's tool as {@code issues} lists it, {@code change} applied. */
+  private static ToolPairs.Offered shown(java.util.function.Consumer<ToolDefinition.Builder> change) {
+    ToolDefinition.Builder b = builder("x_search");
+    change.accept(b);
+    return offeredBy("issues", b.build());
+  }
+
+  private static ToolDefinition.Builder builder(String name) {
+    ObjectNode input = JsonNodeFactory.instance.objectNode().put("type", "object");
+    input.putObject("properties").putObject("q").put("type", "string");
+    return ToolDefinition.builder(name).title("Search").description("Searches the issues.")
+        .inputSchema(input).outputSchema(JsonNodeFactory.instance.objectNode().put("type", "object"))
+        .annotations(new ToolDefinition.Annotations(true, false, false, true)).nature(ToolDefinition.Nature.READ)
+        .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY).resultShape(ToolDefinition.ResultShape.JSON)
+        .risk(new ToolDefinition.Risk(true, true, ToolDefinition.Egress.CHANNEL))
+        .meta(JsonNodeFactory.instance.objectNode().set("ui", JsonNodeFactory.instance.objectNode()
+            .put("resourceUri", "ui://gaterook/connections/issues/board.html")))
+        .declared(declared(HASH, "ui://issues/board.html"));
+  }
+
+  private static ToolPairs.Offered offeredBy(String server, ToolDefinition tool) {
+    return new ToolPairs.Offered("mcp:" + server + ":" + tool.name(), tool, ConnectorManifest.Kind.MCP_SERVER, server,
+        "1.0.0", null, null);
+  }
+
+  private static ToolPairs.Offered named(String server, String description, String uri, ObjectNode declared) {
+    ToolDefinition.Builder tool = ToolDefinition.builder("x_search").description(description).declared(declared);
     if (uri != null) {
       tool.meta(JsonNodeFactory.instance.objectNode().set("ui", JsonNodeFactory.instance.objectNode()
           .put("resourceUri", uri)));
@@ -222,6 +321,7 @@ class ToolPairsTest {
     return new ToolPairs.Offered("mcp:" + server + ":x_search", tool.build(), ConnectorManifest.Kind.MCP_SERVER,
         server, "1.0.0", null, null);
   }
+
 
   @Test
   void aToolThatNeedsAPersonAgainGoesToApprovalOrOffWhereNothingWaitsForOne() {

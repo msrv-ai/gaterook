@@ -28,7 +28,8 @@ import tools.jackson.databind.node.ObjectNode;
  * The folders a server is started in ({@link Session#prepare}, ARCHITECTURE.md §7.5): its work folder (its
  * {@code HOME}), the {@code tmp} inside it ({@code TMPDIR}) and the folder of all work folders. A server writes in its
  * work folder, so it can replace {@code tmp} with a link before its next start, and a sandbox that names paths (macOS)
- * would then open wherever the link leads: a link where a folder belongs is refused and never followed.
+ * would then open wherever the link leads: a link in place of the work folder or its {@code tmp} is refused and never
+ * followed. The folder of all work folders is the person's, a link there included.
  */
 @DisabledOnOs(OS.WINDOWS) // symbolic links need privileges there
 class WorkFolderTest {
@@ -80,18 +81,39 @@ class WorkFolderTest {
     log.close();
   }
 
+  /**
+   * The folder of all work folders is the person's: no server can write there, so a link at it (the folder kept on
+   * another disk) is theirs and followed, and the work folders are made where it leads, below it as everywhere.
+   */
   @Test
-  void aLinkInPlaceOfTheWorkFolderOrTheFolderOfAllWorkFoldersIsRefusedToo() throws Exception {
-    Path outside = Files.createDirectories(home.resolve("outside"));
-    Path folders = Files.createSymbolicLink(home.resolve("mcp"), outside);
+  void aLinkAtTheFolderOfAllWorkFoldersIsThePersonsOwnAndFollowed() throws Exception {
+    Path disk = Files.createDirectories(home.resolve("disk/mcp"));
+    Files.createSymbolicLink(home.resolve("mcp"), disk);
 
-    assertThatThrownBy(() -> Session.prepare(home.resolve("mcp/server"))).isInstanceOf(ConnectorException.class)
-        .hasMessageContaining("folder of all server folders " + folders).hasMessageContaining("symbolic link");
-    try (Stream<Path> inside = Files.list(outside)) {
-      assertThat(inside).isEmpty();
+    Session.prepare(home.resolve("mcp/server"));
+
+    for (Path dir : List.of(disk.resolve("server"), disk.resolve("server/tmp"))) {
+      assertThat(dir).isDirectory();
+      assertThat(Files.isSymbolicLink(dir)).isFalse();
+      assertThat(Files.getPosixFilePermissions(dir)).isEqualTo(PosixFilePermissions.fromString(OWNER_ONLY));
     }
+    // Below it a link is still refused.
+    Files.delete(disk.resolve("server/tmp"));
+    Path tmp = Files.createSymbolicLink(disk.resolve("server/tmp"), home.resolve("disk"));
+    assertThatThrownBy(() -> Session.prepare(home.resolve("mcp/server"))).isInstanceOf(ConnectorException.class)
+        .hasMessageContaining("temp folder " + home.resolve("mcp/server/tmp")).hasMessageContaining("symbolic link");
+    assertThat(Files.isSymbolicLink(tmp)).isTrue();
 
-    Files.delete(folders);
+    // A folder of all work folders that isn't there yet is made owner-only.
+    Path fresh = home.resolve("fresh/mcp/server");
+    Session.prepare(fresh);
+    assertThat(Files.getPosixFilePermissions(fresh.getParent()))
+        .isEqualTo(PosixFilePermissions.fromString(OWNER_ONLY));
+  }
+
+  @Test
+  void aLinkInPlaceOfTheWorkFolderIsRefusedToo() throws Exception {
+    Path outside = Files.createDirectories(home.resolve("outside"));
     Files.createDirectories(home.resolve("mcp"));
     Path work = Files.createSymbolicLink(home.resolve("mcp/server"), outside);
 
