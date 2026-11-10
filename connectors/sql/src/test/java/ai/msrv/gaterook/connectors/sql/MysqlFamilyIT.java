@@ -23,6 +23,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.TimeZone;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
@@ -270,6 +272,29 @@ abstract class MysqlFamilyIT {
         tool.binding()));
     assertThat(CONNECTOR.execute(injection, cfg("ro", Env.DEV), secrets("ro"), ctx()).table().rows())
         .extracting(r -> r.get(0).asLong()).containsExactly(48241L);
+  }
+
+  @Test
+  void aTemplatesTimestampMeansTheSameInstantWhateverTheGatewaysTimeZone() throws Exception {
+    TimeZone before = TimeZone.getDefault();
+    // Fourteen hours ahead of the server's UTC: Connector/J would send the local time of this zone.
+    TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Kiritimati"));
+    try {
+      TemplateKind.CompileResult compiled = CONNECTOR.templateKinds().getFirst().compile(Fixtures.json("""
+          {"name": "recent_orders", "sql": "SELECT id FROM orders WHERE created_at > :since ORDER BY id",
+           "params": [{"name": "since", "type": "timestamp"}]}
+          """), cfg("ro", Env.DEV));
+      assertThat(compiled.errors()).isEmpty();
+      // The seed's orders are one hour, two hours and three days old (other tests add new ones).
+      String since = Instant.now().minus(Duration.ofMinutes(150)).toString();
+      ToolCall call = new ToolCall("tc_t3", "recent_orders", "dev-db", Fixtures.object().put("since", since),
+          new ToolCall.TemplateBinding("tpl", 1, "q", compiled.tools().getFirst().binding()));
+
+      assertThat(CONNECTOR.execute(call, cfg("ro", Env.DEV), secrets("ro"), ctx()).table().rows())
+          .extracting(r -> r.get(0).asLong()).contains(48213L, 48241L).doesNotContain(48240L);
+    } finally {
+      TimeZone.setDefault(before);
+    }
   }
 
   @Test

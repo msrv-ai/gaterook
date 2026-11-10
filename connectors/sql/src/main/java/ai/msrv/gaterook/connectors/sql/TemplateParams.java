@@ -3,16 +3,22 @@ package ai.msrv.gaterook.connectors.sql;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connectors.support.JsonNumbers;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.Period;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -31,7 +37,9 @@ import tools.jackson.databind.node.ObjectNode;
  * 4,000, 256 by default, {@code pattern}), Enum, Integer ({@code minimum}/{@code maximum}), Number (decimal), Boolean,
  * Timestamp (with an offset) and Date. A default is a literal, or for times an ISO-8601 duration from now
  * ({@code -PT24H}: 24 hours ago), computed at the call. Values are bound by the driver, never pasted into the SQL;
- * a NULL is bound with its type (PostgreSQL can't infer the type of an untyped NULL parameter).
+ * a NULL is bound with its type (PostgreSQL can't infer the type of an untyped NULL parameter). A timestamp is an
+ * instant, whatever the time zone of the gateway's host: MySQL and MariaDB get it as their session's local time of that
+ * instant ({@link #sessionTimes}), the other servers with its offset.
  */
 final class TemplateParams {
 
@@ -383,6 +391,8 @@ final class TemplateParams {
   }
 
   static void bind(PreparedStatement ps, List<Bound> values, SqlSyntax syntax) throws SQLException {
+    List<LocalDateTime> sessionTimes = syntax == SqlSyntax.MYSQL ? sessionTimes(ps.getConnection(), values) : List.of();
+    int times = 0;
     int i = 1;
     for (Bound b : values) {
       if (b.value() == null) {
@@ -397,12 +407,61 @@ final class TemplateParams {
           if (syntax == SqlSyntax.ORACLE) ps.setInt(i, v ? 1 : 0);
           else ps.setBoolean(i, v);
         }
-        case OffsetDateTime t -> ps.setObject(i, t);
+        case OffsetDateTime t -> {
+          if (syntax == SqlSyntax.MYSQL) ps.setObject(i, sessionTimes.get(times++));
+          else ps.setObject(i, t);
+        }
         case LocalDate d -> ps.setObject(i, d);
         default -> throw new SQLException("Unsupported template value " + b.value().getClass().getSimpleName());
       }
       i++;
     }
+  }
+
+  /**
+   * MySQL and MariaDB: each timestamp of {@code values} as the local time of the session's time zone at that instant,
+   * in bind order. The server's {@code FROM_UNIXTIME} computes it, so a timestamp means the instant it names whatever
+   * the time zone of the gateway's host: Connector/J would turn an {@code OffsetDateTime} into the local time of the
+   * JVM's zone, which the server then reads in the session's. A {@code TIMESTAMP} column compares it as that instant, a
+   * {@code DATETIME} one as the session's local time, the zone {@code NOW()} uses. Outside the range the server can
+   * convert (from 1970 on; older servers stop in 2038) the statement isn't run: the result would depend on a guess.
+   */
+  static List<LocalDateTime> sessionTimes(Connection c, List<Bound> values) throws SQLException {
+    List<OffsetDateTime> times = new ArrayList<>();
+    for (Bound b : values) {
+      if (b.value() instanceof OffsetDateTime t) {
+        times.add(t);
+      }
+    }
+    if (times.isEmpty()) {
+      return List.of();
+    }
+    StringBuilder sql = new StringBuilder("SELECT ");
+    for (int k = 0; k < times.size(); k++) {
+      sql.append(k == 0 ? "" : ", ").append("FROM_UNIXTIME(?)");
+    }
+    List<LocalDateTime> out = new ArrayList<>(times.size());
+    try (PreparedStatement st = c.prepareStatement(sql.toString())) {
+      for (int k = 0; k < times.size(); k++) {
+        Instant at = times.get(k).toInstant().truncatedTo(ChronoUnit.MICROS);
+        st.setBigDecimal(k + 1, BigDecimal.valueOf(at.getEpochSecond()).add(BigDecimal.valueOf(at.getNano(), 9))
+            .setScale(6, RoundingMode.UNNECESSARY));
+      }
+      try (ResultSet rs = st.executeQuery()) {
+        if (!rs.next()) {
+          throw new SQLException("The server didn't convert the template's times.", "22008");
+        }
+        for (int k = 0; k < times.size(); k++) {
+          LocalDateTime local = rs.getObject(k + 1, LocalDateTime.class);
+          if (local == null) {
+            throw new SQLException(times.get(k) + " is outside the times the server converts to its session's time "
+                + "zone (from 1970 on; older servers stop in 2038), so the template doesn't run with it.", "22008");
+          }
+          out.add(local);
+        }
+      }
+    }
+    return out;
   }
 
   private static int sqlType(Type type, SqlSyntax syntax) {
