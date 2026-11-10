@@ -18,15 +18,25 @@ import tools.jackson.dataformat.toml.TomlMapper;
  * markers at the end of the file, written as text; Jackson's TOML module only parses, to check
  * {@code tree(after) == tree(before) + our table}. Comments and every other line stay as they are.
  *
- * <p>Removal takes the block between our markers, or, when Codex or the person rewrote the table and the markers are
- * gone, the lines from {@code [mcp_servers.<name>]} (and its sub-tables) to the next header of another table; orphaned
- * markers go too. An inline {@code mcp_servers = { … }} can't take another table: refused, with the block to paste.
+ * <p>Removal takes our markers and the lines of {@code [mcp_servers.<name>]} and its sub-tables, each from its header
+ * to the next header of another table, wherever Codex or the person moved them. A table someone put between our
+ * markers (another server, a profile, a setting) stays where it is, with its keys and comments: it isn't ours, and
+ * removing our entry must not take the other application's settings with it. Every edit is checked as exactly one tree
+ * difference (our table) before it is returned. An inline {@code mcp_servers = { … }} can't take another table:
+ * refused, with the block to paste.
  */
 public final class TomlBlockEditor {
 
   private static final TomlMapper TOML = TomlMapper.builder().build();
   static final Pattern INLINE = Pattern.compile("(?m)^\\s*mcp_servers\\s*=\\s*\\{");
-  private static final Pattern HEADER = Pattern.compile("^\\s*\\[");
+  /** One key of a table header: bare, or quoted as a basic or a literal string. */
+  private static final String KEY = "(?:[^\\s.\\[\\]\"'=#,]+|\"(?:[^\"\\\\]|\\\\.)*\"|'[^']*')";
+  /**
+   * A table or array-of-tables header ({@code [a.b]}, {@code [[a]]}, with an optional comment): keys joined by dots and
+   * nothing else, so a line inside a multi-line array ({@code [1, 2],}) isn't taken for one.
+   */
+  private static final Pattern HEADER = Pattern.compile("^\\s*\\[\\[?\\s*" + KEY + "(?:\\s*\\.\\s*" + KEY
+      + ")*\\s*\\]\\]?\\s*(?:#.*)?$");
 
   private TomlBlockEditor() {}
 
@@ -70,29 +80,27 @@ public final class TomlBlockEditor {
     return result;
   }
 
-  /** {@code text} without {@code mcp_servers.<name>}, or as it is when there is no such table (orphaned markers go). */
+  /**
+   * {@code text} without {@code mcp_servers.<name>}, or as it is when there is no such table (orphaned markers go).
+   * The lines of any other table between our markers stay (see the class comment).
+   */
   public static String remove(String text, String name) {
     JsonNode before = parse(text);
     List<String> lines = splitKeepingEnds(text);
-    boolean present = before.path("mcp_servers").has(name);
     int start = indexOfMarker(lines, startMarker(name), name, true);
     int end = indexOfMarker(lines, endMarker(name), name, false);
-    List<String> out = new ArrayList<>(lines);
-    if (start >= 0 && end > start) {
-      int from = start;
-      // The blank line our append put before the block goes with it.
-      if (from > 0 && lines.get(from - 1).isBlank()) {
-        from--;
-      }
-      out.subList(from, end + 1).clear();
-    } else {
-      // The markers are gone or orphaned: drop them and the table's own lines.
-      out.removeIf(l -> isMarker(l, name));
-      if (present) {
-        removeTable(out, name);
+    boolean[] drop = ownLines(lines, name);
+    if (start > 0 && end > start && lines.get(start - 1).isBlank() && allOf(drop, start, end)) {
+      // The blank line our append put before the block goes with it when nothing of someone else's stays in the block.
+      drop[start - 1] = true;
+    }
+    StringBuilder out = new StringBuilder(text.length());
+    for (int i = 0; i < lines.size(); i++) {
+      if (!drop[i]) {
+        out.append(lines.get(i));
       }
     }
-    String result = String.join("", out);
+    String result = out.toString();
     ObjectNode expected = (ObjectNode) before.deepCopy();
     if (expected.path("mcp_servers").isObject()) {
       ((ObjectNode) expected.get("mcp_servers")).remove(name);
@@ -139,35 +147,64 @@ public final class TomlBlockEditor {
     }
   }
 
-  private static void check(String result, JsonNode expected) {
-    JsonNode after;
+  /** The tree of an edited text: one that doesn't parse is a failed edit, not a file that was invalid to begin with. */
+  private static JsonNode edited(String result) {
     try {
-      after = parse(result);
+      return parse(result);
     } catch (ConfigEditException e) {
       throw new ConfigEditException(Reason.CHECK_FAILED, "The edited file wouldn't parse, so nothing was written.");
     }
+  }
+
+  private static void check(String result, JsonNode expected) {
+    JsonNode after = edited(result);
     if (!after.equals(expected)) {
       throw new ConfigEditException(Reason.CHECK_FAILED, "The edit would change more than GateRook's entry, so "
           + "nothing was written.");
     }
   }
 
-  /** Removes {@code [mcp_servers.<name>]} and {@code [mcp_servers.<name>.*]} up to the next header of another table. */
-  private static void removeTable(List<String> lines, String name) {
-    Pattern own = Pattern.compile("^\\s*\\[\\s*mcp_servers\\s*\\.\\s*(?:" + Pattern.quote(name) + "|\""
-        + Pattern.quote(name) + "\")\\s*(?:\\.[^\\]]*)?\\]\\s*(?:#.*)?$");
+  /**
+   * Which lines are ours: our markers, and each section of {@code [mcp_servers.<name>]} and its sub-tables, from the
+   * header to the next header of another table, wherever it is in the file (TOML reads a key there as one of our
+   * table's, even after our end marker). Everything else stays: another table between our markers, keys and comments
+   * above our header, and a comment or blank line someone put after our end marker.
+   */
+  private static boolean[] ownLines(List<String> lines, String name) {
+    Pattern own = ownHeader(name);
+    boolean[] drop = new boolean[lines.size()];
     boolean inside = false;
-    for (int i = 0; i < lines.size(); ) {
-      String line = stripEnd(lines.get(i));
-      if (HEADER.matcher(line).find()) {
-        inside = own.matcher(line).matches();
+    boolean pastEnd = false;
+    for (int i = 0; i < lines.size(); i++) {
+      String s = stripEnd(lines.get(i));
+      if (isMarker(s, name)) {
+        drop[i] = true;
+        pastEnd |= s.strip().equals(endMarker(name));
+        continue;
       }
-      if (inside) {
-        lines.remove(i);
-      } else {
-        i++;
+      if (HEADER.matcher(s).matches()) {
+        inside = own.matcher(s).matches();
+        pastEnd = false;
+      }
+      drop[i] = inside && !(pastEnd && (s.isBlank() || s.strip().startsWith("#")));
+    }
+    return drop;
+  }
+
+  private static boolean allOf(boolean[] drop, int from, int to) {
+    for (int i = from; i <= to; i++) {
+      if (!drop[i]) {
+        return false;
       }
     }
+    return true;
+  }
+
+  /** The header of {@code [mcp_servers.<name>]} or of one of its sub-tables, with any quoting of the two keys. */
+  private static Pattern ownHeader(String name) {
+    String server = "(?:" + Pattern.quote(name) + "|\"" + Pattern.quote(name) + "\"|'" + Pattern.quote(name) + "')";
+    return Pattern.compile("^\\s*\\[\\[?\\s*(?:mcp_servers|\"mcp_servers\"|'mcp_servers')\\s*\\.\\s*" + server
+        + "\\s*(?:\\.[^\\]]*)?\\]\\]?\\s*(?:#.*)?$");
   }
 
   private static int indexOfMarker(List<String> lines, String marker, String name, boolean first) {
