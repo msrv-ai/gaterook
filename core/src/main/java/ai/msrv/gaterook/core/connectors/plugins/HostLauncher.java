@@ -546,10 +546,12 @@ public final class HostLauncher {
   }
 
   /**
-   * SBPL: everything as usual, but reading GateRook's home, the credential folders and the configs of the clients
-   * GateRook connects denied (report 16 §7.5; the same list as {@code gw-bridge sandbox-exec}: Cursor's and
-   * Antigravity's configs may hold a gateway token), and writing anywhere but the plugin's data folder and the devices
-   * denied too (review 2026-10-27: a login item or a shell profile written from inside would run unconfined later).
+   * SBPL: everything as usual, but reading GateRook's home, its folder of all MCP work folders, the credential folders
+   * and the configs of the clients GateRook connects denied (report 16 §7.5; the same list as {@code gw-bridge
+   * sandbox-exec}: Cursor's and Antigravity's configs may hold a gateway token; the folder of all work folders is
+   * named on its own because the person may keep it on another disk behind a link, and then it lies outside the home
+   * as the kernel sees it), and writing anywhere but the plugin's data folder and the devices denied too (review
+   * 2026-10-27: a login item or a shell profile written from inside would run unconfined later).
    * Seatbelt compares a {@code subpath} with the canonical path only, so every denied path is written as given and as
    * the kernel sees it ({@code /var} is {@code /private/var}). The network is open except the core's own listeners,
    * which the plugin's sockets may neither connect to nor bind, on any address: a rule for {@code localhost} alone
@@ -566,7 +568,7 @@ public final class HostLauncher {
     GatewayPaths home = paths.gatewayPaths();
     Path homeDir = real(home.home());
     Path user = Path.of(System.getProperty("user.home"));
-    List<Path> denied = new ArrayList<>(List.of(home.home()));
+    List<Path> denied = new ArrayList<>(List.of(home.home(), home.home().resolve(WORK_FOLDERS)));
     for (String p : MAC_DENIED) {
       denied.add(user.resolve(p));
     }
@@ -614,6 +616,13 @@ public final class HostLauncher {
     }
     return b.toString();
   }
+
+  /**
+   * The folder of all MCP server work folders in GateRook's home, closed on its own: the name
+   * {@code Sandbox.WORK_FOLDERS} has in {@code gw-bridge sandbox-exec}, which this module can't depend on (a test
+   * compares them).
+   */
+  static final String WORK_FOLDERS = "mcp";
 
   /**
    * Under the person's home, what a plugin host on macOS may not read: GateRook's earlier home and its desktop app's

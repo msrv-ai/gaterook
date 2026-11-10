@@ -1,16 +1,19 @@
 package ai.msrv.gaterook.core.connectors.plugins;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import ai.msrv.gaterook.core.platform.GatewayPaths;
 import ai.msrv.gaterook.core.platform.SealedHandles;
 import ai.msrv.gaterook.plugin.protocol.GppJson;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -145,6 +148,9 @@ class HostLauncherTest {
     assertThat(allow).isGreaterThan(deny);
     String denied = profile.substring(deny, allow);
     assertThat(denied).contains("(subpath \"" + profilePath(gatewayPaths.home().toRealPath()) + "\")");
+    // The folder of all MCP work folders on its own: kept on another disk behind a link it lies outside the home.
+    assertThat(denied).contains("(subpath \"" + profilePath(gatewayPaths.home().toRealPath().resolve("mcp"))
+        + "\")");
     for (String p : List.of(".ssh", ".aws", ".kube", ".gnupg", ".config/gh", ".password-store", ".npmrc",
         ".git-credentials", ".mcp-gateway", "Library/Application Support/GateRook", ".cursor", ".codex", ".gemini",
         ".claude.json", "Library/Application Support/Claude", "Library/Application Support/Cursor")) {
@@ -170,6 +176,47 @@ class HostLauncherTest {
         .toList();
     assertThat(bridge).hasSizeGreaterThan(10);
     assertThat(HostLauncher.MAC_DENIED).containsExactlyElementsOf(bridge);
+    Matcher folder = Pattern.compile("String WORK_FOLDERS = \"([^\"]*)\";").matcher(source);
+    assertThat(folder.find()).as("Sandbox.WORK_FOLDERS in " + sandbox).isTrue();
+    assertThat(HostLauncher.WORK_FOLDERS).isEqualTo(folder.group(1));
+  }
+
+  /**
+   * The folder of all MCP work folders kept on another disk behind a link (reached through a second link): the
+   * servers' work folders are where the link leads, outside GateRook's home as the kernel sees it. The plugin host
+   * must not read them (each is a server's HOME, with caches and tokens), by any of their names, and still writes its
+   * own data folder.
+   */
+  @Test
+  void onMacOsALinkAtTheFolderOfAllWorkFoldersDoesNotOpenTheMcpServersFoldersToThePlugin() throws Exception {
+    assumeTrue(System.getProperty("os.name").startsWith("Mac") && Files.isExecutable(Path.of("/usr/bin/sandbox-exec")),
+        "macOS with sandbox-exec");
+    Path real = tmp.toRealPath();
+    Path disk = Files.createDirectories(real.resolve("disk/mcp"));
+    Path alias = Files.createSymbolicLink(real.resolve("alias"), real.resolve("disk"));
+    Path other = Files.createDirectories(disk.resolve("other"));
+    Files.writeString(other.resolve("token"), "the server's token");
+    Files.createSymbolicLink(gatewayPaths.home().resolve("mcp"), alias.resolve("mcp"));
+    Path jar = Files.createDirectories(paths.versionDir("jira-service-desk", "1.3.0")).resolve("plugin.jar");
+    Files.writeString(jar, "plugin");
+    HostLauncher.Spec spec = new HostLauncher.Spec("jira-service-desk", "1.3.0", jar, "00", 256, Map.of(),
+        List.of());
+    Path data = Files.createDirectories(paths.dataDir("jira-service-desk")).toRealPath();
+    String profile = launcher.macProfile(spec, data);
+    String script = "cat \"" + other.resolve("token") + "\" 2>/dev/null || echo denied-resolved; "
+        + "cat \"" + alias.resolve("mcp/other/token") + "\" 2>/dev/null || echo denied-alias; "
+        + "cat \"" + gatewayPaths.home().resolve("mcp/other/token") + "\" 2>/dev/null || echo denied-given; "
+        + "ls \"" + disk + "\" >/dev/null 2>&1 || echo denied-list; "
+        + "echo y > \"" + data.resolve("own") + "\" && echo wrote-data";
+
+    Process p = new ProcessBuilder("/usr/bin/sandbox-exec", "-p", profile, "/bin/sh", "-c", script).start();
+    p.getOutputStream().close();
+    String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+    String err = new String(p.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+    assertThat(p.waitFor(30, TimeUnit.SECONDS)).isTrue();
+
+    assertThat(out).as(err).contains("denied-resolved").contains("denied-alias").contains("denied-given")
+        .contains("denied-list").contains("wrote-data").doesNotContain("the server's token");
   }
 
   private static String profilePath(Path path) {
