@@ -5,9 +5,14 @@ import { duration } from '../../../core/time/time-format';
 import { TimeService } from '../../../core/time/time.service';
 import { GwCodeBlock } from '../../../code/code-block';
 import { GwIcon } from '../../icons';
+import { detailMarks, verifiedClient } from '../approval-request/approval-view';
 import { clientName } from '../shared/client-mark';
 
-/** What a notification shows of a request: the same fields as the request itself (approval-request). */
+/**
+ * What a notification shows of a request: the same fields as the request itself (approval-request). The details a
+ * chat carries besides the action (the target, the fields, the warnings), with the server's marks, when the page has
+ * them.
+ */
 export type NotificationRequest = Pick<
   ApprovalDetail,
   | 'tool'
@@ -27,7 +32,10 @@ export type NotificationRequest = Pick<
   | 'decidedAt'
   | 'decidedVia'
   | 'executedAt'
->;
+> &
+  Partial<
+    Pick<ApprovalDetail, 'toolKey' | 'target' | 'fields' | 'warnings' | 'targetSegments' | 'warningSegments' | 'principalKind' | 'clientReported'>
+  >;
 
 export type NotificationChannel = 'desktop' | 'slack' | 'telegram' | 'toast';
 
@@ -70,7 +78,11 @@ export class GwNotificationPreview {
   protected readonly r = computed(() => this.request());
   protected readonly prod = computed(() => this.r().env === 'prod');
   protected readonly titlePrefix = computed(() => (this.prod() ? 'PROD · ' : ''));
-  protected readonly who = computed(() => (this.r().client ? clientName(this.r().client!) : 'an agent'));
+  /** Who asked, as the core's notices name them: the client the credential implies, else the credential's label. */
+  protected readonly who = computed(() => {
+    const client = verifiedClient(this.r());
+    return client ? clientName(client) : this.r().tokenLabel || 'an agent';
+  });
   protected readonly target = computed(() => this.r().connection ?? this.r().endpoint);
   protected readonly text = computed(() => this.r().action?.text ?? this.r().summary ?? '');
   /** The one line a desktop notification has room for. */
@@ -85,15 +97,23 @@ export class GwNotificationPreview {
    * Why a chat offers no Approve (null when it does, or for the desktop and the toast): the same rules as the core's
    * `notifications.Eligibility` (ARCHITECTURE.md §7.4, §8.6.7), checked in its order, with its words for prod (kit:
    * "Runs on production: approve in the app."). Never on prod, whatever the comment policy; not with a comment
-   * required; not when the inspector found hidden or look-alike characters; not when the chat can't show it whole.
+   * required; not when the inspector found hidden or look-alike characters, in the action or in the details the chat
+   * carries with it (never the agent's note; for a plugin's or MCP server's tool only the warnings, as
+   * `notifications.internal.Notices` builds them); not when the chat can't show it whole.
    */
   protected readonly noApprove = computed<string | null>(() => {
     const k = this.kind();
     if (k !== 'slack' && k !== 'telegram') return null;
-    const a = this.r().action;
+    const r = this.r();
+    const a = r.action;
+    const external = !!r.toolKey && (r.toolKey.startsWith('plugin:') || r.toolKey.startsWith('mcp:'));
+    const details = detailMarks(
+      { target: r.target ?? null, fields: r.fields ?? [], impact: r.impact, warnings: r.warnings ?? [], agentNote: null, targetSegments: r.targetSegments, warningSegments: r.warningSegments },
+      { note: false, lines: !external },
+    );
     if (this.prod()) return 'Runs on production: approve in the app';
     if (this.commentRequired()) return 'a comment is required: approve in the app';
-    if (a && (a.hiddenChars > 0 || a.confusables > 0)) return 'hidden characters: approve in the app';
+    if ((a && (a.hiddenChars > 0 || a.confusables > 0)) || details) return 'hidden characters: approve in the app';
     if (this.text().length > LIMITS[k]) return 'too long to show here: approve in the app';
     return null;
   });

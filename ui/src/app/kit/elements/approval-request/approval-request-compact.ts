@@ -4,7 +4,7 @@ import { RouterLink } from '@angular/router';
 import { ActionSegment, ApprovalItem } from '../../../core/api/approvals.api';
 import { GwClientMark } from '../shared/client-mark';
 import { GwApprovalCountdown } from './approval-countdown';
-import { previewParts, who, windowSeconds } from './approval-view';
+import { previewParts, verifiedClient, who, windowSeconds } from './approval-view';
 
 let nextId = 0;
 
@@ -27,8 +27,8 @@ let nextId = 0;
     '[attr.aria-labelledby]': 'uid',
   },
   template: `
-    @if (item().client) {
-      <span [gwClientMark]="item().client!" size="sm"></span>
+    @if (mark(); as m) {
+      <span [gwClientMark]="m" size="sm"></span>
     }
     <div class="gw-approval-request__summary">
       @switch (level()) {
@@ -74,7 +74,9 @@ export class GwApprovalRequestCompact {
   protected readonly uid = `arc-${++nextId}`;
   protected readonly expiredHere = signal(false);
   protected readonly target = computed(() => this.item().connection ?? this.item().endpoint);
-  protected readonly client = computed(() => who(this.item().client));
+  /** Who asked: the client the credential implies (with its mark), else the credential's label. */
+  protected readonly client = computed(() => who(this.item()));
+  protected readonly mark = computed(() => verifiedClient(this.item()));
   protected readonly what = computed(() => `${this.item().tool} on ${this.target()}`);
   protected readonly parts = computed(() => previewParts(this.segments(), this.preview() ?? this.item().summary ?? ''));
   /** The whole line for `title`, escapes included: the tooltip can't be reordered either. */

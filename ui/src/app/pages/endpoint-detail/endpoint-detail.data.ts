@@ -5,6 +5,7 @@ import { ClientId, ClientsApi, ClientsView, ConnectPreview, ConnectRequest, Conn
 import { ConnectionRow, ConnectionsApi, nextHealth } from '../../core/api/connections.api';
 import { ConnectorTypesApi } from '../../core/api/connector-types.api';
 import {
+  BulkTool,
   ConnectionPreview,
   EndpointCheck,
   EndpointDeleted,
@@ -358,10 +359,11 @@ export class EndpointDetailData {
     }
   }
 
-  async bulk(connection: string | null, mode: ToolMode | 'DEFAULT'): Promise<{ readonly changed: string[]; readonly skipped: { readonly toolKey: string; readonly reason: string }[] }> {
+  /** "Set all to…" for the tools the list showed (`tools`, with the definitions they showed). */
+  async bulk(connection: string | null, mode: ToolMode | 'DEFAULT', tools: readonly BulkTool[]): Promise<{ readonly changed: string[]; readonly skipped: { readonly toolKey: string; readonly reason: string }[] }> {
     const slug = this.requireSlug();
     try {
-      return await this.endpoints.bulk(slug, { group: connection as string, mode });
+      return await this.endpoints.bulk(slug, { group: connection as string, mode, tools });
     } finally {
       await Promise.all([this.reloadTools(), this.reloadDetail()]);
     }

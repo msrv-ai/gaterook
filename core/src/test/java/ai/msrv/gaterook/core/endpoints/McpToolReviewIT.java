@@ -310,12 +310,71 @@ class McpToolReviewIT {
     record(server, "gh_chart", "0".repeat(64));
     assertThat(pair(server, "gh_chart").mode()).isEqualTo(Mode.APPROVAL);
 
-    EndpointTools.BulkResult result = tools.bulk(server, server, "READ_ONLY", null);
+    EndpointTools.BulkResult result = tools.bulk(server, server, "READ_ONLY", shown(server), null);
 
     assertThat(result.changed()).contains("mcp:" + server + ":gh_chart");
     assertThat(pair(server, "gh_chart").mode()).isEqualTo(Mode.READ_ONLY);
     assertThat(pair(server, "gh_search").mode()).isEqualTo(Mode.READ_ONLY);
-    assertThat(tools.bulk(server, server, "READ_ONLY", null).changed()).as("nothing left to do").isEmpty();
+    assertThat(tools.bulk(server, server, "READ_ONLY", shown(server), null).changed()).as("nothing left to do")
+        .isEmpty();
+  }
+
+  @Test
+  void setAllSetsOnlyTheToolsThePersonSaw() {
+    String server = "rev-bulk-shown";
+    core.connection(server, "mcpfake", Env.DEV, "defs.test");
+    endpoints.create(server, null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add(server, server, null);
+    List<String> before = modes(server);
+
+    // A search showed gh_chart and gh_write only: the other tools keep their modes.
+    EndpointTools.BulkResult result = tools.bulk(server, server, "BYPASS", shown(server, "gh_chart", "gh_write"),
+        null);
+
+    assertThat(result.changed()).containsExactlyInAnyOrder("mcp:" + server + ":gh_chart",
+        "mcp:" + server + ":gh_write");
+    assertThat(modes(server)).contains("gh_chart=BYPASS", "gh_write=BYPASS");
+    assertThat(modes(server).stream().filter(m -> m.startsWith("gh_list") || m.startsWith("gh_search")))
+        .containsExactlyElementsOf(before.stream().filter(m -> m.startsWith("gh_list") || m.startsWith("gh_search"))
+            .toList());
+  }
+
+  @Test
+  void setAllRefusesToolsThatChangedWhileThePersonLookedAndChangesNothing() {
+    String server = "rev-bulk-stale";
+    core.connection(server, "mcpfake", Env.DEV, "defs.test");
+    endpoints.create(server, null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add(server, server, null);
+    // The list was loaded, then the server changed gh_search before the person chose Set all.
+    List<EndpointTools.Shown> seen = shown(server);
+    list(server, "desc");
+    List<String> now = modes(server);
+
+    assertThatThrownBy(() -> tools.bulk(server, server, "BYPASS", seen, null)).isInstanceOf(ProblemException.class)
+        .satisfies(e -> assertThat(((ProblemException) e).kind()).isEqualTo(ProblemException.Kind.CONFLICT))
+        .hasMessageContaining("gh_search");
+    assertThat(modes(server)).as("not one of them was set").isEqualTo(now);
+    assertThat(storedRows(server)).doesNotContain("gh_chart=BYPASS", "gh_list=BYPASS");
+    // Lowering needs no review: Off and Approval are stored as asked.
+    assertThat(tools.bulk(server, server, "OFF", seen, null).changed()).isNotEmpty();
+    assertThat(modes(server)).allSatisfy(m -> assertThat(m).endsWith("=OFF"));
+  }
+
+  @Test
+  void setAllWithoutTheToolsAPersonSawRecordsNoDefinition() {
+    String server = "rev-bulk-blind";
+    core.connection(server, "mcpfake", Env.DEV, "defs.test");
+    endpoints.create(server, null, EndpointService.StartFrom.EMPTY, null);
+    wiring.add(server, server, null);
+    record(server, "gh_chart", "0".repeat(64));
+    assertThat(pair(server, "gh_chart").mode()).isEqualTo(Mode.APPROVAL);
+
+    // An API caller that names no tools: the mode is stored, but a held tool stays held until a person looks.
+    tools.bulk(server, server, "READ_ONLY", null);
+
+    assertThat(pair(server, "gh_chart").storedMode()).isEqualTo(Mode.READ_ONLY);
+    assertThat(pair(server, "gh_chart").mode()).isEqualTo(Mode.APPROVAL);
+    assertThat(reviewedDefinition(server, "gh_chart")).isEqualTo("0".repeat(64));
   }
 
   @Test
@@ -855,6 +914,17 @@ class McpToolReviewIT {
   private static EndpointSnapshot.Pair pair(String endpoint, String tool) {
     return snapshots.bySlug(endpoint).orElseThrow().pairs().stream().filter(p -> p.tool().name().equals(tool))
         .findFirst().orElseThrow();
+  }
+
+  /**
+   * The tools of the endpoint's only server as the tool list shows them now, with their definitions: what "Set all
+   * to…" sends; {@code names} keeps only those (a search or filter showed only them).
+   */
+  private static List<EndpointTools.Shown> shown(String endpoint, String... names) {
+    return snapshots.bySlug(endpoint).orElseThrow().pairs().stream()
+        .filter(p -> names.length == 0 || List.of(names).contains(p.tool().name()))
+        .map(p -> new EndpointTools.Shown(p.toolKey(), p.connectionName(), ToolPairs.definitionHash(p.tool())))
+        .toList();
   }
 
   /** A person picks {@code mode} for the tool as the tool list shows it now. */

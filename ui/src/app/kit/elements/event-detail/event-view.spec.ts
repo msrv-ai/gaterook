@@ -5,6 +5,8 @@ import {
   actionMatch,
   approvalPath,
   argumentsJson,
+  callClientText,
+  callerLabel,
   decisionsText,
   durationText,
   errorAlert,
@@ -35,6 +37,23 @@ describe('event-detail view', () => {
 
   it('names a token by its label only, never a value', () => {
     expect(words(tokenParts(DEMO_EVENTS.approved.rows[0], null))).toBe('codex-laptop · short-lived, issued on the fly');
+  });
+
+  it('names who made a call by its credential, and a named token’s client only as what it reports', () => {
+    const named = (detail: EventDetail): EventDetail => ({
+      ...detail,
+      event: { ...detail.event, client: 'claude-desktop', tokenLabel: 'ci-runner' },
+      rows: detail.rows.map((r) => ({ ...r, principalKind: 'local_token', client: 'claude-desktop', tokenLabel: 'ci-runner' })),
+    });
+    const d = named(DEMO_EVENTS.error);
+    expect(callerLabel(d)).toBe('ci-runner');
+    expect(callClientText(d)).toEqual({ mark: null, text: 'Reports itself as Claude Desktop' });
+    expect(errorAlert(d)?.body).toContain('ci-runner got the error.');
+    expect(sizeText(d) ?? '').not.toContain('Claude Desktop');
+    expect(approvalPath(named(DEMO_EVENTS.approved))[0].title).toBe('Requested by ci-runner');
+    // A bridge grant names its client.
+    expect(callerLabel(DEMO_EVENTS.approved)).toBe('Codex');
+    expect(callClientText(DEMO_EVENTS.approved)).toEqual({ mark: 'codex', text: 'Codex' });
   });
 
   it('reads the core’s principal kinds (platform.Caller.Kind, lower case)', () => {

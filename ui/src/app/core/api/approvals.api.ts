@@ -24,6 +24,13 @@ export interface ApprovalItem {
   readonly decidedVia: string | null;
   readonly decidedAt: Iso | null;
   readonly commentPolicy: CommentPolicy;
+  /** The credential that asked: `local_token` (a named token), `bridge` (a client's grant), `oauth`, `playground`. */
+  readonly principalKind?: string | null;
+  /**
+   * `client` is only what the client says about itself (a named token implies no client): who asked is `tokenLabel`,
+   * and the family may be shown only as reported by the client.
+   */
+  readonly clientReported?: boolean;
 }
 
 /**
@@ -66,9 +73,16 @@ export interface ApprovalAction {
   readonly diff: Diff | null;
 }
 
+/**
+ * One line shown with the action (a template's parameter values, the estimated rows). `labelSegments` and `segments`
+ * are the server's ActionInspector cut of the label and the text when it found a hidden character or a look-alike
+ * letter in them, else null: the UI draws them as it draws the action's segments.
+ */
 export interface LabelledText {
   readonly label: string;
   readonly text: string;
+  readonly labelSegments?: ActionSegment[] | null;
+  readonly segments?: ActionSegment[] | null;
 }
 
 export interface ApprovalRule {
@@ -110,6 +124,10 @@ export interface ApprovalDetail {
   readonly endpoint: string;
   readonly client: string | null;
   readonly tokenLabel: string | null;
+  /** As {@link ApprovalItem.principalKind}. */
+  readonly principalKind?: string | null;
+  /** As {@link ApprovalItem.clientReported}. */
+  readonly clientReported?: boolean;
   readonly requestedAt: Iso;
   readonly expiresAt: Iso;
   readonly status: ApprovalStatus;
@@ -141,6 +159,17 @@ export interface ApprovalDetail {
   readonly eventId?: number | null;
   readonly traceId?: string | null;
   readonly traceIsTask?: boolean;
+  /**
+   * What the server's ActionInspector found in the texts shown besides the action, which the agent, the connector, a
+   * plugin or an upstream service chose: the target's cut, one cut per warning and the agent's note's cut, each null
+   * when it found nothing (`fields[].segments` and `impact[].segments` likewise), and the hidden characters and
+   * look-alike letters of all of them together.
+   */
+  readonly targetSegments?: ActionSegment[] | null;
+  readonly warningSegments?: (ActionSegment[] | null)[];
+  readonly agentNoteSegments?: ActionSegment[] | null;
+  readonly detailsHiddenChars?: number;
+  readonly detailsConfusables?: number;
 }
 
 /** `GET /api/approvals?status=pending|history`. */

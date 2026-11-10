@@ -62,6 +62,12 @@ public class EndpointTools {
   /** A tool "Set all to…" left alone. */
   public record Skipped(String toolKey, String reason) {}
 
+  /**
+   * A tool the person saw when they chose "Set all to…": its key, its connection and the {@code definitionHash} the
+   * tool list showed for it ({@code null} when it showed none).
+   */
+  public record Shown(String toolKey, String connection, String definitionHash) {}
+
   /** What "Set all to…" did. */
   public record BulkResult(List<String> changed, List<Skipped> skipped) {}
 
@@ -257,21 +263,44 @@ public class EndpointTools {
     });
   }
 
+  /** {@link #bulk(String, String, String, List, String)} for every tool of the group, recording no definition. */
+  public BulkResult bulk(String slug, String connection, String mode, String reason) {
+    return bulk(slug, connection, mode, null, reason);
+  }
+
   /**
-   * {@code POST /api/endpoints/{slug}/tools/bulk {group, mode, reason}}: {@code mode} {@code DEFAULT} puts every tool
-   * of the group back to its initial mode.
+   * {@code POST /api/endpoints/{slug}/tools/bulk {group, mode, tools, reason}}: {@code mode} {@code DEFAULT} puts the
+   * tools back to their initial modes.
+   *
+   * <p>{@code shown} are the tools the person saw when they chose: only those are set, so a tool a search or a mode
+   * filter hid, or one the server added since the list was loaded, keeps its mode. For an external MCP server's tool
+   * that goes to Read only or Bypass the definition is recorded only for the {@code definitionHash} the list showed,
+   * as {@code PUT /api/endpoints/{slug}/tools} does ({@link #setMode}): when that is no longer the tool's, nothing
+   * changes and the answer is 409; a shown tool without a hash is set and records none. Without {@code shown} (an
+   * API caller that names no tools) every tool of the group is set and no definition is recorded, so a tool held in
+   * Approval stays held. Off and Approval also lower the rows of tools the server doesn't list now
+   * ({@link #holdUnlisted}).
    *
    * @param connection the group: a connection's name, or {@code null} for every tool of the endpoint
+   * @param shown      the tools the person saw, or {@code null}
    */
-  public BulkResult bulk(String slug, String connection, String mode, String reason) {
+  public BulkResult bulk(String slug, String connection, String mode, List<Shown> shown, String reason) {
     snapshot(slug);
     List<String> changed = new ArrayList<>();
     List<Skipped> skipped = new ArrayList<>();
+    Map<String, Shown> seen = new LinkedHashMap<>();
+    if (shown != null) {
+      shown.forEach(t -> seen.put(t.connection() + "\0" + t.toolKey(), t));
+    }
     writeTx.executeWithoutResult(st -> {
       EndpointEntity e = requireEndpoint(slug);
       EndpointSnapshot s = fresh(e);
       for (EndpointSnapshot.Pair p : s.pairs()) {
         if (connection != null && !connection.equals(p.connectionName())) {
+          continue;
+        }
+        Shown view = seen.get(p.connectionName() + "\0" + p.toolKey());
+        if (shown != null && view == null) {
           continue;
         }
         Mode target;
@@ -293,6 +322,15 @@ public class EndpointTools {
         }
         EndpointToolEntity existing = p.rowId() == null ? null : tools.findById(p.rowId()).orElseThrow();
         String reviewed = ToolPairs.reviewedDefinition(offered(p));
+        if (reviewed != null && (target == Mode.READ_ONLY || target == Mode.BYPASS)) {
+          if (view == null || view.definitionHash() == null) {
+            // The person saw no definition of it: the mode is stored as asked and stands for no definition.
+            reviewed = null;
+          } else if (!ToolPairs.definitionHash(p.tool()).equals(view.definitionHash())) {
+            throw ProblemException.conflict("The tools changed", p.tool().name() + " changed while you were looking "
+                + "at it. Review the tools again.");
+          }
+        }
         if (target == p.storedMode() && (existing == null || existing.getTemporaryBypass() == null
             && !redefines(target, reviewed, existing))) {
           continue;

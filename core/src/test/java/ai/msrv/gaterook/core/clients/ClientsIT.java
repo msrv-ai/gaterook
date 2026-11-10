@@ -1048,7 +1048,8 @@ class ClientsIT {
 
   /**
    * One allowed call of {@code gateway_status} on dev as the call path logs it: the client is what the credential
-   * implies, else the name the caller gives itself ({@code clientInfo}), as {@code mcp.internal.Calls.client} has it.
+   * implies, else, for a named token, the name the caller gives itself ({@code clientInfo}), as
+   * {@code mcp.internal.Calls.client} has it.
    */
   private static void logCall(Caller caller, JsonNode clientInfo) {
     String client = caller.clientHint() != null ? caller.clientHint()

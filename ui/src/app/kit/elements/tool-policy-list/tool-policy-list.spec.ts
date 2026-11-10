@@ -159,11 +159,64 @@ describe('tool-policy-list MCP bulk modes', () => {
     expect(trigger).toBeDefined();
     trigger.click();
     root.querySelector<HTMLButtonElement>('[role="menuitem"][data-value="DEFAULT"]')!.click();
-    expect(bulk).toHaveBeenCalledWith({ connection: 'github-mcp', mode: 'DEFAULT' });
+    // Restoring defaults puts the server's two declared reads in Read only: the dialog asks first.
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(bulk).not.toHaveBeenCalled();
+    const dialog = root.querySelector<HTMLDialogElement>('dialog[open]')!;
+    expect(dialog.querySelector('.gw-dialog__title')?.textContent).toContain('Let 2 tools of github-mcp run without approval?');
+    dialog.querySelector<HTMLButtonElement>('.gw-btn--primary')!.click();
+    expect(bulk).toHaveBeenCalledWith({
+      connection: 'github-mcp',
+      mode: 'DEFAULT',
+      tools: group.group.tools.map((t) => ({ toolKey: t.toolKey, definitionHash: t.definitionHash })),
+    });
     const read = root.querySelector<HTMLInputElement>('input[value="read"]')!;
     read.click();
     await fixture.whenStable();
     expect(confirm).not.toHaveBeenCalled();
     expect(modeChange).toHaveBeenCalledWith(expect.objectContaining({ toolKey: 'mcp:github-mcp/list_issues', mode: 'READ_ONLY', definitionHash: 'sha256-list_issues' }));
+  });
+
+  it('sets only the tools a search shows, and asks before Bypass on more than one of them', async () => {
+    TestBed.configureTestingModule({ providers: [provideRouter([]), provideKitIcons()] });
+    const fixture = TestBed.createComponent(GwToolPolicyList);
+    const group = DEMO_TOOL_GROUPS_EXTERNAL[0];
+    fixture.componentRef.setInput('groups', [group]);
+    fixture.componentRef.setInput('slug', 'dev');
+    const bulk = vi.fn();
+    fixture.componentInstance.bulk.subscribe(bulk);
+    fixture.componentInstance.query.set('issue');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    const trigger = [...root.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent?.includes('Set shown to…'))!;
+    expect(trigger.textContent).toContain('for the 2 shown');
+    const pick = async (mode: string) => {
+      trigger.click();
+      root.querySelector<HTMLButtonElement>(`[role="menuitem"][data-value="${mode}"]`)!.click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+    };
+    const shown = group.group.tools.filter((t) => t.name.includes('issue')).map((t) => ({ toolKey: t.toolKey, definitionHash: t.definitionHash }));
+    expect(shown.map((t) => t.toolKey)).toEqual(['mcp:github-mcp/list_issues', 'mcp:github-mcp/create_issue']);
+
+    await pick('BYPASS');
+    const dialog = root.querySelector<HTMLDialogElement>('dialog[open]')!;
+    expect(dialog.querySelector('.gw-dialog__title')?.textContent).toContain('Let 2 tools of github-mcp run without approval?');
+    expect(dialog.textContent).toContain('Only the 2 tools shown in the list change');
+    expect(document.activeElement?.textContent).toBe('Cancel');
+    (document.activeElement as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(bulk).not.toHaveBeenCalled();
+
+    await pick('BYPASS');
+    root.querySelector<HTMLDialogElement>('dialog[open]')!.querySelector<HTMLButtonElement>('.gw-btn--primary')!.click();
+    expect(bulk).toHaveBeenCalledExactlyOnceWith({ connection: 'github-mcp', mode: 'BYPASS', tools: shown });
+
+    // Lowering asks nothing and still names only the shown tools.
+    await pick('OFF');
+    expect(bulk).toHaveBeenLastCalledWith({ connection: 'github-mcp', mode: 'OFF', tools: shown });
+    expect(root.querySelector('dialog[open]')).toBeNull();
   });
 });

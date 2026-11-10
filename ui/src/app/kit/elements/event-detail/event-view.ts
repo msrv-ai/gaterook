@@ -31,6 +31,44 @@ export function clientLabel(client: string | null | undefined): string {
   return client ? clientName(client) : 'An agent';
 }
 
+/**
+ * Whether the client family of a call's rows is only what the client said about itself: a named token implies no
+ * client, so the audit's family for its calls is a guess from that name (core `Caller.familyReported`).
+ */
+export function familyReported(row: AuditRow | null | undefined): boolean {
+  const kind = row?.principalKind ?? null;
+  return kind === 'local_token' || kind === 'token';
+}
+
+/** The client family the call's credential implies, or null: never one its client only reports. */
+export function callClient(d: EventDetail): string | null {
+  const { received, last } = callRows(d);
+  return d.event.client && !familyReported(received ?? last) ? d.event.client : null;
+}
+
+/**
+ * Who made the call, in a sentence: the client its credential implies ("Codex"), else the credential's label
+ * ("ci-runner"), else "An agent".
+ */
+export function callerLabel(d: EventDetail): string {
+  const client = callClient(d);
+  if (client) return clientName(client);
+  const { received, last } = callRows(d);
+  return (received ?? last)?.tokenLabel ?? d.event.tokenLabel ?? 'An agent';
+}
+
+/**
+ * The Client row of a call: the implied client with its mark; a family the client only reports about itself as
+ * "Reports itself as Codex", without a mark; else "An agent".
+ */
+export function callClientText(d: EventDetail): { readonly mark: string | null; readonly text: string } {
+  const client = callClient(d);
+  if (client) return { mark: client, text: clientName(client) };
+  const reported = d.event.client;
+  if (reported && reported !== 'other') return { mark: null, text: `Reports itself as ${clientName(reported)}` };
+  return { mark: null, text: 'An agent' };
+}
+
 /** The decision badge's icon and words. */
 export const decisionBadge = decisionLook;
 
@@ -140,7 +178,7 @@ export function policySteps(d: EventDetail): PolicyStep[] {
   const classification = received?.classification ?? null;
   const decision = received?.decision ?? e.decision;
   const section = ruleSection(rule) ?? 'tool';
-  const who = clientLabel(e.client);
+  const who = callerLabel(d);
   const steps: PolicyStep[] = [];
 
   if (classification) {
@@ -249,7 +287,7 @@ function rejectedBy(via: string | null): string {
 
 export function approvalPath(d: EventDetail): PathStep[] {
   const { received, resolved, completed } = callRows(d);
-  const who = clientLabel(d.event.client);
+  const who = callerLabel(d);
   const steps: PathStep[] = [];
   if (received) {
     steps.push({ tone: 'neutral', icon: 'send', title: `Requested by ${who}`, meta: [t('Token '), c(received.tokenLabel ?? 'unknown')], at: received.at });
@@ -321,7 +359,7 @@ export function sizeText(d: EventDetail): string | null {
   const bytes = completed?.resultBytes;
   if (bytes == null) return null;
   const isError = d.event.decision === 'error';
-  return `${formatBytes(bytes)}${isError ? ` (the error returned to ${clientLabel(d.event.client)})` : ''}${completed?.truncated ? ', truncated' : ''}`;
+  return `${formatBytes(bytes)}${isError ? ` (the error returned to ${callerLabel(d)})` : ''}${completed?.truncated ? ', truncated' : ''}`;
 }
 
 /** One row of the Timing waterfall: where the time of the call went. */
@@ -377,7 +415,7 @@ export function errorAlert(d: EventDetail): { readonly title: TextPart[]; readon
   const kind = completed?.errorKind ?? d.event.errorKind;
   const message = completed?.errorMessage ?? d.event.errorMessage ?? 'The resource returned an error.';
   const conn = d.event.connection;
-  const who = clientLabel(d.event.client);
+  const who = callerLabel(d);
   // Older timeout rows may record zero resource time while the cancelled connector is still unwinding.
   const totalMs = completed?.durationMs ?? d.event.durationMs;
   const waitMs = completed?.approvalWaitMs ?? resolved?.approvalWaitMs ?? 0;
