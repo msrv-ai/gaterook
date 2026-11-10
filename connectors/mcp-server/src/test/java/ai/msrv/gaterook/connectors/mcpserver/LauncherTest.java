@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -178,6 +179,18 @@ class LauncherTest {
 
     assertThat(l.sandbox()).isNull();
     assertThat(l.argv(Path.of("/usr/bin/node"), List.of(), dir)).containsExactly("/usr/bin/node");
+  }
+
+  @Test
+  void theSandboxProbeAsksIfTheSandboxWorksNotAboutTheCoresOwnTmpdir() throws Exception {
+    Assumptions.assumeTrue(System.getenv("TMPDIR") != null, "this JVM has a TMPDIR to pass on");
+    // The bridge refuses a TMPDIR behind a link (macOS); this stand-in refuses any, as that bridge would for the
+    // core's own. A refused probe would leave every server unsandboxed, so the probe doesn't pass it on.
+    Path shim = shim("[ -z \"$TMPDIR\" ] || exit 3");
+    Launcher l = new Launcher(Map.of("PATH", "/usr/bin:/bin", "HOME", dir.toString()), "Linux", false,
+        dir.resolve(".gaterook"), shim);
+
+    assertThat(l.sandbox()).isEqualTo("landlock");
   }
 
   @Test
