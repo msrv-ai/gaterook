@@ -82,7 +82,8 @@ describe('Shared endpoint review', () => {
 
   it('shows the note on trust settings a file carries next to a connection that can still be imported', async () => {
     const note = 'Trust settings in this file are not imported: /hostKeys/pinned. The connection is imported off, '
-      + 'with Setup required, until you confirm them on this computer with Test connection.';
+      + 'with Setup required; confirm them on this computer with Test connection, then Trust, or set them in the '
+      + 'connection form.';
     const [db, ...others] = REVIEW.preview.connections;
     const connections = [{ ...db, warnings: [note] }, ...others];
     desktop.previewEndpointShare.mockResolvedValueOnce({ ...REVIEW, preview: { ...REVIEW.preview, connections } });

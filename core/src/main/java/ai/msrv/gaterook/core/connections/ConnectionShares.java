@@ -35,8 +35,10 @@ import tools.jackson.databind.node.ObjectNode;
  * cluster or credential command, an account pin, the opt-in to run a local command) records a decision the person made
  * on one computer. An export leaves them out and says so; an import drops them from an entry that carries them (an
  * older GateRook exported them, and a file is untrusted input), whatever they hold, before any check, and the
- * connection becomes a disabled draft with one Setup required item per kind of decision, which the person makes again
- * on this computer with Test connection. The entry's own warnings never decide any of this.
+ * connection becomes a disabled draft with one Setup required item per kind of decision. None of the source's
+ * decisions is used, and no preflight test, health check or call reaches the connection until the person completes its
+ * setup and enables it; they make their own decisions on this computer with Test connection and Trust, or in the
+ * connection form. The entry's own warnings never decide any of this.
  */
 @Service
 public class ConnectionShares {
@@ -60,8 +62,8 @@ public class ConnectionShares {
   }
 
   /**
-   * The entry's config for the review, masked: without the trust settings an import drops, and without the values that
-   * may hold a key.
+   * The entry's config for the review, masked and without the values that may hold a key; for an entry that can be
+   * imported, also without the trust settings an import drops.
    */
   public JsonNode previewConfig(JsonNode entry) {
     ObjectNode out = portable(entry).map(Portable::config)
@@ -75,24 +77,25 @@ public class ConnectionShares {
 
   /** The secrets an import can take over: none of a trust setting. */
   public int secretCount(JsonNode entry) {
+    Optional<Portable> portable = portable(entry);
+    JsonNode config = portable.<JsonNode>map(Portable::config).orElse(entry.path("config"));
+    int count = portable.map(p -> p.secrets().size()).orElse(entry.path("secrets").size());
     var manifest = registry.manifest(entry.path("type").asString());
-    if (manifest.isEmpty()) return entry.path("secrets").size();
-    Portable portable = portable(entry).orElseThrow();
-    int count = portable.secrets().size();
-    for (String field : SecretFields.keyAllowedTemplates(manifest.get().configSchema()))
-      count += SchemaPointers.values(portable.config(), field).size();
+    if (manifest.isPresent()) for (String field : SecretFields.keyAllowedTemplates(manifest.get().configSchema()))
+      count += SchemaPointers.values(config, field).size();
     return count;
   }
 
   /**
-   * What the review says about an entry that carries trust settings: they are not imported, and the connection waits,
-   * off and with Setup required, until the person confirms each kind named here. Empty for an entry without any.
+   * What the review says about an entry that carries trust settings: they are not imported, the connection is created
+   * off with Setup required, and the person confirms each kind named here on this computer with Test connection, then
+   * Trust, or sets it in the connection form. Empty for an entry without any, and for one that cannot be imported.
    */
   public Optional<String> trustNote(JsonNode entry) {
     List<String> kinds = portable(entry).map(Portable::trust).orElse(List.of());
     return kinds.isEmpty() ? Optional.empty() : Optional.of("Trust settings in this file are not imported: "
-        + names(kinds) + ". The connection is imported off, with Setup required, until you confirm them on this "
-        + "computer with Test connection.");
+        + names(kinds) + ". The connection is imported off, with Setup required; confirm them on this computer with "
+        + "Test connection, then Trust, or set them in the connection form.");
   }
 
   public ObjectNode export(String id, boolean includeSecrets) {
@@ -189,8 +192,8 @@ public class ConnectionShares {
     if (!supported(type)) throw invalid("Skip unavailable connectors and use their dedicated setup flow.");
     if (!entry.path("config").isObject() || !entry.path("secrets").isObject())
       throw invalid("Invalid connection settings.");
-    // Nothing of a trust setting is taken over, and each kind the entry carried keeps the connection a draft until the
-    // person confirms their own on this computer: no test, health check or call runs before.
+    // Nothing of a trust setting is taken over, and each kind the entry carried makes the connection a disabled draft:
+    // no preflight test, health check or call reaches it until the person completes its setup and enables it.
     Portable portable = portable(entry).orElseThrow();
     ObjectNode reviewed = (ObjectNode) entry.deepCopy();
     reviewed.set("config", portable.config());
@@ -209,8 +212,8 @@ public class ConnectionShares {
     }
     if (entry.path("warnings").valueStream().anyMatch(w -> w.asString().startsWith("Local file paths and credential profiles were omitted")))
       missing.add("Choose the omitted local files and credential profiles on this computer.");
-    portable.trust().forEach(kind -> missing.add(kind + ": Not imported. Confirm this trust setting on this computer "
-        + "with Test connection, or set it yourself."));
+    portable.trust().forEach(kind -> missing.add((kind.isEmpty() ? "Settings" : kind) + ": Not imported. Confirm "
+        + "this trust setting on this computer with Test connection, or set it yourself."));
     validate(reviewed, includeSecrets);
     Map<String, SecretInput> values = inputs(reviewed.path("secrets"), includeSecrets);
     try {
@@ -258,18 +261,19 @@ public class ConnectionShares {
 
   /**
    * An entry's config and credentials as an import takes them over, and the kinds of trust setting it carried
-   * ({@code *} for array indexes, in the order the entry holds them).
+   * ({@code *} for array indexes, empty for a marked root, in the order the entry holds them).
    */
   private record Portable(ObjectNode config, ObjectNode secrets, List<String> trust) {}
 
   /**
    * The entry without its trust settings: found by the installed connector's schema, never by what the entry says
-   * about itself. Empty when no installed connector has the entry's type.
+   * about itself. Empty for an entry that cannot be imported ({@link #supported}): nothing of it is created, so its
+   * schema is not walked.
    */
   private Optional<Portable> portable(JsonNode entry) {
-    var manifest = registry.manifest(entry.path("type").asString());
-    if (manifest.isEmpty()) return Optional.empty();
-    JsonNode schema = manifest.get().configSchema();
+    String type = entry.path("type").asString("");
+    if (!supported(type)) return Optional.empty();
+    JsonNode schema = registry.manifest(type).orElseThrow().configSchema();
     ObjectNode config = entry.path("config") instanceof ObjectNode given ? given.deepCopy()
         : JsonNodeFactory.instance.objectNode();
     Set<String> trust = new LinkedHashSet<>(leaveOutTrust(config, schema));
@@ -315,14 +319,18 @@ public class ConnectionShares {
     else if (parent instanceof ArrayNode array && key.matches("\\d+")) array.remove(Integer.parseInt(key));
   }
 
-  /** The kinds for a warning, cut well within the 1,024 characters a share allows per warning. */
+  /**
+   * The kinds for a warning, cut well within the 1,024 characters a share allows per warning; a marked root reads
+   * "all settings".
+   */
   private static String names(Collection<String> kinds) {
     StringBuilder out = new StringBuilder();
     int shown = 0;
     for (String kind : kinds) {
-      if (out.length() + kind.length() > 600) break;
+      String name = kind.isEmpty() ? "all settings" : kind;
+      if (out.length() + name.length() > 600) break;
       if (!out.isEmpty()) out.append(", ");
-      out.append(kind);
+      out.append(name);
       shown++;
     }
     if (shown == 0) return kinds.size() + (kinds.size() == 1 ? " setting" : " settings");

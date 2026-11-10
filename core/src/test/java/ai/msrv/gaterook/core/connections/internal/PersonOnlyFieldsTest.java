@@ -1,10 +1,13 @@
 package ai.msrv.gaterook.core.connections.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 class PersonOnlyFieldsTest {
 
@@ -91,7 +94,8 @@ class PersonOnlyFieldsTest {
 
   /**
    * A share's layout of the marks: at the top level, a placeholder defined in a conditional branch, inside an object,
-   * in array items and as the items themselves, behind a {@code "#/"} reference and behind {@code "#"} (the root).
+   * in array items and as the items themselves, behind a {@code "#/"} reference and behind {@code "#"} (the root), and
+   * where only a {@code oneOf} branch, an {@code anyOf} branch or an {@code else} branch defines one.
    */
   private static final String SHARE_SCHEMA = """
       {"type":"object","properties":{
@@ -107,9 +111,15 @@ class PersonOnlyFieldsTest {
         "next":{"$ref":"#"},
         "trust":{"type":"object","x-person-only":true,"properties":{"clientCert":{"type":"string"},
           "clientKey":{"type":"string","writeOnly":true}}},
-        "slots":{"type":"object","properties":{"7":{"type":"string","x-person-only":true}}}},
+        "slots":{"type":"object","properties":{"7":{"type":"string","x-person-only":true}}},
+        "proxy":{"oneOf":[{"type":"null"},{"type":"object","properties":{"host":{"type":"string"},
+          "pin":{"type":"string","x-person-only":true}}}]},
+        "account":{"anyOf":[{"type":"integer"},{"type":"string","x-person-only":true}]}},
        "allOf":[{"if":{"properties":{"host":{"const":"local"}}},"then":{"properties":{
-         "allowExec":{"type":"boolean","default":false,"x-person-only":true}}}}],
+         "allowExec":{"type":"boolean","default":false,"x-person-only":true}}}},
+        {"if":{"properties":{"host":{"const":"local"}}},"then":{},"else":{"properties":{
+         "remote":{"type":"object","properties":{"user":{"type":"string"},
+           "key":{"type":"string","x-person-only":true}}}}}}],
        "$defs":{"hostKey":{"type":"string","x-person-only":true}}}
       """;
 
@@ -122,17 +132,21 @@ class PersonOnlyFieldsTest {
          "trustedKeys":["k1","k2"],
          "jump":{"host":"bastion.example.test","hostKey":{}},
          "next":{"trustedExec":"aa","next":{"host":"deep.example.test","trustedExec":"bb"}},
-         "trust":{"clientCert":"c"},"slots":{"7":"x"},"unknown":{"trustedExec":"not a property of the schema"}}
+         "trust":{"clientCert":"c"},"slots":{"7":"x"},
+         "proxy":{"host":"proxy.example.test","pin":null},"account":7,"remote":{"user":"u","key":""},
+         "unknown":{"trustedExec":"not a property of the schema"}}
         """);
 
     var held = PersonOnlyFields.held(config, JSON.readTree(SHARE_SCHEMA));
 
     assertThat(held).extracting(PersonOnlyFields.Held::pointer).containsExactly("/trustedExec", "/allowExec",
         "/tls/pins", "/replicas/0/fingerprint", "/replicas/1/fingerprint", "/trustedKeys/0", "/trustedKeys/1",
-        "/jump/hostKey", "/next/trustedExec", "/next/next/trustedExec", "/trust", "/slots/7");
+        "/jump/hostKey", "/next/trustedExec", "/next/next/trustedExec", "/trust", "/slots/7", "/proxy/pin",
+        "/account", "/remote/key");
     assertThat(held).extracting(PersonOnlyFields.Held::template).containsExactly("/trustedExec", "/allowExec",
         "/tls/pins", "/replicas/*/fingerprint", "/replicas/*/fingerprint", "/trustedKeys/*", "/trustedKeys/*",
-        "/jump/hostKey", "/next/trustedExec", "/next/next/trustedExec", "/trust", "/slots/7");
+        "/jump/hostKey", "/next/trustedExec", "/next/next/trustedExec", "/trust", "/slots/7", "/proxy/pin",
+        "/account", "/remote/key");
   }
 
   /** Every place the list of templates names is one the walk of a config finds. */
@@ -144,7 +158,104 @@ class PersonOnlyFieldsTest {
           .extracting(PersonOnlyFields.Held::template).containsExactly(template);
     }
     assertThat(PersonOnlyFields.templates(schema)).contains("/next/trustedExec", "/replicas/*/fingerprint",
-        "/trustedKeys/*", "/jump/hostKey", "/allowExec");
+        "/trustedKeys/*", "/jump/hostKey", "/allowExec", "/proxy/pin", "/account", "/remote/key");
+  }
+
+  /**
+   * A mark that only one branch reaches counts like any other: a {@code oneOf} branch defines a marked property of an
+   * object, an {@code anyOf} branch marks the value itself, and only an {@code else} branch defines its object.
+   */
+  @Test
+  void aMarkThatOnlyAOneOfAnAnyOfOrAnElseBranchReachesIsHeldAndCovers() {
+    JsonNode schema = JSON.readTree(SHARE_SCHEMA);
+
+    assertThat(PersonOnlyFields.held(JSON.readTree("{\"proxy\":{\"host\":\"p\",\"pin\":\"x\"}}"), schema))
+        .containsExactly(new PersonOnlyFields.Held("/proxy/pin", "/proxy/pin"));
+    assertThat(PersonOnlyFields.held(JSON.readTree("{\"account\":123456789012}"), schema))
+        .containsExactly(new PersonOnlyFields.Held("/account", "/account"));
+    assertThat(PersonOnlyFields.held(JSON.readTree("{\"remote\":{\"user\":\"u\",\"key\":\"k\"}}"), schema))
+        .containsExactly(new PersonOnlyFields.Held("/remote/key", "/remote/key"));
+    assertThat(PersonOnlyFields.covering(schema, "/proxy/pin")).contains("/proxy/pin");
+    assertThat(PersonOnlyFields.covering(schema, "/account")).contains("/account");
+    assertThat(PersonOnlyFields.covering(schema, "/remote/key")).contains("/remote/key");
+    assertThat(PersonOnlyFields.covering(schema, "/proxy/host")).isEmpty();
+    assertThat(PersonOnlyFields.covering(schema, "/remote/user")).isEmpty();
+  }
+
+  /**
+   * A schema the walk cannot check within its bounds is refused, never checked part way; one within them is checked to
+   * its end. One value's definitions unfold at most 32 references or branches deep and into fewer than 20,000
+   * definitions, and one walk looks at no more than a million.
+   */
+  @Test
+  void aSchemaTooComplexToCheckIsRefusedAndOneWithinTheBoundsIsCheckedToItsEnd() {
+    JsonNode deep = JSON.readTree("{\"deep\":\"x\"}");
+    assertThat(PersonOnlyFields.held(deep, chained(30))).containsExactly(new PersonOnlyFields.Held("/deep", "/deep"));
+    assertThat(PersonOnlyFields.covering(chained(30), "/deep")).contains("/deep");
+    assertThatThrownBy(() -> PersonOnlyFields.held(deep, chained(40))).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> PersonOnlyFields.covering(chained(40), "/deep"))
+        .isInstanceOf(IllegalArgumentException.class);
+
+    JsonNode wide = JSON.readTree("{\"wide\":\"x\"}");
+    assertThat(PersonOnlyFields.held(wide, branched(10_000)))
+        .containsExactly(new PersonOnlyFields.Held("/wide", "/wide"));
+    assertThat(PersonOnlyFields.covering(branched(10_000), "/wide")).contains("/wide");
+    assertThatThrownBy(() -> PersonOnlyFields.held(wide, branched(20_001)))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> PersonOnlyFields.covering(branched(20_001), "/wide"))
+        .isInstanceOf(IllegalArgumentException.class);
+
+    // Each item has 10,001 definitions: within the bounds for one value, not for 120 of them.
+    assertThat(PersonOnlyFields.held(listOf(90), itemsWith(10_000)))
+        .containsExactly(new PersonOnlyFields.Held("/list/0/pin", "/list/*/pin"));
+    assertThatThrownBy(() -> PersonOnlyFields.held(listOf(120), itemsWith(10_000)))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  /** A schema whose marked {@code /deep} is defined behind a chain of {@code links} references. */
+  private static JsonNode chained(int links) {
+    ObjectNode schema = JSON.createObjectNode().put("type", "object");
+    schema.putObject("properties").putObject("deep").put("$ref", "#/$defs/d0");
+    ObjectNode defs = schema.putObject("$defs");
+    for (int i = 0; i < links; i++) {
+      defs.putObject("d" + i).put("$ref", "#/$defs/d" + (i + 1));
+    }
+    defs.putObject("d" + links).put("type", "string").put("x-person-only", true);
+    return schema;
+  }
+
+  /** A schema whose {@code /wide} has {@code branches} {@code allOf} branches, the last one marked. */
+  private static JsonNode branched(int branches) {
+    ObjectNode schema = JSON.createObjectNode().put("type", "object");
+    ArrayNode allOf = schema.putObject("properties").putObject("wide").putArray("allOf");
+    for (int i = 1; i < branches; i++) {
+      allOf.addObject();
+    }
+    allOf.addObject().put("x-person-only", true);
+    return schema;
+  }
+
+  /** A schema of a {@code /list} whose items have {@code branches} empty {@code allOf} branches and a marked pin. */
+  private static JsonNode itemsWith(int branches) {
+    ObjectNode schema = JSON.createObjectNode().put("type", "object");
+    ObjectNode items = schema.putObject("properties").putObject("list").put("type", "array").putObject("items");
+    items.putObject("properties").putObject("pin").put("type", "string").put("x-person-only", true);
+    ArrayNode allOf = items.putArray("allOf");
+    for (int i = 0; i < branches; i++) {
+      allOf.addObject();
+    }
+    return schema;
+  }
+
+  /** A config whose {@code /list} has {@code size} items, the first one holding a pin. */
+  private static JsonNode listOf(int size) {
+    ObjectNode config = JSON.createObjectNode();
+    ArrayNode list = config.putArray("list");
+    list.addObject().put("pin", "p");
+    for (int i = 1; i < size; i++) {
+      list.addObject();
+    }
+    return config;
   }
 
   /** A template follows a reference to the root once; a config can nest it deeper, and the walk follows it there. */
@@ -169,7 +280,8 @@ class PersonOnlyFieldsTest {
     JsonNode schema = JSON.readTree(SHARE_SCHEMA);
 
     assertThat(PersonOnlyFields.held(JSON.readTree("""
-        {"host":"local","tls":{"minVersion":"TLSv1.2"},"replicas":[{"host":"r"}],"jump":{"host":"b"},"next":{}}
+        {"host":"local","tls":{"minVersion":"TLSv1.2"},"replicas":[{"host":"r"}],"jump":{"host":"b"},"next":{},
+         "proxy":{"host":"p"},"remote":{"user":"u"}}
         """), schema)).isEmpty();
     assertThat(PersonOnlyFields.held(JSON.readTree("{\"trustedExec\":\"x\"}"), null)).isEmpty();
     assertThat(PersonOnlyFields.held(JSON.readTree("{\"a\":1}"), JSON.readTree("{\"x-person-only\":true}")))

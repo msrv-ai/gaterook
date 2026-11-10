@@ -99,8 +99,8 @@ class EndpointShareIT {
     assertThat(row.at("/config/connection/host").asString()).isEqualTo("hostkey.test");
     assertThat(row.at("/config/connection").has("hostKey")).isFalse();
     assertThat(row.path("warnings").toString()).contains("Trust settings in this file are not imported: "
-        + "/connection/hostKey. The connection is imported off, with Setup required, until you confirm them on this "
-        + "computer with Test connection.");
+        + "/connection/hostKey. The connection is imported off, with Setup required; confirm them on this computer "
+        + "with Test connection, then Trust, or set them in the connection form.");
 
     ObjectNode request = inspect.deepCopy().put("includeEndpoint", true).put("includeSecrets", true)
         .put("endpointSlug", "trust-share-copy");
