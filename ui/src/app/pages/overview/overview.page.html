@@ -207,7 +207,10 @@
           </div>
         }
         <p class="gw-text-caption gw-fg-muted">Connection switches apply to all endpoints.</p>
-        <div class="gw-stack gw-stack--sm gw-setup-map__network-native">
+        <div
+          class="gw-stack gw-stack--sm gw-setup-map__network-native"
+          [class.gw-setup-map__network-native--empty]="!native().length"
+        >
           <ul
             class="gw-setup-map__network-grid"
             id="ov-services"
@@ -281,6 +284,7 @@
         <div
           class="gw-card gw-setup-map__network-mcp"
           id="ov-mcp"
+          [class.gw-setup-map__network-mcp--empty]="!mcp().length && !unassignedMcp().length"
           [hidden]="
             (problemsOnly() && !mcp().length) ||
             (!!query() && !mcp().length && !unassignedMcp().length)
