@@ -1,4 +1,4 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, InjectionToken, computed, inject, signal } from '@angular/core';
 import { ApiClient } from '../api/api-client';
 import { ApiError, isApiError } from '../api/api-error';
 import { CoreApi, CoreInfo, Health } from '../api/core.api';
@@ -57,6 +57,12 @@ const INITIAL: CoreState = {
   version: null,
   firstRun: false,
 };
+
+/**
+ * How often the shell reads `/api/health` again while the core runs and the window is visible: the frame's banners
+ * (audit catching up, a failed backup) change without an event (a test replaces it).
+ */
+export const BANNER_REFRESH_MS = new InjectionToken<number>('BANNER_REFRESH_MS', { factory: () => 30_000 });
 
 /** How often a browser session asks `/api/health` while the core isn't answering. */
 const RETRY_MS = 2000;

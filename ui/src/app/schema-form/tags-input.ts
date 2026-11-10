@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, booleanAttribute, inject, input, model, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DOCUMENT, DestroyRef, ElementRef, Injector, afterNextRender, booleanAttribute, inject, input, model, output, signal } from '@angular/core';
 import { FormValueControl } from '@angular/forms/signals';
 import { LucideDynamicIcon } from '@lucide/angular';
 
@@ -7,6 +7,9 @@ import { LucideDynamicIcon } from '@lucide/angular';
  * `gw-tag-list` of `gw-tag --mono` with a remove button each, and a `gw-input-group` whose addon adds). Enter adds
  * the typed value without submitting the form; after a removal focus goes to the next tag's remove button, else to
  * the input (gw-tag A11y).
+ *
+ * A typed value is never lost: it is added when the input loses focus and when the form around it is submitted
+ * (Save, also from the keyboard while the input still has focus), before the page reads the form's value.
  */
 @Component({
   selector: 'div[gwTagsInput]',
@@ -40,7 +43,7 @@ import { LucideDynamicIcon } from '@lucide/angular';
         [value]="draft()"
         (input)="draft.set(entry.value)"
         (keydown.enter)="add($event)"
-        (blur)="touch.emit()"
+        (blur)="commit(); touch.emit()"
       />
       <button class="gw-input-group__addon" type="button" [attr.aria-label]="'Add ' + noun()" (click)="add($event)">
         <svg lucideIcon="plus" class="gw-icon"></svg>
@@ -63,8 +66,23 @@ export class GwTagsInput implements FormValueControl<string[]> {
   readonly touch = output<void>();
   protected readonly draft = signal('');
 
+  constructor() {
+    // Capture: this runs before the form's own submit handler reads the value.
+    const doc = inject(DOCUMENT);
+    const beforeSubmit = (e: Event) => {
+      if (e.target instanceof Node && e.target.contains(this.host)) this.commit();
+    };
+    doc.addEventListener('submit', beforeSubmit, true);
+    inject(DestroyRef).onDestroy(() => doc.removeEventListener('submit', beforeSubmit, true));
+  }
+
   protected add(event: Event): void {
     event.preventDefault();
+    this.commit();
+  }
+
+  /** Adds the typed value (once: a value already in the list isn't added again) and empties the input. */
+  protected commit(): void {
     const tag = this.draft().trim();
     if (!tag) return;
     if (!this.value().includes(tag)) this.value.set([...this.value(), tag]);

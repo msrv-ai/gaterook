@@ -11,7 +11,7 @@ import { EventStream } from './core/events/event-stream';
 import { ApprovalsStore } from './core/stores/approvals.store';
 import { ConsentStore } from './core/stores/consent.store';
 import { ConnectionImportsStore } from './core/stores/connection-imports.store';
-import { CoreStore } from './core/stores/core.store';
+import { BANNER_REFRESH_MS, CoreStore } from './core/stores/core.store';
 import { SettingsStore } from './core/stores/settings.store';
 import { UpdatesStore } from './core/stores/updates.store';
 import { TimeService } from './core/time/time.service';
@@ -249,6 +249,19 @@ export class App {
     });
 
     const destroy = inject(DestroyRef);
+    // The banners (changed outside GateRook, audit catching up, backup failed) are what /api/health says: read it again
+    // when an integrity alert arrives, and while the window is visible every half minute and when it shows again
+    // (the audit backlog and backups send no event).
+    destroy.onDestroy(this.events.on('integrity.alert', () => void this.core.refresh()));
+    const recheck = () => {
+      if (this.core.running() && this.doc.visibilityState !== 'hidden') void this.core.refresh();
+    };
+    const poll = setInterval(recheck, inject(BANNER_REFRESH_MS));
+    this.doc.addEventListener('visibilitychange', recheck);
+    destroy.onDestroy(() => {
+      clearInterval(poll);
+      this.doc.removeEventListener('visibilitychange', recheck);
+    });
     destroy.onDestroy(this.desktop.onDeepLink((link) => this.openFromOutside(deepLinkUrl(link))));
     const shareFiles = inject(EndpointShareFiles);
     if (this.desktop.endpointShareAvailable) destroy.onDestroy(this.desktop.onEndpointShareFile((file) => {

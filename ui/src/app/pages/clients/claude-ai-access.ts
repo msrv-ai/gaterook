@@ -5,7 +5,7 @@ import { TimeService } from '../../core/time/time.service';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
 import { ClientEndpoint, activityQuery } from '../../kit/elements/client-card/client-view';
 import { GwClientDisclosure } from '../../kit/elements/client-card/client-disclosure';
-import { activeGrants, localEndpoints, oauthClientLabel } from '../../kit/elements/client-card/tunnel-view';
+import { activeGrants, localEndpoints, oauthClientLabel, publishNotes } from '../../kit/elements/client-card/tunnel-view';
 import { GwClientMark } from '../../kit/elements/shared/client-mark';
 import { GwIcon } from '../../kit/icons';
 import { allowedAt, connectionEnvs, lastCallRow, providerName, tunnelRow } from './clients-view';
@@ -87,13 +87,8 @@ export class GwClaudeAiAccess {
     if (!p) return this.endpoints().filter((e) => e.slug !== this.slug()).map((e) => e.slug);
     return localEndpoints(p.local);
   });
-  /**
-   * The core's cautions before publishing, except the two the dialog already says in its rows: who can call
-   * (Callers) and a quick tunnel's new address (Public URL).
-   */
-  protected readonly warnings = computed(() =>
-    (this.preview()?.warnings ?? []).filter((w) => !/^Callers:/.test(w) && !/new address each time/i.test(w)),
-  );
+  /** The core's cautions before publishing that the dialog's rows don't already say ({@link publishNotes}). */
+  protected readonly warnings = computed(() => publishNotes(this.preview()));
   protected readonly publicPaths = computed(() => this.preview()?.publicPaths ?? (this.slug() ? [`/mcp/${this.slug()}`, '/oauth/*', '/.well-known/oauth-*'] : []));
   protected readonly anthropicOnly = computed(() => this.tunnel()?.callers?.anthropicOnly ?? true);
   protected readonly signedIn = computed(() => activeGrants(this.grants()));
