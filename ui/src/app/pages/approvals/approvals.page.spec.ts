@@ -6,6 +6,7 @@ import { approvalsMatcher } from '../../app.routes';
 import { ActivityApi, ActivityEvent } from '../../core/api/activity.api';
 import { ApiError } from '../../core/api/api-error';
 import { ApprovalDecision, ApprovalDetail, ApprovalItem, ApprovalList, ApprovalStatus, ApprovalsApi } from '../../core/api/approvals.api';
+import { ConnectionList, ConnectionsApi } from '../../core/api/connections.api';
 import { Notifications, NotificationsApi } from '../../core/api/notifications.api';
 import { EVENT_STREAM_FETCH, EventStream } from '../../core/events/event-stream';
 import { TimeService } from '../../core/time/time.service';
@@ -94,6 +95,8 @@ class FakeCore {
   listFails: ApiError | null = null;
   notifications: Notifications | ApiError = new ApiError('not-available', 404, {});
   events: ActivityEvent[] = [];
+  /** Connection types by name, as `GET /api/connections` lists them. */
+  types: Record<string, string> = { 'dev-db': 'postgres', 'dev-cluster': 'kubernetes', 'billing-api': 'http' };
 
   seed(): void {
     this.pending = [K8S, SQL, HTTP];
@@ -150,6 +153,9 @@ beforeEach(() => {
     }),
   };
   const activity: Partial<ActivityApi> = { events: vi.fn(async () => ({ events: core.events, nextCursor: null })) };
+  const connections: Partial<ConnectionsApi> = {
+    list: vi.fn(async () => ({ items: Object.entries(core.types).map(([name, type]) => ({ name, type })), total: 0 }) as unknown as ConnectionList),
+  };
   const notifications: Partial<NotificationsApi> = {
     get: vi.fn(async () => {
       if (core.notifications instanceof ApiError) throw core.notifications;
@@ -166,6 +172,7 @@ beforeEach(() => {
       { provide: ApprovalsApi, useValue: approvals },
       { provide: ActivityApi, useValue: activity },
       { provide: NotificationsApi, useValue: notifications },
+      { provide: ConnectionsApi, useValue: connections },
       // A stream that never connects: the tests emit the core's events themselves.
       { provide: EVENT_STREAM_FETCH, useValue: (() => new Promise<Response>(() => undefined)) as typeof fetch },
     ],
@@ -437,6 +444,28 @@ describe('Approvals page', () => {
     expect(text(card.querySelector('h3'))).toBe('S Slack');
     expect(text(card.querySelector('.gw-card__description'))).toContain('Posted to #deploy-approvals at 14:29:13');
     expect(card.querySelector('figure.gw-approval-notification__preview')).not.toBeNull();
+  });
+
+  it('colours a SQL action in the dialect of its connection', async () => {
+    core.details.set(SQL.id, detail(SQL, 'UPDATE orders SET n = n # 2 WHERE id = 1 -- why'));
+    core.types['dev-db'] = 'mysql';
+    const { detail: shown } = await open(`/approvals/${SQL.id}`);
+    // MySQL: # starts a comment.
+    expect(Array.from(shown()!.querySelectorAll('.gw-code-block .gw-tok-comment')).map(text)).toEqual(['# 2 WHERE id = 1 -- why']);
+  });
+
+  it('on PostgreSQL # is an operator: what follows it runs and is coloured as code', async () => {
+    core.details.set(SQL.id, detail(SQL, 'UPDATE orders SET n = n # 2 WHERE id = 1 -- why'));
+    core.types['dev-db'] = 'postgres';
+    const { detail: shown } = await open(`/approvals/${SQL.id}`);
+    expect(Array.from(shown()!.querySelectorAll('.gw-code-block .gw-tok-comment')).map(text)).toEqual(['-- why']);
+  });
+
+  it('without the connection’s type a SQL action is coloured only where every dialect agrees', async () => {
+    core.details.set(SQL.id, detail(SQL, 'UPDATE orders SET n = n # 2 WHERE id = 1 -- why'));
+    core.types = {};
+    const { detail: shown } = await open(`/approvals/${SQL.id}`);
+    expect(Array.from(shown()!.querySelectorAll('.gw-code-block .gw-tok-comment')).map(text)).toEqual(['-- why']);
   });
 
   it('a deep link to a request that doesn’t exist says so, focused', async () => {

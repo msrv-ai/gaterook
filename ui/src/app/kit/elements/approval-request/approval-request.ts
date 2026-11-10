@@ -23,6 +23,7 @@ import { Env } from '../../../core/api/types';
 import { duration } from '../../../core/time/time-format';
 import { TimeService } from '../../../core/time/time.service';
 import { GwCodeBlock } from '../../../code/code-block';
+import { SqlDialect } from '../../../code/sql-lexer';
 import { GwDiff } from '../../../code/diff';
 import { ActivationGuard } from '../../activation-guard';
 import { Announcer } from '../../announcer';
@@ -114,6 +115,11 @@ export class GwApprovalRequest {
    * the task in Activity › Traces by its first six hex digits, as the kit writes it (`trace:c7e19d`).
    */
   readonly traceId = input<string | null>(null);
+  /**
+   * The SQL dialect of the request's connection, when the page knows its type: the exact action is coloured as that
+   * server reads it (comments and literals); without it, only where every dialect GateRook reads agrees.
+   */
+  readonly dialect = input<SqlDialect | null>(null);
 
   readonly decide = output<ApprovalDecision>();
   /** The countdown reached zero while pending: the list moves the request to History. */
