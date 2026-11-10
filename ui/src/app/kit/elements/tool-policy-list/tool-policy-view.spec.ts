@@ -95,4 +95,22 @@ describe('tool-policy-list view', () => {
       expect(limitFields(type).map((f) => f.key)).toEqual(['toolTimeoutSeconds', 'maxResponseKb']);
     }
   });
+
+  it('inherits the stricter of a connector section and Limits, as the core applies them', () => {
+    const sections = {
+      sql: { rowLimit: 100, maxResponseKb: 1024 },
+      http: { toolTimeoutSeconds: 10, maxResponseKb: 1024 },
+      limits: { toolTimeoutSeconds: 5, maxResponseKb: 256 },
+    };
+    const [rows, , sqlSize] = limitFields('postgres');
+    expect(inherited(sqlSize, sections)).toBe(256);
+    expect(inherited(rows, sections)).toBe(100);
+    const [httpTimeout, httpSize] = limitFields('http');
+    expect(inherited(httpTimeout, sections)).toBe(5);
+    expect(inherited(httpSize, sections)).toBe(256);
+    // A larger Limits value leaves the section's own value; a section without one inherits Limits.
+    expect(inherited(httpSize, { ...sections, limits: { maxResponseKb: 2048 } })).toBe(1024);
+    expect(inherited(httpSize, { limits: { maxResponseKb: 512 } })).toBe(512);
+    expect(inherited(limitFields('opensearch')[1], sections)).toBe(256);
+  });
 });

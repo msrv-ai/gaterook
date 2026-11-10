@@ -204,11 +204,22 @@ export function limitFields(type: string | null): LimitField[] {
   }
 }
 
-/** The value the environment policy gives a field (shown in the field's unit), or null when unknown. */
+/**
+ * The value the environment policy gives a field (shown in the field's unit), or null when unknown. A connector
+ * section only narrows the Limits value of the same key, as the core applies them: the response size of an SQL
+ * tool, and the response size and timeout of an HTTP tool, are the stricter of their section's value and Limits'.
+ */
 export function inherited(f: LimitField, sections: JsonObject | null | undefined): number | null {
-  const section = sections?.[f.section];
-  const v = section && typeof section === 'object' && !Array.isArray(section) ? (section as JsonObject)[f.key] : undefined;
-  return typeof v === 'number' ? v / f.scale : null;
+  const own = numberIn(sections, f.section, f.key);
+  const limits = f.section === 'limits' ? null : numberIn(sections, 'limits', f.key);
+  const v = own === null ? limits : limits === null ? own : Math.min(own, limits);
+  return v === null ? null : v / f.scale;
+}
+
+function numberIn(sections: JsonObject | null | undefined, name: string, key: string): number | null {
+  const section = sections?.[name];
+  const v = section && typeof section === 'object' && !Array.isArray(section) ? (section as JsonObject)[key] : undefined;
+  return typeof v === 'number' ? v : null;
 }
 
 /** The pair's own value for a field (in the field's unit), or null when it inherits. */

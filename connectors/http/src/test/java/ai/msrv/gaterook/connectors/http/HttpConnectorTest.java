@@ -34,6 +34,9 @@ class HttpConnectorTest {
     assertThat(m.icon()).isEqualTo("globe");
     assertThat(m.configSchema().path("type").asString()).isEqualTo("object");
     assertThat(m.policySchema()).isNotNull();
+    // 1 MB in every environment; Limits › Max response size still caps it (prod 256 KB by default).
+    assertThat(m.policySchema().at("/properties/maxResponseKb/default").asInt()).isEqualTo(1_024);
+    assertThat(m.policySchema().at("/properties/maxResponseKb/x-env-default").isMissingNode()).isTrue();
   }
 
   @Test
