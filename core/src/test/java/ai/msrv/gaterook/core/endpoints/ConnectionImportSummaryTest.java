@@ -119,11 +119,16 @@ class ConnectionImportSummaryTest {
 
   @Test
   void theDefaultOfTheCandidatesEnvironmentIsNotShownAsASetting() {
-    String config = "{\"connection\":{\"host\":\"db.example.test\",\"tls\":true}}";
+    String on = "{\"connection\":{\"host\":\"db.example.test\",\"tls\":true}}";
+    String off = "{\"connection\":{\"host\":\"db.example.test\",\"tls\":false}}";
 
-    assertThat(rows(summaryOf("prod", config))).containsExactly("connection.host=db.example.test [target]");
-    assertThat(rows(summaryOf("dev", config))).containsExactly("connection.host=db.example.test [target]",
+    assertThat(rows(summaryOf("prod", on))).containsExactly("connection.host=db.example.test [target]");
+    assertThat(rows(summaryOf("dev", on))).containsExactly("connection.host=db.example.test [target]",
         "connection.tls=true");
+    // On prod the plain default is the value prod overrides: turning TLS off there is a change the card lists.
+    assertThat(rows(summaryOf("prod", off))).containsExactly("connection.host=db.example.test [target]",
+        "connection.tls=false");
+    assertThat(rows(summaryOf("dev", off))).containsExactly("connection.host=db.example.test [target]");
   }
 
   /** A proposal's values are not checked against the form's types yet: a port that is no int must not fail a submission. */

@@ -129,14 +129,39 @@ final class ConnectionImportSummary {
       }
     }
 
-    /** The connector's own default for this setting, or the one its environment starts with. */
+    /**
+     * Whether the value is the connector's default for this setting in the candidate's environment, so the card can
+     * leave it out. A definition's default for the environment is its {@code x-env-default} entry for it when it has
+     * one, otherwise its plain {@code default}: on prod, a value equal to the plain default that prod overrides (TLS
+     * off, say) is a change and is listed.
+     *
+     * <p>Several definitions can apply to one path ({@code oneOf}, {@code anyOf}, {@code then} and {@code else}
+     * branches), and the walk does not resolve which branch the config selects. The value is hidden only when it is the
+     * default under every one of them, so a value that is only another branch's default is listed. A boolean schema
+     * ({@code true} or {@code false}) states no default and leaves the others to decide; any other definition without
+     * a default for the environment keeps the value on the card.
+     */
     private boolean isDefault(JsonNode value, List<JsonNode> definitions) {
+      boolean stated = false;
       for (JsonNode definition : definitions) {
-        if (same(value, definition.get("default")) || same(value, definition.path("x-env-default").get(env.id()))) {
-          return true;
+        if (definition.isBoolean()) {
+          continue;
         }
+        if (!same(value, defaultFor(definition))) {
+          return false;
+        }
+        stated = true;
       }
-      return false;
+      return stated;
+    }
+
+    /** The definition's default in the candidate's environment, or {@code null} when it states none. */
+    private JsonNode defaultFor(JsonNode definition) {
+      JsonNode environments = definition.get("x-env-default");
+      if (environments != null && environments.isObject() && environments.has(env.id())) {
+        return environments.get(env.id());
+      }
+      return definition.get("default");
     }
 
     private static boolean same(JsonNode value, JsonNode other) {
