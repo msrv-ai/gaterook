@@ -82,6 +82,15 @@ class PersonOnlyTest {
     assertThat(PersonOnly.covers(SCHEMA, "/replicas/12345/pin")).isTrue();
   }
 
+  /** A template's {@code *} stands for an array index only: a name or a negative number is no item of the array. */
+  @Test
+  void anArrayTemplateDoesNotCoverAPartThatIsNoIndex() {
+    assertThat(PersonOnly.covers(SCHEMA, "/replicas/name/pin")).isFalse();
+    assertThat(PersonOnly.covers(SCHEMA, "/replicas/-1/pin")).isFalse();
+    assertThat(PersonOnly.covers(SCHEMA, "/replicas//pin")).isFalse();
+    assertThat(PersonOnly.covers(SCHEMA, "/replicas/0/pin")).isTrue();
+  }
+
   @Test
   void whatIsNotMarkedIsNotCovered() {
     assertThat(PersonOnly.covers(SCHEMA, "/host")).isFalse();

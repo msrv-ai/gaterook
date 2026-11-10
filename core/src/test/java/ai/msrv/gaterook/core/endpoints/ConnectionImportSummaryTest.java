@@ -131,6 +131,41 @@ class ConnectionImportSummaryTest {
     assertThat(rows(summaryOf("dev", off))).containsExactly("connection.host=db.example.test [target]");
   }
 
+  /** Gives the test connector another config schema, so a test can lay out definitions no built-in schema has. */
+  private void useSchema(String schema) {
+    ConnectorManifest manifest = ConnectorManifest.builder("pgfake", "1", ConnectorManifest.Kind.BUILT_IN)
+        .name("Test SQL").configSchema((ObjectNode) JSON.readTree(schema)).build();
+    when(registry.type("pgfake")).thenReturn(Optional.of(new ConnectorType(manifest, true, true)));
+    when(registry.manifest("pgfake")).thenReturn(Optional.of(manifest));
+  }
+
+  /**
+   * A plugin schema can define one property in several branches, only some of which state a default. The walk does not
+   * resolve the branch the config selects, so a value that is the default of one branch only is still listed.
+   */
+  @Test
+  void aValueIsListedWhenABranchThatCanApplyStatesNoDefault() {
+    useSchema("""
+        {"type":"object","properties":{"connection":{"type":"object","properties":{"host":{"type":"string"}}}},
+         "oneOf":[{"properties":{"mode":{"type":"string","default":"a"}}},{"properties":{"mode":{"type":"string"}}}]}
+        """);
+
+    assertThat(rows(summaryOf("dev", "{\"connection\":{\"host\":\"db.example.test\"},\"mode\":\"a\"}")))
+        .containsExactly("connection.host=db.example.test [target]", "mode=a");
+  }
+
+  @Test
+  void aValueIsLeftOutWhenEveryBranchThatCanApplyHasItAsTheDefault() {
+    useSchema("""
+        {"type":"object","properties":{"connection":{"type":"object","properties":{"host":{"type":"string"}}}},
+         "oneOf":[{"properties":{"mode":{"type":"string","default":"a"}}},
+                  {"properties":{"mode":{"type":"string","default":"a"}}}]}
+        """);
+
+    assertThat(rows(summaryOf("dev", "{\"connection\":{\"host\":\"db.example.test\"},\"mode\":\"a\"}")))
+        .containsExactly("connection.host=db.example.test [target]");
+  }
+
   /** A proposal's values are not checked against the form's types yet: a port that is no int must not fail a submission. */
   @Test
   void aPortOutsideTheIntegerRangeStillGetsASummaryThatShowsTheValueAsASetting() {
