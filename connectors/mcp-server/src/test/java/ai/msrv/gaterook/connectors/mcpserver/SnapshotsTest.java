@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 class SnapshotsTest {
 
@@ -115,6 +116,49 @@ class SnapshotsTest {
         .containsExactly("query: a built-in tool", "other: the server lists it twice");
   }
 
+  private static ObjectNode listed(String uri) {
+    ObjectNode t = Texts.JSON.createObjectNode().put("name", "chart").put("description", "Shows a chart.");
+    t.putObject("inputSchema").put("type", "object");
+    if (uri != null) {
+      t.putObject("_meta").putObject("ui").put("resourceUri", uri);
+    }
+    return t;
+  }
+
+  /**
+   * The hash of what a server declares for a tool stays what it was, so that an approval pinned to it stays valid; the
+   * app a tool shows is pinned beside it, wherever a list is compared with what was reviewed.
+   */
+  @Test
+  void theAppAToolShowsIsPinnedBesideTheDefinitionHashWhichStaysWhatItWas() {
+    ObjectNode reviewed = listed("ui://charts/a.html");
+    ObjectNode moved = listed("ui://charts/b.html");
+    ObjectNode none = listed(null);
+    JsonNode entry = Snapshots.fromJson("x_", List.of(reviewed), n -> Optional.empty()).tools().getFirst();
+    JsonNode movedEntry = Snapshots.fromJson("x_", List.of(moved), n -> Optional.empty()).tools().getFirst();
+    JsonNode plain = Snapshots.fromJson("x_", List.of(none), n -> Optional.empty()).tools().getFirst();
+
+    assertThat(entry.path("ui").path("resourceUri").asString()).isEqualTo("ui://charts/a.html");
+    assertThat(Snapshots.definitionHash(reviewed)).isEqualTo(Snapshots.definitionHash(moved))
+        .isEqualTo(Snapshots.definitionHash(none));
+    assertThat(Snapshots.sameApp(entry, reviewed)).isTrue();
+    assertThat(Snapshots.sameApp(entry, moved)).isFalse();
+    assertThat(Snapshots.sameApp(entry, none)).as("the app went away").isFalse();
+    assertThat(Snapshots.sameApp(plain, reviewed)).as("an app came").isFalse();
+    assertThat(Snapshots.sameApp(plain, none)).isTrue();
+    // Which tools may call it counts too.
+    ObjectNode appOnly = listed("ui://charts/a.html");
+    ((ObjectNode) appOnly.get("_meta").get("ui")).putArray("visibility").add("app");
+    assertThat(Snapshots.sameApp(entry, appOnly)).isFalse();
+
+    assertThat(Tests.diff(List.of(entry), List.of(entry))).isNull();
+    assertThat(Tests.diff(List.of(entry), List.of(movedEntry))).contains("1 changed");
+    assertThat(Session.listHash(List.of(reviewed))).isNotEqualTo(Session.listHash(List.of(moved)))
+        .isNotEqualTo(Session.listHash(List.of(none)));
+    assertThat(Session.listHash(List.of(none))).as("a list without apps hashes as it did").isEqualTo(
+        Texts.sha256(Snapshots.definitionHash(none) + ","));
+  }
+
   @Test
   void theTestNamesWhatChangedAgainstTheReview() {
     List<JsonNode> before = Snapshots.of("x_", List.of(tool("a", "A.", null), tool("b", "B.", null)),
@@ -125,6 +169,6 @@ class SnapshotsTest {
     assertThat(Tests.diff(before, before)).isNull();
     assertThat(Tests.diff(before, after)).isEqualTo("The server lists other tools than were reviewed: 1 new "
         + "(declared reads start in Read only; other tools stay Off), 1 changed "
-        + "(read-only eligibility is checked again), 1 gone.");
+        + "(Read only and Bypass go back to Approval), 1 gone.");
   }
 }

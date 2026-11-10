@@ -28,6 +28,8 @@ class ToolBypassMigrationTest {
     Flyway.configure().dataSource(url, null, null).locations("classpath:db/migration").load().migrate();
     var after = jdbc.queryForMap("select * from endpoint_tool where id = 'tool'");
     assertThat(after.remove("temporary_bypass")).isNull();
+    // Later migrations add columns that start empty (V89: the definition an external server's tool was set for).
+    assertThat(after.remove("reviewed_definition")).isNull();
     assertThat((byte[]) after.remove("mac")).containsExactly((byte[]) before.remove("mac"));
     assertThat(after).isEqualTo(before);
     assertThat(jdbc.update("update endpoint_tool set mode = 'BYPASS' where id = 'tool'")).isEqualTo(1);

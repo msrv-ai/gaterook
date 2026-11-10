@@ -63,8 +63,11 @@ import tools.jackson.databind.node.ObjectNode;
  * External MCP servers (ARCHITECTURE.md §7.5, step C10): a server is a connection of type {@code mcp-server} plus its
  * reviewed state in {@code mcp_server}. Adding one starts it once with the values the person typed (nothing is saved
  * if it doesn't start), lists its tools and stores that list as the snapshot agents get; every later start that lists
- * something else replaces the snapshot with a Setup change and a new connection version, so endpoints take new tools
- * in as Off, drop gone ones and ask again for a changed tool's Read only.
+ * something else replaces the snapshot with a Setup change and a new connection version. The endpoints follow
+ * ({@code EndpointConnections.reconcile}): new tools come in as Off (a declared read in Read only), a tool the server
+ * stops listing keeps its row for when it comes back, and a tool whose definition changed goes back to Approval
+ * wherever it was in Read only or Bypass. What a person decided is kept per endpoint tool, with the definition it was
+ * decided for, not in this snapshot (ARCHITECTURE.md §7.5).
  *
  * <p>The values of variables and headers are the connection's secrets: stored and resolved by the {@code secrets}
  * module, never in the config, the snapshot, a log or an answer.
@@ -1046,11 +1049,15 @@ public class McpServerService {
     return d;
   }
 
-  /** "1 new, 2 changed, 1 gone" against the stored snapshot; {@code null} when the tools are the same. */
+  /**
+   * "1 new, 2 changed, 1 gone" against the stored snapshot; {@code null} when the tools are the same. A tool is changed
+   * when the definition the server declared for it differs ({@code definitionHash}) or the app it shows does
+   * ({@code ui}, which that hash doesn't cover).
+   */
   static String diff(JsonNode before, List<JsonNode> after) {
-    Map<String, String> had = new HashMap<>();
+    Map<String, JsonNode> had = new HashMap<>();
     for (JsonNode t : before) {
-      had.put(t.path("original").asString(), t.path("definitionHash").asString());
+      had.put(t.path("original").asString(), t);
     }
     int added = 0;
     int changed = 0;
@@ -1060,7 +1067,8 @@ public class McpServerService {
       now.add(o);
       if (!had.containsKey(o)) {
         added++;
-      } else if (!had.get(o).equals(t.path("definitionHash").asString())) {
+      } else if (!had.get(o).path("definitionHash").asString().equals(t.path("definitionHash").asString())
+          || !had.get(o).path("ui").equals(t.path("ui"))) {
         changed++;
       }
     }

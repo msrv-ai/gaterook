@@ -152,6 +152,10 @@ public class EndpointRows {
     if (row.getTemporaryBypass() != null) {
       f.set("temporaryBypass", rowMac.tree(row.getTemporaryBypass()));
     }
+    // The same for the reviewed definition (V89): rows written before it carry none and verify as they were signed.
+    if (row.getReviewedDefinition() != null) {
+      f.put("reviewedDefinition", row.getReviewedDefinition());
+    }
     return f;
   }
 

@@ -148,6 +148,37 @@ class FullBackupIT {
     }
   }
 
+  /** A server tool's row signs the definition its mode was set for: the restore has to read it to check the row. */
+  @Test
+  void aRestoredServerToolKeepsItsReviewedDefinitionAndLosesItsTemporaryBypass() throws Exception {
+    try (TestCore core = TestCore.start("full-backup-definition")) {
+      core.connection("backup-defs", "mcpfake", Env.DEV, "defs.test");
+      var endpoints = core.bean(EndpointService.class);
+      endpoints.create("backup-defs-ep", null, EndpointService.StartFrom.EMPTY, null);
+      core.bean(EndpointConnections.class).add("backup-defs-ep", "backup-defs", null);
+      var write = endpoints.snapshot("backup-defs-ep").pairs().stream()
+          .filter(p -> p.toolKey().equals("mcp:backup-defs:gh_write")).findFirst().orElseThrow();
+      core.bean(EndpointTools.class).setTemporaryBypass("backup-defs-ep", write.toolKey(), "backup-defs", 30,
+          write.rowVersion(), null);
+      Path directory = stage(core, "definition1");
+      FullBackupService service = core.bean(FullBackupService.class);
+      byte[] portable = service.snapshot(directory.toString());
+      try {
+        byte[] protectedKey = service.validate(directory.toString(), portable);
+        Arrays.fill(protectedKey, (byte) 0);
+        try (Connection c = DriverManager.getConnection("jdbc:sqlite:" + directory.resolve("gateway.db"));
+            var s = c.createStatement(); var r = s.executeQuery("SELECT temporary_bypass, reviewed_definition FROM "
+                + "endpoint_tool WHERE tool_key = 'mcp:backup-defs:gh_write'")) {
+          assertThat(r.next()).isTrue();
+          assertThat(r.getString("temporary_bypass")).isNull();
+          assertThat(r.getString("reviewed_definition")).hasSize(64);
+        }
+      } finally {
+        Arrays.fill(portable, (byte) 0);
+      }
+    }
+  }
+
   @Test
   void requiresMatchingPluginFilesAndSafelyResignsDisabledPluginAndMcpStartupSettings() throws Exception {
     try (TestCore core = TestCore.start("full-backup-plugin-inventory")) {
