@@ -353,8 +353,11 @@ public class EndpointConnections implements SmartInitializingSingleton {
    * <p>A temporary bypass is judged by its own binding, the definition it was granted for
    * ({@link TemporaryBypass#activeUntil}), not by the row's reviewed definition: a person may grant one to a tool held
    * in Approval, whose row keeps the definition of an earlier mode or none. The grant of an external server's tool is
-   * dropped when the tool's definition is no longer the one it was granted for, and kept, through a fall of the mode
-   * too, while it is.
+   * dropped when the tool's definition is no longer the one it was granted for. A fall of the mode drops any grant too:
+   * the reconcile that writes the fall saves the endpoint, and a grant is bound to the endpoint's version, so it would
+   * stay in the row without ever applying again. The Setup change says whether the grant was still in force or had
+   * already stopped applying (its deadline passed, or the server's tool list, the connection or the endpoint changed
+   * since it was granted).
    *
    * @return whether the row changed
    */
@@ -379,14 +382,13 @@ public class EndpointConnections implements SmartInitializingSingleton {
       return false;
     }
     Mode next = falls ? ToolPairs.demoted(d, readOnly) : before;
-    String granted = grant == null ? null : "Temporary bypass until " + grant.get("until");
+    // Whether the grant still applied before this reconcile: one that had stopped is not shown as in force.
+    boolean inForce = grant != null
+        && TemporaryBypass.activeUntil(row, e, c, offered, readOnly, clock.instant()) != null;
     boolean recorded = row.getReviewedDefinition() != null;
     if (falls) {
-      row.setMode(next, clock.instant());
-      if (external && grant != null && !grantEnds && next != Mode.OFF) {
-        row.setTemporaryBypass(grant, clock.instant());
-      }
-    } else {
+      // Clears the grant as well (see above).
+      row.setMode(next, clock.instant());    } else {
       row.setTemporaryBypass(null, clock.instant());
     }
     rows.save(row);
@@ -394,14 +396,20 @@ public class EndpointConnections implements SmartInitializingSingleton {
     if (changesData) {
       why = d.name() + " now changes data" + (readOnly ? " and " + e.getSlug() + " is read only" : "");
     } else if (falls) {
-      why = (recorded ? "The definition of " + d.name() + " changed since its mode was set"
-          : "No definition of " + d.name() + " is recorded for the mode it was set to")
-          + (grantEnds ? ", and its temporary bypass was granted for an earlier definition" : "");
+      why = recorded ? "The definition of " + d.name() + " changed since its mode was set"
+          : "No definition of " + d.name() + " is recorded for the mode it was set to";
     } else {
       why = "The definition of " + d.name() + " changed since its temporary bypass was granted";
     }
-    String from = !falls ? granted : grantEnds ? ToolPairs.label(before) + ", temporary bypass until "
-        + grant.get("until") : ToolPairs.label(before);
+    if (falls && grant != null) {
+      why += grantEnds ? ", and its temporary bypass was granted for an earlier definition"
+          : inForce ? ", and its temporary bypass ended with the mode change"
+          : ", and its temporary bypass had already stopped applying";
+    }
+    String from = grant == null ? ToolPairs.label(before)
+        : !falls && inForce ? "Temporary bypass until " + grant.get("until")
+        : ToolPairs.label(before) + ", temporary bypass until " + grant.get("until")
+            + (inForce ? "" : ", no longer in force");
     setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.MODE,
         d.name() + " on " + c.name() + ", endpoint " + e.getSlug(), from, ToolPairs.label(next), why, e.getEnv(),
         e.getSlug(), c.name(), null));

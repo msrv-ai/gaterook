@@ -187,15 +187,20 @@ class McpToolReviewIT {
     assertThat(pair(server, "gh_search").storedMode()).isEqualTo(Mode.APPROVAL);
     assertThat(pair(server, "gh_search").bypassUntil()).isNull();
     assertThat(temporaryBypasses(server)).containsExactly("gh_write");
+    // gh_write keeps its definition, but its grant is bound to the connection and the endpoint as they were: the
+    // server's new list and the reconcile changed both, so it no longer applies.
+    assertThat(pair(server, "gh_write").mode()).isEqualTo(Mode.APPROVAL);
+    assertThat(pair(server, "gh_write").bypassUntil()).isNull();
 
     list(server, "write-desc");
     assertThat(pair(server, "gh_write").storedMode()).isEqualTo(Mode.APPROVAL);
     assertThat(pair(server, "gh_write").mode()).isEqualTo(Mode.APPROVAL);
     assertThat(temporaryBypasses(server)).isEmpty();
+    // The grant that had stopped applying is not shown as in force.
     assertThat(core.jdbc().queryForList("select change_from || ' > ' || change_to from setup_change where what = "
         + "'mode' and change_to = 'Approval' and subject like ?", String.class, "gh_write on " + server + ",%"))
-        .singleElement().satisfies(c -> assertThat(c).startsWith("Temporary bypass until ")
-            .endsWith(" > Approval"));
+        .singleElement().satisfies(c -> assertThat(c).startsWith("Approval, temporary bypass until ")
+            .endsWith(", no longer in force > Approval"));
   }
 
   @Test
@@ -576,16 +581,18 @@ class McpToolReviewIT {
     wiring.add(server, server, null);
     list(server, "desc");
     grant(server, "gh_search");
-    String until = "Temporary bypass until " + pair(server, "gh_search").bypassUntil();
+    Instant until = pair(server, "gh_search").bypassUntil();
 
     list(server, "1.0.0");
 
     assertThat(pair(server, "gh_search").mode()).isEqualTo(Mode.APPROVAL);
     assertThat(temporaryBypasses(server)).isEmpty();
+    // The server's new list saved the connection, so the grant had stopped applying before the reconcile dropped it.
     assertThat(modeChanges(server, "gh_search")).containsExactly(
         "Read only > Approval: The definition of gh_search changed since its mode was set",
-        "Approval > " + until,
-        until + " > Approval: The definition of gh_search changed since its temporary bypass was granted");
+        "Approval > Temporary bypass until " + until,
+        "Approval, temporary bypass until " + until + ", no longer in force > Approval: The definition of gh_search "
+            + "changed since its temporary bypass was granted");
   }
 
   @Test
@@ -604,14 +611,24 @@ class McpToolReviewIT {
     assertThat(modeChanges(server, "gh_write")).singleElement().satisfies(c -> assertThat(c)
         .startsWith("Approval > Temporary bypass until "));
 
-    // A stored Read only held in Approval (its row records an earlier definition) falls; its grant stays in the row.
+    // A stored Read only held in Approval (its row records an earlier definition) runs with the grant it is given.
     record(server, "gh_search", "0".repeat(64));
     grant(server, "gh_search");
+    String until = "temporary bypass until " + pair(server, "gh_search").bypassUntil();
+    assertThat(pair(server, "gh_search").mode()).isEqualTo(Mode.BYPASS);
+    assertThat(pair(server, "gh_search").held()).isNull();
+
+    // The reconcile lowers its stored mode and saves the endpoint, whose new version no grant is bound to: the grant
+    // ends with the mode change and the Setup change says so, instead of staying in the row without applying.
     reconcile(server);
     assertThat(pair(server, "gh_search").storedMode()).isEqualTo(Mode.APPROVAL);
-    assertThat(temporaryBypasses(server)).containsExactly("gh_search", "gh_write");
-    assertThat(modeChanges(server, "gh_search")).last().isEqualTo("Read only > Approval: The definition of "
-        + "gh_search changed since its mode was set");
+    assertThat(pair(server, "gh_search").mode()).isEqualTo(Mode.APPROVAL);
+    assertThat(pair(server, "gh_search").bypassUntil()).isNull();
+    assertThat(modeChanges(server, "gh_search")).last().isEqualTo("Read only, " + until + " > Approval: The "
+        + "definition of gh_search changed since its mode was set, and its temporary bypass ended with the mode change");
+    // gh_write's grant, bound to the endpoint as it was, stops applying with the same save.
+    assertThat(temporaryBypasses(server)).containsExactly("gh_write");
+    assertThat(pair(server, "gh_write").mode()).isEqualTo(Mode.APPROVAL);
   }
 
   // ── A definition is recorded when a person chooses the mode ─────────────────────────────────────────────────

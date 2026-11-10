@@ -17,8 +17,9 @@ import java.util.Objects;
  * the tool has the version it had, and the connection and the endpoint have the versions they had. That binding is
  * the grant's own and the whole rule, for an external MCP server's tool too: the row's reviewed definition binds Read
  * only and Bypass, not a grant, so a person may grant one to a tool held in Approval whose row records an earlier
- * definition or none (ARCHITECTURE.md §7.5). The snapshot applies a grant by this rule, and a reconcile drops the grant
- * of a server's tool once its definition is another.
+ * definition or none (ARCHITECTURE.md §7.5). The snapshot applies a grant by this rule. A reconcile drops the grant of
+ * a server's tool once its definition is another, and any grant of a tool whose mode it lowers, since the endpoint it
+ * then saves has a new version.
  */
 public final class TemporaryBypass {
 
