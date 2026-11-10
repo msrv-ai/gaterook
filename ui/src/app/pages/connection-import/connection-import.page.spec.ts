@@ -1551,7 +1551,7 @@ describe('AI connection import review', () => {
     return { ...described, id, name: id, secretSources };
   }
 
-  /** What one row of a card says (Connects to, Settings, Credentials): its list items, or its text when it has none. */
+  /** The card's one polite live region, which stays in place while its text changes. */
   function liveRegion(candidate: ImportCandidate): HTMLElement {
     const region = candidateCard(candidate).querySelector<HTMLElement>(`#import-summary-status-${candidate.id}`)!;
     expect(region.getAttribute('role')).toBe('status');
@@ -1559,6 +1559,7 @@ describe('AI connection import review', () => {
     return region;
   }
 
+  /** What one row of a card says (Connects to, Settings, Credentials): its list items, or its text when it has none. */
   function facts(candidate: ImportCandidate, term: string): string[] {
     const row = Array.from(candidateCard(candidate).querySelectorAll('.gw-kv__row'))
       .find(item => item.querySelector('dt')?.textContent?.trim() === term)!;

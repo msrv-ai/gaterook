@@ -47,8 +47,8 @@ final class OpenSearchHttp {
   record BoundedResponse(int status, String body, String contentType, boolean truncated) {}
 
   /**
-   * @param target the request target that was checked and classified (path and query), and for a change also shown
-   *               and approved; the request line carries exactly this text or nothing is sent
+   * @param target the request target that was checked and classified (path and query), and for a change that needs
+   *               approval also shown and approved; the request line carries exactly this text or nothing is sent
    */
   static BoundedResponse send(HttpRequest signedRequest, String target, String body, ExecContext ctx, long maxBytes,
       SSLContext ssl, String service) throws ConnectorException {
