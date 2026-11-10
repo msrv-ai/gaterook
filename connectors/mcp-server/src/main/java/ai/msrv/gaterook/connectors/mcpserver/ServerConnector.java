@@ -204,7 +204,7 @@ final class ServerConnector implements Connector {
     if (!hash.equals(Snapshots.definitionHash(live)) || !Snapshots.sameApp(entry, live)) {
       throw ConnectorException.denied(cfg.name() + " changed " + original + " since it was reviewed, so the call "
           + "doesn't run. The new definition is in Connectors › MCP servers; where the tool ran without approval, "
-          + "its endpoints ask for approval again.");
+          + "its endpoints ask for approval again, or turn it off where they are read only.");
     }
     ObjectNode params = Texts.JSON.createObjectNode();
     params.put("name", original);

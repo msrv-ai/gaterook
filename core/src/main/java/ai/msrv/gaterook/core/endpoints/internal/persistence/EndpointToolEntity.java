@@ -63,10 +63,10 @@ public class EndpointToolEntity {
 
   /**
    * The definition ({@code ToolPairs.reviewedDefinition}: what the server declared for the tool, without anything
-   * GateRook derives from it or the connection's name) an external MCP server's tool had when it came in or when a person last chose Read only or Bypass for it;
-   * also written once by the start that applies V89 for rows that had none, and copied from the original by a
-   * duplicate or a split of the endpoint. {@code null} where none is recorded. Those two modes hold only while the
-   * endpoint publishes the tool with this definition.
+   * GateRook derives from it or the connection's name) an external MCP server's tool had when it came in or when a
+   * person last chose Read only or Bypass for it; also written once by the start that applies V89 for rows that had
+   * none, and copied from the original by a duplicate or a split of the endpoint. {@code null} where none is
+   * recorded. Those two modes hold only while the endpoint publishes the tool with this definition.
    */
   @Column(name = "reviewed_definition", length = 64)
   private String reviewedDefinition;

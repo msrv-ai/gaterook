@@ -231,8 +231,9 @@ public class ToolPairs {
    * modes, the result shape or the risk, so that a later change of that derivation sends no tool back to Approval. The
    * connection's name isn't in it either: renaming the connection changes neither the server nor the tool. A
    * definition that carries no declared values (the MCP server connector gives them for every tool) is recorded by its
-   * {@link #definitionHash}, which covers what is derived as well. A temporary bypass, a Read only confirmation and
-   * the check before a call use {@link #definitionHash}, which this leaves as it is.
+   * {@link #definitionHash}, which covers what is derived as well. A temporary bypass and a Read only confirmation use
+   * {@link #definitionHash}, which this leaves as it is; the check before a call compares the connector's own hash of
+   * what the server declares (the one carried in the declared values) and the app it shows.
    */
   public static String reviewedDefinition(Offered offered) {
     if (offered.kind() != ConnectorManifest.Kind.MCP_SERVER) {

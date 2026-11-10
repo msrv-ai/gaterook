@@ -166,6 +166,21 @@ class ConnectionImportSummaryTest {
         .containsExactly("connection.host=db.example.test [target]");
   }
 
+  /**
+   * A boolean schema ({@code true}) states no default and leaves the decision to the other definitions. A property that
+   * has no other definition has nothing that could make its value a default, so the card lists it.
+   */
+  @Test
+  void aValueWhoseOnlyDefinitionIsABooleanSchemaIsListed() {
+    useSchema("""
+        {"type":"object","properties":{"connection":{"type":"object","properties":{"host":{"type":"string"}}},
+         "mode":true}}
+        """);
+
+    assertThat(rows(summaryOf("dev", "{\"connection\":{\"host\":\"db.example.test\"},\"mode\":\"a\"}")))
+        .containsExactly("connection.host=db.example.test [target]", "mode=a");
+  }
+
   /** A proposal's values are not checked against the form's types yet: a port that is no int must not fail a submission. */
   @Test
   void aPortOutsideTheIntegerRangeStillGetsASummaryThatShowsTheValueAsASetting() {

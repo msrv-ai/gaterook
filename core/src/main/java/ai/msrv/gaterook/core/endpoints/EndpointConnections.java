@@ -383,7 +383,8 @@ public class EndpointConnections implements SmartInitializingSingleton {
       return false;
     }
     Mode next = falls ? ToolPairs.demoted(d, readOnly) : before;
-    // Whether the grant still applied before this reconcile: one that had stopped is not shown as in force.
+    // Whether the grant applies to the tool as it is offered now, before this reconcile saves anything: one that had
+    // stopped, or was granted for another definition, is not shown as in force.
     boolean inForce = grant != null
         && TemporaryBypass.activeUntil(row, e, c, offered, readOnly, clock.instant()) != null;
     boolean recorded = row.getReviewedDefinition() != null;
@@ -409,7 +410,6 @@ public class EndpointConnections implements SmartInitializingSingleton {
           : ", and its temporary bypass had already stopped applying";
     }
     String from = grant == null ? ToolPairs.label(before)
-        : !falls && inForce ? "Temporary bypass until " + grant.get("until")
         : ToolPairs.label(before) + ", temporary bypass until " + grant.get("until")
             + (inForce ? "" : ", no longer in force");
     setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.MODE,
@@ -457,8 +457,9 @@ public class EndpointConnections implements SmartInitializingSingleton {
    * Approval (Off on a read-only endpoint), with one Setup change for all of them. Such a row runs in Approval already
    * (the snapshot holds it, ARCHITECTURE.md §7.5), and nothing would record a definition for it later, so its stored
    * mode only misleads. It comes from a V89 start that couldn't verify the rows (the master key was locked), from a
-   * tool the server didn't list at that start, from a reset of a definition changed outside GateRook, from a mode
-   * set without the definition it is for (an API request without {@code definitionHash} for a tool whose row had no
+   * server that wasn't usable at that start (its connector type switched off, or its connection changed outside
+   * GateRook) or a tool it didn't list then, from a reset of a definition changed outside GateRook, from a mode set
+   * without the definition it is for (an API request without {@code definitionHash} for a tool whose row had no
    * record, such as one beyond {@link #MAX_SERVER_ROWS}), or from a duplicate of such a row. Rows that don't verify
    * are left alone (a locked start changes nothing), and so is a temporary bypass, which has its own binding
    * ({@link TemporaryBypass}). Nothing that is enforced changes and nothing is granted. Built-in, template and

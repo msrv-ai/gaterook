@@ -202,10 +202,11 @@ public class EndpointTools {
    *
    * <p>For an external MCP server's tool, Read only and Bypass hold only for the definition they were set for
    * (ARCHITECTURE.md §7.5), and a definition is recorded only when a person chooses the mode for the one they were
-   * shown: {@code definitionHash} is the tool's {@link ToolPairs#definitionHash} as the tool list showed it. When it is
-   * the tool's current one, the current definition is recorded; when it is another, nothing changes and the answer is
-   * 409, since the tool changed while the person was looking at it. Without it (a save of the limits alone) the mode
-   * and the limits are stored as asked and no definition is recorded, so a tool held in Approval stays held.
+   * shown: {@code definitionHash} is the tool's {@link ToolPairs#definitionHash} as the tool list showed it. For Read
+   * only or Bypass, when it is the tool's current one the current definition is recorded; when it is another, nothing
+   * changes and the answer is 409, since the tool changed while the person was looking at it. Off and Approval need
+   * no review and are stored as asked. Without a hash (a save of the limits alone) the mode and the limits are stored
+   * as asked and no definition is recorded, so a tool held in Approval stays held.
    *
    * @param connection     the connection of the pair, or {@code null} for a core tool
    * @param definitionHash the definition the person chose the mode for, or {@code null}

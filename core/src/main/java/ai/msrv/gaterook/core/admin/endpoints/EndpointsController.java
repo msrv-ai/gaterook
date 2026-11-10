@@ -66,8 +66,8 @@ class EndpointsController {
 
   /**
    * {@code mode}: {@code OFF}, {@code READ_ONLY}, {@code APPROVAL} or {@code BYPASS}; {@code connection} null for a
-   * core tool. {@code definitionHash}: the tool's {@code definitionHash} as the tool list showed it, sent when the person
-   * chose the mode; a save of the limits alone leaves it out ({@code EndpointTools.setMode}).
+   * core tool. {@code definitionHash}: the tool's {@code definitionHash} as the tool list showed it, sent when the
+   * person chose the mode; a save of the limits alone leaves it out ({@code EndpointTools.setMode}).
    */
   record SetMode(String toolKey, String connection, String mode, String definitionHash, JsonNode overrides,
       Long version, String reason) {}

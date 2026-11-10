@@ -232,7 +232,8 @@ export class EndpointsApi {
   /**
    * The core answers with every group again (admin.endpoints `setMode`): one change can move other pairs' locks.
    * `definitionHash` is the row's, sent when the person picks the mode: an external MCP server's tool keeps Read only
-   * or Bypass for that definition, and a tool that changed since gets 409. A save of the limits alone leaves it out.
+   * or Bypass for that definition, and a tool that changed since gets 409 for those two modes. A save of the limits
+   * alone leaves it out.
    */
   setMode(
     slug: string,
