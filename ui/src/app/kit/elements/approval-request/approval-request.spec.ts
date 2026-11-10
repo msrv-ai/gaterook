@@ -142,6 +142,65 @@ describe('approval JSON request views', () => {
   });
 });
 
+describe('what the review shows with the action', () => {
+  it('boxes what the server marked in a parameter value, a warning and the note, and warns about it', async () => {
+    const detail: ApprovalDetail = {
+      ...request(),
+      target: 'dev-mongo · app‮',
+      targetSegments: [{ t: 'text', v: 'dev-mongo · app' }, { t: 'invisible', v: '‹U+202E›' }],
+      fields: [{
+        label: 'Parameters',
+        text: ":status = 'аctive' (text)",
+        labelSegments: null,
+        segments: [{ t: 'text', v: ":status = '" }, { t: 'confusable', v: 'а' }, { t: 'text', v: "ctive' (text)" }],
+      }],
+      impact: [{ label: 'Documents affected', text: 'at most one', labelSegments: null, segments: null }],
+      warnings: ['Check the​status'],
+      warningSegments: [[{ t: 'text', v: 'Check the' }, { t: 'invisible', v: '‹U+200B›' }, { t: 'text', v: 'status' }]],
+      agentNote: 'Cancels the order⁦',
+      agentNoteSegments: [{ t: 'text', v: 'Cancels the order' }, { t: 'invisible', v: '‹U+2066›' }],
+      detailsHiddenChars: 3,
+      detailsConfusables: 1,
+    };
+    const fixture = await render(detail);
+    const host = fixture.nativeElement as HTMLElement;
+    const warning = host.querySelector(`[id$="-details-warning"]`);
+
+    expect(warning?.querySelector('.gw-alert__title')?.textContent).toBe('The details contain 3 hidden characters and 1 look-alike letter');
+    expect(warning?.textContent).toContain('Found in the target, Parameters, the warning and the agent\'s note');
+    const impact = host.querySelector('.gw-approval-request__facts dl') as HTMLElement;
+    const letter = impact.querySelector('.gw-tok-confusable');
+    expect(letter?.textContent).toBe('а');
+    expect(letter?.getAttribute('title')).toBe('U+0430 Cyrillic small letter a');
+    expect(impact.textContent).toContain(":status = 'аctive' (text)");
+    const alerts = [...host.querySelectorAll('.gw-alert__body')].map((e) => e as HTMLElement);
+    const warned = alerts.find((e) => e.textContent?.startsWith('Check the'));
+    expect(warned?.querySelector('.gw-tok-invisible')?.textContent).toBe('‹U+200B›');
+    expect(warned?.textContent).not.toContain('​');
+    const note = host.querySelector('.gw-approval-request__note') as HTMLElement;
+    expect(note.querySelector('.gw-tok-invisible')?.getAttribute('title')).toBe('U+2066 left-to-right isolate');
+    expect(note.textContent).not.toContain('⁦');
+    expect(host.querySelector('.gw-code-block__filename')?.textContent).toBe('mongo_update · dev-mongo · app‹U+202E›');
+    expect(host.textContent).not.toContain('‮');
+    expect(host.querySelector('.gw-btn--approve')?.textContent).toContain('with hidden characters');
+  });
+
+  it('shows ordinary details as they are, without a warning', async () => {
+    const fixture = await render({
+      ...request(),
+      fields: [{ label: 'Parameters', text: ":title = 'Встреча с клиентом' (text)", labelSegments: null, segments: null }],
+      warnings: ['Changes up to 1 row'],
+      warningSegments: [null],
+    });
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('[id$="-details-warning"]')).toBeNull();
+    expect(host.querySelector('.gw-approval-request__facts .gw-tok-confusable')).toBeNull();
+    expect(host.querySelector('.gw-approval-request__facts dl')?.textContent).toContain("Встреча с клиентом");
+    expect(host.querySelector('.gw-btn--approve')?.textContent).not.toContain('hidden characters');
+  });
+});
+
 describe('temporary bypass from approval review', () => {
   it('opens the shared review and enables 30 minutes for the exact pair without approving the request', async () => {
     const detail = { ...request(), env: 'dev' as const };

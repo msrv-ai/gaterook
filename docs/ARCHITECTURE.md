@@ -418,6 +418,8 @@ Screens consume core API data, and the development gallery uses a coherent demo 
 
 Approval text, structured fields, diff, warnings, and suspicious-character segments come from the core. The renderer must not recompile a runbook or reinterpret the payload that will execute. Keep the agent's unverified explanation separate from the canonical action. A masked preview must never become an alternate source of executable arguments.
 
+Everything the review shows besides the action that the agent, a connector, a plugin or an upstream service chose (the target, each field and impact line, each warning and the agent's note) is inspected by the same `ActionInspector`, as plain text, as a chat message's details are: a SQL template's parameter values exist only in its fields, so a hidden character or a look-alike letter there gets the same boxed escape and a warning that says where it is. The detail API returns those segments with the texts (`fields[].segments`, `targetSegments`, `warningSegments`, `agentNoteSegments`) and the totals (`detailsHiddenChars`, `detailsConfusables`).
+
 JSON action previews default to a Pretty view that changes only structural whitespace. Preserve number and string lexemes, property order, duplicate keys, and suspicious-character segments. The Original view restores the core's displayed segments; Copy follows the active view. Invalid, truncated, oversized, or unsafe-to-format previews stay in their original form. Display formatting never changes execution arguments or the approval digest.
 
 ### 8.6 Screen and runtime contracts
@@ -464,7 +466,7 @@ Adding an existing service previews its eligible tools and modes before connecti
 | SSH parameters cannot become shell syntax | Typed runbook parameters, constrained templates, POSIX quoting, leading-option restrictions, pinned host keys, and no PTY/agent forwarding |
 | Extension code cannot claim built-in trust | Reserved namespaces, pinned artifacts, reviewed snapshots, separate hosts, and secret capability checks |
 | Production remains stricter | Environment locks, no mixed production endpoints, constrained tools/limits, required review comments, and no channel approval/publication |
-| UI review does not hide suspicious content | Server action inspection, explicit risk labels, exact-action presentation, and tests for bidi/confusables/injection |
+| UI review does not hide suspicious content | Server inspection of the action and of the target, fields, warnings and agent's note shown with it, explicit risk labels, exact-action presentation, and tests for bidi/confusables/injection (`ApprovalDtosTest`, the approval-request specs) |
 | Process ownership is explicit | Restricted child environments, EOF shutdown, orphan cleanup, anti-attach/dump controls where supported, and process smoke tests |
 
 The OS account is the current trust boundary. Same-account processes may read or modify local files, automate UI, or cause denial of service; platform key storage offers different guarantees on different operating systems. A separate privileged service account and hardware-backed presence are deferred, so the application must not claim to solve this boundary completely.

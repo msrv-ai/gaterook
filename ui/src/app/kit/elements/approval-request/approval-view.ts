@@ -4,6 +4,7 @@ import { duration, elapsed } from '../../../core/time/time-format';
 import { confusableTitle, inspectPlain, invisibleTitle } from '../../../code/unicode';
 import { clientName } from '../shared/client-mark';
 import { Look } from '../shared/dictionaries';
+import { literalWords } from '../shared/literals';
 
 /**
  * What the approval-request element shows, computed from the admin API's `ApprovalDetail` (ARCHITECTURE.md §6
@@ -128,6 +129,23 @@ export interface MonoPart {
  * look-alike letter sits in ("the identifier contains Cyrillic U+043E, not a Latin o").
  */
 export function hiddenWarning(segments: readonly ActionSegment[]): { readonly title: string; readonly body: MonoPart[] } | null {
+  const d = described(segments);
+  if (!d) return null;
+  d.text(`. ${d.many ? 'All are' : 'It is'} shown boxed below. Deny unless you expected ${d.many ? 'them' : 'it'}.`);
+  return { title: `Contains ${d.counts.join(' and ')}`, body: d.done() };
+}
+
+/**
+ * The counts and the sentence naming what the inspector marked in `segments`, without its end: the escapes and their
+ * names, then each look-alike letter with the word it sits in. `text` adds to the sentence, `done` gives it back
+ * capitalized.
+ */
+function described(segments: readonly ActionSegment[]): {
+  readonly counts: string[];
+  readonly many: boolean;
+  readonly text: (t: string) => void;
+  readonly done: () => MonoPart[];
+} | null {
   const hidden = segments.filter((s) => s.t === 'invisible');
   const confusable = segments.filter((s) => s.t === 'confusable');
   if (!hidden.length && !confusable.length) return null;
@@ -158,10 +176,94 @@ export function hiddenWarning(segments: readonly ActionSegment[]): { readonly ti
     mono(wordAround(segments, s));
     text(` is ${script} (${cp})${latin ? `, not a Latin ${latin}` : ''}`);
   });
-  const many = hidden.length + confusable.length > 1;
-  text(`. ${many ? 'All are' : 'It is'} shown boxed below. Deny unless you expected ${many ? 'them' : 'it'}.`);
-  if (body[0] && !body[0].mono) body[0] = { text: capitalize(body[0].text), mono: false };
-  return { title: `Contains ${counts.join(' and ')}`, body };
+  const done = (): MonoPart[] => {
+    if (body[0] && !body[0].mono) body[0] = { text: capitalize(body[0].text), mono: false };
+    return body;
+  };
+  return { counts, many: hidden.length + confusable.length > 1, text, done };
+}
+
+/** A run of a text shown with the action: prose, a literal set in code, or a character the inspector marked. */
+export interface MarkedPart {
+  readonly text: string;
+  readonly code: boolean;
+  readonly cls: 'gw-tok-invisible' | 'gw-tok-confusable' | null;
+  readonly title: string | null;
+}
+
+/**
+ * A text the review shows with the action (an Impact line, a warning, the agent's note), from the server's segments
+ * when it marked something there — escapes and look-alike letters boxed and named, as in the action — else the text as
+ * it is. `words`: identifiers in its text runs are set in code (`literalWords`), as an Impact value has them.
+ */
+export function markedParts(text: string, segments: readonly ActionSegment[] | null | undefined, words: boolean): MarkedPart[] {
+  const out: MarkedPart[] = [];
+  for (const s of segments?.length ? segments : [{ t: 'text' as const, v: text }]) {
+    if (s.t === 'invisible') out.push({ text: s.v, code: false, cls: 'gw-tok-invisible', title: invisibleTitle(s.v) });
+    else if (s.t === 'confusable') out.push({ text: s.v, code: false, cls: 'gw-tok-confusable', title: confusableTitle(s.v) });
+    else if (words) out.push(...literalWords(s.v).map((p) => ({ text: p.text, code: p.code, cls: null, title: null })));
+    else out.push({ text: s.v, code: false, cls: null, title: null });
+  }
+  return out;
+}
+
+/** The text a cut stands for, with its escapes (`‹U+202E›`) written out, or `text` when there is no cut. */
+export function visibleText(text: string, segments: readonly ActionSegment[] | null | undefined): string {
+  return segments?.length ? segments.map((s) => s.v).join('') : text;
+}
+
+/** What the server marked in the texts shown with the action, and where: the places as the review names them. */
+export interface DetailMarks {
+  readonly places: string[];
+  /** Every marked text's segments, one after another (separated, so no word runs into the next text's). */
+  readonly segments: ActionSegment[];
+  readonly hidden: number;
+  readonly confusables: number;
+}
+
+type DetailSource = Pick<ApprovalDetail, 'target' | 'fields' | 'impact' | 'warnings' | 'agentNote'> &
+  Partial<Pick<ApprovalDetail, 'targetSegments' | 'warningSegments' | 'agentNoteSegments'>>;
+
+/**
+ * Collects the marks of the target, every field and impact line (label and text), every warning and — unless `note`
+ * is false — the agent's note, from the server's segments; null when there are none.
+ */
+export function detailMarks(r: DetailSource, options: { readonly note?: boolean; readonly lines?: boolean } = {}): DetailMarks | null {
+  const places: string[] = [];
+  const segments: ActionSegment[] = [];
+  const add = (place: string, ...cuts: (readonly ActionSegment[] | null | undefined)[]): void => {
+    const found = cuts.flatMap((c) => c ?? []);
+    if (!found.some((s) => s.t !== 'text')) return;
+    if (!places.includes(place)) places.push(place);
+    if (segments.length) segments.push({ t: 'text', v: ' · ' });
+    segments.push(...found);
+  };
+  const lines = options.lines ?? true;
+  if (lines) {
+    add('the target', r.targetSegments);
+    for (const f of [...r.fields, ...r.impact]) add(visibleText(f.label, f.labelSegments), f.labelSegments, f.segments);
+  }
+  r.warnings.forEach((_, i) => add(r.warnings.length === 1 ? 'the warning' : 'a warning', r.warningSegments?.[i]));
+  if (options.note ?? true) add("the agent's note", r.agentNoteSegments);
+  if (!places.length) return null;
+  return {
+    places,
+    segments,
+    hidden: segments.filter((s) => s.t === 'invisible').length,
+    confusables: segments.filter((s) => s.t === 'confusable').length,
+  };
+}
+
+/**
+ * The warning about what the server marked in the texts shown with the action (a template's parameter values, an
+ * Impact line, a warning, the agent's note): the same names as the action's warning, and where each was found.
+ */
+export function detailsWarning(r: DetailSource): { readonly title: string; readonly body: MonoPart[] } | null {
+  const marks = detailMarks(r);
+  const d = marks ? described(marks.segments) : null;
+  if (!marks || !d) return null;
+  d.text(`. Found in ${list(marks.places)}; ${d.many ? 'all are' : 'it is'} shown boxed there. Deny unless you expected ${d.many ? 'them' : 'it'}.`);
+  return { title: `The details contain ${d.counts.join(' and ')}`, body: d.done() };
 }
 
 /** The word (letters, digits, `_`) a confusable letter sits in, from the segments around it. */

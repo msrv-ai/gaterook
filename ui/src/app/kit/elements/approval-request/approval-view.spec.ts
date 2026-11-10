@@ -4,13 +4,17 @@ import { literalParts, literalWords } from '../shared/literals';
 import {
   actionLabel,
   affected,
+  detailMarks,
+  detailsWarning,
   diffSummary,
   hiddenWarning,
   historySteps,
+  markedParts,
   requestState,
   statusBadge,
   tokenText,
   viaText,
+  visibleText,
   windowMinutes,
 } from './approval-view';
 
@@ -46,6 +50,59 @@ describe('approval-request view', () => {
     );
     expect(w.body.filter((p) => p.mono).map((p) => p.text)).toEqual(['‹U+202E›', 'о', 'оrders']);
     expect(hiddenWarning([{ t: 'text', v: 'SELECT 1' }])).toBeNull();
+  });
+
+  describe('the texts shown with the action', () => {
+    // A SQL template runs fixed SQL: the agent's values are only in the Parameters field, which the server segmented.
+    const detail = {
+      target: 'dev-db',
+      targetSegments: null,
+      fields: [
+        { label: 'Template', text: 'cancel_orders · version 3', labelSegments: null, segments: null },
+        {
+          label: 'Parameters',
+          text: ":status = 'аctive' (text)",
+          labelSegments: null,
+          segments: [{ t: 'text', v: ":status = '" }, { t: 'confusable', v: 'а' }, { t: 'text', v: "ctive' (text)" }] as ActionSegment[],
+        },
+      ],
+      impact: [{ label: 'Target table', text: 'orders', labelSegments: null, segments: null }],
+      warnings: ['Runs on dev-db', 'Check the status'],
+      warningSegments: [null, [{ t: 'text', v: 'Check the ' }, { t: 'invisible', v: '‹U+202E›' }, { t: 'text', v: 'status' }] as ActionSegment[]],
+      agentNote: 'Cancels the order',
+      agentNoteSegments: null,
+    };
+
+    it('warns about what the server marked there and says where it is', () => {
+      const w = detailsWarning(detail)!;
+      expect(w.title).toBe('The details contain 1 hidden character and 1 look-alike letter');
+      expect(words(w.body)).toBe(
+        '‹U+202E› right-to-left override changes how the text reads; the а in аctive is Cyrillic (U+0430), not a Latin a. Found in Parameters and a warning; all are shown boxed there. Deny unless you expected them.',
+      );
+      expect(detailMarks(detail)).toMatchObject({ places: ['Parameters', 'a warning'], hidden: 1, confusables: 1 });
+    });
+
+    it('names the agent note, and leaves it out where a channel never carries it', () => {
+      const noted = { ...detail, fields: [], warningSegments: [null, null], agentNoteSegments: [{ t: 'text', v: 'Cancels' }, { t: 'invisible', v: '‹U+2066›' }] as ActionSegment[] };
+      expect(detailsWarning(noted)!.title).toBe('The details contain 1 hidden character');
+      expect(words(detailsWarning(noted)!.body)).toContain("Found in the agent's note; it is shown boxed there.");
+      expect(detailMarks(noted, { note: false })).toBeNull();
+    });
+
+    it('stays quiet when the server marked nothing', () => {
+      expect(detailsWarning({ ...detail, fields: [detail.fields[0]], warningSegments: [null, null] })).toBeNull();
+      expect(detailsWarning({ target: 'dev-db', fields: [], impact: [], warnings: [], agentNote: null })).toBeNull();
+    });
+
+    it('draws a marked text from its segments and an unmarked one as it is', () => {
+      const parts = markedParts(detail.fields[1].text, detail.fields[1].segments, false);
+      expect(parts.map((p) => p.text).join('')).toBe(":status = 'аctive' (text)");
+      expect(parts.find((p) => p.cls)).toEqual({ text: 'а', code: false, cls: 'gw-tok-confusable', title: 'U+0430 Cyrillic small letter a' });
+      expect(markedParts('orders', null, true)).toEqual([{ text: 'orders', code: true, cls: null, title: null }]);
+      expect(markedParts('Check the status', null, false)).toEqual([{ text: 'Check the status', code: false, cls: null, title: null }]);
+      expect(visibleText('db‮', [{ t: 'text', v: 'db' }, { t: 'invisible', v: '‹U+202E›' }])).toBe('db‹U+202E›');
+      expect(visibleText('dev-db', null)).toBe('dev-db');
+    });
   });
 
   it('writes the history of a decided request', () => {
