@@ -425,6 +425,46 @@ class PolicyEngineTest {
         .as("union: an empty list never removes prod's kinds").containsExactlyInAnyOrder(MaskPolicy.Pii.values());
   }
 
+  /**
+   * Three list keys, one per meaning of an empty list (x-empty), as the built-in HTTP, Kubernetes and SQL sections
+   * declare them. Endpoint limits and tool overrides may narrow each of them, never reach past what the environment's
+   * value allows under that meaning.
+   */
+  @Test
+  void listOverridesNeverAllowMoreThanTheEnvironmentsListAllows() {
+    ObjectNode schema = JSON.createObjectNode().put("type", "object").put("x-policy-section", "lists");
+    ObjectNode properties = schema.putObject("properties");
+    properties.putObject("baseUrls").put("type", "array").put("x-stricter", "intersect").put("x-empty", "none")
+        .putArray("default");
+    properties.putObject("namespaces").put("type", "array").put("x-stricter", "intersect")
+        .put("x-empty", "connector-default").putArray("default");
+    properties.putObject("tables").put("type", "array").put("x-stricter", "intersect").putArray("default");
+    ConnectorManifest lists = ConnectorManifest.builder("lists", "1.0.0", ConnectorManifest.Kind.BUILT_IN)
+        .policySchema(schema).build();
+    StubPolicies configured = new StubPolicies(lists);
+    PolicyEngine scoped = new PolicyEngine(configured);
+    JsonNode endpoint = JSON.readTree("{\"baseUrls\":[\"https://api.example.com/\"],\"namespaces\":[\"kube-system\"],"
+        + "\"tables\":[\"orders\",\"invoices\"]}");
+    JsonNode tool = JSON.readTree("{\"tables\":[\"orders\"],\"namespaces\":[\"kube-system\",\"web\"]}");
+
+    JsonNode section = scoped.view(timeoutPair(lists, endpoint, tool), null).section();
+    assertThat(section.path("baseUrls")).as("empty allows nothing, and no override changes that").isEmpty();
+    assertThat(section.path("namespaces")).extracting(JsonNode::asString).as("bounded by the connector's default")
+        .containsExactly("kube-system", "\u0000within-default");
+    assertThat(section.path("tables")).extracting(JsonNode::asString).as("empty restricts nothing")
+        .containsExactly("orders");
+
+    configured.explicit.putObject("lists").putArray("baseUrls").add("https://api.example.com/")
+        .add("https://other.example.com/");
+    ((ObjectNode) configured.explicit.path("lists")).putArray("namespaces").add("web").add("kube-system");
+    section = scoped.view(timeoutPair(lists, endpoint, tool), null).section();
+    assertThat(section.path("baseUrls")).extracting(JsonNode::asString).containsExactly("https://api.example.com/");
+    assertThat(section.path("namespaces")).extracting(JsonNode::asString).as("an explicit list narrows as before")
+        .containsExactly("kube-system");
+    assertThat(scoped.view(timeoutPair(lists, null, JSON.readTree("{\"baseUrls\":[]}")), null).section()
+        .path("baseUrls")).as("an empty override closes what the environment opened").isEmpty();
+  }
+
   @Test
   void theConfigFieldsThatNarrowAreFoundByTheirSchema() {
     assertThat(PolicyEngine.stricterFields(SQL.configSchema())).extracting(f -> f[0] + "=" + f[1])

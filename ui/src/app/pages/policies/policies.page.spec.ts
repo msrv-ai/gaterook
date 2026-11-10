@@ -685,4 +685,22 @@ describe('Policies page', () => {
     expect(el.querySelector('#ps-http-allowedBaseUrls-error')).toBeNull();
     expect(text($(el, '#ps-unsaved'))).toBe('Unsaved changes · allowed base URLs on stage, to https://billing.stage.acme.dev, https://api.stripe.com');
   });
+
+  it('accepts only private ranges the core can read', async () => {
+    setup();
+    const { fixture, el } = await render('stage');
+    const input = $<HTMLInputElement>(el, '#ps-http-allowedPrivateRanges');
+    for (const range of ['192.168.01.0/24', '10.020.0.0/16', 'fd00:::1/64', '10.0.0.0/33']) {
+      type(input, range);
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await settle(fixture);
+      expect(text($(el, '#ps-http-allowedPrivateRanges-error')), range).toBe('Enter an address or a CIDR range without leading zeros, for example 10.20.0.0/16.');
+    }
+    for (const range of ['10.0.0.0/8', 'fd00:ec2:1::/48']) {
+      type(input, range);
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await settle(fixture);
+      expect(el.querySelector('#ps-http-allowedPrivateRanges-error'), range).toBeNull();
+    }
+  });
 });

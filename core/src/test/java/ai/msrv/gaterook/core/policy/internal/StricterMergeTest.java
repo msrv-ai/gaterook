@@ -62,6 +62,61 @@ class StricterMergeTest {
     assertThat(merge("union", "[\"a\",\"b\"]", "[\"b\",\"c\"]")).isEqualTo("[\"a\",\"b\",\"c\"]");
   }
 
+  private static String intersect(StricterMerge.Empty empty, String current, String candidate) {
+    JsonNode out = StricterMerge.merge("intersect", empty, current == null ? null : j(current),
+        candidate == null ? null : j(candidate));
+    return out == null ? null : out.toString();
+  }
+
+  private static final String WITHIN = "\"\\u0000within-default\"";
+  private static final String NOTHING = "[\"\\u0000none\"]";
+
+  @Test
+  void aListWhoseEmptyValueAllowsNothingCanOnlyStayNothing() {
+    StricterMerge.Empty none = StricterMerge.Empty.NONE;
+    assertThat(intersect(none, "[]", "[\"https://api.example.com/\"]")).as("an override never opens a closed list")
+        .isEqualTo("[]");
+    assertThat(intersect(none, null, "[\"https://api.example.com/\"]")).as("a missing key is an empty list")
+        .isEqualTo("[]");
+    assertThat(intersect(none, "[\"a\",\"b\"]", "[]")).as("an empty override allows nothing too").isEqualTo("[]");
+    assertThat(intersect(none, "[\"a\",\"b\"]", "[\"b\",\"c\"]")).isEqualTo("[\"b\"]");
+    assertThat(intersect(none, "[\"a\"]", "[\"z\"]")).isEqualTo(NOTHING);
+    assertThat(intersect(none, NOTHING, "[\"a\"]")).isEqualTo(NOTHING);
+  }
+
+  @Test
+  void aListWhoseEmptyValueIsTheConnectorsDefaultStaysInsideThatDefault() {
+    StricterMerge.Empty own = StricterMerge.Empty.CONNECTOR_DEFAULT;
+    assertThat(intersect(own, "[]", "[\"kube-system\"]")).as("the names, bounded by what the empty list allows")
+        .isEqualTo("[\"kube-system\"," + WITHIN + "]");
+    assertThat(intersect(own, null, "[\"kube-system\"]")).isEqualTo("[\"kube-system\"," + WITHIN + "]");
+    assertThat(intersect(own, "[]", "[]")).as("both the default").isEqualTo("[]");
+    assertThat(intersect(own, "[\"a\",\"b\"]", "[]")).as("an empty override is the default set too")
+        .isEqualTo("[\"a\",\"b\"," + WITHIN + "]");
+    assertThat(intersect(own, "[\"a\",\"b\"]", "[\"b\",\"c\"]")).as("two lists: their common names")
+        .isEqualTo("[\"b\"]");
+    assertThat(intersect(own, "[\"a\",\"b\"," + WITHIN + "]", "[\"b\",\"c\"]")).as("the bound is kept")
+        .isEqualTo("[\"b\"," + WITHIN + "]");
+    assertThat(intersect(own, "[\"a\"]", "[\"b\"," + WITHIN + "]")).as("from either side").isEqualTo(NOTHING);
+    assertThat(intersect(own, "[\"a\"]", "[\"z\"]")).isEqualTo(NOTHING);
+    assertThat(intersect(own, "[" + WITHIN + "]", "[\"a\"]")).as("a bare marker reads as the empty list")
+        .isEqualTo("[\"a\"," + WITHIN + "]");
+  }
+
+  @Test
+  void aListWhoseEmptyValueRestrictsNothingNarrowsAsBefore() {
+    StricterMerge.Empty all = StricterMerge.Empty.ALL;
+    assertThat(intersect(all, "[]", "[\"b\"]")).isEqualTo("[\"b\"]");
+    assertThat(intersect(all, null, "[\"b\"]")).isEqualTo("[\"b\"]");
+    assertThat(intersect(all, "[\"a\"]", "[]")).isEqualTo("[\"a\"]");
+    assertThat(intersect(all, "[\"a\",\"b\"]", "[\"b\",\"c\"]")).isEqualTo("[\"b\"]");
+    assertThat(intersect(all, "[\"a\"]", "[\"z\"]")).isEqualTo(NOTHING);
+    assertThat(StricterMerge.Empty.of(j("\"none\""))).isEqualTo(StricterMerge.Empty.NONE);
+    assertThat(StricterMerge.Empty.of(j("\"connector-default\""))).isEqualTo(StricterMerge.Empty.CONNECTOR_DEFAULT);
+    assertThat(StricterMerge.Empty.of(null)).as("no x-empty: the old meaning").isEqualTo(all);
+    assertThat(StricterMerge.Empty.of(j("\"something-new\""))).isEqualTo(all);
+  }
+
   @Test
   void aKeyWithoutStricterCannotBeNarrowed() {
     assertThat(merge(null, "true", "false")).isEqualTo("true");

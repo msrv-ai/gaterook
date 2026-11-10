@@ -84,6 +84,28 @@ class LocalGuardFilterTest {
     assertThat(admin.response().getHeader(LocalGuardFilter.INSTANCE_HEADER)).isEqualTo("instance-0123456789");
   }
 
+  /** Only the signed plugin upload takes parts: a multipart body elsewhere is refused before anything parses it. */
+  @Test
+  void aMultipartBodyIsRefusedOnEveryRouteButTheSignedPluginUpload() throws Exception {
+    for (String uri : java.util.List.of("/mcp/dev", "/oauth/token", "/oauth/register", "/.well-known/oauth-x")) {
+      MockHttpServletRequest parts = request(LOCAL, "POST", uri);
+      parts.addHeader("Host", "127.0.0.1:" + LOCAL);
+      parts.setContentType("multipart/form-data; boundary=x");
+      Outcome refused = run(parts);
+      assertThat(refused.passed()).as(uri).isFalse();
+      assertThat(refused.response().getStatus()).as(uri).isEqualTo(415);
+    }
+    MockHttpServletRequest unsigned = request(LOCAL, "POST", "/api/plugins/check");
+    unsigned.addHeader("Host", "127.0.0.1:" + LOCAL);
+    unsigned.setContentType("multipart/form-data; boundary=x");
+    assertThat(run(unsigned).response().getStatus()).as("the upload is checked for its signature first")
+        .isEqualTo(401);
+    MockHttpServletRequest form = request(LOCAL, "POST", "/oauth/token");
+    form.addHeader("Host", "127.0.0.1:" + LOCAL);
+    form.setContentType("application/x-www-form-urlencoded");
+    assertThat(run(form).passed()).as("a form still reaches the token endpoint").isTrue();
+  }
+
   private static MockHttpServletRequest request(int port, String method, String uri) {
     MockHttpServletRequest request = new MockHttpServletRequest(method, uri);
     request.setLocalPort(port);

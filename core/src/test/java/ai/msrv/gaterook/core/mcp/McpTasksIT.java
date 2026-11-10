@@ -247,6 +247,49 @@ class McpTasksIT {
     approvals.decide(again, ApprovalService.Decision.DENY, "app", null, null);
   }
 
+  /**
+   * A change that runs under Bypass isn't stopped halfway: once it started, cancelling its task is refused and the task
+   * gets what ran; a cancel while the call still prepares means the change never starts, and nothing changes.
+   */
+  @Test
+  void aBypassChangeRunsToItsEndOnceStartedAndNeverStartsAfterACancel() throws Exception {
+    EndpointService endpoints = core.bean(EndpointService.class);
+    endpoints.create("bypassed", null, EndpointService.StartFrom.EMPTY, null);
+    core.bean(EndpointConnections.class).add("bypassed", "dev-db", null);
+    var pair = endpoints.snapshot("bypassed").pairs().stream().filter(p -> p.tool().name().equals("sql_execute"))
+        .findFirst().orElseThrow();
+    core.bean(EndpointTools.class).setMode("bypassed", pair.toolKey(), "dev-db", Mode.BYPASS, null, null,
+        pair.rowVersion(), "Test");
+    McpClient bypassed = new McpClient(core.bean(LocalListener.class).port(), "bypassed",
+        core.bean(TokenService.class).issue("bypassed", "tasks-bypass", 7, null).token());
+
+    String slow = "SELECT SLEEP 1500";
+    ObjectNode running = JsonNodeFactory.instance.objectNode().put("name", "sql_execute");
+    running.set("arguments", args("connection", "dev-db", "sql", slow));
+    running.putObject("task");
+    String id = bypassed.legacy("tools/call", running).result().path("task").path("taskId").asString();
+    TestCore.await(() -> FakeConnectors.EXECUTIONS.stream().anyMatch(e -> slow.equals(e.sql())), "the change started");
+    McpClient.Answer refused = bypassed.legacy("tasks/cancel", taskId(id));
+    assertThat(refused.error().path("code").asInt()).isEqualTo(-32602);
+    assertThat(refused.error().path("message").asString()).isEqualTo("Task " + id + " runs a change that GateRook "
+        + "doesn't stop once it started: it runs to its end and the task gets its result.");
+    assertThat(bypassed.legacy("tasks/result", taskId(id)).result().at("/content/0/text").asString())
+        .isEqualTo("slept");
+
+    String prepared = "UPDATE orders SET status = 'held' WHERE id = 7; -- slow_prepare";
+    ObjectNode preparing = JsonNodeFactory.instance.objectNode().put("name", "sql_execute");
+    preparing.set("arguments", args("connection", "dev-db", "sql", prepared));
+    preparing.putObject("task");
+    String early = bypassed.legacy("tools/call", preparing).result().path("task").path("taskId").asString();
+    Thread.sleep(300);
+    assertThat(bypassed.legacy("tasks/cancel", taskId(early)).result().path("status").asString())
+        .isEqualTo("cancelled");
+    Thread.sleep(2_000);
+    assertThat(FakeConnectors.EXECUTIONS).as("a change cancelled before it started never runs")
+        .noneMatch(e -> prepared.equals(e.sql()));
+    assertThat(bypassed.legacy("tasks/get", taskId(early)).result().path("status").asString()).isEqualTo("cancelled");
+  }
+
   private static ObjectNode modernParams(ObjectNode params) {
     ObjectNode meta = params.putObject("_meta");
     meta.put("io.modelcontextprotocol/protocolVersion", "2026-07-28");

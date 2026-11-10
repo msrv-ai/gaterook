@@ -66,6 +66,7 @@
         "password"
       ],
       "x-stricter": "intersect",
+      "x-empty": "none",
       "x-env-default": {
         "prod": [
           "vaultSshCa",

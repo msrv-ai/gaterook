@@ -7,15 +7,19 @@ import java.util.List;
 /**
  * The {@code k8s} section of the environment's policy, read for one connection (kit Policies › Kubernetes).
  *
- * <p>Lists follow the core's "only stricter wins" merge, where an empty list means "no restriction" and two disjoint
- * lists leave a value no name matches. On top of that the connector is closed by default where an open reading would
- * hand the agent more than the person chose:
+ * <p>Lists follow the core's "only stricter wins" merge: an empty {@code verbs} list means "no restriction" and two
+ * disjoint lists leave a value no name matches ({@link PolicyView#NOTHING}). The connector is closed by default where
+ * an open reading would hand the agent more than the person chose, and the schema says so ({@code x-empty:
+ * connector-default}):
  * <ul>
  *   <li>{@code namespaces} empty: only the connection's own namespace, not every namespace of the cluster;</li>
  *   <li>{@code resources}: Secrets and cluster-scoped resources (nodes, namespaces, …) only when named — an empty
  *       list opens the namespaced rest, never them ("secrets is not on the list, so agents can't read Kubernetes
  *       Secrets").</li>
  * </ul>
+ * A list an endpoint or a tool override narrowed from such an empty list carries {@link PolicyView#WITHIN_DEFAULT}:
+ * then a listed name counts only if the empty list allows it too, so an override never adds another namespace, a
+ * Secret or a cluster-scoped resource the environment's empty list keeps closed.
  */
 final class K8sPolicy {
 
@@ -31,6 +35,9 @@ final class K8sPolicy {
   private final List<String> verbs;
   private final List<String> resources;
   private final List<String> namespaces;
+  /** Whether the lists were narrowed from an empty one: their names count only inside what an empty list allows. */
+  private final boolean resourcesWithinDefault;
+  private final boolean namespacesWithinDefault;
   private final boolean unrestricted;
 
   K8sPolicy(PolicyView view, String connectionNamespace) {
@@ -41,8 +48,12 @@ final class K8sPolicy {
     this.view = view;
     this.connectionNamespace = connectionNamespace;
     this.verbs = view.strings("verbs");
-    this.resources = view.strings("resources");
-    this.namespaces = view.strings("namespaces");
+    List<String> resources = view.strings("resources");
+    List<String> namespaces = view.strings("namespaces");
+    this.resourcesWithinDefault = resources.removeIf(PolicyView.WITHIN_DEFAULT::equals);
+    this.namespacesWithinDefault = namespaces.removeIf(PolicyView.WITHIN_DEFAULT::equals);
+    this.resources = List.copyOf(resources);
+    this.namespaces = List.copyOf(namespaces);
     this.unrestricted = unrestricted;
   }
 
@@ -69,20 +80,36 @@ final class K8sPolicy {
 
   /**
    * The namespaces this connection may reach: the policy's list, or the connection's own namespace. Empty when the
-   * merged lists had no namespace in common: then none is allowed, never every one.
+   * merged lists had no namespace in common: then none is allowed, never every one. A list narrowed from an empty one
+   * keeps only the connection's own namespace, if it names it.
    */
   List<String> namespaces() {
-    return namespaces.isEmpty() ? List.of(connectionNamespace) : namespaces.stream()
-        .filter(n -> !n.startsWith("\u0000")).toList();
+    if (namespaces.isEmpty()) {
+      return List.of(connectionNamespace);
+    }
+    return namespaces.stream().filter(n -> !n.startsWith("\u0000"))
+        .filter(n -> !namespacesWithinDefault || n.equals(connectionNamespace)).toList();
   }
 
   boolean namespace(String ns) {
     return unrestricted || namespaces().contains(ns);
   }
 
-  /** Whether the policy names this resource: by bare plural for the built-in groups, else {@code plural.group}. */
+  /**
+   * Whether the policy names this resource: by bare plural for the built-in groups, else {@code plural.group}. In a
+   * list narrowed from an empty one, a name counts only for what the empty list opens (namespaced, not Secrets).
+   */
   boolean named(KindInfo k) {
-    return unrestricted || resources.contains(k.rbacName()) || (k.plainGroup() && resources.contains(k.plural()));
+    if (unrestricted) {
+      return true;
+    }
+    boolean listed = resources.contains(k.rbacName()) || (k.plainGroup() && resources.contains(k.plural()));
+    return listed && (!resourcesWithinDefault || openWhenEmpty(k));
+  }
+
+  /** What an empty {@code resources} list opens: namespaced resources but Secrets. */
+  private static boolean openWhenEmpty(KindInfo k) {
+    return k.namespaced() && !secret(k);
   }
 
   boolean resource(KindInfo k) {
@@ -92,7 +119,7 @@ final class K8sPolicy {
     if (!resources.isEmpty()) {
       return false;
     }
-    return k.namespaced() && !secret(k);
+    return openWhenEmpty(k);
   }
 
   static boolean secret(KindInfo k) {
@@ -104,7 +131,8 @@ final class K8sPolicy {
     if (resources.isEmpty()) {
       return "any namespaced resource but secrets";
     }
-    return String.join(", ", resources.stream().filter(r -> !r.startsWith("\u0000")).toList());
+    List<String> shown = resources.stream().filter(r -> !r.startsWith("\u0000")).toList();
+    return String.join(", ", shown) + (resourcesWithinDefault ? " (namespaced, not secrets)" : "");
   }
 
   String namespacesText() {

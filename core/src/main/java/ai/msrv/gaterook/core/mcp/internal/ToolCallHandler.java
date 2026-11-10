@@ -4,6 +4,7 @@ import ai.msrv.gaterook.connector.api.ActionPreview;
 import ai.msrv.gaterook.connector.api.Classification;
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.Connector;
+import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
@@ -234,6 +235,14 @@ public class ToolCallHandler {
 
   private ObjectNode run(McpRequest r, AuditWriter.Call auditCall, ConnectorInvoker.Request request,
       ObjectNode extraMeta, PreparedAction bypass) {
+    if (bypass != null && r.task() != null && !r.task().startsToRunToItsEnd()) {
+      // Nothing stops a Bypass change halfway, so a task cancelled before it started never starts it.
+      String why = "Cancelled by the client before it ran. Nothing changed.";
+      completed(auditCall, new ConnectorInvoker.Outcome(ToolResult.error(why), ConnectorException.Kind.DENIED, why,
+          0, 0, why.length(), null, why, false), 0, AuditWriter.Verdict.ERROR, null);
+      return ResultWriter.callToolResult(r.env(), ToolResult.error(why), request.callId(), r.span().traceId(),
+          extraMeta);
+    }
     long started = System.nanoTime();
     InFlight.Key key = InFlight.Key.of(r);
     ConnectorInvoker.Outcome outcome;

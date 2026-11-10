@@ -74,6 +74,41 @@ class ApprovalDeliveryTest {
     verify(approvals, never()).await(anyString(), any());
   }
 
+  /**
+   * A task cancelled while its call prepared the request: nobody waits for the request any more, so it is declined as
+   * soon as it exists (the audit records the decline) and nobody can approve it later.
+   */
+  @Test
+  void aRequestMadeAfterItsTaskWasCancelledIsDeclinedAtOnce() throws Exception {
+    CallTasks tasks = new CallTasks(approvals, new ai.msrv.gaterook.core.platform.CallTracing(null, null),
+        java.time.Clock.systemUTC());
+    java.util.concurrent.CountDownLatch preparing = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+    CallTasks.Task task = tasks.start(request(false, "auto", 15), CallTasks.DEFAULT_TTL, own -> {
+      preparing.countDown();
+      try {
+        release.await(5, java.util.concurrent.TimeUnit.SECONDS);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+      return JsonNodeFactory.instance.objectNode();
+    }).orElseThrow();
+    assertThat(preparing.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+    tasks.cancel(task);
+    when(approvals.declineInClient("ap_1")).thenReturn(view("rejected", null, "client"));
+
+    McpRequest r = request(false, "auto", 15);
+    McpRequest own = new McpRequest(r.env(), r.caller(), r.snapshot(), r.catalog(), r.span(), r.stream(),
+        r.logLevel(), r.client(), task);
+    ApprovalDelivery.Answer a = delivery.first(own, view("pending", null), digest);
+    release.countDown();
+
+    verify(approvals).declineInClient("ap_1");
+    verify(approvals, never()).await(anyString(), any());
+    assertThat(a.view().status()).isEqualTo("rejected");
+    assertThat(a.result().structuredContent().path("status").asString()).isEqualTo("rejected");
+  }
+
   @Test
   void everyoneElseWaitsForAQuickDecisionThenGetsTheHandle() {
     when(approvals.await(eq("ap_1"), eq(Duration.ofSeconds(15)))).thenReturn(view("pending", null));

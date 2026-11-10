@@ -119,6 +119,33 @@ class AwsClassifyTest {
         .isEqualTo("stage.cloud.sensitive_type");
   }
 
+  /**
+   * An endpoint or a tool override that names services on an environment that lists none: the core marks the merged
+   * list, and it stays inside what the empty list shows (no sensitive service, no custom metrics, no session beyond the
+   * default one).
+   */
+  @Test
+  void servicesNarrowedFromAnEmptyListStayInsideWhatTheEmptyListShows() {
+    PolicyView narrowed = Configs.policy(Env.STAGE, "{\"allowedServices\":[\"iam\",\"lambda\",\"glue\",\""
+        + PolicyView.WITHIN_DEFAULT.replace("\u0000", "\\u0000") + "\"]}");
+    assertThat(classify("aws_describe", "{\"type\":\"AWS::IAM::Role\"}", narrowed).ruleId())
+        .as("listed by the override, but only the environment's own list can open a sensitive service")
+        .isEqualTo("stage.cloud.sensitive_type");
+    assertThat(classify("aws_describe", "{\"type\":\"AWS::Lambda::Function\"}", narrowed).kind())
+        .isEqualTo(Classification.Kind.READ);
+    assertThat(classify("aws_describe", "{\"type\":\"AWS::EC2::Instance\"}", narrowed).ruleId())
+        .as("not listed").isEqualTo("stage.cloud.service_not_allowed");
+    AwsPolicy p = AwsPolicy.of(narrowed, Env.STAGE);
+    assertThat(p.serviceAllowed(null)).as("custom metrics only where no service is listed").isFalse();
+    assertThat(p.sessionServices()).as("no session wider than the default one").containsExactly("lambda");
+    assertThat(p.servicesText()).isEqualTo("lambda, glue are allowed on stage");
+
+    PolicyView onlySensitive = Configs.policy(Env.STAGE, "{\"allowedServices\":[\"kms\",\""
+        + PolicyView.WITHIN_DEFAULT.replace("\u0000", "\\u0000") + "\"]}");
+    assertThat(classify("aws_describe", "{\"type\":\"AWS::Lambda::Function\"}", onlySensitive).ruleId())
+        .as("nothing left: nothing allowed, not everything").isEqualTo("stage.cloud.service_not_allowed");
+  }
+
   @Test
   void synonymsNameTheSameService() {
     PolicyView p = Configs.policy(Env.STAGE, "{\"allowedServices\":[\"elbv2\",\"EBS\"]}");

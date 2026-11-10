@@ -123,16 +123,27 @@ function baseUrl(text: string, ks: KeySchema): { value: JsonValue } | { error: s
   return { value: v };
 }
 
-const IPV4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
+/** A dotted quad as the core's egress guard reads it: no octet above 255 and no leading zero (`010` reads as octal elsewhere). */
+const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+
+/** An IPv6 literal the URL parser accepts, as the core's guard needs one it can read. */
+function ipv6(address: string): boolean {
+  if (!address.includes(':') || !/^[0-9a-f:.]+$/i.test(address)) return false;
+  try {
+    return new URL(`http://[${address}]/`).hostname.length > 2;
+  } catch {
+    return false;
+  }
+}
 
 function privateRange(text: string): { value: JsonValue } | { error: string } {
   const v = text.trim();
   const [address, bits, extra] = v.split('/');
   const v4 = IPV4.test(address ?? '');
-  const v6 = !v4 && /^[0-9a-f:]+$/i.test(address ?? '') && (address ?? '').includes(':');
+  const v6 = !v4 && ipv6(address ?? '');
   const max = v4 ? 32 : 128;
   if (extra !== undefined || (!v4 && !v6) || (bits !== undefined && !(/^\d{1,3}$/.test(bits) && Number(bits) <= max))) {
-    return { error: 'Enter an address or a CIDR range, for example 10.20.0.0/16.' };
+    return { error: 'Enter an address or a CIDR range without leading zeros, for example 10.20.0.0/16.' };
   }
   if (v4 && address!.startsWith('169.254.')) return { error: `${v} holds the cloud metadata address and is always blocked.` };
   return { value: { cidr: v } };
@@ -296,7 +307,7 @@ export const FIELDS: Readonly<Record<string, FieldSpec>> = {
       remove: (v, env) => `Remove verb ${v} on ${env}`,
       add: (env) => `Add verb on ${env}`,
       placeholder: () => 'Add a verb, for example describe',
-      empty: () => [t('None: agents can call nothing on the cluster.')],
+      empty: () => [t('None: no verb is left out. '), c('delete'), t(', '), c('scale'), t(' and '), c('exec'), t(' stay denied.')],
       parse: k8sVerb,
       label: verbLabel,
       approval: (v) => typeof v === 'string' && MUTATING_VERBS.includes(v),
@@ -314,7 +325,7 @@ export const FIELDS: Readonly<Record<string, FieldSpec>> = {
       remove: (v, env) => `Remove resource ${v} on ${env}`,
       add: (env) => `Add resource on ${env}`,
       placeholder: () => 'Add a resource, for example cronjobs',
-      empty: () => [t('None: agents can read no resource.')],
+      empty: () => [t('None: every namespaced resource but '), c('secrets'), t('. Cluster-scoped resources need to be listed.')],
       parse: plainItem('a resource name', 'Use the plural RBAC name, for example cronjobs or certificates.cert-manager.io.'),
     },
   },
@@ -353,7 +364,7 @@ export const FIELDS: Readonly<Record<string, FieldSpec>> = {
       remove: (v, env) => `Remove service ${v} on ${env}`,
       add: (env) => `Add service on ${env}`,
       placeholder: () => 'Add a service, for example s3',
-      empty: () => [t('None: agents can describe nothing.')],
+      empty: () => [t('None: every service but sensitive ones such as '), c('secretsmanager'), t(', '), c('iam'), t(' and '), c('kms'), t(', which need to be listed.')],
       parse: plainItem('a service name', 'Use the short name, for example ec2 or sqladmin.'),
     },
   },
