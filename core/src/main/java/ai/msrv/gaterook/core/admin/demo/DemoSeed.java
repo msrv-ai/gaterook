@@ -478,11 +478,11 @@ class DemoSeed {
     EndpointSnapshot s = snapshots.bySlug(slug).orElseThrow();
     String tool = m.path("tool").asString();
     if (!m.has("connection")) {
-      tools.setMode(slug, tool, null, mode, null, s.coreTool(tool).orElseThrow().rowVersion(), reason);
+      tools.setMode(slug, tool, null, mode, null, null, s.coreTool(tool).orElseThrow().rowVersion(), reason);
       return;
     }
     EndpointSnapshot.Pair pair = pair(s, tool, m.path("connection").asString());
-    tools.setMode(slug, pair.toolKey(), pair.connectionName(), mode, null, pair.rowVersion(), reason);
+    tools.setMode(slug, pair.toolKey(), pair.connectionName(), mode, null, null, pair.rowVersion(), reason);
   }
 
   /**

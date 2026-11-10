@@ -11,6 +11,7 @@ import ai.msrv.gaterook.core.connections.ConnectionService;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.connectors.ConnectorType;
 import ai.msrv.gaterook.core.endpoints.internal.EndpointRows;
+import ai.msrv.gaterook.core.endpoints.internal.TemporaryBypass;
 import ai.msrv.gaterook.core.endpoints.internal.ToolPairs;
 import ai.msrv.gaterook.core.endpoints.internal.Wiring;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.ApiTokenRepository;
@@ -62,9 +63,11 @@ public class EndpointConnections implements SmartInitializingSingleton {
   private static final Logger log = LoggerFactory.getLogger(EndpointConnections.class);
 
   /**
-   * The most rows the tools of one external MCP server can have on an endpoint, those it no longer lists included.
-   * Beyond it a new tool gets no row, which is Off until a person sets a mode: the server chooses the names it lists,
-   * and what a person decided for a name is never removed to make room.
+   * How many rows of one external MCP server's tools on an endpoint, listed and unlisted together, a reconcile stops
+   * creating rows at: a new tool it finds then gets no row, which is Off until a person sets a mode. The server chooses
+   * the names it lists, and what a person decided for a name is never removed to make room. It limits only what a
+   * reconcile creates: adding the server to an endpoint writes a row for every tool it lists then, and so does a
+   * person setting a tool's mode.
    */
   static final int MAX_SERVER_ROWS = 2_000;
 
@@ -342,10 +345,16 @@ public class EndpointConnections implements SmartInitializingSingleton {
   /**
    * What a row keeps of its mode once its tool is offered as it is now. Read only goes when the tool now changes data.
    * For an external MCP server's tool, Read only and Bypass go too when its definition isn't the one they were set for
-   * (the server changed it, or nothing is recorded), and so does a temporary bypass: the tool needs a person again,
-   * and the person can set the mode again for what it is now (ARCHITECTURE.md §7.5). What falls goes to Approval,
-   * or Off where the endpoint is read only and can't wait for a person (as {@code setMode} and the snapshot hold it);
-   * the row and the Setup change say what the endpoint really does.
+   * (the server changed it, or nothing is recorded): the tool needs a person again, and the person can set the mode
+   * again for what it is now (ARCHITECTURE.md §7.5). What falls goes to Approval, or Off where the endpoint is read
+   * only and can't wait for a person (as {@code setMode} and the snapshot hold it); the row and the Setup change say
+   * what the endpoint really does.
+   *
+   * <p>A temporary bypass is judged by its own binding, the definition it was granted for
+   * ({@link TemporaryBypass#activeUntil}), not by the row's reviewed definition: a person may grant one to a tool held
+   * in Approval, whose row keeps the definition of an earlier mode or none. The grant of an external server's tool is
+   * dropped when the tool's definition is no longer the one it was granted for, and kept, through a fall of the mode
+   * too, while it is.
    *
    * @return whether the row changed
    */
@@ -353,12 +362,15 @@ public class EndpointConnections implements SmartInitializingSingleton {
       boolean readOnly) {
     ToolDefinition d = offered.definition();
     Mode before = row.getMode();
+    boolean external = offered.kind() == ConnectorManifest.Kind.MCP_SERVER;
     boolean unattended = before == Mode.READ_ONLY || before == Mode.BYPASS;
     boolean changesData = before == Mode.READ_ONLY && !d.readOnlyModeAllowed();
-    boolean redefined = (unattended || row.getTemporaryBypass() != null) && !ToolPairs.reviewed(row, offered);
-    boolean falls = changesData || redefined && unattended;
-    boolean dropsGrant = redefined && row.getTemporaryBypass() != null;
-    if (!falls && !dropsGrant) {
+    boolean redefined = unattended && !ToolPairs.reviewed(row, offered);
+    boolean falls = changesData || redefined;
+    Map<String, Object> grant = row.getTemporaryBypass();
+    boolean grantEnds = external && grant != null
+        && !ToolPairs.definitionHash(d).equals(grant.get("definitionHash"));
+    if (!falls && !grantEnds) {
       return false;
     }
     if (!rows.verify(row)) {
@@ -367,20 +379,32 @@ public class EndpointConnections implements SmartInitializingSingleton {
       return false;
     }
     Mode next = falls ? ToolPairs.demoted(d, readOnly) : before;
-    String grant = row.getTemporaryBypass() == null ? null
-        : "Temporary bypass until " + row.getTemporaryBypass().get("until");
-    if (next != before) {
+    String granted = grant == null ? null : "Temporary bypass until " + grant.get("until");
+    boolean recorded = row.getReviewedDefinition() != null;
+    if (falls) {
       row.setMode(next, clock.instant());
+      if (external && grant != null && !grantEnds && next != Mode.OFF) {
+        row.setTemporaryBypass(grant, clock.instant());
+      }
     } else {
       row.setTemporaryBypass(null, clock.instant());
     }
     rows.save(row);
-    String why = changesData
-        ? d.name() + " now changes data" + (readOnly ? " and " + e.getSlug() + " is read only" : "")
-        : "The definition of " + d.name() + " changed since its mode was set";
+    String why;
+    if (changesData) {
+      why = d.name() + " now changes data" + (readOnly ? " and " + e.getSlug() + " is read only" : "");
+    } else if (falls) {
+      why = (recorded ? "The definition of " + d.name() + " changed since its mode was set"
+          : "No definition of " + d.name() + " is recorded for the mode it was set to")
+          + (grantEnds ? ", and its temporary bypass was granted for an earlier definition" : "");
+    } else {
+      why = "The definition of " + d.name() + " changed since its temporary bypass was granted";
+    }
+    String from = !falls ? granted : grantEnds ? ToolPairs.label(before) + ", temporary bypass until "
+        + grant.get("until") : ToolPairs.label(before);
     setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.MODE,
-        d.name() + " on " + c.name() + ", endpoint " + e.getSlug(), next == before ? grant : ToolPairs.label(before),
-        ToolPairs.label(next), why, e.getEnv(), e.getSlug(), c.name(), null));
+        d.name() + " on " + c.name() + ", endpoint " + e.getSlug(), from, ToolPairs.label(next), why, e.getEnv(),
+        e.getSlug(), c.name(), null));
     return true;
   }
 
@@ -393,18 +417,96 @@ public class EndpointConnections implements SmartInitializingSingleton {
    * {@code LegacyRowSigning}); it runs before any server starts, so nothing a server lists after the upgrade is
    * recorded as reviewed. A start that can't verify the rows (the master key stays locked) records nothing, and those
    * tools are in Approval until a person sets them again.
+   *
+   * <p>Every start with rows that verify then stores what the snapshot already holds for a row that still has no
+   * definition ({@link #holdUnrecorded}), so that the stored mode, the tool list and a Setup change say why.
    */
   @Override
   public void afterSingletonsInstantiated() {
-    if (facts.firstRun() || !facts.migratedNow("89")) {
+    if (facts.firstRun()) {
       return;
     }
-    try {
-      recordReviewedDefinitions();
-    } catch (RuntimeException ex) {
-      log.warn("The definitions of external MCP server tools weren't recorded ({}): their Read only and Bypass modes "
-          + "stay in Approval until they are set again", ex.toString());
+    if (facts.migratedNow("89")) {
+      try {
+        recordReviewedDefinitions();
+      } catch (RuntimeException ex) {
+        log.warn("The definitions of external MCP server tools weren't recorded ({}): their Read only and Bypass "
+            + "modes stay in Approval until they are set again", ex.toString());
+      }
     }
+    try {
+      holdUnrecorded();
+    } catch (RuntimeException ex) {
+      log.warn("The modes of external MCP server tools without a recorded definition weren't stored as Approval ({}): "
+          + "they stay in Approval all the same", ex.toString());
+    }
+  }
+
+  /**
+   * The rows of external MCP server tools that keep a stored Read only or Bypass without any recorded definition go to
+   * Approval (Off on a read-only endpoint), with one Setup change for all of them. Such a row runs in Approval already
+   * (the snapshot holds it, ARCHITECTURE.md §7.5), and nothing would record a definition for it later, so its stored
+   * mode only misleads. It comes from a V89 start that couldn't verify the rows (the master key was locked), from a
+   * tool the server didn't list at that start, from a reset of a definition changed outside GateRook, or from a
+   * duplicate of such a row. Rows that don't verify are left alone (a locked start changes nothing), and so is a
+   * temporary bypass, which has its own binding ({@link TemporaryBypass}). Nothing that is enforced changes and nothing
+   * is granted. Built-in, template and plugin tools record no definition by design and are never considered.
+   *
+   * @return how many rows went to Approval or Off
+   */
+  int holdUnrecorded() {
+    Integer held = writeTx.execute(s -> {
+      int count = 0;
+      int off = 0;
+      for (EndpointEntity e : endpoints.findAll()) {
+        Mode next = e.getAccess() == EndpointAccess.READ_ONLY ? Mode.OFF : Mode.APPROVAL;
+        int before = count;
+        for (ToolPairs.Member m : wiring.members(e.getId())) {
+          if (m.manifest().kind() != ConnectorManifest.Kind.MCP_SERVER) {
+            continue;
+          }
+          for (EndpointToolEntity row : tools.findByEndpointIdAndConnectionId(e.getId(), m.config().id())) {
+            boolean unattended = row.getMode() == Mode.READ_ONLY || row.getMode() == Mode.BYPASS;
+            if (!unattended || row.getReviewedDefinition() != null || !rows.verify(row)) {
+              continue;
+            }
+            Map<String, Object> grant = row.getTemporaryBypass();
+            row.setMode(next, clock.instant());
+            if (grant != null && next != Mode.OFF) {
+              row.setTemporaryBypass(grant, clock.instant());
+            }
+            rows.save(row);
+            count++;
+            off += next == Mode.OFF ? 1 : 0;
+          }
+        }
+        if (count > before) {
+          publisher.publishEvent(new EndpointChanged(e.getId(), e.getSlug()));
+        }
+      }
+      if (count > 0) {
+        List<String> to = new ArrayList<>();
+        if (count > off) {
+          to.add("Approval for " + serverTools(count - off));
+        }
+        if (off > 0) {
+          to.add("Off for " + serverTools(off) + " on read-only endpoints");
+        }
+        setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.MODE,
+            "MCP server tools without a recorded definition", "Read only or Bypass", String.join(", ", to),
+            "No definition was recorded for their mode: GateRook upgraded its database without recording one (the "
+                + "master key was locked, or the server didn't list the tool then), or it was reset. Set the mode "
+                + "again to review the definition they have now.", null, null, null, null));
+        log.info("{} MCP server tools without a recorded definition went to Approval", count);
+      }
+      tools.flush();
+      return count;
+    });
+    return held == null ? 0 : held;
+  }
+
+  private static String serverTools(int count) {
+    return count + (count == 1 ? " MCP server tool" : " MCP server tools");
   }
 
   /** @return how many rows got the definition their tool has now */

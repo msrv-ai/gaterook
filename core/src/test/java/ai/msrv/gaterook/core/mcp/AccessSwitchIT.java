@@ -38,7 +38,7 @@ class AccessSwitchIT {
         endpoints.create(slug, null, EndpointService.StartFrom.EMPTY, null);
         core.bean(EndpointConnections.class).add(slug, "shared-db", null);
         for (String tool : CoreTools.WITH_MODE) {
-          modes.setMode(slug, tool, null, Mode.READ_ONLY, null,
+          modes.setMode(slug, tool, null, Mode.READ_ONLY, null, null,
               endpoints.snapshot(slug).coreTool(tool).orElseThrow().rowVersion(), null);
         }
       }

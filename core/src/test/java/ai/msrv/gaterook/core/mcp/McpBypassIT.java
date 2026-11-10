@@ -33,7 +33,7 @@ class McpBypassIT {
         var pair = endpoints.snapshot("external").pairs().stream()
             .filter(p -> p.connectionName().equals(type)).findFirst().orElseThrow();
         assertThat(pair.readOnlyConfirmed()).isFalse();
-        tools.setMode("external", pair.toolKey(), type, Mode.BYPASS, null, pair.rowVersion(), "Use Bypass");
+        tools.setMode("external", pair.toolKey(), type, Mode.BYPASS, null, null, pair.rowVersion(), "Use Bypass");
         McpClient client = new McpClient(core.bean(LocalListener.class).port(), "external",
             core.bean(TokenService.class).issue("external", type, 7, null).token());
         assertThat(client.legacyCall(pair.tool().name(), args("connection", type, "query", "sample"))
@@ -57,7 +57,8 @@ class McpBypassIT {
       EndpointTools tools = core.bean(EndpointTools.class);
       var pair = endpoints.snapshot("bypass-prod").pairs().stream()
           .filter(p -> p.toolKey().equals("sql_execute")).findFirst().orElseThrow();
-      tools.setMode("bypass-prod", pair.toolKey(), "bypass-db", Mode.BYPASS, null, pair.rowVersion(), "Test Bypass");
+      tools.setMode("bypass-prod", pair.toolKey(), "bypass-db", Mode.BYPASS, null, null, pair.rowVersion(),
+          "Test Bypass");
       assertThat(endpoints.get("bypass-prod").tools().bypass()).isEqualTo(1);
       assertThat(tools.list("bypass-prod").stream().flatMap(g -> g.tools().stream())
           .filter(t -> t.toolKey().equals("sql_execute")).findFirst().orElseThrow().storedMode()).isEqualTo("Bypass");
@@ -100,7 +101,7 @@ class McpBypassIT {
       var clamped = endpoints.snapshot("bypass-prod").pairs().stream()
           .filter(p -> p.toolKey().equals("sql_execute")).findFirst().orElseThrow();
       assertThat(clamped.mode()).isEqualTo(Mode.OFF);
-      assertThatThrownBy(() -> tools.setMode("bypass-prod", clamped.toolKey(), "bypass-db", Mode.BYPASS, null,
+      assertThatThrownBy(() -> tools.setMode("bypass-prod", clamped.toolKey(), "bypass-db", Mode.BYPASS, null, null,
           clamped.rowVersion(), "Test refusal")).isInstanceOf(ProblemException.class).hasMessageContaining("read only");
     }
   }

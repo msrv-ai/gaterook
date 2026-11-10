@@ -158,7 +158,7 @@ class TemporaryBypassIT {
   void explicitModeChangesAndBulkResetClearGrantsEvenWhenTheBaseModeIsUnchanged() {
     create("mode-reset", Env.DEV);
     grant("mode-reset", 60);
-    tools.setMode("mode-reset", "sql_execute", connection("mode-reset"), Mode.APPROVAL, null,
+    tools.setMode("mode-reset", "sql_execute", connection("mode-reset"), Mode.APPROVAL, null, null,
         pair("mode-reset").rowVersion(), "Keep approval");
     assertThat(pair("mode-reset").mode()).isEqualTo(Mode.APPROVAL);
     assertThat(pair("mode-reset").bypassUntil()).isNull();
@@ -167,7 +167,7 @@ class TemporaryBypassIT {
     assertThat(pair("mode-reset").mode()).isEqualTo(Mode.APPROVAL);
     assertThat(pair("mode-reset").bypassUntil()).isNull();
     grant("mode-reset", 60);
-    tools.setMode("mode-reset", "sql_execute", connection("mode-reset"), Mode.OFF, null,
+    tools.setMode("mode-reset", "sql_execute", connection("mode-reset"), Mode.OFF, null, null,
         pair("mode-reset").rowVersion(), "Turn off");
     assertThat(pair("mode-reset").mode()).isEqualTo(Mode.OFF);
     assertThat(pair("mode-reset").bypassUntil()).isNull();
@@ -379,7 +379,7 @@ class TemporaryBypassIT {
     core.bean(EndpointConnections.class).add(slug, connection(slug), null);
     var query = endpoints.snapshot(slug).pairs().stream().filter(p -> p.toolKey().equals("sql_query"))
         .findFirst().orElseThrow();
-    tools.setMode(slug, "sql_query", connection(slug), Mode.OFF, null, query.rowVersion(), "Disable reads");
+    tools.setMode(slug, "sql_query", connection(slug), Mode.OFF, null, null, query.rowVersion(), "Disable reads");
     grant(slug, 15);
     McpClient client = client(slug);
     FakeConnectors.RESOURCE_READS.clear();

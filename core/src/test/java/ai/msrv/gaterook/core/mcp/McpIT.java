@@ -51,7 +51,7 @@ class McpIT {
     ai.msrv.gaterook.core.endpoints.EndpointTools modes = core.bean(ai.msrv.gaterook.core.endpoints.EndpointTools.class);
     for (String tool : ai.msrv.gaterook.core.endpoints.CoreTools.WITH_MODE) {
       var pair = endpoints.snapshot("dev").coreTool(tool).orElseThrow();
-      modes.setMode("dev", tool, null, ai.msrv.gaterook.connector.api.ToolDefinition.Mode.READ_ONLY, null,
+      modes.setMode("dev", tool, null, ai.msrv.gaterook.connector.api.ToolDefinition.Mode.READ_ONLY, null, null,
           pair.rowVersion(), null);
     }
     // The first answer waits 2 s for a quick decision here (15 s by default), so the tests stay short.
@@ -318,7 +318,7 @@ class McpIT {
     core.bean(EndpointConnections.class).add("notes-prod", "notes-db", null);
     var modes = core.bean(ai.msrv.gaterook.core.endpoints.EndpointTools.class);
     for (String tool : ai.msrv.gaterook.core.endpoints.CoreTools.WITH_MODE) {
-      modes.setMode("notes-prod", tool, null, ai.msrv.gaterook.connector.api.ToolDefinition.Mode.READ_ONLY, null,
+      modes.setMode("notes-prod", tool, null, ai.msrv.gaterook.connector.api.ToolDefinition.Mode.READ_ONLY, null, null,
           endpoints.snapshot("notes-prod").coreTool(tool).orElseThrow().rowVersion(), null);
     }
     McpClient agent = new McpClient(core.bean(LocalListener.class).port(), "notes-prod", core.bean(TokenService.class)
@@ -352,7 +352,7 @@ class McpIT {
     core.bean(EndpointConnections.class).add("res", "res-db", null);
     var modes = core.bean(ai.msrv.gaterook.core.endpoints.EndpointTools.class);
     for (String tool : ai.msrv.gaterook.core.endpoints.CoreTools.WITH_MODE) {
-      modes.setMode("res", tool, null, ai.msrv.gaterook.connector.api.ToolDefinition.Mode.READ_ONLY, null,
+      modes.setMode("res", tool, null, ai.msrv.gaterook.connector.api.ToolDefinition.Mode.READ_ONLY, null, null,
           endpoints.snapshot("res").coreTool(tool).orElseThrow().rowVersion(), null);
     }
     McpClient agent = new McpClient(core.bean(LocalListener.class).port(), "res", core.bean(TokenService.class)

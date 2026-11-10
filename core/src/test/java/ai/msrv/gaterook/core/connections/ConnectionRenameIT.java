@@ -71,7 +71,7 @@ class ConnectionRenameIT {
     endpoints.create("ren-ep", null, EndpointService.StartFrom.EMPTY, null);
     wiring.add("ren-ep", "ren-mcp", null);
     EndpointSnapshot.Pair write = pair("ren-ep", "gh_write");
-    tools.setMode("ren-ep", write.toolKey(), "ren-mcp", Mode.BYPASS, null, write.rowVersion(), null);
+    tools.setMode("ren-ep", write.toolKey(), "ren-mcp", Mode.BYPASS, null, null, write.rowVersion(), null);
     assertThat(pairs(created.id())).containsExactly("mcp:ren-mcp:gh_search=READ_ONLY",
         "mcp:ren-mcp:gh_write=BYPASS");
 

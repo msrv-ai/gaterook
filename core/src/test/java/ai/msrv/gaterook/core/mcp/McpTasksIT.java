@@ -56,7 +56,7 @@ class McpTasksIT {
     for (String tool : List.of("gh_wait", "gh_search")) {
       var pair = endpoints.snapshot("dev").pairs().stream().filter(p -> p.tool().name().equals(tool)).findFirst()
           .orElseThrow();
-      tools.setMode("dev", pair.toolKey(), "steps-mcp", Mode.BYPASS, null, pair.rowVersion(), "Test");
+      tools.setMode("dev", pair.toolKey(), "steps-mcp", Mode.BYPASS, null, null, pair.rowVersion(), "Test");
     }
     // An ordinary call waits a second for a quick decision here (15 s by default), so the tests stay short.
     endpoints.updateSettings("dev", new EndpointService.SettingsUpdate(null, null, null, null, null,

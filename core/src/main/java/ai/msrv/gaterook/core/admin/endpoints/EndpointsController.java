@@ -64,8 +64,13 @@ class EndpointsController {
 
   record Delete(String confirmSlug, String reason) {}
 
-  /** {@code mode}: {@code OFF}, {@code READ_ONLY}, {@code APPROVAL} or {@code BYPASS}; {@code connection} null for a core tool. */
-  record SetMode(String toolKey, String connection, String mode, JsonNode overrides, Long version, String reason) {}
+  /**
+   * {@code mode}: {@code OFF}, {@code READ_ONLY}, {@code APPROVAL} or {@code BYPASS}; {@code connection} null for a
+   * core tool. {@code definitionHash}: the tool's {@code definitionHash} as the tool list showed it, sent when the person
+   * chose the mode; a save of the limits alone leaves it out ({@code EndpointTools.setMode}).
+   */
+  record SetMode(String toolKey, String connection, String mode, String definitionHash, JsonNode overrides,
+      Long version, String reason) {}
 
   record TemporaryBypass(String toolKey, String connection, JsonNode durationMinutes, Long version, String reason) {}
 
@@ -367,7 +372,7 @@ class EndpointsController {
           "/version");
     }
     tools.setMode(slug, request.toolKey(), request.connection(), Modes.parse(request.mode(), "/mode"),
-        request.overrides(), request.version(), Reasons.check(request.reason()));
+        request.definitionHash(), request.overrides(), request.version(), Reasons.check(request.reason()));
     return tools(slug);
   }
 

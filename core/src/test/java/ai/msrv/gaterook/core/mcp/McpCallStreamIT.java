@@ -52,7 +52,7 @@ class McpCallStreamIT {
     for (String tool : List.of("gh_steps", "gh_wait", "gh_search")) {
       var pair = endpoints.snapshot("dev").pairs().stream().filter(p -> p.tool().name().equals(tool)).findFirst()
           .orElseThrow();
-      tools.setMode("dev", pair.toolKey(), CONNECTION, Mode.BYPASS, null, pair.rowVersion(), "Test");
+      tools.setMode("dev", pair.toolKey(), CONNECTION, Mode.BYPASS, null, null, pair.rowVersion(), "Test");
     }
     dev = new McpClient(core.bean(LocalListener.class).port(), "dev",
         core.bean(TokenService.class).issue("dev", "streaming", 7, null).token());
