@@ -95,6 +95,27 @@ class NpmInstallerTest {
         INTEGRITY)).isInstanceOf(ConnectorException.class).hasMessageContaining("doesn't match its catalog entry"));
   }
 
+  /**
+   * What the core writes into the server's folder before {@code npm ci}: the server writes in that folder and could
+   * have left a link at the name, which the core, unsandboxed, must not write through.
+   */
+  @Test
+  void aLinkTheServerLeftInPlaceOfTheManifestIsReplacedNotWrittenThrough(@TempDir Path dir, @TempDir Path elsewhere)
+      throws Exception {
+    Path outside = elsewhere.resolve("profile.txt");
+    Files.writeString(outside, "the person's own file");
+    Files.createSymbolicLink(dir.resolve("package.json"), outside);
+    Files.writeString(dir.resolve("package-lock.json"), "an older lockfile");
+
+    NpmInstaller.writeNew(dir.resolve("package.json"), "{\"private\":true}\n".getBytes(StandardCharsets.UTF_8));
+    NpmInstaller.writeNew(dir.resolve("package-lock.json"), "{}".getBytes(StandardCharsets.UTF_8));
+
+    assertThat(Files.readString(outside)).isEqualTo("the person's own file");
+    assertThat(Files.isSymbolicLink(dir.resolve("package.json"))).isFalse();
+    assertThat(Files.readString(dir.resolve("package.json"))).isEqualTo("{\"private\":true}\n");
+    assertThat(Files.readString(dir.resolve("package-lock.json"))).isEqualTo("{}");
+  }
+
   @Test
   void onlyTheEndOfWhatNpmPrintsIsKept() throws Exception {
     byte[] start = "the start\n".getBytes(StandardCharsets.UTF_8);

@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -77,8 +78,9 @@ final class NpmInstaller {
       manifest.put("private", true);
       manifest.putObject("dependencies").put(pkg.name(), pkg.version());
       // npm ci refuses a lockfile alone: it wants the package.json the lockfile was made for.
-      Files.writeString(workDir.resolve("package.json"), Texts.JSON.writeValueAsString(manifest) + "\n");
-      Files.write(workDir.resolve("package-lock.json"), pkg.lockfile());
+      writeNew(workDir.resolve("package.json"), (Texts.JSON.writeValueAsString(manifest) + "\n")
+          .getBytes(StandardCharsets.UTF_8));
+      writeNew(workDir.resolve("package-lock.json"), pkg.lockfile());
     } catch (IOException e) {
       throw ConnectorException.unavailable("Couldn't write the server's folder " + workDir + ": " + e.getMessage(), e);
     }
@@ -245,6 +247,16 @@ final class NpmInstaller {
     } catch (IOException | RuntimeException e) {
       throw ConnectorException.denied(problem);
     }
+  }
+
+  /**
+   * {@code bytes} as a new regular file at {@code file} of the server's folder. The server writes in its folder, and the
+   * core that writes here runs outside any sandbox: whatever is at that name (a link the server left there included)
+   * is removed itself, never followed, and a file that appears there again before the write is not opened.
+   */
+  static void writeNew(Path file, byte[] bytes) throws IOException {
+    Files.deleteIfExists(file);
+    Files.write(file, bytes, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS);
   }
 
   /**
