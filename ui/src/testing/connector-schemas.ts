@@ -865,6 +865,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "properties": {
           "pinned": {
             "type": "array",
+            "x-person-only": true,
             "maxItems": 8,
             "items": {
               "type": "string",
@@ -874,6 +875,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "knownHosts": {
             "type": "string",
+            "x-person-only": true,
             "x-widget": "textarea",
             "maxLength": 64000,
             "description": "Optional known_hosts lines, hashed lines too."
@@ -2143,6 +2145,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "type": "object",
               "title": "Trusted cluster",
               "readOnly": true,
+              "x-person-only": true,
               "description": "Set by Test connection when you trust the cluster a kubeconfig file points to. Calls stop if the file points elsewhere.",
               "additionalProperties": false,
               "properties": {
@@ -2183,12 +2186,14 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "default": false,
               "title": "Run the credential command from kubeconfig",
               "x-confirm": "warning",
+              "x-person-only": true,
               "description": "gke-gcloud-auth-plugin, aws eks get-token, kubelogin. Runs on this computer with your user rights."
             },
             "trustedExec": {
               "type": "string",
               "title": "Allowed credential command",
               "readOnly": true,
+              "x-person-only": true,
               "pattern": "^[0-9a-f]{64}$",
               "description": "Set by Test connection when you allow the kubeconfig's credential command; a changed command needs your approval again."
             }
@@ -2362,6 +2367,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
       },
       "accountId": {
         "type": "string",
+        "x-person-only": true,
         "pattern": "^\\d{12}$",
         "description": "Filled by Test connection; calls fail if the account changes"
       },
@@ -2739,12 +2745,14 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "properties": {
           "caCertificates": {
             "type": "string",
+            "x-person-only": true,
             "x-widget": "textarea",
             "maxLength": 64000,
             "description": "PEM of an internal CA or of one trusted certificate. Filled by Test connection after you trust it."
           },
           "pins": {
             "type": "array",
+            "x-person-only": true,
             "items": {
               "type": "string",
               "pattern": "^sha256/[A-Za-z0-9+/=]{44}$"
@@ -3419,6 +3427,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "properties": {
           "pinned": {
             "type": "array",
+            "x-person-only": true,
             "maxItems": 8,
             "items": {
               "type": "string",
@@ -3429,6 +3438,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "knownHosts": {
             "type": "string",
+            "x-person-only": true,
             "x-widget": "textarea",
             "maxLength": 64000,
             "description": "Optional known_hosts lines, hashed lines too.",

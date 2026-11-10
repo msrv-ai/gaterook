@@ -674,39 +674,9 @@ class KubernetesMockServerTest {
 
   @Test
   void aCredentialCommandsTokenIsUsedTaintedAndRefreshedOnce401() throws Exception {
-    boolean windows = System.getProperty("os.name").startsWith("Windows");
-    Path plugin = dir.resolve(windows ? "auth-plugin.cmd" : "auth-plugin");
     Path counter = dir.resolve("runs");
-    if (windows) {
-      String java = Path.of(System.getProperty("java.home"), "bin", "java.exe").toString();
-      String classes = Path.of(FakeExecCredential.class.getProtectionDomain().getCodeSource().getLocation()
-          .toURI()).toString();
-      Files.writeString(plugin, "@echo off\r\n\"" + java.replace("%", "%%") + "\" -cp \""
-          + classes.replace("%", "%%") + "\" " + FakeExecCredential.class.getName() + " \""
-          + counter.toString().replace("%", "%%") + "\"\r\n");
-    } else {
-      Files.writeString(plugin, """
-        #!/bin/sh
-        echo run >> "%s"
-        n=$(wc -l < "%s" | tr -d ' ')
-        printf '{"apiVersion":"client.authentication.k8s.io/v1","kind":"ExecCredential",'
-        printf '"status":{"token":"cnry-exec-%%s"}}\\n' "$n"
-          """.formatted(counter, counter));
-      assertThat(plugin.toFile().setExecutable(true)).isTrue();
-    }
-    String kubeconfig = """
-        apiVersion: v1
-        kind: Config
-        current-context: dev
-        clusters: [{name: dev, cluster: {server: "%s", certificate-authority-data: %s}}]
-        contexts: [{name: dev, context: {cluster: dev, user: dev}}]
-        users:
-        - name: dev
-          user:
-            exec: {apiVersion: client.authentication.k8s.io/v1, command: %s}
-        """.formatted(api.url(), Base64.getEncoder().encodeToString(api.caPem.getBytes()),
-            K8sTestKit.NODES.textNode(plugin.toString()));
-    Map<String, String> secret = Map.of(K8sSettings.KUBECONFIG, kubeconfig);
+    Path plugin = credentialPlugin(counter);
+    Map<String, String> secret = Map.of(K8sSettings.KUBECONFIG, execKubeconfig(plugin));
     ConnectionConfig draft = K8sTestKit.cfg("draft-1", Env.DEV, "{\"auth\":\"kubeconfig\",\"namespace\":\"app-dev\","
         + "\"allowExecPlugin\":true}", null);
     String fingerprint = connector.test(draft, secrets(secret), ctx(Env.DEV)).needsConfirmation().configPatch()
@@ -726,5 +696,88 @@ class KubernetesMockServerTest {
     assertThat(auth.get(0)).isEqualTo("Bearer cnry-exec-1");
     assertThat(auth.get(auth.size() - 1)).isEqualTo("Bearer cnry-exec-2");
     assertThat(ctx.tainted).contains("cnry-exec-1", "cnry-exec-2");
+  }
+
+  /**
+   * The person's Trust is what lets a kubeconfig's credential command start: until a connection both opts in and holds
+   * the fingerprint of exactly this command, no call, health check or test starts it, and nothing reaches the cluster.
+   */
+  @Test
+  void aCredentialCommandNeverStartsBeforeThePersonAllowedExactlyThatCommand() throws Exception {
+    Path counter = dir.resolve("runs");
+    Path plugin = credentialPlugin(counter);
+    Map<String, String> secret = Map.of(K8sSettings.KUBECONFIG, execKubeconfig(plugin));
+    api.on("GET", "/api/v1/namespaces/app-dev/pods", r -> ok(PODS_TABLE.formatted("", "app-dev", "app-dev")));
+    String optedIn = "{\"auth\":\"kubeconfig\",\"namespace\":\"app-dev\",\"allowExecPlugin\":true";
+    // What Test connection offers for "Trust": the fingerprint of this command (a draft that opted in; nothing runs).
+    String fingerprint = connector.test(K8sTestKit.cfg("draft-1", Env.DEV, optedIn + "}", null), secrets(secret),
+        ctx(Env.DEV)).needsConfirmation().configPatch().path("trustedExec").asString();
+    assertThat(counter).doesNotExist();
+
+    int n = 0;
+    for (String config : List.of(
+        "{\"auth\":\"kubeconfig\",\"namespace\":\"app-dev\"}",
+        optedIn + "}",
+        optedIn + ",\"trustedExec\":\"" + "0".repeat(64) + "\"}",
+        "{\"auth\":\"kubeconfig\",\"namespace\":\"app-dev\",\"trustedExec\":\"" + fingerprint + "\"}",
+        "{\"auth\":\"kubeconfig\",\"namespace\":\"app-dev\",\"allowExecPlugin\":false,\"trustedExec\":\""
+            + fingerprint + "\"}")) {
+      ConnectionConfig saved = K8sTestKit.cfg("c-exec-" + n++, Env.DEV, config, null);
+      assertThatThrownBy(() -> connector.execute(call("k8s_get", "{\"kind\":\"pods\"}"), saved, secrets(secret),
+          ctx(Env.DEV))).as(config).isInstanceOfSatisfying(ConnectorException.class,
+              e -> assertThat(e.kind()).isEqualTo(ConnectorException.Kind.DENIED));
+      assertThat(connector.health(saved, secrets(secret), ctx(Env.DEV)).state()).as(config)
+          .isEqualTo(HealthResult.State.UNREACHABLE);
+      assertThat(connector.test(saved, secrets(secret), ctx(Env.DEV)).ok()).as(config).isFalse();
+      assertThat(counter).as("the credential command started for " + config).doesNotExist();
+    }
+    assertThat(api.requests).as("nothing reached the cluster").isEmpty();
+
+    // Opted in and holding this command's fingerprint, the same connection starts it: the checks above are not vacuous.
+    ConnectionConfig trusted = K8sTestKit.cfg("c-exec-trusted", Env.DEV,
+        optedIn + ",\"trustedExec\":\"" + fingerprint + "\"}", null);
+    assertThat(connector.execute(call("k8s_get", "{\"kind\":\"pods\"}"), trusted, secrets(secret), ctx(Env.DEV))
+        .isError()).isFalse();
+    assertThat(counter).exists();
+  }
+
+  /** A credential plugin that records each start in {@code counter} and answers with a token. */
+  private Path credentialPlugin(Path counter) throws Exception {
+    boolean windows = System.getProperty("os.name").startsWith("Windows");
+    Path plugin = dir.resolve(windows ? "auth-plugin.cmd" : "auth-plugin");
+    if (windows) {
+      String java = Path.of(System.getProperty("java.home"), "bin", "java.exe").toString();
+      String classes = Path.of(FakeExecCredential.class.getProtectionDomain().getCodeSource().getLocation()
+          .toURI()).toString();
+      Files.writeString(plugin, "@echo off\r\n\"" + java.replace("%", "%%") + "\" -cp \""
+          + classes.replace("%", "%%") + "\" " + FakeExecCredential.class.getName() + " \""
+          + counter.toString().replace("%", "%%") + "\"\r\n");
+    } else {
+      Files.writeString(plugin, """
+        #!/bin/sh
+        echo run >> "%s"
+        n=$(wc -l < "%s" | tr -d ' ')
+        printf '{"apiVersion":"client.authentication.k8s.io/v1","kind":"ExecCredential",'
+        printf '"status":{"token":"cnry-exec-%%s"}}\\n' "$n"
+          """.formatted(counter, counter));
+      assertThat(plugin.toFile().setExecutable(true)).isTrue();
+    }
+    return plugin;
+  }
+
+  /** A kubeconfig of the fake API server whose user signs in with {@code plugin}. */
+  private String execKubeconfig(Path plugin) {
+    return """
+        apiVersion: v1
+        kind: Config
+        current-context: dev
+        clusters: [{name: dev, cluster: {server: "%s", certificate-authority-data: %s}}]
+        contexts: [{name: dev, context: {cluster: dev, user: dev}}]
+        users:
+        - name: dev
+          user:
+            exec: {apiVersion: client.authentication.k8s.io/v1, command: %s}
+        """.formatted(api.url(), Base64.getEncoder().encodeToString(api.caPem.getBytes()),
+            K8sTestKit.NODES.textNode(plugin.toString()));
   }
 }

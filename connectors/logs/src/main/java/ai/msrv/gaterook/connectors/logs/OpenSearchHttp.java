@@ -46,13 +46,23 @@ final class OpenSearchHttp {
 
   record BoundedResponse(int status, String body, String contentType, boolean truncated) {}
 
-  static BoundedResponse send(HttpRequest signedRequest, String body, ExecContext ctx, long maxBytes,
+  /**
+   * @param target the request target that was classified, shown and approved (path and query); the request line
+   *               carries exactly this text or nothing is sent
+   */
+  static BoundedResponse send(HttpRequest signedRequest, String target, String body, ExecContext ctx, long maxBytes,
       SSLContext ssl, String service) throws ConnectorException {
     long millis = Math.min(Http.MAX_REQUEST.toMillis(), ctx.remaining().minus(Http.MARGIN).toMillis());
     if (millis <= 0 || ctx.cancelled()) {
       throw ConnectorException.timeout("The " + service + " request deadline has expired.");
     }
     HttpUriRequestBase request = new HttpUriRequestBase(signedRequest.method(), signedRequest.uri());
+    // The client writes this text into the request line, and any character it cannot carry as another byte. The SigV4
+    // signature and the approval both cover the target; a request line that differs from it is not that request.
+    if (!OpenSearchRequest.wireSafe(target) || !target.equals(request.getRequestUri())) {
+      throw ConnectorException.denied("The " + service + " request would reach the server as something other than "
+          + "the request that was approved. Nothing was sent.");
+    }
     signedRequest.headers().map().forEach((name, values) -> values.forEach(value -> request.addHeader(name, value)));
     if (body != null) {
       // The already-signed Content-Type header is retained; this entity adds no charset or re-encoding.

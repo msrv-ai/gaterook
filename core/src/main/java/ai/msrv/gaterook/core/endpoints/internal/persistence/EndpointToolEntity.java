@@ -61,6 +61,14 @@ public class EndpointToolEntity {
   @Column(name = "temporary_bypass")
   private Map<String, Object> temporaryBypass;
 
+  /**
+   * The definition ({@code ToolPairs.definitionHash}) an external MCP server's tool had when it came in or when a
+   * person last set Read only or Bypass for it; {@code null} where none is recorded. Those two modes hold only while
+   * the endpoint publishes the tool with this definition.
+   */
+  @Column(name = "reviewed_definition", length = 64)
+  private String reviewedDefinition;
+
   @Column(name = "updated_at", nullable = false)
   private Instant updatedAt;
 
@@ -151,6 +159,15 @@ public class EndpointToolEntity {
 
   public void setTemporaryBypass(Map<String, Object> temporaryBypass, Instant now) {
     this.temporaryBypass = temporaryBypass;
+    this.updatedAt = Objects.requireNonNull(now, "now");
+  }
+
+  public String getReviewedDefinition() {
+    return reviewedDefinition;
+  }
+
+  public void setReviewedDefinition(String reviewedDefinition, Instant now) {
+    this.reviewedDefinition = reviewedDefinition;
     this.updatedAt = Objects.requireNonNull(now, "now");
   }
 

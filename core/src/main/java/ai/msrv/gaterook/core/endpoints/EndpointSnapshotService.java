@@ -289,6 +289,11 @@ public class EndpointSnapshotService {
         Mode storedMode = row == null ? Mode.OFF : row.getMode();
         boolean confirmed = row != null && confirmed(row.getRoConfirmation(), offered);
         Mode mode = storedMode;
+        // An external server's tool runs without a person only with the definition its mode was set for. The stored
+        // mode follows when the core has reconciled the endpoint (ARCHITECTURE.md §7.5); until then it is Approval.
+        if ((mode == Mode.READ_ONLY || mode == Mode.BYPASS) && !ToolPairs.reviewed(row, offered)) {
+          mode = Mode.APPROVAL;
+        }
         Instant bypassUntil = problem == null
             ? TemporaryBypass.activeUntil(row, e, w.config(), offered, readOnly, clock.instant()) : null;
         if (bypassUntil != null) {

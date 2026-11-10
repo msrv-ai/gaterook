@@ -109,6 +109,42 @@ class ElasticsearchIT {
   }
 
   @Test
+  void actsOnTheNonAsciiNameItWasApprovedForAndOnNoOtherIndex() throws Exception {
+    String plain = "gaterook-elasticsearch-text-it-" + UUID.randomUUID();
+    // U+2010 is a hyphen look-alike. The twin's name has to reach the server whole: cut at that character it would
+    // name the plain index instead.
+    String twin = plain + "\u2010copy";
+    String id = "m\u00FCller\u2010x";
+    try {
+      for (String name : new String[] {plain, twin}) {
+        assertThat(request("PUT", "/" + name, "{\"settings\":{\"number_of_shards\":1,\"number_of_replicas\":0}}")
+            .path("status").asInt()).isEqualTo(200);
+      }
+      JsonNode written = request("PUT", "/" + twin + "/_doc/" + id + "?refresh=true", "{\"category\":\"books\"}");
+      assertThat(written.path("status").asInt()).isEqualTo(201);
+      assertThat(written.at("/body/_index").asString()).isEqualTo(twin);
+      assertThat(written.at("/body/_id").asString()).isEqualTo(id);
+
+      ToolCall read = Configs.call("elasticsearch_query",
+          TestCtx.JSON.createObjectNode().put("path", "/" + twin + "/_doc/" + id).toString());
+      assertThat(connector.classify(read, config, Configs.policy(Env.DEV, TestCtx.dev())).kind())
+          .isEqualTo(Classification.Kind.READ);
+      JsonNode found = execute(read, TestCtx.of());
+      assertThat(found.at("/body/found").asBoolean()).isTrue();
+      assertThat(found.at("/body/_index").asString()).isEqualTo(twin);
+      assertThat(found.at("/body/_id").asString()).isEqualTo(id);
+
+      assertThat(request("DELETE", "/" + twin, null).path("status").asInt()).isEqualTo(200);
+      assertThat(execute(Configs.call("elasticsearch_query", "{\"method\":\"HEAD\",\"path\":\"/" + plain + "\"}"),
+          TestCtx.of()).path("status").asInt()).as("the plain index is untouched")
+          .isEqualTo(200);
+    } finally {
+      request("DELETE", "/" + twin, null);
+      request("DELETE", "/" + plain, null);
+    }
+  }
+
+  @Test
   void requiresApprovalBeforeCreatingAnIndexAndKeepsMalformedQueryErrors() throws Exception {
     String index = "gaterook-elasticsearch-approval-it-" + UUID.randomUUID();
     ToolCall create = Configs.call("elasticsearch_request", "{\"method\":\"PUT\",\"path\":\"/" + index + "\"}");

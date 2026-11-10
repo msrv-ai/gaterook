@@ -111,6 +111,14 @@ class HttpCoreProcessIT {
     } else if (path.equals("/v1/refunds")) {
       status = 200;
       out = "{\"data\":[{\"id\":\"re_0\"}]}";
+    } else if (path.equals("/v1/measures")) {
+      // Numbers whose plain notation would be a gigabyte of zeros.
+      status = 200;
+      out = "{\"values\":[129.00,1e-1000000000,1e1000000000,1e999,-2.5e2147483647],\"ok\":true}";
+    } else if (path.equals("/v1/overflow")) {
+      // An exponent beyond what a decimal holds at all.
+      status = 200;
+      out = "{\"v\":1e-2147483648}";
     } else {
       status = 404;
       out = "{\"error\":\"not found\"}";
@@ -220,6 +228,45 @@ class HttpCoreProcessIT {
       assertThat(s.header("Idempotency-Key")).isEqualTo("refund-48213");
       assertThat(s.header("Authorization")).isEqualTo("Bearer " + TOKEN);
     });
+  }
+
+  @Test
+  @Order(8)
+  void numbersWithRunawayExponentsAreDataNotAnAttackOnTheCore() throws Exception {
+    // Under the core's 384 MB heap, 1e-1000000000 ended the process when the answer was masked and measured.
+    SEEN.clear();
+    JsonNode measures = call(10, "http_get", "{\"connection\":\"billing-api\",\"path\":\"/measures\"}");
+    assertThat(measures.at("/result/isError").asBoolean(true)).as(measures.toString()).isFalse();
+    JsonNode values = measures.at("/result/structuredContent/json/values");
+    assertThat(values.get(0).isNumber()).isTrue();
+    assertThat(values.get(1).asString()).isEqualTo("1E-1000000000");
+    assertThat(values.get(2).asString()).isEqualTo("1E+1000000000");
+    assertThat(values.get(3).asString()).isEqualTo("1E+999");
+    assertThat(values.get(4).asString()).isEqualTo("-2.5E+2147483647");
+    assertThat(measures.toString()).hasSizeLessThan(8_000);
+
+    JsonNode overflow = call(11, "http_get", "{\"connection\":\"billing-api\",\"path\":\"/overflow\"}");
+    assertThat(overflow.at("/result/isError").asBoolean(true)).as(overflow.toString()).isFalse();
+    assertThat(overflow.at("/result/structuredContent/status").asInt()).isEqualTo(200);
+    assertThat(overflow.at("/result/structuredContent/json").isNull()).isTrue();
+    assertThat(overflow.at("/result/structuredContent/text").asString()).isEqualTo("{\"v\":1e-2147483648}");
+
+    // A client's own numbers: 1e999 is infinite as a double. The schema refuses it where it types the value; in the
+    // free-form JSON body it reaches the receipt of the call, which is hashed over it before anything runs.
+    JsonNode typed = call(12, "http_get", "{\"connection\":\"billing-api\",\"path\":\"/invoices\","
+        + "\"query\":{\"limit\":1e999}}");
+    assertThat(typed.has("error")).as(typed.toString()).isFalse();
+    assertThat(typed.at("/result/content/0/text").asString()).startsWith("Invalid arguments");
+    SEEN.clear();
+    JsonNode free = call(14, "http_request", "{\"connection\":\"billing-api\",\"method\":\"POST\",\"path\":"
+        + "\"/refunds\",\"json\":{\"amount\":1e999,\"floor\":-1e1000000000,\"tiny\":1e-1000000000}}");
+    assertThat(free.has("error")).as(free.toString()).isFalse();
+    assertThat(free.at("/result/structuredContent/status").asString()).as(free.toString()).isEqualTo("pending");
+    assertThat(SEEN).as("nothing before Approve").isEmpty();
+
+    // The core is still serving.
+    assertThat(call(13, "http_get", "{\"connection\":\"billing-api\",\"path\":\"/invoices\"}")
+        .at("/result/structuredContent/status").asInt()).isEqualTo(200);
   }
 
   @Test

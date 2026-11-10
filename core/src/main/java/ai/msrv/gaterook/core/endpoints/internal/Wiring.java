@@ -67,7 +67,10 @@ public class Wiring {
     List<Written> out = new ArrayList<>();
     for (ToolPairs.Offered offered : offeredHere) {
       Mode mode = modes.apply(offered);
-      rows.save(new EndpointToolEntity(e, c.id(), offered.toolKey(), mode, clock.instant()));
+      EndpointToolEntity row = new EndpointToolEntity(e, c.id(), offered.toolKey(), mode, clock.instant());
+      // An external server's tool joins with the definition it has now: the mode is for that one.
+      row.setReviewedDefinition(ToolPairs.reviewedDefinition(offered), clock.instant());
+      rows.save(row);
       out.add(new Written(offered.toolKey(), offered.definition().name(), mode));
     }
     return out;

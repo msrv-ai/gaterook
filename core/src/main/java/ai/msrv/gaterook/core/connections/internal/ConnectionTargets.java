@@ -88,7 +88,7 @@ public final class ConnectionTargets {
       StringBuilder out = new StringBuilder(c.path("host").asString());
       JsonNode port = c.path("port").isNumber() || schema == null ? c.path("port")
           : schema.at("/properties/connection/properties/port/default");
-      if (port.isNumber()) {
+      if (port.isNumber() && port.canConvertToInt()) {
         out.append(':').append(port.asInt());
       }
       if (c.path("database").isString()) {

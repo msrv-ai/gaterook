@@ -19,6 +19,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -29,9 +30,11 @@ import tools.jackson.databind.node.ObjectNode;
  * upstream name (report 11 §3.1). The manifest's version is the server's own {@code serverInfo.version}, retained
  * as the provenance of its tool definitions.
  *
- * <p>Before every call the definition the running server lists for the tool must hash as the snapshot does: a server
- * that changed a tool after it was reviewed (a rug pull) is refused until the core took the new list in, and an
- * approval made for one definition never runs against another.
+ * <p>Before every call the definition the running server lists for the tool must hash as the snapshot does, and show
+ * the same app: a server that changed a tool after it was reviewed (a rug pull) is refused until the core took the new
+ * list in, and an approval made for one definition never runs against another. That the core took the list in does not
+ * make the new definition the person's: the endpoints then hold the tool in Approval until its mode is set again
+ * (ARCHITECTURE.md §7.5).
  */
 final class ServerConnector implements Connector {
 
@@ -108,6 +111,13 @@ final class ServerConnector implements Connector {
     payload.put("original", original);
     payload.set("arguments", params.get("arguments").deepCopy());
     payload.put("definitionHash", entry.path("definitionHash").asString());
+    // The app the tool shows is pinned beside the hash, which doesn't cover it (null: none).
+    JsonNode app = Snapshots.reviewedApp(entry);
+    if (app == null) {
+      payload.putNull("ui");
+    } else {
+      payload.set("ui", app.deepCopy());
+    }
     payload.put("serverVersion", manifest.version());
     String where = server.http() ? server.url() : String.join(" ", server.command());
     List<ActionPreview.Field> fields = List.of(new ActionPreview.Field("Server", cfg.name() + " " + manifest.version()),
@@ -174,8 +184,10 @@ final class ServerConnector implements Connector {
     Optional<JsonNode> approved = ctx.approvedPayload();
     if (approved.isPresent()) {
       JsonNode p = approved.get();
+      // A payload prepared before the app was pinned has no "ui" at all: it could not name one.
+      boolean sameApp = !p.has("ui") || Objects.equals(Snapshots.reviewedApp(p), Snapshots.reviewedApp(entry));
       if (!hash.equals(Texts.str(p.path("definitionHash"), null)) || !call.tool().equals(Texts.str(p.path("tool"),
-          null))) {
+          null)) || !sameApp) {
         throw ConnectorException.denied(cfg.name() + " changed " + original + " after the call was approved, so the "
             + "approved call doesn't run. Ask again.");
       }
@@ -188,7 +200,7 @@ final class ServerConnector implements Connector {
       throw ConnectorException.unavailable(cfg.name() + " no longer lists " + original + ". Its tools are listed "
           + "again in Connectors › MCP servers.", null);
     }
-    if (!hash.equals(Snapshots.definitionHash(live))) {
+    if (!hash.equals(Snapshots.definitionHash(live)) || !Snapshots.sameApp(entry, live)) {
       throw ConnectorException.denied(cfg.name() + " changed " + original + " since it was reviewed, so the call "
           + "doesn't run. The new definition is in Connectors › MCP servers; its endpoints ask for approval again.");
     }

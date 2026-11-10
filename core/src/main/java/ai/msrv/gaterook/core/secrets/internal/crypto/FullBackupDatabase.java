@@ -24,6 +24,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.HexFormat;
+import java.util.Set;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.sqlite.SQLiteConfig;
@@ -35,8 +36,15 @@ import tools.jackson.databind.node.ObjectNode;
 public final class FullBackupDatabase {
   private static final JsonMapper JSON = JsonMapper.builder().build();
   private static final long MAX_DATABASE_BYTES = 1L << 30;
-  private static final String SCHEMA = "SELECT type, name, tbl_name, sql FROM sqlite_schema "
-      + "WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name";
+  private static final String SCHEMA = "SELECT type, name, tbl_name, sql FROM sqlite_schema ORDER BY type, name";
+  /**
+   * The tables SQLite keeps for itself: the AUTOINCREMENT counters and the planner's statistics, which exist only after
+   * an ANALYZE. Two databases of one version can differ in these tables and in nothing else.
+   */
+  private static final Set<String> SQLITE_TABLES = Set.of("sqlite_sequence", "sqlite_stat1", "sqlite_stat3",
+      "sqlite_stat4");
+  /** SQLite names the index of a UNIQUE or PRIMARY KEY constraint this way and stores it without a definition. */
+  private static final String AUTOINDEX_PREFIX = "sqlite_autoindex_";
   private static final String HISTORY = "SELECT version, description, type, script, checksum, success "
       + "FROM flyway_schema_history ORDER BY installed_rank";
 
@@ -60,7 +68,7 @@ public final class FullBackupDatabase {
     byte[] rowKey = null;
     try {
       try (Connection input = open(source, true); Connection reference = open(current, true)) {
-        if (!rows(input, SCHEMA).equals(rows(reference, SCHEMA))
+        if (!schema(input).equals(schema(reference))
             || !rows(input, HISTORY).equals(rows(reference, HISTORY))) {
           throw new IOException("This backup requires the same GateRook database version that created it.");
         }
@@ -165,6 +173,34 @@ public final class FullBackupDatabase {
       throw e;
     }
     return c;
+  }
+
+  /**
+   * Every object of the schema except SQLite's own bookkeeping, recognized by exact kind and name and never by a
+   * pattern: in LIKE an underscore matches any character, so {@code NOT LIKE 'sqlite_%'} also hides a trigger or view
+   * named {@code sqlite1…}, and SQLite refuses to create an object named {@code sqlite_…} itself but loads one from
+   * an edited file. The revocations run on a writable connection where the backup's triggers fire, so every other
+   * object, whatever its name, must be exactly the live database's.
+   */
+  private static List<List<String>> schema(Connection c) throws SQLException {
+    List<List<String>> objects = rows(c, SCHEMA);
+    objects.removeIf(FullBackupDatabase::bookkeeping);
+    return objects;
+  }
+
+  /**
+   * Whether a {@code type, name, tbl_name, sql} row is one of SQLite's own objects. A row without a kind or a name is
+   * not: it is compared like any other.
+   */
+  static boolean bookkeeping(List<String> object) {
+    String type = object.get(0);
+    String name = object.get(1);
+    if (type == null || name == null) return false;
+    return switch (type) {
+      case "table" -> SQLITE_TABLES.contains(name);
+      case "index" -> object.get(3) == null && name.startsWith(AUTOINDEX_PREFIX);
+      default -> false;
+    };
   }
 
   private static List<List<String>> rows(Connection c, String sql) throws SQLException {
@@ -310,6 +346,7 @@ public final class FullBackupDatabase {
         f.set("overrides", tree(r, "overrides"));
         f.set("roConfirmation", tree(r, "ro_confirmation"));
         f.set("temporaryBypass", tree(r, "temporary_bypass"));
+        if (r.getString("reviewed_definition") != null) f.put("reviewedDefinition", r.getString("reviewed_definition"));
         verified(mac, "endpoint_tool", r, f);
         f.remove("temporaryBypass");
         update(c, "UPDATE endpoint_tool SET temporary_bypass=NULL, updated_at=?, version=version+1, mac=? WHERE id=?",

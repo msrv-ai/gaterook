@@ -249,12 +249,14 @@
       "properties": {
         "caCertificates": {
           "type": "string",
+          "x-person-only": true,
           "x-widget": "textarea",
           "maxLength": 64000,
           "description": "PEM of an internal CA or of one trusted certificate. Filled by Test connection after you trust it."
         },
         "pins": {
           "type": "array",
+          "x-person-only": true,
           "items": {
             "type": "string",
             "pattern": "^sha256/[A-Za-z0-9+/=]{44}$"

@@ -20,15 +20,23 @@ import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.connectors.EnvironmentPolicies;
+import ai.msrv.gaterook.core.connectors.ManifestCodec;
+import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointAccess;
+import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointEntity;
+import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointToolEntity;
+import ai.msrv.gaterook.core.platform.CanonicalJson;
 import ai.msrv.gaterook.core.policy.internal.LimitsOf;
 import ai.msrv.gaterook.core.templates.TemplateService;
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 
 /** Backend-specific tools keep a shared definition but only appear on connections that support them. */
 class ToolPairsTest {
@@ -146,6 +154,94 @@ class ToolPairsTest {
     assertThat(ToolPairs.refusal(mcp, Mode.READ_ONLY, false, false, "dev")).isEmpty();
     assertThat(ToolPairs.refusal(plugin, Mode.READ_ONLY, false, false, "dev")).hasValueSatisfying(
         reason -> assertThat(reason).contains("Confirm"));
+  }
+
+  @Test
+  void theDefinitionHashSeesTheAppAToolShowsAndStaysWhatItWasForTheRest() {
+    ToolDefinition plain = ToolDefinition.builder("search").description("Searches.").build();
+    ToolDefinition app = app("ui://gaterook/connections/s/a.html", null);
+
+    assertThat(ToolPairs.definitionHash(plain)).as("a tool without an app hashes as it always did")
+        .isEqualTo(CanonicalJson.sha256Hex(ManifestCodec.writeTool(plain)));
+    assertThat(ToolPairs.definitionHash(app)).isNotEqualTo(ToolPairs.definitionHash(plain))
+        .isEqualTo(ToolPairs.definitionHash(app("ui://gaterook/connections/s/a.html", null)))
+        .isNotEqualTo(ToolPairs.definitionHash(app("ui://gaterook/connections/s/b.html", null)))
+        .isNotEqualTo(ToolPairs.definitionHash(app("ui://gaterook/connections/s/a.html", "app")));
+  }
+
+  @Test
+  void aServerToolIsReviewedOnlyWhileItsRowHoldsTheDefinitionItPublishes() {
+    ToolDefinition search = ToolDefinition.builder("search").description("Searches.").build();
+    ToolPairs.Offered mcp = external(search, ConnectorManifest.Kind.MCP_SERVER);
+    EndpointToolEntity row = new EndpointToolEntity(new EndpointEntity("dev", Env.DEV, EndpointAccess.STANDARD,
+        Map.of(), Instant.now()), "c1", mcp.toolKey(), Mode.READ_ONLY, Instant.now());
+
+    assertThat(ToolPairs.reviewed(row, mcp)).as("nothing recorded").isFalse();
+    assertThat(ToolPairs.reviewed(null, mcp)).as("no row").isFalse();
+    row.setReviewedDefinition(ToolPairs.reviewedDefinition(mcp), Instant.now());
+    assertThat(ToolPairs.reviewed(row, mcp)).isTrue();
+    for (ToolDefinition changed : List.of(
+        ToolDefinition.builder("search").description("Searches, and sends it elsewhere.").build(),
+        ToolDefinition.builder("search").description("Searches.").annotations(new ToolDefinition.Annotations(true,
+            false, false, true)).build(),
+        ToolDefinition.builder("search").description("Searches.").inputSchema(JsonNodeFactory.instance.objectNode()
+            .put("type", "object")).build(), app("ui://gaterook/connections/s/a.html", null))) {
+      assertThat(ToolPairs.reviewed(row, external(changed, ConnectorManifest.Kind.MCP_SERVER))).isFalse();
+    }
+    // A plugin's Read only has its confirmation, a built-in tool its own annotations: nothing to record or compare.
+    assertThat(ToolPairs.reviewedDefinition(external(search, ConnectorManifest.Kind.PLUGIN))).isNull();
+    assertThat(ToolPairs.reviewedDefinition(external(search, ConnectorManifest.Kind.BUILT_IN))).isNull();
+    assertThat(ToolPairs.reviewed(row, external(app("ui://gaterook/connections/s/a.html", null),
+        ConnectorManifest.Kind.PLUGIN))).isTrue();
+  }
+
+  @Test
+  void renamingAServerIsNoNewDefinitionForItsToolsButAnythingElseIs() {
+    ToolPairs.Offered before = named("old-name", "search of the MCP server old-name.",
+        "ui://gaterook/connections/old-name/chart.html");
+
+    assertThat(ToolPairs.reviewedDefinition(named("new-name", "search of the MCP server new-name.",
+        "ui://gaterook/connections/new-name/chart.html"))).isEqualTo(ToolPairs.reviewedDefinition(before));
+    assertThat(ToolPairs.reviewedDefinition(named("new-name", "search of the MCP server new-name.",
+        "ui://gaterook/connections/new-name/other.html"))).isNotEqualTo(ToolPairs.reviewedDefinition(before));
+    assertThat(ToolPairs.reviewedDefinition(named("new-name", "searches the MCP server new-name.",
+        "ui://gaterook/connections/new-name/chart.html"))).isNotEqualTo(ToolPairs.reviewedDefinition(before));
+    // The name of another connection is not this one's.
+    assertThat(ToolPairs.reviewedDefinition(named("new-name", "search of the MCP server new-name.",
+        "ui://gaterook/connections/old-name/chart.html"))).isNotEqualTo(ToolPairs.reviewedDefinition(before));
+    assertThat(ToolPairs.reviewedDefinition(named("old-name", "search of the MCP server old-name.", null)))
+        .isNotEqualTo(ToolPairs.reviewedDefinition(before));
+  }
+
+  private static ToolPairs.Offered named(String server, String description, String uri) {
+    ToolDefinition.Builder tool = ToolDefinition.builder("x_search").description(description);
+    if (uri != null) {
+      tool.meta(JsonNodeFactory.instance.objectNode().set("ui", JsonNodeFactory.instance.objectNode()
+          .put("resourceUri", uri)));
+    }
+    return new ToolPairs.Offered("mcp:" + server + ":x_search", tool.build(), ConnectorManifest.Kind.MCP_SERVER,
+        server, "1.0.0", null, null);
+  }
+
+  @Test
+  void aToolThatNeedsAPersonAgainGoesToApprovalOrOffWhereNothingWaitsForOne() {
+    ToolDefinition read = ToolDefinition.builder("search").build();
+    ToolDefinition write = ToolDefinition.builder("write").annotations(ToolDefinition.Annotations.write(true))
+        .nature(ToolDefinition.Nature.MUTATION).defaultMode(Mode.APPROVAL, Mode.APPROVAL).build();
+
+    assertThat(ToolPairs.demoted(read, false)).isEqualTo(Mode.APPROVAL);
+    assertThat(ToolPairs.demoted(write, false)).isEqualTo(Mode.APPROVAL);
+    assertThat(ToolPairs.demoted(read, true)).isEqualTo(Mode.OFF);
+    assertThat(ToolPairs.demoted(write, true)).isEqualTo(Mode.OFF);
+  }
+
+  private static ToolDefinition app(String uri, String visibility) {
+    ObjectNode ui = JsonNodeFactory.instance.objectNode().put("resourceUri", uri);
+    if (visibility != null) {
+      ui.putArray("visibility").add(visibility);
+    }
+    return ToolDefinition.builder("search").description("Searches.")
+        .meta(JsonNodeFactory.instance.objectNode().set("ui", ui)).build();
   }
 
   private static ToolPairs.Offered external(ToolDefinition tool, ConnectorManifest.Kind kind) {

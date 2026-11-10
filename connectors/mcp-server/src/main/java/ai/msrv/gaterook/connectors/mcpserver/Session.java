@@ -13,7 +13,9 @@ import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
 import java.time.Instant;
@@ -237,7 +239,7 @@ final class Session {
           server.name(), server.oauth() ? r.authorization() : null, cloud);
       channel = new GatewayHttpTransport(http);
     } else {
-      prepare(workDir);
+      prepare(workDir, log);
       if (r.npmIntegrity() != null) {
         NpmInstaller.verify(workDir, r.npmIntegrity());
       }
@@ -448,11 +450,15 @@ final class Session {
     return tools;
   }
 
-  /** What a list of tools declares, as one hash of their definition hashes in order. */
+  /** What a list of tools declares, as one hash of their definition hashes and apps in order. */
   static String listHash(List<ObjectNode> tools) {
     StringBuilder out = new StringBuilder();
     for (ObjectNode t : tools) {
       out.append(Snapshots.definitionHash(t)).append(',');
+      ObjectNode app = Snapshots.appOf(t);
+      if (app != null) {
+        out.append(app).append(',');
+      }
     }
     return Texts.sha256(out.toString());
   }
@@ -548,22 +554,61 @@ final class Session {
     throw ConnectorException.badInput("Use an https:// URL, or http://127.0.0.1 for a server on this computer.");
   }
 
-  /** The work folder, its {@code tmp} ({@code TMPDIR}) and the folder of all work folders, owner-only when new. */
+  /** {@link #prepare(Path, ServerLog)} without a log: the error alone says what is wrong. */
   static void prepare(Path workDir) throws ConnectorException {
+    prepare(workDir, null);
+  }
+
+  /**
+   * The work folder, its {@code tmp} ({@code TMPDIR}) and the folder of all work folders, owner-only when new. Each
+   * must be a folder, never a link, and none is followed. The server writes in its work folder, so it can replace its
+   * {@code tmp} by a link before its next start, and a sandbox that names paths (macOS) would then open wherever the
+   * link leads: the start is refused with the reason, which is also said in the server's {@code log}, and the link is
+   * left for the person to delete.
+   */
+  static void prepare(Path workDir, ServerLog log) throws ConnectorException {
     try {
-      for (Path dir : List.of(workDir.getParent(), workDir, workDir.resolve("tmp"))) {
-        if (!Files.isDirectory(dir)) {
-          Files.createDirectories(dir);
-          try {
-            Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwx------"));
-          } catch (UnsupportedOperationException e) {
-            // Windows: the home folder's ACL protects it.
-          }
-        }
-      }
+      folder(workDir.getParent(), "folder of all server folders", log);
+      folder(workDir, "server's folder", log);
+      folder(workDir.resolve("tmp"), "server's temp folder", log);
     } catch (IOException e) {
       throw ConnectorException.unavailable("Couldn't create the server's folder " + workDir + ": " + e.getMessage(),
           e);
+    }
+  }
+
+  /** {@code dir} as a folder, owner-only when new; a link in its place is the start's refusal, never followed. */
+  private static void folder(Path dir, String what, ServerLog log) throws IOException, ConnectorException {
+    if (Files.isSymbolicLink(dir)) {
+      String message = "The " + what + " " + dir + " is a symbolic link" + leadsTo(dir) + ". GateRook doesn't start a "
+          + "server behind a link there: the server can put one there itself, and its sandbox would then open "
+          + "wherever the link leads. Delete the link itself, not the folder it leads to, and start the server again.";
+      if (log != null) {
+        log.note(message);
+      }
+      throw ConnectorException.unavailable(message, null);
+    }
+    if (!Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS)) {
+      Files.createDirectories(dir);
+      PosixFileAttributeView posix = Files.getFileAttributeView(dir, PosixFileAttributeView.class,
+          LinkOption.NOFOLLOW_LINKS);
+      if (posix != null) {
+        posix.setPermissions(PosixFilePermissions.fromString("rwx------"));
+      } // Windows: the home folder's ACL protects it.
+    }
+  }
+
+  /**
+   * {@code " to <target>"} for a link, else nothing. The target is whatever the server wrote, so it is cleaned like any
+   * text of a server ({@link Texts#clean}) before it reaches the error the agent reads or the server's log, whose notes
+   * are not cleaned.
+   */
+  private static String leadsTo(Path link) {
+    try {
+      String target = Texts.clean(Files.readSymbolicLink(link).toString(), 200, false);
+      return target.isEmpty() ? "" : " to " + target;
+    } catch (IOException | RuntimeException e) {
+      return "";
     }
   }
 }

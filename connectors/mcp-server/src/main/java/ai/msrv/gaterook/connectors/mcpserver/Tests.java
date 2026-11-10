@@ -96,13 +96,16 @@ final class Tests {
         : TestResult.failure(code, message.substring(0, nl), message.substring(nl + 1));
   }
 
-  /** Tool changes against the snapshot; {@code null} when the same. */
+  /**
+   * Tool changes against the snapshot; {@code null} when the same. A tool changed when the definition it declares
+   * differs or the app it shows does.
+   */
   static String diff(List<JsonNode> before, List<JsonNode> after) {
     Set<String> had = new java.util.HashSet<>();
-    java.util.Map<String, String> hashes = new java.util.HashMap<>();
+    java.util.Map<String, JsonNode> reviewed = new java.util.HashMap<>();
     for (JsonNode t : before) {
       had.add(t.path("original").asString());
-      hashes.put(t.path("original").asString(), t.path("definitionHash").asString());
+      reviewed.put(t.path("original").asString(), t);
     }
     int added = 0;
     int changed = 0;
@@ -112,7 +115,8 @@ final class Tests {
       now.add(o);
       if (!had.contains(o)) {
         added++;
-      } else if (!hashes.get(o).equals(t.path("definitionHash").asString())) {
+      } else if (!reviewed.get(o).path("definitionHash").asString().equals(t.path("definitionHash").asString())
+          || !java.util.Objects.equals(Snapshots.reviewedApp(reviewed.get(o)), Snapshots.reviewedApp(t))) {
         changed++;
       }
     }
@@ -130,7 +134,7 @@ final class Tests {
       parts.add(added + " new (declared reads start in Read only; other tools stay Off)");
     }
     if (changed > 0) {
-      parts.add(changed + " changed (read-only eligibility is checked again)");
+      parts.add(changed + " changed (Read only and Bypass go back to Approval)");
     }
     if (gone > 0) {
       parts.add(gone + " gone");

@@ -6,12 +6,15 @@ import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.EndpointView;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.Limits;
+import ai.msrv.gaterook.connector.api.ResourceDescriptor;
 import ai.msrv.gaterook.connector.api.TemplateKind;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.connections.ConnectionService;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.connectors.EnvironmentPolicies;
+import ai.msrv.gaterook.core.connectors.ManifestCodec;
+import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointToolEntity;
 import ai.msrv.gaterook.core.platform.CanonicalJson;
 import ai.msrv.gaterook.core.templates.TemplateService;
 import java.util.ArrayList;
@@ -23,6 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The tools a connection brings to an endpoint, with their {@code endpoint_tool.tool_key}: the connector's tools
@@ -200,9 +204,65 @@ public class ToolPairs {
     };
   }
 
-  /** SHA-256 of a tool's published definition: what a Read only confirmation is bound to. */
+  /**
+   * SHA-256 of a tool's published definition: what a Read only confirmation and a temporary bypass are bound to. The
+   * app a tool shows ({@code _meta.ui}: the URI the endpoint publishes it under and who may call the tool) is part of
+   * it; a tool without one hashes as it always did.
+   */
   public static String definitionHash(ToolDefinition t) {
-    return CanonicalJson.sha256Hex(ai.msrv.gaterook.core.connectors.ManifestCodec.writeTool(t));
+    return CanonicalJson.sha256Hex(published(t));
+  }
+
+  private static ObjectNode published(ToolDefinition t) {
+    ObjectNode published = ManifestCodec.writeTool(t);
+    if (t.meta() != null && !t.meta().isNull()) {
+      published.set("meta", t.meta().deepCopy());
+    }
+    return published;
+  }
+
+  /**
+   * The definition to record for a tool that comes in as new or that a person sets a mode for: that of an external
+   * MCP server's tool, else {@code null}. Built-in tools, templates and plugins have their own binding (a plugin's
+   * Read only confirmation) or none. It is {@link #definitionHash} but for the connection's name, which is in two
+   * places of what an endpoint publishes for a server's tool (the URI its app is published under, the description of
+   * a tool that has none): renaming the connection changes neither the server nor the tool.
+   */
+  public static String reviewedDefinition(Offered offered) {
+    if (offered.kind() != ConnectorManifest.Kind.MCP_SERVER) {
+      return null;
+    }
+    ObjectNode published = published(offered.definition());
+    String server = offered.declaredBy();
+    if (server != null) {
+      if (published.path("description").isString()) {
+        published.put("description", published.path("description").asString().replace(" of the MCP server " + server
+            + ".", " of the MCP server {server}."));
+      }
+      if (published.at("/meta/ui") instanceof ObjectNode ui && ui.path("resourceUri").isString()) {
+        ui.put("resourceUri", ui.path("resourceUri").asString().replace(ResourceDescriptor.appPrefix(server),
+            ResourceDescriptor.appPrefix("{server}")));
+      }
+    }
+    return CanonicalJson.sha256Hex(published);
+  }
+
+  /**
+   * Whether an external MCP server's tool publishes the definition its row's mode was set or reviewed for
+   * (ARCHITECTURE.md §7.5). Read only and Bypass hold only while it does; a row without a record of one doesn't count
+   * as reviewed. Always {@code true} for other tools.
+   */
+  public static boolean reviewed(EndpointToolEntity row, Offered offered) {
+    String current = reviewedDefinition(offered);
+    return current == null || row != null && current.equals(row.getReviewedDefinition());
+  }
+
+  /**
+   * Where a tool goes when it may no longer run without a person: Approval, or Off on a read-only endpoint, which
+   * never waits for one.
+   */
+  public static Mode demoted(ToolDefinition t, boolean readOnlyEndpoint) {
+    return readOnlyEndpoint ? clampReadOnly(t, Mode.APPROVAL) : Mode.APPROVAL;
   }
 
   // ── Modes ───────────────────────────────────────────────────────────────────────────────────────────────────

@@ -379,7 +379,11 @@ final class Launcher {
       probe = List.of(sandboxLauncher.toString(), "sandbox-exec", "--", truth.get().toString());
     }
     try {
-      Process p = new ProcessBuilder(probe).redirectErrorStream(true).start();
+      ProcessBuilder pb = new ProcessBuilder(probe).redirectErrorStream(true);
+      // The probe asks whether the sandbox works here, not whether the core's own TMPDIR may be opened to a command:
+      // the bridge refuses a TMPDIR behind a link, and that must not leave every server unsandboxed.
+      pb.environment().remove("TMPDIR");
+      Process p = pb.start();
       p.getOutputStream().close();
       if (!p.waitFor(10, TimeUnit.SECONDS)) {
         p.destroyForcibly();

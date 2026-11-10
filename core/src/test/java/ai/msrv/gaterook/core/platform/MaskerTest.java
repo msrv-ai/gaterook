@@ -2,10 +2,12 @@ package ai.msrv.gaterook.core.platform;
 
 import static ai.msrv.gaterook.core.platform.Masker.MASK;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.EnumSet;
 import java.util.ArrayList;
@@ -18,6 +20,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ArrayNode;
@@ -191,6 +194,72 @@ class MaskerTest {
     assertThat(out.result().table().rows().get(0).get(0).asString()).isEqualTo(MASK);
     assertThat(out.result().table().nextCursor()).isEqualTo("page-" + MASK);
     assertThat(JSON.writeValueAsString(out.result())).doesNotContain(stored).doesNotContain("84726193");
+  }
+
+  /**
+   * A number is a value: {@code 1e-1000000000} must not become a gigabyte of zeros to be matched against the secrets of
+   * the call, and {@code 1e999} (infinite as a double, out of range as a decimal) must not fail the call.
+   */
+  @Test
+  void aNumberWithARunawayExponentIsNeitherWrittenOutNorAFailure() {
+    JsonMapper decimals = JsonMapper.builder().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).build();
+    Taint taint = new Taint();
+    taint.add("84726193");
+    String hostile = "{\"a\":1e-1000000000,\"b\":1e1000000000,\"c\":1e999,\"d\":-1e-400,\"e\":100e2147483647,"
+        + "\"f\":[1e20000000,1e-20000000],\"g\":0.5,\"h\":-4.9e-324}";
+
+    // An API's answer reads decimals as written; an upstream server's, a client's, a plugin's reads doubles.
+    for (JsonMapper mapper : List.of(decimals, JSON)) {
+      JsonNode tree = mapper.readTree(hostile);
+
+      Masker.MaskedTree masked = masker.tree(tree, taint, MaskPolicy.SECRETS_ONLY);
+
+      assertThat(masked.outcome().masked()).as(mapper.toString()).isFalse();
+      assertThat(masked.tree()).isEqualTo(tree);
+    }
+
+    // The digits of a secret are found with the zeros around them cut short, however far the exponent goes.
+    JsonNode hidden = decimals.readTree(
+        "{\"pin\":8.4726193e500,\"tiny\":8.4726193e-500,\"far\":8.4726193e1000000000,\"near\":8.4726193e7,"
+            + "\"other\":9.9e-1000000000,\"seven\":7e500}");
+    Masker.MaskedTree masked = masker.tree(hidden, taint, MaskPolicy.SECRETS_ONLY);
+    for (String name : List.of("pin", "tiny", "far", "near")) {
+      assertThat(masked.tree().path(name).asString()).as(name).isEqualTo(MASK);
+    }
+    assertThat(masked.tree().path("other").isBigDecimal()).isTrue();
+    assertThat(masked.tree().path("seven").isBigDecimal()).isTrue();
+    assertThat(masked.outcome().fields()).isEqualTo(4);
+    assertThat(masker.tree(JSON.readTree("{\"near\":8.4726193e7,\"far\":8.4726193e500}"), taint,
+        MaskPolicy.SECRETS_ONLY).tree().path("near").asString()).as("a double, as it always was").isEqualTo(MASK);
+
+    // A result goes through the same pass: the numbers of a table cell and of structured content alike.
+    ArrayNode rows = JsonNodeFactory.instance.arrayNode();
+    rows.addArray().add(decimals.readTree("1e-1000000000")).add(decimals.readTree("1e999"));
+    ToolResult.Table table = new ToolResult.Table(List.of(new ToolResult.Column("x", "numeric", null, null, null),
+        new ToolResult.Column("y", "numeric", null, null, null)), rows, null);
+    ToolResult result = new ToolResult(List.of(), decimals.readTree(hostile), false, table, false, null, List.of(), 0,
+        0, null);
+    assertThat(masker.result(result, taint, MaskPolicy.SECRETS_ONLY).outcome().masked()).isFalse();
+  }
+
+  /**
+   * Text built from one keyword and a value without end, repeated, cost time in proportion to the square of its length
+   * (128 KB took seconds, 256 KB close to a minute), and masking runs outside any deadline. It is counted in work units
+   * in {@code SecretRulesWorkTest}; this is the same property on the wall clock, with a margin of a factor of thirty.
+   */
+  @Test
+  void aMegabyteOfRepeatedKeywordsIsMaskedInSeconds() {
+    org.junit.jupiter.api.Assumptions.assumeFalse(Boolean.getBoolean("gateway.test.skipPerf"),
+        "performance checks are off on this runner");
+    for (String[] c : new String[][] {{"password=abcdefg", "abcdefg"}, {"-----BEGIN PRIVATE KEY-----", "BEGIN"},
+        {"token=abcdefghijklmnopqrstuvwxyz-", "abcdefghijkl"}}) {
+      String text = c[0].repeat((1 << 20) / c[0].length());
+
+      Masker.MaskedText masked = assertTimeoutPreemptively(Duration.ofSeconds(30),
+          () -> masker.text(text, new Taint(), MaskPolicy.SECRETS_ONLY), c[0]);
+
+      assertThat(masked.text()).as(c[0]).doesNotContain(c[1]);
+    }
   }
 
   @Test

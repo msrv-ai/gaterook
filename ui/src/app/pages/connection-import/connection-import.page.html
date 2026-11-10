@@ -190,6 +190,7 @@
         }
         @for (candidate of supportedCandidates(); track candidate.id) {
           @let issue = candidateIssues().get(candidate.id);
+          @let card = reviewCards().get(candidate.id);
           <section class="gw-card" [id]="'import-candidate-' + candidate.id" [class.gw-card--invalid]="!!issue && !issue.warning" [attr.aria-labelledby]="'candidate-' + candidate.id" [attr.aria-describedby]="issue ? 'import-candidate-issue-' + candidate.id : null">
             <header class="gw-card__header"><div class="gw-card__heading">
               <h3 class="gw-card__title" [id]="'candidate-' + candidate.id"><span class="gw-mono">{{ drafts().get(candidate.id)?.name ?? candidate.name }}</span><span class="gw-env" [class]="'gw-env--' + (drafts().get(candidate.id)?.env ?? candidate.env)">{{ drafts().get(candidate.id)?.env ?? candidate.env }}</span></h3>
@@ -199,7 +200,7 @@
                 <div class="gw-field">
                   <label class="gw-field__label" [for]="'import-destination-' + candidate.id">Import to<span class="gw-sr-only"> for {{ drafts().get(candidate.id)?.name ?? candidate.name }}</span></label>
                   <div class="gw-card__actions">
-                    <div><select class="gw-select" [id]="'import-destination-' + candidate.id" [disabled]="busy()" (change)="destinationChanged(candidate, $event)" [attr.aria-invalid]="issue?.field === 'endpoint' ? 'true' : null" [attr.aria-describedby]="'import-destination-hint' + (issue?.field === 'endpoint' ? ' import-candidate-issue-' + candidate.id : '')">
+                    <div><select class="gw-select" [id]="'import-destination-' + candidate.id" [disabled]="busy()" (change)="destinationChanged(candidate, $event)" [attr.aria-invalid]="issue?.field === 'endpoint' ? 'true' : null" [attr.aria-describedby]="'import-destination-hint' + (card?.choose && !destinations().has(candidate.id) ? ' import-choose-' + candidate.id : '') + (issue?.field === 'endpoint' ? ' import-candidate-issue-' + candidate.id : '')">
                       <option value="" [selected]="!destinations().has(candidate.id)">Skip import</option>
                       @if (destinations().get(candidate.id); as destination) { @if (!eligibleEndpointSlugs().has(destination)) { <option [value]="destination" selected disabled>{{ destination }} · Unavailable</option> } }
                       @for (endpoint of eligibleEndpoints(); track endpoint.slug) { <option [value]="endpoint.slug" [selected]="endpoint.slug === destinations().get(candidate.id)">{{ endpoint.slug }} · {{ endpoint.env }}</option> }
@@ -224,6 +225,57 @@
                     @if (issue.field === 'settings') { <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" [disabled]="busy()" (click)="configure(candidate)">Review settings</button></div> }
                   </div>
                 </div>
+              }
+              @if (card && candidate.supported) {
+                @if (card.choose && !destinations().has(candidate.id)) {
+                  <div class="gw-alert gw-alert--warning gw-alert--compact" [id]="'import-choose-' + candidate.id">
+                    <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+                    <div class="gw-alert__content"><p class="gw-alert__body">{{ card.choose }}</p></div>
+                  </div>
+                }
+                <dl class="gw-kv gw-kv--dense" [id]="'import-summary-' + candidate.id" [attr.aria-label]="'What ' + (drafts().get(candidate.id)?.name ?? candidate.name) + ' would save'">
+                  <div class="gw-kv__row">
+                    <dt class="gw-kv__key">Connects to</dt>
+                    <dd class="gw-kv__value">
+                      @if (card.summary; as summary) {
+                        @if (summary.target) { <span class="gw-mono">{{ summary.target }}</span> } @else { <span class="gw-fg-muted">No host or address in the settings</span> }
+                      } @else if (card.unavailable) {
+                        <span class="gw-fg-danger" role="status">Could not summarize your changes. Open Edit settings to check them.</span>
+                      } @else if (card.updating) {
+                        <span class="gw-fg-muted" role="status">Updating from your changes…</span>
+                      } @else {
+                        <span class="gw-fg-muted">Not available. Open Edit settings to see it.</span>
+                      }
+                    </dd>
+                  </div>
+                  <div class="gw-kv__row">
+                    <dt class="gw-kv__key">Settings</dt>
+                    <dd class="gw-kv__value">
+                      @if (card.summary; as summary) {
+                        @if (summary.settings.length) {
+                          <ul class="gw-stack gw-stack--sm gw-text-small">
+                            @for (setting of summary.settings; track setting.path) {
+                              <li><span class="gw-mono">{{ setting.path }}</span>: <span class="gw-mono">{{ setting.value }}</span>@if (setting.target) { <span class="gw-sr-only"> (where credentials go)</span> }</li>
+                            }
+                          </ul>
+                          @if (summary.omitted) { <p class="gw-text-caption gw-fg-muted">{{ summary.omitted }} more {{ summary.omitted === 1 ? 'setting' : 'settings' }} not listed. Open Edit settings to see all of them.</p> }
+                        } @else { <span class="gw-fg-muted">Only the connector's defaults</span> }
+                      } @else { <span class="gw-fg-muted">Not available. Open Edit settings to see them.</span> }
+                    </dd>
+                  </div>
+                  <div class="gw-kv__row">
+                    <dt class="gw-kv__key">Credentials</dt>
+                    <dd class="gw-kv__value">
+                      @if (card.sources.length) {
+                        <ul class="gw-stack gw-stack--sm gw-text-small">
+                          @for (source of card.sources; track source.field) {
+                            <li><span class="gw-sr-only">Credential </span><span class="gw-mono">{{ source.field }}</span>: {{ source.label }}@for (detail of source.details; track $index) { · <span class="gw-mono">{{ detail }}</span>}</li>
+                          }
+                        </ul>
+                      } @else { <span class="gw-fg-muted">None prepared</span> }
+                    </dd>
+                  </div>
+                </dl>
               }
               @if (candidate.evidence.length) {
                 <div class="gw-stack gw-stack--sm">

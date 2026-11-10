@@ -322,6 +322,45 @@ class OpenSearchIT {
   }
 
   @Test
+  void fullApiActsOnTheNonAsciiNameItWasApprovedForAndOnNoOtherIndex() throws Exception {
+    ConnectionConfig full = Configs.of("search-admin", Env.DEV, """
+        {"backend":"opensearch","url":"%s","apiAccess":"full","auth":{"mode":"none"}}""".formatted(base));
+    String plain = "gaterook-text-it-" + java.util.UUID.randomUUID();
+    // U+2010 is a hyphen look-alike. The twin's name has to reach the server whole: cut at that character it would
+    // name the plain index instead.
+    String twin = plain + "\u2010copy";
+    String id = "m\u00FCller\u2010x";
+    try {
+      for (String name : List.of(plain, twin)) {
+        assertThat(api(full, "PUT", "/" + name, "{\"settings\":{\"number_of_shards\":1,\"number_of_replicas\":0}}")
+            .path("status").asInt()).isEqualTo(200);
+      }
+      JsonNode written = api(full, "PUT", "/" + twin + "/_doc/" + id + "?refresh=true", "{\"category\":\"books\"}");
+      assertThat(written.path("status").asInt()).isEqualTo(201);
+      assertThat(written.at("/body/_index").asString()).isEqualTo(twin);
+      assertThat(written.at("/body/_id").asString()).isEqualTo(id);
+
+      var read = Configs.call("opensearch_query",
+          TestCtx.JSON.createObjectNode().put("path", "/" + twin + "/_doc/" + id).toString());
+      assertThat(CONNECTOR.classify(read, full, Configs.policy(Env.DEV, TestCtx.dev())).kind())
+          .isEqualTo(Classification.Kind.READ);
+      JsonNode found = CONNECTOR.execute(read, full, NO_SECRETS, TestCtx.of()).structuredContent();
+      assertThat(found.at("/body/found").asBoolean()).isTrue();
+      assertThat(found.at("/body/_index").asString()).isEqualTo(twin);
+      assertThat(found.at("/body/_id").asString()).isEqualTo(id);
+
+      assertThat(api(full, "DELETE", "/" + twin, null).path("status").asInt()).isEqualTo(200);
+      JsonNode remaining = CONNECTOR.execute(Configs.call("opensearch_query",
+          "{\"method\":\"HEAD\",\"path\":\"/" + plain + "\"}"), full, NO_SECRETS, TestCtx.of()).structuredContent();
+      assertThat(remaining.path("status").asInt()).as("the plain index is untouched")
+          .isEqualTo(200);
+    } finally {
+      api(full, "DELETE", "/" + twin, null);
+      api(full, "DELETE", "/" + plain, null);
+    }
+  }
+
+  @Test
   void fullApiUpdatesAndRestoresDynamicClusterSettings() throws Exception {
     ConnectionConfig full = Configs.of("search-admin", Env.DEV, """
         {"backend":"opensearch","url":"%s","apiAccess":"full","auth":{"mode":"none"}}""".formatted(base));

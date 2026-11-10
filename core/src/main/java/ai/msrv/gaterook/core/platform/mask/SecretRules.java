@@ -84,9 +84,15 @@ public final class SecretRules {
 
   /**
    * {@code text} with every secret found by the rules replaced by {@code mask}. All rules look at the same text and
-   * overlapping finds are merged, so one secret matched by two rules is one mask.
+   * overlapping finds are merged, so one secret matched by two rules is one mask. The regular-expression work of one
+   * value is bounded ({@link Work}): a text that spends the budget has the windows of the keywords not yet checked
+   * masked whole.
    */
   public static String apply(String text, String mask, MaskCounter counter) {
+    return apply(text, mask, counter, Work.forValue(text));
+  }
+
+  static String apply(String text, String mask, MaskCounter counter, Work work) {
     if (text.length() < 8) {
       return text;
     }
@@ -104,7 +110,7 @@ public final class SecretRules {
     for (int rule = 0; rule < ALL.size(); rule++) {
       if (counts[rule] > 0) {
         java.util.Arrays.sort(starts[rule], 0, counts[rule]);
-        ALL.get(rule).collect(text, starts[rule], counts[rule], ranges, counter, mask);
+        ALL.get(rule).collect(work, starts[rule], counts[rule], ranges, counter, mask);
       }
     }
     if (ranges.size() == 0) {

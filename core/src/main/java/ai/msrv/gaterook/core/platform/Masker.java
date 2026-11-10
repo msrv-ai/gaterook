@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.core.platform;
 
 import ai.msrv.gaterook.connector.api.ToolResult;
+import ai.msrv.gaterook.connectors.support.JsonNumbers;
 import ai.msrv.gaterook.core.platform.mask.EntropyDetector;
 import ai.msrv.gaterook.core.platform.mask.MaskCounter;
 import ai.msrv.gaterook.core.platform.mask.PiiRules;
@@ -513,7 +514,8 @@ public final class Masker {
 
     /**
      * A number or binary value: a numeric PIN or account number that was tainted, a card number on prod, a secret
-     * serialized as Base64. Matched by its text (plus the plain decimal form of a floating-point number); any hit
+     * serialized as Base64. Matched by its text (plus the plain decimal form of a floating-point number, cut after
+     * {@link JsonNumbers#MAX_PADDING} zeros of padding: an exponent never decides how much is written out); any hit
      * replaces the whole value, since half a number means nothing.
      */
     private JsonNode scalar(JsonNode node) {
@@ -523,8 +525,9 @@ public final class Masker {
         hit = !string(text, false).equals(text);
       } else {
         hit = numberHit(text);
-        if (!hit && node.isFloatingPointNumber() && Double.isFinite(node.doubleValue())) {
-          String plain = node.decimalValue().stripTrailingZeros().toPlainString();
+        // NaN and the infinities have no digits to match.
+        if (!hit && node.isFloatingPointNumber() && !JsonNumbers.notFinite(node)) {
+          String plain = JsonNumbers.checkable(node.decimalValue());
           hit = !plain.equals(text) && numberHit(plain);
         }
         if (hit) {
