@@ -280,7 +280,7 @@ public class ApprovalExecutor implements DisposableBean {
     Check check;
     try {
       check = check(a, canonical, toolCall);
-    } catch (RuntimeException e) {
+    } catch (RuntimeException | StackOverflowError e) {
       log.error("Re-checking {} failed", id, e);
       check = Check.refused("The gateway couldn't check the request again. Not executed.");
     }
@@ -368,7 +368,8 @@ public class ApprovalExecutor implements DisposableBean {
     Classification classification;
     try {
       classification = connector.get().classify(verified, pair.config(), engine.view(pair.view(), pair.config()));
-    } catch (RuntimeException e) {
+    } catch (RuntimeException | StackOverflowError e) {
+      // Denied below (core.classify-error): nothing runs.
       classification = null;
     }
     Decision decision = engine.decide(pair.view(), pair.config(), classification);
