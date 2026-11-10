@@ -14,10 +14,14 @@ import static org.mockito.Mockito.when;
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.Env;
+import ai.msrv.gaterook.connector.api.SecretResolver;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.connectors.ConnectorType;
 import ai.msrv.gaterook.core.platform.Masker;
 import ai.msrv.gaterook.core.platform.ProblemException;
+import ai.msrv.gaterook.core.secrets.ScopedSecretResolver;
+import ai.msrv.gaterook.core.secrets.SecretInfo;
+import ai.msrv.gaterook.core.secrets.SecretOwner;
 import ai.msrv.gaterook.core.secrets.SecretService;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -159,17 +163,26 @@ class ConnectionSharesTest {
         + String.join(", ", KINDS) + "); confirm them on the destination computer with Test connection.");
   }
 
+  /** A local credential this connection owns would be shared with secrets included: not one of a trust setting. */
   @Test
-  void anExportWithSecretsNeverIncludesTheCredentialOfATrustSetting() {
+  void anExportWithSecretsNeverIncludesTheCredentialOfATrustSetting() throws Exception {
     ObjectNode config = storedConfig();
     ((ObjectNode) config.path("credentials")).remove("password");
     stored(config, Map.of("/trust/clientKey", "sec_trust"));
+    when(secrets.get("sec_trust")).thenReturn(new SecretInfo("sec_trust", "trusted-db/client-key",
+        SecretOwner.connection("c-1"), "/trust/clientKey", null, List.of(), "local", 1, null, null, "stored", false,
+        null, null, null));
+    ScopedSecretResolver resolver = mock(ScopedSecretResolver.class);
+    SecretResolver.Secret value = mock(SecretResolver.Secret.class);
+    when(value.unsafeString()).thenReturn("client-key-of-this-computer-7f3a");
+    when(resolver.secret("/trust/clientKey")).thenReturn(value);
+    when(secrets.resolver(any(SecretOwner.class), any(), any())).thenReturn(resolver);
 
     ObjectNode entry = shares.export("c-1", true);
 
     assertThat(entry.path("secrets")).isEmpty();
     assertThat(entry.path("omittedSecretFields")).isEmpty();
-    assertThat(entry.toString()).doesNotContain(TRUSTED).doesNotContain("sec_trust");
+    assertThat(entry.toString()).doesNotContain(TRUSTED).doesNotContain("sec_trust", "client-key-of-this-computer-7f3a");
     verify(secrets, never()).get(anyString());
   }
 
@@ -334,6 +347,22 @@ class ConnectionSharesTest {
         .doesNotContain("/trust/clientKey: Include or supply the credential.")
         .contains("/trust: Not imported. Confirm this trust setting on this computer with Test connection, or set it "
             + "yourself.");
+  }
+
+  /** Leaving trust settings out never turns an entry whose settings are no object into an empty, complete one. */
+  @Test
+  void anEntryWhoseSettingsAreNoObjectIsStillRefused() {
+    ObjectNode config = olderEntry().put("config", "not settings");
+    ObjectNode values = olderEntry();
+    values.putArray("secrets").add("/credentials/password");
+
+    for (ObjectNode entry : List.of(config, values)) {
+      assertThatThrownBy(() -> shares.prepareImport(entry, true, new HashSet<>()))
+          .isInstanceOf(ProblemException.class).hasMessageContaining("Invalid connection settings");
+      assertThatThrownBy(() -> shares.validate(entry, true))
+          .isInstanceOf(ProblemException.class).hasMessageContaining("Invalid connection settings");
+    }
+    verify(connections, never()).missingImportSettings(anyString(), anyString(), any(), any(), any());
   }
 
   @Test
