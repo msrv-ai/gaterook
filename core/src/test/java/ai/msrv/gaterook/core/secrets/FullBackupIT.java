@@ -234,6 +234,15 @@ class FullBackupIT {
           s.execute("CREATE TABLE unexpected(value TEXT)");
         }
         assertThatThrownBy(() -> service.validate(changed.toString(), portable)).hasMessageContaining("same GateRook database version");
+        Path lookalike = stage(core, "lookalike1");
+        Files.copy(original.resolve("gateway.db"), lookalike.resolve("gateway.db"));
+        try (Connection c = DriverManager.getConnection("jdbc:sqlite:" + lookalike.resolve("gateway.db"));
+            var s = c.createStatement()) {
+          s.execute("CREATE TRIGGER sqlite1extra AFTER INSERT ON setting BEGIN SELECT 1; END");
+        }
+        assertThatThrownBy(() -> service.validate(lookalike.toString(), portable))
+            .as("an object named like SQLite's own is still compared")
+            .hasMessageContaining("same GateRook database version");
         Path outside = Files.createDirectories(core.home().resolve("full-backup-outside"));
         assertThatThrownBy(() -> service.snapshot(outside.toString())).hasMessageContaining("outside");
         Path link = core.home().resolve("tmp/full-backup-symlink");
