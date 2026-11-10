@@ -35,6 +35,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.PlatformTransactionManager;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -200,6 +201,52 @@ class ImportPersonOnlySettingsTest {
     assertThat(marked.get("ssh")).containsExactly("/hostKeys/knownHosts", "/hostKeys/pinned",
         "/jump/hostKeys/knownHosts", "/jump/hostKeys/pinned");
     assertThat(marked.get("http")).containsExactly("/tls/caCertificates", "/tls/pins");
+  }
+
+  /**
+   * What a connector advertises as person-only (the {@code personOnlyFields} an agent reads) is what a proposal is
+   * refused for, however the schema lays out the mark: a config holding any listed setting, with an array index in
+   * place of each {@code *}, is refused.
+   */
+  @Test
+  void aProposalHoldingAnySettingAConnectorAdvertisesAsPersonOnlyIsRefused() {
+    TreeSet<String> checked = new TreeSet<>();
+    for (ConnectorManifest connector : manifests.values()) {
+      for (String template : ConnectionForms.personOnlyFields(connector.configSchema())) {
+        var session = service.start("/repositories/example", "dev");
+        ObjectNode manifest = manifest(connector.id(), holding(template).toString());
+        assertThatThrownBy(() -> service.submit(session.id(), session.submissionToken(), "ep-source", "caller", manifest))
+            .as(connector.id() + " " + template)
+            .isInstanceOfSatisfying(ProblemException.class, error -> {
+              assertThat(error.kind()).isEqualTo(ProblemException.Kind.UNPROCESSABLE);
+              assertThat(error.getMessage()).contains("Leave " + template + " out of config");
+            });
+        assertThat(service.get(session.id()).status()).as(connector.id() + " " + template).isEqualTo("awaiting");
+        checked.add(connector.id() + " " + template);
+      }
+    }
+    // The walk finds the settings (a schema without marks would otherwise make this test pass for nothing).
+    assertThat(checked).contains("kubernetes /allowExecPlugin", "kubernetes /pinnedCluster", "kubernetes /trustedExec",
+        "ssh /hostKeys/pinned", "ssh /jump/hostKeys/pinned", "ssh-logs /hostKeys/knownHosts", "http /tls/pins",
+        "aws /accountId");
+    verifyNoInteractions(connections, wiring);
+  }
+
+  /** A config that holds one value at a pointer template, every {@code *} standing for the first array element. */
+  private static JsonNode holding(String template) {
+    JsonNode value = JSON.readTree("\"0000\"");
+    String[] parts = template.substring(1).split("/", -1);
+    for (int i = parts.length - 1; i >= 0; i--) {
+      String part = parts[i].replace("~1", "/").replace("~0", "~");
+      if ("*".equals(part)) {
+        value = JSON.createArrayNode().add(value);
+      } else {
+        ObjectNode object = JSON.createObjectNode();
+        object.set(part, value);
+        value = object;
+      }
+    }
+    return value;
   }
 
   private ObjectNode manifest(String type, String config) {

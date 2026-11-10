@@ -54,6 +54,24 @@ class PersonOnlyFieldsTest {
   }
 
   @Test
+  void aMarkBehindAReferenceOrABranchIsListedAndLeftOutOfTheCopyForAnAgent() {
+    JsonNode original = JSON.readTree("""
+        {"type":"object","required":["host","viaRef"],"properties":{"host":{"type":"string"},
+          "viaRef":{"$ref":"#/$defs/pins"},
+          "viaAllOfRef":{"allOf":[{"$ref":"#/$defs/pins"}]},
+          "viaAnyOfBranch":{"anyOf":[{"type":"null"},{"type":"array","x-person-only":true}]},
+          "viaOneOfBranch":{"oneOf":[{"type":"string"},{"$ref":"#/$defs/pins"}]}},
+         "$defs":{"pins":{"type":"array","items":{"type":"string"},"x-person-only":true}}}
+        """);
+
+    assertThat(PersonOnlyFields.templates(original)).containsExactly("/viaAllOfRef", "/viaAnyOfBranch",
+        "/viaOneOfBranch", "/viaRef");
+    JsonNode agent = PersonOnlyFields.without(original);
+    assertThat(agent.path("properties").propertyNames()).containsExactly("host");
+    assertThat(agent.path("required")).isEqualTo(JSON.readTree("[\"host\"]"));
+  }
+
+  @Test
   void aSchemaWithoutThemIsCopiedAsItIs() {
     JsonNode plain = JSON.readTree("{\"type\":\"object\",\"properties\":{\"host\":{\"type\":\"string\"}}}");
 

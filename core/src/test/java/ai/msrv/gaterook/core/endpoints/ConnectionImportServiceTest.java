@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 
 import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.Env;
+import ai.msrv.gaterook.core.connections.ConnectionForms;
 import ai.msrv.gaterook.core.connections.ConnectionService;
 import ai.msrv.gaterook.core.connections.SecretInput;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.SimpleTransactionStatus;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -383,6 +385,60 @@ class ConnectionImportServiceTest {
         .path("minVersion").asString()).isEqualTo("1.3");
   }
 
+  /**
+   * The mark need not sit on the property's own definition: it may be reached through a {@code $ref}, an
+   * {@code allOf}/{@code anyOf}/{@code oneOf} branch or a conditional branch. The settings the schema advertises as
+   * person-only are the settings a proposal is refused for.
+   */
+  @Test
+  void refusesAPersonOnlySettingWhoseMarkSitsBehindAReferenceOrABranch() {
+    registerSharedDefinitions();
+    for (String config : List.of("{\"direct\":\"0000\"}", "{\"group\":{\"pin\":\"0000\"}}",
+        "{\"replicas\":[{\"label\":\"one\"},{\"pin\":\"0000\"}]}",
+        "{\"viaRef\":[\"sha256/example\"]}", "{\"viaRef\":[]}", "{\"viaRef\":null}",
+        "{\"viaAllOfRef\":[\"sha256/example\"]}", "{\"viaAnyOfBranch\":[\"sha256/example\"]}",
+        "{\"viaOneOfBranch\":[\"sha256/example\"]}", "{\"viaThenRef\":[\"sha256/example\"]}")) {
+      var session = start();
+      ObjectNode manifest = sharedDefinitionsManifest(json.readTree(config));
+      assertThatThrownBy(() -> submit(session, manifest), "%s", config).isInstanceOfSatisfying(ProblemException.class,
+          error -> {
+            assertThat(error.kind()).isEqualTo(ProblemException.Kind.UNPROCESSABLE);
+            assertThat(error.getMessage()).contains("Leave").contains("out of config").contains("GateRook");
+          });
+      assertThat(service.get(session.id()).status()).as(config).isEqualTo("awaiting");
+    }
+    verifyNoInteractions(connections, wiring, events);
+  }
+
+  @Test
+  void refusesEverySettingTheSchemaAdvertisesAsPersonOnly() {
+    JsonNode schema = registerSharedDefinitions().configSchema();
+    List<String> advertised = ConnectionForms.personOnlyFields(schema);
+    assertThat(advertised).containsExactly("/direct", "/group/pin", "/replicas/*/pin", "/viaAllOfRef", "/viaAnyOfBranch",
+        "/viaOneOfBranch", "/viaRef", "/viaThenRef");
+    for (String template : advertised) {
+      var session = start();
+      ObjectNode manifest = sharedDefinitionsManifest(holding(template));
+      assertThatThrownBy(() -> submit(session, manifest), "%s", template).isInstanceOfSatisfying(ProblemException.class,
+          error -> {
+            assertThat(error.kind()).isEqualTo(ProblemException.Kind.UNPROCESSABLE);
+            assertThat(error.getMessage()).contains("Leave " + template + " out of config");
+          });
+      assertThat(service.get(session.id()).status()).as(template).isEqualTo("awaiting");
+    }
+    verifyNoInteractions(connections, wiring, events);
+  }
+
+  @Test
+  void ordinarySettingsOfAConnectorThatSharesDefinitionsAreStillAccepted() {
+    registerSharedDefinitions();
+    var session = start();
+    ObjectNode manifest = sharedDefinitionsManifest(json.readTree("""
+        {"host":"db.invalid","plain":{"label":"one"},"group":{"label":"two"},"replicas":[{"label":"three"}]}
+        """));
+    assertThat(submit(session, manifest).path("status").asString()).isEqualTo("review");
+  }
+
   @Test
   void theSchemaTheAgentReadsLeavesPersonOnlySettingsOutAndSaysWhyTheyAreMissing() {
     var session = start();
@@ -652,5 +708,60 @@ class ConnectionImportServiceTest {
         "credentialHints":[{"field":"/credentials/password","source":"environment","instructions":"DB_PASSWORD"}],
         "warnings":[]}],"warnings":[]}
         """);
+  }
+
+  /**
+   * A connector whose person-only settings are defined away from the property that names them: through a shared
+   * definition, an {@code allOf}/{@code anyOf}/{@code oneOf} branch, a conditional branch (behind a placeholder) and an
+   * array item, next to settings that are not marked.
+   */
+  private ConnectorManifest registerSharedDefinitions() {
+    ObjectNode schema = (ObjectNode) json.readTree("""
+        {"type":"object","properties":{"host":{"type":"string"},
+        "plain":{"$ref":"#/$defs/plain"},
+        "direct":{"type":"string","x-person-only":true},
+        "group":{"$ref":"#/$defs/group"},
+        "replicas":{"type":"array","items":{"$ref":"#/$defs/group"}},
+        "viaRef":{"$ref":"#/$defs/pins"},
+        "viaAllOfRef":{"allOf":[{"$ref":"#/$defs/pins"}]},
+        "viaAnyOfBranch":{"anyOf":[{"type":"null"},{"type":"array","items":{"type":"string"},"x-person-only":true}]},
+        "viaOneOfBranch":{"oneOf":[{"type":"string"},{"$ref":"#/$defs/pins"}]},
+        "viaThenRef":true},
+        "allOf":[{"if":{"properties":{"host":{"const":"local"}}},"then":{"properties":{
+        "viaThenRef":{"$ref":"#/$defs/pins"}}}}],
+        "$defs":{"plain":{"type":"object","properties":{"label":{"type":"string"}}},
+        "group":{"type":"object","properties":{"label":{"type":"string"},"pin":{"type":"string","x-person-only":true}}},
+        "pins":{"type":"array","items":{"type":"string"},"x-person-only":true}}}
+        """);
+    ConnectorManifest manifest = ConnectorManifest.builder("sharedfake", "1", ConnectorManifest.Kind.BUILT_IN)
+        .name("Test shared definitions").configSchema(schema).build();
+    when(registry.type("sharedfake")).thenReturn(Optional.of(new ConnectorType(manifest, true, true)));
+    when(registry.manifest("sharedfake")).thenReturn(Optional.of(manifest));
+    return manifest;
+  }
+
+  private ObjectNode sharedDefinitionsManifest(JsonNode config) {
+    ObjectNode manifest = manifest();
+    ObjectNode candidate = (ObjectNode) manifest.path("connections").get(0);
+    candidate.put("type", "sharedfake");
+    candidate.set("config", config);
+    return manifest;
+  }
+
+  /** A config that holds one value at a pointer template, every {@code *} standing for the first array element. */
+  private JsonNode holding(String template) {
+    JsonNode value = json.readTree("\"0000\"");
+    String[] parts = template.substring(1).split("/", -1);
+    for (int i = parts.length - 1; i >= 0; i--) {
+      String part = parts[i].replace("~1", "/").replace("~0", "~");
+      if ("*".equals(part)) {
+        value = json.createArrayNode().add(value);
+      } else {
+        ObjectNode object = json.createObjectNode();
+        object.set(part, value);
+        value = object;
+      }
+    }
+    return value;
   }
 }

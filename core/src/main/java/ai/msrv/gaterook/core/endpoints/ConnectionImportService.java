@@ -824,6 +824,11 @@ public class ConnectionImportService {
         for (ConnectionForms.SecretField field : ConnectionForms.secretFields(connector.configSchema())) {
           rejectSecretField(config, field.pointer().split("/", -1), 1);
         }
+        // The settings connection_import_schema lists as personOnlyFields are the settings refused here, wherever the
+        // schema defines their mark (the walk of validateConfig sees only a mark on the property's own definition).
+        for (String template : ConnectionForms.personOnlyFields(connector.configSchema())) {
+          rejectPersonOnlyField(config, template, template.split("/", -1), 1);
+        }
       }
       ObjectNode entry = (ObjectNode) candidate.deepCopy();
       entry.set("evidence", texts(candidate.path("evidence"), 20, 512));
@@ -926,13 +931,8 @@ public class ConnectionImportService {
         if (definitions.stream().anyMatch(s -> s.path("writeOnly").asBoolean(false))) {
           throw invalid("Do not include credential fields in config. Use credentialHints.", "/manifest");
         }
-        if (definitions.stream().anyMatch(PersonOnly::isMarked)) {
-          // A trusted host key, certificate, cluster or credential command stands for the person's own decision, and an
-          // opt-in to a local command is theirs to make: the person sets them in GateRook, never a proposal.
-          throw invalid("Leave " + path + "/" + property.getKey() + " out of config. It records a decision that only "
-              + "the person makes in GateRook (Test connection, then Trust) or turns on a local command; the person "
-              + "sets it there.", "/manifest");
-        }
+        // An early exit that names the setting as the agent wrote it; rejectPersonOnlyField is the authority.
+        if (definitions.stream().anyMatch(PersonOnly::isMarked)) throw personOnly(path + "/" + property.getKey());
         ObjectNode union = JsonNodeFactory.instance.objectNode();
         union.putArray("anyOf").addAll(definitions);
         validateConfig(property.getValue(), union, root, path + "/" + property.getKey(), depth + 1);
@@ -988,6 +988,26 @@ public class ConnectionImportService {
     String part = parts[index].replace("~1", "/").replace("~0", "~");
     if ("*".equals(part)) value.forEach(child -> rejectSecretField(child, parts, index + 1));
     else rejectSecretField(value.path(part), parts, index + 1);
+  }
+
+  /** A setting only the person makes, with any value (null, false or empty too): a proposal cannot hold it. */
+  private static void rejectPersonOnlyField(JsonNode value, String template, String[] parts, int index) {
+    if (index == parts.length) {
+      if (!value.isMissingNode()) throw personOnly(template);
+      return;
+    }
+    String part = parts[index].replace("~1", "/").replace("~0", "~");
+    if ("*".equals(part)) value.forEach(child -> rejectPersonOnlyField(child, template, parts, index + 1));
+    else rejectPersonOnlyField(value.path(part), template, parts, index + 1);
+  }
+
+  /**
+   * A trusted host key, certificate, cluster or credential command stands for the person's own decision, and an opt-in
+   * to a local command is theirs to make: the person sets them in GateRook, never a proposal.
+   */
+  private static ProblemException personOnly(String pointer) {
+    return invalid("Leave " + pointer + " out of config. It records a decision that only the person makes in GateRook "
+        + "(Test connection, then Trust) or turns on a local command; the person sets it there.", "/manifest");
   }
 
   private static boolean pointerMatches(String template, String field) {
