@@ -1,16 +1,24 @@
 package ai.msrv.gaterook.connectors.mongodb;
 
+import com.mongodb.MongoClientException;
 import com.mongodb.MongoConfigurationException;
 import com.mongodb.MongoException;
 import com.mongodb.MongoExecutionTimeoutException;
 import com.mongodb.MongoIncompatibleDriverException;
 import com.mongodb.MongoInterruptedException;
+import com.mongodb.MongoNodeIsRecoveringException;
+import com.mongodb.MongoNotPrimaryException;
 import com.mongodb.MongoOperationTimeoutException;
 import com.mongodb.MongoSecurityException;
 import com.mongodb.MongoServerException;
 import com.mongodb.MongoSocketException;
+import com.mongodb.MongoSocketOpenException;
 import com.mongodb.MongoSocketReadTimeoutException;
+import com.mongodb.MongoSocketWriteException;
+import com.mongodb.MongoSocketWriteTimeoutException;
 import com.mongodb.MongoTimeoutException;
+import com.mongodb.MongoWriteConcernException;
+import com.mongodb.MongoWriteException;
 import com.mongodb.client.MongoClient;
 import com.mongodb.connection.ClusterDescription;
 import com.mongodb.connection.ServerDescription;
@@ -21,6 +29,7 @@ import java.net.NoRouteToHostException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.Locale;
+import java.util.Set;
 import javax.net.ssl.SSLException;
 
 /**
@@ -29,8 +38,20 @@ import javax.net.ssl.SSLException;
  * of a server's monitor or of the SRV lookup — so that is where the text comes from. Connection problems are
  * {@code RESOURCE_UNAVAILABLE} (they count for the circuit breaker), a query the server refused is
  * {@code RESOURCE_ERROR} with the server's own words, {@code maxTimeMS} is {@code TIMEOUT}.
+ *
+ * <p>An update is different once it may have reached the server ({@link #update}): a lost connection, a missing
+ * answer, an interrupted wait, a failover or a write concern error then leave it possibly applied, so the call is
+ * {@code OUTCOME_UNKNOWN} and says to check the documents. The core never runs such a request again, and the agent
+ * is not told that the server was merely unreachable. Only failures that provably happen before the request leaves
+ * the client stay ordinary errors.
  */
 final class MongoErrors {
+
+  /**
+   * Server errors that stop a command while it runs ({@code Interrupted}, {@code ExceededTimeLimit},
+   * {@code MaxTimeMSExpired}): an update stopped by one may have changed documents before.
+   */
+  private static final Set<Integer> STOPPED_WHILE_RUNNING = Set.of(11601, 262, 50);
 
   private MongoErrors() {}
 
@@ -121,6 +142,78 @@ final class MongoErrors {
         null);
   }
 
+  /**
+   * A failed update ({@code mongo_update} when {@code many} is false, {@code mongo_update_many} when it is true): an
+   * update that may have changed documents is {@code OUTCOME_UNKNOWN}, any other failure is what {@link #call} says.
+   */
+  static ConnectorException update(MongoException e, String connection, MongoSettings s, MongoClient client,
+      boolean many) {
+    String what = mayHaveApplied(e, many);
+    if (what == null) {
+      return call(e, connection, s, client);
+    }
+    return ConnectorException.outcomeUnknown("Outcome unknown: " + what.replace("{connection}", connection)
+        + " It may have changed documents; read them before retrying.", e);
+  }
+
+  /**
+   * How an update that failed may still have changed documents ({@code {connection}} stands for the connection's
+   * name), or {@code null} when it can't have: it never left the client, or the server refused it before changing
+   * anything.
+   */
+  static String mayHaveApplied(MongoException e, boolean many) {
+    if (e instanceof MongoOperationTimeoutException) {
+      // The call's own deadline: call() reports a TIMEOUT whose text says the update may have applied, and the core
+      // treats a timed-out approved call as one whose outcome is unknown.
+      return null;
+    }
+    if (neverSent(e)) {
+      return null;
+    }
+    if (e instanceof MongoWriteConcernException wc) {
+      return "MongoDB applied the update on {connection} but couldn't confirm it with its replicas ("
+          + firstLine(wc.getWriteConcernError() == null ? wc.getMessage() : wc.getWriteConcernError().getMessage())
+          + "), so it may not last.";
+    }
+    if (e instanceof MongoNotPrimaryException || e instanceof MongoNodeIsRecoveringException) {
+      return "the server of {connection} stopped being the primary or shut down during the update ("
+          + errorMessage((MongoServerException) e) + ").";
+    }
+    if (e instanceof MongoWriteException w) {
+      // One document changes atomically or not at all; updateMany changes them one after the other and stops at the
+      // first error, keeping what it changed before.
+      return many ? "MongoDB stopped updating on {connection} at an error: " + firstLine(w.getError().getMessage())
+          + " (code " + w.getError().getCode() + "). Documents it changed before the error stay changed." : null;
+    }
+    if (e instanceof MongoServerException server) {
+      return STOPPED_WHILE_RUNNING.contains(server.getCode()) ? "MongoDB stopped the update on {connection} while it "
+          + "ran (" + errorMessage(server) + ")." : null;
+    }
+    if (e instanceof MongoExecutionTimeoutException) {
+      return "MongoDB stopped the update on {connection} at its time limit while it ran.";
+    }
+    if (e instanceof MongoInterruptedException) {
+      return "the call was stopped while the update on {connection} was running.";
+    }
+    if (e instanceof MongoSocketReadTimeoutException) {
+      return "{connection} didn't answer the update in time.";
+    }
+    if (e instanceof MongoSocketException) {
+      return "the connection to {connection} was lost after the update was sent, before MongoDB answered.";
+    }
+    return "the update on {connection} failed after it was sent: " + firstLine(e.getMessage());
+  }
+
+  /**
+   * Failures that happen before an operation's request leaves the client: no server or no free connection was found,
+   * a connection couldn't be opened or authenticated, the client couldn't be built, or the request couldn't be written
+   * in full (a server acts only on a whole message).
+   */
+  private static boolean neverSent(MongoException e) {
+    return e instanceof MongoClientException || e instanceof MongoSocketOpenException
+        || e instanceof MongoSocketWriteException || e instanceof MongoSocketWriteTimeoutException;
+  }
+
   /** A failed Test connection. */
   static TestResult test(Throwable e, MongoSettings s, MongoClient client) {
     Reason r = connection(e, s, client);
@@ -183,6 +276,11 @@ final class MongoErrors {
     if (e instanceof com.mongodb.MongoCommandException c && c.getErrorMessage() != null
         && !c.getErrorMessage().isBlank()) {
       return firstLine(c.getErrorMessage());
+    }
+    if (e instanceof MongoWriteException w && w.getError() != null && w.getError().getMessage() != null
+        && !w.getError().getMessage().isBlank()) {
+      // The server's words, without the driver's wrapper around them (which names the server's address).
+      return firstLine(w.getError().getMessage());
     }
     return firstLine(e.getMessage());
   }

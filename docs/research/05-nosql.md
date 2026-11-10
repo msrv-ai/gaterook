@@ -9,7 +9,9 @@
 environment. Both require an explicit filter and accept update operators or an update pipeline, optional
 `upsert`, and `arrayFilters` for operator updates. Preparation performs no writes; execution uses the canonical
 approved payload, primary routing, acknowledged writes, and a bounded operation timeout without automatic write
-retries. Read document limits do not cap updates. Results report matched and modified counts and an upserted ID.
+retries. An update that may have reached the server and failed without a definite answer (a lost connection, a
+missing reply, an interrupted wait, a failover, a write concern error, or an error part-way through
+`mongo_update_many`) is reported as outcome unknown and never run again. Read document limits do not cap updates. Results report matched and modified counts and an upserted ID.
 The namespace and server-side JavaScript restrictions still apply, and aggregate write stages remain refused.
 Credentials need update privileges for these tools. The original read-only research decision and experiments
 below describe the earlier scope.

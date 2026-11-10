@@ -339,7 +339,9 @@ public final class MongoConnector implements Connector {
       try {
         return run(client, call.tool(), cfg, s, args, n, (int) maxTime, limits, ctx);
       } catch (MongoException e) {
-        throw MongoErrors.call(e, cfg.name(), s, client);
+        // An update that may have reached the server is an unknown outcome, never "unreachable".
+        throw args instanceof MongoArgs.Update u ? MongoErrors.update(e, cfg.name(), s, client, u.many())
+            : MongoErrors.call(e, cfg.name(), s, client);
       }
     } catch (MongoException | IllegalArgumentException e) {
       // The client couldn't be built: the connection string (its TXT lookup) or the TLS settings.

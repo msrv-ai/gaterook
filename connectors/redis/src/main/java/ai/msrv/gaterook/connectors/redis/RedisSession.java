@@ -58,10 +58,19 @@ final class RedisSession implements AutoCloseable {
     }
   }
 
-  /** A write is never retried: losing its reply does not mean Redis did not apply it. */
+  /**
+   * A write is never retried: losing its reply does not mean Redis did not apply it, so a connection that fails once
+   * the write was sent is an unknown outcome ({@code OUTCOME_UNKNOWN}: the core never runs the request again, and the
+   * circuit breaker doesn't count it). A connection that served an earlier call is checked with a {@code PING} first,
+   * which {@link #call} replaces once if it went stale, so that a dead pooled socket is an ordinary failure before
+   * anything was written rather than an unknown outcome.
+   */
   Object write(RedisWrite write) throws ConnectorException {
     if (aborted) {
       throw ConnectorException.timeout("The call was stopped before the write was sent.");
+    }
+    if (reused && !sentAny) {
+      call(Cmd.PING);
     }
     RedisCommandExecutor writer = new RedisCommandExecutor(connection, RedisCommandExecutor.Mode.WRITES, clock,
         deadline, pool.settings.commandTimeoutMs());
@@ -71,8 +80,8 @@ final class RedisSession implements AutoCloseable {
           BuilderFactory.RAW_OBJECT));
     } catch (JedisConnectionException e) {
       abort();
-      throw new ConnectorException(RedisErrors.of(e, pool.settings).kind(),
-          "Redis did not confirm the write; it may have been applied. Read the key before retrying.", e);
+      throw ConnectorException.outcomeUnknown("Outcome unknown: Redis did not confirm the write on "
+          + pool.settings.hostPort() + "; it may have been applied. Read the key before retrying.", e);
     }
   }
 

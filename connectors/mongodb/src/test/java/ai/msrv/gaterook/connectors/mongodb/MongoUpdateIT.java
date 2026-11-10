@@ -17,6 +17,7 @@ import java.util.List;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -202,6 +203,73 @@ class MongoUpdateIT {
           assertThat(e.getMessage()).contains("not authorized");
         });
     assertThat(documents()).extracting(d -> d.getString("status")).containsExactly("pending", "pending", "shipped");
+  }
+
+  /** The next update command this server receives fails as {@code data} says (a fail point of test servers). */
+  private static void failNextUpdate(Document data) {
+    try (MongoClient root = mongod.root()) {
+      root.getDatabase("admin").runCommand(new Document("configureFailPoint", "failCommand")
+          .append("mode", new Document("times", 1)).append("data", data.append("failCommands", List.of("update"))));
+    }
+  }
+
+  @AfterEach
+  void noFailPoint() {
+    try (MongoClient root = mongod.root()) {
+      root.getDatabase("admin").runCommand(new Document("configureFailPoint", "failCommand").append("mode", "off"));
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"mongo_update", "mongo_update_many"})
+  void anUpdateTheServerAppliedButCouldNotConfirmIsAnUnknownOutcome(String tool) {
+    // The server runs the update, then answers with a write concern error instead of a plain success.
+    failNextUpdate(new Document("writeConcernError", new Document("code", 79).append("errmsg", "no such write "
+        + "concern mode")));
+
+    assertThatThrownBy(() -> run(tool, "{\"filter\":{\"_id\":1},\"update\":{\"$inc\":{\"count\":10}}}"))
+        .isInstanceOfSatisfying(ConnectorException.class, e -> {
+          assertThat(e.kind()).isEqualTo(ConnectorException.Kind.OUTCOME_UNKNOWN);
+          assertThat(e.getMessage()).startsWith("Outcome unknown: MongoDB applied the update on update-mongo-gw_rw "
+              + "but couldn't confirm it").endsWith("read them before retrying.");
+        });
+    assertThat(documents().getFirst().getInteger("count")).as("the update did apply").isEqualTo(11);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"mongo_update", "mongo_update_many"})
+  void anUpdateWhoseConnectionClosedBeforeTheAnswerIsAnUnknownOutcome(String tool) {
+    // The server drops the connection when the update arrives: the client can't tell whether it ran.
+    failNextUpdate(new Document("closeConnection", true));
+
+    assertThatThrownBy(() -> run(tool, "{\"filter\":{\"_id\":1},\"update\":{\"$inc\":{\"count\":10}}}"))
+        .isInstanceOfSatisfying(ConnectorException.class, e -> {
+          assertThat(e.kind()).isEqualTo(ConnectorException.Kind.OUTCOME_UNKNOWN);
+          assertThat(e.getMessage()).startsWith("Outcome unknown: the connection to update-mongo-gw_rw was lost "
+              + "after the update was sent").doesNotContain("can't be reached");
+        });
+  }
+
+  @Test
+  void anUpdateManyThatStopsAtAnErrorKeepsWhatItChangedAndSaysSo() throws Exception {
+    try (MongoClient root = mongod.root()) {
+      root.getDatabase("orders").getCollection(COLLECTION).updateOne(new Document("_id", 3),
+          new Document("$set", new Document("count", "three")));
+    }
+
+    assertThatThrownBy(() -> run("mongo_update_many", "{\"filter\":{\"_id\":{\"$in\":[1,2,3]}},"
+        + "\"update\":{\"$inc\":{\"count\":10}}}"))
+        .isInstanceOfSatisfying(ConnectorException.class, e -> {
+          assertThat(e.kind()).isEqualTo(ConnectorException.Kind.OUTCOME_UNKNOWN);
+          assertThat(e.getMessage()).contains("Documents it changed before the error stay changed.");
+        });
+    assertThat(documents()).extracting(d -> d.get("count")).containsExactly(11, 12, "three");
+
+    assertThatThrownBy(() -> run("mongo_update", "{\"filter\":{\"_id\":3},\"update\":{\"$inc\":{\"count\":10}}}"))
+        .as("one document changes atomically or not at all")
+        .isInstanceOfSatisfying(ConnectorException.class,
+            e -> assertThat(e.kind()).isEqualTo(ConnectorException.Kind.RESOURCE_ERROR));
+    assertThat(documents()).extracting(d -> d.get("count")).containsExactly(11, 12, "three");
   }
 
   @Test
