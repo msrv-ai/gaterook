@@ -148,20 +148,19 @@ final class MongoErrors {
    */
   static ConnectorException update(MongoException e, String connection, MongoSettings s, MongoClient client,
       boolean many) {
-    String what = mayHaveApplied(e, many);
+    String what = mayHaveApplied(e, many, connection);
     if (what == null) {
       return call(e, connection, s, client);
     }
-    return ConnectorException.outcomeUnknown("Outcome unknown: " + what.replace("{connection}", connection)
+    return ConnectorException.outcomeUnknown("Outcome unknown: " + what
         + " It may have changed documents; read them before retrying.", e);
   }
 
   /**
-   * How an update that failed may still have changed documents ({@code {connection}} stands for the connection's
-   * name), or {@code null} when it can't have: it never left the client, or the server refused it before changing
-   * anything.
+   * How an update on {@code connection} that failed may still have changed documents, or {@code null} when it can't
+   * have: it never left the client, or the server refused it before changing anything.
    */
-  static String mayHaveApplied(MongoException e, boolean many) {
+  static String mayHaveApplied(MongoException e, boolean many, String connection) {
     if (e instanceof MongoOperationTimeoutException) {
       // The call's own deadline: call() reports a TIMEOUT whose text says the update may have applied, and the core
       // treats a timed-out approved call as one whose outcome is unknown.
@@ -171,37 +170,38 @@ final class MongoErrors {
       return null;
     }
     if (e instanceof MongoWriteConcernException wc) {
-      return "MongoDB applied the update on {connection} but couldn't confirm it with its replicas ("
+      return "MongoDB applied the update on " + connection + " but couldn't confirm it with its replicas ("
           + firstLine(wc.getWriteConcernError() == null ? wc.getMessage() : wc.getWriteConcernError().getMessage())
           + "), so it may not last.";
     }
     if (e instanceof MongoNotPrimaryException || e instanceof MongoNodeIsRecoveringException) {
-      return "the server of {connection} stopped being the primary or shut down during the update ("
+      return "the server of " + connection + " stopped being the primary or shut down during the update ("
           + errorMessage((MongoServerException) e) + ").";
     }
     if (e instanceof MongoWriteException w) {
       // One document changes atomically or not at all; updateMany changes them one after the other and stops at the
       // first error, keeping what it changed before.
-      return many ? "MongoDB stopped updating on {connection} at an error: " + firstLine(w.getError().getMessage())
-          + " (code " + w.getError().getCode() + "). Documents it changed before the error stay changed." : null;
+      return many ? "MongoDB stopped updating on " + connection + " at an error: "
+          + firstLine(w.getError().getMessage()) + " (code " + w.getError().getCode() + "). Documents it changed "
+          + "before the error stay changed." : null;
     }
     if (e instanceof MongoServerException server) {
-      return STOPPED_WHILE_RUNNING.contains(server.getCode()) ? "MongoDB stopped the update on {connection} while it "
-          + "ran (" + errorMessage(server) + ")." : null;
+      return STOPPED_WHILE_RUNNING.contains(server.getCode()) ? "MongoDB stopped the update on " + connection
+          + " while it ran (" + errorMessage(server) + ")." : null;
     }
     if (e instanceof MongoExecutionTimeoutException) {
-      return "MongoDB stopped the update on {connection} at its time limit while it ran.";
+      return "MongoDB stopped the update on " + connection + " at its time limit while it ran.";
     }
     if (e instanceof MongoInterruptedException) {
-      return "the call was stopped while the update on {connection} was running.";
+      return "the call was stopped while the update on " + connection + " was running.";
     }
     if (e instanceof MongoSocketReadTimeoutException) {
-      return "{connection} didn't answer the update in time.";
+      return connection + " didn't answer the update in time.";
     }
     if (e instanceof MongoSocketException) {
-      return "the connection to {connection} was lost after the update was sent, before MongoDB answered.";
+      return "the connection to " + connection + " was lost after the update was sent, before MongoDB answered.";
     }
-    return "the update on {connection} failed after it was sent: " + firstLine(e.getMessage());
+    return "the update on " + connection + " failed after it was sent: " + firstLine(e.getMessage());
   }
 
   /**

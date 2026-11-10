@@ -73,8 +73,7 @@ class MongoUpdateOutcomeTest {
         ConnectorException out = update(e, many);
         assertThat(out.kind()).as(e.getClass().getSimpleName()).isEqualTo(ConnectorException.Kind.OUTCOME_UNKNOWN);
         assertThat(out.getMessage()).as(e.getClass().getSimpleName()).startsWith("Outcome unknown: ")
-            .contains("orders-db").endsWith("It may have changed documents; read them before retrying.")
-            .doesNotContain("{connection}");
+            .contains("orders-db").endsWith("It may have changed documents; read them before retrying.");
         assertThat(out.countsForCircuitBreaker()).isFalse();
       }
     }
