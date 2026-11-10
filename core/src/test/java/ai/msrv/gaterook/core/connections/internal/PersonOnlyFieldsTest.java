@@ -379,6 +379,63 @@ class PersonOnlyFieldsTest {
     assertThat(PersonOnlyFields.covering(schema, "credentials")).isEmpty();
   }
 
+  /**
+   * A name that holds a {@code /} or a {@code ~} is written escaped in a pointer ({@code ~1}, {@code ~0}) and read back
+   * unescaped: a mark on such a name is held and covered under its escaped pointer, as the templates name it, and a
+   * credential inside such a setting is covered by it.
+   */
+  @Test
+  void aMarkedNameWithASlashOrATildeIsHeldAndCoveredUnderItsEscapedPointer() {
+    JsonNode schema = JSON.readTree("""
+        {"type":"object","properties":{
+          "tls/pin~1":{"type":"string","x-person-only":true},
+          "a/b":{"type":"object","x-person-only":true,"properties":{"key":{"type":"string","writeOnly":true}}},
+          "c~d":{"type":"object","properties":{"e/f":{"type":"string","x-person-only":true},"g":{"type":"string"}}}}}
+        """);
+    JsonNode config = JSON.readTree("""
+        {"tls/pin~1":"p","a/b":{"key":"k"},"c~d":{"e/f":"x","g":"y"}}
+        """);
+
+    assertThat(PersonOnlyFields.held(config, schema)).containsExactly(
+        new PersonOnlyFields.Held("/tls~1pin~01", "/tls~1pin~01"), new PersonOnlyFields.Held("/a~1b", "/a~1b"),
+        new PersonOnlyFields.Held("/c~0d/e~1f", "/c~0d/e~1f"));
+    assertThat(PersonOnlyFields.templates(schema)).containsExactly("/a~1b", "/c~0d/e~1f", "/tls~1pin~01");
+    assertThat(PersonOnlyFields.covering(schema, "/tls~1pin~01")).contains("/tls~1pin~01");
+    assertThat(PersonOnlyFields.covering(schema, "/a~1b/key")).contains("/a~1b");
+    assertThat(PersonOnlyFields.covering(schema, "/c~0d/e~1f")).contains("/c~0d/e~1f");
+    assertThat(PersonOnlyFields.covering(schema, "/c~0d/g")).isEmpty();
+    // The name as it is, unescaped, is no pointer of it: "/a/b/key" names a property "a" that the schema lacks.
+    assertThat(PersonOnlyFields.covering(schema, "/a/b/key")).isEmpty();
+  }
+
+  /**
+   * A part of digits names an array item as much as a property, as {@link PersonOnlyFields#covering} takes it: a list
+   * given where the schema defines a marked property of that number (a parent without {@code "type"} lets a list
+   * through) is held at that item, since whoever reads {@code /slots/0} of the config gets it.
+   */
+  @Test
+  void aListGivenForNumberedPropertiesIsHeldAtTheMarkedNumber() {
+    JsonNode schema = JSON.readTree("""
+        {"type":"object","properties":{"slots":{"properties":{"0":{"type":"string","x-person-only":true},
+          "1":{"type":"string"}}}}}
+        """);
+
+    assertThat(PersonOnlyFields.held(JSON.readTree("{\"slots\":[\"x\",\"y\"]}"), schema))
+        .containsExactly(new PersonOnlyFields.Held("/slots/0", "/slots/0"));
+    assertThat(PersonOnlyFields.held(JSON.readTree("{\"slots\":{\"0\":\"x\",\"1\":\"y\"}}"), schema))
+        .containsExactly(new PersonOnlyFields.Held("/slots/0", "/slots/0"));
+    assertThat(PersonOnlyFields.held(JSON.readTree("{\"slots\":[null]}"), schema))
+        .containsExactly(new PersonOnlyFields.Held("/slots/0", "/slots/0"));
+    assertThat(PersonOnlyFields.covering(schema, "/slots/0")).contains("/slots/0");
+  }
+
+  /** The empty pointer is the whole config: covered when the schema marks its root, and not otherwise. */
+  @Test
+  void theEmptyPointerIsCoveredOnlyByAMarkedRoot() {
+    assertThat(PersonOnlyFields.covering(JSON.readTree("{\"x-person-only\":true}"), "")).contains("");
+    assertThat(PersonOnlyFields.covering(JSON.readTree(SHARE_SCHEMA), "")).isEmpty();
+  }
+
   /** A config that holds one value at a pointer template, every {@code *} standing for the first array element. */
   private static JsonNode holding(String template) {
     JsonNode value = JSON.readTree("\"0000\"");

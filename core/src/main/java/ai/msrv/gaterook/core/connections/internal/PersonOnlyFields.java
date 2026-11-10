@@ -31,7 +31,10 @@ public final class PersonOnlyFields {
   /** How far one value's definitions may unfold through branches and references. */
   private static final int MAX_UNFOLD_DEPTH = 32;
 
-  /** How many definitions a walk of {@link #held} or {@link #covering} may look at in all, more for a larger config. */
+  /**
+   * How many definitions one walk of {@link #held} or {@link #covering} may look at in all: the same bound for every
+   * config, which a larger config uses more of.
+   */
   private static final int MAX_WORK = 1_000_000;
 
   private PersonOnlyFields() {}
@@ -53,6 +56,8 @@ public final class PersonOnlyFields {
    * reference is followed as deep as the config nests, where a template stops after one round. An object where the
    * definitions give array items is also looked into as a list, each member as an item ({@code *} in its template):
    * whoever iterates the value reads its members so, and a schema without {@code "type": "array"} lets it through.
+   * Likewise a list where the definitions give numbered properties is looked into item by item, the number in the
+   * template: whoever reads {@code /slots/0} of the config gets the first item.
    *
    * @throws IllegalArgumentException when the schema unfolds into more than the walk looks at, or the config is too
    *     large to walk along it
@@ -192,10 +197,14 @@ public final class PersonOnlyFields {
           }
         }
       } else if (value.isArray()) {
-        List<JsonNode> next = items(here);
-        if (!next.isEmpty()) {
-          for (int i = 0; i < value.size(); i++) {
-            held(value.get(i), next, pointer + "/" + i, template + "/*", out);
+        // A part of digits names an array item or a property of that name, as covering takes it: a list given where
+        // the definitions name numbered properties (a parent without "type") is read so by whoever reads "/<n>".
+        List<JsonNode> items = items(here);
+        for (int i = 0; i < value.size(); i++) {
+          List<JsonNode> next = new ArrayList<>(property(here, String.valueOf(i)));
+          next.addAll(items);
+          if (!next.isEmpty()) {
+            held(value.get(i), next, pointer + "/" + i, template + (items.isEmpty() ? "/" + i : "/*"), out);
           }
         }
       }

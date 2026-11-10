@@ -34,9 +34,9 @@ import tools.jackson.databind.node.ObjectNode;
  * <p>Trust settings never travel: what a connector marks {@code x-person-only} (a trusted host key, certificate,
  * cluster or credential command, an account pin, the opt-in to run a local command) records a decision the person made
  * on one computer. An export leaves them out and says so; an import drops them from an entry that carries them (an
- * older GateRook exported them, and a file is untrusted input), whatever they hold, before any check, and the
- * connection becomes a disabled draft with one Setup required item per kind of decision. A credential of a trust
- * setting is neither shared nor asked for. None of the source's decisions is used, and no automatic check (the
+ * older GateRook exported them, and a file is untrusted input), whatever they hold, before its settings are checked,
+ * and the connection becomes a disabled draft with one Setup required item per kind of decision. A credential of a
+ * trust setting is neither shared nor asked for. None of the source's decisions is used, and no automatic check (the
  * import's preflight test, a health check) and no tool call reaches the connection until the person completes its
  * setup and enables it; they make their own decisions on this computer with Test connection and Trust, or in the
  * connection form. The entry's own warnings never decide any of this.
@@ -321,7 +321,7 @@ public class ConnectionShares {
     try { held = PersonOnlyFields.held(config, schema); }
     catch (IllegalArgumentException e) { throw tooComplex(); }
     // From the last to the first: removing an array item keeps the indexes of those before it.
-    for (int i = held.size() - 1; i >= 0; i--) leaveOut(config, held.get(i).pointer());
+    for (int i = held.size() - 1; i >= 0; i--) leaveOut(config, held.get(i));
     Set<String> kinds = new LinkedHashSet<>();
     held.forEach(setting -> kinds.add(setting.template()));
     return kinds;
@@ -338,13 +338,22 @@ public class ConnectionShares {
         + "trust settings.");
   }
 
-  private static void leaveOut(ObjectNode root, String pointer) {
+  /**
+   * Removes one trust setting. An item of a list of them ({@code *} in its template) is removed, and the others, trust
+   * settings too, move up; an item that a numbered property names is replaced by {@code null}, so that no later item
+   * moves into its place and is read as the trust setting.
+   */
+  private static void leaveOut(ObjectNode root, PersonOnlyFields.Held setting) {
+    String pointer = setting.pointer();
     if (pointer.isEmpty()) { root.removeAll(); return; }
     int slash = pointer.lastIndexOf('/');
     JsonNode parent = root.at(pointer.substring(0, slash));
     String key = SecretFields.unescape(pointer.substring(slash + 1));
     if (parent instanceof ObjectNode object) object.remove(key);
-    else if (parent instanceof ArrayNode array && key.matches("\\d+")) array.remove(Integer.parseInt(key));
+    else if (parent instanceof ArrayNode array && key.matches("\\d+")) {
+      if (setting.template().endsWith("/*")) array.remove(Integer.parseInt(key));
+      else array.set(Integer.parseInt(key), JsonNodeFactory.instance.nullNode());
+    }
   }
 
   /**

@@ -610,6 +610,72 @@ class ConnectionSharesTest {
   }
 
   /**
+   * A trust setting whose name holds a {@code /} or a {@code ~} is found under its escaped pointer, left out of an
+   * export and dropped from an import like any other, and a credential inside it stays with it.
+   */
+  @Test
+  void aTrustSettingWhoseNameHoldsASlashOrATildeIsLeftOutLikeAnyOther() {
+    register("namefake", JSON.readTree("""
+        {"type":"object","properties":{"host":{"type":"string"},
+          "tls/pin~1":{"type":"string","x-person-only":true},
+          "a/b":{"type":"object","x-person-only":true,"properties":{"cert":{"type":"string"},
+            "key":{"type":"string","writeOnly":true}}},
+          "password":{"type":"string","writeOnly":true}}}
+        """), true);
+    JsonNode config = JSON.readTree("""
+        {"host":"db.example.test","tls/pin~1":"pin-slash-7f3a","a/b":{"cert":"cert-slash-7f3a"}}
+        """);
+    JsonNode portable = JSON.readTree("{\"host\":\"db.example.test\"}");
+    stored("c-names", "namefake", config, Map.of("/a~1b/key", "sec_ab", "/password", "sec_pw"));
+
+    ObjectNode exported = shares.export("c-names", false);
+
+    assertThat(exported.path("config")).isEqualTo(portable);
+    assertThat(exported.toString()).doesNotContain("pin-slash-7f3a", "cert-slash-7f3a");
+    assertThat(exported.path("omittedSecretFields")).isEqualTo(JSON.readTree("[\"/password\"]"));
+    assertThat(exported.path("warnings")).hasSize(1);
+    assertThat(exported.path("warnings").get(0).asString()).isEqualTo(exportWarning("/tls~1pin~01, /a~1b"));
+    verify(secrets, never()).get("sec_ab");
+
+    ObjectNode older = entry("namefake", config,
+        JSON.readTree("{\"/a~1b/key\":\"key-slash-7f3a\",\"/password\":\"pw-shared-0123\"}"));
+    older.set("omittedSecretFields", JSON.readTree("[\"/a~1b/key\"]"));
+    assertThat(shares.previewConfig(older)).isEqualTo(portable);
+    assertThat(shares.secretCount(older)).isEqualTo(1);
+    assertThat(shares.omittedSecretFields(older)).isEmpty();
+    assertThat(shares.trustNote(older)).contains(reviewNote("/tls~1pin~01, /a~1b"));
+    ConnectionShares.Prepared prepared = shares.prepareImport(older, true, new HashSet<>());
+    assertThat(prepared.config()).isEqualTo(portable);
+    assertThat(prepared.secrets()).containsOnlyKeys("/password");
+    assertThat(prepared.missing()).containsExactly(setupItem("/tls~1pin~01"), setupItem("/a~1b"));
+  }
+
+  /**
+   * A list given where the schema defines a marked property of a number: the item at that number is the trust setting.
+   * It is left out as null, so that no later item moves into its place and is read as the trust setting.
+   */
+  @Test
+  void aListGivenForNumberedTrustSettingsKeepsThePlaceOfTheOneLeftOut() {
+    register("slotfake", JSON.readTree("""
+        {"type":"object","properties":{"host":{"type":"string"},
+          "slots":{"properties":{"0":{"type":"string","x-person-only":true},"1":{"type":"string"}}}}}
+        """), true);
+    JsonNode config = JSON.readTree("{\"host\":\"db.example.test\",\"slots\":[\"slot-pin-7f3a\",\"plain\"]}");
+    JsonNode portable = JSON.readTree("{\"host\":\"db.example.test\",\"slots\":[null,\"plain\"]}");
+    stored("c-slots", "slotfake", config, Map.of());
+
+    ObjectNode exported = shares.export("c-slots", false);
+
+    assertThat(exported.path("config")).isEqualTo(portable);
+    assertThat(exported.path("warnings").get(0).asString()).isEqualTo(exportWarning("/slots/0"));
+
+    ConnectionShares.Prepared prepared = shares.prepareImport(entry("slotfake", config, JSON.createObjectNode()), true,
+        new HashSet<>());
+    assertThat(prepared.config()).isEqualTo(portable);
+    assertThat(prepared.missing()).containsExactly(setupItem("/slots/0"));
+  }
+
+  /**
    * A connector schema too complex to check for trust settings is refused with a 422, wherever an export, a review or
    * an import meets it: in a value of the config, and in the place of a stored or shared credential.
    */
