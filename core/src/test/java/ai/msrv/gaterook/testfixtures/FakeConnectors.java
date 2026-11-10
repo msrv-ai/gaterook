@@ -564,6 +564,10 @@ public class FakeConnectors {
     public Classification classify(ToolCall call, ConnectionConfig cfg, PolicyView policy) {
       String statement = call.string("sql") == null ? "" : call.string("sql").strip().toUpperCase(
           java.util.Locale.ROOT);
+      if (statement.contains("NESTED_TOO_DEEP(")) {
+        // What a connector's parser can do on arguments nested deeper than its stack allows.
+        throw new StackOverflowError();
+      }
       if (call.tool().startsWith("sql_") && (statement.startsWith("DROP") || statement.startsWith("TRUNCATE"))
           && policy != null && policy.flag("denyDdl", false)) {
         return Classification.deny(policy.rule("block_ddl"), "DDL is not allowed on " + policy.env().id(), null);

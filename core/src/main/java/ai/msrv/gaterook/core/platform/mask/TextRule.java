@@ -18,13 +18,32 @@ import java.util.regex.Pattern;
  *                 ({@code postgres://app:‹masked›@db})
  * @param before   how far before a literal a match may start
  * @param after    how far after a literal's start a match may end
+ * @param toWindowEnd whether {@code \z} in the pattern also matches at the end of the literal's window, not only at
+ *                 the end of the text: a value whose end lies beyond the window is then masked to the window's end
+ *                 instead of not at all ({@link #toWindowEnd})
  */
-public record TextRule(String id, List<String> literals, Pattern pattern, int group, int before, int after) {
+public record TextRule(String id, List<String> literals, Pattern pattern, int group, int before, int after,
+    boolean toWindowEnd) {
 
   /** What {@code byRule} reports for the windows masked whole because the value's work budget was spent. */
   static final String WORK_LIMIT = "work-limit";
 
   public static TextRule of(String id, String regex, int group, int before, int after, String... literals) {
+    return create(id, regex, group, before, after, false, literals);
+  }
+
+  /**
+   * A rule whose {@code \z} stands for the end of its literal's window as well as the end of the text, for values with
+   * a closing delimiter that may be missing or lie beyond the window: such a value is masked to the window's end. The
+   * pattern must use no other anchor ({@code ^}, {@code $}, {@code \A}, {@code \Z}), since those would then match at
+   * the window's edges too.
+   */
+  public static TextRule toWindowEnd(String id, String regex, int group, int before, int after, String... literals) {
+    return create(id, regex, group, before, after, true, literals);
+  }
+
+  private static TextRule create(String id, String regex, int group, int before, int after, boolean toWindowEnd,
+      String... literals) {
     if (literals.length == 0) {
       throw new IllegalArgumentException("A rule needs at least one literal: " + id);
     }
@@ -33,7 +52,7 @@ public record TextRule(String id, List<String> literals, Pattern pattern, int gr
         throw new IllegalArgumentException("Prefilter literals are lower case: " + literal);
       }
     }
-    return new TextRule(id, List.of(literals), Pattern.compile(regex), group, before, after);
+    return new TextRule(id, List.of(literals), Pattern.compile(regex), group, before, after, toWindowEnd);
   }
 
   /**
@@ -54,7 +73,7 @@ public record TextRule(String id, List<String> literals, Pattern pattern, int gr
     }
     Matcher m = pattern.matcher(work);
     m.useTransparentBounds(true);
-    m.useAnchoringBounds(false);
+    m.useAnchoringBounds(toWindowEnd);
     // The last secret found and the one reaching furthest: what a later literal's match may find again.
     int lastFrom = -1;
     int lastTo = -1;

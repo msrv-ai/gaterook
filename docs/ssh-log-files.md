@@ -105,7 +105,7 @@ Find warnings or errors matching either phrase, without case sensitivity, across
 }
 ```
 
-Pass this to `ssh_logs_search`. `matchMode` defaults to `literal`; regex uses [RE2/J syntax](https://github.com/google/re2j), including alternation, grouping, character classes and anchors. Backreferences and look-around are unsupported. Levels accept common aliases such as `WARN` and `WARNING`.
+Pass this to `ssh_logs_search`. `matchMode` defaults to `literal`; regex uses [RE2/J syntax](https://github.com/google/re2j), including alternation, grouping, character classes and anchors. Backreferences and look-around are unsupported. An expression whose counted repetitions expand to more than 10,000 steps once compiled, typically counts nested inside other counts such as `(x{100}){100}`, is refused; this applies to file-name filters too. Levels accept common aliases such as `WARN` and `WARNING`.
 
 For every record in a period, omit `query` and `levels`:
 

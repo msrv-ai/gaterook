@@ -13,9 +13,14 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -46,7 +51,9 @@ import tools.jackson.databind.node.ObjectNode;
  *       {@link Options#strayLine} and skipped; the conversation goes on. A frame over the size limit ends it.</li>
  *   <li>Writes are whole frames under one lock, built in a buffer that is zeroed after the write; a
  *       {@link RawResult} writes a value (a secret) straight from its {@code char[]} and a {@link RawDecoder} reads
- *       one straight into a {@code char[]}, so neither becomes a {@code String} on the way.</li>
+ *       one straight into a {@code char[]}, so neither becomes a {@code String} on the way. With
+ *       {@link Options#writeTimeout} a writer thread writes them and no sender waits longer than that for the other
+ *       side to read (the core's side: a host that stops reading can't hold the core).</li>
  * </ul>
  */
 public final class JsonRpcPeer implements AutoCloseable {
@@ -158,9 +165,25 @@ public final class JsonRpcPeer implements AutoCloseable {
     private Consumer<String> strayLine = line -> {};
     private ThreadFactory requestThreads;
     private int maxIncoming = Integer.MAX_VALUE;
+    private Duration writeTimeout;
 
     public static Options defaults() {
       return new Options();
+    }
+
+    /**
+     * How long one frame may wait for the other side to read it. Frames are then written by a writer thread of the
+     * peer, in order, and the sender waits at most this long: a frame that isn't written in time fails with
+     * {@link PeerClosedException}, and so does every later one, since the other side stopped reading. The write that
+     * waits ends with the stream (when the other process is stopped). Without it a write waits as long as the other
+     * side takes, holding every other sender behind it.
+     */
+    public Options writeTimeout(Duration value) {
+      if (value == null || value.isNegative() || value.isZero()) {
+        throw new IllegalArgumentException("writeTimeout is positive");
+      }
+      writeTimeout = value;
+      return this;
     }
 
     /**
@@ -278,7 +301,13 @@ public final class JsonRpcPeer implements AutoCloseable {
   private final AtomicInteger inFlight = new AtomicInteger();
   private final Object idle = new Object();
   private final CompletableFuture<Throwable> closed = new CompletableFuture<>();
+  /** No frame is accepted any more: the output was closed, failed, or the other side stopped reading. */
   private volatile boolean outputClosed;
+  /** The stream itself was closed or failed: guarded by {@link #writeLock}. */
+  private boolean streamClosed;
+  /** Writes the frames when {@link Options#writeTimeout} is set, else {@code null} (the sender writes). */
+  private final ThreadPoolExecutor writer;
+  private final AtomicBoolean closing = new AtomicBoolean();
 
   public JsonRpcPeer(InputStream in, OutputStream out, Handler handler, Options options) {
     this.in = Objects.requireNonNull(in, "in");
@@ -288,6 +317,15 @@ public final class JsonRpcPeer implements AutoCloseable {
     this.reader = new FrameReader(in, options.maxFrameBytes);
     this.requestThreads = options.requestThreads != null ? options.requestThreads
         : Thread.ofVirtual().name(options.name + "-call-", 0).factory();
+    if (options.writeTimeout == null) {
+      this.writer = null;
+    } else {
+      // A platform thread: one that waits on a stream nobody reads would hold a virtual thread's carrier. It ends
+      // after a while without frames, so a peer that is never closed leaves no thread behind.
+      this.writer = new ThreadPoolExecutor(1, 1, 30, TimeUnit.SECONDS, new LinkedBlockingQueue<>(),
+          Thread.ofPlatform().daemon().name(options.name + "-writer").factory());
+      this.writer.allowCoreThreadTimeOut(true);
+    }
   }
 
   /** Starts reading on a daemon platform thread. */
@@ -415,13 +453,40 @@ public final class JsonRpcPeer implements AutoCloseable {
     }
   }
 
-  /** Closes only the output: the other side sees EOF and may still answer what it is busy with. */
+  /**
+   * Closes only the output: the other side sees EOF and may still answer what it is busy with. With a
+   * {@link Options#writeTimeout} the frames accepted before are written first, and this waits for them no longer than
+   * that timeout: behind a frame the other side doesn't read, the stream closes when that write ends.
+   */
   public void closeOutput() {
-    synchronized (writeLock) {
-      if (outputClosed) {
-        return;
+    if (writer == null) {
+      synchronized (writeLock) {
+        if (outputClosed) {
+          return;
+        }
+        outputClosed = true;
+        closeStream();
       }
-      outputClosed = true;
+      return;
+    }
+    if (!closing.compareAndSet(false, true)) {
+      return;
+    }
+    outputClosed = true;
+    Future<?> done;
+    try {
+      done = writer.submit(this::closeStream);
+    } catch (RejectedExecutionException e) {
+      return;
+    } finally {
+      writer.shutdown();
+    }
+    awaitWrite(done, false);
+  }
+
+  private void closeStream() {
+    synchronized (writeLock) {
+      streamClosed = true;
       try {
         out.close();
       } catch (IOException e) {
@@ -677,25 +742,98 @@ public final class JsonRpcPeer implements AutoCloseable {
 
   private void send(Consumer<JsonGenerator> body) {
     WipedBuffer buffer = new WipedBuffer();
+    boolean handedOver = false;
     try {
       try (JsonGenerator g = GppJson.MAPPER.createGenerator(buffer)) {
         body.accept(g);
       }
       buffer.write('\n');
-      synchronized (writeLock) {
-        if (outputClosed) {
-          throw new PeerClosedException("The output is closed", null);
+      if (writer == null) {
+        synchronized (writeLock) {
+          if (outputClosed) {
+            throw new PeerClosedException("The output is closed", null);
+          }
+          write(buffer);
         }
+        return;
+      }
+      if (outputClosed) {
+        throw new PeerClosedException("The output is closed", null);
+      }
+      Future<?> written;
+      try {
+        written = writer.submit(() -> {
+          try {
+            synchronized (writeLock) {
+              write(buffer);
+            }
+          } finally {
+            buffer.wipe();
+          }
+        });
+      } catch (RejectedExecutionException e) {
+        throw new PeerClosedException("The output is closed", e);
+      }
+      handedOver = true;
+      awaitWrite(written, true);
+    } finally {
+      if (!handedOver) {
+        buffer.wipe();
+      }
+    }
+  }
+
+  /** Writes one frame; the caller holds {@link #writeLock}. */
+  private void write(WipedBuffer buffer) {
+    if (streamClosed) {
+      throw new PeerClosedException("The output is closed", null);
+    }
+    try {
+      out.write(buffer.bytes(), 0, buffer.size());
+      out.flush();
+    } catch (IOException e) {
+      outputClosed = true;
+      streamClosed = true;
+      throw new PeerClosedException("Can't write to the other side: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Waits up to {@link Options#writeTimeout} for the writer to finish {@code task}. An interrupt doesn't end the wait
+   * (the frame is written or not, as without a writer), it is kept for the caller. When the time is up and
+   * {@code fails}, the other side stopped reading: no frame is accepted any more, and this one fails.
+   */
+  private void awaitWrite(Future<?> task, boolean fails) {
+    long end = System.nanoTime() + options.writeTimeout.toNanos();
+    boolean interrupted = false;
+    try {
+      while (true) {
         try {
-          out.write(buffer.bytes(), 0, buffer.size());
-          out.flush();
-        } catch (IOException e) {
+          task.get(Math.max(0, end - System.nanoTime()), TimeUnit.NANOSECONDS);
+          return;
+        } catch (InterruptedException e) {
+          interrupted = true;
+        } catch (ExecutionException e) {
+          if (!fails) {
+            return;
+          }
+          if (e.getCause() instanceof PeerClosedException closedOutput) {
+            throw closedOutput;
+          }
+          throw new PeerClosedException("Can't write to the other side: " + e.getCause(), e.getCause());
+        } catch (TimeoutException e) {
           outputClosed = true;
-          throw new PeerClosedException("Can't write to the other side: " + e.getMessage(), e);
+          if (!fails) {
+            return;
+          }
+          throw new PeerClosedException("The other side read nothing for " + options.writeTimeout.toMillis()
+              + " ms: it no longer listens", null);
         }
       }
     } finally {
-      buffer.wipe();
+      if (interrupted) {
+        Thread.currentThread().interrupt();
+      }
     }
   }
 

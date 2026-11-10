@@ -190,7 +190,9 @@ public class ToolCallHandler {
     Classification classification;
     try {
       classification = connector.get().classify(call, cfg, engine.view(pair.view(), cfg));
-    } catch (RuntimeException e) {
+    } catch (RuntimeException | StackOverflowError e) {
+      // Refused below (core.classify-error) with its received row. A stack overflow, for example from arguments
+      // nested too deeply for a connector's parser, is this thread's own; other virtual-machine errors propagate.
       log.warn("classify of {} on {} failed: {}", name, cfg.name(), e.toString());
       classification = null;
     }

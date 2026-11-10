@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.TimeoutException;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
@@ -101,15 +102,15 @@ final class RemoteConnector implements Connector {
     // MIXED: the plugin decides per call (no secrets); a timeout is a safe DENY.
     try (PluginSupervisor.Permit permit = supervisor.permit(deadline(CLASSIFY_TIMEOUT))) {
       Messages.Classify params = new Messages.Classify(generation(), call, cfg, policy);
-      JsonNode result = permit.host().request(Gpp.CONNECTOR_CLASSIFY, params.write()).get(CLASSIFY_TIMEOUT);
-      permit.returned();
-      return WireCodec.classification(result);
+      JsonNode result = answer(permit, permit.host().request(Gpp.CONNECTOR_CLASSIFY, params.write()),
+          CLASSIFY_TIMEOUT);
+      return fromPlugin(WireCodec.classification(result), policy);
     } catch (TimeoutException e) {
       return Classification.deny(policy.rule("plugin-classify-timeout"), manifest.name() + " didn't classify "
           + call.tool() + " in time.", null);
     } catch (RpcException | ConnectorException e) {
       return Classification.deny(policy.rule("plugin-classify-failed"), manifest.name() + " couldn't classify "
-          + call.tool() + ": " + e.getMessage(), null);
+          + call.tool() + ": " + pluginText(e.getMessage()), null);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       return Classification.deny(policy.rule("plugin-classify-failed"), "The call was cancelled.", null);
@@ -120,13 +121,47 @@ final class RemoteConnector implements Connector {
     }
   }
 
+  /**
+   * A plugin's rule name after its namespace: up to 64 lower-case letters, digits, dashes, underscores and single dots
+   * between them ({@code clickhouse.read-only}).
+   */
+  private static final Pattern RULE_NAME = Pattern.compile("[a-z0-9](?:[a-z0-9_-]|\\.(?=[a-z0-9])){0,63}");
+
+  /** At most this many characters of what a plugin says in a classification (its reason, its hint). */
+  static final int MAX_PLUGIN_TEXT = 500;
+
+  /** The rule a plugin's classification names when its own id isn't a plain rule name. */
+  static final String UNNAMED_RULE = "plugin-rule";
+
+  /**
+   * A plugin's classification as the core passes it to the policy, the agent and the audit. Its rule id always lies in
+   * the plugin's own namespace, the prefix of the policy view it was given ({@code dev.jira-service-desk.}), so it
+   * can't pass for a rule of the core or of another connector ({@code core.integrity}, {@code prod.sql.block_ddl}):
+   * an id outside that prefix is put inside it, one that isn't a plain rule name becomes {@link #UNNAMED_RULE}. Its
+   * reason and hint get their invisible characters made visible and are clipped to {@link #MAX_PLUGIN_TEXT}.
+   */
+  static Classification fromPlugin(Classification said, PolicyView policy) {
+    String ruleId = said.ruleId();
+    if (ruleId != null) {
+      String prefix = policy.rulePrefix() + ".";
+      String name = ruleId.startsWith(prefix) ? ruleId.substring(prefix.length()) : ruleId;
+      ruleId = policy.rule(RULE_NAME.matcher(name).matches() ? name : UNNAMED_RULE);
+    }
+    return new Classification(said.kind(), ruleId, pluginText(said.reason()), pluginText(said.hint()), said.facts());
+  }
+
+  /** Text a plugin wrote, as the agent and the audit may see it: invisible characters shown, clipped. */
+  private static String pluginText(String text) {
+    return text == null ? null : clip(OutputSanitizer.sanitize(text), MAX_PLUGIN_TEXT);
+  }
+
   @Override
   public ActionPreview describeAction(ToolCall call, ConnectionConfig cfg) {
     ActionPreview described = null;
     try (PluginSupervisor.Permit permit = supervisor.permit(deadline(DESCRIBE_TIMEOUT))) {
       Messages.Describe params = new Messages.Describe(generation(), call, cfg);
-      JsonNode result = permit.host().request(Gpp.CONNECTOR_DESCRIBE_ACTION, params.write()).get(DESCRIBE_TIMEOUT);
-      permit.returned();
+      JsonNode result = answer(permit, permit.host().request(Gpp.CONNECTOR_DESCRIBE_ACTION, params.write()),
+          DESCRIBE_TIMEOUT);
       described = WireCodec.action(result);
     } catch (TimeoutException | RpcException | ConnectorException | InterruptedException | RuntimeException e) {
       if (e instanceof InterruptedException) {
@@ -192,8 +227,7 @@ final class RemoteConnector implements Connector {
           ctx.callId(), cfg.secretFields(), resolver, ctx, host.log())) {
         Messages.Test params = new Messages.Test(generation(), ctx.callId(), token.token(), cfg,
             remaining(ctx).toMillis(), ctx.limits(), egressGrant(cfg));
-        JsonNode result = host.request(method, params.write()).get(remaining(ctx));
-        permit.returned();
+        JsonNode result = answer(permit, host.request(method, params.write()), remaining(ctx));
         if (token.taintOverLimit()) {
           return TestResult.failure("plugin-error", manifest.name() + " sent more values to mask than a call may: "
               + "its answer isn't shown.", null);
@@ -229,8 +263,7 @@ final class RemoteConnector implements Connector {
             ctx.approvedPayload().orElse(null), ctx.limits(), ctx.traceId(), ctx.traceparent(), egressGrant(cfg));
         JsonRpcPeer.Call<JsonNode> pending = host.request(Gpp.CONNECTOR_EXECUTE, params.write());
         try {
-          JsonNode answer = pending.get(remaining(ctx));
-          permit.returned();
+          JsonNode answer = answer(permit, pending, remaining(ctx));
           if (token.taintOverLimit()) {
             // A value the plugin meant to mask may not be: the answer goes nowhere.
             throw ConnectorException.resourceError(manifest.name() + " sent more values to mask than a call may: "
@@ -349,6 +382,23 @@ final class RemoteConnector implements Connector {
 
   private Optional<ToolDefinition> tool(String name) {
     return manifest.tools().stream().filter(t -> t.name().equals(name)).findFirst();
+  }
+
+  /**
+   * The host's answer to {@code call}. An answer, an error answer included, tells the supervisor the host isn't stuck
+   * ({@link PluginSupervisor.Permit#returned}): only a call with no answer by its deadline counts toward replacing it,
+   * so calls that fail inside the plugin don't restart its host.
+   */
+  static JsonNode answer(PluginSupervisor.Permit permit, JsonRpcPeer.Call<JsonNode> call, Duration timeout)
+      throws RpcException, TimeoutException, InterruptedException {
+    try {
+      JsonNode result = call.get(timeout);
+      permit.returned();
+      return result;
+    } catch (RpcException e) {
+      permit.returned();
+      throw e;
+    }
   }
 
   private static Duration remaining(ExecContext ctx) {

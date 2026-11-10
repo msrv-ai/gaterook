@@ -90,6 +90,8 @@ public final class HostLauncher {
 
   /** Requests one host may have the core work on at once (secrets, handles); one more is busy at once. */
   static final int MAX_INCOMING = 64;
+  /** How long a frame to a host may wait for the host to read it: far beyond a host that reads at all. */
+  static final Duration WRITE_TIMEOUT = Duration.ofSeconds(10);
 
   /** The first stage that confines a host on Linux before its JVM starts. */
   static final String SANDBOX_EXEC = "ai.msrv.gaterook.pluginhost.SandboxExec";
@@ -332,10 +334,11 @@ public final class HostLauncher {
     pluginLog.note("Started plugin host for " + spec.generation() + ", pid " + pid
         + (sandbox == null ? " (not sandboxed on this system)" : " (" + sandbox + ")"));
 
-    // A host runs a plugin's code: what it may make the core do at once is bounded (review 2026-10-27).
+    // A host runs a plugin's code: what it may make the core do at once is bounded (review 2026-10-27), and one that
+    // stops reading its input can hold no thread of the core longer than the write timeout.
     JsonRpcPeer peer = new JsonRpcPeer(process.getInputStream(), process.getOutputStream(),
         new HostInbound(instance, secrets, handles, pluginLog), JsonRpcPeer.Options.defaults()
-            .name("host-" + spec.id()).maxIncoming(MAX_INCOMING)
+            .name("host-" + spec.id()).maxIncoming(MAX_INCOMING).writeTimeout(WRITE_TIMEOUT)
             .strayLine(line -> pluginLog.stderr("stdout(non-JSON): " + line)));
     HostProcess host = new HostProcess(spec.generation(), instance, process, peer, pluginLog, started);
     Thread.ofVirtual().name("host-stderr-" + spec.id()).start(() -> pumpStderr(process, pluginLog));

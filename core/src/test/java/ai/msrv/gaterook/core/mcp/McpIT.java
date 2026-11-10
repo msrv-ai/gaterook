@@ -750,6 +750,22 @@ class McpIT {
   }
 
   @Test
+  void aCallItsConnectorCannotClassifyIsRefusedWithItsAuditRow() {
+    // The fake connector's classification overflows its stack on this statement, as a parser can on deep nesting.
+    McpClient.Answer refused = prod.modernCall("sql_query", args("connection", "prod-db", "sql",
+        "SELECT nested_too_deep(1)"), false);
+
+    SpecSchemas.assertValid("2026-07-28", "CallToolResult", refused.result());
+    assertThat(refused.result().path("isError").asBoolean()).isTrue();
+    assertThat(refused.result().at("/content/0/text").asString())
+        .startsWith("Denied by policy core.classify-error: The call couldn't be classified, so it was not run.");
+    String callId = refused.result().at("/_meta/ai.msrv.gaterook~1callId").asString();
+    assertThat(core.jdbc().queryForList("select phase, decision, rule_id from tool_call where call_id = ?", callId))
+        .extracting(m -> m.get("phase") + ":" + m.get("decision") + ":" + m.get("rule_id"))
+        .containsExactly("received:denied:core.classify-error");
+  }
+
+  @Test
   void identicalCallsInParallelMakeOneRequest() throws Exception {
     McpClient agent = dev.as(core.bean(TokenService.class).issue("dev", "dup-agent", 7, null).token());
     String sql = "UPDATE orders SET status = 'dup' WHERE id = 77;";

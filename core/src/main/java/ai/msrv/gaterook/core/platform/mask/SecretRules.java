@@ -73,9 +73,12 @@ public final class SecretRules {
           "(?i)(?<![a-z0-9_-])(redis-cli(?:\\s+[^\\s;&|]+){0,20}?\\s+-a\\s+|mysql(?:admin|dump|sh)?(?:\\s+[^\\s;&|]+){0,20}?"
               + "\\s+(?-i:-p)|sshpass\\s+(?-i:-p)\\s*|--password\\s+)" + NOT_MASKED + "([^\\s\"';&|]{3,})", 2, 0, 1200,
           "redis-cli", "mysql", "sshpass", "--password"),
-      TextRule.of("sql-password",
+      // The quoted value is read in runs and possessively: java.util.regex would otherwise recurse once per character
+      // of it (a few thousand characters overflow a thread's stack). Never backing off changes nothing for a closed
+      // value; one whose closing quote is missing or lies beyond the window is masked to the window's end.
+      TextRule.toWindowEnd("sql-password",
           "(?i)(?<![a-z])(password|identified\\s+by)(\\s+|\\s*=\\s*)" + NOT_MASKED
-              + "('(?:[^']|'')*'|\"(?:[^\"]|\"\")*\")", 3, 0, 4200,
+              + "('(?:[^']++|'')*+(?:'|\\z)|\"(?:[^\"]++|\"\")*+(?:\"|\\z))", 3, 0, 4200,
           "password", "identified"));
 
   private static final Literals LITERALS = new Literals(ALL.stream().map(TextRule::literals).toList());

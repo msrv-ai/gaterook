@@ -3,9 +3,11 @@ package ai.msrv.gaterook.core.connectors.plugins;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ai.msrv.gaterook.connector.api.ActionPreview;
+import ai.msrv.gaterook.connector.api.Classification;
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.Env;
+import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.plugin.protocol.GppJson;
 import java.time.Clock;
@@ -67,6 +69,42 @@ class RemoteConnectorTest {
         "comment", "acme-jsm", null));
     assertThat(exact.fields().getFirst().label()).isEqualTo("Described by jira-service-desk 1.3.0, not verified");
     assertThat(exact.text()).isEqualTo("{}");
+  }
+
+  @Test
+  void aPluginsRuleIdsStayInItsOwnNamespace() {
+    PolicyView policy = new PolicyView(Env.DEV, "dev.jira-service-desk", GppJson.object(), null);
+
+    // Its own rules, named with the policy view it was given, keep their ids.
+    assertThat(RemoteConnector.fromPlugin(Classification.deny(policy.rule("sd.closed"), "Closed", null), policy)
+        .ruleId()).isEqualTo("dev.jira-service-desk.sd.closed");
+    // A rule of the core or of another connector is put inside the plugin's namespace: it can't pass for that rule.
+    for (String foreign : List.of("core.integrity", "prod.sql.block_ddl", "dev.endpoint.read-only")) {
+      assertThat(RemoteConnector.fromPlugin(Classification.deny(foreign, "Denied", null), policy).ruleId())
+          .as(foreign).isEqualTo("dev.jira-service-desk." + foreign);
+    }
+    // What isn't a plain rule name becomes one name for all of them.
+    for (String odd : List.of("", "Core Integrity", "core.integrity‮", "a..b", ".a", "x".repeat(65),
+        "dev.jira-service-desk.")) {
+      assertThat(RemoteConnector.fromPlugin(Classification.deny(odd, "Denied", null), policy).ruleId())
+          .as(odd).isEqualTo("dev.jira-service-desk." + RemoteConnector.UNNAMED_RULE);
+    }
+  }
+
+  @Test
+  void whatAPluginSaysInAClassificationIsShownAndClipped() {
+    PolicyView policy = new PolicyView(Env.DEV, "dev.jira-service-desk", GppJson.object(), null);
+
+    Classification change = RemoteConnector.fromPlugin(Classification.mutation("Changes ‮data"), policy);
+    Classification denied = RemoteConnector.fromPlugin(Classification.deny("dev.jira-service-desk.sd.closed",
+        "Closed " + "y".repeat(4_000), "Reopen it first\u0007"), policy);
+
+    assertThat(change.kind()).isEqualTo(Classification.Kind.MUTATION);
+    assertThat(change.ruleId()).isNull();
+    assertThat(change.reason()).isEqualTo("Changes \\u202Edata");
+    assertThat(denied.kind()).isEqualTo(Classification.Kind.DENY);
+    assertThat(denied.reason()).startsWith("Closed yyy").endsWith("…").hasSize(RemoteConnector.MAX_PLUGIN_TEXT);
+    assertThat(denied.hint()).startsWith("Reopen it first").doesNotContain("\u0007");
   }
 
   private static RemoteConnector connector(boolean signed) {

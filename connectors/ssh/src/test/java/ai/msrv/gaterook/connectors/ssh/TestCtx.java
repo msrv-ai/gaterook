@@ -189,6 +189,29 @@ final class TestCtx implements ExecContext {
     return this;
   }
 
+  private volatile boolean deadlinePassed;
+
+  /**
+   * The deadline passes once {@code records} values have been masked, as when masking and matching a block of log
+   * lines takes the call's remaining time: only a scan that looks at the deadline between lines notices it in time.
+   */
+  TestCtx deadlineAfterMasking(int records) {
+    java.util.concurrent.atomic.AtomicInteger seen = new java.util.concurrent.atomic.AtomicInteger();
+    java.util.function.UnaryOperator<JsonNode> before = masker;
+    masker = tree -> {
+      if (seen.incrementAndGet() >= records) {
+        deadlinePassed = true;
+      }
+      return before.apply(tree);
+    };
+    return this;
+  }
+
+  @Override
+  public Duration remaining() {
+    return deadlinePassed ? Duration.ZERO : ExecContext.super.remaining();
+  }
+
   @Override
   public Optional<String> textMaskMarker() {
     return Optional.ofNullable(textMaskMarker);

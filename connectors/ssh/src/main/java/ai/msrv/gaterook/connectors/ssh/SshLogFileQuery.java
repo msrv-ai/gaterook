@@ -22,6 +22,7 @@ record SshLogFileQuery(String needle, boolean caseSensitive, Pattern expression)
     boolean caseSensitive = caseOption == null || caseOption.asBoolean();
     if (query == null || query.isEmpty()) return new SshLogFileQuery(null, caseSensitive, null);
     if (mode.equals("regex")) {
+      RegexBudget.check(query);
       try {
         return new SshLogFileQuery(query, caseSensitive,
             Pattern.compile(query, caseSensitive ? 0 : Pattern.CASE_INSENSITIVE));

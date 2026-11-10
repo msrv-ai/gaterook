@@ -144,7 +144,10 @@ public record ToolCall(String callId, String tool, String connection, ObjectNode
 }
 // ── Classification.java ────────────────────────────────────────────────────────────────────────────────────────
 package ai.msrv.gaterook.connector.api; import tools.jackson.databind.JsonNode;
-/** DENY carries the rule id shown in Activity ("prod.sql.block_ddl") and a text for the agent; facts are non-secret. */
+/** DENY carries the rule id shown in Activity ("prod.sql.block_ddl") and a text for the agent; facts are non-secret.
+ *  A plugin's rule id is kept in its own namespace (its PolicyView's rulePrefix; another id is put inside it, and one
+ *  that isn't lower-case words, digits, dashes, underscores and dots becomes "<rulePrefix>.plugin-rule"); its reason
+ *  and hint have invisible characters made visible and are clipped to 500 characters. */
 public record Classification(Kind kind, String ruleId, String reason, String hint, JsonNode facts) {
   public enum Kind { READ, MUTATION, DENY }
   public static Classification read() { return new Classification(Kind.READ, null, null, null, null); }
