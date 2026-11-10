@@ -94,6 +94,33 @@ abstract class MysqlFamilyIT {
   }
 
   @Test
+  void aStatementThatFailsWithTheCodeOfAMissingDatabaseLeavesTheServerAvailable() {
+    // "No database selected" is SQLSTATE 3D000, also what a session for a database that doesn't exist gets.
+    ConnectionConfig app = cfg("rw", Env.DEV);
+    ObjectNode c = (ObjectNode) app.config().deepCopy();
+    ((ObjectNode) c.get("connection")).remove("database");
+    ConnectionConfig cfg = new ConnectionConfig(app.id() + "-no-database", app.name(), app.type(), app.env(), 1, c,
+        app.secretFields(), null);
+
+    assertThatThrownBy(() -> CONNECTOR.runRead(cfg, ConnectionSettings.of(cfg, true), secrets("rw"), ctx(),
+        BoundSql.plain("SELECT COUNT(*) FROM orders"), 1))
+        .isInstanceOfSatisfying(ConnectorException.class, e -> {
+          assertThat(e.kind()).isEqualTo(ConnectorException.Kind.RESOURCE_ERROR);
+          assertThat(e.getMessage()).contains("3D000");
+        });
+  }
+
+  @Test
+  void aLoginTheServerRefusesWhileThePoolOpensASessionMakesItUnavailable() {
+    ConnectionConfig cfg = cfg("rw", Env.DEV);
+
+    assertThatThrownBy(() -> CONNECTOR.runRead(cfg, ConnectionSettings.of(cfg, true),
+        Fixtures.Secrets.password("not-the-password-of-rw"), ctx(), BoundSql.plain("SELECT 1"), 1))
+        .isInstanceOfSatisfying(ConnectorException.class,
+            e -> assertThat(e.kind()).isEqualTo(ConnectorException.Kind.RESOURCE_UNAVAILABLE));
+  }
+
+  @Test
   void readOnlyStopsAWriteOutright() throws Exception {
     long before = count("SELECT COUNT(*) FROM app.order_items");
 

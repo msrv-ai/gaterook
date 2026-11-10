@@ -1034,13 +1034,15 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
       throw ConnectorException.badInput("A new password has at least 16 characters.");
     }
     ConnectionSettings s = ConnectionSettings.of(cfg, dialect);
+    boolean opened = false;
     try (Credentials login = Credentials.resolve(cfg, current);
          Connection c = connect(s, login, ctx)) {
+      opened = true;
       c.setAutoCommit(true);
       dialect.changePassword(c, dialect.identify(c), login.user(), next);
     } catch (SQLException e) {
-      throw SqlErrors.of(e, syntax(), cfg.name(), ctx.env() == null ? "this environment" : ctx.env().id(),
-          Duration.ofMillis(TestProbe.BUDGET_MS));
+      throw SqlErrors.of(e, syntax(), opened ? SqlErrors.Phase.STATEMENT : SqlErrors.Phase.CONNECT, cfg.name(),
+          ctx.env() == null ? "this environment" : ctx.env().id(), Duration.ofMillis(TestProbe.BUDGET_MS));
     } catch (IOException e) {
       throw ConnectorException.badInput("The CA certificate can't be used: " + e.getMessage());
     }

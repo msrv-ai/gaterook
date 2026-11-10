@@ -94,6 +94,29 @@ class PostgresIT {
   }
 
   @Test
+  void aStatementThatFailsWithTheCodeOfAMissingDatabaseLeavesTheServerAvailable() {
+    // 3D000 is also what a session for a database that doesn't exist gets; here the server answered the statement.
+    assertThatThrownBy(() -> read(rw(), "SELECT has_database_privilege('no_such_database', 'CONNECT')"))
+        .isInstanceOfSatisfying(ConnectorException.class, e -> {
+          assertThat(e.kind()).isEqualTo(ConnectorException.Kind.RESOURCE_ERROR);
+          assertThat(e.getMessage()).contains("3D000");
+        });
+  }
+
+  @Test
+  void aLoginTheServerRefusesWhileThePoolOpensASessionMakesItUnavailable() {
+    ConnectionConfig base = rw();
+    // A connection of its own, so the shared pool keeps the right password.
+    ConnectionConfig refused = new ConnectionConfig("conn-postgres-refused-login", base.name(), base.type(),
+        base.env(), base.version(), base.config(), base.secretFields(), base.metadata());
+
+    assertThatThrownBy(() -> CONNECTOR.runRead(refused, ConnectionSettings.of(refused, false),
+        Fixtures.Secrets.password("not-the-password-of-rw"), ctx(), BoundSql.plain("SELECT 1"), 1))
+        .isInstanceOfSatisfying(ConnectorException.class,
+            e -> assertThat(e.kind()).isEqualTo(ConnectorException.Kind.RESOURCE_UNAVAILABLE));
+  }
+
+  @Test
   void readOnlyStopsNextval() throws Exception {
     long before = count("SELECT last_value FROM ticket_seq");
 
