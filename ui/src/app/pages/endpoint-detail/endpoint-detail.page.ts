@@ -421,7 +421,7 @@ export class EndpointDetailPage {
 
   protected async setMode(c: ToolModeChange): Promise<void> {
     try {
-      await this.data.setMode({ toolKey: c.toolKey, connection: c.connection, mode: c.mode, version: c.version });
+      await this.data.setMode({ toolKey: c.toolKey, connection: c.connection, mode: c.mode, definitionHash: c.definitionHash, version: c.version });
     } catch (e) {
       this.toast({ tone: 'danger', title: "The mode wasn't changed", body: this.errorText(e) });
     }
@@ -447,6 +447,7 @@ export class EndpointDetailPage {
     const row = this.data.groups()?.find((g) => g.connection === c.connection)?.tools.find((t) => t.toolKey === c.toolKey);
     if (!row) return;
     try {
+      // The limits alone: no definition, so a tool held in Approval stays held until a person picks its mode.
       await this.data.setMode({ toolKey: c.toolKey, connection: c.connection, mode: row.storedMode, overrides: c.overrides, version: c.version });
       this.toast({ tone: 'success', title: c.overrides ? `Limits of ${row.name} saved` : `${row.name} follows the policy again` });
     } catch (e) {

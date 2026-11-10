@@ -1,5 +1,6 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { Router, provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { ActivityApi } from '../../core/api/activity.api';
@@ -17,6 +18,7 @@ import { CoreStore } from '../../core/stores/core.store';
 import { EndpointsStore } from '../../core/stores/endpoints.store';
 import { TimeService } from '../../core/time/time.service';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
+import { GwToolPolicyList } from '../../kit/elements/tool-policy-list/tool-policy-list';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
 import { connected, kitClients, previewFor } from '../clients/clients.fixtures';
@@ -801,6 +803,29 @@ describe('Endpoint detail page', () => {
     expect(revoke).toHaveBeenCalledExactlyOnceWith('og_cursor');
     expect(toasts().at(-1)?.title).toBe('Sign-in of Cursor revoked');
     expect(grant.client).toBe('localhost');
+  });
+
+  it('sends the definition a mode was picked for, and none when only the limits are saved', async () => {
+    setup();
+    const bodies: unknown[] = [];
+    const api = TestBed.inject(EndpointsApi);
+    api.setMode = (_slug, request) => {
+      bodies.push(request);
+      return Promise.resolve(groups());
+    };
+    const { fixture } = await render();
+    const list = fixture.debugElement.query(By.directive(GwToolPolicyList)).componentInstance as GwToolPolicyList;
+
+    list.modeChange.emit({ toolKey: 'sql_execute', connection: 'dev-db', mode: 'BYPASS', definitionHash: 'hash-sql_execute', version: 1 });
+    await settle(fixture);
+    list.overridesChange.emit({ toolKey: 'sql_execute', connection: 'dev-db', overrides: { rowLimit: 5 }, version: 1 });
+    await settle(fixture);
+
+    expect(bodies).toEqual([
+      { toolKey: 'sql_execute', connection: 'dev-db', mode: 'BYPASS', definitionHash: 'hash-sql_execute', version: 1 },
+      // The stored mode with the new limits: a tool held in Approval stays held until a person picks its mode.
+      { toolKey: 'sql_execute', connection: 'dev-db', mode: 'APPROVAL', overrides: { rowLimit: 5 }, version: 1 },
+    ]);
   });
 
   describe('settings', () => {

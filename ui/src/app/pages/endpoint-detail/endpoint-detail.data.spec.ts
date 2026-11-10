@@ -345,7 +345,7 @@ describe('EndpointDetailData', () => {
     calls.length = 0;
     await data.confirmReadOnly({ toolKey: 'github_list', connection: 'gh', definitionHash: 'hash-github_list' });
     expect(calls).toEqual(['confirm github_list', 'mode github_list READ_ONLY', 'get dev']);
-    expect(modeBodies).toEqual([{ toolKey: 'github_list', connection: 'gh', mode: 'READ_ONLY', version: 4 }]);
+    expect(modeBodies).toEqual([{ toolKey: 'github_list', connection: 'gh', mode: 'READ_ONLY', definitionHash: 'hash-github_list', version: 4 }]);
     expect(data.groups()).toBe(answer);
 
     // The confirmation counts, the mode change doesn't: the picker re-reads what the core keeps.
