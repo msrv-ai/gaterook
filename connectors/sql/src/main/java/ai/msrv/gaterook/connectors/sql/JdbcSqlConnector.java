@@ -362,9 +362,13 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
   // ── Impact, before the request exists ───────────────────────────────────────────────────────────────────────
 
   /**
-   * A change gets its estimated rows from EXPLAIN, without running it, in a transaction that is always rolled back.
-   * A statement the database can't even plan — a syntax error, a missing table in the first statement — is refused
-   * here: no person is asked to approve what can't run. An unreachable database fails the call.
+   * A change gets its estimated rows from EXPLAIN, without running it, in a transaction that is always rolled back
+   * (READ ONLY where the server plans a change in one: PostgreSQL; MySQL and MariaDB refuse EXPLAIN of a change in a
+   * read-only transaction, and SQL Server has none). A statement that calls a function that isn't built in, or that the
+   * connection doesn't list among its allowed functions, isn't planned: the planner may evaluate such a call, and
+   * nobody has approved it yet. A statement the database can't even plan — a syntax error, a missing table in the
+   * first statement — is refused here: no person is asked to approve what can't run. An unreachable database fails
+   * the call.
    */
   @Override
   public PreparedAction prepare(ToolCall call, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
@@ -383,11 +387,17 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
       }
     }
     ActionPreview preview = describeAction(call, cfg);
-    List<BoundSql> changes = changes(call, preview);
+    ConnectionSettings s = callSettings(call, cfg, null);
+    List<String> notPlanned = new ArrayList<>();
+    List<BoundSql> changes = changes(call, cfg, s, preview, notPlanned);
+    if (!notPlanned.isEmpty()) {
+      List<String> warnings = new ArrayList<>(preview.warnings());
+      warnings.addAll(notPlanned);
+      preview = preview.withWarnings(warnings);
+    }
     if (changes.isEmpty()) {
       return PreparedAction.approval(preview, null);
     }
-    ConnectionSettings s = callSettings(call, cfg, null);
     SqlPools.Pool pool = pool(cfg, s, secrets, ctx);
     List<String> types = statementTypesOf(call);
     Estimates estimates = executor.explain(pool, s, ctx, cfg.name(),
@@ -406,12 +416,19 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
 
   /**
    * The statements of a change, one per piece, as they would run, with {@code null} for those without a plan (DDL, a
-   * read); empty for a call that changes nothing or that the gateway can't split.
+   * read, a call of a function that isn't built in or allowed); empty for a call that changes nothing or that the
+   * gateway can't split. Why a change isn't planned goes to {@code notPlanned}, for the approver.
    */
-  private List<BoundSql> changes(ToolCall call, ActionPreview preview) {
+  private List<BoundSql> changes(ToolCall call, ConnectionConfig cfg, ConnectionSettings s, ActionPreview preview,
+      List<String> notPlanned) {
     if (call.template() != null) {
       TemplateCall t = TemplateCall.of(call.template().binding(), syntax());
       if (t.read() || t.problem() != null || t.analysis().kind() != Kind.DML || !EXPLAINABLE.contains(t.statement())) {
+        return List.of();
+      }
+      String unplanned = unplannedCalls(t.analysis().functions(), cfg, s);
+      if (unplanned != null) {
+        notPlanned.add(notPlanned(unplanned, 0, 1));
         return List.of();
       }
       try {
@@ -437,9 +454,42 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     List<BoundSql> out = new ArrayList<>();
     for (int i = 0; i < pieces.size(); i++) {
       StatementFacts st = a.statements().get(i);
-      out.add(st.kind() == Kind.DML && EXPLAINABLE.contains(st.type()) ? BoundSql.plain(pieces.get(i)) : null);
+      if (st.kind() != Kind.DML || !EXPLAINABLE.contains(st.type())) {
+        out.add(null);
+        continue;
+      }
+      String unplanned = unplannedCalls(st.functions(), cfg, s);
+      if (unplanned != null) {
+        notPlanned.add(notPlanned(unplanned, i, pieces.size()));
+        out.add(null);
+        continue;
+      }
+      out.add(BoundSql.plain(pieces.get(i)));
     }
     return out.stream().allMatch(Objects::isNull) ? List.of() : out;
+  }
+
+  /**
+   * The calls of a statement that the planner must not see before a person approved it: functions that are denied,
+   * or neither built in nor among the connection's allowed functions, as a list for the approver; {@code null} when
+   * there are none.
+   */
+  private String unplannedCalls(List<FunctionRules.FunctionRef> functions, ConnectionConfig cfg, ConnectionSettings s) {
+    FunctionRules.Verdict v = FunctionRules.check(functions, syntax(), FunctionRules.fromMetadata(cfg.metadata()),
+        List.of(), s.allowedFunctions());
+    if (v.clean()) {
+      return null;
+    }
+    List<String> names = new ArrayList<>(v.denied());
+    names.addAll(v.notBuiltIn());
+    return String.join(", ", names) + (names.size() == 1 ? ", which isn't a built-in or allowed function"
+        : ", which aren't built-in or allowed functions");
+  }
+
+  private static String notPlanned(String calls, int index, int count) {
+    return (count == 1 ? "The rows it changes weren't estimated" : "The rows statement " + (index + 1) + " changes "
+        + "weren't estimated") + ": it calls " + calls + ", and the database could run that while it plans the "
+        + "statement.";
   }
 
   /**

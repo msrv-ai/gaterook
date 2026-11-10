@@ -222,6 +222,34 @@ abstract class MysqlFamilyIT {
   }
 
   @Test
+  void prepareDoesntPlanAChangeThatCallsAFunctionThatIsntBuiltIn() throws Exception {
+    // A deterministic function the optimizer may fold to a constant while it plans (MariaDB does, in EXPLAIN too); its
+    // insert into a MyISAM table would survive the ROLLBACK that ends the preview.
+    try (Connection c = server().root(); Statement st = c.createStatement()) {
+      st.execute("CREATE TABLE IF NOT EXISTS app.plan_marks (n INT) ENGINE=MyISAM");
+      st.execute("TRUNCATE TABLE app.plan_marks");
+      st.execute("DROP FUNCTION IF EXISTS app.f_mark");
+      st.execute("CREATE FUNCTION app.f_mark() RETURNS INT DETERMINISTIC MODIFIES SQL DATA BEGIN "
+          + "INSERT INTO app.plan_marks VALUES (1); RETURN 48213; END");
+    }
+    ToolCall call = Fixtures.sql("sql_execute", "UPDATE orders SET status = 'cancelled' WHERE id = app.f_mark()");
+    try {
+      PreparedAction p = CONNECTOR.prepare(call, cfg("rw", Env.DEV), secrets("rw"), ctx());
+
+      assertThat(count("SELECT COUNT(*) FROM app.plan_marks")).as("calls of f_mark before approval").isZero();
+      assertThat(p.outcome()).isEqualTo(PreparedAction.Outcome.APPROVAL);
+      assertThat(p.preview().impact()).extracting(ActionPreview.Field::label).doesNotContain("Estimated rows");
+      assertThat(p.preview().warnings()).anySatisfy(w -> assertThat(w).contains("weren't estimated", "app.f_mark"));
+      assertThat(count("SELECT COUNT(*) FROM app.orders WHERE id = 48213 AND status = 'pending'")).isEqualTo(1);
+    } finally {
+      try (Connection c = server().root(); Statement st = c.createStatement()) {
+        st.execute("DROP FUNCTION IF EXISTS app.f_mark");
+        st.execute("DROP TABLE IF EXISTS app.plan_marks");
+      }
+    }
+  }
+
+  @Test
   void templateValuesAreBoundByTheServer() throws Exception {
     TemplateKind.CompileResult compiled = CONNECTOR.templateKinds().getFirst().compile(Fixtures.json("""
         {"name": "orders_by_status",
