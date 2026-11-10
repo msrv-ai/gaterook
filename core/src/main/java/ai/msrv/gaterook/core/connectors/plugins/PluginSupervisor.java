@@ -108,7 +108,8 @@ final class PluginSupervisor {
       host.enter();
       lastUsed = clock.instant();
       return new Permit(host);
-    } catch (ConnectorException e) {
+    } catch (ConnectorException | RuntimeException e) {
+      // Every way out without a permit gives the slot back: eight lost ones would make the plugin busy for good.
       bulkhead.release();
       throw e;
     }
@@ -126,7 +127,10 @@ final class PluginSupervisor {
       return host;
     }
 
-    /** The call came back (not stuck at the deadline). */
+    /**
+     * The host answered (with a result or with an error): it isn't stuck. Only a call that got no answer by its
+     * deadline counts toward replacing the host.
+     */
     void returned() {
       returned = true;
     }
@@ -180,6 +184,11 @@ final class PluginSupervisor {
           recordFailure("couldn't start (" + e.phase() + "): " + e.getMessage());
         }
         throw ConnectorException.unavailable(pluginId + " couldn't start: " + e.getMessage(), null);
+      } catch (RuntimeException e) {
+        // Not a start failure the launcher reports: a failure all the same, with its backoff, never left Starting.
+        log.warn("Plugin {} host couldn't start", pluginId, e);
+        recordFailure("couldn't start: " + e.getClass().getSimpleName());
+        throw ConnectorException.unavailable(pluginId + " couldn't start because of an internal error.", null);
       }
     }
   }

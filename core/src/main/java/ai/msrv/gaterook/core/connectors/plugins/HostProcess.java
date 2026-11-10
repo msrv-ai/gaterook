@@ -129,23 +129,30 @@ final class HostProcess {
     peer.cancel(call, reason);
   }
 
-  /** Asks the host to shut down, then ends its whole process tree after {@code grace}. */
+  /**
+   * Asks the host to shut down, then ends its whole process tree after {@code grace}. Asking is bounded by the peer's
+   * write timeout and three seconds for the answer: a host that stops reading is stopped all the same.
+   */
   void shutdown(Duration grace) {
     try {
       peer.request(Gpp.HOST_SHUTDOWN, shutdownParams(grace)).get(Duration.ofSeconds(3));
     } catch (Exception e) {
-      // It may already be gone; the forced stop below is the fallback.
+      // It may already be gone, or no longer read; the forced stop below is the fallback.
     }
     stopForcibly(grace);
   }
 
-  /** Closes the pipe (the host sees EOF and exits) and, if it lingers, kills the whole tree. */
+  /**
+   * Closes the pipe (the host sees EOF and exits) and, if it lingers, kills the whole tree. Closing runs on a thread of
+   * its own: behind a frame the host doesn't read it would wait, and the kill after {@code grace} must not.
+   */
   void stopForcibly(Duration grace) {
     List<ProcessHandle> tree = process.descendants().toList();
-    peer.close();
+    Thread closing = Thread.ofVirtual().name("plugin-close-" + generation).start(peer::close);
     try {
       if (process.waitFor(grace.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS)) {
         tree.stream().filter(ProcessHandle::isAlive).forEach(ProcessHandle::destroy);
+        closing.join(grace.toMillis() + 1);
         return;
       }
     } catch (InterruptedException e) {

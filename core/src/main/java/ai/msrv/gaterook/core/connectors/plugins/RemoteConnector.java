@@ -102,8 +102,8 @@ final class RemoteConnector implements Connector {
     // MIXED: the plugin decides per call (no secrets); a timeout is a safe DENY.
     try (PluginSupervisor.Permit permit = supervisor.permit(deadline(CLASSIFY_TIMEOUT))) {
       Messages.Classify params = new Messages.Classify(generation(), call, cfg, policy);
-      JsonNode result = permit.host().request(Gpp.CONNECTOR_CLASSIFY, params.write()).get(CLASSIFY_TIMEOUT);
-      permit.returned();
+      JsonNode result = answer(permit, permit.host().request(Gpp.CONNECTOR_CLASSIFY, params.write()),
+          CLASSIFY_TIMEOUT);
       return fromPlugin(WireCodec.classification(result), policy);
     } catch (TimeoutException e) {
       return Classification.deny(policy.rule("plugin-classify-timeout"), manifest.name() + " didn't classify "
@@ -160,8 +160,8 @@ final class RemoteConnector implements Connector {
     ActionPreview described = null;
     try (PluginSupervisor.Permit permit = supervisor.permit(deadline(DESCRIBE_TIMEOUT))) {
       Messages.Describe params = new Messages.Describe(generation(), call, cfg);
-      JsonNode result = permit.host().request(Gpp.CONNECTOR_DESCRIBE_ACTION, params.write()).get(DESCRIBE_TIMEOUT);
-      permit.returned();
+      JsonNode result = answer(permit, permit.host().request(Gpp.CONNECTOR_DESCRIBE_ACTION, params.write()),
+          DESCRIBE_TIMEOUT);
       described = WireCodec.action(result);
     } catch (TimeoutException | RpcException | ConnectorException | InterruptedException | RuntimeException e) {
       if (e instanceof InterruptedException) {
@@ -227,8 +227,7 @@ final class RemoteConnector implements Connector {
           ctx.callId(), cfg.secretFields(), resolver, ctx, host.log())) {
         Messages.Test params = new Messages.Test(generation(), ctx.callId(), token.token(), cfg,
             remaining(ctx).toMillis(), ctx.limits(), egressGrant(cfg));
-        JsonNode result = host.request(method, params.write()).get(remaining(ctx));
-        permit.returned();
+        JsonNode result = answer(permit, host.request(method, params.write()), remaining(ctx));
         if (token.taintOverLimit()) {
           return TestResult.failure("plugin-error", manifest.name() + " sent more values to mask than a call may: "
               + "its answer isn't shown.", null);
@@ -264,8 +263,7 @@ final class RemoteConnector implements Connector {
             ctx.approvedPayload().orElse(null), ctx.limits(), ctx.traceId(), ctx.traceparent(), egressGrant(cfg));
         JsonRpcPeer.Call<JsonNode> pending = host.request(Gpp.CONNECTOR_EXECUTE, params.write());
         try {
-          JsonNode answer = pending.get(remaining(ctx));
-          permit.returned();
+          JsonNode answer = answer(permit, pending, remaining(ctx));
           if (token.taintOverLimit()) {
             // A value the plugin meant to mask may not be: the answer goes nowhere.
             throw ConnectorException.resourceError(manifest.name() + " sent more values to mask than a call may: "
@@ -384,6 +382,23 @@ final class RemoteConnector implements Connector {
 
   private Optional<ToolDefinition> tool(String name) {
     return manifest.tools().stream().filter(t -> t.name().equals(name)).findFirst();
+  }
+
+  /**
+   * The host's answer to {@code call}. An answer, an error answer included, tells the supervisor the host isn't stuck
+   * ({@link PluginSupervisor.Permit#returned}): only a call with no answer by its deadline counts toward replacing it,
+   * so calls that fail inside the plugin don't restart its host.
+   */
+  static JsonNode answer(PluginSupervisor.Permit permit, JsonRpcPeer.Call<JsonNode> call, Duration timeout)
+      throws RpcException, TimeoutException, InterruptedException {
+    try {
+      JsonNode result = call.get(timeout);
+      permit.returned();
+      return result;
+    } catch (RpcException e) {
+      permit.returned();
+      throw e;
+    }
   }
 
   private static Duration remaining(ExecContext ctx) {
