@@ -1,4 +1,4 @@
-import { awsTarget, cloudSecret, cloudSignInText, signingTarget } from './mcp-cloud';
+import { awsTarget, cloudSecret, cloudSignInText, googleApiUrl, signingTarget } from './mcp-cloud';
 
 /** Servers that sign in with their cloud's credentials (ARCHITECTURE.md §7.6), in the review's words. */
 describe('MCP server cloud sign-ins', () => {
@@ -8,6 +8,24 @@ describe('MCP server cloud sign-ins', () => {
     expect(awsTarget('mcp.linear.app')).toBeNull();
     expect(signingTarget({ region: 'eu-west-2' }, 'https://aws-mcp.us-east-1.api.aws/mcp')).toEqual({ service: 'aws-mcp', region: 'eu-west-2' });
     expect(signingTarget({}, 'https://mcp.example.com/mcp')).toBeNull();
+  });
+
+  it('sends a Google token only to Google’s own API hosts over HTTPS, as the core does', () => {
+    for (const url of ['https://bigquery.googleapis.com/mcp', 'https://BigTableAdmin.googleapis.com:443/mcp']) {
+      expect(googleApiUrl(url)).toBe(true);
+    }
+    for (const url of [
+      'http://bigquery.googleapis.com/mcp',
+      'https://bigquery.googleapis.com:8443/mcp',
+      'https://someone@bigquery.googleapis.com/mcp',
+      'https://googleapis.com/mcp',
+      'https://bigquery.googleapis.com.example.com/mcp',
+      'https://my-service-abc123.a.run.app/mcp',
+      'https://mcp.example.com/mcp',
+      'not a url',
+    ]) {
+      expect(googleApiUrl(url)).toBe(false);
+    }
   });
 
   it('says how a server signs in, and which key the review asks for', () => {

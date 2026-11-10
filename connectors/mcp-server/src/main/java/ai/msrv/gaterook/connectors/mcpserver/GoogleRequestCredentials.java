@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -21,6 +22,10 @@ import tools.jackson.databind.JsonNode;
  * (ADC) or a service account key, optionally impersonating a service account, through the core's
  * {@link CloudCredentials}, with {@code x-goog-user-project} for a billed project. The auth library renews the token
  * before it expires.
+ *
+ * <p>The token goes to Google's own API hosts only ({@link CloudCredentials#sendsGoogleTokensTo}): a server at any other
+ * address gets no token, at the start of its session and on every request, whatever its settings or its authorization
+ * server say.
  */
 final class GoogleRequestCredentials implements RequestCredentials {
 
@@ -29,22 +34,39 @@ final class GoogleRequestCredentials implements RequestCredentials {
 
   private final GoogleCredentials credentials;
   private final Consumer<CharSequence> taint;
+  private final Predicate<URI> sendsTo;
+  private final String server;
   private volatile String token;
 
-  GoogleRequestCredentials(GoogleCredentials credentials, Consumer<CharSequence> taint) {
+  /** @param sendsTo whether a request to that URL may carry the token */
+  GoogleRequestCredentials(GoogleCredentials credentials, Consumer<CharSequence> taint, Predicate<URI> sendsTo,
+      String server) {
     this.credentials = credentials;
     this.taint = taint;
+    this.sendsTo = sendsTo;
+    this.server = server;
   }
 
   /**
    * The credentials of a stored or draft server: its {@code auth.credentials}, for the scopes of {@code auth.scopes}
-   * ({@code cloud-platform} by default, which every Google Cloud MCP server takes).
+   * ({@code cloud-platform} by default, which every Google Cloud MCP server takes). Nothing is opened for a server
+   * outside Google's API hosts.
    *
-   * @throws ConnectorException {@code BAD_INPUT} for settings GateRook can't use, {@code RESOURCE_UNAVAILABLE} when
-   *                            there is no Google sign-in on this computer or the key can't be read
+   * @throws ConnectorException {@code BAD_INPUT} for settings GateRook can't use or a server Google doesn't run,
+   *                            {@code RESOURCE_UNAVAILABLE} when there is no Google sign-in on this computer or the key
+   *                            can't be read
    */
   static GoogleRequestCredentials of(CloudCredentials cloud, ConnectionConfig cfg, SecretResolver secrets,
       Consumer<CharSequence> taint) throws ConnectorException {
+    URI url;
+    try {
+      url = URI.create(Texts.str(cfg.config().path("url"), ""));
+    } catch (IllegalArgumentException e) {
+      url = null;
+    }
+    if (url == null || !cloud.sendsGoogleTokensTo(url)) {
+      throw notGoogle(cfg.name(), url);
+    }
     GcpSpec spec;
     try {
       spec = GcpSpec.fromConfig(cfg.config(), POINTER);
@@ -53,7 +75,15 @@ final class GoogleRequestCredentials implements RequestCredentials {
     }
     GoogleCredentials c = cloud.gcp(new CloudCredentials.Owner(cfg.id(), cfg.version(), cfg.name()), spec,
         scopes(cfg.config()), secrets);
-    return new GoogleRequestCredentials(c, taint);
+    return new GoogleRequestCredentials(c, taint, cloud::sendsGoogleTokensTo, cfg.name());
+  }
+
+  /** Why {@code url} gets no Google token. */
+  private static ConnectorException notGoogle(String server, URI url) {
+    String host = url == null || url.getHost() == null ? "this address" : Texts.clean(url.getHost(), 120, false);
+    return ConnectorException.badInput(server + ": Google Cloud credentials go only to Google's own servers (HTTPS "
+        + "under googleapis.com, such as https://bigquery.googleapis.com/mcp), not to " + host + ". Sign in to "
+        + server + " another way.");
   }
 
   /** The scopes of the token: {@code auth.scopes}, space-separated, else {@code cloud-platform}. */
@@ -65,6 +95,10 @@ final class GoogleRequestCredentials implements RequestCredentials {
 
   @Override
   public Map<String, String> headers(String method, URI url, byte[] body) throws ConnectorException {
+    if (!sendsTo.test(url)) {
+      // The session's URL passed when it opened; a request elsewhere (another endpoint the server named) gets nothing.
+      throw notGoogle(server, url);
+    }
     Map<String, String> out = new LinkedHashMap<>();
     CloudCredentials.requestMetadata(credentials, url, this::issued).forEach((name, values) -> {
       if (!values.isEmpty()) {

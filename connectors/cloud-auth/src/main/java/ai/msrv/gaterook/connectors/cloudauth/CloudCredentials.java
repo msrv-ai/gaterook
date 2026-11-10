@@ -180,6 +180,15 @@ public final class CloudCredentials implements AutoCloseable {
   }
 
   /**
+   * Whether a Google token of these credentials may go to {@code url}: one of Google's API hosts
+   * ({@link GoogleApis#host}), or any address when the tokens come from a test token endpoint
+   * ({@link CloudEndpoints#gcpTokenUri}), whose tokens are good for a test API only. A release build never has one.
+   */
+  public boolean sendsGoogleTokensTo(URI url) {
+    return GoogleApis.host(url) || endpoints.gcpTokenUri() != null;
+  }
+
+  /**
    * The request headers of a Google API call ({@code Authorization}, {@code x-goog-user-project}); refreshes the
    * token when needed and hands the token to {@code taint}.
    *

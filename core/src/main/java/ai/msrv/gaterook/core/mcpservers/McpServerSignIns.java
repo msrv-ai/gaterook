@@ -4,6 +4,7 @@ import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.SecretResolver;
 import ai.msrv.gaterook.connectors.cloudauth.AwsSigV4;
+import ai.msrv.gaterook.connectors.cloudauth.GoogleApis;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
 import ai.msrv.gaterook.connectors.support.egress.GuardedEgress;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
@@ -193,7 +194,7 @@ public class McpServerSignIns {
   AuthView discover(ConnectionConfig cfg, URI url) {
     try {
       Discovery.Result d = Discovery.discover(httpOf(cfg), url);
-      String cloud = cloud(url, d.server());
+      String cloud = cloud(url);
       return switch (d.kind()) {
         case NONE -> new AuthView("none", null, null, null, null, null, null, cloud, null);
         case REFUSED -> new AuthView("refused", null, null, null, null, null, d.message(), cloud, null);
@@ -223,7 +224,7 @@ public class McpServerSignIns {
         }
       };
     } catch (OAuthHttp.Failure e) {
-      return new AuthView("unknown", null, null, null, null, null, e.getMessage(), cloud(url, null), null);
+      return new AuthView("unknown", null, null, null, null, null, e.getMessage(), cloud(url), null);
     } finally {
       if (cfg.id().startsWith("draft-")) {
         contexts.evict(cfg.id());
@@ -1140,20 +1141,18 @@ public class McpServerSignIns {
   }
 
   /**
-   * The cloud a server runs on, when it takes that cloud's credentials instead of an OAuth sign-in (§7.6):
-   * {@code google} for {@code *googleapis.com} or Google's authorization server, {@code aws} for an AWS endpoint
-   * ({@code aws-mcp.us-east-1.api.aws}) or AWS Sign-in; otherwise {@code null}.
+   * The cloud a server runs on, when it takes that cloud's credentials instead of an OAuth sign-in (§7.6): {@code google}
+   * for one of Google's API hosts ({@link GoogleApis#host}: HTTPS under {@code googleapis.com}), {@code aws} for an AWS
+   * endpoint that names its service and region ({@code aws-mcp.us-east-1.api.aws}); otherwise {@code null}. Only the
+   * server's own address counts: the authorization server its metadata names is the server's say, and any server can
+   * name Google's or AWS Sign-in, which would make the review offer the person's cloud credentials to it.
    */
-  static String cloud(URI url, Discovery.Server server) {
-    String host = url.getHost() == null ? "" : url.getHost().toLowerCase(Locale.ROOT);
-    String issuer = server == null ? "" : host(server.issuer()).toLowerCase(Locale.ROOT);
-    if (host.endsWith(".googleapis.com") || issuer.equals("accounts.google.com")) {
+  static String cloud(URI url) {
+    if (GoogleApis.host(url)) {
       return "google";
     }
-    if (AwsSigV4.fromHost(host).isPresent() || issuer.endsWith(".oauth.signin.aws")) {
-      return "aws";
-    }
-    return null;
+    String host = url.getHost() == null ? "" : url.getHost().toLowerCase(Locale.ROOT);
+    return AwsSigV4.fromHost(host).isPresent() ? "aws" : null;
   }
 
   private static String needsMessage(String name, SignInBundle b) {

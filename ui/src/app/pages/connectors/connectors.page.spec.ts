@@ -2090,6 +2090,23 @@ describe('Connectors page: MCP servers', () => {
     expect(value.value).toBe('');
   });
 
+  it('does not carry a cloud sign-in chosen for one server to a pasted configuration without one', async () => {
+    setup();
+    const { fixture, el } = await render();
+    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    check(add.querySelector<HTMLInputElement>('input[type="radio"][value="http"]')!);
+    await settle(fixture);
+    check(add.querySelector<HTMLInputElement>('input[type="radio"][value="google"]')!);
+    button(add, 'Paste a configuration').click();
+    await settle(fixture);
+    type(add.querySelector<HTMLTextAreaElement>('textarea[id$="-paste-text"]')!, '{"url":"https://mcp.example.com/mcp"}');
+    await settle(fixture);
+    expect(add.querySelector<HTMLInputElement>('input[type="radio"][value="google"]')!.checked).toBe(false);
+    expect(add.querySelector<HTMLInputElement>('input[type="radio"][value="oauth"]')!.checked).toBe(true);
+  });
+
   it('wipes the typed values when the review closes without a start', async () => {
     setup();
     const { fixture, el } = await render();
