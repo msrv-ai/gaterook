@@ -27,7 +27,8 @@ Return to GateRook and choose **Upload file** or **Paste YAML or JSON** below th
 
 ## Supported import profile
 
-- OpenAPI 3.0 and 3.1, YAML or JSON, up to 20 MB, with local `$ref` references only.
+- OpenAPI 3.0 and 3.1, YAML or JSON, up to 20 MB, with local `$ref` references only. YAML and JSON files have the same limits: nesting up to 200 levels, numbers up to 1,000 characters, text values up to 5,000,000 characters and keys up to 50,000; YAML keys must be plain values, not lists or maps. A file outside these limits is refused with the reason.
+- An operation whose schema holds a number that GateRook can't check arguments against (a `minimum` or `maximum` that isn't a number, a `multipleOf` beyond the range of a double, or a length or count limit beyond the range of a 32-bit integer) is skipped with that reason instead of becoming a tool that fails every call.
 - Up to 200 selected operations per template; GET, HEAD, POST, PUT, PATCH, and DELETE.
 - Path, query, and header parameters, with JSON or URL-encoded request bodies. Unsupported parameter serialization and body types are reported per operation.
 - Bearer, Basic, and API keys in a header or query parameter. The connection must match an operation's effective security requirements, including per-operation overrides. Alternative security schemes are supported when one matches; combinations of different schemes are skipped.
