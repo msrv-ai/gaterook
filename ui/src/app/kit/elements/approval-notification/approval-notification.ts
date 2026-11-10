@@ -5,7 +5,7 @@ import { duration } from '../../../core/time/time-format';
 import { TimeService } from '../../../core/time/time.service';
 import { GwCodeBlock } from '../../../code/code-block';
 import { GwIcon } from '../../icons';
-import { detailMarks } from '../approval-request/approval-view';
+import { detailMarks, verifiedClient } from '../approval-request/approval-view';
 import { clientName } from '../shared/client-mark';
 
 /**
@@ -33,7 +33,9 @@ export type NotificationRequest = Pick<
   | 'decidedVia'
   | 'executedAt'
 > &
-  Partial<Pick<ApprovalDetail, 'toolKey' | 'target' | 'fields' | 'warnings' | 'targetSegments' | 'warningSegments'>>;
+  Partial<
+    Pick<ApprovalDetail, 'toolKey' | 'target' | 'fields' | 'warnings' | 'targetSegments' | 'warningSegments' | 'principalKind' | 'clientReported'>
+  >;
 
 export type NotificationChannel = 'desktop' | 'slack' | 'telegram' | 'toast';
 
@@ -76,7 +78,11 @@ export class GwNotificationPreview {
   protected readonly r = computed(() => this.request());
   protected readonly prod = computed(() => this.r().env === 'prod');
   protected readonly titlePrefix = computed(() => (this.prod() ? 'PROD · ' : ''));
-  protected readonly who = computed(() => (this.r().client ? clientName(this.r().client!) : 'an agent'));
+  /** Who asked, as the core's notices name them: the client the credential implies, else the credential's label. */
+  protected readonly who = computed(() => {
+    const client = verifiedClient(this.r());
+    return client ? clientName(client) : this.r().tokenLabel || 'an agent';
+  });
   protected readonly target = computed(() => this.r().connection ?? this.r().endpoint);
   protected readonly text = computed(() => this.r().action?.text ?? this.r().summary ?? '');
   /** The one line a desktop notification has room for. */

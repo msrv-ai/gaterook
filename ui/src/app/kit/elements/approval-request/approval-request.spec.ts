@@ -142,6 +142,44 @@ describe('approval JSON request views', () => {
   });
 });
 
+describe('who asked', () => {
+  const header = (fixture: ComponentFixture<GwApprovalRequest>, key: string) =>
+    [...(fixture.nativeElement as HTMLElement).querySelectorAll('.gw-approval-request__meta .gw-kv__row')]
+      .find((row) => row.querySelector('dt')?.textContent === key)!.querySelector('dd') as HTMLElement;
+
+  it('shows a named token by its label and its client only as what it reports, never as the bridge', async () => {
+    const fixture = await render({
+      ...request(),
+      client: 'claude-desktop',
+      tokenLabel: 'ci-runner',
+      principalKind: 'local_token',
+      clientReported: true,
+    });
+
+    expect(header(fixture, 'Token').textContent).toBe('ci-runner');
+    expect(header(fixture, 'Token').querySelector('code')).not.toBeNull();
+    expect(header(fixture, 'Client').textContent).toBe('Reports itself as Claude Desktop');
+    expect(header(fixture, 'Client').querySelector('.gw-client-mark')).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('Bridge (.mcpb)');
+    expect(fixture.nativeElement.textContent).toContain('Sent to ci-runner with your decision');
+  });
+
+  it('shows Claude Desktop’s bridge token as its bridge', async () => {
+    const fixture = await render({
+      ...request(),
+      client: 'claude-desktop',
+      tokenLabel: 'claude-desktop',
+      principalKind: 'bridge',
+      clientReported: false,
+    });
+
+    expect(header(fixture, 'Token').textContent).toBe('Bridge (.mcpb)');
+    expect(header(fixture, 'Client').textContent).toContain('Claude Desktop');
+    expect(header(fixture, 'Client').textContent).not.toContain('Reports itself');
+    expect(header(fixture, 'Client').querySelector('.gw-client-mark')).not.toBeNull();
+  });
+});
+
 describe('what the review shows with the action', () => {
   it('boxes what the server marked in a parameter value, a warning and the note, and warns about it', async () => {
     const detail: ApprovalDetail = {

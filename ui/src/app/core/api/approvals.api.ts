@@ -24,6 +24,13 @@ export interface ApprovalItem {
   readonly decidedVia: string | null;
   readonly decidedAt: Iso | null;
   readonly commentPolicy: CommentPolicy;
+  /** The credential that asked: `local_token` (a named token), `bridge` (a client's grant), `oauth`, `playground`. */
+  readonly principalKind?: string | null;
+  /**
+   * `client` is only what the client says about itself (a named token implies no client): who asked is `tokenLabel`,
+   * and the family may be shown only as reported by the client.
+   */
+  readonly clientReported?: boolean;
 }
 
 /**
@@ -117,6 +124,10 @@ export interface ApprovalDetail {
   readonly endpoint: string;
   readonly client: string | null;
   readonly tokenLabel: string | null;
+  /** As {@link ApprovalItem.principalKind}. */
+  readonly principalKind?: string | null;
+  /** As {@link ApprovalItem.clientReported}. */
+  readonly clientReported?: boolean;
   readonly requestedAt: Iso;
   readonly expiresAt: Iso;
   readonly status: ApprovalStatus;

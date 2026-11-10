@@ -1,4 +1,4 @@
-import { ActionSegment, ApprovalDetail, ApprovalStatus, ApprovalTimelineEntry, Diff } from '../../../core/api/approvals.api';
+import { ActionSegment, ApprovalDetail, ApprovalItem, ApprovalStatus, ApprovalTimelineEntry, Diff } from '../../../core/api/approvals.api';
 import { JsonValue } from '../../../core/api/types';
 import { duration, elapsed } from '../../../core/time/time-format';
 import { confusableTitle, inspectPlain, invisibleTitle } from '../../../code/unicode';
@@ -106,15 +106,43 @@ export function windowSeconds(r: Pick<ApprovalDetail, 'requestedAt' | 'expiresAt
   return Math.max(1, Math.round((Date.parse(r.expiresAt) - Date.parse(r.requestedAt)) / 1000));
 }
 
-/** How the client authenticated: Claude Desktop gets its tokens from the bridge, never a named one. */
-export function tokenText(client: string | null, tokenLabel: string | null): { readonly code: boolean; readonly text: string } {
-  if (client === 'claude-desktop') return { code: false, text: 'Bridge (.mcpb)' };
-  return { code: true, text: tokenLabel ?? 'unknown' };
+/** Who asked, as the request names them: the credential, and the client family it implies or the client reports. */
+export type Requester = Pick<ApprovalItem, 'client' | 'tokenLabel' | 'principalKind' | 'clientReported'>;
+
+/**
+ * How the client authenticated, from the credential that asked: a bridge token of Claude Desktop's grant is its .mcpb
+ * bridge; every other credential is its label (a named token's name, a grant's label, an OAuth client). A name the
+ * client gives itself never makes a token the bridge.
+ */
+export function tokenText(r: Requester): { readonly code: boolean; readonly text: string } {
+  if (r.principalKind === 'bridge' && r.client === 'claude-desktop') return { code: false, text: 'Bridge (.mcpb)' };
+  return { code: true, text: r.tokenLabel ?? 'unknown' };
 }
 
-/** "Codex", "Claude Desktop"; "the agent" when the client didn't say. */
-export function who(client: string | null): string {
-  return client ? clientName(client) : 'the agent';
+/** The client family the credential implies, or null: never one the client only reports about itself. */
+export function verifiedClient(r: Requester): string | null {
+  return r.client && !r.clientReported ? r.client : null;
+}
+
+/**
+ * Who asked, in a sentence: "Codex", "Claude Desktop" when the credential implies the client, else the credential's
+ * label ("ci-runner"), else "the agent" — as the core's notices name them (`ApprovalNotice.asker`).
+ */
+export function who(r: Requester): string {
+  const client = verifiedClient(r);
+  if (client) return clientName(client);
+  return r.tokenLabel || 'the agent';
+}
+
+/**
+ * The Client row of a request: the implied client with its mark; a family the client only reports about itself as
+ * "Reports itself as Codex", without a mark; else "the agent".
+ */
+export function clientText(r: Requester): { readonly mark: string | null; readonly text: string } {
+  const client = verifiedClient(r);
+  if (client) return { mark: client, text: clientName(client) };
+  if (r.client && r.client !== 'other') return { mark: null, text: `Reports itself as ${clientName(r.client)}` };
+  return { mark: null, text: 'the agent' };
 }
 
 /** A run of a sentence; `mono` runs are literals the kit sets in `gw-mono` (escapes, letters, words). */
@@ -352,7 +380,7 @@ export function affected(structured: JsonValue | undefined): string | null {
  * with its current step, "Running on dev-cluster".
  */
 export function historySteps(r: ApprovalDetail): HistoryStep[] {
-  const client = who(r.client);
+  const client = who(r);
   const steps: HistoryStep[] = [];
   const windowMin = windowMinutes(r);
   for (const e of r.timeline) {
@@ -362,10 +390,12 @@ export function historySteps(r: ApprovalDetail): HistoryStep[] {
     };
     switch (e.kind) {
       case 'requested': {
-        const token = tokenText(r.client, r.tokenLabel);
+        const token = tokenText(r);
         const meta = token.code
           ? [t('Token '), c(token.text), t(' · endpoint '), c(r.endpoint)]
           : [t('Bridge token (.mcpb) · endpoint '), c(r.endpoint)];
+        // A family the client only reports about itself is said as such, after the credential that asked.
+        if (r.client && r.clientReported && r.client !== 'other') meta.push(t(` · reports itself as ${clientName(r.client)}`));
         step({ tone: 'neutral', icon: 'send', title: `Requested by ${client}`, meta, comment: null });
         break;
       }

@@ -5,6 +5,7 @@ import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.core.approvals.ActionInspector;
 import ai.msrv.gaterook.core.approvals.ApprovalService;
 import ai.msrv.gaterook.core.approvals.ApprovalView;
+import ai.msrv.gaterook.core.platform.Caller;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,12 +24,16 @@ public final class ApprovalDtos {
   /**
    * One row of Approvals › Pending or History, and of Overview's "Waiting for you".
    *
-   * @param tokenLabel the trusted label of who asked (token name, grant label: {@code codex-laptop})
-   * @param client     the client family Activity shows ({@code codex}, {@code claude-desktop}, {@code playground})
+   * @param tokenLabel     the trusted label of who asked (token name, grant label: {@code codex-laptop})
+   * @param client         the client family Activity shows ({@code codex}, {@code claude-desktop}, {@code playground})
+   * @param principalKind  the credential that asked: {@code local_token} (a named token), {@code bridge} (a bridge
+   *                       token of a client's grant), {@code oauth} or {@code playground}
+   * @param clientReported {@code client} is only what the client says about itself ({@link Caller#familyReported}):
+   *                       who asked is {@code tokenLabel}, and the family is shown as reported by the client
    */
   public record Item(String id, String tool, String connection, String env, String endpoint, String client,
       String tokenLabel, Instant requestedAt, Instant expiresAt, String status, String summary, String decidedVia,
-      Instant decidedAt, String commentPolicy) {}
+      Instant decidedAt, String commentPolicy, String principalKind, boolean clientReported) {}
 
   /** The exact action: segments to draw ({@code t}: {@code text}, {@code invisible}, {@code confusable}). */
   public record Action(String kind, String language, String text, List<ActionInspector.Segment> segments,
@@ -82,6 +87,8 @@ public final class ApprovalDtos {
    * @param agentNoteSegments  the inspector's cut of the agent's note, or {@code null} when it found nothing
    * @param detailsHiddenChars the hidden characters of the target, the fields, the impact, the warnings and the note
    * @param detailsConfusables the letters that pass for others there
+   * @param principalKind      the credential that asked, as {@link Item} has it
+   * @param clientReported     {@code client} is only what the client says about itself, as {@link Item} has it
    */
   public record Detail(String id, String callId, String tool, String toolKey, String connection, String env,
       String endpoint, String client, String tokenLabel, Instant requestedAt, Instant expiresAt, String status,
@@ -90,7 +97,8 @@ public final class ApprovalDtos {
       Instant decidedAt, Instant executedAt, String error, Result result, boolean resultExpired,
       List<TimelineEntry> timeline, Channels channels, Long eventId, String traceId, boolean traceIsTask,
       List<ActionInspector.Segment> targetSegments, List<List<ActionInspector.Segment>> warningSegments,
-      List<ActionInspector.Segment> agentNoteSegments, int detailsHiddenChars, int detailsConfusables) {}
+      List<ActionInspector.Segment> agentNoteSegments, int detailsHiddenChars, int detailsConfusables,
+      String principalKind, boolean clientReported) {}
 
   /** Where the request's call is in Activity: its event and its trace. */
   public record CallRef(Long eventId, String traceId, boolean traceIsTask) {
@@ -103,7 +111,7 @@ public final class ApprovalDtos {
   public static Item item(ApprovalView a) {
     return new Item(a.id(), a.tool(), a.connectionName(), a.env().id(), a.endpointSlug(), client(a), a.clientLabel(),
         a.createdAt(), a.expiresAt(), a.status(), a.action() == null ? null : a.action().summary(), a.decidedVia(),
-        a.decidedAt(), a.commentPolicy());
+        a.decidedAt(), a.commentPolicy(), principalKind(a), clientReported(a));
   }
 
   /**
@@ -163,13 +171,24 @@ public final class ApprovalDtos {
         p == null ? null : p.summary(), fields, impact, warnings, new Rule(a.ruleId(), ruleText(a)), a.agentNote(),
         a.commentPolicy(), a.comment(), a.digest(), a.decidedVia(), a.decidedAt(), a.executedAt(), a.error(),
         result(a.result()), expired, entries, channels(timeline), call.eventId(), call.traceId(), call.traceIsTask(),
-        targetSegments, warningSegments, noteSegments, shown.hidden, shown.confusables);
+        targetSegments, warningSegments, noteSegments, shown.hidden, shown.confusables, principalKind(a),
+        clientReported(a));
   }
 
   /** The client family the request's call reported, from its canonical call ({@code origin.client}). */
   static String client(ApprovalView a) {
     JsonNode client = a.call() == null ? null : a.call().path("origin").path("client");
     return client != null && client.isString() ? client.asString() : null;
+  }
+
+  /** {@code local_token}, {@code bridge}, {@code oauth}, {@code playground}, as the audit rows write it. */
+  static String principalKind(ApprovalView a) {
+    return a.principalKind() == null ? null : a.principalKind().name().toLowerCase(java.util.Locale.ROOT);
+  }
+
+  /** The family is the client's own word: a named token implies none ({@link Caller#familyReported}). */
+  static boolean clientReported(ApprovalView a) {
+    return client(a) != null && a.principalKind() != null && Caller.familyReported(a.principalKind());
   }
 
   static String ruleText(ApprovalView a) {

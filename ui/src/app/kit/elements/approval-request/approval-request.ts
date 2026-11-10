@@ -39,6 +39,7 @@ import {
   actionLabel,
   actionNoun,
   affected,
+  clientText,
   detailsWarning,
   diffSummary,
   executedMs,
@@ -148,8 +149,11 @@ export class GwApprovalRequest {
   });
   protected readonly pending = computed(() => this.r().status === 'pending');
   protected readonly badge = computed(() => statusBadge(this.state()));
-  protected readonly clientName = computed(() => who(this.r().client));
-  protected readonly token = computed(() => tokenText(this.r().client, this.r().tokenLabel));
+  /** Who asked, in a sentence: the client the credential implies, else the credential's label. */
+  protected readonly clientName = computed(() => who(this.r()));
+  /** The Client row: the implied client with its mark, or what the client reports about itself, said as such. */
+  protected readonly clientRow = computed(() => clientText(this.r()));
+  protected readonly token = computed(() => tokenText(this.r()));
   protected readonly target = computed(() => this.r().connection ?? this.r().endpoint);
   /** "c7e19d": the short trace id Activity's `trace:` filter accepts as a prefix. */
   protected readonly traceShort = computed(() => this.traceId()?.slice(0, 6).toLowerCase() || null);

@@ -8,7 +8,7 @@
     <dl class="gw-kv gw-kv--inline gw-approval-request__meta">
       <div class="gw-kv__row"><dt class="gw-kv__key">Mode</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><svg lucideIcon="user-check" class="gw-icon"></svg>Approval</span></dd></div>
       <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">{{ r().endpoint }}</code></dd></div>
-      <div class="gw-kv__row"><dt class="gw-kv__key">Client</dt><dd class="gw-kv__value"><span class="gw-approval-request__client">@if (r().client) {<span [gwClientMark]="r().client!" size="sm"></span>}{{ clientName() }}</span></dd></div>
+      <div class="gw-kv__row"><dt class="gw-kv__key">Client</dt><dd class="gw-kv__value"><span class="gw-approval-request__client">@if (clientRow().mark; as mark) {<span [gwClientMark]="mark" size="sm"></span>}{{ clientRow().text }}</span></dd></div>
       <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value">@if (token().code) {<code class="gw-code">{{ token().text }}</code>} @else {{{ token().text }}}</dd></div>
       <div class="gw-kv__row"><dt class="gw-kv__key">Requested</dt><dd class="gw-kv__value"><time class="gw-tabular" [attr.datetime]="iso(r().requestedAt)" [title]="absolute(r().requestedAt)">{{ relative(r().requestedAt) }}</time></dd></div>
       @if (traceShort(); as trace) {

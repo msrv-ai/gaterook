@@ -112,12 +112,41 @@ class ApprovalDtosTest {
     assertThat(preview.detailsConfusables()).isEqualTo(1);
   }
 
+  @Test
+  void aNamedTokensClientIsOnlyWhatTheClientReportsAndTheCredentialSaysWhoAsked() {
+    ActionPreview p = ActionPreview.of(ActionPreview.Kind.SQL, "sql", "DELETE FROM orders", "dev-db", "delete");
+    tools.jackson.databind.node.ObjectNode call = tools.jackson.databind.node.JsonNodeFactory.instance.objectNode();
+    call.putObject("origin").put("client", "claude-desktop");
+
+    ApprovalDtos.Detail named = ApprovalDtos.detail(view(p, null, Caller.Kind.LOCAL_TOKEN, "ci-runner", call),
+        List.of());
+    ApprovalDtos.Item item = ApprovalDtos.item(view(p, null, Caller.Kind.LOCAL_TOKEN, "ci-runner", call));
+    ApprovalDtos.Detail bridge = ApprovalDtos.detail(view(p, null, Caller.Kind.BRIDGE, "claude-desktop", call),
+        List.of());
+
+    assertThat(named.client()).isEqualTo("claude-desktop");
+    assertThat(named.clientReported()).isTrue();
+    assertThat(named.principalKind()).isEqualTo("local_token");
+    assertThat(named.tokenLabel()).isEqualTo("ci-runner");
+    assertThat(item.clientReported()).isTrue();
+    assertThat(item.principalKind()).isEqualTo("local_token");
+    assertThat(bridge.clientReported()).as("a bridge grant names its client").isFalse();
+    assertThat(bridge.principalKind()).isEqualTo("bridge");
+    assertThat(ApprovalDtos.detail(view(p, null), List.of()).clientReported()).as("no family, nothing reported")
+        .isFalse();
+  }
+
   private static ApprovalView view(ActionPreview action, String note) {
+    return view(action, note, Caller.Kind.LOCAL_TOKEN, "ci-runner", null);
+  }
+
+  private static ApprovalView view(ActionPreview action, String note, Caller.Kind kind, String label,
+      tools.jackson.databind.JsonNode call) {
     Instant at = Instant.parse("2026-11-10T10:00:00Z");
     return new ApprovalView("ap_1", "tc_1", "ep_1", "dev", "cn_1", "dev-db", "cancel_orders", "template:cancel_orders",
-        Env.DEV, Caller.Kind.LOCAL_TOKEN, "tok_1", "ci-runner", "pending", "d".repeat(64), action, "a".repeat(64), note,
+        Env.DEV, kind, "pr_1", label, "pending", "d".repeat(64), action, "a".repeat(64), note,
         "dev.sql.write-approval", "optional", null, null, null, at, at.plusSeconds(300), null, null, null, null, null,
-        null);
+        call);
   }
 
   @Test

@@ -6,6 +6,7 @@ import ai.msrv.gaterook.core.approvals.ActionInspector;
 import ai.msrv.gaterook.core.approvals.ApprovalService;
 import ai.msrv.gaterook.core.approvals.ApprovalView;
 import ai.msrv.gaterook.core.notifications.ApprovalNotice;
+import ai.msrv.gaterook.core.platform.Caller;
 import ai.msrv.gaterook.core.platform.CanonicalJson;
 import ai.msrv.gaterook.core.platform.MaskPolicy;
 import ai.msrv.gaterook.core.platform.Masker;
@@ -72,7 +73,10 @@ public class Notices {
     inspection.segments().forEach(s -> visible.append(s.v()));
     ApprovalNotice.Action action = new ApprovalNotice.Action(kind, language, secretLike ? "" : visible.toString(),
         raw.length(), secretLike, inspection.hiddenChars(), inspection.confusables(), partial);
-    String client = a.call() == null ? null : text(a.call().path("origin").path("client"));
+    // Who asked: the family the credential implies. A named token implies none, and the family its call recorded is
+    // only the name the client gives itself, so a channel names the token's label instead (ApprovalNotice.asker).
+    String client = a.call() == null || a.principalKind() == null || Caller.familyReported(a.principalKind()) ? null
+        : text(a.call().path("origin").path("client"));
     // The one line a channel shows when the action itself isn't (looks like a secret, too long). A plugin's or MCP
     // server's own line is its text about the agent's arguments — it may repeat the note, which no channel carries —
     // so theirs is the core's; every line shows its invisible characters as escapes, like the action.

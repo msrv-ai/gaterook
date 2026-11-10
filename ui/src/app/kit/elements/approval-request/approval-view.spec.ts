@@ -4,6 +4,7 @@ import { literalParts, literalWords } from '../shared/literals';
 import {
   actionLabel,
   affected,
+  clientText,
   detailMarks,
   detailsWarning,
   diffSummary,
@@ -13,8 +14,10 @@ import {
   requestState,
   statusBadge,
   tokenText,
+  verifiedClient,
   viaText,
   visibleText,
+  who,
   windowMinutes,
 } from './approval-view';
 
@@ -31,8 +34,38 @@ describe('approval-request view', () => {
 
   it('names the window and the token without a token value', () => {
     expect(windowMinutes({ requestedAt: '2026-10-22T14:29:00+02:00', expiresAt: '2026-10-22T14:34:00+02:00' })).toBe(5);
-    expect(tokenText('claude-desktop', 'claude-desktop')).toEqual({ code: false, text: 'Bridge (.mcpb)' });
-    expect(tokenText('codex', 'codex-laptop')).toEqual({ code: true, text: 'codex-laptop' });
+    expect(tokenText({ client: 'claude-desktop', tokenLabel: 'claude-desktop', principalKind: 'bridge' })).toEqual({ code: false, text: 'Bridge (.mcpb)' });
+    expect(tokenText({ client: 'codex', tokenLabel: 'codex-laptop', principalKind: 'bridge' })).toEqual({ code: true, text: 'codex-laptop' });
+  });
+
+  it('takes who asked from the credential, never from the name a named token’s client gives itself', () => {
+    // A named token whose client calls itself Claude: the token is not Claude Desktop's bridge.
+    const named = { client: 'claude-desktop', tokenLabel: 'ci-runner', principalKind: 'local_token', clientReported: true };
+    expect(tokenText(named)).toEqual({ code: true, text: 'ci-runner' });
+    expect(who(named)).toBe('ci-runner');
+    expect(verifiedClient(named)).toBeNull();
+    expect(clientText(named)).toEqual({ mark: null, text: 'Reports itself as Claude Desktop' });
+    expect(clientText({ ...named, client: 'other' })).toEqual({ mark: null, text: 'the agent' });
+    // A bridge grant was made for its client.
+    const bridge = { client: 'claude-desktop', tokenLabel: 'claude-desktop', principalKind: 'bridge', clientReported: false };
+    expect(who(bridge)).toBe('Claude Desktop');
+    expect(clientText(bridge)).toEqual({ mark: 'claude-desktop', text: 'Claude Desktop' });
+    // No family: the credential's label, else the agent.
+    expect(who({ client: null, tokenLabel: 'Some client', principalKind: 'oauth' })).toBe('Some client');
+    expect(who({ client: null, tokenLabel: null })).toBe('the agent');
+  });
+
+  it('says in the history that a family is only what the client reports', () => {
+    const r = {
+      ...DEMO_APPROVALS.executed,
+      client: 'claude-desktop',
+      tokenLabel: 'ci-runner',
+      principalKind: 'local_token',
+      clientReported: true,
+    };
+    const requested = historySteps(r)[0];
+    expect(requested.title).toBe('Requested by ci-runner');
+    expect(words(requested.meta)).toBe(`Token ci-runner · endpoint ${r.endpoint} · reports itself as Claude Desktop`);
   });
 
   it('counts and names hidden and look-alike characters', () => {
