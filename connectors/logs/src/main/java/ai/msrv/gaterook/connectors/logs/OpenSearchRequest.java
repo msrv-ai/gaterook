@@ -257,7 +257,9 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
       throw ConnectorException.badInput("path must start with a single / on the configured search server.");
     }
     if (path.length() > MAX_TARGET) {
-      throw ConnectorException.badInput("path is longer than " + MAX_TARGET + " characters once escaped.");
+      // Checked as typed and again with the query, once escaped: escaping and a query only make a target longer.
+      throw ConnectorException.badInput("path, with its query and escaped, is longer than " + MAX_TARGET
+          + " characters.");
     }
     try {
       URI uri = URI.create(path);
