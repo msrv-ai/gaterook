@@ -8,7 +8,7 @@ import { GwSearchClearButton } from '../../../kit/search';
 import { GwTabs } from '../../../kit/tabs';
 import { joinAnd, tokenizeCommand } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
-import { signingTarget } from '../mcp-cloud';
+import { googleApiUrl, signingTarget } from '../mcp-cloud';
 import { PastedServer, parsePastedServer, serverName } from '../mcp-paste';
 import { fromRegistry, templateParts } from '../mcp-registry';
 import { RegistryResult, completeRegistryResults, rankRegistryResults, registryResult } from '../mcp-registry-results';
@@ -167,6 +167,9 @@ export function mcpRequest(
       if (!keyed) bindings.push({ name: 'Authorization' });
     } else if (way === 'google') {
       auth = googleAuth(signIn, scopes, errors);
+      if (!errors.url && !googleApiUrl(url.trim())) {
+        errors.url = 'Google Cloud credentials go only to Google’s own servers (https://<service>.googleapis.com). Sign in to this one another way.';
+      }
       if (keyed) errors.variables = 'Google Cloud credentials send the Authorization header. Remove that header, or sign in another way.';
     } else if (way === 'aws') {
       auth = awsAuth(signIn, url.trim(), !errors.url, errors);
@@ -764,8 +767,9 @@ export class GwMcpAddDialog {
       this.suggested.set(r.name);
     }
     this.variables.set(r.variables.length ? r.variables.map((name) => ({ name })) : [{ name: '' }]);
+    // A sign-in chosen for the previous server isn't this one's: a Google token or an AWS signature included.
     if (r.auth) this.applySignIn(r.auth);
-    else if (this.signInWith() === 'bearer') this.setSignInWith('oauth');
+    else if (this.signInWith() !== 'oauth') this.setSignInWith('oauth');
     this.errors.set({});
     const kind = r.transport === 'http' ? 'header' : 'variable';
     return joinAnd([

@@ -54,6 +54,10 @@ class McpServerSignInIT {
   private static OAuthMcpServer board;
   /** Registered apps only, with the device grant, as GitHub's authorization server: GateRook's own app signs in. */
   private static OAuthMcpServer forge;
+  /** The person's OAuth app only, with its client secret, as Slack's authorization server. */
+  private static OAuthMcpServer chat;
+  /** Another authorization server, which a server can name instead of its own at any time. */
+  private static OAuthMcpServer collector;
 
   @BeforeAll
   static void start() throws Exception {
@@ -61,6 +65,8 @@ class McpServerSignInIT {
     tracker = new OAuthMcpServer(Files.createTempDirectory(work, "tomcat-"));
     board = new OAuthMcpServer(Files.createTempDirectory(work, "tomcat-"), true);
     forge = OAuthMcpServer.registeredAppsOnly(Files.createTempDirectory(work, "tomcat-"));
+    chat = OAuthMcpServer.confidentialAppsOnly(Files.createTempDirectory(work, "tomcat-"));
+    collector = new OAuthMcpServer(Files.createTempDirectory(work, "tomcat-"));
     // GateRook's GitHub app, pointed at the fake as at a GitHub Enterprise Server.
     core = CoreProcess.start(CoreProcess.newHome("mcp-sign-in-e2e"), CoreProcess.freePort(), List.of(
         "-Dgateway.mcp-sign-in.github.issuer=" + forge.base,
@@ -87,6 +93,12 @@ class McpServerSignInIT {
     }
     if (forge != null) {
       forge.close();
+    }
+    if (chat != null) {
+      chat.close();
+    }
+    if (collector != null) {
+      collector.close();
     }
   }
 
@@ -606,6 +618,103 @@ class McpServerSignInIT {
     assertNoToken(core.coreLog());
   }
 
+  @Test
+  @Order(17)
+  void theClientSecretOfAnOAuthAppGoesOnlyToTheAuthorizationServerItWasEnteredFor() throws Exception {
+    int port = CoreProcess.freePort();
+    ObjectNode config = config("chat-mcp", chat, false);
+    config.putObject("auth").put("type", "oauth").put("clientId", OAuthMcpServer.CONFIDENTIAL_CLIENT)
+        .put("callbackPort", port);
+    ObjectNode review = CoreProcess.JSON.createObjectNode();
+    review.set("config", config);
+    JsonNode r = json(admin("POST", "/api/mcp-servers/review", review.toString()), 200);
+    assertThat(r.at("/auth/registration").asString()).as(r.toString()).isEqualTo("app");
+    assertThat(r.at("/auth/tokenEndpoint").asString()).isEqualTo(chat.base + "/token");
+    ObjectNode request = CoreProcess.JSON.createObjectNode();
+    request.set("config", config);
+    request.putObject("secrets").putObject("/auth/clientSecret").put("source", "local")
+        .put("value", OAuthMcpServer.CONFIDENTIAL_SECRET);
+
+    // Before the server is added: only to the authorization server the review showed.
+    Answer unreviewed = admin("POST", "/api/mcp-sign-ins", request.toString());
+    assertThat(unreviewed.status()).as(unreviewed.body()).isEqualTo(422);
+    assertThat(unreviewed.body()).contains("Review chat-mcp again");
+    request.putObject("authorizationServer").put("issuer", r.at("/auth/issuer").asString())
+        .put("tokenEndpoint", r.at("/auth/tokenEndpoint").asString());
+    chat.authorizationServer = collector.base;
+    try {
+      Answer moved = admin("POST", "/api/mcp-sign-ins", request.toString());
+      assertThat(moved.status()).as(moved.body()).isEqualTo(422);
+      assertThat(moved.body()).contains("now names another authorization server");
+    } finally {
+      chat.authorizationServer = null;
+    }
+    JsonNode started = json(admin("POST", "/api/mcp-sign-ins", request.toString()), 201);
+    HttpResponse<String> landed = signInInTheBrowser(started.path("authorizationUrl").asString(),
+        "http://127.0.0.1:" + port + "/callback?");
+    assertThat(landed.statusCode()).as(landed.body()).isEqualTo(200);
+    assertThat(chat.tokenAuthorizations.getLast()).as("the app's secret, to its own authorization server")
+        .startsWith("Basic ");
+    ObjectNode add = request.deepCopy().put("signIn", started.path("id").asString()).put("acknowledge", true)
+        .put("reason", "team chat");
+    add.remove("authorizationServer");
+    json(admin("POST", "/api/mcp-servers", add.toString()), 201);
+    assertThat(json(admin("GET", "/api/secrets", null), 200).toString()).contains("chat-mcp/oauth-app");
+
+    // Now the server names another authorization server: the secret doesn't go there, signed in or signed out.
+    chat.authorizationServer = collector.base;
+    try {
+      for (int round = 0; round < 2; round++) {
+        Answer refused = admin("POST", "/api/mcp-servers/chat-mcp/sign-in", null);
+        assertThat(refused.status()).as(refused.body()).isEqualTo(422);
+        assertThat(refused.body()).contains("where the client secret of your OAuth app was used")
+            .contains("enter the client secret again");
+        json(admin("POST", "/api/mcp-servers/chat-mcp/sign-out", "{\"reason\":\"done\"}"), 200);
+      }
+      assertThat(collector.tokenRequests).as("nothing reached the other token endpoint").isEmpty();
+      assertThat(collector.authorizationsSeen).as("no browser was sent there").isEmpty();
+
+      // Entering the client secret again, even with the same value, is how the person trusts the new one.
+      String id = secretOf(json(admin("GET", "/api/secrets", null), 200), "chat-mcp", "/auth/clientSecret");
+      json(admin("PUT", "/api/secrets/" + id + "/value", "{\"value\":\"" + OAuthMcpServer.CONFIDENTIAL_SECRET
+          + "\"}"), 200);
+      JsonNode trusted = json(admin("POST", "/api/mcp-servers/chat-mcp/sign-in", null), 201);
+      assertThat(trusted.path("authorizationUrl").asString()).startsWith(collector.base + "/authorize?");
+      admin("DELETE", "/api/mcp-sign-ins/" + trusted.path("id").asString(), null);
+    } finally {
+      chat.authorizationServer = null;
+    }
+    Answer deleted = admin("DELETE", "/api/mcp-servers/chat-mcp", "{\"reason\":\"done\"}");
+    assertThat(deleted.status()).as(deleted.body()).isEqualTo(204);
+    assertThat(json(admin("GET", "/api/secrets", null), 200).toString()).doesNotContain("chat-mcp");
+  }
+
+  @Test
+  @Order(18)
+  void aTokenIssuedForASecondIsRenewedAheadOfTimeAtMostOnceAMinute() throws Exception {
+    OAuthMcpServer pulse = new OAuthMcpServer(Files.createTempDirectory(Path.of("target", "mcp-sign-in-e2e")
+        .toAbsolutePath(), "tomcat-"));
+    try {
+      pulse.expiresIn = 1;
+      ObjectNode request = CoreProcess.JSON.createObjectNode();
+      request.set("config", config("pulse-mcp", pulse, true));
+      JsonNode started = json(admin("POST", "/api/mcp-sign-ins", request.toString()), 201);
+      assertThat(signInInTheBrowser(started.path("authorizationUrl").asString()).statusCode()).isEqualTo(200);
+      ObjectNode add = request.deepCopy().put("signIn", started.path("id").asString()).put("acknowledge", true)
+          .put("reason", "pulse");
+      json(admin("POST", "/api/mcp-servers", add.toString()), 201);
+      for (int i = 0; i < 3; i++) {
+        assertThat(json(admin("POST", "/api/mcp-servers/pulse-mcp/test", null), 200).path("tools").asInt())
+            .isEqualTo(1);
+      }
+      assertThat(pulse.tokenRequests).as("one code exchange; no renewal within a minute of the sign-in")
+          .extracting(f -> f.get("grant_type")).containsExactly("authorization_code");
+      assertThat(admin("DELETE", "/api/mcp-servers/pulse-mcp", "{\"reason\":\"done\"}").status()).isEqualTo(204);
+    } finally {
+      pulse.close();
+    }
+  }
+
   /** Waits for sign-in {@code id} to reach {@code state}: a device sign-in ends at its poller's next look. */
   private static JsonNode awaitState(String id, String state) throws Exception {
     long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
@@ -669,11 +778,16 @@ class McpServerSignInIT {
 
   /** The person allows access at the provider; the browser follows the redirect to GateRook on this computer. */
   private static HttpResponse<String> signInInTheBrowser(String authorizationUrl) throws Exception {
+    return signInInTheBrowser(authorizationUrl, "http://localhost:");
+  }
+
+  /** The same, for a sign-in whose redirect URI starts with {@code redirect}. */
+  private static HttpResponse<String> signInInTheBrowser(String authorizationUrl, String redirect) throws Exception {
     HttpResponse<String> consent = BROWSER.send(HttpRequest.newBuilder(URI.create(authorizationUrl)).GET().build(),
         HttpResponse.BodyHandlers.ofString());
     assertThat(consent.statusCode()).as(consent.body()).isEqualTo(302);
     String location = consent.headers().firstValue("Location").orElseThrow();
-    assertThat(location).startsWith("http://localhost:").contains("code=").contains("iss=");
+    assertThat(location).startsWith(redirect).contains("code=").contains("iss=");
     return BROWSER.send(HttpRequest.newBuilder(URI.create(location)).timeout(Duration.ofSeconds(30)).GET().build(),
         HttpResponse.BodyHandlers.ofString());
   }
@@ -691,6 +805,17 @@ class McpServerSignInIT {
   private static void assertNoToken(String text) {
     assertThat(text).doesNotContain("trk-at-").doesNotContain("trk-rt-").doesNotContain("trk-code-")
         .doesNotContain("trk-dc-");
+  }
+
+  /** The id of {@code owner}'s secret of {@code field}. */
+  private static String secretOf(JsonNode secrets, String owner, String field) {
+    JsonNode items = secrets.isArray() ? secrets : secrets.path("items");
+    for (JsonNode s : items) {
+      if (owner.equals(s.path("owner").asString(null)) && field.equals(s.path("field").asString(null))) {
+        return s.path("id").asString();
+      }
+    }
+    throw new AssertionError("No secret " + field + " of " + owner + " in " + secrets);
   }
 
   private static String secretId(JsonNode secrets) {

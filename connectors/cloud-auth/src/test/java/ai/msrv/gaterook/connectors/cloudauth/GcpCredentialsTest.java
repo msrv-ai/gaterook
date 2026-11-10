@@ -281,6 +281,27 @@ class GcpCredentialsTest {
   }
 
   @Test
+  void aKeyThatOnlyALenientParserReadsIsRefusedWhicheverUniverseItNames() throws Exception {
+    // google-auth's JSON parser reads past text a strict parser refuses. The universe check used to skip such a key, and
+    // google-auth then took the universe it names: an impersonation's IAM address and the token audience follow it.
+    cloud = new CloudCredentials(endpoints(dir.resolve("none.json")), Clock.systemUTC());
+    ObjectNode key = (ObjectNode) JSON.readTree(serviceAccountKey("https://oauth2.googleapis.com/token"));
+    key.put("universe_domain", "other.example");
+    String strict = JSON.writeValueAsString(key);
+    GcpSpec impersonating = new GcpSpec(GcpSpec.Source.SERVICE_ACCOUNT_KEY, "/k", SA, List.of(), 900, null);
+    Map<String, String> lenient = Map.of(
+        "text after the object", strict + " and more",
+        "a second object", strict + "{}",
+        "an escaped single quote", strict.replace("\"project_id\":\"acme-stage\"", "\"project_id\":\"acme-stage\\'\""));
+    for (Map.Entry<String, String> e : lenient.entrySet()) {
+      FakeSecrets secrets = new FakeSecrets().with("/k", e.getValue());
+      assertThatThrownBy(() -> cloud.gcp(OWNER, impersonating, List.of(CloudCredentials.CLOUD_PLATFORM), secrets))
+          .as(e.getKey()).isInstanceOf(ConnectorException.class).hasMessageContaining("isn't valid JSON");
+    }
+    assertThat(server.getRequestCount()).isZero();
+  }
+
+  @Test
   void refusesSignInsThatRunProgramsOrAskTheMetadataServer() throws Exception {
     Path external = write("ext.json", "{\"type\":\"external_account\",\"audience\":\"x\",\"subject_token_type\":\"y\","
         + "\"credential_source\":{\"executable\":{\"command\":\"/bin/evil\"}}}");

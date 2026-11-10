@@ -329,7 +329,7 @@ let nextId = 0;
                   <div class="gw-field">
                     <label class="gw-field__label" [for]="uid + '-client-secret'">Client secret @if (!a.secretRequired) {<span class="gw-field__optional">Optional</span>}</label>
                     <input class="gw-input gw-input--mono" [id]="uid + '-client-secret'" type="password" autocomplete="new-password" spellcheck="false" (input)="clientSecretTyped.set(fieldValue($event) !== '')" [attr.aria-describedby]="uid + '-client-secret-hint'">
-                    <p class="gw-field__hint" [id]="uid + '-client-secret-hint'">{{ a.secretRequired ? 'The provider takes the app only with its secret.' : 'Only when the app has one.' }} It is stored encrypted as a secret of {{ w.name }} and never shown again.</p>
+                    <p class="gw-field__hint" [id]="uid + '-client-secret-hint'">{{ a.secretRequired ? 'The provider takes the app only with its secret.' : 'Only when the app has one.' }} It is stored encrypted as a secret of {{ w.name }} and never shown again.@if (hostOf(a.tokenEndpoint); as tokens) { GateRook sends it only to <span class="gw-mono">{{ tokens }}</span>, where this review found the authorization server’s token endpoint.}</p>
                   </div>
                 </fieldset>
               }
@@ -573,11 +573,24 @@ export class GwMcpReviewDialog {
     this.signedInConfig = config;
     this.signedIn.set(null);
     const secret = this.host.querySelector<HTMLInputElement>(`#${this.uid}-client-secret`)?.value ?? '';
-    return this.data.startSignIn({ config, env: source.env, ...(secret ? { secrets: { [CLIENT_SECRET]: { source: 'local', value: secret } } } : {}) });
+    // The client secret goes only to the authorization server this review showed: the core refuses any other one.
+    const auth = this.view()?.auth;
+    const reviewed = secret && auth?.issuer && auth.tokenEndpoint ? { authorizationServer: { issuer: auth.issuer, tokenEndpoint: auth.tokenEndpoint } } : {};
+    return this.data.startSignIn({ config, env: source.env, ...(secret ? { secrets: { [CLIENT_SECRET]: { source: 'local', value: secret } } } : {}), ...reviewed });
   };
 
   protected fieldValue(e: Event): string {
     return (e.target as HTMLInputElement).value;
+  }
+
+  /** The host of a URL the core reported, or null. */
+  protected hostOf(url: string | null | undefined): string | null {
+    if (!url) return null;
+    try {
+      return new URL(url).host || null;
+    } catch {
+      return null;
+    }
   }
 
   show(reviewed: McpReviewed, canGoBack = false): void {

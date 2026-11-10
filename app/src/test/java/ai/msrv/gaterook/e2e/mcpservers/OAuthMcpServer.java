@@ -43,7 +43,9 @@ import tools.jackson.databind.node.ObjectNode;
  * <p>{@link #registeredAppsOnly} behaves as GitHub's authorization server does (2026-11-09): neither registration nor
  * documents, no authentication methods listed, the device authorization grant for the one app it knows
  * ({@link #APP_CLIENT}), its errors answered with HTTP 200. There the test plays the person who enters the code
- * ({@link #approve}, {@link #deny}).
+ * ({@link #approve}, {@link #deny}). {@link #confidentialAppsOnly} admits only the OAuth app the person registered
+ * there, which authenticates with its client secret. Its resource metadata can name another authorization server
+ * ({@link #authorizationServer}), as a server can at any time, and its tokens can be short-lived ({@link #expiresIn}).
  */
 final class OAuthMcpServer implements AutoCloseable {
 
@@ -58,6 +60,11 @@ final class OAuthMcpServer implements AutoCloseable {
 
   /** A key the server also takes in its URL ({@code /mcp?apiKey=…}), as some servers' docs give it. */
   static final String URL_KEY = "trk-url-key-5d1e7a";
+
+  /** The client ID of the one OAuth app a {@link #confidentialAppsOnly} server knows: the person registered it there. */
+  static final String CONFIDENTIAL_CLIENT = "chat-app-1234";
+  /** That app's client secret (a test value). */
+  static final String CONFIDENTIAL_SECRET = "chat-app-secret-5678-test";
 
   /**
    * The metadata documents this authorization server can read, by URL: GateRook's as its website publishes it. A real
@@ -132,6 +139,12 @@ final class OAuthMcpServer implements AutoCloseable {
   /** The metadata documents read, by URL, once per authorization request that named one. */
   final List<String> documentsRead = new CopyOnWriteArrayList<>();
   final List<Map<String, String>> tokenRequests = new CopyOnWriteArrayList<>();
+  /** The {@code Authorization} header of every token request, as sent: an app's client secret, or {@code null}. */
+  final List<String> tokenAuthorizations = new CopyOnWriteArrayList<>();
+  /** How long the access tokens it issues last, in seconds. */
+  volatile int expiresIn = 3600;
+  /** The authorization server its resource metadata names: its own while {@code null}. */
+  volatile String authorizationServer;
   final List<Map<String, String>> revocations = new CopyOnWriteArrayList<>();
   final List<String> authorizationsSeen = new CopyOnWriteArrayList<>();
   final List<String> bearersSeen = new CopyOnWriteArrayList<>();
@@ -156,6 +169,7 @@ final class OAuthMcpServer implements AutoCloseable {
   final Set<String> denied = ConcurrentHashMap.newKeySet();
   private final boolean metadataDocuments;
   private final boolean registeredApps;
+  private final boolean confidentialApps;
   private final Tomcat tomcat;
   private final McpSyncServer mcp;
   final int port;
@@ -168,17 +182,31 @@ final class OAuthMcpServer implements AutoCloseable {
 
   /** @param metadataDocuments it also accepts Client ID Metadata Documents and says so in its metadata */
   OAuthMcpServer(Path work, boolean metadataDocuments) throws Exception {
-    this(work, metadataDocuments, false);
+    this(work, metadataDocuments, false, false);
   }
 
   /** An authorization server like GitHub's: apps registered with it only, signing in with the device grant. */
   static OAuthMcpServer registeredAppsOnly(Path work) throws Exception {
-    return new OAuthMcpServer(work, false, true);
+    return new OAuthMcpServer(work, false, true, false);
   }
 
-  private OAuthMcpServer(Path work, boolean metadataDocuments, boolean registeredApps) throws Exception {
+  /**
+   * An authorization server like Slack's: no registration and no documents, only the OAuth app the person registered
+   * there ({@link #CONFIDENTIAL_CLIENT}), which authenticates with its client secret at the token endpoint.
+   */
+  static OAuthMcpServer confidentialAppsOnly(Path work) throws Exception {
+    return new OAuthMcpServer(work, false, false, true);
+  }
+
+  private OAuthMcpServer(Path work, boolean metadataDocuments, boolean registeredApps, boolean confidentialApps)
+      throws Exception {
     this.metadataDocuments = metadataDocuments;
     this.registeredApps = registeredApps;
+    this.confidentialApps = confidentialApps;
+    if (confidentialApps) {
+      // Registered with a loopback redirect: any port on this computer (RFC 8252 §7.3).
+      clients.put(CONFIDENTIAL_CLIENT, new Client(CONFIDENTIAL_CLIENT, List.of("http://127.0.0.1/callback"), null));
+    }
     HttpServletStreamableServerTransportProvider transport = HttpServletStreamableServerTransportProvider.builder()
         .jsonMapper(new JacksonMcpJsonMapper(JSON)).mcpEndpoint("/mcp").build();
     mcp = McpServer.sync(transport).serverInfo("tracker", "3.1.0")
@@ -198,7 +226,8 @@ final class OAuthMcpServer implements AutoCloseable {
     Tomcat.addServlet(ctx, "mcp", transport).setAsyncSupported(true);
     ctx.addServletMappingDecoded("/mcp", "mcp");
     servlet(ctx, "prm", "/.well-known/oauth-protected-resource/mcp", (req, res) -> json(res, 200, obj()
-        .put("resource", base() + "/mcp").set("authorization_servers", JSON.createArrayNode().add(base()))));
+        .put("resource", base() + "/mcp").set("authorization_servers", JSON.createArrayNode()
+            .add(authorizationServer != null ? authorizationServer : base()))));
     servlet(ctx, "as", "/.well-known/oauth-authorization-server", (req, res) -> {
       ObjectNode m = obj().put("issuer", base()).put("authorization_endpoint", base() + "/authorize")
           .put("token_endpoint", base() + "/token").put("authorization_response_iss_parameter_supported", true);
@@ -208,6 +237,9 @@ final class OAuthMcpServer implements AutoCloseable {
         m.put("device_authorization_endpoint", base() + "/login/device/code");
         m.putArray("grant_types_supported").add("authorization_code").add("refresh_token")
             .add("urn:ietf:params:oauth:grant-type:device_code");
+      } else if (confidentialApps) {
+        m.put("revocation_endpoint", base() + "/revoke");
+        m.putArray("token_endpoint_auth_methods_supported").add("client_secret_basic");
       } else {
         m.put("registration_endpoint", base() + "/register").put("revocation_endpoint", base() + "/revoke");
         m.putArray("token_endpoint_auth_methods_supported").add("none");
@@ -378,19 +410,30 @@ final class OAuthMcpServer implements AutoCloseable {
   private void token(HttpServletRequest req, HttpServletResponse res) throws IOException {
     Map<String, String> form = form(req);
     tokenRequests.add(form);
+    tokenAuthorizations.add(req.getHeader("Authorization"));
     if (!(base() + "/mcp").equals(form.get("resource"))) {
       json(res, 400, obj().put("error", "invalid_target"));
       return;
     }
-    if (req.getHeader("Authorization") != null || form.containsKey("client_secret")) {
+    String client;
+    if (confidentialApps) {
+      // Only its app, with its client secret (client_secret_basic).
+      client = appClient(req.getHeader("Authorization"));
+      if (client == null) {
+        json(res, 401, obj().put("error", "invalid_client"));
+        return;
+      }
+    } else if (req.getHeader("Authorization") != null || form.containsKey("client_secret")) {
       // Its clients are public (none): one that authenticates some other way isn't one of them.
       json(res, 401, obj().put("error", "invalid_client"));
       return;
+    } else {
+      client = form.get("client_id");
     }
     switch (String.valueOf(form.get("grant_type"))) {
       case "authorization_code" -> {
         Code code = codes.remove(String.valueOf(form.get("code")));
-        if (code == null || !code.client().equals(form.get("client_id")) || !code.redirect().equals(form.get(
+        if (code == null || !code.client().equals(client) || !code.redirect().equals(form.get(
             "redirect_uri")) || !code.challenge().equals(s256(form.get("code_verifier")))) {
           json(res, 400, obj().put("error", "invalid_grant"));
           return;
@@ -399,8 +442,8 @@ final class OAuthMcpServer implements AutoCloseable {
       }
       case "refresh_token" -> {
         String old = form.get("refresh_token");
-        String client = old == null ? null : refreshClients.get(old);
-        if (client == null || !client.equals(form.get("client_id")) || !refresh.remove(old)) {
+        String issuedTo = old == null ? null : refreshClients.get(old);
+        if (issuedTo == null || !issuedTo.equals(client) || !refresh.remove(old)) {
           json(res, 400, obj().put("error", "invalid_grant").put("error_description", old != null
               && usedRefresh.contains(old) ? "Refresh token reused" : "Refresh token revoked"));
           return;
@@ -436,8 +479,23 @@ final class OAuthMcpServer implements AutoCloseable {
     refresh.add(rt);
     refreshClients.put(rt, client);
     res.setHeader("Cache-Control", "no-store");
-    json(res, 200, obj().put("access_token", at).put("token_type", "Bearer").put("expires_in", 3600)
+    json(res, 200, obj().put("access_token", at).put("token_type", "Bearer").put("expires_in", expiresIn)
         .put("refresh_token", rt).put("scope", scope == null ? "issues:read" : scope));
+  }
+
+  /** The app a {@code client_secret_basic} header authenticates (RFC 6749 §2.3.1), or {@code null}. */
+  private static String appClient(String authorization) {
+    if (authorization == null || !authorization.startsWith("Basic ")) {
+      return null;
+    }
+    String pair = new String(Base64.getDecoder().decode(authorization.substring(6)), StandardCharsets.UTF_8);
+    int colon = pair.indexOf(':');
+    if (colon < 0) {
+      return null;
+    }
+    String id = java.net.URLDecoder.decode(pair.substring(0, colon), StandardCharsets.UTF_8);
+    String secret = java.net.URLDecoder.decode(pair.substring(colon + 1), StandardCharsets.UTF_8);
+    return CONFIDENTIAL_CLIENT.equals(id) && CONFIDENTIAL_SECRET.equals(secret) ? id : null;
   }
 
   // ── Plumbing ────────────────────────────────────────────────────────────────────────────────────────────────

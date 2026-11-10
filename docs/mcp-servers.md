@@ -102,11 +102,13 @@ Some servers neither accept GateRook's published details nor let apps register t
 2. In **Add MCP server › Sign-in options › OAuth app options**, enter its client ID, or enter it in the review.
 3. If the app has a client secret, enter it in the review. It is stored as a write-only secret of the server.
 
+GateRook sends the client secret only to the authorization server it was entered for: the review shows the address it goes to, and the sign-in goes there only. Later sign-ins go to the authorization server the secret was first used with. If the server names another one, or its authorization server takes tokens at another address, GateRook doesn't send the secret and says so. If you trust the new one, enter the client secret again, in **Secrets** or by editing the server in **Connections**, then sign in. Signing out keeps this record; removing the server deletes it.
+
 **OAuth app options** also set the **Scopes** to ask for, and a **Callback port** for a server or an app that accepts only one redirect address. A client ID entered there replaces GateRook's own GitHub app.
 
 ## Servers on Google Cloud
 
-Google's MCP servers, such as `https://bigtableadmin.googleapis.com/mcp` or `https://bigquery.googleapis.com/mcp`, don't let apps register themselves or read client metadata documents. Instead of an OAuth app, choose **Sign-in options › Sign in with › Google Cloud**, or **Use Google Cloud credentials** in the review. GateRook then gets a Google access token itself and sends it with every request. It renews the token before it expires, and no agent or log sees it.
+Google's MCP servers, such as `https://bigtableadmin.googleapis.com/mcp` or `https://bigquery.googleapis.com/mcp`, don't let apps register themselves or read client metadata documents. Instead of an OAuth app, choose **Sign-in options › Sign in with › Google Cloud**, or **Use Google Cloud credentials** in the review. GateRook then gets a Google access token itself and sends it with every request. It renews the token before it expires, and no agent or log sees it. It sends that token only to Google's own servers, HTTPS addresses under `googleapis.com`: a server at any other address gets none, even one whose sign-in is Google's, and the review offers Google Cloud credentials only for those addresses.
 
 - **Google sign-in on this computer**: what `gcloud auth application-default login` set up. The server's tools act as you.
 - **Service account key (JSON)**: the review asks for it. It is stored encrypted as a secret of the server.
