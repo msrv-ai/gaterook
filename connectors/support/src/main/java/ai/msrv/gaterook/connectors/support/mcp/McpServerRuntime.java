@@ -114,11 +114,37 @@ public interface McpServerRuntime extends AutoCloseable {
     void rollback();
   }
 
+  /** What the core did with its bridge launcher before the runtime asks whether its sandbox works. */
+  enum Bridge {
+    /**
+     * The core wrote this build's launcher for this run (or tried to): a launcher that isn't there, or whose probe
+     * fails, is no answer then, and nothing starts until a later look at the sandbox gets one.
+     */
+    WRITTEN,
+    /** This build has no bridge: servers run without a sandbox, as the person's user, and the review says so. */
+    NONE,
+    /**
+     * The host keeps no launcher (a test): the runtime asks what is there, and no launcher there means no sandbox.
+     */
+    AS_FOUND
+  }
+
   /** What the core gives the runtime. */
   interface Host {
 
     /** The gateway's home ({@code ~/.gaterook}): work folders {@code mcp/<name>}, logs {@code logs/mcp/}. */
     Path home();
+
+    /**
+     * Called once, before the runtime first asks whether its sandbox works: the core writes its bridge launcher in
+     * {@link #home()} ({@code bin/gw-bridge}; on Windows {@code bin/gw-bridge.cmd} and {@code bin/gw-bridge.argv}) for
+     * this run now if it hasn't yet, so that the answer, and every start, is about this build's bridge, never about a
+     * launcher an earlier install left there or one not written yet. The default writes nothing
+     * ({@link Bridge#AS_FOUND}).
+     */
+    default Bridge prepareBridge() {
+      return Bridge.AS_FOUND;
+    }
 
     /**
      * The core's own listeners now (its local API, the tunnel's listener, the port its web server bound): the TCP
@@ -274,7 +300,9 @@ public interface McpServerRuntime extends AutoCloseable {
    * @param node            {@code Node v24.22.1} when the command is Node, npm or npx; {@code null} otherwise
    * @param variables       names of the variables (stdio) or headers (HTTP) whose values come from secrets
    * @param notPinned       an npm package without an exact version: npx can fetch new code on every start
-   * @param sandbox         {@code landlock} or {@code sandbox-exec}, or {@code null} where the system has none
+   * @param sandbox         {@code landlock}, {@code sandbox-exec}, {@code low-integrity} or {@code appcontainer}, or
+   *                        {@code null} where the system has none, or while it couldn't be checked (a warning says so,
+   *                        and the server doesn't start until it can be)
    * @param warnings        what the person should know before starting it
    */
   record Review(String transport, List<String> argv, String resolvedCommand, String node, String url,

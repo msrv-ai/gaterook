@@ -329,6 +329,8 @@ final class Fixtures {
     final Set<String> reserved = new LinkedHashSet<>(List.of("sql_query", "approval_status"));
     /** The core's listeners a test says it has: closed to sandboxed servers at their next start. */
     volatile Set<Integer> corePorts = Set.of();
+    /** What the core does with its bridge launcher before the runtime's first probe; by default it keeps none. */
+    volatile java.util.function.Supplier<McpServerRuntime.Bridge> bridge = () -> McpServerRuntime.Bridge.AS_FOUND;
 
     Host(Path home) {
       this.home = home;
@@ -337,6 +339,11 @@ final class Fixtures {
     @Override
     public Path home() {
       return home;
+    }
+
+    @Override
+    public McpServerRuntime.Bridge prepareBridge() {
+      return bridge.get();
     }
 
     @Override

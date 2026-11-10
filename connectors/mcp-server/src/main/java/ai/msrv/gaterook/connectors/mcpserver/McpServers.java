@@ -124,6 +124,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
           null, logFile(cfg.name()).toString(), warnings);
     }
     Launcher l = launcher();
+    Launcher.Probe look = l.look();
     List<String> argv = server.command();
     String resolved = null;
     List<String> runs = argv;
@@ -131,7 +132,16 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
       Optional<Path> p = l.resolve(argv.getFirst(), workDir);
       if (p.isPresent()) {
         resolved = p.get().toString();
-        runs = l.argv(p.get(), argv.subList(1, argv.size()), workDir, server.offThisComputer());
+        List<String> plain = new ArrayList<>(List.of(resolved));
+        plain.addAll(argv.subList(1, argv.size()));
+        try {
+          runs = look.answered() ? l.argv(p.get(), argv.subList(1, argv.size()), workDir, server.offThisComputer())
+              : plain;
+        } catch (ConnectorException e) {
+          // The sandbox couldn't be checked after all: the warning below says the server doesn't start until it is.
+          look = l.look();
+          runs = plain;
+        }
       } else {
         warnings.add(argv.getFirst() + " isn't on the PATH GateRook gives servers: " + l.path());
       }
@@ -141,7 +151,10 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
     if (notPinned) {
       warnings.add("Not pinned: it can fetch new code on every start. Name an exact version (name@1.2.3).");
     }
-    if (l.sandbox() == null) {
+    if (!look.answered()) {
+      warnings.add("GateRook couldn't check that its sandbox works here (" + look.unknown() + "): it doesn't start "
+          + "this server without it, and checks again at every start.");
+    } else if (look.sandbox() == null) {
       warnings.add("Not sandboxed on this system: it can read everything your account can, including GateRook's "
           + "data.");
     }
@@ -151,7 +164,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
     }
     List<String> inherited = server.inheritEnv().stream().filter(Launcher.INHERITABLE::contains).toList();
     return new Review(ServerConfig.STDIO, runs, resolved, node, null, variables, inherited, notPinned,
-        l.sandbox(server.offThisComputer()), workDir.toString(), logFile(cfg.name()).toString(), warnings);
+        l.sandbox(look, server.offThisComputer()), workDir.toString(), logFile(cfg.name()).toString(), warnings);
   }
 
   @Override
@@ -670,8 +683,10 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
   }
 
   /**
-   * The launcher, made once: the login shell and the sandbox probe take a moment, so never at start-up. The core's
-   * ports it closes to the servers are asked of the host for every start.
+   * The launcher, made once: the login shell and the sandbox probe take a moment, so never at start-up. Before its
+   * first probe the host writes the bridge launcher of this run ({@link Host#prepareBridge}), so that neither a first
+   * run, in which there is none yet, nor a launcher an earlier install left there decides whether servers are
+   * sandboxed. The core's ports it closes to the servers are asked of the host for every start.
    */
   Launcher launcher() {
     Launcher l = launcher;
@@ -679,9 +694,19 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
       synchronized (this) {
         l = launcher;
         if (l == null) {
-          Path shim = home().resolve("bin").resolve(osName.toLowerCase(Locale.ROOT).startsWith("windows")
+          Path home = home();
+          McpServerRuntime.Bridge bridge;
+          try {
+            bridge = host.prepareBridge();
+          } catch (RuntimeException e) {
+            // Whether it was written isn't known: a launcher that isn't there is then no answer, never "unconfined".
+            LOG.log(System.Logger.Level.WARNING, "The core couldn't prepare the bridge launcher", e);
+            bridge = McpServerRuntime.Bridge.WRITTEN;
+          }
+          Path shim = home.resolve("bin").resolve(osName.toLowerCase(Locale.ROOT).startsWith("windows")
               ? "gw-bridge.cmd" : "gw-bridge");
-          l = new Launcher(coreEnv, osName, loginShellPath, home(), shim, this::corePorts);
+          l = new Launcher(coreEnv, osName, loginShellPath, home, bridge == McpServerRuntime.Bridge.NONE ? null : shim,
+              bridge == McpServerRuntime.Bridge.WRITTEN, this::corePorts);
           launcher = l;
         }
       }

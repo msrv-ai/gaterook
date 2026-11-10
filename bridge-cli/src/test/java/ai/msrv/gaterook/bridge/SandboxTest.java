@@ -71,7 +71,8 @@ class SandboxTest {
     assertThat(Sandbox.macProfile(closed, List.of(), new java.util.LinkedHashSet<>(List.of(7466, 7465)), null))
         .endsWith("(deny network-outbound (remote ip \"*:7465\") (remote ip \"*:7466\"))\n"
             + "(deny network-bind (local ip \"*:7465\") (local ip \"*:7466\"))\n");
-    assertThat(Sandbox.macProfile(closed, List.of(), Set.of(), null)).doesNotContain("network");
+    assertThat(Sandbox.macProfile(closed, List.of(), Set.of(), null)).doesNotContain("(remote ip")
+        .doesNotContain("network-bind");
   }
 
   /**
@@ -209,6 +210,35 @@ class SandboxTest {
     assertThat(closed.refusal(home.resolve("bin"), false)).isNull();
     assertThat(closed.refusal(gateway.resolve("mcp/github"), true)).isNull();
     assertThat(closed.refusal(Path.of("/usr"), false)).isNull();
+  }
+
+  /**
+   * Landlock opens all of a read-only path, so none may be or hold a folder many programs keep their files in:
+   * {@code ~/.local} (other programs' data, keyrings, histories), {@code ~/.cache}, {@code ~/.config} and the like. A
+   * tool's environment in one is read, and a command right in one is read alone, without its folder.
+   */
+  @Test
+  @DisabledOnOs(OS.WINDOWS)
+  void noReadOnlyPathOpensAFolderManyProgramsKeepTheirFilesIn() throws Exception {
+    Path home = Files.createDirectories(dir.resolve("home"));
+    Path gateway = Files.createDirectories(home.resolve(".gaterook"));
+    Sandbox.Closed closed = closed(home, gateway);
+
+    for (String folder : Sandbox.SHARED) {
+      assertThat(closed.refusal(home.resolve(folder), false)).as(folder).isNotNull();
+    }
+    assertThat(closed.refusal(home.resolve(".local"), false)).contains("where many programs keep their files");
+    assertThat(closed.refusal(home.resolve(".cache"), false)).contains("where many programs keep their files");
+    assertThat(closed.refusal(home.resolve(".local/share/uv/tools/srv"), false)).isNull();
+    assertThat(closed.refusal(home.resolve(".local/bin"), false)).isNull();
+    assertThat(closed.refusal(home.resolve(".local/share/gaterook/mcp/srv"), true)).isNull();
+
+    ByteArrayOutputStream said = new ByteArrayOutputStream();
+    PrintStream err = new PrintStream(said, true, StandardCharsets.UTF_8);
+    Path tool = home.resolve(".local/tool");
+    assertThat(Sandbox.readable(Sandbox.parse(List.of("--ro", home.resolve(".local").toString(), "--", "x")), tool,
+        closed, err)).contains(tool.toString()).doesNotContain(home.resolve(".local").toString());
+    assertThat(said.toString(StandardCharsets.UTF_8)).contains(home.resolve(".local") + " holds");
   }
 
   @Test
@@ -685,6 +715,159 @@ class SandboxTest {
     for (Path led : List.of(ofTmp, ofWork)) {
       try (var written = Files.list(led)) {
         assertThat(written).isEmpty();
+      }
+    }
+  }
+
+  /**
+   * The macOS profile closes what would have something outside the sandbox act for the command, after every file
+   * rule and before the port rules: Launch Services, Apple events, preference writes, signals to processes outside its
+   * sandbox, and Unix sockets but the resolver's and its own folders'. Only a container command-line tool also gets
+   * its engine's socket.
+   */
+  @Test
+  @DisabledOnOs(OS.WINDOWS)
+  void theMacProfileClosesWhatWouldActForTheCommandOutsideItsSandbox() throws Exception {
+    Path home = Files.createDirectories(dir.resolve("home"));
+    Path gateway = Files.createDirectories(home.resolve(".gaterook"));
+    Path work = Files.createDirectories(gateway.resolve("mcp/server"));
+    Path tmp = Files.createDirectories(work.resolve("tmp"));
+    String profile = Sandbox.macProfile(closed(home, gateway), List.of(work.toString()), Set.of(7465), tmp.toString(),
+        List.of("/var/run/docker.sock"));
+
+    assertThat(Sandbox.MAC_CLOSED).containsExactly("lsopen", "appleevent-send", "user-preference-write");
+    assertThat(profile).contains("(deny lsopen appleevent-send user-preference-write)\n")
+        .contains("(deny signal)\n(allow signal (target same-sandbox))\n")
+        .contains("(deny network-outbound (remote unix-socket))\n")
+        .contains("(remote unix-socket (path-literal \"/private/var/run/mDNSResponder\"))")
+        .contains("(remote unix-socket (subpath \"" + work + "\"))")
+        .contains("(remote unix-socket (subpath \"" + tmp + "\"))")
+        .contains("(remote unix-socket (path-literal \"/var/run/docker.sock\"))")
+        .endsWith("(deny network-outbound (remote ip \"*:7465\"))\n(deny network-bind (local ip \"*:7465\"))\n");
+    // The allows after the denial: later rules win in SBPL.
+    assertThat(profile.indexOf("(allow network-outbound")).isGreaterThan(
+        profile.indexOf("(deny network-outbound (remote unix-socket))"));
+    assertThat(profile.indexOf("(deny lsopen")).isGreaterThan(profile.lastIndexOf("(allow file-read"));
+
+    // The container engine's socket only for a container command-line tool, as given and where it leads.
+    assertThat(Sandbox.containerSockets(Path.of("/usr/local/bin/docker"))).first().isEqualTo("/var/run/docker.sock");
+    assertThat(Sandbox.containerSockets(Path.of("/opt/homebrew/bin/podman"))).isNotEmpty();
+    assertThat(Sandbox.containerSockets(Path.of("/usr/bin/node"))).isEmpty();
+    assertThat(Sandbox.containerSockets(Path.of("/usr/local/bin/docker-compose"))).isEmpty();
+    assertThat(Sandbox.macProfile(closed(home, gateway), List.of(work.toString()), Set.of(), null))
+        .doesNotContain("docker.sock");
+  }
+
+  /**
+   * macOS, the real profile: nothing outside the sandbox acts for the command. It can't have Launch Services start an
+   * application it wrote in its own folder (which would run unconfined), write preferences (cfprefsd writes them for
+   * it), signal a process of the person's that runs outside its sandbox, or connect to a Unix socket outside its own
+   * folders (where an SSH agent's, a container engine's or a terminal multiplexer's would be). Its own children and its
+   * own sockets still work.
+   */
+  @Test
+  void onMacOsNothingOutsideTheSandboxActsForTheCommand() throws Exception {
+    assumeTrue(System.getProperty("os.name").startsWith("Mac") && Files.isExecutable(Path.of("/usr/bin/sandbox-exec")),
+        "macOS with sandbox-exec");
+    assumeTrue(Sandbox.resolve("perl", System.getenv()) != null, "perl is on the PATH");
+    // A Unix socket's path holds at most 104 bytes: a short folder in the system's temporary folder.
+    Path base = Files.createTempDirectory(Path.of("/private/tmp"), "gws").toRealPath();
+    String domain = "dev.gaterook.sandbox-test-" + ProcessHandle.current().pid() + "-" + System.nanoTime();
+    Process victim = new ProcessBuilder("/bin/sleep", "120").start();
+    try {
+      Path gateway = Files.createDirectories(base.resolve("g"));
+      Path work = Files.createDirectories(gateway.resolve("mcp/s"));
+      Path tmp = Files.createDirectories(work.resolve("tmp"));
+      Path outside = Files.createDirectories(base.resolve("o"));
+      Path launched = outside.resolve("launched");
+      Path app = Files.createDirectories(work.resolve("Probe.app/Contents/MacOS"));
+      Files.writeString(app.getParent().resolve("Info.plist"), """
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict><key>CFBundleExecutable</key><string>probe</string>
+          <key>CFBundleIdentifier</key><string>%s</string><key>CFBundlePackageType</key><string>APPL</string>
+          <key>LSBackgroundOnly</key><true/></dict></plist>
+          """.formatted(domain));
+      Path probe = Files.writeString(app.resolve("probe"), "#!/bin/sh\n/usr/bin/touch '" + launched + "'\n");
+      Files.setPosixFilePermissions(probe, java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
+      try (var agent = listen(outside.resolve("agent.sock")); var own = listen(work.resolve("own.sock"))) {
+        String script = "/usr/bin/open -g '" + work.resolve("Probe.app") + "' 2>/dev/null; echo \"open: $?\"; "
+            + "/usr/bin/defaults write " + domain + " probe 1 2>/dev/null; echo \"defaults: $?\"; "
+            + "kill -TERM " + victim.pid() + " 2>/dev/null; echo \"signal other: $?\"; "
+            + "/bin/sleep 30 & child=$!; kill -TERM $child; echo \"signal child: $?\"; "
+            + "perl -MIO::Socket::UNIX -e 'for my $p (@ARGV) { my $c = IO::Socket::UNIX->new(Type => SOCK_STREAM(), "
+            + "Peer => $p); print \"connect $p: \", ($c ? \"ok\" : \"$!\"), \"\\n\" }' '" + outside.resolve("agent.sock")
+            + "' '" + work.resolve("own.sock") + "'";
+        BridgeProcess.Result r = BridgeProcess.run(List.of("sandbox-exec", "--rw", work.toString(), "--", "/bin/sh",
+            "-c", script), Map.of("GW_HOME", gateway.toString(), "TMPDIR", tmp.toString()), "", Duration.ofSeconds(60));
+        Map<String, String> said = lines(r.out());
+
+        assertThat(r.code()).as(r.out() + r.err()).isZero();
+        assertThat(said.get("open")).as(r.out()).isNotEqualTo("0");
+        assertThat(said.get("defaults")).as(r.out()).isNotEqualTo("0");
+        assertThat(said.get("signal other")).as(r.out()).isNotEqualTo("0");
+        assertThat(said).containsEntry("signal child", "0")
+            .containsEntry("connect " + outside.resolve("agent.sock") + "", "Operation not permitted")
+            .containsEntry("connect " + work.resolve("own.sock"), "ok");
+        // What Launch Services would have started outside the sandbox never ran, and no preference was written.
+        Thread.sleep(1_500);
+        assertThat(launched).doesNotExist();
+        assertThat(victim.isAlive()).isTrue();
+        Process read = new ProcessBuilder("/usr/bin/defaults", "read", domain, "probe").redirectErrorStream(true).start();
+        assertThat(read.waitFor()).as(new String(read.getInputStream().readAllBytes(), StandardCharsets.UTF_8))
+            .isNotZero();
+      }
+    } finally {
+      victim.destroyForcibly();
+      new ProcessBuilder("/usr/bin/defaults", "delete", domain).redirectErrorStream(true).start().waitFor();
+      deleteTree(base);
+    }
+  }
+
+  /**
+   * macOS, the real profile: a container command-line tool still reaches its engine (a server run with
+   * {@code docker run} keeps working), and nothing else does. Skipped where no engine answers at its default socket.
+   */
+  @Test
+  void onMacOsOnlyAContainerToolReachesItsEnginesSocket() throws Exception {
+    assumeTrue(System.getProperty("os.name").startsWith("Mac") && Files.isExecutable(Path.of("/usr/bin/sandbox-exec")),
+        "macOS with sandbox-exec");
+    Path docker = Sandbox.resolve("docker", System.getenv());
+    assumeTrue(docker != null, "docker is on the PATH");
+    Process plain = new ProcessBuilder(docker.toString(), "version", "--format", "{{.Server.Version}}")
+        .redirectErrorStream(true).start();
+    assumeTrue(plain.waitFor(30, java.util.concurrent.TimeUnit.SECONDS) && plain.exitValue() == 0,
+        "a container engine answers at " + Sandbox.CONTAINER_SOCKET);
+    Path gateway = Files.createDirectories(dir.resolve("gateway-home"));
+    Path work = Files.createDirectories(gateway.resolve("mcp/server"));
+    Map<String, String> env = Map.of("GW_HOME", gateway.toString(), "TMPDIR",
+        Files.createDirectories(work.resolve("tmp")).toString(), "HOME", work.toString());
+
+    BridgeProcess.Result tool = BridgeProcess.run(List.of("sandbox-exec", "--rw", work.toString(), "--",
+        docker.toString(), "version", "--format", "{{.Server.Version}}"), env, "", Duration.ofSeconds(60));
+    assertThat(tool.code()).as(tool.out() + tool.err()).isZero();
+    assertThat(tool.out().strip()).isNotEmpty();
+
+    BridgeProcess.Result other = BridgeProcess.run(List.of("sandbox-exec", "--rw", work.toString(), "--", "/bin/sh",
+        "-c", "perl -MIO::Socket::UNIX -e '$c = IO::Socket::UNIX->new(Type => SOCK_STREAM(), Peer => shift); "
+            + "print $c ? \"ok\" : \"$!\"' " + Sandbox.CONTAINER_SOCKET), env, "", Duration.ofSeconds(60));
+    assertThat(other.out()).as(other.err()).isEqualTo("Operation not permitted");
+  }
+
+  private static java.nio.channels.ServerSocketChannel listen(Path socket) throws IOException {
+    java.nio.channels.ServerSocketChannel s = java.nio.channels.ServerSocketChannel.open(
+        java.net.StandardProtocolFamily.UNIX);
+    s.bind(java.net.UnixDomainSocketAddress.of(socket));
+    return s;
+  }
+
+  private static void deleteTree(Path root) throws IOException {
+    if (!Files.exists(root, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+      return;
+    }
+    try (var paths = Files.walk(root)) {
+      for (Path p : paths.sorted(java.util.Comparator.reverseOrder()).toList()) {
+        Files.deleteIfExists(p);
       }
     }
   }

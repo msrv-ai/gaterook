@@ -3,18 +3,23 @@ package ai.msrv.gaterook.connectors.mcpserver;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -41,7 +46,7 @@ class LauncherTest {
   }
 
   @Test
-  void theEnvironmentIsTheBasicsTheAllowedVariablesAndTheSecrets() {
+  void theEnvironmentIsTheBasicsTheAllowedVariablesAndTheSecrets() throws Exception {
     Map<String, String> core = Map.of("PATH", "/usr/bin:/bin", "HOME", "/home/me", "USER", "me",
         "HTTPS_PROXY", "http://proxy:3128", "AWS_SECRET_ACCESS_KEY", "core-secret", "SSH_AUTH_SOCK", "/tmp/agent");
     Launcher l = new Launcher(core, "Linux", false, dir, null);
@@ -196,12 +201,157 @@ class LauncherTest {
 
   @Test
   void whereItDoesntTheServerRunsUnconfinedAndTheReviewSaysSo() throws Exception {
-    Path shim = shim("exit 4");
+    Path probes = dir.resolve("probes");
+    Path shim = shim("echo probe >> '" + probes + "'; exit 4");
     Launcher l = new Launcher(Map.of("PATH", "/usr/bin:/bin", "HOME", dir.toString()), "Linux", false,
-        dir.resolve(".gaterook"), shim);
+        dir.resolve(".gaterook"), shim, true, Set::of);
 
     assertThat(l.sandbox()).isNull();
+    assertThat(l.look().answered()).as("the bridge says this system has no sandbox: an answer").isTrue();
     assertThat(l.argv(Path.of("/usr/bin/node"), List.of(), dir)).containsExactly("/usr/bin/node");
+    // An answer is kept: the bridge isn't asked again at every start.
+    l.argv(Path.of("/usr/bin/node"), List.of(), dir);
+    assertThat(Files.readAllLines(probes)).hasSize(1);
+  }
+
+  /**
+   * A first run after install: the core writes its launcher for this run before the runtime first asks, but should the
+   * launcher not be there when the probe runs, that is no answer about the sandbox, not "no sandbox". Nothing starts
+   * then, neither the server nor its {@code npm ci} (which writes nothing), and every look asks again; once the
+   * launcher is there the server starts in the sandbox.
+   */
+  @Test
+  void aLauncherTheCoreWroteButThatIsntThereStartsNothingUntilAProbeAnswers() throws Exception {
+    Path bin = Files.createDirectories(dir.resolve("bin"));
+    executable(bin.resolve("npm"));
+    Path shim = dir.resolve("gw-bridge");
+    Launcher l = new Launcher(Map.of("PATH", bin + ":/usr/bin:/bin", "HOME", dir.toString()), "Linux", false,
+        dir.resolve(".gaterook"), shim, true, Set::of);
+    Path work = dir.resolve(".gaterook/mcp/srv");
+
+    assertThat(l.sandbox()).isNull();
+    assertThat(l.look().answered()).isFalse();
+    assertThat(l.look().unknown()).contains(shim.toString()).contains("isn't there");
+    assertThatThrownBy(() -> l.argv(Path.of("/usr/bin/node"), List.of("x.js"), work))
+        .isInstanceOf(ConnectorException.class)
+        .hasMessageContaining("couldn't check that its sandbox works here")
+        .hasMessageContaining("doesn't start the server without it");
+    byte[] lock = """
+        {"lockfileVersion":3,"packages":{"":{"dependencies":{"srv":"1.0.0"}},
+         "node_modules/srv":{"version":"1.0.0","integrity":"sha512-abc=="}}}""".getBytes(StandardCharsets.UTF_8);
+    assertThatThrownBy(() -> new NpmInstaller(l).install(work, new McpServerRuntime.NpmPackage("srv", "1.0.0",
+        "sha512-abc==", lock, "srv", null, true), Duration.ofSeconds(30), l.installEnvironment(work)))
+        .isInstanceOf(ConnectorException.class).hasMessageContaining("couldn't check that its sandbox works here");
+    assertThat(work).doesNotExist();
+
+    // The launcher is there now: the next start is sandboxed, and that answer is kept.
+    shim("shift; while [ \"$1\" != \"--\" ]; do shift; done; shift; exec \"$@\"");
+    assertThat(l.argv(Path.of("/usr/bin/node"), List.of("x.js"), work)).containsExactly(shim.toString(),
+        "sandbox-exec", "--rw", work.toString(), "--", "/usr/bin/node", "x.js");
+    assertThat(l.sandbox()).isEqualTo("landlock");
+    assertThat(l.environment(server("{\"transport\":\"stdio\",\"command\":[\"node\"]}"), Map.of(), work))
+        .containsEntry("HOME", work.toString());
+  }
+
+  /**
+   * A launcher an earlier install left, whose bridge is gone or broken: its probe fails, which says nothing about
+   * this system, so the server isn't started unconfined (it used to be, for the whole run) and the next look asks
+   * again. Only an answer is kept: once the sandbox confined a probe, a later failing look isn't asked for.
+   */
+  @Test
+  void aProbeThatFailsIsAskedAgainAndOnlyAnAnswerIsKept() throws Exception {
+    Path probes = dir.resolve("probes");
+    Path shim = shim("echo probe >> '" + probes + "'; echo 'no runtime at /old/app' >&2; exit 1");
+    // A host that keeps no launcher itself: a failing one is no answer there either.
+    Launcher l = new Launcher(Map.of("PATH", "/usr/bin:/bin", "HOME", dir.toString()), "Linux", false,
+        dir.resolve(".gaterook"), shim);
+    Path work = dir.resolve(".gaterook/mcp/srv");
+
+    assertThat(l.sandbox()).isNull();
+    assertThat(l.look().unknown()).contains("exited with 1").contains("no runtime at /old/app");
+    assertThatThrownBy(() -> l.argv(Path.of("/usr/bin/node"), List.of(), work)).isInstanceOf(ConnectorException.class);
+    int asked = Files.readAllLines(probes).size();
+    assertThat(asked).as("every look asks again while there is no answer").isGreaterThanOrEqualTo(3);
+
+    shim("echo probe >> '" + probes + "'; shift; while [ \"$1\" != \"--\" ]; do shift; done; shift; exec \"$@\"");
+    assertThat(l.sandbox()).isEqualTo("landlock");
+    int confirmed = Files.readAllLines(probes).size();
+    shim("echo probe >> '" + probes + "'; exit 1");
+    assertThat(l.argv(Path.of("/usr/bin/node"), List.of(), work)).startsWith(shim.toString(), "sandbox-exec");
+    assertThat(l.sandbox()).isEqualTo("landlock");
+    assertThat(Files.readAllLines(probes)).hasSize(confirmed);
+  }
+
+  /**
+   * The runtime has the core write its launcher before it first probes (a server set to start with the core can start
+   * before anything else of the core wrote it): a launcher an earlier install left, whose bridge is gone, is replaced
+   * first and never asked, so servers are sandboxed from their first start.
+   */
+  @Test
+  void theRuntimeHasTheCoreWriteItsLauncherBeforeItFirstProbes() throws Exception {
+    Path home = dir.resolve("gateway-home");
+    Path shim = Files.createDirectories(home.resolve("bin")).resolve("gw-bridge");
+    Path stale = dir.resolve("stale-launcher-ran");
+    Files.writeString(shim, "#!/bin/sh\necho ran >> '" + stale + "'\nexit 1\n");
+    Files.setPosixFilePermissions(shim, PosixFilePermissions.fromString("rwx------"));
+    Fixtures.Host host = new Fixtures.Host(home);
+    AtomicInteger prepared = new AtomicInteger();
+    host.bridge = () -> {
+      prepared.incrementAndGet();
+      try {
+        Files.writeString(shim, "#!/bin/sh\nshift; while [ \"$1\" != \"--\" ]; do shift; done; shift; exec \"$@\"\n");
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+      return McpServerRuntime.Bridge.WRITTEN;
+    };
+    McpServers runtime = new McpServers(Map.of("PATH", "/usr/bin:/bin", "HOME", dir.toString()), "Linux", false,
+        Clock.systemUTC(), Duration.ofSeconds(1), McpServerConnector.typeManifest());
+    try {
+      runtime.attach(host);
+      assertThat(runtime.launcher().sandbox()).isEqualTo("landlock");
+      assertThat(prepared).hasValue(1);
+      assertThat(stale).doesNotExist();
+    } finally {
+      runtime.close();
+    }
+  }
+
+  /** A build without the bridge has no sandbox, whatever launcher an earlier install left in {@code bin}. */
+  @Test
+  void aBuildWithoutTheBridgeHasNoSandboxWhateverLauncherIsThere() throws Exception {
+    Path home = dir.resolve("gateway-home");
+    Path ran = dir.resolve("old-launcher-ran");
+    Path shim = Files.createDirectories(home.resolve("bin")).resolve("gw-bridge");
+    Files.writeString(shim, "#!/bin/sh\necho ran >> '" + ran + "'\nshift; while [ \"$1\" != \"--\" ]; do shift; "
+        + "done; shift; exec \"$@\"\n");
+    Files.setPosixFilePermissions(shim, PosixFilePermissions.fromString("rwx------"));
+    Fixtures.Host host = new Fixtures.Host(home);
+    host.bridge = () -> McpServerRuntime.Bridge.NONE;
+    McpServers runtime = new McpServers(Map.of("PATH", "/usr/bin:/bin", "HOME", dir.toString()), "Linux", false,
+        Clock.systemUTC(), Duration.ofSeconds(1), McpServerConnector.typeManifest());
+    try {
+      runtime.attach(host);
+      assertThat(runtime.launcher().look().answered()).isTrue();
+      assertThat(runtime.launcher().sandbox()).isNull();
+      assertThat(ran).doesNotExist();
+    } finally {
+      runtime.close();
+    }
+  }
+
+  /** A host that keeps no launcher (a test, a build without the bridge): no launcher there means no sandbox. */
+  @Test
+  void withoutALauncherTheCoreWroteNoneThereMeansNoSandbox() throws Exception {
+    Launcher l = new Launcher(Map.of("PATH", "/usr/bin:/bin", "HOME", dir.toString()), "Linux", false,
+        dir.resolve(".gaterook"), dir.resolve("gw-bridge"));
+    assertThat(l.look().answered()).isTrue();
+    assertThat(l.sandbox()).isNull();
+    assertThat(l.argv(Path.of("/usr/bin/node"), List.of(), dir)).containsExactly("/usr/bin/node");
+    Launcher none = new Launcher(Map.of("PATH", "/usr/bin:/bin", "HOME", dir.toString()), "Linux", false,
+        dir.resolve(".gaterook"), null, true, Set::of);
+    assertThat(none.look().answered()).isTrue();
+    assertThat(none.sandbox()).isNull();
   }
 
   @Test
@@ -273,5 +423,64 @@ class LauncherTest {
     assertThat(l.sandbox()).isNull();
     Path command = Path.of("C:\\Program Files\\nodejs\\node.exe");
     assertThat(l.argv(command, List.of("server.js"), home)).containsExactly(command.toString(), "server.js");
+  }
+
+  /**
+   * On Windows the core writes the bridge's argv beside the shim: while it isn't there nothing starts, and once it is,
+   * the next start is sandboxed.
+   */
+  @Test
+  void onWindowsTheBridgesArgvTheCoreWritesIsReadAgainUntilAProbeAnswers(@TempDir Path home) throws Exception {
+    Path bin = Files.createDirectories(home.resolve("bin"));
+    Path shim = bin.resolve("gw-bridge.cmd");
+    Launcher l = new Launcher(Map.of("SystemRoot", "C:\\Windows"), "Windows 11", false, home, shim, true, Set::of);
+    Path command = Path.of("C:\\Program Files\\nodejs\\node.exe");
+    Path work = home.resolve("mcp").resolve("fs");
+
+    assertThat(l.look().unknown()).contains("gw-bridge.argv");
+    assertThatThrownBy(() -> l.argv(command, List.of("server.js"), work)).isInstanceOf(ConnectorException.class);
+    Files.writeString(bin.resolve("gw-bridge.argv"), "/usr/bin/true\n");
+    assertThat(l.argv(command, List.of("server.js"), work)).containsExactly("/usr/bin/true", "sandbox-exec", "--rw",
+        work.toString(), "--", command.toString(), "server.js");
+    assertThat(l.sandbox()).isEqualTo("low-integrity");
+  }
+
+  /**
+   * Linux: a command in {@code ~/.local/bin} (a real file, as uv's and pip's user installs put them) has
+   * {@code ~/.local} above its folder, which holds other programs' data, keyrings and histories: only the libraries
+   * beside its folder ({@code ~/.local/lib}) are read, and nothing when there are none. A link there into a tool's own
+   * environment still opens that environment. The other folders many programs keep their files in are never opened,
+   * nor where the core's XDG variables put them.
+   */
+  @Test
+  void aCommandInTheSharedLocalFolderOpensOnlyTheLibrariesBesideIt() throws Exception {
+    Path shim = shim("exit 0");
+    Path home = Files.createDirectories(dir.toRealPath().resolve("home"));
+    Path gateway = Files.createDirectories(home.resolve(".gaterook"));
+    Path work = gateway.resolve("mcp/fs");
+    Launcher l = new Launcher(Map.of("PATH", "/usr/bin:/bin", "HOME", home.toString()), "Linux", false, gateway, shim);
+    Path local = home.resolve(".local");
+
+    Path uvx = executable(local.resolve("bin/uvx"));
+    assertThat(l.argv(uvx, List.of(), work)).doesNotContain("--ro", local.toString());
+    Files.createDirectories(local.resolve("lib/python3.13/site-packages"));
+    assertThat(l.argv(uvx, List.of(), work)).containsSequence("--ro", local.resolve("lib").toString())
+        .doesNotContain(local.toString());
+
+    Path tool = executable(local.resolve("share/uv/tools/srv/bin/srv"));
+    Path link = Files.createSymbolicLink(local.resolve("bin/srv"), tool);
+    assertThat(l.argv(link, List.of(), work)).containsSequence("--ro", local.resolve("share/uv/tools/srv").toString());
+
+    for (String folder : List.of(".config", ".cache", ".local/share", ".local/state")) {
+      Path command = executable(home.resolve(folder).resolve("bin/x"));
+      assertThat(l.argv(command, List.of(), work)).as(folder).doesNotContain("--ro", home.resolve(folder).toString());
+    }
+    Launcher xdg = new Launcher(Map.of("PATH", "/usr/bin:/bin", "HOME", home.toString(), "XDG_DATA_HOME",
+        home.resolve("data").toString()), "Linux", false, gateway, shim);
+    assertThat(xdg.argv(executable(home.resolve("data/bin/x")), List.of(), work))
+        .doesNotContain("--ro", home.resolve("data").toString());
+    // The person's own installations elsewhere in the home are still read.
+    Path nvm = home.resolve(".nvm/versions/node/v24.1.0");
+    assertThat(l.argv(executable(nvm.resolve("bin/node")), List.of(), work)).containsSequence("--ro", nvm.toString());
   }
 }
