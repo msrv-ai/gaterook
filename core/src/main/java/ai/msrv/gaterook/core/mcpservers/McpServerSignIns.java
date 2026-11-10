@@ -92,6 +92,13 @@ public class McpServerSignIns {
   static final int MAX_FLOWS = 8;
   /** A token is renewed this long before it expires. */
   static final Duration RENEW_MARGIN = Duration.ofSeconds(60);
+  /**
+   * A token is renewed before it expires at most this often: an authorization server that issues tokens for a second
+   * would otherwise be asked for new ones at every request. A token the server refuses is renewed at once.
+   */
+  static final Duration MIN_RENEW_INTERVAL = Duration.ofSeconds(60);
+  /** The tokens of one sign-in that stay masked: the access and refresh tokens of the last four renewals. */
+  static final int KEEP_TOKENS = 8;
   static final Duration HTTP_TIMEOUT = Duration.ofSeconds(20);
   /** The callback port of an OAuth app the person registers, unless they choose another. */
   public static final int APP_CALLBACK_PORT = 7471;
@@ -646,7 +653,7 @@ public class McpServerSignIns {
       if (!phase.equals("waiting")) {
         return;
       }
-      learn(tokens);
+      learn(connectionId != null ? connectionId : "sign-in:" + id, tokens);
       SignInBundle b = SignInBundle.signedIn(Discovery.canonical(discovery.serverUrl()), discovery.resource(),
           discovery.server(), client, scope, tokens, clock.instant());
       if (connectionId != null) {
@@ -834,7 +841,10 @@ public class McpServerSignIns {
         return null;
       }
       try (SecretResolver.Secret s = resolver.secret(FIELD)) {
-        return SignInBundle.fromJson(s.unsafeString());
+        SignInBundle b = SignInBundle.fromJson(s.unsafeString());
+        // The tokens of a sign-in kept from an earlier start are masked as fresh ones are.
+        learn(connectionId, b.accessToken(), b.refreshToken());
+        return b;
       }
     } catch (ConnectorException | RuntimeException e) {
       log.warn("The sign-in of an MCP server couldn't be read: {}", e.getMessage());
@@ -863,7 +873,7 @@ public class McpServerSignIns {
           if (b.expiresWithin(Duration.ZERO, clock.instant())) {
             throw needs(b.needing("its sign-in expired and can't be renewed"));
           }
-        } else {
+        } else if (renewDue(b, clock.instant())) {
           b = renew(b);
         }
       }
@@ -952,7 +962,7 @@ public class McpServerSignIns {
           throw ConnectorException.unavailable("Couldn't renew the sign-in of " + cfg.name() + ": " + e.getMessage(),
               e);
         }
-        learn(tokens);
+        learn(cfg.id(), tokens);
         SignInBundle next = seen.renewed(tokens, clock.instant());
         holder.bundle = next;
         try {
@@ -1008,7 +1018,8 @@ public class McpServerSignIns {
 
     @Override
     public synchronized String header() throws McpServerRuntime.SignInRequired, ConnectorException {
-      if (bundle.expiresWithin(RENEW_MARGIN, clock.instant()) && bundle.renewable()) {
+      if (bundle.expiresWithin(RENEW_MARGIN, clock.instant()) && bundle.renewable()
+          && renewDue(bundle, clock.instant())) {
         renew();
       }
       return bundle.header();
@@ -1046,7 +1057,7 @@ public class McpServerSignIns {
       try {
         OAuthClient.Tokens t = OAuthClient.refresh(httpOf(cfg), b.tokenEndpoint(), b.client(), b.refreshToken(),
             b.resource(), clock.instant());
-        learn(t);
+        learn(cfg.id(), t);
         bundle = b.renewed(t, clock.instant());
       } catch (OAuthHttp.Failure e) {
         if (e.error() != null && REFUSED_GRANT.contains(e.error())) {
@@ -1155,6 +1166,15 @@ public class McpServerSignIns {
     return AwsSigV4.fromHost(host).isPresent() ? "aws" : null;
   }
 
+  /**
+   * Whether a token about to expire is renewed now: not within {@link #MIN_RENEW_INTERVAL} of the sign-in or the last
+   * renewal. Until then the token goes as it is, and a refusal of it renews it ({@code refused}).
+   */
+  static boolean renewDue(SignInBundle b, Instant now) {
+    Instant last = b.renewedAt() != null ? b.renewedAt() : b.signedInAt();
+    return last == null || !now.isBefore(last.plus(MIN_RENEW_INTERVAL));
+  }
+
   private static String needsMessage(String name, SignInBundle b) {
     return name + " needs you to sign in again" + (b.needsSignIn() == null ? "" : ": " + b.needsSignIn()) + ". Sign "
         + "in in GateRook › Connectors › MCP servers.";
@@ -1173,12 +1193,24 @@ public class McpServerSignIns {
     }
   }
 
-  /** Every token GateRook is handed is masked wherever it shows up, as configured secrets are. */
-  private static void learn(OAuthClient.Tokens t) {
-    SecretFingerprints.process().learnValue(t.accessToken());
-    if (t.refreshToken() != null) {
-      SecretFingerprints.process().learnValue(t.refreshToken());
+  /**
+   * Every token GateRook is handed is masked wherever it shows up, as configured secrets are: a token the token endpoint
+   * issued has a credential's shape ({@link OAuthClient#credentialShaped}), so no ordinary word is masked for it. The
+   * tokens of one sign-in replace each other at every renewal: the {@value #KEEP_TOKENS} most recent of {@code source}
+   * stay known, which covers the ones still valid, and a server that renews often can't make the masker's set grow.
+   */
+  private static void learn(String source, OAuthClient.Tokens t) {
+    learn(source, t.accessToken(), t.refreshToken());
+  }
+
+  private static void learn(String source, String... tokens) {
+    List<String> shaped = new ArrayList<>();
+    for (String token : tokens) {
+      if (OAuthClient.credentialShaped(token)) {
+        shaped.add(token);
+      }
     }
+    SecretFingerprints.process().learnReplacing("mcp-sign-in:" + source, KEEP_TOKENS, shaped.toArray(String[]::new));
   }
 
   private void stopSessions(String connectionId) {
