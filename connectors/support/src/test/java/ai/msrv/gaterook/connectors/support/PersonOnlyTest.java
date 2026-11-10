@@ -47,6 +47,42 @@ class PersonOnlyTest {
   }
 
   @Test
+  void theTemplatesListEveryMarkedPropertyWhereverItIsDefined() {
+    assertThat(PersonOnly.templates(SCHEMA)).containsExactly("/hostKeys/pinned", "/jump/hostKeys/pinned",
+        "/pinnedCluster", "/replicas/*/pin", "/shared/mark", "/trustedExec");
+    assertThat(PersonOnly.templates(JSON.readTree("{\"type\":\"object\"}"))).isEmpty();
+    assertThat(PersonOnly.templates(null)).isEmpty();
+  }
+
+  /** A schema that refers to its own root: the mark inside is found, and the walk does not run in circles. */
+  @Test
+  void aReferenceToTheRootIsFollowedOnce() {
+    JsonNode recursive = JSON.readTree("""
+        {"type":"object","properties":{"pin":{"type":"string","x-person-only":true},"next":{"$ref":"#"},
+          "loop":{"$ref":"#/$defs/loop"}},
+         "$defs":{"loop":{"type":"object","properties":{"again":{"$ref":"#/$defs/loop"}}}}}
+        """);
+
+    assertThat(PersonOnly.templates(recursive)).containsExactly("/next/pin", "/pin");
+    assertThat(PersonOnly.covers(recursive, "/next/pin")).isTrue();
+    assertThat(PersonOnly.covers(recursive, "/loop/again/again")).isFalse();
+  }
+
+  /** A property named like an array index is a property: only an array item's {@code *} matches any index. */
+  @Test
+  void aNumberMatchesAnArrayItemAndAPropertyOfThatName() {
+    JsonNode numbered = JSON.readTree("""
+        {"type":"object","properties":{"slots":{"type":"object","properties":{"7":{"x-person-only":true},
+          "8":{"type":"string"}}}}}
+        """);
+
+    assertThat(PersonOnly.covers(numbered, "/slots/7")).isTrue();
+    assertThat(PersonOnly.covers(numbered, "/slots/8")).isFalse();
+    assertThat(PersonOnly.covers(numbered, "/slots/*")).isFalse();
+    assertThat(PersonOnly.covers(SCHEMA, "/replicas/12345/pin")).isTrue();
+  }
+
+  @Test
   void whatIsNotMarkedIsNotCovered() {
     assertThat(PersonOnly.covers(SCHEMA, "/host")).isFalse();
     assertThat(PersonOnly.covers(SCHEMA, "/hostKeys")).isFalse();
