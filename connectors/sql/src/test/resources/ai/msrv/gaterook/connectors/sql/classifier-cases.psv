@@ -359,3 +359,31 @@ pg | execute | dev | CALL p(pg_terminate_backend(1)) | DENY function-denied
 my | query | dev | CALL p(GET_LOCK('a', 10)) | DENY function-denied
 my | execute | dev | CALL p(GET_LOCK('a', 10)) | DENY function-denied
 pg | execute | dev | CALL p(1) | MUTATION
+#
+# ── H8b: the parser reads the text the server's lexer reads, or the statement is not analyzed ────────────────
+# Comment forms only the parser knows: a call is refused, not read as if the rest of the line were not there.
+pg | query | dev | SELECT 1 // x FROM secrets | DENY unparsed | allowlist=public.orders
+my | query | dev | SELECT 1 // x FROM secrets | DENY unparsed | allowlist=app.orders
+# MySQL starts a "--" comment only before white space; the parser always does.
+my | query | dev | SELECT 1--1 FROM secrets | DENY unparsed | allowlist=app.orders
+my | query | dev | SELECT 1--1 FROM orders INTO OUTFILE '/tmp/orders.csv' | DENY unparsed
+# MySQL's block comments don't nest; the parser's do.
+my | query | dev | SELECT 1 /* a /* b */ , (SELECT id FROM secrets) -- */ | DENY table-not-allowed | allowlist=app.orders
+my | query | dev | SELECT 1 /* a /* b */ , (SELECT id FROM secrets) -- */ | READ
+# The always-forbidden file clauses are found in the text the server reads, not in what the parser took for a comment.
+my | query | dev | SELECT * FROM orders /* a /* b */ INTO DUMPFILE '/tmp/orders.bin' | DENY forbidden
+my | query | dev | SELECT * FROM orders INTO /* a /* b */ OUTFILE '/tmp/orders.csv' | DENY forbidden
+# A MySQL double-quoted string with an escape; the parser reads an identifier that ends at the escaped quote.
+my | query | dev | SELECT "\"" FROM secrets | DENY table-not-allowed | allowlist=app.orders
+# A PostgreSQL E'…' string with an escaped quote; the parser ends it at the quote and reads a comment in it.
+pg | query | dev | SELECT id FROM orders WHERE note = E'\' --' OR id IN (SELECT id FROM secrets) | DENY unparsed | allowlist=public.orders
+# Strings the parser reads as the lexer does stay reads.
+my | query | dev | SELECT "a;b", 'it''s', 'a\'b' FROM orders | READ | allowlist=app.orders
+pg | query | dev | SELECT 'it''s', E'a\\b', $$x'y$$ FROM orders | READ | allowlist=public.orders
+my | query | dev | SELECT 1 /* one */ FROM orders -- two | READ | allowlist=app.orders
+#
+# ── H8c: subqueries in operand positions the parser's table walk skipped are checked like any other ──────────
+pg | query | dev | SELECT JSON_ARRAYAGG(id ORDER BY (SELECT id FROM secrets)) FROM orders | DENY table-not-allowed | allowlist=public.orders
+pg | query | dev | SELECT JSON_OBJECTAGG(id : (SELECT id FROM secrets)) FROM orders | DENY table-not-allowed | allowlist=public.orders
+pg | query | dev | SELECT id FROM orders WHERE note LIKE 'a%' ESCAPE (SELECT note FROM secrets LIMIT 1) | DENY table-not-allowed | allowlist=public.orders
+my | query | dev | SELECT id FROM orders WHERE note LIKE 'a%' ESCAPE (SELECT note FROM secrets LIMIT 1) | DENY table-not-allowed | allowlist=app.orders

@@ -210,9 +210,7 @@ final class SqlLexer {
       int end = -1;
       Kind kind = null;
       if (c == '\'') {
-        boolean escapes = i > 0 && (sql.charAt(i - 1) == 'E' || sql.charAt(i - 1) == 'e')
-            && (i < 2 || !identifierPart(sql.charAt(i - 2)));
-        end = quoted(sql, i, '\'', escapes);
+        end = quoted(sql, i, '\'', escapeString(sql, i));
         kind = Kind.STRING;
       } else if (c == '"') {
         end = quoted(sql, i, '"', false);
@@ -252,6 +250,12 @@ final class SqlLexer {
       out.add(new Segment(Kind.CODE, code, n));
     }
     return new Scan(sql, List.copyOf(out), unterminated);
+  }
+
+  /** PostgreSQL {@code E'…'}: whether the quote at {@code i} opens a string that takes backslash escapes. */
+  static boolean escapeString(String sql, int i) {
+    return i > 0 && (sql.charAt(i - 1) == 'E' || sql.charAt(i - 1) == 'e')
+        && (i < 2 || !identifierPart(sql.charAt(i - 2)));
   }
 
   /** {@code $tag$}: the index after its closing {@code $}, or -1 if {@code i} doesn't start a dollar quote. */

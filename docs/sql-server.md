@@ -29,6 +29,12 @@ refused even with approval. Transactions, session commands, temporary objects, s
 `OUTPUT` clauses and external rowsets cannot run through this connector. Views and computed expressions retain
 the permissions and behavior configured on the server; GateRook's table rules are not a replacement for database grants.
 
+T-SQL needs no separator between statements, and a SQL parser can take a reserved statement word for an alias. GateRook
+therefore also reads the text by the server's own tokens, not only through the parser. Outside parentheses, a read may
+use only the reserved words of a single query: a statement word such as `DELETE` or `COMMIT`, a second `SELECT` that no
+set operator or `WITH` introduces, a number with letters stuck to it, or brackets that do not balance make the call
+"not analyzed", and it is refused as a read. Comments, strings and quoted names are never words.
+
 Writes use `sql_execute`, require approval by default, and run one analyzed statement in a transaction. Existing
 DDL and table policies still apply. Before requesting approval, GateRook estimates DML impact using
 `SHOWPLAN_XML`, which does not execute the change and requires `SHOWPLAN` permission. If the login cannot obtain
