@@ -22,6 +22,15 @@ describe('ConnectionImportsApi', () => {
     await api.connectStore('ci_abcdefgh1234', 'vault-prod', { existingStore: 'st_existing' });
     expect(post).toHaveBeenLastCalledWith('/api/connection-imports/ci_abcdefgh1234/stores/vault-prod/connect', { existingStore: 'st_existing' });
   });
+  it('asks the core to summarize a draft the person changed, with the config as it stands', async () => {
+    const summary = { target: 'mine.example.test:5432', settings: [], omitted: 0 };
+    const post = vi.fn().mockResolvedValue(summary);
+    TestBed.configureTestingModule({ providers: [{ provide: ApiClient, useValue: { post } }] });
+    const config = { connection: { host: 'mine.example.test' } };
+    expect(await TestBed.inject(ConnectionImportsApi).summary('ci_abcdefgh1234', 'dev-db', 'dev', config)).toBe(summary);
+    expect(post).toHaveBeenCalledExactlyOnceWith('/api/connection-imports/ci_abcdefgh1234/summary',
+      { candidateId: 'dev-db', env: 'dev', config });
+  });
   it('sends each connection destination without a conflicting global endpoint', async () => {
     const post = vi.fn().mockResolvedValue({ status: 'imported' });
     TestBed.configureTestingModule({ providers: [{ provide: ApiClient, useValue: { post } }] });

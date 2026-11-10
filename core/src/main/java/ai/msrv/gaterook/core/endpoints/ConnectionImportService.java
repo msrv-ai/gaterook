@@ -2,6 +2,7 @@ package ai.msrv.gaterook.core.endpoints;
 
 import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.Env;
+import ai.msrv.gaterook.connectors.support.PersonOnly;
 import ai.msrv.gaterook.core.connections.ConnectionForms;
 import ai.msrv.gaterook.core.connections.ConnectionService;
 import ai.msrv.gaterook.core.connections.SecretInput;
@@ -344,6 +345,31 @@ public class ConnectionImportService {
     }
   }
 
+  /**
+   * What the review card says about a draft the person changed in the editor: the words it used for the proposal, for
+   * the exact config a commit would save. Reads nothing and changes nothing.
+   */
+  public ObjectNode summarize(String id, String candidateId, String env, JsonNode config) {
+    Pending pending = pending(id);
+    synchronized (pending) {
+      requireActive(pending);
+      if (!"review".equals(pending.status)) {
+        throw ProblemException.conflict("Import not ready", "Submit discovery results and review them first.");
+      }
+      JsonNode candidate = null;
+      for (JsonNode known : pending.manifest.path("connections")) {
+        if (known.path("id").asString().equals(candidateId)) candidate = known;
+      }
+      if (candidate == null || !candidate.path("supported").asBoolean(false)) {
+        throw invalid("Choose a candidate from this import.", "/candidateId");
+      }
+      if (config == null || !config.isObject()) throw invalid("Provide the candidate's config object.", "/config");
+      ConnectorManifest connector = registry.manifest(candidate.path("type").asString())
+          .orElseThrow(() -> invalid("Unknown connector type.", "/candidateId"));
+      return ConnectionImportSummary.of(config, connector.configSchema(), env(env));
+    }
+  }
+
   private void show(Pending pending) {
     if (pending.lastOpened.plusSeconds(3).isAfter(clock.instant())) return;
     pending.lastOpened = clock.instant();
@@ -672,9 +698,12 @@ public class ConnectionImportService {
         .put("name", connector.manifest().name()).put("supported", supported(connector.id()));
     if (!supported(connector.id())) out.put("reason", unsupportedReason(connector.id()));
     if (schema) {
-      out.set("configSchema", connector.manifest().configSchema().deepCopy());
+      // The agent may write what the person's form lets a proposal set: the settings only the person makes are not offered.
+      out.set("configSchema", ConnectionForms.withoutPersonOnlyFields(connector.manifest().configSchema()));
       ArrayNode fields = out.putArray("secretFields");
       ConnectionForms.secretFields(connector.manifest().configSchema()).forEach(f -> fields.add(f.pointer()));
+      ArrayNode personOnly = out.putArray("personOnlyFields");
+      ConnectionForms.personOnlyFields(connector.manifest().configSchema()).forEach(personOnly::add);
       ArrayNode references = out.putArray("referenceOnlyFields");
       for (ConnectionForms.LoginUserReference field : ConnectionForms.loginUserReferences(connector.manifest().configSchema())) {
         ObjectNode reference = references.addObject().put("pointer", field.pointer()).put("kind", "login-user");
@@ -785,7 +814,7 @@ public class ConnectionImportService {
       if (!ConnectionService.NAME.matcher(name).matches()) throw invalid("Use lowercase connection names with hyphens.", "/manifest/connections");
       String type = text(candidate.path("type"), 48);
       if (!type.matches("[a-z][a-z0-9-]{0,47}")) throw invalid("Invalid connector type identifier.", "/manifest/connections");
-      env(text(candidate.path("env"), 5));
+      Env candidateEnv = env(text(candidate.path("env"), 5));
       JsonNode config = candidate.path("config");
       if (!config.isObject()) throw invalid("Each candidate needs a config object.", "/manifest/connections");
       ConnectorManifest connector = registry.manifest(type).orElse(null);
@@ -794,6 +823,11 @@ public class ConnectionImportService {
         validateConfig(config, connector.configSchema(), connector.configSchema(), "", 0);
         for (ConnectionForms.SecretField field : ConnectionForms.secretFields(connector.configSchema())) {
           rejectSecretField(config, field.pointer().split("/", -1), 1);
+        }
+        // The settings connection_import_schema lists as personOnlyFields are the settings refused here, wherever the
+        // schema defines their mark (the walk of validateConfig sees only a mark on the property's own definition).
+        for (String template : ConnectionForms.personOnlyFields(connector.configSchema())) {
+          rejectPersonOnlyField(config, template, template.split("/", -1), 1);
         }
       }
       ObjectNode entry = (ObjectNode) candidate.deepCopy();
@@ -805,7 +839,11 @@ public class ConnectionImportService {
       if (!supported(type)) {
         entry.put("unsupportedReason", unsupportedReason(type));
         warnings.add(unsupportedReason(type));
-      } else entry.putNull("unsupportedReason");
+      } else {
+        entry.putNull("unsupportedReason");
+        // The review shows where the candidate connects and its non-default settings on its card, not behind a click.
+        if (connector != null) entry.set("summary", ConnectionImportSummary.of(config, connector.configSchema(), candidateEnv));
+      }
       out.add(entry);
     }
     return normalized;
@@ -893,6 +931,8 @@ public class ConnectionImportService {
         if (definitions.stream().anyMatch(s -> s.path("writeOnly").asBoolean(false))) {
           throw invalid("Do not include credential fields in config. Use credentialHints.", "/manifest");
         }
+        // An early exit that names the setting as the agent wrote it; rejectPersonOnlyField is the authority.
+        if (definitions.stream().anyMatch(PersonOnly::isMarked)) throw personOnly(path + "/" + property.getKey());
         ObjectNode union = JsonNodeFactory.instance.objectNode();
         union.putArray("anyOf").addAll(definitions);
         validateConfig(property.getValue(), union, root, path + "/" + property.getKey(), depth + 1);
@@ -913,7 +953,7 @@ public class ConnectionImportService {
   private static final java.util.regex.Pattern STORE_REFERENCE = java.util.regex.Pattern.compile(
       "\\s*(?:vault|gcp-sm|aws-sm)://", java.util.regex.Pattern.CASE_INSENSITIVE);
 
-  private static List<JsonNode> propertySchemas(JsonNode schema, JsonNode root, String key, Set<String> refs, int depth) {
+  static List<JsonNode> propertySchemas(JsonNode schema, JsonNode root, String key, Set<String> refs, int depth) {
     List<JsonNode> out = new ArrayList<>();
     if (depth > 24) return out;
     JsonNode direct = schema.path("properties").get(key);
@@ -922,7 +962,7 @@ public class ConnectionImportService {
     return out;
   }
 
-  private static List<JsonNode> itemSchemas(JsonNode schema, JsonNode root, Set<String> refs, int depth) {
+  static List<JsonNode> itemSchemas(JsonNode schema, JsonNode root, Set<String> refs, int depth) {
     List<JsonNode> out = new ArrayList<>();
     if (depth > 24) return out;
     if (schema.path("items").isObject()) out.add(schema.path("items"));
@@ -948,6 +988,26 @@ public class ConnectionImportService {
     String part = parts[index].replace("~1", "/").replace("~0", "~");
     if ("*".equals(part)) value.forEach(child -> rejectSecretField(child, parts, index + 1));
     else rejectSecretField(value.path(part), parts, index + 1);
+  }
+
+  /** A setting only the person makes, with any value (null, false or empty too): a proposal cannot hold it. */
+  private static void rejectPersonOnlyField(JsonNode value, String template, String[] parts, int index) {
+    if (index == parts.length) {
+      if (!value.isMissingNode()) throw personOnly(template);
+      return;
+    }
+    String part = parts[index].replace("~1", "/").replace("~0", "~");
+    if ("*".equals(part)) value.forEach(child -> rejectPersonOnlyField(child, template, parts, index + 1));
+    else rejectPersonOnlyField(value.path(part), template, parts, index + 1);
+  }
+
+  /**
+   * A trusted host key, certificate, cluster or credential command stands for the person's own decision, and an opt-in
+   * to a local command is theirs to make: the person sets them in GateRook, never a proposal.
+   */
+  private static ProblemException personOnly(String pointer) {
+    return invalid("Leave " + pointer + " out of config. It records a decision that only the person makes in GateRook "
+        + "(Test connection, then Trust) or turns on a local command; the person sets it there.", "/manifest");
   }
 
   private static boolean pointerMatches(String template, String field) {

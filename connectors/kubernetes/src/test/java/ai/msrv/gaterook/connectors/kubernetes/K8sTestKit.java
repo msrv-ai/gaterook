@@ -1,5 +1,7 @@
 package ai.msrv.gaterook.connectors.kubernetes;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ExecContext;
@@ -8,6 +10,7 @@ import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.SecretResolver;
 import ai.msrv.gaterook.connector.api.SecretUnavailableException;
 import ai.msrv.gaterook.connector.api.ToolCall;
+import ai.msrv.gaterook.connectors.support.PersonOnly;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.PublicKey;
@@ -71,6 +74,29 @@ final class K8sTestKit {
 
   static Secrets secrets(Map<String, String> values) {
     return new Secrets(values);
+  }
+
+  /**
+   * What a Test connection patch writes is the person's decision after "Trust", so each setting in it must be one only
+   * the person makes ({@code x-person-only}): an AI agent's import proposal is refused when it carries one.
+   */
+  static void assertPersonOnly(JsonNode configPatch) {
+    JsonNode schema = new KubernetesConnector().manifest().configSchema();
+    List<String> written = new ArrayList<>();
+    leaves(configPatch, "", written);
+    assertThat(written).isNotEmpty();
+    for (String pointer : written) {
+      assertThat(PersonOnly.covers(schema, pointer))
+          .as("Test connection writes %s: mark it x-person-only in the schema", pointer).isTrue();
+    }
+  }
+
+  private static void leaves(JsonNode node, String pointer, List<String> out) {
+    if (node.isObject() && !node.isEmpty()) {
+      node.properties().forEach(e -> leaves(e.getValue(), pointer + "/" + e.getKey(), out));
+    } else {
+      out.add(pointer);
+    }
   }
 
   static Ctx ctx(Env env) {

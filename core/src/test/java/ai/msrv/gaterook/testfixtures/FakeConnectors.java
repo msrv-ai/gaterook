@@ -440,7 +440,7 @@ public class FakeConnectors {
          "resourceNames":{"type":"array","items":{"type":"string"}},
          "connection":{"type":"object","additionalProperties":false,"required":["host"],"properties":{
            "host":{"type":"string","minLength":1},"port":{"type":"integer","minimum":1},
-           "hostKey":{"type":"string"},"note":{"type":"string","x-agent-visible":true},
+           "hostKey":{"type":"string","x-person-only":true},"note":{"type":"string","x-agent-visible":true},
            "webhook":{"type":"string","x-key-allowed":true}}},
          "credentials":{"type":"object","x-gateway-secret":"login","additionalProperties":false,
            "required":["user","password"],"properties":{"user":{"type":"string"},

@@ -149,6 +149,7 @@
             "type": "object",
             "title": "Trusted cluster",
             "readOnly": true,
+            "x-person-only": true,
             "description": "Set by Test connection when you trust the cluster a kubeconfig file points to. Calls stop if the file points elsewhere.",
             "additionalProperties": false,
             "properties": {
@@ -189,12 +190,14 @@
             "default": false,
             "title": "Run the credential command from kubeconfig",
             "x-confirm": "warning",
+            "x-person-only": true,
             "description": "gke-gcloud-auth-plugin, aws eks get-token, kubelogin. Runs on this computer with your user rights."
           },
           "trustedExec": {
             "type": "string",
             "title": "Allowed credential command",
             "readOnly": true,
+            "x-person-only": true,
             "pattern": "^[0-9a-f]{64}$",
             "description": "Set by Test connection when you allow the kubeconfig's credential command; a changed command needs your approval again."
           }
