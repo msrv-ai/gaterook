@@ -92,6 +92,89 @@ class CallTasksTest {
     assertThat(tasks.legacy(task).path("status").asString()).isEqualTo("completed");
   }
 
+  /** A call that prepares until {@code prepared} opens, then asks to start a Bypass change and says what it heard. */
+  private CallTasks.Task bypass(CountDownLatch preparing, CountDownLatch prepared, CountDownLatch running,
+      CountDownLatch finish, java.util.concurrent.atomic.AtomicReference<Boolean> started) {
+    return tasks.start(ApprovalDeliveryTest.request(false, "auto", 15), CallTasks.DEFAULT_TTL, own -> {
+      preparing.countDown();
+      await(prepared);
+      started.set(own.task().startsToRunToItsEnd());
+      running.countDown();
+      await(finish);
+      return ai.msrv.gaterook.core.mcp.internal.ResultWriter.callToolResult(own.env(),
+          ToolResult.text(started.get() ? "1 row updated" : "not started"), null, null, null);
+    }).orElseThrow();
+  }
+
+  private static void await(CountDownLatch latch) {
+    try {
+      assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
+  }
+
+  @Test
+  void aBypassChangeThatStartedRunsToItsEndAndCancellingItIsRefused() throws Exception {
+    CountDownLatch preparing = new CountDownLatch(1);
+    CountDownLatch prepared = new CountDownLatch(1);
+    CountDownLatch running = new CountDownLatch(1);
+    CountDownLatch finish = new CountDownLatch(1);
+    var started = new java.util.concurrent.atomic.AtomicReference<Boolean>();
+    CallTasks.Task task = bypass(preparing, prepared, running, finish, started);
+    prepared.countDown();
+    assertThat(running.await(5, TimeUnit.SECONDS)).isTrue();
+
+    assertThatThrownBy(() -> tasks.cancel(task)).isInstanceOfSatisfying(McpException.class,
+        e -> assertThat(e.getMessage()).isEqualTo("Task " + task.id() + " runs a change that GateRook doesn't stop "
+            + "once it started: it runs to its end and the task gets its result."));
+    assertThat(task.working()).as("not reported cancelled while the change goes on").isTrue();
+    finish.countDown();
+    assertThat(tasks.result(task).at("/content/0/text").asString()).isEqualTo("1 row updated");
+    assertThat(tasks.legacy(task).path("status").asString()).isEqualTo("completed");
+  }
+
+  @Test
+  void aCancelBeforeABypassChangeStartsMeansItNeverStarts() throws Exception {
+    CountDownLatch preparing = new CountDownLatch(1);
+    CountDownLatch prepared = new CountDownLatch(1);
+    CountDownLatch running = new CountDownLatch(1);
+    CountDownLatch finish = new CountDownLatch(1);
+    var started = new java.util.concurrent.atomic.AtomicReference<Boolean>();
+    CallTasks.Task task = bypass(preparing, prepared, running, finish, started);
+    assertThat(preparing.await(5, TimeUnit.SECONDS)).isTrue();
+
+    tasks.cancel(task);
+    prepared.countDown();
+    assertThat(running.await(5, TimeUnit.SECONDS)).isTrue();
+    finish.countDown();
+
+    assertThat(started.get()).as("the change must not start after the cancel").isFalse();
+    assertThat(tasks.legacy(task).path("status").asString()).isEqualTo("cancelled");
+  }
+
+  @Test
+  void aCallThatGetsItsStopAfterTheCancelStopsAtOnce() throws Exception {
+    CountDownLatch preparing = new CountDownLatch(1);
+    CountDownLatch cancelled = new CountDownLatch(1);
+    CountDownLatch stopped = new CountDownLatch(1);
+    CallTasks.Task task = tasks.start(ApprovalDeliveryTest.request(false, "auto", 15), CallTasks.DEFAULT_TTL, own -> {
+      preparing.countDown();
+      await(cancelled);
+      // What the invoker hands over when the call reaches the connector.
+      own.stream().onClose(stopped::countDown);
+      return ai.msrv.gaterook.core.mcp.internal.ResultWriter.callToolResult(own.env(), ToolResult.text("rows"), null,
+          null, null);
+    }).orElseThrow();
+    assertThat(preparing.await(5, TimeUnit.SECONDS)).isTrue();
+
+    tasks.cancel(task);
+    cancelled.countDown();
+
+    assertThat(stopped.await(5, TimeUnit.SECONDS)).as("a read that starts after the cancel is stopped").isTrue();
+    assertThat(tasks.legacy(task).path("status").asString()).isEqualTo("cancelled");
+  }
+
   @Test
   void aCallThatAnswersAtOnceIsAnsweredAsUsualAndForgotten() {
     CallTasks.Task task = tasks.start(ApprovalDeliveryTest.request(false, "auto", 15), CallTasks.DEFAULT_TTL,

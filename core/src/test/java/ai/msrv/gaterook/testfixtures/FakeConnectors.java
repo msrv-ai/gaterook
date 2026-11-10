@@ -598,6 +598,10 @@ public class FakeConnectors {
         SecretResolver secrets, ExecContext ctx) throws ConnectorException {
       ActionPreview p = describeAction(call, cfg);
       String sql = call.string("sql") == null ? "" : call.string("sql");
+      if (sql.contains("slow_prepare")) {
+        // A preview that takes a while (an impact estimate), for the tests that act while the call prepares.
+        sleep(1_500);
+      }
       if (sql.contains("no_change")) {
         return ai.msrv.gaterook.connector.api.PreparedAction.noChange("Already in that state: nothing to change.");
       }
