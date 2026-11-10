@@ -330,6 +330,10 @@ final class OpenApiImport {
       // Cut short while inlining: it would serialize to more than 32 KB, and it isn't serialized to find out.
       skipped = "the input schema is more than 32 KB";
     }
+    if (skipped == null && schemas.unusable() != null) {
+      // Published, it would fail every call: the core compiles the input schema before it checks the arguments.
+      skipped = schemas.unusable();
+    }
     if (skipped == null) {
       int bytes = JsonText.compact(input).getBytes(StandardCharsets.UTF_8).length;
       if (bytes > MAX_INPUT_SCHEMA_BYTES) {

@@ -41,6 +41,9 @@ final class OpenApiSchemas {
   private static final Set<String> SCHEMA_VALUES = Set.of("items", "not", "additionalProperties", "contains",
       "propertyNames", "if", "then", "else", "unevaluatedProperties", "unevaluatedItems", "contentSchema");
   private static final Set<String> SCHEMA_MAPS = Set.of("patternProperties", "dependentSchemas");
+  /** Keywords whose value the argument check reads as an int when it is an integral number. */
+  private static final Set<String> COUNTS = Set.of("minLength", "maxLength", "minItems", "maxItems", "minProperties",
+      "maxProperties", "minContains", "maxContains");
 
   private final JsonNode root;
   private final boolean v30;
@@ -50,6 +53,8 @@ final class OpenApiSchemas {
   private long work;
   /** Work of the operations before it. */
   private long done;
+  /** Why the current operation's input can't be checked, when a schema holds a number the check can't read. */
+  private String unusable;
 
   OpenApiSchemas(JsonNode root) {
     this.root = root;
@@ -80,6 +85,53 @@ final class OpenApiSchemas {
     done += work;
     nodes = 0;
     work = 0;
+    unusable = null;
+  }
+
+  /**
+   * Why the current operation can't be published, when one of its schemas holds a number the core's argument check
+   * (networknt JSON Schema) can't compile: a {@code minimum} or {@code maximum} that isn't a number, a
+   * {@code multipleOf} beyond the range of a double, or a count ({@code maxLength}, {@code minItems}…) that is an
+   * integer beyond the range of an int. Such a tool would fail every call before it reached the API. {@code null}
+   * when there is none.
+   */
+  String unusable() {
+    return unusable;
+  }
+
+  /** Records the first number of the operation the argument check can't read (see {@link #unusable()}). */
+  private void checkNumber(String keyword, JsonNode v) {
+    if (unusable != null) {
+      return;
+    }
+    boolean bad;
+    if (keyword.equals("minimum") || keyword.equals("maximum")) {
+      bad = !v.isNumber();
+    } else if (keyword.equals("multipleOf")) {
+      bad = v.isNumber() && Double.isInfinite(v.isBigDecimal() ? v.decimalValue().doubleValue()
+          : v.isBigInteger() ? v.bigIntegerValue().doubleValue() : v.doubleValue());
+    } else if (COUNTS.contains(keyword)) {
+      bad = v.isNumber() && integral(v) && !v.canConvertToInt();
+    } else {
+      bad = false;
+    }
+    if (bad) {
+      unusable = "the schema's " + keyword + " " + ToolText.clean(v.toString(), 40) + " isn't a number the argument "
+          + "check can use";
+    }
+  }
+
+  /** Whether a number has no fraction, computed without Jackson's conversions, which fail beyond their range. */
+  private static boolean integral(JsonNode v) {
+    if (v.isIntegralNumber()) {
+      return true;
+    }
+    if (v.isBigDecimal()) {
+      java.math.BigDecimal d = v.decimalValue();
+      return d.signum() == 0 || d.scale() <= 0 || d.stripTrailingZeros().scale() <= 0;
+    }
+    double d = v.doubleValue();
+    return Double.isFinite(d) && d == Math.rint(d);
   }
 
   /** The converted schema of {@code schema}; an absent schema accepts anything. */
@@ -179,6 +231,7 @@ final class OpenApiSchemas {
           work++;
           String exclusive = k.equals("minimum") ? "exclusiveMinimum" : "exclusiveMaximum";
           if (!(s.path(exclusive).isBoolean() && s.path(exclusive).asBoolean())) {
+            checkNumber(k, v);
             o.set(k, v);
           }
         }
@@ -202,6 +255,7 @@ final class OpenApiSchemas {
               m.set(p.getKey(), convert(p.getValue(), stack, depth + 1));
             }
           } else {
+            checkNumber(k, v);
             o.set(k, copy(v));
           }
         }

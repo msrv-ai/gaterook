@@ -108,4 +108,18 @@ class PipelineValidatorTest {
         + "operations.");
     assertThat(sys.reason()).contains("admin is a system database");
   }
+
+  @Test
+  void anInternalOperatorIsNamedInOneShortLine() {
+    ConnectionConfig cfg = Fixtures.uri(Env.PROD, "mongodb://127.0.0.1:1/orders");
+    String name = "$_internal" + "x".repeat(100);
+
+    Classification c = CONNECTOR.classify(Fixtures.call("mongo_find", "{\"collection\":\"orders\",\"filter\":{\""
+        + name + "\\n\":1}}"), cfg, Fixtures.policy(Env.PROD));
+
+    assertThat(c.ruleId()).isEqualTo("prod.mongodb.internal-operator");
+    assertThat(c.reason()).startsWith("Operator $_internalxxx").contains("x…").doesNotContain("\n")
+        .hasSizeLessThan(160);
+    assertThat(PipelineValidator.clip("$_a\u0007b")).isEqualTo("$_a?b");
+  }
 }
