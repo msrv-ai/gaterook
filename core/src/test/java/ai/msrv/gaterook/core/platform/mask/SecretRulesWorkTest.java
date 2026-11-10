@@ -1,0 +1,117 @@
+package ai.msrv.gaterook.core.platform.mask;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+
+/**
+ * What the secret rules cost on repetitive text, counted in characters the regular-expression engine reads (not
+ * milliseconds): linear in the length of the text, bounded by the budget of the value, and never a way past a rule.
+ */
+class SecretRulesWorkTest {
+
+  private static final String MASK = "‹masked›";
+
+  private static String repeat(String unit, int chars) {
+    StringBuilder out = new StringBuilder(chars + unit.length());
+    while (out.length() < chars) {
+      out.append(unit);
+    }
+    return out.toString();
+  }
+
+  private static long used(String text) {
+    Work work = Work.counting(text);
+    SecretRules.apply(text, MASK, new MaskCounter(), work);
+    return work.used();
+  }
+
+  /** A keyword with a separator and a value that never ends, repeated: each value runs into the next keyword. */
+  static Stream<Arguments> chains() {
+    return Stream.of(
+        Arguments.of("kv-password", "password=abcdefg", 4200),
+        Arguments.of("kv-password, name with a suffix", "x_secret:abcdefg", 4200),
+        Arguments.of("bearer-token", "token=abcdefghijklmnopqrstuvwxyz-", 8192),
+        Arguments.of("pem-private-key without an end", "-----BEGIN PRIVATE KEY-----", 16384));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("chains")
+  void workGrowsLinearlyWithTheLengthOfARepetitiveText(String rule, String unit, int window) {
+    long once = used(repeat(unit, 4 * window));
+    long twice = used(repeat(unit, 8 * window));
+    // Twice the text costs about twice the work; a rule that rescans its merged window costs four times.
+    assertThat((double) twice / once).as("work for twice the text").isLessThan(2.6);
+  }
+
+  @Test
+  void aSpentBudgetMasksWhatWasNotCheckedYet() {
+    String chain = repeat("x_secret:abcdefg", 1 << 20);
+    Work work = new Work(chain, 200_000);
+    MaskCounter counter = new MaskCounter();
+
+    String out = SecretRules.apply(chain, MASK, counter, work);
+
+    assertThat(work.spent()).isTrue();
+    assertThat(work.used()).isLessThanOrEqualTo(200_000);
+    // The first keyword stays readable; from its value on everything is covered, as when the rule ran to the end.
+    assertThat(out).isEqualTo("x_secret:" + MASK);
+    assertThat(counter.byRule()).containsKey("work-limit");
+  }
+
+  @Test
+  void rulesAfterASpentBudgetMaskTheWindowsOfTheirKeywords() {
+    // bearer-token spends the budget; url-credentials runs after it and must not skip its password.
+    String text = repeat("token=abcdefghijklmnopqrstuvwxyz-", 1 << 20)
+        + " dsn postgres://app:s3cr3t-pw@db.dev.internal/app";
+    Work work = new Work(text, 100_000);
+    MaskCounter counter = new MaskCounter();
+
+    String out = SecretRules.apply(text, MASK, counter, work);
+
+    assertThat(work.spent()).isTrue();
+    assertThat(out).doesNotContain("s3cr3t-pw").doesNotContain("abcdefghijklmnopqrstuvwxyz");
+    assertThat(counter.byRule()).containsKey("work-limit");
+  }
+
+  @Test
+  void aSecretBeforeThePathologicalPartIsMaskedAsUsual() {
+    String text = "key AKIAIOSFODNN7EXAMPLE and " + repeat("password=abcdefg", 1 << 18);
+    MaskCounter counter = new MaskCounter();
+
+    String out = SecretRules.apply(text, MASK, counter, new Work(text, 100_000));
+
+    assertThat(out).startsWith("key " + MASK + " and ").doesNotContain("AKIA").doesNotContain("abcdefg");
+    assertThat(counter.byRule()).containsKeys("aws-access-key-id", "work-limit");
+  }
+
+  @Test
+  void ordinaryTextFullOfKeywordsStaysFarInsideItsBudget() {
+    String dense = repeat("compass bypass token_count password_changed_at secret_name \"token\":\"abc123\" "
+        + "PGPASSWORD=hunter2-prod-db user@host:22\n", 1 << 20);
+    Work work = Work.forValue(dense);
+
+    String out = SecretRules.apply(dense, MASK, new MaskCounter(), work);
+
+    long budget = Work.BASE + Work.PER_CHAR * dense.length();
+    assertThat(work.spent()).isFalse();
+    // About a fifth of it; the chains above need more than twice the whole.
+    assertThat(work.used()).as("units used of " + budget).isLessThan(budget / 2);
+    assertThat(out).doesNotContain("hunter2-prod-db").contains("compass bypass token_count");
+  }
+
+  @Test
+  void aShortTextIsNeverLimited() {
+    String text = "password=abcdefg ".repeat(2_000);
+    Work work = Work.forValue(text);
+
+    String out = SecretRules.apply(text, MASK, new MaskCounter(), work);
+
+    assertThat(work.spent()).isFalse();
+    assertThat(out).isEqualTo(("password=" + MASK + " ").repeat(2_000));
+  }
+}

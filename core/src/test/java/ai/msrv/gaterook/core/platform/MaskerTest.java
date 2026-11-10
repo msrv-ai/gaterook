@@ -2,10 +2,12 @@ package ai.msrv.gaterook.core.platform;
 
 import static ai.msrv.gaterook.core.platform.Masker.MASK;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.EnumSet;
 import java.util.ArrayList;
@@ -191,6 +193,26 @@ class MaskerTest {
     assertThat(out.result().table().rows().get(0).get(0).asString()).isEqualTo(MASK);
     assertThat(out.result().table().nextCursor()).isEqualTo("page-" + MASK);
     assertThat(JSON.writeValueAsString(out.result())).doesNotContain(stored).doesNotContain("84726193");
+  }
+
+  /**
+   * Text built from one keyword and a value without end, repeated, cost time in proportion to the square of its length
+   * (128 KB took seconds, 256 KB close to a minute), and masking runs outside any deadline. It is counted in work units
+   * in {@code SecretRulesWorkTest}; this is the same property on the wall clock, with a margin of a factor of thirty.
+   */
+  @Test
+  void aMegabyteOfRepeatedKeywordsIsMaskedInSeconds() {
+    org.junit.jupiter.api.Assumptions.assumeFalse(Boolean.getBoolean("gateway.test.skipPerf"),
+        "performance checks are off on this runner");
+    for (String[] c : new String[][] {{"password=abcdefg", "abcdefg"}, {"-----BEGIN PRIVATE KEY-----", "BEGIN"},
+        {"token=abcdefghijklmnopqrstuvwxyz-", "abcdefghijkl"}}) {
+      String text = c[0].repeat((1 << 20) / c[0].length());
+
+      Masker.MaskedText masked = assertTimeoutPreemptively(Duration.ofSeconds(30),
+          () -> masker.text(text, new Taint(), MaskPolicy.SECRETS_ONLY), c[0]);
+
+      assertThat(masked.text()).as(c[0]).doesNotContain(c[1]);
+    }
   }
 
   @Test
