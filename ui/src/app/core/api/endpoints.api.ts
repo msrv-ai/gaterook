@@ -102,6 +102,12 @@ export interface EndpointDetail {
   readonly settings: EndpointSettings;
 }
 
+/** A tool "Set all to…" sets: its key and the definition its row showed (`ToolRow.definitionHash`). */
+export interface BulkTool {
+  readonly toolKey: string;
+  readonly definitionHash: string | null;
+}
+
 /** One tool × connection pair of the tool-policy-list. */
 export interface ToolRow {
   readonly toolKey: string;
@@ -264,8 +270,15 @@ export class EndpointsApi {
     return this.api.post(ApiClient.path`/api/endpoints/${slug}/tools/confirm-read-only`, request);
   }
 
-  /** "Set all to…": `DEFAULT` restores defaults; ineligible reads and unconfirmed plugin tools are skipped for Read only. */
-  bulk(slug: string, request: { readonly group: string; readonly mode: ToolMode | 'DEFAULT' } & WithReason): Promise<{ readonly changed: string[]; readonly skipped: { readonly toolKey: string; readonly reason: string }[] }> {
+  /**
+   * "Set all to…": `DEFAULT` restores defaults; ineligible reads and unconfirmed plugin tools are skipped for Read only.
+   * `tools` are the tools the person saw, each with the `definitionHash` its row showed: only those change, and the
+   * core answers 409 when one of them changed since (for Read only and Bypass).
+   */
+  bulk(
+    slug: string,
+    request: { readonly group: string; readonly mode: ToolMode | 'DEFAULT'; readonly tools: readonly BulkTool[] } & WithReason,
+  ): Promise<{ readonly changed: string[]; readonly skipped: { readonly toolKey: string; readonly reason: string }[] }> {
     return this.api.post(ApiClient.path`/api/endpoints/${slug}/tools/bulk`, request);
   }
 

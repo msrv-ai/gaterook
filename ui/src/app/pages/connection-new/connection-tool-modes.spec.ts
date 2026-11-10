@@ -102,7 +102,13 @@ describe('connection tool modes', () => {
       bulkOption(mode).click();
       await settle();
     };
-    return { fixture, settle, root, trigger, menu, option, pick, bulkTrigger, bulkOption, pickBulk, scope, api, changed, stored, recover: () => { loadError = false; } };
+    /** The open "Set all to…" confirmation, or null. */
+    const bulkDialog = () => root.querySelector<HTMLDialogElement>('dialog[open][aria-labelledby="connection-bulk-confirm-title"]');
+    const confirmBulk = async () => {
+      bulkDialog()!.querySelector<HTMLButtonElement>('.gw-btn--primary')!.click();
+      await settle();
+    };
+    return { fixture, settle, root, trigger, menu, option, pick, bulkTrigger, bulkOption, pickBulk, bulkDialog, confirmBulk, scope, api, changed, stored, recover: () => { loadError = false; } };
   }
 
   it('groups endpoints under one tool and saves every mode to only the chosen pair with its latest version', async () => {
@@ -334,11 +340,16 @@ describe('connection tool modes', () => {
   });
 
   it('sets every tool on every endpoint in one request per endpoint and refreshes saved modes', async () => {
-    const p = await render({ tools: [{}, { toolKey: 'mcp:notes/update', name: 'update', readOnlyAllowed: false }] });
+    const p = await render({ tools: [{}, { toolKey: 'mcp:notes/update', name: 'update', readOnlyAllowed: false, definitionHash: 'sha256-update' }] });
     await p.pickBulk('BYPASS');
+    // Four tools would run without approval: nothing is sent before the person confirms the count.
+    expect(p.api.bulk).not.toHaveBeenCalled();
+    expect(p.bulkDialog()?.textContent).toContain('Let 4 tools of dev-db run without approval?');
+    await p.confirmBulk();
+    const tools = [{ toolKey: 'postgres/sql_query', definitionHash: null }, { toolKey: 'mcp:notes/update', definitionHash: 'sha256-update' }];
     expect(p.api.bulk.mock.calls).toEqual([
-      ['dev', { group: 'dev-db', mode: 'BYPASS' }],
-      ['stage', { group: 'dev-db', mode: 'BYPASS' }],
+      ['dev', { group: 'dev-db', mode: 'BYPASS', tools }],
+      ['stage', { group: 'dev-db', mode: 'BYPASS', tools }],
     ]);
     expect(p.api.setMode).not.toHaveBeenCalled();
     expect(p.api.confirmReadOnly).not.toHaveBeenCalled();
@@ -355,7 +366,9 @@ describe('connection tool modes', () => {
     ] });
     await p.scope('stage');
     await p.pickBulk('DEFAULT');
-    expect(p.api.bulk).toHaveBeenCalledExactlyOnceWith('stage', { group: 'dev-db', mode: 'DEFAULT' });
+    expect(p.api.bulk).toHaveBeenCalledExactlyOnceWith('stage', { group: 'dev-db', mode: 'DEFAULT', tools: [
+      { toolKey: 'postgres/sql_query', definitionHash: null }, { toolKey: 'mcp:notes/update', definitionHash: null },
+    ] });
     expect(p.stored['stage'].map((row) => row.storedMode)).toEqual(['READ_ONLY', 'APPROVAL']);
     expect(p.stored['dev'].map((row) => row.storedMode)).toEqual(['OFF', 'BYPASS']);
     expect(p.stored['stage'][0].overrides).toEqual({ rowLimit: 25 });
@@ -422,7 +435,8 @@ describe('connection tool modes', () => {
     await p.scope('stage');
     expect(p.bulkOption('BYPASS').disabled).toBe(false);
     await p.pickBulk('BYPASS');
-    expect(p.api.bulk).toHaveBeenCalledExactlyOnceWith('stage', { group: 'dev-db', mode: 'BYPASS' });
+    expect(p.bulkDialog()).toBeNull();
+    expect(p.api.bulk).toHaveBeenCalledExactlyOnceWith('stage', { group: 'dev-db', mode: 'BYPASS', tools: [{ toolKey: 'postgres/sql_query', definitionHash: null }] });
   });
 
   it('does not offer bulk changes when endpoint details could not load or the endpoint is blocked', async () => {

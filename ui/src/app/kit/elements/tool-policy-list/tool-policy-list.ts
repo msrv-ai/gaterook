@@ -15,7 +15,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { ToolRow } from '../../../core/api/endpoints.api';
+import { BulkTool, ToolRow } from '../../../core/api/endpoints.api';
 import { Env, JsonObject, ToolMode } from '../../../core/api/types';
 import { absoluteTime } from '../../../core/time/time-format';
 import { GwDialog, GwDialogClose } from '../../dialog';
@@ -42,6 +42,7 @@ import {
   overridden,
   policyEnv,
   toolCount,
+  unattended,
   withUnit,
 } from './tool-policy-view';
 
@@ -54,6 +55,13 @@ export interface ToolModeChange {
   /** The definition the person chose the mode for, as the row showed it (`ToolRow.definitionHash`). */
   readonly definitionHash: string | null;
   readonly version: number;
+}
+
+/** "Set all to…" on a group: the mode and the tools it was shown with. */
+export interface ToolBulkChange {
+  readonly connection: string | null;
+  readonly mode: ToolMode | 'DEFAULT';
+  readonly tools: readonly BulkTool[];
 }
 
 export interface ToolOverridesChange {
@@ -159,7 +167,11 @@ export class GwToolPolicyList {
   readonly modeFilter = model<ModeFilter>('ALL');
 
   readonly modeChange = output<ToolModeChange>();
-  readonly bulk = output<{ readonly connection: string | null; readonly mode: ToolMode | 'DEFAULT' }>();
+  /**
+   * "Set all to…" for a group: `tools` are the rows shown when it was chosen (after the search and the mode filter),
+   * each with the definition it showed, and only those change.
+   */
+  readonly bulk = output<ToolBulkChange>();
   readonly overridesChange = output<ToolOverridesChange>();
   /** "Allow read only" in the confirmation: the page confirms the tool, then sets it to Read only. */
   readonly confirmReadOnly = output<{ readonly toolKey: string; readonly connection: string | null; readonly definitionHash: string }>();
@@ -179,6 +191,9 @@ export class GwToolPolicyList {
   protected readonly confirming = signal<{ readonly row: RowView; readonly group: GroupView } | null>(null);
   protected readonly acknowledged = signal(false);
   private readonly confirmDialog = viewChild<GwDialog>('confirmDialog');
+  /** "Set all to…" Bypass, or Read only for a server's tools, on more than one tool: what the dialog asks about. */
+  protected readonly bulkConfirm = signal<{ readonly change: ToolBulkChange; readonly title: string; readonly count: number; readonly external: boolean } | null>(null);
+  private readonly bulkDialog = viewChild<GwDialog>('bulkDialog');
 
   constructor() {
     // New groups from the page are the truth: local picks and errors were answered (or refused) by them.
@@ -327,10 +342,34 @@ export class GwToolPolicyList {
     this.temporaryBypass.emit({ toolKey: r.tool.toolKey, connection: g.connection, toolName: r.tool.name, opener });
   }
 
+  /**
+   * "Set all to…" sets the rows the group shows now, not the ones a search or the mode filter hides, each with the
+   * definition it showed. Bypass, and Read only for a server's tools (declared read only, not verified), let calls run
+   * without a person: on more than one tool the dialog asks first, naming how many.
+   */
   protected onBulk(g: GroupView, pick: MenuPick): void {
     const mode = pick.value as ToolMode | 'DEFAULT';
     if (mode === 'BYPASS' && this.readOnly()) return;
-    this.bulk.emit({ connection: g.connection, mode });
+    const change: ToolBulkChange = {
+      connection: g.connection,
+      mode,
+      tools: g.rows.map((r) => ({ toolKey: r.tool.toolKey, definitionHash: r.tool.definitionHash })),
+    };
+    const count = unattended(g.rows.map((r) => r.tool), mode, g.external);
+    if (count > 1) {
+      const trigger = pick.item.closest('.gw-menu-host')?.querySelector<HTMLElement>('button[aria-haspopup="menu"]') ?? null;
+      this.bulkConfirm.set({ change, title: g.title, count, external: g.external });
+      this.bulkDialog()?.openAfterRender(trigger);
+      return;
+    }
+    this.bulk.emit(change);
+  }
+
+  protected confirmBulk(): void {
+    const c = this.bulkConfirm();
+    if (!c) return;
+    this.bulkDialog()?.close('set');
+    this.bulk.emit(c.change);
   }
 
   protected policyValue(r: RowView, f: LimitField): number | null {

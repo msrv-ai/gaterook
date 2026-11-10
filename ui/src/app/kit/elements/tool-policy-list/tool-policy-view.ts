@@ -129,6 +129,20 @@ function lock(text: string): ModeNote {
   return { icon: 'lock', text, locked: false, readOnlyDisabled: true, needsConfirmation: false };
 }
 
+/**
+ * How many of `tools` "Set all to…" `mode` lets run without a person that don't now: Bypass on a tool that isn't in
+ * Bypass; for a server's tools (`external`: their read-only declaration is the server's, not verified) Read only, or
+ * Restore defaults, on a tool declared read only that may take it without a confirmation of its own. A tool that
+ * changes data never takes Read only.
+ */
+export function unattended(tools: readonly ToolRow[], mode: ToolMode | 'DEFAULT', external: boolean): number {
+  if (mode === 'BYPASS') return tools.filter((t) => t.mode !== 'BYPASS').length;
+  if ((mode === 'READ_ONLY' || mode === 'DEFAULT') && external) {
+    return tools.filter((t) => t.mode !== 'READ_ONLY' && !!t.declaredBy && t.annotations.readOnlyHint && !t.annotations.destructiveHint && (t.readOnlyAllowed || t.readOnlyConfirmed)).length;
+  }
+  return 0;
+}
+
 /** The hints of "Set all to…": what each choice does to this group, and what stays as it is. */
 export function bulkHints(
   connection: string,

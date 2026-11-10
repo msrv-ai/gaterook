@@ -1,11 +1,24 @@
 import { DEMO_POLICY_SECTIONS, DEMO_TOOL_GROUPS, DEMO_TOOL_GROUPS_EXTERNAL } from '../../../dev/fixtures-tools';
-import { bulkHints, inherited, limitFields, matches, modeCounts, modeNote, overrideCount, overridden, toolCount, withUnit } from './tool-policy-view';
+import { bulkHints, inherited, limitFields, matches, modeCounts, modeNote, overrideCount, overridden, toolCount, unattended, withUnit } from './tool-policy-view';
 
 const tools = DEMO_TOOL_GROUPS.flatMap((g) => g.group.tools);
 const tool = (name: string) => tools.find((t) => t.name === name)!;
 const external = (name: string) => DEMO_TOOL_GROUPS_EXTERNAL[0].group.tools.find((t) => t.name === name)!;
 
 describe('tool-policy-list view', () => {
+  it('counts the tools "Set all to…" would let run without a person', () => {
+    const server = DEMO_TOOL_GROUPS_EXTERNAL[0].group.tools.map((t) => ({ ...t, mode: 'APPROVAL' as const }));
+    expect(unattended(server, 'BYPASS', true)).toBe(4);
+    expect(unattended([{ ...server[0], mode: 'BYPASS' }, server[1]], 'BYPASS', true)).toBe(1);
+    // A server's declared reads take Read only (or their default, Read only) without the gateway checking them.
+    expect(unattended(server, 'READ_ONLY', true)).toBe(2);
+    expect(unattended(server, 'DEFAULT', true)).toBe(2);
+    // The gateway's own read tools stay reads: no one to ask.
+    expect(unattended(tools.map((t) => ({ ...t, mode: 'APPROVAL' as const })), 'READ_ONLY', false)).toBe(0);
+    expect(unattended(server, 'OFF', true)).toBe(0);
+    expect(unattended(server, 'APPROVAL', true)).toBe(0);
+  });
+
   it('counts modes in the kit order', () => {
     expect(modeCounts(tools).map((c) => c.text)).toEqual(['6 read only', '3 approval', '5 off']);
     expect(toolCount(14)).toBe('14 tools');

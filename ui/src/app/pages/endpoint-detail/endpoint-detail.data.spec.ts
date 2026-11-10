@@ -328,7 +328,7 @@ describe('EndpointDetailData', () => {
     await expect(data.confirmReadOnly({ toolKey: 'github_list', connection: 'gh', definitionHash: 'h' })).rejects.toThrow('The tool changed.');
     expect(calls).toEqual(['confirm github_list', 'tools dev', 'get dev']);
 
-    const r = await data.bulk('dev-db', 'READ_ONLY');
+    const r = await data.bulk('dev-db', 'READ_ONLY', [{ toolKey: 'sql_execute', definitionHash: null }]);
     expect(r.skipped).toEqual([{ toolKey: 'sql_execute', reason: 'Mutates data' }]);
   });
 
