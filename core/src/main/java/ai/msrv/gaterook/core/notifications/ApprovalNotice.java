@@ -11,7 +11,9 @@ import java.util.Objects;
  * renderer can send what an agent wrote. Every text here already went through the core's {@code Masker} with the
  * request environment's policy.
  *
- * @param client       the client family the call came from ({@code codex}, {@code claude-desktop}), or {@code null}
+ * @param client       the client family the credential implies ({@code codex}, {@code claude-desktop}), or {@code null}:
+ *                     never a family a named token's client only reports about itself, which would name another app
+ *                     than the one the person gave the token to
  * @param clientLabel  the trusted label of who asked: the token's name or the grant's label ({@code codex-laptop})
  * @param action       the exact action as the channel may show it
  * @param summary      one line about the action (≤ 120 characters), masked

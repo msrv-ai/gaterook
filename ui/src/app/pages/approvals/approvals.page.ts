@@ -17,11 +17,14 @@ import { ActivatedRoute, Router, RouterLink, UrlTree } from '@angular/router';
 import { ActivityApi } from '../../core/api/activity.api';
 import { ApiError, isApiError } from '../../core/api/api-error';
 import { ApprovalDecision, ApprovalDetail, ApprovalItem, ApprovalsApi } from '../../core/api/approvals.api';
+import { ConnectionsApi } from '../../core/api/connections.api';
 import { Notifications, NotificationsApi } from '../../core/api/notifications.api';
 import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { EventStream } from '../../core/events/event-stream';
+import { CoreStore } from '../../core/stores/core.store';
 import { TimeService } from '../../core/time/time.service';
 import { GwCodeBlock } from '../../code/code-block';
+import { SqlDialect, sqlDialectOf } from '../../code/sql-lexer';
 import { Announcer } from '../../kit/announcer';
 import { GwToggle } from '../../kit/disclosure';
 import { GwApprovalRequest } from '../../kit/elements/approval-request/approval-request';
@@ -80,6 +83,8 @@ const EXPIRY_RECHECK_MS = 3000;
  * (its exact action feeds the queue's preview line), `POST /api/approvals/{id}/decision`; live through the event
  * stream (`approval.requested`, `approval.resolved`, `audit.call`). Activity's events link each request to its call
  * and trace; Settings › Notifications names the delivery channels (step K2: until it is merged the line says so).
+ * `GET /api/connections` gives each connection's type, so a SQL action is coloured in its server's dialect. When the
+ * stream opens again, the core comes back or another core instance answers (a restart), everything is read again.
  *
  * Behaviour (the kit page's script):
  * - `/approvals/<id>` (Review, a deep link, Open in app) opens that request and focuses its title; with no id the
@@ -121,6 +126,8 @@ export class ApprovalsPage {
   private readonly toasts = inject(ToastService);
   private readonly announcer = inject(Announcer);
   private readonly desktop = inject(DesktopBridge);
+  private readonly connectionsApi = inject(ConnectionsApi);
+  private readonly core = inject(CoreStore);
   private readonly host: HTMLElement = inject(ElementRef<HTMLElement>).nativeElement;
 
   /** Route parameter `id` (`/approvals/<id>`, withComponentInputBinding); null or undefined on `/approvals`. */
@@ -144,6 +151,8 @@ export class ApprovalsPage {
   private readonly calls = signal<ReadonlyMap<string, CallRef>>(new Map());
   private readonly notifications = signal<Notifications | null>(null);
   protected readonly channelsState = signal<ChannelsState>('loading');
+  /** Each connection's type by name (best effort: without it a SQL action is coloured as every dialect agrees). */
+  private readonly connectionTypes = signal<ReadonlyMap<string, string>>(new Map());
 
   // ── What happened here, before the core's next answer ──────────────────────────────────────────────────────
   /** Requests whose countdown ended on screen: no longer counted as waiting. */
@@ -335,14 +344,23 @@ export class ApprovalsPage {
         this.calls.update((m) => new Map(m).set(approvalId, { eventId: e.id, traceId: e.traceId ?? prev?.traceId ?? null }));
       }),
     ];
-    // A stream that dropped and opened again may have missed events: read everything again.
+    // A stream that dropped and opened again may have missed events. A core that comes back, or another core instance
+    // (a restart: the shell opens a fresh stream, which is no reopen), may have decided, expired or forgotten requests
+    // without an event this window saw. Either way: read everything again, the requests held here included.
     let reopened = untracked(() => this.events.reopened());
+    let instance = untracked(() => this.core.instanceChanges());
+    let wasRunning = untracked(() => this.core.running());
     effect(() => {
       const n = this.events.reopened();
-      if (n !== reopened) {
+      const changes = this.core.instanceChanges();
+      const running = this.core.running();
+      untracked(() => {
+        const again = n !== reopened || (running && (changes !== instance || !wasRunning));
         reopened = n;
-        untracked(() => void this.refresh());
-      }
+        instance = changes;
+        wasRunning = running;
+        if (again) this.reloadAll();
+      });
     });
     destroy.onDestroy(() => {
       off.forEach((f) => f());
@@ -351,6 +369,7 @@ export class ApprovalsPage {
 
     void this.refresh();
     void this.loadChannels();
+    void this.loadConnectionTypes();
   }
 
   // ── Loading ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -404,6 +423,31 @@ export class ApprovalsPage {
     } catch {
       // Activity unavailable: history rows link Activity by filter, the request has no Trace row.
     }
+  }
+
+  /** Everything the page read from the core, read again: the lists, every request held here, channels and types. */
+  private reloadAll(): void {
+    void this.refresh();
+    this.detailErrors.set(new Map());
+    for (const id of this.details().keys()) void this.ensureDetail(id, true);
+    const selected = this.selectedId();
+    if (selected && !this.details().has(selected)) void this.ensureDetail(selected);
+    void this.loadChannels();
+    void this.loadConnectionTypes();
+  }
+
+  private async loadConnectionTypes(): Promise<void> {
+    try {
+      const list = await this.connectionsApi.list();
+      this.connectionTypes.set(new Map(list.items.map((c) => [c.name, c.type])));
+    } catch {
+      // Keep what was read before: without a type the action is coloured as every dialect agrees.
+    }
+  }
+
+  /** The SQL dialect of a request's connection, when its type is known. */
+  protected dialectFor(d: ApprovalDetail): SqlDialect | null {
+    return d.connection ? sqlDialectOf(this.connectionTypes().get(d.connection)) : null;
   }
 
   private async loadChannels(): Promise<void> {

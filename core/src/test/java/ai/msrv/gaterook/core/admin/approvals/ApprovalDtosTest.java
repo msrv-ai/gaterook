@@ -3,13 +3,151 @@ package ai.msrv.gaterook.core.admin.approvals;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ai.msrv.gaterook.connector.api.ActionPreview;
+import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.core.approvals.ActionInspector;
+import ai.msrv.gaterook.core.approvals.ApprovalView;
+import ai.msrv.gaterook.core.platform.Caller;
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
-/** The exact action as the approver's screen draws it: hunks only for a diff they show completely (§8.5). */
+/**
+ * The exact action as the approver's screen draws it: hunks only for a diff they show completely, and what is shown
+ * with it inspected as it is (§8.5).
+ */
 class ApprovalDtosTest {
+
+  /** The value of a SQL template's parameter as the connector describes it ({@code TemplateParams.describe}). */
+  private static ActionPreview.Field parameters(String value) {
+    return new ActionPreview.Field("Parameters", ":status = '" + value + "' (text)");
+  }
+
+  @Test
+  void whatTheReviewShowsBesidesTheActionIsInspectedAsTheActionIs() {
+    // A SQL template runs fixed SQL: the agent's values exist only in the Parameters field.
+    ActionPreview p = ActionPreview.of(ActionPreview.Kind.SQL, "sql", "UPDATE orders SET status = :status", "dev-db",
+            "cancel_orders on dev-db (dev)")
+        .withFields(List.of(new ActionPreview.Field("Template", "cancel_orders · version 3"),
+            parameters("аctive")))
+        .withImpact(List.of(new ActionPreview.Field("Target table", "orders‮")))
+        .withWarnings(List.of("Runs on dev-db", "Check sta​tus"));
+
+    ApprovalDtos.Detail d = ApprovalDtos.detail(view(p, "Cancels the order of a customer⁦"), List.of());
+
+    assertThat(d.action().confusables()).as("the action itself is plain").isZero();
+    assertThat(d.fields().getFirst().segments()).as("nothing to mark").isNull();
+    assertThat(d.fields().getFirst().labelSegments()).isNull();
+    assertThat(d.fields().get(1).segments()).as("a look-alike letter in a parameter value")
+        .contains(new ActionInspector.Segment("confusable", "а"));
+    assertThat(d.impact().getFirst().segments()).as("a direction control in an impact line")
+        .contains(new ActionInspector.Segment("invisible", "‹U+202E›"));
+    assertThat(d.warningSegments()).hasSize(2);
+    assertThat(d.warningSegments().getFirst()).isNull();
+    assertThat(d.warningSegments().get(1)).as("a zero-width space in a warning")
+        .contains(new ActionInspector.Segment("invisible", "‹U+200B›"));
+    assertThat(d.agentNoteSegments()).as("the agent's note too")
+        .contains(new ActionInspector.Segment("invisible", "‹U+2066›"));
+    assertThat(d.targetSegments()).isNull();
+    assertThat(d.detailsHiddenChars()).isEqualTo(3);
+    assertThat(d.detailsConfusables()).isEqualTo(1);
+    // The texts are unchanged: the segments are only what the UI draws.
+    assertThat(d.fields().get(1).text()).isEqualTo(":status = 'аctive' (text)");
+    assertThat(d.fields().get(1).segments().stream().map(ActionInspector.Segment::v).collect(Collectors.joining()))
+        .isEqualTo(":status = 'аctive' (text)");
+  }
+
+  @Test
+  void ordinaryDetailsCarryNoSegmentsAndAQuotedValueInAnotherScriptIsData() {
+    ActionPreview p = ActionPreview.of(ActionPreview.Kind.SQL, "sql", "UPDATE meetings SET title = :title",
+            "dev-db · db.dev.internal:5432/app", "rename_meeting on dev-db (dev)")
+        .withFields(List.of(parameters("Встреча с клиентом"), new ActionPreview.Field("Binding",
+            "Values are bound by the driver, never pasted into the SQL")))
+        .withImpact(List.of(new ActionPreview.Field("Target table", "meetings"),
+            new ActionPreview.Field("Transaction", "One transaction, rolled back on error")))
+        .withWarnings(List.of("Changes up to 1 row"));
+
+    ApprovalDtos.Detail d = ApprovalDtos.detail(view(p, "Renames the meeting as the ticket asks"), List.of());
+
+    assertThat(d.fields()).allSatisfy(f -> {
+      assertThat(f.segments()).as(f.label()).isNull();
+      assertThat(f.labelSegments()).as(f.label()).isNull();
+    });
+    assertThat(d.impact()).allSatisfy(f -> assertThat(f.segments()).as(f.label()).isNull());
+    assertThat(d.warningSegments()).containsExactly((List<ActionInspector.Segment>) null);
+    assertThat(d.targetSegments()).isNull();
+    assertThat(d.agentNoteSegments()).isNull();
+    assertThat(d.detailsHiddenChars()).isZero();
+    assertThat(d.detailsConfusables()).isZero();
+  }
+
+  @Test
+  void aTargetAndALabelAreNamesOfTheirOwn() {
+    // A connector's target names the database the agent picked; a plugin chooses its own labels.
+    ActionPreview p = ActionPreview.of(ActionPreview.Kind.SQL, "sql", "SELECT 1", "dev-db · dеv",
+            "query on dev-db")
+        .withFields(List.of(new ActionPreview.Field("Collеction", "orders")));
+
+    ApprovalDtos.Detail d = ApprovalDtos.detail(view(p, null), List.of());
+
+    assertThat(d.targetSegments()).contains(new ActionInspector.Segment("confusable", "е"));
+    assertThat(d.fields().getFirst().labelSegments()).contains(new ActionInspector.Segment("confusable", "е"));
+    assertThat(d.fields().getFirst().segments()).isNull();
+    assertThat(d.detailsConfusables()).isEqualTo(2);
+    assertThat(d.agentNoteSegments()).isNull();
+  }
+
+  @Test
+  void aTemplatePreviewIsInspectedLikeARequest() {
+    ActionPreview p = ActionPreview.of(ActionPreview.Kind.SQL, "sql", "UPDATE orders SET status = :status", "dev-db",
+            "cancel_orders on dev-db (dev)")
+        .withFields(List.of(parameters("ok‮")))
+        .withWarnings(List.of("Check stаtus"));
+
+    ApprovalDtos.Preview preview = ApprovalDtos.preview(p);
+
+    assertThat(preview.fields().getFirst().segments()).contains(new ActionInspector.Segment("invisible", "‹U+202E›"));
+    assertThat(preview.warningSegments().getFirst()).contains(new ActionInspector.Segment("confusable", "а"));
+    assertThat(preview.detailsHiddenChars()).isEqualTo(1);
+    assertThat(preview.detailsConfusables()).isEqualTo(1);
+  }
+
+  @Test
+  void aNamedTokensClientIsOnlyWhatTheClientReportsAndTheCredentialSaysWhoAsked() {
+    ActionPreview p = ActionPreview.of(ActionPreview.Kind.SQL, "sql", "DELETE FROM orders", "dev-db", "delete");
+    tools.jackson.databind.node.ObjectNode call = tools.jackson.databind.node.JsonNodeFactory.instance.objectNode();
+    call.putObject("origin").put("client", "claude-desktop");
+
+    ApprovalDtos.Detail named = ApprovalDtos.detail(view(p, null, Caller.Kind.LOCAL_TOKEN, "ci-runner", call),
+        List.of());
+    ApprovalDtos.Item item = ApprovalDtos.item(view(p, null, Caller.Kind.LOCAL_TOKEN, "ci-runner", call));
+    ApprovalDtos.Detail bridge = ApprovalDtos.detail(view(p, null, Caller.Kind.BRIDGE, "claude-desktop", call),
+        List.of());
+
+    assertThat(named.client()).isEqualTo("claude-desktop");
+    assertThat(named.clientReported()).isTrue();
+    assertThat(named.principalKind()).isEqualTo("local_token");
+    assertThat(named.tokenLabel()).isEqualTo("ci-runner");
+    assertThat(item.clientReported()).isTrue();
+    assertThat(item.principalKind()).isEqualTo("local_token");
+    assertThat(bridge.clientReported()).as("a bridge grant names its client").isFalse();
+    assertThat(bridge.principalKind()).isEqualTo("bridge");
+    assertThat(ApprovalDtos.detail(view(p, null), List.of()).clientReported()).as("no family, nothing reported")
+        .isFalse();
+  }
+
+  private static ApprovalView view(ActionPreview action, String note) {
+    return view(action, note, Caller.Kind.LOCAL_TOKEN, "ci-runner", null);
+  }
+
+  private static ApprovalView view(ActionPreview action, String note, Caller.Kind kind, String label,
+      tools.jackson.databind.JsonNode call) {
+    Instant at = Instant.parse("2026-11-10T10:00:00Z");
+    return new ApprovalView("ap_1", "tc_1", "ep_1", "dev", "cn_1", "dev-db", "cancel_orders", "template:cancel_orders",
+        Env.DEV, kind, "pr_1", label, "pending", "d".repeat(64), action, "a".repeat(64), note,
+        "dev.sql.write-approval", "optional", null, null, null, at, at.plusSeconds(300), null, null, null, null, null,
+        call);
+  }
 
   @Test
   void aUnifiedDiffBecomesItsHunks() {

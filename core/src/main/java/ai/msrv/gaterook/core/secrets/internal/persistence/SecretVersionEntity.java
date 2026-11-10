@@ -55,6 +55,13 @@ public class SecretVersionEntity {
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt;
 
+  /**
+   * When a rotation at the source wrote this pending version without a clear answer: the source may already use it.
+   * {@code null} for every other version.
+   */
+  @Column(name = "unconfirmed_at")
+  private Instant unconfirmedAt;
+
   @Column(name = "destroyed_at")
   private Instant destroyedAt;
 
@@ -86,8 +93,29 @@ public class SecretVersionEntity {
     return state;
   }
 
+  /** Sets the state; a version that stops being pending is no longer an unconfirmed rotation. */
   public void setState(SecretVersionState state) {
     this.state = Objects.requireNonNull(state, "state");
+    if (state != SecretVersionState.PENDING) {
+      this.unconfirmedAt = null;
+    }
+  }
+
+  /** Whether this is a pending version from a rotation at the source whose outcome is not known. */
+  public boolean unconfirmed() {
+    return state == SecretVersionState.PENDING && unconfirmedAt != null;
+  }
+
+  public Instant getUnconfirmedAt() {
+    return unconfirmedAt;
+  }
+
+  /** A rotation at the source got no clear answer: the source may already use this pending version. */
+  public void markUnconfirmed(Instant now) {
+    if (state != SecretVersionState.PENDING) {
+      throw new IllegalStateException("Only a pending version can wait for its rotation to be confirmed");
+    }
+    this.unconfirmedAt = Objects.requireNonNull(now, "now");
   }
 
   public byte[] getCiphertext() {
@@ -118,6 +146,7 @@ public class SecretVersionEntity {
   /** Crypto-shredding: without the wrapped key the ciphertext can never be decrypted again. */
   public void destroy(Instant now) {
     this.state = SecretVersionState.DESTROYED;
+    this.unconfirmedAt = null;
     this.ciphertext = null;
     this.wrappedDek = null;
     this.keyId = null;

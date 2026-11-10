@@ -100,6 +100,31 @@ class PublicIngressFilterTest {
         })).isInstanceOf(IOException.class).hasMessage("broken pipe");
   }
 
+  /** No published route takes parts, and a reader is as bounded as the stream. */
+  @Test
+  void aMultipartBodyIsRefusedAndEveryWayOfReadingTheBodyIsBounded() throws Exception {
+    tunnel.publish(SMOKE);
+    MockHttpServletRequest parts = request(PUBLIC, "/mcp/smoke", SMOKE.host(), "--x--");
+    parts.setContentType("multipart/form-data; boundary=x");
+    Result refused = run(parts);
+    assertThat(refused.passed).isFalse();
+    assertThat(refused.status).isEqualTo(415);
+    assertThat(refused.body).isEmpty();
+
+    List<ServletRequest> seen = new ArrayList<>();
+    filter.doFilter(chunked(), new MockHttpServletResponse(), (req, res) -> seen.add(req));
+    assertThatThrownBy(() -> {
+      char[] buffer = new char[8192];
+      try (var reader = ((jakarta.servlet.http.HttpServletRequest) seen.getFirst()).getReader()) {
+        while (reader.read(buffer) >= 0) {
+          // Read it all, as a controller that takes the body as text would.
+        }
+      }
+    }).isInstanceOf(IOException.class).hasMessageContaining("larger than");
+    assertThatThrownBy(() -> ((jakarta.servlet.http.HttpServletRequest) seen.getFirst()).getParts())
+        .isInstanceOf(jakarta.servlet.ServletException.class);
+  }
+
   @Test
   void serverCallsFromOutsideAnthropicsRangesGetAnEmpty403AndTheBrowserPagesNever() throws Exception {
     TunnelPublication.Publication cf = new TunnelPublication.Publication(SMOKE.host(), "smoke",

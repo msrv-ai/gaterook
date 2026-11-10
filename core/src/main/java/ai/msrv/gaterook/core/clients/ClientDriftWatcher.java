@@ -2,6 +2,7 @@ package ai.msrv.gaterook.core.clients;
 
 import ai.msrv.gaterook.core.clients.internal.BridgeShimInstaller;
 import ai.msrv.gaterook.core.clients.internal.ClientEnvironment;
+import ai.msrv.gaterook.core.platform.BridgeLauncher;
 import ai.msrv.gaterook.core.platform.EventBus;
 import java.io.IOException;
 import java.nio.file.ClosedWatchServiceException;
@@ -34,9 +35,13 @@ import tools.jackson.databind.node.ObjectNode;
  * runs: the clients are scanned again), {@code clients.drift} tells the window. A slow minute-long rescan covers file
  * systems where watching doesn't work and folders that don't exist yet. None of it delays the ready line: it all runs
  * on its own thread.
+ *
+ * <p>The shim is also the launcher the core starts its sandboxed MCP servers through ({@link BridgeLauncher}): the
+ * MCP server runtime asks for it before it first asks whether the sandbox works, which can be before this watcher's
+ * first pass (servers that start with the core). Whichever comes first writes it, once per run.
  */
 @Component
-class ClientDriftWatcher implements DisposableBean {
+class ClientDriftWatcher implements DisposableBean, BridgeLauncher {
 
   private static final Logger log = LoggerFactory.getLogger(ClientDriftWatcher.class);
 
@@ -48,6 +53,10 @@ class ClientDriftWatcher implements DisposableBean {
   private volatile WatchService watcher;
   private Map<String, String> last = new HashMap<>();
   private Map<String, Boolean> configs = new HashMap<>();
+  /** Guards {@link #shimWritten} and {@link #bridgePresent}: never this object, which {@link #destroy} holds. */
+  private final Object shimLock = new Object();
+  private boolean shimWritten;
+  private boolean bridgePresent;
 
   ClientDriftWatcher(ClientService clients, ClientEnvironment env, EventBus events,
       @Value("${gateway.clients.bridge-jar:}") String devJar) {
@@ -65,16 +74,31 @@ class ClientDriftWatcher implements DisposableBean {
     thread = Thread.ofVirtual().name("clients-drift").start(this::run);
   }
 
-  /** Writes the shim now (start, and a development override of the bridge jar). */
-  Path installShim() throws IOException {
-    String javaHome = "native".equals(ai.msrv.gaterook.core.platform.CoreBuild.runtime()) ? null
-        : System.getProperty("java.home");
-    BridgeShimInstaller.Target target = BridgeShimInstaller.target(env, javaHome == null ? null : Path.of(javaHome),
-        ai.msrv.gaterook.core.platform.BuildFlags.RELEASE ? null : devJar);
-    if (!target.present()) {
-      log.info("No gw-bridge in this build: {} says so when a client runs it", env.display(env.shim()));
+  /**
+   * Writes the shim for this run unless it was written already, and says whether this build has a bridge for it to
+   * run. A shim that couldn't be written is tried again at the next call.
+   */
+  @Override
+  public boolean prepare() {
+    synchronized (shimLock) {
+      if (!shimWritten) {
+        String javaHome = "native".equals(ai.msrv.gaterook.core.platform.CoreBuild.runtime()) ? null
+            : System.getProperty("java.home");
+        BridgeShimInstaller.Target target = BridgeShimInstaller.target(env, javaHome == null ? null
+            : Path.of(javaHome), ai.msrv.gaterook.core.platform.BuildFlags.RELEASE ? null : devJar);
+        bridgePresent = target.present();
+        if (!bridgePresent) {
+          log.info("No gw-bridge in this build: {} says so when a client runs it", env.display(env.shim()));
+        }
+        try {
+          BridgeShimInstaller.install(env, target);
+          shimWritten = true;
+        } catch (IOException | RuntimeException e) {
+          log.warn("Couldn't write the bridge launcher {}: {}", env.shim(), e.getMessage());
+        }
+      }
+      return bridgePresent;
     }
-    return BridgeShimInstaller.install(env, target);
   }
 
   private void run() {
@@ -84,11 +108,7 @@ class ClientDriftWatcher implements DisposableBean {
     } catch (InterruptedException e) {
       return;
     }
-    try {
-      installShim();
-    } catch (IOException | RuntimeException e) {
-      log.warn("Couldn't write the bridge launcher {}: {}", env.shim(), e.getMessage());
-    }
+    prepare();
     try {
       watcher = FileSystems.getDefault().newWatchService();
     } catch (IOException e) {

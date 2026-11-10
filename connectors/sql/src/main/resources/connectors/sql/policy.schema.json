@@ -54,6 +54,7 @@
       "uniqueItems": true,
       "maxItems": 500,
       "x-stricter": "intersect",
+      "x-empty": "all",
       "items": {
         "type": "string",
         "maxLength": 200

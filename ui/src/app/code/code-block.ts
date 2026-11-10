@@ -5,6 +5,7 @@ import { literalParts } from '../kit/elements/shared/literals';
 import { GwIcon } from '../kit/icons';
 import { textSegments, toLines } from './code-lines';
 import { prettyJsonSegments } from './pretty-json';
+import { SqlDialect } from './sql-lexer';
 
 let nextId = 0;
 
@@ -70,6 +71,11 @@ export class GwCodeBlock {
   readonly text = input<string | null>(null);
   /** Syntax language: sql, json, sh, yaml, toml, http. Only JSON supports pretty formatting. */
   readonly language = input<string | null>(null);
+  /**
+   * The SQL dialect of the action's connection, when the page knows it: comments and literals are coloured as that
+   * server reads them. Without it a SQL text is coloured only where every dialect GateRook reads agrees.
+   */
+  readonly dialect = input<SqlDialect | null>(null);
   /** Offer whitespace-only Pretty / Original views for JSON objects and arrays. */
   readonly pretty = input(false, { transform: booleanAttribute });
   /** Header label (overline): "SQL", "JSON". */
@@ -105,5 +111,5 @@ export class GwCodeBlock {
     return formatted && formatted.map((s) => s.v).join('') !== this.sourceText() ? formatted : null;
   });
   protected readonly showingPretty = computed(() => this.prettyView() && this.formatted() !== null);
-  protected readonly lines = computed(() => toLines(this.showingPretty() ? this.formatted()! : this.sourceSegments(), this.language()));
+  protected readonly lines = computed(() => toLines(this.showingPretty() ? this.formatted()! : this.sourceSegments(), this.language(), this.dialect()));
 }

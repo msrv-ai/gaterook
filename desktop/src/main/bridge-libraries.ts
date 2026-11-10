@@ -1,8 +1,9 @@
 // The core exports gw-bridge.exe into the gateway home for external MCP clients. Its Windows DLLs must travel
 // with it: a client that launches the exported bridge does not inherit the desktop package's dependency graph.
-import { lstatSync, mkdirSync, readFileSync, readdirSync, type Stats } from 'node:fs';
+import { closeSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, type Stats } from 'node:fs';
 import { join } from 'node:path';
 import { writeFileAtomic } from './atomic-file.ts';
+import { StartupProblem } from './startup-failure.ts';
 
 function directory(path: string): void {
   const stat = lstatSync(path);
@@ -23,7 +24,28 @@ function optionalStat(path: string): Stats | null {
   }
 }
 
-/** Provisions only bundled DLLs; the core owns the exported executable and unrelated files remain untouched. */
+/** Whether `path` can be opened for writing now; a DLL a running gw-bridge.exe has loaded can't be on Windows. */
+function writable(path: string): boolean {
+  try {
+    closeSync(openSync(path, 'r+'));
+    return true;
+  } catch (error) {
+    if (['EBUSY', 'EPERM', 'EACCES'].includes((error as NodeJS.ErrnoException).code ?? '')) return false;
+    throw error;
+  }
+}
+
+function heldBy(bin: string, cause?: unknown): StartupProblem {
+  return new StartupProblem(`GateRook can't update its bridge files in ${bin} while another app uses them. Quit the `
+    + 'AI apps that connect through GateRook, then start GateRook again.', cause === undefined ? undefined : { cause });
+}
+
+/**
+ * Provisions only bundled DLLs; the core owns the exported executable and unrelated files remain untouched. A link at
+ * the home itself is the person's own (as for the core); the `bin` folder and the files must not be links. A changed
+ * DLL that another process holds (a client's running bridge) stops the start with nothing replaced, so the exported
+ * bridge never runs with a mix of old and new libraries: the person is asked to quit those apps first.
+ */
 export function prepareBridgeLibraries(resources: string | null, home: string, platform: NodeJS.Platform): readonly string[] {
   if (platform !== 'win32' || resources === null) return [];
   const source = join(resources, 'bridge');
@@ -34,8 +56,9 @@ export function prepareBridgeLibraries(resources: string | null, home: string, p
   if (new Set(names.map((name) => name.toLowerCase())).size !== names.length) {
     throw new Error('Bridge libraries contain duplicate Windows filenames.');
   }
-  directory(home);
-  const destination = join(home, 'bin');
+  const root = realpathSync(home);
+  directory(root);
+  const destination = join(root, 'bin');
   if (optionalStat(destination)) directory(destination);
   // Validate the entire set before copying. Never follow source or destination links.
   const libraries = names.map((name) => {
@@ -47,13 +70,23 @@ export function prepareBridgeLibraries(resources: string | null, home: string, p
   });
   if (!optionalStat(destination)) mkdirSync(destination, { mode: 0o700 });
   directory(destination);
+  const changed = libraries.filter(({ to, bytes }) => {
+    if (!optionalStat(to)) return true;
+    const stat = file(to);
+    return !(stat.size === bytes.length && readFileSync(to).equals(bytes));
+  });
+  // All or nothing: one held library leaves every one as it was.
+  if (changed.some(({ to }) => optionalStat(to) && !writable(to))) throw heldBy(destination);
   const copied: string[] = [];
-  for (const { name, to, bytes } of libraries) {
-    if (optionalStat(to)) {
-      const stat = file(to);
-      if (stat.size === bytes.length && readFileSync(to).equals(bytes)) continue;
+  for (const { name, to, bytes } of changed) {
+    try {
+      writeFileAtomic(to, bytes, 0o600);
+    } catch (error) {
+      if (['EBUSY', 'EPERM', 'EACCES'].includes((error as NodeJS.ErrnoException).code ?? '')) {
+        throw heldBy(destination, error);
+      }
+      throw error;
     }
-    writeFileAtomic(to, bytes, 0o600);
     copied.push(name);
   }
   return copied;

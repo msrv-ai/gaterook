@@ -64,6 +64,23 @@ mongo_aggregate | {"collection":"orders","pipeline":[{"$group":{"_id":null,"x":{
 mongo_aggregate | {"collection":"orders","pipeline":[{"$lookup":{"from":"customers","pipeline":[{"$match":{"$where":"1"}}],"as":"c"}}]} | - | server-js
 mongo_aggregate | {"collection":"orders","pipeline":[{"$addFields":{"x":{"$function":{"body":"f","args":[],"lang":"js"}}}}]} | - | server-js
 mongo_aggregate | {"collection":"orders","pipeline":[{"$facet":{"a":[{"$project":{"x":{"$function":{"body":"f","args":[],"lang":"js"}}}}]}}]} | - | server-js
+mongo_aggregate | {"collection":"orders","pipeline":[{"$project":{"x":{"$_internalJsEmit":{}}}}]} | - | server-js
+mongo_aggregate | {"collection":"orders","pipeline":[{"$group":{"_id":null,"x":{"$_internalJsReduce":{}}}}]} | - | server-js
+mongo_aggregate | {"collection":"orders","pipeline":[{"$lookup":{"from":"customers","pipeline":[{"$addFields":{"x":{"$_internalJsEmit":{}}}}],"as":"c"}}]} | - | server-js
+# ── the server's internal operators ($_…), wherever they are ─────────────────────────────────────────────────
+mongo_find | {"collection":"orders","filter":{"$expr":{"$_internalOperator":["$a",1]}}} | - | internal-operator
+mongo_find | {"collection":"orders","filter":{"a":{"$_internalOperator":1}}} | - | internal-operator
+mongo_find | {"collection":"orders","projection":{"x":{"$_internalOperator":1}}} | - | internal-operator
+mongo_find | {"collection":"orders","sort":{"$_internalOperator":1}} | - | internal-operator
+mongo_aggregate | {"collection":"orders","pipeline":[{"$addFields":{"x":{"$_internalOperator":{}}}}]} | - | internal-operator
+mongo_aggregate | {"collection":"orders","pipeline":[{"$match":{"$expr":{"$and":[true,{"$_internalOperator":1}]}}}]} | - | internal-operator
+mongo_aggregate | {"collection":"orders","pipeline":[{"$group":{"_id":null,"x":{"$_internalOperator":"$v"}}}]} | - | internal-operator
+mongo_aggregate | {"collection":"orders","pipeline":[{"$lookup":{"from":"customers","pipeline":[{"$match":{"$expr":{"$_internalOperator":1}}}],"as":"c"}}]} | - | internal-operator
+mongo_aggregate | {"collection":"orders","pipeline":[{"$facet":{"a":[{"$project":{"y":{"$_internalOperator":1}}}]}}]} | - | internal-operator
+mongo_aggregate | {"collection":"orders","pipeline":[{"$unionWith":{"coll":"archive","pipeline":[{"$set":{"z":{"$_internalOperator":1}}}]}}]} | - | internal-operator
+mongo_aggregate | {"collection":"orders","pipeline":[{"$_internalOperator":{}}]} | - | internal-operator
+mongo_find | {"collection":"orders","filter":{"note":"$_internalJsEmit is just text","_internal":1}} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$project":{"x":"$_id","y":"$$ROOT._x"}}]} | - | READ
 # ── stages the gateway refuses ────────────────────────────────────────────────────────────────────────────────────
 mongo_aggregate | {"collection":"orders","pipeline":[{"$currentOp":{}}]} | - | stage-not-allowed
 mongo_aggregate | {"collection":"orders","pipeline":[{"$changeStream":{}}]} | - | stage-not-allowed

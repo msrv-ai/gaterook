@@ -9,6 +9,7 @@ import ai.msrv.gaterook.core.endpoints.EndpointConnections;
 import ai.msrv.gaterook.core.endpoints.EndpointService;
 import ai.msrv.gaterook.core.endpoints.EndpointTools;
 import ai.msrv.gaterook.core.endpoints.TokenService;
+import ai.msrv.gaterook.core.mcp.internal.McpToolNotifications;
 import ai.msrv.gaterook.core.platform.LocalListener;
 import ai.msrv.gaterook.core.platform.SchemaValidator;
 import ai.msrv.gaterook.testfixtures.TestCore;
@@ -415,6 +416,10 @@ class McpNotificationsIT {
       assertThat(closed.await(10, TimeUnit.SECONDS)).as("stream closed").isTrue();
     }
 
+    boolean isClosed() {
+      return closed.getCount() == 0;
+    }
+
     @Override
     public void close() throws IOException, InterruptedException {
       body.close();
@@ -424,14 +429,37 @@ class McpNotificationsIT {
   }
 
   @Test
-  void aTokenHoldsAtMostTwoStreamsAtOnceAndAThirdClosesTheOldest() throws Exception {
+  void clientsSharingATokenKeepTheirStreamsAndOnesBeyondTheBoundCannotTakeTurns() throws Exception {
     Endpoint endpoint = endpoint("transport-streams");
-    try (Stream first = open(endpoint); Stream second = open(endpoint); Stream third = open(endpoint)) {
-      // The server learns of a dropped client only at its next write, so a reconnecting client takes the place of
-      // the principal's oldest stream instead of waiting for a heartbeat to free it.
-      first.awaitClosed();
-      second.assertQuiet();
-      third.assertQuiet();
+    List<Stream> streams = new ArrayList<>();
+    try {
+      // Claude Code sessions configured with one named token: three or more keep their streams (the bound was two).
+      for (int i = 0; i < 5; i++) {
+        streams.add(open(endpoint));
+      }
+      streams.getFirst().assertQuiet();
+      assertThat(streams).noneMatch(Stream::isClosed);
+      while (streams.size() < McpToolNotifications.PER_PRINCIPAL) {
+        streams.add(open(endpoint));
+      }
+      assertThat(streams).noneMatch(Stream::isClosed);
+      // The server learns of a dropped client only at its next write, so a client reconnecting at the bound takes the
+      // place of an earlier stream instead of waiting for a heartbeat to free it...
+      streams.add(open(endpoint));
+      streams.getFirst().awaitClosed();
+      // ...but only once a minute: the client whose stream closed can't close the next one at once.
+      HttpResponse<InputStream> refused = http.send(request(endpoint.slug(), endpoint.token().token(),
+          "text/event-stream", Map.of("MCP-Protocol-Version", "2025-11-25")), HttpResponse.BodyHandlers.ofInputStream());
+      try (InputStream body = refused.body()) {
+        // Read as a stream: an opened stream would never end, a refusal ends at once.
+        assertThat(refused.statusCode()).isEqualTo(429);
+        assertThat(new String(body.readAllBytes(), StandardCharsets.UTF_8)).contains("made room");
+      }
+      assertThat(streams.subList(1, streams.size())).noneMatch(Stream::isClosed);
+    } finally {
+      for (Stream stream : streams) {
+        stream.close();
+      }
     }
   }
 }

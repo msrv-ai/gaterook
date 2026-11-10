@@ -41,7 +41,8 @@ final class SshLogPrefilter {
       alternatives = List.of(query.needle());
     } else {
       String expression = query.expression().pattern();
-      if (!expression.matches("[A-Za-z0-9 _:/@%=-]+(?:\\|[A-Za-z0-9 _:/@%=-]+)*")) {
+      // Possessive: java.util.regex would otherwise recurse once per alternative.
+      if (!expression.matches("[A-Za-z0-9 _:/@%=-]++(?:\\|[A-Za-z0-9 _:/@%=-]++)*+")) {
         return Optional.empty();
       }
       alternatives = List.of(expression.split("\\|", -1));

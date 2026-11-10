@@ -178,6 +178,12 @@ describe('Add MCP server request', () => {
     expect(google({}, undefined, [{ name: 'Authorization' }]).errors?.variables).toBe(
       'Google Cloud credentials send the Authorization header. Remove that header, or sign in another way.',
     );
+    // A token with the cloud-platform scope goes to Google's own servers only, whatever else a server says.
+    for (const url of ['https://mcp.example.com/mcp', 'https://my-service-abc123.a.run.app/mcp']) {
+      expect(google({}, url).errors?.url).toBe(
+        'Google Cloud credentials go only to Google’s own servers (https://<service>.googleapis.com). Sign in to this one another way.',
+      );
+    }
   });
 
   it('signs requests with AWS credentials for the service and region the URL names, or the ones given', () => {

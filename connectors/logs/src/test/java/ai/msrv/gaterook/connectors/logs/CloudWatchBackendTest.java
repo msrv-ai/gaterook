@@ -163,6 +163,47 @@ class CloudWatchBackendTest {
   }
 
   @Test
+  void anInsightsQueryWhosePollFailsIsStoppedBeforeTheCallFails() {
+    answers.put("StartQuery", b -> json("{\"queryId\":\"q-4\"}"));
+    answers.put("GetQueryResults", b -> error(400, "InvalidParameterException", "the query id is not known"));
+    answers.put("StopQuery", b -> json("{\"success\":true}"));
+
+    assertThatThrownBy(() -> connector.execute(Configs.call("logs_search", "{\"query\":\"\",\"from\":\"-1h\"}"),
+        Configs.cloudWatch(true), secrets, TestCtx.of()))
+        .isInstanceOf(ConnectorException.class).hasMessageContaining("the query id is not known");
+
+    assertThat(find("StopQuery").getBody().utf8()).contains("q-4");
+  }
+
+  @Test
+  void aCancelledInsightsSearchStopsItsQuery() throws Exception {
+    answers.put("StartQuery", b -> json("{\"queryId\":\"q-5\"}"));
+    answers.put("GetQueryResults", b -> json("{\"status\":\"Running\",\"results\":[]}"));
+    answers.put("StopQuery", b -> json("{\"success\":true}"));
+    ConnectorException[] failed = new ConnectorException[1];
+    Thread search = Thread.ofVirtual().start(() -> {
+      try {
+        connector.execute(Configs.call("logs_search", "{\"query\":\"\",\"from\":\"-1h\"}"), Configs.cloudWatch(true),
+            secrets, TestCtx.of());
+      } catch (ConnectorException e) {
+        failed[0] = e;
+      }
+    });
+    // Cancellation interrupts the call's thread, here while the query runs and the backend waits to poll again.
+    long until = System.nanoTime() + Duration.ofSeconds(10).toNanos();
+    while (requests.stream().noneMatch(r -> "Logs_20140328.GetQueryResults".equals(r.getHeaders().get("X-Amz-Target")))
+        && System.nanoTime() < until) {
+      Thread.sleep(10);
+    }
+    search.interrupt();
+    search.join(Duration.ofSeconds(10));
+
+    assertThat(search.isAlive()).isFalse();
+    assertThat(failed[0]).as("the call fails").isNotNull();
+    assertThat(find("StopQuery").getBody().utf8()).contains("q-5");
+  }
+
+  @Test
   void statsAreATable() throws Exception {
     answers.put("StartQuery", b -> json("{\"queryId\":\"q-3\"}"));
     answers.put("GetQueryResults", b -> json("{\"status\":\"Complete\",\"results\":[[{\"field\":\"bin(5m)\","

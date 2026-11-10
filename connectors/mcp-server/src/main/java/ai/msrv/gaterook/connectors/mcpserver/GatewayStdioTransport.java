@@ -28,9 +28,14 @@ import tools.jackson.databind.node.ObjectNode;
  * virtual thread (a line over {@code maxLine} characters or one that isn't a JSON-RPC object ends the session, with the
  * reason kept for the test: a server that writes logs to stdout corrupts the protocol), stderr goes to a sink that masks
  * and keeps it, and messages to the server are written by one writer thread so that answering a server's request never
- * waits for the server to read. Both protocol eras use it as it is: one JSON object per line.
+ * waits for the server to read. At most {@link #MAX_WAITING} messages wait for the server to read them: a server that
+ * stops reading its input while it keeps the gateway answering is stopped instead of filling the core's memory. Both
+ * protocol eras use it as it is: one JSON object per line.
  */
 final class GatewayStdioTransport implements Channel {
+
+  /** The messages that may wait for the server to read them before its session ends. */
+  static final int MAX_WAITING = 256;
 
   private final List<String> argv;
   private final Map<String, String> env;
@@ -38,7 +43,7 @@ final class GatewayStdioTransport implements Channel {
   private final int maxLine;
   private final Consumer<String> stderr;
   private final UnaryOperator<String> mask;
-  private final BlockingQueue<ObjectNode> outbound = new LinkedBlockingQueue<>();
+  private final BlockingQueue<ObjectNode> outbound = new LinkedBlockingQueue<>(MAX_WAITING);
   private volatile Process process;
   private volatile Sink sink;
   private volatile boolean closing;
@@ -105,8 +110,18 @@ final class GatewayStdioTransport implements Channel {
     if (closing || p == null || !p.isAlive()) {
       return Exchange.failed(new Failure(failure != null ? failure : "The server's process isn't running"));
     }
-    outbound.add(message);
+    if (!outbound.offer(message)) {
+      String reason = "The server stopped reading its input: " + MAX_WAITING + " messages waited for it";
+      fail(reason);
+      return Exchange.failed(new Failure(reason));
+    }
     return Exchange.completed();
+  }
+
+  /** The client gave the session up: the process is stopped, and its exit names {@code reason}. */
+  @Override
+  public void abandon(String reason) {
+    fail(reason);
   }
 
   @Override
@@ -233,8 +248,16 @@ final class GatewayStdioTransport implements Channel {
     }
   }
 
+  /**
+   * Stops the process for {@code reason}. The first reason stays: stopping the process breaks its pipe, and the writer
+   * that was waiting on it then fails too, with a reason that says less.
+   */
   private void fail(String reason) {
-    failure = reason;
+    synchronized (this) {
+      if (failure == null) {
+        failure = reason;
+      }
+    }
     Process p = process;
     if (p != null) {
       // A protocol the gateway can't trust any more: the supervisor sees the exit and reports the reason.

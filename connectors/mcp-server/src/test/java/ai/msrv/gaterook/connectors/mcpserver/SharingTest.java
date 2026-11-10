@@ -173,6 +173,9 @@ class SharingTest {
     assertThat(app.content().getFirst().mimeType()).isEqualTo("text/html;profile=mcp-app");
     assertThat(app.content().getFirst().meta().path("ui").path("csp").path("connectDomains").get(0).asString())
         .isEqualTo("https://charts.example");
+    // Only its policy's origins and its border reach the AI app: no permission, no origin of its own, no wildcard.
+    assertThat(app.content().getFirst().meta().toString())
+        .isEqualTo("{\"ui\":{\"csp\":{\"connectDomains\":[\"https://charts.example\"]},\"prefersBorder\":true}}");
     ToolDefinition chart = c.manifest().tools().stream().filter(t -> t.name().equals("raw_chart")).findFirst()
         .orElseThrow();
     assertThat(chart.meta().path("ui").path("resourceUri").asString()).isEqualTo(APP);

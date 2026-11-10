@@ -44,8 +44,10 @@ import tools.jackson.databind.JsonNode;
  * and then execs the host's JVM — Landlock confines threads, not processes, so a host restricting itself would leave
  * its other threads, and with them the plugin's calls, unconfined (review 2026-10-27); on macOS the core wraps the
  * launch with {@code sandbox-exec} and an SBPL profile that denies reading GateRook's home, its folder of all MCP
- * work folders (also where a link there leads), the credential folders and the connected clients' configs (the API
- * is deprecated, so this is UNVERIFIED in the kit's words).
+ * work folders (also where a link there leads), the credential folders and the connected clients' configs, and
+ * denies what would have something outside the sandbox act for the plugin: Launch Services, Apple events,
+ * preference writes, signals to processes outside its sandbox and Unix sockets other than the resolver's and its data
+ * folder's (the API is deprecated, so this is UNVERIFIED in the kit's words).
  * Both keep the plugin's own sockets from the core's listeners (its local and public ports; on Linux from Landlock ABI
  * 4, else the plugin log says they stay open): the egress guard judges only what goes through {@code ctx.egress()},
  * and a JDBC driver, a raw socket or an address literal never does. On Linux, from Landlock ABI 6, the host is also
@@ -90,6 +92,8 @@ public final class HostLauncher {
 
   /** Requests one host may have the core work on at once (secrets, handles); one more is busy at once. */
   static final int MAX_INCOMING = 64;
+  /** How long a frame to a host may wait for the host to read it: far beyond a host that reads at all. */
+  static final Duration WRITE_TIMEOUT = Duration.ofSeconds(10);
 
   /** The first stage that confines a host on Linux before its JVM starts. */
   static final String SANDBOX_EXEC = "ai.msrv.gaterook.pluginhost.SandboxExec";
@@ -332,10 +336,11 @@ public final class HostLauncher {
     pluginLog.note("Started plugin host for " + spec.generation() + ", pid " + pid
         + (sandbox == null ? " (not sandboxed on this system)" : " (" + sandbox + ")"));
 
-    // A host runs a plugin's code: what it may make the core do at once is bounded (review 2026-10-27).
+    // A host runs a plugin's code: what it may make the core do at once is bounded (review 2026-10-27), and one that
+    // stops reading its input can hold no thread of the core longer than the write timeout.
     JsonRpcPeer peer = new JsonRpcPeer(process.getInputStream(), process.getOutputStream(),
         new HostInbound(instance, secrets, handles, pluginLog), JsonRpcPeer.Options.defaults()
-            .name("host-" + spec.id()).maxIncoming(MAX_INCOMING)
+            .name("host-" + spec.id()).maxIncoming(MAX_INCOMING).writeTimeout(WRITE_TIMEOUT)
             .strayLine(line -> pluginLog.stderr("stdout(non-JSON): " + line)));
     HostProcess host = new HostProcess(spec.generation(), instance, process, peer, pluginLog, started);
     Thread.ofVirtual().name("host-stderr-" + spec.id()).start(() -> pumpStderr(process, pluginLog));
@@ -606,6 +611,15 @@ public final class HostLauncher {
       parents.forEach(a -> b.append(" (literal ").append(sbpl(a.toString())).append(')'));
       b.append(")\n");
     }
+    // Nothing outside the sandbox acts for the plugin, as for MCP servers: no Launch Services, Apple events or
+    // preference writes, no signal to a process outside its sandbox (the core stops the host from outside), and no Unix
+    // socket but the resolver's and its data folder's (an SSH agent's, a container engine's or an editor's would act
+    // for it).
+    b.append("(deny ").append(String.join(" ", MAC_CLOSED)).append(")\n");
+    b.append("(deny signal)\n(allow signal (target same-sandbox))\n");
+    b.append("(deny network-outbound (remote unix-socket))\n");
+    b.append("(allow network-outbound (remote unix-socket (path-literal ").append(sbpl(MAC_RESOLVER))
+        .append(")) (remote unix-socket (subpath ").append(sbpl(data.toString())).append(")))\n");
     Set<Integer> ports = closedPorts();
     if (!ports.isEmpty()) {
       // Seatbelt takes only * or localhost as a host here, and localhost misses the mapped wildcard: every host.
@@ -640,6 +654,17 @@ public final class HostLauncher {
       ".config/github-copilot", "Library/Application Support/Claude", ".config/Claude",
       "Library/Application Support/Cursor", ".config/Cursor", "Library/Application Support/Antigravity",
       ".config/Antigravity");
+
+  /**
+   * What the macOS profile denies a plugin besides files and ports, the operations {@code gw-bridge sandbox-exec}
+   * denies MCP servers ({@code Sandbox.MAC_CLOSED}, which this module can't depend on; a test compares them): Launch
+   * Services opens (an application or a script would start outside the sandbox), Apple events (another application
+   * would act for it) and preference writes (cfprefsd would write another program's settings for it).
+   */
+  static final List<String> MAC_CLOSED = List.of("lsopen", "appleevent-send", "user-preference-write");
+
+  /** The system's resolver on macOS: a host name is looked up through this Unix socket. */
+  static final String MAC_RESOLVER = "/private/var/run/mDNSResponder";
 
   /** {@code p} absolute, and its canonical form when that differs (a path not there yet: through its deepest parent). */
   static List<String> forms(Path p) {

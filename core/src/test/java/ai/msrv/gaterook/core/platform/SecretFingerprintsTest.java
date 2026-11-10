@@ -67,6 +67,57 @@ class SecretFingerprintsTest {
   }
 
   @Test
+  void aSourceThatRenewsOftenKeepsOnlyItsMostRecentValuesKnown() {
+    // An MCP server's authorization server issues tokens at every renewal: the set mustn't grow with every one.
+    SecretFingerprints fingerprints = new SecretFingerprints();
+    Masker masker = new Masker(fingerprints);
+    for (int i = 0; i < 1100; i++) {
+      fingerprints.learnReplacing("mcp-sign-in:tracker", 4, "trk-at-renewal-" + i + "-x7Kq9Ws3");
+    }
+    SecretFingerprints latest = new SecretFingerprints();
+    for (int i = 1096; i < 1100; i++) {
+      latest.learnValue("trk-at-renewal-" + i + "-x7Kq9Ws3");
+    }
+    assertThat(fingerprints.size()).as("forms known after 1,100 renewals: the last four tokens' alone")
+        .isEqualTo(latest.size());
+
+    for (int i = 1096; i < 1100; i++) {
+      String token = "trk-at-renewal-" + i + "-x7Kq9Ws3";
+      assertThat(masker.text("seen " + token + " in a log", null, MaskPolicy.SECRETS_ONLY).text()).as(token)
+          .isEqualTo("seen " + Masker.MASK + " in a log");
+    }
+    String old = "seen trk-at-renewal-1095-x7Kq9Ws3 in a log";
+    assertThat(masker.text(old, null, MaskPolicy.SECRETS_ONLY).text()).as("pushed out").isEqualTo(old);
+  }
+
+  @Test
+  void aValueIsForgottenOnlyWhenNothingElseHoldsIt() {
+    SecretFingerprints fingerprints = new SecretFingerprints();
+    Masker masker = new Masker(fingerprints);
+    String shared = "shared-token-5Hn2Bc6Vx1Qa9";
+    String configured = "configured-pass-4Rt8Yv2Fd";
+    fingerprints.learnValue(configured);
+    fingerprints.learnReplacing("a", 1, configured);
+    fingerprints.learnReplacing("a", 1, shared);
+    fingerprints.learnReplacing("b", 1, shared);
+    fingerprints.learnReplacing("a", 1, "next-token-of-a-7Ze3Uj8Lm");
+    fingerprints.learnReplacing("a", 1, "next-token-of-a-7Ze3Uj8Lm");
+
+    assertThat(masker.text(configured, null, MaskPolicy.SECRETS_ONLY).text()).as("learned for the process too")
+        .isEqualTo(Masker.MASK);
+    assertThat(masker.text(shared, null, MaskPolicy.SECRETS_ONLY).text()).as("still b's latest")
+        .isEqualTo(Masker.MASK);
+    assertThat(masker.text("next-token-of-a-7Ze3Uj8Lm", null, MaskPolicy.SECRETS_ONLY).text())
+        .as("learned again: still the latest, not pushed out by itself").isEqualTo(Masker.MASK);
+
+    fingerprints.learnReplacing("b", 1, "next-token-of-b-2Oo9Pp0Ll");
+    assertThat(masker.text(shared, null, MaskPolicy.SECRETS_ONLY).text()).as("held by nothing now")
+        .isEqualTo(shared);
+    assertThat(masker.text("next-token-of-b-2Oo9Pp0Ll and " + configured, null, MaskPolicy.SECRETS_ONLY).text())
+        .isEqualTo(Masker.MASK + " and " + Masker.MASK);
+  }
+
+  @Test
   void theProcessFingerprintsAreOneSharedSet() {
     assertThat(SecretFingerprints.process()).isSameAs(SecretFingerprints.process());
   }

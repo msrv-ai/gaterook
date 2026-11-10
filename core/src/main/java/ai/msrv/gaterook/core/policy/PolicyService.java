@@ -2,6 +2,7 @@ package ai.msrv.gaterook.core.policy;
 
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.Limits;
+import ai.msrv.gaterook.connectors.support.egress.Cidr;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.connectors.ConnectorTypeChanged;
 import ai.msrv.gaterook.core.platform.CanonicalJson;
@@ -566,7 +567,37 @@ public class PolicyService implements SmartInitializingSingleton {
             keySchema.path("title").asString(key) + " can't be " + value.asString() + " on " + env.id() + ".", field);
       }
     }
+    checkPrivateRanges(section, key, value, field);
     target.set(key, value.deepCopy());
+  }
+
+  /** The key of HTTP egress whose entries the egress guard reads as networks ({@code {cidr, connections}}). */
+  public static final String PRIVATE_RANGES = "allowedPrivateRanges";
+
+  /**
+   * Every allowed private range must be a network the egress guard can read ({@link Cidr#parse}: canonical literals,
+   * so {@code 192.168.01.0/24} is refused): the schema can't say so, and the guard skips an entry it can't read.
+   */
+  private static void checkPrivateRanges(String section, String key, JsonNode value, String field) {
+    if (!"http".equals(section) || !PRIVATE_RANGES.equals(key) || !value.isArray()) {
+      return;
+    }
+    for (int i = 0; i < value.size(); i++) {
+      JsonNode entry = value.get(i);
+      JsonNode cidr = entry.isObject() ? entry.path("cidr") : entry;
+      if (!cidr.isString()) {
+        continue; // The schema refuses it.
+      }
+      String text = cidr.asString();
+      try {
+        Cidr.parse(text);
+      } catch (IllegalArgumentException e) {
+        String shown = text.strip().length() > 60 ? text.strip().substring(0, 60) + "…" : text.strip();
+        throw ProblemException.unprocessable("Invalid private range", shown + " isn't an address or a range GateRook "
+            + "can read. Write it as an address with an optional prefix, such as 10.20.0.0/16, without leading zeros.",
+            field + "/" + i + (entry.isObject() ? "/cidr" : ""));
+      }
+    }
   }
 
   private void checkSections(PolicySchemas s, Env env, ObjectNode effective) {

@@ -6,12 +6,12 @@ import { EndpointSummary, EndpointsApi, ToolGroup } from '../../core/api/endpoin
 import {
   CatalogIndex,
   McpRegistryPage,
-  McpServerConfig,
   McpServerReview,
   McpServerSource,
   McpServerStarted,
   McpServersApi,
   McpSignIn,
+  McpSignInSource,
   McpSignInStatus,
   PluginCheck,
   PluginUpdatePreview,
@@ -330,7 +330,7 @@ export class ConnectorsData {
   }
 
   /** Starts a sign-in to the server under review; the review shows it until the browser comes back. */
-  startSignIn(source: { readonly config: McpServerConfig; readonly env?: Env; readonly secrets?: SecretInputs }): Promise<McpSignIn> {
+  startSignIn(source: McpSignInSource): Promise<McpSignIn> {
     return this.serversApi.startSignIn(source);
   }
 

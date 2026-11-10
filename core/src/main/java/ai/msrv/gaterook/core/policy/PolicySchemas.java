@@ -4,6 +4,7 @@ import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.connectors.ConnectorType;
+import ai.msrv.gaterook.core.policy.internal.StricterMerge;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -24,8 +25,9 @@ import tools.jackson.databind.node.ObjectNode;
  * registered defines it.
  *
  * <p>Per key: {@code default}, {@code x-env-default} (the environment's own default), {@code const} (a lock),
- * {@code x-stricter} (how overrides may narrow it), {@code x-inherit: false} (not inherited from the parent
- * environment), {@code x-confirm: danger} and {@code x-forbidden-env-values}.
+ * {@code x-stricter} (how overrides may narrow it), {@code x-empty} (what an empty list allows: {@code all}, the
+ * default, {@code none} or {@code connector-default}; see {@link StricterMerge.Empty}), {@code x-inherit: false} (not
+ * inherited from the parent environment), {@code x-confirm: danger} and {@code x-forbidden-env-values}.
  */
 public final class PolicySchemas {
 
@@ -150,5 +152,10 @@ public final class PolicySchemas {
   public String stricter(String section, String key) {
     JsonNode op = key(section, key).get("x-stricter");
     return op == null || !op.isString() ? null : op.asString();
+  }
+
+  /** What an empty list of the key allows ({@code x-empty}), which an {@code intersect} merge follows. */
+  public StricterMerge.Empty empty(String section, String key) {
+    return StricterMerge.Empty.of(key(section, key).get("x-empty"));
   }
 }

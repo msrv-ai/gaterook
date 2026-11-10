@@ -9,6 +9,7 @@ import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.Env;
+import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
@@ -135,6 +136,25 @@ class JdbcSqlConnectorTest {
       assertThatThrownBy(() -> postgres.execute(call, devDb(), Fixtures.Secrets.none(), ctx)).as(c[1])
           .isInstanceOfSatisfying(ConnectorException.class,
               e -> assertThat(e.kind()).isEqualTo(ConnectorException.Kind.DENIED));
+    }
+  }
+
+  @Test
+  void aChangeThatCallsAFunctionThatIsntBuiltInIsNotPlannedBeforeItIsApproved() throws Exception {
+    // No server listens: planning the statement would have to connect, and fail.
+    Fixtures.Context ctx = Fixtures.Context.of(Env.DEV, null);
+    for (JdbcSqlConnector connector : List.of(postgres, mysql)) {
+      ConnectionConfig cfg = Fixtures.config(connector.manifest().id(), Env.DEV, "db.dev.internal", 5432, "app",
+          "app_rw", null, null);
+      ToolCall call = Fixtures.sql("sql_execute", "UPDATE orders SET status = 'x' WHERE id = app.f_lookup(1)");
+
+      PreparedAction p = connector.prepare(call, cfg, Fixtures.Secrets.none(), ctx);
+
+      assertThat(p.outcome()).isEqualTo(PreparedAction.Outcome.APPROVAL);
+      assertThat(p.preview().impact()).extracting(ActionPreview.Field::label).doesNotContain("Estimated rows");
+      assertThat(p.preview().warnings()).contains("The rows it changes weren't estimated: it calls app.f_lookup, "
+          + "which isn't a built-in or allowed function, and the database could run that while it plans the "
+          + "statement.");
     }
   }
 

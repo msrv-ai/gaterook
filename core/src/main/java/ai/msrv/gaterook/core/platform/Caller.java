@@ -25,4 +25,14 @@ public record Caller(Kind kind, String principalId, String label, String clientH
       throw new IllegalArgumentException("A caller needs a principal id");
     }
   }
+
+  /**
+   * Whether a client family recorded for a call of this kind of caller is only what the client says about itself
+   * ({@code clientInfo}): a named token implies no client, so the family the audit records for its calls is a guess
+   * from that name, and every screen and message shows it as reported by the client, never as who asked. Who asked is
+   * the token's label. A bridge grant, an OAuth sign-in and the Playground imply their family, or record none.
+   */
+  public static boolean familyReported(Kind kind) {
+    return kind == Kind.LOCAL_TOKEN;
+  }
 }

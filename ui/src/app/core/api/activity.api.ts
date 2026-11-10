@@ -149,6 +149,11 @@ export interface TraceDetail {
   readonly trace: TraceRow;
   readonly phases: TracePhase[];
   readonly calls: ActivityEvent[];
+  /**
+   * How many calls the phases describe when that is fewer than the task's calls: a very long task is summarized for
+   * its first calls and counted after that. `null` (or absent) when the phases describe every call.
+   */
+  readonly timelineCalls?: number | null;
 }
 
 /** A Setup change: Time | What | Change | By (always "You" on the desktop) | Reason. */

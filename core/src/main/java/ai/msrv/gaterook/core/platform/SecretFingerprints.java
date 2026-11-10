@@ -2,6 +2,7 @@ package ai.msrv.gaterook.core.platform;
 
 import ai.msrv.gaterook.core.platform.mask.MaskCounter;
 import java.security.SecureRandom;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -20,6 +21,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * (almost never, for most text), and only then are the forms of those two characters hashed and looked up, so the
  * scan costs about one pass however many secrets are known. A secret that was never handed out since the process
  * started isn't known; a chance collision masks an innocent value, at odds of about one in 2^64 per candidate.
+ *
+ * <p>Most secrets are learned for the life of the process. The values of one source that replace each other over time,
+ * such as the tokens an MCP server's authorization server issues at every renewal, are learned with
+ * {@link #learnReplacing}: the most recent few stay known, older ones are forgotten (unless something else holds them
+ * too), so a source that renews often can't make the set, and the work of every scan, grow without end.
  */
 public final class SecretFingerprints {
 
@@ -39,10 +45,30 @@ public final class SecretFingerprints {
   /** Per first two characters of a form, the distinct lengths of the forms that start so. */
   private final Map<Integer, int[]> lengthsByStart = new HashMap<>();
   private final ConcurrentHashMap<Long, Boolean> known = new ConcurrentHashMap<>();
+  /** Every known form by its key: what holds it, and what rebuilding the filter after a forgotten one needs. */
+  private final Map<Long, Form> forms = new HashMap<>();
+  /** Per source of {@link #learnReplacing}, the keys of its values (sorted), the newest first. */
+  private final Map<String, ArrayDeque<long[]>> sources = new HashMap<>();
   /** A snapshot of {@link #lengthsByStart} and the filter for readers, replaced whole on each learn. */
   private volatile Snapshot snapshot = new Snapshot(Map.of(), new long[FILTER_BITS / 64], 0);
 
   private record Snapshot(Map<Integer, int[]> lengthsByStart, long[] filter, int forms) {}
+
+  /**
+   * A known form: its first two characters and length, how many values of {@link #learnReplacing} sources hold it, and
+   * whether a learn for the life of the process does.
+   */
+  private static final class Form {
+    final int start;
+    final int length;
+    int replacing;
+    boolean lasting;
+
+    Form(int start, int length) {
+      this.start = start;
+      this.length = length;
+    }
+  }
 
   public SecretFingerprints() {
     SecureRandom random = new SecureRandom();
@@ -78,32 +104,126 @@ public final class SecretFingerprints {
     forms.clear();
   }
 
-  /** Remembers every form of {@code taint}. */
+  /** Remembers every form of {@code taint} for the life of the process. */
   public synchronized void learn(Taint taint) {
     boolean changed = false;
     for (char[] form : taint.forms()) {
-      long h = 0;
-      for (char c : form) {
-        h = h * base + c;
+      long key = keyOf(form);
+      Form f = forms.get(key);
+      if (f == null) {
+        f = add(key, form);
+        changed = true;
       }
-      if (known.put(key(mix(h), form.length), Boolean.TRUE) != null) {
-        continue;
-      }
-      changed = true;
-      int start = start(form[0], form[1]);
-      int[] lengths = lengthsByStart.getOrDefault(start, new int[0]);
-      if (Arrays.stream(lengths).noneMatch(l -> l == form.length)) {
-        int[] more = Arrays.copyOf(lengths, lengths.length + 1);
-        more[lengths.length] = form.length;
-        Arrays.sort(more);
-        lengthsByStart.put(start, more);
-      }
-      int bit = bit(start);
-      filter[bit >>> 6] |= 1L << (bit & 63);
+      f.lasting = true;
     }
     if (changed) {
-      snapshot = new Snapshot(Map.copyOf(lengthsByStart), filter.clone(), known.size());
+      publish();
     }
+  }
+
+  /**
+   * Remembers values of {@code source} that replace each other, such as the access and refresh tokens of one MCP
+   * server's sign-in: the {@code keep} most recently learned values of the source stay known, and an older one is
+   * forgotten unless another source, or a learn for the life of the process, holds it too. A value learned again
+   * counts as the most recent one.
+   *
+   * @param source who issues the values; a name of the caller's choosing
+   */
+  public synchronized void learnReplacing(String source, int keep, CharSequence... values) {
+    ArrayDeque<long[]> held = sources.computeIfAbsent(source, s -> new ArrayDeque<>());
+    boolean changed = false;
+    for (CharSequence value : values) {
+      Taint t = new Taint();
+      t.add(value);
+      char[][] valueForms = t.forms();
+      if (valueForms.length == 0) {
+        continue;
+      }
+      long[] keys = new long[valueForms.length];
+      for (int i = 0; i < valueForms.length; i++) {
+        keys[i] = keyOf(valueForms[i]);
+      }
+      Arrays.sort(keys);
+      long[] again = held.stream().filter(k -> Arrays.equals(k, keys)).findFirst().orElse(null);
+      if (again != null) {
+        held.remove(again);
+        held.addFirst(again);
+      } else {
+        for (int i = 0; i < valueForms.length; i++) {
+          long key = keyOf(valueForms[i]);
+          Form f = forms.get(key);
+          if (f == null) {
+            f = add(key, valueForms[i]);
+            changed = true;
+          }
+          f.replacing++;
+        }
+        held.addFirst(keys);
+      }
+      t.clear();
+    }
+    boolean forgotten = false;
+    while (held.size() > Math.max(0, keep)) {
+      for (long key : held.removeLast()) {
+        Form f = forms.get(key);
+        if (f != null && --f.replacing <= 0 && !f.lasting) {
+          forms.remove(key);
+          known.remove(key);
+          forgotten = true;
+        }
+      }
+    }
+    if (forgotten) {
+      rebuild();
+    }
+    if (changed || forgotten) {
+      publish();
+    }
+  }
+
+  /** How many forms are known, for tests. */
+  int size() {
+    return known.size();
+  }
+
+  /** A new form: known from now on, its start and length in the filter. */
+  private Form add(long key, char[] form) {
+    Form f = new Form(start(form[0], form[1]), form.length);
+    forms.put(key, f);
+    known.put(key, Boolean.TRUE);
+    index(f);
+    return f;
+  }
+
+  private void index(Form f) {
+    int[] lengths = lengthsByStart.getOrDefault(f.start, new int[0]);
+    if (Arrays.stream(lengths).noneMatch(l -> l == f.length)) {
+      int[] more = Arrays.copyOf(lengths, lengths.length + 1);
+      more[lengths.length] = f.length;
+      Arrays.sort(more);
+      lengthsByStart.put(f.start, more);
+    }
+    int bit = bit(f.start);
+    filter[bit >>> 6] |= 1L << (bit & 63);
+  }
+
+  /** The filter and the lengths of the forms still known, after some were forgotten. */
+  private void rebuild() {
+    Arrays.fill(filter, 0L);
+    lengthsByStart.clear();
+    forms.values().forEach(this::index);
+  }
+
+  private void publish() {
+    snapshot = new Snapshot(Map.copyOf(lengthsByStart), filter.clone(), known.size());
+  }
+
+  private long keyOf(char[] form) {
+    long h = 0;
+    for (char c : form) {
+      h = h * base + c;
+    }
+    return key(mix(h), form.length);
   }
 
   /** {@code text} with every known form replaced by {@code mask}; a hit per replaced run counts as a stored secret. */

@@ -138,6 +138,26 @@ describe('client-card view', () => {
     expect(changeSummary({ added: 7, removed: 0 })).toBe('7 additions');
   });
 
+  it('says what the person removes by hand when the core can’t change the file, and removes nothing itself', () => {
+    const link = DEMO_CLIENTS.codex.links[0];
+    const preview = {
+      ...DEMO_DISCONNECT_CODEX,
+      files: [],
+      byHand: { file: '~/.codex/config.toml', entry: 'gaterook-dev', reason: "The file isn't valid TOML (line 3, column 7). GateRook changes nothing." },
+    };
+    const f = disconnectFacts(DEMO_CLIENTS.codex, link, preview);
+    expect(f.removes).toBeNull();
+    expect(f.backup).toBeNull();
+    expect(words(f.revokes!)).toBe("The helper's grant codex-laptop; no new tokens are issued to it");
+    expect(words(f.byHand!.title)).toBe("GateRook can't change ~/.codex/config.toml");
+    expect(words(f.byHand!.body)).toBe(
+      "The file isn't valid TOML (line 3, column 7). GateRook changes nothing. Disconnect still revokes the access; remove [mcp_servers.gaterook-dev] from ~/.codex/config.toml by hand.",
+    );
+    expect(f.byHand!.body.filter((p) => p.code).map((p) => p.text)).toContain('[mcp_servers.gaterook-dev]');
+    // An ordinary preview has nothing for the person to do by hand.
+    expect(disconnectFacts(DEMO_CLIENTS.codex, link, DEMO_DISCONNECT_CODEX).byHand).toBeNull();
+  });
+
   it('lists what Disconnect removes, revokes and keeps', () => {
     const link = DEMO_CLIENTS.codex.links[0];
     const f = disconnectFacts(DEMO_CLIENTS.codex, link, DEMO_DISCONNECT_CODEX);

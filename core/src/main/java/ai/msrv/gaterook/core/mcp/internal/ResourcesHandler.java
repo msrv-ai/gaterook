@@ -13,6 +13,7 @@ import ai.msrv.gaterook.core.audit.AuditWriter;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshot;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshotService;
+import ai.msrv.gaterook.core.endpoints.ToolCatalog;
 import ai.msrv.gaterook.core.invocation.ConnectorInvoker;
 import ai.msrv.gaterook.core.invocation.ToolGuard;
 import ai.msrv.gaterook.core.platform.CanonicalJson;
@@ -343,11 +344,11 @@ public class ResourcesHandler {
       return out;
     }
     for (EndpointSnapshot.Pair p : s.onPairs()) {
-      JsonNode meta = p.tool().meta();
-      String uri = meta == null ? null : meta.path("ui").path("resourceUri").asString(null);
+      // The same apps whose connections' tools an app may call (ToolCatalog.appConnections).
+      String uri = ToolCatalog.appUri(p);
       Optional<EndpointSnapshot.Wired> wired = s.connection(p.connectionName());
-      if (uri != null && uri.startsWith(ResourceDescriptor.appPrefix(p.connectionName())) && wired.isPresent()
-          && wired.get().usable() && out.stream().noneMatch(a -> a.uri().equals(uri))) {
+      if (uri != null && wired.isPresent() && wired.get().usable()
+          && out.stream().noneMatch(a -> a.uri().equals(uri))) {
         out.add(new App(uri, p, Sharing.appView(s, wired.get(), p.tool().name())));
       }
     }

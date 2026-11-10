@@ -23,6 +23,7 @@ import { Env } from '../../../core/api/types';
 import { duration } from '../../../core/time/time-format';
 import { TimeService } from '../../../core/time/time.service';
 import { GwCodeBlock } from '../../../code/code-block';
+import { SqlDialect } from '../../../code/sql-lexer';
 import { GwDiff } from '../../../code/diff';
 import { ActivationGuard } from '../../activation-guard';
 import { Announcer } from '../../announcer';
@@ -30,21 +31,26 @@ import { GwToggle } from '../../disclosure';
 import { GwIcon } from '../../icons';
 import { GwClientMark } from '../shared/client-mark';
 import { MODES } from '../shared/dictionaries';
-import { TextPart, literalParts, literalWords } from '../shared/literals';
+import { TextPart, literalParts } from '../shared/literals';
 import { GwTemporaryBypassDialog } from '../tool-policy-list/temporary-bypass-dialog';
 import { GwApprovalCountdown } from './approval-countdown';
 import {
+  MarkedPart,
   RequestState,
   actionLabel,
   actionNoun,
   affected,
+  clientText,
+  detailsWarning,
   diffSummary,
   executedMs,
   hiddenWarning,
   historySteps,
+  markedParts,
   requestState,
   statusBadge,
   tokenText,
+  visibleText,
   who,
   windowMinutes,
   windowSeconds,
@@ -55,10 +61,10 @@ let nextId = 0;
 /** Requests whose expiry was announced: the queue row and the detail of one request announce it once. */
 const expiryAnnounced = new Set<string>();
 
-/** A fact of the Impact list with its literals in code. */
+/** A fact of the Impact list: its literals in code, what the server's inspector marked boxed. */
 interface Fact {
-  readonly label: string;
-  readonly value: TextPart[];
+  readonly label: MarkedPart[];
+  readonly value: MarkedPart[];
 }
 
 /**
@@ -114,6 +120,11 @@ export class GwApprovalRequest {
    * the task in Activity › Traces by its first six hex digits, as the kit writes it (`trace:c7e19d`).
    */
   readonly traceId = input<string | null>(null);
+  /**
+   * The SQL dialect of the request's connection, when the page knows its type: the exact action is coloured as that
+   * server reads it (comments and literals); without it, only where every dialect GateRook reads agrees.
+   */
+  readonly dialect = input<SqlDialect | null>(null);
 
   readonly decide = output<ApprovalDecision>();
   /** The countdown reached zero while pending: the list moves the request to History. */
@@ -144,8 +155,11 @@ export class GwApprovalRequest {
   });
   protected readonly pending = computed(() => this.r().status === 'pending');
   protected readonly badge = computed(() => statusBadge(this.state()));
-  protected readonly clientName = computed(() => who(this.r().client));
-  protected readonly token = computed(() => tokenText(this.r().client, this.r().tokenLabel));
+  /** Who asked, in a sentence: the client the credential implies, else the credential's label. */
+  protected readonly clientName = computed(() => who(this.r()));
+  /** The Client row: the implied client with its mark, or what the client reports about itself, said as such. */
+  protected readonly clientRow = computed(() => clientText(this.r()));
+  protected readonly token = computed(() => tokenText(this.r()));
   protected readonly target = computed(() => this.r().connection ?? this.r().endpoint);
   /** "c7e19d": the short trace id Activity's `trace:` filter accepts as a prefix. */
   protected readonly traceShort = computed(() => this.traceId()?.slice(0, 6).toLowerCase() || null);
@@ -169,13 +183,24 @@ export class GwApprovalRequest {
   protected readonly isDiff = computed(() => !!this.action()?.diff);
   protected readonly lang = computed(() => actionLabel(this.action()?.kind ?? null, this.action()?.language ?? null));
   protected readonly noun = computed(() => actionNoun(this.action()?.kind ?? null));
-  /** "sql_execute · dev-db · db.dev.internal:5432/app" (the target already names the connection). */
+  /**
+   * "sql_execute · dev-db · db.dev.internal:5432/app" (the target already names the connection); a hidden character
+   * the server found in the target is written as its escape, so it can't reorder the line.
+   */
   protected readonly filename = computed(() => {
     const r = this.r();
-    const target = r.target ?? r.connection ?? r.endpoint;
+    const target = r.target ? visibleText(r.target, r.targetSegments) : (r.connection ?? r.endpoint);
     return `${r.tool} · ${target}`;
   });
   protected readonly hidden = computed(() => hiddenWarning(this.action()?.segments ?? []));
+  /** What the server's inspector found in the texts shown with the action: the target, Impact, warnings, the note. */
+  protected readonly detailsHidden = computed(() => detailsWarning(this.r()));
+  /** Hidden or look-alike characters anywhere in the request: in the action or in what is shown with it. */
+  protected readonly anyHidden = computed(() => !!this.hidden() || !!this.detailsHidden());
+  protected readonly warnings = computed(() =>
+    this.r().warnings.map((w, i) => markedParts(w, this.r().warningSegments?.[i], false)),
+  );
+  protected readonly note = computed(() => markedParts(this.r().agentNote ?? '', this.r().agentNoteSegments, false));
   protected readonly diffSummary = computed(() => {
     const d = this.action()?.diff;
     return d ? diffSummary(d) : null;
@@ -200,7 +225,10 @@ export class GwApprovalRequest {
     return known ? { route: `/policies/${env}`, fragment: section ? `${env}-${section}` : undefined } : null;
   });
   protected readonly facts = computed<Fact[]>(() =>
-    [...this.r().fields, ...this.r().impact].map((f) => ({ label: f.label, value: literalWords(f.text) })),
+    [...this.r().fields, ...this.r().impact].map((f) => ({
+      label: markedParts(f.label, f.labelSegments, false),
+      value: markedParts(f.text, f.segments, true),
+    })),
   );
 
   protected readonly commentRequired = computed(() => this.r().commentPolicy === 'required');

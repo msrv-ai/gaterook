@@ -87,6 +87,8 @@ public class CallTasks {
     private Instant endedAt;
     private String status = "working";
     private boolean cancelling;
+    /** The call runs a change that nothing stops once it started (Bypass): a cancel is refused from then on. */
+    private boolean runsToItsEnd;
     private String message;
     private String approvalId;
     private ObjectNode result;
@@ -133,15 +135,49 @@ public class CallTasks {
       says(text);
     }
 
-    void onStop(Runnable stop) {
-      stops.add(stop);
+    /**
+     * The call made (or reused) the approval request {@code approvalId}: from now on a cancel declines it.
+     *
+     * @return false when the task was cancelled before: nobody waits for the request, so the caller declines it
+     */
+    public synchronized boolean holds(String approvalId) {
+      if (!awaitCancel() || !working()) {
+        return false;
+      }
+      this.approvalId = approvalId;
+      return true;
     }
 
     /**
-     * @return whether it ended now: a task that ended already, a cancelled one too, keeps what it ended with. While a
-     *     cancel decides, the end waits for it: the refusal of a request the cancel declined isn't the task's result.
+     * The call is about to start a change that nothing stops once it started (a Bypass execution): from now on a
+     * cancel is refused, since the change runs to its end and the task gets its result.
+     *
+     * @return false when the task was cancelled before: the change must not start
      */
-    synchronized boolean end(String status, ObjectNode result, ObjectNode error, String text) {
+    public synchronized boolean startsToRunToItsEnd() {
+      if (!awaitCancel() || !working()) {
+        return false;
+      }
+      runsToItsEnd = true;
+      return true;
+    }
+
+    /** How a running call stops; a stop that arrives after the task was cancelled runs at once. */
+    void onStop(Runnable stop) {
+      boolean cancelled;
+      synchronized (this) {
+        cancelled = "cancelled".equals(status);
+        if (!cancelled) {
+          stops.add(stop);
+        }
+      }
+      if (cancelled) {
+        stop.run();
+      }
+    }
+
+    /** While a cancel decides, the call's next step waits for it; false when interrupted before it decided. */
+    private boolean awaitCancel() {
       while (cancelling) {
         try {
           wait();
@@ -149,6 +185,17 @@ public class CallTasks {
           Thread.currentThread().interrupt();
           return false;
         }
+      }
+      return true;
+    }
+
+    /**
+     * @return whether it ended now: a task that ended already, a cancelled one too, keeps what it ended with. While a
+     *     cancel decides, the end waits for it: the refusal of a request the cancel declined isn't the task's result.
+     */
+    synchronized boolean end(String status, ObjectNode result, ObjectNode error, String text) {
+      if (!awaitCancel()) {
+        return false;
       }
       if (!working()) {
         return false;
@@ -172,6 +219,10 @@ public class CallTasks {
       }
       if (cancelling) {
         return "is being cancelled";
+      }
+      if (runsToItsEnd) {
+        return "runs a change that GateRook doesn't stop once it started: it runs to its end and the task gets its "
+            + "result";
       }
       cancelling = true;
       return null;
@@ -379,8 +430,10 @@ public class CallTasks {
 
   /**
    * Stops a task: a call that runs stops as its deadline would stop it; an approval request nobody decided yet is
-   * declined (nothing ran, and nobody needs to decide it any more). What a person decided runs to its end, and the
-   * task gets it.
+   * declined (nothing ran, and nobody needs to decide it any more), and one the call makes after the cancel is
+   * declined as soon as it exists; a change that hasn't started yet never starts. What a person decided runs to its
+   * end, and the task gets it; so does a change that runs under Bypass once it started: cancelling it is refused,
+   * since nothing stops it halfway.
    */
   void cancel(Task t) {
     String refused = t.cancelling();

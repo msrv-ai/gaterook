@@ -71,6 +71,13 @@ public class ApprovalDelivery {
 
   /** The first answer to the call that made (or reused) the request. */
   public Answer first(McpRequest r, ApprovalView a, String argumentsDigest) {
+    if (r.task() != null && !r.task().holds(a.id())) {
+      // The task was cancelled while its call prepared the request: nobody waits for it, so it is declined at once
+      // (the audit records the decline) and nobody can approve it later.
+      ApprovalView declined = a.pending() ? approvals.declineInClient(a.id()) : a;
+      ApprovalView after = declined == null ? a : declined;
+      return new Answer(answers.state(after), null, after);
+    }
     // The host needs the handle before it can render a card. Do not hold the call or open a parallel URL flow.
     if (r.env().supportsUi()) {
       return new Answer(a.pending() ? answers.pending(a) : answers.state(a), null, a);

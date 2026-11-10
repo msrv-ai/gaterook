@@ -203,8 +203,10 @@ public class ConnectorInvoker {
       return new Prepared(maskForApprover(action, taint, r), null, null);
     } catch (ConnectorException e) {
       return new Prepared(null, e.kind(), message(e, connector, r, taint));
-    } catch (RuntimeException e) {
-      log.error("prepare of {} on {} failed inside the connector", r.call().tool(), r.cfg().name(), e);
+    } catch (RuntimeException | StackOverflowError e) {
+      // A stack overflow is this thread's own and leaves the process sound once it has unwound (masking a
+      // pathological text, for instance); other errors of the virtual machine are not caught here.
+      log.error("prepare of {} on {} failed", r.call().tool(), r.cfg().name(), e);
       return new Prepared(null, ConnectorException.Kind.INTERNAL, internal(connector, r));
     } finally {
       taint.clear();
@@ -275,7 +277,10 @@ public class ConnectorInvoker {
             r.cfg().name(), r.callId(), e.getCause() == null ? e : e.getCause());
       }
       return failure(e.kind(), message(e, connector, r, taint), resourceMs, unknown);
-    } catch (RuntimeException e) {
+    } catch (RuntimeException | StackOverflowError e) {
+      // Also when masking or cutting the result fails after the connector answered: the result is withheld, the
+      // caller still writes the completed row, and an approved or bypassed call says it may have applied. A stack
+      // overflow is this thread's own; other errors of the virtual machine are not caught here.
       log.error("{} on {} failed inside the core ({})", kind, r.cfg().name(), r.callId(), e);
       return failure(ConnectorException.Kind.INTERNAL, internal(connector, r), resource.elapsedMs(),
           approval != null);
@@ -348,13 +353,23 @@ public class ConnectorInvoker {
         .taint(taint).mask(r.mask()).listener(listener).build();
   }
 
-  /** The agent gets the connector's message, masked; an internal error only says where to look. */
+  /**
+   * The agent gets the connector's message, masked; an internal error only says where to look, and so does a message
+   * that can't be masked (it is never passed on unmasked).
+   */
   private String message(ConnectorException e, Connector connector, Request r, Taint taint) {
     if (e.kind() == ConnectorException.Kind.INTERNAL) {
       return internal(connector, r);
     }
     String text = e.getMessage() == null ? "The call failed." : e.getMessage();
-    return masker.text(text, taint, r.mask()).text();
+    try {
+      return masker.text(text, taint, r.mask()).text();
+    } catch (RuntimeException | StackOverflowError unmaskable) {
+      log.error("The {} message of {} on {} couldn't be masked ({})", e.kind(), r.call() == null ? "call"
+          : r.call().tool(), r.cfg().name(), r.callId(), unmaskable);
+      return "The call failed; its message is withheld because it couldn't be masked. See Activity " + r.callId()
+          + ".";
+    }
   }
 
   private static String internal(Connector connector, Request r) {

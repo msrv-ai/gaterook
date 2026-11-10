@@ -78,8 +78,15 @@ class EndpointsController {
 
   record ConfirmReadOnly(String toolKey, String connection, String definitionHash, String reason) {}
 
-  /** {@code group}: a connection's name, or null for every tool; {@code mode} also {@code DEFAULT}. */
-  record Bulk(String group, String mode, String reason) {}
+  /**
+   * {@code group}: a connection's name, or null for every tool; {@code mode} also {@code DEFAULT}. {@code tools}: the
+   * tools the person saw and set, each with the {@code definitionHash} the tool list showed (and its connection when
+   * {@code group} is null); without it every tool of the group is set and no definition is recorded
+   * ({@code EndpointTools.bulk}).
+   */
+  record Bulk(String group, String mode, List<BulkTool> tools, String reason) {}
+
+  record BulkTool(String toolKey, String connection, String definitionHash) {}
 
   record ConnectionRef(String connection) {}
 
@@ -390,8 +397,24 @@ class EndpointsController {
       throw ApiRequestException.unprocessable("Unknown mode", "Set all to OFF, READ_ONLY, APPROVAL, BYPASS or DEFAULT.",
           "/mode");
     }
-    EndpointTools.BulkResult r = tools.bulk(slug, request.group() == null || request.group().isBlank() ? null
-        : request.group(), mode, Reasons.check(request.reason()));
+    String group = request.group() == null || request.group().isBlank() ? null : request.group();
+    List<EndpointTools.Shown> shown = null;
+    if (request.tools() != null) {
+      shown = new java.util.ArrayList<>();
+      for (BulkTool t : request.tools()) {
+        if (t == null || t.toolKey() == null || t.toolKey().isBlank()) {
+          throw ApiRequestException.unprocessable("Tool missing", "Name every tool you set by its toolKey.",
+              "/tools");
+        }
+        String connection = t.connection() == null || t.connection().isBlank() ? group : t.connection();
+        if (connection == null) {
+          throw ApiRequestException.unprocessable("Connection missing", "Name the connection of every tool when "
+              + "you set the tools of every connection.", "/tools");
+        }
+        shown.add(new EndpointTools.Shown(t.toolKey(), connection, t.definitionHash()));
+      }
+    }
+    EndpointTools.BulkResult r = tools.bulk(slug, group, mode, shown, Reasons.check(request.reason()));
     return new Bulked(r.changed(), r.skipped().stream().map(x -> new Skipped(x.toolKey(), x.reason())).toList());
   }
 

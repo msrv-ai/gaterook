@@ -4,6 +4,7 @@ import ai.msrv.gaterook.connector.api.ActionPreview;
 import ai.msrv.gaterook.connector.api.Classification;
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.Connector;
+import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
@@ -190,7 +191,9 @@ public class ToolCallHandler {
     Classification classification;
     try {
       classification = connector.get().classify(call, cfg, engine.view(pair.view(), cfg));
-    } catch (RuntimeException e) {
+    } catch (RuntimeException | StackOverflowError e) {
+      // Refused below (core.classify-error) with its received row. A stack overflow, for example from arguments
+      // nested too deeply for a connector's parser, is this thread's own; other virtual-machine errors propagate.
       log.warn("classify of {} on {} failed: {}", name, cfg.name(), e.toString());
       classification = null;
     }
@@ -232,6 +235,14 @@ public class ToolCallHandler {
 
   private ObjectNode run(McpRequest r, AuditWriter.Call auditCall, ConnectorInvoker.Request request,
       ObjectNode extraMeta, PreparedAction bypass) {
+    if (bypass != null && r.task() != null && !r.task().startsToRunToItsEnd()) {
+      // Nothing stops a Bypass change halfway, so a task cancelled before it started never starts it.
+      String why = "Cancelled by the client before it ran. Nothing changed.";
+      completed(auditCall, new ConnectorInvoker.Outcome(ToolResult.error(why), ConnectorException.Kind.DENIED, why,
+          0, 0, why.length(), null, why, false), 0, AuditWriter.Verdict.ERROR, null);
+      return ResultWriter.callToolResult(r.env(), ToolResult.error(why), request.callId(), r.span().traceId(),
+          extraMeta);
+    }
     long started = System.nanoTime();
     InFlight.Key key = InFlight.Key.of(r);
     ConnectorInvoker.Outcome outcome;

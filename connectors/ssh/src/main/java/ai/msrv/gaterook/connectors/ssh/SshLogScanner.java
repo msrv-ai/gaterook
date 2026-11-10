@@ -32,6 +32,10 @@ final class SshLogScanner {
   private static final int GREP_WINDOW_BYTES = 64 * 1024 * 1024;
   private static final int MAX_LINE_BYTES = 256 * 1024;
   private static final Duration FINISH_MARGIN = Duration.ofMillis(500);
+  /** How much line text is masked and matched between two looks at the deadline (blocks are up to 1 MiB). */
+  private static final long DEADLINE_CHECK_BYTES = 64 * 1024;
+  /** The fixed share of one line in {@link #DEADLINE_CHECK_BYTES}: its masking and parsing. */
+  private static final long LINE_COST = 64;
   private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
 
   private SshLogScanner() {}
@@ -551,6 +555,8 @@ final class SshLogScanner {
     int skippedLines;
     int unparsedLines;
     boolean diagnosticCountsComplete = true;
+    /** What {@link #accept} has handled since it last looked at the deadline. */
+    private long sinceDeadlineCheck;
 
     State(SshLogQuery query, ConnectionConfig cfg, ExecContext ctx, Instant anchor, byte[] fingerprintKey, String epoch, String nonce) throws ConnectorException {
       this.query = query;
@@ -586,7 +592,31 @@ final class SshLogScanner {
       return reason != null;
     }
 
+    /**
+     * Whether the call was cancelled or its deadline is near, as {@link #shouldStop} sees it, without its scan budget:
+     * looked at between the lines of a block, so masking and matching many lines read at once can't run far past the
+     * deadline. A stop here leaves the line for the next page.
+     */
+    private boolean pastDeadline() throws ConnectorException {
+      if (ctx.cancelled() || Thread.currentThread().isInterrupted()) {
+        throw ConnectorException.timeout("The SSH log scan was cancelled.");
+      }
+      if (ctx.remaining().compareTo(FINISH_MARGIN) <= 0) {
+        reason = "timeout";
+        return true;
+      }
+      return false;
+    }
+
     boolean accept(byte[] bytes, long start, long end) throws ConnectorException {
+      // A line costs its bytes and a fixed share for its masking and parsing.
+      sinceDeadlineCheck += bytes.length + LINE_COST;
+      if (sinceDeadlineCheck >= DEADLINE_CHECK_BYTES) {
+        sinceDeadlineCheck = 0;
+        if (pastDeadline()) {
+          return false;
+        }
+      }
       int length = bytes.length;
       if (length > 0 && bytes[length - 1] == '\r') {
         length--;

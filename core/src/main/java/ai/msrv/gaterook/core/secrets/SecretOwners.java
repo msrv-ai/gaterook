@@ -31,13 +31,28 @@ public interface SecretOwners {
 
   /**
    * Rotates {@code field} at the source: from now on the source accepts {@code next}, not the current value
-   * ({@code ALTER ROLE … PASSWORD}). Called while {@code next} waits as a pending version; when it throws, the source
-   * kept the current value.
+   * ({@code ALTER ROLE … PASSWORD}). Called while {@code next} waits as a pending version. When it throws
+   * {@link RotationOutcomeUnknown}, the source may have taken {@code next}, which is then kept; any other exception
+   * means the source kept the current value, and {@code next} is destroyed.
    *
    * @throws ai.msrv.gaterook.core.platform.ProblemException 409 when the source refused, with its words
+   * @throws RotationOutcomeUnknown when no clear answer came: the source may already use {@code next}
    */
   default void rotate(String ownerId, String field, char[] next) {
     throw new UnsupportedOperationException("Rotation at the source isn't available for " + kind());
+  }
+
+  /**
+   * A rotation at the source without a clear answer: no answer in time, the connection dropped while the change ran,
+   * a failure inside the connector after it started, a cancel. The source may already use the new value, so it must
+   * not be destroyed. The message says what happened, for the person, and holds no secret.
+   */
+  final class RotationOutcomeUnknown extends RuntimeException {
+    private static final long serialVersionUID = 1L;
+
+    public RotationOutcomeUnknown(String message) {
+      super(message);
+    }
   }
 
   /**

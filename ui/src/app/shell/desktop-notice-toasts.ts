@@ -10,9 +10,14 @@ import { deepLinkUrl } from './deep-links';
 
 type Notice = GatewayEvents['notify.desktop'];
 
-/** The kit's in-app toast of one request (approval-notification component "In-app toast"). */
-export function requestToast(r: Pick<ApprovalDetail, 'tool' | 'connection' | 'endpoint' | 'env' | 'client' | 'expiresAt'>): Pick<ToastOptions, 'title' | 'body'> {
-  const who = r.client ? clientName(r.client) : 'an agent';
+/**
+ * The kit's in-app toast of one request (approval-notification component "In-app toast"). It names who asked as the
+ * core's notices do: the client the credential implies, else the credential's label.
+ */
+export function requestToast(
+  r: Pick<ApprovalDetail, 'tool' | 'connection' | 'endpoint' | 'env' | 'client' | 'expiresAt'> & Partial<Pick<ApprovalDetail, 'tokenLabel' | 'clientReported'>>,
+): Pick<ToastOptions, 'title' | 'body'> {
+  const who = r.client && !r.clientReported ? clientName(r.client) : r.tokenLabel || 'an agent';
   const deadline = r.expiresAt ? ` Auto-deny at ${clockTime(r.expiresAt, true)}.` : '';
   return {
     title: `${r.env === 'prod' ? 'PROD · ' : ''}Approval needed`,

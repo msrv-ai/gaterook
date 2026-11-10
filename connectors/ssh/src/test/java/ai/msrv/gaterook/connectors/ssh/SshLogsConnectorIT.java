@@ -449,6 +449,51 @@ class SshLogsConnectorIT {
   }
 
   @Test
+  void aScanLooksAtItsDeadlineBetweenTheLinesOfOneBlock() throws Exception {
+    // Far less than one read block, so the scan reads it at once; no line matches, so every line is masked and matched.
+    StringBuilder log = new StringBuilder();
+    for (int line = 0; line < 4_000; line++) {
+      log.append("2026-11-10T10:00:00Z INFO request ").append(line).append(" served\n");
+    }
+    Files.writeString(root.resolve("busy.log"), log);
+    long size = Files.size(root.resolve("busy.log"));
+    var cfg = cfg(true, "busy.log");
+    String search = "{\"file\":\"busy.log\",\"query\":\"never-[0-9]+\",\"matchMode\":\"regex\"}";
+
+    // The deadline passes while the block's lines are masked: the scan stops at a line and offers to continue there.
+    var stopped = connector.execute(call("ssh_logs_search", search), cfg, secrets,
+        TestCtx.read().deadlineAfterMasking(200)).structuredContent();
+
+    assertThat(stopped.path("truncationReason").asString()).isEqualTo("timeout");
+    assertThat(stopped.path("scanComplete").asBoolean()).isFalse();
+    assertThat(stopped.path("nextCursor").isString()).isTrue();
+    long next = stopped.path("nextOffset").asLong();
+    assertThat(next).isPositive().isLessThan(size);
+    assertThat(log.charAt((int) next - 1)).as("the scan stops at a line boundary").isEqualTo('\n');
+    var rest = connector.execute(call("ssh_logs_search", "{\"file\":\"busy.log\",\"query\":\"never-[0-9]+\","
+        + "\"matchMode\":\"regex\",\"cursor\":\"" + stopped.path("nextCursor").asString() + "\"}"), cfg, secrets,
+        TestCtx.read()).structuredContent();
+    assertThat(rest.path("scanComplete").asBoolean()).isTrue();
+    assertThat(rest.path("nextOffset").asLong()).isEqualTo(size);
+  }
+
+  @Test
+  void aRegularExpressionThatExpandsTooFarIsRefusedBeforeItIsCompiled() throws Exception {
+    var cfg = cfg(true, "app.log");
+    var policy = new PolicyView(Env.DEV, "dev.ssh", TestConfigs.json("{}"), TestCtx.devLimits());
+    // Each count is one RE2 accepts; together they ask for a million copies of one character.
+    for (String tool : List.of("ssh_logs_search", "ssh_logs_list")) {
+      var call = call(tool, "{\"query\":\"(x{1000}){1000}\",\"matchMode\":\"regex\"}");
+
+      Classification classification = connector.classify(call, cfg, policy);
+
+      assertThat(classification.kind()).as(tool).isEqualTo(Classification.Kind.DENY);
+      assertThat(classification.reason()).as(tool).contains("too large once its repetitions are expanded");
+    }
+    assertThat(sshd.commands).isEmpty();
+  }
+
+  @Test
   void cancellationTerminatesTheBlockedRemoteReadCommand() throws Exception {
     var commandStarted = new java.util.concurrent.CountDownLatch(1);
     var commands = sshd.server.getCommandFactory();

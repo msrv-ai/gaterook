@@ -36,8 +36,9 @@ import tools.jackson.databind.node.ObjectNode;
  * says MUTATION is a mutation even if its connector classified the call as READ.
  *
  * <p>Limits = min(environment policy of the connection, the connection's own stricter settings, the endpoint's,
- * the pair's), merged key by key with {@code x-stricter}. Masking narrows the same way: the endpoint and the pair can
- * add personal-data kinds and fields, never remove the environment's.
+ * the pair's), merged key by key with {@code x-stricter}; a list narrows by what an empty list of its key allows
+ * ({@code x-empty}), so no override reaches past what the environment allows. Masking narrows the same way: the
+ * endpoint and the pair can add personal-data kinds and fields, never remove the environment's.
  */
 @Component
 public class PolicyEngine {
@@ -178,7 +179,8 @@ public class PolicyEngine {
       for (String[] field : stricterFields(pair.manifest().configSchema())) {
         JsonNode value = cfg.config().at(field[0]);
         if (!value.isMissingNode() && !schemas.key(section, field[1]).isMissingNode()) {
-          own.set(field[1], StricterMerge.merge(schemas.stricter(section, field[1]), own.get(field[1]), value));
+          own.set(field[1], StricterMerge.merge(schemas.stricter(section, field[1]), schemas.empty(section, field[1]),
+              own.get(field[1]), value));
         }
       }
     }
@@ -198,8 +200,8 @@ public class PolicyEngine {
           continue;
         }
         ObjectNode values = (ObjectNode) sections.get(section);
-        values.set(o.getKey(), StricterMerge.merge(schemas.stricter(section, o.getKey()), values.get(o.getKey()),
-            o.getValue()));
+        values.set(o.getKey(), StricterMerge.merge(schemas.stricter(section, o.getKey()),
+            schemas.empty(section, o.getKey()), values.get(o.getKey()), o.getValue()));
       }
     }
   }

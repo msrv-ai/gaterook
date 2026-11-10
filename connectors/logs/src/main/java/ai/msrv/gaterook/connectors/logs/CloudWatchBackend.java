@@ -148,34 +148,44 @@ final class CloudWatchBackend implements Backend {
         .queryString(effective).limit(Math.min(want, 10_000))).queryId());
     int requests = 1;
     GetQueryResultsResponse res = null;
-    long sleep = 250;
-    while (true) {
-      if (call.ctx().remaining().toMillis() < sleep + 300) {
-        break;
-      }
-      pause(sleep);
-      sleep = Math.min(1_000, sleep * 2);
-      if (!call.ctx().acquire(quotaKey("getqueryresults"), 300)) {
-        break;
-      }
-      AwsRequestOverrideConfiguration poll = override();
-      res = aws("GetQueryResults", () -> cw.getQueryResults(r -> r.overrideConfiguration(poll)
-          .queryId(queryId)));
-      requests++;
-      QueryStatus status = res.status();
-      if (status != QueryStatus.SCHEDULED && status != QueryStatus.RUNNING) {
-        break;
-      }
-    }
+    // Until AWS says the query ended, it runs (and is billed) there: every way out of the polling stops it, a cancelled
+    // call, a failed or refused poll and a status that is no answer included, not only the deadline.
+    boolean running = true;
     String partial = null;
-    if (res == null || res.status() == QueryStatus.SCHEDULED || res.status() == QueryStatus.RUNNING) {
-      // The deadline came first: what Insights found so far is still an answer (it returns partial rows).
-      stopQuietly(cw, queryId);
-      requests++;
-      partial = "partial";
-    } else if (res.status() != QueryStatus.COMPLETE) {
-      throw ConnectorException.resourceError("Logs Insights stopped the query: " + res.statusAsString()
-          + ". Narrow the range or the log groups.", null);
+    try {
+      long sleep = 250;
+      while (true) {
+        if (call.ctx().remaining().toMillis() < sleep + 300) {
+          break;
+        }
+        pause(sleep);
+        sleep = Math.min(1_000, sleep * 2);
+        if (!call.ctx().acquire(quotaKey("getqueryresults"), 300)) {
+          break;
+        }
+        AwsRequestOverrideConfiguration poll = override();
+        res = aws("GetQueryResults", () -> cw.getQueryResults(r -> r.overrideConfiguration(poll)
+            .queryId(queryId)));
+        requests++;
+        running = !ended(res.status());
+        if (res.status() != QueryStatus.SCHEDULED && res.status() != QueryStatus.RUNNING) {
+          break;
+        }
+      }
+      if (res == null || res.status() == QueryStatus.SCHEDULED || res.status() == QueryStatus.RUNNING) {
+        // The deadline came first: what Insights found so far is still an answer (it returns partial rows).
+        running = false;
+        stopQuietly(cw, queryId);
+        requests++;
+        partial = "partial";
+      } else if (res.status() != QueryStatus.COMPLETE) {
+        throw ConnectorException.resourceError("Logs Insights stopped the query: " + res.statusAsString()
+            + ". Narrow the range or the log groups.", null);
+      }
+    } finally {
+      if (running) {
+        stopQuietly(cw, queryId);
+      }
     }
     long bytes = res == null || res.statistics() == null || res.statistics().bytesScanned() == null ? -1
         : Math.round(res.statistics().bytesScanned());
@@ -276,14 +286,29 @@ final class CloudWatchBackend implements Backend {
     }
   }
 
+  /** Whether Logs Insights is done with a query: it no longer runs, so nothing is left to stop. */
+  private static boolean ended(QueryStatus status) {
+    return status == QueryStatus.COMPLETE || status == QueryStatus.FAILED || status == QueryStatus.CANCELLED
+        || status == QueryStatus.TIMEOUT;
+  }
+
+  /**
+   * Stops a query, at most for two seconds, and never fails the call: the query would end on its own, stopping it saves
+   * the bytes it would still scan. The thread of a cancelled call is interrupted, and the SDK gives up at once on an
+   * interrupted thread, so the stop runs with the flag cleared and sets it again afterwards.
+   */
   private void stopQuietly(CloudWatchLogsClient cw, String queryId) {
+    boolean interrupted = Thread.interrupted();
     try {
       AwsCredentialsProvider p = credentials();
       cw.stopQuery(r -> r.overrideConfiguration(o -> o.credentialsProvider(p)
           .apiCallTimeout(Duration.ofSeconds(2))).queryId(queryId));
     } catch (SdkException | ConnectorException e) {
-      // The query ends on its own; stopping it only saves scanned bytes.
       call.ctx().log().log(System.Logger.Level.DEBUG, "StopQuery failed: " + e.getMessage());
+    } finally {
+      if (interrupted) {
+        Thread.currentThread().interrupt();
+      }
     }
   }
 

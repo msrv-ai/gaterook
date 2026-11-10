@@ -13,7 +13,8 @@ function fixture() {
   const userData = join(home, 'electron');
   mkdirSync(userData, { recursive: true });
   for (const name of ['gateway.db', 'gateway.db-wal', 'gateway.db-shm', 'master.keyset', 'master.keyset.osk', 'desktop.json',
-    'master.keyset.replaced-123456', '.master.keyset.tmp-123', 'master.keyset.osk.123.012345abcdef.tmp']) {
+    'master.keyset.replaced-123456', '.master.keyset.tmp-123', 'master.keyset.osk.123.012345abcdef.tmp',
+    'master.keyset.osk.unreadable-1762771200000']) {
     writeFileSync(join(home, name), name === 'desktop.json' ? '{"port":9999,"publicPort":9998,"startHidden":true}' : 'old data');
   }
   for (const name of ['backups', 'logs', 'plugins', 'plugin-data', 'clients', 'connectors', 'cache', 'run', 'bin', 'mcp', 'connection-imports']) {

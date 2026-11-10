@@ -564,6 +564,10 @@ public class FakeConnectors {
     public Classification classify(ToolCall call, ConnectionConfig cfg, PolicyView policy) {
       String statement = call.string("sql") == null ? "" : call.string("sql").strip().toUpperCase(
           java.util.Locale.ROOT);
+      if (statement.contains("NESTED_TOO_DEEP(")) {
+        // What a connector's parser can do on arguments nested deeper than its stack allows.
+        throw new StackOverflowError();
+      }
       if (call.tool().startsWith("sql_") && (statement.startsWith("DROP") || statement.startsWith("TRUNCATE"))
           && policy != null && policy.flag("denyDdl", false)) {
         return Classification.deny(policy.rule("block_ddl"), "DDL is not allowed on " + policy.env().id(), null);
@@ -598,6 +602,10 @@ public class FakeConnectors {
         SecretResolver secrets, ExecContext ctx) throws ConnectorException {
       ActionPreview p = describeAction(call, cfg);
       String sql = call.string("sql") == null ? "" : call.string("sql");
+      if (sql.contains("slow_prepare")) {
+        // A preview that takes a while (an impact estimate), for the tests that act while the call prepares.
+        sleep(1_500);
+      }
       if (sql.contains("no_change")) {
         return ai.msrv.gaterook.connector.api.PreparedAction.noChange("Already in that state: nothing to change.");
       }

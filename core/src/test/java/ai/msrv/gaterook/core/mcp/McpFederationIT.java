@@ -169,6 +169,10 @@ class McpFederationIT {
         .isEqualTo(APP);
     assertThat(find(tools.path("tools"), "gh_widget").path("_meta").path("ui").path("visibility").toString())
         .isEqualTo("[\"app\"]");
+    // The apps of the server may call its tools as it declares them; the gateway's own tools are the model's.
+    assertThat(find(tools.path("tools"), "gh_search").path("_meta").path("ui").has("visibility")).isFalse();
+    assertThat(find(tools.path("tools"), "approval_status").path("_meta").path("ui").path("visibility").toString())
+        .isEqualTo("[\"model\"]");
     JsonNode resources = withApps("resources/list", JsonNodeFactory.instance.objectNode()).result();
     assertThat(strings(resources.path("resources"), "uri").stream().filter(APP::equals)).hasSize(1);
 

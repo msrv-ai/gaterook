@@ -28,6 +28,7 @@
         "apply"
       ],
       "x-stricter": "intersect",
+      "x-empty": "all",
       "x-env-default": {
         "prod": [
           "get",
@@ -55,6 +56,7 @@
         "jobs"
       ],
       "x-stricter": "intersect",
+      "x-empty": "connector-default",
       "x-env-default": {
         "prod": [
           "deployments",
@@ -76,6 +78,7 @@
       },
       "default": [],
       "x-stricter": "intersect",
+      "x-empty": "connector-default",
       "x-inherit": false,
       "description": "Per environment, never inherited."
     },

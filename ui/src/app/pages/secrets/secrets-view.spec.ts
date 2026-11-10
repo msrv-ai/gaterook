@@ -107,6 +107,7 @@ describe('stored secrets: cells', () => {
     expect(sourceCell(row('billing-api/webhook-secret'))).toEqual({ label: 'AWS SM · not connected', icon: null, tone: 'danger' });
     expect(sourceCell(local('a/b', 'a', null, null, { state: 'needs-value' }))).toMatchObject({ label: 'Encrypted here · needs a value', tone: 'warning' });
     expect(sourceCell(local('a/b', 'a', 3, null, { state: 'testing' }))).toMatchObject({ label: 'Encrypted here · new value failed its test', tone: 'warning' });
+    expect(sourceCell(local('a/b', 'a', 3, null, { state: 'unconfirmed' }))).toMatchObject({ label: 'Encrypted here · rotation unconfirmed', tone: 'warning' });
     expect(sourceCell(reference('a/b', 'a', 'vault', 'vault://kv/a', { state: 'changed-outside' }))).toMatchObject({ label: 'Vault · changed outside GateRook', tone: 'warning' });
   });
 
@@ -155,6 +156,10 @@ describe('row dialogs', () => {
     expect(dev).toMatchObject({ name: 'dev-db/password', usedBy: 'dev-db', version: 3, prod: false, testable: true });
     expect(replaceHint(dev)).toBe('Saving creates version 4. Version 3 stays in use until then.');
     expect(rotateLead(dev)).toBe('The connector sets a new value at the source, stores it as version 4 and tests dev-db. Version 3 keeps working until the test passes.');
+    // After a rotation without a clear answer, Rotate first finds out which value the source accepts.
+    const unsettled = subjectOf(local('dev-db/password', 'dev-db', 3, null, { state: 'unconfirmed' }), ctx);
+    expect(unsettled.unconfirmed).toBe(true);
+    expect(rotateLead(unsettled)).toBe('An earlier rotation got no clear answer. GateRook first tests which value dev-db accepts: if it took the kept new version, that one goes in use; if it still uses version 3, the kept one is discarded and the connector sets a new value.');
     const prod = subjectOf(local('prod-replica/password', 'prod-replica', 1, null), ctx);
     expect(prod.prod).toBe(true);
     // A store's sign-in is tested against the store: the kit names its host.

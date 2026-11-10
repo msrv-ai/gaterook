@@ -102,6 +102,15 @@ public final class OAuthClient {
   static final Duration MAX_INTERVAL = Duration.ofSeconds(60);
   static final Duration MAX_DEVICE_LIFE = Duration.ofMinutes(30);
 
+  /**
+   * The shortest token GateRook takes: 16 characters, about 96 bits from the alphabet of a Bearer token (RFC 6819
+   * §5.1.4.2.2 asks for 128). Every token GateRook is handed is masked wherever it shows up, in every connection's
+   * results: an authorization server that issued an ordinary word as its token would have it masked everywhere.
+   */
+  public static final int MIN_TOKEN_LENGTH = 16;
+  /** The longest: a token travels in a header, which servers cap at a few kilobytes; large JWTs stay below this. */
+  public static final int MAX_TOKEN_LENGTH = 16_384;
+
   private OAuthClient() {}
 
   /**
@@ -364,9 +373,35 @@ public final class OAuthClient {
     if (seconds > 0) {
       expires = now.plusSeconds(Math.min(seconds, 10L * 365 * 24 * 3600));
     }
-    String refresh = j.path("refresh_token").isString() && !j.path("refresh_token").asString().isBlank()
-        ? j.path("refresh_token").asString() : previousRefresh;
-    return new Tokens(j.path("access_token").asString(), expires, refresh, j.path("scope").asString(null));
+    String access = j.path("access_token").asString();
+    String issuedRefresh = j.path("refresh_token").isString() && !j.path("refresh_token").asString().isBlank()
+        ? j.path("refresh_token").asString() : null;
+    if (!credentialShaped(access) || (issuedRefresh != null && !credentialShaped(issuedRefresh))) {
+      // The value isn't named: a token is a secret even when it is malformed.
+      throw new OAuthHttp.Failure(step + ": " + OAuthHttp.host(endpoint) + " issued " + (credentialShaped(access)
+          ? "a refresh token" : "an access token") + " that isn't shaped like one (" + MIN_TOKEN_LENGTH + " to "
+          + MAX_TOKEN_LENGTH + " visible ASCII characters, no spaces), so GateRook doesn't use it.");
+    }
+    String refresh = issuedRefresh != null ? issuedRefresh : previousRefresh;
+    return new Tokens(access, expires, refresh, j.path("scope").asString(null));
+  }
+
+  /**
+   * Whether {@code token} has the shape of a credential: {@value #MIN_TOKEN_LENGTH} to {@value #MAX_TOKEN_LENGTH}
+   * visible ASCII characters (RFC 6749's {@code VSCHAR} without the space), as Bearer tokens, JWTs and the opaque
+   * tokens of common authorization servers are.
+   */
+  public static boolean credentialShaped(String token) {
+    if (token == null || token.length() < MIN_TOKEN_LENGTH || token.length() > MAX_TOKEN_LENGTH) {
+      return false;
+    }
+    for (int i = 0; i < token.length(); i++) {
+      char c = token.charAt(i);
+      if (c <= 0x20 || c >= 0x7f) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private static OAuthHttp.Answer post(OAuthHttp http, URI endpoint, Client client, Map<String, String> form)

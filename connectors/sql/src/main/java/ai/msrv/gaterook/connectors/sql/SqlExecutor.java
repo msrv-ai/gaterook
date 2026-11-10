@@ -94,7 +94,8 @@ final class SqlExecutor {
     try {
       c = pool.borrow();
     } catch (SQLException e) {
-      throw SqlErrors.of(e, dialect.syntax(), connection, env(ctx), Duration.ofMillis(timeoutMs));
+      throw SqlErrors.of(e, dialect.syntax(), SqlErrors.Phase.CONNECT, connection, env(ctx),
+          Duration.ofMillis(timeoutMs));
     }
     boolean broken = false;
     try {
@@ -134,7 +135,8 @@ final class SqlExecutor {
             ? "The call was cancelled. Schema changes may already be committed; check the data before retrying."
             : "The call was cancelled: the statement was stopped and rolled back.", e);
       }
-      throw SqlErrors.of(e, dialect.syntax(), connection, env(ctx), Duration.ofMillis(timeoutMs));
+      throw SqlErrors.of(e, dialect.syntax(), SqlErrors.Phase.STATEMENT, connection, env(ctx),
+          Duration.ofMillis(timeoutMs));
     } catch (ConnectorException | RuntimeException e) {
       if (!broken) {
         broken = !rollbackQuietly(c);

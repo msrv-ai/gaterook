@@ -59,14 +59,16 @@ import tools.jackson.databind.node.ObjectNode;
  * account (it sits in plain config files), so the first token of a grant to a prod endpoint
  * waits until the person allows it on the desktop ({@code /internal/bridge/confirm}). That approval is signed and
  * saved with the grant, surviving token renewal and core restarts until access is revoked. A grant has at most
- * {@value #MAX_LIVE_TOKENS} live tokens (a fifth replaces the oldest) and gets at most {@value #TOKENS_PER_MINUTE} a
- * minute. Logs and messages carry the grant's prefix only.
+ * {@value #MAX_LIVE_TOKENS} live tokens, one for each program that uses it at once; a new one replaces only a token no
+ * running program can still use, or the asking program's own ({@link BridgeTokenSlots}), and gets at most
+ * {@value #TOKENS_PER_MINUTE} a minute. Logs and messages carry the grant's prefix only.
  */
 @Service
 public class ClientGrants implements DisposableBean {
 
   public static final Duration BRIDGE_TTL = Duration.ofMinutes(15);
-  public static final int MAX_LIVE_TOKENS = 4;
+  /** Programs of one grant at once: every Claude Code session with the bridge, every window of a client. */
+  public static final int MAX_LIVE_TOKENS = 16;
   public static final int TOKENS_PER_MINUTE = 20;
   /** Expired bridge tokens are not audit: their rows go a day after they expire (ARCHITECTURE.md §4). */
   static final Duration PURGE_AFTER = Duration.ofHours(24);
@@ -155,6 +157,12 @@ public class ClientGrants implements DisposableBean {
   private final Set<String> denied = ConcurrentHashMap.newKeySet();
   private final Map<String, Instant> confirmAsked = new ConcurrentHashMap<>();
   private final Map<String, Deque<Instant>> issuedRecently = new ConcurrentHashMap<>();
+  /**
+   * Per grant, the process each live token of this run of the core was issued to (token id to pid, as the request
+   * said): which tokens may give way to a new one ({@link BridgeTokenSlots}). Kept in memory only; a token issued by
+   * an earlier run counts as one no running program uses, since its bridges must ask the new run again.
+   */
+  private final Map<String, Map<String, Long>> issuedTo = new ConcurrentHashMap<>();
   private ScheduledExecutorService purger;
 
   public ClientGrants(ClientGrantRepository grants, ApiTokenRepository tokens, EndpointRepository endpoints,
@@ -246,6 +254,7 @@ public class ClientGrants implements DisposableBean {
   public int revoke(String grantId, String reason) {
     denied.remove(grantId);
     issuedRecently.remove(grantId);
+    issuedTo.remove(grantId);
     return tokenService.revokeGrant(grantId, reason);
   }
 
@@ -300,17 +309,28 @@ public class ClientGrants implements DisposableBean {
           + "the GateRook window, then try again.");
     }
     Instant now = clock.instant();
+    List<ApiTokenEntity> live = tokens.findByGrantId(g.getId()).stream().filter(t -> t.isLive(now))
+        .sorted(Comparator.comparing(ApiTokenEntity::getCreatedAt)).toList();
+    Map<String, Long> owners = issuedTo.computeIfAbsent(g.getId(), k -> new ConcurrentHashMap<>());
+    owners.keySet().retainAll(live.stream().map(ApiTokenEntity::getId).toList());
+    Optional<List<String>> retire = BridgeTokenSlots.toRetire(live.stream()
+        .map(t -> new BridgeTokenSlots.Live(t.getId(), t.getCreatedAt(), owners.get(t.getId()))).toList(),
+        MAX_LIVE_TOKENS, r.pid(), BridgeTokenSlots::running);
+    if (retire.isEmpty()) {
+      return TokenAnswer.refused(RATE_LIMITED, MAX_LIVE_TOKENS + " running programs use " + g.getLabel()
+          + " already, each with a token of its own. Close one of them and try again.");
+    }
     if (!withinRate(g.getId(), now)) {
       return TokenAnswer.refused(RATE_LIMITED, "Too many tokens for " + g.getLabel() + " in the last minute. Try "
           + "again in a minute.");
     }
-    List<ApiTokenEntity> live = new ArrayList<>(tokens.findByGrantId(g.getId()).stream()
-        .filter(t -> t.isLive(now)).sorted(Comparator.comparing(ApiTokenEntity::getCreatedAt)).toList());
-    while (live.size() >= MAX_LIVE_TOKENS) {
-      // A bridge that asks for a fifth token has usually dropped an older one; the oldest goes.
-      ApiTokenEntity oldest = live.removeFirst();
-      oldest.revoke(now, "superseded");
-      tokenRows.sign(oldest);
+    for (ApiTokenEntity t : live) {
+      if (retire.get().contains(t.getId())) {
+        // No running program still uses it, or it is the asking program's own: the new token takes its place.
+        t.revoke(now, "superseded");
+        tokenRows.sign(t);
+        owners.remove(t.getId());
+      }
     }
     byte[] random = new byte[32];
     RANDOM.nextBytes(random);
@@ -320,6 +340,9 @@ public class ClientGrants implements DisposableBean {
     ApiTokenEntity issued = ApiTokenEntity.bridge(g, TokenService.hash(token), now, expires);
     tokenRows.sign(issued);
     tokens.save(issued);
+    if (r.pid() != null) {
+      owners.put(issued.getId(), r.pid());
+    }
     // The version shows which bridge the client runs: a Claude Desktop extension keeps the one it was built with.
     g.tokenIssued(now, r.pid(), r.bridge());
     rows.saveSigned(g);

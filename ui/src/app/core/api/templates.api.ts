@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { ApiClient } from './api-client';
-import { ApprovalAction, LabelledText } from './approvals.api';
+import { ActionSegment, ApprovalAction, LabelledText } from './approvals.api';
 import { Env, Iso, JsonObject, JsonValue, WithReason } from './types';
 
 export type TemplateKind = 'sql-query' | 'ssh-runbook' | 'openapi';
@@ -66,7 +66,7 @@ export interface TemplateVersion {
   readonly createdAt: Iso;
 }
 
-/** What a call with these arguments would run, as an approver sees it. */
+/** What a call with these arguments would run, as an approver sees it, inspected as a request (ApprovalDetail). */
 export interface ActionPreviewView {
   readonly action: ApprovalAction;
   readonly target: string | null;
@@ -74,6 +74,10 @@ export interface ActionPreviewView {
   readonly fields: LabelledText[];
   readonly impact: LabelledText[];
   readonly warnings: string[];
+  readonly targetSegments?: ActionSegment[] | null;
+  readonly warningSegments?: (ActionSegment[] | null)[];
+  readonly detailsHiddenChars?: number;
+  readonly detailsConfusables?: number;
 }
 
 export interface CreateTemplateRequest extends WithReason {

@@ -218,6 +218,25 @@ export interface McpServerAuthReview {
   readonly cloud?: 'google' | 'aws' | null;
   /** Over an OAuth app: whether the provider takes it only with its client secret (Google does). */
   readonly secretRequired?: boolean | null;
+  /** Where a sign-in sends the client secret of the person's OAuth app; sent back with `issuer` when it signs in with one. */
+  readonly tokenEndpoint?: string | null;
+}
+
+/**
+ * The authorization server a review showed: a sign-in with the client secret of the person's OAuth app names it, and
+ * the core sends the secret to that one only.
+ */
+export interface McpAuthorizationServer {
+  readonly issuer: string;
+  readonly tokenEndpoint: string;
+}
+
+/** What starts a sign-in to the server under review. */
+export interface McpSignInSource {
+  readonly config: McpServerConfig;
+  readonly env?: Env;
+  readonly secrets?: SecretInputs;
+  readonly authorizationServer?: McpAuthorizationServer;
 }
 
 /**
@@ -435,7 +454,7 @@ export class McpServersApi {
   }
 
   /** Starts a sign-in to the server under review (its config with `auth.type: "oauth"`). */
-  startSignIn(source: { readonly config: McpServerConfig; readonly env?: Env; readonly secrets?: SecretInputs }): Promise<McpSignIn> {
+  startSignIn(source: McpSignInSource): Promise<McpSignIn> {
     return this.api.post('/api/mcp-sign-ins', source);
   }
 

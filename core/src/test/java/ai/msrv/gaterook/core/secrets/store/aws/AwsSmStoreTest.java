@@ -223,6 +223,59 @@ class AwsSmStoreTest {
         "arn:aws:secretsmanager:us-east-1:111122223333:secret:x-AbCdEf*");
   }
 
+  /**
+   * STS takes a session policy of at most 2,048 characters, which names some twenty references. A store with more
+   * reads each one in the session of a batch that holds it: every batch fits, every reference is in exactly one, and
+   * no session may read anything but the references.
+   */
+  @Test
+  void manyReferencesAreReadInSessionsThatEachFitAndNameOnlyReferences() {
+    int count = 60;
+    for (int i = 0; i < count; i++) {
+      String name = "prod/payments/service-" + i + "/database-password";
+      bound.add(SecretRef.parse("aws-sm://eu-central-1/" + name));
+      put(name, "value-" + i);
+    }
+    assertThatThrownBy(() -> store.sessionPolicy(List.copyOf(bound))).as("one policy naming all of them")
+        .isInstanceOf(IllegalStateException.class);
+
+    for (int i = 0; i < count; i++) {
+      try (RemoteValue v = store.read(bound.get(i), call())) {
+        assertThat(new String(v.value(), StandardCharsets.UTF_8)).isEqualTo("value-" + i);
+      }
+    }
+    assertThat(store.test(List.copyOf(bound), call()).ok()).as("Test connection too").isTrue();
+
+    List<String> policies = requests.stream().map(r -> r.getBody().utf8()).filter(b -> b.contains("Action=AssumeRole"))
+        .map(AwsSmStoreTest::policyOf).distinct().toList();
+    assertThat(policies).hasSizeGreaterThan(1);
+    var json = tools.jackson.databind.json.JsonMapper.builder().build();
+    List<String> named = new ArrayList<>();
+    for (String policy : policies) {
+      assertThat(policy.length()).isLessThanOrEqualTo(2048);
+      var read = json.readTree(policy).path("Statement").get(0);
+      assertThat(read.path("Action").get(0).asString()).isEqualTo("secretsmanager:GetSecretValue");
+      read.path("Resource").forEach(r -> named.add(r.asString()));
+    }
+    List<String> expected = new ArrayList<>();
+    for (int i = 0; i < count; i++) {
+      expected.add("arn:aws:secretsmanager:eu-central-1:412398765012:secret:prod/payments/service-" + i
+          + "/database-password-??????");
+    }
+    assertThat(named).as("each reference in exactly one session, nothing else").containsExactlyInAnyOrderElementsOf(
+        expected);
+  }
+
+  /** The {@code Policy} parameter of an AssumeRole request. */
+  private static String policyOf(String form) {
+    for (String part : form.split("&")) {
+      if (part.startsWith("Policy=")) {
+        return URLDecoder.decode(part.substring("Policy=".length()), StandardCharsets.UTF_8);
+      }
+    }
+    throw new AssertionError("No session policy in " + form);
+  }
+
   private static MockResponse json(String body) {
     return new MockResponse.Builder().code(200).addHeader("Content-Type", "application/x-amz-json-1.1").body(body)
         .build();

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ai.msrv.gaterook.core.platform.NativeOs;
 import ai.msrv.gaterook.testfixtures.WindowsKernel;
+import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -20,7 +21,7 @@ class SandboxedPeerFilterTest {
       long... descendants) {
     return new SandboxedPeerFilter(true, new SandboxedPeerFilter.Peers() {
       @Override
-      public long pid(int serverPort, int clientPort) {
+      public long pid(Inet4Address client, int serverPort, int clientPort) {
         return pidByClientPort.getOrDefault(clientPort, -1L);
       }
 
@@ -55,12 +56,44 @@ class SandboxedPeerFilterTest {
     assertThat(filter(Map.of(50001, 11L), Map.of(11L, 0x1000), 11L).refused("10.0.0.5", 7465, 50001)).isFalse();
   }
 
+  /**
+   * A process can bind any address of 127.0.0.0/8 and connect to the core from it, and an address may be written as
+   * IPv4-mapped IPv6: each is a loopback peer, looked up by the address it really came from, and refused the same way.
+   */
+  @Test
+  void aSandboxedDescendantIsRefusedFromAnyLoopbackAddress() {
+    java.util.List<String> asked = new java.util.ArrayList<>();
+    SandboxedPeerFilter f = new SandboxedPeerFilter(true, new SandboxedPeerFilter.Peers() {
+      @Override
+      public long pid(Inet4Address client, int serverPort, int clientPort) {
+        asked.add(client.getHostAddress());
+        return 11L;
+      }
+
+      @Override
+      public int level(long pid) {
+        return 0x1000;
+      }
+    }, pid -> pid == 11L);
+    for (String address : java.util.List.of("127.0.0.2", "127.255.255.254", "::ffff:127.0.0.9",
+        "0:0:0:0:0:ffff:7f00:1")) {
+      assertThat(f.refused(address, 7465, 50001)).as(address).isTrue();
+    }
+    assertThat(asked).containsExactly("127.0.0.2", "127.255.255.254", "127.0.0.9", "127.0.0.1");
+    // Not loopback, or no address literal: not judged here, and nothing is looked up for it.
+    asked.clear();
+    for (String address : java.util.List.of("10.0.0.5", "128.0.0.1", "localhost", "", "::2")) {
+      assertThat(f.refused(address, 7465, 50001)).as(address).isFalse();
+    }
+    assertThat(asked).isEmpty();
+  }
+
   @Test
   void theCoresParentsAreWalkedOnlyForALowPeer() {
     AtomicInteger walks = new AtomicInteger();
     SandboxedPeerFilter f = new SandboxedPeerFilter(true, new SandboxedPeerFilter.Peers() {
       @Override
-      public long pid(int serverPort, int clientPort) {
+      public long pid(Inet4Address client, int serverPort, int clientPort) {
         return 12L;
       }
 
@@ -81,7 +114,8 @@ class SandboxedPeerFilterTest {
         Socket client = new Socket(InetAddress.getByName("127.0.0.1"), server.getLocalPort());
         Socket accepted = server.accept()) {
       long self = ProcessHandle.current().pid();
-      assertThat(NativeOs.loopbackPeer(server.getLocalPort(), client.getLocalPort())).isEqualTo(self);
+      assertThat(NativeOs.loopbackPeer((Inet4Address) client.getLocalAddress(), server.getLocalPort(),
+          client.getLocalPort())).isEqualTo(self);
       assertThat(NativeOs.integrityLevel(self)).isEqualTo(0x2000);
       assertThat(new SandboxedPeerFilter().refused("127.0.0.1", server.getLocalPort(), client.getLocalPort()))
           .isFalse();

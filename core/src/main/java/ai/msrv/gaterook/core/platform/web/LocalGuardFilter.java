@@ -30,7 +30,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
  *       slashes, empty or dot segments, {@code ;} or a trailing slash.</li>
  *   <li>{@code /api/**} and {@code /internal/**}: no cross-site or same-site browser request (403), a valid
  *       single-use {@link LaunchSecret} signature (401) and a JSON body when there is one (415, multipart only for a
- *       plugin upload). Answers are {@code no-store}, {@code nosniff}, and carry {@code X-Gateway-Instance}.</li>
+ *       plugin upload). Answers are {@code no-store}, {@code nosniff}, and carry {@code X-Gateway-Instance}. Every
+ *       other route refuses a multipart body (415) before anything parses it.</li>
  * </ol>
  * Requests on the public port pass only when the tunnel's {@code PublicIngressFilter} (which runs first) accepted them;
  * any other port is refused. No CORS headers are ever sent, so a browser's preflight never succeeds.
@@ -106,9 +107,23 @@ public final class LocalGuardFilter extends OncePerRequestFilter {
     }
     switch (route) {
       case NONE -> reject(response, HttpServletResponse.SC_NOT_FOUND);
-      case MCP, APPROVAL_PAGE, OAUTH -> chain.doFilter(request, response);
+      case MCP, APPROVAL_PAGE, OAUTH -> {
+        if (multipart(request)) {
+          // Only the signed plugin upload takes parts; parsing them for a request nobody authenticated would spool
+          // up to the upload limit first.
+          reject(response, HttpServletResponse.SC_UNSUPPORTED_MEDIA_TYPE);
+        } else {
+          chain.doFilter(request, response);
+        }
+      }
       case API, INTERNAL -> guardAdmin(request, response, chain, uri);
     }
+  }
+
+  /** Whether the body is declared as parts ({@code multipart/*}), whatever its subtype. */
+  static boolean multipart(HttpServletRequest request) {
+    String type = request.getContentType();
+    return type != null && type.strip().toLowerCase(Locale.ROOT).startsWith("multipart/");
   }
 
   private void guardAdmin(HttpServletRequest request, HttpServletResponse response, FilterChain chain, String uri)

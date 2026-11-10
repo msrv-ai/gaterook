@@ -4,13 +4,26 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import org.snakeyaml.engine.v2.api.ConstructNode;
 import org.snakeyaml.engine.v2.api.Load;
 import org.snakeyaml.engine.v2.api.LoadSettings;
+import org.snakeyaml.engine.v2.common.Anchor;
+import org.snakeyaml.engine.v2.composer.Composer;
+import org.snakeyaml.engine.v2.constructor.json.ConstructYamlJsonInt;
 import org.snakeyaml.engine.v2.exceptions.YamlEngineException;
+import org.snakeyaml.engine.v2.nodes.Node;
+import org.snakeyaml.engine.v2.nodes.ScalarNode;
+import org.snakeyaml.engine.v2.nodes.SequenceNode;
+import org.snakeyaml.engine.v2.nodes.Tag;
+import org.snakeyaml.engine.v2.parser.ParserImpl;
+import org.snakeyaml.engine.v2.scanner.StreamReader;
 import org.snakeyaml.engine.v2.schema.JsonSchema;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.StreamReadConstraints;
@@ -28,15 +41,27 @@ import tools.jackson.databind.node.ObjectNode;
  * converted to a tree by a walk of its own (depth ≤ 200, a recursive alias {@code &a [*a]} is refused instead of
  * recursing forever, and aliases may not expand the file past twice its size). Only OpenAPI 3.0 and 3.1, and only
  * local {@code $ref}s.
+ *
+ * <p>YAML gets the JSON reader's limits as well: no collection as a key (it would have to be written out as text
+ * first), no nesting deeper than {@value #MAX_DEPTH} even while snakeyaml composes the file (its composer recurses per
+ * level), and the same longest number, text value and key. Numbers mean what they mean in JSON: a decimal is read as
+ * written when a double can't hold it ({@code 1e999}), and {@code .inf} and {@code .nan}, which JSON has no number for,
+ * stay text. Whatever else a file can't be read for is a {@link Rejected} with a reason, never an exception of the
+ * parser.
  */
 final class OpenApiDocument {
 
   /** GitHub's description is 13.6 MB; Stripe's YAML 6.6 MB. */
   static final int MAX_BYTES = 20 * 1_024 * 1_024;
   private static final int MAX_DEPTH = 200;
+  /** The longest number, text value and key of a file, in characters: the same for JSON and YAML. */
+  static final int MAX_NUMBER = 1_000;
+  static final int MAX_TEXT = 5_000_000;
+  static final int MAX_KEY = 50_000;
 
   private static final StreamReadConstraints LIMITS = StreamReadConstraints.builder().maxNestingDepth(MAX_DEPTH)
-      .maxStringLength(5_000_000).maxDocumentLength(25_000_000L).maxNumberLength(1_000).build();
+      .maxStringLength(MAX_TEXT).maxNameLength(MAX_KEY).maxDocumentLength(25_000_000L).maxNumberLength(MAX_NUMBER)
+      .build();
   private static final JsonMapper JSON = JsonMapper.builder(JsonFactory.builder().streamReadConstraints(LIMITS)
       .build()).enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).build();
   private static final JsonNodeFactory NODES = JsonNodeFactory.instance;
@@ -97,21 +122,135 @@ final class OpenApiDocument {
       return JSON.readTree(bytes);
     } catch (JacksonException e) {
       throw new Rejected("The file isn't valid JSON: " + clip(e.getOriginalMessage()) + ".");
+    } catch (NumberFormatException | ArithmeticException e) {
+      // An exponent beyond what a decimal holds at all (1e2147483648): Jackson does not wrap that failure.
+      throw new Rejected("The file isn't valid JSON: it has a number that can't be read.");
     }
   }
 
   private static JsonNode yaml(byte[] bytes) throws Rejected {
-    LoadSettings settings = LoadSettings.builder().setSchema(new JsonSchema()).setCodePointLimit(25 * 1_024 * 1_024)
-        .setMaxAliasesForCollections(50).setAllowDuplicateKeys(false).setAllowRecursiveKeys(false).build();
+    LoadSettings settings = LoadSettings.builder().setSchema(new Numbers()).setCodePointLimit(25 * 1_024 * 1_024)
+        .setMaxAliasesForCollections(50).setAllowDuplicateKeys(false).setAllowRecursiveKeys(false)
+        .setAllowNonScalarKeys(false).build();
     Object loaded;
     try {
-      loaded = new Load(settings).loadFromString(new String(bytes, StandardCharsets.UTF_8));
+      loaded = new Bounded(settings).loadFromString(new String(bytes, StandardCharsets.UTF_8));
+    } catch (Unreadable e) {
+      throw new Rejected(e.getMessage());
     } catch (YamlEngineException e) {
       throw new Rejected("The file isn't valid YAML: " + clip(e.getMessage()) + ".");
     } catch (RuntimeException e) {
       throw new Rejected("The file isn't valid YAML.");
     }
     return tree(loaded, 0, new IdentityHashMap<>(), new long[] {expansionBudget(bytes.length)});
+  }
+
+  /** Why snakeyaml can't go on: the reason a person reads, passed through its constructor unchanged. */
+  private static final class Unreadable extends YamlEngineException {
+    private static final long serialVersionUID = 1L;
+
+    Unreadable(String message) {
+      super(message);
+    }
+  }
+
+  /** {@link Load} whose composer refuses to nest deeper than {@link #MAX_DEPTH}: it recurses once per level. */
+  private static final class Bounded extends Load {
+    private final LoadSettings settings;
+
+    Bounded(LoadSettings settings) {
+      super(settings);
+      this.settings = settings;
+    }
+
+    @Override
+    protected Composer createComposer(String yaml) {
+      return new Composer(settings, new ParserImpl(settings, new StreamReader(settings, yaml))) {
+        private int depth;
+
+        @Override
+        protected SequenceNode composeSequenceNode(Optional<Anchor> anchor) {
+          enter();
+          try {
+            return super.composeSequenceNode(anchor);
+          } finally {
+            depth--;
+          }
+        }
+
+        @Override
+        protected Node composeMappingNode(Optional<Anchor> anchor) {
+          enter();
+          try {
+            return super.composeMappingNode(anchor);
+          } finally {
+            depth--;
+          }
+        }
+
+        /** The tree walk refuses the same depth; a collection one level deeper is where composing stops. */
+        private void enter() {
+          if (++depth > MAX_DEPTH + 1) {
+            throw new Unreadable("The file nests deeper than " + MAX_DEPTH + " levels.");
+          }
+        }
+      };
+    }
+  }
+
+  /**
+   * The YAML 1.2 JSON schema with JSON's numbers: at most {@link #MAX_NUMBER} characters, checked before a digit is
+   * converted; integers as before ({@code Integer}, {@code Long}, {@code BigInteger}); a decimal a double holds as
+   * that double, as before, and one it doesn't ({@code 1e999}, {@code 1e-999}) as the exact decimal; {@code .inf},
+   * {@code -.inf} and {@code .nan} as their text.
+   */
+  private static final class Numbers extends JsonSchema {
+    private static final ConstructNode INTEGERS = new ConstructYamlJsonInt();
+
+    @Override
+    public Map<Tag, ConstructNode> getSchemaTagConstructors() {
+      Map<Tag, ConstructNode> constructors = new HashMap<>(super.getSchemaTagConstructors());
+      constructors.put(Tag.INT, node -> INTEGERS.construct(checked(node)));
+      constructors.put(Tag.FLOAT, node -> decimal(((ScalarNode) checked(node)).getValue()));
+      return constructors;
+    }
+
+    private static Node checked(Node node) {
+      if (node instanceof ScalarNode scalar && scalar.getValue().length() > MAX_NUMBER) {
+        throw new Unreadable("The file has a number longer than " + String.format(Locale.US, "%,d", MAX_NUMBER)
+            + " characters.");
+      }
+      return node;
+    }
+
+    private static Object decimal(String text) {
+      if (text.equals(".inf") || text.equals("-.inf") || text.equals(".nan")) {
+        return text;
+      }
+      try {
+        double d = Double.parseDouble(text);
+        if (Double.isFinite(d) && (d != 0 || !nonZero(text))) {
+          return d;
+        }
+        return new BigDecimal(text);
+      } catch (NumberFormatException e) {
+        throw new Unreadable("The file has a number that can't be read: " + clip(text) + ".");
+      }
+    }
+
+    /** Whether a digit other than 0 comes before the exponent of a decimal's text: zero as a double is then wrong. */
+    private static boolean nonZero(String text) {
+      for (int i = 0; i < text.length(); i++) {
+        char c = text.charAt(i);
+        if (c == 'e' || c == 'E') {
+          return false;
+        }
+        if (c >= '1' && c <= '9') {
+          return true;
+        }
+      }
+      return false;
+    }
   }
 
   /**
@@ -138,8 +277,15 @@ final class OpenApiDocument {
       return NODES.nullNode();
     }
     if (value instanceof String s) {
+      if (s.length() > MAX_TEXT) {
+        throw new Rejected("The file has a text value longer than " + String.format(Locale.US, "%,d", MAX_TEXT)
+            + " characters.");
+      }
       spend(budget, s.length());
       return NODES.stringNode(s);
+    }
+    if (value instanceof BigDecimal decimal) {
+      return NODES.numberNode(decimal);
     }
     if (value instanceof Boolean b) {
       return NODES.booleanNode(b);
@@ -154,16 +300,22 @@ final class OpenApiDocument {
       return NODES.numberNode(bi);
     }
     if (value instanceof Double d) {
-      return NODES.numberNode(new BigDecimal(Double.toString(d)));
+      // The constructor keeps a decimal a double can't hold as a BigDecimal; text for anything else, defensively.
+      return Double.isFinite(d) ? NODES.numberNode(new BigDecimal(Double.toString(d))) : NODES.stringNode(d.toString());
     }
     if (value instanceof Float f) {
-      return NODES.numberNode(new BigDecimal(Float.toString(f)));
+      return Float.isFinite(f) ? NODES.numberNode(new BigDecimal(Float.toString(f))) : NODES.stringNode(f.toString());
     }
     if (value instanceof Map<?, ?> map) {
       enter(value, path);
       ObjectNode out = NODES.objectNode();
       for (Map.Entry<?, ?> e : map.entrySet()) {
+        // A key is a scalar (snakeyaml refuses collections as keys), so its text is as long as the file said.
         String key = String.valueOf(e.getKey());
+        if (key.length() > MAX_KEY) {
+          throw new Rejected("The file has a key longer than " + String.format(Locale.US, "%,d", MAX_KEY)
+              + " characters.");
+        }
         spend(budget, key.length());
         out.set(key, tree(e.getValue(), depth + 1, path, budget));
       }

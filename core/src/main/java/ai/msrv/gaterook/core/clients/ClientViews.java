@@ -115,9 +115,23 @@ public final class ClientViews {
    *
    * @param repair   the client already has an entry for this endpoint; Confirm writes it again
    * @param link     an {@code Add to Cursor} link carrying only the endpoint URL, or {@code null}
+   * @param byHand   a Disconnect whose file GateRook can't change: the access ends anyway and the person removes the
+   *                 entry, or {@code null}
    */
   public record Preview(String previewId, String client, String endpoint, String env, String method, boolean repair,
-      List<FileChange> files, List<String> notes, List<String> warnings, String link, Instant expiresAt) {}
+      List<FileChange> files, List<String> notes, List<String> warnings, String link, Instant expiresAt,
+      ByHand byHand) {}
+
+  /**
+   * An entry GateRook left in another application's file because it couldn't change the file (it doesn't parse, is
+   * too large, can't be written, changed after the preview, or sits where this edition doesn't write): the access it
+   * held is revoked all the same, and the person removes the entry there.
+   *
+   * @param file   the file as the person knows it ({@code ~/.codex/config.toml})
+   * @param entry  the entry's name in the file ({@code gaterook-dev})
+   * @param reason why GateRook left the file as it is
+   */
+  public record ByHand(String file, String entry, String reason) {}
 
   /** A browser handoff carrying only the endpoint URL; the client owns its installation and sign-in. */
   public record BrowserSignIn(String link) {}
@@ -148,8 +162,12 @@ public final class ClientViews {
    */
   public record Connected(Link link, String mcpbPath, List<String> notes) {}
 
-  /** What a Disconnect did. */
-  public record Disconnected(String linkId, boolean entryRemoved, int rejectedApprovals, List<String> notes) {}
+  /**
+   * What a Disconnect did. The access always ends; {@code byHand} is the entry left in the file when GateRook couldn't
+   * change it, or {@code null}.
+   */
+  public record Disconnected(String linkId, boolean entryRemoved, int rejectedApprovals, List<String> notes,
+      ByHand byHand) {}
 
   /** The steps of Check (report 03 §5). {@code state}: {@code ok}, {@code warning}, {@code error} or {@code skipped}. */
   public record Check(String linkId, String summary, List<Step> steps) {}
@@ -162,9 +180,12 @@ public final class ClientViews {
   /** What a Restore wrote. */
   public record Restored(String client, String path, String backupId) {}
 
-  /** What Remove bridge did: Claude Desktop's accesses revoked, extensions and entries removed. */
+  /**
+   * What Remove bridge did: Claude Desktop's accesses revoked, extensions and entries removed, and the entries left in
+   * files GateRook couldn't change ({@code byHand}, for the person to remove).
+   */
   public record BridgeRemoved(List<String> revoked, List<String> removedFiles, int rejectedApprovals,
-      List<String> notes) {}
+      List<String> notes, List<ByHand> byHand) {}
 
   /** Manual setup (kit "Manual setup"): the endpoint URL and snippets with {@code ‹token›} in place of a token. */
   public record Manual(String endpoint, String url, String transport, List<OtherEndpoint> others,

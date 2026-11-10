@@ -413,18 +413,38 @@ public class McpDispatcher {
     if (tasks && !t.core()) {
       n.putObject("execution").put("taskSupport", "optional");
     }
-    if (ui && CoreTools.APPROVAL_CARD.equals(t.name())) {
-      n.putObject("_meta").putObject("ui").put("resourceUri", McpAppResource.URI);
-    } else if (ui && CoreTools.SUBMIT_CONNECTION_IMPORT.equals(t.name())) {
-      n.putObject("_meta").putObject("ui").put("resourceUri", ConnectionImportCards.URI);
-    } else if (ui && (CoreTools.APPROVAL_CARD_ACTION.equals(t.name())
-        || CoreTools.OPEN_CONNECTION_IMPORT.equals(t.name()))) {
-      n.putObject("_meta").putObject("ui").putArray("visibility").add("app");
-    } else if (ui && t.meta() != null && t.meta().path("ui").isObject()) {
-      // An MCP server's app, by the URI the endpoint publishes it under: read through the gateway like any resource.
-      n.putObject("_meta").set("ui", t.meta().get("ui").deepCopy());
+    ObjectNode app = ui ? clientUi(t) : null;
+    if (app != null) {
+      n.putObject("_meta").set("ui", app);
     }
     return n;
+  }
+
+  /**
+   * The tool's {@code _meta.ui} for an AI app that renders MCP Apps (ARCHITECTURE.md §5.3, §5.4). MCP Apps lets an
+   * app call the tools of the server that shows it, and to an AI app the endpoint is that server: so every tool says
+   * who may call it. The gateway's cards are shown by {@code approval_card} and {@code submit_connection_import}, and
+   * call only {@code approval_card_action} and {@code open_connection_import}, which only an app may call; the
+   * gateway's other tools are for the model alone. An MCP server's tool says what {@link
+   * ToolCatalog.PublishedTool#clientUi} decides: its app, by the URI the endpoint publishes it under, and model-only
+   * unless an app of its own connection is shown.
+   */
+  static ObjectNode clientUi(ToolCatalog.PublishedTool t) {
+    if (!t.core()) {
+      return t.clientUi();
+    }
+    ObjectNode out = JsonNodeFactory.instance.objectNode();
+    if (CoreTools.APPROVAL_CARD_ACTION.equals(t.name()) || CoreTools.OPEN_CONNECTION_IMPORT.equals(t.name())) {
+      out.putArray("visibility").add("app");
+      return out;
+    }
+    if (CoreTools.APPROVAL_CARD.equals(t.name())) {
+      out.put("resourceUri", McpAppResource.URI);
+    } else if (CoreTools.SUBMIT_CONNECTION_IMPORT.equals(t.name())) {
+      out.put("resourceUri", ConnectionImportCards.URI);
+    }
+    out.putArray("visibility").add("model");
+    return out;
   }
 
   /** Resources come in one page: an endpoint names a handful. */

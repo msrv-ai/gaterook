@@ -144,7 +144,10 @@ public record ToolCall(String callId, String tool, String connection, ObjectNode
 }
 // ── Classification.java ────────────────────────────────────────────────────────────────────────────────────────
 package ai.msrv.gaterook.connector.api; import tools.jackson.databind.JsonNode;
-/** DENY carries the rule id shown in Activity ("prod.sql.block_ddl") and a text for the agent; facts are non-secret. */
+/** DENY carries the rule id shown in Activity ("prod.sql.block_ddl") and a text for the agent; facts are non-secret.
+ *  A plugin's rule id is kept in its own namespace (its PolicyView's rulePrefix; another id is put inside it, and one
+ *  that isn't lower-case words, digits, dashes, underscores and dots becomes "<rulePrefix>.plugin-rule"); its reason
+ *  and hint have invisible characters made visible and are clipped to 500 characters. */
 public record Classification(Kind kind, String ruleId, String reason, String hint, JsonNode facts) {
   public enum Kind { READ, MUTATION, DENY }
   public static Classification read() { return new Classification(Kind.READ, null, null, null, null); }
@@ -156,6 +159,11 @@ public record Classification(Kind kind, String ruleId, String reason, String hin
 package ai.msrv.gaterook.connector.api; import java.util.*; import tools.jackson.databind.JsonNode; import tools.jackson.databind.node.JsonNodeFactory;
 /** The connector's policy section merged by the core (environment → connection → endpoint → tool, only stricter wins). */
 public record PolicyView(Env env, String rulePrefix /* "prod.sql" */, JsonNode section, Limits limits) {
+  /** A merged list whose sources had nothing in common holds only this: no name matches it. */
+  public static final String NOTHING = "\u0000none";
+  /** In a list whose schema says "x-empty": "connector-default", narrowed by the core from an empty list: keep only
+   *  the listed names that an empty list allows too (x-empty "all", the default, or "none" never carry it). */
+  public static final String WITHIN_DEFAULT = "\u0000within-default";
   public PolicyView { if (section == null) section = JsonNodeFactory.instance.objectNode(); }
   public String rule(String id) { return rulePrefix + "." + id; }
   public boolean flag(String key, boolean dflt) { JsonNode n = section.get(key); return n == null || n.isNull() ? dflt : n.asBoolean(dflt); }

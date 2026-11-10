@@ -4,6 +4,7 @@ import ai.msrv.gaterook.connector.api.Classification;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.core.audit.AuditWriter;
+import ai.msrv.gaterook.core.platform.Caller;
 import ai.msrv.gaterook.core.platform.CanonicalJson;
 import ai.msrv.gaterook.core.platform.MaskPolicy;
 import ai.msrv.gaterook.core.platform.Masker;
@@ -66,7 +67,7 @@ public class Calls {
     }
     String sha256 = arguments == null ? null : CanonicalJson.sha256Hex(arguments);
     return new AuditWriter.Call(callId, r.snapshot().slug(), tool, toolKey, connection, env, r.caller(),
-        client(r.caller().clientHint(), r.env().clientInfo()), clientInfo(r.env().clientInfo()), r.env().version(),
+        client(r.caller(), r.env().clientInfo()), clientInfo(r.env().clientInfo()), r.env().version(),
         r.span().traceId(), r.span().spanId(), r.span().fromClient() || facets.has("task"),
         storedArguments(masked, sha256), sha256, facets);
   }
@@ -165,12 +166,19 @@ public class Calls {
   }
 
   /**
-   * The client family for Activity: what the credential implies (a grant's client), else a guess from the name the
-   * client gives itself, shown as "reports itself as …".
+   * The client family for Activity: what the credential implies (a grant's client, an OAuth client GateRook
+   * recognises, the Playground). A named token implies none, so for its calls the family is a guess from the name the
+   * client gives itself, shown only as "reports itself as …" ({@link Caller#familyReported}). Any other credential that
+   * implies no family records none: whoever holds it could give itself any name, and Clients reads an OAuth call's
+   * family as the sign-in being used.
    */
-  static String client(String hint, JsonNode clientInfo) {
+  static String client(Caller caller, JsonNode clientInfo) {
+    String hint = caller.clientHint();
     if (hint != null && !hint.isBlank()) {
       return hint;
+    }
+    if (!Caller.familyReported(caller.kind())) {
+      return null;
     }
     String name = clientInfo == null ? "" : clientInfo.path("name").asString("").toLowerCase(Locale.ROOT);
     if (name.isEmpty()) {

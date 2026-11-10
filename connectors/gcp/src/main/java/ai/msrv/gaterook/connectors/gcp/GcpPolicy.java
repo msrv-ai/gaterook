@@ -13,7 +13,10 @@ import java.util.Set;
  * The Cloud section of an environment's policy as GCP reads it (report 09 §6; one section for GCP and AWS, merged by
  * the core, only stricter wins): which services, locations and resources agents may see, the longest time range of a
  * metrics or log query, data points and items per call. An empty list means "no restriction" (the core's {@code intersect}
- * merge); a list that kept nothing in common holds a value no name matches.
+ * merge), except that sensitive services need to be named; a list that kept nothing in common holds a value no name
+ * matches ({@link PolicyView#NOTHING}). A services list an endpoint or a tool override narrowed from an empty one
+ * ({@code x-empty: connector-default}, marked {@link PolicyView#WITHIN_DEFAULT}) keeps no sensitive service, as the
+ * empty list shows none.
  *
  * <p>{@code regions} are GCP locations here: {@code europe-west1} also allows its zones ({@code europe-west1-b});
  * multi-regions ({@code EU}) and {@code global} are allowed only when listed.
@@ -38,10 +41,26 @@ record GcpPolicy(Env env, List<String> allowedServices, List<String> regions, Li
 
   static GcpPolicy of(PolicyView view, Env env) {
     GcpPolicy d = defaults(env);
-    return new GcpPolicy(env, view.strings("allowedServices"), view.strings("regions"), view.strings("resources"),
+    return new GcpPolicy(env, services(view), view.strings("regions"), view.strings("resources"),
         clamp(view.integer("maxRangeDays", d.maxRangeDays()), 1, 455),
         clamp(view.integer("maxPoints", d.maxPoints()), 10, 100_000),
         clamp(view.integer("maxItems", d.maxItems()), 1, 100));
+  }
+
+  /**
+   * The services list as the core merged it. Narrowed from an empty list, it keeps no sensitive service (an empty list
+   * never shows them); a list left with no service allows none.
+   */
+  private static List<String> services(PolicyView view) {
+    List<String> listed = view.strings("allowedServices");
+    if (!listed.removeIf(PolicyView.WITHIN_DEFAULT::equals)) {
+      return listed;
+    }
+    listed.removeIf(s -> !s.startsWith("\u0000") && Services.sensitive(Services.id(s)));
+    if (listed.isEmpty()) {
+      listed.add(PolicyView.NOTHING);
+    }
+    return listed;
   }
 
   /** Whether the policy lists services at all. */

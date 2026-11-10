@@ -28,6 +28,7 @@ import ai.msrv.gaterook.core.platform.SetupChangeRecorder;
 import ai.msrv.gaterook.core.platform.SetupChangeRecorder.SetupChange;
 import ai.msrv.gaterook.core.platform.Taint;
 import ai.msrv.gaterook.core.secrets.ScopedSecretResolver;
+import ai.msrv.gaterook.core.secrets.SecretOwners;
 import ai.msrv.gaterook.core.secrets.SecretService;
 import java.nio.CharBuffer;
 import java.time.Clock;
@@ -435,6 +436,9 @@ public class ConnectionTester implements DisposableBean {
    * value there, within the test's deadline. {@code next} is a taint of the call, so no answer repeats it.
    *
    * @throws ProblemException 409 when it can't rotate or the source refused, with the connector's words
+   * @throws SecretOwners.RotationOutcomeUnknown when no clear answer came (no answer within the deadline, the
+   *     connector reports the outcome unknown, a timeout or an internal failure, a cancel): the source may use
+   *     {@code next}
    */
   public void rotateAtSource(String connectionId, String field, char[] next) {
     ConnectionConfigs.Stored stored = configs.byId(connectionId).orElseThrow(() -> ProblemException.notFound(
@@ -460,27 +464,36 @@ public class ConnectionTester implements DisposableBean {
         rotator.rotate(ConnectionTexts.fill(cfg, manifest, resolver), resolver, field, next, ctx);
         return null;
       });
+      // Only an answer of the source, or a refusal before anything was sent, means it kept the current value. No
+      // answer in time, a dropped connection while the change ran, a failure inside the connector or a cancel leave
+      // the outcome unknown: the source may already use the new value (SecretService keeps it then).
       try {
         future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
       } catch (TimeoutException e) {
         ctx.cancel();
         future.cancel(true);
-        throw ProblemException.conflict("Rotation didn't finish", "No answer from " + cfg.name() + " within "
-            + timeout.toSeconds() + " s. The current value stays in use.");
+        throw new SecretOwners.RotationOutcomeUnknown("No answer from " + cfg.name() + " within "
+            + timeout.toSeconds() + " s.");
       } catch (ExecutionException e) {
-        if (e.getCause() instanceof ConnectorException refused) {
-          throw ProblemException.conflict("The source refused", masker.text(String.valueOf(refused.getMessage()),
-              taint, MaskPolicy.SECRETS_ONLY).text() + " The current value stays in use.");
+        if (e.getCause() instanceof ConnectorException failed) {
+          String text = masker.text(String.valueOf(failed.getMessage()), taint, MaskPolicy.SECRETS_ONLY).text();
+          ConnectorException.Kind kind = failed.kind();
+          if (kind == ConnectorException.Kind.OUTCOME_UNKNOWN || kind == ConnectorException.Kind.TIMEOUT
+              || kind == ConnectorException.Kind.INTERNAL) {
+            throw new SecretOwners.RotationOutcomeUnknown(text);
+          }
+          throw ProblemException.conflict("The source refused", text + " The current value stays in use.");
         }
         log.warn("Rotation of {} connection {} failed in the connector: {}", manifest.id(), cfg.name(),
             masker.log(String.valueOf(e.getCause())));
-        throw ProblemException.conflict("Rotation failed", "The rotation failed inside the " + manifest.name()
-            + " connector. See core.log. The current value stays in use.");
+        throw new SecretOwners.RotationOutcomeUnknown("The rotation failed inside the " + manifest.name()
+            + " connector. See core.log.");
       } catch (InterruptedException e) {
         ctx.cancel();
         future.cancel(true);
         Thread.currentThread().interrupt();
-        throw ProblemException.conflict("Rotation cancelled", "The current value stays in use.");
+        throw new SecretOwners.RotationOutcomeUnknown("The rotation was cancelled before " + cfg.name()
+            + " answered.");
       }
     }
   }

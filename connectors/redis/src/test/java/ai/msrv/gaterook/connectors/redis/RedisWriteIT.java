@@ -3,7 +3,7 @@ package ai.msrv.gaterook.connectors.redis;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -20,6 +20,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.Protocol;
 import redis.clients.jedis.exceptions.JedisConnectionException;
 import tools.jackson.databind.JsonNode;
 
@@ -161,10 +162,13 @@ class RedisWriteIT {
   }
 
   @Test
-  void losingAWriteReplyNeverReborrowsOrRetries() throws Exception {
+  void losingAWriteReplyNeverReborrowsOrRetriesAndLeavesTheOutcomeUnknown() throws Exception {
     var c = Configs.local(redis).advanced("noTouch", false).build();
     var settings = RedisSettings.parse(c);
     Instant deadline = Instant.now().plusSeconds(10);
+    try (Jedis j = redis.admin()) {
+      j.del("write:once");
+    }
     // Warm the pool, then replace one borrowed connection with a spy that loses the response after sending.
     try (var warm = connector.clients().open(c, settings,
         Credentials.resolve(settings, TestSecrets.password(LocalRedis.DEFAULT_PASSWORD)), deadline)) {
@@ -175,13 +179,40 @@ class RedisWriteIT {
     var connection = spy(borrowed.connection());
     var request = (RedisWrite) RedisRequest.of("redis_rpush",
         TestCtx.JSON.readTree("{\"key\":\"write:once\",\"values\":[\"a\"]}"), c, settings);
-    doThrow(new JedisConnectionException("reply lost")).when(connection).getOne();
+    // The PING that checks the pooled connection is answered; the write reaches Redis, and its reply is lost.
+    doCallRealMethod().doAnswer(invocation -> {
+      invocation.callRealMethod();
+      throw new JedisConnectionException("reply lost");
+    }).when(connection).getOne();
     try (var session = new RedisSession(pool, new RedisClients.Borrowed(connection, true), Clock.systemUTC(), deadline)) {
-      assertThatThrownBy(() -> session.write(request)).isInstanceOf(ConnectorException.class)
-          .hasMessageContaining("may have been applied");
+      assertThatThrownBy(() -> session.write(request)).isInstanceOfSatisfying(ConnectorException.class, e -> {
+        assertThat(e.kind()).isEqualTo(ConnectorException.Kind.OUTCOME_UNKNOWN);
+        assertThat(e.getMessage()).startsWith("Outcome unknown: Redis did not confirm the write")
+            .contains("may have been applied");
+      });
       session.abort();
     }
     verify(pool, times(1)).borrow(any());
-    verify(connection, times(1)).executeCommand(org.mockito.ArgumentMatchers.<redis.clients.jedis.CommandObject<Object>>any());
+    // The PING and the write, once each: the write is never sent again.
+    verify(connection, times(2)).executeCommand(org.mockito.ArgumentMatchers.<redis.clients.jedis.CommandObject<Object>>any());
+    try (Jedis j = redis.admin()) {
+      assertThat(j.lrange("write:once", 0, -1)).as("the write did apply").containsExactly("a");
+    }
+  }
+
+  @Test
+  void aPooledConnectionTheServerClosedIsReplacedBeforeTheWriteIsSent() throws Exception {
+    var c = cfg();
+    try (Jedis j = redis.admin()) {
+      j.del("write:stale");
+      assertThat(write(c, "redis_rpush", "{\"key\":\"write:stale\",\"values\":[\"first\"]}").path("length").asLong())
+          .isEqualTo(1);
+      // The server drops the connection the pool keeps idle for the next call.
+      j.sendCommand(Protocol.Command.CLIENT, "KILL", "USER", "rw");
+
+      assertThat(write(c, "redis_rpush", "{\"key\":\"write:stale\",\"values\":[\"second\"]}").path("length").asLong())
+          .isEqualTo(2);
+      assertThat(j.lrange("write:stale", 0, -1)).containsExactly("first", "second");
+    }
   }
 }

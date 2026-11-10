@@ -501,6 +501,43 @@ class OAuthNegativeIT {
         "application/json"), "{\"x\":\"" + "y".repeat(70_000) + "\"}").status()).isEqualTo(413);
   }
 
+  /**
+   * Parts are parsed only for the signed plugin upload: a multipart body sent anywhere else, on either listener, is
+   * refused before anything reads it, so a chunked body nobody authenticated is never spooled up to the upload limit.
+   * The request sends one chunk and keeps the rest back: a server that parsed the parts would wait for it.
+   */
+  @Test
+  void aMultipartBodyIsRefusedBeforeAnythingReadsIt() throws Exception {
+    assertThat(partsOpened(world.publicPort(), host, "/mcp/stage-readonly", Map.of("CF-Connecting-IP",
+        TunnelWorld.CLAUDE))).startsWith("HTTP/1.1 415");
+    assertThat(partsOpened(world.publicPort(), host, "/oauth/token", Map.of("CF-Connecting-IP", TunnelWorld.CLAUDE)))
+        .startsWith("HTTP/1.1 415");
+    assertThat(partsOpened(world.localPort(), "127.0.0.1:" + world.localPort(), "/mcp/dev", Map.of()))
+        .startsWith("HTTP/1.1 415");
+    assertThat(partsOpened(world.localPort(), "127.0.0.1:" + world.localPort(), "/oauth/token", Map.of()))
+        .startsWith("HTTP/1.1 415");
+  }
+
+  /** The status line of the answer to a chunked multipart request of which only the first chunk is sent. */
+  private static String partsOpened(int port, String hostHeader, String path, Map<String, String> headers)
+      throws java.io.IOException {
+    try (java.net.Socket s = new java.net.Socket("127.0.0.1", port)) {
+      s.setSoTimeout(5_000);
+      StringBuilder rq = new StringBuilder("POST " + path + " HTTP/1.1\r\nHost: " + hostHeader
+          + "\r\nContent-Type: multipart/form-data; boundary=b\r\nTransfer-Encoding: chunked\r\n");
+      headers.forEach((k, v) -> rq.append(k).append(": ").append(v).append("\r\n"));
+      rq.append("\r\n");
+      String part = "--b\r\nContent-Disposition: form-data; name=\"file\"; filename=\"x.bin\"\r\n\r\n"
+          + "z".repeat(1024);
+      rq.append(Integer.toHexString(part.length())).append("\r\n").append(part).append("\r\n");
+      s.getOutputStream().write(rq.toString().getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+      s.getOutputStream().flush();
+      java.io.BufferedReader in = new java.io.BufferedReader(new java.io.InputStreamReader(s.getInputStream(),
+          java.nio.charset.StandardCharsets.US_ASCII));
+      return in.readLine();
+    }
+  }
+
   // ── The local server ────────────────────────────────────────────────────────────────────────────────────────
 
   @Test

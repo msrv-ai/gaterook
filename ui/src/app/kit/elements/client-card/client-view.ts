@@ -366,12 +366,29 @@ export function fileName(display: string | null): string {
   return display.split(/[\\/]/).at(-1) ?? display;
 }
 
-/** What Disconnect removes, revokes and keeps, from the link and its preview. */
+/**
+ * What GateRook can't change in a client's file, for the Disconnect confirm: the access still ends, and the person
+ * removes the entry by hand.
+ */
+export interface DisconnectByHand {
+  readonly title: TextPart[];
+  readonly body: TextPart[];
+}
+
+/**
+ * What Disconnect removes, revokes and keeps, from the link and its preview. When the preview says GateRook can't
+ * change the file (`byHand`), nothing is removed or backed up: `byHand` says which entry the person removes and why.
+ */
 export function disconnectFacts(
   card: ClientCard,
   link: ClientLink,
   preview: ConnectPreview | null,
-): { readonly removes: TextPart[] | null; readonly revokes: TextPart[] | null; readonly backup: string | null } {
+): {
+  readonly removes: TextPart[] | null;
+  readonly revokes: TextPart[] | null;
+  readonly backup: string | null;
+  readonly byHand: DisconnectByHand | null;
+} {
   if (link.method === 'mcpb') {
     // One `.mcpb` per endpoint (kit after KIT: "The bridge extension of dev, gaterook-dev.mcpb"): its file goes,
     // the grant behind it is revoked.
@@ -382,18 +399,33 @@ export function disconnectFacts(
         : literalParts(`The bridge extension of ${link.endpoint}`, [link.endpoint]),
       revokes: literalParts(`The bridge's short-lived token for ${link.endpoint}; no new ones are issued for it`, [link.endpoint]),
       backup: null,
+      byHand: null,
     };
   }
   const file = link.configDisplay ?? card.configDisplay;
-  const entry = link.entryName ? (fileName(file).endsWith('.toml') ? `[mcp_servers.${link.entryName}]` : `"${link.entryName}"`) : null;
-  const removes = entry && file ? literalParts(`${entry} from ${file}`, [entry, file]) : null;
+  const entry = entryLabel(file, link.entryName);
   let revokes: TextPart[] | null = null;
   if (link.grantLabel) {
     const whose = link.method === 'helper' ? "The helper's grant" : link.method === 'config-bridge' ? "The bridge's grant" : 'Access';
     revokes = literalParts(`${whose} ${link.grantLabel}; no new tokens are issued to it`, [link.grantLabel]);
   } else if (link.tokenName) revokes = literalParts(`Token ${link.tokenName}; it stops working on its next call`, [link.tokenName]);
+  const left = preview?.byHand;
+  if (left) {
+    const where = left.file ?? file;
+    const what = entryLabel(where, left.entry ?? link.entryName);
+    const title = where ? literalParts(`GateRook can't change ${where}`, [where]) : literalParts("GateRook can't change the client's file", []);
+    const tail = what && where ? ` Disconnect still revokes the access; remove ${what} from ${where} by hand.` : ' Disconnect still revokes the access; remove the entry by hand.';
+    return { removes: null, revokes, backup: null, byHand: { title, body: literalParts(`${left.reason}${tail}`, [what, where].filter((x): x is string => !!x)) } };
+  }
+  const removes = entry && file ? literalParts(`${entry} from ${file}`, [entry, file]) : null;
   const backup = preview?.files.find((f) => f.backupPath)?.backupPath ?? null;
-  return { removes, revokes, backup };
+  return { removes, revokes, backup, byHand: null };
+}
+
+/** An entry as its file writes it: `[mcp_servers.<name>]` in TOML, `"<name>"` in JSON. */
+export function entryLabel(file: string | null, name: string | null): string | null {
+  if (!name) return null;
+  return fileName(file).endsWith('.toml') ? `[mcp_servers.${name}]` : `"${name}"`;
 }
 
 /**
