@@ -225,8 +225,8 @@ public record TestResult(boolean ok, long latencyMs, String serverVersion, Strin
   public record Hint(Severity severity, String code, String field, String text) {}
   public record Check(String name, boolean ok, long ms, String detail) {}
   public record TestError(String code, String message /* what happened + what to do */, String technical) {}
-  public record Confirmation(String kind /* host-key | tls-cert | exec-plugin */, String text, JsonNode data,
-      JsonNode configPatch /* writes only x-person-only settings */) {}
+  public record Confirmation(String kind /* host-key | tls-cert | kubeconfig-cluster | exec-plugin */, String text,
+      JsonNode data, JsonNode configPatch /* must write only x-person-only settings; not checked at run time */) {}
   public static TestResult success(long latencyMs, String serverVersion, String identity, Permissions p) {
     return new TestResult(true, latencyMs, serverVersion, identity, p, List.of(), List.of(), null, null, null, null, null);
   }
