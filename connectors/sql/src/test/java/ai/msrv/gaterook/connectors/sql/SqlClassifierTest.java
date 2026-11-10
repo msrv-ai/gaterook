@@ -139,6 +139,38 @@ class SqlClassifierTest {
   }
 
   @Test
+  void whatIsRefusedEverywhereStaysRefusedWhenTheParserCountsTheStatementsDifferently() {
+    // The parser takes three line breaks for the end of a statement; the server reads one statement.
+    String sessionControl = "SET statement_timeout = 0\n\n\nUPDATE orders SET a = 1";
+    Analysis a = SqlClassifier.analyze(sessionControl, false);
+    assertThat(a.kind()).isEqualTo(Kind.FORBIDDEN);
+    assertThat(classify(false, "sql_execute", Env.DEV, sessionControl, "").ruleId()).isEqualTo("dev.sql.forbidden");
+
+    String deniedCall = "UPDATE orders SET note = 'a'\n\n\nSELECT pg_cancel_backend(1)";
+    assertThat(SqlClassifier.analyze(deniedCall, false).problem()).contains("where the database would read 1");
+    assertThat(classify(false, "sql_execute", Env.DEV, deniedCall, "").ruleId())
+        .isEqualTo("dev.sql.function-denied");
+
+    // Nothing in it is refused everywhere: still a statement a person may approve on dev, with the reason it wasn't read.
+    String plain = "UPDATE orders SET a = 1\n\n\nUPDATE orders SET b = 2";
+    Classification c = classify(false, "sql_execute", Env.DEV, plain, "");
+    assertThat(c.kind()).isEqualTo(Classification.Kind.MUTATION);
+    assertThat(SqlClassifier.analyze(plain, false).problem()).contains("statement(s) where the database would read 1");
+  }
+
+  @Test
+  void theCommentsMySqlRunsAreReadAsCodeOnlyForWhatIsRefusedEverywhere() {
+    assertThat(SqlClassifier.serverCode("/*!50000 SET a = 1 */ SELECT 1", SqlSyntax.MYSQL))
+        .isEqualTo("         SET a = 1    SELECT 1");
+    assertThat(SqlClassifier.serverCode("SELECT 1 /*M!100100 , 2 */", SqlSyntax.MYSQL))
+        .isEqualTo("SELECT 1            , 2   ");
+    // An optimizer hint holds no statement, and other dialects have no such comments.
+    assertThat(SqlClassifier.serverCode("SELECT /*+ SET_VAR(a = 1) */ 1", SqlSyntax.MYSQL))
+        .isEqualTo("SELECT /*+ SET_VAR(a = 1) */ 1");
+    assertThat(SqlClassifier.serverCode("SELECT /*!1 */ 1", SqlSyntax.POSTGRES)).isEqualTo("SELECT /*!1 */ 1");
+  }
+
+  @Test
   void aFunctionThatRunsAQueryGivenAsTextIsDeniedEvenWhereTheCatalogListsItAsBuiltIn() {
     // Test connection stores every pg_catalog name as built in, ts_stat and ts_rewrite among them.
     for (String name : List.of("ts_stat", "ts_rewrite", "query_to_xml", "query_to_xmlschema")) {
