@@ -257,7 +257,8 @@ final class Session {
       try {
         Process p = stdio.start();
         pids.record(r.cfg().id(), p.toHandle());
-        log.note("Started " + String.join(" ", argv) + " (pid " + p.pid() + ")");
+        log.note("Started " + String.join(" ", argv) + " (pid " + p.pid() + ")"
+            + (launcher.sandbox() == null ? ", not sandboxed on this system" : ""));
       } catch (IOException e) {
         throw ConnectorException.unavailable("Couldn't start " + command + ": " + Texts.clean(e.getMessage(), 300,
             false), e);

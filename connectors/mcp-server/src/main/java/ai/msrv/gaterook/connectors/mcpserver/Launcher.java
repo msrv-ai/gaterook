@@ -1,5 +1,6 @@
 package ai.msrv.gaterook.connectors.mcpserver;
 
+import ai.msrv.gaterook.connector.api.ConnectorException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -36,8 +37,17 @@ import java.util.stream.Stream;
  * bridge is started from its own argv ({@code gw-bridge.argv} beside the shim), not through {@code gw-bridge.cmd},
  * so a server's arguments never go through {@code cmd.exe}. Elsewhere it runs as the person's user and the review
  * says so.
+ *
+ * <p>Whether the sandbox works is asked of the bridge ({@code sandbox-exec -- true}): it confines the probe (exit 0),
+ * or says this system has no sandbox (exit 4), and either answer is kept. Anything else is no answer (a launcher the
+ * core wrote but that isn't there, one that fails or doesn't finish): then no server and no {@code npm ci} starts,
+ * since running one unconfined is what the probe is there to rule out, and the next look asks again.
  */
 final class Launcher {
+
+  private static final System.Logger LOG = System.getLogger(Launcher.class.getName());
+  /** The bridge's exit code for "no sandbox on this system" ({@code Sandbox.NO_SANDBOX}). */
+  static final int NO_SANDBOX = 4;
 
   /** The variables a process gets from the core besides PATH, as the SDK's {@code ServerParameters} chose them. */
   private static final List<String> UNIX_BASICS = List.of("HOME", "LOGNAME", "SHELL", "TERM", "USER", "LANG");
@@ -54,11 +64,36 @@ final class Launcher {
   private final Path gatewayHome;
   private final String path;
   private final Path sandboxLauncher;
-  /** On Windows, the bridge's own argv from {@code gw-bridge.argv}; empty elsewhere or without one. */
-  private final List<String> windowsBridge;
+  /**
+   * Whether the core wrote {@link #sandboxLauncher} for this run ({@code McpServerRuntime.Bridge.WRITTEN}): a launcher
+   * that isn't there is then no answer about the sandbox, not "no sandbox".
+   */
+  private final boolean launcherWritten;
+  /** On Windows, the bridge's own argv from {@code gw-bridge.argv}, read at each probe; else empty. */
+  private volatile List<String> windowsBridge = List.of();
   private final Supplier<Set<Integer>> corePorts;
-  private final String sandbox;
+  /** What the last probe found: kept once it is an answer, asked again while it isn't. */
+  private volatile Probe probe;
+  private final Object probing = new Object();
   private final Map<String, Optional<String>> nodeVersions = new ConcurrentHashMap<>();
+
+  /**
+   * What a look at the sandbox found: the sandbox servers run in, {@code null} where this system has none, or why the
+   * probe couldn't tell ({@code unknown}), which is no answer.
+   */
+  record Probe(String sandbox, String unknown) {
+
+    static final Probe NONE = new Probe(null, null);
+
+    static Probe unknown(String why) {
+      return new Probe(null, Objects.requireNonNull(why, "why"));
+    }
+
+    /** Whether the probe said something: the sandbox works here, or this system has none. */
+    boolean answered() {
+      return unknown == null;
+    }
+  }
 
   /** A launcher that closes no port to the servers (tests). */
   Launcher(Map<String, String> coreEnv, String osName, boolean loginShellPath, Path gatewayHome,
@@ -66,15 +101,24 @@ final class Launcher {
     this(coreEnv, osName, loginShellPath, gatewayHome, sandboxLauncher, Set::of);
   }
 
+  /** A launcher of a host that keeps no bridge launcher itself (tests): no launcher there means no sandbox. */
+  Launcher(Map<String, String> coreEnv, String osName, boolean loginShellPath, Path gatewayHome,
+      Path sandboxLauncher, Supplier<Set<Integer>> corePorts) {
+    this(coreEnv, osName, loginShellPath, gatewayHome, sandboxLauncher, false, corePorts);
+  }
+
   /**
    * @param loginShellPath whether to ask {@code $SHELL -ilc} for the PATH a terminal would have (off in tests)
    * @param gatewayHome GateRook's home ({@code ~/.gaterook}), where the servers' work folders are
-   * @param sandboxLauncher {@code ~/.gaterook/bin/gw-bridge}, used when its {@code sandbox-exec} works here
+   * @param sandboxLauncher {@code ~/.gaterook/bin/gw-bridge}, used when its {@code sandbox-exec} works here;
+   *                        {@code null} where this build has no bridge
+   * @param launcherWritten whether the core wrote {@code sandboxLauncher} for this run: one that isn't there, or that
+   *                        fails, then starts nothing until a later probe gets an answer
    * @param corePorts the core's own listeners ({@code McpServerRuntime.Host.corePorts()}), read for every argv: the
    *                  sandbox closes them to the process
    */
   Launcher(Map<String, String> coreEnv, String osName, boolean loginShellPath, Path gatewayHome,
-      Path sandboxLauncher, Supplier<Set<Integer>> corePorts) {
+      Path sandboxLauncher, boolean launcherWritten, Supplier<Set<Integer>> corePorts) {
     this.corePorts = Objects.requireNonNull(corePorts, "corePorts");
     this.coreEnv = Map.copyOf(coreEnv);
     String os = osName.toLowerCase(Locale.ROOT);
@@ -85,8 +129,8 @@ final class Launcher {
     this.gatewayHome = gatewayHome;
     this.path = computePath(loginShellPath);
     this.sandboxLauncher = sandboxLauncher;
-    this.windowsBridge = windows ? windowsBridge(sandboxLauncher) : List.of();
-    this.sandbox = probeSandbox();
+    this.launcherWritten = launcherWritten && sandboxLauncher != null;
+    look();
   }
 
   /** The bridge's own argv ({@code gw-bridge.argv} beside the shim, one argument a line), or empty. */
@@ -109,15 +153,61 @@ final class Launcher {
 
   /**
    * The sandbox of a server the person keeps off this computer: an AppContainer on Windows where the bridge works,
-   * else the sandbox every server gets.
+   * else the sandbox every server gets; {@code null} where there is none or while it couldn't be checked.
    */
   String sandbox(boolean offThisComputer) {
+    return sandbox(look(), offThisComputer);
+  }
+
+  /** {@link #sandbox(boolean)} for what one look found. */
+  String sandbox(Probe look, boolean offThisComputer) {
+    String sandbox = look.sandbox();
     return windows && sandbox != null && offThisComputer ? "appcontainer" : sandbox;
   }
 
-  /** {@code landlock}, {@code sandbox-exec}, {@code low-integrity}, or {@code null} where servers run unconfined. */
+  /**
+   * {@code landlock}, {@code sandbox-exec}, {@code low-integrity}, or {@code null} where servers run unconfined, or
+   * while the sandbox couldn't be checked ({@link #look()} says which).
+   */
   String sandbox() {
-    return sandbox;
+    return look().sandbox();
+  }
+
+  /**
+   * What the probe found: kept once it answered (the sandbox works, or this system has none), asked again while it
+   * couldn't tell. A look that couldn't tell is logged, so the core's log says why nothing starts.
+   */
+  Probe look() {
+    Probe p = probe;
+    if (p != null && p.answered()) {
+      return p;
+    }
+    synchronized (probing) {
+      p = probe;
+      if (p == null || !p.answered()) {
+        p = probeSandbox();
+        probe = p;
+        if (!p.answered()) {
+          LOG.log(System.Logger.Level.WARNING, "GateRook couldn't check that its sandbox works here ({0}): no MCP "
+              + "server starts until it can", p.unknown());
+        }
+      }
+      return p;
+    }
+  }
+
+  /**
+   * The sandbox a start runs in, or {@code null} where this system has none.
+   *
+   * @throws ConnectorException when the sandbox couldn't be checked: nothing is started without it
+   */
+  private String sandboxForStart() throws ConnectorException {
+    Probe p = look();
+    if (!p.answered()) {
+      throw ConnectorException.unavailable("GateRook couldn't check that its sandbox works here (" + p.unknown()
+          + "), so it doesn't start the server without it. It checks again at the next start.", null);
+    }
+    return p.sandbox();
   }
 
   /** The executable {@code command} names on the PATH (PATHEXT on Windows), or empty. */
@@ -183,7 +273,7 @@ final class Launcher {
    * Sandboxed, HOME is the work folder (npx keeps its cache there and the person's home stays closed).
    */
   Map<String, String> environment(ServerConfig server, Map<String, String> secrets, Path workDir) {
-    return environment(server.inheritEnv(), secrets, workDir, sandbox != null);
+    return environment(server.inheritEnv(), secrets, workDir, look().sandbox() != null);
   }
 
   /**
@@ -217,7 +307,7 @@ final class Launcher {
       env.put("HOME", workDir.toString());
       env.put("TMPDIR", workDir.resolve("tmp").toString());
       env.put("npm_config_cache", workDir.resolve(".npm").toString());
-      if (windows && sandbox != null) {
+      if (windows && look().sandbox() != null) {
         // At low integrity the process writes only its work folder: it is its profile there too, as HOME is on
         // Unix. The bridge creates these folders before it drops.
         env.put("USERPROFILE", workDir.toString());
@@ -237,15 +327,19 @@ final class Launcher {
   /**
    * argv as it starts: the resolved command, wrapped by {@code gw-bridge sandbox-exec} where it works, which closes
    * the core's ports as they are now to the process ({@code --deny-tcp}, ascending).
+   *
+   * @throws ConnectorException when the sandbox couldn't be checked: nothing starts without it
    */
-  List<String> argv(Path command, List<String> args, Path workDir) {
+  List<String> argv(Path command, List<String> args, Path workDir) throws ConnectorException {
     return argv(command, args, workDir, false);
   }
 
   /**
    * {@link #argv(Path, List, Path)} for a server the person may keep off this computer: an AppContainer on Windows.
    */
-  List<String> argv(Path command, List<String> args, Path workDir, boolean offThisComputer) {
+  List<String> argv(Path command, List<String> args, Path workDir, boolean offThisComputer)
+      throws ConnectorException {
+    String sandbox = sandboxForStart();
     List<String> out = new ArrayList<>();
     if (sandbox != null && windows) {
       // Low integrity, or an AppContainer: the work folder is all it writes; the core refuses its connections to
@@ -261,18 +355,10 @@ final class Launcher {
       out.add("sandbox-exec");
       out.add("--rw");
       out.add(workDir.toString());
-      // The command's installation (an nvm or Volta tree in the home folder): its lib/ beside bin/. Landlock opens
-      // all of a --ro path, so never the home or a folder above it (a command in ~/bin or in the home itself), nor
-      // GateRook's home or a folder in it: they hold GateRook's data and the credentials. Nor the folder of all work
-      // folders, which can lie elsewhere behind a link (a command in a work folder is read through --rw).
-      Path bin = realPath(command).getParent();
-      Path tree = bin == null ? null : bin.getParent();
-      Path workFolders = gatewayHome.resolve("mcp");
-      if (tree != null && within(tree, userHome) && !within(userHome, tree) && !within(tree, gatewayHome)
-          && !within(gatewayHome, tree) && !within(tree, workFolders) && !within(workFolders, tree)) {
+      installation(command).ifPresent(tree -> {
         out.add("--ro");
         out.add(tree.toString());
-      }
+      });
       for (int port : closedPorts()) {
         out.add("--deny-tcp");
         out.add(Integer.toString(port));
@@ -282,6 +368,23 @@ final class Launcher {
     out.add(command.toString());
     out.addAll(args);
     return out;
+  }
+
+  /**
+   * The command's installation (an nvm or Volta tree in the home folder): its lib/ beside bin/. Landlock opens all of
+   * a --ro path, so never the home or a folder above it (a command in ~/bin or in the home itself), nor GateRook's
+   * home or a folder in it: they hold GateRook's data and the credentials. Nor the folder of all work folders, which
+   * can lie elsewhere behind a link (a command in a work folder is read through --rw).
+   */
+  private Optional<Path> installation(Path command) {
+    Path bin = realPath(command).getParent();
+    Path tree = bin == null ? null : bin.getParent();
+    Path workFolders = gatewayHome.resolve("mcp");
+    if (tree != null && within(tree, userHome) && !within(userHome, tree) && !within(tree, gatewayHome)
+        && !within(gatewayHome, tree) && !within(tree, workFolders) && !within(workFolders, tree)) {
+      return Optional.of(tree);
+    }
+    return Optional.empty();
   }
 
   /** The core's listeners as they are now, ascending; what isn't a port (0: a web server not bound yet) is left out. */
@@ -360,23 +463,33 @@ final class Launcher {
     }
   }
 
-  /** Whether {@code gw-bridge sandbox-exec} confines a process on this system: one probe at start. */
-  private String probeSandbox() {
+  /**
+   * Whether {@code gw-bridge sandbox-exec} confines a process on this system: the sandbox's name when it confined the
+   * probe, {@link Probe#NONE} when the bridge says this system has none ({@link #NO_SANDBOX}) or there is no bridge,
+   * else no answer, with the reason.
+   */
+  private Probe probeSandbox() {
     List<String> probe;
     if (windows) {
+      // Read again at each probe: the core may write it after a look that found none.
+      windowsBridge = windowsBridge(sandboxLauncher);
       if (windowsBridge.isEmpty()) {
-        return null;
+        return launcherWritten ? Probe.unknown("the bridge's argv " + sandboxLauncher.resolveSibling("gw-bridge.argv")
+            + " isn't there") : Probe.NONE;
       }
       String root = coreEnv.getOrDefault("SystemRoot", coreEnv.getOrDefault("SYSTEMROOT", "C:\\Windows"));
       probe = new ArrayList<>(windowsBridge);
       probe.addAll(List.of("sandbox-exec", "--", Path.of(root, "System32", "cmd.exe").toString(), "/c", "exit", "0"));
     } else {
-      if (sandboxLauncher == null || !Files.isExecutable(sandboxLauncher)) {
-        return null;
+      if (sandboxLauncher == null) {
+        return Probe.NONE;
+      }
+      if (!Files.isExecutable(sandboxLauncher)) {
+        return launcherWritten ? Probe.unknown("its launcher " + sandboxLauncher + " isn't there") : Probe.NONE;
       }
       Optional<Path> truth = resolve("true", userHome);
       if (truth.isEmpty()) {
-        return null;
+        return Probe.unknown("there is no true on the PATH GateRook gives servers to try it with");
       }
       probe = List.of(sandboxLauncher.toString(), "sandbox-exec", "--", truth.get().toString());
     }
@@ -388,19 +501,26 @@ final class Launcher {
       Process p = pb.start();
       p.getOutputStream().close();
       if (!p.waitFor(10, TimeUnit.SECONDS)) {
-        p.destroyForcibly();
-        return null;
+        ProcessTree.stop(p.toHandle(), java.time.Duration.ofMillis(200));
+        return Probe.unknown("its probe didn't finish in 10 s");
       }
-      p.getInputStream().readAllBytes();
-      if (p.exitValue() != 0) {
-        return null;
+      String said = new String(p.getInputStream().readNBytes(4096), StandardCharsets.UTF_8).strip();
+      int code = p.exitValue();
+      if (code == 0) {
+        return new Probe(windows ? "low-integrity" : mac ? "sandbox-exec" : "landlock", null);
       }
-      return windows ? "low-integrity" : mac ? "sandbox-exec" : "landlock";
+      if (code == NO_SANDBOX) {
+        LOG.log(System.Logger.Level.INFO, "MCP servers run without a sandbox on this system: {0}",
+            Texts.clean(said, 300, false));
+        return Probe.NONE;
+      }
+      String first = Texts.clean(said.lines().findFirst().orElse(""), 200, false);
+      return Probe.unknown("its probe exited with " + code + (first.isEmpty() ? "" : ": " + first));
     } catch (IOException e) {
-      return null;
+      return Probe.unknown("its probe couldn't run: " + Texts.clean(String.valueOf(e.getMessage()), 200, false));
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      return null;
+      return Probe.unknown("its probe was interrupted");
     }
   }
 

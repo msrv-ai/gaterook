@@ -109,6 +109,42 @@ class ClientDriftWatcherTest {
     }
   }
 
+  /**
+   * The bridge launcher is written when the MCP server runtime asks for it, before it first probes the sandbox, which
+   * can be before this watcher's first pass: whoever asks first writes it, once per run, and hears whether this build
+   * has a bridge. A launcher that couldn't be written is written at the next call.
+   */
+  @Test
+  void theLauncherIsWrittenWhenTheRuntimeAsksOncePerRun() throws Exception {
+    ClientService clients = mock(ClientService.class);
+    Path jar = java.nio.file.Files.writeString(dir.resolve("gw-bridge.jar"), "jar");
+    ClientEnvironment env = new ClientEnvironment(ClientEnvironment.Os.LINUX, dir, dir.resolve(".gaterook"), null,
+        Map.of(), true, "laptop");
+    java.nio.file.Files.createDirectories(dir.resolve(".gaterook"));
+    // Something in the way of the bin folder: not written, and asked again later.
+    Path blocker = java.nio.file.Files.writeString(dir.resolve(".gaterook/bin"), "not a folder");
+    ClientDriftWatcher watcher = new ClientDriftWatcher(clients, env, new EventBus(Clock.systemUTC()), jar.toString());
+
+    assertThat(watcher.prepare()).as("this build has a bridge (the development jar)").isTrue();
+    assertThat(env.shim()).doesNotExist();
+
+    java.nio.file.Files.delete(blocker);
+    assertThat(watcher.prepare()).isTrue();
+    assertThat(java.nio.file.Files.readString(env.shim())).contains(jar.toString());
+    // Once per run: a second call doesn't write it again.
+    java.nio.file.Files.writeString(env.shim(), "# as this run wrote it\n");
+    assertThat(watcher.prepare()).isTrue();
+    assertThat(java.nio.file.Files.readString(env.shim())).isEqualTo("# as this run wrote it\n");
+
+    // A build without the bridge: the launcher says so to clients, and the runtime hears there is no sandbox.
+    Path other = java.nio.file.Files.createDirectories(dir.resolve("other"));
+    ClientEnvironment none = new ClientEnvironment(ClientEnvironment.Os.LINUX, other, other.resolve(".gaterook"),
+        null, Map.of(), true, "laptop");
+    ClientDriftWatcher without = new ClientDriftWatcher(clients, none, new EventBus(Clock.systemUTC()), "");
+    assertThat(without.prepare()).isFalse();
+    assertThat(java.nio.file.Files.readString(none.shim())).contains("isn't installed with this build");
+  }
+
   private static ClientViews.Card card(String client, String status) {
     return new ClientViews.Card(client, client, status, status, "", "", true, List.of(), null, List.of(), List.of(),
         List.of());

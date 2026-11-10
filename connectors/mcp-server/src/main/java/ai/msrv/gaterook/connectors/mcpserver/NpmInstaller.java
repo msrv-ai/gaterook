@@ -30,7 +30,8 @@ import tools.jackson.databind.node.ObjectNode;
  * where it works), with the work folder as its {@code HOME}, its npm cache and its temporary folder: an install script
  * writes nothing else, so nothing it plants (a login item, a shell profile, a package in a cache the person's own
  * tools share) runs outside the sandbox later, and its sockets can't reach the core's own ports. Where there is no
- * sandbox it runs as the person's user, as the server does, and the review says so.
+ * sandbox it runs as the person's user, as the server does, and the review says so; while the sandbox couldn't be
+ * checked nothing is installed ({@link Launcher#look}).
  */
 final class NpmInstaller {
 
@@ -60,6 +61,12 @@ final class NpmInstaller {
       throw ConnectorException.badInput("The catalog's lockfile doesn't pin " + pkg.name() + "@" + pkg.version()
           + " with the integrity of the catalog entry, so it isn't installed.");
     }
+    List<String> args = new ArrayList<>(List.of("ci", "--no-audit", "--no-fund", "--loglevel=error"));
+    if (pkg.ignoreScripts()) {
+      args.add("--ignore-scripts");
+    }
+    // Before anything is written: a sandbox that couldn't be checked installs nothing.
+    List<String> argv = launcher.argv(npm.get(), args, workDir);
     Session.prepare(workDir);
     try {
       ObjectNode manifest = Texts.JSON.createObjectNode();
@@ -72,11 +79,7 @@ final class NpmInstaller {
     } catch (IOException e) {
       throw ConnectorException.unavailable("Couldn't write the server's folder " + workDir + ": " + e.getMessage(), e);
     }
-    List<String> args = new ArrayList<>(List.of("ci", "--no-audit", "--no-fund", "--loglevel=error"));
-    if (pkg.ignoreScripts()) {
-      args.add("--ignore-scripts");
-    }
-    run(launcher.argv(npm.get(), args, workDir), workDir, env, timeout, "npm ci");
+    run(argv, workDir, env, timeout, "npm ci");
     verify(workDir, pkg.integrity());
     Path bin = binOf(workDir, pkg);
     long millis = (System.nanoTime() - started) / 1_000_000;

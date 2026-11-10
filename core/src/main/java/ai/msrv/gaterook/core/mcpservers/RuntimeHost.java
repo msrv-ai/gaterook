@@ -7,6 +7,7 @@ import ai.msrv.gaterook.core.connections.ConnectionRemovalParticipant;
 import ai.msrv.gaterook.core.connectors.ConnectionNotified;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.mcpservers.internal.persistence.McpServerRepository;
+import ai.msrv.gaterook.core.platform.BridgeLauncher;
 import ai.msrv.gaterook.core.platform.EventBus;
 import ai.msrv.gaterook.core.platform.GatewayPaths;
 import java.nio.file.Path;
@@ -24,10 +25,11 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The core as the MCP server runtime's host: the gateway's home, the core's own ports (closed to sandboxed servers),
- * the names no server may take, what a start listed (into the snapshot), state changes (SSE {@code mcp-server.state})
- * and starts of servers set to start with the core. It attaches once every singleton exists; the runtime does nothing
- * slow there (warm start ≤ 0.5 s).
+ * The core as the MCP server runtime's host: the gateway's home, the bridge launcher sandboxed servers start through
+ * (written before the runtime first asks whether the sandbox works), the core's own ports (closed to sandboxed
+ * servers), the names no server may take, what a start listed (into the snapshot), state changes (SSE
+ * {@code mcp-server.state}) and starts of servers set to start with the core. It attaches once every singleton exists;
+ * the runtime does nothing slow there (warm start ≤ 0.5 s).
  *
  * <p>It also takes part in the deletion of a connection: the snapshot row and the sign-in go in the deletion's
  * transaction, the process stops after it (the type's connector hears {@code onConnectionRemoved}) and the sign-in's
@@ -48,11 +50,13 @@ class RuntimeHost implements McpServerRuntime.Host, SmartInitializingSingleton, 
   private final ObjectProvider<McpServerSignIns> signIns;
   private final ApplicationEventPublisher publisher;
   private final EgressClients egress;
+  private final ObjectProvider<BridgeLauncher> bridge;
 
   RuntimeHost(ObjectProvider<McpServerRuntime> runtime, GatewayPaths paths, ObjectProvider<ConnectorRegistry> registry,
       ObjectProvider<McpServerService> service, ObjectProvider<ConnectionConfigs> configs,
       McpServerRepository repository, McpServerSource source, EventBus events,
-      ObjectProvider<McpServerSignIns> signIns, ApplicationEventPublisher publisher, EgressClients egress) {
+      ObjectProvider<McpServerSignIns> signIns, ApplicationEventPublisher publisher, EgressClients egress,
+      ObjectProvider<BridgeLauncher> bridge) {
     this.runtime = runtime;
     this.paths = paths;
     this.registry = registry;
@@ -64,6 +68,7 @@ class RuntimeHost implements McpServerRuntime.Host, SmartInitializingSingleton, 
     this.signIns = signIns;
     this.publisher = publisher;
     this.egress = egress;
+    this.bridge = bridge;
   }
 
   @Override
@@ -91,6 +96,19 @@ class RuntimeHost implements McpServerRuntime.Host, SmartInitializingSingleton, 
   @Override
   public Path home() {
     return paths.home();
+  }
+
+  /**
+   * The clients module writes the launcher ({@link BridgeLauncher}), once per run: a core without that module keeps
+   * none, and the runtime then asks what is there.
+   */
+  @Override
+  public McpServerRuntime.Bridge prepareBridge() {
+    BridgeLauncher b = bridge.getIfAvailable();
+    if (b == null) {
+      return McpServerRuntime.Bridge.AS_FOUND;
+    }
+    return b.prepare() ? McpServerRuntime.Bridge.WRITTEN : McpServerRuntime.Bridge.NONE;
   }
 
   /** The listeners the egress guard keeps every client from, as they are now (the bootstrap's and the bound port). */
