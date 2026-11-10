@@ -6,10 +6,16 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import ai.msrv.gaterook.core.platform.GatewayPaths;
 import ai.msrv.gaterook.core.platform.SealedHandles;
 import ai.msrv.gaterook.plugin.protocol.GppJson;
+import java.io.IOException;
+import java.net.StandardProtocolFamily;
+import java.net.UnixDomainSocketAddress;
+import java.nio.channels.ServerSocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Clock;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -124,10 +130,10 @@ class HostLauncherTest {
     assertThat(launcher.macProfile(spec, data)).contains("(remote ip \"*:51234\")", "(local ip \"*:51234\")")
         .doesNotContain("*:7465");
 
-    // None known: nothing is closed, and the network isn't handled.
+    // None known: no port is closed.
     corePorts.set(Set.of());
     assertThat(launcher.command(java, hostJar, spec, data, false, "landlock")).doesNotContain("--deny-tcp");
-    assertThat(launcher.macProfile(spec, data)).doesNotContain("(deny network");
+    assertThat(launcher.macProfile(spec, data)).doesNotContain("(remote ip").doesNotContain("network-bind");
   }
 
   @Test
@@ -179,6 +185,116 @@ class HostLauncherTest {
     Matcher folder = Pattern.compile("String WORK_FOLDERS = \"([^\"]*)\";").matcher(source);
     assertThat(folder.find()).as("Sandbox.WORK_FOLDERS in " + sandbox).isTrue();
     assertThat(HostLauncher.WORK_FOLDERS).isEqualTo(folder.group(1));
+    Matcher closed = Pattern.compile("List<String> MAC_CLOSED = List\\.of\\(([^;]*)\\);").matcher(source);
+    assertThat(closed.find()).as("Sandbox.MAC_CLOSED in " + sandbox).isTrue();
+    assertThat(HostLauncher.MAC_CLOSED).containsExactlyElementsOf(Pattern.compile("\"([^\"]*)\"")
+        .matcher(closed.group(1)).results().map(m -> m.group(1)).toList());
+    Matcher resolver = Pattern.compile("String MAC_RESOLVER = \"([^\"]*)\";").matcher(source);
+    assertThat(resolver.find()).as("Sandbox.MAC_RESOLVER in " + sandbox).isTrue();
+    assertThat(HostLauncher.MAC_RESOLVER).isEqualTo(resolver.group(1));
+  }
+
+  /**
+   * The profile also closes what would have something outside the sandbox act for the plugin, after the file rules and
+   * before the port rules: Launch Services, Apple events, preference writes, signals outside its sandbox, and Unix
+   * sockets but the resolver's and its data folder's.
+   */
+  @Test
+  void theMacProfileClosesWhatWouldActForThePluginOutsideItsSandbox() throws Exception {
+    Path jar = Files.writeString(tmp.resolve("plugin.jar"), "plugin");
+    HostLauncher.Spec spec = new HostLauncher.Spec("x", "1.0.0", jar, "00", 256, Map.of(), List.of());
+    Path data = Files.createDirectories(paths.dataDir("x")).toRealPath();
+    String profile = launcher.macProfile(spec, data);
+
+    assertThat(profile).contains("(deny lsopen appleevent-send user-preference-write)\n")
+        .contains("(deny signal)\n(allow signal (target same-sandbox))\n")
+        .contains("(deny network-outbound (remote unix-socket))\n")
+        .contains("(allow network-outbound (remote unix-socket (path-literal \"/private/var/run/mDNSResponder\")) "
+            + "(remote unix-socket (subpath \"" + profilePath(data) + "\")))\n")
+        .endsWith("(deny network-bind (local ip \"*:7465\") (local ip \"*:7466\"))\n");
+    assertThat(profile.indexOf("(deny lsopen")).isGreaterThan(profile.lastIndexOf("(allow file-read"));
+  }
+
+  /**
+   * macOS, the real profile: an application the plugin wrote in its data folder isn't started by Launch Services
+   * (it would run unconfined), no preference is written for it, a process of the person's outside its sandbox can't
+   * be signalled, and a Unix socket outside its data folder can't be reached; its own children and sockets work.
+   */
+  @Test
+  void onMacOsNothingOutsideTheSandboxActsForThePlugin() throws Exception {
+    assumeTrue(System.getProperty("os.name").startsWith("Mac") && Files.isExecutable(Path.of("/usr/bin/sandbox-exec")),
+        "macOS with sandbox-exec");
+    assumeTrue(Files.isExecutable(Path.of("/usr/bin/perl")), "perl");
+    // A Unix socket's path holds at most 104 bytes: a short folder in the system's temporary folder.
+    Path base = Files.createTempDirectory(Path.of("/private/tmp"), "gwp").toRealPath();
+    String domain = "dev.gaterook.plugin-sandbox-test-" + ProcessHandle.current().pid() + "-" + System.nanoTime();
+    Process victim = new ProcessBuilder("/bin/sleep", "120").start();
+    try {
+      GatewayPaths shortHome = GatewayPaths.open(base.resolve("h"));
+      try {
+        PluginPaths shortPaths = new PluginPaths(shortHome);
+        HostRuntimeLocator runtime = new HostRuntimeLocator(null, hostJar.toString());
+        HostLauncher shortLauncher = new HostLauncher(runtime, shortPaths, new SecretCallbackRegistry(),
+            new SealedHandles((purpose, d) -> new byte[32], GppJson.MAPPER, Clock.systemUTC()),
+            new AotCacheManager(runtime, shortPaths, false), new HostPids(shortPaths.pidFile()), corePorts::get,
+            Clock.systemUTC());
+        Path jar = Files.createDirectories(shortPaths.versionDir("p", "1.0.0")).resolve("plugin.jar");
+        Files.writeString(jar, "plugin");
+        HostLauncher.Spec spec = new HostLauncher.Spec("p", "1.0.0", jar, "00", 256, Map.of(), List.of());
+        Path data = Files.createDirectories(shortPaths.dataDir("p")).toRealPath();
+        Path outside = Files.createDirectories(base.resolve("o"));
+        Path launched = outside.resolve("launched");
+        Path app = Files.createDirectories(data.resolve("Probe.app/Contents/MacOS"));
+        Files.writeString(app.getParent().resolve("Info.plist"), """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0"><dict><key>CFBundleExecutable</key><string>probe</string>
+            <key>CFBundleIdentifier</key><string>%s</string><key>CFBundlePackageType</key><string>APPL</string>
+            <key>LSBackgroundOnly</key><true/></dict></plist>
+            """.formatted(domain));
+        Path probe = Files.writeString(app.resolve("probe"), "#!/bin/sh\n/usr/bin/touch '" + launched + "'\n");
+        Files.setPosixFilePermissions(probe, PosixFilePermissions.fromString("rwx------"));
+        try (var agent = listen(outside.resolve("agent.sock")); var own = listen(data.resolve("own.sock"))) {
+          String script = "/usr/bin/open -g '" + data.resolve("Probe.app") + "' 2>/dev/null; echo \"open: $?\"; "
+              + "/usr/bin/defaults write " + domain + " probe 1 2>/dev/null; echo \"defaults: $?\"; "
+              + "kill -TERM " + victim.pid() + " 2>/dev/null; echo \"signal other: $?\"; "
+              + "/bin/sleep 30 & child=$!; kill -TERM $child; echo \"signal child: $?\"; "
+              + "/usr/bin/perl -MIO::Socket::UNIX -e 'for my $p (@ARGV) { my $c = IO::Socket::UNIX->new(Type => "
+              + "SOCK_STREAM(), Peer => $p); print \"connect $p: \", ($c ? \"ok\" : \"$!\"), \"\\n\" }' '"
+              + outside.resolve("agent.sock") + "' '" + data.resolve("own.sock") + "'";
+          Process p = new ProcessBuilder("/usr/bin/sandbox-exec", "-p", shortLauncher.macProfile(spec, data),
+              "/bin/sh", "-c", script).start();
+          p.getOutputStream().close();
+          String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+          String err = new String(p.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+          assertThat(p.waitFor(60, TimeUnit.SECONDS)).isTrue();
+
+          assertThat(out).as(err).doesNotContain("open: 0").doesNotContain("defaults: 0")
+              .doesNotContain("signal other: 0").contains("signal child: 0")
+              .contains("connect " + outside.resolve("agent.sock") + ": Operation not permitted")
+              .contains("connect " + data.resolve("own.sock") + ": ok");
+          Thread.sleep(1_500);
+          assertThat(launched).doesNotExist();
+          assertThat(victim.isAlive()).isTrue();
+        }
+      } finally {
+        shortHome.close();
+      }
+    } finally {
+      victim.destroyForcibly();
+      new ProcessBuilder("/usr/bin/defaults", "delete", domain).redirectErrorStream(true).start().waitFor();
+      try (var paths = Files.walk(base)) {
+        for (Path p : paths.sorted(Comparator.reverseOrder()).toList()) {
+          Files.deleteIfExists(p);
+        }
+      }
+    }
+  }
+
+  private static ServerSocketChannel listen(Path socket) throws IOException {
+    ServerSocketChannel s = ServerSocketChannel.open(StandardProtocolFamily.UNIX);
+    s.bind(UnixDomainSocketAddress.of(socket));
+    return s;
   }
 
   /**

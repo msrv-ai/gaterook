@@ -53,7 +53,10 @@ import java.util.stream.IntStream;
  * folder of all work folders (also where a link at {@code mcp} leads), the usual credential folders and the configs of
  * the connected clients, and denies writing anywhere but the {@code --rw} paths, the temporary folders and the devices
  * (the API is deprecated, but works on macOS 27): a login item, a shell profile or a package in a cache shared with
- * the person's own tools, written from inside, would run unconfined later.
+ * the person's own tools, written from inside, would run unconfined later. Nor may it have anything outside the
+ * sandbox act for it: it can't open applications, scripts or documents through Launch Services, send Apple events,
+ * write preferences, signal a process outside its sandbox, or connect to a Unix socket other than the system's
+ * resolver and its own folders' (a container command-line tool also reaches its engine's) ({@link #macProfile}).
  * The core gives a server its work folder as {@code HOME}, so {@code npx} and {@code uvx} keep their caches there.
  * Reading is open there except for the denied paths, so {@code --ro} adds nothing; {@code --no-defaults} can't be
  * honored and is refused with exit 4 unless {@code --allow-unsandboxed}. Seatbelt judges the path a link leads to, and
@@ -244,7 +247,7 @@ final class Sandbox {
             + "GateRook's data and the credentials");
       }
       List<String> wrapped = new ArrayList<>(List.of("/usr/bin/sandbox-exec", "-p", macProfile(closed,
-          r.readWrite(), r.deniedPorts(), env.get("TMPDIR"))));
+          r.readWrite(), r.deniedPorts(), env.get("TMPDIR"), containerSockets(executable))));
       wrapped.addAll(argv);
       return exec(wrapped, env, err);
     }
@@ -360,6 +363,26 @@ final class Sandbox {
 
   /** The folder of all MCP server work folders in GateRook's home: each server's is {@code mcp/<connection>}. */
   static final String WORK_FOLDERS = "mcp";
+
+  /**
+   * What the macOS profile denies a command besides files and ports: Launch Services opens ({@code lsopen}: an
+   * application, a script or a document, one the command wrote included, would start outside this sandbox), Apple
+   * events (another application would act for it) and preference writes (cfprefsd would write another program's
+   * settings for it). The plugin host's profile denies the same ({@code HostLauncher.MAC_CLOSED}).
+   */
+  static final List<String> MAC_CLOSED = List.of("lsopen", "appleevent-send", "user-preference-write");
+
+  /** The system's resolver: a name is looked up through this Unix socket on macOS. */
+  static final String MAC_RESOLVER = "/private/var/run/mDNSResponder";
+
+  /**
+   * The container command-line tools whose engine's Unix socket the macOS profile opens to them: the command a
+   * container-based server is started with talks to the engine, and the server itself runs in the container.
+   */
+  static final Set<String> CONTAINER_CLIS = Set.of("docker", "podman", "nerdctl");
+
+  /** Where container engines on macOS put the socket that the container command-line tools use by default. */
+  static final String CONTAINER_SOCKET = "/var/run/docker.sock";
 
   /**
    * What no grant may open: the person's home (from the account, not {@code HOME}, which the core sets to the work
@@ -815,6 +838,17 @@ final class Sandbox {
    * on its way ({@link Closed#link}); {@link #run} refuses the start before that, so the profile is also right when
    * a link is put there after the check.
    *
+   * <p>The profile starts from {@code (allow default)}, so what else a program does is open unless it is denied here:
+   * {@link #MAC_CLOSED} (Launch Services, Apple events, preference writes: each would have something outside the
+   * sandbox act for the command, an application it wrote itself or another program's settings included), signals to
+   * any process outside its own sandbox (the person's other programs, the core), and connecting to a Unix socket
+   * anywhere but the system's resolver ({@link #MAC_RESOLVER}), the {@code --rw} paths and its {@code TMPDIR}: the
+   * person's SSH agent, a container engine, a terminal multiplexer's or an editor's socket would each act for it
+   * outside the sandbox. A container command-line tool ({@link #CONTAINER_CLIS}) reaches its engine's socket
+   * ({@code containerSockets}), since that is what it is started for. Seatbelt judges a socket by the path it really
+   * has, so a link to another socket opens nothing. Mach services stay open (the keychain daemon and the pasteboard
+   * among them), as do creating hard links in the writable folders, which the kernel refuses for a file elsewhere.
+   *
    * <p>The network is open but for the {@code --deny-tcp} ports, which the command may neither connect to nor bind,
    * on every host: Seatbelt takes only {@code *} or {@code localhost} as a host, and a rule for {@code localhost} lets
    * {@code ::ffff:0.0.0.0} through, the IPv4-mapped wildcard that the kernel connects to {@code 127.0.0.1} (checked
@@ -825,12 +859,23 @@ final class Sandbox {
   }
 
   static String macProfile(Closed closed, List<String> readWrite, Set<Integer> deniedPorts, String tmpDir) {
+    return macProfile(closed, readWrite, deniedPorts, tmpDir, List.of());
+  }
+
+  /**
+   * @param sockets Unix sockets the command may connect to besides its own folders and the resolver: a container
+   *                engine's, for a container command-line tool ({@code containerSockets})
+   */
+  static String macProfile(Closed closed, List<String> readWrite, Set<Integer> deniedPorts, String tmpDir,
+      List<String> sockets) {
     StringBuilder b = new StringBuilder("(version 1)\n(allow default)\n(deny file-write* (subpath \"/\"))\n");
     List<Path> writable = new ArrayList<>(List.of(Path.of("/dev"), Path.of("/tmp"), Path.of("/private/tmp")));
+    Path ownTmp = null;
     if (tmpDir != null && !tmpDir.isBlank()) {
       Path tmp = Path.of(tmpDir);
       if (closed.refusal(tmp, true) == null && closed.link(tmp) == null) {
         writable.add(tmp);
+        ownTmp = tmp;
       }
     }
     for (Path p : writable) {
@@ -868,6 +913,25 @@ final class Sandbox {
       }
       b.append(")\n");
     }
+    b.append("(deny ").append(String.join(" ", MAC_CLOSED)).append(")\n");
+    b.append("(deny signal)\n(allow signal (target same-sandbox))\n");
+    b.append("(deny network-outbound (remote unix-socket))\n");
+    b.append("(allow network-outbound\n  (remote unix-socket (path-literal ").append(sbplString(MAC_RESOLVER))
+        .append("))\n");
+    java.util.LinkedHashSet<String> own = new java.util.LinkedHashSet<>();
+    for (String rw : readWrite) {
+      own.addAll(closed.grantForms(Path.of(rw)));
+    }
+    if (ownTmp != null) {
+      own.addAll(closed.grantForms(ownTmp));
+    }
+    for (String form : own) {
+      b.append("  (remote unix-socket (subpath ").append(sbplString(form)).append("))\n");
+    }
+    for (String socket : sockets) {
+      b.append("  (remote unix-socket (path-literal ").append(sbplString(socket)).append("))\n");
+    }
+    b.append(")\n");
     if (!deniedPorts.isEmpty()) {
       // Several filters in one rule are OR'ed; "*" is every host, the mapped wildcard included.
       Set<Integer> ports = new TreeSet<>(deniedPorts);
@@ -878,6 +942,20 @@ final class Sandbox {
       b.append(")\n");
     }
     return b.toString();
+  }
+
+  /**
+   * The Unix sockets a container command-line tool ({@link #CONTAINER_CLIS}) may connect to on macOS:
+   * {@link #CONTAINER_SOCKET} as given and where it leads (Docker Desktop, OrbStack and Podman's helper link it into
+   * the person's home), since Seatbelt judges a socket by the path it really has. The tool's own settings in
+   * {@code ~/.docker} are closed to it ({@link #DENIED}), so that is the socket it uses. Empty for any other command.
+   */
+  static List<String> containerSockets(Path executable) {
+    Path name = executable.getFileName();
+    if (name == null || !CONTAINER_CLIS.contains(name.toString().toLowerCase(Locale.ROOT))) {
+      return List.of();
+    }
+    return canonicalForms(Path.of(CONTAINER_SOCKET));
   }
 
   /**
