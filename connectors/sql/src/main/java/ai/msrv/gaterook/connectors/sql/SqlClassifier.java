@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.Alias;
@@ -19,6 +20,7 @@ import net.sf.jsqlparser.expression.AnalyticExpression;
 import net.sf.jsqlparser.expression.ArrayExpression;
 import net.sf.jsqlparser.expression.CastExpression;
 import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.JsonAggregateFunction;
 import net.sf.jsqlparser.expression.JsonExpression;
 import net.sf.jsqlparser.expression.KeepExpression;
 import net.sf.jsqlparser.expression.MySQLGroupConcat;
@@ -28,7 +30,9 @@ import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.VariableAssignment;
 import net.sf.jsqlparser.expression.operators.relational.FullTextSearch;
 import net.sf.jsqlparser.expression.operators.relational.IsUnknownExpression;
+import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
+import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.Commit;
 import net.sf.jsqlparser.statement.DescribeStatement;
@@ -47,6 +51,9 @@ import net.sf.jsqlparser.statement.alter.AlterSession;
 import net.sf.jsqlparser.statement.alter.AlterSystemStatement;
 import net.sf.jsqlparser.statement.create.schema.CreateSchema;
 import net.sf.jsqlparser.statement.create.table.ColDataType;
+import net.sf.jsqlparser.statement.create.table.CreateTable;
+import net.sf.jsqlparser.statement.create.view.AlterView;
+import net.sf.jsqlparser.statement.create.view.CreateView;
 import net.sf.jsqlparser.statement.delete.Delete;
 import net.sf.jsqlparser.statement.drop.Drop;
 import net.sf.jsqlparser.statement.execute.Execute;
@@ -159,6 +166,9 @@ final class SqlClassifier {
   private static final Pattern ORACLE_SEQUENCE = Pattern.compile("(?i)\\b(?:NEXTVAL|CURRVAL)\\b");
   private static final Pattern ORACLE_PACKAGE = Pattern.compile("(?i)\\b(?:DBMS_[A-Z0-9_$#]*|UTL_[A-Z0-9_$#]*)\\s*\\.");
   private static final Pattern ORACLE_INLINE_PLSQL = Pattern.compile("(?i)\\bWITH\\s+(?:FUNCTION|PROCEDURE)\\b");
+  /** The word SELECT in code, not the end or the start of a longer name. */
+  private static final Pattern SELECT_KEYWORD = Pattern.compile("(?<![\\p{L}\\p{N}_$#@])SELECT(?![\\p{L}\\p{N}_$#@])",
+      Pattern.CASE_INSENSITIVE);
 
   /**
    * The parser waits on its own task to stop at a deadline; without an executor every parse would start a platform
@@ -178,7 +188,6 @@ final class SqlClassifier {
   }
 
   static Analysis analyze(String sql, SqlSyntax syntax) {
-    boolean mysql = syntax == SqlSyntax.MYSQL;
     if (sql == null || sql.isBlank()) {
       return unparsed(List.of(), "The statement is empty.");
     }
@@ -197,11 +206,15 @@ final class SqlClassifier {
           + "server runs or applies what the gateway reads as a comment.");
     }
     List<String> pieces = scan.statements();
+    // The parser reads what the server's lexer reads, not the text as sent; what can't be made to match is not read.
+    String text = SqlParserText.of(scan, syntax);
+    if (text == null) {
+      return byFirstWords(pieces, syntax);
+    }
     Statements statements;
     try {
-      statements = CCJSqlParserUtil.parseStatements(parserText(scan, syntax), PARSER,
-          p -> p.withTimeOut(PARSE_TIMEOUT_MS).withBackslashEscapeCharacter(mysql)
-              .withSquareBracketQuotation(syntax == SqlSyntax.SQLSERVER));
+      statements = CCJSqlParserUtil.parseStatements(text, PARSER,
+          p -> SqlParserText.configure(p, syntax).withTimeOut(PARSE_TIMEOUT_MS));
     } catch (JSQLParserException | RuntimeException e) {
       return byFirstWords(pieces, syntax);
     }
@@ -214,12 +227,14 @@ final class SqlClassifier {
           + "read " + pieces.size() + ".");
     }
     List<StatementFacts> facts = new ArrayList<>();
+    String doubt = null;
     for (int i = 0; i < statements.size(); i++) {
-      StatementFacts f = facts(statements.get(i), pieces.get(i), syntax);
-      String session = sessionState(pieces.get(i), syntax);
-      if (syntax == SqlSyntax.SQLSERVER && f.kind() == Kind.READ && !(statements.get(i) instanceof Select)) {
-        f = new StatementFacts(Kind.UNPARSED, f.type(), f.tables(), f.targets(), f.functions());
+      Checked checked = checked(statements.get(i), pieces.get(i), syntax);
+      StatementFacts f = checked.facts();
+      if (doubt == null) {
+        doubt = checked.doubt();
       }
+      String session = sessionState(pieces.get(i), syntax);
       facts.add(session == null ? f : new StatementFacts(Kind.FORBIDDEN, session, f.tables(), f.targets(),
           f.functions()));
     }
@@ -229,7 +244,7 @@ final class SqlClassifier {
         kind = f.kind();
       }
     }
-    String problem = kind == Kind.UNPARSED ? "The gateway couldn't analyze " + facts.stream()
+    String problem = kind == Kind.UNPARSED ? doubt != null ? doubt : "The gateway couldn't analyze " + facts.stream()
         .filter(f -> f.kind() == Kind.UNPARSED).findFirst().map(StatementFacts::type).orElse("it") + "." : null;
     return new Analysis(kind, List.copyOf(facts), problem, false);
   }
@@ -335,20 +350,6 @@ final class SqlClassifier {
     return null;
   }
 
-  /** Normalize alternative strings only for analysis; execution retains the original dialect text. */
-  private static String parserText(SqlLexer.Scan scan, SqlSyntax syntax) {
-    if (syntax != SqlSyntax.ORACLE) {
-      return scan.sql();
-    }
-    StringBuilder text = new StringBuilder(scan.sql().length());
-    for (SqlLexer.Segment segment : scan.segments()) {
-      String value = scan.sql().substring(segment.start(), segment.end());
-      boolean alternative = segment.kind() == SqlLexer.Kind.STRING && value.charAt(0) != '\'';
-      text.append(alternative ? "'literal'" : value);
-    }
-    return text.toString();
-  }
-
   private static String identifierCode(SqlLexer.Scan scan) {
     StringBuilder text = new StringBuilder();
     for (SqlLexer.Segment segment : scan.segments()) {
@@ -371,7 +372,15 @@ final class SqlClassifier {
 
   // ── One statement ───────────────────────────────────────────────────────────────────────────────────────────
 
-  private static StatementFacts facts(Statement st, String piece, SqlSyntax syntax) {
+  /**
+   * The facts of one statement.
+   *
+   * @param doubt why the statement was made UNPARSED although the parser read it, in words for the agent;
+   *              {@code null} when the facts are the parser's own
+   */
+  private record Checked(StatementFacts facts, String doubt) {}
+
+  private static Checked checked(Statement st, String piece, SqlSyntax syntax) {
     Collector c = new Collector();
     List<String> tables;
     try {
@@ -404,7 +413,61 @@ final class SqlClassifier {
       // walk doesn't reach.
       c.functions.addAll(SqlCalls.calls(piece, syntax, c.notCalls));
     }
-    return new StatementFacts(kind, type, tables, targets, List.copyOf(c.functions));
+    StatementFacts facts = new StatementFacts(kind, type, tables, targets, List.copyOf(c.functions));
+    String doubt = kind.ordinal() <= Kind.DDL.ordinal() ? doubt(st, piece, syntax, kind, tables, c) : null;
+    return doubt == null ? new Checked(facts, null)
+        : new Checked(new StatementFacts(Kind.UNPARSED, type, tables, targets, facts.functions()), doubt);
+  }
+
+  /**
+   * Why a statement the parser read must not be trusted, or {@code null}: the gateway reads the text by the server's
+   * tokens too, and where the two don't agree it is not analyzed (fail closed).
+   *
+   * <ul>
+   *   <li>SQL Server: a read is exactly one query by T-SQL's tokens ({@link SqlServerBatch}); the parser may take
+   *       a reserved statement word for an alias and read the rest of a batch as part of the first statement.</li>
+   *   <li>The SELECT keywords in the code are as many as the SELECTs the walk over the parse tree visited. A subquery
+   *       in a position the walk doesn't enter would otherwise skip the allowlist and the database selection, as
+   *       a call in such a position would skip the function rules without {@link SqlCalls}.</li>
+   * </ul>
+   */
+  private static String doubt(Statement st, String piece, SqlSyntax syntax, Kind kind, List<String> tables,
+      Collector c) {
+    if (syntax == SqlSyntax.SQLSERVER && kind == Kind.READ) {
+      if (!(st instanceof Select)) {
+        return "SQL Server runs only a SELECT as a read.";
+      }
+      if (!SqlServerBatch.oneQuery(piece)) {
+        return "SQL Server needs no separator between statements, so it may read this as more than one.";
+      }
+    }
+    if (tables != null && queryBearing(st) && selectKeywords(piece, syntax) != c.selects.size()) {
+      return "The gateway couldn't match every SELECT in it with a query it analyzed.";
+    }
+    return null;
+  }
+
+  /**
+   * Statements whose SELECT keywords are all queries: others use the word for privileges, policies and rules.
+   *
+   * <p>The reads left out need no count: {@code SHOW}, {@code SHOW TABLES} and {@code SHOW COLUMNS} have no table list
+   * (the walk can't list them, or {@link #checked} drops it), so a subquery in their {@code WHERE} or {@code LIKE}
+   * fails a restricted allowlist and the database selection as a whole; {@code DESCRIBE} holds a table name and no
+   * expression. {@code VALUES} and {@code TABLE} are SELECTs to the parser.
+   */
+  private static boolean queryBearing(Statement st) {
+    return st instanceof Select || st instanceof Insert || st instanceof Update || st instanceof Delete
+        || st instanceof Merge || st instanceof Upsert || st instanceof ExplainStatement
+        || st instanceof CreateTable || st instanceof CreateView || st instanceof AlterView;
+  }
+
+  /** The SELECT keywords in the code of a statement, as the server's lexer reads it. */
+  static int selectKeywords(String statement, SqlSyntax syntax) {
+    int count = 0;
+    for (Matcher m = SELECT_KEYWORD.matcher(SqlLexer.scan(statement, syntax).code()); m.find(); ) {
+      count++;
+    }
+    return count;
   }
 
   static Kind kindOf(Statement st, Collector c, boolean mysql) {
@@ -525,14 +588,18 @@ final class SqlClassifier {
    * data-changing statement inside it (a CTE with {@code DELETE … RETURNING}).
    *
    * <p>{@link TablesNamesFinder} stops short of some expressions (a window's {@code PARTITION BY}, an aggregate's
-   * {@code ORDER BY}, {@code KEEP}, {@code GROUP_CONCAT}, JSON operators, {@code AT TIME ZONE}, subscripts); the
-   * overrides below walk them. {@link SqlCalls} covers what is left for reads.
+   * {@code ORDER BY}, {@code KEEP}, {@code GROUP_CONCAT}, JSON operators, {@code AT TIME ZONE}, subscripts, the
+   * operands of JSON aggregates, the escape of {@code LIKE}, the {@code TOP} expression); the overrides below walk
+   * them. {@link SqlCalls} covers what is left for functions, and {@link #selects} for subqueries: a SELECT in the
+   * text that the walk never reached makes the statement not analyzed.
    */
   static final class Collector extends TablesNamesFinder<Void> {
     final Set<FunctionRef> functions = new LinkedHashSet<>();
     final Set<String> castTypes = new LinkedHashSet<>();
     /** Names the parser placed before a parenthesis that isn't a call: column lists of aliases and CTEs, types. */
     final Map<String, Integer> notCalls = new HashMap<>();
+    /** The SELECTs the walk visited, each once (it reaches a WITH list from the statement and from its SELECT). */
+    final Set<Object> selects = Collections.newSetFromMap(new IdentityHashMap<>());
     /** The walk reaches some nodes twice (a WITH list from the statement and from its SELECT): count each once. */
     private final Set<Object> counted = Collections.newSetFromMap(new IdentityHashMap<>());
     boolean lock;
@@ -584,6 +651,13 @@ final class SqlClassifier {
     private <S> void orderBy(List<OrderByElement> elements, S context) {
       if (elements != null) {
         elements.forEach(e -> walk(e.getExpression(), context));
+      }
+    }
+
+    /** A key or value that JSqlParser keeps as an object: an expression, or text it only prints. */
+    private <S> void walkOperand(Object operand, S context) {
+      if (operand instanceof Expression e) {
+        walk(e, context);
       }
     }
 
@@ -664,6 +738,22 @@ final class SqlClassifier {
     }
 
     @Override
+    public <S> Void visit(LikeExpression like, S context) {
+      walk(like.getEscape(), context);
+      return super.visit(like, context);
+    }
+
+    @Override
+    public <S> Void visit(JsonAggregateFunction json, S context) {
+      walkOperand(json.getKey(), context);
+      walkOperand(json.getValue(), context);
+      orderBy(json.getExpressionOrderByElements(), context);
+      walkEach(json.getPartitionExpressionList(), context);
+      orderBy(json.getOrderByElements(), context);
+      return super.visit(json, context);
+    }
+
+    @Override
     public <S> Void visit(JsonExpression json, S context) {
       walkEach(json.getIdents(), context);
       return super.visit(json, context);
@@ -673,6 +763,13 @@ final class SqlClassifier {
     public <S> Void visit(TimezoneExpression timezone, S context) {
       walkEach(timezone.getTimezoneExpressions(), context);
       return super.visit(timezone, context);
+    }
+
+    @Override
+    public <S> Void visit(Column column, S context) {
+      // A subscript of a column, col[expr]: TablesNamesFinder reads the column's table only.
+      walk(column.getArrayConstructor(), context);
+      return super.visit(column, context);
     }
 
     @Override
@@ -734,9 +831,13 @@ final class SqlClassifier {
 
     @Override
     public <S> Void visit(PlainSelect ps, S context) {
+      selects.add(ps);
       lock |= ps.getForMode() != null || ps.getForUpdate() != null;
       into |= ps.getIntoTables() != null && !ps.getIntoTables().isEmpty();
       mysqlInto |= ps.getMySqlSelectIntoClause() != null;
+      if (ps.getTop() != null) {
+        walk(ps.getTop().getExpression(), context);
+      }
       super.visit(ps, context);
       if (ps.getWindowDefinitions() != null) {
         ps.getWindowDefinitions().forEach(w -> walkEach(w.getAllExpressions(), context));

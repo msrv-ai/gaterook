@@ -35,6 +35,119 @@ class SqlServerSafetyTest {
     assertThat(query(sql, null, null).kind()).as(sql).isEqualTo(Classification.Kind.READ);
   }
 
+  /**
+   * T-SQL needs no statement separator, and some of its reserved statement words are plain aliases to the parser:
+   * text that is not exactly one query by the server's own tokens is not a read, whatever the parser makes of it.
+   */
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "SELECT 1 DELETE FROM dbo.orders",
+      "SELECT 1 FROM dbo.orders COMMIT",
+      "SELECT 1 UNION SELECT 2 DELETE FROM dbo.orders",
+      // A quoted name made of a line break, followed by a statement word that is not reserved.
+      "SELECT 1 FROM dbo.orders \"\n\" RECEIVE TOP(1) * FROM dbo.queue",
+      "SELECT 1 FROM dbo.orders [\n] RECEIVE TOP(1) * FROM dbo.queue",
+      // A dot after a number is not a name separator.
+      "SELECT 1. DELETE FROM dbo.orders",
+      // A reserved statement word among the common table expressions is not a name there.
+      "WITH a AS (SELECT 1 AS x), truncate AS (SELECT 2 AS y) SELECT x FROM a"
+  })
+  void aSecondStatementWithoutASeparatorIsNotARead(String sql) {
+    assertThat(SqlClassifier.analyze(sql, DIALECT).kind()).as(sql).isEqualTo(SqlClassifier.Kind.UNPARSED);
+    assertThat(query(sql, null, null).ruleId()).as(sql).isEqualTo("dev.sql.unparsed");
+    assertThat(execute(sql, null, null).ruleId()).as(sql).isEqualTo("dev.sql.unparsed");
+  }
+
+  /** The clause words of one SELECT, and statement words that are only quoted names or text, stay reads. */
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "SELECT id FROM dbo.orders ORDER BY id OFFSET 10 ROWS FETCH NEXT 5 ROWS ONLY",
+      "SELECT TOP (5) WITH TIES id FROM dbo.orders ORDER BY id",
+      "SELECT CASE WHEN id > 1 THEN N'a' ELSE N'b' END FROM dbo.orders",
+      "SELECT id FROM dbo.orders WITH (NOLOCK) WHERE id IN (1, 2)",
+      "SELECT id FROM dbo.orders UNION ALL SELECT id FROM dbo.customers",
+      "SELECT id FROM dbo.orders o WHERE EXISTS (SELECT 1 FROM dbo.customers c WHERE c.id = o.customer_id)",
+      "WITH a AS (SELECT 1 AS x), b AS (SELECT 2 AS y) SELECT * FROM a CROSS JOIN b",
+      "SELECT o.id FROM dbo.orders AS o INNER JOIN dbo.customers AS c ON c.id = o.customer_id "
+          + "LEFT JOIN dbo.items i ON i.order_id = o.id WHERE o.id BETWEEN 1 AND 5 AND c.name LIKE N'a%' "
+          + "ORDER BY o.id DESC",
+      "SELECT id FROM dbo.orders FOR JSON AUTO",
+      "SELECT id FROM dbo.orders FOR BROWSE",
+      "SELECT id FROM dbo.orders OPTION (RECOMPILE)",
+      "SELECT (SELECT 1) AS x",
+      "SELECT CURRENT_TIMESTAMP, COALESCE(NULL, 1), NULLIF(1, 2), IIF(1 = 1, 'a', 'b')",
+      "SELECT 1 AS [commit], 'DELETE FROM dbo.orders' AS [text] FROM dbo.orders WHERE [update] IS NULL",
+      "WITH r (n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM r WHERE n < 5) SELECT n FROM r OPTION (MAXRECURSION 10)",
+      "SELECT status, SUM(total) OVER (PARTITION BY status ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND "
+          + "CURRENT ROW) FROM dbo.orders",
+      "SELECT DISTINCT TOP 10 status, COUNT(*) AS c FROM dbo.orders WHERE created >= DATEADD(month, -1, GETDATE()) "
+          + "GROUP BY status HAVING COUNT(*) > 5 ORDER BY c DESC",
+      "SELECT o.id, c.name FROM dbo.orders o LEFT OUTER JOIN dbo.customers c ON c.id = o.customer_id "
+          + "WHERE c.name IS NOT NULL AND o.id <> ALL (SELECT id FROM dbo.archived)",
+      "SELECT 0x1F, 1e5, 1.5E-3, N'x', @@VERSION",
+      // A reserved word after a dot is a column of a catalog view, not a statement word.
+      "SELECT c.precision FROM sys.columns c",
+      "SELECT c.name, c.max_length, c.precision, c.scale FROM sys.columns c WHERE c.object_id = OBJECT_ID('dbo.orders')"
+  })
+  void clauseWordsAndQuotedStatementWordsStayReads(String sql) {
+    assertThat(query(sql, null, null).kind()).as(sql).isEqualTo(Classification.Kind.READ);
+  }
+
+  /** The parser's table walk skipped a TOP expression and a LIKE escape: their subqueries meet the table rules. */
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "SELECT TOP ((SELECT COUNT(*) FROM dbo.Secrets)) id FROM dbo.Orders",
+      "SELECT id FROM dbo.Orders WHERE name LIKE N'a%' ESCAPE (SELECT MAX(code) FROM dbo.Secrets)"
+  })
+  void subqueriesInSkippedOperandPositionsMeetTheTableAllowlist(String sql) {
+    ObjectNode policy = Fixtures.object();
+    policy.putArray("allowlist").add("dbo.Orders");
+    assertThat(query(sql, policy, null).ruleId()).as(sql).isEqualTo("dev.sql.table-not-allowed");
+  }
+
+  /** Statements the parser reads as reads but that are not a SELECT, such as DESCRIBE, are not reads on SQL Server. */
+  @ParameterizedTest
+  @ValueSource(strings = {"DESCRIBE dbo.orders", "EXPLAIN SELECT 1"})
+  void onlyASelectIsARead(String sql) {
+    SqlClassifier.Analysis a = SqlClassifier.analyze(sql, DIALECT);
+
+    assertThat(a.kind()).as(sql).isEqualTo(SqlClassifier.Kind.UNPARSED);
+    assertThat(a.problem()).as(sql).contains("only a SELECT");
+  }
+
+  /**
+   * A bracketed name with an escaped closing bracket is one name to T-SQL, while the parser's lexer ends it at the
+   * first bracket: such text is not analyzed. Other bracketed names are.
+   */
+  @Test
+  void aBracketedNameWithAnEscapedBracketIsNotAnalyzed() {
+    assertThat(SqlClassifier.analyze("SELECT [a]]b] FROM dbo.orders", DIALECT).kind())
+        .isEqualTo(SqlClassifier.Kind.UNPARSED);
+    assertThat(query("SELECT [a]]b] FROM dbo.orders", null, null).ruleId()).isEqualTo("dev.sql.unparsed");
+    assertThat(query("SELECT [a b] FROM [dbo].[orders]", null, null).kind()).isEqualTo(Classification.Kind.READ);
+  }
+
+  /**
+   * A change whose SELECT the table walk never reached is not analyzed: with a restricted allowlist sql_execute refuses
+   * it, where the tables the walk did list would pass.
+   */
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "INSERT INTO dbo.Orders (id) SELECT id FROM dbo.Orders FOR SYSTEM_TIME AS OF (SELECT MAX(changed) FROM dbo.Secrets)",
+      "UPDATE dbo.Orders SET id = 1 FROM dbo.Orders FOR SYSTEM_TIME AS OF (SELECT MAX(changed) FROM dbo.Secrets)",
+      "DELETE FROM dbo.Orders WHERE id IN (SELECT id FROM dbo.Orders FOR SYSTEM_TIME AS OF "
+          + "(SELECT MAX(changed) FROM dbo.Secrets))",
+      "MERGE INTO dbo.Orders o USING (SELECT id FROM dbo.Orders FOR SYSTEM_TIME AS OF "
+          + "(SELECT MAX(changed) FROM dbo.Secrets)) s ON o.id = s.id WHEN MATCHED THEN DELETE",
+      "CREATE TABLE dbo.Copied AS SELECT id FROM dbo.Orders FOR SYSTEM_TIME AS OF (SELECT MAX(changed) FROM dbo.Secrets)",
+      "CREATE VIEW dbo.Recent AS SELECT id FROM dbo.Orders FOR SYSTEM_TIME AS OF (SELECT MAX(changed) FROM dbo.Secrets)"
+  })
+  void aChangeWithASelectTheWalkNeverReachedIsNotAccepted(String sql) {
+    ObjectNode policy = Fixtures.object();
+    policy.putArray("allowlist").add("dbo.Orders").add("dbo.Copied").add("dbo.Recent");
+    assertThat(execute(sql, policy, null).ruleId()).as(sql).isEqualTo("dev.sql.unparsed");
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {
       "SELECT NEXT VALUE FOR dbo.order_sequence",
