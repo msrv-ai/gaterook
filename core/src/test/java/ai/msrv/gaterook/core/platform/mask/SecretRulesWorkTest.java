@@ -91,11 +91,71 @@ class SecretRulesWorkTest {
   void noBudgetLetsASecretThrough(String rule, String text, String secret) {
     long needed = used(text);
     // From nothing to exactly enough, so that the budget runs out before the match attempt of the keyword, inside it
-    // and just before its end: the keyword's own window is withheld whole, never passed unchecked.
+    // and just before its end: the secret is never passed unchecked. These secrets are short; how far the withheld
+    // window reaches is pinned by noBudgetLetsALongSecretThrough.
     for (long budget = 0; budget <= needed; budget++) {
       String out = SecretRules.apply(text, MASK, new MaskCounter(), new Work(text, budget));
       assertThat(out).as("budget %d of %d", budget, needed).doesNotContain(secret);
     }
+  }
+
+  private static int reach(String ruleId) {
+    return SecretRules.ALL.stream().filter(rule -> rule.id().equals(ruleId)).findFirst().orElseThrow().after();
+  }
+
+  /** A secret of exactly {@code chars} characters that ends in a 'Z', which nothing else in these texts contains. */
+  private static String secret(String unit, int chars) {
+    return repeat(unit, chars - 1).substring(0, chars - 1) + "Z";
+  }
+
+  /**
+   * Texts with one keyword and a secret that runs to the end of the keyword's window (a URL password: to the longest
+   * the rule accepts, 256 characters), and the start of that secret. The rule named by the case is the only one with a
+   * keyword in its text, so nothing else covers the secret, and the marker at its end shows a window that is even one
+   * character short.
+   */
+  static Stream<Arguments> longSecrets() {
+    String bearer = "Bearer ";
+    String client = "secret=";
+    // The token is as long as the window of its first 'eyJ'; the payload's own 'eyJ' reaches 37 characters further.
+    String jwtHead = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.";
+    // A user name and a password of the longest size the rule accepts: 3 + 256 + 1 + 256 + 1 characters from '://'.
+    String user = repeat("Us1", 256).substring(0, 256);
+    return Stream.of(
+        Arguments.of("bearer-token",
+            "Authorization: " + bearer + secret("Ab3", reach("bearer-token") - bearer.length()) + " done",
+            "Ab3Ab3Ab3Ab3"),
+        Arguments.of("kv-password",
+            "login failed client_" + client + secret("Xy7", reach("kv-password") - client.length()) + " user=bob",
+            "Xy7Xy7Xy7Xy7"),
+        Arguments.of("url-credentials",
+            "dsn postgres://" + user + ":" + secret("Qw9", 256) + "@db.dev.internal/app", "Qw9Qw9Qw9Qw9"),
+        Arguments.of("jwt",
+            "id " + jwtHead + secret("Lm5", reach("jwt") - jwtHead.length()) + " ok", "Lm5Lm5Lm5Lm5"));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("longSecrets")
+  void noBudgetLetsALongSecretThrough(String rule, String text, String probe) {
+    assertThat(text.indexOf('Z')).as("the end marker is unique").isNotNegative().isEqualTo(text.lastIndexOf('Z'));
+    String lower = SecretRules.asciiLower(text);
+    assertThat(SecretRules.ALL.stream().filter(r -> r.literals().stream().anyMatch(lower::contains))
+        .map(TextRule::id)).as("the rules with a keyword in the text").containsExactly(rule);
+    long needed = used(text);
+    // From nothing to exactly enough in about 300 steps, and the last two budgets one by one: the budget runs out
+    // before the first attempt, inside the secret and at its very end. A spent budget withholds the keyword's whole
+    // window, so none of the secret is left whatever the budget.
+    long step = Math.max(1, needed / 300);
+    for (long budget = 0; budget < needed; budget += step) {
+      assertNothingOfTheSecretIsLeft(text, budget, needed, probe);
+    }
+    assertNothingOfTheSecretIsLeft(text, needed - 1, needed, probe);
+    assertNothingOfTheSecretIsLeft(text, needed, needed, probe);
+  }
+
+  private static void assertNothingOfTheSecretIsLeft(String text, long budget, long needed, String probe) {
+    String out = SecretRules.apply(text, MASK, new MaskCounter(), new Work(text, budget));
+    assertThat(out).as("budget %d of %d", budget, needed).doesNotContain(probe).doesNotContain("Z");
   }
 
   @Test
