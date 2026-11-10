@@ -370,9 +370,11 @@ class McpServersCoreProcessIT {
     throw new AssertionError(name + " didn't go to " + mode + ": " + row(name));
   }
 
+  /** A mode the person picks for the tool as the row shows it, with the definition it shows. */
   private static String mode(JsonNode row, String mode) {
     return "{\"toolKey\":\"" + row.path("toolKey").asString() + "\",\"connection\":\"notes-mcp\",\"mode\":\"" + mode
-        + "\",\"version\":" + row.path("version").asLong() + "}";
+        + "\",\"definitionHash\":\"" + row.path("definitionHash").asString() + "\",\"version\":"
+        + row.path("version").asLong() + "}";
   }
 
   private static URI uri(String target) {
