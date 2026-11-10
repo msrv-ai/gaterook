@@ -97,6 +97,43 @@ class SqlTableWalkTest {
     assertThat(a.problem()).as(sql).contains("every SELECT");
   }
 
+  /** The same for an EXPLAIN (it is a read, so its inner query must be counted too) and an UPSERT. */
+  @ParameterizedTest
+  @ValueSource(strings = {"POSTGRES", "MYSQL"})
+  void aSelectTheWalkNeverReachedMakesAnExplainNotAnalyzed(String dialect) {
+    String sql = "EXPLAIN SELECT id FROM orders FOR SYSTEM_TIME AS OF (SELECT MAX(changed) FROM hidden_table)";
+    Analysis a = SqlClassifier.analyze(sql, SqlSyntax.valueOf(dialect));
+
+    assertThat(a.kind()).as(dialect).isEqualTo(Kind.UNPARSED);
+    assertThat(a.problem()).as(dialect).contains("every SELECT");
+  }
+
+  @Test
+  void aSelectTheWalkNeverReachedMakesAnUpsertNotAnalyzed() {
+    String sql = "UPSERT INTO orders (id) SELECT id FROM orders FOR SYSTEM_TIME AS OF "
+        + "(SELECT MAX(changed) FROM hidden_table)";
+    Analysis a = SqlClassifier.analyze(sql, SqlSyntax.POSTGRES);
+
+    assertThat(a.kind()).isEqualTo(Kind.UNPARSED);
+    assertThat(a.problem()).contains("every SELECT");
+  }
+
+  /**
+   * An ALTER VIEW has no table list at all today, so a restricted allowlist and the SQL Server database scope refuse
+   * it as a statement whose tables can't be named; if a parser ever lists its tables, the count must refuse a SELECT
+   * the walk does not reach. Either way the hidden table is never accepted unseen.
+   */
+  @ParameterizedTest
+  @ValueSource(strings = {"SQLSERVER", "POSTGRES", "ORACLE"})
+  void anAlterViewWithASelectTheWalkNeverReachedHasNoTableListOrIsNotAnalyzed(String dialect) {
+    String sql = "ALTER VIEW recent AS SELECT id FROM orders FOR SYSTEM_TIME AS OF "
+        + "(SELECT MAX(changed) FROM hidden_table)";
+    Analysis a = SqlClassifier.analyze(sql, SqlSyntax.valueOf(dialect));
+
+    assertThat(a.kind()).as(dialect).isNotEqualTo(Kind.READ);
+    assertThat(a.kind() == Kind.UNPARSED || a.statements().getFirst().tables() == null).as(dialect).isTrue();
+  }
+
   /**
    * Reads that are not counted: a SHOW whose condition holds a subquery has no table list at all, so it meets a
    * restricted allowlist and the database selection as a statement whose tables can't be named, or it isn't parsed.

@@ -67,6 +67,11 @@ class SqlServerBatchTest {
       // A cursor FETCH and a WITH that isn't a hint or a modifier.
       "SELECT 1 FROM t FETCH NEXT FROM c",
       "SELECT id FROM t ORDER BY id OFFSET 5 ROWS FETCH NEXT GLOBAL c",
+      // A FETCH that is a cursor's even after OFFSET ... ROWS, one that does not follow ROWS, and one cut short.
+      "SELECT id FROM t ORDER BY id OFFSET 5 ROWS FETCH NEXT FROM c",
+      "SELECT 1 FETCH NEXT 5 ROWS ONLY",
+      "SELECT 1 FROM t FETCH",
+      "SELECT 1 FROM t OFFSET 5 ROWS FETCH NEXT",
       "SELECT 1 FROM t WITH x AS (SELECT 1) SELECT 2",
       "SELECT 1 FROM t WITH x AS (SELECT 1)",
       "SELECT 1 FROM t WITH",
