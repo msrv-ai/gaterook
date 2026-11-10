@@ -188,7 +188,6 @@ final class SqlClassifier {
   }
 
   static Analysis analyze(String sql, SqlSyntax syntax) {
-    boolean mysql = syntax == SqlSyntax.MYSQL;
     if (sql == null || sql.isBlank()) {
       return unparsed(List.of(), "The statement is empty.");
     }
@@ -215,8 +214,7 @@ final class SqlClassifier {
     Statements statements;
     try {
       statements = CCJSqlParserUtil.parseStatements(text, PARSER,
-          p -> p.withTimeOut(PARSE_TIMEOUT_MS).withBackslashEscapeCharacter(mysql)
-              .withSquareBracketQuotation(syntax == SqlSyntax.SQLSERVER));
+          p -> SqlParserText.configure(p, syntax).withTimeOut(PARSE_TIMEOUT_MS));
     } catch (JSQLParserException | RuntimeException e) {
       return byFirstWords(pieces, syntax);
     }

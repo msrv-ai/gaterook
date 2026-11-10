@@ -16,7 +16,8 @@ import java.util.regex.Pattern;
  * check is on the words: outside parentheses (nothing starts a statement inside them) the code of a read may hold
  * only the reserved words a single SELECT uses, a query starts only at the beginning, after a set operator or after
  * the common table expressions of a {@code WITH}, and parentheses and {@code CASE … END} must balance. Literals,
- * quoted names and comments are not words. Anything else is not a read: the call is treated as not analyzed.
+ * quoted names and comments are not words, and neither is a word after the dot of a qualified name
+ * ({@code c.precision}). Anything else is not a read: the call is treated as not analyzed.
  */
 final class SqlServerBatch {
 
@@ -56,8 +57,11 @@ final class SqlServerBatch {
 
   private static final Set<String> SET_OPERATORS = Set.of("UNION", "INTERSECT", "EXCEPT");
 
-  /** {@code BAD}: letters stuck to a number, which the server may split into a number and a word. */
-  private enum Type { WORD, OPEN, CLOSE, OTHER, BAD }
+  /**
+   * {@code NAME}: a quoted name. {@code DOT}: a dot, which separates the parts of a qualified name or sits in a number.
+   * {@code BAD}: letters stuck to a number, which the server may split into a number and a word.
+   */
+  private enum Type { WORD, NAME, DOT, OPEN, CLOSE, OTHER, BAD }
 
   /** A number the server reads whole: digits, {@code 0x} and hex digits, or an exponent's {@code E} and digits. */
   private static final Pattern NUMBER = Pattern.compile("[0-9]+(?:[eE][0-9]*)?|0[xX][0-9A-Fa-f]*");
@@ -88,6 +92,7 @@ final class SqlServerBatch {
     if (!first.is(Type.OPEN) && !first.word("SELECT") && !first.word("WITH")) {
       return false;
     }
+    boolean[] nameParts = nameParts(tokens);
     int depth = 0;
     int cases = 0;
     boolean ctes = false;       // inside the common table expressions after WITH
@@ -112,7 +117,7 @@ final class SqlServerBatch {
         }
         continue;
       }
-      if (!t.is(Type.WORD)) {
+      if (!t.is(Type.WORD) || nameParts[i]) {
         if (depth == 0) {
           pending = false;
         }
@@ -174,6 +179,38 @@ final class SqlServerBatch {
     return depth == 0 && cases == 0 && started && !ctes && !pending;
   }
 
+  /**
+   * The words that follow a dot in a qualified name ({@code c.precision}, {@code db..t.user}): a part of a name, never a
+   * statement word, whatever it is spelled. The dot must follow a name: a quoted name, a word that is not reserved, or
+   * another part of a name. After a number, a string, a parenthesis or a reserved word it separates nothing, and the
+   * word after it is checked like any other ({@code SELECT 1. DELETE …} ends the number and starts a statement).
+   */
+  private static boolean[] nameParts(List<Token> tokens) {
+    boolean[] parts = new boolean[tokens.size()];
+    boolean name = false;       // the previous token is a name that a dot can qualify
+    boolean qualified = false;  // the previous token is a dot after such a name
+    for (int i = 0; i < parts.length; i++) {
+      Token t = tokens.get(i);
+      switch (t.type()) {
+        case NAME -> {
+          name = true;
+          qualified = false;
+        }
+        case DOT -> qualified = name;     // a second dot, as in db..t, follows a name as well
+        case WORD -> {
+          parts[i] = qualified;
+          name = qualified || !RESERVED.contains(t.word());
+          qualified = false;
+        }
+        default -> {
+          name = false;
+          qualified = false;
+        }
+      }
+    }
+    return parts;
+  }
+
   /** {@code WITH (NOLOCK)}, {@code TOP … WITH TIES}, {@code GROUP BY … WITH ROLLUP}: not a common table expression. */
   private static boolean tableHintOrModifier(List<Token> tokens, int i) {
     if (i + 1 >= tokens.size()) {
@@ -207,7 +244,8 @@ final class SqlServerBatch {
     for (SqlLexer.Segment s : scan.segments()) {
       switch (s.kind()) {
         case COMMENT, EXECUTABLE_COMMENT -> { }
-        case STRING, QUOTED_IDENTIFIER -> tokens.add(new Token(Type.OTHER, ""));
+        case STRING -> tokens.add(new Token(Type.OTHER, ""));
+        case QUOTED_IDENTIFIER -> tokens.add(new Token(Type.NAME, ""));
         case CODE -> code(statement, s.start(), s.end(), tokens);
       }
     }
@@ -233,7 +271,7 @@ final class SqlServerBatch {
         i = j;
       } else {
         if (!Character.isWhitespace(c)) {
-          tokens.add(new Token(c == '(' ? Type.OPEN : c == ')' ? Type.CLOSE : Type.OTHER, ""));
+          tokens.add(new Token(c == '(' ? Type.OPEN : c == ')' ? Type.CLOSE : c == '.' ? Type.DOT : Type.OTHER, ""));
         }
         i++;
       }

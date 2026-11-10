@@ -23,7 +23,13 @@ class SqlServerBatchTest {
       "SELECT id FROM t WITH (NOLOCK) GROUP BY id WITH ROLLUP",
       "SELECT * FROM OPENJSON(N'[]') WITH (a int '$.a')",
       "SELECT id FROM t FOR SYSTEM_TIME AS OF '2020-01-01'",
-      "SELECT 0x1F, 1e5, 1.5E-3, $12.50, @@VERSION, #t.id"
+      "SELECT 0x1F, 1e5, 1.5E-3, $12.50, @@VERSION, #t.id",
+      // A word after a dot is part of a qualified name, whatever it is spelled: the catalog views have such columns.
+      "SELECT c.precision FROM sys.columns c",
+      "SELECT c.precision FROM sys.columns AS c",
+      "SELECT c.name, c.max_length, c.precision, c.scale FROM sys.columns c WHERE c.object_id = OBJECT_ID('dbo.orders')",
+      "SELECT [c].precision, \"c\".scale, dbo.t.user, db..t.end FROM sys.columns AS c",
+      "SELECT CASE WHEN t.end = 1 THEN t.case ELSE 0 END FROM dbo.t t"
   })
   void oneQueryIsOneQuery(String sql) {
     assertThat(SqlServerBatch.oneQuery(sql)).as(sql).isTrue();
@@ -56,6 +62,15 @@ class SqlServerBatchTest {
       "SELECT 1DELETE FROM t",
       "SELECT 1 DELETE FROM t",
       "SELECT 1 é DELETE FROM t",
+      // A dot that is not part of a name does not make the word after it one: a number, a string, a parenthesis, or a
+      // reserved word before it. Only a name or a word that is not reserved can be qualified.
+      "SELECT 1. DELETE FROM t",
+      "SELECT 1 .DELETE FROM t",
+      "SELECT 0x1F. DELETE FROM t",
+      "SELECT 'a'.DELETE FROM t",
+      "SELECT (1).DELETE FROM t",
+      "SELECT 1 FROM t WHERE EXISTS.DELETE FROM t",
+      "SELECT 1 FROM t WHERE a = .DELETE FROM t",
       // Not a query at all.
       "DELETE FROM t",
       "EXEC p",

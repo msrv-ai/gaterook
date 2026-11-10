@@ -43,7 +43,12 @@ class SqlServerSafetyTest {
   @ValueSource(strings = {
       "SELECT 1 DELETE FROM dbo.orders",
       "SELECT 1 FROM dbo.orders COMMIT",
-      "SELECT 1 UNION SELECT 2 DELETE FROM dbo.orders"
+      "SELECT 1 UNION SELECT 2 DELETE FROM dbo.orders",
+      // A quoted name made of a line break, followed by a statement word that is not reserved.
+      "SELECT 1 FROM dbo.orders \"\n\" RECEIVE TOP(1) * FROM dbo.queue",
+      "SELECT 1 FROM dbo.orders [\n] RECEIVE TOP(1) * FROM dbo.queue",
+      // A dot after a number is not a name separator.
+      "SELECT 1. DELETE FROM dbo.orders"
   })
   void aSecondStatementWithoutASeparatorIsNotARead(String sql) {
     assertThat(SqlClassifier.analyze(sql, DIALECT).kind()).as(sql).isEqualTo(SqlClassifier.Kind.UNPARSED);
@@ -76,7 +81,10 @@ class SqlServerSafetyTest {
           + "GROUP BY status HAVING COUNT(*) > 5 ORDER BY c DESC",
       "SELECT o.id, c.name FROM dbo.orders o LEFT OUTER JOIN dbo.customers c ON c.id = o.customer_id "
           + "WHERE c.name IS NOT NULL AND o.id <> ALL (SELECT id FROM dbo.archived)",
-      "SELECT 0x1F, 1e5, 1.5E-3, N'x', @@VERSION"
+      "SELECT 0x1F, 1e5, 1.5E-3, N'x', @@VERSION",
+      // A reserved word after a dot is a column of a catalog view, not a statement word.
+      "SELECT c.precision FROM sys.columns c",
+      "SELECT c.name, c.max_length, c.precision, c.scale FROM sys.columns c WHERE c.object_id = OBJECT_ID('dbo.orders')"
   })
   void clauseWordsAndQuotedStatementWordsStayReads(String sql) {
     assertThat(query(sql, null, null).kind()).as(sql).isEqualTo(Classification.Kind.READ);

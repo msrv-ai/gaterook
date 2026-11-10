@@ -360,7 +360,7 @@ my | query | dev | CALL p(GET_LOCK('a', 10)) | DENY function-denied
 my | execute | dev | CALL p(GET_LOCK('a', 10)) | DENY function-denied
 pg | execute | dev | CALL p(1) | MUTATION
 #
-# ── H8b: the parser reads the text the server's lexer reads, or the statement is not analyzed ────────────────
+# ── The parser reads the text the server's lexer reads, or the statement is not analyzed ─────────────────────
 # Comment forms only the parser knows: a call is refused, not read as if the rest of the line were not there.
 pg | query | dev | SELECT 1 // x FROM secrets | DENY unparsed | allowlist=public.orders
 my | query | dev | SELECT 1 // x FROM secrets | DENY unparsed | allowlist=app.orders
@@ -381,8 +381,18 @@ pg | query | dev | SELECT id FROM orders WHERE note = E'\' --' OR id IN (SELECT 
 my | query | dev | SELECT "a;b", 'it''s', 'a\'b' FROM orders | READ | allowlist=app.orders
 pg | query | dev | SELECT 'it''s', E'a\\b', $$x'y$$ FROM orders | READ | allowlist=public.orders
 my | query | dev | SELECT 1 /* one */ FROM orders -- two | READ | allowlist=app.orders
+# A name that MySQL-family servers accept and the parser's lexer reads as the start of a string that runs on.
+my | query | dev | SELECT s.id FROM orders $$o, secrets s | DENY unparsed | allowlist=app.orders
+my | execute | dev | SELECT s.id FROM orders $$o, secrets s | DENY unparsed | allowlist=app.orders
+my | query | dev | SELECT 1 FROM orders $$o, secrets s WHERE 1 = 1 AND x = $$ | DENY unparsed | allowlist=app.orders
+my | query | dev | SELECT 1 FROM orders $$o INTO OUTFILE '/tmp/orders.csv' | DENY unparsed
+my | query | dev | SELECT 1 FROM orders $$o FOR UPDATE | DENY unparsed
+# A name followed by a string that opens like the parser's alternative quotes, which it reads as one literal.
+my | query | dev | SELECT q'{a' FROM orders, secrets WHERE '}' = '' | DENY unparsed | allowlist=app.orders
+# In PostgreSQL a double dollar sign is a string or part of a name, and the parser reads it the same way.
+pg | query | dev | SELECT a$$b FROM orders | READ | allowlist=public.orders
 #
-# ── H8c: subqueries in operand positions the parser's table walk skipped are checked like any other ──────────
+# ── Subqueries in operand positions the table walk used to skip are checked like any other ───────────────────
 pg | query | dev | SELECT JSON_ARRAYAGG(id ORDER BY (SELECT id FROM secrets)) FROM orders | DENY table-not-allowed | allowlist=public.orders
 pg | query | dev | SELECT JSON_OBJECTAGG(id : (SELECT id FROM secrets)) FROM orders | DENY table-not-allowed | allowlist=public.orders
 pg | query | dev | SELECT id FROM orders WHERE note LIKE 'a%' ESCAPE (SELECT note FROM secrets LIMIT 1) | DENY table-not-allowed | allowlist=public.orders

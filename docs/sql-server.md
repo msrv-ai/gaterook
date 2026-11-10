@@ -33,7 +33,8 @@ T-SQL needs no separator between statements, and a SQL parser can take a reserve
 therefore also reads the text by the server's own tokens, not only through the parser. Outside parentheses, a read may
 use only the reserved words of a single query: a statement word such as `DELETE` or `COMMIT`, a second `SELECT` that no
 set operator or `WITH` introduces, a number with letters stuck to it, or brackets that do not balance make the call
-"not analyzed", and it is refused as a read. Comments, strings and quoted names are never words.
+"not analyzed", and it is refused as a read. Comments, strings and quoted names are never words, and neither is a word
+after the dot of a qualified name such as `c.precision`.
 
 Writes use `sql_execute`, require approval by default, and run one analyzed statement in a transaction. Existing
 DDL and table policies still apply. Before requesting approval, GateRook estimates DML impact using

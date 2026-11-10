@@ -62,9 +62,46 @@ class SqlParserTextTest {
       POSTGRES  | SELECT E'\\''
       POSTGRES  | SELECT E'a\\\\\\''
       POSTGRES  | SELECT `a`
+      MYSQL     | SELECT 1 FROM t $$o, u
+      ORACLE    | SELECT 1 FROM t $$o, u
+      SQLSERVER | SELECT 1 FROM t $$o, u
+      MYSQL     | SELECT q'{a' FROM t WHERE '}' = ''
+      MYSQL     | SELECT Q'(a' FROM t WHERE ')' = ''
+      MYSQL     | SELECT q'[a' FROM t WHERE ']' = ''
+      MYSQL     | SELECT q'' FROM t WHERE '' = ''
+      SQLSERVER | SELECT q'{a' FROM t WHERE '}' = ''
+      POSTGRES  | SELECT q'{a' FROM t WHERE '}' = ''
       """)
   void textThatTheParserWouldReadDifferentlyIsNotRebuilt(SqlSyntax syntax, String sql) {
     assertThat(text(sql.strip(), syntax)).isNull();
+  }
+
+  @Test
+  void textTheParsersOwnLexerCannotReadToTheEndIsNotRebuilt() {
+    // A quoted name made of a line break, which the servers accept.
+    assertThat(text("SELECT 1 FROM t \"\n\" JOIN u", SqlSyntax.POSTGRES)).isNull();
+    assertThat(text("SELECT 1 FROM t \"\r\n\" JOIN u", SqlSyntax.ORACLE)).isNull();
+    assertThat(text("SELECT 1 FROM t \"\n\" JOIN u", SqlSyntax.SQLSERVER)).isNull();
+    assertThat(text("SELECT 1 FROM t `\n` JOIN u", SqlSyntax.MYSQL)).isNull();
+    // A character that is white space to the servers and unknown to the lexer.
+    assertThat(text("SELECT 1 FROM t\fJOIN u", SqlSyntax.POSTGRES)).isNull();
+    // The same names without the line break are read.
+    assertThat(text("SELECT 1 FROM t \" \" JOIN u", SqlSyntax.POSTGRES)).isEqualTo("SELECT 1 FROM t \" \" JOIN u");
+    assertThat(text("SELECT 1 FROM t `a` JOIN u", SqlSyntax.MYSQL)).isEqualTo("SELECT 1 FROM t `a` JOIN u");
+    assertThat(text("SELECT 1 FROM t [a b] JOIN u", SqlSyntax.SQLSERVER)).isEqualTo("SELECT 1 FROM t [a b] JOIN u");
+  }
+
+  @Test
+  void aDoubleDollarSignOnlyPostgresqlReadsLikeTheParserIsRebuilt() {
+    // PostgreSQL: a string, or part of a name.
+    assertThat(text("SELECT $$a;b$$, a$$b FROM t", SqlSyntax.POSTGRES)).isEqualTo("SELECT 'literal', a$$b FROM t");
+  }
+
+  @Test
+  void aQBeforeAStringThatDoesNotOpenLikeAnAlternativeQuoteIsRebuilt() {
+    assertThat(text("SELECT q'a', q 'b{' FROM t", SqlSyntax.MYSQL)).isEqualTo("SELECT q'a', q 'b{' FROM t");
+    assertThat(text("SELECT q /* x */ '{a' FROM t", SqlSyntax.MYSQL)).isEqualTo("SELECT q   '{a' FROM t");
+    assertThat(text("SELECT a '{b' FROM t", SqlSyntax.MYSQL)).isEqualTo("SELECT a '{b' FROM t");
   }
 
   @Test
