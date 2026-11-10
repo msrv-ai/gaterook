@@ -327,7 +327,8 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
   /**
    * The token to send with. `force` asks the broker for a new one — unless another message already replaced `stale`,
    * the token that was just refused. Messages that need a token at the same moment share one broker request, so a
-   * burst of calls (or of 401s after the token expired) takes one token, not one each: a grant keeps only four.
+   * burst of calls (or of 401s after the token expired) takes one token, not one each: a grant keeps one live token
+   * for each program that uses it, up to a small bound.
    */
   function tokenFor(force, stale = null) {
     const usable = token && token.exp - Date.now() > 60_000;

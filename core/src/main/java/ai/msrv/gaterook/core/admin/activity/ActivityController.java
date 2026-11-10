@@ -76,7 +76,13 @@ class ActivityController {
 
   record Phase(String name, Instant from, Instant to, int calls, Map<String, Object> decisions, String summary) {}
 
-  record TraceDetail(TraceRow trace, List<Phase> phases, List<ActivityDtos.Event> calls) {}
+  /**
+   * One task with its phases and its latest calls.
+   *
+   * @param timelineCalls the calls the phases describe when that is fewer than the task's calls (a very long task is
+   *                      summarized for its first calls and counted after that); {@code null} when they describe all
+   */
+  record TraceDetail(TraceRow trace, List<Phase> phases, List<ActivityDtos.Event> calls, Integer timelineCalls) {}
 
   record Changes(List<ActivityDtos.Change> changes, String nextCursor) {}
 
@@ -194,7 +200,9 @@ class ActivityController {
     }
     List<ActivityDtos.Event> calls = audit.events("trace:" + t.traceId(), null, null, null, 500).events().stream()
         .map(ActivityDtos::event).toList().reversed();
-    return new TraceDetail(traceRow(t), List.copyOf(phases), calls);
+    Integer described = t.summary() != null && t.summary().get("timelineCalls") instanceof Number n
+        && n.intValue() < t.calls() ? n.intValue() : null;
+    return new TraceDetail(traceRow(t), List.copyOf(phases), calls, described);
   }
 
   // ── Setup changes ───────────────────────────────────────────────────────────────────────────────────────────

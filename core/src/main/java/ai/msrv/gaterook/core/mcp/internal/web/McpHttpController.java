@@ -292,13 +292,12 @@ class McpHttpController {
     // The client may have cached a list before connecting, or missed changes while disconnected. Invalidate that
     // unknown view once on every new stream, then notify only when the published catalog actually changes.
     String listHash = null;
-    Optional<McpToolNotifications.Subscription> opened = notifications.subscribe(initial.get().id(),
-        caller.get().principalId());
-    if (opened.isEmpty()) {
-      return write(429, McpGateway.error(JsonRpc.OVER_BUDGET, "The gateway holds " + McpToolNotifications.OVERALL
-          + " notification streams already. Try again later."));
+    McpToolNotifications.Opened opened = notifications.open(initial.get().id(), caller.get().principalId(),
+        streamClient(http));
+    if (opened.subscription() == null) {
+      return write(429, McpGateway.error(JsonRpc.OVER_BUDGET, opened.refusal()));
     }
-    try (McpToolNotifications.Subscription subscription = opened.get()) {
+    try (McpToolNotifications.Subscription subscription = opened.subscription()) {
       response.setStatus(HttpServletResponse.SC_OK);
       response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
       response.setCharacterEncoding(StandardCharsets.UTF_8.name());
@@ -411,12 +410,11 @@ class McpHttpController {
       return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE).build();
     }
     EndpointSnapshot first = initial.orElseThrow();
-    Optional<McpToolNotifications.Subscription> opened = notifications.subscribe(first.id(), caller.principalId());
-    if (opened.isEmpty()) {
-      return write(429, McpGateway.error(JsonRpc.OVER_BUDGET, "The gateway holds " + McpToolNotifications.OVERALL
-          + " notification streams already. Try again later."));
+    McpToolNotifications.Opened opened = notifications.open(first.id(), caller.principalId(), streamClient(http));
+    if (opened.subscription() == null) {
+      return write(429, McpGateway.error(JsonRpc.OVER_BUDGET, opened.refusal()));
     }
-    McpToolNotifications.Subscription subscription = opened.get();
+    McpToolNotifications.Subscription subscription = opened.subscription();
     try (subscription) {
       for (String uri : o.resources()) {
         subscriptions.add(subscription, first.id(), uri);
@@ -564,6 +562,23 @@ class McpHttpController {
   private ResponseEntity<byte[]> write(int status, ObjectNode body) {
     return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON)
         .header(HttpHeaders.CACHE_CONTROL, "no-store").body(json.writeValueAsBytes(body));
+  }
+
+  /**
+   * Which of a principal's clients opens a stream, as far as its credential tells: a digest of the presented token.
+   * Each bridge process has a token of its own; clients that share a named token or a sign-in look alike. The digest
+   * stays in memory with the stream and is never logged.
+   */
+  static String streamClient(HttpServletRequest http) {
+    return bearer(http.getHeader(HttpHeaders.AUTHORIZATION)).map(token -> {
+      try {
+        byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(token.getBytes(StandardCharsets.UTF_8));
+        return java.util.HexFormat.of().formatHex(digest, 0, 16);
+      } catch (java.security.NoSuchAlgorithmException e) {
+        throw new IllegalStateException(e);
+      }
+    }).orElse(null);
   }
 
   /** {@code Bearer <token>}; {@code ?access_token=} is never read. */

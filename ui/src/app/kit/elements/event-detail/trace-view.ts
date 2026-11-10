@@ -66,6 +66,9 @@ let nextId = 0;
       <div class="gw-event-detail__trace-heading">
         <ng-container [ngTemplateOutlet]="heading" />
         <p class="gw-text-small gw-fg-muted">Trace <span class="gw-mono" [title]="t().trace.traceId">{{ line().short }}</span> · {{ line().calls }}@if (page() && !ended()) { so far} · {{ line().span }} · {{ line().who }}@if (t().trace.endpoint; as ep) { on endpoint <code class="gw-code">{{ ep }}</code>}</p>
+        @if (t().timelineCalls; as n) {
+          <p class="gw-text-caption gw-fg-muted">The phases describe the first {{ n }} calls of this task; the counts include every call.</p>
+        }
         @if (source(); as s) {
           <p class="gw-text-caption gw-fg-muted">{{ s }}</p>
         }

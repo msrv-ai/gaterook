@@ -43,6 +43,19 @@ public final class TraceSummarizer {
   /** Longest title kept. */
   public static final int TITLE_CHARS = 120;
 
+  /**
+   * Calls the phases of one task describe at most. The trace id comes from the client, which may keep one for a whole
+   * session: a longer task is summarized for its first calls and only counted after that ({@code TraceBook}), so the
+   * work for each new call and the stored summary stay bounded.
+   */
+  public static final int MAX_CALLS = 1_000;
+
+  /** Phases kept; later ones are left out of the timeline and the summary says how many calls it describes. */
+  public static final int MAX_PHASES = 100;
+
+  /** Longest phase summary kept. */
+  public static final int SUMMARY_CHARS = 300;
+
   private static final Pattern DESTRUCTIVE = Pattern.compile("^\\s*(TRUNCATE|DROP|DELETE)\\b",
       Pattern.CASE_INSENSITIVE);
   private static final Pattern WORDS = Pattern.compile("\\s+");
@@ -66,12 +79,14 @@ public final class TraceSummarizer {
   /**
    * One task.
    *
-   * @param titleSource {@code meta}, {@code note} or {@code client}; {@code null} without a title
-   * @param waiting     a call still waits for a person
+   * @param titleSource   {@code meta}, {@code note} or {@code client}; {@code null} without a title
+   * @param waiting       a call still waits for a person
+   * @param timelineCalls the calls {@code phases} describe: {@code calls} unless the phases were cut at
+   *                      {@value #MAX_PHASES}
    */
   public record Summary(String title, String titleSource, Instant firstAt, Instant lastAt, int calls,
       Map<String, Integer> decisions, long waitedForPeopleMs, List<Phase> phases, boolean waiting, String client,
-      String endpoint) {
+      String endpoint, int timelineCalls) {
 
     /** {@code waiting}, {@code in-progress} or {@code ended} at {@code now}. */
     public String status(Instant now) {
@@ -187,10 +202,12 @@ public final class TraceSummarizer {
     }
 
     List<Phase> phases = new ArrayList<>();
-    for (int i = 0; i < groups.size(); i++) {
+    int described = 0;
+    for (int i = 0; i < groups.size() && i < MAX_PHASES; i++) {
       List<Step> group = groups.get(i);
       phases.add(new Phase(names.get(i), group.get(0).startedAt(), endOf(group), group.size(), decisions(group),
-          summary(names.get(i), group)));
+          AuditWriter.cut(summary(names.get(i), group), SUMMARY_CHARS)));
+      described += group.size();
     }
     Instant first = steps.get(0).startedAt();
     Instant last = endOf(steps);
@@ -198,7 +215,7 @@ public final class TraceSummarizer {
     String[] title = title(steps);
     Step head = steps.get(0);
     return new Summary(title[0], title[1], first, last, steps.size(), decisions(steps), waited, List.copyOf(phases),
-        steps.stream().anyMatch(s -> "pending".equals(s.decision())), head.client(), head.endpoint());
+        steps.stream().anyMatch(s -> "pending".equals(s.decision())), head.client(), head.endpoint(), described);
   }
 
   /** A refused call that would have destroyed data: at the end of a task it is the "Clean up". */
@@ -427,6 +444,9 @@ public final class TraceSummarizer {
       o.put("calls", p.calls());
       o.set("decisions", JSON.valueToTree(p.decisions()));
       o.put("summary", p.summary());
+    }
+    if (s.timelineCalls() < s.calls()) {
+      n.put("timelineCalls", s.timelineCalls());
     }
     return n;
   }

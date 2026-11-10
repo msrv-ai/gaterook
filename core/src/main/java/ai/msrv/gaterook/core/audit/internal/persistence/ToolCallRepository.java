@@ -23,6 +23,12 @@ public interface ToolCallRepository extends Repository<ToolCallEntity, Long> {
 
   List<ToolCallEntity> findByTraceIdOrderByIdAsc(String traceId);
 
+  /** The first rows of a trace (index {@code tool_call_trace}, whose entries are in id order within a trace). */
+  List<ToolCallEntity> findByTraceIdOrderByIdAsc(String traceId, Pageable page);
+
+  /** The rows of a trace after {@code afterId}, in order. */
+  List<ToolCallEntity> findByTraceIdAndIdGreaterThanOrderByIdAsc(String traceId, long afterId, Pageable page);
+
   /** The rows of one approval request's calls in one phase (index {@code tool_call_approval}, V3). */
   List<ToolCallEntity> findByApprovalIdAndPhaseOrderByIdAsc(String approvalId, CallPhase phase);
 

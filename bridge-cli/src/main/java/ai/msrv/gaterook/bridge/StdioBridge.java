@@ -357,7 +357,8 @@ final class StdioBridge implements AutoCloseable {
 
   /**
    * A token other than {@code stale}, the one just refused: messages that met the same 401 at the same moment take
-   * the token the first of them got instead of one each (a grant keeps only four).
+   * the token the first of them got instead of one each (a grant keeps one live token for each program that uses it,
+   * up to a small bound).
    */
   private synchronized Token replace(Token stale) throws BrokerClient.Unavailable, Refused {
     Token t = token;

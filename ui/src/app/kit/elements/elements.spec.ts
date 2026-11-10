@@ -506,6 +506,20 @@ describe('event-detail and trace view', () => {
       'Wait for deploy · 6 calls',
       'Verify · 5 calls',
     ]);
+    expect(text(trace)).not.toContain('The phases describe the first');
+  });
+
+  it('a very long task says its phases describe only its first calls', async () => {
+    @Component({
+      imports: [GwTraceView],
+      template: `<section gwTraceView [trace]="trace"></section>`,
+    })
+    class LongTask {
+      trace = { ...DEMO_TRACE, trace: { ...DEMO_TRACE.trace, calls: 1234 }, timelineCalls: 1000 };
+    }
+    const { el } = await render(LongTask);
+    const trace = el.querySelector('section.gw-event-detail__trace')!;
+    expect(text(trace)).toContain('The phases describe the first 1000 calls of this task; the counts include every call.');
   });
 });
 
