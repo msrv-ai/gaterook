@@ -126,6 +126,18 @@ class ConnectionImportSummaryTest {
         "connection.tls=true");
   }
 
+  /** A proposal's values are not checked against the form's types yet: a port that is no int must not fail a submission. */
+  @Test
+  void aPortOutsideTheIntegerRangeStillGetsASummaryThatShowsTheValueAsASetting() {
+    for (String port : List.of("2147483648", "99999999999", "-99999999999")) {
+      JsonNode summary = summaryOf("dev", "{\"connection\":{\"host\":\"db.example.test\",\"port\":" + port + "}}");
+
+      assertThat(summary.path("target").asString()).as(port).isEqualTo("db.example.test");
+      assertThat(rows(summary)).as(port).containsExactly("connection.host=db.example.test [target]",
+          "connection.port=" + port);
+    }
+  }
+
   @Test
   void aCandidateThatNamesNoTargetSaysSo() {
     JsonNode summary = summaryOf("dev", "{\"label\":\"reporting\"}");
