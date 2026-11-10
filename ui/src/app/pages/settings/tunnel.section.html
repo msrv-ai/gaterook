@@ -258,6 +258,10 @@
       <div class="gw-kv__row"><dt class="gw-kv__key">Sign-in</dt><dd class="gw-kv__value">You allow each new one here@if (signedIn()) {; {{ signedIn() }} earlier {{ signedIn() === 1 ? 'sign-in is' : 'sign-ins are' }} still valid}</dd></div>
       @let stays = previewLocal() ?? local();
       <div class="gw-kv__row"><dt class="gw-kv__key">Stays local</dt><dd class="gw-kv__value">This app's UI, the admin API@if (stays.length) {, {{ stays.length === 1 ? 'endpoint' : 'endpoints' }} @for (l of stays; track l; let last = $last; let i = $index) {@if (i > 0) {{{ last ? ' and ' : ', ' }}}<span class="gw-mono">{{ l }}</span>}}</dd></div>
+      @for (w of notes(); track w) {
+        <!-- The core's own cautions (TunnelService.warnings), as the Clients page shows them. -->
+        <div class="gw-kv__row"><dt class="gw-kv__key">Note</dt><dd class="gw-kv__value">{{ w }}</dd></div>
+      }
     </dl>
     @if (publishError(); as err) {
       <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">

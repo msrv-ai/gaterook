@@ -1,4 +1,4 @@
-import { OAuthConsent, OAuthGrant, TunnelState } from '../../../core/api/tunnel.api';
+import { OAuthConsent, OAuthGrant, PublishPreview, TunnelState } from '../../../core/api/tunnel.api';
 import { Iso } from '../../../core/api/types';
 import { clockTime, shortDate } from '../../../core/time/time-format';
 
@@ -57,6 +57,15 @@ export function whilePublic(t: TunnelState, grants: readonly OAuthGrant[]): { re
  */
 export function localEndpoints(local: readonly string[]): string[] {
   return local.map((l) => /^\/mcp\/(.+)$/.exec(l)?.[1] ?? null).filter((s): s is string => !!s);
+}
+
+/**
+ * The core's cautions before publishing (`TunnelService.warnings`: tools in Bypass, changes claude.ai can ask for,
+ * dynamic client registration), without the two that every publish dialog already says in its rows: who can call
+ * (Callers) and a quick tunnel's new address (Public URL).
+ */
+export function publishNotes(preview: PublishPreview | null): string[] {
+  return (preview?.warnings ?? []).filter((w) => !/^Callers:/.test(w) && !/new address each time/i.test(w));
 }
 
 /** Sign-ins that still work (Signed in). */
