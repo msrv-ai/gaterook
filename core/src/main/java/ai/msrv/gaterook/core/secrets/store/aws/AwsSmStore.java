@@ -18,9 +18,12 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -205,7 +208,7 @@ public final class AwsSmStore implements SecretStore {
       long s = System.nanoTime();
       CloudCredentials.CallerIdentity who;
       try {
-        who = cloud.callerIdentity(provider(refs, call), settings.region());
+        who = cloud.callerIdentity(provider(refs, null, call), settings.region());
       } catch (ConnectorException e) {
         throw StoreException.unavailable(e.getMessage(), e);
       }
@@ -249,18 +252,19 @@ public final class AwsSmStore implements SecretStore {
     return SecretsManagerClient.builder()
         .region(Region.of(ref.region()))
         .httpClient(http)
-        .credentialsProvider(CloudCredentials.tainting(provider(scope, call), call.taint()))
+        .credentialsProvider(CloudCredentials.tainting(provider(scope, ref, call), call.taint()))
         .endpointOverride(settings.endpointOverride() != null ? settings.endpointOverride() : endpoint(ref.region()))
         .overrideConfiguration(o -> o.addExecutionInterceptor(new OperationGuard()).apiCallTimeout(timeout)
             .retryStrategy(b -> b.maxAttempts(1)))
         .build();
   }
 
-  private AwsCredentialsProvider provider(List<SecretRef> scope, StoreCall call) {
+  /** The store's credentials for a session that may read {@code ref} (or, without one, any of {@code scope}). */
+  private AwsCredentialsProvider provider(List<SecretRef> scope, SecretRef ref, StoreCall call) {
     SecretResolver secrets = signIn.get();
     try {
       return cloud.aws(owner, settings.credentials(), settings.credentials().roleArn() == null ? null
-          : sessionPolicy(scope), secrets);
+          : sessionPolicy(scope, ref), secrets);
     } catch (ConnectorException e) {
       throw StoreException.unavailable(e.getMessage(), e);
     } finally {
@@ -277,8 +281,48 @@ public final class AwsSmStore implements SecretStore {
   /**
    * {@code GetSecretValue} on exactly the references (names match with AWS's six-character suffix), and
    * {@code kms:Decrypt} for secrets under a customer key; the role's own grants are the outer limit.
+   *
+   * @throws IllegalStateException when the policy is longer than STS accepts ({@link #sessionPolicy(List, SecretRef)}
+   *     splits the references instead)
    */
   String sessionPolicy(List<SecretRef> scope) {
+    return policy(resources(scope));
+  }
+
+  /**
+   * The session policy for a session that reads {@code ref}: {@link #sessionPolicy(List)} of all of {@code scope}
+   * while it fits STS's {@value AwsSessionPolicy#MAX_CHARACTERS} characters (one session for every reference), else
+   * the policy of the batch of {@code scope} that holds {@code ref} (any batch when {@code ref} is {@code null}). The
+   * batches split the sorted resources, each as long as fits, so a reference always lands in the same batch while the
+   * references stay the same (one cached session per batch), and a session never reads anything but references: the
+   * scope is split, never widened.
+   */
+  String sessionPolicy(List<SecretRef> scope, SecretRef ref) {
+    Set<String> all = resources(scope);
+    Optional<String> whole = fitting(all);
+    if (whole.isPresent()) {
+      return whole.get();
+    }
+    String own = ref == null ? null : resources(List.of(ref)).iterator().next();
+    List<String> sorted = new ArrayList<>(all);
+    Collections.sort(sorted);
+    List<String> batch = new ArrayList<>();
+    String policy = null;
+    for (String resource : sorted) {
+      batch.add(resource);
+      if (fitting(batch).isEmpty() && batch.size() > 1) {
+        batch.removeLast();
+        if (policy != null && (own == null || batch.contains(own))) {
+          return policy;
+        }
+        batch = new ArrayList<>(List.of(resource));
+      }
+      policy = policy(batch);
+    }
+    return policy;
+  }
+
+  private Set<String> resources(List<SecretRef> scope) {
     String account = settings.credentials().roleArn() == null ? "*"
         : settings.credentials().roleArn().split(":")[4];
     Set<String> resources = new LinkedHashSet<>();
@@ -292,8 +336,20 @@ public final class AwsSmStore implements SecretStore {
       resources.add("arn:" + partition(settings.region()) + ":secretsmanager:" + settings.region() + ":" + account
           + ":secret:gaterook-none");
     }
+    return resources;
+  }
+
+  private static String policy(Collection<String> resources) {
     return AwsSessionPolicy.builder().allow(List.of("secretsmanager:GetSecretValue"), List.copyOf(resources))
         .allow(List.of("kms:Decrypt"), List.of()).toJson();
+  }
+
+  private static Optional<String> fitting(Collection<String> resources) {
+    try {
+      return Optional.of(policy(resources));
+    } catch (IllegalStateException tooLong) {
+      return Optional.empty();
+    }
   }
 
   private static String partition(String region) {
