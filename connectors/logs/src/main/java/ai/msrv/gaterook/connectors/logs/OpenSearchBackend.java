@@ -399,7 +399,8 @@ final class OpenSearchBackend implements Backend {
     request.checkSize(call.ctx().limits());
     OpenSearchHttp.BoundedResponse response = OpenSearchHttp.send(request(request.method(), request.path(),
         request.body(), request.contentType(), s.fullApi() ? API_SESSION_POLICY : SESSION_POLICY).build(),
-        request.body(), call.ctx(), call.ctx().limits().maxResponseBytes(), client().sslContext(), s.title());
+        request.path(), request.body(), call.ctx(), call.ctx().limits().maxResponseBytes(), client().sslContext(),
+        s.title());
     ObjectNode out = JsonNodeFactory.instance.objectNode().put("status", response.status())
         .put("contentType", response.contentType()).put("truncated", response.truncated());
     if (!response.truncated() && !response.body().isBlank()) {
@@ -446,6 +447,10 @@ final class OpenSearchBackend implements Backend {
 
   private HttpRequest.Builder request(String method, String pathAndQuery, String body, String contentType,
       String sessionPolicy) throws ConnectorException {
+    // The target is part of what is signed and what the person approved; no client may write it as other bytes.
+    if (!OpenSearchRequest.wireSafe(pathAndQuery)) {
+      throw ConnectorException.badInput("The request path holds a character that can't be sent unchanged.");
+    }
     URI uri = URI.create(s.base() + pathAndQuery);
     HttpRequest.Builder b = HttpRequest.newBuilder(uri).header("Accept", "application/json");
     if (body != null) {

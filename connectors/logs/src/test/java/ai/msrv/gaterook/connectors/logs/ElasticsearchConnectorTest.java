@@ -190,6 +190,22 @@ class ElasticsearchConnectorTest {
     assertThat(server.getRequestCount()).isZero();
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"/safe\u2010index/_doc/1", "/idx\uFF1Fx/_doc/1?refresh=true", "/people/_doc/m\u00FCller",
+      "/emoji/_doc/\uD83D\uDE00"})
+  void textBeyondAsciiReachesTheWireEscapedExactlyAsThePreviewShowsIt(String path) throws Exception {
+    var args = TestCtx.JSON.createObjectNode().put("method", "PUT").put("path", path);
+    args.putObject("body").put("value", 1);
+    ToolCall call = Configs.call("elasticsearch_request", args.toString());
+    var preview = connector.describeAction(call, cfg);
+    String target = preview.payload().path("path").asString();
+    assertThat(target).matches("[\\x21-\\x7E]+");
+    assertThat(preview.text()).startsWith("PUT http://127.0.0.1:" + server.getPort() + target + "\n");
+    server.enqueue(json(200, "{\"result\":\"created\"}"));
+    connector.execute(call, cfg, secrets, TestCtx.of().approved(preview.payload()));
+    assertThat(take().getRequestLine()).isEqualTo("PUT " + target + " HTTP/1.1");
+  }
+
   @Test
   void responseLimitsAndRequestLimitsApplyToElasticsearch() throws Exception {
     Limits d = TestCtx.dev();

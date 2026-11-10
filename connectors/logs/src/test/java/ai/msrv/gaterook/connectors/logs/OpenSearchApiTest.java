@@ -20,12 +20,15 @@ import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SpecificationVersion;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.URI;
+import java.net.http.HttpRequest;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import javax.net.ssl.SSLContext;
 import mockwebserver3.MockResponse;
 import mockwebserver3.MockWebServer;
 import mockwebserver3.RecordedRequest;
@@ -35,6 +38,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -299,6 +303,116 @@ class OpenSearchApiTest {
         .contains("/eu-central-1/es/aws4_request");
     assertThat(request.getHeaders().get("X-Amz-Date")).isNotBlank();
     assertThat(context.taints).contains("sigv4-api-canary");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"/products/_doc/1?refresh=true", "/safe\u2010index/_doc/1", "/idx\uFF1Fx/_doc/1?refresh=true",
+      "/idx\uFF0Fx/_doc/1", "/people/_doc/m\u00FCller", "/people/_doc/\u65E5\u672C", "/emoji/_doc/\uD83D\uDE00",
+      "/idx/_doc/a\u200Bb", "/idx/_search?q=caf\u00E9", "/people/_doc/m%C3%BCller"})
+  void theRequestLineOnTheWireIsTheTargetThatWasClassifiedShownAndApproved(String path) throws Exception {
+    ObjectNode args = TestCtx.JSON.createObjectNode().put("method", "PUT").put("path", path);
+    args.putObject("body").put("value", 1);
+    ToolCall call = Configs.call("opensearch_request", args.toString());
+    ActionPreview preview = connector.describeAction(call, full);
+    String target = preview.payload().path("path").asString();
+    assertThat(target).matches("[\\x21-\\x7E]+");
+    assertThat(connector.classify(call, full, Configs.policy(Env.DEV, TestCtx.dev())).reason())
+        .endsWith("PUT " + target);
+    assertThat(preview.summary()).isEqualTo("PUT " + target);
+    assertThat(preview.text()).startsWith("PUT http://127.0.0.1:" + server.getPort() + target + "\n");
+    server.enqueue(json(200, "{\"result\":\"created\"}"));
+    result(connector.execute(call, full, secrets, TestCtx.of().approved(preview.payload())));
+    assertThat(take().getRequestLine()).isEqualTo("PUT " + target + " HTTP/1.1");
+  }
+
+  @ParameterizedTest
+  @CsvSource(delimiter = '|', value = {
+      "/people/_doc/m\u00FCller | /people/_doc/m%C3%BCller",
+      "/people/_doc/m%C3%BCller | /people/_doc/m%C3%BCller",
+      "/people/_doc/\u65E5\u672C | /people/_doc/%E6%97%A5%E6%9C%AC",
+      "/idx\u2010x/_doc/1 | /idx%E2%80%90x/_doc/1",
+      "/idx\uFF1Fx/_search?q=caf\u00E9 | /idx%EF%BC%9Fx/_search?q=caf%C3%A9"})
+  void aReadWithNonAsciiTextReachesTheWireAsTheTargetItWasClassifiedWith(String path, String target)
+      throws Exception {
+    ToolCall call = Configs.call("opensearch_query", TestCtx.JSON.createObjectNode().put("path", path).toString());
+    assertThat(connector.classify(call, full, Configs.policy(Env.DEV, TestCtx.dev())).kind())
+        .isEqualTo(Classification.Kind.READ);
+    server.enqueue(json(200, "{\"found\":true}"));
+    result(connector.execute(call, full, secrets, TestCtx.of()));
+    assertThat(take().getRequestLine()).isEqualTo("GET " + target + " HTTP/1.1");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"/products/_doc/1?refresh=true&routing=a%20b",
+      "/safe\u2010index/_doc/m\u00FCller?refresh=true", "/idx\uFF1Fx/_doc/1?q=caf\u00E9",
+      "/emoji/_doc/\uD83D\uDE00", "/people/_doc/m%C3%BCller"})
+  void theSignatureCoversTheTargetThatIsSent(String path) throws Exception {
+    ConnectionConfig aws = Configs.of("aws-api", Env.DEV, """
+        {"backend":"opensearch","url":"http://127.0.0.1:%d","apiAccess":"full",
+         "auth":{"mode":"awsSigV4","awsRegion":"eu-central-1","awsService":"es",
+          "awsCredentials":{"source":"accessKey","accessKeyId":"AKIAIOSFODNN7EXAMPLE"}}}
+        """.formatted(server.getPort()), "/auth/awsCredentials/secretAccessKey");
+    ObjectNode args = TestCtx.JSON.createObjectNode().put("method", "PUT").put("path", path);
+    args.putObject("query").put("pipeline", "caf\u00E9 pipeline");
+    args.putObject("body").put("value", "caf\u00E9");
+    ToolCall call = Configs.call("opensearch_request", args.toString());
+    ActionPreview preview = connector.describeAction(call, aws);
+    String target = preview.payload().path("path").asString();
+    server.enqueue(json(200, "{\"result\":\"created\"}"));
+    result(connector.execute(call, aws, new TestSecrets().with("/auth/awsCredentials/secretAccessKey",
+        "sigv4-api-canary"), TestCtx.of().approved(preview.payload())));
+    RecordedRequest request = take();
+    assertThat(request.getRequestLine()).isEqualTo("PUT " + target + " HTTP/1.1");
+    assertThat(SigV4.sent(request)).isEqualTo(SigV4.expected(request, "sigv4-api-canary"));
+  }
+
+  @Test
+  void theTransportRefusesATargetTheClientWouldRewrite() throws Exception {
+    Settings.OpenSearch settings = (Settings.OpenSearch) Settings.parse(full);
+    server.enqueue(json(200, "{\"acknowledged\":true}"));
+    try (Clients clients = new Clients()) {
+      OpenSearchBackend backend = new OpenSearchBackend(settings,
+          new Backend.Call(full, secrets, TestCtx.of(), clients, cloud, 8192));
+      // Not what OpenSearchRequest.plan produces: the transport must not trust that every caller went through it.
+      for (String target : List.of("/safe\u2010index", "/people/_doc/m\u00FCller", "/idx/_search?q=caf\u00E9")) {
+        OpenSearchRequest forged = new OpenSearchRequest("opensearch_request", "DELETE", target, null,
+            "application/json");
+        assertThatThrownBy(() -> backend.execute(forged)).isInstanceOf(ConnectorException.class);
+      }
+    }
+    assertThat(server.getRequestCount()).isZero();
+  }
+
+  @Test
+  void theTransportSendsOnlyTheTargetItWasGiven() throws Exception {
+    String base = "http://127.0.0.1:" + server.getPort();
+    SSLContext ssl = SSLContext.getDefault();
+    // The request line is the given target, or nothing goes out: not a character the client would write as '?', and
+    // not any other text than the one that was approved.
+    for (String[] pair : new String[][] {{"/safe\u2010index", "/safe\u2010index"}, {"/safe-index", "/other-index"},
+        {"/idx/_search?q=a", "/idx/_search"}, {"/idx", ""}}) {
+      HttpRequest built = HttpRequest.newBuilder(URI.create(base + pair[0])).DELETE().build();
+      assertThatThrownBy(() -> OpenSearchHttp.send(built, pair[1], null, TestCtx.of(), 1024, ssl, "OpenSearch"))
+          .isInstanceOfSatisfying(ConnectorException.class,
+              error -> assertThat(error.kind()).isEqualTo(ConnectorException.Kind.DENIED));
+    }
+    assertThat(server.getRequestCount()).isZero();
+    server.enqueue(json(200, "{\"acknowledged\":true}"));
+    HttpRequest built = HttpRequest.newBuilder(URI.create(base + "/safe-index/_doc/1?refresh=true")).DELETE().build();
+    assertThat(OpenSearchHttp.send(built, "/safe-index/_doc/1?refresh=true", null, TestCtx.of(), 1024, ssl,
+        "OpenSearch").status()).isEqualTo(200);
+    assertThat(take().getRequestLine()).isEqualTo("DELETE /safe-index/_doc/1?refresh=true HTTP/1.1");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {".", ".."})
+  void discoveryRefusesADotSegmentInsteadOfLettingAProxyResolveIt(String index) {
+    ToolCall call = Configs.call("opensearch_indices", "{\"index\":\"" + index + "\"}");
+    assertThat(connector.classify(call, full, Configs.policy(Env.DEV, TestCtx.dev())).kind())
+        .isEqualTo(Classification.Kind.DENY);
+    assertThatThrownBy(() -> connector.execute(call, full, secrets, TestCtx.of()))
+        .isInstanceOf(ConnectorException.class);
+    assertThat(server.getRequestCount()).isZero();
   }
 
   @Test

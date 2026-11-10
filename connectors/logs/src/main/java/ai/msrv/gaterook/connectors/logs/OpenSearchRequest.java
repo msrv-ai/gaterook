@@ -8,17 +8,32 @@ import ai.msrv.gaterook.connector.api.ToolCall;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
-/** A canonical, local OpenSearch or Elasticsearch REST request. Unknown operations always use the mutation-classified request tool. */
+/**
+ * A canonical, local OpenSearch or Elasticsearch REST request. Unknown operations always use the mutation-classified
+ * request tool.
+ *
+ * <p>{@code path} is the whole request target, path and query, and it is one text for every use: classification, the
+ * preview, the stored payload, the audit summary, the SigV4 signature and the request line. It is printable ASCII
+ * ({@link #wireSafe}): the HTTP client writes any other character as {@code ?} or as one raw byte, so a target that
+ * held such a character would run as another request than the one a person approved. Characters beyond ASCII are
+ * therefore written once as UTF-8 percent-escapes when the request is planned.
+ */
 record OpenSearchRequest(String tool, String method, String path, String body, String contentType) {
   static final String INDICES = "opensearch_indices";
   static final String QUERY = "opensearch_query";
@@ -29,6 +44,10 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
       "_analyze", "_termvectors", "_mtermvectors", "_rank_eval");
   private static final Set<String> INDEX_METADATA = Set.of("_settings", "_mapping", "_alias", "_aliases",
       "_stats", "_segments", "_recovery", "_shard_stores");
+  private static final int MAX_TARGET = 32_768;
+  private static final HexFormat HEX = HexFormat.of().withUpperCase();
+  /** A run of escaped bytes beyond ASCII: how a document ID or index name with such text is written in a path. */
+  private static final Pattern ESCAPED_TEXT = Pattern.compile("(?:%[89A-Fa-f][0-9A-Fa-f])+");
 
   static boolean isTool(String tool) {
     return Set.of(INDICES, QUERY, REQUEST, "elasticsearch_indices", "elasticsearch_query", "elasticsearch_request")
@@ -52,7 +71,9 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
       if (!settings.fullApi() && args.has("index") && !settings.indices().contains(index)) {
         throw ConnectorException.denied("Choose one of the connection's configured log index patterns.");
       }
-      if (!index.matches("[a-zA-Z0-9.*_?,:-]+") || index.startsWith("-")) {
+      // A selector of dots alone would be a path segment that a proxy in front of the server may resolve.
+      if (!index.matches("[a-zA-Z0-9.*_?,:-]+") || index.startsWith("-") || index.equals(".")
+          || index.equals("..")) {
         throw ConnectorException.badInput("index must be a " + settings.title() + " index selector, without a URL or path.");
       }
       String expand = text(args, "expandWildcards", "open");
@@ -75,7 +96,9 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
       throw ConnectorException.badInput("Unsupported HTTP method.");
     }
     String path = text(args, "path", null);
+    // Whatever was refused as typed stays refused; what is left is written as ASCII before anything else uses it.
     checkPath(path);
+    path = ascii(path);
     JsonNode query = args.path("query");
     if (!query.isMissingNode()) {
       if (!query.isObject()) {
@@ -98,6 +121,9 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
       path = target.toString();
     }
     checkPath(path);
+    if (!wireSafe(path)) {
+      throw ConnectorException.badInput("path holds a character that can't be sent unchanged.");
+    }
     String contentType = text(args, "contentType", "application/json");
     if (!Set.of("application/json", "application/x-ndjson").contains(contentType)) {
       throw ConnectorException.badInput("contentType must be application/json or application/x-ndjson.");
@@ -105,6 +131,9 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
     JsonNode supplied = args.get("body");
     String body = supplied == null || supplied.isNull() ? null
         : supplied.isString() ? supplied.asString() : supplied.toString();
+    if (body != null && !wellFormed(body)) {
+      throw ConnectorException.badInput("body holds an unpaired surrogate, which can't be sent as UTF-8.");
+    }
     if (body != null) {
       try {
         if (contentType.equals("application/x-ndjson")) {
@@ -156,8 +185,60 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
         .append(encode(value.isString() ? value.asString() : value.toString()));
   }
 
-  private static String encode(String value) {
+  private static String encode(String value) throws ConnectorException {
+    if (!wellFormed(value)) {
+      throw ConnectorException.badInput("A query parameter holds an unpaired surrogate, which can't be sent "
+          + "as UTF-8.");
+    }
     return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
+  }
+
+  /**
+   * {@code text} with every character beyond ASCII written as UTF-8 percent-escapes, once: escapes already in it
+   * stay as they are, so planning a planned target gives the same target.
+   */
+  private static String ascii(String text) throws ConnectorException {
+    if (!wellFormed(text)) {
+      throw ConnectorException.badInput("path holds an unpaired surrogate, which can't be sent as UTF-8.");
+    }
+    if (text.chars().allMatch(c -> c < 0x80)) {
+      return text;
+    }
+    StringBuilder out = new StringBuilder(text.length() + 16);
+    text.codePoints().forEach(codePoint -> {
+      if (codePoint < 0x80) {
+        out.append((char) codePoint);
+      } else {
+        for (byte b : new String(Character.toChars(codePoint)).getBytes(StandardCharsets.UTF_8)) {
+          out.append('%').append(HEX.toHexDigits(b));
+        }
+      }
+    });
+    return out.toString();
+  }
+
+  /** Whether every surrogate of {@code text} is half of a pair: the only text UTF-8 can carry unchanged. */
+  private static boolean wellFormed(String text) {
+    for (int i = 0; i < text.length(); i++) {
+      char c = text.charAt(i);
+      if (Character.isHighSurrogate(c)) {
+        if (i + 1 == text.length() || !Character.isLowSurrogate(text.charAt(++i))) {
+          return false;
+        }
+      } else if (Character.isLowSurrogate(c)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Whether the HTTP client writes {@code target} into the request line byte for byte: printable ASCII, no space. It
+   * writes every other character as {@code ?} (or one raw byte), which would make the server act on another path
+   * than the one that was classified, shown and approved.
+   */
+  static boolean wireSafe(String target) {
+    return target != null && !target.isEmpty() && target.chars().allMatch(c -> c >= 0x21 && c <= 0x7E);
   }
 
   private static String text(JsonNode args, String name, String fallback) throws ConnectorException {
@@ -172,8 +253,11 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
   }
 
   private static void checkPath(String path) throws ConnectorException {
-    if (path == null || !path.startsWith("/") || path.startsWith("//") || path.length() > 32_768) {
+    if (path == null || !path.startsWith("/") || path.startsWith("//")) {
       throw ConnectorException.badInput("path must start with a single / on the configured search server.");
+    }
+    if (path.length() > MAX_TARGET) {
+      throw ConnectorException.badInput("path is longer than " + MAX_TARGET + " characters once escaped.");
     }
     try {
       URI uri = URI.create(path);
@@ -202,8 +286,9 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
       return false;
     }
     String rawPath = URI.create(path).getRawPath();
-    // Encoded routing characters may be interpreted differently by proxies and OpenSearch.
-    if (rawPath.contains("%")) {
+    // Encoded routing characters may be interpreted differently by proxies and OpenSearch. The escapes of text beyond
+    // ASCII are no routing characters: they are how a document ID or an index name with such text is written.
+    if (!escapesOnlyText(rawPath)) {
       return false;
     }
     String[] parts = rawPath.substring(1).split("/");
@@ -240,6 +325,39 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
         || rawPath.matches("/_(index_template|component_template|template|data_stream|ingest/pipeline|"
             + "search/pipeline|scripts)(/(?!_)[^/]+)?")
         || rawPath.equals("/_data_stream/_stats");
+  }
+
+  /**
+   * Whether every {@code %} of {@code rawPath} belongs to a run of escapes that is, as a whole, valid UTF-8 for text a
+   * path may hold unescaped (no control or space characters). Anything else, such as {@code %2F} or a half sequence,
+   * is not ordinary text.
+   */
+  private static boolean escapesOnlyText(String rawPath) {
+    Matcher run = ESCAPED_TEXT.matcher(rawPath);
+    StringBuilder rest = new StringBuilder();
+    int from = 0;
+    while (run.find()) {
+      if (!isText(run.group())) {
+        return false;
+      }
+      rest.append(rawPath, from, run.start());
+      from = run.end();
+    }
+    return rest.append(rawPath, from, rawPath.length()).indexOf("%") < 0;
+  }
+
+  private static boolean isText(String escapes) {
+    byte[] bytes = new byte[escapes.length() / 3];
+    for (int i = 0; i < bytes.length; i++) {
+      bytes[i] = (byte) Integer.parseInt(escapes, 3 * i + 1, 3 * i + 3, 16);
+    }
+    try {
+      return StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
+          .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).codePoints()
+          .noneMatch(c -> Character.isISOControl(c) || Character.isSpaceChar(c));
+    } catch (CharacterCodingException e) {
+      return false;
+    }
   }
 
   void checkSize(Limits limits) throws ConnectorException {
