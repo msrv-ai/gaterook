@@ -115,6 +115,11 @@ describe('SQL comment and literal rules are the dialect’s', () => {
     expect(inert(painted(typographic, "-- 'b'"))).toBe(false);
   });
 
+  it('a dialect it has no model of takes nothing for a literal or a comment', () => {
+    const line = sqlOn("SELECT 'a' -- b", 'snowflake' as SqlDialect)[0];
+    expect(inert(painted(line, "'a' -- b"))).toBe(false);
+  });
+
   it('maps connection types to dialects (MariaDB uses the MySQL type)', () => {
     expect(['postgres', 'mysql', 'mariadb', 'oracle', 'sqlserver', 'clickhouse', 'redis', null].map(sqlDialectOf))
       .toEqual(['postgres', 'mysql', 'mysql', 'oracle', 'sqlserver', 'clickhouse', null, null]);

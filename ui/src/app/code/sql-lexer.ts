@@ -263,6 +263,9 @@ function openAt(dialect: SqlDialect, text: string, i: number, at: (k: number) =>
       }
       if (c === '‘' || c === '’' || c === '“' || c === '”') return 'lost';
       return null;
+    default:
+      // A dialect without a model (a caller outside the types): nothing in it is taken for a literal or a comment.
+      return 'lost';
   }
 }
 
