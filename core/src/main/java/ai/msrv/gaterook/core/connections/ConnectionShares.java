@@ -59,7 +59,10 @@ public class ConnectionShares {
     return registry.type(type).filter(t -> t.usable() && t.kind() != ConnectorManifest.Kind.MCP_SERVER).isPresent();
   }
 
-  /** The config as an import creates it, masked for the review: no trust settings, no values that may hold a key. */
+  /**
+   * The entry's config for the review, masked: without the trust settings an import drops, and without the values that
+   * may hold a key.
+   */
   public JsonNode previewConfig(JsonNode entry) {
     ObjectNode out = portable(entry).map(Portable::config)
         .orElseGet(() -> (ObjectNode) entry.path("config").deepCopy());
