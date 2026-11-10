@@ -75,7 +75,10 @@ public class ConnectionShares {
     return masker.tree(out, null, MaskPolicy.SECRETS_ONLY).tree();
   }
 
-  /** The secrets an import can take over: none of a trust setting. */
+  /**
+   * The secrets an import can take over, none of a trust setting; for an entry that cannot be imported, those its file
+   * holds.
+   */
   public int secretCount(JsonNode entry) {
     Optional<Portable> portable = portable(entry);
     JsonNode config = portable.<JsonNode>map(Portable::config).orElse(entry.path("config"));
