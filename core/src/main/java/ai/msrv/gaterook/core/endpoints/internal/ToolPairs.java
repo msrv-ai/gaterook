@@ -6,7 +6,6 @@ import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.EndpointView;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.Limits;
-import ai.msrv.gaterook.connector.api.ResourceDescriptor;
 import ai.msrv.gaterook.connector.api.TemplateKind;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
@@ -26,7 +25,6 @@ import java.util.Map;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -225,52 +223,26 @@ public class ToolPairs {
   /**
    * The definition to record for a tool that comes in as new or that a person sets a mode for: that of an external
    * MCP server's tool, else {@code null}. Built-in tools, templates and plugins have their own binding (a plugin's
-   * Read only confirmation) or none. It is the SHA-256 of what the agent is shown of the tool: its name, title,
-   * description, input and output schema, its four hints and the app it shows ({@code _meta.ui}). What GateRook derives
-   * from them for itself (the nature, the default modes, the result shape and the risk) is left out, so that a later
-   * change of that derivation sends no tool back to Approval. The connection's name is replaced by a placeholder where
-   * it is in what an endpoint publishes for a server's tool (the URI its app is published under, the description of a
-   * tool that has none): renaming the connection changes neither the server nor the tool. A temporary bypass, a Read
-   * only confirmation and the check before a call use {@link #definitionHash} instead, which this leaves as it is.
+   * Read only confirmation) or none. It is the SHA-256 of what the server declared for the tool, as its connector
+   * carries it in {@link ToolDefinition#declared()}: the hash of its definition as the server sent it (name, title,
+   * description, both schemas and annotations, before any cleaning) and the app it shows ({@code _meta.ui}). Nothing
+   * GateRook derives from them is in it: not the title, description and hints as published, which fall back to
+   * defaults where the server declares none, not whether the result schema is published, nor the nature, the default
+   * modes, the result shape or the risk, so that a later change of that derivation sends no tool back to Approval. The
+   * connection's name isn't in it either: renaming the connection changes neither the server nor the tool. A
+   * definition that carries no declared values (the MCP server connector gives them for every tool) is recorded by its
+   * {@link #definitionHash}, which covers what is derived as well. A temporary bypass, a Read only confirmation and
+   * the check before a call use {@link #definitionHash}, which this leaves as it is.
    */
   public static String reviewedDefinition(Offered offered) {
     if (offered.kind() != ConnectorManifest.Kind.MCP_SERVER) {
       return null;
     }
-    ObjectNode reviewed = shown(offered.definition());
-    String server = offered.declaredBy();
-    if (server != null) {
-      if (reviewed.path("description").isString()) {
-        reviewed.put("description", reviewed.path("description").asString().replace(" of the MCP server " + server
-            + ".", " of the MCP server {server}."));
-      }
-      if (reviewed.get("ui") instanceof ObjectNode ui && ui.path("resourceUri").isString()) {
-        ui.put("resourceUri", ui.path("resourceUri").asString().replace(ResourceDescriptor.appPrefix(server),
-            ResourceDescriptor.appPrefix("{server}")));
-      }
+    JsonNode declared = offered.definition().declared();
+    if (declared == null || !declared.isObject() || declared.isEmpty()) {
+      return definitionHash(offered.definition());
     }
-    return CanonicalJson.sha256Hex(reviewed);
-  }
-
-  /** What {@link #reviewedDefinition} covers of a tool: what the agent is shown of it, as it is shown. */
-  private static ObjectNode shown(ToolDefinition t) {
-    ObjectNode out = JsonNodeFactory.instance.objectNode();
-    out.put("name", t.name());
-    out.put("title", t.title());
-    out.put("description", t.description());
-    out.set("inputSchema", orNull(t.inputSchema()));
-    out.set("outputSchema", orNull(t.outputSchema()));
-    ObjectNode hints = out.putObject("annotations");
-    hints.put("readOnlyHint", t.annotations().readOnlyHint());
-    hints.put("destructiveHint", t.annotations().destructiveHint());
-    hints.put("idempotentHint", t.annotations().idempotentHint());
-    hints.put("openWorldHint", t.annotations().openWorldHint());
-    out.set("ui", orNull(t.meta() == null ? null : t.meta().get("ui")));
-    return out;
-  }
-
-  private static JsonNode orNull(JsonNode node) {
-    return node == null ? JsonNodeFactory.instance.nullNode() : node.deepCopy();
+    return CanonicalJson.sha256Hex(declared);
   }
 
   /**

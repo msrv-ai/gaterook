@@ -289,7 +289,27 @@ public class FakeConnectors {
           .inputSchema(input("query")).annotations(Annotations.read()).nature(Nature.READ)
           .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY).build());
     }
-    return tools;
+    return tools.stream().map(t -> declaring(t, server)).toList();
+  }
+
+  /**
+   * {@code t} with what its server declared, as the MCP server connector gives it: a hash of the definition without
+   * the connection's name, and the app under the server's own URI.
+   */
+  private static ToolDefinition declaring(ToolDefinition t, String server) {
+    ObjectNode declared = JsonNodeFactory.instance.objectNode().put("definitionHash",
+        ai.msrv.gaterook.core.platform.CanonicalJson.sha256Hex(ai.msrv.gaterook.core.connectors.ManifestCodec
+            .writeTool(t)));
+    JsonNode ui = t.meta() == null ? null : t.meta().get("ui");
+    if (ui == null) {
+      declared.putNull("ui");
+    } else {
+      declared.putObject("ui").put("resourceUri", ui.path("resourceUri").asString()
+          .replace(ResourceDescriptor.appPrefix(server), "ui://charts/"));
+    }
+    return new ToolDefinition(t.name(), t.title(), t.description(), t.inputSchema(), t.outputSchema(),
+        t.annotations(), t.nature(), t.defaultMode(), t.prodDefaultMode(), t.resultShape(), t.risk(), t.meta(),
+        declared);
   }
 
   /** What each sharing connection was last told its clients subscribe to. */

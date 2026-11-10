@@ -402,6 +402,11 @@ class McpToolReviewIT {
     assertThat(core.jdbc().queryForList("select change_from || ' > ' || change_to from setup_change where what = "
         + "'mode' and change_to = 'Approval' and endpoint_slug = ? order by id", String.class, server))
         .containsExactlyInAnyOrder("Read only > Approval", "Read only > Approval", "Bypass > Approval");
+    // Nothing was recorded, so nothing changed since: the reason says what is missing.
+    assertThat(modeChanges(server, "gh_list")).last().isEqualTo("Bypass > Approval: No definition of gh_list is "
+        + "recorded for the mode it was set to");
+    assertThat(modeChanges(server, "gh_search")).last().isEqualTo("Read only > Approval: No definition of gh_search "
+        + "is recorded for the mode it was set to");
   }
 
   /** The connection's name is in what an endpoint publishes (the URI of a tool's app): a rename is no new definition. */

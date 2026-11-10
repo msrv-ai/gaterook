@@ -66,8 +66,8 @@ public class EndpointConnections implements SmartInitializingSingleton {
    * How many rows of one external MCP server's tools on an endpoint, listed and unlisted together, a reconcile stops
    * creating rows at: a new tool it finds then gets no row, which is Off until a person sets a mode. The server chooses
    * the names it lists, and what a person decided for a name is never removed to make room. It limits only what a
-   * reconcile creates: adding the server to an endpoint writes a row for every tool it lists then, and so does a
-   * person setting a tool's mode.
+   * reconcile creates: adding the server to an endpoint writes a row for every tool it lists then, and a person setting
+   * the mode of a tool without a row writes that tool's row.
    */
   static final int MAX_SERVER_ROWS = 2_000;
 
@@ -388,7 +388,8 @@ public class EndpointConnections implements SmartInitializingSingleton {
     boolean recorded = row.getReviewedDefinition() != null;
     if (falls) {
       // Clears the grant as well (see above).
-      row.setMode(next, clock.instant());    } else {
+      row.setMode(next, clock.instant());
+    } else {
       row.setTemporaryBypass(null, clock.instant());
     }
     rows.save(row);
@@ -455,8 +456,9 @@ public class EndpointConnections implements SmartInitializingSingleton {
    * Approval (Off on a read-only endpoint), with one Setup change for all of them. Such a row runs in Approval already
    * (the snapshot holds it, ARCHITECTURE.md §7.5), and nothing would record a definition for it later, so its stored
    * mode only misleads. It comes from a V89 start that couldn't verify the rows (the master key was locked), from a
-   * tool the server didn't list at that start, from a reset of a definition changed outside GateRook, or from a
-   * duplicate of such a row. Rows that don't verify are left alone (a locked start changes nothing), and so is a
+   * tool the server didn't list at that start, from a reset of a definition changed outside GateRook, from a mode
+   * set without the definition it is for (an API request without {@code definitionHash} for a tool whose row had no
+   * record, such as one beyond {@link #MAX_SERVER_ROWS}), or from a duplicate of such a row. Rows that don't verify are left alone (a locked start changes nothing), and so is a
    * temporary bypass, which has its own binding ({@link TemporaryBypass}). Nothing that is enforced changes and nothing
    * is granted. Built-in, template and plugin tools record no definition by design and are never considered.
    *
@@ -502,9 +504,9 @@ public class EndpointConnections implements SmartInitializingSingleton {
         }
         setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.MODE,
             "MCP server tools without a recorded definition", "Read only or Bypass", String.join(", ", to),
-            "No definition was recorded for their mode: GateRook upgraded its database without recording one (the "
-                + "master key was locked, or the server didn't list the tool then), or it was reset. Set the mode "
-                + "again to review the definition they have now.", null, null, null, null));
+            "No definition is recorded for the mode they were set to: for example, GateRook upgraded its database "
+                + "while the master key was locked or the server didn't list the tool, or the mode was set without "
+                + "the definition it is for. Set the mode again to review the definition they have now.", null, null, null, null));
         log.info("{} MCP server tools without a recorded definition went to Approval", count);
       }
       tools.flush();

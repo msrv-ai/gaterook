@@ -236,6 +236,7 @@ final class Snapshots {
       }
       b.meta(meta);
     }
+    b.declared(declared(entry));
     if (read) {
       b.nature(Nature.READ).annotations(new Annotations(true, false, idempotent == null ? Boolean.FALSE : idempotent,
           openWorld == null ? Boolean.TRUE : openWorld));
@@ -247,6 +248,26 @@ final class Snapshots {
           idempotent == null ? Boolean.FALSE : idempotent, openWorld == null ? Boolean.TRUE : openWorld));
     }
     return b.build();
+  }
+
+  /**
+   * What the server declared for the tool, for the record a person's Read only or Bypass is bound to: the hash of its
+   * definition as the server sent it ({@link #definitionHash(McpSchema.Tool)}: its name, title, description, both
+   * schemas and annotations, before any cleaning) and the app it shows as the entry keeps it ({@code ui}, or
+   * {@code null}). Nothing {@link #definition} derives is in it: neither the fallback title and description, nor the
+   * defaults of unset hints, nor which tools publish their result schema, nor the connection's name, so a change of
+   * those leaves the record as it is. {@code null} for an entry without a hash, which every entry has.
+   */
+  static ObjectNode declared(JsonNode entry) {
+    String hash = Texts.str(entry.path("definitionHash"), null);
+    if (hash == null || hash.isBlank()) {
+      return null;
+    }
+    ObjectNode declared = Texts.JSON.createObjectNode();
+    declared.put("definitionHash", hash);
+    JsonNode app = reviewedApp(entry);
+    declared.set("ui", app == null ? Texts.JSON.nullNode() : app.deepCopy());
+    return declared;
   }
 
   /** {@code readOnlyHint: true} and not {@code destructiveHint: true}. */
