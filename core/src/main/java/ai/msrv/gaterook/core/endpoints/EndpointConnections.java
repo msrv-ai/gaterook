@@ -352,7 +352,8 @@ public class EndpointConnections implements SmartInitializingSingleton {
    *
    * <p>A temporary bypass is judged by its own binding, the definition it was granted for
    * ({@link TemporaryBypass#activeUntil}), not by the row's reviewed definition: a person may grant one to a tool held
-   * in Approval, whose row keeps the definition of an earlier mode or none. The grant of an external server's tool is
+   * in Approval whose stored mode is Read only (a stored Bypass is ineligible, ARCHITECTURE.md §5.1), and whose row
+   * keeps the definition of an earlier mode or none. The grant of an external server's tool is
    * dropped when the tool's definition is no longer the one it was granted for. A fall of the mode drops any grant too:
    * the reconcile that writes the fall saves the endpoint, and a grant is bound to the endpoint's version, so it would
    * stay in the row without ever applying again. The Setup change says whether the grant was still in force or had
@@ -458,9 +459,10 @@ public class EndpointConnections implements SmartInitializingSingleton {
    * mode only misleads. It comes from a V89 start that couldn't verify the rows (the master key was locked), from a
    * tool the server didn't list at that start, from a reset of a definition changed outside GateRook, from a mode
    * set without the definition it is for (an API request without {@code definitionHash} for a tool whose row had no
-   * record, such as one beyond {@link #MAX_SERVER_ROWS}), or from a duplicate of such a row. Rows that don't verify are left alone (a locked start changes nothing), and so is a
-   * temporary bypass, which has its own binding ({@link TemporaryBypass}). Nothing that is enforced changes and nothing
-   * is granted. Built-in, template and plugin tools record no definition by design and are never considered.
+   * record, such as one beyond {@link #MAX_SERVER_ROWS}), or from a duplicate of such a row. Rows that don't verify
+   * are left alone (a locked start changes nothing), and so is a temporary bypass, which has its own binding
+   * ({@link TemporaryBypass}). Nothing that is enforced changes and nothing is granted. Built-in, template and
+   * plugin tools record no definition by design and are never considered.
    *
    * @return how many rows went to Approval or Off
    */
@@ -506,7 +508,8 @@ public class EndpointConnections implements SmartInitializingSingleton {
             "MCP server tools without a recorded definition", "Read only or Bypass", String.join(", ", to),
             "No definition is recorded for the mode they were set to: for example, GateRook upgraded its database "
                 + "while the master key was locked or the server didn't list the tool, or the mode was set without "
-                + "the definition it is for. Set the mode again to review the definition they have now.", null, null, null, null));
+                + "the definition it is for. Set the mode again to review the definition they have now.", null, null,
+            null, null));
         log.info("{} MCP server tools without a recorded definition went to Approval", count);
       }
       tools.flush();
