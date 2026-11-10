@@ -74,8 +74,11 @@ class ClientsIT {
   private static final Pattern NAMED = Pattern.compile("gwt_[A-Za-z0-9_-]{43}");
   private static final Pattern BRIDGE = Pattern.compile("gwb_[A-Za-z0-9_-]{43}");
   private static final Pattern GRANT = Pattern.compile("gr_[a-z0-9]{12}");
-  /** Short enough to see a token expire; a release always issues 15 minutes. */
-  private static final Duration TTL = Duration.ofSeconds(4);
+  /**
+   * Short enough to see a token expire, long enough to fill a grant's live tokens before the first expires; a release
+   * always issues 15 minutes.
+   */
+  private static final Duration TTL = Duration.ofSeconds(10);
 
   private static Path userHome;
   private static TestCore core;
@@ -359,14 +362,56 @@ class ClientsIT {
     // Not signed by the launch secret: what any other program could send.
     assertThat(api.sendUnsigned(HttpMethod.POST, "/internal/bridge/tokens", "{}").status()).isEqualTo(401);
 
-    // At most four live tokens per grant: a fifth retires the oldest.
-    for (int i = 0; i < 4; i++) {
+    // At most MAX_LIVE_TOKENS live tokens per grant: one more from the same program retires its oldest.
+    for (int i = 0; i < ClientGrants.MAX_LIVE_TOKENS; i++) {
       assertThat(bridgeToken("codex", "dev", codexGrant).path("ok").asBoolean()).isTrue();
     }
     assertThat(liveTokens(codexGrant)).isEqualTo(ClientGrants.MAX_LIVE_TOKENS);
     assertThat(initialize("dev", token).statusCode()).as("the oldest was superseded").isEqualTo(401);
     assertThat(core.jdbc().queryForObject("select count(*) from api_token where grant_id = ? and revoke_reason = "
         + "'superseded'", Integer.class, codexGrant)).isEqualTo(1);
+  }
+
+  @Test
+  @Order(22)
+  void programsSharingAGrantKeepTheirTokensAndOneTooManyIsRefused() throws Exception {
+    String grant = core.bean(ClientGrants.class).create(null, "cursor", "dev", "many-windows", null).id();
+    // Long-running processes of this computer stand in for the windows of a client that share one grant.
+    int programs = Math.max(5, ClientGrants.MAX_LIVE_TOKENS);
+    List<Long> running = ProcessHandle.allProcesses().filter(ProcessHandle::isAlive)
+        .filter(p -> p.info().startInstant().map(t -> t.isBefore(Instant.now().minusSeconds(60))).orElse(false))
+        .map(ProcessHandle::pid).limit(programs + 1L).toList();
+    assertThat(running).hasSize(programs + 1);
+    List<String> issued = new ArrayList<>();
+    for (int i = 0; i < programs; i++) {
+      JsonNode answer = bridgeToken("cursor", "dev", grant, running.get(i));
+      assertThat(answer.path("ok").asBoolean()).as("program %d", i).isTrue();
+      issued.add(answer.path("token").asString());
+      if (i == 4) {
+        // A fifth program of one grant used to take the oldest one's token, which then took the next one's in turn.
+        for (String token : issued) {
+          assertThat(initialize("dev", token).statusCode()).as("five programs keep their tokens").isEqualTo(200);
+        }
+      }
+    }
+    for (String token : issued) {
+      assertThat(initialize("dev", token).statusCode()).as("every program keeps its token").isEqualTo(200);
+    }
+    JsonNode refused = bridgeToken("cursor", "dev", grant, running.getLast());
+    assertThat(refused.path("error").asString()).isEqualTo("rate_limited");
+    assertThat(refused.path("message").asString()).contains(ClientGrants.MAX_LIVE_TOKENS + " running programs");
+    assertThat(initialize("dev", issued.getFirst()).statusCode()).isEqualTo(200);
+    // A program that asks again replaces its own token, not another one's.
+    JsonNode renewed = bridgeToken("cursor", "dev", grant, running.get(3));
+    assertThat(renewed.path("ok").asBoolean()).isTrue();
+    assertThat(initialize("dev", issued.get(3)).statusCode()).isEqualTo(401);
+    for (int i = 0; i < issued.size(); i++) {
+      if (i != 3) {
+        assertThat(initialize("dev", issued.get(i)).statusCode()).as("program %d", i).isEqualTo(200);
+      }
+    }
+    assertThat(liveTokens(grant)).isEqualTo(ClientGrants.MAX_LIVE_TOKENS);
+    core.bean(ClientGrants.class).revoke(grant, "test");
   }
 
   @Test
@@ -1095,6 +1140,13 @@ class ClientsIT {
     return api.expect(200, HttpMethod.POST, "/internal/bridge/tokens", """
         {"v":1,"op":"token","client":"%s","endpoint":"%s","grant":"%s","pid":4242,"bridge":"%s"}"""
         .formatted(client, endpoint, grant, bridge));
+  }
+
+  /** A token request of the program {@code pid}. */
+  private static JsonNode bridgeToken(String client, String endpoint, String grant, long pid) {
+    return api.expect(200, HttpMethod.POST, "/internal/bridge/tokens", """
+        {"v":1,"op":"token","client":"%s","endpoint":"%s","grant":"%s","pid":%d,"bridge":"0.4.0"}"""
+        .formatted(client, endpoint, grant, pid));
   }
 
   private static int liveTokens(String grant) {
