@@ -48,6 +48,7 @@ Use bounded find operations with projection/sort/skip, `limit(n + 1)`, small bat
 | --- | --- |
 | `$out` or `$merge` anywhere | Deny writes, including nested facet/lookup pipelines. |
 | `$where`, `$function`, or `$accumulator` anywhere | Deny server-side JavaScript. |
+| An operator name starting with `$_` anywhere | Deny MongoDB's internal operators. They serve the server's own commands, are documented for no client, and include the JavaScript emit and reduce operators that map-reduce is translated into. |
 | Unknown stage or malformed stage object | Deny, rather than assuming a future stage is read-only. |
 | Lookup/graphLookup/unionWith references outside the namespace policy | Deny. |
 | System databases/collections without explicit permission | Deny. |

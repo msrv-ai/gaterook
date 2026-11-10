@@ -14,8 +14,12 @@ import org.bson.BsonValue;
  * <ol>
  *   <li>a key {@code $out} or {@code $merge} at any depth of any argument (inside {@code $facet}, a {@code $lookup}
  *       or {@code $unionWith} pipeline, a {@code $literal}…) → {@code write-stage};</li>
- *   <li>a key {@code $where}, {@code $function} or {@code $accumulator} anywhere → {@code server-js} (server-side
- *       JavaScript is on by default in 7.0, 8.0 and 9.0);</li>
+ *   <li>a key {@code $where}, {@code $function} or {@code $accumulator} anywhere, or one of the server's own
+ *       JavaScript operators of map-reduce ({@link #SERVER_JS_KEYS}) → {@code server-js} (server-side JavaScript is on
+ *       by default in 7.0, 8.0 and 9.0);</li>
+ *   <li>any other key that starts with {@code $_} anywhere → {@code internal-operator}: MongoDB reserves those names
+ *       for operators it uses inside its own commands. They are documented for no client, change between releases,
+ *       and include operators that run JavaScript, so none is allowed rather than only the ones known today;</li>
  *   <li>the collection, and every collection a stage reads ({@code $lookup}/{@code $graphLookup} {@code from},
  *       {@code $unionWith}), must be allowed by {@link Namespaces}; a {@code from} naming another database →
  *       {@code namespace-not-allowed};</li>
@@ -53,7 +57,15 @@ final class PipelineValidator {
       Map.entry("$listClusterCatalog", "it lists the cluster's catalog"));
 
   static final Set<String> WRITE_KEYS = Set.of("$out", "$merge");
-  static final Set<String> SERVER_JS_KEYS = Set.of("$where", "$function", "$accumulator");
+  /**
+   * Operators that run JavaScript in the server: the three a client may use, and the expression and accumulator that
+   * map-reduce is translated into. Those two are internal, so {@link #INTERNAL_PREFIX} would refuse them as well; they
+   * are named here so that the rule says what they do.
+   */
+  static final Set<String> SERVER_JS_KEYS = Set.of("$where", "$function", "$accumulator", "$_internalJsEmit",
+      "$_internalJsReduce");
+  /** The prefix MongoDB reserves for operators of its own commands. */
+  static final String INTERNAL_PREFIX = "$_";
 
   /** Explicit update operators; replacement documents and arbitrary commands are not accepted. */
   static final Set<String> UPDATE_OPERATORS = Set.of("$currentDate", "$inc", "$min", "$max", "$mul", "$rename",
@@ -126,7 +138,11 @@ final class PipelineValidator {
     return Optional.empty();
   }
 
-  /** Every key of every document at any depth: writes and server-side JavaScript. */
+  /**
+   * Every key of every document at any depth (filters, projections, sorts, pipelines and their sub-pipelines,
+   * expressions, update documents and update pipelines, array filters): writes, server-side JavaScript and the server's
+   * internal operators.
+   */
   private static Optional<Verdict> scan(BsonValue value, String tool) {
     if (value instanceof BsonDocument d) {
       for (Map.Entry<String, BsonValue> e : d.entrySet()) {
@@ -140,6 +156,11 @@ final class PipelineValidator {
         if (SERVER_JS_KEYS.contains(key)) {
           return Optional.of(new Verdict("server-js", "Server-side JavaScript (" + key + ") isn't allowed. Use $expr "
               + "with aggregation operators instead.", null));
+        }
+        if (key.startsWith(INTERNAL_PREFIX)) {
+          return Optional.of(new Verdict("internal-operator", "Operator " + clip(key) + " isn't allowed: names "
+              + "that start with $_ are MongoDB's own internal operators.", "Use the documented query and "
+              + "aggregation operators."));
         }
         Optional<Verdict> inner = scan(e.getValue(), tool);
         if (inner.isPresent()) {
@@ -269,5 +290,12 @@ final class PipelineValidator {
 
   private Verdict namespace(String database, String collection) {
     return new Verdict("namespace-not-allowed", namespaces.refusal(database, collection), null);
+  }
+
+  /** A name from the arguments as a reason quotes it: control characters replaced, at most 64 code points. */
+  static String clip(String name) {
+    String line = name.replaceAll("\\p{Cntrl}", "?");
+    return line.codePointCount(0, line.length()) <= 64 ? line : line.substring(0, line.offsetByCodePoints(0, 64))
+        + "…";
   }
 }

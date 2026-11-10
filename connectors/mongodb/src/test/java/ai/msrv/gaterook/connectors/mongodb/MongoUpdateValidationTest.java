@@ -136,6 +136,30 @@ class MongoUpdateValidationTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"mongo_update", "mongo_update_many"})
+  void theServersInternalOperatorsAreDeniedInFiltersUpdatesPipelinesAndArrayFilters(String tool) {
+    List<ObjectNode> js = List.of(
+        args("[{\"$set\":{\"x\":{\"$_internalJsEmit\":{}}}}]"),
+        args("{\"$set\":{\"x\":{\"$_internalJsReduce\":{}}}}"));
+    for (ObjectNode input : js) {
+      assertThat(classify(tool, input).ruleId()).as(input.toString()).isEqualTo("dev.mongodb.server-js");
+    }
+    List<ObjectNode> internal = List.of(
+        args("{\"$set\":{}}").set("filter", Ejson.JSON.readTree("{\"$expr\":{\"$_internalOperator\":1}}")),
+        args("[{\"$set\":{\"x\":{\"$_internalOperator\":[1]}}}]"),
+        args("[{\"$_internalOperator\":{}}]"),
+        args("{\"$set\":{\"items.$[i].x\":1}}").set("arrayFilters",
+            Ejson.JSON.readTree("[{\"i\":{\"$_internalOperator\":1}}]")));
+    for (ObjectNode input : internal) {
+      Classification c = classify(tool, input);
+      assertThat(c.kind()).as(input.toString()).isEqualTo(Classification.Kind.DENY);
+      assertThat(c.ruleId()).as(input.toString()).isEqualTo("dev.mongodb.internal-operator");
+      assertThat(c.reason()).isEqualTo("Operator $_internalOperator isn't allowed: names that start with $_ are "
+          + "MongoDB's own internal operators.");
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"mongo_update", "mongo_update_many"})
   void databaseSelectionAndNamespaceAllowlistApplyToUpdates(String tool) {
     ObjectNode input = args("{\"$set\":{\"status\":\"paid\"}}");
     ConnectionConfig scoped = Fixtures.config(Env.DEV, """
