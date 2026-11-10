@@ -101,7 +101,7 @@ class ManualClients {
       changes.record(new SetupChange(SetupChangeRecorder.What.CLIENT, app.getName() + " → " + e.slug(),
           "Manual app", "Removed; token revoked", null, e.env(), e.slug(), null, null));
       return new Disconnected(id, false, rejected, List.of("The app's token was revoked. Remove its MCP "
-          + "configuration in " + app.getName() + "."));
+          + "configuration in " + app.getName() + "."), null);
     });
   }
 

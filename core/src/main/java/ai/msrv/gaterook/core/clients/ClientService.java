@@ -3,6 +3,7 @@ package ai.msrv.gaterook.core.clients;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.core.clients.ClientViews.Backup;
 import ai.msrv.gaterook.core.clients.ClientViews.BridgeRemoved;
+import ai.msrv.gaterook.core.clients.ClientViews.ByHand;
 import ai.msrv.gaterook.core.clients.ClientViews.Card;
 import ai.msrv.gaterook.core.clients.ClientViews.Check;
 import ai.msrv.gaterook.core.clients.ClientViews.Clients;
@@ -127,11 +128,14 @@ public class ClientService {
 
   private enum PlanKind { CONNECT, DISCONNECT, RESTORE }
 
-  /** A previewed change, held until Confirm or ten minutes. */
+  /**
+   * A previewed change, held until Confirm or ten minutes. {@code byHand}: a Disconnect whose file GateRook found it
+   * can't change, so Confirm revokes the access and leaves the entry for the person.
+   */
   private record Plan(String id, PlanKind kind, ClientKind client, String slug, String endpointId, Env env,
       LinkMethod method, String grantId, String grantLabel, String entryName, Snapshot snapshot, String content,
       String linkId, TokenOptions token, McpbBuilder.Spec mcpb, String backupId, List<String> consolidatedLinks,
-      Instant expiresAt) {}
+      Instant expiresAt, ByHand byHand) {}
 
   private record EntryChoice(String name, boolean replacement, List<String> duplicates) {}
 
@@ -557,10 +561,10 @@ public class ClientService {
             java.time.ZoneId.systemDefault())) : null, modeChange);
     Plan plan = new Plan(Ids.uuid(), PlanKind.CONNECT, client, e.slug(), e.id(), e.env(), method, grantId, label, name,
         snapshot, after, existing.map(ClientLinkEntity::getId).orElse(null), token, null, null, consolidatedLinks,
-        clock.instant().plus(PREVIEW_TTL));
+        clock.instant().plus(PREVIEW_TTL), null);
     keep(plan);
     return new Preview(plan.id(), client.id(), e.slug(), e.env().id(), KebabCase.of(method), repair, List.of(change),
-        List.copyOf(notes), List.copyOf(warnings), addToCursor, plan.expiresAt());
+        List.copyOf(notes), List.copyOf(warnings), addToCursor, plan.expiresAt(), null);
   }
 
   private Preview previewMcpb(ClientAdapter a, EndpointService.Summary e, String grantId, String label, boolean repair,
@@ -578,10 +582,10 @@ public class ClientService {
         Files.exists(target), "mcpb", diff(null, manifest), null, null);
     Plan plan = new Plan(Ids.uuid(), PlanKind.CONNECT, a.kind(), e.slug(), e.id(), e.env(), LinkMethod.MCPB, grantId,
         label, null, null, null, existing.map(ClientLinkEntity::getId).orElse(null), null, spec, null, List.of(),
-        clock.instant().plus(PREVIEW_TTL));
+        clock.instant().plus(PREVIEW_TTL), null);
     keep(plan);
     return new Preview(plan.id(), a.kind().id(), e.slug(), e.env().id(), "mcpb", repair, List.of(change),
-        List.copyOf(notes), List.copyOf(warnings), null, plan.expiresAt());
+        List.copyOf(notes), List.copyOf(warnings), null, plan.expiresAt(), null);
   }
 
   private List<String> methodNotes(ClientKind client, LinkMethod method, EndpointService.Summary e) {
@@ -837,37 +841,53 @@ public class ClientService {
 
   // ── Disconnect ──────────────────────────────────────────────────────────────────────────────────────────────
 
-  /** {@code POST /api/clients/links/{id}/disconnect/preview}: the reverse edit; nothing is written. */
+  /**
+   * {@code POST /api/clients/links/{id}/disconnect/preview}: the reverse edit; nothing is written. A file GateRook
+   * can't change (it doesn't parse, is too large or not a regular file, sits where this edition doesn't write, or the
+   * edit would change more than GateRook's entry) doesn't stop a Disconnect: the preview says so in {@code byHand},
+   * and Confirm revokes the access and leaves the entry for the person.
+   */
   public Preview previewDisconnect(String linkId) {
     ClientLinkEntity l = activeLink(linkId);
-    guardLinkMutation(l);
     String slug = slugOf(l);
     Env envOf = endpointEnv(l);
     List<String> notes = new ArrayList<>();
     List<FileChange> files = new ArrayList<>();
     Snapshot snapshot = null;
     String after = null;
+    ByHand byHand = null;
     if (l.getMethod() == LinkMethod.MCPB) {
       Path file = Path.of(l.getConfigPath());
-      files.add(new FileChange(file.toString(), env.display(file), file.toString(), Files.exists(file), "mcpb",
-          diff(Files.exists(file) ? manifestOf(file) : null, null), null, null));
+      if (mayChangeFiles(l)) {
+        files.add(new FileChange(file.toString(), env.display(file), file.toString(), Files.exists(file), "mcpb",
+            diff(Files.exists(file) ? manifestOf(file) : null, null), null, null));
+      }
       notes.add("Claude Desktop keeps the extension until you remove it there: Settings › Extensions. Its access is "
           + "revoked now, so it stops working on its next call.");
     } else if (l.getConfigPath() != null) {
-      snapshot = ConfigFileWriter.read(Path.of(l.getConfigPath()));
-      storePolicy.snapshot(snapshot);
-      String before = snapshot.exists() ? snapshot.content() : null;
-      Optional<JsonNode> entry = before == null ? Optional.empty() : entryOf(l, before);
-      if (entry.isPresent() && ours(entry.get(), slug, l.getGrantId())) {
-        after = remove(l, before);
-        files.add(new FileChange(l.getConfigPath(), env.display(snapshot.path()), snapshot.realPath().toString(),
-            true, "config", diff(before, after), env.display(snapshot.realPath()) + ".bak-" + java.time.LocalDate.now(
-                clock.withZone(java.time.ZoneId.systemDefault())), null));
-      } else if (entry.isPresent()) {
-        notes.add("The entry " + l.getEntryName() + " was changed outside the app, so it stays; remove it by hand if "
-            + "you don't need it.");
-      } else {
-        notes.add("The entry is already gone from " + env.display(Path.of(l.getConfigPath())) + ".");
+      try {
+        guardLinkMutation(l);
+        snapshot = ConfigFileWriter.read(Path.of(l.getConfigPath()));
+        storePolicy.snapshot(snapshot);
+        String before = snapshot.exists() ? snapshot.content() : null;
+        Optional<JsonNode> entry = before == null ? Optional.empty() : entryOf(l, before);
+        if (entry.isPresent() && ours(entry.get(), slug, l.getGrantId())) {
+          after = remove(l, before);
+          files.add(new FileChange(l.getConfigPath(), env.display(snapshot.path()), snapshot.realPath().toString(),
+              true, "config", diff(before, after), env.display(snapshot.realPath()) + ".bak-"
+                  + java.time.LocalDate.now(clock.withZone(java.time.ZoneId.systemDefault())), null));
+        } else if (entry.isPresent()) {
+          notes.add("The entry " + l.getEntryName() + " was changed outside the app, so it stays; remove it by hand "
+              + "if you don't need it.");
+        } else {
+          notes.add("The entry is already gone from " + env.display(Path.of(l.getConfigPath())) + ".");
+        }
+      } catch (ConfigEditException | ProblemException e) {
+        // Only the file's part: the access ends all the same. The page shows byHand where the change would be.
+        snapshot = null;
+        after = null;
+        files.clear();
+        byHand = byHand(l, reasonOf(e));
       }
     }
     notes.add(l.getTokenId() != null ? "The token stops working on its next call." : l.getGrantId() != null
@@ -875,10 +895,11 @@ public class ClientService {
         + "client's sign-in is no longer offered.");
     Plan plan = new Plan(Ids.uuid(), PlanKind.DISCONNECT, l.getClient(), slug, l.getEndpointId(), envOf,
         l.getMethod(), l.getGrantId(), null, l.getEntryName(), snapshot, after, l.getId(), null, null, null, List.of(),
-        clock.instant().plus(PREVIEW_TTL));
+        clock.instant().plus(PREVIEW_TTL), byHand);
     keep(plan);
     return new Preview(plan.id(), l.getClient().id(), slug, envOf == null ? null : envOf.id(),
-        KebabCase.of(l.getMethod()), false, List.copyOf(files), List.copyOf(notes), List.of(), null, plan.expiresAt());
+        KebabCase.of(l.getMethod()), false, List.copyOf(files), List.copyOf(notes), List.of(), null, plan.expiresAt(),
+        byHand);
   }
 
   /** {@code POST /api/clients/links/{id}/disconnect {previewId}}. */
@@ -887,30 +908,74 @@ public class ClientService {
     if (!linkId.equals(plan.linkId())) {
       throw ProblemException.conflict("Another preview", "This preview is for another entry: check the change again.");
     }
-    return disconnect(activeLink(linkId), plan.snapshot(), plan.content(), "Disconnect");
+    return disconnect(activeLink(linkId), plan.snapshot(), plan.content(), plan.byHand(), "Disconnect");
   }
 
-  private Disconnected disconnect(ClientLinkEntity l, Snapshot snapshot, String after, String reason) {
-    guardLinkMutation(l);
-    storePolicy.snapshot(snapshot);
+  /**
+   * Ends the link's access first, always, and then takes its entry out of the file. The file can't keep a client's
+   * access alive: when GateRook can't write it, or it changed since the preview, the entry stays for the person to
+   * remove ({@code byHand}) and the link ends anyway.
+   *
+   * @param planned what the preview already found GateRook can't change, or {@code null}
+   */
+  private Disconnected disconnect(ClientLinkEntity l, Snapshot snapshot, String after, ByHand planned,
+      String reason) {
+    String slug = slugOf(l);
+    Env envOf = endpointEnv(l);
+    int rejected = revoke(l, reason);
     List<String> notes = new ArrayList<>();
     boolean removed = false;
+    ByHand byHand = planned;
     if (l.getMethod() == LinkMethod.MCPB) {
-      removed = deleteExtension(l.getConfigPath());
+      try {
+        guardLinkMutation(l);
+        removed = deleteExtension(l.getConfigPath());
+      } catch (RuntimeException e) {
+        log.warn("{} disconnected from {}: its extension file stays: {}", l.getClient().id(), slug, reasonOf(e));
+      }
       notes.add("Remove the extension in Claude Desktop: Settings › Extensions.");
     } else if (snapshot != null && after != null) {
       try {
+        guardLinkMutation(l);
+        storePolicy.snapshot(snapshot);
         writer.write(snapshot, after, l.getClient().id(), ConfigFileWriter.holdsToken(after));
         removed = true;
       } catch (ConfigFileWriter.StaleFileException ex) {
-        throw ProblemException.conflict("The file changed", ex.getMessage());
-      } catch (IOException ex) {
-        throw ProblemException.conflict("Disconnect failed", "Can't write " + env.display(snapshot.path()) + ": "
-            + ex.getMessage());
+        byHand = byHand(l, "It changed after the preview, so GateRook left it as it is.");
+      } catch (IOException | RuntimeException ex) {
+        byHand = byHand(l, "GateRook can't write it: " + reasonOf(ex));
       }
     }
-    String slug = slugOf(l);
-    Env envOf = endpointEnv(l);
+    if (byHand != null) {
+      notes.add(byHandNote(byHand));
+      log.warn("{} disconnected from {}: {} still has the entry {}: {}", l.getClient().id(), slug, byHand.file(),
+          byHand.entry(), byHand.reason());
+    }
+    boolean entryRemoved = removed;
+    ByHand left = byHand;
+    writeTx.executeWithoutResult(s -> {
+      ClientLinkEntity row = links.findById(l.getId()).orElseThrow();
+      row.setStatus("removed");
+      row.removed(clock.instant());
+      links.save(row);
+      ObjectNode details = JsonNodeFactory.instance.objectNode();
+      details.put("method", KebabCase.of(l.getMethod()));
+      details.put("entryRemoved", entryRemoved);
+      if (left != null) {
+        details.put("leftInFile", left.file() + " · " + left.entry());
+      }
+      setupChanges.record(new SetupChange(SetupChangeRecorder.What.CLIENT, ClientAdapter.of(l.getClient())
+          .displayName() + " → " + slug, "Connected", "Disconnected", null, envOf, slug, null, details));
+    });
+    if (l.getTokenId() != null) {
+      purgeBackupsHolding(l.getClient(), l.getTokenId());
+    }
+    publishRemoved(l, slug);
+    return new Disconnected(l.getId(), removed, rejected, List.copyOf(notes), byHand);
+  }
+
+  /** Revokes the link's grant (unless it is revoked already) and its token; the approvals that were waiting end too. */
+  private int revoke(ClientLinkEntity l, String reason) {
     int rejected = 0;
     if (l.getGrantId() != null) {
       Optional<Grant> g = grants.find(l.getGrantId());
@@ -921,52 +986,85 @@ public class ClientService {
     if (l.getTokenId() != null) {
       rejected += tokens.revoke(l.getTokenId(), reason);
     }
-    boolean entryRemoved = removed;
-    writeTx.executeWithoutResult(s -> {
-      ClientLinkEntity row = links.findById(l.getId()).orElseThrow();
-      row.setStatus("removed");
-      row.removed(clock.instant());
-      links.save(row);
-      ObjectNode details = JsonNodeFactory.instance.objectNode();
-      details.put("method", KebabCase.of(l.getMethod()));
-      details.put("entryRemoved", entryRemoved);
-      setupChanges.record(new SetupChange(SetupChangeRecorder.What.CLIENT, ClientAdapter.of(l.getClient())
-          .displayName() + " → " + slug, "Connected", "Disconnected", null, envOf, slug, null, details));
-    });
-    if (l.getTokenId() != null) {
-      purgeBackupsHolding(l.getClient(), l.getTokenId());
-    }
-    publishRemoved(l, slug);
-    return new Disconnected(l.getId(), removed, rejected, List.copyOf(notes));
+    return rejected;
   }
 
-  /** {@code POST /api/clients/claude-desktop/remove-bridge}: every access of Claude Desktop ends, files go. */
+  /** Whether the edition lets GateRook change the link's files; only that, never whether its access may end. */
+  private boolean mayChangeFiles(ClientLinkEntity l) {
+    try {
+      guardLinkMutation(l);
+      return true;
+    } catch (ProblemException e) {
+      return false;
+    }
+  }
+
+  private ByHand byHand(ClientLinkEntity l, String reason) {
+    String file = l.getConfigPath() == null ? null : env.display(Path.of(l.getConfigPath()));
+    return new ByHand(file, l.getEntryName(), reason);
+  }
+
+  /** The person's part, in the note of a Disconnect: which entry, in which file, and why GateRook left it. */
+  private static String byHandNote(ByHand b) {
+    return "GateRook couldn't remove the entry " + b.entry() + " from " + b.file() + ": " + b.reason() + " The access "
+        + "is revoked anyway; remove the entry by hand.";
+  }
+
+  /** A refusal's own sentence; for a file the system refused, what it refused and which file. */
+  private String reasonOf(Exception e) {
+    String m;
+    if (e instanceof java.nio.file.AccessDeniedException a && a.getFile() != null) {
+      m = "permission denied for " + env.display(Path.of(a.getFile()));
+    } else if (e instanceof java.nio.file.FileSystemException f && f.getFile() != null) {
+      m = (f.getReason() == null ? f.getClass().getSimpleName() : f.getReason()) + ": "
+          + env.display(Path.of(f.getFile()));
+    } else {
+      m = e.getMessage() == null || e.getMessage().isBlank() ? e.getClass().getSimpleName() : e.getMessage().strip();
+    }
+    return m.endsWith(".") || m.endsWith("!") || m.endsWith("?") ? m : m + ".";
+  }
+
+  /**
+   * {@code POST /api/clients/claude-desktop/remove-bridge}: every access of Claude Desktop ends, then its files go. A
+   * file GateRook can't change ends no access later than the others: its entry is listed in {@code byHand}.
+   */
   public BridgeRemoved removeBridge() {
     List<ClientLinkEntity> active = readTx.execute(s -> links.findByClientAndRemovedAtIsNull(ClientKind.CLAUDE_DESKTOP));
-    // Check every destination before changing any link or access in a mixed legacy installation.
-    storePolicy.runtime();
-    active.forEach(this::guardLinkMutation);
     List<String> revoked = new ArrayList<>();
     List<String> files = new ArrayList<>();
     List<String> notes = new ArrayList<>();
+    List<ByHand> byHand = new ArrayList<>();
     int rejected = 0;
     for (ClientLinkEntity l : active) {
       Snapshot snapshot = null;
       String after = null;
+      ByHand planned = null;
       if (l.getMethod() == LinkMethod.CONFIG_BRIDGE && l.getConfigPath() != null) {
-        snapshot = ConfigFileWriter.read(Path.of(l.getConfigPath()));
-        Optional<JsonNode> entry = snapshot.exists() ? entryOf(l, snapshot.content()) : Optional.empty();
-        if (entry.isPresent() && ours(entry.get(), slugOf(l), l.getGrantId())) {
-          after = remove(l, snapshot.content());
+        try {
+          guardLinkMutation(l);
+          snapshot = ConfigFileWriter.read(Path.of(l.getConfigPath()));
+          storePolicy.snapshot(snapshot);
+          Optional<JsonNode> entry = snapshot.exists() ? entryOf(l, snapshot.content()) : Optional.empty();
+          if (entry.isPresent() && ours(entry.get(), slugOf(l), l.getGrantId())) {
+            after = remove(l, snapshot.content());
+          }
+        } catch (ConfigEditException | ProblemException e) {
+          snapshot = null;
+          after = null;
+          planned = byHand(l, reasonOf(e));
         }
       }
       grants.find(l.getGrantId() == null ? "" : l.getGrantId()).ifPresent(g -> revoked.add(g.label() + " → "
           + g.endpointSlug()));
-      Disconnected d = disconnect(l, snapshot, after, "Remove bridge");
+      Disconnected d = disconnect(l, snapshot, after, planned, "Remove bridge");
       rejected += d.rejectedApprovals();
       if (d.entryRemoved()) {
         files.add(l.getMethod() == LinkMethod.MCPB ? env.display(Path.of(l.getConfigPath()))
             : env.display(Path.of(l.getConfigPath())) + " · " + l.getEntryName());
+      }
+      if (d.byHand() != null) {
+        byHand.add(d.byHand());
+        notes.add(byHandNote(d.byHand()));
       }
     }
     // Grants of Claude Desktop without a link (a Connect whose link went away) end as well.
@@ -977,7 +1075,8 @@ public class ClientService {
       }
     }
     notes.add("Remove the extensions in Claude Desktop: Settings › Extensions. They stopped working already.");
-    return new BridgeRemoved(List.copyOf(revoked), List.copyOf(files), rejected, List.copyOf(notes));
+    return new BridgeRemoved(List.copyOf(revoked), List.copyOf(files), rejected, List.copyOf(notes),
+        List.copyOf(byHand));
   }
 
   // ── Check ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -1171,12 +1270,12 @@ public class ClientService {
         snapshot.exists() ? env.display(snapshot.realPath()) + ".bak-" + java.time.LocalDate.now(clock.withZone(
             java.time.ZoneId.systemDefault())) : null, null);
     Plan plan = new Plan(Ids.uuid(), PlanKind.RESTORE, client, null, null, null, null, null, null, null, snapshot,
-        content, null, null, null, backupId, List.of(), clock.instant().plus(PREVIEW_TTL));
+        content, null, null, null, backupId, List.of(), clock.instant().plus(PREVIEW_TTL), null);
     keep(plan);
     List<String> notes = List.of("Entries GateRook wrote after this copy are gone after the restore; their "
         + "access stays until you disconnect them.");
     return new Preview(plan.id(), client.id(), null, null, null, false, List.of(change), notes, List.of(), null,
-        plan.expiresAt());
+        plan.expiresAt(), null);
   }
 
   /** {@code POST /api/clients/{client}/restore {previewId}}. */

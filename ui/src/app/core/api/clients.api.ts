@@ -136,6 +136,21 @@ export interface ConnectPreview {
   /** An "Add to Cursor" deep link carrying only the endpoint URL. */
   readonly link: string | null;
   readonly expiresAt: Iso | null;
+  /** A Disconnect whose file GateRook can't change: the access ends anyway and the person removes the entry. */
+  readonly byHand?: ClientByHand | null;
+}
+
+/**
+ * An entry GateRook left in another application's file because it couldn't change the file; the access it held is
+ * revoked all the same, and the person removes the entry there.
+ */
+export interface ClientByHand {
+  /** The file as the person knows it (`~/.codex/config.toml`). */
+  readonly file: string | null;
+  /** The entry's name in it (`gaterook-dev`). */
+  readonly entry: string | null;
+  /** Why GateRook left the file as it is. */
+  readonly reason: string;
 }
 
 export interface ConnectRequest {
@@ -166,6 +181,8 @@ export interface DisconnectResult {
   readonly entryRemoved: boolean;
   readonly rejectedApprovals: number;
   readonly notes: string[];
+  /** The entry left in the file because GateRook couldn't change it; the access ended anyway. */
+  readonly byHand?: ClientByHand | null;
 }
 
 export interface ClientCheckStep {
@@ -195,6 +212,8 @@ export interface BridgeRemoved {
   readonly removedFiles: string[];
   readonly rejectedApprovals: number;
   readonly notes: string[];
+  /** Entries left in files GateRook couldn't change; their access ended with the others. */
+  readonly byHand?: readonly ClientByHand[];
 }
 
 /** Manual setup: the endpoint URL and snippets with `‹token›` in place of a token. */

@@ -15,7 +15,7 @@ import { Overview } from '../../core/api/overview.api';
 import { OAuthGrant, PublishPreview, TunnelState } from '../../core/api/tunnel.api';
 import { Env, Iso } from '../../core/api/types';
 import { clockTime, formatCount, shortDate } from '../../core/time/time-format';
-import { ClientFailure, ConfigEntry, andList, clientFailure, fileName, keeps } from '../../kit/elements/client-card/client-view';
+import { ClientFailure, ConfigEntry, andList, clientFailure, entryLabel, fileName, keeps } from '../../kit/elements/client-card/client-view';
 import { TextPart, literalParts } from '../../kit/elements/shared/literals';
 
 /**
@@ -207,7 +207,11 @@ export function connectToast(card: ClientCard, request: ConnectRequest | null, p
   }
 }
 
-/** The toast after Disconnect (kit: "Claude Desktop disconnected from dev" · "incident-prod still works through the bridge."). */
+/**
+ * The toast after Disconnect (kit: "Claude Desktop disconnected from dev" · "incident-prod still works through the
+ * bridge."). When GateRook couldn't change the file (`byHand`), it says the access ended anyway and which entry the
+ * person removes from which file; the page shows that one as a warning that stays.
+ */
 export function disconnectToast(card: ClientCard, link: ClientLink, result: DisconnectResult): Said {
   const kept = keeps(card, link);
   if (link.method === 'mcpb') {
@@ -216,15 +220,29 @@ export function disconnectToast(card: ClientCard, link: ClientLink, result: Disc
   }
   const what = link.grantLabel ? `access ${link.grantLabel} is revoked` : link.tokenName ? `token ${link.tokenName} is revoked` : 'its access is revoked';
   const title = kept.length ? `${card.name} disconnected from ${link.endpoint}` : `${card.name} disconnected`;
+  const left = result.byHand;
+  if (left) {
+    const file = left.file ?? link.configDisplay ?? card.configDisplay ?? 'its config';
+    const entry = entryLabel(file, left.entry ?? link.entryName) ?? 'the entry';
+    return { title, body: `${what.charAt(0).toUpperCase()}${what.slice(1)}. GateRook couldn't change ${file}: ${left.reason} Remove ${entry} from it by hand.` };
+  }
   const entry = result.entryRemoved ? 'The entry is removed and ' : 'The entry stays in the file, and ';
   return { title, body: `${entry}${what}.` };
 }
 
-/** The toast after Remove bridge (kit: "The extension is removed and its tokens for dev and incident-prod are revoked."). */
+/**
+ * The toast after Remove bridge (kit: "The extension is removed and its tokens for dev and incident-prod are revoked.").
+ * The core's notes name every entry it couldn't remove (`byHand`); the page shows that one as a warning that stays.
+ */
 export function bridgeRemovedToast(card: ClientCard, result: BridgeRemoved): Said {
   const endpoints = card.links.map((l) => l.endpoint);
   const tokens = endpoints.length ? `its tokens for ${andList(endpoints)} are revoked` : 'its tokens are revoked';
   return { title: `Bridge removed from ${card.name}`, body: [`The extension is removed and ${tokens}.`, ...result.notes].join(' ') };
+}
+
+/** Whether a Disconnect or Remove bridge left an entry for the person: its toast is a warning that stays. */
+export function leftByHand(result: DisconnectResult | BridgeRemoved): boolean {
+  return 'linkId' in result ? !!result.byHand : !!result.byHand?.length;
 }
 
 /** The toast after Add endpoint of Claude Desktop's bridge (kit: "stage-readonly added to Claude Desktop"). */

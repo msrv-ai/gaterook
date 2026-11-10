@@ -17,7 +17,10 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-/** Store path restrictions are enforced before file, token and grant mutations, not only by the UI. */
+/**
+ * Store path restrictions are enforced before every file mutation and before a token or grant is made, not only by the
+ * UI; ending an access never waits for a file the edition doesn't write.
+ */
 class StoreClientsIT {
   private static TestCore core;
   private static ClientService clients;
@@ -91,9 +94,12 @@ class StoreClientsIT {
   }
 
   @Test
-  void relocatedExtensionDirectoryCannotCreateAGrantOrRemoveExistingAccess() throws IOException {
+  void relocatedExtensionDirectoryCreatesNoGrantAndRemoveBridgeStillEndsAccessWithoutWritingThere() throws IOException {
     endpoints.create("store-bundle-moved", null, EndpointService.StartFrom.EMPTY, null);
+    endpoints.create("store-bundle-kept", null, EndpointService.StartFrom.EMPTY, null);
     Path dir = Files.createDirectories(clients.environment().mcpbDirectory());
+    var kept = clients.connect("claude-desktop",
+        clients.previewConnect("claude-desktop", request("store-bundle-kept", "mcpb")).previewId());
     var preview = clients.previewConnect("claude-desktop", request("store-bundle-moved", "mcpb"));
     Path saved = Files.move(dir, dir.resolveSibling("claude-original"));
     Path redirected = Files.createDirectories(home.resolve("AppData/ClaudeBundles"));
@@ -101,8 +107,11 @@ class StoreClientsIT {
     Map<String, Integer> before = accessRows();
     try {
       assertThatThrownBy(() -> clients.connect("claude-desktop", preview.previewId())).isInstanceOf(ProblemException.class);
-      assertThatThrownBy(clients::removeBridge).isInstanceOf(ProblemException.class);
-      assertThat(accessRows()).isEqualTo(before);
+      assertThat(accessRows()).as("the refused Connect made no grant, token or link").isEqualTo(before);
+      // The file work stays refused there; ending the access doesn't wait for it.
+      clients.removeBridge();
+      assertThat(core.jdbc().queryForObject("select revoked_at from client_grant where id = (select grant_id from "
+          + "client_link where id = ?)", String.class, kept.link().id())).isNotNull();
       try (var files = Files.list(redirected)) {
         assertThat(files.toList()).isEmpty();
       }
@@ -153,13 +162,21 @@ class StoreClientsIT {
     Files.writeString(redirected.resolve("mcp.json"), original);
     Files.createSymbolicLink(dir, redirected);
     try {
-      assertThatThrownBy(() -> clients.previewDisconnect(connected.link().id())).isInstanceOf(ProblemException.class);
-      assertThatThrownBy(() -> clients.disconnect(connected.link().id(), disconnect.previewId())).isInstanceOf(ProblemException.class);
+      // A preview names the entry the person has to remove: this edition doesn't write into AppData.
+      var again = clients.previewDisconnect(connected.link().id());
+      assertThat(again.files()).isEmpty();
+      assertThat(again.byHand()).isNotNull();
+      assertThat(again.byHand().reason()).contains("AppData");
       assertThatThrownBy(() -> clients.restore("cursor", restore.previewId())).isInstanceOf(ProblemException.class);
-      assertThat(accessRows()).isEqualTo(before);
+      // Confirming the earlier preview ends the access and leaves the file alone.
+      var done = clients.disconnect(connected.link().id(), disconnect.previewId());
+      assertThat(done.entryRemoved()).isFalse();
+      assertThat(done.byHand()).isNotNull();
+      assertThat(done.byHand().reason()).contains("AppData");
+      assertThat(accessRows()).as("no row was added or deleted").isEqualTo(before);
       assertThat(Files.readString(redirected.resolve("mcp.json"))).isEqualTo(original);
       assertThat(core.jdbc().queryForObject("select revoked_at from api_token where id = (select token_id from client_link where id = ?)",
-          String.class, connected.link().id())).isNull();
+          String.class, connected.link().id())).isNotNull();
     } finally {
       Files.delete(dir);
       Files.move(saved, dir);
