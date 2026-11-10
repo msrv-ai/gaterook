@@ -44,6 +44,10 @@ class GcpClassifyTest {
       gcp_describe | {"assetTypes":["sqladmin.googleapis.com/Instance"]}                       | {"allowedServices":["cloudsql"]} | READ
       gcp_describe | {"name":"//cloudsql.googleapis.com/projects/acme-stage/instances/orders"} | {"allowedServices":["sqladmin"]} | READ
       gcp_describe | {}                                                                       | {"allowedServices":["\\u0000none"]} | service_not_allowed
+      gcp_describe | {"assetTypes":["secretmanager.googleapis.com/Secret"]}                    | {"allowedServices":["secretmanager","run","\\u0000within-default"]} | sensitive_type
+      gcp_describe | {"assetTypes":["run.googleapis.com/Service"]}                             | {"allowedServices":["secretmanager","run","\\u0000within-default"]} | READ
+      gcp_describe | {"assetTypes":["compute.googleapis.com/Instance"]}                        | {"allowedServices":["secretmanager","run","\\u0000within-default"]} | service_not_allowed
+      gcp_describe | {"assetTypes":["run.googleapis.com/Service"]}                             | {"allowedServices":["cloudkms","\\u0000within-default"]} | service_not_allowed
       gcp_describe | {"assetTypes":["run.googleapis.com.*"]}                                    | {} | bad_input
       gcp_describe | {"name":"//run.googleapis.com/projects/acme-stage/locations/europe-west1/services/api"} | {} | READ
       gcp_describe | {"name":"//run.googleapis.com/projects/acme-stage/locations/europe-west1/services/api"} | {"regions":["europe-west1"]} | READ

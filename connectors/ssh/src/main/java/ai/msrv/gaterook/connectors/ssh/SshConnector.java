@@ -160,11 +160,20 @@ public final class SshConnector implements Connector {
     };
   }
 
-  /** {@code allowedCredentialMethods} covers the bastion's sign-in too. */
+  /**
+   * {@code allowedCredentialMethods} covers the bastion's sign-in too. An empty list allows no method ({@code x-empty:
+   * none}, as the SSH log connector reads it), so an override never turns "none" into a method; a view without the
+   * key (no SSH policy section) restricts nothing.
+   */
   private static Classification methodAllowed(SshSettings s, ConnectionConfig cfg, PolicyView policy) {
     List<String> allowed = policy.strings("allowedCredentialMethods");
-    if (allowed.isEmpty()) {
+    if (!policy.section().has("allowedCredentialMethods")) {
       return null;
+    }
+    if (allowed.stream().noneMatch(id -> SshSettings.Method.of(id) != null)) {
+      return Classification.deny(policy.rule("credential-method"), "No sign-in method is allowed on "
+          + cfg.env().id() + ".", "A person allows one under Policies › " + cfg.env().id() + " › SSH › Sign-in "
+          + "methods.");
     }
     List<SshSettings.Credentials> used = new ArrayList<>(List.of(s.credentials()));
     if (s.jump() != null) {

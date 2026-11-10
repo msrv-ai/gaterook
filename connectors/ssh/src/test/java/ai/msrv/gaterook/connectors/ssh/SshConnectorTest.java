@@ -234,6 +234,20 @@ class SshConnectorTest {
   }
 
   @Test
+  void anEmptyListOfSignInMethodsAllowsNone() {
+    Classification none = connector.classify(run("compose-ps", null), dev,
+        policy(Env.DEV, "{\"allowedCredentialMethods\":[]}"));
+    assertThat(none.ruleId()).as("an empty list allows no method, as the SSH log connector reads it")
+        .isEqualTo("dev.ssh.credential-method");
+    assertThat(none.reason()).isEqualTo("No sign-in method is allowed on dev.");
+    assertThat(connector.classify(run("compose-ps", null), dev,
+        policy(Env.DEV, "{\"allowedCredentialMethods\":[\"\\u0000none\"]}")).ruleId())
+        .as("two policies with no method in common").isEqualTo("dev.ssh.credential-method");
+    assertThat(connector.classify(run("compose-ps", null), dev, policy(Env.DEV, "{}")).kind())
+        .as("a view without the key restricts nothing").isEqualTo(Classification.Kind.READ);
+  }
+
+  @Test
   void localKeyFilesFollowThePrivateKeyCredentialPolicyForTheHostAndBastion() {
     ObjectNode config = TestConfigs.password(NO_SSH, null);
     config.putObject("credentials").put("method", "privateKeyFile")

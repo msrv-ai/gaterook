@@ -25,6 +25,7 @@
       },
       "default": [],
       "x-stricter": "intersect",
+      "x-empty": "none",
       "x-inherit": false,
       "description": "A request goes out only if it starts with a base URL of its connection and of this list. Never inherited."
     },
