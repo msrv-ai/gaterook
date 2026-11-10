@@ -3,7 +3,7 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { ApiError } from '../../core/api/api-error';
-import { ClientCard, ClientsApi, ClientsView, ConnectPreview, ConnectRequest, ConnectResult, ManualAppResult } from '../../core/api/clients.api';
+import { ClientCard, ClientsApi, ClientsView, ConnectPreview, ConnectRequest, ConnectResult, DisconnectResult, ManualAppResult } from '../../core/api/clients.api';
 import { CoreApi } from '../../core/api/core.api';
 import { EndpointSummary, EndpointsApi, TokensApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { Overview, OverviewApi } from '../../core/api/overview.api';
@@ -62,6 +62,8 @@ interface World {
   overview: () => Promise<Overview>;
   endpoints: () => Promise<EndpointSummary[]>;
   tools: (slug: string) => Promise<ToolGroup[]>;
+  disconnectPreview: (id: string) => Promise<ConnectPreview>;
+  disconnect: (id: string, previewId: string) => Promise<DisconnectResult>;
 }
 
 let calls: string[];
@@ -111,6 +113,8 @@ function configure(): void {
     overview: () => Promise.reject(notAvailable()),
     endpoints: () => Promise.resolve(kitEndpoints()),
     tools: () => Promise.reject(notAvailable()),
+    disconnectPreview: (id) => Promise.resolve(id === 'cl_cx_dev' ? codexDisconnect() : bridgeDisconnect(id === 'cl_cd_dev' ? 'dev' : 'incident-prod')),
+    disconnect: (id) => Promise.resolve({ linkId: id, entryRemoved: id === 'cl_cx_dev', rejectedApprovals: 0, notes: [] }),
   };
   const clients: Partial<ClientsApi> = {
     list: () => (calls.push('list'), world.list()),
@@ -118,8 +122,8 @@ function configure(): void {
     browserSignIn: (client, endpoint) => (calls.push(`browser-sign-in ${client} ${endpoint}`), Promise.resolve({ link: previewFor(client, { endpoint, method: 'oauth' }).link! })),
     connectPreview: (client, r) => (calls.push(`preview ${client} ${r.endpoint} ${r.method}`), world.preview(client, r)),
     connect: (client, id) => (calls.push(`connect ${client} ${id}`), Promise.resolve(connected(client, { endpoint: 'dev', method: 'token', token: { name: 'cursor-laptop', ttlDays: 184 } }))),
-    disconnectPreview: (id) => (calls.push(`disconnect-preview ${id}`), Promise.resolve(id === 'cl_cx_dev' ? codexDisconnect() : bridgeDisconnect(id === 'cl_cd_dev' ? 'dev' : 'incident-prod'))),
-    disconnect: (id, previewId) => (calls.push(`disconnect ${id} ${previewId}`), Promise.resolve({ linkId: id, entryRemoved: id === 'cl_cx_dev', rejectedApprovals: 0, notes: [] })),
+    disconnectPreview: (id) => (calls.push(`disconnect-preview ${id}`), world.disconnectPreview(id)),
+    disconnect: (id, previewId) => (calls.push(`disconnect ${id} ${previewId}`), world.disconnect(id, previewId)),
     removeClaudeBridge: () => (calls.push('remove-bridge'), Promise.resolve({ revoked: [], removedFiles: [], rejectedApprovals: 0, notes: [] })),
     reinstall: (id) => (calls.push(`reinstall ${id}`), Promise.resolve(reinstalled(id))),
     manual: (slug) => (calls.push(`manual ${slug}`), Promise.resolve(kitManual())),
@@ -712,6 +716,29 @@ describe('Clients page: Disconnect and Remove bridge', () => {
     expect(calls).toContain('disconnect cl_cx_dev pv_codex_out');
     expect(openDialog()).toBeNull();
     expect(toasts().map((t) => t.title)).toContain('Codex disconnected');
+  });
+
+  it('a Codex file the core can’t change: the confirm says so, Disconnect still ends the access, and the warning stays', async () => {
+    const byHand = { file: '~/.codex/config.toml', entry: 'gaterook-dev', reason: "The file isn't valid TOML (line 3, column 7). GateRook changes nothing." };
+    world.disconnectPreview = () => Promise.resolve({ ...codexDisconnect(), files: [], byHand });
+    world.disconnect = (id) => Promise.resolve({ linkId: id, entryRemoved: false, rejectedApprovals: 0, notes: [], byHand });
+    await render();
+    const codex = await expandCard('Codex');
+    await click(control(codex, 'Disconnect Codex'));
+    const dialog = openDialog()!;
+    expect(text(dialog)).toContain("GateRook can't change ~/.codex/config.toml");
+    expect(text(dialog)).toContain('Disconnect still revokes the access; remove [mcp_servers.gaterook-dev] from ~/.codex/config.toml by hand.');
+    expect(text(dialog)).not.toContain('.bak-');
+    expect(text(dialog)).not.toContain('Removes');
+    expect(text(dialog)).toContain("The helper's grant codex-laptop");
+
+    await click(control(dialog, 'Disconnect Codex'));
+    expect(calls).toContain('disconnect cl_cx_dev pv_codex_out');
+    const toast = toasts().at(-1)!;
+    expect(toast.tone).toBe('warning');
+    expect(toast.timeout).toBe(0);
+    expect(toast.title).toBe('Codex disconnected');
+    expect(toast.body).toContain('Remove [mcp_servers.gaterook-dev] from it by hand.');
   });
 
   it('Claude Desktop from one endpoint keeps the other; Remove bridge takes every endpoint', async () => {

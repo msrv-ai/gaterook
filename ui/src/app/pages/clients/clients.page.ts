@@ -34,6 +34,7 @@ import {
   errorSentence,
   handTokens,
   headerCounts,
+  leftByHand,
   noClients,
   scanSummary,
   setupLayout,
@@ -468,7 +469,8 @@ export class ClientsPage {
   protected async onDisconnect(card: ClientCard, link: ClientLink, previewId: string): Promise<void> {
     try {
       const result = await this.data.disconnect(link, previewId);
-      this.toasts.show({ tone: 'success', ...disconnectToast(card, link, result) });
+      // An entry left in the file is the person's to remove: the warning stays until it is closed.
+      this.toasts.show(leftByHand(result) ? { tone: 'warning', timeout: 0, ...disconnectToast(card, link, result) } : { tone: 'success', ...disconnectToast(card, link, result) });
     } catch (e) {
       this.toasts.show({ tone: 'danger', title: `${card.name} wasn't disconnected`, body: errorSentence(e) });
     }
@@ -477,7 +479,7 @@ export class ClientsPage {
   protected async onRemoveBridge(card: ClientCard): Promise<void> {
     try {
       const result = await this.data.removeBridge();
-      this.toasts.show({ tone: 'success', ...bridgeRemovedToast(card, result) });
+      this.toasts.show(leftByHand(result) ? { tone: 'warning', timeout: 0, ...bridgeRemovedToast(card, result) } : { tone: 'success', ...bridgeRemovedToast(card, result) });
     } catch (e) {
       this.toasts.show({ tone: 'danger', title: `The bridge wasn't removed from ${card.name}`, body: errorSentence(e) });
     }
