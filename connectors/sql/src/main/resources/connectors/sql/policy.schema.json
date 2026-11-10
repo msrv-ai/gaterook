@@ -78,7 +78,7 @@
       "title": "Max response size",
       "minimum": 1,
       "maximum": 10240,
-      "default": 512,
+      "default": 1024,
       "x-unit": "KB",
       "x-stricter": "min"
     }

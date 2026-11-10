@@ -17,12 +17,16 @@ public final class LimitsOf {
 
   private LimitsOf() {}
 
-  /** Environment-wide limits, without a connector-specific tool deadline. */
+  /** Environment-wide limits, without a connector section's own response size or tool deadline. */
   public static Limits from(JsonNode sections, Env env) {
     return from(sections, env, null);
   }
 
-  /** The resolved connector policy section determines which additional tool deadline applies. */
+  /**
+   * Limits of a connector whose resolved policy section is {@code section}. A section narrows only its own
+   * connectors: its {@code maxResponseKb} (SQL, HTTP) caps the environment's response size, and the HTTP request
+   * timeout caps the tool deadline. Neither cuts what another connector, such as OpenSearch, may return.
+   */
   public static Limits from(JsonNode sections, Env env, String section) {
     boolean prod = env == Env.PROD;
     JsonNode sql = sections.path("sql");
@@ -30,8 +34,9 @@ public final class LimitsOf {
     JsonNode http = sections.path("http");
     JsonNode logs = sections.path("logs");
     JsonNode limits = sections.path("limits");
-    long responseKb = Math.min(limits.path("maxResponseKb").asLong(prod ? 256 : 512),
-        Math.min(sql.path("maxResponseKb").asLong(Long.MAX_VALUE), http.path("maxResponseKb").asLong(Long.MAX_VALUE)));
+    long ownResponseKb = section == null ? Long.MAX_VALUE
+        : sections.path(section).path("maxResponseKb").asLong(Long.MAX_VALUE);
+    long responseKb = Math.min(limits.path("maxResponseKb").asLong(prod ? 256 : 512), ownResponseKb);
     long toolTimeout = limits.path("toolTimeoutSeconds").asLong(prod ? 5 : 30);
     if ("http".equals(section)) {
       toolTimeout = Math.min(toolTimeout, http.path("toolTimeoutSeconds").asLong(Long.MAX_VALUE));

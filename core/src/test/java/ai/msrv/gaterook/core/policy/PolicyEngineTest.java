@@ -314,6 +314,44 @@ class PolicyEngineTest {
     }
   }
 
+  /**
+   * A person who raised Limits › Max response size for OpenSearch on prod still had its results cut by the SQL and
+   * HTTP sections' sizes. Each section now caps only its own connectors; endpoint caps still narrow every one.
+   */
+  @Test
+  void sqlAndHttpResponseSizesOnlyCapTheirOwnConnectors() {
+    ConnectorManifest sql = responseManifest("pgfake", "sql");
+    ConnectorManifest http = responseManifest("http", "http");
+    ConnectorManifest openSearch = responseManifest("opensearch", "logs");
+    StubPolicies configured = new StubPolicies(sql, http, openSearch);
+    PolicyEngine scoped = new PolicyEngine(configured);
+
+    // The sections' 1 MB defaults don't widen anything: Limits (prod 256 KB, dev 512 KB) is the stricter one.
+    for (ConnectorManifest m : List.of(sql, http, openSearch)) {
+      assertThat(scoped.view(responsePair(m, Env.PROD, null), null).limits().maxResponseBytes()).as(m.id())
+          .isEqualTo(256 * 1024);
+      assertThat(scoped.view(responsePair(m, Env.DEV, null), null).limits().maxResponseBytes()).as(m.id())
+          .isEqualTo(512 * 1024);
+    }
+
+    configured.explicit.putObject("limits").put("maxResponseKb", 2_048);
+    configured.explicit.putObject("http").put("maxResponseKb", 256);
+    assertThat(scoped.view(responsePair(openSearch, Env.PROD, null), null).limits().maxResponseBytes())
+        .isEqualTo(2_048 * 1024);
+    assertThat(configured.limits(Env.PROD, openSearch.id()).maxResponseBytes()).isEqualTo(2_048 * 1024);
+    assertThat(configured.limits(Env.PROD).maxResponseBytes()).isEqualTo(2_048 * 1024);
+    assertThat(scoped.view(responsePair(sql, Env.PROD, null), null).limits().maxResponseBytes())
+        .isEqualTo(1_024 * 1024);
+    assertThat(scoped.view(responsePair(http, Env.PROD, null), null).limits().maxResponseBytes())
+        .isEqualTo(256 * 1024);
+
+    JsonNode endpoint = JSON.createObjectNode().put("maxResponseKb", 128);
+    for (ConnectorManifest m : List.of(sql, http, openSearch)) {
+      assertThat(scoped.view(responsePair(m, Env.PROD, endpoint), null).limits().maxResponseBytes()).as(m.id())
+          .isEqualTo(128 * 1024);
+    }
+  }
+
   @Test
   void optionalLogRangesCanBeNarrowedByConnectionEndpointAndTool() {
     ObjectNode schema = JSON.createObjectNode().put("type", "object").put("x-policy-section", "logs");
@@ -362,6 +400,22 @@ class PolicyEngineTest {
     ToolDefinition tool = ToolDefinition.builder("read").nature(Nature.READ).build();
     return new PairView("ep_1", "ep", Env.DEV, false, "cn_1", "resource", Env.DEV, manifest, tool,
         tool.name(), Mode.READ_ONLY, endpointLimits, overrides);
+  }
+
+  /** A section like the SQL and HTTP ones (their own 1 MB response size), or one without a size (logs). */
+  private static ConnectorManifest responseManifest(String id, String section) {
+    ObjectNode schema = JSON.createObjectNode().put("type", "object").put("x-policy-section", section);
+    ObjectNode properties = schema.putObject("properties");
+    if (!section.equals("logs")) {
+      properties.putObject("maxResponseKb").put("type", "integer").put("default", 1_024).put("x-stricter", "min");
+    }
+    return ConnectorManifest.builder(id, "1.0.0", ConnectorManifest.Kind.BUILT_IN).policySchema(schema).build();
+  }
+
+  private static PairView responsePair(ConnectorManifest manifest, Env env, JsonNode endpointLimits) {
+    ToolDefinition tool = ToolDefinition.builder("read").nature(Nature.READ).build();
+    return new PairView("ep_1", "ep", env, false, "cn_1", "resource", env, manifest, tool, tool.name(),
+        Mode.READ_ONLY, endpointLimits, null);
   }
 
   @Test
