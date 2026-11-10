@@ -81,9 +81,11 @@ describe('Shared endpoint review', () => {
   });
 
   it('shows the note on trust settings a file carries next to a connection that can still be imported', async () => {
-    const note = 'Trust settings in this file are not imported: /hostKeys/pinned. The connection is imported off, with Setup required, until you confirm them on this computer with Test connection.';
+    const note = 'Trust settings in this file are not imported: /hostKeys/pinned. The connection is imported off, '
+      + 'with Setup required, until you confirm them on this computer with Test connection.';
     const [db, ...others] = REVIEW.preview.connections;
-    desktop.previewEndpointShare.mockResolvedValueOnce({ ...REVIEW, preview: { ...REVIEW.preview, connections: [{ ...db, warnings: [note] }, ...others] } });
+    const connections = [{ ...db, warnings: [note] }, ...others];
+    desktop.previewEndpointShare.mockResolvedValueOnce({ ...REVIEW, preview: { ...REVIEW.preview, connections } });
     await click('Choose .grshare file'); await unlock();
     const checkbox = get<HTMLInputElement>('[data-connection-id=db]');
     expect(checkbox.disabled).toBe(false);

@@ -62,7 +62,8 @@ class KubernetesShareImportIT {
         .contextFactory(GatewayLauncher.contexts(true))
         .run("--gateway.home=" + home, "--gateway.dev=true", "--gateway.dev.launch-secret=" + LAUNCH_SECRET,
             "--server.port=0", "--gateway.connections.health-interval=5m",
-            "--gateway.connections.health-initial-delay=1h", "--gateway.clients.user-home=" + home.resolve("user-home"));
+            "--gateway.connections.health-initial-delay=1h",
+            "--gateway.clients.user-home=" + home.resolve("user-home"));
   }
 
   @AfterAll

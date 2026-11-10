@@ -182,7 +182,8 @@ class ConnectionSharesTest {
 
     assertThat(entry.path("secrets")).isEmpty();
     assertThat(entry.path("omittedSecretFields")).isEmpty();
-    assertThat(entry.toString()).doesNotContain(TRUSTED).doesNotContain("sec_trust", "client-key-of-this-computer-7f3a");
+    assertThat(entry.toString()).doesNotContain(TRUSTED)
+        .doesNotContain("sec_trust", "client-key-of-this-computer-7f3a");
     verify(secrets, never()).get(anyString());
   }
 

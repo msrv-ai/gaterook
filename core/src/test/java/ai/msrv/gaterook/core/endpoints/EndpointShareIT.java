@@ -115,7 +115,8 @@ class EndpointShareIT {
     assertThat(copy.at("/config/connection").has("hostKey")).isFalse();
     assertThat(copy.path("setupMissingFields")).anyMatch(item -> item.asString().equals(TRUST_ITEM));
     // The included credential is kept for the person's own Test connection.
-    assertThat(copy.path("secrets")).anyMatch(secret -> secret.path("field").asString().equals("/credentials/password"));
+    assertThat(copy.path("secrets"))
+        .anyMatch(secret -> secret.path("field").asString().equals("/credentials/password"));
     assertThat(admin.answers()).noneMatch(answer -> answer.body() != null && answer.body().contains(TRUSTED_KEY));
     assertThat(endpoints.snapshot("trust-share-copy").pairs()).noneMatch(pair -> pair.config().name().equals(name));
 
