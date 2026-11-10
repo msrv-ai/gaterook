@@ -233,6 +233,7 @@
                     <div class="gw-alert__content"><p class="gw-alert__body">{{ card.choose }}</p></div>
                   </div>
                 }
+                <p class="gw-sr-only" role="status" aria-live="polite" aria-atomic="true" [id]="'import-summary-status-' + candidate.id">{{ card.status }}</p>
                 <dl class="gw-kv gw-kv--dense" [id]="'import-summary-' + candidate.id" [attr.aria-label]="'What ' + (drafts().get(candidate.id)?.name ?? candidate.name) + ' would save'">
                   <div class="gw-kv__row">
                     <dt class="gw-kv__key">Connects to</dt>
@@ -240,9 +241,9 @@
                       @if (card.summary; as summary) {
                         @if (summary.target) { <span class="gw-mono">{{ summary.target }}</span> } @else { <span class="gw-fg-muted">No host or address in the settings</span> }
                       } @else if (card.unavailable) {
-                        <span class="gw-fg-danger" role="status">Could not summarize your changes. Open Edit settings to check them.</span>
+                        <span class="gw-fg-danger">Could not summarize your changes. Open Edit settings to check them.</span>
                       } @else if (card.updating) {
-                        <span class="gw-fg-muted" role="status">Updating from your changes…</span>
+                        <span class="gw-fg-muted">Updating from your changes…</span>
                       } @else {
                         <span class="gw-fg-muted">Not available. Open Edit settings to see it.</span>
                       }
@@ -260,7 +261,13 @@
                           </ul>
                           @if (summary.omitted) { <p class="gw-text-caption gw-fg-muted">{{ summary.omitted }} more {{ summary.omitted === 1 ? 'setting' : 'settings' }} not listed. Open Edit settings to see all of them.</p> }
                         } @else { <span class="gw-fg-muted">Only the connector's defaults</span> }
-                      } @else { <span class="gw-fg-muted">Not available. Open Edit settings to see them.</span> }
+                      } @else if (card.unavailable) {
+                        <span class="gw-fg-danger">Could not summarize your changes. Open Edit settings to check them.</span>
+                      } @else if (card.updating) {
+                        <span class="gw-fg-muted">Updating from your changes…</span>
+                      } @else {
+                        <span class="gw-fg-muted">Not available. Open Edit settings to see them.</span>
+                      }
                     </dd>
                   </div>
                   <div class="gw-kv__row">

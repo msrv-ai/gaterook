@@ -1552,6 +1552,13 @@ describe('AI connection import review', () => {
   }
 
   /** What one row of a card says (Connects to, Settings, Credentials): its list items, or its text when it has none. */
+  function liveRegion(candidate: ImportCandidate): HTMLElement {
+    const region = candidateCard(candidate).querySelector<HTMLElement>(`#import-summary-status-${candidate.id}`)!;
+    expect(region.getAttribute('role')).toBe('status');
+    expect(region.getAttribute('aria-live')).toBe('polite');
+    return region;
+  }
+
   function facts(candidate: ImportCandidate, term: string): string[] {
     const row = Array.from(candidateCard(candidate).querySelectorAll('.gw-kv__row'))
       .find(item => item.querySelector('dt')?.textContent?.trim() === term)!;
@@ -1658,18 +1665,27 @@ describe('AI connection import review', () => {
     api.summary.mockReturnValueOnce(changed.promise);
     await loadReview({ ...review, manifest: { version: 1, connections: [described], warnings: [] } });
     expect(facts(described, 'Connects to')).toEqual(['db.example.test:3306/example']);
+    // One live region per card, present and quiet before any change: a region inserted with its text is often not read.
+    const region = liveRegion(described);
+    expect(region.textContent!.trim()).toBe('');
     await page.configure(described);
     page.keep({ ...draft, name: described.name, config: { connection: { host: 'mine.example.test' } } });
     await renderReview();
     expect(api.summary).toHaveBeenCalledWith(review.id, described.id, 'dev', { connection: { host: 'mine.example.test' } });
     expect(facts(described, 'Connects to')).toEqual(['Updating from your changes…']);
+    expect(facts(described, 'Settings')).toEqual(['Updating from your changes…']);
     expect(candidateCard(described).textContent).not.toContain('db.example.test');
+    expect(liveRegion(described)).toBe(region);
+    expect(region.textContent!.trim()).toBe(`Updating the summary of ${described.name} from your changes…`);
+    expect(candidateCard(described).querySelectorAll('[role="status"]')).toHaveLength(1);
 
     changed.resolve({ target: 'mine.example.test:3306', settings: [], omitted: 0 });
     await vi.waitFor(() => expect(page.changedSummaries().get(described.id)?.target).toBe('mine.example.test:3306'));
     await renderReview();
     expect(facts(described, 'Connects to')).toEqual(['mine.example.test:3306']);
     expect(facts(described, 'Settings')).toEqual(["Only the connector's defaults"]);
+    expect(liveRegion(described)).toBe(region);
+    expect(region.textContent!.trim()).toBe(`The summary of ${described.name} shows your changes.`);
   });
 
   it('says so, and keeps no old summary, when the core cannot describe the changed draft', async () => {
@@ -1680,6 +1696,10 @@ describe('AI connection import review', () => {
     await vi.waitFor(() => expect(page.summaryUnavailable().has(described.id)).toBe(true));
     await renderReview();
     expect(facts(described, 'Connects to')).toEqual(['Could not summarize your changes. Open Edit settings to check them.']);
+    expect(facts(described, 'Settings')).toEqual(['Could not summarize your changes. Open Edit settings to check them.']);
+    expect(liveRegion(described).textContent!.trim())
+      .toBe(`Could not summarize your changes to ${described.name}. Open Edit settings to check them.`);
+    expect(candidateCard(described).querySelectorAll('[role="status"]')).toHaveLength(1);
     expect(candidateCard(described).textContent).not.toContain('db.example.test:3306');
     // Keeping again asks again.
     await page.configure(described);
