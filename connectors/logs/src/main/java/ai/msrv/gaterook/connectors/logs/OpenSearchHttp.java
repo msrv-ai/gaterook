@@ -47,8 +47,8 @@ final class OpenSearchHttp {
   record BoundedResponse(int status, String body, String contentType, boolean truncated) {}
 
   /**
-   * @param target the request target that was classified, shown and approved (path and query); the request line
-   *               carries exactly this text or nothing is sent
+   * @param target the request target that was checked and classified (path and query), and for a change that needs
+   *               approval also shown and approved; the request line carries exactly this text or nothing is sent
    */
   static BoundedResponse send(HttpRequest signedRequest, String target, String body, ExecContext ctx, long maxBytes,
       SSLContext ssl, String service) throws ConnectorException {
@@ -58,10 +58,10 @@ final class OpenSearchHttp {
     }
     HttpUriRequestBase request = new HttpUriRequestBase(signedRequest.method(), signedRequest.uri());
     // The client writes this text into the request line, and any character it cannot carry as another byte. The SigV4
-    // signature and the approval both cover the target; a request line that differs from it is not that request.
+    // signature and any approval cover the target; a request line that differs from it is not that request.
     if (!OpenSearchRequest.wireSafe(target) || !target.equals(request.getRequestUri())) {
-      throw ConnectorException.denied("The " + service + " request would reach the server as something other than "
-          + "the request that was approved. Nothing was sent.");
+      throw ConnectorException.denied("The " + service + " request would reach the server as a different target "
+          + "than the one that was checked. Nothing was sent.");
     }
     signedRequest.headers().map().forEach((name, values) -> values.forEach(value -> request.addHeader(name, value)));
     if (body != null) {

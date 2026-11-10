@@ -111,9 +111,13 @@ class OpenSearchRequestTest {
 
   @Test
   void aTargetThatIsTooLongOnceEscapedIsRefused() {
+    String tooLong = "path, with its query and escaped, is longer than 32768 characters.";
     // 6,000 characters of text, but 54,000 once each is written as three UTF-8 escapes.
     assertThatThrownBy(() -> OpenSearchRequest.plan(request("opensearch_request", "GET",
-        "/" + "\u2010".repeat(6_000)), FULL, LIMITS)).isInstanceOf(ConnectorException.class);
+        "/" + "\u2010".repeat(6_000)), FULL, LIMITS)).isInstanceOf(ConnectorException.class).hasMessage(tooLong);
+    // Too long as typed: the same words hold, since escaping and a query only add to it.
+    assertThatThrownBy(() -> OpenSearchRequest.plan(request("opensearch_request", "GET",
+        "/" + "a".repeat(40_000)), FULL, LIMITS)).isInstanceOf(ConnectorException.class).hasMessage(tooLong);
   }
 
   @Test
@@ -147,6 +151,14 @@ class OpenSearchRequestTest {
     assertThatThrownBy(() -> OpenSearchRequest.plan(request("opensearch_query", "GET", path), FULL, LIMITS))
         .isInstanceOfSatisfying(ConnectorException.class,
             error -> assertThat(error.kind()).isEqualTo(ConnectorException.Kind.DENIED));
+  }
+
+  /** Not a known read, but an operation the request tool, with approval, prepares and sends as written. */
+  @ParameterizedTest
+  @ValueSource(strings = {"/people/_doc/%C2%85", "/people/_doc/%C2%A0", "/people/_doc/%E2%80%A8"})
+  void anEscapedSpaceOrControlCharacterBeyondAsciiGoesThroughTheRequestTool(String path) throws Exception {
+    assertThat(OpenSearchRequest.plan(request("opensearch_request", "GET", path), FULL, LIMITS).path())
+        .isEqualTo(path);
   }
 
   @ParameterizedTest

@@ -235,7 +235,7 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
   /**
    * Whether the HTTP client writes {@code target} into the request line byte for byte: printable ASCII, no space. It
    * writes every other character as {@code ?} (or one raw byte), which would make the server act on another path
-   * than the one that was classified, shown and approved.
+   * than the one that was checked and classified, and for a change that needs approval shown and approved.
    */
   static boolean wireSafe(String target) {
     return target != null && !target.isEmpty() && target.chars().allMatch(c -> c >= 0x21 && c <= 0x7E);
@@ -257,7 +257,9 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
       throw ConnectorException.badInput("path must start with a single / on the configured search server.");
     }
     if (path.length() > MAX_TARGET) {
-      throw ConnectorException.badInput("path is longer than " + MAX_TARGET + " characters once escaped.");
+      // Checked as typed and again with the query, once escaped: escaping and a query only make a target longer.
+      throw ConnectorException.badInput("path, with its query and escaped, is longer than " + MAX_TARGET
+          + " characters.");
     }
     try {
       URI uri = URI.create(path);

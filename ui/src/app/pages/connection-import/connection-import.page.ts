@@ -143,16 +143,26 @@ export class ConnectionImportPage {
    */
   readonly changedSummaries = signal<ReadonlyMap<string, ImportSummary | null>>(new Map());
   readonly summaryUnavailable = signal<ReadonlySet<string>>(new Set());
-  /** What each card shows without opening the editor: where the draft connects, its settings and its credential sources. */
+  /**
+   * What each card shows without opening the editor: where the draft connects, its settings and its credential sources.
+   * `status` is the text of the card's one live region, which stays in place while it changes so that assistive
+   * technology announces each change: empty for the proposal's own summary, then updating, updated or failed.
+   */
   readonly reviewCards = computed(() => new Map(this.supportedCandidates().map(candidate => {
     const sources: readonly CredentialSource[] = credentialSources(candidate.secretSources, this.drafts().get(candidate.id)?.secrets ?? {});
     const changed = this.changedSummaries();
     const summary = changed.has(candidate.id) ? changed.get(candidate.id) ?? null : candidate.summary ?? null;
     const unavailable = this.summaryUnavailable().has(candidate.id);
+    const updating = !summary && !unavailable && changed.has(candidate.id);
+    const name = this.drafts().get(candidate.id)?.name ?? candidate.name;
+    const status = unavailable ? `Could not summarize your changes to ${name}. Open Edit settings to check them.`
+      : updating ? `Updating the summary of ${name} from your changes…`
+      : summary && changed.has(candidate.id) ? `The summary of ${name} shows your changes.` : '';
     return [candidate.id, {
       summary,
       unavailable,
-      updating: !summary && !unavailable && changed.has(candidate.id),
+      updating,
+      status,
       sources,
       choose: choiceReason(sources),
     }] as const;

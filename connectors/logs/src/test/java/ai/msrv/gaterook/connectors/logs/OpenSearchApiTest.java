@@ -388,13 +388,17 @@ class OpenSearchApiTest {
     String base = "http://127.0.0.1:" + server.getPort();
     SSLContext ssl = SSLContext.getDefault();
     // The request line is the given target, or nothing goes out: not a character the client would write as '?', and
-    // not any other text than the one that was approved.
+    // not any other text than the one that was checked.
     for (String[] pair : new String[][] {{"/safe\u2010index", "/safe\u2010index"}, {"/safe-index", "/other-index"},
         {"/idx/_search?q=a", "/idx/_search"}, {"/idx", ""}}) {
       HttpRequest built = HttpRequest.newBuilder(URI.create(base + pair[0])).DELETE().build();
       assertThatThrownBy(() -> OpenSearchHttp.send(built, pair[1], null, TestCtx.of(), 1024, ssl, "OpenSearch"))
-          .isInstanceOfSatisfying(ConnectorException.class,
-              error -> assertThat(error.kind()).isEqualTo(ConnectorException.Kind.DENIED));
+          .isInstanceOfSatisfying(ConnectorException.class, error -> {
+            assertThat(error.kind()).isEqualTo(ConnectorException.Kind.DENIED);
+            // Reads and discovery go through here too: the refusal names no approval, which a read never had.
+            assertThat(error.getMessage()).isEqualTo("The OpenSearch request would reach the server as a different "
+                + "target than the one that was checked. Nothing was sent.");
+          });
     }
     assertThat(server.getRequestCount()).isZero();
     server.enqueue(json(200, "{\"acknowledged\":true}"));
