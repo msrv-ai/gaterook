@@ -123,16 +123,27 @@ function baseUrl(text: string, ks: KeySchema): { value: JsonValue } | { error: s
   return { value: v };
 }
 
-const IPV4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
+/** A dotted quad as the core's egress guard reads it: no octet above 255 and no leading zero (`010` reads as octal elsewhere). */
+const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+
+/** An IPv6 literal the URL parser accepts, as the core's guard needs one it can read. */
+function ipv6(address: string): boolean {
+  if (!address.includes(':') || !/^[0-9a-f:.]+$/i.test(address)) return false;
+  try {
+    return new URL(`http://[${address}]/`).hostname.length > 2;
+  } catch {
+    return false;
+  }
+}
 
 function privateRange(text: string): { value: JsonValue } | { error: string } {
   const v = text.trim();
   const [address, bits, extra] = v.split('/');
   const v4 = IPV4.test(address ?? '');
-  const v6 = !v4 && /^[0-9a-f:]+$/i.test(address ?? '') && (address ?? '').includes(':');
+  const v6 = !v4 && ipv6(address ?? '');
   const max = v4 ? 32 : 128;
   if (extra !== undefined || (!v4 && !v6) || (bits !== undefined && !(/^\d{1,3}$/.test(bits) && Number(bits) <= max))) {
-    return { error: 'Enter an address or a CIDR range, for example 10.20.0.0/16.' };
+    return { error: 'Enter an address or a CIDR range without leading zeros, for example 10.20.0.0/16.' };
   }
   if (v4 && address!.startsWith('169.254.')) return { error: `${v} holds the cloud metadata address and is always blocked.` };
   return { value: { cidr: v } };

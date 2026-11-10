@@ -493,6 +493,28 @@ class HttpCoreProcessIT {
     assertThat(allowedUrls("stage")).containsExactlyElementsOf(full);
   }
 
+  /**
+   * A private range the egress guard can't read (a leading zero) is refused when the policy is saved, naming the
+   * entry, instead of being stored and stopping every call of the environment.
+   */
+  @Test
+  @Order(42)
+  void aPrivateRangeTheEgressGuardCantReadIsRefusedWhenThePolicyIsSaved() throws Exception {
+    JsonNode current = json(admin("GET", "/api/policies/dev", null), 200);
+    JsonNode stored = current.at("/sections/http/allowedPrivateRanges");
+    ObjectNode update = CoreProcess.JSON.createObjectNode().put("version", current.path("version").asLong());
+    var ranges = update.putObject("sections").putObject("http").putArray("allowedPrivateRanges");
+    stored.forEach(ranges::add);
+    ranges.addObject().put("cidr", "192.168.01.0/24");
+
+    JsonNode refused = json(admin("PUT", "/api/policies/dev", update.toString()), 422);
+    assertThat(refused.path("field").asString()).isEqualTo("/sections/http/allowedPrivateRanges/" + stored.size()
+        + "/cidr");
+    assertThat(refused.path("detail").asString()).contains("192.168.01.0/24", "without leading zeros");
+    assertThat(json(admin("GET", "/api/policies/dev", null), 200).at("/sections/http/allowedPrivateRanges"))
+        .isEqualTo(stored);
+  }
+
   // ── Rename ──────────────────────────────────────────────────────────────────────────────────────────────────
 
   @Test
