@@ -241,6 +241,58 @@ class FullBackupIT {
     }
   }
 
+  /**
+   * A paused server's row signs {@code enabled: false}; the restore checks and re-signs it with the same fields, so a
+   * backup that holds a paused server that starts with the core restores, and the server stays paused.
+   */
+  @Test
+  void aBackupWithAPausedServerThatStartsWithTheCoreRestoresAndKeepsItPaused() throws Exception {
+    try (TestCore core = TestCore.start("full-backup-paused-mcp")) {
+      Instant now = Instant.now();
+      ConnectionRows connections = core.bean(ConnectionRows.class);
+      TransactionTemplate tx = new TransactionTemplate(core.bean(PlatformTransactionManager.class));
+      Map<String, ConnectionEntity> servers = tx.execute(status -> {
+        core.bean(ConnectorTypeRepository.class).saveAndFlush(new ConnectorTypeEntity("mcp-server",
+            ConnectorManifest.Kind.MCP_SERVER, "1.0.0", Map.of(), "0".repeat(64), null, now));
+        Map<String, ConnectionEntity> saved = new java.util.HashMap<>();
+        for (boolean enabled : new boolean[] {false, true}) {
+          ConnectionEntity row = new ConnectionEntity(enabled ? "backup-running" : "backup-paused", "mcp-server",
+              Env.DEV, Map.of("transport", "stdio", "start", "with-core"), now);
+          row.setEnabled(enabled, now);
+          row = core.bean(ConnectionRepository.class).saveAndFlush(row);
+          connections.sign(row);
+          saved.put(row.getName(), row);
+        }
+        return saved;
+      });
+      Path directory = stage(core, "paused1");
+      FullBackupService service = core.bean(FullBackupService.class);
+      byte[] portable = service.snapshot(directory.toString());
+      try {
+        byte[] protectedKey = service.validate(directory.toString(), portable);
+        Arrays.fill(protectedKey, (byte) 0);
+        try (Connection c = DriverManager.getConnection("jdbc:sqlite:" + directory.resolve("gateway.db"));
+            var s = c.createStatement();
+            var r = s.executeQuery("SELECT name, enabled, config, version, mac FROM connection ORDER BY name")) {
+          int seen = 0;
+          while (r.next()) {
+            seen++;
+            ConnectionEntity row = servers.get(r.getString("name"));
+            assertThat(r.getBoolean("enabled")).as(r.getString("name")).isEqualTo(row.isEnabled());
+            assertThat(TestCore.json(r.getString("config")).path("start").asString()).isEqualTo("on-first-call");
+            row.reconfigure(Env.DEV, Map.of("transport", "stdio", "start", "on-first-call"), now);
+            ReflectionTestUtils.setField(row, "version", r.getLong("version"));
+            row.setMac(r.getBytes("mac"));
+            assertThat(connections.verify(row)).as(r.getString("name")).isTrue();
+          }
+          assertThat(seen).isEqualTo(2);
+        }
+      } finally {
+        Arrays.fill(portable, (byte) 0);
+      }
+    }
+  }
+
   @Test
   void rejectsWrongKeysCorruptionSchemaChangesAndUnsafeStagingWithoutTouchingLiveData() throws Exception {
     try (TestCore core = TestCore.start("full-backup-invalid")) {
