@@ -2002,6 +2002,44 @@ describe('Connectors page: MCP servers', () => {
     });
   });
 
+  it('sends the client secret of an OAuth app only to the authorization server the review showed', async () => {
+    setup();
+    const api = TestBed.inject(McpServersApi);
+    vi.spyOn(api, 'review').mockResolvedValue(sentryReview({ name: 'chat-mcp', transport: 'http', argv: [], env: [],
+      url: 'https://mcp.chat.example.com/mcp',
+      auth: { kind: 'oauth', issuer: 'https://chat.example.com', authorizationHost: 'chat.example.com', registration: 'app-required',
+        redirectUri: 'http://127.0.0.1:7471/callback', secretRequired: true, tokenEndpoint: 'https://api.chat.example.com/oauth/token' } }));
+    const signIn: McpSignIn = { id: 'msi_app000001', server: 'chat-mcp', state: 'waiting', authorizationHost: 'chat.example.com',
+      authorizationUrl: 'https://chat.example.com/oauth/authorize' };
+    api.startSignIn = vi.fn().mockResolvedValue(signIn);
+    api.signIn = vi.fn().mockResolvedValue(signIn);
+    api.cancelSignIn = vi.fn().mockResolvedValue(undefined);
+    const { fixture, el } = await render();
+    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    type(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!, 'chat-mcp');
+    check(add.querySelector<HTMLInputElement>('input[type="radio"][value="http"]')!);
+    type(add.querySelector<HTMLInputElement>('input[type="url"]')!, 'https://mcp.chat.example.com/mcp');
+    await settle(fixture);
+    button(add, 'Review and connect').click();
+    await settle(fixture);
+
+    const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
+    const secret = review.querySelector<HTMLInputElement>('input[id$="-client-secret"]')!;
+    expect(text(review.querySelector(`#${secret.getAttribute('aria-describedby')}`))).toContain(
+      'GateRook sends it only to api.chat.example.com, where this review found the authorization server’s token endpoint.');
+    type(review.querySelector<HTMLInputElement>('input[id$="-client"]')!, 'chat-app-1234');
+    type(secret, 'chat-app-secret-5678');
+    await settle(fixture);
+    review.querySelector<HTMLButtonElement>('[gwMcpSignIn] .gw-empty__actions button')!.click();
+    await settle(fixture);
+    expect(api.startSignIn).toHaveBeenCalledWith(expect.objectContaining({
+      secrets: { '/auth/clientSecret': { source: 'local', value: 'chat-app-secret-5678' } },
+      authorizationServer: { issuer: 'https://chat.example.com', tokenEndpoint: 'https://api.chat.example.com/oauth/token' },
+    }));
+  });
+
   it('signs in with a one-time code where GateRook has its own app, the code first, then the page', async () => {
     setup();
     const api = TestBed.inject(McpServersApi);

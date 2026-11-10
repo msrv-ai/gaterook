@@ -21,6 +21,7 @@ import ai.msrv.gaterook.core.connectors.ConnectorType;
 import ai.msrv.gaterook.core.connectors.EnvironmentPolicies;
 import ai.msrv.gaterook.core.mcpservers.internal.McpServerRows;
 import ai.msrv.gaterook.core.mcpservers.internal.TypedSecrets;
+import ai.msrv.gaterook.core.mcpservers.internal.oauth.AppBinding;
 import ai.msrv.gaterook.core.mcpservers.internal.persistence.McpServerEntity;
 import ai.msrv.gaterook.core.mcpservers.internal.persistence.McpServerRepository;
 import ai.msrv.gaterook.core.platform.CanonicalJson;
@@ -32,6 +33,7 @@ import ai.msrv.gaterook.core.platform.ProblemException;
 import ai.msrv.gaterook.core.platform.SetupChangeRecorder;
 import ai.msrv.gaterook.core.platform.SetupChangeRecorder.SetupChange;
 import ai.msrv.gaterook.core.platform.Taint;
+import ai.msrv.gaterook.core.secrets.SecretOwner;
 import ai.msrv.gaterook.core.secrets.SecretService;
 import java.time.Clock;
 import java.time.Duration;
@@ -103,12 +105,20 @@ public class McpServerService {
    * A server to review or add: a config as the Add MCP server form sends it (with {@code name}) and the values of its
    * new secrets by JSON pointer ({@code /env/0/secretRef}), or a catalog entry ({@code github-mcp@0.6.2}).
    *
-   * @param signIn the finished sign-in of a server with {@code auth.type: "oauth"} ({@code POST …/sign-ins}), to add it
+   * @param signIn   the finished sign-in of a server with {@code auth.type: "oauth"} ({@code POST …/sign-ins}), to add
+   *                 it
+   * @param reviewed for a sign-in with the client secret of the person's OAuth app, the authorization server the review
+   *                 showed: the secret goes to that one only
    */
-  public record Source(JsonNode config, Map<String, SecretInput> secrets, String catalog, String env, String signIn) {
+  public record Source(JsonNode config, Map<String, SecretInput> secrets, String catalog, String env, String signIn,
+      McpServerSignIns.Reviewed reviewed) {
+
+    public Source(JsonNode config, Map<String, SecretInput> secrets, String catalog, String env, String signIn) {
+      this(config, secrets, catalog, env, signIn, null);
+    }
 
     public Source(JsonNode config, Map<String, SecretInput> secrets, String catalog, String env) {
-      this(config, secrets, catalog, env, null);
+      this(config, secrets, catalog, env, null, null);
     }
   }
 
@@ -223,8 +233,10 @@ public class McpServerService {
       if (given != null && given.isLocal()) {
         secret = given.value().clone();
       }
+      McpServerSignIns.Reviewed r = request.reviewed();
       return signIns.start(new McpServerSignIns.Target(d.cfg(), null, d.cfg().name(), httpUrl(d.config()),
-          d.config().path("auth"), secret));
+          d.config().path("auth"), secret, null, r == null ? null : new AppBinding.Server(r.issuer(),
+              r.tokenEndpoint())));
     } finally {
       clearSecrets(request);
     }
@@ -268,7 +280,18 @@ public class McpServerService {
           + "read: " + e.getMessage(), null);
     }
     return signIns.start(new McpServerSignIns.Target(s.cfg(), s.cfg().id(), name, httpUrl(s.cfg().config()),
-        s.cfg().config().path("auth"), secret));
+        s.cfg().config().path("auth"), secret, secret == null ? null : clientSecretVersion(s.cfg().id()), null));
+  }
+
+  /**
+   * Which client secret a stored server has: the id and version of its secret ({@code <id>@v3}, a reference's remote
+   * version), so that entering it again, whatever its value, is a new one; {@code null} without one.
+   */
+  private String clientSecretVersion(String connectionId) {
+    return secrets.listForOwner(new SecretOwner(SecretOwner.Kind.CONNECTION, connectionId)).stream()
+        .filter(i -> CLIENT_SECRET.equals(i.field())).findFirst()
+        .map(i -> i.id() + "@" + (i.version() != null ? "v" + i.version() : "r" + i.remoteVersion()))
+        .orElse(null);
   }
 
   /** {@code GET /api/mcp-servers/{name}/sign-in}. */
@@ -690,8 +713,9 @@ public class McpServerService {
       rows.sign(row);
       connections.recordMetadata(created.id(), metadata(h, sha));
       if (signIn != null) {
-        // The tokens of the person's sign-in become the server's encrypted secret, renewed in place from now on.
-        signIns.store(created.id(), d.cfg().name(), signIn.bundle());
+        // The tokens of the person's sign-in become the server's encrypted secret, renewed in place from now on; the
+        // client secret of their OAuth app, if any, goes to the authorization server it signed in with only.
+        signIns.store(created.id(), d.cfg().name(), signIn.bundle(), clientSecretVersion(created.id()));
       }
       setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.MCP_SERVER,
           "MCP server " + d.cfg().name() + " added", null, h.tools().size() + " tools · " + version(h)

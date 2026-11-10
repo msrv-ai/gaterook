@@ -100,6 +100,8 @@ Some servers neither accept GateRook's published details nor let apps register t
 2. In **Add MCP server › Sign-in options › OAuth app options**, enter its client ID, or enter it in the review.
 3. If the app has a client secret, enter it in the review. It is stored as a write-only secret of the server.
 
+GateRook sends the client secret only to the authorization server it was entered for: the review shows the address it goes to, and the sign-in goes there only. Later sign-ins go to the authorization server the secret was first used with. If the server names another one, or its authorization server takes tokens at another address, GateRook doesn't send the secret and says so. If you trust the new one, enter the client secret again, in **Secrets** or by editing the server in **Connections**, then sign in. Signing out keeps this record; removing the server deletes it.
+
 **OAuth app options** also set the **Scopes** to ask for, and a **Callback port** for a server or an app that accepts only one redirect address. A client ID entered there replaces GateRook's own GitHub app.
 
 ## Servers on Google Cloud

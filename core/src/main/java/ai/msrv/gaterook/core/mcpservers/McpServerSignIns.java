@@ -12,6 +12,7 @@ import ai.msrv.gaterook.core.connections.ConnectionConfigs;
 import ai.msrv.gaterook.core.connectors.CallContext;
 import ai.msrv.gaterook.core.connectors.CallContexts;
 import ai.msrv.gaterook.core.connectors.EnvironmentPolicies;
+import ai.msrv.gaterook.core.mcpservers.internal.oauth.AppBinding;
 import ai.msrv.gaterook.core.mcpservers.internal.oauth.Discovery;
 import ai.msrv.gaterook.core.mcpservers.internal.oauth.GateRookApps;
 import ai.msrv.gaterook.core.mcpservers.internal.oauth.LoopbackCallback;
@@ -88,6 +89,11 @@ public class McpServerSignIns {
 
   /** The field of a server's sign-in secret ({@code secret.owner_kind = 'mcp-server'}). */
   public static final String FIELD = "/oauth";
+  /**
+   * The field of where the client secret of the person's OAuth app may go ({@link AppBinding}): kept when the server
+   * signs out, deleted with the server.
+   */
+  public static final String APP_FIELD = "/oauth-app";
   static final Duration FLOW_TTL = Duration.ofMinutes(10);
   static final int MAX_FLOWS = 8;
   /** A token is renewed this long before it expires. */
@@ -119,15 +125,29 @@ public class McpServerSignIns {
    *                     credentials instead (§7.6); otherwise {@code null}
    * @param secretRequired over an OAuth app, whether the authorization server takes it only with its client secret
    *                       (no public clients, as Google's); {@code null} without an app
+   * @param tokenEndpoint  where a sign-in sends the client secret of the person's OAuth app: the review sends it back
+   *                       with the issuer when the person signs in with one ({@link AppBinding.Server})
    */
   public record AuthView(String kind, String issuer, String authorizationHost, String scope, String registration,
-      String redirectUri, String message, String cloud, Boolean secretRequired) {
+      String redirectUri, String message, String cloud, Boolean secretRequired, String tokenEndpoint) {
+
+    public AuthView(String kind, String issuer, String authorizationHost, String scope, String registration,
+        String redirectUri, String message, String cloud, Boolean secretRequired) {
+      this(kind, issuer, authorizationHost, scope, registration, redirectUri, message, cloud, secretRequired, null);
+    }
 
     public AuthView(String kind, String issuer, String authorizationHost, String scope, String registration,
         String redirectUri, String message) {
-      this(kind, issuer, authorizationHost, scope, registration, redirectUri, message, null, null);
+      this(kind, issuer, authorizationHost, scope, registration, redirectUri, message, null, null, null);
     }
   }
+
+  /**
+   * The authorization server a review showed ({@link AuthView#issuer}, {@link AuthView#tokenEndpoint}), sent back by
+   * the sign-in of a server not yet added when the person typed the client secret of their OAuth app: the secret goes
+   * to that one only.
+   */
+  public record Reviewed(String issuer, String tokenEndpoint) {}
 
   /**
    * One sign-in in progress.
@@ -155,7 +175,17 @@ public class McpServerSignIns {
    * What a sign-in is for: a draft (the review of Add MCP server) or a stored server, its URL and the person's
    * choices ({@code auth} of its config).
    */
-  record Target(ConnectionConfig cfg, String connectionId, String name, URI url, JsonNode auth, char[] clientSecret) {}
+  record Target(ConnectionConfig cfg, String connectionId, String name, URI url, JsonNode auth, char[] clientSecret,
+      String secretVersion, AppBinding.Server reviewed) {
+
+    /**
+     * @param secretVersion which stored client secret a stored server has ({@code <secret id>@<version>}), or
+     *                      {@code null}
+     * @param reviewed      the authorization server the review showed when the person typed the client secret of a
+     *                      server not yet added, or {@code null}
+     */
+    Target {}
+  }
 
   private final SecretService secrets;
   private final CallContexts contexts;
@@ -227,7 +257,8 @@ public class McpServerSignIns {
                   + "with the redirect URI " + redirect + ", then enter its client ID"
                   + (Boolean.TRUE.equals(secret) ? " and client secret." : ".");
           yield new AuthView(d.kind() == Discovery.Kind.OPTIONAL ? "optional" : "oauth", d.server().issuer(),
-              d.server().authorization().getHost(), scope(d, auth), registration, redirect, message, cloud, secret);
+              d.server().authorization().getHost(), scope(d, auth), registration, redirect, message, cloud, secret,
+              d.server().token().toString());
         }
       };
     } catch (OAuthHttp.Failure e) {
@@ -286,7 +317,11 @@ public class McpServerSignIns {
     String scope = scope(d, auth);
     String clientId = auth.path("clientId").isString() ? auth.path("clientId").asString() : null;
     String secret = t.clientSecret() == null || t.clientSecret().length == 0 ? null : new String(t.clientSecret());
+    if (clientId != null && secret != null) {
+      requireAppServer(t, d.server(), clientId, secret);
+    }
     Flow flow = new Flow(Ids.next("msi_"), t.connectionId(), t.name(), t.cfg(), d, scope, fingerprint(t.cfg()));
+    flow.secretVersion = t.secretVersion();
     try {
       if (clientId != null) {
         flow.listen(redirectFor(auth, true));
@@ -364,11 +399,84 @@ public class McpServerSignIns {
       return null;
     }
     SignInBundle b = holder(t.connectionId()).load();
+    // The client and its secret were issued by one authorization server: they go to it alone, by its issuer and its
+    // token endpoint, which a server's own metadata could otherwise give to another issuer's name.
     if (b == null || !b.client().registered() || b.client().redirectUri() == null
-        || !d.server().issuer().equals(b.issuer())) {
+        || !d.server().issuer().equals(b.issuer()) || b.tokenEndpoint() == null
+        || !Discovery.canonical(b.tokenEndpoint()).equals(Discovery.canonical(d.server().token()))) {
       return null;
     }
     return b.client();
+  }
+
+  /**
+   * The authorization server a client secret of the person's OAuth app may go to ({@link AppBinding}). A server not
+   * yet added signs in only with the one its review showed when the person typed the secret. A stored server signs in
+   * only with the one its secret was used with: its binding, or for a sign-in kept from an earlier version the one its
+   * bundle names (the binding is recorded then); without either, the first sign-in records it. A changed client ID or a
+   * new version of the secret (the person entered it again) starts a new binding.
+   *
+   * @throws OAuthHttp.Failure when discovery found another authorization server: the secret isn't sent
+   */
+  private void requireAppServer(Target t, Discovery.Server server, String clientId, String secret)
+      throws OAuthHttp.Failure {
+    if (t.connectionId() == null) {
+      AppBinding.Server reviewed = t.reviewed();
+      if (reviewed == null) {
+        throw new OAuthHttp.Failure("Review " + t.name() + " again before you sign in with the client secret of your "
+            + "OAuth app: the sign-in goes only to the authorization server the review showed.");
+      }
+      if (!reviewed.matches(server)) {
+        throw new OAuthHttp.Failure(t.name() + " now names another authorization server (" + host(server.issuer())
+            + ", tokens at " + host(server.token().toString()) + ") than the review showed (" + host(reviewed.issuer())
+            + "), so GateRook doesn't send it the client secret of your OAuth app. Review " + t.name() + " again.");
+      }
+      return;
+    }
+    if (t.secretVersion() == null) {
+      return;
+    }
+    AppBinding binding = appBinding(t, clientId, secret);
+    if (binding != null && !binding.allows(server)) {
+      boolean sameIssuer = Discovery.trimSlash(binding.issuer()).equals(Discovery.trimSlash(server.issuer()));
+      String trusted = sameIssuer ? host(server.token().toString()) : host(server.issuer());
+      throw new OAuthHttp.Failure((sameIssuer ? "The authorization server of " + t.name() + " ("
+          + host(server.issuer()) + ") now takes its tokens at " + host(server.token().toString()) + " instead of "
+          + host(binding.tokenEndpoint().toString()) : t.name() + " now sends its sign-in to " + host(server.issuer())
+          + " instead of " + host(binding.issuer())) + ", where the client secret of your OAuth app was used, so "
+          + "GateRook doesn't send the secret there. If you trust " + trusted + " with it, enter the client secret "
+          + "again (in Secrets, or by editing " + t.name() + " in Connections), then sign in.");
+    }
+  }
+
+  /** The binding of a stored server's client secret, as {@link #requireAppServer} describes; {@code null} for none. */
+  private AppBinding appBinding(Target t, String clientId, String secret) {
+    String connectionId = t.connectionId();
+    AppBinding stored;
+    try (var resolver = secrets.resolver(owner(connectionId), Set.of(APP_FIELD), new Taint())) {
+      if (resolver.isSet(APP_FIELD)) {
+        try (SecretResolver.Secret s = resolver.secret(APP_FIELD)) {
+          stored = AppBinding.fromJson(s.unsafeString());
+        }
+        // A binding of another client ID or secret version: the person entered the client details again.
+        return stored.covers(clientId, t.secretVersion()) ? stored : null;
+      }
+    } catch (ConnectorException | RuntimeException e) {
+      log.warn("Where the client secret of MCP server {} may go couldn't be read: {}", t.name(), e.getMessage());
+      return null;
+    }
+    // A sign-in from before bindings were recorded: the server it signed in with, if it was made with this secret.
+    AppBinding earlier = AppBinding.fromBundle(holder(connectionId).load(), clientId, secret, t.secretVersion(),
+        clock.instant());
+    if (earlier != null) {
+      try {
+        writeTx.executeWithoutResult(s -> secrets.storeIssued(owner(connectionId), APP_FIELD, t.name() + "/oauth-app",
+            earlier.toJson()));
+      } catch (RuntimeException e) {
+        log.warn("Where the client secret of MCP server {} may go wasn't stored: {}", t.name(), e.getMessage());
+      }
+    }
+    return earlier;
   }
 
   /** {@code GET …/sign-ins/{id}}. */
@@ -472,10 +580,30 @@ public class McpServerSignIns {
         b.renewedAt(), needs ? needsMessage(cfg.name(), b) : null, b.client().registered(), b.client().redirectUri());
   }
 
-  /** The sign-in of a server just added: stored in the transaction that stores the server. */
-  void store(String connectionId, String name, SignInBundle bundle) {
+  /**
+   * The sign-in of a server just added: stored in the transaction that stores the server, with where the client
+   * secret of the person's OAuth app may go when it has one.
+   *
+   * @param secretVersion which stored client secret the server has ({@code <secret id>@<version>}), or {@code null}
+   */
+  void store(String connectionId, String name, SignInBundle bundle, String secretVersion) {
     secrets.storeIssued(owner(connectionId), FIELD, name + "/oauth-sign-in", bundle.toJson());
+    bind(connectionId, name, bundle, secretVersion);
     holders.remove(connectionId);
+  }
+
+  /**
+   * Records that the client secret of the person's OAuth app goes to the authorization server {@code b} signed in
+   * with ({@link AppBinding}); nothing for any other client. Joins the caller's transaction.
+   */
+  private void bind(String connectionId, String name, SignInBundle b, String secretVersion) {
+    OAuthClient.Client c = b.client();
+    if (secretVersion == null || c.registered() || c.secret() == null || b.issuer() == null
+        || b.tokenEndpoint() == null) {
+      return;
+    }
+    secrets.storeIssued(owner(connectionId), APP_FIELD, name + "/oauth-app", AppBinding.of(c.id(), secretVersion,
+        b.issuer(), b.tokenEndpoint(), clock.instant()).toJson());
   }
 
   /** {@code POST /api/mcp-servers/{name}/sign-out}: the tokens are revoked where the server allows it and forgotten. */
@@ -558,6 +686,8 @@ public class McpServerSignIns {
     LoopbackCallback callback;
     /** A device sign-in's code (RFC 8628), or {@code null} for one whose browser comes back to the listener. */
     OAuthClient.DeviceCode device;
+    /** Which stored client secret a stored server's sign-in uses ({@link Target#secretVersion}), or {@code null}. */
+    String secretVersion;
     volatile Thread poller;
     volatile String phase = "waiting";
     volatile String message;
@@ -767,6 +897,7 @@ public class McpServerSignIns {
     SignInBundle before = holder(f.connectionId).load();
     writeTx.executeWithoutResult(s -> {
       secrets.storeIssued(owner(f.connectionId), FIELD, f.name + "/oauth-sign-in", b.toJson());
+      bind(f.connectionId, f.name, b, f.secretVersion);
       record(f.cfg, "MCP server " + f.name + " signed in" + (before == null ? "" : " again"),
           before == null ? "Not signed in" : before.needsSignIn() != null ? "Needs sign-in" : "Signed in",
           "Signed in with " + host(b.issuer()) + (b.scope() == null ? "" : " · " + b.scope()), null);

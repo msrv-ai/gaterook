@@ -34,7 +34,8 @@ import tools.jackson.databind.JsonNode;
 @RestController
 @RegisterReflectionForBinding({McpServersController.Request.class, McpServersController.SecretSource.class,
     McpServersController.Reason.class, McpServersController.Review.class, McpServersController.Started.class,
-    McpServersController.Tool.class, McpServersController.Auth.class, McpServersController.SignIn.class,
+    McpServersController.Tool.class, McpServersController.Auth.class, McpServersController.AuthorizationServer.class,
+    McpServersController.SignIn.class,
     McpServersController.SignInStatus.class, McpServersController.Address.class,
     McpServersController.AuthorizationPage.class})
 class McpServersController {
@@ -43,10 +44,14 @@ class McpServersController {
    * Review or add: a {@code config} as the Add MCP server form sends it ({@code name}, {@code transport},
    * {@code command} or {@code url}, {@code env} or {@code headers}, {@code auth}), the values of new secrets in
    * {@code secrets} by JSON Pointer ({@code /env/0/secretRef}), or a {@code catalog} entry ({@code github-mcp@0.6.2});
-   * {@code signIn} is the finished sign-in of a server that signs in with OAuth.
+   * {@code signIn} is the finished sign-in of a server that signs in with OAuth. A sign-in with the client secret of the
+   * person's OAuth app names the {@code authorizationServer} its review showed: the secret goes to that one only.
    */
   record Request(JsonNode config, Map<String, SecretSource> secrets, String catalog, String env, Boolean acknowledge,
-      String reason, String signIn) {}
+      String reason, String signIn, AuthorizationServer authorizationServer) {}
+
+  /** An authorization server as the review showed it: its issuer and the token endpoint a client secret goes to. */
+  record AuthorizationServer(String issuer, String tokenEndpoint) {}
 
   /** A secret as the connection form sends it: typed here ({@code local}) or a reference to a store. */
   record SecretSource(String source, char[] value, String ref, String store) {
@@ -73,11 +78,11 @@ class McpServersController {
    * published client metadata), {@code dynamic} (GateRook registers itself), {@code gaterook-app} (GateRook's own app
    * there, with a one-time code the person enters on the provider's page), {@code app} (the person's OAuth app) or
    * {@code app-required}, with the {@code redirectUri} to register; {@code cloud} {@code google} or {@code aws} for a
-   * server that can sign in with its cloud's credentials instead, and {@code secretRequired} for an OAuth app the
-   * provider takes only with its client secret.
+   * server that can sign in with its cloud's credentials instead, {@code secretRequired} for an OAuth app the provider
+   * takes only with its client secret, and the {@code tokenEndpoint} that secret is sent to.
    */
   record Auth(String kind, String issuer, String authorizationHost, String scope, String registration,
-      String redirectUri, String message, String cloud, Boolean secretRequired) {}
+      String redirectUri, String message, String cloud, Boolean secretRequired, String tokenEndpoint) {}
 
   /**
    * A sign-in in progress: {@code state} {@code waiting}, {@code signed-in}, {@code failed}, {@code cancelled},
@@ -119,7 +124,7 @@ class McpServersController {
           v.catalogEntry(), v.protocol(), r.sandbox(), v.name(), r.transport(), r.url(), r.workDir(), r.log(),
           r.warnings(), v.auth() == null ? null : new Auth(v.auth().kind(), v.auth().issuer(),
               v.auth().authorizationHost(), v.auth().scope(), v.auth().registration(), v.auth().redirectUri(),
-              v.auth().message(), v.auth().cloud(), v.auth().secretRequired()));
+              v.auth().message(), v.auth().cloud(), v.auth().secretRequired(), v.auth().tokenEndpoint()));
     } finally {
       clear(secrets, request.secrets());
     }
@@ -229,7 +234,9 @@ class McpServersController {
   // ── Mapping ─────────────────────────────────────────────────────────────────────────────────────────────────
 
   private static McpServerService.Source source(Request r, Map<String, SecretInput> secrets) {
-    return new McpServerService.Source(r.config(), secrets, r.catalog(), r.env(), r.signIn());
+    AuthorizationServer reviewed = r.authorizationServer();
+    return new McpServerService.Source(r.config(), secrets, r.catalog(), r.env(), r.signIn(), reviewed == null ? null
+        : new McpServerSignIns.Reviewed(reviewed.issuer(), reviewed.tokenEndpoint()));
   }
 
   private static SignIn signIn(McpServerSignIns.SignInView v) {
