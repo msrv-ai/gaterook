@@ -79,7 +79,9 @@ class SecretsController {
 
   /**
    * Rotate at the source (the connector's {@code CredentialRotator}): 202 once the source took the new value and it
-   * is the current version; 409 with the reason when it can't be rotated or the source refused (version N stays).
+   * is the current version; 409 with the reason when it can't be rotated or the source refused (version N stays), or
+   * titled {@value SecretService#UNCONFIRMED_ROTATION} when no clear answer came: the new version is kept, the secret's
+   * state is {@code unconfirmed}, and the next Rotate settles it first.
    */
   @PostMapping("/api/secrets/{id}/rotate")
   ResponseEntity<Rotated> rotate(@PathVariable String id, @RequestBody(required = false) Reason request) {

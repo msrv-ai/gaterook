@@ -254,6 +254,7 @@ export function sourceCell(row: SecretRow): SourceCell {
   if (row.source === 'local') {
     if (row.state === 'needs-value') return { label: 'Encrypted here · needs a value', icon: null, tone: 'warning' };
     if (row.state === 'testing') return { label: 'Encrypted here · new value failed its test', icon: null, tone: 'warning' };
+    if (row.state === 'unconfirmed') return { label: 'Encrypted here · rotation unconfirmed', icon: null, tone: 'warning' };
     return { label: 'Encrypted here', icon: 'lock-keyhole', tone: null };
   }
   const info = storeKind(row.source) ?? storeKind(kindOfRef(row.ref));
@@ -333,6 +334,8 @@ export interface SecretSubject {
   readonly testable: boolean;
   readonly ref: string | null;
   readonly store: string | null;
+  /** An earlier rotation at the source got no clear answer; the next Rotate settles it first. */
+  readonly unconfirmed?: boolean;
 }
 
 export function subjectOf(row: SecretRow, ctx: RowContext): SecretSubject {
@@ -350,6 +353,7 @@ export function subjectOf(row: SecretRow, ctx: RowContext): SecretSubject {
     testable: row.ownerKind === 'connection' || row.ownerKind === 'store',
     ref: row.ref ?? null,
     store: row.store ?? null,
+    ...(row.state === 'unconfirmed' ? { unconfirmed: true } : {}),
   };
 }
 
@@ -376,6 +380,9 @@ export function replaceFailedText(s: SecretSubject, testMessage: string | null):
 
 export function rotateLead(s: SecretSubject): string {
   if (s.version === null) return `The connector sets a new value at the source, stores it and tests ${s.usedBy}.`;
+  if (s.unconfirmed) {
+    return `An earlier rotation got no clear answer. GateRook first tests which value ${s.usedBy} accepts: if it took the kept new version, that one goes in use; if it still uses version ${s.version}, the kept one is discarded and the connector sets a new value.`;
+  }
   return `The connector sets a new value at the source, stores it as version ${s.version + 1} and tests ${s.usedBy}. Version ${s.version} keeps working until the test passes.`;
 }
 

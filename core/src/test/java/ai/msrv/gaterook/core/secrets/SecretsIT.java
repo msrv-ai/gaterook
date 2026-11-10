@@ -10,6 +10,7 @@ import ai.msrv.gaterook.core.GatewayApplication;
 import ai.msrv.gaterook.core.platform.HmacKeys;
 import ai.msrv.gaterook.core.platform.MasterKeyChanged;
 import ai.msrv.gaterook.core.platform.MasterKeyLock;
+import ai.msrv.gaterook.core.platform.ProblemException;
 import ai.msrv.gaterook.core.platform.Taint;
 import ai.msrv.gaterook.core.platform.TestGateway;
 import ai.msrv.gaterook.core.platform.TestHttp;
@@ -34,6 +35,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -334,6 +336,215 @@ class SecretsIT {
     assertThat(versions.findBySecretIdAndSecretVersion(second.id(), 1).orElseThrow().getState())
         .as("a previous version within its 7 days stays").isEqualTo(SecretVersionState.PREVIOUS);
     assertThat(resolve(secrets, "shred-a", "/credentials/password")).isEqualTo("pw-a-2-xyz");
+  }
+
+  /**
+   * Settings › Tunnel and a store's sign-in replace a secret inside their own transaction, which holds the writer's
+   * only connection until it commits. The WAL checkpoint after the shred used to wait for that connection for the
+   * pool's 10 seconds and give up; it now follows the commit, and the shredded pages still leave the WAL.
+   */
+  @Test
+  void aReplaceInsideTheCallersTransactionNeitherWaitsForTheWriterNorSkipsTheCheckpoint() throws Exception {
+    Path home = TestGateway.newHome("secrets-replace-in-tx");
+    ConfigurableApplicationContext core = start(home);
+    SecretService secrets = core.getBean(SecretService.class);
+    SecretInfo first = secrets.createLocal(SecretOwner.connection("tx-a"), "/credentials/password", "tx-a/password",
+        "pw-tx-a-1".toCharArray());
+    SecretInfo second = secrets.createLocal(SecretOwner.connection("tx-b"), "/credentials/password", "tx-b/password",
+        "pw-tx-b-1".toCharArray());
+    secrets.replace(first.id(), "pw-tx-a-2".toCharArray(), false, null);
+    TransactionTemplate tx = new TransactionTemplate(core.getBean(PlatformTransactionManager.class));
+    // Eight days later: the replace below also shreds first's expired previous version.
+    tx.executeWithoutResult(s -> core.getBean(SecretRepository.class).findById(first.id()).orElseThrow()
+        .setRotatedAt(Instant.now().minus(Duration.ofDays(8))));
+
+    long started = System.nanoTime();
+    tx.executeWithoutResult(s -> secrets.replace(second.id(), "pw-tx-b-2".toCharArray(), false, "from settings"));
+    Duration took = Duration.ofNanos(System.nanoTime() - started);
+
+    assertThat(took).as("the writer pool's connection timeout is 10 s").isLessThan(Duration.ofSeconds(5));
+    // Before any other read: a read transaction open at that moment would leave the checkpoint incomplete.
+    Path wal = home.resolve("gateway.db-wal");
+    long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
+    while (Files.size(wal) > 0 && System.nanoTime() < deadline) {
+      Thread.sleep(10);
+    }
+    assertThat(Files.size(wal)).as("the checkpoint after the commit truncated the WAL").isZero();
+    SecretVersionRepository versions = core.getBean(SecretVersionRepository.class);
+    assertThat(versions.findBySecretIdAndSecretVersion(first.id(), 1).orElseThrow().getWrappedDek()).isNull();
+    assertThat(resolve(secrets, "tx-b", "/credentials/password")).isEqualTo("pw-tx-b-2");
+  }
+
+  /**
+   * A rotation whose answer never came may have changed the password at the source: the new value is the only copy,
+   * so it is kept, not destroyed, and the next Rotate settles it once the source can say which one it accepts.
+   */
+  @Test
+  void aRotationWithoutAClearAnswerKeepsTheNewValueUntilTheNextRotateSettlesIt() throws Exception {
+    ConfigurableApplicationContext core = start(TestGateway.newHome("secrets-rotate-unconfirmed"));
+    SecretService secrets = core.getBean(SecretService.class);
+    SecretVersionRepository versions = core.getBean(SecretVersionRepository.class);
+    TestOwners source = core.getBean(TestOwners.class);
+    SecretInfo db = secrets.createLocal(SecretOwner.connection("rot-db"), "/credentials/password", "rot-db/password",
+        "pw-rot-1-xyz".toCharArray());
+    source.accepts.put("rot-db", 1);
+    source.onRotate.put("rot-db", () -> {
+      throw new SecretOwners.RotationOutcomeUnknown("No answer from rot-db within 15 s.");
+    });
+
+    assertThatThrownBy(() -> secrets.rotate(db.id(), null)).isInstanceOfSatisfying(ProblemException.class, e -> {
+      assertThat(e.title()).isEqualTo(SecretService.UNCONFIRMED_ROTATION);
+      assertThat(e.getMessage()).contains("No answer from rot-db within 15 s.", "keeps it as version 2",
+          "still uses version 1");
+    });
+    assertThat(versions.findBySecretIdAndSecretVersion(db.id(), 2).orElseThrow()).satisfies(v -> {
+      assertThat(v.getState()).isEqualTo(SecretVersionState.PENDING);
+      assertThat(v.getWrappedDek()).as("the only copy of a value the source may use").isNotNull();
+      assertThat(v.getUnconfirmedAt()).isNotNull();
+    });
+    assertThat(secrets.get(db.id()).state()).isEqualTo("unconfirmed");
+    assertThat(resolve(secrets, "rot-db", "/credentials/password")).isEqualTo("pw-rot-1-xyz");
+    assertThat(jdbc(core).queryForList("select change_to from setup_change where subject = 'rot-db/password'",
+        String.class)).containsExactly("v1 in use, v2 kept (rotation at the source unconfirmed)");
+
+    // At once, with the source still on version 1: the change may still be on its way, so version 2 stays.
+    assertThatThrownBy(() -> secrets.rotate(db.id(), null)).isInstanceOfSatisfying(ProblemException.class, e -> {
+      assertThat(e.title()).isEqualTo(SecretService.UNCONFIRMED_ROTATION);
+      assertThat(e.getMessage()).contains("accepts version 1 and not version 2 yet");
+    });
+    assertThat(source.rotated).containsExactly("rot-db");
+    assertThat(versions.findBySecretIdAndSecretVersion(db.id(), 2).orElseThrow().unconfirmed()).isTrue();
+
+    // Later, still on version 1: version 2 goes and the rotation runs again.
+    new TransactionTemplate(core.getBean(PlatformTransactionManager.class)).executeWithoutResult(s -> versions
+        .findBySecretIdAndSecretVersion(db.id(), 2).orElseThrow()
+        .markUnconfirmed(Instant.now().minus(SecretService.SETTLE_AFTER).minusSeconds(1)));
+    source.onRotate.put("rot-db", () -> source.accepts.put("rot-db", 3));
+    SecretService.ReplaceResult rotated = secrets.rotate(db.id(), null);
+
+    assertThat(rotated.version()).isEqualTo(3);
+    assertThat(source.rotated).containsExactly("rot-db", "rot-db");
+    assertThat(versions.findBySecretIdAndSecretVersion(db.id(), 2).orElseThrow()).satisfies(v -> {
+      assertThat(v.getState()).isEqualTo(SecretVersionState.DESTROYED);
+      assertThat(v.getWrappedDek()).isNull();
+    });
+    assertThat(versions.findBySecretIdAndSecretVersion(db.id(), 1).orElseThrow().getState())
+        .isEqualTo(SecretVersionState.PREVIOUS);
+    assertThat(secrets.get(db.id())).satisfies(info -> {
+      assertThat(info.version()).isEqualTo(3);
+      assertThat(info.state()).isEqualTo("stored");
+    });
+    assertThat(jdbc(core).queryForList("select change_to from setup_change where subject = 'rot-db/password' "
+        + "order by id", String.class)).containsExactly("v1 in use, v2 kept (rotation at the source unconfirmed)",
+        "v1 (rot-db kept it; v2 destroyed)", "v3 (rotated at the source)");
+  }
+
+  /** A source that took the new value without answering is caught by a test with it, at once or at the next Rotate. */
+  @Test
+  void aRotationTheSourceTookWithoutAnsweringBecomesCurrentWhenATestShowsIt() throws Exception {
+    ConfigurableApplicationContext core = start(TestGateway.newHome("secrets-rotate-took"));
+    SecretService secrets = core.getBean(SecretService.class);
+    SecretVersionRepository versions = core.getBean(SecretVersionRepository.class);
+    TestOwners source = core.getBean(TestOwners.class);
+    SecretInfo took = secrets.createLocal(SecretOwner.connection("rot-took"), "/credentials/password",
+        "rot-took/password", "pw-took-1-xyz".toCharArray());
+    source.accepts.put("rot-took", 1);
+    source.onRotate.put("rot-took", () -> {
+      source.accepts.put("rot-took", 2);
+      throw new SecretOwners.RotationOutcomeUnknown("The connection to rot-took failed while it changed the password.");
+    });
+
+    SecretService.ReplaceResult rotated = secrets.rotate(took.id(), null);
+
+    assertThat(rotated.version()).isEqualTo(2);
+    assertThat(rotated.tested()).isTrue();
+    assertThat(versions.findBySecretIdAndSecretVersion(took.id(), 2).orElseThrow().getState())
+        .isEqualTo(SecretVersionState.CURRENT);
+    assertThat(secrets.get(took.id()).state()).isEqualTo("stored");
+
+    SecretInfo later = secrets.createLocal(SecretOwner.connection("rot-later"), "/credentials/password",
+        "rot-later/password", "pw-later-1-xyz".toCharArray());
+    source.accepts.put("rot-later", 1);
+    source.onRotate.put("rot-later", () -> {
+      source.accepts.remove("rot-later");
+      throw new SecretOwners.RotationOutcomeUnknown("No answer from rot-later within 15 s.");
+    });
+    assertThatThrownBy(() -> secrets.rotate(later.id(), null)).isInstanceOfSatisfying(ProblemException.class,
+        e -> assertThat(e.title()).isEqualTo(SecretService.UNCONFIRMED_ROTATION));
+    assertThatThrownBy(() -> secrets.rotate(later.id(), null)).as("still unreachable")
+        .isInstanceOfSatisfying(ProblemException.class, e -> assertThat(e.getMessage())
+            .contains("accepted neither version 1 nor version 2", "version 2 is kept"));
+    source.accepts.put("rot-later", 2);
+
+    SecretService.ReplaceResult settled = secrets.rotate(later.id(), null);
+
+    assertThat(settled.version()).isEqualTo(2);
+    assertThat(source.rotated).as("the earlier rotation went through: no second one")
+        .containsExactly("rot-took", "rot-later");
+    assertThat(secrets.get(later.id())).satisfies(info -> {
+      assertThat(info.version()).isEqualTo(2);
+      assertThat(info.state()).isEqualTo("stored");
+    });
+    assertThat(resolve(secrets, "rot-later", "/credentials/password")).isNotEqualTo("pw-later-1-xyz");
+  }
+
+  /** The source's own refusal still means it kept the current value: the new one goes. */
+  @Test
+  void aRefusalOfTheSourceStillDestroysTheNewValue() throws Exception {
+    ConfigurableApplicationContext core = start(TestGateway.newHome("secrets-rotate-refused"));
+    SecretService secrets = core.getBean(SecretService.class);
+    TestOwners source = core.getBean(TestOwners.class);
+    SecretInfo db = secrets.createLocal(SecretOwner.connection("rot-refused"), "/credentials/password",
+        "rot-refused/password", "pw-refused-1".toCharArray());
+    source.accepts.put("rot-refused", 1);
+    source.onRotate.put("rot-refused", () -> {
+      throw ProblemException.conflict("The source refused", "permission denied. The current value stays in use.");
+    });
+
+    assertThatThrownBy(() -> secrets.rotate(db.id(), null)).isInstanceOfSatisfying(ProblemException.class,
+        e -> assertThat(e.title()).isEqualTo("The source refused"));
+
+    assertThat(core.getBean(SecretVersionRepository.class).findBySecretIdAndSecretVersion(db.id(), 2).orElseThrow()
+        .getState()).isEqualTo(SecretVersionState.DESTROYED);
+    assertThat(secrets.get(db.id()).state()).isEqualTo("stored");
+  }
+
+  /**
+   * A value typed without a test proves nothing about the source, so it doesn't discard a version an unconfirmed
+   * rotation kept; one the source is seen to accept does.
+   */
+  @Test
+  void onlyAValueTheSourceIsSeenToAcceptDiscardsAVersionAnUnconfirmedRotationKept() throws Exception {
+    ConfigurableApplicationContext core = start(TestGateway.newHome("secrets-rotate-replaced"));
+    SecretService secrets = core.getBean(SecretService.class);
+    SecretVersionRepository versions = core.getBean(SecretVersionRepository.class);
+    TestOwners source = core.getBean(TestOwners.class);
+    SecretInfo db = secrets.createLocal(SecretOwner.connection("rot-replaced"), "/credentials/password",
+        "rot-replaced/password", "pw-replaced-1".toCharArray());
+    source.accepts.put("rot-replaced", 1);
+    source.onRotate.put("rot-replaced", () -> {
+      throw new SecretOwners.RotationOutcomeUnknown("No answer from rot-replaced within 15 s.");
+    });
+    assertThatThrownBy(() -> secrets.rotate(db.id(), null)).isInstanceOf(ProblemException.class);
+
+    secrets.replace(db.id(), "pw-replaced-3".toCharArray(), false, null);
+
+    assertThat(versions.findBySecretIdAndSecretVersion(db.id(), 2).orElseThrow()).satisfies(v -> {
+      assertThat(v.unconfirmed()).isTrue();
+      assertThat(v.getWrappedDek()).isNotNull();
+    });
+    assertThat(secrets.get(db.id())).satisfies(info -> {
+      assertThat(info.version()).isEqualTo(3);
+      assertThat(info.state()).isEqualTo("unconfirmed");
+    });
+
+    source.accepts.put("rot-replaced", 4);
+    SecretService.ReplaceResult tested = secrets.replace(db.id(), "pw-replaced-4".toCharArray(), true, null);
+
+    assertThat(tested.tested()).isTrue();
+    assertThat(versions.findBySecretIdAndSecretVersion(db.id(), 2).orElseThrow().getState())
+        .isEqualTo(SecretVersionState.DESTROYED);
+    assertThat(secrets.get(db.id()).state()).isEqualTo("stored");
   }
 
   @Test
@@ -796,8 +1007,16 @@ class SecretsIT {
     }
   }
 
-  /** Connections as the connections module (M1.4) will describe them: prod-* is prod, flaky-db fails its test. */
+  /**
+   * Connections as the connections module (M1.4) will describe them: prod-* is prod, flaky-db fails its test. A
+   * {@code rot-} connection has a fake source that rotates: {@link #accepts} says which version it accepts (none:
+   * it can't be reached), {@link #onRotate} what a rotation does there.
+   */
   static final class TestOwners implements SecretOwners {
+    final Map<String, Integer> accepts = new java.util.concurrent.ConcurrentHashMap<>();
+    final Map<String, Runnable> onRotate = new java.util.concurrent.ConcurrentHashMap<>();
+    final List<String> rotated = new java.util.concurrent.CopyOnWriteArrayList<>();
+
     @Override
     public SecretOwner.Kind kind() {
       return SecretOwner.Kind.CONNECTION;
@@ -809,7 +1028,24 @@ class SecretsIT {
     }
 
     @Override
+    public Optional<String> rotateUnavailable(String ownerId, String field) {
+      return ownerId.startsWith("rot-") ? Optional.empty() : SecretOwners.super.rotateUnavailable(ownerId, field);
+    }
+
+    @Override
+    public void rotate(String ownerId, String field, char[] next) {
+      rotated.add(ownerId);
+      onRotate.get(ownerId).run();
+    }
+
+    @Override
     public Optional<TestOutcome> testWithVersion(String ownerId, String field, int version) {
+      if (ownerId.startsWith("rot-")) {
+        Integer accepted = accepts.get(ownerId);
+        return Optional.of(accepted == null ? new TestOutcome(false, "connection refused")
+            : accepted == version ? new TestOutcome(true, "Healthy · 3 ms")
+            : new TestOutcome(false, "password authentication failed"));
+      }
       return Optional.of(ownerId.equals("flaky-db") ? new TestOutcome(false, "password authentication failed")
           : new TestOutcome(true, "Healthy · 12 ms"));
     }

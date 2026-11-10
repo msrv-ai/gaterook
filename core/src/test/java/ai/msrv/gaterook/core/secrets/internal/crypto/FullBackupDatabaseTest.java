@@ -2,11 +2,21 @@ package ai.msrv.gaterook.core.secrets.internal.crypto;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
+import ai.msrv.gaterook.connector.api.Env;
+import ai.msrv.gaterook.core.connections.internal.ConnectionRows;
+import ai.msrv.gaterook.core.connections.internal.persistence.ConnectionEntity;
+import ai.msrv.gaterook.core.connections.internal.persistence.ConnectionRepository;
+import ai.msrv.gaterook.core.platform.HmacKeys;
+import ai.msrv.gaterook.core.platform.RowMac;
 import com.google.crypto.tink.KeysetHandle;
+import com.google.crypto.tink.subtle.Hkdf;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -19,13 +29,19 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.test.util.ReflectionTestUtils;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The schema gate of the restore validator on scratch SQLite files built by the production migrations: a backup must
@@ -40,6 +56,7 @@ class FullBackupDatabaseTest {
   private static KeysetHandle master;
 
   @TempDir Path dir;
+  private byte[] root;
 
   @BeforeAll
   static void migrate() throws Exception {
@@ -107,6 +124,49 @@ class FullBackupDatabaseTest {
   }
 
   /**
+   * The restore moves a server that starts with the core to "on first call" and signs its row again. The row was
+   * signed by {@link ConnectionRows}, which signs {@code enabled: false} for a paused server, so the check and the new
+   * signature need the same fields: before, a backup holding a paused server could not be restored at all.
+   */
+  @ParameterizedTest(name = "paused: {0}")
+  @ValueSource(booleans = {true, false})
+  void aServerThatStartsWithTheCoreIsSignedAgainAsItsOwnerVerifiesItPausedOrNot(boolean paused) throws Exception {
+    Path backup = backup("backup");
+    ConnectionRows owner = new ConnectionRows(rowMac(root), mock(ConnectionRepository.class),
+        JsonMapper.builder().build());
+    ConnectionEntity server = new ConnectionEntity("backup-mcp", "mcp-server", Env.DEV,
+        Map.of("transport", "stdio", "start", "with-core"), NOW);
+    if (paused) {
+      server.setEnabled(false, NOW);
+    }
+    owner.sign(server);
+    execute(backup, "INSERT INTO connector_type(id, kind, impl_version, manifest, manifest_sha256, enabled, "
+        + "updated_at, version) VALUES ('mcp-server', 'MCP_SERVER', '1.0.0', '{}', '" + "0".repeat(64) + "', 1, 1, 0)");
+    try (Connection c = DriverManager.getConnection("jdbc:sqlite:" + backup);
+        PreparedStatement s = c.prepareStatement("INSERT INTO connection(id, name, type, env, enabled, config, "
+            + "created_at, updated_at, mac, version) VALUES (?, 'backup-mcp', 'mcp-server', 'dev', ?, ?, 1, 1, ?, 0)")) {
+      s.setString(1, server.getId());
+      s.setBoolean(2, !paused);
+      s.setString(3, JsonMapper.builder().build().writeValueAsString(server.getConfig()));
+      s.setBytes(4, server.getMac());
+      s.executeUpdate();
+    }
+
+    FullBackupDatabase.prepare(backup, live, master, NOW);
+
+    try (Connection c = DriverManager.getConnection("jdbc:sqlite:" + backup); Statement s = c.createStatement();
+        ResultSet r = s.executeQuery("SELECT enabled, config, version, mac FROM connection")) {
+      assertThat(r.next()).isTrue();
+      assertThat(r.getBoolean("enabled")).as("a paused server stays paused").isEqualTo(!paused);
+      assertThat(r.getString("config")).contains("\"start\":\"on-first-call\"");
+      server.reconfigure(Env.DEV, Map.of("transport", "stdio", "start", "on-first-call"), NOW);
+      ReflectionTestUtils.setField(server, "version", r.getLong("version"));
+      server.setMac(r.getBytes("mac"));
+    }
+    assertThat(owner.verify(server)).as("the owner verifies the new signature").isTrue();
+  }
+
+  /**
    * In a LIKE pattern an underscore matches any character, and SQLite creates no object named {@code sqlite_…} itself
    * but loads one from an edited file, so no name pattern may stand in for "SQLite's own".
    */
@@ -165,11 +225,29 @@ class FullBackupDatabaseTest {
     }
   }
 
-  /** A complete backup of {@link #live}: its copy with the sealed integrity root that a real snapshot carries. */
+  /** The row MAC a restore of a backup sealed with {@code root} signs with, derived as the validator derives it. */
+  private static RowMac rowMac(byte[] root) throws Exception {
+    byte[] key = Hkdf.computeHkdf("HMACSHA256", root, new byte[0],
+        HmacKeys.Purpose.ROW_MAC.info().getBytes(StandardCharsets.UTF_8), 32);
+    return new RowMac((purpose, data) -> {
+      try {
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(key, "HmacSHA256"));
+        return mac.doFinal(data);
+      } catch (GeneralSecurityException e) {
+        throw new IllegalStateException(e);
+      }
+    }, JsonMapper.builder().build());
+  }
+
+  /**
+   * A complete backup of {@link #live}: its copy with the sealed integrity root that a real snapshot carries, kept in
+   * {@link #root} for tests that sign rows of their own.
+   */
   private Path backup(String name) throws Exception {
     Path file = Files.createDirectory(dir.resolve(name)).resolve("gateway.db");
     Files.copy(live, file);
-    byte[] root = new byte[32];
+    root = new byte[32];
     new SecureRandom().nextBytes(root);
     Envelope.Sealed sealed = Envelope.seal(master, "mac-root", 1, root);
     String value = "{\"v\":1,\"keyId\":" + sealed.keyId() + ",\"dek\":\""

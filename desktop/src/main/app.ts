@@ -38,6 +38,7 @@ import { ShutdownSequence } from './shutdown.ts';
 import { createFullBackup, restoreFullBackup, type FullBackupHost, type RestoreContext } from './full-backup.ts';
 import { EndpointShares, endpointShareInArgv } from './endpoint-shares.ts';
 import { recoverFullRestore } from './full-backup-restore.ts';
+import { reportStartupFailure, StartupProblem } from './startup-failure.ts';
 import { privateDirectory } from './full-backup-files.ts';
 import { findDangerousSwitches } from './switches.ts';
 import { AppTray, markImage, setBadge } from './tray.ts';
@@ -103,13 +104,22 @@ export function main(): Desktop | null {
   const first = deepLinkInArgv(process.argv);
   if (first) desktop.deepLink(first);
   app.whenReady().then(async () => {
-    if (existsSync(layout.home)) recoverFullRestore(realpathSync(layout.home));
+    if (existsSync(layout.home)) {
+      try {
+        recoverFullRestore(realpathSync(layout.home));
+      } catch (e) {
+        // Its messages say what to keep and do; they belong in front of the person, not only in the log.
+        throw new StartupProblem(`GateRook couldn't finish restoring a full backup: ${(e as Error).message}`,
+          { cause: e });
+      }
+    }
     if (hasPendingReset(layout.home)) await desktop.finishReset();
     else await desktop.start();
-  }).catch((e: Error) => {
-    log(`could not start: ${e.stack ?? e.message}`);
-    app.exit(1);
-  });
+  }).catch((e: unknown) => reportStartupFailure(e, {
+    log, logFile: join(layout.home, 'logs', 'desktop.log'),
+    showErrorBox: (title, content) => dialog.showErrorBox(title, content),
+    exit: (code) => app.exit(code),
+  }));
   return desktop;
 }
 

@@ -390,7 +390,7 @@ public class SecretService {
         int number = nextVersion(locked);
         addVersion(locked, number, canTest ? SecretVersionState.PENDING : SecretVersionState.CURRENT, value);
         if (!canTest) {
-          promote(locked, number, reason, described, "replaced");
+          promote(locked, number, reason, described, "replaced", false);
         }
         return number;
       }));
@@ -401,7 +401,7 @@ public class SecretService {
       Optional<SecretOwners.TestOutcome> outcome = support.testWithVersion(owner.id(), secret.getField(), next);
       if (outcome.isEmpty() || outcome.get().ok()) {
         writeTx.executeWithoutResult(s -> promote(secrets.findById(id).orElseThrow(), next, reason, described,
-            "replaced"));
+            "replaced", outcome.isPresent()));
         afterChange();
         return new ReplaceResult(id, next, "stored", outcome.isPresent() ? Boolean.TRUE : null,
             outcome.map(SecretOwners.TestOutcome::message).orElse(null));
@@ -419,8 +419,16 @@ public class SecretService {
    * value the source accepts is always one the gateway holds. Nobody sees the new value, the person included. When the
    * source refuses, the pending version is destroyed and version N stays in use.
    *
+   * <p>Without a clear answer (no answer in time, the connection dropped while the change ran) the source may already
+   * use version N+1, and destroying it would lock the account out. It becomes current at once if the source accepts
+   * it; otherwise it is kept and marked unconfirmed ({@link #UNCONFIRMED_ROTATION}), Activity records it and the
+   * answer is a 409 saying so. The next Rotate settles it first: if the source accepts N+1 it becomes current and that
+   * is the rotation; if the source still accepts N, at least {@link #SETTLE_AFTER} after the unanswered attempt (a
+   * change still on its way could arrive later), N+1 is destroyed and the rotation runs again; else it is refused and
+   * N+1 kept.
+   *
    * @param reason the person's comment; required when the owner is on prod
-   * @throws ProblemException 409 when the secret can't be rotated or the source refused
+   * @throws ProblemException 409 when the secret can't be rotated, the source refused or the outcome is unknown
    */
   public ReplaceResult rotate(String id, String reason) {
     SecretEntity secret = readTx.execute(s -> secrets.findById(id).orElseThrow(() -> new NoSuchSecretException(id)));
@@ -440,6 +448,10 @@ public class SecretService {
       throw ProblemException.conflict("Can't rotate " + secret.getName(), "It has no value yet: the connector signs "
           + "in with the current value to set a new one. Replace it with a value first.");
     }
+    Optional<ReplaceResult> settled = settleUnconfirmed(secret, owner, support, described, reason);
+    if (settled.isPresent()) {
+      return settled.get();
+    }
     char[] next = newValue();
     try {
       int number = masterKey.sealing(() -> writeTx.execute(s -> {
@@ -454,19 +466,155 @@ public class SecretService {
       }));
       try {
         support.rotate(owner.id(), secret.getField(), next);
+      } catch (SecretOwners.RotationOutcomeUnknown e) {
+        return unconfirmed(secret, owner, support, described, number, reason, e.getMessage());
       } catch (RuntimeException e) {
         // The source kept version N: the value it never accepted goes.
-        writeTx.executeWithoutResult(s -> versions.findBySecretIdOrderBySecretVersionDesc(id).stream()
-            .filter(v -> v.getSecretVersion() == number).forEach(v -> v.destroy(clock.instant())));
+        writeTx.executeWithoutResult(s -> versions.findBySecretIdAndSecretVersion(id, number)
+            .ifPresent(v -> v.destroy(clock.instant())));
         throw e;
       }
       writeTx.executeWithoutResult(s -> promote(secrets.findById(id).orElseThrow(), number, reason, described,
-          "rotated at the source"));
+          "rotated at the source", true));
       afterChange();
       return new ReplaceResult(id, number, "stored", null, null);
     } finally {
       Arrays.fill(next, '\0');
     }
+  }
+
+  /** The title of the 409 that answers a rotation whose outcome is unknown (the windows show it as such). */
+  public static final String UNCONFIRMED_ROTATION = "Rotation unconfirmed";
+
+  /**
+   * How long after a rotation without a clear answer a test that finds the source still on the current value may
+   * discard the kept one: a change still on its way, behind a lock or a slow network, could otherwise arrive after the
+   * value it sets was destroyed.
+   */
+  public static final Duration SETTLE_AFTER = Duration.ofMinutes(5);
+
+  /**
+   * Version {@code number} waits after a rotation without a clear answer ({@code cause}). It becomes current if the
+   * source accepts it now; otherwise it is kept and marked, Activity records it, and the person is told (409).
+   */
+  private ReplaceResult unconfirmed(SecretEntity secret, SecretOwner owner, SecretOwners support,
+      Optional<SecretOwners.Owner> described, int number, String reason, String cause) {
+    String id = secret.getId();
+    Optional<SecretOwners.TestOutcome> tested = test(support, owner, secret.getField(), number);
+    if (tested.isPresent() && tested.get().ok()) {
+      writeTx.executeWithoutResult(s -> promote(secrets.findById(id).orElseThrow(), number, reason, described,
+          "rotated at the source", true));
+      afterChange();
+      return new ReplaceResult(id, number, "stored", Boolean.TRUE, tested.get().message());
+    }
+    Integer current = secret.getCurrentVersion();
+    String label = described.map(SecretOwners.Owner::label).orElse(secret.getName());
+    writeTx.executeWithoutResult(s -> {
+      versions.findBySecretIdAndSecretVersion(id, number).filter(v -> v.getState() == SecretVersionState.PENDING)
+          .ifPresent(v -> v.markUnconfirmed(clock.instant()));
+      record(secret, described, "v" + current, "v" + current + " in use, v" + number
+          + " kept (rotation at the source unconfirmed)", reason);
+    });
+    log.warn("Rotation at the source of {} has no clear outcome; version {} is kept", secret.getName(), number);
+    throw ProblemException.conflict(UNCONFIRMED_ROTATION, sentence(cause) + " " + label + " may already use the new "
+        + "value: GateRook keeps it as version " + number + " and still uses version " + current + ". Rotate again "
+        + "when " + label + " answers: GateRook then checks which version it accepts and keeps that one.");
+  }
+
+  /**
+   * Settles a version an earlier rotation left unconfirmed, before a new rotation: in use at the source, it becomes
+   * current and that is the rotation; refused there while the current value is accepted, at least
+   * {@link #SETTLE_AFTER} later, it is destroyed and the rotation runs again (empty); otherwise Rotate is refused and
+   * the version kept. Empty when nothing waits. The tests run outside any transaction.
+   */
+  private Optional<ReplaceResult> settleUnconfirmed(SecretEntity secret, SecretOwner owner, SecretOwners support,
+      Optional<SecretOwners.Owner> described, String reason) {
+    String id = secret.getId();
+    SecretVersionEntity waiting = readTx.execute(s -> versions.findBySecretIdOrderBySecretVersionDesc(id).stream()
+        .filter(SecretVersionEntity::unconfirmed).findFirst().orElse(null));
+    if (waiting == null) {
+      return Optional.empty();
+    }
+    int number = waiting.getSecretVersion();
+    Integer current = secret.getCurrentVersion();
+    String label = described.map(SecretOwners.Owner::label).orElse(secret.getName());
+    Optional<SecretOwners.TestOutcome> withKept = test(support, owner, secret.getField(), number);
+    if (withKept.isPresent() && withKept.get().ok()) {
+      boolean promoted = Boolean.TRUE.equals(writeTx.execute(s -> {
+        if (versions.findBySecretIdAndSecretVersion(id, number).filter(SecretVersionEntity::unconfirmed).isEmpty()) {
+          return false;
+        }
+        promote(secrets.findById(id).orElseThrow(), number, reason, described, "rotated at the source, confirmed",
+            true);
+        return true;
+      }));
+      if (!promoted) {
+        throw ProblemException.conflict("Can't rotate " + secret.getName(), "Its versions changed meanwhile. Try "
+            + "again.");
+      }
+      afterChange();
+      return Optional.of(new ReplaceResult(id, number, "stored", Boolean.TRUE, withKept.get().message()));
+    }
+    Optional<SecretOwners.TestOutcome> withCurrent = current == null ? Optional.empty()
+        : test(support, owner, secret.getField(), current);
+    boolean currentWorks = withCurrent.isPresent() && withCurrent.get().ok();
+    Instant settles = waiting.getUnconfirmedAt().plus(SETTLE_AFTER);
+    if (currentWorks && !clock.instant().isBefore(settles)) {
+      writeTx.executeWithoutResult(s -> {
+        versions.findBySecretIdAndSecretVersion(id, number).filter(SecretVersionEntity::unconfirmed)
+            .ifPresent(v -> v.destroy(clock.instant()));
+        record(secret, described, "v" + current + " in use, v" + number + " kept", "v" + current + " (" + label
+            + " kept it; v" + number + " destroyed)", reason);
+      });
+      return Optional.empty();
+    }
+    if (currentWorks) {
+      long minutes = Math.max(1, Duration.between(clock.instant(), settles).toMinutes() + 1);
+      throw ProblemException.conflict(UNCONFIRMED_ROTATION, label + " accepts version " + current + " and not "
+          + "version " + number + " yet. GateRook keeps version " + number + " for " + minutes + " more minute"
+          + (minutes == 1 ? "" : "s") + " in case the earlier change still arrives: rotate again after that.");
+    }
+    String why = withKept.map(SecretOwners.TestOutcome::message).filter(m -> !m.isBlank())
+        .map(m -> " " + sentence(m)).orElse("");
+    throw ProblemException.conflict(UNCONFIRMED_ROTATION, "GateRook still can't tell which value " + label
+        + " uses: it accepted neither version " + current + " nor version " + number + " in a test." + why
+        + " Version " + current + " stays in use here and version " + number + " is kept. Rotate again when " + label
+        + " answers, or replace the value with one you test before saving.");
+  }
+
+  /** A test with {@code version}, or empty when the owner can't test or the test itself failed to run. */
+  private Optional<SecretOwners.TestOutcome> test(SecretOwners support, SecretOwner owner, String field, int version) {
+    try {
+      return support.testWithVersion(owner.id(), field, version);
+    } catch (RuntimeException e) {
+      log.debug("Test of {} with version {} failed to run: {}", owner.id(), version, e.getMessage());
+      return Optional.empty();
+    }
+  }
+
+  /** A Setup change of {@code secret} that is no new current version (an unconfirmed rotation and how it settled). */
+  private void record(SecretEntity secret, Optional<SecretOwners.Owner> described, String from, String to,
+      String reason) {
+    SetupChangeRecorder recorder = setupChanges.getIfAvailable();
+    if (recorder == null) {
+      throw new IllegalStateException("Setup changes can't be recorded: no recorder");
+    }
+    String label = described.map(SecretOwners.Owner::label).orElse(null);
+    recorder.record(new SetupChangeRecorder.SetupChange(SetupChangeRecorder.What.SECRET, secret.getName(), from, to,
+        reason == null || reason.isBlank() ? null : reason, described.map(SecretOwners.Owner::env).orElse(null),
+        null, secret.getOwnerKind() == SecretOwnerKind.CONNECTION ? label : null, null));
+  }
+
+  /** A connector's or a test's words as one sentence: one line, at most 300 characters, ending with a period. */
+  private static String sentence(String text) {
+    String line = text == null ? "" : text.replaceAll("\\s+", " ").strip();
+    if (line.isEmpty()) {
+      return "No clear answer came.";
+    }
+    if (line.length() > 300) {
+      line = line.substring(0, 299) + "…";
+    }
+    return line.endsWith(".") || line.endsWith("…") ? line : line + ".";
   }
 
   /** 32 letters and digits from {@code SecureRandom}: about 190 bits, nothing a source's quoting could trip on. */
@@ -568,9 +716,19 @@ public class SecretService {
 
   /**
    * Crypto-shreds previous versions whose 7 days are over; run after each replace and by the secrets module's hourly
-   * job (from start), so a core left running from the tray doesn't keep them.
+   * job (from start), so a core left running from the tray doesn't keep them. Inside a caller's transaction the
+   * shredding is part of it and the WAL checkpoint follows its commit.
    */
   public int shredExpiredPrevious() {
+    int shredded = shredExpired();
+    if (shredded > 0) {
+      checkpoint.truncateWhenCommitted();
+      log.info("{} previous secret version(s) destroyed after {} days", shredded, PREVIOUS_KEPT.toDays());
+    }
+    return shredded;
+  }
+
+  private int shredExpired() {
     Instant cutoff = clock.instant().minus(PREVIOUS_KEPT);
     Integer shredded = writeTx.execute(s -> {
       List<SecretVersionEntity> expired = versions.findByStateAndReplacedBefore(SecretVersionState.PREVIOUS, cutoff);
@@ -578,10 +736,6 @@ public class SecretService {
       expired.forEach(v -> v.destroy(now));
       return expired.size();
     });
-    if (shredded != null && shredded > 0) {
-      checkpoint.truncate();
-      log.info("{} previous secret version(s) destroyed after {} days", shredded, PREVIOUS_KEPT.toDays());
-    }
     return shredded == null ? 0 : shredded;
   }
 
@@ -863,10 +1017,13 @@ public class SecretService {
           ? "not-connected" : secret.getKind() == SecretKind.DYNAMIC ? "short-lived" : "reference";
     } else if (secret.getCurrentVersion() == null) {
       state = "needs-value";
-    } else if (versions.findFirstBySecretIdAndState(secret.getId(), SecretVersionState.PENDING).isPresent()) {
-      state = "testing";
     } else {
-      state = "stored";
+      // "unconfirmed": a rotation at the source left a version the source may already use (the next Rotate settles
+      // it); "testing": a new value waits after its test failed.
+      List<SecretVersionEntity> pending = versions.findBySecretIdOrderBySecretVersionDesc(secret.getId()).stream()
+          .filter(v -> v.getState() == SecretVersionState.PENDING).toList();
+      state = pending.stream().anyMatch(SecretVersionEntity::unconfirmed) ? "unconfirmed"
+          : pending.isEmpty() ? "stored" : "testing";
     }
     return new SecretInfo(secret.getId(), secret.getName(), owner, secret.getField(),
         described.map(SecretOwners.Owner::label).orElse(null),
@@ -900,9 +1057,14 @@ public class SecretService {
     }
   }
 
-  /** {@code number} becomes current; the old current becomes previous, an older previous is destroyed. */
+  /**
+   * {@code number} becomes current; the old current becomes previous, an older previous is destroyed, and so is any
+   * other pending version, except one an unconfirmed rotation left behind when {@code provenAtSource} is false: the
+   * source may use that one, and only a value the source was seen to accept (a passed test, a rotation it confirmed)
+   * shows that it doesn't. The next Rotate settles it.
+   */
   private void promote(SecretEntity secret, int number, String reason, Optional<SecretOwners.Owner> described,
-      String how) {
+      String how, boolean provenAtSource) {
     Instant now = clock.instant();
     Integer before = secret.getCurrentVersion();
     for (SecretVersionEntity v : versions.findBySecretIdOrderBySecretVersionDesc(secret.getId())) {
@@ -910,6 +1072,8 @@ public class SecretService {
         v.setState(SecretVersionState.CURRENT);
       } else if (before != null && v.getSecretVersion() == before) {
         v.setState(SecretVersionState.PREVIOUS);
+      } else if (v.unconfirmed() && !provenAtSource) {
+        continue;
       } else if (v.getState() == SecretVersionState.PREVIOUS || v.getState() == SecretVersionState.PENDING
           || v.getState() == SecretVersionState.CURRENT) {
         v.destroy(now);
@@ -931,15 +1095,22 @@ public class SecretService {
     publisher.publishEvent(new SecretVersionChanged(secret.getId(), owner(secret), secret.getField(), number));
   }
 
-  /** After a committed Replace: what the promotion left behind is cleaned up; failures don't undo the Replace. */
+  /**
+   * After a Replace: what the promotion left behind is cleaned up; failures don't undo the Replace. A caller that
+   * replaced inside its own transaction (Settings › Tunnel, a store's sign-in) still holds the writer's only
+   * connection, so the WAL checkpoint waits for that transaction's commit instead of for the connection.
+   */
   private void afterChange() {
     try {
-      shredExpiredPrevious();
+      int shredded = shredExpired();
+      if (shredded > 0) {
+        log.info("{} previous secret version(s) destroyed after {} days", shredded, PREVIOUS_KEPT.toDays());
+      }
     } catch (RuntimeException e) {
-      // The replace has committed; the hourly job shreds them instead.
+      // The replace has committed (or commits with its caller); the hourly job shreds them instead.
       log.debug("Previous secret versions not cleaned up: {}", e.getMessage());
     }
-    checkpoint.truncate();
+    checkpoint.truncateWhenCommitted();
   }
 
   private int nextVersion(SecretEntity secret) {

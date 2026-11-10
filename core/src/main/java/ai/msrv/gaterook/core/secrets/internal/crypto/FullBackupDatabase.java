@@ -377,12 +377,18 @@ public final class FullBackupDatabase {
     }
   }
 
+  /**
+   * Moves every MCP server that starts with the core to "on first call" and signs the row again with the fields of
+   * {@code ConnectionRows}: a paused row signs {@code enabled: false} and an enabled one leaves it out, so a paused
+   * server is checked and re-signed with it and stays paused.
+   */
   private static void stopAutomaticMcp(Connection c, RowMac mac, long now) throws SQLException, IOException {
     try (Statement s = c.createStatement(); ResultSet r = s.executeQuery("SELECT * FROM connection WHERE type='mcp-server'")) {
       while (r.next()) {
         JsonNode config = tree(r, "config");
         if (!"with-core".equals(config.path("start").asString(null))) continue;
         ObjectNode f = mac.fields();
+        if (!r.getBoolean("enabled")) f.put("enabled", false);
         f.put("name", r.getString("name"));
         f.put("type", r.getString("type"));
         f.put("env", r.getString("env"));
