@@ -56,8 +56,10 @@ import java.util.stream.IntStream;
  * honored and is refused with exit 4 unless {@code --allow-unsandboxed}. Seatbelt judges the path a link leads to, and
  * a command that writes in its {@code --rw} folder can replace an entry of it, such as the {@code tmp} that is its
  * {@code TMPDIR}, with a link before its next start. So a writable path of the profile ({@code --rw}, {@code TMPDIR})
- * is written as given and with the system's own aliases ({@code /tmp}, {@code /var}) spelled out, never as where a
- * link leads, and is refused (exit 3) when it is, or lies behind, a symbolic link ({@link Closed#link}). On Linux with
+ * is written as given, with the system's own aliases ({@code /tmp}, {@code /var}) spelled out and with the person's
+ * home, GateRook's home or the folder of all work folders in it ({@code mcp}) in their resolved form, never as where a
+ * link below them leads, and is refused (exit 3) when it is, or lies behind, such a link ({@link Closed#link}); the
+ * links at or above those folders are the person's own. On Linux with
  * Landlock ABI 6 or later the command is also kept from abstract Unix sockets and signals outside its own tree. On
  * Windows the command runs at low integrity in a job that ends it with the bridge ({@link WindowsSandbox}), or, with
  * {@code --appcontainer}, in an AppContainer of its work folder that the bridge creates it in
@@ -353,6 +355,9 @@ final class Sandbox {
   static final Map<String, String> SYSTEM_ALIASES = Map.of("/tmp", "/private/tmp", "/var", "/private/var", "/etc",
       "/private/etc");
 
+  /** The folder of all MCP server work folders in GateRook's home: each server's is {@code mcp/<connection>}. */
+  static final String WORK_FOLDERS = "mcp";
+
   /**
    * What no grant may open: the person's home (from the account, not {@code HOME}, which the core sets to the work
    * folder), GateRook's home ({@code GW_HOME}, which its shim exports) and the {@link #DENIED} paths in the home.
@@ -413,11 +418,13 @@ final class Sandbox {
     /**
      * The first symbolic link on the way to {@code path}, the path itself last, that the command could have put there,
      * or {@code null}. Seatbelt judges the path a link leads to, and a command that writes in a folder can replace an
-     * entry of it by a link, so a writable path must name the folder itself. Below the nearer of the person's home and
-     * GateRook's home (as given or as resolved) every component must be a real folder, and so must every component of
-     * a path in neither, except the system's own aliases ({@link Sandbox#SYSTEM_ALIASES}). The links at or above the
-     * two homes are the person's own (GateRook's home kept on another disk, a home that is a link), and the profile
-     * lets the command write nothing there, so it can't re-point them.
+     * entry of it by a link, so a writable path must name the folder itself. Below the nearest of the person's home,
+     * GateRook's home and the folder of all work folders in it ({@code <GateRook home>/mcp}), each as given or as
+     * resolved, every component must be a real folder, and so must every component of a path in none of them, except
+     * the system's own aliases ({@link Sandbox#SYSTEM_ALIASES}). The links at or above those three are the person's
+     * own (GateRook's home or its {@code mcp} folder kept on another disk, a home that is a link), and the profile lets
+     * the command write nothing there, so it can't re-point them. A server writes its own work folder below
+     * {@code mcp}, which is why a link at its work folder, or below it, is refused.
      */
     Path link(Path path) {
       Path abs = path.toAbsolutePath().normalize();
@@ -434,9 +441,9 @@ final class Sandbox {
 
     /**
      * The forms a writable path is written in: as given, with the system's own alias spelled out ({@code /var/x} is
-     * {@code /private/var/x} to the kernel) and, where it lies in the home or GateRook's home, with that folder as the
-     * file system resolves it. Never the resolved form of what lies below: that is where a link a command can re-point
-     * would lead ({@link #link}).
+     * {@code /private/var/x} to the kernel) and, where it lies in the home, GateRook's home or the folder of all work
+     * folders, with the nearest of those as the file system resolves it. Never the resolved form of what lies below:
+     * that is where a link a command can re-point would lead ({@link #link}).
      */
     List<String> grantForms(Path path) {
       Path abs = path.toAbsolutePath().normalize();
@@ -456,10 +463,13 @@ final class Sandbox {
       return List.copyOf(out);
     }
 
-    /** The nearer of the home and GateRook's home, as given or resolved, that holds {@code abs}; else {@code null}. */
+    /**
+     * The nearest of the home, GateRook's home and the folder of all work folders, as given or resolved, that holds
+     * {@code abs}; else {@code null}.
+     */
     private Path anchor(Path abs) {
       Path nearest = null;
-      for (Path base : List.of(home, gateway)) {
+      for (Path base : List.of(home, gateway, gateway.resolve(WORK_FOLDERS))) {
         Path given = base.toAbsolutePath().normalize();
         Path resolved = realPath(given);
         for (Path candidate : resolved == null ? List.of(given) : List.of(given, resolved)) {
@@ -776,7 +786,8 @@ final class Sandbox {
    * {@code /private/tmp/x} — so a denied path is written as given and as the kernel sees it.
    *
    * <p>A path the command may write is written differently, as {@link Closed#grantForms} has it: as given, with the
-   * system's own aliases spelled out, and below the person's home or GateRook's home never as where a link leads. The
+   * system's own aliases spelled out, and below the person's home, GateRook's home or its folder of all work folders
+   * never as where a link leads. The
    * command writes in its {@code --rw} folder, so it can replace an entry of it, such as the {@code tmp} that is its
    * {@code TMPDIR}, by a link before its next start; a grant that followed the link would let that start write wherever
    * it leads. {@code tmpDir} (the command's {@code TMPDIR}, or {@code null}) is granted only when it is none of the
