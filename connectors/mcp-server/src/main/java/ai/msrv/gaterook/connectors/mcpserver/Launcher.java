@@ -519,8 +519,8 @@ final class Launcher {
       // Read again at each probe: the core may write it after a look that found none.
       windowsBridge = windowsBridge(sandboxLauncher);
       if (windowsBridge.isEmpty()) {
-        return launcherWritten ? Probe.unknown("the bridge's argv " + sandboxLauncher.resolveSibling("gw-bridge.argv")
-            + " isn't there") : Probe.NONE;
+        return launcherWritten ? Probe.unknown("the bridge that " + sandboxLauncher.resolveSibling("gw-bridge.argv")
+            + " names isn't there") : Probe.NONE;
       }
       String root = coreEnv.getOrDefault("SystemRoot", coreEnv.getOrDefault("SYSTEMROOT", "C:\\Windows"));
       probe = new ArrayList<>(windowsBridge);

@@ -865,7 +865,8 @@ final class Sandbox {
    * outside the sandbox. A container command-line tool ({@link #CONTAINER_CLIS}) reaches its engine's socket
    * ({@code containerSockets}), since that is what it is started for. Seatbelt judges a socket by the path it really
    * has, so a link to another socket opens nothing. Mach services stay open (the keychain daemon and the pasteboard
-   * among them), as do creating hard links in the writable folders, which the kernel refuses for a file elsewhere.
+   * among them); a hard link in a writable folder to a file elsewhere, and a launchd job, were already refused under
+   * this profile (checked on macOS 27).
    *
    * <p>The network is open but for the {@code --deny-tcp} ports, which the command may neither connect to nor bind,
    * on every host: Seatbelt takes only {@code *} or {@code localhost} as a host, and a rule for {@code localhost} lets
