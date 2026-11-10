@@ -46,8 +46,9 @@ import tools.jackson.databind.node.ObjectNode;
  * makes the connection a draft that the person sets up. The schema marks them where the real connectors do and
  * further: at the top level, a placeholder defined in a conditional branch, inside an object, in array items and as
  * the items themselves, behind a {@code "#/"} reference and behind {@code "#"}, deeper than a template reaches, where
- * only a {@code oneOf}, an {@code anyOf} or an {@code else} branch defines one, and on a credential field. Other
- * schemas mark their root or are too complex to check.
+ * only a {@code oneOf}, an {@code anyOf} or an {@code else} branch defines one, on a credential field, and inside a
+ * marked object that also holds a value that may hold a key. Other schemas mark their root or are too complex to
+ * check.
  */
 class ConnectionSharesTest {
 
@@ -67,7 +68,8 @@ class ConnectionSharesTest {
         "jump":{"type":"object","properties":{"host":{"type":"string"},"hostKey":{"$ref":"#/$defs/hostKey"}}},
         "next":{"$ref":"#"},
         "trust":{"type":"object","x-person-only":true,"properties":{"clientCert":{"type":"string"},
-          "clientKey":{"type":"string","writeOnly":true}}},
+          "clientKey":{"type":"string","writeOnly":true},"pin":{"type":"string","x-person-only":true},
+          "hook":{"type":"string","x-key-allowed":true}}},
         "credentials":{"type":"object","x-gateway-secret":"login","properties":{"user":{"type":"string"},
           "password":{"type":"string","writeOnly":true}}},
         "pinKey":{"type":"string","writeOnly":true,"x-person-only":true},
@@ -83,7 +85,10 @@ class ConnectionSharesTest {
        "$defs":{"hostKey":{"type":"string","x-person-only":true}}}
       """);
 
-  /** Every kind of trust setting the configs below hold, in their order. */
+  /**
+   * Every kind of trust setting the configs below hold, in their order: each once, however many array items hold it,
+   * and {@code /trust} once, though the pin inside it is marked too.
+   */
   private static final List<String> KINDS = List.of("/trustedExec", "/allowExec", "/tls/pins",
       "/replicas/*/fingerprint", "/trustedKeys/*", "/jump/hostKey", "/next/trustedExec", "/next/next/trustedExec",
       "/trust", "/proxy/pin", "/account", "/remote/key");
@@ -99,10 +104,10 @@ class ConnectionSharesTest {
   /** Values of trust settings that may appear nowhere outside this computer's own connection. */
   private static final List<String> TRUSTED = List.of("exec-top-7f3a", "pin-one-7f3a", "fp-replica-7f3a",
       "key-one-7f3a", "key-two-7f3a", "jump-key-7f3a", "exec-next-7f3a", "exec-deep-7f3a", "cert-7f3a",
-      "proxy-pin-7f3a", "acct-7f3a", "remote-key-7f3a");
+      "trust-pin-7f3a", "hook-7f3a", "proxy-pin-7f3a", "acct-7f3a", "remote-key-7f3a");
 
-  private static final String TOO_COMPLEX = "The connector's settings schema is too complex to check for trust "
-      + "settings.";
+  private static final String TOO_COMPLEX = "The connection's settings are too large, or its connector's schema too "
+      + "complex, to check for trust settings.";
 
   private final ConnectionConfigs configs = mock(ConnectionConfigs.class);
   private final ConnectionService connections = mock(ConnectionService.class);
@@ -139,7 +144,7 @@ class ConnectionSharesTest {
          "trustedKeys":["key-one-7f3a","key-two-7f3a"],
          "jump":{"host":"bastion.example.test","hostKey":"jump-key-7f3a"},
          "next":{"trustedExec":"exec-next-7f3a","next":{"host":"deep.example.test","trustedExec":"exec-deep-7f3a"}},
-         "trust":{"clientCert":"cert-7f3a"},
+         "trust":{"clientCert":"cert-7f3a","pin":"trust-pin-7f3a","hook":"https://hooks.example.test/hook-7f3a"},
          "credentials":{"user":"app"},
          "proxy":{"host":"proxy.example.test","pin":"proxy-pin-7f3a"},"account":"acct-7f3a",
          "remote":{"user":"deploy","key":"remote-key-7f3a"}}
@@ -157,7 +162,7 @@ class ConnectionSharesTest {
            "trustedKeys":["key-one-7f3a","key-two-7f3a"],
            "jump":{"host":"bastion.example.test","hostKey":{}},
            "next":{"trustedExec":"exec-next-7f3a","next":{"host":"deep.example.test","trustedExec":"exec-deep-7f3a"}},
-           "trust":{"clientCert":"cert-7f3a"},
+           "trust":{"clientCert":"cert-7f3a","pin":"trust-pin-7f3a","hook":"https://hooks.example.test/hook-7f3a"},
            "credentials":{"user":"app"},
            "proxy":{"host":"proxy.example.test","pin":"proxy-pin-7f3a"},"account":"acct-7f3a",
            "remote":{"user":"deploy","key":""}},
@@ -319,7 +324,8 @@ class ConnectionSharesTest {
 
     assertThat(shares.previewConfig(entry)).isEqualTo(PORTABLE);
     assertThat(shares.trustNote(entry)).contains(reviewNote(String.join(", ", KINDS)));
-    // The credential of a trust setting is not one the import takes over.
+    // Neither the credential of a trust setting nor a value inside one that may hold a key (/trust/hook) is one the
+    // import takes over: only the shared password counts.
     assertThat(shares.secretCount(entry)).isEqualTo(1);
 
     ObjectNode plain = olderEntry();
@@ -346,13 +352,15 @@ class ConnectionSharesTest {
 
   /**
    * An entry that cannot be imported (its connector is switched off here) is reviewed as before: nothing of it is
-   * created, so its type's schema is not walked, even one too complex to check, and no note says how it is imported.
+   * created, so its type's schema is not walked, even one too complex to check, its settings are shown as the file
+   * holds them, apart from values that may hold a key, and no note says how it is imported.
    */
   @Test
   void anEntryThatCannotBeImportedIsReviewedWithoutLookingForTrustSettings() {
     register("trustoff", SCHEMA, false);
     register("deepoff", chained(40), false);
     ObjectNode marked = olderEntry().put("type", "trustoff");
+    marked.putArray("omittedSecretFields").add("/trust/clientKey");
     JsonNode shown = JSON.readTree("{\"host\":\"db.example.test\",\"deep\":\"x\"}");
     ObjectNode deep = entry("deepoff", shown, JSON.readTree("{\"/deep\":\"shared-0123\"}"));
     ((ObjectNode) deep.path("config")).put("url", "https://mcp.example.test/k3y-0123/mcp");
@@ -363,7 +371,13 @@ class ConnectionSharesTest {
     assertThat(shares.secretCount(deep)).isEqualTo(2);
     assertThat(shares.trustNote(deep)).isEmpty();
     assertThat(shares.trustNote(marked)).isEmpty();
-    assertThat(shares.secretCount(marked)).isEqualTo(2);
+    // The file's two credentials and its value that may hold a key, which the review does not show.
+    assertThat(shares.secretCount(marked)).isEqualTo(3);
+    JsonNode reviewed = shares.previewConfig(marked);
+    assertThat(reviewed.at("/next/trustedExec").asString()).isEqualTo("exec-next-7f3a");
+    assertThat(reviewed.at("/trust/pin").asString()).isEqualTo("trust-pin-7f3a");
+    assertThat(reviewed.path("trust").has("hook")).isFalse();
+    assertThat(shares.omittedSecretFields(marked)).containsExactly("/trust/clientKey");
     assertThatThrownBy(() -> shares.prepareImport(marked, true, new HashSet<>())).isInstanceOf(ProblemException.class)
         .hasMessageContaining("Skip unavailable connectors");
     verify(connections, never()).missingImportSettings(anyString(), anyString(), any(), any(), any());
@@ -478,8 +492,58 @@ class ConnectionSharesTest {
 
     assertThat(prepared.secrets()).isEmpty();
     assertThat(prepared.missing()).contains("/credentials/password: Include or supply the credential.")
-        .doesNotContain("/trust/clientKey: Include or supply the credential.")
+        .doesNotContain("/trust/clientKey: Include or supply the credential.",
+            "/trust/hook: Include or supply the credential.")
         .contains(setupItem("/trust"));
+  }
+
+  /**
+   * A credential the source left out of a trust setting is not asked for, wherever the file lists it: the trust
+   * setting is named instead, and the person decides it on this computer. Other omitted credentials are asked for as
+   * before.
+   */
+  @Test
+  void aCredentialTheSourceLeftOutOfATrustSettingIsNotAskedFor() {
+    ObjectNode older = olderEntry();
+    older.set("secrets", JSON.createObjectNode());
+    older.putArray("omittedSecretFields").add("/trust/clientKey").add("/credentials/password").add("/pinKey");
+
+    assertThat(shares.omittedSecretFields(older)).containsExactly("/credentials/password");
+    assertThat(shares.prepareImport(older, true, new HashSet<>()).missing())
+        .contains("/credentials/password: Supply the omitted credential.", setupItem("/trust"), setupItem("/pinKey"))
+        .doesNotContain("/trust/clientKey: Supply the omitted credential.", "/pinKey: Supply the omitted credential.");
+
+    // Listed alone, it still names its trust setting, and the connection is a draft that the person sets up.
+    ObjectNode listed = olderEntry();
+    listed.set("config", PORTABLE.deepCopy());
+    listed.set("secrets", JSON.readTree("{\"/credentials/password\":\"pw-shared-0123\"}"));
+    listed.putArray("omittedSecretFields").add("/trust/clientKey");
+    assertThat(shares.omittedSecretFields(listed)).isEmpty();
+    assertThat(shares.trustNote(listed)).contains(reviewNote("/trust"));
+    assertThat(shares.prepareImport(listed, true, new HashSet<>()).missing()).containsExactly(setupItem("/trust"));
+  }
+
+  /**
+   * A list of trust settings given as an object, as a schema without {@code "type": "array"} would let through, is left
+   * out like the list: whoever iterates it reads its members as the items.
+   */
+  @Test
+  void aListOfTrustSettingsGivenAsAnObjectIsLeftOutLikeTheList() {
+    ObjectNode entry = olderEntry();
+    entry.set("config", PORTABLE.deepCopy());
+    ((ObjectNode) entry.path("config")).putObject("trustedKeys").put("0", "key-one-7f3a").put("next", "key-two-7f3a");
+    ((ObjectNode) entry.path("secrets")).remove("/trust/clientKey");
+    stored(((ObjectNode) entry.path("config")).deepCopy(), Map.of());
+
+    ConnectionShares.Prepared prepared = shares.prepareImport(entry, true, new HashSet<>());
+
+    assertThat(prepared.config().path("trustedKeys")).isEqualTo(JSON.createObjectNode());
+    assertThat(prepared.missing()).containsExactly(setupItem("/trustedKeys/*"));
+    assertThat(shares.previewConfig(entry).toString()).doesNotContain(TRUSTED);
+    assertThat(shares.trustNote(entry)).contains(reviewNote("/trustedKeys/*"));
+    ObjectNode exported = shares.export("c-1", false);
+    assertThat(exported.toString()).doesNotContain(TRUSTED);
+    assertThat(exported.path("warnings").get(0).asString()).isEqualTo(exportWarning("/trustedKeys/*"));
   }
 
   /** Leaving trust settings out never turns an entry whose settings are no object into an empty, complete one. */
@@ -563,8 +627,9 @@ class ConnectionSharesTest {
     List<ThrowingCallable> calls = List.of(() -> shares.export("c-deep", false),
         () -> shares.export("c-deep-secret", true), () -> shares.validate(value, true),
         () -> shares.prepareImport(value, true, new HashSet<>()), () -> shares.previewConfig(value),
-        () -> shares.trustNote(value), () -> shares.secretCount(value), () -> shares.validate(credential, true),
-        () -> shares.prepareImport(credential, false, new HashSet<>()), () -> shares.trustNote(credential));
+        () -> shares.trustNote(value), () -> shares.secretCount(value), () -> shares.omittedSecretFields(value),
+        () -> shares.validate(credential, true), () -> shares.prepareImport(credential, false, new HashSet<>()),
+        () -> shares.trustNote(credential));
     for (ThrowingCallable call : calls) {
       assertThatThrownBy(call).isInstanceOfSatisfying(ProblemException.class, e -> {
         assertThat(e.kind()).isEqualTo(ProblemException.Kind.UNPROCESSABLE);
@@ -573,6 +638,50 @@ class ConnectionSharesTest {
     }
     verify(secrets, never()).get(anyString());
     verify(connections, never()).missingImportSettings(anyString(), anyString(), any(), any(), any());
+  }
+
+  /**
+   * The walk's work grows with the config: one too large to check along its connector's schema is refused like a schema
+   * too complex, and one within the bound is checked to its end. Each list item has 10,001 definitions here.
+   */
+  @Test
+  void aConfigTooLargeToCheckAlongItsSchemaIsRefusedToo() {
+    register("widefake", itemsWith(10_000), true);
+    ObjectNode within = entry("widefake", listOf(90), JSON.createObjectNode());
+    ObjectNode beyond = entry("widefake", listOf(120), JSON.createObjectNode());
+
+    assertThat(shares.prepareImport(within, true, new HashSet<>()).missing()).containsExactly(setupItem("/list/*/pin"));
+    List<ThrowingCallable> calls = List.of(() -> shares.validate(beyond, true),
+        () -> shares.prepareImport(beyond, true, new HashSet<>()), () -> shares.previewConfig(beyond));
+    for (ThrowingCallable call : calls) {
+      assertThatThrownBy(call).isInstanceOfSatisfying(ProblemException.class, e -> {
+        assertThat(e.kind()).isEqualTo(ProblemException.Kind.UNPROCESSABLE);
+        assertThat(e.getMessage()).isEqualTo(TOO_COMPLEX);
+      });
+    }
+  }
+
+  /** A schema of a {@code /list} whose items have {@code branches} empty {@code allOf} branches and a marked pin. */
+  private static JsonNode itemsWith(int branches) {
+    ObjectNode schema = JSON.createObjectNode().put("type", "object");
+    ObjectNode items = schema.putObject("properties").putObject("list").put("type", "array").putObject("items");
+    items.putObject("properties").putObject("pin").put("type", "string").put("x-person-only", true);
+    var allOf = items.putArray("allOf");
+    for (int i = 0; i < branches; i++) {
+      allOf.addObject();
+    }
+    return schema;
+  }
+
+  /** A config whose {@code /list} has {@code size} items, the first one holding a pin. */
+  private static JsonNode listOf(int size) {
+    ObjectNode config = JSON.createObjectNode();
+    var list = config.putArray("list");
+    list.addObject().put("pin", "p");
+    for (int i = 1; i < size; i++) {
+      list.addObject();
+    }
+    return config;
   }
 
   /** A schema whose {@code /deep} is defined behind a chain of {@code links} references; its URL may hold a key. */

@@ -31,7 +31,7 @@ public final class PersonOnlyFields {
   /** How far one value's definitions may unfold through branches and references. */
   private static final int MAX_UNFOLD_DEPTH = 32;
 
-  /** How many definitions a walk of {@link #held} or {@link #covering} may look at in all. */
+  /** How many definitions a walk of {@link #held} or {@link #covering} may look at in all, more for a larger config. */
   private static final int MAX_WORK = 1_000_000;
 
   private PersonOnlyFields() {}
@@ -47,12 +47,15 @@ public final class PersonOnlyFields {
 
   /**
    * The marked settings a concrete config holds, in the order it holds them, whatever their value ({@code null},
-   * {@code false} and empty ones too); a marked value is not looked into. The walk follows the config and looks each
-   * value's definitions up where {@link #templates} finds them (properties, array items, the branches, local
-   * {@code $ref}s, {@code "#"} included), so a schema that refers to a part containing the reference is followed as
-   * deep as the config nests, where a template stops after one round.
+   * {@code false} and empty ones too); a marked value is not looked into, so a mark inside it adds nothing. The walk
+   * follows the config and looks each value's definitions up where {@link #templates} finds them (properties, array
+   * items, the branches, local {@code $ref}s, {@code "#"} included), so a schema that refers to a part containing the
+   * reference is followed as deep as the config nests, where a template stops after one round. An object where the
+   * definitions give array items is also looked into as a list, each member as an item ({@code *} in its template):
+   * whoever iterates the value reads its members so, and a schema without {@code "type": "array"} lets it through.
    *
-   * @throws IllegalArgumentException when the schema unfolds into more than the walk looks at
+   * @throws IllegalArgumentException when the schema unfolds into more than the walk looks at, or the config is too
+   *     large to walk along it
    */
   public static List<Held> held(JsonNode config, JsonNode configSchema) {
     if (config == null || configSchema == null) {
@@ -179,11 +182,13 @@ public final class PersonOnlyFields {
         return;
       }
       if (value.isObject()) {
+        List<JsonNode> items = items(here);
         for (Map.Entry<String, JsonNode> property : value.properties()) {
-          List<JsonNode> next = property(here, property.getKey());
+          List<JsonNode> next = new ArrayList<>(property(here, property.getKey()));
+          next.addAll(items);
           if (!next.isEmpty()) {
             String part = "/" + SecretFields.escape(property.getKey());
-            held(property.getValue(), next, pointer + part, template + part, out);
+            held(property.getValue(), next, pointer + part, template + (items.isEmpty() ? part : "/*"), out);
           }
         }
       } else if (value.isArray()) {
@@ -257,8 +262,8 @@ public final class PersonOnlyFields {
       }
       work += out.size();
       if (work > MAX_WORK) {
-        throw new IllegalArgumentException("The connector schema is too large to check for settings only the person "
-            + "makes.");
+        throw new IllegalArgumentException("Checking for settings only the person makes would look at more definitions "
+            + "of the connector schema than one walk may.");
       }
       return out;
     }

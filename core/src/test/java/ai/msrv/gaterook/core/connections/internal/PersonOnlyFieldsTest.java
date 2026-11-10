@@ -3,6 +3,7 @@ package ai.msrv.gaterook.core.connections.internal;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -94,8 +95,9 @@ class PersonOnlyFieldsTest {
 
   /**
    * A share's layout of the marks: at the top level, a placeholder defined in a conditional branch, inside an object,
-   * in array items and as the items themselves, behind a {@code "#/"} reference and behind {@code "#"} (the root), and
-   * where only a {@code oneOf} branch, an {@code anyOf} branch or an {@code else} branch defines one.
+   * in array items and as the items themselves, behind a {@code "#/"} reference and behind {@code "#"} (the root),
+   * where only a {@code oneOf} branch, an {@code anyOf} branch or an {@code else} branch defines one, and inside a
+   * marked object ({@code /trust/pin}).
    */
   private static final String SHARE_SCHEMA = """
       {"type":"object","properties":{
@@ -110,7 +112,7 @@ class PersonOnlyFieldsTest {
         "jump":{"type":"object","properties":{"host":{"type":"string"},"hostKey":{"$ref":"#/$defs/hostKey"}}},
         "next":{"$ref":"#"},
         "trust":{"type":"object","x-person-only":true,"properties":{"clientCert":{"type":"string"},
-          "clientKey":{"type":"string","writeOnly":true}}},
+          "clientKey":{"type":"string","writeOnly":true},"pin":{"type":"string","x-person-only":true}}},
         "slots":{"type":"object","properties":{"7":{"type":"string","x-person-only":true}}},
         "proxy":{"oneOf":[{"type":"null"},{"type":"object","properties":{"host":{"type":"string"},
           "pin":{"type":"string","x-person-only":true}}}]},
@@ -132,7 +134,7 @@ class PersonOnlyFieldsTest {
          "trustedKeys":["k1","k2"],
          "jump":{"host":"bastion.example.test","hostKey":{}},
          "next":{"trustedExec":"aa","next":{"host":"deep.example.test","trustedExec":"bb"}},
-         "trust":{"clientCert":"c"},"slots":{"7":"x"},
+         "trust":{"clientCert":"c","pin":"p"},"slots":{"7":"x"},
          "proxy":{"host":"proxy.example.test","pin":null},"account":7,"remote":{"user":"u","key":""},
          "unknown":{"trustedExec":"not a property of the schema"}}
         """);
@@ -149,16 +151,88 @@ class PersonOnlyFieldsTest {
         "/account", "/remote/key");
   }
 
-  /** Every place the list of templates names is one the walk of a config finds. */
+  /**
+   * Every place the list of templates names is one the walk of a config finds: the setting itself, or the marked
+   * setting that holds it.
+   */
   @Test
   void theWalkOfAConfigFindsEverySettingTheTemplatesName() {
     JsonNode schema = JSON.readTree(SHARE_SCHEMA);
-    for (String template : PersonOnlyFields.templates(schema)) {
+    List<String> templates = PersonOnlyFields.templates(schema);
+    for (String template : templates) {
+      // Sorted, so the first one that is the template or contains it is the outermost.
+      String outermost = templates.stream().filter(t -> template.equals(t) || template.startsWith(t + "/"))
+          .findFirst().orElseThrow();
       assertThat(PersonOnlyFields.held(holding(template), schema)).as(template)
-          .extracting(PersonOnlyFields.Held::template).containsExactly(template);
+          .extracting(PersonOnlyFields.Held::template).containsExactly(outermost);
     }
-    assertThat(PersonOnlyFields.templates(schema)).contains("/next/trustedExec", "/replicas/*/fingerprint",
-        "/trustedKeys/*", "/jump/hostKey", "/allowExec", "/proxy/pin", "/account", "/remote/key");
+    assertThat(templates).contains("/next/trustedExec", "/replicas/*/fingerprint", "/trustedKeys/*", "/jump/hostKey",
+        "/allowExec", "/proxy/pin", "/account", "/remote/key", "/trust", "/trust/pin");
+  }
+
+  /** A marked value is not looked into: a mark inside it is part of that one decision, held and covered as it. */
+  @Test
+  void aMarkInsideAMarkedSettingIsPartOfIt() {
+    JsonNode schema = JSON.readTree(SHARE_SCHEMA);
+
+    assertThat(PersonOnlyFields.held(JSON.readTree("{\"trust\":{\"clientCert\":\"c\",\"pin\":\"p\"}}"), schema))
+        .containsExactly(new PersonOnlyFields.Held("/trust", "/trust"));
+    assertThat(PersonOnlyFields.held(JSON.readTree("{\"trust\":{\"pin\":null}}"), schema))
+        .containsExactly(new PersonOnlyFields.Held("/trust", "/trust"));
+    assertThat(PersonOnlyFields.covering(schema, "/trust/pin")).contains("/trust");
+  }
+
+  /**
+   * A list given as an object is looked into as one: each member counts as an item, whatever its name, since whoever
+   * iterates the value reads it so, and a schema without {@code "type": "array"} lets the object through.
+   */
+  @Test
+  void anObjectWhereTheSchemaGivesArrayItemsIsLookedIntoAsAList() {
+    JsonNode schema = JSON.readTree(SHARE_SCHEMA);
+    JsonNode untyped = JSON.readTree("""
+        {"type":"object","properties":{"keys":{"items":{"type":"string","x-person-only":true}},
+          "hosts":{"items":{"type":"object","properties":{"name":{"type":"string"},
+            "key":{"type":"string","x-person-only":true}}}}}}
+        """);
+
+    assertThat(PersonOnlyFields.held(JSON.readTree("""
+        {"trustedKeys":{"0":"key-elsewhere","first":"other"},"replicas":{"r1":{"host":"h","fingerprint":"f"}}}
+        """), schema)).containsExactly(new PersonOnlyFields.Held("/trustedKeys/0", "/trustedKeys/*"),
+            new PersonOnlyFields.Held("/trustedKeys/first", "/trustedKeys/*"),
+            new PersonOnlyFields.Held("/replicas/r1/fingerprint", "/replicas/*/fingerprint"));
+    assertThat(PersonOnlyFields.held(JSON.readTree("""
+        {"keys":{"0":"key-elsewhere"},"hosts":{"a":{"name":"n","key":"k"},"b":{"name":"m"}}}
+        """), untyped)).containsExactly(new PersonOnlyFields.Held("/keys/0", "/keys/*"),
+            new PersonOnlyFields.Held("/hosts/a/key", "/hosts/*/key"));
+    // A member's own property keeps its name where the definitions give no items.
+    assertThat(PersonOnlyFields.held(JSON.readTree("{\"slots\":{\"7\":\"x\",\"8\":\"y\"}}"), schema))
+        .containsExactly(new PersonOnlyFields.Held("/slots/7", "/slots/7"));
+  }
+
+  /**
+   * A definition that two places refer to is looked at once where a value meets both: here the root and its
+   * {@code allOf} branch both define {@code next} as the root, and a config that nests it 30 deep is checked with a few
+   * definitions at each level, not with twice as many as at the one above.
+   */
+  @Test
+  void aDefinitionReachedTwiceIsLookedAtOnce() {
+    JsonNode schema = JSON.readTree("""
+        {"type":"object","properties":{"next":{"$ref":"#"},"pin":{"type":"string","x-person-only":true}},
+         "allOf":[{"properties":{"next":{"$ref":"#"}}}]}
+        """);
+    ObjectNode config = JSON.createObjectNode();
+    ObjectNode level = config;
+    StringBuilder pointer = new StringBuilder();
+    for (int i = 0; i < 30; i++) {
+      level = level.putObject("next");
+      pointer.append("/next");
+    }
+    level.put("pin", "p");
+    pointer.append("/pin");
+
+    assertThat(PersonOnlyFields.held(config, schema))
+        .containsExactly(new PersonOnlyFields.Held(pointer.toString(), pointer.toString()));
+    assertThat(PersonOnlyFields.covering(schema, pointer.toString())).contains(pointer.toString());
   }
 
   /**

@@ -86,10 +86,12 @@ class EndpointShareIT {
     assertThat(entry.path("warnings").toString()).contains("Trust settings were omitted (/connection/hostKey); "
         + "confirm them on the destination computer with Test connection.");
 
-    // An older GateRook exported the key; whoever edits the file can write one. Its own warnings say nothing.
+    // An older GateRook exported the key; whoever edits the file can write one, and list it among the credentials the
+    // source left out. Its own warnings say nothing.
     ObjectNode older = (ObjectNode) bundle.deepCopy();
     ObjectNode olderEntry = (ObjectNode) older.path("connections").get(0);
     ((ObjectNode) olderEntry.path("config").path("connection")).put("hostKey", TRUSTED_KEY);
+    olderEntry.putArray("omittedSecretFields").add("/connection/hostKey");
     olderEntry.putArray("warnings");
     ObjectNode inspect = TestCore.JSON.createObjectNode();
     inspect.set("bundle", older);
@@ -98,6 +100,9 @@ class EndpointShareIT {
     assertThat(preview.toString()).doesNotContain(TRUSTED_KEY);
     assertThat(row.at("/config/connection/host").asString()).isEqualTo("hostkey.test");
     assertThat(row.at("/config/connection").has("hostKey")).isFalse();
+    // A trust setting is not a credential to supply after the import: the note names it instead.
+    assertThat(row.path("omittedSecretFields")).isEmpty();
+    assertThat(row.path("warnings").toString()).doesNotContain("Some credentials were omitted");
     assertThat(row.path("warnings").toString()).contains("Trust settings in this file are not imported: "
         + "/connection/hostKey. The connection is imported off, with Setup required; confirm them on this computer "
         + "with Test connection, then Trust, or set them in the connection form.");
@@ -113,7 +118,8 @@ class EndpointShareIT {
     assertThat(copy.path("enabled").asBoolean()).isFalse();
     assertThat(copy.at("/config/connection/host").asString()).isEqualTo("hostkey.test");
     assertThat(copy.at("/config/connection").has("hostKey")).isFalse();
-    assertThat(copy.path("setupMissingFields")).anyMatch(item -> item.asString().equals(TRUST_ITEM));
+    assertThat(copy.path("setupMissingFields")).anyMatch(item -> item.asString().equals(TRUST_ITEM))
+        .noneMatch(item -> item.asString().startsWith("/connection/hostKey: Supply"));
     // The included credential is kept for the person's own Test connection.
     assertThat(copy.path("secrets"))
         .anyMatch(secret -> secret.path("field").asString().equals("/credentials/password"));

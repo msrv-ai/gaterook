@@ -130,7 +130,10 @@ public class EndpointShareService {
                   .filter(t -> templates.containsSecrets(t.path("definition"))).count())
           .put("templateCount", entry.path("templates").size())
           .put("supported", connections.supported(entry.path("type").asString()));
-      row.set("omittedSecretFields", entry.path("omittedSecretFields").deepCopy());
+      // A credential of a trust setting is not asked for: the trust note below names that setting instead.
+      List<String> omitted = connections.omittedSecretFields(entry);
+      ArrayNode omittedFields = row.putArray("omittedSecretFields");
+      omitted.forEach(omittedFields::add);
       ArrayNode toolPreview = row.putArray("tools");
       boolean adjustedModes = false;
       for (JsonNode source : entry.path("tools")) {
@@ -146,7 +149,7 @@ public class EndpointShareService {
       connections.trustNote(entry).ifPresent(warnings::add);
       entry.path("warnings").forEach(n -> warnings.add(masker.text(n.asString(), null, MaskPolicy.SECRETS_ONLY).text()));
       if (!row.path("supported").asBoolean()) warnings.add("This connector is unavailable for import. Use its dedicated setup flow.");
-      if (!entry.path("omittedSecretFields").isEmpty()) warnings.add("Some credentials were omitted and must be supplied locally.");
+      if (!omitted.isEmpty()) warnings.add("Some credentials were omitted and must be supplied locally.");
       if (!entry.path("templates").isEmpty()) warnings.add("Included templates: " + entry.path("templates").size() + ". Review their operations before enabling access.");
       if (row.path("supported").asBoolean()) templates.validate(entry.path("templates"), entry.path("type").asString()).forEach(warnings::add);
       list.add(row);

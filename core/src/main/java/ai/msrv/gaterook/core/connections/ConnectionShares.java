@@ -35,8 +35,9 @@ import tools.jackson.databind.node.ObjectNode;
  * cluster or credential command, an account pin, the opt-in to run a local command) records a decision the person made
  * on one computer. An export leaves them out and says so; an import drops them from an entry that carries them (an
  * older GateRook exported them, and a file is untrusted input), whatever they hold, before any check, and the
- * connection becomes a disabled draft with one Setup required item per kind of decision. None of the source's
- * decisions is used, and no preflight test, health check or call reaches the connection until the person completes its
+ * connection becomes a disabled draft with one Setup required item per kind of decision. A credential of a trust
+ * setting is neither shared nor asked for. None of the source's decisions is used, and no automatic check (the
+ * import's preflight test, a health check) and no tool call reaches the connection until the person completes its
  * setup and enables it; they make their own decisions on this computer with Test connection and Trust, or in the
  * connection form. The entry's own warnings never decide any of this.
  */
@@ -90,6 +91,18 @@ public class ConnectionShares {
   }
 
   /**
+   * The credentials the source left out that an import asks for, none of a trust setting; for an entry that cannot be
+   * imported, those its file lists.
+   */
+  public List<String> omittedSecretFields(JsonNode entry) {
+    return portable(entry).map(Portable::omitted).orElseGet(() -> {
+      List<String> out = new ArrayList<>();
+      entry.path("omittedSecretFields").forEach(field -> out.add(field.asString()));
+      return out;
+    });
+  }
+
+  /**
    * What the review says about an entry that carries trust settings: they are not imported, the connection is created
    * off with Setup required, and the person confirms each kind named here on this computer with Test connection, then
    * Trust, or sets it in the connection form. Empty for an entry without any, and for one that cannot be imported.
@@ -117,7 +130,7 @@ public class ConnectionShares {
     } else {
       JsonNode schema = registry.manifest(config.type()).orElseThrow().configSchema();
       // Decisions made on this computer stay here; the destination makes its own with Test connection.
-      Set<String> trust = new LinkedHashSet<>(leaveOutTrust(clean, schema));
+      Set<String> trust = leaveOutTrust(clean, schema);
       for (String field : SecretFields.templates(schema)) {
         SchemaPointers.values(clean, field).keySet().forEach(p -> { remove(clean, p); omitted.add(p); });
       }
@@ -196,13 +209,14 @@ public class ConnectionShares {
     if (!entry.path("config").isObject() || !entry.path("secrets").isObject())
       throw invalid("Invalid connection settings.");
     // Nothing of a trust setting is taken over, and each kind the entry carried makes the connection a disabled draft:
-    // no preflight test, health check or call reaches it until the person completes its setup and enables it.
+    // no automatic check (this import's preflight test, a health check) and no tool call reaches it until the person
+    // completes its setup and enables it.
     Portable portable = portable(entry).orElseThrow();
     ObjectNode reviewed = (ObjectNode) entry.deepCopy();
     reviewed.set("config", portable.config());
     reviewed.set("secrets", portable.secrets());
     List<String> missing = new ArrayList<>();
-    entry.path("omittedSecretFields").forEach(field -> missing.add(field.asString() + ": Supply the omitted credential."));
+    portable.omitted().forEach(field -> missing.add(field + ": Supply the omitted credential."));
     // An omitted optional credential must not silently turn an authenticated connection into anonymous access.
     if (!includeSecrets) {
       portable.secrets().propertyNames().forEach(field -> missing.add(field + ": Include or supply the credential."));
@@ -263,10 +277,11 @@ public class ConnectionShares {
   }
 
   /**
-   * An entry's config and credentials as an import takes them over, and the kinds of trust setting it carried
-   * ({@code *} for array indexes, empty for a marked root, in the order the entry holds them).
+   * An entry's config and credentials as an import takes them over, the credentials the source left out that it asks
+   * for, and the kinds of trust setting the entry carried ({@code *} for array indexes, empty for a marked root, in the
+   * order the entry holds them).
    */
-  private record Portable(ObjectNode config, ObjectNode secrets, List<String> trust) {}
+  private record Portable(ObjectNode config, ObjectNode secrets, List<String> omitted, List<String> trust) {}
 
   /**
    * The entry without its trust settings: found by the installed connector's schema, never by what the entry says
@@ -279,28 +294,37 @@ public class ConnectionShares {
     JsonNode schema = registry.manifest(type).orElseThrow().configSchema();
     ObjectNode config = entry.path("config") instanceof ObjectNode given ? given.deepCopy()
         : JsonNodeFactory.instance.objectNode();
-    Set<String> trust = new LinkedHashSet<>(leaveOutTrust(config, schema));
+    Set<String> trust = leaveOutTrust(config, schema);
     ObjectNode values = entry.path("secrets") instanceof ObjectNode given ? given.deepCopy()
         : JsonNodeFactory.instance.objectNode();
     for (String field : List.copyOf(values.propertyNames())) {
       trustOf(field, schema).ifPresent(kind -> { values.remove(field); trust.add(kind); });
     }
-    return Optional.of(new Portable(config, values, List.copyOf(trust)));
+    // A credential the source left out of a trust setting is not asked for: the person decides that setting here.
+    List<String> omitted = new ArrayList<>();
+    for (JsonNode field : entry.path("omittedSecretFields")) {
+      Optional<String> kind = trustOf(field.asString(), schema);
+      if (kind.isPresent()) trust.add(kind.get());
+      else omitted.add(field.asString());
+    }
+    return Optional.of(new Portable(config, values, List.copyOf(omitted), List.copyOf(trust)));
   }
 
   /**
    * Removes the trust settings ({@code x-person-only}) from {@code config}, whatever they hold ({@code null},
    * {@code false} and empty ones too), wherever the schema marks them.
    *
-   * @return the kinds removed ({@code *} for array indexes), in the order the config held them
+   * @return the kinds removed ({@code *} for array indexes), each once, in the order the config held them
    */
-  private static List<String> leaveOutTrust(ObjectNode config, JsonNode schema) {
+  private static Set<String> leaveOutTrust(ObjectNode config, JsonNode schema) {
     List<PersonOnlyFields.Held> held;
     try { held = PersonOnlyFields.held(config, schema); }
     catch (IllegalArgumentException e) { throw tooComplex(); }
     // From the last to the first: removing an array item keeps the indexes of those before it.
     for (int i = held.size() - 1; i >= 0; i--) leaveOut(config, held.get(i).pointer());
-    return held.stream().map(PersonOnlyFields.Held::template).distinct().toList();
+    Set<String> kinds = new LinkedHashSet<>();
+    held.forEach(setting -> kinds.add(setting.template()));
+    return kinds;
   }
 
   /** The kind of trust setting a credential field belongs to, if it belongs to one. */
@@ -310,7 +334,8 @@ public class ConnectionShares {
   }
 
   private static ProblemException tooComplex() {
-    return invalid("The connector's settings schema is too complex to check for trust settings.");
+    return invalid("The connection's settings are too large, or its connector's schema too complex, to check for "
+        + "trust settings.");
   }
 
   private static void leaveOut(ObjectNode root, String pointer) {
