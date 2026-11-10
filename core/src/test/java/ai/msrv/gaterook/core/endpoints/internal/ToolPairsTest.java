@@ -213,6 +213,77 @@ class ToolPairsTest {
         .isNotEqualTo(ToolPairs.reviewedDefinition(before));
   }
 
+  /**
+   * The record of a fixed tool, as every endpoint row of a server's tool keeps it: if this changes, every Read only and
+   * Bypass recorded before goes back to Approval on upgrade, so a change of what the record covers must be deliberate.
+   */
+  @Test
+  void theRecordOfAFixedToolStaysWhatItIs() {
+    assertThat(ToolPairs.reviewedDefinition(shown(b -> {})))
+        .isEqualTo("85a1f17ab7692d6b40e7152d7982033af5fa06916e9b0bed51f77adc87ed8ae9");
+  }
+
+  @Test
+  void everythingTheAgentIsShownOfAToolIsInItsRecordAndNothingGateRookDerivesIs() {
+    String record = ToolPairs.reviewedDefinition(shown(b -> {}));
+    ObjectNode otherSchema = JsonNodeFactory.instance.objectNode().put("type", "object");
+    otherSchema.putObject("properties").putObject("q").put("type", "integer");
+    assertThat(ToolPairs.reviewedDefinition(offeredBy("issues", builder("x_find").build()))).isNotEqualTo(record);
+    List<java.util.function.Consumer<ToolDefinition.Builder>> shownParts = List.of(
+        b -> b.title("Find"),
+        b -> b.description("Searches the issues, and sends them elsewhere."),
+        b -> b.inputSchema(otherSchema),
+        b -> b.outputSchema(JsonNodeFactory.instance.objectNode().put("type", "array")),
+        b -> b.annotations(new ToolDefinition.Annotations(true, false, true, true)),
+        b -> b.annotations(new ToolDefinition.Annotations(true, false, false, false)),
+        b -> b.meta(JsonNodeFactory.instance.objectNode().set("ui", JsonNodeFactory.instance.objectNode()
+            .put("resourceUri", "ui://gaterook/connections/issues/other.html"))),
+        b -> b.meta(null));
+    for (var part : shownParts) {
+      assertThat(ToolPairs.reviewedDefinition(shown(part))).isNotEqualTo(record);
+    }
+    // What GateRook decides about the tool for itself.
+    List<java.util.function.Consumer<ToolDefinition.Builder>> derived = List.of(
+        b -> b.defaultMode(Mode.APPROVAL, Mode.APPROVAL),
+        b -> b.defaultMode(Mode.READ_ONLY, Mode.APPROVAL),
+        b -> b.resultShape(ToolDefinition.ResultShape.TEXT),
+        b -> b.risk(new ToolDefinition.Risk(false, false, ToolDefinition.Egress.NONE)));
+    for (var part : derived) {
+      ToolDefinition.Builder changed = builder("x_search");
+      part.accept(changed);
+      assertThat(ToolPairs.reviewedDefinition(offeredBy("issues", changed.build()))).isEqualTo(record);
+      assertThat(ToolPairs.definitionHash(changed.build())).as("the other hash keeps covering it")
+          .isNotEqualTo(ToolPairs.definitionHash(builder("x_search").build()));
+    }
+    // The nature, on a tool without a result schema (which only a READ tool may have).
+    assertThat(ToolPairs.reviewedDefinition(shown(b -> b.outputSchema(null).nature(ToolDefinition.Nature.MIXED))))
+        .isEqualTo(ToolPairs.reviewedDefinition(shown(b -> b.outputSchema(null))));
+  }
+
+  /** A server's tool as {@code issues} lists it, {@code change} applied. */
+  private static ToolPairs.Offered shown(java.util.function.Consumer<ToolDefinition.Builder> change) {
+    ToolDefinition.Builder b = builder("x_search");
+    change.accept(b);
+    return offeredBy("issues", b.build());
+  }
+
+  private static ToolDefinition.Builder builder(String name) {
+    ObjectNode input = JsonNodeFactory.instance.objectNode().put("type", "object");
+    input.putObject("properties").putObject("q").put("type", "string");
+    return ToolDefinition.builder(name).title("Search").description("Searches the issues.")
+        .inputSchema(input).outputSchema(JsonNodeFactory.instance.objectNode().put("type", "object"))
+        .annotations(new ToolDefinition.Annotations(true, false, false, true)).nature(ToolDefinition.Nature.READ)
+        .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY).resultShape(ToolDefinition.ResultShape.JSON)
+        .risk(new ToolDefinition.Risk(true, true, ToolDefinition.Egress.CHANNEL))
+        .meta(JsonNodeFactory.instance.objectNode().set("ui", JsonNodeFactory.instance.objectNode()
+            .put("resourceUri", "ui://gaterook/connections/issues/board.html")));
+  }
+
+  private static ToolPairs.Offered offeredBy(String server, ToolDefinition tool) {
+    return new ToolPairs.Offered("mcp:" + server + ":" + tool.name(), tool, ConnectorManifest.Kind.MCP_SERVER, server,
+        "1.0.0", null, null);
+  }
+
   private static ToolPairs.Offered named(String server, String description, String uri) {
     ToolDefinition.Builder tool = ToolDefinition.builder("x_search").description(description);
     if (uri != null) {

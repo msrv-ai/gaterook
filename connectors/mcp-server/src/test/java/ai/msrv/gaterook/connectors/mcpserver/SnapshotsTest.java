@@ -51,6 +51,29 @@ class SnapshotsTest {
     assertThat(Snapshots.annotated(m.tools())).isEqualTo(2);
   }
 
+  /**
+   * What a tool that declares nothing but its name and parameters is shown with: its name as its title, a description
+   * that names the server, and the protocol's pessimistic hints; a declared read gets the hints of one. The endpoints
+   * record what the agent is shown of a tool as the definition its Read only or Bypass was set for, so a change of
+   * these fallbacks sends such tools back to Approval and has to be deliberate.
+   */
+  @Test
+  void aToolThatDeclaresLittleIsShownWithFallbacksThatStayAsTheyAre() {
+    McpSchema.Tool bare = McpSchema.Tool.builder().name("ping").inputSchema(Map.of("type", "object")).build();
+    McpSchema.Tool read = tool("look", "", new McpSchema.ToolAnnotations(null, true, null, null, null, null));
+    Snapshots.Mapped m = Snapshots.of("x_", List.of(bare, read), n -> Optional.empty());
+
+    ToolDefinition shownBare = Snapshots.definition(m.tools().get(0), "probe");
+    ToolDefinition shownRead = Snapshots.definition(m.tools().get(1), "probe");
+
+    assertThat(shownBare.title()).isEqualTo("ping");
+    assertThat(shownBare.description()).isEqualTo("ping of the MCP server probe.");
+    assertThat(shownBare.annotations()).isEqualTo(new ToolDefinition.Annotations(false, true, false, true));
+    assertThat(shownRead.title()).isEqualTo("look");
+    assertThat(shownRead.description()).isEqualTo("look of the MCP server probe.");
+    assertThat(shownRead.annotations()).isEqualTo(new ToolDefinition.Annotations(true, false, false, true));
+  }
+
   @Test
   void descriptionsAreCleanedButTheHashSeesWhatTheServerSent() {
     McpSchema.Tool plain = tool("run", "Runs it.", null);
