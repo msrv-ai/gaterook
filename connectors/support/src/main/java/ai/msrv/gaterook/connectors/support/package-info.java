@@ -7,6 +7,8 @@
  *   <li>{@link ai.msrv.gaterook.connectors.support.TimeArg}: {@code from}/{@code to} of tools;</li>
  *   <li>{@link ai.msrv.gaterook.connectors.support.Glob}: policy masks and path globs without regular expressions;</li>
  *   <li>{@link ai.msrv.gaterook.connectors.support.OutputSanitizer}: untrusted output with visible escapes;</li>
+ *   <li>{@link ai.msrv.gaterook.connectors.support.JsonNumbers}: the text of parsed JSON numbers, bounded by their
+ *       digits and never by their exponent;</li>
  *   <li>{@link ai.msrv.gaterook.connectors.support.Pem} and {@link ai.msrv.gaterook.connectors.support.TrustStores}: PEM
  *       text of connection forms and in-memory trust;</li>
  *   <li>{@link ai.msrv.gaterook.connectors.support.SchemaResources} and {@link ai.msrv.gaterook.connectors.support.BuiltIn}:

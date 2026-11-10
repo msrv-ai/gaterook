@@ -74,9 +74,12 @@ final class ResponseReader {
           bodyText = decode(body, media);
         } else {
           try {
-            json = JsonText.JSON.readTree(body);
+            json = JsonText.read(body);
           } catch (JacksonException e) {
             note = "The body isn't valid JSON.";
+          } catch (NumberFormatException e) {
+            note = "A number in the body has an exponent too large to read, so the JSON isn't parsed: "
+                + "the text shows it.";
           }
           bodyText = decode(body, media);
         }

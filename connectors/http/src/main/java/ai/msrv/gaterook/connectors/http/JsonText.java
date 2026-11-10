@@ -1,5 +1,6 @@
 package ai.msrv.gaterook.connectors.http;
 
+import ai.msrv.gaterook.connectors.support.JsonNumbers;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import tools.jackson.core.StreamReadConstraints;
@@ -11,7 +12,8 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * JSON as the connector writes and reads it. A request body is serialized once, two-space indented like
  * {@code JSON.stringify(value, null, 2)}: those bytes are what the approver reads and what goes on the wire. Responses
- * keep decimals as written ({@code 129.00} stays {@code 129.00}).
+ * keep decimals as written ({@code 129.00} stays {@code 129.00}); a number whose exponent is too large to write out
+ * stays text.
  */
 final class JsonText {
 
@@ -23,6 +25,16 @@ final class JsonText {
       .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).build();
 
   private JsonText() {}
+
+  /**
+   * A response body as a tree. A number whose exponent would add more than {@link JsonNumbers#MAX_PADDING} zeros to its
+   * digits ({@code 1e1000000000}) is a string of its scientific notation, not a decimal that anything downstream could
+   * be asked to write out. An exponent beyond what a decimal holds at all ({@code 1e-2147483648}) fails the parse with
+   * a {@link NumberFormatException}, which Jackson does not wrap.
+   */
+  static JsonNode read(byte[] body) {
+    return JsonNumbers.keepHugeAsText(JSON.readTree(body));
+  }
 
   static byte[] pretty(JsonNode value) {
     StringBuilder out = new StringBuilder();
