@@ -108,6 +108,17 @@ pg | query | dev | SELECT lo_import('/etc/passwd') | DENY function-denied
 pg | query | dev | SELECT dblink_exec('dbname=app', 'DELETE FROM orders') | DENY function-denied
 pg | query | dev | SELECT dblink('dbname=app', 'SELECT 1') | DENY function-denied
 pg | query | dev | SELECT query_to_xml('SELECT * FROM secrets', true, false, '') | DENY function-denied
+# Every function that runs a query it gets as text: that query's tables and calls never reach the rules.
+pg | query | dev | SELECT * FROM ts_stat('SELECT v FROM secrets') | DENY function-denied
+pg | query | prod | SELECT * FROM pg_catalog.ts_stat('SELECT v FROM secrets', 'ab') | DENY function-denied
+pg | query | dev | SELECT ts_rewrite('a & b'::tsquery, 'SELECT t, s FROM secrets') | DENY function-denied
+pg | query | dev | SELECT * FROM crosstab('SELECT a, b, c FROM secrets') AS ct (a int, b int) | DENY function-denied | allowed=crosstab
+pg | query | dev | SELECT * FROM crosstab2('SELECT a, b, c FROM secrets') | DENY function-denied
+pg | query | dev | SELECT * FROM crosstab3('SELECT a, b, c FROM secrets') | DENY function-denied
+pg | query | dev | SELECT * FROM crosstab4('SELECT a, b, c FROM secrets') | DENY function-denied
+pg | query | dev | SELECT * FROM connectby('secrets', 'id', 'parent_id', '1', 0) AS t (id int, parent int, level int) | DENY function-denied | allowed=connectby
+pg | query | dev | SELECT * FROM xpath_table('id', 'doc', 'secrets', '/a', 'true') AS t (id int, a text) | DENY function-denied | allowed=xpath_table
+pg | execute | dev | UPDATE orders SET note = (SELECT max(word) FROM ts_stat('SELECT v FROM secrets')) | DENY function-denied
 pg | query | dev | SELECT pg_notify('orders', 'x') | DENY function-denied
 pg | query | dev | SELECT brin_summarize_new_values('orders_brin') | DENY function-denied
 pg | query | dev | SELECT gin_clean_pending_list('orders_gin') | DENY function-denied

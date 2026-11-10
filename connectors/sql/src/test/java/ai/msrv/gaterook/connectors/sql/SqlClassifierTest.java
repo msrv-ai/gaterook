@@ -8,7 +8,9 @@ import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connectors.sql.SqlClassifier.Analysis;
 import ai.msrv.gaterook.connectors.sql.SqlClassifier.Kind;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.StringJoiner;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -134,6 +136,16 @@ class SqlClassifierTest {
 
     String huge = "SELECT '" + "x".repeat(SqlClassifier.MAX_LENGTH) + "'";
     assertThat(classify(false, "sql_query", Env.DEV, huge, "").ruleId()).isEqualTo("dev.sql.too-complex");
+  }
+
+  @Test
+  void aFunctionThatRunsAQueryGivenAsTextIsDeniedEvenWhereTheCatalogListsItAsBuiltIn() {
+    // Test connection stores every pg_catalog name as built in, ts_stat and ts_rewrite among them.
+    for (String name : List.of("ts_stat", "ts_rewrite", "query_to_xml", "query_to_xmlschema")) {
+      FunctionRules.Verdict v = FunctionRules.check(List.of(new FunctionRules.FunctionRef(List.of("pg_catalog", name))),
+          SqlSyntax.POSTGRES, Set.of(name), List.of(), List.of(name));
+      assertThat(v.denied()).as(name).containsExactly("pg_catalog." + name);
+    }
   }
 
   @Test
