@@ -212,6 +212,35 @@ class SandboxTest {
     assertThat(closed.refusal(Path.of("/usr"), false)).isNull();
   }
 
+  /**
+   * Landlock opens all of a read-only path, so none may be or hold a folder many programs keep their files in:
+   * {@code ~/.local} (other programs' data, keyrings, histories), {@code ~/.cache}, {@code ~/.config} and the like. A
+   * tool's environment in one is read, and a command right in one is read alone, without its folder.
+   */
+  @Test
+  @DisabledOnOs(OS.WINDOWS)
+  void noReadOnlyPathOpensAFolderManyProgramsKeepTheirFilesIn() throws Exception {
+    Path home = Files.createDirectories(dir.resolve("home"));
+    Path gateway = Files.createDirectories(home.resolve(".gaterook"));
+    Sandbox.Closed closed = closed(home, gateway);
+
+    for (String folder : Sandbox.SHARED) {
+      assertThat(closed.refusal(home.resolve(folder), false)).as(folder).isNotNull();
+    }
+    assertThat(closed.refusal(home.resolve(".local"), false)).contains("where many programs keep their files");
+    assertThat(closed.refusal(home.resolve(".cache"), false)).contains("where many programs keep their files");
+    assertThat(closed.refusal(home.resolve(".local/share/uv/tools/srv"), false)).isNull();
+    assertThat(closed.refusal(home.resolve(".local/bin"), false)).isNull();
+    assertThat(closed.refusal(home.resolve(".local/share/gaterook/mcp/srv"), true)).isNull();
+
+    ByteArrayOutputStream said = new ByteArrayOutputStream();
+    PrintStream err = new PrintStream(said, true, StandardCharsets.UTF_8);
+    Path tool = home.resolve(".local/tool");
+    assertThat(Sandbox.readable(Sandbox.parse(List.of("--ro", home.resolve(".local").toString(), "--", "x")), tool,
+        closed, err)).contains(tool.toString()).doesNotContain(home.resolve(".local").toString());
+    assertThat(said.toString(StandardCharsets.UTF_8)).contains(home.resolve(".local") + " holds");
+  }
+
   @Test
   @DisabledOnOs(OS.WINDOWS)
   void landlockReadsTheCommandsFolderOrOnlyTheCommandWhereItsFolderHoldsMore() throws Exception {

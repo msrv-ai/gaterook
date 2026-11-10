@@ -444,4 +444,43 @@ class LauncherTest {
         work.toString(), "--", command.toString(), "server.js");
     assertThat(l.sandbox()).isEqualTo("low-integrity");
   }
+
+  /**
+   * Linux: a command in {@code ~/.local/bin} (a real file, as uv's and pip's user installs put them) has
+   * {@code ~/.local} above its folder, which holds other programs' data, keyrings and histories: only the libraries
+   * beside its folder ({@code ~/.local/lib}) are read, and nothing when there are none. A link there into a tool's own
+   * environment still opens that environment. The other folders many programs keep their files in are never opened,
+   * nor where the core's XDG variables put them.
+   */
+  @Test
+  void aCommandInTheSharedLocalFolderOpensOnlyTheLibrariesBesideIt() throws Exception {
+    Path shim = shim("exit 0");
+    Path home = Files.createDirectories(dir.toRealPath().resolve("home"));
+    Path gateway = Files.createDirectories(home.resolve(".gaterook"));
+    Path work = gateway.resolve("mcp/fs");
+    Launcher l = new Launcher(Map.of("PATH", "/usr/bin:/bin", "HOME", home.toString()), "Linux", false, gateway, shim);
+    Path local = home.resolve(".local");
+
+    Path uvx = executable(local.resolve("bin/uvx"));
+    assertThat(l.argv(uvx, List.of(), work)).doesNotContain("--ro", local.toString());
+    Files.createDirectories(local.resolve("lib/python3.13/site-packages"));
+    assertThat(l.argv(uvx, List.of(), work)).containsSequence("--ro", local.resolve("lib").toString())
+        .doesNotContain(local.toString());
+
+    Path tool = executable(local.resolve("share/uv/tools/srv/bin/srv"));
+    Path link = Files.createSymbolicLink(local.resolve("bin/srv"), tool);
+    assertThat(l.argv(link, List.of(), work)).containsSequence("--ro", local.resolve("share/uv/tools/srv").toString());
+
+    for (String folder : List.of(".config", ".cache", ".local/share", ".local/state")) {
+      Path command = executable(home.resolve(folder).resolve("bin/x"));
+      assertThat(l.argv(command, List.of(), work)).as(folder).doesNotContain("--ro", home.resolve(folder).toString());
+    }
+    Launcher xdg = new Launcher(Map.of("PATH", "/usr/bin:/bin", "HOME", home.toString(), "XDG_DATA_HOME",
+        home.resolve("data").toString()), "Linux", false, gateway, shim);
+    assertThat(xdg.argv(executable(home.resolve("data/bin/x")), List.of(), work))
+        .doesNotContain("--ro", home.resolve("data").toString());
+    // The person's own installations elsewhere in the home are still read.
+    Path nvm = home.resolve(".nvm/versions/node/v24.1.0");
+    assertThat(l.argv(executable(nvm.resolve("bin/node")), List.of(), work)).containsSequence("--ro", nvm.toString());
+  }
 }

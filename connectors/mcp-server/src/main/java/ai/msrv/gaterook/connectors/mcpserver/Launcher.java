@@ -371,20 +371,65 @@ final class Launcher {
   }
 
   /**
-   * The command's installation (an nvm or Volta tree in the home folder): its lib/ beside bin/. Landlock opens all of
-   * a --ro path, so never the home or a folder above it (a command in ~/bin or in the home itself), nor GateRook's
-   * home or a folder in it: they hold GateRook's data and the credentials. Nor the folder of all work folders, which
-   * can lie elsewhere behind a link (a command in a work folder is read through --rw).
+   * The command's installation, which Landlock reads besides the command's own folder (the bridge opens that one
+   * itself): the folder above the folder the command really is in, through its links (an nvm or Volta tree, a tool's
+   * own environment in the home folder), whose {@code lib/} lies beside {@code bin/}. Landlock opens all of a
+   * {@code --ro} path, so never the home or a folder above it (a command in ~/bin or in the home itself), nor GateRook's
+   * home or a folder in it, which hold GateRook's data and the credentials, nor the folder of all work folders, which
+   * can lie elsewhere behind a link (a command in a work folder is read through {@code --rw}). Nor a folder that is,
+   * or holds, one that many programs keep their files in ({@link #sharedFolders}): for a command in
+   * {@code ~/.local/bin} that would be all of {@code ~/.local}, other programs' data, keyrings and histories included,
+   * so only the libraries beside the command's folder ({@code ~/.local/lib}) are read there.
    */
   private Optional<Path> installation(Path command) {
     Path bin = realPath(command).getParent();
     Path tree = bin == null ? null : bin.getParent();
-    Path workFolders = gatewayHome.resolve("mcp");
-    if (tree != null && within(tree, userHome) && !within(userHome, tree) && !within(tree, gatewayHome)
-        && !within(gatewayHome, tree) && !within(tree, workFolders) && !within(workFolders, tree)) {
-      return Optional.of(tree);
+    if (tree == null || !within(tree, userHome) || within(userHome, tree)) {
+      return Optional.empty();
     }
-    return Optional.empty();
+    List<Path> shared = sharedFolders();
+    if (shared.stream().anyMatch(s -> within(s, tree))) {
+      Path lib = tree.resolve("lib");
+      if (!Files.isDirectory(lib) || shared.stream().anyMatch(s -> within(s, lib))) {
+        return Optional.empty();
+      }
+      return closedToCommands(lib) ? Optional.empty() : Optional.of(lib);
+    }
+    return closedToCommands(tree) ? Optional.empty() : Optional.of(tree);
+  }
+
+  /** Whether {@code tree} is, holds or lies in GateRook's home or the folder of all work folders. */
+  private boolean closedToCommands(Path tree) {
+    Path workFolders = gatewayHome.resolve("mcp");
+    return within(tree, gatewayHome) || within(gatewayHome, tree) || within(tree, workFolders)
+        || within(workFolders, tree);
+  }
+
+  /**
+   * The folders of the home that many programs keep their files in, which no {@code --ro} grant may be or hold: the
+   * XDG base folders ({@code ~/.local/share}, {@code ~/.local/state}, {@code ~/.config}, {@code ~/.cache}, and where
+   * the core's {@code XDG_*_HOME} variables put them), {@code ~/.local} that holds two of them, and macOS's
+   * {@code ~/Library}.
+   */
+  List<Path> sharedFolders() {
+    List<Path> out = new ArrayList<>();
+    for (String folder : List.of(".local", ".local/share", ".local/state", ".config", ".cache", "Library")) {
+      out.add(userHome.resolve(folder));
+    }
+    for (String variable : List.of("XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME")) {
+      String value = coreEnv.get(variable);
+      if (value != null && !value.isBlank()) {
+        try {
+          Path p = Path.of(value);
+          if (p.isAbsolute()) {
+            out.add(p);
+          }
+        } catch (java.nio.file.InvalidPathException e) {
+          // Not a path: XDG says to ignore it.
+        }
+      }
+    }
+    return out;
   }
 
   /** The core's listeners as they are now, ascending; what isn't a port (0: a web server not bound yet) is left out. */

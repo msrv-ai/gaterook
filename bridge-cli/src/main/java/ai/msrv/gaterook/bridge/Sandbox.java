@@ -44,8 +44,10 @@ import java.util.stream.IntStream;
  * {@code npm ci} can't reach its registry), {@code /dev} for reading and writing devices, and the command's own folder
  * read-only (only the command itself where that folder holds more: a command in the home). No path is opened that is
  * or holds the person's home, GateRook's home, its folder of all work folders or a {@link #DENIED} path, nor a
- * read-only path in GateRook's home, its folder of all work folders or a {@link #DENIED} path ({@link Closed}; a
- * read-only path elsewhere in the person's home, such as an nvm tree, is opened): such a {@code --ro} path is left
+ * read-only path in GateRook's home, its folder of all work folders or a {@link #DENIED} path, nor one that is or holds
+ * a folder many programs keep their files in ({@link #SHARED}: {@code ~/.local}, {@code ~/.config}, {@code ~/.cache}
+ * …) ({@link Closed}; a read-only path elsewhere in the person's home, such as an nvm tree or a tool's environment in
+ * {@code ~/.local/share}, is opened): such a {@code --ro} path is left
  * out and said on stderr, such a {@code --rw} path refused (exit 3) on every system. A writable path may lie in
  * GateRook's home or in its folder of all work folders, wherever that lies, where the work folders are.
  *
@@ -354,6 +356,14 @@ final class Sandbox {
       ".config/Antigravity");
 
   /**
+   * Under the person's home, the folders many programs keep their files in (the XDG base folders, {@code ~/.local}
+   * that holds two of them, macOS's {@code ~/Library}): no read-only path may be or hold one, since Landlock opens all
+   * of a path, and {@code ~/.local} would open other programs' data, keyrings and histories. Paths in them, such as a
+   * tool's own environment, may still be read. The launcher keeps the same list ({@code Launcher.sharedFolders}).
+   */
+  static final List<String> SHARED = List.of(".local", ".local/share", ".local/state", ".config", ".cache", "Library");
+
+  /**
    * The folders the system itself keeps behind a link, and where they lead (macOS puts {@code /tmp}, {@code /var} and
    * {@code /etc} in {@code /private}). A writable path may pass them: no command can re-point them, and a grant for
    * the folder is written for both names ({@link Closed#grantForms}).
@@ -427,6 +437,14 @@ final class Sandbox {
       for (Path d : denied()) {
         if (within(forms(d), forms)) {
           return path + " holds " + d;
+        }
+      }
+      if (!writable) {
+        for (String folder : SHARED) {
+          Path shared = home.resolve(folder);
+          if (within(forms(shared), forms)) {
+            return path + " holds " + shared + ", where many programs keep their files";
+          }
         }
       }
       if (!writable && within(forms, forms(gateway))) {
