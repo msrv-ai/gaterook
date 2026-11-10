@@ -11,7 +11,13 @@ import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.Part;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.Enumeration;
 import java.util.Locale;
 import java.util.Optional;
@@ -25,7 +31,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * {@code /.well-known/oauth-protected-resource[/mcp/<published>]} and
  * {@code /.well-known/oauth-authorization-server}. A raw path with {@code ;}, {@code %}, {@code ..}, {@code //}, a
  * trailing slash or another letter case is 404, as is every other path ({@code /api/**}, {@code /error},
- * Actuator). Bodies are at most 64 KiB (413, a chunked one too: it is cut off while read). A request a browser sent
+ * Actuator). Bodies are at most 64 KiB (413, a chunked one too: it is cut off while read, as a stream, a reader or a
+ * form; the connector's form limit is the same), and never parts (415). A request a browser sent
  * from a page of another origin ({@code Origin} other than the tunnel's own) is an empty 403: claude.ai's servers send
  * none, and the sign-in page's own requests are the tunnel's origin.
  *
@@ -76,6 +83,11 @@ public final class PublicIngressFilter extends OncePerRequestFilter {
       reject(response, HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
       return;
     }
+    if (multipart(request)) {
+      // No published route takes parts, and the servlet would parse them past the body limit.
+      reject(response, HttpServletResponse.SC_UNSUPPORTED_MEDIA_TYPE);
+      return;
+    }
     if (!ownOrigin(publication, request.getHeaders("Origin"))) {
       reject(response, HttpServletResponse.SC_FORBIDDEN);
       return;
@@ -104,6 +116,12 @@ public final class PublicIngressFilter extends OncePerRequestFilter {
     if (path.startsWith("/mcp/") && response.getStatus() < 400) {
       gate.served();
     }
+  }
+
+  /** Whether the body is declared as parts ({@code multipart/*}), whatever its subtype. */
+  static boolean multipart(HttpServletRequest request) {
+    String type = request.getContentType();
+    return type != null && type.strip().toLowerCase(Locale.ROOT).startsWith("multipart/");
   }
 
   /** Whether every {@code Origin} line (none for a server's call or a navigation) is the tunnel's own origin. */
@@ -253,6 +271,32 @@ public final class PublicIngressFilter extends OncePerRequestFilter {
     @Override
     public String getRemoteHost() {
       return getRemoteAddr();
+    }
+
+    /** The same capped body as characters. */
+    @Override
+    public BufferedReader getReader() throws IOException {
+      String encoding = getCharacterEncoding();
+      Charset charset = StandardCharsets.UTF_8;
+      if (encoding != null) {
+        try {
+          charset = Charset.forName(encoding);
+        } catch (RuntimeException e) {
+          throw new java.io.UnsupportedEncodingException(encoding);
+        }
+      }
+      return new BufferedReader(new InputStreamReader(getInputStream(), charset));
+    }
+
+    /** No published route takes parts; the filter refuses a multipart body before this could parse one. */
+    @Override
+    public Collection<Part> getParts() throws ServletException {
+      throw new ServletException("The public listener takes no multipart bodies");
+    }
+
+    @Override
+    public Part getPart(String name) throws ServletException {
+      throw new ServletException("The public listener takes no multipart bodies");
     }
 
     @Override
