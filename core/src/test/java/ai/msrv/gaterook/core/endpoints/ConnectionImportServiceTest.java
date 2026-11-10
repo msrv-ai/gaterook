@@ -429,6 +429,44 @@ class ConnectionImportServiceTest {
     verifyNoInteractions(connections, wiring, events);
   }
 
+  /**
+   * A list given where the schema defines numbered properties, one of them marked, is refused (the config check takes
+   * no list there), and the marked numbered property itself is refused as a setting only the person makes.
+   */
+  @Test
+  void refusesAListForNumberedPropertiesAndTheMarkedNumberItself() {
+    ObjectNode schema = (ObjectNode) json.readTree("""
+        {"type":"object","properties":{"host":{"type":"string"},
+          "slots":{"properties":{"0":{"type":"string","x-person-only":true},"1":{"type":"string"}}}}}
+        """);
+    ConnectorManifest slots = ConnectorManifest.builder("slotfake", "1", ConnectorManifest.Kind.BUILT_IN)
+        .name("Test numbered slots").configSchema(schema).build();
+    when(registry.type("slotfake")).thenReturn(Optional.of(new ConnectorType(slots, true, true)));
+    when(registry.manifest("slotfake")).thenReturn(Optional.of(slots));
+    for (String config : List.of("{\"slots\":[\"0000\"]}", "{\"slots\":[null,\"x\"]}",
+        "{\"slots\":{\"0\":\"0000\"}}")) {
+      var session = start();
+      ObjectNode manifest = manifest();
+      ObjectNode candidate = (ObjectNode) manifest.path("connections").get(0);
+      candidate.put("type", "slotfake");
+      candidate.set("config", json.readTree(config));
+      assertThatThrownBy(() -> submit(session, manifest), "%s", config).isInstanceOfSatisfying(ProblemException.class,
+          error -> {
+            assertThat(error.kind()).isEqualTo(ProblemException.Kind.UNPROCESSABLE);
+            assertThat(error.getMessage()).contains(config.contains("[") ? "does not accept array values"
+                : "Leave /slots/0 out of config");
+          });
+      assertThat(service.get(session.id()).status()).as(config).isEqualTo("awaiting");
+    }
+    verifyNoInteractions(connections, wiring, events);
+    var session = start();
+    ObjectNode manifest = manifest();
+    ObjectNode candidate = (ObjectNode) manifest.path("connections").get(0);
+    candidate.put("type", "slotfake");
+    candidate.set("config", json.readTree("{\"host\":\"db.invalid\",\"slots\":{\"1\":\"x\"}}"));
+    assertThat(submit(session, manifest).path("status").asString()).isEqualTo("review");
+  }
+
   @Test
   void ordinarySettingsOfAConnectorThatSharesDefinitionsAreStillAccepted() {
     registerSharedDefinitions();

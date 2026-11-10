@@ -5,8 +5,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
+import ai.msrv.gaterook.core.admin.AdminMvc;
 import ai.msrv.gaterook.core.connections.ConnectionConfigs;
 import ai.msrv.gaterook.core.connections.ConnectionService;
+import ai.msrv.gaterook.core.connections.ConnectionTester;
+import ai.msrv.gaterook.core.platform.LocalListener;
 import ai.msrv.gaterook.core.platform.MaskPolicy;
 import ai.msrv.gaterook.core.platform.Masker;
 import ai.msrv.gaterook.core.platform.ProblemException;
@@ -20,7 +23,9 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpMethod;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /** Real storage, encryption, endpoint row MACs and transaction rollback without external services. */
@@ -45,6 +50,126 @@ class EndpointShareIT {
     wiring.add(prefix, prefix + "-one", "test");
     wiring.add(prefix, prefix + "-two", "test");
     return shares.export(prefix, List.of(prefix + "-one", prefix + "-two"), secrets);
+  }
+
+  /** What the person trusted for {@code hostkey.test} on this computer, as Test connection's Trust records it. */
+  private static final String TRUSTED_KEY = "SHA256:Q2xMjfU8pNt8fNl3a9vrZ0rDcoAPeExDQ4l0Tf3bAvo";
+  private static final String TRUST_ITEM = "/connection/hostKey: Not imported. Confirm this trust setting on this "
+      + "computer with Test connection, or set it yourself.";
+
+  /**
+   * The fake's host key ({@code /connection/hostKey}) is a trust setting: Test connection asks, the person trusts, and
+   * the key is the source's own decision. A share leaves it out, and one that carries it (an older GateRook wrote it,
+   * or anyone who edits the file) creates a disabled draft without it, through the window's admin API.
+   */
+  @Test void aTrustedHostKeyStaysOnThisComputerAndAShareCarryingOneImportsAsADraftThatTrustsNothing() {
+    core.connection("trust-share-one", "pgfake", Env.DEV, "hostkey.test");
+    ConnectionTester tester = core.bean(ConnectionTester.class);
+    ConnectionTester.Outcome asked = tester.testStored("trust-share-one");
+    assertThat(asked.confirmationId()).as("Test connection asks to trust the host key").isNotNull();
+    tester.confirm(asked.confirmationId(), "Trusted on the source computer");
+    assertThat(core.bean(ConnectionConfigs.class).byName("trust-share-one").orElseThrow().config()
+        .string("/connection/hostKey")).isEqualTo(TRUSTED_KEY);
+    endpoints.create("trust-share", null, EndpointService.StartFrom.EMPTY, "test");
+    wiring.add("trust-share", "trust-share-one", "test");
+    AdminMvc admin = new AdminMvc(core.context(), core.bean(LocalListener.class).port());
+
+    ObjectNode export = TestCore.JSON.createObjectNode().put("endpointSlug", "trust-share").put("includeSecrets", true);
+    export.putArray("connectionNames").add("trust-share-one");
+    JsonNode bundle = admin.expect(200, HttpMethod.POST, "/internal/endpoint-shares/export", export);
+
+    JsonNode entry = bundle.path("connections").get(0);
+    assertThat(bundle.toString()).doesNotContain(TRUSTED_KEY);
+    assertThat(entry.at("/config/connection/host").asString()).isEqualTo("hostkey.test");
+    assertThat(entry.at("/config/connection").has("hostKey")).isFalse();
+    assertThat(entry.path("secrets").has("/credentials/password")).isTrue();
+    assertThat(entry.path("warnings").toString()).contains("Trust settings were omitted (/connection/hostKey); "
+        + "confirm them on the destination computer with Test connection.");
+
+    // An older GateRook exported the key; whoever edits the file can write one, and list it among the credentials the
+    // source left out. Its own warnings say nothing.
+    ObjectNode older = (ObjectNode) bundle.deepCopy();
+    ObjectNode olderEntry = (ObjectNode) older.path("connections").get(0);
+    ((ObjectNode) olderEntry.path("config").path("connection")).put("hostKey", TRUSTED_KEY);
+    olderEntry.putArray("omittedSecretFields").add("/connection/hostKey");
+    olderEntry.putArray("warnings");
+    ObjectNode inspect = TestCore.JSON.createObjectNode();
+    inspect.set("bundle", older);
+    JsonNode preview = admin.expect(200, HttpMethod.POST, "/internal/endpoint-shares/preview", inspect);
+    JsonNode row = preview.path("connections").get(0);
+    assertThat(preview.toString()).doesNotContain(TRUSTED_KEY);
+    assertThat(row.at("/config/connection/host").asString()).isEqualTo("hostkey.test");
+    assertThat(row.at("/config/connection").has("hostKey")).isFalse();
+    // A trust setting is not a credential to supply after the import: the note names it instead.
+    assertThat(row.path("omittedSecretFields")).isEmpty();
+    assertThat(row.path("warnings").toString()).doesNotContain("Some credentials were omitted");
+    assertThat(row.path("warnings").toString()).contains("Trust settings in this file are not imported: "
+        + "/connection/hostKey. The connection is imported off, with Setup required; confirm them on this computer "
+        + "with Test connection, then Trust, or set them in the connection form.");
+
+    ObjectNode request = inspect.deepCopy().put("includeEndpoint", true).put("includeSecrets", true)
+        .put("endpointSlug", "trust-share-copy");
+    request.putArray("connectionIds").add("trust-share-one");
+    JsonNode imported = admin.expect(200, HttpMethod.POST, "/internal/endpoint-shares/import", request);
+    assertThat(imported.path("connections").get(0).path("needsSetup").asBoolean()).isTrue();
+    String name = imported.path("connections").get(0).path("name").asString();
+    JsonNode copy = admin.ok("/api/connections/" + name);
+    assertThat(copy.path("setupRequired").asBoolean()).isTrue();
+    assertThat(copy.path("enabled").asBoolean()).isFalse();
+    assertThat(copy.at("/config/connection/host").asString()).isEqualTo("hostkey.test");
+    assertThat(copy.at("/config/connection").has("hostKey")).isFalse();
+    assertThat(copy.path("setupMissingFields")).anyMatch(item -> item.asString().equals(TRUST_ITEM))
+        .noneMatch(item -> item.asString().startsWith("/connection/hostKey: Supply"));
+    // The included credential is kept for the person's own Test connection.
+    assertThat(copy.path("secrets"))
+        .anyMatch(secret -> secret.path("field").asString().equals("/credentials/password"));
+    assertThat(admin.answers()).noneMatch(answer -> answer.body() != null && answer.body().contains(TRUSTED_KEY));
+    assertThat(endpoints.snapshot("trust-share-copy").pairs()).noneMatch(pair -> pair.config().name().equals(name));
+
+    // The file as GateRook exports it now carries no key: the copy is complete, and trusts nothing of the source.
+    ObjectNode current = TestCore.JSON.createObjectNode();
+    current.set("bundle", bundle);
+    ObjectNode plain = current.deepCopy().put("includeEndpoint", false).put("includeSecrets", true);
+    plain.putArray("connectionIds").add("trust-share-one");
+    JsonNode complete = admin.expect(200, HttpMethod.POST, "/internal/endpoint-shares/import", plain);
+    assertThat(complete.path("connections").get(0).path("needsSetup").asBoolean()).isFalse();
+    JsonNode fresh = admin.ok("/api/connections/" + complete.path("connections").get(0).path("name").asString());
+    assertThat(fresh.at("/config/connection").has("hostKey")).isFalse();
+    assertThat(fresh.path("setupRequired").asBoolean()).isFalse();
+  }
+
+  /**
+   * A trust setting counts by being there, whatever it holds, and a share entry that carries one never reaches a test:
+   * a production entry is not checked for dangerous rights before it is a draft, so nothing contacts its resource.
+   */
+  @Test void anEntryCarryingATrustSettingOfAnyValueBecomesADraftWithoutAnyResourceCheck() {
+    ObjectNode bundle = source("trust-value-share", true);
+    ObjectNode template = (ObjectNode) bundle.path("connections").get(0);
+    ArrayNode entries = bundle.putArray("connections");
+    List<String> values = List.of("null", "false", "\"\"", "{}", "[]", "\"" + TRUSTED_KEY + "\"");
+    for (int i = 0; i < values.size(); i++) {
+      ObjectNode entry = template.deepCopy().put("id", "value-" + i).put("name", "trust-value-" + i);
+      ((ObjectNode) entry.path("config").path("connection")).set("hostKey", TestCore.json(values.get(i)));
+      entries.add(entry);
+    }
+    ObjectNode prod = template.deepCopy().put("id", "prod").put("name", "trust-value-prod").put("env", "prod");
+    ((ObjectNode) prod.path("config").path("connection")).put("host", "danger-one.test").put("hostKey", TRUSTED_KEY);
+    entries.add(prod);
+    int probes = FakeConnectors.DANGER_TESTS.size();
+    List<String> ids = List.of("value-0", "value-1", "value-2", "value-3", "value-4", "value-5", "prod");
+
+    JsonNode imported = shares.importBundle(bundle, ids, false, true, null, "test");
+
+    assertThat(imported.path("connections")).hasSize(ids.size())
+        .allMatch(connection -> connection.path("needsSetup").asBoolean());
+    for (JsonNode connection : imported.path("connections")) {
+      var stored = core.bean(ConnectionConfigs.class).byId(connection.path("id").asString()).orElseThrow();
+      assertThat(stored.config().config().at("/connection").has("hostKey")).as(stored.name()).isFalse();
+      assertThat(stored.enabled()).as(stored.name()).isFalse();
+      assertThat(stored.config().metadata().path("setupMissingFields").toString()).as(stored.name())
+          .contains(TRUST_ITEM);
+    }
+    assertThat(FakeConnectors.DANGER_TESTS).as("no production rights test ran").hasSize(probes);
   }
 
   @Test void exportOnlyIncludesSelectedConnectionsAndSecretsAreOptIn() {

@@ -80,6 +80,21 @@ describe('Shared endpoint review', () => {
     expect(root.textContent).not.toContain('save, then enable');
   });
 
+  it('shows the note on trust settings a file carries next to a connection that can still be imported', async () => {
+    const note = 'Trust settings in this file are not imported: /hostKeys/pinned. The connection is imported off, '
+      + 'with Setup required; confirm them on this computer with Test connection, then Trust, or set them in the '
+      + 'connection form.';
+    const [db, ...others] = REVIEW.preview.connections;
+    const connections = [{ ...db, warnings: [note] }, ...others];
+    desktop.previewEndpointShare.mockResolvedValueOnce({ ...REVIEW, preview: { ...REVIEW.preview, connections } });
+    await click('Choose .grshare file'); await unlock();
+    const checkbox = get<HTMLInputElement>('[data-connection-id=db]');
+    expect(checkbox.disabled).toBe(false);
+    expect(checkbox.checked).toBe(true);
+    expect(checkbox.closest('.gw-stack')?.textContent).toContain(note);
+    expect(desktop.importEndpointShare).not.toHaveBeenCalled();
+  });
+
   it('can import connections and secrets while skipping the endpoint, and prevents importing an empty selection', async () => {
     await click('Choose .grshare file'); await unlock();
     get<HTMLInputElement>('#share-import-endpoint').click();
