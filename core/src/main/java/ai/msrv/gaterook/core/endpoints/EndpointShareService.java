@@ -142,6 +142,8 @@ public class EndpointShareService {
       row.set("config", connections.previewConfig(entry));
       ArrayNode warnings = row.putArray("warnings");
       if (adjustedModes) warnings.add("The shown tool modes include destination restrictions. Bypass and template Read only confirmations are not transferred.");
+      // Made from the installed connector's schema: the file's own warnings below can say anything.
+      connections.trustNote(entry).ifPresent(warnings::add);
       entry.path("warnings").forEach(n -> warnings.add(masker.text(n.asString(), null, MaskPolicy.SECRETS_ONLY).text()));
       if (!row.path("supported").asBoolean()) warnings.add("This connector is unavailable for import. Use its dedicated setup flow.");
       if (!entry.path("omittedSecretFields").isEmpty()) warnings.add("Some credentials were omitted and must be supplied locally.");
