@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it, type TestContext } from 'node:test';
 import { prepareBridgeLibraries } from '../src/main/bridge-libraries.ts';
+import { StartupProblem } from '../src/main/startup-failure.ts';
 import { tempDir } from './helpers.ts';
 
 function fixture(t: TestContext) {
@@ -80,6 +81,34 @@ describe('exported Windows bridge dependencies', () => {
     symlinkSync(outside, join(other.bin, 'java.dll'));
     assert.throws(() => prepareBridgeLibraries(other.resources, other.home, 'win32'), /regular files/);
     assert.equal(readFileSync(outside, 'utf8'), 'outside');
+  });
+
+  it('a changed DLL another process holds stops the start with every library left as it was', { skip: process.platform === 'win32' }, (t) => {
+    const f = fixture(t);
+    writeFileSync(join(f.source, 'a.dll'), 'old a');
+    writeFileSync(join(f.source, 'b.dll'), 'old b');
+    prepareBridgeLibraries(f.resources, f.home, 'win32');
+    writeFileSync(join(f.source, 'a.dll'), 'new a');
+    writeFileSync(join(f.source, 'b.dll'), 'new b');
+    // On Windows a running gw-bridge.exe keeps its DLLs from being opened for writing; read-only stands in here.
+    chmodSync(join(f.bin, 'b.dll'), 0o400);
+
+    assert.throws(() => prepareBridgeLibraries(f.resources, f.home, 'win32'), (e: unknown) => {
+      assert.ok(e instanceof StartupProblem);
+      assert.match(e.message, /while another app uses them\. Quit the AI apps that connect through GateRook/);
+      return true;
+    });
+    assert.equal(readFileSync(join(f.bin, 'a.dll'), 'utf8'), 'old a', 'no mix of old and new libraries');
+    assert.equal(readFileSync(join(f.bin, 'b.dll'), 'utf8'), 'old b');
+  });
+
+  it('accepts a home that is a link, as the core does, and still refuses a linked bin', { skip: process.platform === 'win32' }, (t) => {
+    const f = fixture(t);
+    writeFileSync(join(f.source, 'java.dll'), 'library');
+    const linked = join(f.root, 'linked-home');
+    symlinkSync(f.home, linked);
+    assert.deepEqual(prepareBridgeLibraries(f.resources, linked, 'win32'), ['java.dll']);
+    assert.equal(readFileSync(join(f.bin, 'java.dll'), 'utf8'), 'library');
   });
 
   it('rejects a linked bridge directory', (t) => {
