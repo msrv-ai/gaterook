@@ -78,6 +78,8 @@ The review says what a server offers besides tools: resources, prompts, and the 
 
 GateRook speaks the MCP revisions `2026-07-28` and `2025-11-25` back to `2024-11-05`, the newest the server speaks, over stdio, Streamable HTTP or the older SSE transport. It gives a server no access to the AI app: a server that asks for its model, its files or your input gets an error.
 
+What a server sends is held within limits real servers don't reach. A list (of tools, resources or prompts) keeps at most 1,000 entries and 4 MB: GateRook keeps the first ones, and the server's log says so. A server that sends notifications faster than GateRook can take them in, or a server on this computer that stops reading what GateRook sends it, loses its session, and its log says why. A server on this computer is then treated as if it had crashed; a remote server's next call opens a new session.
+
 ## Sign in
 
 Select **Sign in** in the review. GateRook opens the server's sign-in page in your default browser and listens on this computer, at `http://localhost:<free port>/callback`, for the browser to come back. After you allow access, the page says you are signed in and GateRook returns to the front. It connects the server right away, and the endpoint step opens with a note that the server is signed in. Values the server needs besides the sign-in, such as a header, are entered in the review first: **Sign in** waits for them. If the server doesn't connect, the review says why. A sign-in is used once, so sign in again to try once more.

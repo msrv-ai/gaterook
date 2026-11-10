@@ -440,6 +440,11 @@ final class Session {
         log.line("[" + Texts.str(params.get("level"), "info") + "] " + (logger == null ? "" : logger + ": ")
             + (data == null ? "" : data.isString() ? data.asString() : data.toString()));
       }
+
+      @Override
+      public void note(String text) {
+        log.note(text);
+      }
     };
   }
 
