@@ -26,8 +26,9 @@ class SqlTableWalkTest {
         Arguments.of(SqlSyntax.POSTGRES, "SELECT JSON_ARRAYAGG(id ORDER BY (SELECT id FROM hidden_table)) FROM orders"),
         Arguments.of(SqlSyntax.POSTGRES, "SELECT JSON_OBJECTAGG(id : (SELECT id FROM hidden_table)) FROM orders"),
         Arguments.of(SqlSyntax.ORACLE, "SELECT JSON_ARRAYAGG(id ORDER BY (SELECT id FROM hidden_table)) FROM orders"),
-        // The key of a JSON aggregate, and the PARTITION BY and ORDER BY of its window.
-        Arguments.of(SqlSyntax.POSTGRES, "SELECT JSON_OBJECTAGG((SELECT k FROM hidden_table) : id) FROM orders"),
+        // The key of a JSON aggregate (a column, which can hold a subscript), and the PARTITION BY and ORDER BY of its
+        // window.
+        Arguments.of(SqlSyntax.POSTGRES, "SELECT JSON_OBJECTAGG(tags[(SELECT 1 FROM hidden_table)] : id) FROM orders"),
         Arguments.of(SqlSyntax.POSTGRES,
             "SELECT JSON_ARRAYAGG(id) OVER (PARTITION BY (SELECT id FROM hidden_table)) FROM orders"),
         Arguments.of(SqlSyntax.POSTGRES,
