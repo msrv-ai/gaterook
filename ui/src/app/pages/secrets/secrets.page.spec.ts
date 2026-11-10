@@ -417,6 +417,21 @@ describe('Secrets page: Replace and Rotate', () => {
     expect(TestBed.inject(ToastService).toasts().find((t) => t.title === "Can't rotate dev-db/password")?.body).toBe('dev-db/password is rotating already.');
   });
 
+  it('Rotate without a clear answer: not a refusal; the core keeps the new value and the list shows it', async () => {
+    await render();
+    const before = calls.filter((c) => c === 'list').length;
+    world.rotate = () =>
+      Promise.reject(problem(409, { title: 'Rotation unconfirmed', detail: 'No answer from dev-db within 15 s. dev-db may already use the new value: GateRook keeps it as version 4 and still uses version 3.' }));
+    await click(control(row('dev-db/password'), 'Rotate'));
+    await click(control($('#dlg-rotate-secret')!, 'Rotate dev-db/password'));
+    const toast = TestBed.inject(ToastService).toasts().find((t) => t.title === 'Rotation of dev-db/password unconfirmed');
+    expect(toast?.tone).toBe('warning');
+    expect(toast?.body).toContain('keeps it as version 4');
+    expect(toastTitles()).not.toContain("Can't rotate dev-db/password");
+    expect($('#dlg-rotate-secret')!.hasAttribute('open')).toBe(false);
+    expect(calls.filter((c) => c === 'list').length).toBeGreaterThan(before);
+  });
+
   it('Replace reference: checks the scheme, tests it without keeping the value, saves it for its store', async () => {
     await render();
     await click(control(row('stage-db/password'), 'Replace'));

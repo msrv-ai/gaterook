@@ -17,8 +17,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * pages of the database file, but the old pages of a destroyed key may still sit in {@code gateway.db-wal} until the
  * next checkpoint. Best effort, outside any transaction: a busy reader only means a later checkpoint finishes it.
  *
- * <p>The checkpoint needs the writer pool's only connection. A caller that shreds inside its own transaction (Settings ›
- * Tunnel or a store's sign-in replacing a secret) holds that connection until it commits, so it asks for
+ * <p>The checkpoint needs the writer pool's only connection. A caller that shreds inside its own transaction
+ * (Settings › Tunnel or a store's sign-in replacing a secret) holds that connection until it commits, so it asks for
  * {@link #truncateWhenCommitted()}: the checkpoint runs once that transaction has committed and given the connection
  * back, instead of waiting for it inside the transaction (which stalled every write for the pool's timeout and then
  * gave up, with the shredded pages still in the WAL).

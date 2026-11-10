@@ -23,7 +23,7 @@ import { ConnectionDetail, ConnectionHealth, ConnectionsApi, StoredSecret, TestO
 import { ConnectionFormSpec, ConnectorCatalog, ConnectorTool, ConnectorTypeDetail, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointSummary, EndpointsApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { Policies, PoliciesApi } from '../../core/api/policies.api';
-import { MasterKeyApi, SecretRow, SecretsApi } from '../../core/api/secrets.api';
+import { MasterKeyApi, SecretRow, SecretsApi, rotationUnconfirmed } from '../../core/api/secrets.api';
 import { Env, JsonObject, JsonValue, ToolMode } from '../../core/api/types';
 import { EventStream } from '../../core/events/event-stream';
 import { compactReferenceError } from '../../core/secret-reference-feedback';
@@ -1649,6 +1649,12 @@ export class ConnectionNewPage {
       });
       await this.refreshSecrets();
     } catch (e) {
+      if (rotationUnconfirmed(e)) {
+        // The source may already use the new value, which the core keeps until the next Rotate settles it.
+        this.toasts.show({ tone: 'warning', title: `Rotation of ${name}/${r.key} unconfirmed`, body: e.detail });
+        await this.refreshSecrets();
+        return;
+      }
       this.toasts.show({ tone: 'warning', title: `${name}/${r.key} wasn't rotated`, body: isApiError(e) ? e.detail : "The core didn't answer." });
     }
   }

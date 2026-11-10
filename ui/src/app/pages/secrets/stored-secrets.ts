@@ -14,7 +14,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { FormField, form, validate } from '@angular/forms/signals';
 import { RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
-import { SecretRow } from '../../core/api/secrets.api';
+import { SecretRow, rotationUnconfirmed } from '../../core/api/secrets.api';
 import { TimeService } from '../../core/time/time.service';
 import { GwCodeBlock } from '../../code/code-block';
 import { Announcer } from '../../kit/announcer';
@@ -221,7 +221,12 @@ export class GwStoredSecrets {
       this.rotateDialog().close('rotated');
       this.toast(rotateStartedToast(s));
     } catch (err) {
-      if (isApiError(err) && err.kind === 'conflict') {
+      if (rotationUnconfirmed(err)) {
+        // Not a refusal: the source may already use the new value, which the core keeps; the row says so.
+        this.rotateDialog().close('');
+        this.toast({ tone: 'warning', title: `Rotation of ${s.name} unconfirmed`, body: err.detail });
+        void this.data.refresh();
+      } else if (isApiError(err) && err.kind === 'conflict') {
         this.rotateDialog().close('');
         this.toast({ tone: 'warning', title: `Can't rotate ${s.name}`, body: err.detail });
       } else {

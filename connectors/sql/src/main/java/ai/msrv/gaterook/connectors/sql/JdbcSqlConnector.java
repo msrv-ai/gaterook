@@ -29,6 +29,10 @@ import ai.msrv.gaterook.connectors.support.SchemaResources;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.SQLNonTransientConnectionException;
+import java.sql.SQLRecoverableException;
+import java.sql.SQLTimeoutException;
+import java.sql.SQLTransientConnectionException;
 import java.sql.Statement;
 import java.time.Clock;
 import java.time.Duration;
@@ -1037,7 +1041,17 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     try (Credentials login = Credentials.resolve(cfg, current);
          Connection c = connect(s, login, ctx)) {
       c.setAutoCommit(true);
-      dialect.changePassword(c, dialect.identify(c), login.user(), next);
+      SqlDialect.ServerInfo server = dialect.identify(c);
+      try {
+        dialect.changePassword(c, server, login.user(), next);
+      } catch (SQLException e) {
+        if (answerLost(e)) {
+          // The change was sent and its answer never came: the server may have applied it.
+          throw ConnectorException.outcomeUnknown("The connection to " + cfg.name() + " failed while it changed the "
+              + "password, so whether it took the new one is not known.", e);
+        }
+        throw e;
+      }
     } catch (SQLException e) {
       throw SqlErrors.of(e, syntax(), cfg.name(), ctx.env() == null ? "this environment" : ctx.env().id(),
           Duration.ofMillis(TestProbe.BUDGET_MS));
@@ -1045,6 +1059,24 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
       throw ConnectorException.badInput("The CA certificate can't be used: " + e.getMessage());
     }
     pools.drop(cfg.id());
+  }
+
+  /**
+   * Whether a failure of the password change is no answer of the server: the connection broke (SQLSTATE class 08,
+   * the driver's connection and recoverable exceptions) or the driver gave up waiting ({@link SQLTimeoutException}).
+   * The server may have applied the change then. Its own refusals (permissions, policy, syntax) are answers.
+   */
+  static boolean answerLost(SQLException e) {
+    SQLException next = e;
+    for (int link = 0; next != null && link < 16; link++, next = next.getNextException()) {
+      String state = next.getSQLState();
+      if (next instanceof SQLTimeoutException || next instanceof SQLRecoverableException
+          || next instanceof SQLTransientConnectionException || next instanceof SQLNonTransientConnectionException
+          || (state != null && state.startsWith("08"))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // ── Pools ───────────────────────────────────────────────────────────────────────────────────────────────────
