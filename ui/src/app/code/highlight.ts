@@ -273,6 +273,8 @@ function shell(text: string, state: ShellState): { tokens: Token[]; state: Shell
   let lost = false;
   let docsLost = false;
   let comment = false;
+  /** Open `((` of arithmetic on this line: `<<` in it is a shift, not a here-document. */
+  let arithmetic = 0;
   let wordStart = !state.continued;
   // The command word (first of the line, or after | ; && ||) reads as a function: `kubectl`, `sudo`, `docker`.
   let commandStart = state.continued ? state.commandStart : true;
@@ -292,6 +294,27 @@ function shell(text: string, state: ShellState): { tokens: Token[]; state: Shell
     if (rest[0] === '\\') {
       // An escaped character is a character: \' opens no string, \# starts no comment.
       push(out, null, rest.slice(0, 2));
+      i += 2;
+      wordStart = false;
+      continue;
+    }
+    if (rest.startsWith('$$')) {
+      // The shell's process id: a quote right after it is an ordinary one, not $'…'.
+      push(out, null, '$$');
+      i += 2;
+      wordStart = false;
+      continue;
+    }
+    if (rest.startsWith('((') || rest.startsWith('$((')) {
+      arithmetic++;
+      push(out, 'punctuation', rest[0] === '$' ? '$((' : '((');
+      i += rest[0] === '$' ? 3 : 2;
+      wordStart = false;
+      continue;
+    }
+    if (rest.startsWith('))') && arithmetic > 0) {
+      arithmetic--;
+      push(out, 'punctuation', '))');
       i += 2;
       wordStart = false;
       continue;
@@ -349,6 +372,11 @@ function shell(text: string, state: ShellState): { tokens: Token[]; state: Shell
       push(out, 'punctuation', '<<<');
       i += 3;
       wordStart = true;
+      continue;
+    }
+    if (rest.startsWith('<<') && arithmetic > 0) {
+      push(out, 'punctuation', '<<');
+      i += 2;
       continue;
     }
     if (rest.startsWith('<<')) {
@@ -431,22 +459,19 @@ function expands(inside: string): boolean {
 
 /**
  * A YAML (or TOML) line. `#` starts a comment only outside quotes, after white space or at the start of the line, and
- * never inside a block scalar or a quoted value that goes on over several lines: those are the value's text.
+ * never inside a block scalar or a quoted value that goes on over several lines: those are the value's text. A line
+ * that ends with a block indicator (`|`, `>-`…) starts a block scalar whatever its key looks like (`example.com/x: |`):
+ * the lines below it that are indented deeper than it are the scalar's text.
  */
 function yaml(text: string, toml: boolean, state: YamlState): { tokens: Token[]; state: YamlState } {
   const out: Token[] = [];
-  let next: YamlState = state;
   let i = 0;
-  if (next.block !== null) {
-    if (!text.trim() || indent(text) > next.block) return { tokens: secrets(text, 'string'), state: next };
-    next = { ...next, block: null };
-  }
-  if (next.quote !== null) {
-    const end = scalarEnd(text, 0, next.quote);
-    if (end < 0) return { tokens: secrets(text, 'string'), state: next };
+  if (state.block !== null && (!text.trim() || indent(text) > state.block)) return { tokens: secrets(text, 'string'), state };
+  if (state.quote !== null) {
+    const end = scalarEnd(text, 0, state.quote);
+    if (end < 0) return { tokens: secrets(text, 'string'), state };
     out.push(...secrets(text.slice(0, end), 'string'));
     i = end;
-    next = { ...next, quote: null };
   } else {
     const key = /^(\s*-?\s*)([A-Za-z0-9_.\-"[\]]+)(\s*[:=])/.exec(text);
     if (key) {
@@ -454,35 +479,24 @@ function yaml(text: string, toml: boolean, state: YamlState): { tokens: Token[];
       push(out, 'property', key[2]);
       push(out, 'punctuation', key[3]);
       i = key[0].length;
-      const value = /^(\s*)([|>][0-9+-]*)(\s*(?:#.*)?)$/.exec(text.slice(i));
-      if (!toml && value) {
-        // A block scalar: the lines below that are indented deeper than its key are its text.
-        push(out, null, value[1]);
-        push(out, 'punctuation', value[2]);
-        tail(out, value[3]);
-        return { tokens: out, state: { ...next, block: key[1].length } };
-      }
-    } else if (!toml) {
-      const item = /^(\s*)(-)(\s+)([|>][0-9+-]*)(\s*(?:#.*)?)$/.exec(text);
-      if (item) {
-        push(out, null, item[1]);
-        push(out, 'punctuation', item[2]);
-        push(out, null, item[3]);
-        push(out, 'punctuation', item[4]);
-        tail(out, item[5]);
-        return { tokens: out, state: { ...next, block: item[1].length } };
-      }
     }
   }
   // The value: quoted parts are strings, `#` after white space starts the comment.
   let plain = '';
+  /** The line outside quotes and its comment: whether it ends with a block indicator. */
+  let code = text.slice(0, i);
   const flush = () => {
     if (!plain) return;
     const trimmed = plain.trim();
     if (/^-?\d+(?:\.\d+)?$/.test(trimmed)) push(out, 'number', plain);
     else if (/^(?:true|false|null|yes|no)$/i.test(trimmed)) push(out, 'keyword', plain);
     else out.push(...secrets(plain, null));
+    code += plain;
     plain = '';
+  };
+  const done = (quote: string | null): { tokens: Token[]; state: YamlState } => {
+    const block = !toml && quote === null && /(?:^|[\s:])[|>][0-9+-]*\s*$/.test(code) ? indent(text) : null;
+    return { tokens: out, state: { quote, block } };
   };
   let scalarStart = true;
   while (i < text.length) {
@@ -491,7 +505,7 @@ function yaml(text: string, toml: boolean, state: YamlState): { tokens: Token[];
     if (c === '#' && /\s/.test(prev)) {
       flush();
       push(out, 'comment', text.slice(i));
-      return { tokens: out, state: next };
+      return done(null);
     }
     if ((c === '"' || c === "'") && (scalarStart || /[\s[{,:]/.test(prev))) {
       flush();
@@ -499,9 +513,10 @@ function yaml(text: string, toml: boolean, state: YamlState): { tokens: Token[];
       const end = scalarEnd(text, i + close.length, close);
       if (end < 0) {
         out.push(...secrets(text.slice(i), 'string'));
-        return { tokens: out, state: { ...next, quote: close } };
+        return done(close);
       }
       out.push(...secrets(text.slice(i, end), 'string'));
+      code += '""';
       i = end;
       scalarStart = false;
       continue;
@@ -511,7 +526,7 @@ function yaml(text: string, toml: boolean, state: YamlState): { tokens: Token[];
     i++;
   }
   flush();
-  return { tokens: out, state: next };
+  return done(null);
 }
 
 /**
@@ -532,13 +547,6 @@ function scalarEnd(text: string, from: number, close: string): number {
     return j + close.length;
   }
   return -1;
-}
-
-/** What follows a block scalar's indicator: white space and maybe a comment. */
-function tail(out: Token[], text: string): void {
-  const hash = text.indexOf('#');
-  push(out, null, hash < 0 ? text : text.slice(0, hash));
-  if (hash >= 0) push(out, 'comment', text.slice(hash));
 }
 
 function indent(text: string): number {

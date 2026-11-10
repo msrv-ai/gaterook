@@ -206,6 +206,16 @@ describe('shell colours stop where the line alone cannot tell', () => {
     expect(painted(tabs[3], 'ls')).toEqual(['gw-tok-function']);
   });
 
+  it('<< inside arithmetic is a shift, not a here-document; $$ takes no quote with it', () => {
+    const lines = shell("echo $((1 << 2)) ; ls\necho done # c");
+    expect(painted(lines[0], 'ls')).toEqual(['gw-tok-function']);
+    expect(painted(lines[1], '# c')).toEqual(['gw-tok-comment']);
+    const pid = shell("echo $$'a\\' ; ls")[0];
+    // $$ is the process id: '…' after it is an ordinary quote, which the backslash doesn't escape.
+    expect(painted(pid, "'a\\'")).toEqual(['gw-tok-string']);
+    expect(painted(pid, 'ls')).toEqual(['gw-tok-function']);
+  });
+
   it('a line continued by a backslash does not start a word', () => {
     const lines = shell('echo a\\\n#b ; ls');
     expect(inert(painted(lines[1], '#b ; ls'))).toBe(false);
@@ -236,6 +246,11 @@ describe('YAML: # is a comment only outside the value’s text', () => {
     const item = yaml('args:\n  - |\n    # line\n  - x # y');
     expect(painted(item[2], '# line')).toEqual(['gw-tok-string']);
     expect(painted(item[3], '# y')).toEqual(['gw-tok-comment']);
+    // Whatever the key looks like: an annotation with a slash, a quoted key.
+    const annotation = yaml('  example.com/last-applied: |-\n    {"cmd": "a # b"}\n    # more\n  other: 1');
+    expect(painted(annotation[1], '"a # b"}')).toEqual(['gw-tok-string']);
+    expect(painted(annotation[2], '# more')).toEqual(['gw-tok-string']);
+    expect(painted(yaml('"a key": >\n  text # here')[1], '# here')).toEqual(['gw-tok-string']);
   });
 
   it('not inside a quoted value that goes on over lines', () => {
