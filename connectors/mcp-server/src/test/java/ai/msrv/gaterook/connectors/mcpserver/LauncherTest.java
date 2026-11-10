@@ -164,6 +164,27 @@ class LauncherTest {
     assertThat(linked.argv(home.resolve("bin/my-server"), List.of(), work)).doesNotContain("--ro");
   }
 
+  /**
+   * The folder of all work folders kept elsewhere in the home, behind a link: a command in a work folder is outside
+   * GateRook's home as the file system resolves it, yet it is read through --rw, so the bridge is not asked to open
+   * its installation tree too (it would drop that --ro and say so).
+   */
+  @Test
+  void aLinkAtTheFolderOfAllWorkFoldersDoesNotMakeAWorkFoldersCommandAReadOnlyTree() throws Exception {
+    Path shim = shim("exit 0");
+    Path home = Files.createDirectories(dir.toRealPath().resolve("home"));
+    Path gateway = Files.createDirectories(home.resolve(".gaterook"));
+    Files.createSymbolicLink(gateway.resolve("mcp"), Files.createDirectories(home.resolve("kept/mcp")));
+    Path work = gateway.resolve("mcp/fs");
+    Launcher l = new Launcher(Map.of("PATH", "/usr/bin:/bin", "HOME", home.toString()), "Linux", false, gateway, shim);
+
+    assertThat(l.argv(executable(work.resolve("node_modules/.bin/srv")), List.of(), work)).doesNotContain("--ro")
+        .containsSubsequence("--rw", work.toString(), "--");
+    // An installation of the person's own in the home is still read.
+    Path nvm = home.resolve(".nvm/versions/node/v24.1.0");
+    assertThat(l.argv(executable(nvm.resolve("bin/node")), List.of(), work)).containsSequence("--ro", nvm.toString());
+  }
+
   private static Path executable(Path file) throws Exception {
     Files.createDirectories(file.getParent());
     Files.writeString(file, "#!/bin/sh\n");

@@ -339,7 +339,9 @@ class SandboxTest {
     Path home = Files.createDirectories(real.resolve("home"));
     Path gateway = Files.createDirectories(home.resolve(".gaterook"));
     Path disk = Files.createDirectories(real.resolve("disk/mcp"));
-    Files.createSymbolicLink(gateway.resolve("mcp"), disk);
+    // Reached through a second link: the folder the kernel sees is the one at the end of both.
+    Path alias = Files.createSymbolicLink(real.resolve("alias"), real.resolve("disk"));
+    Files.createSymbolicLink(gateway.resolve("mcp"), alias.resolve("mcp"));
     Path onDisk = Files.createDirectories(disk.resolve("server"));
     Path work = gateway.resolve("mcp/server");
     Sandbox.Closed closed = closed(home, gateway);
@@ -617,7 +619,8 @@ class SandboxTest {
     Path real = dir.toRealPath();
     Path gateway = Files.createDirectories(real.resolve("gateway-home"));
     Path disk = Files.createDirectories(real.resolve("disk/mcp"));
-    Files.createSymbolicLink(gateway.resolve("mcp"), disk);
+    Path alias = Files.createSymbolicLink(real.resolve("alias"), real.resolve("disk"));
+    Files.createSymbolicLink(gateway.resolve("mcp"), alias.resolve("mcp"));
     Path own = Files.createDirectories(disk.resolve("server"));
     Files.createDirectories(own.resolve("tmp"));
     Files.writeString(own.resolve("state"), "its own state");
@@ -629,6 +632,7 @@ class SandboxTest {
         + "echo y > \"$TMPDIR/own\" && echo wrote-tmp; "
         + "cat \"" + other.resolve("token") + "\" 2>/dev/null || echo denied-resolved; "
         + "cat \"" + gateway.resolve("mcp/other/token") + "\" 2>/dev/null || echo denied-given; "
+        + "cat \"" + alias.resolve("mcp/other/token") + "\" 2>/dev/null || echo denied-alias; "
         + "ls \"" + disk + "\" >/dev/null 2>&1 || echo denied-list; "
         + "echo y > \"" + other.resolve("planted") + "\" 2>/dev/null || echo denied-write";
 
@@ -637,7 +641,8 @@ class SandboxTest {
         Duration.ofSeconds(30));
 
     assertThat(r.out()).as(r.err()).contains("its own state").contains("wrote-work").contains("wrote-tmp")
-        .contains("denied-resolved").contains("denied-given").contains("denied-list").contains("denied-write")
+        .contains("denied-resolved").contains("denied-given").contains("denied-alias").contains("denied-list")
+        .contains("denied-write")
         .doesNotContain("the other server's token");
     assertThat(r.code()).isZero();
     assertThat(own.resolve("out")).exists();

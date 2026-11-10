@@ -457,12 +457,12 @@ public class EndpointConnections implements SmartInitializingSingleton {
    * Approval (Off on a read-only endpoint), with one Setup change for all of them. Such a row runs in Approval already
    * (the snapshot holds it, ARCHITECTURE.md §7.5), and nothing would record a definition for it later, so its stored
    * mode only misleads. It comes from a V89 start that couldn't verify the rows (the master key was locked), from a
-   * server that wasn't usable at that start (its connector type switched off, or its connection changed outside
-   * GateRook) or a tool it didn't list then, from a reset of a definition changed outside GateRook, from a mode set
-   * without the definition it is for (an API request without {@code definitionHash} for a tool whose row had no
-   * record, such as one beyond {@link #MAX_SERVER_ROWS}), or from a duplicate of such a row. Rows that don't verify
-   * are left alone (a locked start changes nothing), and so is a temporary bypass, which has its own binding
-   * ({@link TemporaryBypass}). Nothing that is enforced changes and nothing is granted. Built-in, template and
+   * server that wasn't usable at that start (its connector type switched off, its connection changed outside GateRook
+   * or still waiting for setup) or a tool it didn't list then, from a reset of a definition changed outside GateRook,
+   * from a mode set without the definition it is for (an API request without {@code definitionHash} for a tool whose
+   * row had no record, such as one beyond {@link #MAX_SERVER_ROWS}), or from a duplicate of such a row. Rows that
+   * don't verify are left alone (a locked start changes nothing), and so is a temporary bypass, which has its own
+   * binding ({@link TemporaryBypass}). Nothing that is enforced changes and nothing is granted. Built-in, template and
    * plugin tools record no definition by design and are never considered.
    *
    * @return how many rows went to Approval or Off

@@ -263,11 +263,13 @@ final class Launcher {
       out.add(workDir.toString());
       // The command's installation (an nvm or Volta tree in the home folder): its lib/ beside bin/. Landlock opens
       // all of a --ro path, so never the home or a folder above it (a command in ~/bin or in the home itself), nor
-      // GateRook's home or a folder in it: they hold GateRook's data and the credentials.
+      // GateRook's home or a folder in it: they hold GateRook's data and the credentials. Nor the folder of all work
+      // folders, which can lie elsewhere behind a link (a command in a work folder is read through --rw).
       Path bin = realPath(command).getParent();
       Path tree = bin == null ? null : bin.getParent();
+      Path workFolders = gatewayHome.resolve("mcp");
       if (tree != null && within(tree, userHome) && !within(userHome, tree) && !within(tree, gatewayHome)
-          && !within(gatewayHome, tree)) {
+          && !within(gatewayHome, tree) && !within(tree, workFolders) && !within(workFolders, tree)) {
         out.add("--ro");
         out.add(tree.toString());
       }

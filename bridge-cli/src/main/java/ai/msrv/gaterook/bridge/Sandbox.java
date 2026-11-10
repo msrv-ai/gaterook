@@ -43,13 +43,15 @@ import java.util.stream.IntStream;
  * configuration in {@code /run}, where {@code /etc/resolv.conf} often links: without it no name resolves, and
  * {@code npm ci} can't reach its registry), {@code /dev} for reading and writing devices, and the command's own folder
  * read-only (only the command itself where that folder holds more: a command in the home). No path is opened that is
- * or holds the person's home, GateRook's home or a {@link #DENIED} path, nor a read-only path in one of them
- * ({@link Closed}): such a {@code --ro} path is left out and said on stderr, such a {@code --rw} path refused (exit 3)
- * on every system. A writable path may lie in GateRook's home, where the work folders are.
+ * or holds the person's home, GateRook's home, its folder of all work folders or a {@link #DENIED} path, nor a
+ * read-only path in one of them ({@link Closed}): such a {@code --ro} path is left out and said on stderr, such a
+ * {@code --rw} path refused (exit 3) on every system. A writable path may lie in GateRook's home or in its folder of
+ * all work folders, wherever that lies, where the work folders are.
  *
- * <p>On macOS the command runs under {@code sandbox-exec} with a profile that denies reading GateRook's home, the
- * usual credential folders and the configs of the connected clients, and denies writing anywhere but the {@code --rw}
- * paths, the temporary folders and the devices (the API is deprecated, but works on macOS 27): a login item, a shell
+ * <p>On macOS the command runs under {@code sandbox-exec} with a profile that denies reading GateRook's home, its
+ * folder of all work folders (also where a link at {@code mcp} leads), the usual credential folders and the configs of
+ * the connected clients, and denies writing anywhere but the {@code --rw} paths, the temporary folders and the devices
+ * (the API is deprecated, but works on macOS 27): a login item, a shell
  * profile or a package in a cache shared with the person's own tools, written from inside, would run unconfined later.
  * The core gives a server its work folder as {@code HOME}, so {@code npx} and {@code uvx} keep their caches there.
  * Reading is open there except for the denied paths, so {@code --ro} adds nothing; {@code --no-defaults} can't be
@@ -360,7 +362,8 @@ final class Sandbox {
 
   /**
    * What no grant may open: the person's home (from the account, not {@code HOME}, which the core sets to the work
-   * folder), GateRook's home ({@code GW_HOME}, which its shim exports) and the {@link #DENIED} paths in the home.
+   * folder), GateRook's home ({@code GW_HOME}, which its shim exports), its folder of all work folders and the
+   * {@link #DENIED} paths in the home.
    */
   record Closed(Path home, Path gateway, List<Path> credentials) {
 
