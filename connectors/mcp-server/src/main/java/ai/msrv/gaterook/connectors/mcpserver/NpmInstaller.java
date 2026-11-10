@@ -3,9 +3,13 @@ package ai.msrv.gaterook.connectors.mcpserver;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +40,13 @@ final class NpmInstaller {
 
   private static final Pattern NODE_RANGE = Pattern.compile("^\\s*>=\\s*v?(\\d+)(?:\\.(\\d+))?");
   private static final Pattern NODE_VERSION = Pattern.compile("v?(\\d+)\\.(\\d+)");
+  /**
+   * The largest JSON file of the server's folder that is read: its lockfile, npm's record of what it installed, the
+   * package's {@code package.json}. The catalog pins lockfiles of at most 5 MB, and npm's record is of the same size.
+   */
+  static final int MAX_FILE = 8 * 1024 * 1024;
+  /** What is kept of the output of {@code npm ci}: its end, which a failure shows. */
+  static final int MAX_OUTPUT = 64 * 1024;
 
   private final Launcher launcher;
 
@@ -67,8 +78,9 @@ final class NpmInstaller {
       manifest.put("private", true);
       manifest.putObject("dependencies").put(pkg.name(), pkg.version());
       // npm ci refuses a lockfile alone: it wants the package.json the lockfile was made for.
-      Files.writeString(workDir.resolve("package.json"), Texts.JSON.writeValueAsString(manifest) + "\n");
-      Files.write(workDir.resolve("package-lock.json"), pkg.lockfile());
+      writeNew(workDir.resolve("package.json"), (Texts.JSON.writeValueAsString(manifest) + "\n")
+          .getBytes(StandardCharsets.UTF_8));
+      writeNew(workDir.resolve("package-lock.json"), pkg.lockfile());
     } catch (IOException e) {
       throw ConnectorException.unavailable("Couldn't write the server's folder " + workDir + ": " + e.getMessage(), e);
     }
@@ -174,7 +186,8 @@ final class NpmInstaller {
     StringBuilder output = new StringBuilder();
     Thread reader = Thread.ofVirtual().start(() -> {
       try {
-        output.append(new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
+        // Only its end is ever shown (the last lines of a failure), so only its end is kept.
+        output.append(tail(p.getInputStream()));
       } catch (IOException e) {
         // The process ended.
       }
@@ -211,12 +224,67 @@ final class NpmInstaller {
     }
   }
 
+  /**
+   * A JSON file of the server's folder: a regular file, not a link (the server writes in its folder and could put
+   * either there), of at most {@link #MAX_FILE} bytes. Anything else is {@code problem}, and nothing more of it is read
+   * than the bound.
+   */
   private static JsonNode readFile(Path file, String problem) throws ConnectorException {
     try {
-      return Texts.JSON.readTree(Files.readString(file));
+      BasicFileAttributes attributes = Files.readAttributes(file, BasicFileAttributes.class,
+          LinkOption.NOFOLLOW_LINKS);
+      if (!attributes.isRegularFile() || attributes.size() > MAX_FILE) {
+        throw ConnectorException.denied(problem);
+      }
+      byte[] bytes;
+      try (InputStream in = Files.newInputStream(file, LinkOption.NOFOLLOW_LINKS)) {
+        bytes = in.readNBytes(MAX_FILE + 1);
+      }
+      if (bytes.length > MAX_FILE) {
+        throw ConnectorException.denied(problem);
+      }
+      return Texts.JSON.readTree(bytes);
     } catch (IOException | RuntimeException e) {
       throw ConnectorException.denied(problem);
     }
+  }
+
+  /**
+   * {@code bytes} as a new regular file at {@code file} of the server's folder. The server writes in its folder, and the
+   * core that writes here runs outside any sandbox: whatever is at that name (a link the server left there included)
+   * is removed itself, never followed, and a file that appears there again before the write is not opened.
+   */
+  static void writeNew(Path file, byte[] bytes) throws IOException {
+    Files.deleteIfExists(file);
+    Files.write(file, bytes, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS);
+  }
+
+  /**
+   * What a reader of the output of {@code npm ci} keeps: its last {@link #MAX_OUTPUT} bytes, however much an install
+   * script prints.
+   */
+  static String tail(InputStream in) throws IOException {
+    byte[] ring = new byte[MAX_OUTPUT];
+    long total = 0;
+    byte[] chunk = new byte[8192];
+    int n;
+    while ((n = in.read(chunk)) > 0) {
+      for (int i = 0; i < n; ) {
+        int at = (int) (total % MAX_OUTPUT);
+        int length = Math.min(n - i, MAX_OUTPUT - at);
+        System.arraycopy(chunk, i, ring, at, length);
+        i += length;
+        total += length;
+      }
+    }
+    if (total <= MAX_OUTPUT) {
+      return new String(ring, 0, (int) total, StandardCharsets.UTF_8);
+    }
+    int start = (int) (total % MAX_OUTPUT);
+    byte[] last = new byte[MAX_OUTPUT];
+    System.arraycopy(ring, start, last, 0, MAX_OUTPUT - start);
+    System.arraycopy(ring, 0, last, MAX_OUTPUT - start, start);
+    return new String(last, StandardCharsets.UTF_8);
   }
 
 }

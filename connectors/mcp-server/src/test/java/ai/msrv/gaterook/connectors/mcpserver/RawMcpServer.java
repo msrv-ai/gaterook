@@ -182,8 +182,12 @@ public final class RawMcpServer {
         ObjectNode c = r.putArray("contents").addObject().put("uri", uri);
         if (uri.equals("ui://charts/view.html")) {
           c.put("mimeType", "text/html;profile=mcp-app").put("text", "<!doctype html><p>chart</p>");
-          c.putObject("_meta").putObject("ui").putObject("csp").putArray("connectDomains")
-              .add("https://charts.example");
+          // Its policy, and what an app may ask for besides: device permissions, an origin of its own.
+          ObjectNode ui = c.putObject("_meta").putObject("ui");
+          ui.putObject("csp").putArray("connectDomains").add("https://charts.example").add("*");
+          ui.putObject("permissions").putObject("microphone");
+          ui.put("domain", "charts.example");
+          ui.put("prefersBorder", true);
         } else if (uri.equals("bin://logo")) {
           c.put("mimeType", "image/png").put("blob", PNG);
         } else if (uri.startsWith("notes://")) {

@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.core.endpoints;
 
 import ai.msrv.gaterook.connector.api.Limits;
+import ai.msrv.gaterook.connector.api.ResourceDescriptor;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
@@ -10,11 +11,13 @@ import ai.msrv.gaterook.core.policy.PolicyEngine;
 import java.text.NumberFormat;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeSet;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
@@ -44,32 +47,92 @@ public class ToolCatalog {
    * @param inputSchema       every value the endpoint allows now: {@code connection} lists the connections of the
    *                          pairs as its enum, and the Playground offers them
    * @param clientInputSchema what MCP clients get: no enum that follows the endpoint's connections
-   * @param meta              the tool's {@code _meta} for clients (an MCP server's app: {@code ui}), or {@code null}
+   * @param meta              the tool's {@code _meta} as its connector gives it (an MCP server's app: {@code ui}), or
+   *                          {@code null}
+   * @param appCallable       whether an MCP App the endpoint shows may call it: the tool belongs to a connection
+   *                          whose app the endpoint shows ({@link #appConnections}), as MCP Apps lets a server's app
+   *                          call that server's tools
    */
   public record PublishedTool(String name, String title, String description, ObjectNode inputSchema,
       ObjectNode clientInputSchema, JsonNode outputSchema, ToolDefinition.Annotations annotations,
-      List<EndpointSnapshot.Pair> pairs, String declaredBy, boolean core, JsonNode meta) {
+      List<EndpointSnapshot.Pair> pairs, String declaredBy, boolean core, JsonNode meta, boolean appCallable) {
 
     public PublishedTool(String name, String title, String description, ObjectNode inputSchema,
         ObjectNode clientInputSchema, JsonNode outputSchema, ToolDefinition.Annotations annotations,
         List<EndpointSnapshot.Pair> pairs, String declaredBy, boolean core) {
       this(name, title, description, inputSchema, clientInputSchema, outputSchema, annotations, pairs, declaredBy,
-          core, null);
+          core, null, false);
     }
 
     /** Whether only an MCP App may call it ({@code ui.visibility: ["app"]}): a client without apps doesn't get it. */
     public boolean appOnly() {
-      JsonNode visibility = meta == null ? null : meta.path("ui").path("visibility");
-      if (visibility == null || !visibility.isArray() || visibility.isEmpty()) {
+      return keepsFromModel(meta);
+    }
+
+    /**
+     * The {@code _meta.ui} an AI app that renders MCP Apps gets for this tool (not for the gateway's own tools, whose
+     * cards {@code McpDispatcher} names), or {@code null} for none. To an AI app the endpoint is one MCP server, and
+     * MCP Apps lets every app a server shows call that server's tools unless a tool's {@code visibility} leaves out
+     * {@code "app"}. So the tool of a connection whose app the endpoint shows keeps what its server declared (its app,
+     * and who may call it), and every other tool says {@code visibility: ["model"]}: the AI app refuses an app's call
+     * of it. A tool that only an app may call and that no app of its own connection can reach is not published at all
+     * ({@link ToolCatalog#forEndpoint}). An app URI outside the tool's own connection's namespace, which no read
+     * reaches, is left out.
+     */
+    public ObjectNode clientUi() {
+      ObjectNode ui = meta != null && meta.path("ui") instanceof ObjectNode own ? own.deepCopy()
+          : JsonNodeFactory.instance.objectNode();
+      if (pairs.stream().noneMatch(p -> appUri(p) != null)) {
+        ui.remove("resourceUri");
+      }
+      if (!appCallable) {
+        ui.putArray("visibility").add("model");
+      }
+      return ui.isEmpty() ? null : ui;
+    }
+  }
+
+  /** Whether a tool's {@code _meta} keeps it from the model ({@code ui.visibility} without {@code "model"}). */
+  private static boolean keepsFromModel(JsonNode meta) {
+    JsonNode visibility = meta == null ? null : meta.path("ui").path("visibility");
+    if (visibility == null || !visibility.isArray() || visibility.isEmpty()) {
+      return false;
+    }
+    for (JsonNode v : visibility) {
+      if ("model".equals(v.asString(""))) {
         return false;
       }
-      for (JsonNode v : visibility) {
-        if ("model".equals(v.asString(""))) {
-          return false;
-        }
-      }
-      return true;
     }
+    return true;
+  }
+
+  /**
+   * The app a pair's tool shows: the {@code _meta.ui.resourceUri} of an external MCP server's tool, published under
+   * that tool's own connection's app namespace ({@code ui://gaterook/connections/<name>/…}). {@code null} for a tool
+   * that shows none, or names a URI outside its connection's namespace, which no read reaches.
+   */
+  public static String appUri(EndpointSnapshot.Pair p) {
+    JsonNode meta = p.tool().meta();
+    String uri = meta == null ? null : meta.path("ui").path("resourceUri").asString(null);
+    String own = ResourceDescriptor.appPrefix(p.connectionName());
+    return uri != null && uri.startsWith(own) && uri.length() > own.length() ? uri : null;
+  }
+
+  /**
+   * The connections whose app the endpoint shows: those with a pair that is on and shows one ({@link #appUri}). Only
+   * their tools may be called by an app (ARCHITECTURE.md §5.4).
+   */
+  public static Set<String> appConnections(EndpointSnapshot snapshot) {
+    Set<String> out = new HashSet<>();
+    if (snapshot.blocked()) {
+      return out;
+    }
+    for (EndpointSnapshot.Pair p : snapshot.onPairs()) {
+      if (appUri(p) != null) {
+        out.add(p.connectionName());
+      }
+    }
+    return out;
   }
 
   /**
@@ -96,12 +159,13 @@ public class ToolCatalog {
     if (!snapshot.blocked()) {
       boolean listed = snapshot.coreTool(CoreTools.LIST_CONNECTIONS).map(EndpointSnapshot.CorePair::mode)
           .orElse(Mode.OFF) != Mode.OFF;
+      Set<String> apps = appConnections(snapshot);
       Map<String, List<EndpointSnapshot.Pair>> byName = new LinkedHashMap<>();
       for (EndpointSnapshot.Pair p : snapshot.onPairs()) {
         byName.computeIfAbsent(p.tool().name(), k -> new ArrayList<>()).add(p);
       }
       for (Map.Entry<String, List<EndpointSnapshot.Pair>> e : byName.entrySet()) {
-        publish(snapshot, e.getKey(), e.getValue(), listed, problems).ifPresent(out::add);
+        publish(snapshot, e.getKey(), e.getValue(), listed, apps, problems).ifPresent(out::add);
       }
       for (String core : CoreTools.WITH_MODE) {
         Mode mode = snapshot.coreTool(core).map(EndpointSnapshot.CorePair::mode).orElse(Mode.OFF);
@@ -144,10 +208,12 @@ public class ToolCatalog {
    * One name of the list, or nothing when no pair of that name can be published. A template's tool runs on its own
    * connection and has no {@code connection} parameter, so a template pair that shares its name with any other pair
    * would make a call ambiguous: it is left out, and so are both templates when two connections each have one of that
-   * name. A connector's tool of the same name still publishes.
+   * name. A connector's tool of the same name still publishes. A tool only an MCP App may call is left out when no
+   * app of its own connection is shown ({@code apps}): no app the endpoint shows may call it, and the model may not
+   * either.
    */
   private Optional<PublishedTool> publish(EndpointSnapshot snapshot, String name, List<EndpointSnapshot.Pair> pairs,
-      boolean listed, List<String> problems) {
+      boolean listed, Set<String> apps, List<String> problems) {
     List<EndpointSnapshot.Pair> candidates = new ArrayList<>();
     for (EndpointSnapshot.Pair p : pairs) {
       if (p.template() != null && pairs.size() > 1) {
@@ -170,6 +236,12 @@ public class ToolCatalog {
       }
       kept.add(p);
     }
+    boolean appCallable = kept.stream().allMatch(p -> apps.contains(p.connectionName()));
+    if (!appCallable && keepsFromModel(first.meta())) {
+      problems.add(name + " on " + firstPair.connectionName() + " is only for an MCP App, and no tool of "
+          + firstPair.connectionName() + " that is on shows one: it is not published");
+      return Optional.empty();
+    }
     boolean template = kept.size() == 1 && kept.get(0).template() != null;
     ObjectNode input = first.inputSchema() == null ? JsonNodeFactory.instance.objectNode().put("type", "object")
         : (ObjectNode) first.inputSchema().deepCopy();
@@ -190,7 +262,7 @@ public class ToolCatalog {
         : "A connection named in this tool's description.");
     return Optional.of(new PublishedTool(name, first.title(), description(first, kept, template, approval), input,
         client, output == null ? null : output.deepCopy(), first.annotations(), List.copyOf(kept), declaredBy, false,
-        first.meta() == null ? null : first.meta().deepCopy()));
+        first.meta() == null ? null : first.meta().deepCopy(), appCallable));
   }
 
   /**

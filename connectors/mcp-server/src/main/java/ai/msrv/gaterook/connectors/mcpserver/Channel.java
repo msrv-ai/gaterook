@@ -92,6 +92,14 @@ interface Channel {
   void close();
 
   /**
+   * Ends the channel because the client gave up the session ({@code reason}: what the server did). A process is
+   * stopped and its exit carries the reason, so its supervisor records it as the crash; an HTTP channel just closes.
+   */
+  default void abandon(String reason) {
+    close();
+  }
+
+  /**
    * A message didn't reach the server, or its answer couldn't be read.
    *
    * @param status the HTTP status the server answered with, or {@code 0} when none came

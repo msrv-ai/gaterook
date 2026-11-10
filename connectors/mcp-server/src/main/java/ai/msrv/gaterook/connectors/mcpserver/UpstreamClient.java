@@ -11,13 +11,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import tools.jackson.databind.JsonNode;
@@ -49,6 +52,14 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>Messages are matched and dispatched on the channel's reading thread; what the session does about a notification
  * (list the tools again) runs on a thread of its own, so it can wait for an answer the reading thread delivers.
+ *
+ * <p>Nothing a server sends can make the client hold more than a bound (ARCHITECTURE.md §5.4): a list keeps at most
+ * {@link #MAX_LIST_BYTES} of entries over all its pages; a log message goes to the server's log on the reading thread,
+ * cut to what the log keeps; a list change waiting for the session's thread absorbs the next ones of its kind, and so
+ * does an update of a resource already waiting; at most {@link #MAX_QUEUED} wait in all, and a server that sends more
+ * faster than they are handled loses its session ({@link #abandon}). Of the server's own requests, at most
+ * {@link #MAX_ANSWERS} are answered at a time (over HTTP each answer is a POST), and one whose id isn't a number or a
+ * short string gets none.
  */
 final class UpstreamClient implements Channel.Sink {
 
@@ -77,6 +88,21 @@ final class UpstreamClient implements Channel.Sink {
   static final Duration ROUND_PAUSE = Duration.ofMillis(250);
   /** Pages of one list, and the entries kept in all. */
   static final int MAX_PAGES = 100;
+  /**
+   * What the entries kept of one list may come to over all its pages, as JSON: no more than one message may carry
+   * ({@link Session#MAX_MESSAGE}). Real servers list a few hundred kilobytes; the entries after the bound are left out.
+   */
+  static final long MAX_LIST_BYTES = Session.MAX_MESSAGE;
+  /** The server's requests answered at a time; one beyond them gets no answer, and the log says so once. */
+  static final int MAX_ANSWERS = 16;
+  /** The longest string id of a server's request that gets an answer, which repeats it. */
+  static final int MAX_ID = 256;
+  /** The list changes and resource updates that may wait for the session's thread before the session ends. */
+  static final int MAX_QUEUED = 1_024;
+  /** The longest URI of a resource update that is passed on: what a resource of the server may have. */
+  static final int MAX_URI = 2_048;
+  /** What is kept of a log message's text (the server's log keeps a line of 4,000 characters). */
+  static final int MAX_LOG = 4_000;
 
   /** The methods whose name, URI or task goes into {@code Mcp-Name}, and the field it comes from. */
   private static final Map<String, String> NAMED = Map.of("tools/call", "name", "prompts/get", "name",
@@ -90,7 +116,10 @@ final class UpstreamClient implements Channel.Sink {
     }
   }
 
-  /** What happens on the session that isn't an answer; called on a thread of its own, in order. */
+  /**
+   * What happens on the session that isn't an answer. List changes and updates are called on a thread of its own, in
+   * order; log messages and notes on the thread that read them, so they must be quick.
+   */
   interface Events {
     default void toolsChanged() {}
 
@@ -100,8 +129,14 @@ final class UpstreamClient implements Channel.Sink {
 
     default void resourceUpdated(String uri) {}
 
-    /** A {@code notifications/message} of the server ({@code level}, {@code logger}, {@code data}). */
+    /**
+     * A {@code notifications/message} of the server: its {@code level} and {@code logger} as strings, and its
+     * {@code data} as text of at most {@link #MAX_LOG} characters.
+     */
     default void log(ObjectNode params) {}
+
+    /** What the client itself has to say about the session (a list cut short, the session given up). */
+    default void note(String text) {}
   }
 
   /**
@@ -139,8 +174,14 @@ final class UpstreamClient implements Channel.Sink {
   private final Map<String, Pending> byToken = new ConcurrentHashMap<>();
   private final Map<String, CompletableFuture<Void>> taskWaits = new ConcurrentHashMap<>();
   private final Set<Long> listens = ConcurrentHashMap.newKeySet();
-  private final ExecutorService dispatch = Executors.newSingleThreadExecutor(Thread.ofVirtual()
-      .name("mcp-events-", 0).factory());
+  private final ThreadPoolExecutor dispatch = new ThreadPoolExecutor(1, 1, 30L, TimeUnit.SECONDS,
+      new ArrayBlockingQueue<>(MAX_QUEUED), Thread.ofVirtual().name("mcp-events-", 0).factory());
+  /** The kinds of list change waiting for the session's thread: another of the same kind meanwhile adds nothing. */
+  private final Set<String> changesWaiting = ConcurrentHashMap.newKeySet();
+  /** The resources whose update waits for the session's thread: another update of one of them adds nothing. */
+  private final Set<String> updatesWaiting = ConcurrentHashMap.newKeySet();
+  private final Semaphore answers = new Semaphore(MAX_ANSWERS);
+  private final AtomicBoolean answersFull = new AtomicBoolean();
   private volatile Era era;
   private volatile String version;
   private volatile Hello hello;
@@ -172,6 +213,8 @@ final class UpstreamClient implements Channel.Sink {
     this.clientInfo = clientInfo;
     this.server = server;
     this.events = events;
+    // The session's thread ends when it has had nothing to do for a while, even if nobody closes the client.
+    dispatch.allowCoreThreadTimeOut(true);
   }
 
   Hello hello() {
@@ -463,13 +506,16 @@ final class UpstreamClient implements Channel.Sink {
   }
 
   /**
-   * Every page of a list ({@code tools/list} → {@code tools}), at most {@code max} entries.
+   * Every page of a list ({@code tools/list} → {@code tools}), at most {@code max} entries and
+   * {@link #MAX_LIST_BYTES} of them in all: an entry that would go beyond that is left out with every one after it,
+   * and the session's log says so.
    *
    * @throws ConnectorException when a page fails: a list cut short isn't the server's list
    */
   List<ObjectNode> list(String method, String field, Duration budget, int max) throws ConnectorException {
     long started = System.nanoTime();
     List<ObjectNode> out = new ArrayList<>();
+    long bytes = 0;
     String cursor = null;
     for (int page = 0; page < MAX_PAGES; page++) {
       ObjectNode params = JsonNodeFactory.instance.objectNode();
@@ -478,9 +524,16 @@ final class UpstreamClient implements Channel.Sink {
       }
       ObjectNode r = request(method, params, Ask.within(budget.minusNanos(System.nanoTime() - started)));
       for (JsonNode item : r.path(field)) {
-        if (item instanceof ObjectNode o && out.size() < max) {
-          out.add(o);
+        if (!(item instanceof ObjectNode o) || out.size() >= max) {
+          continue;
         }
+        bytes += Texts.JSON.writeValueAsBytes(o).length;
+        if (bytes > MAX_LIST_BYTES) {
+          events.note(Texts.clean(method, 60, false) + ": " + server + " listed more than "
+              + (MAX_LIST_BYTES / (1024 * 1024)) + " MB; GateRook keeps the first " + out.size() + " entries.");
+          return out;
+        }
+        out.add(o);
       }
       String next = Texts.str(r.get("nextCursor"), null);
       if (next == null || next.isEmpty() || next.equals(cursor) || out.size() >= max) {
@@ -791,6 +844,10 @@ final class UpstreamClient implements Channel.Sink {
 
   @Override
   public void message(ObjectNode m, Long stream) {
+    if (closed != null) {
+      // A session that ended (or was given up) answers and hears nothing more.
+      return;
+    }
     if (Rpc.isResponse(m)) {
       Long id = Rpc.id(m);
       Pending p = id == null ? null : pending.get(id);
@@ -830,15 +887,23 @@ final class UpstreamClient implements Channel.Sink {
         if (p != null && p.watch.log() != null) {
           p.watch.log().accept(params);
         }
-        later(() -> events.log(params));
+        // Here, cut to what the log keeps: however much a server logs, nothing of it waits in memory.
+        try {
+          events.log(logEntry(params));
+        } catch (RuntimeException e) {
+          // A log that can't be written ends nothing of the session.
+        }
       }
-      case "notifications/tools/list_changed" -> later(events::toolsChanged);
-      case "notifications/resources/list_changed" -> later(events::resourcesChanged);
-      case "notifications/prompts/list_changed" -> later(events::promptsChanged);
+      case "notifications/tools/list_changed" -> once("tools", events::toolsChanged);
+      case "notifications/resources/list_changed" -> once("resources", events::resourcesChanged);
+      case "notifications/prompts/list_changed" -> once("prompts", events::promptsChanged);
       case "notifications/resources/updated" -> {
         String uri = Texts.str(params.get("uri"), null);
-        if (uri != null) {
-          later(() -> events.resourceUpdated(uri));
+        if (uri != null && uri.length() <= MAX_URI && updatesWaiting.add(uri)) {
+          later(() -> {
+            updatesWaiting.remove(uri);
+            events.resourceUpdated(uri);
+          });
         }
       }
       case "notifications/tasks/status" -> {
@@ -903,16 +968,54 @@ final class UpstreamClient implements Channel.Sink {
   /**
    * A request of the server: {@code ping} is answered; anything else needs a capability the gateway doesn't declare
    * (roots, sampling, elicitation), so it is "method not found" — never something the gateway asks a person or a model.
+   * At most {@link #MAX_ANSWERS} answers are on their way at a time (over HTTP, until the server took the POST); a
+   * request beyond them, or one whose id isn't a number or a string of at most {@link #MAX_ID} characters, gets none.
    */
   private void answer(ObjectNode request) {
+    JsonNode id = request.get("id");
+    if (!id.isNumber() && !(id.isString() && id.asString().length() <= MAX_ID)) {
+      return;
+    }
+    if (!answers.tryAcquire()) {
+      if (answersFull.compareAndSet(false, true)) {
+        events.note(server + " sent more than " + MAX_ANSWERS + " requests at once; GateRook answers that many at a "
+            + "time and left the others unanswered.");
+      }
+      return;
+    }
     String method = request.get("method").asString();
-    ObjectNode reply = "ping".equals(method) ? Rpc.result(request.get("id"), JsonNodeFactory.instance.objectNode())
-        : Rpc.error(request.get("id"), Rpc.METHOD_NOT_FOUND, "GateRook offers no " + Texts.clean(method, 60, false)
+    ObjectNode reply = "ping".equals(method) ? Rpc.result(id, JsonNodeFactory.instance.objectNode())
+        : Rpc.error(id, Rpc.METHOD_NOT_FOUND, "GateRook offers no " + Texts.clean(method, 60, false)
             + ": it declares no client capabilities.");
-    channel.send(reply, headers("", JsonNodeFactory.instance.objectNode()));
+    Channel.Exchange ex;
+    try {
+      ex = channel.send(reply, headers("", JsonNodeFactory.instance.objectNode()));
+    } catch (RuntimeException e) {
+      answers.release();
+      return;
+    }
+    ex.done().whenComplete((v, e) -> answers.release());
   }
 
+  /** {@link #later} for a list change of {@code kind}, unless one of that kind waits already. */
+  private void once(String kind, Runnable r) {
+    if (changesWaiting.add(kind)) {
+      later(() -> {
+        // Cleared first: a change that comes while this one is handled is handled after it.
+        changesWaiting.remove(kind);
+        r.run();
+      });
+    }
+  }
+
+  /**
+   * Runs {@code r} on the session's thread. A queue of {@link #MAX_QUEUED} that is full means the server sends faster
+   * than its notifications are handled: the session is given up.
+   */
   private void later(Runnable r) {
+    if (dispatch.isShutdown()) {
+      return;
+    }
     try {
       dispatch.execute(() -> {
         try {
@@ -921,9 +1024,48 @@ final class UpstreamClient implements Channel.Sink {
           // A listener's failure ends nothing of the session.
         }
       });
-    } catch (java.util.concurrent.RejectedExecutionException e) {
-      // Closed.
+    } catch (RejectedExecutionException e) {
+      if (!dispatch.isShutdown()) {
+        abandon(server + " sent more than " + MAX_QUEUED + " list changes and resource updates faster than "
+            + "GateRook could take them in.");
+      }
     }
+  }
+
+  /**
+   * Gives the session up because of what the server did: every request waiting fails with {@code reason}, the
+   * session's log says it, and the channel ends ({@link Channel#abandon}: a process is stopped, so its supervisor
+   * records the reason as its crash; an HTTP session closes, and the next call opens another).
+   */
+  void abandon(String reason) {
+    if (closed != null) {
+      return;
+    }
+    closed(reason);
+    // What waits for the session's thread is dropped, and a change it is handling now stops.
+    dispatch.shutdownNow();
+    events.note("GateRook ended the session: " + reason);
+    // Not on the reading thread: closing an HTTP session sends a DELETE.
+    Thread.ofVirtual().name("mcp-abandon").start(() -> channel.abandon(reason));
+  }
+
+  /**
+   * The {@code params} of a log message as the session's log takes them: {@code level} and {@code logger} as short
+   * strings, {@code data} as text of at most {@link #MAX_LOG} characters.
+   */
+  static ObjectNode logEntry(ObjectNode params) {
+    ObjectNode out = JsonNodeFactory.instance.objectNode();
+    out.put("level", Texts.clean(Texts.str(params.get("level"), "info"), 20, false));
+    String logger = Texts.str(params.get("logger"), null);
+    if (logger != null) {
+      out.put("logger", Texts.clean(logger, 200, false));
+    }
+    JsonNode data = params.get("data");
+    if (data != null && !data.isNull()) {
+      String text = data.isString() ? data.asString() : data.toString();
+      out.put("data", text.length() > MAX_LOG ? text.substring(0, MAX_LOG) + "…" : text);
+    }
+    return out;
   }
 
   // ── The envelope and the headers ────────────────────────────────────────────────────────────────────────────
