@@ -17,7 +17,8 @@ import net.sf.jsqlparser.parser.CCJSqlParserUtil;
  *
  * <p>So the parser reads this text instead of the statement as sent: comments become one space, and a string the
  * parser would not tokenize exactly as the lexer does becomes a neutral literal; only the tokens both read the same
- * way are passed on as they are. What cannot be rebuilt, any comment marker still in the code, and a start of a
+ * way are passed on as they are. What cannot be rebuilt, any comment marker still in the code, a bracketed SQL Server
+ * name with an escaped closing bracket (the parser's lexer ends it at the first bracket), and a start of a
  * literal that the parser's lexer would run past the server's (a {@code $$} outside PostgreSQL, a {@code q} before a
  * quote) make the text "not analyzable": the statement is treated like one the parser gave up on. The same goes for
  * text the parser's own lexer can't read to the end: the parser may then stop quietly where the error is, and every
@@ -79,7 +80,12 @@ final class SqlParserText {
         case EXECUTABLE_COMMENT -> {
           return null;
         }
-        case QUOTED_IDENTIFIER -> text.append(value);
+        case QUOTED_IDENTIFIER -> {
+          if (syntax == SqlSyntax.SQLSERVER && escapedBracket(value)) {
+            return null;
+          }
+          text.append(value);
+        }
         case STRING -> {
           String literal = alternativeQuote(text, value) ? null : literal(sql, segment, value, syntax);
           if (literal == null) {
@@ -164,6 +170,15 @@ final class SqlParserText {
     int n = before.length();
     return n > 0 && (before.charAt(n - 1) == 'q' || before.charAt(n - 1) == 'Q') && string.length() > 1
         && string.charAt(0) == '\'' && ALTERNATIVE_QUOTE_DELIMITERS.indexOf(string.charAt(1)) >= 0;
+  }
+
+  /**
+   * Whether a bracketed SQL Server name holds an escaped closing bracket, {@code [a]]b]}. T-SQL reads one name; the
+   * parser's lexer ends the name at the first closing bracket and reads the rest as code. A doubled quote in a
+   * {@code "…"} name or a doubled backtick is read as one name by both lexers.
+   */
+  private static boolean escapedBracket(String name) {
+    return name.charAt(0) == '[' && name.indexOf(']') < name.length() - 1;
   }
 
   private static boolean hasMarker(String code, SqlSyntax syntax) {

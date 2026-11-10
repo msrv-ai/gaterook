@@ -397,3 +397,10 @@ pg | query | dev | SELECT JSON_ARRAYAGG(id ORDER BY (SELECT id FROM secrets)) FR
 pg | query | dev | SELECT JSON_OBJECTAGG(id : (SELECT id FROM secrets)) FROM orders | DENY table-not-allowed | allowlist=public.orders
 pg | query | dev | SELECT id FROM orders WHERE note LIKE 'a%' ESCAPE (SELECT note FROM secrets LIMIT 1) | DENY table-not-allowed | allowlist=public.orders
 my | query | dev | SELECT id FROM orders WHERE note LIKE 'a%' ESCAPE (SELECT note FROM secrets LIMIT 1) | DENY table-not-allowed | allowlist=app.orders
+pg | query | dev | SELECT JSON_OBJECTAGG((SELECT k FROM secrets) : id) FROM orders | DENY table-not-allowed | allowlist=public.orders
+pg | query | dev | SELECT JSON_ARRAYAGG(id) OVER (PARTITION BY (SELECT id FROM secrets)) FROM orders | DENY table-not-allowed | allowlist=public.orders
+pg | query | dev | SELECT JSON_ARRAYAGG(id) OVER (ORDER BY (SELECT id FROM secrets)) FROM orders | DENY table-not-allowed | allowlist=public.orders
+pg | query | dev | SELECT tags[(SELECT 1 FROM secrets)] FROM orders | DENY table-not-allowed | allowlist=public.orders
+#
+# A SHOW has no table list: a subquery in its condition can't pass a restricted allowlist.
+my | query | dev | SHOW TABLES WHERE Tables_in_app IN (SELECT name FROM secrets) | DENY table-not-allowed | allowlist=app.orders

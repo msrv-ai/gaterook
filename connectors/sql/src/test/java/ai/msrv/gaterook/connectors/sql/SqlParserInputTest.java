@@ -166,6 +166,24 @@ class SqlParserInputTest {
     assertThat(sees(quoted)).isTrue();
   }
 
+  /** A doubled quote or backtick inside a quoted name is read the same way by both lexers: the name stays analyzed. */
+  static Stream<Arguments> namesWithADoubledQuote() {
+    return Stream.of(
+        Arguments.of(SqlSyntax.POSTGRES, "SELECT \"a\"\"b\" FROM orders WHERE id IN (SELECT id FROM hidden_table)"),
+        Arguments.of(SqlSyntax.ORACLE, "SELECT \"a\"\"b\" FROM orders WHERE id IN (SELECT id FROM hidden_table)"),
+        Arguments.of(SqlSyntax.SQLSERVER, "SELECT \"a\"\"b\" FROM orders WHERE id IN (SELECT id FROM hidden_table)"),
+        Arguments.of(SqlSyntax.MYSQL, "SELECT `a``b` FROM orders WHERE id IN (SELECT id FROM hidden_table)"));
+  }
+
+  @ParameterizedTest(name = "{0}: {1}")
+  @MethodSource("namesWithADoubledQuote")
+  void aQuotedNameWithADoubledQuoteStaysAnalyzed(SqlSyntax syntax, String sql) {
+    Analysis a = SqlClassifier.analyze(sql, syntax);
+
+    assertThat(a.kind()).as("%s → %s", sql, a).isEqualTo(Kind.READ);
+    assertThat(sees(a)).as(sql).isTrue();
+  }
+
   @Test
   void aCommentOrALiteralNeverChangesWhereStatementsEnd() {
     assertThat(SqlClassifier.analyze("SELECT 1 /* ; */ ; SELECT ';'", SqlSyntax.MYSQL).count()).isEqualTo(2);

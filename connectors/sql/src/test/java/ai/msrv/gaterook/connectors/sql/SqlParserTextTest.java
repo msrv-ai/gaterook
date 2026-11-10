@@ -58,6 +58,9 @@ class SqlParserTextTest {
       SQLSERVER | SELECT 1 // x
       MYSQL     | SELECT 1--1
       MYSQL     | SELECT 1 # note
+      MYSQL     | SELECT 1 /* a /* b */ , 2 */
+      ORACLE    | SELECT 1 /* a /* b */ , 2 */ FROM dual
+      SQLSERVER | SELECT [a]]b] FROM t
       POSTGRES  | SELECT $tag$x$tag$
       POSTGRES  | SELECT E'\\''
       POSTGRES  | SELECT E'a\\\\\\''
@@ -89,6 +92,15 @@ class SqlParserTextTest {
     assertThat(text("SELECT 1 FROM t \" \" JOIN u", SqlSyntax.POSTGRES)).isEqualTo("SELECT 1 FROM t \" \" JOIN u");
     assertThat(text("SELECT 1 FROM t `a` JOIN u", SqlSyntax.MYSQL)).isEqualTo("SELECT 1 FROM t `a` JOIN u");
     assertThat(text("SELECT 1 FROM t [a b] JOIN u", SqlSyntax.SQLSERVER)).isEqualTo("SELECT 1 FROM t [a b] JOIN u");
+  }
+
+  @Test
+  void aQuotedNameWithADoubledQuoteIsPassedOn() {
+    // Both lexers read a doubled quote or backtick inside the name; only an escaped bracket ends the name early.
+    assertThat(text("SELECT \"a\"\"b\" FROM t", SqlSyntax.POSTGRES)).isEqualTo("SELECT \"a\"\"b\" FROM t");
+    assertThat(text("SELECT \"a\"\"b\" FROM t", SqlSyntax.ORACLE)).isEqualTo("SELECT \"a\"\"b\" FROM t");
+    assertThat(text("SELECT \"a\"\"b\" FROM t", SqlSyntax.SQLSERVER)).isEqualTo("SELECT \"a\"\"b\" FROM t");
+    assertThat(text("SELECT `a``b` FROM t", SqlSyntax.MYSQL)).isEqualTo("SELECT `a``b` FROM t");
   }
 
   @Test

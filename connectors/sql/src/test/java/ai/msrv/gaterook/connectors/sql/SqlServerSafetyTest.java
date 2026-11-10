@@ -48,7 +48,9 @@ class SqlServerSafetyTest {
       "SELECT 1 FROM dbo.orders \"\n\" RECEIVE TOP(1) * FROM dbo.queue",
       "SELECT 1 FROM dbo.orders [\n] RECEIVE TOP(1) * FROM dbo.queue",
       // A dot after a number is not a name separator.
-      "SELECT 1. DELETE FROM dbo.orders"
+      "SELECT 1. DELETE FROM dbo.orders",
+      // A reserved statement word among the common table expressions is not a name there.
+      "WITH a AS (SELECT 1 AS x), truncate AS (SELECT 2 AS y) SELECT x FROM a"
   })
   void aSecondStatementWithoutASeparatorIsNotARead(String sql) {
     assertThat(SqlClassifier.analyze(sql, DIALECT).kind()).as(sql).isEqualTo(SqlClassifier.Kind.UNPARSED);
@@ -70,6 +72,7 @@ class SqlServerSafetyTest {
           + "LEFT JOIN dbo.items i ON i.order_id = o.id WHERE o.id BETWEEN 1 AND 5 AND c.name LIKE N'a%' "
           + "ORDER BY o.id DESC",
       "SELECT id FROM dbo.orders FOR JSON AUTO",
+      "SELECT id FROM dbo.orders FOR BROWSE",
       "SELECT id FROM dbo.orders OPTION (RECOMPILE)",
       "SELECT (SELECT 1) AS x",
       "SELECT CURRENT_TIMESTAMP, COALESCE(NULL, 1), NULLIF(1, 2), IIF(1 = 1, 'a', 'b')",
@@ -100,6 +103,49 @@ class SqlServerSafetyTest {
     ObjectNode policy = Fixtures.object();
     policy.putArray("allowlist").add("dbo.Orders");
     assertThat(query(sql, policy, null).ruleId()).as(sql).isEqualTo("dev.sql.table-not-allowed");
+  }
+
+  /** Statements the parser reads as reads but that are not a SELECT, such as DESCRIBE, are not reads on SQL Server. */
+  @ParameterizedTest
+  @ValueSource(strings = {"DESCRIBE dbo.orders", "EXPLAIN SELECT 1"})
+  void onlyASelectIsARead(String sql) {
+    SqlClassifier.Analysis a = SqlClassifier.analyze(sql, DIALECT);
+
+    assertThat(a.kind()).as(sql).isEqualTo(SqlClassifier.Kind.UNPARSED);
+    assertThat(a.problem()).as(sql).contains("only a SELECT");
+  }
+
+  /**
+   * A bracketed name with an escaped closing bracket is one name to T-SQL, while the parser's lexer ends it at the
+   * first bracket: such text is not analyzed. Other bracketed names are.
+   */
+  @Test
+  void aBracketedNameWithAnEscapedBracketIsNotAnalyzed() {
+    assertThat(SqlClassifier.analyze("SELECT [a]]b] FROM dbo.orders", DIALECT).kind())
+        .isEqualTo(SqlClassifier.Kind.UNPARSED);
+    assertThat(query("SELECT [a]]b] FROM dbo.orders", null, null).ruleId()).isEqualTo("dev.sql.unparsed");
+    assertThat(query("SELECT [a b] FROM [dbo].[orders]", null, null).kind()).isEqualTo(Classification.Kind.READ);
+  }
+
+  /**
+   * A change whose SELECT the table walk never reached is not analyzed: with a restricted allowlist sql_execute refuses
+   * it, where the tables the walk did list would pass.
+   */
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "INSERT INTO dbo.Orders (id) SELECT id FROM dbo.Orders FOR SYSTEM_TIME AS OF (SELECT MAX(changed) FROM dbo.Secrets)",
+      "UPDATE dbo.Orders SET id = 1 FROM dbo.Orders FOR SYSTEM_TIME AS OF (SELECT MAX(changed) FROM dbo.Secrets)",
+      "DELETE FROM dbo.Orders WHERE id IN (SELECT id FROM dbo.Orders FOR SYSTEM_TIME AS OF "
+          + "(SELECT MAX(changed) FROM dbo.Secrets))",
+      "MERGE INTO dbo.Orders o USING (SELECT id FROM dbo.Orders FOR SYSTEM_TIME AS OF "
+          + "(SELECT MAX(changed) FROM dbo.Secrets)) s ON o.id = s.id WHEN MATCHED THEN DELETE",
+      "CREATE TABLE dbo.Copied AS SELECT id FROM dbo.Orders FOR SYSTEM_TIME AS OF (SELECT MAX(changed) FROM dbo.Secrets)",
+      "CREATE VIEW dbo.Recent AS SELECT id FROM dbo.Orders FOR SYSTEM_TIME AS OF (SELECT MAX(changed) FROM dbo.Secrets)"
+  })
+  void aChangeWithASelectTheWalkNeverReachedIsNotAccepted(String sql) {
+    ObjectNode policy = Fixtures.object();
+    policy.putArray("allowlist").add("dbo.Orders").add("dbo.Copied").add("dbo.Recent");
+    assertThat(execute(sql, policy, null).ruleId()).as(sql).isEqualTo("dev.sql.unparsed");
   }
 
   @ParameterizedTest

@@ -447,7 +447,14 @@ final class SqlClassifier {
     return null;
   }
 
-  /** Statements whose SELECT keywords are all queries: others use the word for privileges, policies and rules. */
+  /**
+   * Statements whose SELECT keywords are all queries: others use the word for privileges, policies and rules.
+   *
+   * <p>The reads left out need no count: {@code SHOW}, {@code SHOW TABLES} and {@code SHOW COLUMNS} have no table list
+   * (the walk can't list them, or {@link #checked} drops it), so a subquery in their {@code WHERE} or {@code LIKE}
+   * fails a restricted allowlist and the database selection as a whole; {@code DESCRIBE} holds a table name and no
+   * expression. {@code VALUES} and {@code TABLE} are SELECTs to the parser.
+   */
   private static boolean queryBearing(Statement st) {
     return st instanceof Select || st instanceof Insert || st instanceof Update || st instanceof Delete
         || st instanceof Merge || st instanceof Upsert || st instanceof ExplainStatement

@@ -47,8 +47,8 @@ final class SqlServerBatch {
    * The reserved words a single SELECT uses outside parentheses. {@code SELECT}, {@code WITH}, {@code FETCH},
    * {@code CASE} and {@code END} are in the list and checked further where they stand.
    */
-  private static final Set<String> QUERY_WORDS = Set.of("ALL", "AND", "ANY", "AS", "ASC", "BETWEEN", "BY", "CASE",
-      "COALESCE", "COLLATE", "CONTAINS", "CONTAINSTABLE", "CONVERT", "CROSS", "CURRENT_DATE", "CURRENT_TIME",
+  private static final Set<String> QUERY_WORDS = Set.of("ALL", "AND", "ANY", "AS", "ASC", "BETWEEN", "BROWSE", "BY",
+      "CASE", "COALESCE", "COLLATE", "CONTAINS", "CONTAINSTABLE", "CONVERT", "CROSS", "CURRENT_DATE", "CURRENT_TIME",
       "CURRENT_TIMESTAMP", "CURRENT_USER", "DESC", "DISTINCT", "ELSE", "END", "ESCAPE", "EXCEPT", "EXISTS", "FETCH",
       "FOR", "FREETEXT", "FREETEXTTABLE", "FROM", "FULL", "GROUP", "HAVING", "IDENTITYCOL", "IN", "INNER",
       "INTERSECT", "IS", "JOIN", "LEFT", "LIKE", "NOT", "NULL", "NULLIF", "OF", "ON", "OPTION", "OR", "ORDER", "OUTER",
