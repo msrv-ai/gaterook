@@ -65,9 +65,10 @@ class SecretRulesWorkTest {
 
   @Test
   void rulesAfterASpentBudgetMaskTheWindowsOfTheirKeywords() {
-    // bearer-token spends the budget; url-credentials runs after it and must not skip its password.
-    String text = repeat("token=abcdefghijklmnopqrstuvwxyz-", 1 << 20)
-        + " dsn postgres://app:s3cr3t-pw@db.dev.internal/app";
+    // bearer-token spends the budget; url-credentials and kv-password run after it and must not skip their keywords.
+    // The DSN comes before the chain, outside every window of bearer-token: only those two can cover its password.
+    String text = "dsn postgres://app:s3cr3t-pw@db.dev.internal/app "
+        + repeat("token=abcdefghijklmnopqrstuvwxyz-", 1 << 20);
     Work work = new Work(text, 100_000);
     MaskCounter counter = new MaskCounter();
 
@@ -76,6 +77,25 @@ class SecretRulesWorkTest {
     assertThat(work.spent()).isTrue();
     assertThat(out).doesNotContain("s3cr3t-pw").doesNotContain("abcdefghijklmnopqrstuvwxyz");
     assertThat(counter.byRule()).containsKey("work-limit");
+  }
+
+  /** Texts that only the last rules (named by their id) inspect: no window of another rule covers their secret. */
+  static Stream<Arguments> textsOfTheLastRules() {
+    return Stream.of(
+        Arguments.of("sql-password", "GRANT ALL ON *.* TO app IDENTIFIED BY 'sup3r-s3cret-pw'", "sup3r-s3cret-pw"),
+        Arguments.of("cli-password", "redis-cli -h cache -a hunter2-redis-pw ping", "hunter2-redis-pw"));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("textsOfTheLastRules")
+  void noBudgetLetsASecretThrough(String rule, String text, String secret) {
+    long needed = used(text);
+    // From nothing to exactly enough, so that the budget runs out before the match attempt of the keyword, inside it
+    // and just before its end: the keyword's own window is withheld whole, never passed unchecked.
+    for (long budget = 0; budget <= needed; budget++) {
+      String out = SecretRules.apply(text, MASK, new MaskCounter(), new Work(text, budget));
+      assertThat(out).as("budget %d of %d", budget, needed).doesNotContain(secret);
+    }
   }
 
   @Test
