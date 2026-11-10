@@ -248,8 +248,16 @@ final class GatewayStdioTransport implements Channel {
     }
   }
 
+  /**
+   * Stops the process for {@code reason}. The first reason stays: stopping the process breaks its pipe, and the writer
+   * that was waiting on it then fails too, with a reason that says less.
+   */
   private void fail(String reason) {
-    failure = reason;
+    synchronized (this) {
+      if (failure == null) {
+        failure = reason;
+      }
+    }
     Process p = process;
     if (p != null) {
       // A protocol the gateway can't trust any more: the supervisor sees the exit and reports the reason.

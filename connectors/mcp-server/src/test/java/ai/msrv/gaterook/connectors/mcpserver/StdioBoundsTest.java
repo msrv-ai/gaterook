@@ -50,6 +50,24 @@ class StdioBoundsTest {
 
   @Test
   @DisabledOnOs(OS.WINDOWS)
+  void theFirstReasonAServerIsStoppedForStays(@TempDir Path dir) throws Exception {
+    // Stopping the process breaks its pipe, so the writer that waited on it fails next with a reason that says less.
+    GatewayStdioTransport t = new GatewayStdioTransport(List.of("/bin/sleep", "30"), Map.of(), dir,
+        Session.MAX_MESSAGE, line -> {}, s -> s);
+    Process p = t.start();
+    try {
+      t.abandon("fake-server sent too much");
+      t.abandon("The server stopped reading its input");
+
+      assertThat(p.waitFor(10, TimeUnit.SECONDS)).isTrue();
+      assertThat(t.failure()).isEqualTo("fake-server sent too much");
+    } finally {
+      p.destroyForcibly();
+    }
+  }
+
+  @Test
+  @DisabledOnOs(OS.WINDOWS)
   void aSessionGivenUpStopsItsProcessWithTheReason(@TempDir Path dir) throws Exception {
     GatewayStdioTransport t = new GatewayStdioTransport(List.of("/bin/sleep", "30"), Map.of(), dir,
         Session.MAX_MESSAGE, line -> {}, s -> s);
