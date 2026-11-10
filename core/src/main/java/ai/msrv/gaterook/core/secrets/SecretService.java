@@ -568,9 +568,19 @@ public class SecretService {
 
   /**
    * Crypto-shreds previous versions whose 7 days are over; run after each replace and by the secrets module's hourly
-   * job (from start), so a core left running from the tray doesn't keep them.
+   * job (from start), so a core left running from the tray doesn't keep them. Inside a caller's transaction the
+   * shredding is part of it and the WAL checkpoint follows its commit.
    */
   public int shredExpiredPrevious() {
+    int shredded = shredExpired();
+    if (shredded > 0) {
+      checkpoint.truncateWhenCommitted();
+      log.info("{} previous secret version(s) destroyed after {} days", shredded, PREVIOUS_KEPT.toDays());
+    }
+    return shredded;
+  }
+
+  private int shredExpired() {
     Instant cutoff = clock.instant().minus(PREVIOUS_KEPT);
     Integer shredded = writeTx.execute(s -> {
       List<SecretVersionEntity> expired = versions.findByStateAndReplacedBefore(SecretVersionState.PREVIOUS, cutoff);
@@ -578,10 +588,6 @@ public class SecretService {
       expired.forEach(v -> v.destroy(now));
       return expired.size();
     });
-    if (shredded != null && shredded > 0) {
-      checkpoint.truncate();
-      log.info("{} previous secret version(s) destroyed after {} days", shredded, PREVIOUS_KEPT.toDays());
-    }
     return shredded == null ? 0 : shredded;
   }
 
@@ -931,15 +937,22 @@ public class SecretService {
     publisher.publishEvent(new SecretVersionChanged(secret.getId(), owner(secret), secret.getField(), number));
   }
 
-  /** After a committed Replace: what the promotion left behind is cleaned up; failures don't undo the Replace. */
+  /**
+   * After a Replace: what the promotion left behind is cleaned up; failures don't undo the Replace. A caller that
+   * replaced inside its own transaction (Settings › Tunnel, a store's sign-in) still holds the writer's only
+   * connection, so the WAL checkpoint waits for that transaction's commit instead of for the connection.
+   */
   private void afterChange() {
     try {
-      shredExpiredPrevious();
+      int shredded = shredExpired();
+      if (shredded > 0) {
+        log.info("{} previous secret version(s) destroyed after {} days", shredded, PREVIOUS_KEPT.toDays());
+      }
     } catch (RuntimeException e) {
-      // The replace has committed; the hourly job shreds them instead.
+      // The replace has committed (or commits with its caller); the hourly job shreds them instead.
       log.debug("Previous secret versions not cleaned up: {}", e.getMessage());
     }
-    checkpoint.truncate();
+    checkpoint.truncateWhenCommitted();
   }
 
   private int nextVersion(SecretEntity secret) {

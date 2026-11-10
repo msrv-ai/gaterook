@@ -336,6 +336,43 @@ class SecretsIT {
     assertThat(resolve(secrets, "shred-a", "/credentials/password")).isEqualTo("pw-a-2-xyz");
   }
 
+  /**
+   * Settings › Tunnel and a store's sign-in replace a secret inside their own transaction, which holds the writer's
+   * only connection until it commits. The WAL checkpoint after the shred used to wait for that connection for the
+   * pool's 10 seconds and give up; it now follows the commit, and the shredded pages still leave the WAL.
+   */
+  @Test
+  void aReplaceInsideTheCallersTransactionNeitherWaitsForTheWriterNorSkipsTheCheckpoint() throws Exception {
+    Path home = TestGateway.newHome("secrets-replace-in-tx");
+    ConfigurableApplicationContext core = start(home);
+    SecretService secrets = core.getBean(SecretService.class);
+    SecretInfo first = secrets.createLocal(SecretOwner.connection("tx-a"), "/credentials/password", "tx-a/password",
+        "pw-tx-a-1".toCharArray());
+    SecretInfo second = secrets.createLocal(SecretOwner.connection("tx-b"), "/credentials/password", "tx-b/password",
+        "pw-tx-b-1".toCharArray());
+    secrets.replace(first.id(), "pw-tx-a-2".toCharArray(), false, null);
+    TransactionTemplate tx = new TransactionTemplate(core.getBean(PlatformTransactionManager.class));
+    // Eight days later: the replace below also shreds first's expired previous version.
+    tx.executeWithoutResult(s -> core.getBean(SecretRepository.class).findById(first.id()).orElseThrow()
+        .setRotatedAt(Instant.now().minus(Duration.ofDays(8))));
+
+    long started = System.nanoTime();
+    tx.executeWithoutResult(s -> secrets.replace(second.id(), "pw-tx-b-2".toCharArray(), false, "from settings"));
+    Duration took = Duration.ofNanos(System.nanoTime() - started);
+
+    assertThat(took).as("the writer pool's connection timeout is 10 s").isLessThan(Duration.ofSeconds(5));
+    // Before any other read: a read transaction open at that moment would leave the checkpoint incomplete.
+    Path wal = home.resolve("gateway.db-wal");
+    long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
+    while (Files.size(wal) > 0 && System.nanoTime() < deadline) {
+      Thread.sleep(10);
+    }
+    assertThat(Files.size(wal)).as("the checkpoint after the commit truncated the WAL").isZero();
+    SecretVersionRepository versions = core.getBean(SecretVersionRepository.class);
+    assertThat(versions.findBySecretIdAndSecretVersion(first.id(), 1).orElseThrow().getWrappedDek()).isNull();
+    assertThat(resolve(secrets, "tx-b", "/credentials/password")).isEqualTo("pw-tx-b-2");
+  }
+
   @Test
   void lockedModeAnswersOnlyTheMasterKeyAndRestoreUnlocksWithoutRestart() throws Exception {
     Path home = TestGateway.newHome("secrets-locked");
