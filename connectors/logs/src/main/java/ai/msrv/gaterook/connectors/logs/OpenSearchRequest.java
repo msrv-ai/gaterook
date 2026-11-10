@@ -235,7 +235,7 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
   /**
    * Whether the HTTP client writes {@code target} into the request line byte for byte: printable ASCII, no space. It
    * writes every other character as {@code ?} (or one raw byte), which would make the server act on another path
-   * than the one that was classified, shown and approved.
+   * than the one that was checked and classified, and for a change shown and approved.
    */
   static boolean wireSafe(String target) {
     return target != null && !target.isEmpty() && target.chars().allMatch(c -> c >= 0x21 && c <= 0x7E);
