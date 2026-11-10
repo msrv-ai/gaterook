@@ -19,9 +19,19 @@ import org.postgresql.util.ServerErrorMessage;
  *
  * <p>Only an unreachable server counts for the connection's circuit breaker; a statement that ran into its own timeout
  * is the statement's problem ({@code RESOURCE_ERROR}), and after a failed change the transaction was rolled back, so
- * its outcome is known.
+ * its outcome is known. What "unreachable" is depends on the {@link Phase}: a refused login or a database that doesn't
+ * exist stop every call only while a session is being opened.
  */
 final class SqlErrors {
+
+  /**
+   * Where a failure happened. {@link #CONNECT}: on the way to a session, where a refused login or a database that
+   * doesn't exist means the server can't be used. {@link #STATEMENT}: in a statement of a session that was open,
+   * where the same codes are that statement's own error (MySQL's "No database selected" and PostgreSQL's
+   * {@code has_database_privilege} of an unknown database are SQLSTATE 3D000, {@code SHOW TABLES FROM} an unknown
+   * database is MySQL error 1049), so only a session the server dropped or a server that went away counts.
+   */
+  enum Phase { CONNECT, STATEMENT }
 
   private SqlErrors() {}
 
@@ -30,7 +40,14 @@ final class SqlErrors {
     return of(e, mysql ? SqlSyntax.MYSQL : SqlSyntax.POSTGRES, connection, env, timeout);
   }
 
+  /** The failure of a statement of an open session; see {@link #of(SQLException, SqlSyntax, Phase, String, String, Duration)}. */
   static ConnectorException of(SQLException e, SqlSyntax syntax, String connection, String env, Duration timeout) {
+    return of(e, syntax, Phase.STATEMENT, connection, env, timeout);
+  }
+
+  /** A failure in {@code phase} on {@code connection} (a name the agent knows) as a connector error. */
+  static ConnectorException of(SQLException e, SqlSyntax syntax, Phase phase, String connection, String env,
+      Duration timeout) {
     boolean mysql = syntax == SqlSyntax.MYSQL;
     boolean oracle = syntax == SqlSyntax.ORACLE;
     boolean sqlServer = syntax == SqlSyntax.SQLSERVER;
@@ -46,7 +63,7 @@ final class SqlErrors {
           + (PostgresDialect.RESULT_BUFFER >> 20) + " MiB, more than one call reads from " + connection
           + ". Select fewer or smaller columns (left(column, 2000) for long text), or fewer rows.", e);
     }
-    if (unreachable(e, state, syntax)) {
+    if (unreachable(e, state, syntax, phase)) {
       return ConnectorException.unavailable(reach(e, connection), e);
     }
     if (timedOut(state, code, mysql) || (oracle && (code == 1013 || code == 30006))
@@ -76,7 +93,7 @@ final class SqlErrors {
   }
 
   static ConnectorException of(SQLException e, SqlDialect dialect, String connection, String env, Duration timeout) {
-    return of(e, dialect.syntax(), connection, env, timeout);
+    return of(e, dialect.syntax(), Phase.STATEMENT, connection, env, timeout);
   }
 
   /**
@@ -116,23 +133,43 @@ final class SqlErrors {
     return out.toString();
   }
 
-  /** The connection is gone or never came up: class 08, authentication, shutdown, a network exception below. */
+  /** The session is gone; see {@link #unreachable(SQLException, String, SqlSyntax, Phase)}. */
   static boolean unreachable(SQLException e, String state) {
     return unreachable(e, state, SqlSyntax.MYSQL);
   }
 
+  /** The session of a statement is gone; see {@link #unreachable(SQLException, String, SqlSyntax, Phase)}. */
   static boolean unreachable(SQLException e, String state, SqlSyntax syntax) {
-    if (state != null && (state.startsWith("08") || state.equals("28P01") || state.equals("28000")
-        || state.equals("57P01") || state.equals("57P02") || state.equals("57P03") || state.equals("3D000"))) {
+    return unreachable(e, state, syntax, Phase.STATEMENT);
+  }
+
+  /**
+   * The server can't be used. In any phase: SQLSTATE class 08, a server that shuts down or isn't accepting sessions
+   * yet, the client codes of a lost connection of that dialect, a network exception below. Opening a session also:
+   * the login refused (authentication, a locked or expired account) and a database that doesn't exist. A vendor
+   * code counts only for its own dialect: the same number is an ordinary statement error elsewhere (ORA-02003 is an
+   * unknown USERENV parameter, SQL Server's 2003 a procedure definition error).
+   */
+  static boolean unreachable(SQLException e, String state, SqlSyntax syntax, Phase phase) {
+    if (state != null && (state.startsWith("08") || state.equals("57P01") || state.equals("57P02")
+        || state.equals("57P03"))) {
       return true;
     }
     int code = e.getErrorCode();
-    if (code == 18456 || code == 4060 || code == 1045 || code == 1049 || code == 2002 || code == 2003 || code == 2006 || code == 2013) {
+    boolean connect = phase == Phase.CONNECT;
+    if (connect && state != null && (state.equals("28P01") || state.equals("28000") || state.equals("3D000"))) {
       return true;
     }
-    if (syntax == SqlSyntax.ORACLE && (code == 1017 || code == 28000 || code == 28001 || code == 1033
-        || code == 1034 || code == 1089 || code == 1090 || code == 3113 || code == 3114 || code == 3135
-        || code == 12154 || code == 12514 || code == 12541 || code == 17002 || code == 17008 || code == 17410)) {
+    boolean lost = switch (syntax) {
+      case MYSQL -> code == 2002 || code == 2003 || code == 2006 || code == 2013 || (connect && (code == 1045
+          || code == 1049));
+      case SQLSERVER -> connect && (code == 18456 || code == 4060);
+      case ORACLE -> code == 1033 || code == 1034 || code == 1089 || code == 1090 || code == 3113 || code == 3114
+          || code == 3135 || code == 12154 || code == 12514 || code == 12541 || code == 17002 || code == 17008
+          || code == 17410 || (connect && (code == 1017 || code == 1045 || code == 28000 || code == 28001));
+      case POSTGRES -> false;
+    };
+    if (lost) {
       return true;
     }
     for (Throwable t = e; t != null; t = t.getCause()) {

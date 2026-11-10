@@ -23,6 +23,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.TimeZone;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
@@ -91,6 +93,33 @@ abstract class MysqlFamilyIT {
           assertThat(e.getMessage()).contains("read-only transaction refused it").contains("READ ONLY");
         });
     assertThat(count("SELECT COUNT(*) FROM app.audit_log")).isEqualTo(before);
+  }
+
+  @Test
+  void aStatementThatFailsWithTheCodeOfAMissingDatabaseLeavesTheServerAvailable() {
+    // "No database selected" is SQLSTATE 3D000, also what a session for a database that doesn't exist gets.
+    ConnectionConfig app = cfg("rw", Env.DEV);
+    ObjectNode c = (ObjectNode) app.config().deepCopy();
+    ((ObjectNode) c.get("connection")).remove("database");
+    ConnectionConfig cfg = new ConnectionConfig(app.id() + "-no-database", app.name(), app.type(), app.env(), 1, c,
+        app.secretFields(), null);
+
+    assertThatThrownBy(() -> CONNECTOR.runRead(cfg, ConnectionSettings.of(cfg, true), secrets("rw"), ctx(),
+        BoundSql.plain("SELECT COUNT(*) FROM orders"), 1))
+        .isInstanceOfSatisfying(ConnectorException.class, e -> {
+          assertThat(e.kind()).isEqualTo(ConnectorException.Kind.RESOURCE_ERROR);
+          assertThat(e.getMessage()).contains("3D000");
+        });
+  }
+
+  @Test
+  void aLoginTheServerRefusesWhileThePoolOpensASessionMakesItUnavailable() {
+    ConnectionConfig cfg = cfg("rw", Env.DEV);
+
+    assertThatThrownBy(() -> CONNECTOR.runRead(cfg, ConnectionSettings.of(cfg, true),
+        Fixtures.Secrets.password("not-the-password-of-rw"), ctx(), BoundSql.plain("SELECT 1"), 1))
+        .isInstanceOfSatisfying(ConnectorException.class,
+            e -> assertThat(e.kind()).isEqualTo(ConnectorException.Kind.RESOURCE_UNAVAILABLE));
   }
 
   @Test
@@ -195,6 +224,34 @@ abstract class MysqlFamilyIT {
   }
 
   @Test
+  void prepareDoesntPlanAChangeThatCallsAFunctionThatIsntBuiltIn() throws Exception {
+    // A deterministic function the optimizer may fold to a constant while it plans (MariaDB does, in EXPLAIN too); its
+    // insert into a MyISAM table would survive the ROLLBACK that ends the preview.
+    try (Connection c = server().root(); Statement st = c.createStatement()) {
+      st.execute("CREATE TABLE IF NOT EXISTS app.plan_marks (n INT) ENGINE=MyISAM");
+      st.execute("TRUNCATE TABLE app.plan_marks");
+      st.execute("DROP FUNCTION IF EXISTS app.f_mark");
+      st.execute("CREATE FUNCTION app.f_mark() RETURNS INT DETERMINISTIC MODIFIES SQL DATA BEGIN "
+          + "INSERT INTO app.plan_marks VALUES (1); RETURN 48213; END");
+    }
+    ToolCall call = Fixtures.sql("sql_execute", "UPDATE orders SET status = 'cancelled' WHERE id = app.f_mark()");
+    try {
+      PreparedAction p = CONNECTOR.prepare(call, cfg("rw", Env.DEV), secrets("rw"), ctx());
+
+      assertThat(count("SELECT COUNT(*) FROM app.plan_marks")).as("calls of f_mark before approval").isZero();
+      assertThat(p.outcome()).isEqualTo(PreparedAction.Outcome.APPROVAL);
+      assertThat(p.preview().impact()).extracting(ActionPreview.Field::label).doesNotContain("Estimated rows");
+      assertThat(p.preview().warnings()).anySatisfy(w -> assertThat(w).contains("weren't estimated", "app.f_mark"));
+      assertThat(count("SELECT COUNT(*) FROM app.orders WHERE id = 48213 AND status = 'pending'")).isEqualTo(1);
+    } finally {
+      try (Connection c = server().root(); Statement st = c.createStatement()) {
+        st.execute("DROP FUNCTION IF EXISTS app.f_mark");
+        st.execute("DROP TABLE IF EXISTS app.plan_marks");
+      }
+    }
+  }
+
+  @Test
   void templateValuesAreBoundByTheServer() throws Exception {
     TemplateKind.CompileResult compiled = CONNECTOR.templateKinds().getFirst().compile(Fixtures.json("""
         {"name": "orders_by_status",
@@ -215,6 +272,29 @@ abstract class MysqlFamilyIT {
         tool.binding()));
     assertThat(CONNECTOR.execute(injection, cfg("ro", Env.DEV), secrets("ro"), ctx()).table().rows())
         .extracting(r -> r.get(0).asLong()).containsExactly(48241L);
+  }
+
+  @Test
+  void aTemplatesTimestampMeansTheSameInstantWhateverTheGatewaysTimeZone() throws Exception {
+    TimeZone before = TimeZone.getDefault();
+    // Fourteen hours ahead of the server's UTC: Connector/J would send the local time of this zone.
+    TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Kiritimati"));
+    try {
+      TemplateKind.CompileResult compiled = CONNECTOR.templateKinds().getFirst().compile(Fixtures.json("""
+          {"name": "recent_orders", "sql": "SELECT id FROM orders WHERE created_at > :since ORDER BY id",
+           "params": [{"name": "since", "type": "timestamp"}]}
+          """), cfg("ro", Env.DEV));
+      assertThat(compiled.errors()).isEmpty();
+      // The seed's orders are one hour, two hours and three days old (other tests add new ones).
+      String since = Instant.now().minus(Duration.ofMinutes(150)).toString();
+      ToolCall call = new ToolCall("tc_t3", "recent_orders", "dev-db", Fixtures.object().put("since", since),
+          new ToolCall.TemplateBinding("tpl", 1, "q", compiled.tools().getFirst().binding()));
+
+      assertThat(CONNECTOR.execute(call, cfg("ro", Env.DEV), secrets("ro"), ctx()).table().rows())
+          .extracting(r -> r.get(0).asLong()).contains(48213L, 48241L).doesNotContain(48240L);
+    } finally {
+      TimeZone.setDefault(before);
+    }
   }
 
   @Test

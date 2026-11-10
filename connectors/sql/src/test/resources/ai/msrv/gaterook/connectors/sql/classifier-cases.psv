@@ -95,6 +95,17 @@ pg | execute | dev | SET SESSION AUTHORIZATION postgres | DENY forbidden
 pg | execute | dev | DISCARD ALL | DENY forbidden
 pg | execute | dev | CHECKPOINT | DENY forbidden
 pg | execute | dev | UPDATE orders SET status = 'x'; COMMIT | DENY forbidden
+# The parser reads PURGE as a statement of its own; the gateway never runs it.
+pg | execute | dev | PURGE TABLE orders | DENY forbidden
+# What is refused everywhere stays refused where the gateway gives up on the text: an unclosed quote, a comment the
+# server runs, a comment marker the parser would read differently, a statement the parser can't read.
+pg | execute | dev | DISCARD ALL; SELECT 'unclosed | DENY forbidden
+pg | execute | dev | /*+ Set(statement_timeout 0) */ SET statement_timeout = 0 | DENY forbidden
+pg | execute | dev | SET statement_timeout = 0; SELECT 1 // x | DENY forbidden
+pg | execute | dev | SELECT pg_terminate_backend(1) // x | DENY function-denied
+pg | execute | dev | SELECT 1; SELECT pg_advisory_lock(1) // x | DENY function-denied
+# Not analyzed, and nothing in it is refused everywhere: a person may approve it on dev.
+pg | execute | dev | UPDATE orders SET a = 1 // x | MUTATION
 #
 # ── PostgreSQL: functions ─────────────────────────────────────────────────────────────────────────────────
 pg | query | dev | SELECT set_config('statement_timeout', '0', false) | DENY function-denied
@@ -108,6 +119,17 @@ pg | query | dev | SELECT lo_import('/etc/passwd') | DENY function-denied
 pg | query | dev | SELECT dblink_exec('dbname=app', 'DELETE FROM orders') | DENY function-denied
 pg | query | dev | SELECT dblink('dbname=app', 'SELECT 1') | DENY function-denied
 pg | query | dev | SELECT query_to_xml('SELECT * FROM secrets', true, false, '') | DENY function-denied
+# Every function that runs a query it gets as text: that query's tables and calls never reach the rules.
+pg | query | dev | SELECT * FROM ts_stat('SELECT v FROM secrets') | DENY function-denied
+pg | query | prod | SELECT * FROM pg_catalog.ts_stat('SELECT v FROM secrets', 'ab') | DENY function-denied
+pg | query | dev | SELECT ts_rewrite('a & b'::tsquery, 'SELECT t, s FROM secrets') | DENY function-denied
+pg | query | dev | SELECT * FROM crosstab('SELECT a, b, c FROM secrets') AS ct (a int, b int) | DENY function-denied | allowed=crosstab
+pg | query | dev | SELECT * FROM crosstab2('SELECT a, b, c FROM secrets') | DENY function-denied
+pg | query | dev | SELECT * FROM crosstab3('SELECT a, b, c FROM secrets') | DENY function-denied
+pg | query | dev | SELECT * FROM crosstab4('SELECT a, b, c FROM secrets') | DENY function-denied
+pg | query | dev | SELECT * FROM connectby('secrets', 'id', 'parent_id', '1', 0) AS t (id int, parent int, level int) | DENY function-denied | allowed=connectby
+pg | query | dev | SELECT * FROM xpath_table('id', 'doc', 'secrets', '/a', 'true') AS t (id int, a text) | DENY function-denied | allowed=xpath_table
+pg | execute | dev | UPDATE orders SET note = (SELECT max(word) FROM ts_stat('SELECT v FROM secrets')) | DENY function-denied
 pg | query | dev | SELECT pg_notify('orders', 'x') | DENY function-denied
 pg | query | dev | SELECT brin_summarize_new_values('orders_brin') | DENY function-denied
 pg | query | dev | SELECT gin_clean_pending_list('orders_gin') | DENY function-denied
@@ -221,6 +243,18 @@ pg | execute | dev | INSERT INTO temp VALUES (1) | MUTATION
 pg | execute | dev | WITH x AS (SELECT 1 AS id) INSERT INTO temp SELECT id FROM x | MUTATION
 pg | execute | dev | CREATE UNLOGGED TABLE t (id int) | MUTATION
 pg | query | dev | SELECT 'CREATE TEMP TABLE t' AS s | READ
+# EXPLAIN ANALYZE runs what it explains, and an object in the session's temporary schema is a temporary one.
+pg | execute | dev | EXPLAIN ANALYZE CREATE TEMP TABLE t AS SELECT 1 | DENY forbidden
+pg | execute | dev | EXPLAIN (ANALYZE) SELECT * INTO TEMP t FROM orders | DENY forbidden
+pg | execute | dev | CREATE TABLE pg_temp.t (id int) | DENY forbidden
+pg | execute | dev | CREATE TABLE IF NOT EXISTS pg_temp.t (id int) | DENY forbidden
+pg | execute | dev | CREATE VIEW "pg_temp".v AS SELECT 1 AS id | DENY forbidden
+pg | execute | dev | CREATE SEQUENCE PG_TEMP_3.s | DENY forbidden
+pg | execute | dev | CREATE FUNCTION pg_temp.f() RETURNS int AS 'SELECT 1' LANGUAGE sql | DENY forbidden
+pg | execute | dev | SELECT * INTO pg_temp.t FROM orders | DENY forbidden
+pg | execute | dev | CREATE TABLE pg_temporal.t (id int) | MUTATION
+pg | query | dev | SELECT * FROM my_pg_temp.t | READ
+pg | query | dev | SELECT 'pg_temp.t' AS s | READ
 #
 # ── Tables agents may use ─────────────────────────────────────────────────────────────────────────────────
 pg | query | dev | SELECT * FROM orders | READ | allowlist=public.orders
@@ -321,6 +355,17 @@ my | execute | dev | HANDLER orders OPEN | DENY forbidden
 my | execute | dev | KILL 12 | DENY forbidden
 my | execute | dev | LOCK TABLES orders WRITE | DENY forbidden
 my | execute | dev | START TRANSACTION | DENY forbidden
+# MySQL runs what /*! … */ and /*M! … */ hold: it is read as code for what is refused everywhere.
+my | execute | dev | /*!50000 SET autocommit = 0 */ | DENY forbidden
+my | execute | dev | /*!40101 SET @saved := @@sql_mode */ | DENY forbidden
+my | execute | dev | /*M!100100 LOCK TABLES orders WRITE */ | DENY forbidden
+my | execute | dev | UPDATE orders SET a = 1 /*!50000 , note = GET_LOCK('a', 1) */ | DENY function-denied
+my | execute | dev | SET autocommit = 0; SELECT 'unclosed | DENY forbidden
+my | execute | dev | SELECT GET_LOCK('a', 10) # x | DENY function-denied
+my | execute | dev | DO RELEASE_ALL_LOCKS() | DENY function-denied
+# Not analyzed, and nothing in it is refused everywhere: a person may approve it on dev.
+my | execute | dev | /*!50000 UPDATE orders SET a = 1 */ | MUTATION
+my | execute | dev | UPDATE orders SET a = 1 # note | MUTATION
 my | execute | dev | SELECT 1 | DENY execute-read
 my | query | dev | SELECT * FROM mysql.user | READ
 my | query | dev | SELECT * FROM mysql.user | DENY table-not-allowed | allowlist=app.*

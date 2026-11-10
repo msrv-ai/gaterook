@@ -133,6 +133,18 @@ class OracleSqlSecurityTest {
         .isEqualTo(Classification.Kind.READ);
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {
+      // A private temporary table lives as long as the pooled session (PRESERVE DEFINITION) or its transaction.
+      "CREATE PRIVATE TEMPORARY TABLE ora$ptt_scratch (id NUMBER) ON COMMIT PRESERVE DEFINITION",
+      "CREATE GLOBAL TEMPORARY TABLE scratch (id NUMBER)", "LOCK TABLE orders IN EXCLUSIVE MODE", "PURGE TABLE orders"
+  })
+  void sessionObjectsAndStatementsTheGatewayNeverRunsAreForbiddenEvenWhenTheParserReadsThem(String sql) {
+    assertThat(SqlClassifier.analyze(sql, ORACLE).kind()).as(sql).isEqualTo(Kind.FORBIDDEN);
+    assertThat(SqlRules.execute(SqlClassifier.analyze(sql, ORACLE), policy()).ruleId()).as(sql)
+        .isEqualTo("dev.sql.forbidden");
+  }
+
   @Test
   void ordinaryQueriesAndSingleApprovedChangesUseExistingPolicyRoutes() {
     assertThat(SqlRules.query(SqlClassifier.analyze("SELECT NVL(name, 'unknown') FROM orders FETCH FIRST 10 ROWS ONLY", ORACLE), policy()).kind())

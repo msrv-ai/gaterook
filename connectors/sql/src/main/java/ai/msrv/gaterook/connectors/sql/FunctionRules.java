@@ -12,7 +12,9 @@ import tools.jackson.databind.JsonNode;
  * Which functions a read may call (report 04 §6.2, ARCHITECTURE.md §9 "SQL reads cannot write").
  *
  * <p>For PostgreSQL and MySQL, a READ ONLY transaction stops writes a function makes inside it, but not effects outside
- * it: advisory locks, signals to other sessions, files of the server, a new connection through {@code dblink}. So:
+ * it: advisory locks, signals to other sessions, files of the server, a new connection through {@code dblink}. Nor
+ * does it make the gateway see a query that a function runs from text ({@code query_to_xml}, {@code ts_stat}): its
+ * tables and calls would skip every rule here. So:
  * <ul>
  *   <li>the <b>denylist</b> is refused wherever it appears, by name (with or without a schema, any case), plus the
  *       policy's {@code deniedFunctions};</li>
@@ -51,9 +53,15 @@ final class FunctionRules {
       "pg_switch_wal", "pg_create_restore_point", "pg_backup_start", "pg_backup_stop", "pg_start_backup",
       "pg_stop_backup", "pg_*replication_slot*", "pg_replication_origin_*", "pg_logical_*", "pg_advisory_*",
       "pg_try_advisory_*", "set_config", "pg_notify", "pg_read_file", "pg_read_binary_file", "pg_ls_*",
-      "pg_stat_file", "pg_stat_reset*", "pg_file_*", "lo_*", "dblink*", "query_to_xml*", "cursor_to_xml*",
+      "pg_stat_file", "pg_stat_reset*", "pg_file_*", "lo_*", "dblink*", "cursor_to_xml*",
       "table_to_xml*", "schema_to_xml*", "database_to_xml*", "pg_log_backend_memory_contexts", "pg_wal_replay_*",
       "pg_import_system_collations",
+      // Functions that run a query they are given as text, or build one from table names given as text: the gateway
+      // never sees that query, so its tables would skip the allowlist and the database selection, and its calls the
+      // denylist. The built-ins (ts_rewrite runs its SELECT only in the two-argument form; the denial covers both),
+      // and the contrib extensions' (tablefunc, xml2), which allowedFunctions must not be able to open either.
+      "query_to_xml*", "ts_stat", "ts_rewrite", "crosstab", "crosstab2", "crosstab3", "crosstab4", "connectby",
+      "xpath_table",
       // Index maintenance writes the index in a READ ONLY transaction too, and ROLLBACK doesn't undo it (PG 16).
       "brin_summarize_*", "brin_desummarize_range", "gin_clean_pending_list");
 

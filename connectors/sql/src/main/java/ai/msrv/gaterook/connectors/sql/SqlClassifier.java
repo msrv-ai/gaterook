@@ -133,15 +133,26 @@ final class SqlClassifier {
       "ABORT", "SET", "RESET", "DISCARD", "USE", "SHUTDOWN", "FLUSH", "XA", "INSTALL", "UNINSTALL", "LOCK", "UNLOCK",
       "CHECKPOINT", "RESTART", "CLONE", "BINLOG", "PURGE", "CHANGE", "DECLARE");
 
+  /** Why a statement is UNPARSED when the parser gave up on it. */
+  private static final String NOT_ANALYZED = "The gateway couldn't analyze this statement.";
+
   /**
-   * {@code CREATE [GLOBAL | LOCAL | OR REPLACE | UNLOGGED] TEMP[ORARY] …}: a session's own object, which would stay in
-   * the pooled session after the call and, as a temporary table, hide the real one of that name from later calls.
+   * {@code CREATE [GLOBAL | LOCAL | OR REPLACE | UNLOGGED | PRIVATE] TEMP[ORARY] …}: a session's own object, which
+   * would stay in the pooled session after the call and, as a temporary table, hide the real one of that name from
+   * later calls. Wherever it is in the code: {@code EXPLAIN ANALYZE} runs the statement it explains, and CREATE is a
+   * reserved word in every dialect, so it starts nothing else.
    */
   private static final Pattern CREATE_TEMPORARY = Pattern.compile(
-      "(?i)^\\s*\\(*\\s*CREATE(?:\\s+(?:GLOBAL|LOCAL|OR|REPLACE|UNLOGGED))*\\s+TEMP(?:ORARY)?\\b");
+      "(?i)(?<![\\p{L}\\p{N}_$#@])CREATE(?:\\s+(?:GLOBAL|LOCAL|OR|REPLACE|UNLOGGED|PRIVATE))*\\s+TEMP(?:ORARY)?\\b");
   /** PostgreSQL {@code SELECT … INTO [TEMP | TEMPORARY] [TABLE] t}: a temporary table, as above. */
   private static final Pattern SELECT_INTO_TEMPORARY = Pattern.compile(
       "(?i)(?<!\\b(?:INSERT|MERGE)\\s{1,64})\\bINTO\\s+TEMP(?:ORARY)?\\b");
+  /**
+   * PostgreSQL's temporary schema named as a qualifier ({@code pg_temp.t}, {@code "pg_temp_3".f}): whatever is created
+   * there is the session's own object, a temporary table, view, sequence, type or function, as above.
+   */
+  private static final Pattern POSTGRES_TEMPORARY_SCHEMA = Pattern.compile(
+      "(?i)(?<![\\p{L}\\p{N}_$])pg_temp(?:_[0-9]+)?\\s*\\.");
   /** MySQL {@code @v := …} or {@code … INTO @v}: a user variable, which outlives the call in the pooled session. */
   private static final Pattern MYSQL_ASSIGNMENT = Pattern.compile("(?i):=|\\bINTO\\s+@");
   private static final Set<String> SQLSERVER_FORBIDDEN_FIRST_WORDS = Set.of("EXEC", "EXECUTE", "DBCC", "BACKUP",
@@ -199,32 +210,32 @@ final class SqlClassifier {
     }
     SqlLexer.Scan scan = SqlLexer.scan(sql, syntax);
     if (scan.unterminated()) {
-      return unparsed(List.of(), "A quote or comment isn't closed.");
+      return notAnalyzed(sql, syntax, "A quote or comment isn't closed.");
     }
     if (scan.executableComment()) {
-      return unparsed(List.of(), "It contains a comment the server acts on (/*! … */ or a /*+ … */ hint): the "
+      return notAnalyzed(sql, syntax, "It contains a comment the server acts on (/*! … */ or a /*+ … */ hint): the "
           + "server runs or applies what the gateway reads as a comment.");
     }
     List<String> pieces = scan.statements();
     // The parser reads what the server's lexer reads, not the text as sent; what can't be made to match is not read.
     String text = SqlParserText.of(scan, syntax);
     if (text == null) {
-      return byFirstWords(pieces, syntax);
+      return notAnalyzed(sql, syntax, NOT_ANALYZED);
     }
     Statements statements;
     try {
       statements = CCJSqlParserUtil.parseStatements(text, PARSER,
           p -> SqlParserText.configure(p, syntax).withTimeOut(PARSE_TIMEOUT_MS));
     } catch (JSQLParserException | RuntimeException e) {
-      return byFirstWords(pieces, syntax);
+      return notAnalyzed(sql, syntax, NOT_ANALYZED);
     }
     if (statements == null || statements.isEmpty()) {
-      return unparsed(List.of(), "The gateway found no statement in it.");
+      return notAnalyzed(sql, syntax, "The gateway found no statement in it.");
     }
     if (statements.size() != pieces.size()) {
       // The parser and the server's lexer disagree about where statements end: trust neither.
-      return unparsed(List.of(), "The gateway reads " + statements.size() + " statement(s) where the database would "
-          + "read " + pieces.size() + ".");
+      return notAnalyzed(sql, syntax, "The gateway reads " + statements.size() + " statement(s) where the database "
+          + "would read " + pieces.size() + ".");
     }
     List<StatementFacts> facts = new ArrayList<>();
     String doubt = null;
@@ -249,28 +260,67 @@ final class SqlClassifier {
     return new Analysis(kind, List.copyOf(facts), problem, false);
   }
 
-  /** The parser gave up: a known session or transaction command is FORBIDDEN, anything else UNPARSED. */
-  private static Analysis byFirstWords(List<String> pieces, SqlSyntax syntax) {
+  /**
+   * The gateway gave up on the text, before or after the parser read it. What is refused everywhere stays refused all
+   * the same, read from the code the server will run: a statement of session or transaction control, or one that
+   * leaves something in the pooled session ({@link #sessionState}), is FORBIDDEN, and the calls in the text are the
+   * statement's functions, so a denied one is refused for every tool. Anything else is UNPARSED, which only some
+   * tools and environments let a person approve.
+   */
+  private static Analysis notAnalyzed(String sql, SqlSyntax syntax, String problem) {
     List<StatementFacts> facts = new ArrayList<>();
     boolean forbidden = false;
-    for (String piece : pieces) {
+    for (String piece : SqlLexer.scan(serverCode(sql, syntax), syntax).statements()) {
       String word = SqlLexer.scan(piece, syntax).firstKeyword();
       String session = sessionState(piece, syntax);
-      boolean f = session != null || FORBIDDEN_FIRST_WORDS.contains(word);
-      forbidden |= f;
+      forbidden |= session != null;
       String type = session != null ? session : word.isEmpty() ? "statement" : word;
-      facts.add(new StatementFacts(f ? Kind.FORBIDDEN : Kind.UNPARSED, type, null, null, List.of()));
+      facts.add(new StatementFacts(session != null ? Kind.FORBIDDEN : Kind.UNPARSED, type, null, null,
+          SqlCalls.calls(piece, syntax, Map.of())));
     }
     if (forbidden) {
       return new Analysis(Kind.FORBIDDEN, List.copyOf(facts), null, false);
     }
-    return new Analysis(Kind.UNPARSED, List.copyOf(facts), "The gateway couldn't analyze this statement.", false);
+    return new Analysis(Kind.UNPARSED, List.copyOf(facts), problem, false);
   }
 
   /**
-   * What a statement would leave in the pooled session after its call, read from its code (literals and comments
-   * left out), whether or not the parser reads it: {@link #TEMPORARY_OBJECT}, {@link #VARIABLE_ASSIGNMENT} (MySQL),
-   * or {@code null}. Transactions and sessions belong to the gateway, so these are never run.
+   * The text as the server will run it, for the checks that hold whether or not the statement can be analyzed: MySQL
+   * and MariaDB run the inside of {@code /*!…*}{@code /} and {@code /*M!…*}{@code /} (after an optional version
+   * number) as code, so their markers are blanked and what they hold is read like the rest. Optimizer hints stay
+   * comments: what they hold is no statement.
+   */
+  static String serverCode(String sql, SqlSyntax syntax) {
+    SqlLexer.Scan scan = SqlLexer.scan(sql, syntax);
+    if (syntax != SqlSyntax.MYSQL || !scan.executableComment()) {
+      return sql;
+    }
+    StringBuilder out = new StringBuilder(sql);
+    for (SqlLexer.Segment s : scan.segments()) {
+      if (s.kind() != SqlLexer.Kind.EXECUTABLE_COMMENT || sql.startsWith("/*+", s.start())) {
+        continue;
+      }
+      int body = s.start() + (sql.startsWith("/*!", s.start()) ? 3 : 4);
+      while (body < s.end() && Character.isDigit(sql.charAt(body))) {
+        body++;
+      }
+      int close = sql.startsWith("*/", s.end() - 2) && s.end() - 2 >= body ? s.end() - 2 : s.end();
+      for (int i = s.start(); i < body; i++) {
+        out.setCharAt(i, ' ');
+      }
+      for (int i = close; i < s.end(); i++) {
+        out.setCharAt(i, ' ');
+      }
+    }
+    return out.toString();
+  }
+
+  /**
+   * What a statement would leave in the pooled session after its call, or how it would take the session or the
+   * transaction over, read from its code (literals and comments left out), whether or not the parser reads it:
+   * {@link #TEMPORARY_OBJECT}, {@link #VARIABLE_ASSIGNMENT} (MySQL), the first word of a statement the gateway never
+   * runs ({@link #FORBIDDEN_FIRST_WORDS}), or {@code null}. Transactions and sessions belong to the gateway, so these
+   * are never run, with or without a person's approval.
    */
   static String sessionState(String piece, boolean mysql) {
     return sessionState(piece, SqlSyntax.of(mysql));
@@ -284,8 +334,12 @@ final class SqlClassifier {
       return TEMPORARY_OBJECT;
     }
     String first = scan.firstKeyword();
+    // The parser reads some of these (LOCK TABLE, PURGE) as statements it lets through, others not at all.
+    if (FORBIDDEN_FIRST_WORDS.contains(first)) {
+      return first;
+    }
     if (syntax == SqlSyntax.SQLSERVER) {
-      if (FORBIDDEN_FIRST_WORDS.contains(first) || SQLSERVER_FORBIDDEN_FIRST_WORDS.contains(first)) {
+      if (SQLSERVER_FORBIDDEN_FIRST_WORDS.contains(first)) {
         return first;
       }
       if (SQLSERVER_SEQUENCE.matcher(code).find()) {
@@ -320,13 +374,17 @@ final class SqlClassifier {
         }
       }
     }
-    if (syntax == SqlSyntax.POSTGRES && (first.equals("SELECT") || first.equals("WITH"))
-        && SELECT_INTO_TEMPORARY.matcher(code).find()) {
-      return TEMPORARY_OBJECT;
+    if (syntax == SqlSyntax.POSTGRES) {
+      if ((first.equals("SELECT") || first.equals("WITH") || first.equals("EXPLAIN"))
+          && SELECT_INTO_TEMPORARY.matcher(code).find()) {
+        return TEMPORARY_OBJECT;
+      }
+      if (POSTGRES_TEMPORARY_SCHEMA.matcher(identifierCode(scan)).find()) {
+        return TEMPORARY_OBJECT;
+      }
     }
     if (syntax == SqlSyntax.ORACLE) {
-      if (FORBIDDEN_FIRST_WORDS.contains(first) || first.equals("CALL") || first.equals("EXECUTE")
-          || first.equals("EXPLAIN")) {
+      if (first.equals("CALL") || first.equals("EXECUTE") || first.equals("EXPLAIN")) {
         return first;
       }
       if (code.indexOf('@') >= 0) {

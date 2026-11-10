@@ -115,7 +115,7 @@ Recorded PostgreSQL experiments rejected writes inside functions, nextval, large
 
 Always roll reads back. This resets transactional settings and prevents notifications or other transaction-bound effects from escaping, but it does not undo every nontransactional action. Maintain a built-in, extensible denylist covering:
 
-- PostgreSQL backend cancellation/termination, reload/promotion/backup/replication controls, advisory locks, notification/config changes, server-file access, large objects, dblink, XML helpers that hide queries, and reset/admin functions.
+- PostgreSQL backend cancellation/termination, reload/promotion/backup/replication controls, advisory locks, notification/config changes, server-file access, large objects, dblink, every function that runs a query it is given as text (the XML helpers, `ts_stat`, the `SELECT` form of `ts_rewrite`, and the tablefunc and xml2 extensions' `crosstab`, `connectby` and `xpath_table`), and reset/admin functions.
 - MySQL/MariaDB lock functions, file access, benchmark/server execution UDFs, and blocking replication/GTID waits.
 
 Keep historical aliases where older supported servers use them. Ordinary sleep functions can be bounded by the server deadline rather than treated as harmless without limits.
