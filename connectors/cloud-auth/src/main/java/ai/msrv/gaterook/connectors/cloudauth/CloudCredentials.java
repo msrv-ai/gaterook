@@ -88,6 +88,8 @@ public final class CloudCredentials implements AutoCloseable {
       Pattern.compile("/v1/projects/-/serviceAccounts/([^/]+):generateAccessToken");
   /** What this class asks STS for; federation and session tokens would be added with the code that uses them. */
   private static final Set<String> STS_OPERATIONS = Set.of("AssumeRole", "GetCallerIdentity");
+  /** The universe of Google's own cloud, the only one whose keys and sign-ins GateRook uses. */
+  private static final String GOOGLE_UNIVERSE = "googleapis.com";
   private static final JsonMapper JSON = JsonMapper.builder().build();
 
   /**
@@ -244,12 +246,13 @@ public final class CloudCredentials implements AutoCloseable {
 
   /** A user sign-in whose refresh token goes to Google only. */
   private UserCredentials user(byte[] json, String what) throws ConnectorException, IOException {
-    requireGoogleUniverse(json, what);
-    JsonNode tokenUri = JSON.readTree(json).get("token_uri");
+    JsonNode tree = strictJson(json, what);
+    JsonNode tokenUri = tree.get("token_uri");
     if (tokenUri != null && !tokenUri.isNull()) {
       requireGoogleTokenUri(tokenUri.asString(), what);
     }
     UserCredentials user = UserCredentials.fromStream(new ByteArrayInputStream(json));
+    requireGoogleUniverse(tree, user, what);
     return endpoints.gcpTokenUri() == null ? user : user.toBuilder().setTokenServerUri(endpoints.gcpTokenUri()).build();
   }
 
@@ -337,29 +340,56 @@ public final class CloudCredentials implements AutoCloseable {
   /**
    * A key or sign-in of Google's own universe ({@code googleapis.com}): google-auth builds the IAM address of an
    * impersonation and the audience of a self-signed token from {@code universe_domain}, so another universe would send
-   * them elsewhere — the same leak as a {@code token_uri} elsewhere ({@link #requireGoogleTokenUri}).
+   * them elsewhere — the same leak as a {@code token_uri} elsewhere ({@link #requireGoogleTokenUri}). Both readings of
+   * the file must say so: the strict one ({@code tree}) and the one google-auth made itself ({@code parsed}), which is
+   * the universe the credentials will use.
    */
-  private static void requireGoogleUniverse(byte[] json, String what) throws ConnectorException {
-    String universe;
+  private static void requireGoogleUniverse(JsonNode tree, GoogleCredentials parsed, String what)
+      throws ConnectorException {
+    String declared = tree.path("universe_domain").asString("");
+    String used;
     try {
-      universe = JSON.readTree(json).path("universe_domain").asString("");
-    } catch (RuntimeException e) {
-      return; // Not JSON: the parser refuses it next.
+      used = parsed.getUniverseDomain();
+    } catch (IOException | RuntimeException e) {
+      used = null;
     }
-    if (!universe.isBlank() && !universe.equals("googleapis.com")) {
-      throw ConnectorException.unavailable(what + " belongs to the universe " + host("https://" + universe)
+    boolean declaredOther = !declared.isBlank() && !declared.equals(GOOGLE_UNIVERSE);
+    if (declaredOther || !GOOGLE_UNIVERSE.equals(used)) {
+      String named = declaredOther ? declared : used;
+      throw ConnectorException.unavailable(what + " belongs to "
+          + (named == null || named.isBlank() ? "a universe it doesn't name" : "the universe " + host("https://" + named))
           + " instead of googleapis.com, so GateRook won't use it", null);
     }
   }
 
+  /**
+   * The JSON of a key or sign-in, read by a strict parser. google-auth's own parser also takes text a strict one
+   * refuses (content after the object, a {@code \'} escape), where a second reading could find other values than the
+   * ones the credentials use, or none: such text is refused, so that every check here reads the document google-auth
+   * reads.
+   */
+  private static JsonNode strictJson(byte[] json, String what) throws ConnectorException {
+    JsonNode tree;
+    try {
+      tree = JSON.readTree(json);
+    } catch (RuntimeException e) {
+      tree = null;
+    }
+    if (tree == null || !tree.isObject()) {
+      throw ConnectorException.unavailable(what + " isn't valid JSON, so GateRook won't use it", null);
+    }
+    return tree;
+  }
+
   private ServiceAccountCredentials serviceAccount(byte[] json, String what) throws ConnectorException {
-    requireGoogleUniverse(json, what);
+    JsonNode tree = strictJson(json, what);
     ServiceAccountCredentials key;
     try {
       key = ServiceAccountCredentials.fromStream(new ByteArrayInputStream(json));
     } catch (IOException | RuntimeException e) {
       throw ConnectorException.unavailable(what + " isn't a valid service account key (JSON)", null);
     }
+    requireGoogleUniverse(tree, key, what);
     URI tokenUri = key.getTokenServerUri();
     if (tokenUri != null) {
       requireGoogleTokenUri(tokenUri.toString(), what);
