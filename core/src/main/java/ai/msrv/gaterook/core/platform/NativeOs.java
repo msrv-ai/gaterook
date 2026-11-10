@@ -7,6 +7,7 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.net.Inet4Address;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Locale;
@@ -122,22 +123,22 @@ public final class NativeOs {
   private static final int TCP_TABLE_OWNER_PID_CONNECTIONS = 4;
   /** {@code MIB_TCPROW_OWNER_PID}: state, local address and port, remote address and port, owning pid. */
   private static final int TCP_ROW_SIZE = 24;
-  /** 127.0.0.1 as {@code GetExtendedTcpTable} stores it: network byte order read as a little-endian DWORD. */
-  private static final int LOOPBACK_V4 = 0x0100007F;
   private static final int PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
   private static final int TOKEN_QUERY = 0x0008;
   private static final int TOKEN_INTEGRITY_LEVEL = 25;
   private static final int TOKEN_IS_APP_CONTAINER = 29;
 
   /**
-   * The pid of the process whose socket 127.0.0.1:{@code clientPort} is connected to 127.0.0.1:{@code serverPort}
-   * (the IPv4 TCP table), or -1 where it isn't found or can't be asked.
+   * The pid of the process whose socket {@code client}:{@code clientPort} (any IPv4 loopback address a process bound
+   * it to) is connected to the port {@code serverPort} (the IPv4 TCP table), or -1 where it isn't found or can't be
+   * asked.
    */
   @SuppressWarnings("restricted")
-  public static long loopbackPeer(int serverPort, int clientPort) {
-    if (!isWindows()) {
+  public static long loopbackPeer(Inet4Address client, int serverPort, int clientPort) {
+    if (!isWindows() || client == null) {
       return -1;
     }
+    int clientAddress = tableAddress(client);
     try (Arena arena = Arena.ofConfined()) {
       Linker linker = Linker.nativeLinker();
       MethodHandle table = linker.downcallHandle(
@@ -151,7 +152,7 @@ public final class NativeOs {
         size.set(ValueLayout.JAVA_INT, 0, (int) rows.byteSize());
         int rc = (int) table.invokeExact(rows, size, 0, AF_INET, TCP_TABLE_OWNER_PID_CONNECTIONS, 0);
         if (rc == 0) {
-          return peerIn(rows, serverPort, clientPort);
+          return peerIn(rows, clientAddress, serverPort, clientPort);
         }
         if (rc != 122) { // ERROR_INSUFFICIENT_BUFFER: the table grew, ask again
           return -1;
@@ -163,19 +164,28 @@ public final class NativeOs {
     }
   }
 
-  /** The owning pid of the client end of a loopback connection in a {@code MIB_TCPTABLE_OWNER_PID}, or -1. */
-  static long peerIn(MemorySegment rows, int serverPort, int clientPort) {
+  /**
+   * The owning pid of the client end {@code clientAddress}:{@code clientPort} (as {@link #tableAddress} writes it) of
+   * a connection to {@code serverPort} in a {@code MIB_TCPTABLE_OWNER_PID}, or -1.
+   */
+  static long peerIn(MemorySegment rows, int clientAddress, int serverPort, int clientPort) {
     long count = Integer.toUnsignedLong(rows.get(ValueLayout.JAVA_INT_UNALIGNED, 0));
     for (long i = 0; i < count && 4 + (i + 1) * TCP_ROW_SIZE <= rows.byteSize(); i++) {
       long row = 4 + i * TCP_ROW_SIZE;
       int localAddress = rows.get(ValueLayout.JAVA_INT_UNALIGNED, row + 4);
       int localPort = port(rows.get(ValueLayout.JAVA_INT_UNALIGNED, row + 8));
       int remotePort = port(rows.get(ValueLayout.JAVA_INT_UNALIGNED, row + 16));
-      if (localAddress == LOOPBACK_V4 && localPort == clientPort && remotePort == serverPort) {
+      if (localAddress == clientAddress && localPort == clientPort && remotePort == serverPort) {
         return Integer.toUnsignedLong(rows.get(ValueLayout.JAVA_INT_UNALIGNED, row + 20));
       }
     }
     return -1;
+  }
+
+  /** An IPv4 address as {@code GetExtendedTcpTable} stores it: network byte order read as a little-endian DWORD. */
+  static int tableAddress(Inet4Address address) {
+    byte[] b = address.getAddress();
+    return (b[0] & 0xFF) | (b[1] & 0xFF) << 8 | (b[2] & 0xFF) << 16 | (b[3] & 0xFF) << 24;
   }
 
   /** A port as the TCP table stores it: network byte order in the low 16 bits. */

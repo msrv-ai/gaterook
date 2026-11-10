@@ -78,8 +78,34 @@ class NativeOsTest {
     b.putInt(5).putInt(0x0100007F).putInt(Short.toUnsignedInt(Short.reverseBytes((short) 50001)))
         .putInt(0x0100007F).putInt(Short.toUnsignedInt(Short.reverseBytes((short) 7465))).putInt(4242);
     MemorySegment rows = MemorySegment.ofArray(b.array());
-    assertThat(NativeOs.peerIn(rows, 7465, 50001)).isEqualTo(4242);
-    assertThat(NativeOs.peerIn(rows, 7466, 50001)).isEqualTo(-1);
+    assertThat(NativeOs.peerIn(rows, 0x0100007F, 7465, 50001)).isEqualTo(4242);
+    assertThat(NativeOs.peerIn(rows, 0x0100007F, 7466, 50001)).isEqualTo(-1);
+  }
+
+  /**
+   * A process can bind another address of 127.0.0.0/8 and connect from it: its row is found by that address, and a
+   * row of another loopback address with the same port isn't taken for it.
+   */
+  @Test
+  void aPeerOnAnotherLoopbackAddressIsFoundByThatAddress() {
+    ByteBuffer b = ByteBuffer.allocate(4 + 2 * 24).order(ByteOrder.LITTLE_ENDIAN);
+    b.putInt(2);
+    int client = Short.toUnsignedInt(Short.reverseBytes((short) 50001));
+    int core = Short.toUnsignedInt(Short.reverseBytes((short) 7465));
+    // 127.0.0.1:50001 → :7465, pid 1111; 127.0.0.2:50001 → :7465, pid 2222.
+    b.putInt(5).putInt(0x0100007F).putInt(client).putInt(0x0100007F).putInt(core).putInt(1111);
+    b.putInt(5).putInt(0x0200007F).putInt(client).putInt(0x0100007F).putInt(core).putInt(2222);
+    MemorySegment rows = MemorySegment.ofArray(b.array());
+    assertThat(NativeOs.peerIn(rows, 0x0200007F, 7465, 50001)).isEqualTo(2222);
+    assertThat(NativeOs.peerIn(rows, 0x0100007F, 7465, 50001)).isEqualTo(1111);
+    assertThat(NativeOs.peerIn(rows, 0x0300007F, 7465, 50001)).isEqualTo(-1);
+    // The table's form of an address: network byte order read as a little-endian DWORD.
+    assertThat(NativeOs.tableAddress((java.net.Inet4Address) java.net.InetAddress.ofLiteral("127.0.0.1")))
+        .isEqualTo(0x0100007F);
+    assertThat(NativeOs.tableAddress((java.net.Inet4Address) java.net.InetAddress.ofLiteral("127.0.0.2")))
+        .isEqualTo(0x0200007F);
+    assertThat(NativeOs.tableAddress((java.net.Inet4Address) java.net.InetAddress.ofLiteral("127.1.2.3")))
+        .isEqualTo(0x0302017F);
   }
 
   /** An ACL with one ACE: a label of {@code rid} with {@code mask}, or another type. */
