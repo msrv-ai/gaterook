@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -21,12 +22,27 @@ import tools.jackson.databind.node.ObjectNode;
  * other's URIs, and a URI the server names in a result (a link, an embedded resource) reads back through it.
  *
  * <p>What the server says about them is untrusted text: names, titles and descriptions are cleaned and cut like a
- * tool's; icons and other {@code _meta} are left out (an icon is a URL a client would fetch), except an app's
- * {@code ui} settings, which its host needs to render it.
+ * tool's; icons and other {@code _meta} are left out (an icon is a URL a client would fetch), except the part of an
+ * app's {@code ui} settings its host needs to render it ({@link #appSettings}).
  */
 final class Federation {
 
   static final int MAX_ITEMS = 1_000;
+
+  /** The lists of an app's content security policy (MCP Apps {@code _meta.ui.csp}) a host builds its policy from. */
+  static final List<String> CSP_LISTS = List.of("connectDomains", "resourceDomains", "frameDomains",
+      "baseUriDomains");
+  /** The origins one of those lists may name. */
+  static final int MAX_ORIGINS = 32;
+  private static final int MAX_ORIGIN = 300;
+  /**
+   * An origin of the web as a content security policy names one: {@code http}, {@code https}, {@code ws} or
+   * {@code wss}, a host whose leftmost label may be {@code *}, an optional port and an optional final slash. Nothing a
+   * policy could read as another source or directive (a space, a semicolon, a quote, a keyword, a bare wildcard).
+   */
+  private static final Pattern ORIGIN = Pattern.compile("(?:https?|wss?)://(?:\\*\\.)?"
+      + "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*(?::[0-9]{1,5})?/?",
+      Pattern.CASE_INSENSITIVE);
 
   private Federation() {}
 
@@ -100,16 +116,61 @@ final class Federation {
       ToolResult.Content block = c.path("blob").isString()
           ? ToolResult.Content.resource(exposed(connection, uri), mime, null, c.get("blob").asString())
           : ToolResult.Content.resource(exposed(connection, uri), mime, Texts.str(c.get("text"), ""), null);
-      JsonNode ui = c.path("_meta").path("ui");
-      if (ui.isObject()) {
-        // An app's host needs its settings (the CSP of its connections and resources): kept as the server gave them.
+      ObjectNode settings = appSettings(c.path("_meta").path("ui"));
+      if (settings != null) {
+        // An app's host needs its settings (the CSP of its connections and resources) to render it.
         ObjectNode meta = Texts.JSON.createObjectNode();
-        meta.set("ui", ui.deepCopy());
+        meta.set("ui", settings);
         block = block.withMeta(meta);
       }
       out.add(block);
     }
     return new ToolResult(List.copyOf(out), null, false, null, false, null, List.of(), 0, 0, null);
+  }
+
+  /**
+   * What an endpoint passes on of the {@code _meta.ui} an app resource carries (MCP Apps): the four lists of its
+   * content security policy ({@link #CSP_LISTS}), each with at most {@value #MAX_ORIGINS} origins of the web
+   * ({@link #ORIGIN}), and whether it prefers a border. A value of another kind, an entry that is no such origin and
+   * every other member are left out. That includes the device permissions an app may ask for (camera, microphone,
+   * location, clipboard), which no review of the server shows, and the dedicated origin it may ask to run under,
+   * which a server works out for its own URL and which would let one app share the storage of another the endpoint
+   * shows. A list the server leaves out stays out, so the host's default applies to it; a list whose entries are all
+   * left out stays, empty.
+   *
+   * @return the settings, or {@code null} when nothing is left
+   */
+  static ObjectNode appSettings(JsonNode ui) {
+    if (!ui.isObject()) {
+      return null;
+    }
+    ObjectNode out = Texts.JSON.createObjectNode();
+    JsonNode csp = ui.get("csp");
+    if (csp != null && csp.isObject()) {
+      ObjectNode kept = out.putObject("csp");
+      for (String list : CSP_LISTS) {
+        JsonNode values = csp.get(list);
+        if (values == null || !values.isArray()) {
+          continue;
+        }
+        ArrayNode origins = kept.putArray(list);
+        for (JsonNode v : values) {
+          if (origins.size() < MAX_ORIGINS && v.isString() && origin(v.asString())) {
+            origins.add(v.asString());
+          }
+        }
+      }
+    }
+    JsonNode border = ui.get("prefersBorder");
+    if (border != null && border.isBoolean()) {
+      out.put("prefersBorder", border.asBoolean());
+    }
+    return out.isEmpty() ? null : out;
+  }
+
+  /** Whether {@code value} is an origin a content security policy list of an app may name ({@link #ORIGIN}). */
+  static boolean origin(String value) {
+    return value.length() <= MAX_ORIGIN && ORIGIN.matcher(value).matches();
   }
 
   /** The prompts of {@code prompts/list} under the server's prefix, and the server's name of each. */

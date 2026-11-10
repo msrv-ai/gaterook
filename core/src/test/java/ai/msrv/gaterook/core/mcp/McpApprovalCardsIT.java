@@ -73,6 +73,10 @@ class McpApprovalCardsIT {
     assertThat(tool(listed, "approval_card").at("/_meta/ui/resourceUri").asString()).isEqualTo(RESOURCE);
     assertThat(tool(listed, "approval_card_action").at("/_meta/ui/visibility").toString())
         .isEqualTo("[\"app\"]");
+    // The card calls only its action: no app the client shows may call any other tool of the endpoint.
+    for (String own : List.of("approval_card", "approval_status", "sql_query", "sql_execute")) {
+      assertThat(tool(listed, own).at("/_meta/ui/visibility").toString()).as(own).isEqualTo("[\"model\"]");
+    }
     assertThat(tool(listed, "approval_card_action").at("/inputSchema/properties/action/enum").toString())
         .doesNotContain("approve").contains("status", "open", "deny");
 
