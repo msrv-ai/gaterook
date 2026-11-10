@@ -59,9 +59,9 @@ import java.util.stream.IntStream;
  * is written as given, with the system's own aliases ({@code /tmp}, {@code /var}) spelled out and with the person's
  * home, GateRook's home or the folder of all work folders in it ({@code mcp}) in their resolved form, never as where a
  * link below them leads, and is refused (exit 3) when it is, or lies behind, such a link ({@link Closed#link}); the
- * links at or above those folders are the person's own. On Linux with
- * Landlock ABI 6 or later the command is also kept from abstract Unix sockets and signals outside its own tree. On
- * Windows the command runs at low integrity in a job that ends it with the bridge ({@link WindowsSandbox}), or, with
+ * links at or above those folders are the person's own. On Linux with Landlock ABI 6 or later the command is also
+ * kept from abstract Unix sockets and signals outside its own tree. On Windows the command runs at low integrity in
+ * a job that ends it with the bridge ({@link WindowsSandbox}), or, with
  * {@code --appcontainer}, in an AppContainer of its work folder that the bridge creates it in
  * ({@link WindowsAppContainer}); {@code --ro} and
  * {@code --deny-tcp} need nothing there (the core refuses its sandboxed processes' connections itself). Elsewhere, or
@@ -369,17 +369,28 @@ final class Sandbox {
       return new Closed(home, BrokerClient.home(env), DENIED.stream().map(home::resolve).toList());
     }
 
-    /** GateRook's home, then the credential paths: what the command may neither read nor write. */
+    /**
+     * GateRook's home, the folder of all work folders in it, then the credential paths: what the command may neither
+     * read nor write. The folder of all work folders is named on its own because the person may keep it on another
+     * disk, behind a link at {@code <GateRook home>/mcp}: the other servers' work folders are then where the link
+     * leads, outside GateRook's home as the file system resolves it, and Seatbelt judges that path.
+     */
     List<Path> denied() {
-      List<Path> all = new ArrayList<>(List.of(gateway));
+      List<Path> all = new ArrayList<>(List.of(gateway, workFolders()));
       all.addAll(credentials);
       return all;
+    }
+
+    /** The folder of all work folders, as given: {@code <GateRook home>/mcp}. */
+    Path workFolders() {
+      return gateway.resolve(WORK_FOLDERS);
     }
 
     /**
      * Why {@code path} can't be opened to the command, or {@code null}. It may not be or hold the home or a denied
      * path: Landlock opens all of a path, and in SBPL a later allow reopens what an earlier deny closed. Nor may it lie
-     * in a denied path, except a writable path in GateRook's home: the servers' work folders are there.
+     * in a denied path, except a writable path in GateRook's home or in its folder of all work folders, wherever that
+     * lies: the servers' work folders are there.
      */
     String refusal(Path path, boolean writable) {
       List<Path> forms = forms(path);
@@ -393,6 +404,9 @@ final class Sandbox {
       }
       if (!writable && within(forms, forms(gateway))) {
         return path + " is in " + gateway;
+      }
+      if (!writable && within(forms, forms(workFolders()))) {
+        return path + " is in " + workFolders();
       }
       for (Path c : credentials) {
         if (within(forms, forms(c))) {
@@ -469,7 +483,7 @@ final class Sandbox {
      */
     private Path anchor(Path abs) {
       Path nearest = null;
-      for (Path base : List.of(home, gateway, gateway.resolve(WORK_FOLDERS))) {
+      for (Path base : List.of(home, gateway, workFolders())) {
         Path given = base.toAbsolutePath().normalize();
         Path resolved = realPath(given);
         for (Path candidate : resolved == null ? List.of(given) : List.of(given, resolved)) {
@@ -773,26 +787,29 @@ final class Sandbox {
   // ── macOS: sandbox-exec ─────────────────────────────────────────────────────────────────────────────────────
 
   /**
-   * SBPL: reading as usual, except GateRook's home and the {@link #DENIED} paths (the credentials and the configs of
-   * the AI apps: Cursor's and Antigravity's may hold a token, Codex's and Claude's name grants); writing nowhere but
-   * the {@code --rw} paths, the temporary folders and the devices. The rest of the home stays closed to writes, the
-   * caches the person's own tools share included: a login item, a shell profile, another app's settings, a
-   * repository's hooks or a package planted from inside would run unconfined later. The core gives a server its work
-   * folder as {@code HOME}, so {@code npx} and {@code uvx} cache there. The folders above a {@code --rw} path may be
-   * stat-ed, not read: GateRook's home is closed, yet the work folders of its MCP servers live in it. Later rules win
-   * in SBPL, whichever is narrower, so the allows that reopen the work folders come after the denial, and a
-   * {@code --rw} path that would reopen a denied one is refused before ({@link Closed#refusal}). Seatbelt compares
-   * {@code subpath} with the canonical path only — a rule for {@code /tmp/x} doesn't stop reading
-   * {@code /private/tmp/x} — so a denied path is written as given and as the kernel sees it.
+   * SBPL: reading as usual, except GateRook's home, its folder of all work folders and the {@link #DENIED} paths (the
+   * credentials and the configs of the AI apps: Cursor's and Antigravity's may hold a token, Codex's and Claude's
+   * name grants); writing nowhere but the {@code --rw} paths, the temporary folders and the devices. The rest of the
+   * home stays closed to writes, the caches the person's own tools share included: a login item, a shell profile,
+   * another app's settings, a repository's hooks or a package planted from inside would run unconfined later. The
+   * core gives a server its work folder as {@code HOME}, so {@code npx} and {@code uvx} cache there. The folders
+   * above a {@code --rw} path may be stat-ed, not read: GateRook's home is closed, yet the work folders of its MCP
+   * servers live in it. Later rules win in SBPL, whichever is narrower, so the allows that reopen the work folders
+   * come after the denial, and a {@code --rw} path that would reopen a denied one is refused before
+   * ({@link Closed#refusal}). Seatbelt compares {@code subpath} with the canonical path only — a rule for
+   * {@code /tmp/x} doesn't stop reading {@code /private/tmp/x} — so a denied path is written as given and as the
+   * kernel sees it. The folder of all work folders is denied on its own for that reason: kept on another disk behind
+   * a link, it lies outside GateRook's home as the kernel sees it, and the other servers' work folders (their
+   * {@code HOME}, with caches and tokens) would stay readable.
    *
    * <p>A path the command may write is written differently, as {@link Closed#grantForms} has it: as given, with the
    * system's own aliases spelled out, and below the person's home, GateRook's home or its folder of all work folders
-   * never as where a link leads. The
-   * command writes in its {@code --rw} folder, so it can replace an entry of it, such as the {@code tmp} that is its
-   * {@code TMPDIR}, by a link before its next start; a grant that followed the link would let that start write wherever
-   * it leads. {@code tmpDir} (the command's {@code TMPDIR}, or {@code null}) is granted only when it is none of the
-   * paths {@link Closed#refusal} keeps closed and no link lies on its way ({@link Closed#link}); {@link #run} refuses
-   * the start before that, so the profile is also right when a link is put there after the check.
+   * never as where a link leads. The command writes in its {@code --rw} folder, so it can replace an entry of it,
+   * such as the {@code tmp} that is its {@code TMPDIR}, by a link before its next start; a grant that followed the
+   * link would let that start write wherever it leads. {@code tmpDir} (the command's {@code TMPDIR}, or
+   * {@code null}) is granted only when it is none of the paths {@link Closed#refusal} keeps closed and no link lies
+   * on its way ({@link Closed#link}); {@link #run} refuses the start before that, so the profile is also right when
+   * a link is put there after the check.
    *
    * <p>The network is open but for the {@code --deny-tcp} ports, which the command may neither connect to nor bind,
    * on every host: Seatbelt takes only {@code *} or {@code localhost} as a host, and a rule for {@code localhost} lets

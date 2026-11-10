@@ -348,8 +348,22 @@ class SandboxTest {
     assertThat(closed.link(work.resolve("tmp"))).isNull();
     assertThat(Sandbox.linkRefusal(closed, List.of(work.toString()), work.resolve("tmp").toString())).isNull();
     assertThat(closed.grantForms(work)).containsExactly(work.toString(), onDisk.toString());
-    assertThat(Sandbox.macProfile(closed, List.of(work.toString()), Set.of(), null))
-        .contains("(allow file-read* file-write* (subpath \"" + onDisk + "\"))");
+    String profile = Sandbox.macProfile(closed, List.of(work.toString()), Set.of(), null);
+    assertThat(profile).contains("(allow file-read* file-write* (subpath \"" + onDisk + "\"))");
+    // The other servers' folders are where the link leads, outside GateRook's home as the kernel sees it: closed too,
+    // as given and as resolved, and before the server's own folder is reopened (later rules win).
+    assertThat(profile).contains("  (subpath \"" + gateway.resolve("mcp") + "\")\n")
+        .contains("  (subpath \"" + disk + "\")\n");
+    assertThat(profile.indexOf("(allow file-read* file-write* (subpath \"" + onDisk + "\"))"))
+        .isGreaterThan(profile.indexOf("  (subpath \"" + disk + "\")\n"));
+    // No grant opens that folder, or anything but a work folder in it, to reading or to writing as a whole.
+    assertThat(closed.refusal(gateway.resolve("mcp"), true)).contains("holds " + gateway.resolve("mcp"));
+    assertThat(closed.refusal(disk, true)).contains("holds ").contains(gateway.resolve("mcp").toString());
+    assertThat(closed.refusal(disk.resolve("other"), false)).isEqualTo(disk.resolve("other") + " is in "
+        + gateway.resolve("mcp"));
+    assertThat(closed.refusal(gateway.resolve("mcp/other"), false)).isNotNull();
+    assertThat(closed.refusal(work, true)).isNull();
+    assertThat(closed.refusal(onDisk, true)).isNull();
 
     // Below it, the work folder and its tmp are the server's to re-point.
     Path tmp = Files.createSymbolicLink(onDisk.resolve("tmp"), home);
@@ -589,6 +603,45 @@ class SandboxTest {
     assertThat(r.out()).as(r.err()).contains("wrote-tmp").contains("wrote-work").contains("sibling-refused");
     assertThat(r.code()).isZero();
     assertThat(sibling.resolve("planted")).doesNotExist();
+  }
+
+  /**
+   * The folder of all work folders kept on another disk behind a link: the other servers' folders are where the link
+   * leads, outside GateRook's home as the kernel sees it. The server still reads and writes its own work folder, and
+   * can neither read nor write the others', under the name through the link or the one it leads to.
+   */
+  @Test
+  void onMacOsALinkAtTheFolderOfAllWorkFoldersDoesNotOpenTheOtherServersFolders() throws Exception {
+    assumeTrue(System.getProperty("os.name").startsWith("Mac") && Files.isExecutable(Path.of("/usr/bin/sandbox-exec")),
+        "macOS with sandbox-exec");
+    Path real = dir.toRealPath();
+    Path gateway = Files.createDirectories(real.resolve("gateway-home"));
+    Path disk = Files.createDirectories(real.resolve("disk/mcp"));
+    Files.createSymbolicLink(gateway.resolve("mcp"), disk);
+    Path own = Files.createDirectories(disk.resolve("server"));
+    Files.createDirectories(own.resolve("tmp"));
+    Files.writeString(own.resolve("state"), "its own state");
+    Path other = Files.createDirectories(disk.resolve("other"));
+    Files.writeString(other.resolve("token"), "the other server's token");
+    Path work = gateway.resolve("mcp/server");
+    String script = "cat \"" + work.resolve("state") + "\"; echo; "
+        + "echo y > \"" + work.resolve("out") + "\" && echo wrote-work; "
+        + "echo y > \"$TMPDIR/own\" && echo wrote-tmp; "
+        + "cat \"" + other.resolve("token") + "\" 2>/dev/null || echo denied-resolved; "
+        + "cat \"" + gateway.resolve("mcp/other/token") + "\" 2>/dev/null || echo denied-given; "
+        + "ls \"" + disk + "\" >/dev/null 2>&1 || echo denied-list; "
+        + "echo y > \"" + other.resolve("planted") + "\" 2>/dev/null || echo denied-write";
+
+    BridgeProcess.Result r = BridgeProcess.run(List.of("sandbox-exec", "--rw", work.toString(), "--", "/bin/sh", "-c",
+        script), Map.of("GW_HOME", gateway.toString(), "TMPDIR", work.resolve("tmp").toString()), "",
+        Duration.ofSeconds(30));
+
+    assertThat(r.out()).as(r.err()).contains("its own state").contains("wrote-work").contains("wrote-tmp")
+        .contains("denied-resolved").contains("denied-given").contains("denied-list").contains("denied-write")
+        .doesNotContain("the other server's token");
+    assertThat(r.code()).isZero();
+    assertThat(own.resolve("out")).exists();
+    assertThat(other.resolve("planted")).doesNotExist();
   }
 
   /**
