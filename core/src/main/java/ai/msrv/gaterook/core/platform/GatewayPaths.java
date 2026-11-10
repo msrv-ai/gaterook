@@ -28,7 +28,8 @@ import org.slf4j.LoggerFactory;
  * <p>On file systems without POSIX permissions (Windows) the permissions are left to the ACLs of the user profile
  * (owner-only ACLs: UNVERIFIED, report 12 §6). On Windows the home also gets a medium mandatory label with
  * no-read-up, no-write-up and no-execute-up, inherited by everything in it ({@link NativeOs#closeToLowIntegrity}):
- * plugin hosts and MCP servers run at low integrity there, and read only the folders labelled for them.
+ * plugin hosts and MCP servers run at low integrity there, and read in it only the folders labelled low (a server's
+ * work folder, a plugin's data folder: each keeps its label, so they are open to one another too).
  */
 public final class GatewayPaths implements AutoCloseable {
 

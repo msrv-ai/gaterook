@@ -180,6 +180,8 @@ class LauncherTest {
 
     assertThat(l.argv(executable(work.resolve("node_modules/.bin/srv")), List.of(), work)).doesNotContain("--ro")
         .containsSubsequence("--rw", work.toString(), "--");
+    // Nor a tree that holds the folder of all work folders where the link leads (home/kept holds home/kept/mcp).
+    assertThat(l.argv(executable(home.resolve("kept/bin/srv")), List.of(), work)).doesNotContain("--ro");
     // An installation of the person's own in the home is still read.
     Path nvm = home.resolve(".nvm/versions/node/v24.1.0");
     assertThat(l.argv(executable(nvm.resolve("bin/node")), List.of(), work)).containsSequence("--ro", nvm.toString());

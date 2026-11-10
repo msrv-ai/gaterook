@@ -43,8 +43,9 @@ import tools.jackson.databind.JsonNode;
  * through the host's own first stage ({@code pluginhost.SandboxExec}), which confines its main thread with Landlock
  * and then execs the host's JVM — Landlock confines threads, not processes, so a host restricting itself would leave
  * its other threads, and with them the plugin's calls, unconfined (review 2026-10-27); on macOS the core wraps the
- * launch with {@code sandbox-exec} and an SBPL profile that denies reading GateRook's home, the credential
- * folders and the connected clients' configs (the API is deprecated, so this is UNVERIFIED in the kit's words).
+ * launch with {@code sandbox-exec} and an SBPL profile that denies reading GateRook's home, its folder of all MCP
+ * work folders (also where a link there leads), the credential folders and the connected clients' configs (the API
+ * is deprecated, so this is UNVERIFIED in the kit's words).
  * Both keep the plugin's own sockets from the core's listeners (its local and public ports; on Linux from Landlock ABI
  * 4, else the plugin log says they stay open): the egress guard judges only what goes through {@code ctx.egress()},
  * and a JDBC driver, a raw socket or an address literal never does. On Linux, from Landlock ABI 6, the host is also

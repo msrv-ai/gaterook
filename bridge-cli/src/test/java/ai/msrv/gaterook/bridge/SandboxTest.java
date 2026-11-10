@@ -358,7 +358,8 @@ class SandboxTest {
         .contains("  (subpath \"" + disk + "\")\n");
     assertThat(profile.indexOf("(allow file-read* file-write* (subpath \"" + onDisk + "\"))"))
         .isGreaterThan(profile.indexOf("  (subpath \"" + disk + "\")\n"));
-    // No grant opens that folder, or anything but a work folder in it, to reading or to writing as a whole.
+    // No grant opens that folder as a whole, and no read-only grant opens anything in it; a writable grant may lie in
+    // it (the core grants a server its own work folder).
     assertThat(closed.refusal(gateway.resolve("mcp"), true)).contains("holds " + gateway.resolve("mcp"));
     assertThat(closed.refusal(disk, true)).contains("holds ").contains(gateway.resolve("mcp").toString());
     assertThat(closed.refusal(disk.resolve("other"), false)).isEqualTo(disk.resolve("other") + " is in "

@@ -28,7 +28,9 @@ import java.util.Map;
  * </ol>
  *
  * <p>At low integrity the command can't write anything labelled medium, which is every file and registry key of the
- * account that isn't labelled low, and can't read GateRook's home, which the core labels medium with no-read-up.
+ * account that isn't labelled low, and can't read GateRook's home, which the core labels medium with no-read-up,
+ * except what is labelled low in it: the work folders of the servers and the data folders of the plugins keep their
+ * low label, so a command at low integrity can read and write another's by its path.
  * {@code --ro} needs nothing here (the rest of the system stays readable), and {@code --deny-tcp} is the core's to
  * enforce on Windows: it refuses connections from processes in this sandbox.
  */
