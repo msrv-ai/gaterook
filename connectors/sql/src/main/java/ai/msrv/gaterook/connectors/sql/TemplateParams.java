@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.connectors.sql;
 
 import ai.msrv.gaterook.connector.api.ConnectorException;
+import ai.msrv.gaterook.connectors.support.JsonNumbers;
 import java.math.BigDecimal;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -315,7 +316,15 @@ final class TemplateParams {
           yield n;
         }
         case NUMBER -> {
+          // The approver and the stored approval get the number in plain notation: one with a runaway exponent
+          // (1e999999999, as text or as a number) would be a gigabyte of zeros there, and 1e999 is infinite.
+          if (v.isNumber() && JsonNumbers.notFinite(v)) {
+            throw ConnectorException.badInput(p.name() + " must be a finite number.");
+          }
           BigDecimal n = v.isNumber() ? v.decimalValue() : new BigDecimal(text(p, v));
+          if (!JsonNumbers.expandable(n)) {
+            throw ConnectorException.badInput(p.name() + " is out of range.");
+          }
           checkBounds(p, n);
           yield n;
         }

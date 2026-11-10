@@ -81,6 +81,26 @@ class TemplatesTest {
   }
 
   @Test
+  void aNumberWithARunawayExponentIsRefusedNotWrittenOut() throws Exception {
+    List<TemplateParams.Param> p = params("[{\"name\": \"amount\", \"type\": \"number\"}]");
+
+    // As text or as a number: the approval shows and stores the value in plain notation.
+    for (String amount : List.of("1e999999999", "-1e-999999999", "1e401", "1e-402", "100e2147483647")) {
+      assertThatThrownBy(() -> TemplateParams.resolve(p, List.of("amount"), Fixtures.object().put("amount", amount),
+          NOON)).as(amount).isInstanceOf(ConnectorException.class).hasMessage("amount is out of range.");
+    }
+    // The default mapper reads 1e999 as an infinite double.
+    assertThatThrownBy(() -> TemplateParams.resolve(p, List.of("amount"), Fixtures.JSON.readTree("{\"amount\":1e999}"),
+        NOON)).isInstanceOf(ConnectorException.class).hasMessage("amount must be a finite number.");
+
+    List<TemplateParams.Bound> v = TemplateParams.resolve(p, List.of("amount"), Fixtures.object().put("amount", "1e20"),
+        NOON);
+    assertThat(TemplateParams.describe(v)).isEqualTo(":amount = 100000000000000000000 (number)");
+    assertThat(TemplateParams.describe(TemplateParams.resolve(p, List.of("amount"), Fixtures.object()
+        .put("amount", 12.5), NOON))).isEqualTo(":amount = 12.5 (number)");
+  }
+
+  @Test
   void theApprovedValuesComeBackWithTheirTypes() throws Exception {
     List<TemplateParams.Param> p = params("""
         [{"name": "id", "type": "integer"}, {"name": "since", "type": "timestamp", "default": "-PT1H"},

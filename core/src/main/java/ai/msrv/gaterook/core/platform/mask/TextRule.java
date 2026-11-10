@@ -8,7 +8,9 @@ import java.util.regex.Pattern;
 /**
  * One secret detector: a regular expression anchored on literals. The regex never scans a whole text: it runs only in
  * windows around the places where one of its literals occurs ({@link SecretRules#apply} finds them all in one pass),
- * which keeps the rule set at a few milliseconds per megabyte (report 12 §7.7: 428 ms/MB for the naive set).
+ * which keeps the rule set at a few milliseconds per megabyte (report 12 §7.7: 428 ms/MB for the naive set). A match
+ * is read no further than its own literal's window, so what a literal costs does not depend on the text around it,
+ * and the work of a whole value is capped by its {@link Work} budget.
  *
  * @param id       rule id reported in {@code byRule} ({@code aws-access-key-id})
  * @param literals lower-case literals, one of which every match contains
@@ -18,6 +20,9 @@ import java.util.regex.Pattern;
  * @param after    how far after a literal's start a match may end
  */
 public record TextRule(String id, List<String> literals, Pattern pattern, int group, int before, int after) {
+
+  /** What {@code byRule} reports for the windows masked whole because the value's work budget was spent. */
+  static final String WORK_LIMIT = "work-limit";
 
   public static TextRule of(String id, String regex, int group, int before, int after, String... literals) {
     if (literals.length == 0) {
@@ -32,47 +37,46 @@ public record TextRule(String id, List<String> literals, Pattern pattern, int gr
   }
 
   /**
-   * Finds this rule's secrets in {@code text} around the literal positions {@code starts[0, count)} (ascending) and
-   * adds their ranges to {@code ranges} as {@code start << 32 | end}. Each literal gets its own start positions, also
-   * where an earlier match spans it: {@code mysql …} reaching across a script's lines covers another command's
-   * {@code --password}, but not its secret. A secret found again from a later literal is not counted twice.
+   * Finds this rule's secrets in the text of {@code work} around the literal positions {@code starts[0, count)}
+   * (ascending) and adds their ranges to {@code ranges} as {@code start << 32 | end}. Each literal gets its own start
+   * positions, also where an earlier match spans it: {@code mysql …} reaching across a script's lines covers another
+   * command's {@code --password}, but not its secret. A secret found again from a later literal is not counted twice.
+   *
+   * <p>When the budget of {@code work} is spent, the windows of the literals not checked yet are masked whole
+   * ({@link #withhold}): the text around a keyword is never passed unchecked.
    */
-  void collect(String text, int[] starts, int count, LongList ranges, MaskCounter counter, String mask) {
-    Matcher m = pattern.matcher(text);
+  void collect(Work work, int[] starts, int count, LongList ranges, MaskCounter counter, String mask) {
+    String text = work.text();
+    int length = text.length();
+    if (work.spent()) {
+      withhold(starts, 0, count, length, ranges, counter);
+      return;
+    }
+    Matcher m = pattern.matcher(work);
     m.useTransparentBounds(true);
     m.useAnchoringBounds(false);
-    int length = text.length();
-    int i = 0;
-    int lastEnd = -1;
     // The last secret found and the one reaching furthest: what a later literal's match may find again.
     int lastFrom = -1;
     int lastTo = -1;
     int furthestFrom = -1;
     int furthestTo = -1;
-    while (i < count) {
-      int first = i;
-      int windowStart = Math.max(0, starts[i] - before);
-      int windowEnd = Math.min(length, starts[i] + after);
-      // Merge the windows of nearby occurrences: one regex run covers them all.
-      while (i + 1 < count && starts[i + 1] - before <= windowEnd) {
-        i++;
-        windowEnd = Math.min(length, Math.max(windowEnd, starts[i] + after));
-      }
-      i++;
-      int regionStart = Math.max(windowStart, lastEnd);
-      if (regionStart >= windowEnd) {
-        continue;
-      }
-      // A match can start only within 'before' characters of an actual literal. Keep the full end window for
-      // long secrets, but do not ask the regex engine to search thousands of impossible starting positions.
-      int nextStart = regionStart;
-      int untried = regionStart;
-      for (int literal = first; literal < i; literal++) {
+    // Start positions are tried once, in ascending order. 'nextStart' is the first one that no literal has tried or
+    // jumped over with a match, 'untried' the first one that nobody has tried.
+    int nextStart = 0;
+    int untried = 0;
+    int literal = 0;
+    try {
+      for (; literal < count; literal++) {
+        int at = starts[literal];
+        // A match is read no further than its own literal's window, not to the end of the windows merged with it.
+        int windowEnd = Math.min(length, at + after);
         // A literal inside an earlier match gets the starts that match skipped: it may have a secret of its own.
-        int from = starts[literal] < nextStart ? untried : nextStart;
-        int candidate = Math.max(from, starts[literal] - before);
-        int lastStart = Math.min(starts[literal], windowEnd - 1);
-        while (candidate <= lastStart) {
+        int from = at < nextStart ? untried : nextStart;
+        // A match can start only within 'before' characters of an actual literal. Keep the full end window for
+        // long secrets, but do not ask the regex engine to search thousands of impossible starting positions.
+        int candidate = Math.max(from, at - before);
+        while (candidate <= at) {
+          work.charge(Work.ATTEMPT);
           m.region(candidate, windowEnd);
           untried = candidate + 1;
           if (!m.lookingAt()) {
@@ -94,10 +98,39 @@ public record TextRule(String id, List<String> literals, Pattern pattern, int gr
             furthestFrom = start;
             furthestTo = end;
           }
-          lastEnd = Math.max(lastEnd, m.end());
         }
         nextStart = Math.max(nextStart, candidate);
       }
+    } catch (Work.Spent e) {
+      withhold(starts, literal, count, length, ranges, counter);
+    }
+  }
+
+  /**
+   * Masks the windows of the literals {@code starts[from, count)} whole. A secret of this rule lies between
+   * {@code before} characters before its literal and {@code after} characters after it, so this covers whatever the
+   * rule would have found there. Overlapping windows become one range.
+   */
+  private void withhold(int[] starts, int from, int count, int length, LongList ranges, MaskCounter counter) {
+    int start = -1;
+    int end = -1;
+    for (int i = from; i < count; i++) {
+      int windowStart = Math.max(0, starts[i] - before);
+      int windowEnd = Math.min(length, starts[i] + after);
+      if (start >= 0 && windowStart <= end) {
+        end = Math.max(end, windowEnd);
+        continue;
+      }
+      if (start >= 0) {
+        ranges.add(((long) start << 32) | end);
+        counter.hit(WORK_LIMIT);
+      }
+      start = windowStart;
+      end = windowEnd;
+    }
+    if (start >= 0) {
+      ranges.add(((long) start << 32) | end);
+      counter.hit(WORK_LIMIT);
     }
   }
 }
