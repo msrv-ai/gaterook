@@ -153,6 +153,14 @@ class OpenSearchRequestTest {
             error -> assertThat(error.kind()).isEqualTo(ConnectorException.Kind.DENIED));
   }
 
+  /** Not a known read, but an operation the request tool, with approval, prepares and sends as written. */
+  @ParameterizedTest
+  @ValueSource(strings = {"/people/_doc/%C2%85", "/people/_doc/%C2%A0", "/people/_doc/%E2%80%A8"})
+  void anEscapedSpaceOrControlCharacterBeyondAsciiGoesThroughTheRequestTool(String path) throws Exception {
+    assertThat(OpenSearchRequest.plan(request("opensearch_request", "GET", path), FULL, LIMITS).path())
+        .isEqualTo(path);
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"/idx/_doc/a b", "/idx/_doc/a\u0000b", "/idx/_doc/a\u0085b", "/idx/_doc/a\u00A0b",
       "/idx/_doc/a\u2028b", "/idx/_doc/a\"b", "/idx/_doc/a{b}", "/idx/_doc/a\\b", "/idx/_doc/a#b"})
