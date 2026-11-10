@@ -176,10 +176,11 @@ public final class FullBackupDatabase {
   }
 
   /**
-   * Every object of the schema except SQLite's own bookkeeping, recognized by exact kind and name and never by a
-   * pattern: in LIKE an underscore matches any character, so {@code NOT LIKE 'sqlite_%'} also hides a trigger or view
-   * named {@code sqlite1…}, and SQLite refuses to create an object named {@code sqlite_…} itself but loads one from
-   * an edited file. The revocations run on a writable connection where the backup's triggers fire, so every other
+   * Every object of the schema except SQLite's own bookkeeping, recognized by its exact kind and then by an exact table
+   * name, or for an automatic index by its {@code sqlite_autoindex_} name prefix and its missing definition, and never
+   * by a LIKE pattern: in LIKE an underscore matches any character, so {@code NOT LIKE 'sqlite_%'} also hides a
+   * trigger or view named {@code sqlite1…}, and SQLite refuses to create an object named {@code sqlite_…} itself but
+   * loads one from an edited file. The revocations run on a writable connection where the backup's triggers fire, so every other
    * object, whatever its name, must be exactly the live database's.
    */
   private static List<List<String>> schema(Connection c) throws SQLException {
