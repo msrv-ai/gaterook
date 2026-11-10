@@ -90,6 +90,8 @@ record SshLogQuery(List<String> files, boolean tail, int maxLines, long scanByte
     Pattern expression = null;
     String needle = query == null || query.isEmpty() ? null : query;
     if (needle != null && mode.equals("regex")) {
+      // Before RE2/J expands it: compiling an expression is part of classifying the call.
+      RegexBudget.check(needle);
       try {
         expression = Pattern.compile(needle, caseSensitive ? 0 : Pattern.CASE_INSENSITIVE);
       } catch (PatternSyntaxException e) {
