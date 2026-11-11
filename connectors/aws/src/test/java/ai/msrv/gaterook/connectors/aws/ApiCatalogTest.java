@@ -36,7 +36,9 @@ class ApiCatalogTest {
 
   @Test
   void servicesItCantCallSayWhy() {
-    assertThat(catalog.find("s3").unsupported()).contains("S3 needs its own tool");
+    // S3 is out of reach as a whole, its object reads included: bucket and object access has rules of its own.
+    assertThat(catalog.find("s3").unsupported()).contains("S3 has its own addressing and object rules");
+    assertThat(catalog.find("s3control").unsupported()).contains("account host labels");
     assertThat(catalog.find("cloudwatchomni").unsupported()).contains("rpcv2Cbor");
     assertThat(catalog.find("codecatalyst").unsupported()).contains("bearer tokens");
     assertThatThrownBy(() -> catalog.model(catalog.find("s3"))).isInstanceOf(IllegalArgumentException.class);

@@ -927,7 +927,7 @@
    ],
    "operations": 62,
    "readonly": 23,
-   "unsupported": "CloudWatchOmni speaks only rpcv2Cbor, which aws_call doesn't send yet."
+   "unsupported": "CloudWatchOmni speaks only rpcv2Cbor, which aws_api_read and aws_api_change don't send yet."
   },
   "codeartifact": {
    "sdkId": "codeartifact",
@@ -1796,7 +1796,7 @@
    ],
    "operations": 25,
    "readonly": 9,
-   "unsupported": "EventBridgeV2 speaks only rpcv2Cbor, which aws_call doesn't send yet."
+   "unsupported": "EventBridgeV2 speaks only rpcv2Cbor, which aws_api_read and aws_api_change don't send yet."
   },
   "events": {
    "sdkId": "EventBridge",
@@ -3361,7 +3361,7 @@
    ],
    "operations": 18,
    "readonly": 10,
-   "unsupported": "PartnerCentral Revenue Measurement speaks only rpcv2Cbor, which aws_call doesn't send yet."
+   "unsupported": "PartnerCentral Revenue Measurement speaks only rpcv2Cbor, which aws_api_read and aws_api_change don't send yet."
   },
   "partnercentral-selling": {
    "sdkId": "PartnerCentral Selling",
@@ -3899,7 +3899,7 @@
    "aliases": [],
    "operations": 112,
    "readonly": 0,
-   "unsupported": "S3 needs its own tool: bucket addressing and object reads are not part of aws_call yet."
+   "unsupported": "S3 has its own addressing and object rules, so aws_api_read and aws_api_change don't call it."
   },
   "s3control": {
    "sdkId": "S3 Control",
@@ -3912,7 +3912,7 @@
    ],
    "operations": 97,
    "readonly": 0,
-   "unsupported": "S3 Control needs account host labels and checksums that aws_call doesn't send yet."
+   "unsupported": "S3 Control needs account host labels and request checksums, which aws_api_read and aws_api_change don't send."
   },
   "s3files": {
    "sdkId": "S3Files",

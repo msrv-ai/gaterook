@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generates the AWS API catalog that the AWS connector's aws_call reads.
+"""Generates the AWS API catalog that the AWS connector's aws_api_read and aws_api_change read.
 
 Input is a checkout of https://github.com/aws/api-models-aws (Smithy JSON AST models, one per service). Output is
 written to connectors/aws/src/main/resources/connectors/aws/api/:
 
   index.json             every service: the name agents use, aliases, protocol, IAM prefix, operation counts and,
-                         for a service aws_call can't call, why not
+                         for a service those tools can't call, why not
   services/<name>.json.gz one service: protocol facts, endpoints, operations and the shapes they use, without
                          documentation
 
@@ -134,8 +134,9 @@ PROTOCOL_ORDER = ["aws.protocols#awsJson1_0", "aws.protocols#awsJson1_1", "aws.p
                   "smithy.protocols#rpcv2Cbor"]
 SUPPORTED_PROTOCOLS = {"awsJson1_0", "awsJson1_1", "restJson1", "awsQuery", "ec2Query", "restXml"}
 # restXml services whose addressing and signing rules are their own (virtual hosts, checksums, account host labels).
-DEFERRED = {"s3": "S3 needs its own tool: bucket addressing and object reads are not part of aws_call yet.",
-            "s3-control": "S3 Control needs account host labels and checksums that aws_call doesn't send yet."}
+DEFERRED = {"s3": "S3 has its own addressing and object rules, so aws_api_read and aws_api_change don't call it.",
+            "s3-control": "S3 Control needs account host labels and request checksums, which aws_api_read and "
+                          "aws_api_change don't send."}
 
 PRELUDE = {"String": "string", "Blob": "blob", "Boolean": "boolean", "PrimitiveBoolean": "boolean",
            "Byte": "byte", "PrimitiveByte": "byte", "Short": "short", "PrimitiveShort": "short",
@@ -187,7 +188,7 @@ def main():
             entry["unsupported"] = svc.unsupported
         index["services"][name] = entry
         if svc.unsupported:
-            # aws_call refuses the service by its index entry; its operations and shapes aren't shipped.
+            # The tools refuse the service by its index entry; its operations and shapes aren't shipped.
             continue
         data = json.dumps(doc, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
         file_name = name + ".json.gz"
@@ -268,7 +269,8 @@ class Service:
         self.query_compatible = "aws.protocols#awsQueryCompatible" in traits
         self.unsupported = None
         if self.protocol not in SUPPORTED_PROTOCOLS:
-            self.unsupported = (f"{self.sdk_id} speaks only {self.protocol}, which aws_call doesn't send yet."
+            self.unsupported = (f"{self.sdk_id} speaks only {self.protocol}, which aws_api_read and aws_api_change "
+                                f"don't send yet."
                                 if self.protocol else f"{self.sdk_id} declares no protocol.")
         elif slug in DEFERRED:
             self.unsupported = DEFERRED[slug]
@@ -531,7 +533,7 @@ def endpoint_for(ruleset, region, static):
     params.update(static)
     for name, p in ruleset.get("parameters", {}).items():
         if p.get("required") and params.get(name) is None:
-            return {"error": f"the endpoint needs {name}, which aws_call doesn't set"}
+            return {"error": f"the endpoint needs {name}, which the AWS API tools don't set"}
     try:
         result = rules(ruleset["rules"], params)
     except RuleError as e:
@@ -553,7 +555,7 @@ def endpoint_for(ruleset, region, static):
         if s.get("signingName"):
             out["signingName"] = s["signingName"]
     if endpoint.get("headers"):
-        return {"error": "the endpoint needs headers that aws_call doesn't send"}
+        return {"error": "the endpoint needs headers that the AWS API tools don't send"}
     return out
 
 
