@@ -205,7 +205,24 @@
       @case ('ready') {
         @if (groups().length) {
           <form class="gw-form gw-form--sticky-actions" method="dialog" novalidate aria-labelledby="step-1-title" (submit)="$event.preventDefault(); continueFromType()">
-            <fieldset gwConnectorPicker [groups]="groups()" [value]="selected()" [error]="pickError()" (valueChange)="onPick($event)"></fieldset>
+            <search class="gw-connector-card__search">
+              <div class="gw-search">
+                <svg lucideIcon="search" class="gw-icon gw-search__icon"></svg>
+                <input class="gw-search__input" type="search" id="type-search" #typeSearch placeholder="Search connector types" aria-label="Search connector types" aria-keyshortcuts="/" aria-controls="type-picker" autocomplete="off" spellcheck="false" [value]="typeQuery()" (input)="typeQuery.set(typeSearch.value)" (keydown.enter)="onTypeSearchEnter($event)">
+                <button class="gw-search__clear" type="button" aria-label="Clear search"><svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg></button>
+                <kbd class="gw-search__kbd" aria-hidden="true">/</kbd>
+              </div>
+              <p class="gw-sr-only" role="status">{{ typeCountText() }}</p>
+            </search>
+            <fieldset gwConnectorPicker id="type-picker" [hidden]="!pickerGroups().length" [groups]="pickerGroups()" [value]="selected()" [error]="pickError()" (valueChange)="onPick($event)"></fieldset>
+            @if (!pickerGroups().length) {
+              <div class="gw-empty gw-empty--compact">
+                <span class="gw-empty__icon"><svg lucideIcon="search-x" class="gw-icon"></svg></span>
+                <p class="gw-empty__title">No connector type matches “{{ typeQuery().trim() }}”</p>
+                <p class="gw-empty__text">Try another name, or a category such as NoSQL. Need another type? Install it in <a class="gw-link" routerLink="/connectors">Connectors</a>.</p>
+                <div class="gw-empty__actions"><button class="gw-btn gw-btn--sm" type="button" gwSearchClear="#type-search">Clear search</button></div>
+              </div>
+            }
             <div class="gw-form__actions">
               @if (mcpServerPicked()) {
                 <p class="gw-form__note"><svg lucideIcon="plug" class="gw-icon"></svg>An MCP server is added in Connectors › MCP servers: you review it, sign in if it asks, and add its tools to an endpoint.</p>

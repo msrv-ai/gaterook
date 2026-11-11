@@ -1003,6 +1003,51 @@ describe('Add connection: wizard', () => {
     expect(document.activeElement).toBe(document.body);
   });
 
+  it('groups the types by category with vendor marks; the search filters them and Enter picks a lone match', async () => {
+    const pg = CATALOG.groups[0].cards[0];
+    core.catalog = { groups: [
+      { name: 'Databases', cards: [
+        structuredClone(pg),
+        { ...structuredClone(pg), type: 'mongodb', name: 'MongoDB', description: 'Find and aggregate.', connections: 0 },
+        structuredClone(CATALOG.groups[0].cards[1]),
+      ] },
+      { name: 'Remote access', cards: [
+        { ...structuredClone(pg), type: 'ssh', name: 'SSH', icon: 'terminal', description: 'Runbooks.', connections: 0 },
+      ] },
+    ], installed: [] };
+    const p = await open();
+    const titles = () => Array.from(p.el.querySelectorAll('#step-1 .gw-connector-card__group-title')).map((h) => text(h));
+    const radios = () => Array.from(p.el.querySelectorAll<HTMLInputElement>('#step-1 input[type=radio]')).map((r) => r.value);
+    const status = () => text(p.el.querySelector('#step-1 search [role=status]'));
+    expect(titles()).toEqual(['SQL databases', 'NoSQL databases', 'Data warehouses', 'Remote access']);
+    const mark = p.el.querySelector<HTMLImageElement>('#step-1 input[value="postgres"] ~ .gw-choice-card__mark img')!;
+    expect(mark.getAttribute('src')).toBe('assets/integrations/postgresql.svg');
+    expect(mark.getAttribute('alt')).toBe('');
+    expect(p.el.querySelector('#step-1 input[value="ssh"] ~ .gw-choice-card__icon')).not.toBeNull();
+    expect(status()).toBe('4 connector types');
+
+    await p.type('type-search', 'cockroach');
+    expect(titles()).toEqual(['SQL databases']);
+    expect(radios()).toEqual(['postgres']);
+    expect(status()).toBe('1 of 4 connector types');
+
+    // Enter never submits the step: with one usable match it picks it.
+    await p.type('type-search', 'nosql');
+    const input = document.getElementById('type-search') as HTMLInputElement;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    await p.settle();
+    expect(p.page().selected()).toBe('mongodb');
+    expect(p.visible()).toEqual(['step-1']);
+
+    await p.type('type-search', 'zzz');
+    expect(p.q<HTMLElement>('#type-picker')!.hidden).toBe(true);
+    expect(text(p.el.querySelector('#step-1 .gw-empty__title'))).toBe('No connector type matches “zzz”');
+    p.button('Clear search').click();
+    await p.settle();
+    expect(radios()).toEqual(['postgres', 'mongodb', 'clickhouse', 'ssh']);
+    expect(document.activeElement).toBe(input);
+  });
+
   it('Continue opens Configure: the form from the schema, focus on the step title, "Step 2 of 4: Configure"', async () => {
     const announce = vi.spyOn(TestBed.inject(Announcer), 'announce');
     const p = await open();
