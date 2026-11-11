@@ -16,7 +16,8 @@ import tools.jackson.databind.node.ObjectNode;
  * window" and "the oldest {@code want} entries of this window", each in its own API and query language. Built for one
  * call: it holds the call's secrets and context.
  */
-sealed interface Backend permits LokiBackend, GcpLoggingBackend, CloudWatchBackend, OpenSearchBackend {
+sealed interface Backend permits LokiBackend, GcpLoggingBackend, CloudWatchBackend, OpenSearchBackend,
+    AzureMonitorBackend {
 
   /**
    * What one call gives a backend.
@@ -69,6 +70,7 @@ sealed interface Backend permits LokiBackend, GcpLoggingBackend, CloudWatchBacke
       case Settings.Gcp g -> new GcpLoggingBackend(g, call);
       case Settings.CloudWatch c -> new CloudWatchBackend(c, call);
       case Settings.OpenSearch o -> new OpenSearchBackend(o, call);
+      case Settings.AzureMonitor a -> new AzureMonitorBackend(a, call);
     };
   }
 }

@@ -1243,13 +1243,15 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           "loki",
           "gcp-logging",
           "cloudwatch",
-          "opensearch"
+          "opensearch",
+          "azure-monitor"
         ],
         "x-enumTitles": [
           "Loki",
           "GCP Cloud Logging",
           "AWS CloudWatch",
-          "OpenSearch"
+          "OpenSearch",
+          "Azure Monitor Logs"
         ]
       }
     },
@@ -1894,6 +1896,180 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             }
           }
         ]
+      },
+      {
+        "title": "Azure Monitor Logs",
+        "required": [
+          "backend",
+          "credentials"
+        ],
+        "properties": {
+          "backend": {
+            "const": "azure-monitor"
+          },
+          "cloud": {
+            "title": "Cloud",
+            "enum": [
+              "AzureCloud",
+              "AzureUSGovernment",
+              "AzureChinaCloud"
+            ],
+            "default": "AzureCloud",
+            "x-enumTitles": [
+              "Azure",
+              "Azure Government",
+              "Azure China (21Vianet)"
+            ]
+          },
+          "tenantId": {
+            "type": "string",
+            "title": "Tenant (directory) ID",
+            "maxLength": 253,
+            "pattern": "^([0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}|[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$",
+            "examples": [
+              "contoso.onmicrosoft.com"
+            ],
+            "description": "A directory ID or domain. Required for a service principal or a device sign-in; empty uses the Azure CLI's default tenant."
+          },
+          "credentials": {
+            "type": "object",
+            "title": "Credentials",
+            "required": [
+              "source"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "source": {
+                "title": "Sign in with",
+                "enum": [
+                  "cli",
+                  "deviceCode",
+                  "clientSecret",
+                  "clientCertificate"
+                ],
+                "default": "cli",
+                "x-enumTitles": [
+                  "Azure CLI sign-in on this computer (az login)",
+                  "Sign in with a code in the browser",
+                  "Service principal with a client secret",
+                  "Service principal with a certificate"
+                ]
+              },
+              "clientId": {
+                "type": "string",
+                "title": "Application (client) ID",
+                "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$",
+                "description": "Required for a service principal. A device sign-in uses Azure CLI's public client unless you name your organization's app."
+              }
+            },
+            "patternProperties": {
+              "^(clientSecret|certificate)$": {}
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "source": {
+                      "const": "clientSecret"
+                    }
+                  },
+                  "required": [
+                    "source"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "clientId",
+                    "clientSecret"
+                  ],
+                  "properties": {
+                    "clientSecret": {
+                      "type": "string",
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "format": "password",
+                      "title": "Client secret",
+                      "minLength": 1
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "source": {
+                      "const": "clientCertificate"
+                    }
+                  },
+                  "required": [
+                    "source"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "clientId",
+                    "certificate"
+                  ],
+                  "properties": {
+                    "certificate": {
+                      "type": "string",
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "x-widget": "textarea",
+                      "maxLength": 20000,
+                      "minLength": 1,
+                      "title": "Certificate and private key (PEM)",
+                      "description": "An RSA private key (unencrypted PKCS#8 or PKCS#1) and its certificate, as az ad sp create-for-rbac --create-cert writes them."
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "trustedCli": {
+            "type": "string",
+            "title": "Allowed Azure CLI command",
+            "readOnly": true,
+            "x-person-only": true,
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Set by Test connection when you allow GateRook to run az account get-access-token with your user rights; a changed command needs your approval again."
+          },
+          "workspaces": {
+            "type": "array",
+            "title": "Log Analytics workspaces",
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "title": "Workspace ID",
+              "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$"
+            },
+            "examples": [
+              [
+                "5b2f8c1e-0a3d-4e6f-9b7a-1c2d3e4f5a6b"
+              ]
+            ],
+            "description": "Workspace IDs (GUIDs, on the workspace's Overview) agents may query."
+          },
+          "applicationInsights": {
+            "type": "array",
+            "title": "Application Insights components",
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "title": "Component resource ID",
+              "maxLength": 512,
+              "pattern": "^/subscriptions/[0-9a-fA-F-]{36}/resourceGroups/[^/]+/providers/[Mm]icrosoft\\.[Ii]nsights/components/[^/]+$"
+            },
+            "examples": [
+              [
+                "/subscriptions/0b1f6471-1bf0-4dda-aec3-111122223333/resourceGroups/stage-app/providers/Microsoft.Insights/components/stage-api"
+              ]
+            ],
+            "description": "Components whose requests, exceptions, dependencies and traces the log tools read."
+          }
+        }
       }
     ],
     "$defs": {
@@ -5551,6 +5727,371 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         }
       }
     }
+  },
+  "azure": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Azure",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "subscriptions",
+      "credentials"
+    ],
+    "properties": {
+      "cloud": {
+        "title": "Cloud",
+        "enum": [
+          "AzureCloud",
+          "AzureUSGovernment",
+          "AzureChinaCloud"
+        ],
+        "default": "AzureCloud",
+        "x-enumTitles": [
+          "Azure",
+          "Azure Government",
+          "Azure China (21Vianet)"
+        ]
+      },
+      "tenantId": {
+        "type": "string",
+        "title": "Tenant (directory) ID",
+        "maxLength": 253,
+        "pattern": "^([0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}|[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$",
+        "examples": [
+          "contoso.onmicrosoft.com"
+        ],
+        "description": "A directory ID or domain. Required for a service principal or a device sign-in; empty uses the Azure CLI's default tenant."
+      },
+      "subscriptions": {
+        "type": "array",
+        "title": "Subscriptions",
+        "minItems": 1,
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "title": "Subscription ID",
+          "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$"
+        },
+        "examples": [
+          [
+            "0b1f6471-1bf0-4dda-aec3-111122223333"
+          ]
+        ],
+        "description": "Subscription IDs agents may read; calls outside them are refused."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Sign in with",
+            "enum": [
+              "cli",
+              "deviceCode",
+              "clientSecret",
+              "clientCertificate"
+            ],
+            "default": "cli",
+            "x-enumTitles": [
+              "Azure CLI sign-in on this computer (az login)",
+              "Sign in with a code in the browser",
+              "Service principal with a client secret",
+              "Service principal with a certificate"
+            ]
+          },
+          "clientId": {
+            "type": "string",
+            "title": "Application (client) ID",
+            "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$",
+            "description": "Required for a service principal. A device sign-in uses Azure CLI's public client unless you name your organization's app."
+          }
+        },
+        "patternProperties": {
+          "^(clientSecret|certificate)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "clientSecret"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "required": [
+                "clientId",
+                "clientSecret"
+              ],
+              "properties": {
+                "clientSecret": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Client secret",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "clientCertificate"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "required": [
+                "clientId",
+                "certificate"
+              ],
+              "properties": {
+                "certificate": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "x-widget": "textarea",
+                  "maxLength": 20000,
+                  "minLength": 1,
+                  "title": "Certificate and private key (PEM)",
+                  "description": "An RSA private key (unencrypted PKCS#8 or PKCS#1) and its certificate, as az ad sp create-for-rbac --create-cert writes them."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "trustedCli": {
+        "type": "string",
+        "title": "Allowed Azure CLI command",
+        "readOnly": true,
+        "x-person-only": true,
+        "pattern": "^[0-9a-f]{64}$",
+        "description": "Set by Test connection when you allow GateRook to run az account get-access-token with your user rights; a changed command needs your approval again."
+      },
+      "logAnalyticsWorkspaces": {
+        "type": "array",
+        "title": "Log Analytics workspaces",
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "title": "Workspace ID",
+          "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$"
+        },
+        "description": "Workspace IDs (GUIDs) whose logs logs_search and logs_tail read with KQL."
+      },
+      "applicationInsights": {
+        "type": "array",
+        "title": "Application Insights components",
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "title": "Component resource ID",
+          "maxLength": 512,
+          "pattern": "^/subscriptions/[0-9a-fA-F-]{36}/resourceGroups/[^/]+/providers/[Mm]icrosoft\\.[Ii]nsights/components/[^/]+$"
+        },
+        "examples": [
+          [
+            "/subscriptions/0b1f6471-1bf0-4dda-aec3-111122223333/resourceGroups/stage-app/providers/Microsoft.Insights/components/stage-api"
+          ]
+        ],
+        "description": "Components whose requests, exceptions, dependencies and traces the log tools read."
+      }
+    }
+  },
+  "azure-monitor": {
+    "title": "Azure Monitor Logs",
+    "required": [
+      "backend",
+      "credentials"
+    ],
+    "properties": {
+      "backend": {
+        "type": "string",
+        "const": "azure-monitor",
+        "default": "azure-monitor"
+      },
+      "cloud": {
+        "title": "Cloud",
+        "enum": [
+          "AzureCloud",
+          "AzureUSGovernment",
+          "AzureChinaCloud"
+        ],
+        "default": "AzureCloud",
+        "x-enumTitles": [
+          "Azure",
+          "Azure Government",
+          "Azure China (21Vianet)"
+        ]
+      },
+      "tenantId": {
+        "type": "string",
+        "title": "Tenant (directory) ID",
+        "maxLength": 253,
+        "pattern": "^([0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}|[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$",
+        "examples": [
+          "contoso.onmicrosoft.com"
+        ],
+        "description": "A directory ID or domain. Required for a service principal or a device sign-in; empty uses the Azure CLI's default tenant."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Sign in with",
+            "enum": [
+              "cli",
+              "deviceCode",
+              "clientSecret",
+              "clientCertificate"
+            ],
+            "default": "cli",
+            "x-enumTitles": [
+              "Azure CLI sign-in on this computer (az login)",
+              "Sign in with a code in the browser",
+              "Service principal with a client secret",
+              "Service principal with a certificate"
+            ]
+          },
+          "clientId": {
+            "type": "string",
+            "title": "Application (client) ID",
+            "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$",
+            "description": "Required for a service principal. A device sign-in uses Azure CLI's public client unless you name your organization's app."
+          }
+        },
+        "patternProperties": {
+          "^(clientSecret|certificate)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "clientSecret"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "required": [
+                "clientId",
+                "clientSecret"
+              ],
+              "properties": {
+                "clientSecret": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Client secret",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "clientCertificate"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "required": [
+                "clientId",
+                "certificate"
+              ],
+              "properties": {
+                "certificate": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "x-widget": "textarea",
+                  "maxLength": 20000,
+                  "minLength": 1,
+                  "title": "Certificate and private key (PEM)",
+                  "description": "An RSA private key (unencrypted PKCS#8 or PKCS#1) and its certificate, as az ad sp create-for-rbac --create-cert writes them."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "trustedCli": {
+        "type": "string",
+        "title": "Allowed Azure CLI command",
+        "readOnly": true,
+        "x-person-only": true,
+        "pattern": "^[0-9a-f]{64}$",
+        "description": "Set by Test connection when you allow GateRook to run az account get-access-token with your user rights; a changed command needs your approval again."
+      },
+      "workspaces": {
+        "type": "array",
+        "title": "Log Analytics workspaces",
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "title": "Workspace ID",
+          "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$"
+        },
+        "examples": [
+          [
+            "5b2f8c1e-0a3d-4e6f-9b7a-1c2d3e4f5a6b"
+          ]
+        ],
+        "description": "Workspace IDs (GUIDs, on the workspace's Overview) agents may query."
+      },
+      "applicationInsights": {
+        "type": "array",
+        "title": "Application Insights components",
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "title": "Component resource ID",
+          "maxLength": 512,
+          "pattern": "^/subscriptions/[0-9a-fA-F-]{36}/resourceGroups/[^/]+/providers/[Mm]icrosoft\\.[Ii]nsights/components/[^/]+$"
+        },
+        "examples": [
+          [
+            "/subscriptions/0b1f6471-1bf0-4dda-aec3-111122223333/resourceGroups/stage-app/providers/Microsoft.Insights/components/stage-api"
+          ]
+        ],
+        "description": "Components whose requests, exceptions, dependencies and traces the log tools read."
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object"
   }
 };
 
@@ -10663,7 +11204,8 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "/credentials",
       "/credentials",
       "/auth",
-      "/advanced"
+      "/advanced",
+      "/credentials"
     ],
     "loose": [
       "/backend",
@@ -10676,7 +11218,12 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "/region",
       "/logGroups",
       "/searchApi",
-      "/url"
+      "/url",
+      "/cloud",
+      "/tenantId",
+      "/trustedCli",
+      "/workspaces",
+      "/applicationInsights"
     ],
     "rows": {
       "/auth": [
@@ -10710,22 +11257,13 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
           "/credentials/source"
         ],
         [
-          "/credentials/accessKeyId"
+          "/credentials/clientSecret"
         ],
         [
-          "/credentials/secretAccessKey"
+          "/credentials/certificate"
         ],
         [
-          "/credentials/profile"
-        ],
-        [
-          "/credentials/roleArn"
-        ],
-        [
-          "/credentials/externalId"
-        ],
-        [
-          "/credentials/sessionSeconds"
+          "/credentials/clientId"
         ]
       ],
       "/auth/awsCredentials": [
@@ -10794,7 +11332,8 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
           "loki",
           "gcp-logging",
           "cloudwatch",
-          "opensearch"
+          "opensearch",
+          "azure-monitor"
         ],
         "when": [],
         "multiline": false,
@@ -10979,6 +11518,100 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "options": [],
         "when": [
           "backend in [\"opensearch\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/cloud",
+        "kind": "select",
+        "title": "Cloud",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "AzureCloud",
+          "AzureUSGovernment",
+          "AzureChinaCloud"
+        ],
+        "when": [
+          "backend in [\"azure-monitor\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/tenantId",
+        "kind": "text",
+        "title": "Tenant (directory) ID",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"azure-monitor\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/trustedCli",
+        "kind": "text",
+        "title": "Allowed Azure CLI command",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"azure-monitor\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/workspaces",
+        "kind": "tags",
+        "title": "Log Analytics workspaces",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"azure-monitor\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/applicationInsights",
+        "kind": "tags",
+        "title": "Application Insights components",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"azure-monitor\"]"
         ],
         "multiline": false,
         "envDefault": {},
@@ -11822,6 +12455,103 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "options": [],
         "when": [
           "backend in [\"opensearch\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"azure-monitor\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/source",
+        "kind": "select",
+        "title": "Sign in with",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "cli",
+          "deviceCode",
+          "clientSecret",
+          "clientCertificate"
+        ],
+        "when": [
+          "backend in [\"azure-monitor\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/clientSecret",
+        "kind": "secret",
+        "title": "Client secret",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"azure-monitor\"]",
+          "credentials.source in [\"clientSecret\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/certificate",
+        "kind": "secret",
+        "title": "Certificate and private key (PEM)",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"azure-monitor\"]",
+          "credentials.source in [\"clientCertificate\"]"
+        ],
+        "multiline": true,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/clientId",
+        "kind": "text",
+        "title": "Application (client) ID",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"azure-monitor\"]"
         ],
         "multiline": false,
         "envDefault": {},
@@ -13946,6 +14676,474 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "source": "accessKey",
         "sessionSeconds": 900,
         "sessionPolicy": "generated"
+      }
+    }
+  },
+  "azure": {
+    "sections": [
+      "/credentials"
+    ],
+    "loose": [
+      "/cloud",
+      "/tenantId",
+      "/subscriptions",
+      "/trustedCli",
+      "/logAnalyticsWorkspaces",
+      "/applicationInsights"
+    ],
+    "rows": {
+      "/credentials": [
+        [
+          "/credentials/source"
+        ],
+        [
+          "/credentials/clientSecret"
+        ],
+        [
+          "/credentials/certificate"
+        ],
+        [
+          "/credentials/clientId"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/cloud",
+        "kind": "select",
+        "title": "Cloud",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "AzureCloud",
+          "AzureUSGovernment",
+          "AzureChinaCloud"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/tenantId",
+        "kind": "text",
+        "title": "Tenant (directory) ID",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/subscriptions",
+        "kind": "tags",
+        "title": "Subscriptions",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/trustedCli",
+        "kind": "text",
+        "title": "Allowed Azure CLI command",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/logAnalyticsWorkspaces",
+        "kind": "tags",
+        "title": "Log Analytics workspaces",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/applicationInsights",
+        "kind": "tags",
+        "title": "Application Insights components",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/source",
+        "kind": "select",
+        "title": "Sign in with",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "cli",
+          "deviceCode",
+          "clientSecret",
+          "clientCertificate"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/clientSecret",
+        "kind": "secret",
+        "title": "Client secret",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"clientSecret\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/certificate",
+        "kind": "secret",
+        "title": "Certificate and private key (PEM)",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"clientCertificate\"]"
+        ],
+        "multiline": true,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/clientId",
+        "kind": "text",
+        "title": "Application (client) ID",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "cloud": "AzureCloud",
+      "subscriptions": [],
+      "credentials": {
+        "source": "cli"
+      }
+    },
+    "prodDefaults": {
+      "cloud": "AzureCloud",
+      "subscriptions": [],
+      "credentials": {
+        "source": "cli"
+      }
+    }
+  },
+  "azure-monitor": {
+    "sections": [
+      "/credentials"
+    ],
+    "loose": [
+      "/backend",
+      "/cloud",
+      "/tenantId",
+      "/trustedCli",
+      "/workspaces",
+      "/applicationInsights"
+    ],
+    "rows": {
+      "/credentials": [
+        [
+          "/credentials/source"
+        ],
+        [
+          "/credentials/clientSecret"
+        ],
+        [
+          "/credentials/certificate"
+        ],
+        [
+          "/credentials/clientId"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/backend",
+        "kind": "text",
+        "title": "backend",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/cloud",
+        "kind": "select",
+        "title": "Cloud",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "AzureCloud",
+          "AzureUSGovernment",
+          "AzureChinaCloud"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/tenantId",
+        "kind": "text",
+        "title": "Tenant (directory) ID",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/trustedCli",
+        "kind": "text",
+        "title": "Allowed Azure CLI command",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/workspaces",
+        "kind": "tags",
+        "title": "Log Analytics workspaces",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/applicationInsights",
+        "kind": "tags",
+        "title": "Application Insights components",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/source",
+        "kind": "select",
+        "title": "Sign in with",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "cli",
+          "deviceCode",
+          "clientSecret",
+          "clientCertificate"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/clientSecret",
+        "kind": "secret",
+        "title": "Client secret",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"clientSecret\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/certificate",
+        "kind": "secret",
+        "title": "Certificate and private key (PEM)",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"clientCertificate\"]"
+        ],
+        "multiline": true,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/clientId",
+        "kind": "text",
+        "title": "Application (client) ID",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "backend": "azure-monitor",
+      "cloud": "AzureCloud",
+      "credentials": {
+        "source": "cli"
+      }
+    },
+    "prodDefaults": {
+      "backend": "azure-monitor",
+      "cloud": "AzureCloud",
+      "credentials": {
+        "source": "cli"
       }
     }
   },

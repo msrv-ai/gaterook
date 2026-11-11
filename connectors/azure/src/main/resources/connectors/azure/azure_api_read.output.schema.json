@@ -1,0 +1,79 @@
+{
+  "type": "object",
+  "required": [
+    "provider",
+    "method",
+    "path",
+    "apiVersion",
+    "status",
+    "ok",
+    "body",
+    "truncated"
+  ],
+  "properties": {
+    "provider": {
+      "const": "azure"
+    },
+    "method": {
+      "enum": [
+        "GET",
+        "POST"
+      ]
+    },
+    "path": {
+      "type": "string"
+    },
+    "apiVersion": {
+      "type": "string"
+    },
+    "status": {
+      "type": "integer"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "body": {},
+    "next": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object"
+        }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "apiVersion": {
+          "type": "string"
+        }
+      }
+    },
+    "requestId": {
+      "type": "string"
+    },
+    "retryAfterSeconds": {
+      "type": "string"
+    },
+    "hiddenByPolicy": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "masked": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

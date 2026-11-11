@@ -74,6 +74,10 @@
     </dependency>
     <dependency>
       <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-azure</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
       <artifactId>connectors-dynamodb</artifactId>
     </dependency>
     <dependency>

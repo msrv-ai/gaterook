@@ -73,8 +73,8 @@ public final class LogsConnector implements Connector {
         .name("Logs")
         .icon("scroll-text")
         .group("Logs")
-        .description("Search Loki, GCP Cloud Logging, AWS CloudWatch and OpenSearch logs. OpenSearch includes full "
-            + "REST API access with administration in Approval mode by default.")
+        .description("Search Loki, GCP Cloud Logging, AWS CloudWatch, OpenSearch and Azure Monitor logs. OpenSearch "
+            + "includes full REST API access with administration in Approval mode by default.")
         .configSchema(schemas.load("config"))
         .policySchema(schemas.load("policy"))
         .tools(LogsTools.definitions(schemas))

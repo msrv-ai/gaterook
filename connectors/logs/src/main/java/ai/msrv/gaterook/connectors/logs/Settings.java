@@ -2,6 +2,7 @@ package ai.msrv.gaterook.connectors.logs;
 
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connectors.cloudauth.AwsSpec;
+import ai.msrv.gaterook.connectors.cloudauth.AzureSpec;
 import ai.msrv.gaterook.connectors.cloudauth.GcpSpec;
 import ai.msrv.gaterook.connectors.support.egress.AddressPolicy;
 import ai.msrv.gaterook.connectors.support.egress.UrlRules;
@@ -20,9 +21,13 @@ import tools.jackson.databind.JsonNode;
  * {@code config.schema.json}, report 07 §4). Everything an agent can't change lives here: the backend, its address,
  * the tenant, the projects, log groups and indices it may read, the filter always added.
  */
-sealed interface Settings permits Settings.Loki, Settings.Gcp, Settings.CloudWatch, Settings.OpenSearch {
+sealed interface Settings permits Settings.Loki, Settings.Gcp, Settings.CloudWatch, Settings.OpenSearch,
+    Settings.AzureMonitor {
 
-  /** {@code loki | gcp-logging | cloudwatch | opensearch | elasticsearch}, the {@code backend} of the output schema. */
+  /**
+   * {@code loki | gcp-logging | cloudwatch | opensearch | elasticsearch | azure-monitor}, the {@code backend} of the
+   * output schema.
+   */
   String backend();
 
   /** What people call the backend: {@code Loki}, {@code GCP Cloud Logging}. */
@@ -141,7 +146,50 @@ sealed interface Settings permits Settings.Loki, Settings.Gcp, Settings.CloudWat
     @Override public String example() { return "log.level:error AND message:timeout"; }
   }
 
+  /**
+   * Azure Monitor Logs: Log Analytics workspaces (by workspace ID) and Application Insights components (by resource
+   * ID), read with KQL and an Entra ID token for Log Analytics.
+   *
+   * @param knownTenant the tenant Test connection found in the token ({@code metadata.tenant}), or {@code null}
+   */
+  record AzureMonitor(AzureSpec credentials, List<String> workspaces, List<String> applicationInsights,
+      String knownTenant) implements Settings {
+    @Override public String backend() { return "azure-monitor"; }
+    @Override public String title() { return "Azure Monitor Logs"; }
+    @Override public String target() {
+      List<String> all = sources();
+      String first = all.getFirst();
+      String name = first.contains("/") ? first.substring(first.lastIndexOf('/') + 1) : first;
+      return all.size() == 1 ? name : name + " +" + (all.size() - 1);
+    }
+    @Override public List<String> sources() {
+      List<String> out = new ArrayList<>(workspaces);
+      out.addAll(applicationInsights);
+      return List.copyOf(out);
+    }
+    @Override public String language() { return "KQL"; }
+    @Override public String example() { return "AppExceptions | where SeverityLevel >= 3"; }
+
+    /** The tenant every token must belong to: the configured directory ID, else the one Test connection found. */
+    String pinnedTenant() {
+      return credentials.tenantIsGuid() ? credentials.tenantId() : knownTenant;
+    }
+
+    /** Whether {@code source} is an Application Insights component (its resource ID) rather than a workspace. */
+    static boolean component(String source) {
+      return source.startsWith("/");
+    }
+
+    /** The quota bucket: the first source's workspace or component. */
+    String quotaKey() {
+      return "azure:logs:" + sources().getFirst().toLowerCase(Locale.ROOT);
+    }
+  }
+
   Pattern TENANT = Pattern.compile("[A-Za-z0-9!._*'()|-]{0,150}");
+  Pattern GUID = Pattern.compile("[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}");
+  Pattern COMPONENT = Pattern.compile("/subscriptions/[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}/resourcegroups/"
+      + "[\\p{L}\\p{N}._()-]{1,90}/providers/microsoft\\.insights/components/[A-Za-z0-9._()-]{1,255}");
   Pattern RESOURCE = Pattern.compile("(projects|folders|organizations|billingAccounts)/[A-Za-z0-9._:-]+"
       + "(/locations/[a-z0-9-]+/buckets/[A-Za-z0-9_-]+/views/[A-Za-z0-9_-]+)?");
   Pattern LOG_GROUP = Pattern.compile("[.\\-_/#A-Za-z0-9]{1,512}|arn:aws[a-z-]*:logs:[a-z0-9-]+:\\d{12}:log-group:"
@@ -159,7 +207,8 @@ sealed interface Settings permits Settings.Loki, Settings.Gcp, Settings.CloudWat
     JsonNode c = cfg.config();
     String backend = text(c, "backend", null);
     if (backend == null) {
-      throw new InvalidSettingsException("Pick a backend: Loki, GCP Cloud Logging, AWS CloudWatch or OpenSearch.");
+      throw new InvalidSettingsException("Pick a backend: Loki, GCP Cloud Logging, AWS CloudWatch, OpenSearch or "
+          + "Azure Monitor Logs.");
     }
     try {
       return switch (backend) {
@@ -169,6 +218,7 @@ sealed interface Settings permits Settings.Loki, Settings.Gcp, Settings.CloudWat
         case "gcp-logging" -> gcp(c);
         case "cloudwatch" -> cloudWatch(c);
         case "opensearch" -> openSearch(c);
+        case "azure-monitor" -> azureMonitor(c, cfg.metadata());
         case "elasticsearch" -> {
           if (!cfg.type().equals("elasticsearch")) {
             throw new InvalidSettingsException("Use the dedicated Elasticsearch connector for this server.");
@@ -206,6 +256,47 @@ sealed interface Settings permits Settings.Loki, Settings.Gcp, Settings.CloudWat
     String scopeFilter = text(c, "scopeFilter", null);
     if (scopeFilter != null) GcpLoggingFilter.expression(scopeFilter);
     return new Gcp(names, GcpSpec.fromConfig(c, "/credentials"), scopeFilter, quota);
+  }
+
+  private static AzureMonitor azureMonitor(JsonNode c, JsonNode metadata) {
+    if (c.path("credentials").isMissingNode()) {
+      throw new InvalidSettingsException("Choose how GateRook signs in to Azure under Credentials.");
+    }
+    List<String> workspaces = new ArrayList<>();
+    for (String w : strings(c.path("workspaces"))) {
+      String id = w.toLowerCase(Locale.ROOT);
+      if (!GUID.matcher(id).matches()) {
+        throw new InvalidSettingsException(w + " isn't a Log Analytics workspace ID (a GUID, from the workspace's "
+            + "Overview).");
+      }
+      if (!workspaces.contains(id)) {
+        workspaces.add(id);
+      }
+    }
+    List<String> components = new ArrayList<>();
+    for (String a : strings(c.path("applicationInsights"))) {
+      if (!COMPONENT.matcher(a.toLowerCase(Locale.ROOT)).matches()) {
+        throw new InvalidSettingsException(a + " isn't an Application Insights resource ID (/subscriptions/…/"
+            + "resourceGroups/…/providers/Microsoft.Insights/components/<name>).");
+      }
+      if (components.stream().noneMatch(x -> x.equalsIgnoreCase(a))) {
+        components.add(a);
+      }
+    }
+    if (workspaces.isEmpty() && components.isEmpty()) {
+      throw new InvalidSettingsException("Name at least one Log Analytics workspace or Application Insights "
+          + "component.");
+    }
+    if (workspaces.size() + components.size() > 20) {
+      throw new InvalidSettingsException("Name at most 20 workspaces and components together.");
+    }
+    String known = null;
+    if (metadata != null && metadata.path("tenant").isString()) {
+      String t = metadata.path("tenant").asString().toLowerCase(Locale.ROOT);
+      known = GUID.matcher(t).matches() ? t : null;
+    }
+    return new AzureMonitor(AzureSpec.fromConfig(c, "/credentials"), List.copyOf(workspaces), List.copyOf(components),
+        known);
   }
 
   private static CloudWatch cloudWatch(JsonNode c) {

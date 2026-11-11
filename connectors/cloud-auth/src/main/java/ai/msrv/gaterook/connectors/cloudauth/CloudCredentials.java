@@ -57,15 +57,17 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Short-lived cloud credentials for the Logs, GCP and AWS connectors and for the core's GCP and AWS secret stores
- * (reports 07 §7, 09 §7, 12 §7.6; ARCHITECTURE.md §2.1).
+ * Short-lived cloud credentials for the Logs, GCP, AWS and Azure connectors and for the core's GCP and AWS secret
+ * stores (reports 07 §7, 09 §7, 12 §7.6; ARCHITECTURE.md §2.1).
  *
  * <ul>
  *   <li>{@link #gcp}: Google sign-in on this computer (ADC: user, service account or impersonated, never the metadata
  *       server or external accounts) or a service account key, then {@code ImpersonatedCredentials} for 900 s when a
  *       service account is named;</li>
  *   <li>{@link #aws}: an access key or a profile of this computer, then {@code AssumeRole} with ExternalId and the
- *       caller's session policy; never {@code DefaultCredentialsProvider} (environment, instance metadata).</li>
+ *       caller's session policy; never {@code DefaultCredentialsProvider} (environment, instance metadata);</li>
+ *   <li>{@link #azure}: Entra ID tokens per audience from the Azure CLI's sign-in (a command the person allowed), a
+ *       device sign-in or a service principal; never managed identity or environment variables.</li>
  * </ul>
  *
  * <p>Credentials live in memory only, cached per owner and config version (a new version, a rotated key or a changed
@@ -114,12 +116,14 @@ public final class CloudCredentials implements AutoCloseable {
   private final SdkHttpClient awsHttp;
   private final Map<String, GcpEntry> gcp = new ConcurrentHashMap<>();
   private final Map<String, AwsEntry> aws = new ConcurrentHashMap<>();
+  private final AzureCredentials azure;
 
   public CloudCredentials(CloudEndpoints endpoints, Clock clock) {
     this.endpoints = Objects.requireNonNull(endpoints, "endpoints");
     this.clock = Objects.requireNonNull(clock, "clock");
     this.awsHttp = UrlConnectionHttpClient.builder().connectionTimeout(Duration.ofSeconds(5))
         .socketTimeout(Duration.ofSeconds(10)).build();
+    this.azure = new AzureCredentials(endpoints, clock);
   }
 
   /**
@@ -128,6 +132,14 @@ public final class CloudCredentials implements AutoCloseable {
    */
   public CloudEndpoints endpoints() {
     return endpoints;
+  }
+
+  /**
+   * Entra ID tokens of the Azure connectors: one per owner and audience, from the Azure CLI, a device sign-in or a
+   * service principal ({@link AzureCredentials}).
+   */
+  public AzureCredentials azure() {
+    return azure;
   }
 
   // ── GCP ─────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -743,12 +755,14 @@ public final class CloudCredentials implements AutoCloseable {
             Duration.ofSeconds(e.spec().sessionSeconds()), e.spec().externalId()));
       }
     }
+    out.addAll(azure.issued());
     out.sort(Comparator.comparing(IssuedCredential::owner).thenComparing(IssuedCredential::mechanism));
     return out;
   }
 
   /** Drops every credential of {@code ownerId}: its config, secret or policy changed, or it was removed. */
   public void evict(String ownerId) {
+    azure.evict(ownerId);
     gcp.values().removeIf(e -> e.owner().id().equals(ownerId));
     aws.entrySet().removeIf(e -> {
       if (e.getValue().owner().id().equals(ownerId)) {
@@ -761,6 +775,7 @@ public final class CloudCredentials implements AutoCloseable {
 
   @Override
   public void close() {
+    azure.close();
     gcp.clear();
     aws.values().forEach(AwsEntry::close);
     aws.clear();

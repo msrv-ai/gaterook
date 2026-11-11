@@ -196,6 +196,7 @@ export function limitFields(type: string | null): LimitField[] {
     case 'logs':
     case 'gcp-logging':
     case 'cloudwatch':
+    case 'azure-monitor':
     case 'loki':
       return [field('logLines', 'Line limit', 'lines', 'limits'), field('toolTimeoutSeconds', 'Timeout', 's', 'limits'), field('maxResponseKb', 'Max response size', 'KB', 'limits')];
     case 'http':

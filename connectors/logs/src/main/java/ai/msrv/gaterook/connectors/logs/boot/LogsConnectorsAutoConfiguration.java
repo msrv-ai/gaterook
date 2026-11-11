@@ -16,7 +16,7 @@ import org.springframework.context.annotation.ImportRuntimeHints;
  * AutoConfiguration.imports}, resolved by Spring AOT at build time. No {@code @Conditional*}: the type is switched
  * on and off at run time by {@code connector_type.enabled}.
  *
- * <p>The core's {@link CloudCredentials} gives GCP and AWS credentials (and, in development builds, the test
+ * <p>The core's {@link CloudCredentials} gives GCP, AWS and Azure credentials (and, in development builds, the test
  * endpoints of their APIs); a context without the core — the catalog's tests — gets credentials for the real
  * endpoints.
  */
@@ -53,6 +53,11 @@ public class LogsConnectorsAutoConfiguration {
   @Bean
   Connector elasticsearchConnector(ObjectProvider<CloudCredentials> cloud) {
     return backend("elasticsearch", cloud);
+  }
+
+  @Bean
+  Connector azureMonitorLogsConnector(ObjectProvider<CloudCredentials> cloud) {
+    return backend("azure-monitor", cloud);
   }
 
   private static Connector backend(String type, ObjectProvider<CloudCredentials> cloud) {

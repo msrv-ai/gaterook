@@ -122,12 +122,14 @@ export function signInTarget(type: string): string {
     case 'logs':
     case 'gcp-logging':
     case 'cloudwatch':
+    case 'azure-monitor':
     case 'loki':
       return 'the log store';
     case 'http':
       return 'the API';
     case 'gcp':
     case 'aws':
+    case 'azure':
     case 'dynamodb':
     case 'bigquery':
     case 'firestore':

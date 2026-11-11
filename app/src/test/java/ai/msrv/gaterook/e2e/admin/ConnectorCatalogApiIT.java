@@ -91,6 +91,8 @@ class ConnectorCatalogApiIT {
           "Search Google Cloud logs with native Logs Explorer filters and scoped credentials."),
       new KitCard("Logs", "cloudwatch", null, "AWS CloudWatch", "scroll-text", "built-in", 2,
           "Search AWS CloudWatch log groups with Logs Insights or filter patterns."),
+      new KitCard("Logs", "azure-monitor", null, "Azure Monitor Logs", "scroll-text", "built-in", 2,
+          "Search Log Analytics workspaces and Application Insights with KQL and Entra ID sign-in."),
       new KitCard("Logs", "loki", null, "Loki", "scroll-text", "built-in", 2,
           "Search and tail Loki logs with LogQL and scoped credentials."),
       new KitCard("Logs", "ssh-logs", null, "SSH log files", "file-text", "built-in", 3,
@@ -102,6 +104,9 @@ class ConnectorCatalogApiIT {
               + "Changes wait for approval."),
       new KitCard("Cloud", "aws", null, "AWS", "cloud", "built-in", 4,
           "Resources, statuses, metrics and any AWS API, with AssumeRole. Changes wait for approval."),
+      new KitCard("Cloud", "azure", null, "Azure", "cloud", "built-in", 6,
+          "Resources, Resource Manager calls, metrics, alerts, the Activity Log and Azure Monitor logs, with the "
+              + "connection's Entra ID identity. Changes wait for approval."),
       new KitCard("HTTP and MCP", "http", null, "HTTP API", "globe", "built-in", 2,
           "One base URL with an allowlist. GET reads; every other method waits for approval."),
       new KitCard("HTTP and MCP", "mcp-server", null, "External MCP server", "plug", "mcp-server", null,
@@ -155,8 +160,8 @@ class ConnectorCatalogApiIT {
 
     // Connectors › Installed: one row per type, the MCP server type isn't one (its servers are, with K5).
     List<String> installed = each(catalog.path("installed"), "id");
-    assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "sqlite", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "firestore", "firebase-rtdb", "opensearch", "elasticsearch", "ssh", "gcp-logging", "cloudwatch", "loki", "ssh-logs", "kubernetes",
-        "gcp", "aws", "http");
+    assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "sqlite", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "firestore", "firebase-rtdb", "opensearch", "elasticsearch", "ssh", "gcp-logging", "cloudwatch", "azure-monitor", "loki", "ssh-logs", "kubernetes",
+        "gcp", "aws", "azure", "http");
     for (JsonNode row : catalog.path("installed")) {
       assertThat(row.path("state").asString()).isEqualTo("enabled");
       assertThat(row.path("kind").asString()).isEqualTo("built-in");

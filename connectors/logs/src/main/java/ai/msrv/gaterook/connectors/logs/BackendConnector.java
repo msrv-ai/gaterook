@@ -36,7 +36,7 @@ public final class BackendConnector implements Connector {
   }
 
   public BackendConnector(String type, CloudCredentials cloud, Clock clock) {
-    if (!List.of("gcp-logging", "loki", "cloudwatch", "opensearch", "elasticsearch").contains(type)) {
+    if (!List.of("gcp-logging", "loki", "cloudwatch", "opensearch", "elasticsearch", "azure-monitor").contains(type)) {
       throw new IllegalArgumentException("Unknown log or search service: " + type);
     }
     this.type = type;
@@ -47,6 +47,7 @@ public final class BackendConnector implements Connector {
       case "cloudwatch" -> "AWS CloudWatch";
       case "opensearch" -> "OpenSearch";
       case "elasticsearch" -> "Elasticsearch";
+      case "azure-monitor" -> "Azure Monitor Logs";
       default -> "Loki";
     };
     String description = switch (type) {
@@ -54,11 +55,13 @@ public final class BackendConnector implements Connector {
       case "cloudwatch" -> "Search AWS CloudWatch log groups with Logs Insights or filter patterns.";
       case "opensearch" -> "Query OpenSearch indices and use its REST API. Administrative requests require approval by default.";
       case "elasticsearch" -> "Query Elasticsearch indices and use its REST API. Administrative requests require approval by default.";
+      case "azure-monitor" -> "Search Log Analytics workspaces and Application Insights with KQL and Entra ID sign-in.";
       default -> "Search and tail Loki logs with LogQL and scoped credentials.";
     };
     List<String> files = switch (type) {
       case "gcp-logging" -> List.of("~/.config/gcloud/application_default_credentials.json");
       case "cloudwatch", "opensearch" -> List.of("~/.aws/config", "~/.aws/credentials");
+      case "azure-monitor" -> List.of("~/.azure");
       default -> List.of();
     };
     this.manifest = ConnectorManifest.builder(type, shared.version(), shared.kind()).name(name)

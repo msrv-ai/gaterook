@@ -38,6 +38,7 @@
     <module>connectors/kubernetes</module>
     <module>connectors/gcp</module>
     <module>connectors/aws</module>
+    <module>connectors/azure</module>
     <module>connectors/dynamodb</module>
     <module>connectors/bigquery</module>
     <module>connectors/firebase</module>
@@ -197,6 +198,11 @@
       <dependency>
         <groupId>ai.msrv.gaterook</groupId>
         <artifactId>connectors-aws</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-azure</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

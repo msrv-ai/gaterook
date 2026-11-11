@@ -21,15 +21,18 @@ import java.util.regex.Pattern;
  * @param awsConfigFile       {@code ~/.aws/config} for profiles; {@code null}: the SDK's default location
  * @param awsCredentialsFile  {@code ~/.aws/credentials}; {@code null}: the SDK's default location
  * @param services            base URLs of the cloud APIs that connectors call with these credentials, by key
- *                            ({@code gcp.logging}, {@code aws.logs}; property {@code gateway.cloud.endpoints}). They
- *                            travel with the credential overrides: a token from a fake token endpoint is only good for
- *                            a fake API, and a release never sends a token anywhere but Google and AWS
+ *                            ({@code gcp.logging}, {@code aws.logs}, {@code azure.login}, {@code azure.arm},
+ *                            {@code azure.logs}; property {@code gateway.cloud.endpoints}). They travel with the
+ *                            credential overrides: a token from a fake token endpoint is only good for a fake API, and
+ *                            a release never sends a token anywhere but Google, AWS and Azure
+ * @param azureCli            the {@code az} program of Azure CLI sign-ins in tests; {@code null}: {@code PATH} and
+ *                            the installers' locations
  */
 public record CloudEndpoints(URI gcpTokenUri, String gcpIamEndpoint, Path gcpAdcFile, URI awsStsEndpoint,
-    Path awsConfigFile, Path awsCredentialsFile, Map<String, URI> services) {
+    Path awsConfigFile, Path awsCredentialsFile, Map<String, URI> services, Path azureCli) {
 
-  /** {@code gcp.logging}, {@code aws.logs}: the cloud, a dot, the API. */
-  private static final Pattern SERVICE_KEY = Pattern.compile("(gcp|aws)\\.[a-z0-9-]{1,40}");
+  /** {@code gcp.logging}, {@code aws.logs}, {@code azure.arm}: the cloud, a dot, the API. */
+  private static final Pattern SERVICE_KEY = Pattern.compile("(gcp|aws|azure)\\.[a-z0-9-]{1,40}");
 
   /** The real endpoints. */
   public static final CloudEndpoints PRODUCTION = new CloudEndpoints(null, null, null, null, null, null);
@@ -51,6 +54,12 @@ public record CloudEndpoints(URI gcpTokenUri, String gcpIamEndpoint, Path gcpAdc
   public CloudEndpoints(URI gcpTokenUri, String gcpIamEndpoint, Path gcpAdcFile, URI awsStsEndpoint,
       Path awsConfigFile, Path awsCredentialsFile) {
     this(gcpTokenUri, gcpIamEndpoint, gcpAdcFile, awsStsEndpoint, awsConfigFile, awsCredentialsFile, Map.of());
+  }
+
+  /** The credential endpoints and the test APIs, the Azure CLI found as on a person's computer. */
+  public CloudEndpoints(URI gcpTokenUri, String gcpIamEndpoint, Path gcpAdcFile, URI awsStsEndpoint,
+      Path awsConfigFile, Path awsCredentialsFile, Map<String, URI> services) {
+    this(gcpTokenUri, gcpIamEndpoint, gcpAdcFile, awsStsEndpoint, awsConfigFile, awsCredentialsFile, services, null);
   }
 
   /**
@@ -85,6 +94,6 @@ public record CloudEndpoints(URI gcpTokenUri, String gcpIamEndpoint, Path gcpAdc
 
   public boolean overridden() {
     return gcpTokenUri != null || gcpIamEndpoint != null || gcpAdcFile != null || awsStsEndpoint != null
-        || awsConfigFile != null || awsCredentialsFile != null || !services.isEmpty();
+        || awsConfigFile != null || awsCredentialsFile != null || !services.isEmpty() || azureCli != null;
   }
 }
