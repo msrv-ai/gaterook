@@ -15,6 +15,7 @@ import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
+import ai.msrv.gaterook.connectors.support.mcp.VerifiedProfiles;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,6 +45,8 @@ final class ServerConnector implements Connector {
   private final McpServerRuntime.Snapshot snapshot;
   private final ServerConfig server;
   private final ConnectorManifest manifest;
+  /** GateRook's verified profile of the vendor's server these settings name, or {@code null}. */
+  private final VerifiedProfiles.Profile profile;
 
   ServerConnector(McpServers runtime, ConnectionConfig cfg, McpServerRuntime.Snapshot snapshot,
       ConnectorManifest type) {
@@ -51,9 +54,10 @@ final class ServerConnector implements Connector {
     this.cfg = cfg;
     this.snapshot = snapshot;
     this.server = ServerConfig.of(cfg);
+    this.profile = VerifiedProfiles.of(cfg.config()).orElse(null);
     List<ToolDefinition> tools = new ArrayList<>();
     for (JsonNode entry : snapshot.tools()) {
-      tools.add(Snapshots.definition(entry, cfg.name()));
+      tools.add(Snapshots.definition(entry, cfg.name(), rule(entry)));
     }
     String version = snapshot.serverVersion() == null || snapshot.serverVersion().isBlank() ? "unknown"
         : snapshot.serverVersion();
@@ -86,14 +90,31 @@ final class ServerConnector implements Connector {
           + cfg.name() + ".", "Open Connectors › MCP servers to see what it lists now.");
     }
     JsonNode e = entry.get();
-    if (Snapshots.declaresReadOnly(e.path("annotations").isObject() ? (ObjectNode) e.path("annotations") : null)) {
+    if (read(e)) {
       return Classification.read();
     }
     ObjectNode facts = Texts.JSON.createObjectNode();
     facts.put("server", cfg.name());
     facts.put("tool", Texts.str(e.path("original"), call.tool()));
+    VerifiedProfiles.ToolRule rule = rule(e);
+    if (rule != null) {
+      facts.put("profile", profile.id());
+      return Classification.mutation(rule.reason() + " (GateRook's verified profile of " + profile.name() + ")",
+          facts);
+    }
     return Classification.mutation(cfg.name() + " doesn't declare " + Texts.str(e.path("original"), call.tool())
         + " read-only, so it may change data.", facts);
+  }
+
+  /** What the verified profile says of a snapshot entry's tool, or {@code null}. */
+  private VerifiedProfiles.ToolRule rule(JsonNode entry) {
+    return profile == null ? null : profile.rule(entry.path("original").asString("")).orElse(null);
+  }
+
+  /** A read runs without a person: declared read-only, and not a tool the verified profile names. */
+  private boolean read(JsonNode entry) {
+    return rule(entry) == null && Snapshots.declaresReadOnly(entry.path("annotations").isObject()
+        ? (ObjectNode) entry.path("annotations") : null);
   }
 
   @Override
@@ -125,7 +146,10 @@ final class ServerConnector implements Connector {
         new ActionPreview.Field("Tool", original), new ActionPreview.Field(server.http() ? "URL" : "Command",
             Texts.clean(where, 300, false)));
     List<String> warnings = new ArrayList<>();
-    if (entry.path("annotations").isObject()) {
+    VerifiedProfiles.ToolRule rule = rule(entry);
+    if (rule != null) {
+      warnings.add(rule.reason() + " GateRook's verified profile of " + profile.name() + " keeps it out of Read only.");
+    } else if (entry.path("annotations").isObject()) {
       warnings.add("Its annotations are declared by " + cfg.name() + ", not verified by GateRook.");
     }
     warnings.add("GateRook can't see what the server does with these arguments: it may change data or send them "
@@ -174,8 +198,7 @@ final class ServerConnector implements Connector {
       throws ConnectorException {
     JsonNode entry = Snapshots.find(snapshot.tools(), call.tool()).orElseThrow(() -> ConnectorException.badInput(
         call.tool() + " isn't among the reviewed tools of " + cfg.name() + "."));
-    boolean read = Snapshots.declaresReadOnly(entry.path("annotations").isObject()
-        ? (ObjectNode) entry.path("annotations") : null);
+    boolean read = read(entry);
     if (!read && !ctx.approved()) {
       throw ConnectorException.denied(call.tool() + " may change data: it runs only after a person approved it.");
     }

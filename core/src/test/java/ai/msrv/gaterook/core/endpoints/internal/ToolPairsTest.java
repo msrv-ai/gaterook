@@ -156,6 +156,35 @@ class ToolPairsTest {
         reason -> assertThat(reason).contains("Confirm"));
   }
 
+  /**
+   * A tool the MCP server connector starts Off (one GateRook's verified profile of the server keeps off, because it
+   * hands requests to another agent) starts Off on every endpoint, whatever it declares. One the profile starts in
+   * Approval, a mutation for GateRook, starts there and can't be Read only.
+   */
+  @Test
+  void anMcpToolItsConnectorStartsOffStartsOffEverywhere() {
+    ToolDefinition delegating = ToolDefinition.builder("ask_agent").nature(ToolDefinition.Nature.MUTATION)
+        .annotations(new ToolDefinition.Annotations(false, true, false, true)).defaultMode(Mode.OFF, Mode.OFF).build();
+    ToolDefinition code = ToolDefinition.builder("execute").nature(ToolDefinition.Nature.MUTATION)
+        .annotations(new ToolDefinition.Annotations(false, true, false, true))
+        .defaultMode(Mode.APPROVAL, Mode.APPROVAL).build();
+    ToolDefinition offRead = ToolDefinition.builder("search").defaultMode(Mode.OFF, Mode.OFF).build();
+
+    for (Env env : Env.values()) {
+      for (boolean readOnlyEndpoint : List.of(false, true)) {
+        assertThat(ToolPairs.initial(external(delegating, ConnectorManifest.Kind.MCP_SERVER), env, readOnlyEndpoint))
+            .isEqualTo(Mode.OFF);
+        assertThat(ToolPairs.initial(external(offRead, ConnectorManifest.Kind.MCP_SERVER), env, readOnlyEndpoint))
+            .isEqualTo(Mode.OFF);
+      }
+      assertThat(ToolPairs.initial(external(code, ConnectorManifest.Kind.MCP_SERVER), env, false))
+          .isEqualTo(Mode.APPROVAL);
+      assertThat(ToolPairs.initial(external(code, ConnectorManifest.Kind.MCP_SERVER), env, true)).isEqualTo(Mode.OFF);
+    }
+    assertThat(ToolPairs.refusal(external(code, ConnectorManifest.Kind.MCP_SERVER), Mode.READ_ONLY, false, false,
+        "dev")).hasValueSatisfying(reason -> assertThat(reason).contains("Read only isn't available"));
+  }
+
   @Test
   void theDefinitionHashSeesTheAppAToolShowsAndStaysWhatItWasForTheRest() {
     ToolDefinition plain = ToolDefinition.builder("search").description("Searches.").build();

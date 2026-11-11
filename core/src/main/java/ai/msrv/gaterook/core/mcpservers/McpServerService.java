@@ -10,6 +10,7 @@ import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connectors.cloudauth.AwsSigV4;
 import ai.msrv.gaterook.connectors.support.egress.EgressDenial;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
+import ai.msrv.gaterook.connectors.support.mcp.VerifiedProfiles;
 import ai.msrv.gaterook.core.connections.ConnectionConfigs;
 import ai.msrv.gaterook.core.connections.ConnectionService;
 import ai.msrv.gaterook.core.connections.ConnectionTester;
@@ -99,7 +100,43 @@ public class McpServerService {
    * unauthenticated look at it), {@code null} for a command.
    */
   public record ReviewView(McpServerRuntime.Review review, String name, String catalogEntry, String protocol,
-      McpServerSignIns.AuthView auth) {}
+      McpServerSignIns.AuthView auth, ProfileView profile) {
+
+    public ReviewView(McpServerRuntime.Review review, String name, String catalogEntry, String protocol,
+        McpServerSignIns.AuthView auth) {
+      this(review, name, catalogEntry, protocol, auth, null);
+    }
+  }
+
+  /**
+   * GateRook's verified profile of a vendor's own server ({@link VerifiedProfiles}, ARCHITECTURE.md §7.5), as its
+   * card and the review show it: the setup URL with its pins and {@code {placeholders}}, or the setup command, and the
+   * tools that don't start as their annotations say.
+   *
+   * @param checked the day GateRook last checked the server ({@code 2026-11-11})
+   */
+  public record ProfileView(String id, String name, String publisher, String category, String description,
+      String documentation, String registryName, String checked, String transport, String url, List<String> command,
+      List<PlaceholderView> placeholders, List<PinView> pins, String signIn, List<String> notes,
+      List<ToolRuleView> tools) {}
+
+  /**
+   * A query parameter the profile's setup URL sets.
+   *
+   * @param setTo the value it sets ({@code true}), or {@code null} when the value is the person's ({@code project_ref})
+   * @param set   in a review, whether the reviewed URL sets it so; {@code null} on a card
+   */
+  public record PinView(String parameter, String setTo, String purpose, String missing, Boolean set) {}
+
+  /** A part of the setup the person fills in ({@code project_ref}). */
+  public record PlaceholderView(String name, String description) {}
+
+  /**
+   * A tool the profile names: it starts in {@code approval} or {@code off}, and is never Read only.
+   *
+   * @param kind {@code code}, {@code passthrough}, {@code write} or {@code delegating}
+   */
+  public record ToolRuleView(String tool, String start, String kind, String reason) {}
 
   /**
    * A server to review or add: a config as the Add MCP server form sends it (with {@code name}) and the values of its
@@ -199,7 +236,45 @@ public class McpServerService {
       }
       r = withoutUrlKey(r);
     }
-    return new ReviewView(r, d.cfg().name(), d.catalogEntry(), null, auth);
+    VerifiedProfiles.Profile profile = VerifiedProfiles.of(d.config()).orElse(null);
+    ProfileView view = null;
+    if (profile != null) {
+      view = profileView(profile, d.config().path("url").asString(null));
+      List<String> missing = view.pins().stream().filter(p -> Boolean.FALSE.equals(p.set())).map(PinView::missing)
+          .toList();
+      if (!missing.isEmpty()) {
+        List<String> warnings = new ArrayList<>(r.warnings());
+        warnings.addAll(missing);
+        r = new McpServerRuntime.Review(r.transport(), r.argv(), r.resolvedCommand(), r.node(), r.url(),
+            r.variables(), r.inherited(), r.notPinned(), r.sandbox(), r.workDir(), r.log(), warnings);
+      }
+    }
+    return new ReviewView(r, d.cfg().name(), d.catalogEntry(), null, auth, view);
+  }
+
+  /** {@code GET /api/mcp-profiles}: every verified profile, for the cards of Connectors › MCP servers. */
+  public List<ProfileView> profiles() {
+    return VerifiedProfiles.all().stream().map(p -> profileView(p, null)).toList();
+  }
+
+  /**
+   * A profile as the API shows it; with the {@code url} under review, how each pin stands in it. A pin's value in
+   * that URL is never echoed: only whether it is set.
+   */
+  static ProfileView profileView(VerifiedProfiles.Profile p, String url) {
+    List<PinView> pins = new ArrayList<>();
+    if (url == null) {
+      p.pins().forEach(pin -> pins.add(new PinView(pin.parameter(), pin.setTo(), pin.purpose(), pin.missing(), null)));
+    } else {
+      VerifiedProfiles.pins(p, url).forEach(s -> pins.add(new PinView(s.pin().parameter(), s.pin().setTo(),
+          s.pin().purpose(), s.pin().missing(), s.set())));
+    }
+    return new ProfileView(p.id(), p.name(), p.publisher(), p.category(), p.description(), p.documentation(),
+        p.registryName(), p.checked().toString(), p.transport(), p.url(), p.command(),
+        p.placeholders().stream().map(h -> new PlaceholderView(h.name(), h.description())).toList(), pins,
+        p.signIn(), p.notes(), p.tools().stream().map(t -> new ToolRuleView(t.tool(),
+            t.start().name().toLowerCase(java.util.Locale.ROOT), t.kind().name().toLowerCase(java.util.Locale.ROOT),
+            t.reason())).toList());
   }
 
   /**
@@ -809,11 +884,13 @@ public class McpServerService {
   /** {@code GET /api/mcp-servers/{name}/tools}: the reviewed snapshot, "Declared by …, not verified". */
   public List<ToolView> tools(String name) {
     Stored s = stored(name);
+    VerifiedProfiles.Profile profile = VerifiedProfiles.of(s.cfg().config()).orElse(null);
     List<ToolView> out = new ArrayList<>();
     for (JsonNode t : s.snapshot().tools()) {
       JsonNode a = t.path("annotations");
+      // A tool the verified profile names is a mutation whatever the server declares (§7.5).
       boolean read = a.isObject() && a.path("readOnlyHint").asBoolean(false) && !a.path("destructiveHint")
-          .asBoolean(false);
+          .asBoolean(false) && (profile == null || profile.rule(t.path("original").asString("")).isEmpty());
       out.add(new ToolView(t.path("exposed").asString(), t.path("original").asString(),
           t.path("title").asString(null), t.path("description").asString(""), read ? "read" : "mutation",
           a.isObject() ? a : null, name, t.path("inputSchema")));

@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, output, signal, viewChild } from '@angular/core';
-import { McpServerAuthConfig, McpServerConfig, McpServerReview, McpServerSource } from '../../../core/api/plugins.api';
+import { McpProfile, McpServerAuthConfig, McpServerConfig, McpServerReview, McpServerSource } from '../../../core/api/plugins.api';
 import { Env } from '../../../core/api/types';
 import { GwDialog, GwDialogClose } from '../../../kit/dialog';
 import { GwToggle } from '../../../kit/disclosure';
@@ -10,6 +10,7 @@ import { joinAnd, tokenizeCommand } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
 import { googleApiUrl, signingTarget } from '../mcp-cloud';
 import { PastedServer, parsePastedServer, serverName } from '../mcp-paste';
+import { fromProfile } from '../mcp-profiles';
 import { fromRegistry, templateParts } from '../mcp-registry';
 import { RegistryResult, completeRegistryResults, rankRegistryResults, registryResult } from '../mcp-registry-results';
 import { failureText } from './failure';
@@ -704,6 +705,23 @@ export class GwMcpAddDialog {
     if (result.use.kind === 'none') return;
     this.open(opener);
     this.use(result);
+  }
+
+  /**
+   * A verified profile fills Manual entry with its setup (the vendor's read-only switches in the URL, the parts to
+   * replace left visible) and the keyboard moves to what the person must finish. Nothing runs before the review.
+   */
+  openProfile(opener: HTMLElement | null, profile: McpProfile): void {
+    this.open(opener);
+    const filled = fromProfile(profile);
+    if ('error' in filled) {
+      this.error.set(filled.error);
+      return;
+    }
+    const what = this.fill(filled);
+    this.chosen.set(`${what} from GateRook’s verified profile of ${profile.name}.${filled.notes.length ? ` ${filled.notes.join(' ')}` : ''}`);
+    const unfinished = filled.transport === 'http' ? templateParts(filled.url).length > 0 : /<[A-Za-z_]|\{[A-Za-z_]/.test(filled.command);
+    setTimeout(() => this.host.querySelector<HTMLElement>(`#${this.uid}-${unfinished ? (filled.transport === 'http' ? 'url' : 'command') : 'name'}`)?.focus());
   }
 
   /** Returns from the review with the existing draft and the original focus-return target. */

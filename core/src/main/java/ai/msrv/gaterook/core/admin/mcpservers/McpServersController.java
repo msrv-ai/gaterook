@@ -37,7 +37,8 @@ import tools.jackson.databind.JsonNode;
     McpServersController.Tool.class, McpServersController.Auth.class, McpServersController.AuthorizationServer.class,
     McpServersController.SignIn.class,
     McpServersController.SignInStatus.class, McpServersController.Address.class,
-    McpServersController.AuthorizationPage.class})
+    McpServersController.AuthorizationPage.class, McpServerService.ProfileView.class, McpServerService.PinView.class,
+    McpServerService.PlaceholderView.class, McpServerService.ToolRuleView.class})
 class McpServersController {
 
   /**
@@ -66,11 +67,13 @@ class McpServersController {
 
   /**
    * What will run: the command as resolved ({@code node …/dist/index.js}, never npx for a catalog server), the
-   * variables (or headers) that get secrets — names only —, the sandbox, and what to know before it starts.
+   * variables (or headers) that get secrets — names only —, the sandbox, and what to know before it starts; for a
+   * vendor's own server, GateRook's verified {@code profile} of it, with how each pin stands in the reviewed URL.
    */
   record Review(List<String> argv, String resolvedCommand, String node, List<String> env, List<String> inherited,
       boolean notPinned, String catalogEntry, String protocol, String sandbox, String name, String transport,
-      String url, String workDir, String log, List<String> warnings, Auth auth) {}
+      String url, String workDir, String log, List<String> warnings, Auth auth,
+      McpServerService.ProfileView profile) {}
 
   /**
    * How a server at a URL wants clients to sign in: {@code kind} {@code none}, {@code oauth}, {@code optional},
@@ -124,10 +127,20 @@ class McpServersController {
           v.catalogEntry(), v.protocol(), r.sandbox(), v.name(), r.transport(), r.url(), r.workDir(), r.log(),
           r.warnings(), v.auth() == null ? null : new Auth(v.auth().kind(), v.auth().issuer(),
               v.auth().authorizationHost(), v.auth().scope(), v.auth().registration(), v.auth().redirectUri(),
-              v.auth().message(), v.auth().cloud(), v.auth().secretRequired(), v.auth().tokenEndpoint()));
+              v.auth().message(), v.auth().cloud(), v.auth().secretRequired(), v.auth().tokenEndpoint()),
+          v.profile());
     } finally {
       clear(secrets, request.secrets());
     }
+  }
+
+  /**
+   * GateRook's verified profiles of vendors' own servers (§7.5), for the Cloud platforms cards: each one's setup URL
+   * or command, its pins and the tools that start in Approval or Off whatever their annotations say.
+   */
+  @GetMapping("/api/mcp-profiles")
+  List<McpServerService.ProfileView> profiles() {
+    return servers.profiles();
   }
 
   @PostMapping("/api/mcp-servers")

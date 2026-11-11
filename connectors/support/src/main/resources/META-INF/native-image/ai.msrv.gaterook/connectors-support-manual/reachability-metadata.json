@@ -1,5 +1,6 @@
 {
   "resources": [
-    { "glob": "ai/msrv/gaterook/connectors/support/build.properties" }
+    { "glob": "ai/msrv/gaterook/connectors/support/build.properties" },
+    { "glob": "ai/msrv/gaterook/connectors/support/mcp/verified-profiles.json" }
   ]
 }
