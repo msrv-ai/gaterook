@@ -1,4 +1,5 @@
 import { ConnectorCard, ConnectorGroup } from '../../../core/api/connector-types.api';
+import { COMPATIBLE_CATEGORIES, compatibleService } from './compatible-services';
 
 /**
  * The categories of the connector-type picker (Add connection, step 1), in the kit's order. The core groups types more
@@ -17,6 +18,7 @@ export const CONNECTOR_CATEGORIES = [
   'Kubernetes',
   'Cloud',
   'HTTP and MCP',
+  ...COMPATIBLE_CATEGORIES,
 ] as const;
 
 const CATEGORY_OF: Readonly<Record<string, string>> = {
@@ -139,12 +141,17 @@ const ALIASES: Readonly<Record<string, string>> = {
  * `null` when the type keeps its icon.
  */
 export function connectorMark(type: string, variant: string | null = null): string | null {
+  // A compatible service shows its own vendor's mark, or the base type's icon: never the base type's mark.
+  const service = compatibleService(type, variant);
+  if (service) return service.mark ? `assets/integrations/${service.mark}` : null;
   const file = (variant && MARKS[variant]) || MARKS[type];
   return file ? `assets/integrations/${file.includes('.') ? file : `${file}.svg`}` : null;
 }
 
 /** The picker's category of a card (type and variant) that the core put in `group`. */
 export function connectorCategory(type: string, group: string, variant: string | null = null): string {
+  const service = compatibleService(type, variant);
+  if (service?.group) return service.group;
   return (variant && CATEGORY_OF[variant]) || CATEGORY_OF[type] || (group === 'Databases' ? 'Other databases' : group);
 }
 
@@ -167,7 +174,10 @@ export function connectorCategories(groups: readonly ConnectorGroup[]): Connecto
 
 /** What a search box matches for a card: its name, type, other names, category and description, in lower case. */
 export function connectorSearchText(card: ConnectorCard, category: string): string {
-  return [card.name, card.type, card.variant, ALIASES[card.variant ?? ''], ALIASES[card.type], category, card.description]
+  const service = compatibleService(card.type, card.variant);
+  // A compatible service matches its own words, not the base type's other names (Supabase isn't CockroachDB).
+  return [card.name, card.type, card.variant, service?.search, card.compatibleWith, service ? null : ALIASES[card.variant ?? ''],
+    service ? null : ALIASES[card.type], category, card.description]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();

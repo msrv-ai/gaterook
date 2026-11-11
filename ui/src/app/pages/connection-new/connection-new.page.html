@@ -226,10 +226,12 @@
             <div class="gw-form__actions">
               @if (mcpServerPicked()) {
                 <p class="gw-form__note"><svg lucideIcon="plug" class="gw-icon"></svg>An MCP server is added in Connectors › MCP servers: you review it, sign in if it asks, and add its tools to an endpoint.</p>
+              } @else if (installPicked(); as p) {
+                <p class="gw-form__note"><svg lucideIcon="download" class="gw-icon"></svg>The {{ p.name }} plugin isn't installed yet: Continue shows what it is and installs it from the catalog.</p>
               } @else if (usage(); as u) {
                 <p class="gw-form__note"><svg [lucideIcon]="card()?.icon ?? 'database'" class="gw-icon"></svg>{{ u }}</p>
               }
-              <button class="gw-btn gw-btn--primary" type="button" (click)="continueFromType()">Continue<span class="gw-sr-only"> {{ mcpServerPicked() ? 'to add the MCP server' : 'to configure' }}</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
+              <button class="gw-btn gw-btn--primary" type="button" [attr.aria-busy]="checkingPlugin() ? 'true' : null" (click)="continueFromType()">@if (checkingPlugin()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Continue<span class="gw-sr-only"> {{ mcpServerPicked() ? 'to add the MCP server' : installPicked() ? 'to review and install the plugin' : 'to configure' }}</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
             </div>
           </form>
         } @else {
@@ -891,3 +893,5 @@
     </footer>
   }
 </dialog>
+
+<dialog gwPluginReviewDialog gwDialogStatic (closed)="onPluginReviewClosed($event)"></dialog>

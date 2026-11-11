@@ -1,5 +1,5 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
-import { PluginCheck } from '../../../core/api/plugins.api';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injectable, computed, inject, signal, viewChild } from '@angular/core';
+import { PluginCheck, PluginsApi, RuntimePreparation } from '../../../core/api/plugins.api';
 import { GwDialog, GwDialogClose } from '../../../kit/dialog';
 import { GwEnableWhen } from '../../../kit/enable-when';
 import { GwIcon } from '../../../kit/icons';
@@ -10,6 +10,25 @@ import { failureText } from './failure';
 import { PluginFacts, pluginFacts } from './plugin-facts';
 
 let nextId = 0;
+
+/**
+ * What the review installs with. Connectors installs through its page data (which refreshes its lists); a page without
+ * that data, such as Add connection when a catalog plugin is chosen, provides {@link DirectPluginInstaller}.
+ */
+export abstract class PluginInstaller {
+  abstract installPlugin(stagingId: string, acknowledgeUnsigned: boolean, preparation?: RuntimePreparation): Promise<void>;
+}
+
+/** Java support first (the plugin process needs it), then the install; the page reloads what it shows itself. */
+@Injectable()
+export class DirectPluginInstaller extends PluginInstaller {
+  private readonly api = inject(PluginsApi);
+
+  async installPlugin(stagingId: string, acknowledgeUnsigned: boolean, preparation?: RuntimePreparation): Promise<void> {
+    await this.api.ensureRuntime(preparation);
+    await this.api.install(stagingId, acknowledgeUnsigned);
+  }
+}
 
 /**
  * `<dialog gwPluginReviewDialog>` (kit `dlg-review-clickhouse` and `dlg-review-rabbitmq`): what the core found in a
@@ -99,7 +118,7 @@ let nextId = 0;
   `,
 })
 export class GwPluginReviewDialog {
-  private readonly data = inject(ConnectorsData);
+  private readonly data: PluginInstaller = inject(PluginInstaller, { optional: true }) ?? inject(ConnectorsData);
   private readonly dialog = inject(GwDialog);
   private readonly toasts = inject(ToastService);
   private readonly host: HTMLDialogElement = inject(ElementRef<HTMLDialogElement>).nativeElement;

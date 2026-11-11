@@ -159,7 +159,10 @@ export class GwConnectorCard {
  * through every type. A type shows its vendor's mark (`gw-choice-card__mark`, kit `assets/integrations/`) where it has
  * one, else its icon. The page puts the categories and the search above it (`connectorCategories`,
  * `filterConnectorGroups`). Built-in types say so with their tool count; packages carry their kind and trust; a type that
- * isn't installed stays visible and focusable but unavailable (`aria-disabled`, its reason as the description).
+ * the signed catalog offers but this core hasn't installed (`catalogRef`) can be chosen: the wizard reviews and installs
+ * it on Continue. A type that is otherwise unavailable (switched off, changed outside GateRook) stays visible and
+ * focusable but unavailable (`aria-disabled`, its reason as the description). A compatible service's card
+ * (`compatibleWith`, Supabase for PostgreSQL) says which connector it uses.
  * `error` marks every card and says what to do ("Choose a connector type to continue.").
  */
 @Component({
@@ -189,15 +192,25 @@ export class GwConnectorPicker {
     return `${this.uid}-${this.key(c).replace(/[^a-z0-9-]/gi, '-')}-${part}`;
   }
 
-  /** "Built-in · 4 tools", "Built-in Logs · 2 tools", "v1.2.0 · 5 tools", "Tools from the file". */
+  /** Whether the card can be chosen: a usable type, or a catalog plugin the wizard installs on Continue. */
+  protected selectable(c: ConnectorCard): boolean {
+    return c.available || !!c.catalogRef;
+  }
+
+  /**
+   * "Built-in · 4 tools", "Built-in Logs · 2 tools", "PostgreSQL connector · 4 tools", "v1.2.0 · 5 tools",
+   * "Installs v1.0.0 from the catalog · 6 tools", "Tools from the file".
+   */
   protected meta(c: ConnectorCard, group: ConnectorGroup): string {
     const tools = c.tools !== null ? `${c.tools} ${c.tools === 1 ? 'tool' : 'tools'}` : `Tools from the ${c.toolsFrom ?? 'server'}`;
+    if (c.compatibleWith) return `${c.compatibleWith} connector · ${tools}`;
+    if (!c.available && c.catalogRef) return `Installs ${c.version?.startsWith('v') ? c.version : `v${c.version}`} from the catalog · ${tools}`;
     if (c.kind === 'built-in') return c.tools !== null ? `Built-in${c.variant ? ` ${group.name}` : ''} · ${tools}` : tools;
     if (c.kind === 'plugin' && c.version && c.available) return `${c.version.startsWith('v') ? c.version : `v${c.version}`} · ${tools}`;
     return tools;
   }
 
   protected pick(c: ConnectorCard): void {
-    if (c.available) this.value.set(this.key(c));
+    if (this.selectable(c)) this.value.set(this.key(c));
   }
 }

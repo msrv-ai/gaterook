@@ -185,6 +185,7 @@ For the full connector integration suite, follow [the Docker test-services guide
 | [Oracle Database](docs/oracle.md) | Service connections, TLS, schema access, queries and Oracle-specific limits |
 | [SQL Server](docs/sql-server.md) | SQL authentication, database selection, permissions, and T-SQL limits |
 | [CockroachDB](docs/cockroachdb.md) | Connecting through the PostgreSQL type, TLS, read-only users, and CockroachDB's differences |
+| [Compatible services](docs/compatible-services.md) | Supabase, Neon, Aurora, Valkey, ScyllaDB and other services that speak a supported database's protocol, and catalog plugins in Add connection |
 | [SQLite](docs/sqlite.md) | Choosing the database file, read-only handles, file rules, and SQLite-specific limits |
 | [DuckDB](docs/duckdb.md) | The catalog plugin, database files and data folders, locked read-only instances, and platform limits |
 | [Amazon DynamoDB](docs/dynamodb.md) | Roles and session policies, Query, Scan and PartiQL, and approved changes |

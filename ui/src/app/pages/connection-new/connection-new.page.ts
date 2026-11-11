@@ -41,6 +41,7 @@ import { ProjectDiscoveryRequest } from '../../kit/elements/connection-form/clou
 import { databaseSelection, removeConfigPath } from '../../kit/elements/connection-form/database-selection';
 import { GwConnectionTest, TestState, testConfirmTitle, testFacts, usesGoogleAdc } from '../../kit/elements/connection-form/connection-test';
 import { GwConnectorPicker } from '../../kit/elements/connector-card/connector-card';
+import { withCompatibleServices } from '../../kit/elements/shared/compatible-services';
 import { connectorCategories, filterConnectorGroups } from '../../kit/elements/shared/connector-categories';
 import { clientName } from '../../kit/elements/shared/client-mark';
 import { connectorIcon } from '../../kit/elements/shared/connector-icons';
@@ -48,6 +49,9 @@ import { MODES, healthLook } from '../../kit/elements/shared/dictionaries';
 import { literalParts } from '../../kit/elements/shared/literals';
 import { GwIcon } from '../../kit/icons';
 import { GwSearchClear, GwSearchClearButton } from '../../kit/search';
+import { PluginsApi } from '../../core/api/plugins.api';
+import { failureText } from '../connectors/dialogs/failure';
+import { DirectPluginInstaller, GwPluginReviewDialog, PluginInstaller } from '../connectors/dialogs/plugin-review.dialog';
 import { GwTabs } from '../../kit/tabs';
 import { ToastService } from '../../kit/toast.service';
 import { getAt, setAt } from '../../schema-form/compile';
@@ -165,6 +169,7 @@ interface ReferenceChange {
     GwConnectorPicker,
     GwSearchClear,
     GwSearchClearButton,
+    GwPluginReviewDialog,
     GwConnectionForm,
     GwConnectionTest,
     GwAccessSwitch,
@@ -172,11 +177,14 @@ interface ReferenceChange {
     GwConnectionCalls,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // A catalog plugin chosen here installs through Connectors' review, straight with the plugins API.
+  providers: [{ provide: PluginInstaller, useClass: DirectPluginInstaller }],
   host: { class: 'gw-page gw-page--narrow', '[class.gw-form--sticky-actions]': "mode() === 'edit'" },
   templateUrl: './connection-new.page.html',
 })
 export class ConnectionNewPage {
   private readonly typesApi = inject(ConnectorTypesApi);
+  private readonly pluginsApi = inject(PluginsApi);
   private readonly connections = inject(ConnectionsApi);
   private readonly accessChanges = inject(AccessChanges);
   private readonly endpointsApi = inject(EndpointsApi);
@@ -223,7 +231,8 @@ export class ConnectionNewPage {
   protected readonly catalogError = signal<ApiError | null>(null);
   readonly selected = signal<string | null>(null);
   protected readonly pickError = signal<string | null>(null);
-  protected readonly groups = computed(() => this.catalog()?.groups ?? []);
+  /** The core's cards, with a card for every compatible service of a built-in type (Supabase after PostgreSQL). */
+  protected readonly groups = computed(() => withCompatibleServices(this.catalog()?.groups ?? []));
   protected readonly card = computed(() => findCard(this.groups(), this.selected()));
   /** The search above the picker: it filters the types by name, other names, description and category. */
   protected readonly typeQuery = signal('');
@@ -236,6 +245,11 @@ export class ConnectionNewPage {
     const shown = this.pickerGroups().reduce((n, g) => n + g.cards.length, 0);
     const all = `${total} connector ${total === 1 ? 'type' : 'types'}`;
     return this.typeQuery().trim() ? `${shown} of ${all}` : all;
+  });
+  /** A catalog plugin that isn't installed yet: Continue reviews and installs it first. */
+  protected readonly installPicked = computed(() => {
+    const c = this.card();
+    return c && !c.available && c.catalogRef ? c : null;
   });
   /** "3 connections use PostgreSQL" under the picker (ARCHITECTURE.md §8.4). */
   protected readonly usage = computed(() => {
@@ -278,6 +292,11 @@ export class ConnectionNewPage {
   protected readonly formProblem = signal<{ readonly title: string; readonly message: string } | null>(null);
   private readonly policies = signal<{ readonly all: Policies; readonly schema: JsonObject | null } | null>(null);
   readonly form = viewChild(GwConnectionForm);
+  private readonly pluginReview = viewChild.required(GwPluginReviewDialog);
+  /** The catalog plugin being checked before its review opens (Continue shows it busy). */
+  protected readonly checkingPlugin = signal<string | null>(null);
+  /** The card whose plugin the review installs: Configure opens on it once it is installed. */
+  private reviewing: string | null = null;
   private readonly editTabs = viewChild(GwTabs);
   /** The duplicate's settings: picking its type again keeps them, another type starts fresh. */
   private copied: { readonly type: string; readonly env: Env; readonly config: JsonObject } | null = null;
@@ -688,7 +707,7 @@ export class ConnectionNewPage {
       // A Logs connection is one card per back end: the one whose preset the copied config holds.
       const cards = this.groups()
         .flatMap((g) => g.cards)
-        .filter((c) => c.type === draft.type);
+        .filter((c) => c.type === draft.type && !c.compatibleWith);
       const preset = (c: (typeof cards)[number]) =>
         !!c.presetConfig &&
         typeof c.presetConfig === 'object' &&
@@ -824,7 +843,12 @@ export class ConnectionNewPage {
 
   protected async continueFromType(): Promise<void> {
     const key = this.selected();
-    if (!key || !findCard(this.groups(), key)?.available) {
+    const picked = findCard(this.groups(), key);
+    if (key && picked && !picked.available && picked.catalogRef) {
+      await this.reviewPlugin(key, picked.name, picked.catalogRef);
+      return;
+    }
+    if (!key || !picked?.available) {
       this.pickError.set('Choose a connector type to continue.');
       afterNextRender(() => this.doc.querySelector<HTMLInputElement>('#step-1 .gw-choice-card__input:not([aria-disabled])')?.focus(), {
         injector: this.injector,
@@ -836,6 +860,45 @@ export class ConnectionNewPage {
       this.addMcpServer(false);
       return;
     }
+    this.go(2);
+    await this.openType(key);
+  }
+
+  /**
+   * A catalog plugin chosen before it is installed: the core checks the signed package, Connectors' review shows what
+   * it is (a danger confirmation for an unsigned one), and once it is installed Configure opens on it.
+   */
+  private async reviewPlugin(key: string, name: string, catalogRef: string): Promise<void> {
+    if (this.checkingPlugin()) return;
+    const opener = this.doc.activeElement instanceof HTMLElement ? this.doc.activeElement : null;
+    this.checkingPlugin.set(key);
+    try {
+      const check = await this.pluginsApi.check({ catalog: catalogRef });
+      this.reviewing = key;
+      this.pluginReview().show(check, null, opener);
+    } catch (e) {
+      this.toasts.show({ tone: 'danger', title: `${name} wasn't checked`, body: failureText(e, 'This build of the gateway core can’t install plugins yet.') });
+    } finally {
+      this.checkingPlugin.set(null);
+    }
+  }
+
+  /** The review closed: after an install, the catalog again and Configure on the plugin's type. */
+  protected async onPluginReviewClosed(result: string): Promise<void> {
+    const key = this.reviewing;
+    this.reviewing = null;
+    if (result !== 'installed' || !key) return;
+    const gen = this.gen;
+    try {
+      const catalog = await this.typesApi.catalog();
+      if (gen !== this.gen) return;
+      this.catalog.set(catalog);
+    } catch {
+      return;
+    }
+    if (!findCard(this.groups(), key)?.available) return;
+    this.selected.set(key);
+    this.pickError.set(null);
     this.go(2);
     await this.openType(key);
   }

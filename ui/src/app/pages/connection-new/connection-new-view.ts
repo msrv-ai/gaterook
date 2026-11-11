@@ -98,12 +98,16 @@ export function findCard(groups: readonly ConnectorGroup[], key: string | null):
 
 /**
  * The card the picker opens on: `?type=` (and `&variant=`) from Connectors, else the first type that can be used —
- * the kit's page opens with PostgreSQL chosen. A type that isn't available never becomes the choice.
+ * the kit's page opens with PostgreSQL chosen. A type that isn't available never becomes the choice, except a catalog
+ * plugin named by `?type=`, which Continue installs.
  */
 export function defaultCardKey(groups: readonly ConnectorGroup[], type?: string | null, variant?: string | null): string | null {
-  const cards = groups.flatMap((g) => g.cards).filter((c) => c.available);
+  const all = groups.flatMap((g) => g.cards);
+  const cards = all.filter((c) => c.available);
   if (type) {
-    const exact = cards.find((c) => c.type === type && (variant ? c.variant === variant : true));
+    const exact = all.find(
+      (c) => c.type === type && (variant ? c.variant === variant : true) && (c.available || !!c.catalogRef),
+    );
     if (exact) return cardKey(exact);
   }
   return cards[0] ? cardKey(cards[0]) : null;

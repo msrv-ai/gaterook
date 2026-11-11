@@ -1,4 +1,5 @@
 import { ConnectorCard, ConnectorGroup } from '../../../core/api/connector-types.api';
+import { compatibleService, withCompatibleServices } from './compatible-services';
 import { connectorCategories, connectorMark, filterConnectorGroups } from './connector-categories';
 
 const card = (type: string, name: string, over: Partial<ConnectorCard> = {}): ConnectorCard => ({
@@ -75,5 +76,42 @@ describe('connector categories', () => {
     expect(names(filterConnectorGroups(all, 'google warehouse'))).toEqual(['Data warehouses: bigquery']);
     expect(names(filterConnectorGroups(all, 'google shell'))).toEqual([]);
     expect(names(filterConnectorGroups(all, 'promql'))).toEqual(['Metrics and time series: prometheus']);
+  });
+});
+
+describe('compatible services', () => {
+  const core = (): ConnectorGroup[] => [
+    { name: 'Databases', cards: [card('postgres', 'PostgreSQL'), card('neo4j', 'Neo4j'), card('duckdb', 'DuckDB', { kind: 'plugin' })] },
+  ];
+
+  it('adds a card after its base type: the base type and tools, its own name and starting values, no count', () => {
+    const groups = withCompatibleServices(core());
+    const keys = groups[0].cards.map((c) => (c.variant ? `${c.type}:${c.variant}` : c.type));
+    expect(keys.slice(0, 3)).toEqual(['postgres', 'postgres:supabase', 'postgres:neon']);
+    expect(keys).toContain('neo4j:aura');
+    // Plugins get none: their compatible services aren't known.
+    expect(keys.filter((k) => k.startsWith('duckdb'))).toEqual(['duckdb']);
+    const supabase = groups[0].cards.find((c) => c.variant === 'supabase')!;
+    expect(supabase).toMatchObject({ type: 'postgres', name: 'Supabase', tools: 4, connections: 0, compatibleWith: 'PostgreSQL',
+      presetConfig: { connection: { sslMode: 'verify-full' } } });
+  });
+
+  it('puts a family in its own category after the base ones, and the others next to their base type', () => {
+    const names = (gs: ConnectorGroup[]) => gs.map((g) => `${g.name}: ${g.cards.map((c) => c.variant ?? c.type).slice(0, 3).join(' ')}`);
+    expect(names(connectorCategories(withCompatibleServices(core())))).toEqual([
+      'SQL databases: postgres duckdb',
+      'NoSQL databases: neo4j aura',
+      'PostgreSQL-compatible: supabase neon aws-rds',
+    ]);
+  });
+
+  it('shows a service’s own mark, never its base type’s, and finds it by its own words only', () => {
+    expect(connectorMark('postgres', 'supabase')).toBe('assets/integrations/supabase.svg');
+    expect(connectorMark('mongodb', 'atlas')).toBe('assets/integrations/mongodb.svg');
+    expect(compatibleService('postgres', 'supabase')?.group).toBe('PostgreSQL-compatible');
+    expect(compatibleService('postgres', null)).toBeNull();
+    const all = connectorCategories(withCompatibleServices(core()));
+    expect(names(filterConnectorGroups(all, 'cockroach'))).toEqual(['SQL databases: postgres', 'PostgreSQL-compatible: postgres']);
+    expect(filterConnectorGroups(all, 'supavisor')).toEqual([]);
   });
 });
