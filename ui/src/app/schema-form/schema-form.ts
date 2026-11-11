@@ -28,7 +28,7 @@ import { REFERENCE_SCHEMES, isTargetKey, referenceKind, secretSourceId } from '.
  * spec's `secretSources` (several Vaults: one each, named).
  */
 export interface StoreOption {
-  /** `vault`, `gcp-sm`, `aws-sm`. */
+  /** `vault`, `gcp-sm`, `aws-sm`, `azure-kv`. */
   readonly kind: string;
   /** The store's name, which the reference is bound to; `null` for a store the core picks itself. */
   readonly store: string | null;
@@ -834,7 +834,8 @@ function metadataOptions(v: JsonValue): FieldOption[] {
 
 /** "HashiCorp Vault" for `vault`: how a field's menu and hints name a kind of store. */
 export function kindTitle(kind: string): string {
-  return kind === 'vault' ? 'Vault' : kind === 'gcp-sm' ? 'GCP Secret Manager' : kind === 'aws-sm' ? 'AWS Secrets Manager' : kind;
+  return kind === 'vault' ? 'Vault' : kind === 'gcp-sm' ? 'GCP Secret Manager' : kind === 'aws-sm' ? 'AWS Secrets Manager'
+    : kind === 'azure-kv' ? 'Azure Key Vault' : kind;
 }
 
 function stringAt(model: JsonObject, path: readonly string[]): string {

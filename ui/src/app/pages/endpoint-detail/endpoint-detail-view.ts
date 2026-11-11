@@ -340,6 +340,8 @@ export function secretText(source: string | null | undefined): string | null {
       return 'secret in GCP Secret Manager';
     case 'aws-sm':
       return 'secret in AWS Secrets Manager';
+    case 'azure-kv':
+      return 'secret in Azure Key Vault';
     case 'short-lived':
       return 'short-lived credentials';
     default:

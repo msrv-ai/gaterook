@@ -55,7 +55,7 @@ public final class SecretFields {
   }
 
   /** How a reference into a connected store starts. */
-  private static final List<String> REFERENCE_SCHEMES = List.of("vault://", "gcp-sm://", "aws-sm://");
+  private static final List<String> REFERENCE_SCHEMES = List.of("vault://", "gcp-sm://", "aws-sm://", "azure-kv://");
 
   /** Whether a value names a value kept in a store ({@code vault://kv/prod/db#username}) instead of being one. */
   public static boolean looksLikeReference(String value) {

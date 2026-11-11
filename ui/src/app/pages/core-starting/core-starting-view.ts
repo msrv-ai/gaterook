@@ -148,12 +148,16 @@ function andWords(words: readonly string[]): string {
   return words.length < 2 ? (words[0] ?? '') : `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`;
 }
 
-/** `vault`, `gcp-sm`, `aws-sm` (or a store's name, `gcp-acme-prod`) as the kit names them: Vault, GCP, AWS. */
+/**
+ * `vault`, `gcp-sm`, `aws-sm`, `azure-kv` (or a store's name, `gcp-acme-prod`) as the kit names them: Vault, GCP, AWS,
+ * Azure.
+ */
 function storeWord(source: string): string {
   const s = source.toLowerCase();
   if (s.startsWith('vault')) return 'Vault';
   if (s.startsWith('gcp')) return 'GCP';
   if (s.startsWith('aws')) return 'AWS';
+  if (s.startsWith('azure')) return 'Azure';
   return source;
 }
 

@@ -65,7 +65,8 @@ class StoreConfiguration {
 
   /**
    * Test endpoints of the cloud stores, honoured by development builds only: a release never sends credentials
-   * anywhere but Google and AWS (like {@code gateway.cloud.*} of {@code CloudCredentials}).
+   * anywhere but Google and AWS (like {@code gateway.cloud.*} of {@code CloudCredentials}). Azure Key Vault uses those
+   * of {@code CloudCredentials} ({@code gateway.cloud.endpoints}: {@code azure.login}, {@code azure.keyvault}).
    */
   @Bean
   StoreClients.Endpoints storeEndpoints(Environment environment) {

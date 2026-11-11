@@ -336,7 +336,7 @@ export class GwSchemaField {
 }
 
 /** How a field's menu button names a kind of store. */
-const SHORT_KINDS: Readonly<Record<string, string>> = { vault: 'Vault', 'gcp-sm': 'GCP', 'aws-sm': 'AWS' };
+const SHORT_KINDS: Readonly<Record<string, string>> = { vault: 'Vault', 'gcp-sm': 'GCP', 'aws-sm': 'AWS', 'azure-kv': 'Azure' };
 
 /**
  * The fields of an object node in rows: a run of short fields shares one `gw-form__row` (Host · Port · Database),

@@ -286,8 +286,8 @@ public class ConnectionImportFiles {
     }
     String reference = text(input, "ref", 1024, true);
     // These are inert references. The secrets module performs canonical parsing and store binding on confirmation.
-    if (!reference.matches("(?:vault|gcp-sm|aws-sm)://[^\\s%\\p{Cntrl}]+")) {
-      throw invalid("Use a Vault, GCP Secret Manager or AWS Secrets Manager reference.");
+    if (!reference.matches("(?:vault|gcp-sm|aws-sm|azure-kv)://[^\\s%\\p{Cntrl}]+")) {
+      throw invalid("Use a Vault, GCP Secret Manager, AWS Secrets Manager or Azure Key Vault reference.");
     }
     if (source.equals("vault-dynamic") && !reference.matches("vault://[^?#]+/creds/[^/?#]+")) {
       throw invalid("Dynamic credentials require a Vault credentials role reference.");

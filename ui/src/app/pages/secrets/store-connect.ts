@@ -3,10 +3,10 @@ import { JsonObject } from '../../core/api/types';
 
 /**
  * Connect a store (kit `#dlg-connect-aws`; S1 `POST /api/secret-stores` with the forms of
- * `ai/msrv/gaterook/core/secrets/store/{vault,gcp-sm,aws-sm}.schema.json`): the non-secret fields of all three kinds in
- * one model (the dialog shows the kind's), their rules in the core's words, and the request. Sign-in values (AWS
- * secret access key, AppRole secret ID, Vault token, service account key) are never in the model: the dialog reads
- * them from their fields once, when it sends.
+ * `ai/msrv/gaterook/core/secrets/store/{vault,gcp-sm,aws-sm,azure-kv}.schema.json`): the non-secret fields of every kind
+ * in one model (the dialog shows the kind's), their rules in the core's words, and the request. Sign-in values (AWS
+ * secret access key, AppRole secret ID, Vault token, service account key, Azure client secret or certificate) are
+ * never in the model: the dialog reads them from their fields once, when it sends.
  */
 export interface ConnectModel {
   // AWS Secrets Manager
@@ -30,7 +30,25 @@ export interface ConnectModel {
   readonly project: string;
   readonly gcpSource: 'adc' | 'serviceAccountKey';
   readonly impersonate: string;
+  // Azure Key Vault
+  /** The key vault's name, as `azure-kv://<vault>/<secret>` references name it: one store reads one vault. */
+  readonly vault: string;
+  readonly azureCloud: AzureCloud;
+  readonly tenantId: string;
+  readonly clientId: string;
+  /** A service principal signs in with a client secret or a certificate; both are stored encrypted here. */
+  readonly azureSource: 'clientSecret' | 'clientCertificate';
 }
+
+/** The Azure clouds a key vault can be in (the core's `AzureCloud` ids). */
+export type AzureCloud = 'AzureCloud' | 'AzureUSGovernment' | 'AzureChinaCloud';
+
+/** The cloud select: the core's ids and the names `az cloud list` gives them. */
+export const AZURE_CLOUDS: readonly { readonly value: AzureCloud; readonly label: string }[] = [
+  { value: 'AzureCloud', label: 'Azure' },
+  { value: 'AzureUSGovernment', label: 'Azure Government' },
+  { value: 'AzureChinaCloud', label: 'Azure China (21Vianet)' },
+];
 
 export function emptyConnectModel(): ConnectModel {
   return {
@@ -50,6 +68,11 @@ export function emptyConnectModel(): ConnectModel {
     project: '',
     gcpSource: 'adc',
     impersonate: '',
+    vault: '',
+    azureCloud: 'AzureCloud',
+    tenantId: '',
+    clientId: '',
+    azureSource: 'clientSecret',
   };
 }
 
@@ -67,7 +90,7 @@ export const AWS_REGIONS: readonly string[] = [
  * or `/credentials/roleArn`) lands under its field. Sign-in values are keyed like their fields.
  */
 /** The sign-in values' fields (outside the model), and the token file chosen in the desktop app's dialog. */
-export type SecretKey = 'secretAccessKey' | 'secretId' | 'token' | 'serviceAccountKey' | 'tokenFile';
+export type SecretKey = 'secretAccessKey' | 'secretId' | 'token' | 'serviceAccountKey' | 'tokenFile' | 'clientSecret' | 'certificate';
 
 /** A Vault token file the desktop app granted to the core: the grant to send, the path to show. */
 export interface ChosenFile {
@@ -87,10 +110,16 @@ export const FIELD_POINTERS: { readonly [K in keyof ConnectModel | SecretKey]?: 
   caCert: '/caCert',
   project: '/project',
   impersonate: '/credentials/impersonate',
+  vault: '/vault',
+  azureCloud: '/cloud',
+  tenantId: '/tenantId',
+  clientId: '/credentials/clientId',
   secretAccessKey: '/credentials/secretAccessKey',
   secretId: '/auth/secretId',
   token: '/auth/token',
   serviceAccountKey: '/credentials/serviceAccountKey',
+  clientSecret: '/credentials/clientSecret',
+  certificate: '/credentials/certificate',
   tokenFile: '/files/~1auth~1file',
 };
 
@@ -109,6 +138,10 @@ const ROLE_ARN = /^arn:aws[a-z-]*:iam::\d{12}:role\/[\w+=,.@/-]+$/;
 const ACCESS_KEY_ID = /^(AKIA|ASIA)[A-Z0-9]{16}$/;
 const PROJECT = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
 const SERVICE_ACCOUNT = /^[a-z][a-z0-9-]*@[a-z0-9.-]+\.iam\.gserviceaccount\.com$/;
+/** The core's rule for a key vault's name: 3–24 letters, digits and single hyphens, a letter first, no hyphen last. */
+const KEY_VAULT = /^(?=[a-z0-9-]{3,24}$)[a-z](?:-?[a-z0-9])+$/;
+const GUID = /^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$/;
+const DOMAIN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i;
 
 /** HTTP needs a separate confirmation before connecting; the core checks the address's remaining restrictions. */
 export function addressProblem(address: string): string | null {
@@ -166,6 +199,22 @@ export function fieldProblem(kind: SecretStoreKind, key: keyof ConnectModel, m: 
       }
       if (key === 'impersonate' && v && !SERVICE_ACCOUNT.test(v)) return `${v} isn't a service account. It looks like gw-secrets@acme-stage.iam.gserviceaccount.com.`;
       return null;
+    case 'azure-kv':
+      if (key === 'vault') {
+        if (!v) return 'Enter the name of the key vault, for example acme-kv.';
+        if (v.includes('.')) return 'Enter the key vault’s name, not its address: acme-kv rather than acme-kv.vault.azure.net.';
+        return KEY_VAULT.test(v) ? null : `${v} isn't a key vault name: 3–24 lowercase letters, digits and hyphens, starting with a letter.`;
+      }
+      if (key === 'tenantId') {
+        if (!v) return 'Enter the tenant (directory) ID: a GUID or a domain such as contoso.onmicrosoft.com.';
+        if (['common', 'organizations', 'consumers'].includes(v.toLowerCase())) return 'Name one tenant: common, organizations and consumers aren’t tenants.';
+        return GUID.test(v) || DOMAIN.test(v) ? null : `${v} isn't a tenant: use its directory ID (a GUID) or a domain such as contoso.onmicrosoft.com.`;
+      }
+      if (key === 'clientId') {
+        if (!v) return 'Enter the application (client) ID of the service principal.';
+        return GUID.test(v) ? null : `${v} isn't an application ID: it is a GUID, such as 0a1b2c3d-1111-4222-8333-444455556666.`;
+      }
+      return null;
   }
 }
 
@@ -176,13 +225,14 @@ export function externalId(bytes: Uint8Array = crypto.getRandomValues(new Uint8A
 
 /**
  * The store's name: the one the person gives a Vault (several Vaults are told apart by it), or for the other kinds the
- * kind made specific where it can (`gcp-acme-stage`, `aws-eu-central-1`); with `-2`, `-3` when taken. Also the name a
- * new Vault's field starts with (`vault`, then `vault-2`).
+ * kind made specific where it can (`gcp-acme-stage`, `aws-eu-central-1`, `azure-acme-kv`); with `-2`, `-3` when taken.
+ * Also the name a new Vault's field starts with (`vault`, then `vault-2`).
  */
 export function storeName(kind: SecretStoreKind, m: ConnectModel, taken: readonly string[]): string {
   const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
   if (kind === 'vault' && m.name.trim()) return m.name.trim();
-  const base = kind === 'vault' ? 'vault' : kind === 'gcp-sm' ? `gcp-${slug(m.project) || 'secrets'}` : `aws-${slug(m.region) || 'secrets'}`;
+  const base = kind === 'vault' ? 'vault' : kind === 'gcp-sm' ? `gcp-${slug(m.project) || 'secrets'}`
+    : kind === 'azure-kv' ? `azure-${slug(m.vault) || 'key-vault'}` : `aws-${slug(m.region) || 'secrets'}`;
   const name = base.slice(0, 60);
   if (!taken.includes(name)) return name;
   for (let i = 2; ; i++) if (!taken.includes(`${name}-${i}`)) return `${name}-${i}`;
@@ -217,6 +267,8 @@ export function connectRequest(kind: SecretStoreKind, name: string, m: ConnectMo
       if (tokenFile) files['/auth/file'] = tokenFile.token;
       return { kind, name, config, files };
     }
+  } else if (kind === 'azure-kv') {
+    config = { vault: t(m.vault), cloud: m.azureCloud, tenantId: t(m.tenantId), credentials: { source: m.azureSource, clientId: t(m.clientId) } };
   } else {
     const credentials: JsonObject = { source: m.gcpSource };
     if (t(m.impersonate)) credentials['impersonate'] = t(m.impersonate);

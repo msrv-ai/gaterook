@@ -155,7 +155,7 @@ class AdminApiIT {
     assertThat(form.path("schema").path("properties").has("connection")).isTrue();
     assertThat(each(form.path("secretFields"), "pointer")).containsExactly("/credentials/password");
     assertThat(each(form.path("secretSources"), "id")).containsExactly("local", "vault", "gcp-sm",
-        "aws-sm", "vault-dynamic");
+        "aws-sm", "azure-kv", "vault-dynamic");
     assertThat(form.path("common").path("env").path("enum").size()).isEqualTo(3);
   }
 

@@ -100,6 +100,7 @@ To use an existing secret store, open **Secrets → External stores** and connec
 | HashiCorp Vault / OpenBao | Read KV v1/v2 secrets with AppRole or token authentication; Vault can also sign SSH certificates |
 | GCP Secret Manager | Read secret versions using Application Default Credentials or a service account key, with optional service account impersonation |
 | AWS Secrets Manager | Read secrets using an AWS profile or access key to assume a role, with ExternalId and a session policy scoped to configured secret references |
+| Azure Key Vault | Read the secrets of one vault per store as a service principal with a certificate or client secret, in Azure, Azure Government or Azure China; see [Key Vault as an external secret store](docs/azure.md#key-vault-as-an-external-secret-store) |
 
 Select the store in a connection's credential fields and enter a secret reference. GateRook resolves external values at call time, caches them briefly in memory, and keeps them out of AI apps. See [external stores and reference syntax](docs/research/12-secrets.md#5-external-stores-and-reference-syntax) and [desktop key protection](docs/ARCHITECTURE.md#71-electron) for details.
 

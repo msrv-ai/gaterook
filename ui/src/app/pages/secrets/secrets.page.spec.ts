@@ -14,7 +14,7 @@ import { AriaDisabledGuard } from '../../kit/aria-disabled';
 import { ClipboardWriter } from '../../kit/clipboard';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
-import { ENVS, NOW, kitMasterKey, kitSecrets, kitShortLived, kitStores } from './secrets.fixtures';
+import { ENVS, NOW, kitMasterKey, kitSecrets, kitShortLived, kitStores, reference } from './secrets.fixtures';
 import { SKELETON_DELAY_MS, SecretsPage } from './secrets.page';
 
 /**
@@ -206,7 +206,7 @@ describe('Secrets page: what it shows', () => {
     expect(text($('#secret-count', el))).toBe('11 secrets');
     expect(text(row('billing-api/webhook-secret'))).toContain('AWS SM · not connected');
 
-    expect(text($('#external-stores .gw-section__description', el))).toContain('2 of 3 connected.');
+    expect(text($('#external-stores .gw-section__description', el))).toContain('2 of 4 connected.');
     expect(text($('#store-vault', el))).toContain('https://vault.acme.internal');
     expect(text($('#store-vault-references summary', el))).toBe('1 reference');
     expect($<HTMLDetailsElement>('#store-vault-references', el)!.open).toBe(false);
@@ -441,7 +441,7 @@ describe('Secrets page: Replace and Rotate', () => {
 
     await type(field, 'kv/stage/db2');
     await click(control($('#dlg-replace-ref')!, 'Test reference'));
-    expect(text($('#replace-ref-err'))).toBe('A reference starts with vault://, gcp-sm:// or aws-sm://.');
+    expect(text($('#replace-ref-err'))).toBe('A reference starts with vault://, gcp-sm://, aws-sm:// or azure-kv://.');
     expect(calls.some((c) => c.startsWith('test-ref'))).toBe(false);
 
     await type(field, 'vault://kv/stage/db2#password');
@@ -756,6 +756,107 @@ describe('Secrets page: external stores', () => {
     expect(req.secrets).toEqual({ '/credentials/secretAccessKey': 'wJalrXUtnFEMI/K7MDENG' });
     expect(JSON.stringify(req.config)).not.toContain('wJalrXUtnFEMI');
     expect(secret.value).toBe('');
+  });
+
+  it('Connect Azure Key Vault: the vault has the focus, the client secret is read from its field when sent and cleared after', async () => {
+    const el = await render();
+    const card = $('#store-azure', el)!;
+    expect(card.classList).toContain('gw-card--dashed');
+    expect(text(card)).toContain('Read with a service principal of Entra ID');
+    await click(control(card, 'Connect'));
+    const dialog = $<HTMLDialogElement>('#dlg-connect-store')!;
+    expect(text($('#dlg-connect-store-t'))).toBe('Connect Azure Key Vault');
+    expect(document.activeElement).toBe($('#azure-vault'));
+    expect($<HTMLSelectElement>('#azure-cloud')!.value).toBe('AzureCloud');
+
+    await submit('#dlg-connect-store');
+    expect(text($('#azure-vault-err'))).toBe('Enter the name of the key vault, for example acme-kv.');
+    expect(text($('#azure-tenant-err'))).toMatch(/^Enter the tenant/);
+    expect(text($('#azure-client-err'))).toMatch(/^Enter the application/);
+    expect(text($('#azure-secret-err'))).toBe('Enter the client secret.');
+    expect(document.activeElement).toBe($('#azure-vault'));
+    expect($('#azure-vault')!.getAttribute('aria-describedby')).toBe('azure-vault-err azure-vault-hint');
+    expect(calls.some((c) => c.startsWith('create'))).toBe(false);
+
+    await type($<HTMLInputElement>('#azure-vault')!, 'acme-kv.vault.azure.net');
+    await submit('#dlg-connect-store');
+    expect(text($('#azure-vault-err'))).toMatch(/not its address/);
+    await type($<HTMLInputElement>('#azure-vault')!, 'acme-kv');
+    expect(text($('#azure-vault-hint'))).toContain('azure-kv://acme-kv/<secret>');
+    await type($<HTMLInputElement>('#azure-tenant')!, 'contoso.onmicrosoft.com');
+    await type($<HTMLInputElement>('#azure-client')!, '0a1b2c3d-1111-4222-8333-444455556666');
+    const secret = $<HTMLInputElement>('#azure-secret')!;
+    secret.value = 'cnry-azure-client-secret';
+    await submit('#dlg-connect-store');
+    expect(calls).toEqual(expect.arrayContaining(['create azure-kv azure-acme-kv', 'test-store st-aws']));
+    const req = requests.at(-1) as SecretStoreCreate;
+    expect(req).toEqual({
+      kind: 'azure-kv',
+      name: 'azure-acme-kv',
+      config: { vault: 'acme-kv', cloud: 'AzureCloud', tenantId: 'contoso.onmicrosoft.com', credentials: { source: 'clientSecret', clientId: '0a1b2c3d-1111-4222-8333-444455556666' } },
+      secrets: { '/credentials/clientSecret': 'cnry-azure-client-secret' },
+    });
+    expect(JSON.stringify(req.config)).not.toContain('cnry-azure-client-secret');
+    expect(secret.value).toBe('');
+    expect(dialog.hasAttribute('open')).toBe(false);
+    expect(toastTitles()).toContain('Azure Key Vault · azure-acme-kv connected');
+  });
+
+  it('Connect Azure with a certificate: a waiting reference names the vault, the PEM goes apart by its pointer', async () => {
+    world.list = () => Promise.resolve([...kitSecrets(), reference('orders-db/password', 'orders-db', 'azure-kv', 'azure-kv://other-kv/orders-db#password', { state: 'not-connected' })]);
+    await render();
+    expect(text($('#store-azure')!)).toContain("orders-db/password points here and can't be resolved until you connect.");
+    expect(text(row('orders-db/password'))).toContain('Azure KV · not connected');
+    expect(control(row('orders-db/password'), 'Connect store').getAttribute('href')).toContain('#store-azure');
+
+    await click(control($('#store-azure')!, 'Connect'));
+    expect($<HTMLInputElement>('#azure-vault')!.value).toBe('other-kv');
+    await type($<HTMLSelectElement>('#azure-source')!, 'clientCertificate');
+    expect($('#azure-secret')).toBeNull();
+    await type($<HTMLSelectElement>('#azure-cloud')!, 'AzureUSGovernment');
+    await type($<HTMLInputElement>('#azure-tenant')!, '6f1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d');
+    await type($<HTMLInputElement>('#azure-client')!, '0a1b2c3d-1111-4222-8333-444455556666');
+    await submit('#dlg-connect-store');
+    expect(text($('#azure-certificate-err'))).toBe('Paste the certificate and its private key (PEM).');
+    expect(document.activeElement).toBe($('#azure-certificate'));
+
+    const pem = $<HTMLTextAreaElement>('#azure-certificate')!;
+    pem.value = '-----BEGIN PRIVATE KEY-----\ncnry-pem\n-----END PRIVATE KEY-----';
+    await submit('#dlg-connect-store');
+    const req = requests.at(-1) as SecretStoreCreate;
+    expect(req.name).toBe('azure-other-kv');
+    expect(req.config).toEqual({
+      vault: 'other-kv', cloud: 'AzureUSGovernment', tenantId: '6f1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d',
+      credentials: { source: 'clientCertificate', clientId: '0a1b2c3d-1111-4222-8333-444455556666' },
+    });
+    expect(req.secrets).toEqual({ '/credentials/certificate': '-----BEGIN PRIVATE KEY-----\ncnry-pem\n-----END PRIVATE KEY-----' });
+    expect(pem.value).toBe('');
+  });
+
+  it('a connected key vault shows its vault and tenant, and is followed by a card for another one', async () => {
+    const [vault] = kitStores();
+    world.stores = () => Promise.resolve([...kitStores(), {
+      ...vault, id: 'st-azure', kind: 'azure-kv', name: 'azure-acme-kv', references: [], issues: 0,
+      config: { vault: 'acme-kv', cloud: 'AzureCloud', tenantId: 'contoso.onmicrosoft.com', credentials: { source: 'clientSecret', clientId: '0a1b2c3d-1111-4222-8333-444455556666' } },
+      signIn: [{ field: '/credentials/clientSecret', secretId: 'id-azure', name: 'azure-acme-kv/client-secret', state: 'stored', version: 1 }],
+    }]);
+    const el = await render();
+    const card = $('#store-azure', el)!;
+    expect(card.classList).not.toContain('gw-card--dashed');
+    const value = (key: string) => text($$('.gw-kv__row', card).find((r) => text(r.querySelector('dt')) === key)?.querySelector('dd'));
+    expect(value('Key vault')).toBe('acme-kv');
+    expect(value('Tenant')).toBe('contoso.onmicrosoft.com');
+    expect(value('Sign-in')).toBe('Service principal 0a1b2c3d-1111-4222-8333-444455556666 with a client secret stored here: azure-acme-kv/client-secret');
+    expect(text($('#external-stores .gw-section__description', el))).toContain('3 of 4 connected.');
+
+    const another = $('#store-azure-another', el)!;
+    expect(another.classList).toContain('gw-card--dashed');
+    const ids = $$('#external-stores article', el).map((a) => a.id);
+    expect(ids.indexOf('store-azure-another')).toBe(ids.indexOf('store-azure') + 1);
+    expect(text(another)).toContain('A store reads one key vault.');
+    await click(control(another, 'Connect another key vault'));
+    expect(text($('#dlg-connect-store-t'))).toBe('Connect Azure Key Vault');
+    expect($<HTMLInputElement>('#azure-vault')!.value).toBe('');
   });
 
   it('Disconnect: Cancel has the focus; it names the store again; the card turns dashed and gets the keyboard', async () => {

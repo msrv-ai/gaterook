@@ -8,8 +8,8 @@ import java.util.Arrays;
  * in the request: it is zeroed once stored or tested, and never printed.
  *
  * @param value     a new value ({@code source: local}), or {@code null}
- * @param reference {@code vault://…}, {@code gcp-sm://…}, {@code aws-sm://…} ({@code source: reference} or
- *                  {@code vault-dynamic}), or {@code null}
+ * @param reference {@code vault://…}, {@code gcp-sm://…}, {@code aws-sm://…}, {@code azure-kv://…}
+ *                  ({@code source: reference} or {@code vault-dynamic}), or {@code null}
  * @param dynamic   {@code source: vault-dynamic}: short-lived credentials from {@code vault://<mount>/creds/<role>}
  * @param store     the external store the person chose for the reference, or {@code null} for the one of its kind
  */

@@ -40,7 +40,8 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * External stores on a real core (ARCHITECTURE.md §10 S1): a Vault connected over the admin API, connections whose
  * password is a reference or Vault dynamic credentials, a reference to a store that isn't connected, Test reference,
- * SSH certificates, rows changed outside GateRook, Disconnect — and no value or token in any answer, result or log.
+ * SSH certificates, rows changed outside GateRook, Disconnect, Azure Key Vault stores of one vault each — and no value
+ * or token in any answer, result or log.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ExternalStoresIT {
@@ -50,6 +51,8 @@ class ExternalStoresIT {
   private static FakeVault vault;
   /** The Vault of {@code vault-stage}: a server of its own, with a secret the first Vault doesn't have. */
   private static FakeVault stageVault;
+  /** Entra ID and Key Vault: the core's Azure sign-in and Key Vault test endpoints point here. */
+  private static FakeKeyVault keyVault;
   private static TestCore core;
   private static AdminMvc api;
   private static String storeId;
@@ -61,7 +64,8 @@ class ExternalStoresIT {
     stageVault.responses.put("kv/data/stage/orders", "{\"data\":{\"data\":{\"password\":\""
         + FakeVault.DB_PASSWORD + "\",\"database\":\"orders\"},\"metadata\":{\"created_time\":"
         + "\"2026-10-16T09:00:00Z\",\"deletion_time\":\"\",\"destroyed\":false,\"version\":2}}}");
-    core = TestCore.start("external-stores");
+    keyVault = new FakeKeyVault();
+    core = TestCore.start("external-stores", "--gateway.cloud.endpoints=" + keyVault.endpoints());
     api = new AdminMvc(core.context(), core.bean(LocalListener.class).port());
   }
 
@@ -78,12 +82,23 @@ class ExternalStoresIT {
     if (stageVault != null) {
       stageVault.close();
     }
+    if (keyVault != null) {
+      keyVault.close();
+    }
   }
 
   private static ObjectNode vaultConfig(String address) {
     ObjectNode config = JSON.createObjectNode().put("address", address);
     config.putObject("auth").put("method", "approle").put("roleId", FakeVault.ROLE_ID);
     return config;
+  }
+
+  private static ObjectNode azureStore(String name, String vaultName) {
+    ObjectNode body = JSON.createObjectNode().put("kind", "azure-kv").put("name", name).put("reason", "Key Vault");
+    ObjectNode config = body.putObject("config").put("vault", vaultName).put("tenantId", FakeKeyVault.TENANT);
+    config.putObject("credentials").put("source", "clientSecret").put("clientId", FakeKeyVault.CLIENT);
+    body.putObject("secrets").put("/credentials/clientSecret", FakeKeyVault.CLIENT_SECRET);
+    return body;
   }
 
   private static String connection(String name, String env, String source, String ref) {
@@ -632,10 +647,113 @@ class ExternalStoresIT {
   }
 
   @Test
+  @Order(13)
+  void anAzureKeyVaultResolvesTheReferencesOfItsOwnVault() throws Exception {
+    // A service principal signs in; the Azure CLI and code sign-ins need a step of the person's that tests don't have.
+    ObjectNode cli = azureStore("azure-acme-kv", "acme-kv");
+    ((ObjectNode) cli.path("config").path("credentials")).put("source", "cli");
+    assertThat(api.post("/api/secret-stores", cli).status()).isEqualTo(422);
+    ObjectNode inConfig = azureStore("azure-acme-kv", "acme-kv");
+    ((ObjectNode) inConfig.path("config").path("credentials")).put("clientSecret", FakeKeyVault.CLIENT_SECRET);
+    assertThat(api.expect(422, HttpMethod.POST, "/api/secret-stores", inConfig).toString())
+        .contains("Send clientSecret as a secret");
+    ObjectNode withoutSecret = azureStore("azure-acme-kv", "acme-kv");
+    withoutSecret.remove("secrets");
+    assertThat(api.expect(422, HttpMethod.POST, "/api/secret-stores", withoutSecret).toString())
+        .contains("Enter the clientSecret the gateway signs in with.");
+
+    JsonNode created = api.expect(201, HttpMethod.POST, "/api/secret-stores", azureStore("azure-acme-kv", "acme-kv"));
+    String azureId = created.path("id").asString();
+    assertThat(created.path("kind").asString()).isEqualTo("azure-kv");
+    assertThat(created.path("verified").asBoolean()).isTrue();
+    assertThat(created.path("config").path("credentials").has("clientSecret")).isFalse();
+    assertThat(created.path("signIn").get(0).path("field").asString()).isEqualTo("/credentials/clientSecret");
+    assertThat(created.path("signIn").get(0).path("state").asString()).isEqualTo("stored");
+    assertThat(secretRow("azure-acme-kv/client-secret").path("ownerKind").asString()).isEqualTo("store");
+
+    JsonNode test = api.expect(200, HttpMethod.POST, "/api/secret-stores/" + azureId + "/test", null);
+    assertThat(test.path("ok").asBoolean()).as(test.toString()).isTrue();
+    assertThat(test.path("identity").path("vault").asString()).isEqualTo("acme-kv");
+    assertThat(test.path("identity").path("account").asString()).isEqualTo(FakeKeyVault.CLIENT);
+    assertThat(api.ok("/api/secret-stores/" + azureId).path("state").asString()).isEqualTo("connected");
+    assertThat(StreamSupport.stream(api.ok("/api/connector-types/pgfake/form").path("secretSources").spliterator(),
+        false).filter(s -> s.path("id").asString().equals("azure-kv")).findFirst().orElseThrow().path("available")
+        .asBoolean()).isTrue();
+
+    // A reference of its vault: bound to it, read at call time, masked in what the agent gets.
+    api.expect(201, HttpMethod.POST, "/api/connections", connection("billing-db", "stage", "azure-kv",
+        "azure-kv://acme-kv/billing-db#password"));
+    JsonNode row = secretRow("billing-db/password");
+    assertThat(row.path("source").asString()).isEqualTo("azure-kv");
+    assertThat(row.path("state").asString()).isEqualTo("reference");
+    assertThat(row.path("store").asString()).isEqualTo("azure-acme-kv");
+    ConnectionConfig cfg = cfg("billing-db");
+    ConnectorInvoker.Outcome outcome = core.bean(ConnectorInvoker.class).execute(new ConnectorInvoker.Request("tc_kv",
+        cfg, new ToolCall("tc_kv", "sql_query", "billing-db", JSON.createObjectNode().put("sql", "SELECT SECRET"),
+        null), core.bean(EnvironmentPolicies.class).limits(cfg.env()), MaskPolicy.defaults(cfg.env()), null, null));
+    assertThat(outcome.ok()).isTrue();
+    assertThat(JSON.writeValueAsString(outcome.result())).doesNotContain(FakeKeyVault.DB_PASSWORD)
+        .contains("the password is");
+    assertThat(outcome.maskedCount()).isPositive();
+    assertThat(secretRow("billing-db/password").path("remoteVersion").asString()).isEqualTo(FakeKeyVault.VERSION);
+    JsonNode found = api.expect(200, HttpMethod.POST, "/api/secret-refs/test",
+        "{\"uri\":\"azure-kv://acme-kv/billing-db#password\"}");
+    assertThat(found.path("found").asBoolean()).as(found.toString()).isTrue();
+    assertThat(found.path("store").asString()).isEqualTo("azure-acme-kv");
+    assertThat(found.path("resolvedVersion").asString()).isEqualTo(FakeKeyVault.VERSION);
+    assertThat(found.path("keys").toString()).contains("username", "password");
+
+    // A reference of another vault waits for that vault's store; the store connected for it then takes it.
+    String orders = connection("orders-kv", "stage", "azure-kv", "azure-kv://other-kv/orders-db#password");
+    assertThat(api.expect(422, HttpMethod.POST, "/api/connections", orders.replace("orders-kv", "orders-kv-2")
+        .replace("\"ref\"", "\"store\":\"azure-acme-kv\",\"ref\"")).toString()).contains("reads key vault acme-kv");
+    api.expect(201, HttpMethod.POST, "/api/connections", orders);
+    assertThat(secretRow("orders-kv/password").path("state").asString()).isEqualTo("not-connected");
+    assertThat(secretRow("orders-kv/password").path("store").isNull()).isTrue();
+    try (ScopedSecretResolver r = core.bean(SecretService.class).resolver(cfg("orders-kv"), new Taint())) {
+      assertThatThrownBy(() -> r.secret("/credentials/password")).isInstanceOf(SecretUnavailableException.class)
+          .hasMessage("orders-kv/password can't be resolved: Azure Key Vault other-kv isn't connected.");
+    }
+    JsonNode waiting = api.expect(200, HttpMethod.POST, "/api/secret-refs/test",
+        "{\"uri\":\"azure-kv://other-kv/orders-db#password\"}");
+    assertThat(waiting.path("reason").asString()).isEqualTo("not-connected");
+    assertThat(waiting.path("error").asString()).isEqualTo("Azure Key Vault other-kv isn't connected: connect it in "
+        + "Secrets › External stores.");
+    String otherId = api.expect(201, HttpMethod.POST, "/api/secret-stores", azureStore("azure-other-kv", "other-kv"))
+        .path("id").asString();
+    assertThat(secretRow("orders-kv/password").path("state").asString()).isEqualTo("reference");
+    assertThat(secretRow("orders-kv/password").path("store").asString()).isEqualTo("azure-other-kv");
+    try (ScopedSecretResolver r = core.bean(SecretService.class).resolver(cfg("orders-kv"), new Taint())) {
+      assertThat(r.secret("/credentials/password").unsafeString()).isEqualTo(FakeKeyVault.DB_PASSWORD);
+    }
+    // Its references name its vault: an edit doesn't move the store to another vault under them.
+    ObjectNode moved = JSON.createObjectNode().put("version", api.ok("/api/secret-stores/" + otherId).path("version")
+        .asLong());
+    moved.set("config", azureStore("azure-other-kv", "third-kv").path("config"));
+    assertThat(api.expect(422, HttpMethod.PUT, "/api/secret-stores/" + otherId, moved).toString())
+        .contains("Connect third-kv as a store of its own");
+
+    // The tokens went to the vaults only.
+    for (mockwebserver3.RecordedRequest r : keyVault.requests) {
+      if (r.getHeaders().get("Authorization") != null) {
+        assertThat(r.getUrl().encodedPath()).matches("/(acme|other)-kv\\.vault\\.azure\\.net/secrets(/.*)?");
+      }
+    }
+
+    JsonNode gone = api.expect(200, HttpMethod.DELETE, "/api/secret-stores/" + azureId,
+        "{\"confirmName\":\"azure-acme-kv\",\"reason\":\"Key Vault\"}");
+    assertThat(gone.path("referencesNotConnected").toString()).contains("billing-db/password");
+    assertThat(gone.path("secretsDestroyed").toString()).contains("azure-acme-kv/client-secret");
+    assertThat(secretRow("billing-db/password").path("state").asString()).isEqualTo("not-connected");
+  }
+
+  @Test
   @Order(20)
   void noAnswerCarriesAValueOrAToken() {
-    List<String> canaries = List.of(FakeVault.DB_PASSWORD, FakeVault.SECRET_ID, FakeVault.DYNAMIC_PASSWORD_PREFIX,
-        "hvs.cnry-token-");
+    List<String> canaries = new java.util.ArrayList<>(List.of(FakeVault.DB_PASSWORD, FakeVault.SECRET_ID,
+        FakeVault.DYNAMIC_PASSWORD_PREFIX, "hvs.cnry-token-", FakeKeyVault.CLIENT_SECRET, FakeKeyVault.DB_PASSWORD));
+    assertThat(keyVault.tokens).isNotEmpty();
+    canaries.addAll(keyVault.tokens);
     for (AdminMvc.Answer a : api.answers()) {
       for (String c : canaries) {
         assertThat(a.body()).as(a.method() + " " + a.target()).doesNotContain(c);

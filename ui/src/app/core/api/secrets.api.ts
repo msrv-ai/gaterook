@@ -19,7 +19,7 @@ export interface SecretRow {
   readonly ownerKind: 'connection' | 'store' | 'mcp-server' | 'notification' | 'tunnel' | 'audit-export' | string;
   readonly field: string;
   readonly usedBy: string[];
-  /** `local` (encrypted here), or the store of a reference: `vault`, `gcp-sm`, `aws-sm` (step S1). */
+  /** `local` (encrypted here), or the store of a reference: `vault`, `gcp-sm`, `aws-sm`, `azure-kv` (step S1). */
   readonly source: string;
   readonly version: number | null;
   readonly remoteVersion: string | null;
@@ -98,7 +98,7 @@ export interface SecretReference {
   readonly state: string;
 }
 
-export type SecretStoreKind = 'vault' | 'gcp-sm' | 'aws-sm';
+export type SecretStoreKind = 'vault' | 'gcp-sm' | 'aws-sm' | 'azure-kv';
 
 /** Immediate children of a Vault KV folder, or visible KV mounts for the empty path. No secret values. */
 export interface VaultBrowse {
@@ -135,7 +135,8 @@ export interface SecretStoreSignIn {
 }
 
 /**
- * An external store (S1 `SecretStores.StoreInfo`): Vault/OpenBao, GCP Secret Manager, AWS Secrets Manager.
+ * An external store (S1 `SecretStores.StoreInfo`): Vault/OpenBao, GCP Secret Manager, AWS Secrets Manager, Azure Key
+ * Vault.
  * `state`: `connected` (its last test passed), `failing` or `not-checked`; `issues` — connections it issues
  * short-lived credentials for (dynamic users, SSH certificates); `verified` false — changed outside GateRook.
  */
@@ -219,7 +220,7 @@ export interface MasterKeyStatus {
   readonly protectsBy?: MasterKeyProtects[];
   /**
    * The secret references, which don't need the key and keep working with a new one: how many, and their sources
-   * (`vault`, `gcp-sm`, `aws-sm`) each once.
+   * (`vault`, `gcp-sm`, `aws-sm`, `azure-kv`) each once.
    */
   readonly references?: { readonly count: number; readonly sources: string[] };
 }

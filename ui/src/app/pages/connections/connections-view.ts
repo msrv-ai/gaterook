@@ -219,6 +219,7 @@ const STORE_NAMES: Record<string, { readonly short: string; readonly long: strin
   vault: { short: 'Vault', long: 'Vault', icon: 'vault' },
   'gcp-sm': { short: 'GCP SM', long: 'GCP Secret Manager', icon: 'cloud' },
   'aws-sm': { short: 'AWS SM', long: 'AWS Secrets Manager', icon: 'cloud' },
+  'azure-kv': { short: 'Azure KV', long: 'Azure Key Vault', icon: 'cloud' },
 };
 
 export function storeName(source: string | null | undefined, long = true): string {
@@ -297,7 +298,8 @@ export function credentialsView(
       return { ...base, icon: 'lock-keyhole', label: 'Encrypted here' };
     case 'vault':
     case 'gcp-sm':
-    case 'aws-sm': {
+    case 'aws-sm':
+    case 'azure-kv': {
       const refs = secrets.filter((s) => s.source === row.secretSource && s.ref);
       // One reference: its path under the label (kit `kv/stage/db#password`); more than one would not fit a cell.
       const ref = refs.length === 1 && row.secretSource === 'vault' ? refs[0].ref! : null;

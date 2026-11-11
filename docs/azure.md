@@ -103,7 +103,23 @@ Assign **Azure Service Bus Data Receiver** on the namespace or the entity, and *
 
 `azure_keyvault_read` lists a vault's secrets, keys or certificates, or the versions of one: names, versions, whether each is enabled, not-before, expiry with the days left, content type and tags. It calls only Key Vault's list operations, which return no values. Key Vault is a sensitive service: the call is refused until the Cloud policy names `keyvault` under Allowed services. Assign **Key Vault Reader** (Azure RBAC), or the List permission of an access policy.
 
-To resolve GateRook's own credentials from Key Vault, connect the vault as an external secret store; that is separate from what agents see.
+To resolve GateRook's own credentials from Key Vault, connect the vault as an [external secret store](#key-vault-as-an-external-secret-store); that is separate from what agents see.
+
+## Key Vault as an external secret store
+
+GateRook's own credentials, such as a connection's database password, can stay in Key Vault. Open **Secrets → External stores**, choose **Azure Key Vault**, and enter the vault's name, the cloud, the tenant (directory) ID and the service principal GateRook signs in as. Then select the store in a connection's credential field and enter a reference. The core reads the secret when a call needs it, reuses it for at most the store's cache time (60 seconds by default, 15 seconds on production), and masks it in everything agents receive. Values never reach agents.
+
+| Reference | What it reads |
+| --- | --- |
+| `azure-kv://acme-kv/billing-db` | The current version of secret `billing-db` in vault `acme-kv` |
+| `azure-kv://acme-kv/billing-db/4387e9f3d6e14c459867679a90fd0f79` | That version of the secret, pinned |
+| `azure-kv://acme-kv/billing-db#password` | Key `password` of a secret whose value is a JSON object |
+
+The vault is named, never addressed: GateRook builds its host from the cloud (`acme-kv.vault.azure.net`, `.vault.usgovcloudapi.net` or `.vault.azure.cn`) and sends Key Vault tokens nowhere else. One store reads one vault. A reference to another vault shows **not connected** until you connect that vault as a store of its own, which then resolves it. Pin a version on production, so that a new version in the vault needs a new reference.
+
+- **Sign-in.** A service principal with a certificate (recommended) or a client secret, stored here encrypted with the master key. Paste the PEM with the RSA private key and its certificate, as `az ad sp create-for-rbac --create-cert` writes it, or the client secret's value. The Azure CLI and code sign-ins of the connectors aren't available for stores yet.
+- **Access.** On a vault that uses Azure RBAC, assign **Key Vault Secrets User** on the vault or on each secret GateRook reads; on a vault with access policies, allow **Get** on secrets. Listing isn't needed. The vault's firewall must allow this computer's address.
+- **Test.** The store's **Test** signs in, lists one secret name (an identity that may only get secrets passes too), and points out references of another vault. **Test reference** shows a reference's version, creation date and JSON keys, never its value.
 
 ## Sign-in
 

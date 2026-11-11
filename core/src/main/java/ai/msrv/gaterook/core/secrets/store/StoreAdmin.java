@@ -20,6 +20,7 @@ import ai.msrv.gaterook.core.secrets.internal.persistence.SecretLeaseRepository;
 import ai.msrv.gaterook.core.secrets.internal.persistence.SecretOwnerKind;
 import ai.msrv.gaterook.core.secrets.internal.persistence.SecretRepository;
 import ai.msrv.gaterook.core.secrets.internal.persistence.StoreKind;
+import ai.msrv.gaterook.core.secrets.store.azure.AzureKvStore;
 import ai.msrv.gaterook.core.secrets.store.gcp.GcpSmStore;
 import ai.msrv.gaterook.core.secrets.store.vault.VaultStore;
 import java.nio.file.Path;
@@ -247,6 +248,13 @@ public final class StoreAdmin implements SecretOwners {
         if (!name.equals(row.getName()) && stores.findByName(name).isPresent()) {
           throw ProblemException.conflict("Name in use", "A store named " + name + " already exists.");
         }
+        if (kind == StoreKind.AZURE_KV && !before.path("vault").equals(cleaned.path("vault"))
+            && !secrets.findByStoreId(row.getId()).isEmpty()) {
+          // Its references name the vault it reads: they would point into another vault.
+          throw ProblemException.unprocessable("References name this vault", row.getName() + " reads key vault "
+              + before.path("vault").asString("") + " for its references. Connect " + cleaned.path("vault")
+              .asString("") + " as a store of its own instead.", "/config/vault");
+        }
         SecretOwner owner = new SecretOwner(SecretOwner.Kind.STORE, row.getId());
         Map<String, SecretEntity> stored = new LinkedHashMap<>();
         secrets.findByOwnerKindAndOwnerId(SecretOwnerKind.STORE, row.getId()).forEach(e -> stored.put(e.getField(),
@@ -411,7 +419,7 @@ public final class StoreAdmin implements SecretOwners {
           + "prod, so a change in the store needs a new reference."));
     }
     if (candidates.isEmpty()) {
-      String text = StoreResolution.title(ref.kind()) + " isn't connected: connect it in Secrets › External stores.";
+      String text = StoreResolution.notConnected(ref) + ": connect it in Secrets › External stores.";
       return new SecretStores.RefTest(false, ref.uri(), null, null, null, null, List.of(), 0, text, "not-connected",
           hints);
     }
@@ -580,8 +588,8 @@ public final class StoreAdmin implements SecretOwners {
 
   /**
    * Encrypted here, then every connected Vault on its own (a person with a prod and a stage Vault picks the one that
-   * holds the password; its references are bound to it), then each other kind once: GCP and AWS references name their
-   * project or region, which picks the store.
+   * holds the password; its references are bound to it), then each other kind once: GCP, AWS and Key Vault references
+   * name their project, region or vault, which picks the store.
    */
   public List<SecretStores.Source> sources() {
     record Connected(StoreKind kind, String name, String address, boolean verified) {}
@@ -738,6 +746,7 @@ public final class StoreAdmin implements SecretOwners {
         case VAULT -> ai.msrv.gaterook.core.secrets.store.vault.VaultSettings.of(cleaned, clients.corePorts());
         case GCP_SM -> GcpSmStore.Settings.of(cleaned, null);
         case AWS_SM -> ai.msrv.gaterook.core.secrets.store.aws.AwsSmStore.Settings.of(cleaned, null);
+        case AZURE_KV -> AzureKvStore.Settings.of(cleaned);
       }
     } catch (StoreException e) {
       throw ProblemException.unprocessable("Check the settings", e.getMessage(), "/config");
@@ -769,6 +778,11 @@ public final class StoreAdmin implements SecretOwners {
           ? Set.of(GcpSmStore.KEY) : Set.of();
       case AWS_SM -> config.path("credentials").path("source").asString("accessKey").equals("accessKey")
           ? Set.of(ai.msrv.gaterook.core.secrets.store.aws.AwsSmStore.SECRET_KEY) : Set.of();
+      case AZURE_KV -> switch (config.path("credentials").path("source").asString("")) {
+        case "clientSecret" -> Set.of(AzureKvStore.CLIENT_SECRET);
+        case "clientCertificate" -> Set.of(AzureKvStore.CERTIFICATE);
+        default -> Set.of();
+      };
     };
   }
 
@@ -807,6 +821,8 @@ public final class StoreAdmin implements SecretOwners {
       case "/auth/token" -> "token";
       case "/credentials/serviceAccountKey" -> "service-account-key";
       case "/credentials/secretAccessKey" -> "access-key";
+      case "/credentials/clientSecret" -> "client-secret";
+      case "/credentials/certificate" -> "certificate";
       default -> "secret";
     };
     String base = store + "/" + display;
@@ -828,6 +844,11 @@ public final class StoreAdmin implements SecretOwners {
           .asString() : "");
       case AWS_SM -> config.path("region").asString("") + (config.path("credentials").path("roleArn").isString()
           ? " · " + config.path("credentials").path("roleArn").asString() : "");
+      case AZURE_KV -> "vault " + config.path("vault").asString("") + (config.path("cloud").isString()
+          && !"AzureCloud".equals(config.path("cloud").asString()) ? " · " + config.path("cloud").asString() : "")
+          + " · tenant " + config.path("tenantId").asString("") + " · service principal " + config.path("credentials")
+          .path("clientId").asString("") + ("clientCertificate".equals(config.path("credentials").path("source")
+          .asString("")) ? " with a certificate" : " with a client secret");
     };
   }
 
@@ -858,7 +879,7 @@ public final class StoreAdmin implements SecretOwners {
   private static StoreKind kind(String id, String pointer) {
     StoreKind k = id == null ? null : StoreSchemas.kind(id);
     if (k == null) {
-      throw ProblemException.unprocessable("Unknown store", "A store is vault, gcp-sm or aws-sm.", pointer);
+      throw ProblemException.unprocessable("Unknown store", "A store is vault, gcp-sm, aws-sm or azure-kv.", pointer);
     }
     return k;
   }

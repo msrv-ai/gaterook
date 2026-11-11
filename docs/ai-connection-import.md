@@ -87,7 +87,7 @@ The private file can carry real credential sources as well as literal values alr
 | File representation | What happens when you confirm import |
 | --- | --- |
 | `{"source":"local","value":"example-only-value"}` | The value is stored encrypted. The example is fictional; the AI uses the literal from the authorized configuration. |
-| `{"source":"reference","ref":"vault://secret/acme/stage#database-password"}` | The connection keeps the external reference. Configure the matching store in **Secrets**, or include its existing store ID in `store`. GCP Secret Manager and AWS Secrets Manager references are also supported. |
+| `{"source":"reference","ref":"vault://secret/acme/stage#database-password"}` | The connection keeps the external reference. Configure the matching store in **Secrets**, or include its existing store ID in `store`. GCP Secret Manager, AWS Secrets Manager and Azure Key Vault references are also supported. |
 | `{"source":"vault-dynamic","ref":"vault://database/creds/acme-reader"}` | The connection uses short-lived credentials from that Vault role, where the connector supports dynamic credentials. |
 | `{"source":"file","path":"/path/to/database-password.txt"}` | GateRook reads the complete UTF-8 file and stores its contents encrypted. File references are snapshots at import, not continuously refreshed file bindings. |
 | `{"source":"file","path":"/path/to/credentials.json","jsonPointer":"/database/password"}` | GateRook reads the string at the JSON Pointer and stores it encrypted. The selected JSON value must be a string. |

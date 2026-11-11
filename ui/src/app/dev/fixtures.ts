@@ -277,7 +277,7 @@ export const DEMO_CONNECTOR_CARDS: ConnectorCardView[] = [
 ];
 
 /**
- * Secret sources as a gateway with Vault, GCP and AWS stores connected shows them (the demo world connects none, so
+ * Secret sources as a gateway with Vault, GCP, AWS and Azure stores connected shows them (the demo world connects none, so
  * the live form spec marks them unavailable).
  */
 export const DEMO_SECRET_SOURCES: SecretSourceOption[] = [
@@ -285,6 +285,7 @@ export const DEMO_SECRET_SOURCES: SecretSourceOption[] = [
   { id: 'vault', label: 'HashiCorp Vault', available: true, reason: null },
   { id: 'gcp-sm', label: 'GCP Secret Manager', available: true, reason: null },
   { id: 'aws-sm', label: 'AWS Secrets Manager', available: true, reason: null },
+  { id: 'azure-kv', label: 'Azure Key Vault', available: true, reason: null },
 ];
 
 /** stage-db and prod-replica passwords from Vault KV (connection-form). */

@@ -18,6 +18,7 @@ import ai.msrv.gaterook.core.secrets.internal.persistence.SecretOwnerKind;
 import ai.msrv.gaterook.core.secrets.internal.persistence.SecretRepository;
 import ai.msrv.gaterook.core.secrets.internal.persistence.StoreKind;
 import ai.msrv.gaterook.core.secrets.store.aws.AwsSmStore;
+import ai.msrv.gaterook.core.secrets.store.azure.AzureKvStore;
 import ai.msrv.gaterook.core.secrets.store.gcp.GcpSmStore;
 import ai.msrv.gaterook.core.secrets.store.vault.VaultSettings;
 import ai.msrv.gaterook.core.secrets.store.vault.VaultStore;
@@ -53,7 +54,8 @@ public final class StoreClients implements AutoCloseable {
 
   /**
    * Test endpoints of the cloud stores ({@code gateway.cloud.gcp.secretmanager-endpoint},
-   * {@code gateway.cloud.aws.secretsmanager-endpoint}); never set in a release.
+   * {@code gateway.cloud.aws.secretsmanager-endpoint}); never set in a release. Azure Key Vault has none of its own:
+   * its test endpoint is one of {@link CloudCredentials}, which only a test sign-in uses.
    */
   public record Endpoints(URI gcpSecretManager, URI awsSecretsManager) {}
 
@@ -173,6 +175,10 @@ public final class StoreClients implements AutoCloseable {
       case AWS_SM -> new AwsSmStore(AwsSmStore.Settings.of(row.config(), endpoints.awsSecretsManager()), cloud,
           new CloudCredentials.Owner(ownerKey, 0, row.name()), () -> resolver(row.id(), Set.of(AwsSmStore.SECRET_KEY),
           versions), () -> references(row.id()));
+      // Key Vault's test endpoints come with the test sign-in (gateway.cloud.endpoints azure.login, azure.keyvault).
+      case AZURE_KV -> new AzureKvStore(AzureKvStore.Settings.of(row.config()), cloud,
+          new CloudCredentials.Owner(ownerKey, 0, row.name()), () -> resolver(row.id(),
+          Set.of(AzureKvStore.CLIENT_SECRET, AzureKvStore.CERTIFICATE), versions));
     };
   }
 

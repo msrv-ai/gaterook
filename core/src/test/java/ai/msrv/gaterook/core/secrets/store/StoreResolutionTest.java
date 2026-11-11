@@ -84,6 +84,24 @@ class StoreResolutionTest {
   }
 
   @Test
+  void aKeyVaultReferenceWithoutItsStoreNamesTheVaultItWaitsFor() {
+    StoreCall call = StoreCall.within(t -> { }, Duration.ofSeconds(5), clock);
+    StoreResolution.Pointer unbound = new StoreResolution.Pointer("sec_2", "billing-db/password",
+        SecretOwner.connection("c2"), "/credentials/password", false, "azure-kv://acme-kv/billing-db#password", null,
+        null, true);
+    assertThatThrownBy(() -> resolution.value(unbound, Env.DEV, call))
+        .hasMessage("billing-db/password can't be resolved: Azure Key Vault acme-kv isn't connected.");
+    // A store of another kind never answers for it.
+    StoreResolution.Pointer elsewhere = new StoreResolution.Pointer("sec_2", "billing-db/password",
+        SecretOwner.connection("c2"), "/credentials/password", false, "azure-kv://acme-kv/billing-db#password", "st_1",
+        null, true);
+    assertThatThrownBy(() -> resolution.value(elsewhere, Env.DEV, call))
+        .hasMessage("billing-db/password points to azure-kv://acme-kv/billing-db#password, which its store can't "
+            + "resolve.");
+    verify(store, times(0)).read(any(), any());
+  }
+
+  @Test
   void anUnverifiedOrUnboundReferenceIsNotRead() {
     StoreCall call = StoreCall.within(t -> { }, Duration.ofSeconds(5), clock);
     assertThatThrownBy(() -> resolution.value(pointer("st_1", false), Env.DEV, call))

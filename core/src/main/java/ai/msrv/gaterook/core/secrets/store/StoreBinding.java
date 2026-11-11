@@ -15,7 +15,9 @@ import java.util.Objects;
  * it"). A reference names no store, so: the store the person chose; else the one store of its kind whose project
  * (GCP) or region (AWS) matches; else the only store of its kind; none — "not connected" until one is; several
  * without a match — the first, by name, that has it ({@link #candidates}: asked in turn before the reference is
- * stored, so it is bound to the store that answered). Everything here runs in the caller's transaction.
+ * stored, so it is bound to the store that answered). A Key Vault reference names its vault, and a Key Vault store
+ * reads one vault: only the stores of that vault are of its kind here, so the reference waits, "not connected", until
+ * its vault is. Everything here runs in the caller's transaction.
  */
 public final class StoreBinding {
 
@@ -57,9 +59,14 @@ public final class StoreBinding {
             + StoreResolution.title(chosen.getKind()) + "; " + ref.uri() + " needs " + StoreResolution.title(
             ref.kind()) + ".", pointer);
       }
+      if (ref instanceof SecretRef.AzureKv kv && !matches(chosen, ref)) {
+        throw ProblemException.unprocessable("Another key vault", storeName + " reads key vault "
+            + chosen.getConfig().get("vault") + "; " + ref.uri() + " is in " + kv.vault() + ". Choose the store of "
+            + kv.vault() + ", or connect it first.", pointer);
+      }
       return chosen;
     }
-    List<ExternalStoreEntity> candidates = stores.findAll().stream().filter(s -> s.getKind() == ref.kind()).toList();
+    List<ExternalStoreEntity> candidates = ofKind(ref);
     if (candidates.isEmpty()) {
       return null;
     }
@@ -77,28 +84,36 @@ public final class StoreBinding {
 
   /**
    * The stores that may hold {@code ref}, in the order they are asked: the one the person chose; else the natural
-   * one (GCP project, AWS region) or the only one of its kind; else every connected store of its kind, by name, each
-   * asked in turn until one has it. Empty when none of its kind is connected.
+   * one (GCP project, AWS region, key vault) or the only one of its kind; else every connected store of its kind, by
+   * name, each asked in turn until one has it. Empty when none of its kind (for Key Vault: of its vault) is connected.
    *
-   * @throws ProblemException 422 when the chosen store doesn't exist or is of another kind
+   * @throws ProblemException 422 when the chosen store doesn't exist, is of another kind or reads another key vault
    */
   public List<ExternalStoreEntity> candidates(SecretRef ref, String storeName, String pointer) {
     if (storeName != null && !storeName.isBlank()) {
       return List.of(storeFor(ref, storeName, pointer));
     }
-    List<ExternalStoreEntity> all = stores.findAll().stream().filter(s -> s.getKind() == ref.kind())
+    List<ExternalStoreEntity> all = ofKind(ref).stream()
         .sorted(java.util.Comparator.comparing(ExternalStoreEntity::getName)).toList();
     List<ExternalStoreEntity> matching = all.stream().filter(s -> matches(s, ref)).toList();
     return matching.size() == 1 ? matching : all;
   }
 
-  /** Whether {@code store} is the natural one for {@code ref}: same GCP project, same AWS region. */
+  /** The connected stores of {@code ref}'s kind; for Key Vault, those that read its vault. */
+  private List<ExternalStoreEntity> ofKind(SecretRef ref) {
+    return stores.findAll().stream().filter(s -> s.getKind() == ref.kind())
+        .filter(s -> !(ref instanceof SecretRef.AzureKv) || matches(s, ref)).toList();
+  }
+
+  /** Whether {@code store} is the natural one for {@code ref}: same GCP project, AWS region or key vault. */
   static boolean matches(ExternalStoreEntity store, SecretRef ref) {
     Object project = store.getConfig().get("project");
     Object region = store.getConfig().get("region");
+    Object vault = store.getConfig().get("vault");
     return switch (ref) {
       case SecretRef.GcpSm g -> Objects.equals(project, g.project());
       case SecretRef.AwsSm a -> Objects.equals(region, a.region());
+      case SecretRef.AzureKv kv -> Objects.equals(vault, kv.vault());
       case SecretRef.Vault _ -> false;
     };
   }

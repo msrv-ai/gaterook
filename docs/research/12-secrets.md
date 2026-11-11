@@ -60,12 +60,15 @@ The proposal retains only the immediately preceding secret version for seven day
 | Vault dynamic credentials | `vault://database/creds/role` | Return a scoped login plus lease |
 | GCP Secret Manager | `gcp-sm://projects/p/secrets/s/versions/n#jsonKey` | Access selected version; regional references also supported by the API |
 | AWS Secrets Manager | `aws-sm://region/name?versionStage=AWSCURRENT#jsonKey` or an ARN form | GetSecretValue, optionally pinned by version ID |
+| Azure Key Vault | `azure-kv://vault/secret[/version]#jsonKey` | Get the current or a pinned version from the store's one vault |
 
 Use an explicit parser that canonicalizes query before fragment and can recognize the legacy fragment/query order. Bind every reference to a configured store ID; do not infer a new external host from a tool call. An unconnected store produces an actionable resolution error.
 
 Vault mount preflight uses `sys/internal/ui/mounts/<path>` to identify nested mounts and KV v1/v2. It still requires capability on a path within the mount; a 403 means access is missing, not that the mount does not exist. Cache the verified mount metadata with the reference.
 
 GCP credentials come from the shared cloud service, preferably ADC impersonation with short-lived tokens. Global and regional `versions:access` endpoints differ. Verify `dataCrc32c` when supplied. AWS uses AssumeRole, ExternalId, and a session policy permitting GetSecretValue only for the configured reference ARNs, plus KMS decrypt when a customer-managed key requires it. Cross-account references require complete ARNs.
+
+Azure Key Vault stores sign in as a service principal (a client secret or a certificate assertion) through the shared cloud credentials and request the Key Vault audience of the store's cloud. A reference names its vault, never a host: the token goes only to `<vault>.vault.azure.net` or the sovereign cloud's suffix, and one store reads one vault, so a reference to another vault waits for a store of its own. Get on secrets (**Key Vault Secrets User**) is all a read needs; a denied list of names is fine. Disabled secrets, firewall refusals and missing RBAC assignments come back as distinct errors. The [Azure guide](../azure.md#key-vault-as-an-external-secret-store) describes the setup.
 
 Cache external values briefly with zeroing on eviction: up to 60 seconds by default in the proposal, no more than 15 seconds in production. Warn on mutable `latest`/`AWSCURRENT` references in production. Local secrets remain permitted; a reference does not automatically make a configuration safer.
 

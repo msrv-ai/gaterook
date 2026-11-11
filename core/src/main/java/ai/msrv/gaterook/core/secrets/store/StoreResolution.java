@@ -69,13 +69,25 @@ public final class StoreResolution {
     this.readTx.setReadOnly(true);
   }
 
-  /** The kit's name of a store kind: "HashiCorp Vault", "GCP Secret Manager", "AWS Secrets Manager". */
+  /**
+   * The kit's name of a store kind: "HashiCorp Vault", "GCP Secret Manager", "AWS Secrets Manager", "Azure Key
+   * Vault".
+   */
   public static String title(StoreKind kind) {
     return switch (kind) {
       case VAULT -> "HashiCorp Vault";
       case GCP_SM -> "GCP Secret Manager";
       case AWS_SM -> "AWS Secrets Manager";
+      case AZURE_KV -> "Azure Key Vault";
     };
+  }
+
+  /**
+   * What a reference without a store waits for: "AWS Secrets Manager isn't connected"; for Key Vault, whose stores
+   * read one vault each, the vault: "Azure Key Vault acme-kv isn't connected".
+   */
+  public static String notConnected(SecretRef ref) {
+    return title(ref.kind()) + (ref instanceof SecretRef.AzureKv kv ? " " + kv.vault() : "") + " isn't connected";
   }
 
   /**
@@ -197,8 +209,7 @@ public final class StoreResolution {
       throw StoreException.invalid(p.name() + " has a reference that can't be read: " + e.getMessage());
     }
     if (p.storeId() == null) {
-      throw StoreException.unavailable(p.name() + " can't be resolved: " + title(ref.kind()) + " isn't connected.",
-          null);
+      throw StoreException.unavailable(p.name() + " can't be resolved: " + notConnected(ref) + ".", null);
     }
     return ref;
   }
