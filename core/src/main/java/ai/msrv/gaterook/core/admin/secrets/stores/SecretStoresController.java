@@ -27,8 +27,8 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * Secrets › External stores (ARCHITECTURE.md §6, report 12 §4.3, §5): connect, edit, test and disconnect HashiCorp
- * Vault / OpenBao, GCP Secret Manager and AWS Secrets Manager; test a reference before it is saved; point a stored
- * reference elsewhere. Write-only like the rest of Secrets: the sign-in values of a store arrive in {@code secrets}
+ * Vault / OpenBao, GCP Secret Manager, AWS Secrets Manager and Azure Key Vault; test a reference before it is saved;
+ * point a stored reference elsewhere. Write-only like the rest of Secrets: the sign-in values of a store arrive in {@code secrets}
  * and are encrypted here; no answer has a field that could hold one, and a test never reports the length, hash or
  * prefix of a value.
  */
@@ -46,7 +46,7 @@ class SecretStoresController {
   /**
    * {@code POST /api/secret-stores}.
    *
-   * @param kind    {@code vault}, {@code gcp-sm}, {@code aws-sm}
+   * @param kind    {@code vault}, {@code gcp-sm}, {@code aws-sm}, {@code azure-kv}
    * @param config  the settings of the kind's form ({@code GET /api/secret-stores/form?kind=})
    * @param secrets its sign-in values by JSON pointer ({@code /auth/secretId}), encrypted here and zeroed
    * @param files   files the person chose in GateRook's file dialog, by settings pointer: the one-time token of each
@@ -113,7 +113,7 @@ class SecretStoresController {
   @GetMapping("/api/secret-stores/form")
   JsonNode form(@RequestParam(name = "kind", required = false) String kind) {
     if (kind == null || kind.isBlank()) {
-      throw ApiRequestException.unprocessable("Kind missing", "Choose vault, gcp-sm or aws-sm.", "/kind");
+      throw ApiRequestException.unprocessable("Kind missing", "Choose vault, gcp-sm, aws-sm or azure-kv.", "/kind");
     }
     return stores.schema(kind);
   }

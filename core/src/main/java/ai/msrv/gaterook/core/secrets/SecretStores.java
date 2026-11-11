@@ -9,8 +9,8 @@ import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 
 /**
- * External secret stores (ARCHITECTURE.md §6 secrets, report 12 §3–§5): Vault/OpenBao, GCP Secret Manager and AWS
- * Secrets Manager under Secrets › External stores, Test connection of a store, Test reference, Replace reference and
+ * External secret stores (ARCHITECTURE.md §6 secrets, report 12 §3–§5): Vault/OpenBao, GCP Secret Manager, AWS
+ * Secrets Manager and Azure Key Vault under Secrets › External stores, Test connection of a store, Test reference, Replace reference and
  * the short-lived credentials they issue. The public face of {@code secrets.store}; nothing here returns a value — a
  * reference is resolved only for a call, by its connection's {@link ScopedSecretResolver}.
  */
@@ -20,7 +20,7 @@ public class SecretStores {
   /**
    * One store.
    *
-   * @param kind       {@code vault}, {@code gcp-sm}, {@code aws-sm}
+   * @param kind       {@code vault}, {@code gcp-sm}, {@code aws-sm}, {@code azure-kv}
    * @param config     the non-secret settings, as stored
    * @param state      {@code connected} (its last test passed), {@code failing} or {@code not-checked}
    * @param latencyMs  of the last test since the core started, or {@code null}

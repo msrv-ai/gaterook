@@ -14,7 +14,8 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * An external secret store (Vault/OpenBao, GCP Secret Manager, AWS Secrets Manager; Secrets › External stores).
+ * An external secret store (Vault/OpenBao, GCP Secret Manager, AWS Secrets Manager, Azure Key Vault; Secrets ›
+ * External stores).
  * {@code config} is non-secret; the store's own sign-in secret is a {@code secret} row with owner kind {@code store},
  * referenced by {@code authSecretId}.
  */

@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * One row of Secrets (ARCHITECTURE.md §6 {@code GET /api/secrets}). Never a value, its length, hash or prefix.
  *
- * @param source  {@code local} (encrypted here), {@code vault}, {@code gcp-sm}, {@code aws-sm}
+ * @param source  {@code local} (encrypted here), {@code vault}, {@code gcp-sm}, {@code aws-sm}, {@code azure-kv}
  * @param version the version in use, or {@code null} when the secret needs a value
  * @param state   {@code stored}, {@code needs-value}, {@code testing} (a pending version); for a reference
  *                {@code reference}, {@code short-lived}, {@code not-connected} or {@code changed-outside}

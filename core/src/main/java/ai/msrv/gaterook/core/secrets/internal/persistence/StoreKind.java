@@ -2,9 +2,9 @@ package ai.msrv.gaterook.core.secrets.internal.persistence;
 
 import ai.msrv.gaterook.core.platform.KebabCaseEnumConverter;
 
-/** {@code external_store.kind}: {@code vault}, {@code gcp-sm}, {@code aws-sm}. */
+/** {@code external_store.kind}: {@code vault}, {@code gcp-sm}, {@code aws-sm}, {@code azure-kv}. */
 public enum StoreKind {
-  VAULT, GCP_SM, AWS_SM;
+  VAULT, GCP_SM, AWS_SM, AZURE_KV;
 
   @jakarta.persistence.Converter
   public static final class Converter extends KebabCaseEnumConverter<StoreKind> {

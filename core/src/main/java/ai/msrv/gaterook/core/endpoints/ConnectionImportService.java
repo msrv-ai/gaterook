@@ -861,8 +861,9 @@ public class ConnectionImportService {
       text(hint.path("instructions"), 512);
       if (hint.hasNonNull("reference")) {
         String ref = text(hint.path("reference"), 1024);
-        if (!ref.matches("(?:vault|gcp-sm|aws-sm)://[^\\s?@]+")) {
-          throw invalid("Secret references must name Vault, GCP Secret Manager or AWS Secrets Manager without credentials.", "/manifest");
+        if (!ref.matches("(?:vault|gcp-sm|aws-sm|azure-kv)://[^\\s?@]+")) {
+          throw invalid("Secret references must name Vault, GCP Secret Manager, AWS Secrets Manager or Azure Key Vault "
+              + "without credentials.", "/manifest");
         }
       }
       out.add(hint.deepCopy());
@@ -951,7 +952,7 @@ public class ConnectionImportService {
 
   /** How a reference into a connected store starts ({@code vault://kv/prod/db#username}). */
   private static final java.util.regex.Pattern STORE_REFERENCE = java.util.regex.Pattern.compile(
-      "\\s*(?:vault|gcp-sm|aws-sm)://", java.util.regex.Pattern.CASE_INSENSITIVE);
+      "\\s*(?:vault|gcp-sm|aws-sm|azure-kv)://", java.util.regex.Pattern.CASE_INSENSITIVE);
 
   static List<JsonNode> propertySchemas(JsonNode schema, JsonNode root, String key, Set<String> refs, int depth) {
     List<JsonNode> out = new ArrayList<>();

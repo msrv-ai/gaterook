@@ -8,7 +8,8 @@ import java.util.regex.Pattern;
 /**
  * A reference to a secret in an external store (report 12 §4.2): {@code vault://kv/stage/db#password},
  * {@code gcp-sm://projects/acme-stage/secrets/billing-api-token/versions/latest},
- * {@code aws-sm://eu-central-1/stage/billing-api#webhook_secret}. Only a person activates one, in the window.
+ * {@code aws-sm://eu-central-1/stage/billing-api#webhook_secret}, {@code azure-kv://acme-kv/billing-db#password}.
+ * Only a person activates one, in the window.
  * Repository discovery may submit an inert source hint, but no MCP tool resolves, tests or activates that hint;
  * the person must configure the store and choose the reference in the connection form.
  *
@@ -18,7 +19,7 @@ import java.util.regex.Pattern;
  * control characters are refused. {@link #uri()} is the one canonical spelling, the query before the key, which is
  * what is stored.
  */
-public sealed interface SecretRef permits SecretRef.Vault, SecretRef.GcpSm, SecretRef.AwsSm {
+public sealed interface SecretRef permits SecretRef.Vault, SecretRef.GcpSm, SecretRef.AwsSm, SecretRef.AzureKv {
 
   /** The canonical form. */
   String uri();
@@ -29,10 +30,16 @@ public sealed interface SecretRef permits SecretRef.Vault, SecretRef.GcpSm, Secr
   /** The kind of store that resolves it. */
   StoreKind kind();
 
-  /** What messages name: {@code kv/stage/db}, {@code billing-api-token}, {@code stage/billing-api}. */
+  /**
+   * What messages name: {@code kv/stage/db}, {@code billing-api-token}, {@code stage/billing-api},
+   * {@code billing-db}.
+   */
   String display();
 
-  /** Whether a fixed version is named; {@code latest} and {@code AWSCURRENT} follow the store. */
+  /**
+   * Whether a fixed version is named; {@code latest}, {@code AWSCURRENT} and a Key Vault reference without a version
+   * follow the store.
+   */
   boolean pinned();
 
   int MAX_LENGTH = 1024;
@@ -140,6 +147,35 @@ public sealed interface SecretRef permits SecretRef.Vault, SecretRef.GcpSm, Secr
     }
   }
 
+  /**
+   * An Azure Key Vault secret: {@code azure-kv://<vault>/<secret>[/<version>][#<jsonKey>]}. The vault is its name
+   * ({@code acme-kv}: {@code acme-kv.vault.azure.net}, or the host of its sovereign cloud), never an address; without a
+   * version, the secret's current one. Key Vault compares secret names regardless of case, so the canonical form keeps
+   * the spelling given.
+   */
+  record AzureKv(String vault, String name, String version, String key) implements SecretRef {
+    @Override
+    public String uri() {
+      return "azure-kv://" + vault + "/" + name + (version == null ? "" : "/" + version) + (key == null ? ""
+          : "#" + key);
+    }
+
+    @Override
+    public StoreKind kind() {
+      return StoreKind.AZURE_KV;
+    }
+
+    @Override
+    public String display() {
+      return name;
+    }
+
+    @Override
+    public boolean pinned() {
+      return version != null;
+    }
+  }
+
   // ── Parsing ───────────────────────────────────────────────────────────────────────────────────────────────
 
   /** A Vault path segment: what KV paths and engine roles use; no {@code %}, no dot segments (checked apart). */
@@ -156,6 +192,10 @@ public sealed interface SecretRef permits SecretRef.Vault, SecretRef.GcpSm, Secr
       + "([0-9]{12}):secret:([A-Za-z0-9/_+=.@-]{1,512})");
   Pattern AWS_STAGE = Pattern.compile("[A-Za-z0-9_.@+=,-]{1,256}");
   Pattern AWS_VERSION_ID = Pattern.compile("[A-Za-z0-9-]{32,64}");
+  /** A key vault's name: 3 to 24 letters, digits and single hyphens, a letter first and no hyphen last. */
+  Pattern AZURE_VAULT = Pattern.compile("(?=[a-z0-9-]{3,24}$)[a-z](?:-?[a-z0-9])+");
+  Pattern AZURE_SECRET = Pattern.compile("[0-9A-Za-z-]{1,127}");
+  Pattern AZURE_VERSION = Pattern.compile("[0-9a-f]{32}");
 
   /**
    * Parses {@code text} into its canonical reference; both {@code ?query#key} and the draft's {@code #key?query}
@@ -179,7 +219,7 @@ public sealed interface SecretRef permits SecretRef.Vault, SecretRef.GcpSm, Secr
     }
     int sep = t.indexOf("://");
     if (sep < 0) {
-      throw new IllegalArgumentException("A reference starts with vault://, gcp-sm:// or aws-sm://.");
+      throw new IllegalArgumentException(UNKNOWN_SCHEME);
     }
     String scheme = t.substring(0, sep);
     String rest = t.substring(sep + 3);
@@ -208,9 +248,13 @@ public sealed interface SecretRef permits SecretRef.Vault, SecretRef.GcpSm, Secr
       case "vault" -> vault(body, params, key);
       case "gcp-sm" -> gcp(body, params, key);
       case "aws-sm" -> aws(body, params, key);
-      default -> throw new IllegalArgumentException("A reference starts with vault://, gcp-sm:// or aws-sm://.");
+      case "azure-kv" -> azure(body, params, key);
+      default -> throw new IllegalArgumentException(UNKNOWN_SCHEME);
     };
   }
+
+  /** What a text that isn't a reference of any store is told. */
+  String UNKNOWN_SCHEME = "A reference starts with vault://, gcp-sm://, aws-sm:// or azure-kv://.";
 
   private static Map<String, String> query(String query) {
     Map<String, String> params = new LinkedHashMap<>();
@@ -359,5 +403,40 @@ public sealed interface SecretRef permits SecretRef.Vault, SecretRef.GcpSm, Secr
       throw new IllegalArgumentException(name + " isn't an AWS Secrets Manager name (letters, digits and /_+=.@-).");
     }
     return new AwsSm(region, name, null, stage, versionId, key);
+  }
+
+  private static AzureKv azure(String body, Map<String, String> params, String key) {
+    if (!params.isEmpty()) {
+      throw new IllegalArgumentException("An Azure Key Vault reference names its version in the path, like "
+          + "azure-kv://acme-kv/billing-db/<version>.");
+    }
+    String[] s = body.split("/", -1);
+    for (String segment : s) {
+      if (segment.isEmpty()) {
+        s = new String[0];
+        break;
+      }
+    }
+    if (s.length < 2 || s.length > 3) {
+      throw new IllegalArgumentException("Write an Azure Key Vault reference as azure-kv://<vault>/<secret>, like "
+          + "azure-kv://acme-kv/billing-db, or with the secret's version after it.");
+    }
+    String vault = s[0];
+    if (!AZURE_VAULT.matcher(vault).matches()) {
+      throw new IllegalArgumentException(vault.contains(".") ? "Write the key vault's name, not its address: "
+          + "azure-kv://acme-kv/billing-db rather than azure-kv://acme-kv.vault.azure.net/billing-db."
+          : vault + " isn't a key vault name: 3 to 24 lower-case letters, digits and hyphens, starting with a "
+          + "letter.");
+    }
+    String name = s[1];
+    if (!AZURE_SECRET.matcher(name).matches()) {
+      throw new IllegalArgumentException(name + " isn't a Key Vault secret name (up to 127 letters, digits and -).");
+    }
+    String version = s.length == 3 ? s[2] : null;
+    if (version != null && !AZURE_VERSION.matcher(version).matches()) {
+      throw new IllegalArgumentException("The version of a Key Vault secret is 32 lower-case hex digits, like "
+          + "4387e9f3d6e14c459867679a90fd0f79.");
+    }
+    return new AzureKv(vault, name, version, key);
   }
 }

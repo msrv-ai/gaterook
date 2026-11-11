@@ -6,7 +6,7 @@ import java.util.List;
 
 /**
  * One connected external store as the core uses it (report 12 §1 item 3): Vault/OpenBao on {@code java.net.http},
- * GCP Secret Manager over REST, AWS Secrets Manager through the SDK. Built from the store's row and sign-in secrets,
+ * GCP Secret Manager and Azure Key Vault over REST, AWS Secrets Manager through the SDK. Built from the store's row and sign-in secrets,
  * replaced whenever either changes; blocking and virtual-thread friendly; holds its credentials in memory only.
  */
 public interface SecretStore extends AutoCloseable {

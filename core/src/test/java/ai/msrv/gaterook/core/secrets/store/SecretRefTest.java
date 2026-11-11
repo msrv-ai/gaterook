@@ -81,6 +81,44 @@ class SecretRefTest {
     assertThat(SecretRef.parse("aws-sm://eu-central-1/x?versionStage=AWSCURRENT").pinned()).isFalse();
   }
 
+  @Test
+  void azureKeyVaultReferencesNameTheVaultTheSecretAndAVersionOrTheCurrentOne() {
+    SecretRef.AzureKv ref = (SecretRef.AzureKv) SecretRef.parse("azure-kv://acme-kv/billing-db#password");
+    assertThat(ref.vault()).isEqualTo("acme-kv");
+    assertThat(ref.name()).isEqualTo("billing-db");
+    assertThat(ref.version()).isNull();
+    assertThat(ref.key()).isEqualTo("password");
+    assertThat(ref.kind()).isEqualTo(StoreKind.AZURE_KV);
+    assertThat(ref.pinned()).isFalse();
+    assertThat(ref.uri()).isEqualTo("azure-kv://acme-kv/billing-db#password");
+
+    SecretRef.AzureKv pinned = (SecretRef.AzureKv) SecretRef.parse(
+        "azure-kv://acme-kv/Billing-DB-2/4387e9f3d6e14c459867679a90fd0f79");
+    assertThat(pinned.version()).isEqualTo("4387e9f3d6e14c459867679a90fd0f79");
+    assertThat(pinned.pinned()).isTrue();
+    assertThat(pinned.key()).isNull();
+    assertThat(pinned.name()).as("the spelling given is kept").isEqualTo("Billing-DB-2");
+    assertThat(pinned.uri()).isEqualTo("azure-kv://acme-kv/Billing-DB-2/4387e9f3d6e14c459867679a90fd0f79");
+
+    // The draft's order, key before query, has nothing to reorder here: Key Vault takes no query.
+    assertThat(SecretRef.parse("azure-kv://kv1/x").uri()).isEqualTo("azure-kv://kv1/x");
+    assertThat(SecretRef.parse("azure-kv://a" + "1".repeat(23) + "/x")).isInstanceOf(SecretRef.AzureKv.class);
+    assertThat(SecretRef.parse("azure-kv://a-1-b/" + "S".repeat(127))).isInstanceOf(SecretRef.AzureKv.class);
+  }
+
+  @Test
+  void aKeyVaultAddressIsRefusedWithItsName() {
+    assertThatThrownBy(() -> SecretRef.parse("azure-kv://acme-kv.vault.azure.net/billing-db"))
+        .hasMessage("Write the key vault's name, not its address: azure-kv://acme-kv/billing-db rather than "
+            + "azure-kv://acme-kv.vault.azure.net/billing-db.");
+    assertThatThrownBy(() -> SecretRef.parse("azure-kv://acme-kv/billing-db?version=1"))
+        .hasMessageContaining("names its version in the path");
+    assertThatThrownBy(() -> SecretRef.parse("kv/stage/db"))
+        .hasMessage("A reference starts with vault://, gcp-sm://, aws-sm:// or azure-kv://.");
+    assertThatThrownBy(() -> SecretRef.parse("azkv://acme-kv/x"))
+        .hasMessage("A reference starts with vault://, gcp-sm://, aws-sm:// or azure-kv://.");
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {
       "", "kv/stage/db", "http://vault/kv", "VAULT://kv/x", "vault://kv", "vault:///kv/x", "vault://kv/x/",
@@ -93,9 +131,23 @@ class SecretRefTest {
       "gcp-sm://projects/acme-stage/secrets/a.b", "aws-sm://stage/billing", "aws-sm://eu-central-1/",
       "aws-sm://eu-central-1//x", "aws-sm://EU/x", "aws-sm://eu-central-1/x?versionStage=A&versionId="
           + "0123456789abcdef0123456789abcdef", "aws-sm://eu-central-1/x?versionId=short",
-      "aws-sm://arn:aws:s3:::bucket", "aws-sm://eu-central-1/x?foo=bar"})
+      "aws-sm://arn:aws:s3:::bucket", "aws-sm://eu-central-1/x?foo=bar", "azure-kv://acme-kv", "azure-kv://acme-kv/",
+      "azure-kv:///db", "azure-kv://acme-kv//db", "azure-kv://acme-kv/db/", "azure-kv://ab/db",
+      "azure-kv://abcdefghijklmnopqrstuvwxy/db", "azure-kv://1acme/db", "azure-kv://acme-/db", "azure-kv://ac--me/db",
+      "azure-kv://Acme-kv/db", "azure-kv://acme_kv/db", "azure-kv://acme-kv/db_password", "azure-kv://acme-kv/db.pw",
+      "azure-kv://acme-kv/../db", "azure-kv://acme-kv/./db", "azure-kv://acme-kv/%64b", "azure-kv://acme-kv/d b",
+      "azure-kv://acme-kv/db/4387E9F3D6E14C459867679A90FD0F79", "azure-kv://acme-kv/db/4387e9f3",
+      "azure-kv://acme-kv/db/latest", "azure-kv://acme-kv/db/4387e9f3d6e14c459867679a90fd0f79/x",
+      "azure-kv://acme-kv/db?version=4387e9f3d6e14c459867679a90fd0f79", "AZURE-KV://acme-kv/db", "azure-kv://acme-kv/db#",
+      "azure-kv://acme-kv/db#a/b", "azure-kv://acme-kv/dé", "azure-kv://acme-kv.vault.azure.net/db"})
   void refusesWhatIsNotOneCanonicalReference(String text) {
     assertThatThrownBy(() -> SecretRef.parse(text)).isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void aKeyVaultSecretNameHasAtMost127Characters() {
+    assertThatThrownBy(() -> SecretRef.parse("azure-kv://acme-kv/" + "s".repeat(128)))
+        .hasMessageContaining("isn't a Key Vault secret name");
   }
 
   @Test
@@ -109,7 +161,8 @@ class SecretRefTest {
   @CsvSource({
       "vault://kv/stage/db#password, kv/stage/db",
       "gcp-sm://projects/acme-stage/secrets/billing-api-token/versions/latest, billing-api-token",
-      "aws-sm://eu-central-1/stage/billing-api#webhook_secret, stage/billing-api"})
+      "aws-sm://eu-central-1/stage/billing-api#webhook_secret, stage/billing-api",
+      "azure-kv://acme-kv/billing-db#password, billing-db"})
   void displayNamesTheSecretNotItsValue(String text, String display) {
     assertThat(SecretRef.parse(text).display()).isEqualTo(display);
   }
@@ -117,7 +170,8 @@ class SecretRefTest {
   @Test
   void theCanonicalFormParsesToItself() {
     for (String t : new String[] {"vault://kv/stage/db?version=7#password",
-        "gcp-sm://projects/123456/secrets/x_y/versions/9#k", "aws-sm://eu-central-1/a/b?versionStage=AWSPENDING#k"}) {
+        "gcp-sm://projects/123456/secrets/x_y/versions/9#k", "aws-sm://eu-central-1/a/b?versionStage=AWSPENDING#k",
+        "azure-kv://acme-kv/billing-db/4387e9f3d6e14c459867679a90fd0f79#k", "azure-kv://acme-kv/billing-db"}) {
       SecretRef once = SecretRef.parse(t);
       assertThat(SecretRef.parse(once.uri())).isEqualTo(once);
     }

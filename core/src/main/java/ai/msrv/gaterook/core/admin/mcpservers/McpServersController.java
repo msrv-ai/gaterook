@@ -284,7 +284,7 @@ class McpServersController {
       String source = s.source() == null ? (s.value() != null ? "local" : "reference") : s.source();
       switch (source) {
         case "local" -> out.put(field, SecretInput.local(s.value() == null ? new char[0] : s.value().clone()));
-        case "reference", "vault", "gcp-sm", "aws-sm" -> {
+        case "reference", "vault", "gcp-sm", "aws-sm", "azure-kv" -> {
           if (s.ref() == null || s.ref().isBlank()) {
             throw ApiRequestException.unprocessable("Reference missing", "Enter the reference of " + field + ".",
                 "/secrets");

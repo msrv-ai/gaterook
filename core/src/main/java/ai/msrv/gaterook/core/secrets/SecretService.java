@@ -63,8 +63,9 @@ import tools.jackson.databind.JsonNode;
  * one owner and one call, never through an API response.
  *
  * <p>A secret can also point into an external store (step S1, report 12 §4.2): a reference ({@code vault://…},
- * {@code gcp-sm://…}, {@code aws-sm://…}) read at call time through {@code secrets.store}, or Vault dynamic credentials
- * ({@code vault://database/creds/<role>}) leased per connection. Only a person sets either, in the window.
+ * {@code gcp-sm://…}, {@code aws-sm://…}, {@code azure-kv://…}) read at call time through {@code secrets.store}, or
+ * Vault dynamic credentials ({@code vault://database/creds/<role>}) leased per connection. Only a person sets either,
+ * in the window.
  */
 @Service
 public class SecretService {
@@ -164,7 +165,7 @@ public class SecretService {
    * What the master key protects and what doesn't need it, for the locked screen ("The 8 secrets encrypted here become
    * unreadable (6 connections, the github-mcp server token and the Vault sign-in) … The 3 secret references to Vault,
    * GCP and AWS keep working"): the local secrets with a value, and the source of each reference ({@code vault},
-   * {@code gcp-sm}, {@code aws-sm}; Vault dynamic credentials are short-lived, not references).
+   * {@code gcp-sm}, {@code aws-sm}, {@code azure-kv}; Vault dynamic credentials are short-lived, not references).
    */
   public record Protection(List<Protected> local, List<String> referenceSources) {}
 
@@ -852,7 +853,7 @@ public class SecretService {
           .map(store -> new String[] {store.getId(), store.getName()}).toList());
       if (candidates.isEmpty()) {
         return new Resolved(SecretKind.REFERENCE, field, null, null, field + " can't be resolved: "
-            + StoreResolution.title(ref.kind()) + " isn't connected.");
+            + StoreResolution.notConnected(ref) + ".");
       }
       if (candidates.size() == 1) {
         RemoteValue v = resolution.readFresh(candidates.getFirst()[0], ref, call(taint));
@@ -1033,7 +1034,7 @@ public class SecretService {
         secret.getStore() == null ? null : secret.getStore().getName());
   }
 
-  /** {@code vault}, {@code gcp-sm}, {@code aws-sm} by the reference's scheme, connected or not. */
+  /** {@code vault}, {@code gcp-sm}, {@code aws-sm}, {@code azure-kv} by the reference's scheme, connected or not. */
   private static String referenceSource(SecretEntity secret) {
     if (secret.getStore() != null) {
       return secret.getStore().getKind().name().toLowerCase(java.util.Locale.ROOT).replace('_', '-');

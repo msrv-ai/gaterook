@@ -38,6 +38,9 @@ import org.springframework.web.bind.annotation.RestController;
     MasterKeyController.Status.class, MasterKeyController.ProtectedBy.class, MasterKeyController.References.class})
 class MasterKeyController {
 
+  /** The order the locked screen names the stores in: the kit's "Vault, GCP and AWS", then Azure. */
+  private static final List<String> SOURCE_ORDER = List.of("vault", "gcp-sm", "aws-sm", "azure-kv");
+
   record Reason(String reason) {}
 
   record Backup(String saveToken, char[] passphrase) {}
@@ -131,8 +134,7 @@ class MasterKeyController {
       }
     });
     List<String> sources = protection.referenceSources().stream().distinct()
-        .sorted(Comparator.comparingInt(s -> List.of("vault", "gcp-sm", "aws-sm").indexOf(s) < 0 ? 9
-            : List.of("vault", "gcp-sm", "aws-sm").indexOf(s))).toList();
+        .sorted(Comparator.comparingInt(s -> SOURCE_ORDER.indexOf(s) < 0 ? 9 : SOURCE_ORDER.indexOf(s))).toList();
     return new Status(k.path(), k.mode(), k.owner(), k.keys(), k.osProtection(), k.protects(), k.lastBackupAt(),
         k.problems(), k.warnings(), k.locked(), k.rotation(), k.createdAt(), k.rotatedAt(), List.copyOf(by),
         new References(protection.referenceSources().size(), sources));

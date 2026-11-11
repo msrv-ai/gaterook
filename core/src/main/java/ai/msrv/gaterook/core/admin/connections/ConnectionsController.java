@@ -126,8 +126,8 @@ class ConnectionsController {
    * @param typeLabel     the Type column ("PostgreSQL 16", "Loki", "SSH")
    * @param variant       the form variant ({@code loki}, {@code gcp-logging}), or {@code null}
    * @param serverVersion what the last successful test called the server, or {@code null}
-   * @param secretSource  {@code encrypted}, {@code vault}, {@code gcp-sm}, {@code aws-sm}, {@code short-lived} or
-   *                      {@code null} without secrets
+   * @param secretSource  {@code encrypted}, {@code vault}, {@code gcp-sm}, {@code aws-sm}, {@code azure-kv},
+   *                      {@code short-lived} or {@code null} without secrets
    * @param badges        labels the connector marks in its form ({@code x-badge}: "Runbooks only") and what its last
    *                      test found ("Read replica")
    */
@@ -592,7 +592,7 @@ class ConnectionsController {
         case "local" -> out.put(field, SecretInput.local(s.value() == null ? new char[0] : s.value().clone()));
         case "reference" -> out.put(field, SecretInput.reference(s.ref() == null ? "" : s.ref(), s.store()));
         // The form's source cards name the store kind; the reference itself says the same by its scheme.
-        case "vault", "gcp-sm", "aws-sm" -> {
+        case "vault", "gcp-sm", "aws-sm", "azure-kv" -> {
           if (s.ref() == null || !s.ref().startsWith(source + "://")) {
             throw ApiRequestException.unprocessable("Invalid reference", "A " + source + " reference starts with "
                 + source + "://.", "/secrets");

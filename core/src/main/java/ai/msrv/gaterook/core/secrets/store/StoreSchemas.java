@@ -2,6 +2,7 @@ package ai.msrv.gaterook.core.secrets.store;
 
 import ai.msrv.gaterook.core.secrets.internal.persistence.StoreKind;
 import ai.msrv.gaterook.core.secrets.store.aws.AwsSmStore;
+import ai.msrv.gaterook.core.secrets.store.azure.AzureKvStore;
 import ai.msrv.gaterook.core.secrets.store.gcp.GcpSmStore;
 import ai.msrv.gaterook.core.secrets.store.vault.VaultSettings;
 import java.io.IOException;
@@ -22,7 +23,7 @@ import tools.jackson.databind.json.JsonMapper;
 public final class StoreSchemas {
 
   private static final Map<StoreKind, String> RESOURCES = Map.of(StoreKind.VAULT, "vault", StoreKind.GCP_SM,
-      "gcp-sm", StoreKind.AWS_SM, "aws-sm");
+      "gcp-sm", StoreKind.AWS_SM, "aws-sm", StoreKind.AZURE_KV, "azure-kv");
 
   private final Map<StoreKind, JsonNode> schemas = new EnumMap<>(StoreKind.class);
   private final JsonMapper json;
@@ -52,10 +53,11 @@ public final class StoreSchemas {
       case VAULT -> List.of(VaultSettings.SECRET_ID, VaultSettings.TOKEN);
       case GCP_SM -> List.of(GcpSmStore.KEY);
       case AWS_SM -> List.of(AwsSmStore.SECRET_KEY);
+      case AZURE_KV -> List.of(AzureKvStore.CLIENT_SECRET, AzureKvStore.CERTIFICATE);
     };
   }
 
-  /** {@code vault}, {@code gcp-sm}, {@code aws-sm}. */
+  /** {@code vault}, {@code gcp-sm}, {@code aws-sm}, {@code azure-kv}. */
   public static String id(StoreKind kind) {
     return kind.name().toLowerCase(Locale.ROOT).replace('_', '-');
   }
