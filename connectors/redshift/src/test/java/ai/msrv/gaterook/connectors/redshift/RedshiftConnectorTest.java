@@ -635,6 +635,23 @@ class RedshiftConnectorTest {
   }
 
   @Test
+  void testConnectionPassesOnWhatCloudAuthSaysAboutTheProfile() throws Exception {
+    assertThat(RedshiftConnector.hints(Env.PROD, RedshiftSettings.of(config(Env.PROD)), "gw_reader", false, 2,
+        aws.cloud.profileWarnings(RedshiftSettings.of(config(Env.PROD)).credentials())))
+        .extracting(TestResult.Hint::code).doesNotContain("redshift.profile");
+    RedshiftSettings profile = RedshiftSettings.of(config(Env.PROD, c -> c.putObject("credentials")
+        .put("source", "profile").put("profile", "acme-analytics")));
+    assertThat(RedshiftConnector.hints(Env.PROD, profile, "gw_reader", false, 2,
+        List.of("This profile runs a command to get credentials.")))
+        .anySatisfy(h -> {
+          assertThat(h.code()).isEqualTo("redshift.profile");
+          assertThat(h.severity()).isEqualTo(TestResult.Severity.WARNING);
+          assertThat(h.field()).isEqualTo("/credentials/profile");
+          assertThat(h.text()).isEqualTo("This profile runs a command to get credentials.");
+        });
+  }
+
+  @Test
   void theHealthCheckRunsNothingOnTheWarehouse() {
     aws.on("ListStatements", "{\"Statements\":[]}");
     assertThat(redshift.health(config(Env.DEV), secrets, TestCtx.of()).state())

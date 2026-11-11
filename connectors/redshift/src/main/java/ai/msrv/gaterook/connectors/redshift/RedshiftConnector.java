@@ -925,13 +925,15 @@ public final class RedshiftConnector implements Connector {
         .withChecks(checks)
         .withMetadata(F.objectNode().put("serverVersion", "Amazon Redshift" + (version == null ? "" : " " + version))
             .put("account", identity.account()).put("region", s.region()).put("databaseUser", dbUser));
-    for (Hint h : hints(cfg.env(), s, dbUser, superuser, schemas)) {
+    for (Hint h : hints(cfg.env(), s, dbUser, superuser, schemas, cloud.profileWarnings(s.credentials()))) {
       result = result.withHint(h);
     }
     return result;
   }
 
-  static List<Hint> hints(Env env, RedshiftSettings s, String dbUser, boolean superuser, int schemas) {
+  /** {@code profileWarnings}: what cloud-auth says about the AWS profile, such as that it runs a command. */
+  static List<Hint> hints(Env env, RedshiftSettings s, String dbUser, boolean superuser, int schemas,
+      List<String> profileWarnings) {
     List<Hint> out = new ArrayList<>();
     if (s.credentials().roleArn() == null) {
       out.add(new Hint(env == Env.DEV ? Severity.INFO : Severity.WARNING, "redshift.no-role", "/credentials/roleArn",
@@ -943,6 +945,9 @@ public final class RedshiftConnector implements Connector {
     } else if (s.kind() == RedshiftSettings.Kind.SERVERLESS && !s.workgroupArn()) {
       out.add(new Hint(Severity.INFO, "redshift.workgroup-arn", "/target/workgroup", "Enter the workgroup's ARN: "
           + "the session policy then names this workgroup only, not every workgroup in " + s.region() + "."));
+    }
+    for (String w : profileWarnings) {
+      out.add(new Hint(Severity.WARNING, "redshift.profile", "/credentials/profile", w));
     }
     if (superuser) {
       out.add(new Hint(env == Env.DEV ? Severity.WARNING : Severity.DANGER, "redshift.superuser",
