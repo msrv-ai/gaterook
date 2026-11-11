@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "statement"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "statement": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8192,
+      "description": "One PartiQL SELECT, such as SELECT * FROM \"orders\" WHERE customer_id = ?. Without a key condition DynamoDB reads the whole table."
+    },
+    "parameters": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object"
+      },
+      "description": "Values of the statement's ? placeholders, in order, as DynamoDB typed values such as {\"S\": \"c-42\"}."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 25,
+      "description": "Most items to return; the endpoint caps it."
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 8192,
+      "description": "nextCursor of the previous answer; leave it out for the first page."
+    }
+  }
+}

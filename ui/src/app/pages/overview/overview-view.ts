@@ -360,6 +360,7 @@ export function checkPrompt(type: string | null, name: string | null): string {
     case 'oracle':
     case 'sqlserver':
     case 'sqlite':
+    case 'dynamodb':
     case 'sql':
       return `Show me the tables in ${name}`;
     case 'mongodb':

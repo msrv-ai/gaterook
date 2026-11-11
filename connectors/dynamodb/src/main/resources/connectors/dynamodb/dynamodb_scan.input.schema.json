@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "table"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "table": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]{3,255}$",
+      "description": "The table name, as DynamoDB spells it."
+    },
+    "index": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]{3,255}$",
+      "description": "A secondary index to scan instead of the table."
+    },
+    "filter": {
+      "type": "string",
+      "maxLength": 4096,
+      "description": "FilterExpression, applied to every item read."
+    },
+    "projection": {
+      "type": "string",
+      "maxLength": 4096,
+      "description": "ProjectionExpression: the attributes to return."
+    },
+    "names": {
+      "type": "object",
+      "maxProperties": 100,
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 255
+      },
+      "propertyNames": {
+        "pattern": "^#[A-Za-z0-9_]{1,255}$"
+      },
+      "description": "ExpressionAttributeNames: placeholders such as {\"#s\": \"status\"} for attribute names in the expressions."
+    },
+    "values": {
+      "type": "object",
+      "maxProperties": 100,
+      "additionalProperties": {
+        "type": "object"
+      },
+      "propertyNames": {
+        "pattern": "^:[A-Za-z0-9_]{1,255}$"
+      },
+      "description": "ExpressionAttributeValues as DynamoDB typed values, such as {\":id\": {\"S\": \"c-42\"}, \":n\": {\"N\": \"10\"}}."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 25,
+      "description": "Most items to return; the endpoint caps it."
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 8192,
+      "description": "nextCursor of the previous answer; leave it out for the first page."
+    }
+  }
+}

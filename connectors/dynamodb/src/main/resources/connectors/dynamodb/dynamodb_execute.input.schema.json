@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "statement"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "statement": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8192,
+      "description": "One PartiQL INSERT, UPDATE or DELETE. UPDATE and DELETE name the item's full primary key. A person approves the exact statement."
+    },
+    "parameters": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object"
+      },
+      "description": "Values of the statement's ? placeholders, in order, as DynamoDB typed values such as {\"S\": \"c-42\"}."
+    },
+    "reason": {
+      "type": "string",
+      "maxLength": 2000,
+      "description": "Why you need this change. Shown to the approver as unverified."
+    }
+  }
+}

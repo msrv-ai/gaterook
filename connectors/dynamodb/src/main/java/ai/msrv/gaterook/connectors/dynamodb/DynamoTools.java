@@ -1,0 +1,66 @@
+package ai.msrv.gaterook.connectors.dynamodb;
+
+import ai.msrv.gaterook.connector.api.ToolDefinition;
+import ai.msrv.gaterook.connector.api.ToolDefinition.Annotations;
+import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
+import ai.msrv.gaterook.connector.api.ToolDefinition.Nature;
+import ai.msrv.gaterook.connector.api.ToolDefinition.ResultShape;
+import ai.msrv.gaterook.connectors.support.SchemaResources;
+import java.util.List;
+
+/**
+ * The tools of the DynamoDB connector (docs/dynamodb.md). Reads are Read only by default; a Scan reads a whole table
+ * and pays for every item, so prod asks a person first. A change is one PartiQL statement a person approves.
+ */
+final class DynamoTools {
+
+  static final String LIST_TABLES = "dynamodb_list_tables";
+  static final String DESCRIBE_TABLE = "dynamodb_describe_table";
+  static final String QUERY = "dynamodb_query";
+  static final String SCAN = "dynamodb_scan";
+  static final String PARTIQL = "dynamodb_partiql";
+  static final String EXECUTE = "dynamodb_execute";
+
+  private DynamoTools() {}
+
+  static List<ToolDefinition> definitions(SchemaResources schemas) {
+    return List.of(
+        read(schemas, LIST_TABLES, "List DynamoDB tables",
+            "Names of the tables agents may use in the connection's region.", Mode.READ_ONLY),
+        read(schemas, DESCRIBE_TABLE, "Describe a DynamoDB table",
+            "Key schema, secondary indexes, item count, size, billing mode, stream and TTL of one table.",
+            Mode.READ_ONLY),
+        read(schemas, QUERY, "Query items by key",
+            "Items of one partition key value, optionally narrowed by sort key, filter and projection; a table or "
+                + "a secondary index. Pages with nextCursor.", Mode.READ_ONLY),
+        read(schemas, SCAN, "Scan a table",
+            "Reads items of a whole table or index with an optional filter: it uses read capacity for every item "
+                + "it reads. Prefer dynamodb_query when you know the key.", Mode.APPROVAL),
+        read(schemas, PARTIQL, "Run a PartiQL SELECT",
+            "One PartiQL SELECT with ? parameters. Without a key condition DynamoDB scans the table.",
+            Mode.READ_ONLY),
+        // No outputSchema: the answer may be an approval handle (report 01).
+        ToolDefinition.builder(EXECUTE)
+            .title("Change items (needs approval)")
+            .description("One PartiQL INSERT, UPDATE or DELETE. You approve the exact statement.")
+            .inputSchema(schemas.load(EXECUTE + ".input"))
+            .annotations(Annotations.write(true))
+            .nature(Nature.MUTATION)
+            .defaultMode(Mode.APPROVAL, Mode.APPROVAL)
+            .resultShape(ResultShape.JSON)
+            .build());
+  }
+
+  private static ToolDefinition read(SchemaResources schemas, String name, String title, String description,
+      Mode prod) {
+    return ToolDefinition.builder(name)
+        .title(title)
+        .description(description)
+        .inputSchema(schemas.load(name + ".input"))
+        .annotations(Annotations.read())
+        .nature(Nature.READ)
+        .defaultMode(Mode.READ_ONLY, prod)
+        .resultShape(ResultShape.JSON)
+        .build();
+  }
+}

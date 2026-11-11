@@ -14,7 +14,7 @@ scripts/test-services.sh run mvn -B -ntp verify -Pservices
 scripts/test-services.sh down
 ```
 
-The default starts everything except Kubernetes and SQL Server and waits for health checks. Profiles are `sql`, `oracle`, `sqlserver`, `mongo`, `redis`, `logs`, `aws`, `vault`, `ssh`, `k8s`, and `all`:
+The default starts everything except Kubernetes and SQL Server and waits for health checks. Profiles are `sql`, `oracle`, `sqlserver`, `mongo`, `redis`, `logs`, `aws`, `dynamodb`, `vault`, `ssh`, `k8s`, and `all`:
 
 ```bash
 scripts/test-services.sh up sql redis
@@ -54,7 +54,7 @@ The committed [.env](.env) contains image pins, ports, and disposable passwords.
 | `loki` | Loki 3.7.9 with tenants | 55100 | logs |
 | `opensearch` | OpenSearch 3.9.0 without security plugin | 55200 | logs |
 | `elasticsearch` | Elasticsearch 9.5.5 with security disabled | 55201 | logs |
-| `moto` | moto 5.2.4 AWS emulator | 55500 | logs, aws |
+| `moto` | moto 5.2.4 AWS emulator (STS, CloudWatch, DynamoDB) | 55500 | logs, aws, dynamodb |
 | `vault` | Vault 2.2.1 dev mode | 55820 | vault, ssh |
 | `openssh` | Ubuntu 24.04 / OpenSSH 9.6p1 | 55022 | ssh |
 | `k3s` | k3s v1.37.0-k3s1, privileged | 55443 | k8s |

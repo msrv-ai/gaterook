@@ -38,6 +38,7 @@
     <module>connectors/kubernetes</module>
     <module>connectors/gcp</module>
     <module>connectors/aws</module>
+    <module>connectors/dynamodb</module>
     <module>connectors/http</module>
     <module>connectors/mcp-server</module>
     <module>core</module>
@@ -189,6 +190,11 @@
       <dependency>
         <groupId>ai.msrv.gaterook</groupId>
         <artifactId>connectors-aws</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-dynamodb</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
