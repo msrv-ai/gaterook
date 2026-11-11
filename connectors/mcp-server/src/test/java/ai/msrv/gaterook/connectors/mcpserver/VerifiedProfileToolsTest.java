@@ -13,42 +13,20 @@ import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Nature;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
-import java.nio.file.Path;
-import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
  * How GateRook's verified profiles of vendors' own servers (the bundled {@code verified-profiles.json}) shape a
  * server's tools: a tool the profile names is a mutation however it is annotated, starts in Approval or Off, and never
  * runs without a person; tools it doesn't name, and other servers' tools, follow their annotations. Nothing here
- * connects: the connector is built from a snapshot.
+ * connects or starts: the connector is built from a snapshot without a runtime, which a call refused for want of an
+ * approval never reaches.
  */
 class VerifiedProfileToolsTest {
-
-  @TempDir
-  Path home;
-
-  private McpServers runtime;
-
-  @BeforeEach
-  void attach() {
-    runtime = new McpServers(Map.of("PATH", "/usr/bin:/bin", "HOME", home.toString()), System.getProperty("os.name"),
-        false, Clock.systemUTC(), Duration.ofMillis(100), McpServerConnector.typeManifest());
-    runtime.attach(new Fixtures.Host(home));
-  }
-
-  @AfterEach
-  void close() {
-    runtime.close();
-  }
 
   /** A tool as a server lists it, declaring {@code readOnlyHint} as given ({@code null}: no annotations). */
   private static ObjectNode tool(String name, Boolean readOnly) {
@@ -60,10 +38,10 @@ class VerifiedProfileToolsTest {
     return t;
   }
 
-  private Connector connector(String url, ObjectNode... tools) {
-    ConnectionConfig cfg = cfg(url);
+  private static Connector connector(String url, ObjectNode... tools) {
     Snapshots.Mapped mapped = Snapshots.fromJson("vp_", List.of(tools), n -> Optional.empty());
-    return runtime.connector(cfg, new McpServerRuntime.Snapshot("vp_", "0.1.0", "2025-11-25", mapped.tools(), null));
+    return new ServerConnector(null, cfg(url), new McpServerRuntime.Snapshot("vp_", "0.1.0", "2025-11-25",
+        mapped.tools(), null), McpServerConnector.typeManifest());
   }
 
   private static ConnectionConfig cfg(String url) {
