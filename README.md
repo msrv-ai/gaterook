@@ -193,7 +193,7 @@ For the full connector integration suite, follow [the Docker test-services guide
 | [GCP logs](docs/gcp-logs.md) | Logs Explorer filters, GKE logs, credentials, scopes, and endpoint access |
 | [Google Cloud APIs](docs/gcp-api.md) | Calling API methods by their Discovery names, scope and policy checks, refused methods, and approved changes |
 | [AWS APIs](docs/aws-api.md) | Calling any AWS operation by its API name, read and change classification, session policies, refused operations, and approved changes |
-| [Azure](docs/azure.md) | Entra ID sign-in, tenants and subscriptions, classified Resource Manager calls, Azure Monitor, KQL logs, and Key Vault as an external secret store |
+| [Azure](docs/azure.md) | Entra ID sign-in, tenants and subscriptions, classified Resource Manager calls, Azure Monitor, and KQL logs |
 | [SSH log files](docs/ssh-log-files.md) | Remote file selection, searching, latest records, time ranges, and continuation |
 | [Repository layout](docs/repository-layout.md) | Source directories and their responsibilities |
 | [Migration scope](docs/migration.md) | Source inclusion, compatibility, and publication boundaries |
