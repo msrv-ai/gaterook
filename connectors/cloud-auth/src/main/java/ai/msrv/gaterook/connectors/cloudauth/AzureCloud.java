@@ -10,23 +10,25 @@ import java.util.regex.Pattern;
  * answer or a setting an agent could propose.
  *
  * <p>Azure Government and Azure operated by 21Vianet (China) have their own sign-in authority, Resource Manager and
- * Log Analytics hosts; Storage tokens use one audience in every cloud, with the cloud's own storage suffix.
+ * Log Analytics hosts; Storage and Service Bus tokens use one audience in every cloud, with the cloud's own host
+ * suffix.
  */
 public enum AzureCloud {
 
   AZURE_PUBLIC("AzureCloud", "login.microsoftonline.com", "management.azure.com", "api.loganalytics.io",
-      "core.windows.net", "vault.azure.net"),
+      "core.windows.net", "vault.azure.net", "servicebus.windows.net"),
   AZURE_US_GOVERNMENT("AzureUSGovernment", "login.microsoftonline.us", "management.usgovcloudapi.net",
-      "api.loganalytics.us", "core.usgovcloudapi.net", "vault.usgovcloudapi.net"),
+      "api.loganalytics.us", "core.usgovcloudapi.net", "vault.usgovcloudapi.net", "servicebus.usgovcloudapi.net"),
   AZURE_CHINA("AzureChinaCloud", "login.chinacloudapi.cn", "management.chinacloudapi.cn",
-      "api.loganalytics.azure.cn", "core.chinacloudapi.cn", "vault.azure.cn");
+      "api.loganalytics.azure.cn", "core.chinacloudapi.cn", "vault.azure.cn", "servicebus.chinacloudapi.cn");
 
   /** What a token is for: its {@code aud}, the resource of {@code <audience>/.default}. */
   public enum Audience {
     ARM("Azure Resource Manager"),
     LOG_ANALYTICS("Log Analytics"),
     STORAGE("Azure Storage"),
-    KEY_VAULT("Key Vault");
+    KEY_VAULT("Key Vault"),
+    SERVICE_BUS("Service Bus");
 
     private final String title;
 
@@ -49,15 +51,17 @@ public enum AzureCloud {
   private final String logAnalyticsHost;
   private final String storageSuffix;
   private final String keyVaultSuffix;
+  private final String serviceBusSuffix;
 
   AzureCloud(String id, String authorityHost, String armHost, String logAnalyticsHost, String storageSuffix,
-      String keyVaultSuffix) {
+      String keyVaultSuffix, String serviceBusSuffix) {
     this.id = id;
     this.authorityHost = authorityHost;
     this.armHost = armHost;
     this.logAnalyticsHost = logAnalyticsHost;
     this.storageSuffix = storageSuffix;
     this.keyVaultSuffix = keyVaultSuffix;
+    this.serviceBusSuffix = serviceBusSuffix;
   }
 
   /** {@code AzureCloud}, {@code AzureUSGovernment}, {@code AzureChinaCloud}: what the connection form stores. */
@@ -104,9 +108,44 @@ public enum AzureCloud {
     return keyVaultSuffix;
   }
 
+  /** {@code servicebus.windows.net}: the Service Bus and Event Hubs namespace suffix of the cloud. */
+  public String serviceBusSuffix() {
+    return serviceBusSuffix;
+  }
+
+  /**
+   * {@code <account>.blob.core.windows.net}: the host of one storage service of an account.
+   *
+   * @param service {@code blob}, {@code queue}, {@code table}, {@code file} or {@code dfs}
+   * @throws IllegalArgumentException for a name that isn't one DNS label or an unknown service
+   */
+  public String storageHost(String account, String service) {
+    if (!LABEL.matcher(account).matches() || !java.util.Set.of("blob", "queue", "table", "file", "dfs")
+        .contains(service)) {
+      throw new IllegalArgumentException("Not a storage account and service: " + account + " " + service);
+    }
+    return account + "." + service + "." + storageSuffix;
+  }
+
+  /** {@code <vault>.vault.azure.net}: the host of one vault. */
+  public String keyVaultHost(String vault) {
+    if (!LABEL.matcher(vault).matches()) {
+      throw new IllegalArgumentException("Not a vault name: " + vault);
+    }
+    return vault + "." + keyVaultSuffix;
+  }
+
+  /** {@code <namespace>.servicebus.windows.net}: the host of one Service Bus or Event Hubs namespace. */
+  public String serviceBusHost(String namespace) {
+    if (!LABEL.matcher(namespace).matches()) {
+      throw new IllegalArgumentException("Not a namespace name: " + namespace);
+    }
+    return namespace + "." + serviceBusSuffix;
+  }
+
   /**
    * The resource a token is asked for ({@code <resource>/.default}). Resource Manager's ends in a slash, as Entra ID
-   * registers it; Storage uses one resource in every cloud.
+   * registers it; Storage and Service Bus use one resource in every cloud.
    */
   public String resource(Audience audience) {
     return switch (audience) {
@@ -114,6 +153,7 @@ public enum AzureCloud {
       case LOG_ANALYTICS -> "https://" + logAnalyticsHost;
       case STORAGE -> "https://storage.azure.com";
       case KEY_VAULT -> "https://" + keyVaultSuffix;
+      case SERVICE_BUS -> "https://servicebus.azure.net";
     };
   }
 
@@ -126,8 +166,8 @@ public enum AzureCloud {
   /**
    * Whether a token for {@code audience} may be sent to {@code url}: HTTPS on port 443, no user info, and the host of
    * that audience in this cloud — Resource Manager and Log Analytics by exact name, a storage account
-   * ({@code <account>.blob.core.windows.net} and the other storage services) or a vault ({@code <vault>.vault.azure.net})
-   * by one label under the cloud's suffix. Code that other people deploy runs elsewhere ({@code azurewebsites.net},
+   * ({@code <account>.blob.core.windows.net} and the other storage services), a vault ({@code <vault>.vault.azure.net})
+   * or a namespace ({@code <ns>.servicebus.windows.net}) by one label under the cloud's suffix. Code that other people deploy runs elsewhere ({@code azurewebsites.net},
    * a custom domain), where a token would reach whoever deployed it.
    */
   public boolean accepts(Audience audience, URI url) {
@@ -144,9 +184,14 @@ public enum AzureCloud {
       case ARM -> h.equals(armHost);
       case LOG_ANALYTICS -> h.equals(logAnalyticsHost);
       case STORAGE -> storageHost(h);
-      case KEY_VAULT -> h.endsWith("." + keyVaultSuffix)
-          && LABEL.matcher(h.substring(0, h.length() - keyVaultSuffix.length() - 1)).matches();
+      case KEY_VAULT -> oneLabelUnder(h, keyVaultSuffix);
+      case SERVICE_BUS -> oneLabelUnder(h, serviceBusSuffix);
     };
+  }
+
+  private static boolean oneLabelUnder(String host, String suffix) {
+    return host.endsWith("." + suffix) && LABEL.matcher(host.substring(0, host.length() - suffix.length() - 1))
+        .matches();
   }
 
   private boolean storageHost(String h) {

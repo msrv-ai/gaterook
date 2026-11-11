@@ -1,0 +1,195 @@
+{
+  "type": "object",
+  "required": [
+    "provider",
+    "action",
+    "account",
+    "notes"
+  ],
+  "properties": {
+    "provider": {
+      "const": "azure"
+    },
+    "action": {
+      "enum": [
+        "list_blobs",
+        "read_blob",
+        "peek_messages",
+        "query_entities",
+        "list_files",
+        "read_file"
+      ]
+    },
+    "account": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string"
+    },
+    "container": {
+      "type": "string"
+    },
+    "queue": {
+      "type": "string"
+    },
+    "table": {
+      "type": "string"
+    },
+    "share": {
+      "type": "string"
+    },
+    "prefix": {
+      "type": "string"
+    },
+    "blob": {
+      "type": "string"
+    },
+    "path": {
+      "type": "string"
+    },
+    "blobs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "lastModified": {
+            "type": "string"
+          },
+          "blobType": {
+            "type": "string"
+          },
+          "accessTier": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "prefixes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "directories": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "contentType": {
+      "type": "string"
+    },
+    "size": {
+      "type": "integer"
+    },
+    "lastModified": {
+      "type": "string"
+    },
+    "blobType": {
+      "type": "string"
+    },
+    "offset": {
+      "type": "integer"
+    },
+    "bytes": {
+      "type": "integer"
+    },
+    "text": {
+      "type": "string"
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "nextOffset": {
+      "type": "integer"
+    },
+    "approximateMessages": {
+      "type": "integer"
+    },
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "messageId",
+          "encoding",
+          "text",
+          "truncated"
+        ],
+        "properties": {
+          "messageId": {
+            "type": "string"
+          },
+          "insertionTime": {
+            "type": "string"
+          },
+          "expirationTime": {
+            "type": "string"
+          },
+          "dequeueCount": {
+            "type": "integer"
+          },
+          "encoding": {
+            "enum": [
+              "text",
+              "base64"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "entities": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "masked": {
+      "type": "integer"
+    },
+    "nextCursor": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

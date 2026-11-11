@@ -1,0 +1,65 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "action",
+    "account",
+    "container",
+    "blob"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "action": {
+      "enum": [
+        "upload_blob",
+        "delete_blob"
+      ],
+      "description": "upload_blob writes text to a block blob; delete_blob deletes a blob"
+    },
+    "account": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 512,
+      "description": "The storage account's resource ID (/subscriptions/<id>/resourceGroups/<group>/providers/Microsoft.Storage/storageAccounts/<name>), or its name"
+    },
+    "subscription": {
+      "type": "string",
+      "description": "The account's subscription when account is a name; default: the connection's only subscription"
+    },
+    "container": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 63,
+      "description": "The blob container, such as uploads ($logs and $web too)"
+    },
+    "blob": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "The blob's full name in the container, such as reports/2026-q3.csv"
+    },
+    "content": {
+      "type": "string",
+      "description": "upload_blob: the blob's text, up to 1 MB"
+    },
+    "contentType": {
+      "type": "string",
+      "maxLength": 200,
+      "default": "text/plain; charset=utf-8",
+      "description": "upload_blob: its media type, such as application/json"
+    },
+    "overwrite": {
+      "type": "boolean",
+      "default": false,
+      "description": "upload_blob: replace a blob that exists (default: fail instead)"
+    },
+    "deleteSnapshots": {
+      "type": "boolean",
+      "default": false,
+      "description": "delete_blob: delete the blob's snapshots with it (needed when it has some)"
+    }
+  }
+}

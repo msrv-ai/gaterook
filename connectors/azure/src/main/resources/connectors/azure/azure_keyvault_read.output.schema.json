@@ -1,0 +1,83 @@
+{
+  "type": "object",
+  "required": [
+    "provider",
+    "vault",
+    "action",
+    "items",
+    "notes"
+  ],
+  "properties": {
+    "provider": {
+      "const": "azure"
+    },
+    "vault": {
+      "type": "string"
+    },
+    "action": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "notBefore": {
+            "type": "string"
+          },
+          "expires": {
+            "type": "string"
+          },
+          "created": {
+            "type": "string"
+          },
+          "updated": {
+            "type": "string"
+          },
+          "expiresInDays": {
+            "type": "integer"
+          },
+          "recoveryLevel": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "managed": {
+            "type": "boolean"
+          },
+          "thumbprint": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "masked": {
+      "type": "integer"
+    },
+    "nextCursor": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

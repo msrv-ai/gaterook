@@ -71,6 +71,6 @@ class SmokeDescriptorTest {
         checked++;
       }
     }
-    assertThat(checked).isEqualTo(3);
+    assertThat(checked).isEqualTo(5);
   }
 }

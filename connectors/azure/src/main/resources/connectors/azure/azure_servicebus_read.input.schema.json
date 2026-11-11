@@ -1,0 +1,55 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "namespace"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "namespace": {
+      "type": "string",
+      "minLength": 6,
+      "maxLength": 512,
+      "description": "The Service Bus namespace's resource ID (/subscriptions/<id>/resourceGroups/<group>/providers/Microsoft.ServiceBus/namespaces/<name>), or its name"
+    },
+    "subscription": {
+      "type": "string",
+      "description": "The namespace's subscription when namespace is a name; default: the connection's only subscription"
+    },
+    "queue": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 260,
+      "description": "The queue whose dead letters these are"
+    },
+    "topic": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 260,
+      "description": "The topic, with topicSubscription, instead of queue"
+    },
+    "topicSubscription": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "description": "The topic's subscription whose dead letters these are"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 32,
+      "default": 10,
+      "description": "Dead-lettered messages to peek, from the oldest"
+    },
+    "maxBytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65536,
+      "default": 4096,
+      "description": "Bytes of each message body to show"
+    }
+  }
+}

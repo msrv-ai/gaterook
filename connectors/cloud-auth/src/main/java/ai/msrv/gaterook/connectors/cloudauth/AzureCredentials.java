@@ -171,13 +171,7 @@ public final class AzureCredentials implements AutoCloseable {
    * else the cloud's own.
    */
   public URI base(AzureCloud cloud, Audience audience) {
-    String key = switch (audience) {
-      case ARM -> "azure.arm";
-      case LOG_ANALYTICS -> "azure.logs";
-      case STORAGE -> "azure.storage";
-      case KEY_VAULT -> "azure.keyvault";
-    };
-    URI test = endpoints.service(key);
+    URI test = endpoints.service(serviceKey(audience));
     if (test != null) {
       return test;
     }
@@ -186,6 +180,37 @@ public final class AzureCredentials implements AutoCloseable {
       case LOG_ANALYTICS -> cloud.logAnalytics();
       default -> throw new IllegalArgumentException(audience + " has no single base URL");
     };
+  }
+
+  private static String serviceKey(Audience audience) {
+    return switch (audience) {
+      case ARM -> "azure.arm";
+      case LOG_ANALYTICS -> "azure.logs";
+      case STORAGE -> "azure.storage";
+      case KEY_VAULT -> "azure.keyvault";
+      case SERVICE_BUS -> "azure.servicebus";
+    };
+  }
+
+  /**
+   * {@code https://<host>}: a data-plane host of {@code audience} in {@code cloud} (a storage account's service, a
+   * vault, a namespace), checked by {@link AzureCloud#accepts}. In a development build with a test endpoint for the
+   * audience, {@code <test endpoint>/<host>}: the host becomes the first path segment, so one fake serves every
+   * account.
+   *
+   * @throws IllegalArgumentException for a host the audience's tokens may not go to
+   */
+  public URI dataPlane(AzureCloud cloud, Audience audience, String host) {
+    URI test = endpoints.service(serviceKey(audience));
+    if (test != null) {
+      String b = test.toString();
+      return URI.create((b.endsWith("/") ? b.substring(0, b.length() - 1) : b) + "/" + host);
+    }
+    URI real = URI.create("https://" + host);
+    if (!cloud.accepts(audience, real)) {
+      throw new IllegalArgumentException("Not a " + audience.title() + " host of " + cloud.id() + ": " + host);
+    }
+    return real;
   }
 
   /**

@@ -1,0 +1,97 @@
+{
+  "type": "object",
+  "required": [
+    "provider",
+    "namespace",
+    "notes"
+  ],
+  "properties": {
+    "provider": {
+      "const": "azure"
+    },
+    "namespace": {
+      "type": "string"
+    },
+    "queue": {
+      "type": "string"
+    },
+    "topic": {
+      "type": "string"
+    },
+    "topicSubscription": {
+      "type": "string"
+    },
+    "counts": {
+      "type": "object"
+    },
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "sequenceNumber",
+          "size",
+          "text",
+          "binary",
+          "truncated"
+        ],
+        "properties": {
+          "sequenceNumber": {
+            "type": "integer"
+          },
+          "messageId": {
+            "type": "string"
+          },
+          "enqueuedTime": {
+            "type": "string"
+          },
+          "deliveryCount": {
+            "type": "integer"
+          },
+          "deadLetterReason": {
+            "type": "string"
+          },
+          "deadLetterErrorDescription": {
+            "type": "string"
+          },
+          "deadLetterSource": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "object"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "text": {
+            "type": "string"
+          },
+          "binary": {
+            "type": "boolean"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "masked": {
+      "type": "integer"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

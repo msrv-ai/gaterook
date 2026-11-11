@@ -63,6 +63,26 @@ final class Arm {
     }
   }
 
+  /** One data-plane answer (Storage, Service Bus, Key Vault): its bytes, read up to the request's limit. */
+  record Raw(int status, Map<String, List<String>> headers, byte[] body, boolean truncated) {
+    boolean ok() {
+      return status / 100 == 2;
+    }
+
+    String header(String name) {
+      for (Map.Entry<String, List<String>> e : headers.entrySet()) {
+        if (e.getKey() != null && e.getKey().equalsIgnoreCase(name) && !e.getValue().isEmpty()) {
+          return e.getValue().getFirst();
+        }
+      }
+      return null;
+    }
+
+    String text() {
+      return new String(body, StandardCharsets.UTF_8);
+    }
+  }
+
   private final HttpClient http;
   private final CloudCredentials cloud;
   private final CloudCredentials.Owner owner;
@@ -116,6 +136,11 @@ final class Arm {
     return URI.create(b + encodedPath + q);
   }
 
+  /** {@code https://<host>} of a data-plane audience (or its test endpoint): {@link AzureCredentials#dataPlane}. */
+  URI dataPlane(Audience audience, String host) {
+    return cloud.azure().dataPlane(cloudOf(), audience, host);
+  }
+
   /** A query map with {@code api-version} first. */
   static Map<String, String> query(String apiVersion) {
     Map<String, String> q = new LinkedHashMap<>();
@@ -129,7 +154,12 @@ final class Arm {
 
   /** The call's token for Resource Manager, of the pinned tenant, tainted. */
   AzureCredentials.AccessToken token() throws ConnectorException {
-    AzureCredentials.AccessToken t = cloud.azure().token(owner, settings.credentials(), Audience.ARM, secrets,
+    return token(Audience.ARM);
+  }
+
+  /** The call's token for {@code audience}, of the pinned tenant, tainted. */
+  AzureCredentials.AccessToken token(Audience audience) throws ConnectorException {
+    AzureCredentials.AccessToken t = cloud.azure().token(owner, settings.credentials(), audience, secrets,
         ctx.remaining().minus(MARGIN));
     ctx.taint(t.value());
     if (pinned) {
@@ -139,7 +169,7 @@ final class Arm {
             + "belongs to before agents read through it.");
       }
       if (t.tenantId() != null && !pin.equals(t.tenantId())) {
-        cloud.azure().invalidate(owner.id(), Audience.ARM);
+        cloud.azure().invalidate(owner.id(), audience);
         throw ConnectorException.denied("The Azure sign-in now belongs to tenant " + t.tenantId() + ", not " + pin
             + ". Sign in to the connection's tenant (az login --tenant " + pin + "), or test the connection again.");
       }
@@ -187,45 +217,11 @@ final class Arm {
       throw ConnectorException.timeout(what + " didn't answer in time.");
     }
     HttpRequest built = b.timeout(left.compareTo(MAX_REQUEST) > 0 ? MAX_REQUEST : left).build();
-    int status;
-    byte[] bytes;
-    boolean truncated;
-    Map<String, List<String>> headers;
-    try {
-      HttpResponse<InputStream> r = http.send(built, HttpResponse.BodyHandlers.ofInputStream());
-      status = r.statusCode();
-      headers = r.headers().map();
-      try (InputStream in = r.body()) {
-        ByteArrayOutputStream out = new ByteArrayOutputStream(8192);
-        byte[] buf = new byte[16384];
-        long total = 0;
-        int n;
-        truncated = false;
-        while ((n = in.read(buf)) > 0) {
-          total += n;
-          if (total > MAX_BODY) {
-            truncated = true;
-            break;
-          }
-          out.write(buf, 0, n);
-        }
-        bytes = out.toByteArray();
-      }
-    } catch (HttpConnectTimeoutException e) {
-      throw ConnectorException.unavailable("Can't connect to " + host(uri) + " (timed out). Check that this computer "
-          + "can reach Azure.", e);
-    } catch (HttpTimeoutException e) {
-      throw ConnectorException.timeout(what + " didn't answer in time.");
-    } catch (ConnectException e) {
-      throw ConnectorException.unavailable("Can't connect to " + host(uri) + ": " + reason(e) + ".", e);
-    } catch (SSLException e) {
-      throw ConnectorException.unavailable("The TLS handshake with " + host(uri) + " failed: " + reason(e) + ".", e);
-    } catch (IOException e) {
-      throw ConnectorException.unavailable(what + " failed: " + reason(e), e);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw ConnectorException.timeout(what + " was cancelled.");
-    }
+    Raw raw = exchange(built, uri, MAX_BODY, what);
+    int status = raw.status();
+    byte[] bytes = raw.body();
+    boolean truncated = raw.truncated();
+    Map<String, List<String>> headers = raw.headers();
     if (truncated && status / 100 == 2) {
       throw ConnectorException.resourceError(what + " answered with more than " + (MAX_BODY >> 20) + " MB. Narrow "
           + "the request ($filter, $top, $select).", null);
@@ -244,6 +240,154 @@ final class Arm {
       }
     }
     return new Answer(status, headers, tree, truncated);
+  }
+
+  /**
+   * One data-plane request of {@code audience}: a Storage account's service, a vault, a namespace, on a URL of
+   * {@link AzureCredentials#dataPlane}. The answer's bytes are read up to {@code max}; a 401 drops the token.
+   *
+   * @param headers sent as given, after the token, the API version headers the caller chose and the request id
+   */
+  Raw raw(Audience audience, String method, URI uri, Map<String, String> headers, byte[] body, long max, String what)
+      throws ConnectorException {
+    if (!cloud.azure().sendsTokensTo(cloudOf(), audience, uri)) {
+      throw new IllegalArgumentException("Not a " + audience.title() + " URL of " + cloudOf().id() + ": "
+          + uri.getScheme() + "://" + uri.getHost());
+    }
+    AzureCredentials.AccessToken token = token(audience);
+    HttpRequest.Builder b = HttpRequest.newBuilder(uri)
+        .header("Authorization", "Bearer " + token.value())
+        .header("x-ms-client-request-id", requestId());
+    headers.forEach(b::header);
+    b.method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofByteArray(body));
+    Duration left = ctx.remaining().minus(MARGIN);
+    if (left.isNegative() || left.isZero()) {
+      throw ConnectorException.timeout(what + " didn't answer in time.");
+    }
+    Raw r = exchange(b.timeout(left.compareTo(MAX_REQUEST) > 0 ? MAX_REQUEST : left).build(), uri, max, what);
+    if (r.status() == 401) {
+      cloud.azure().invalidate(owner.id(), audience);
+    }
+    return r;
+  }
+
+  /**
+   * {@link #raw}, with the answer's header names in the case the server sent them. {@code java.net.http} gives them in
+   * lower case, and Service Bus sends a message's application properties as headers whose names are case-sensitive
+   * for its receivers: a resubmitted copy must keep them. {@code HttpURLConnection} keeps the case; the same token,
+   * host check, proxy, redirect, size and deadline rules apply.
+   */
+  Raw rawKeepingHeaderCase(Audience audience, String method, URI uri, Map<String, String> headers, byte[] body,
+      long max, String what) throws ConnectorException {
+    if (!cloud.azure().sendsTokensTo(cloudOf(), audience, uri)) {
+      throw new IllegalArgumentException("Not a " + audience.title() + " URL of " + cloudOf().id() + ": "
+          + uri.getScheme() + "://" + uri.getHost());
+    }
+    AzureCredentials.AccessToken token = token(audience);
+    Duration left = ctx.remaining().minus(MARGIN);
+    if (left.isNegative() || left.isZero()) {
+      throw ConnectorException.timeout(what + " didn't answer in time.");
+    }
+    int timeout = (int) Math.max(1, Math.min(left.toMillis(), MAX_REQUEST.toMillis()));
+    java.net.HttpURLConnection c = null;
+    try {
+      c = (java.net.HttpURLConnection) uri.toURL().openConnection(java.net.Proxy.NO_PROXY);
+      c.setInstanceFollowRedirects(false);
+      c.setUseCaches(false);
+      c.setConnectTimeout(Math.min(timeout, 5_000));
+      c.setReadTimeout(timeout);
+      c.setRequestMethod(method);
+      c.setRequestProperty("Authorization", "Bearer " + token.value());
+      c.setRequestProperty("x-ms-client-request-id", requestId());
+      headers.forEach(c::setRequestProperty);
+      if (body != null) {
+        c.setDoOutput(true);
+        c.setFixedLengthStreamingMode(body.length);
+        try (java.io.OutputStream out = c.getOutputStream()) {
+          out.write(body);
+        }
+      }
+      int status = c.getResponseCode();
+      Map<String, List<String>> received = new java.util.LinkedHashMap<>();
+      c.getHeaderFields().forEach((k, v) -> {
+        if (k != null) {
+          received.put(k, v);
+        }
+      });
+      InputStream stream = status >= 400 ? c.getErrorStream() : c.getInputStream();
+      ByteArrayOutputStream out = new ByteArrayOutputStream(8192);
+      boolean truncated = false;
+      if (stream != null) {
+        try (InputStream in = stream) {
+          byte[] buf = new byte[16384];
+          long total = 0;
+          int n;
+          while ((n = in.read(buf)) > 0) {
+            if (total + n > max) {
+              out.write(buf, 0, (int) (max - total));
+              truncated = true;
+              break;
+            }
+            total += n;
+            out.write(buf, 0, n);
+          }
+        }
+      }
+      if (status == 401) {
+        cloud.azure().invalidate(owner.id(), audience);
+      }
+      return new Raw(status, received, out.toByteArray(), truncated);
+    } catch (java.net.SocketTimeoutException e) {
+      throw ConnectorException.timeout(what + " didn't answer in time.");
+    } catch (ConnectException e) {
+      throw ConnectorException.unavailable("Can't connect to " + host(uri) + ": " + reason(e) + ".", e);
+    } catch (SSLException e) {
+      throw ConnectorException.unavailable("The TLS handshake with " + host(uri) + " failed: " + reason(e) + ".", e);
+    } catch (IOException e) {
+      throw ConnectorException.unavailable(what + " failed: " + reason(e), e);
+    } finally {
+      if (c != null && body == null) {
+        c.disconnect();
+      }
+    }
+  }
+
+  /** Sends one request and reads up to {@code max} bytes of the answer; transport failures become refusals. */
+  private Raw exchange(HttpRequest built, URI uri, long max, String what) throws ConnectorException {
+    try {
+      HttpResponse<InputStream> r = http.send(built, HttpResponse.BodyHandlers.ofInputStream());
+      try (InputStream in = r.body()) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream(8192);
+        byte[] buf = new byte[16384];
+        long total = 0;
+        int n;
+        boolean truncated = false;
+        while ((n = in.read(buf)) > 0) {
+          if (total + n > max) {
+            out.write(buf, 0, (int) (max - total));
+            truncated = true;
+            break;
+          }
+          total += n;
+          out.write(buf, 0, n);
+        }
+        return new Raw(r.statusCode(), r.headers().map(), out.toByteArray(), truncated);
+      }
+    } catch (HttpConnectTimeoutException e) {
+      throw ConnectorException.unavailable("Can't connect to " + host(uri) + " (timed out). Check that this computer "
+          + "can reach Azure.", e);
+    } catch (HttpTimeoutException e) {
+      throw ConnectorException.timeout(what + " didn't answer in time.");
+    } catch (ConnectException e) {
+      throw ConnectorException.unavailable("Can't connect to " + host(uri) + ": " + reason(e) + ".", e);
+    } catch (SSLException e) {
+      throw ConnectorException.unavailable("The TLS handshake with " + host(uri) + " failed: " + reason(e) + ".", e);
+    } catch (IOException e) {
+      throw ConnectorException.unavailable(what + " failed: " + reason(e), e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw ConnectorException.timeout(what + " was cancelled.");
+    }
   }
 
   /** What a Resource Manager refusal means and what to do. */
