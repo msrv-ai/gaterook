@@ -318,4 +318,14 @@ class GoldenMessagesTest {
     }
     return GppJson.MAPPER.readTree(out.toString(StandardCharsets.UTF_8));
   }
+  @Test
+  void aGrantCarriesTcpDestinationsOnlyWhenThePluginDeclaresSome() {
+    Messages.EgressGrant tcp = new Messages.EgressGrant(List.of(), List.of("10.0.0.0/8"), List.of(7465, 7466),
+        List.of("db2.acme.internal:50000"));
+    tools.jackson.databind.node.ObjectNode written = tcp.write();
+    assertThat(written.path("tcp").get(0).asString()).isEqualTo("db2.acme.internal:50000");
+    assertThat(Messages.EgressGrant.read(written)).isEqualTo(tcp);
+    assertThat(EGRESS.write().has("tcp")).isFalse();
+    assertThat(Messages.EgressGrant.read(EGRESS.write()).tcp()).isEmpty();
+  }
 }

@@ -54,6 +54,13 @@ describe('plugin review facts', () => {
     expect(accessText({ hosts: ['{connection.host}', 'api.example.com'], commands: ['kubectl'] })).toBe(
       'The host of each connection; api.example.com; the commands kubectl',
     );
+    expect(accessText({ hosts: [], tcp: ['{connection.host}:{connection.port}'] })).toBe('TCP connections to the host and port of each connection');
+    expect(accessText({ tcp: ['{connection.host}:10000', '{connection.host}:10001', 'kdc.acme.com:88'] })).toBe(
+      'TCP connections to the host of each connection, ports 10000 and 10001; kdc.acme.com:88',
+    );
+    expect(accessText({ hosts: ['{connection.host}:443'], tcp: ['{connection.host}:{connection.port}'] })).toBe(
+      'The host of each connection, port 443; TCP connections to the host and port of each connection',
+    );
     expect(accessText({})).toBe('Nothing beyond its connections');
     expect(accessText(null)).toBe('Nothing beyond its connections');
     expect(connectionFormText('Host, port, virtual host, user and password')).toBe('Host, port, virtual host, user and password');

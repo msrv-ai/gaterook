@@ -121,6 +121,26 @@ class RemoteConnectorTest {
         .isEqualTo("[fd00::5]");
   }
 
+  @Test
+  void tcpDestinationsTakeTheConnectionsHostAndPortOrTheSchemasDefaultPort() {
+    tools.jackson.databind.JsonNode schema = GppJson.MAPPER.readTree(
+        "{\"type\":\"object\",\"properties\":{\"port\":{\"type\":\"integer\",\"default\":50000}}}");
+    List<String> entries = List.of("{connection.host}:{connection.port}", "{connection.host}:9092", "db.acme.com:443");
+    ConnectionConfig withPort = config("{\"host\":\"db2.acme.internal\",\"port\":50001}");
+    assertThat(RemoteConnector.resolved(entries, RemoteConnector.connectionHost(withPort),
+        RemoteConnector.connectionPort(withPort, schema)))
+        .containsExactly("db2.acme.internal:50001", "db2.acme.internal:9092", "db.acme.com:443");
+    ConnectionConfig defaultPort = config("{\"host\":\"::1\"}");
+    assertThat(RemoteConnector.resolved(entries, RemoteConnector.connectionHost(defaultPort),
+        RemoteConnector.connectionPort(defaultPort, schema))).containsExactly("[::1]:50000", "[::1]:9092",
+        "db.acme.com:443");
+    // Without a host or a port to fill in, the entries that name them grant nothing.
+    ConnectionConfig nothing = config("{}");
+    assertThat(RemoteConnector.resolved(entries, RemoteConnector.connectionHost(nothing),
+        RemoteConnector.connectionPort(nothing, null))).containsExactly("db.acme.com:443");
+    assertThat(RemoteConnector.connectionPort(config("{\"port\":70000}"), schema)).isNull();
+  }
+
   private static ConnectionConfig config(String json) {
     return new ConnectionConfig("c_2", "ch", "clickhouse", Env.DEV, 1, (ObjectNode) GppJson.MAPPER.readTree(json),
         Set.of(), null);

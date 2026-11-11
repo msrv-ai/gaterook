@@ -1,6 +1,8 @@
 package ai.msrv.gaterook.pluginhost;
 
 import ai.msrv.gaterook.connector.api.ApiVersion;
+import ai.msrv.gaterook.connector.api.ConnectionConfig;
+import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.plugin.protocol.Gpp;
 import ai.msrv.gaterook.plugin.protocol.GppJson;
 import ai.msrv.gaterook.plugin.protocol.JsonRpcPeer;
@@ -26,7 +28,7 @@ import tools.jackson.databind.node.ObjectNode;
 final class HostDispatcher implements JsonRpcPeer.Handler {
 
   static final int MAX_CALLS = 32;
-  static final List<String> CAPABILITIES = List.of("cancel", "secrets.callback", "egress");
+  static final List<String> CAPABILITIES = List.of("cancel", "secrets.callback", "egress", "egress.tcp");
 
   /** What {@code host/shutdown} and stdin EOF end with. */
   interface Exit {
@@ -46,8 +48,36 @@ final class HostDispatcher implements JsonRpcPeer.Handler {
     this.registry = registry;
     this.exit = exit;
     this.processStart = processStart;
-    this.endpoint = new ConnectorEndpoint(peer, registry, (grant, cfg) -> new EgressHttpClient(grant),
-        Clock.systemUTC(), HostLog::level);
+    ConnectorEndpoint[] self = new ConnectorEndpoint[1];
+    this.endpoint = new ConnectorEndpoint(peer, registry, new ConnectorEndpoint.EgressFactory() {
+      @Override
+      public ExecContext.Egress egress(Messages.EgressGrant grant, ConnectionConfig cfg) {
+        return egress(grant, cfg, TcpGate.MAX_CONNECT);
+      }
+
+      @Override
+      public ExecContext.Egress egress(Messages.EgressGrant grant, ConnectionConfig cfg, Duration timeout) {
+        return callEgress(grant, cfg, timeout, self[0]);
+      }
+    }, Clock.systemUTC(), HostLog::level);
+    self[0] = endpoint;
+  }
+
+  /**
+   * HTTP for every plugin; where the plugin declared TCP destinations, also the call's grant at the TCP gate, whose
+   * change for a connection makes the plugin drop what it pooled for it.
+   */
+  private static ExecContext.Egress callEgress(Messages.EgressGrant grant, ConnectionConfig cfg, Duration timeout,
+      ConnectorEndpoint endpoint) {
+    EgressHttpClient http = new EgressHttpClient(grant);
+    TcpGate gate = TcpGate.installed();
+    if (gate == null) {
+      return http;
+    }
+    if (endpoint != null) {
+      gate.onGrantChanged(endpoint::invalidate);
+    }
+    return new GatedEgress(http, gate, gate.register(grant, cfg, Instant.now().plus(timeout)));
   }
 
   @Override

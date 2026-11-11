@@ -341,19 +341,51 @@ final class RemoteConnector implements Connector {
     return ConnectorException.Kind.RESOURCE_ERROR;
   }
 
-  /** The hosts the plugin may reach for this connection ({@code access.hosts} with {@code {connection.host}}). */
+  /**
+   * Where the plugin may go for this connection: {@code access.hosts} over HTTP and {@code access.tcp} over its own TCP
+   * connections, with {@code {connection.host}} and {@code {connection.port}} filled in from the connection. An entry
+   * whose placeholder the connection can't fill grants nothing.
+   */
   private Messages.EgressGrant egressGrant(ConnectionConfig cfg) {
     String host = connectionHost(cfg);
-    List<String> hosts = new ArrayList<>();
-    for (String entry : manifest.access().hosts()) {
-      String resolved = host == null ? entry : entry.replace("{connection.host}", host);
-      if (!resolved.contains("{connection.host}")) {
-        hosts.add(resolved);
-      }
-    }
+    String port = connectionPort(cfg, manifest.configSchema());
+    List<String> hosts = resolved(manifest.access().hosts(), host, port);
+    List<String> tcp = resolved(manifest.access().tcp(), host, port);
     List<String> allowPrivate = policies.allowedPrivateRanges(cfg.env(), cfg.name());
     List<Integer> corePorts = new ArrayList<>(egress.settings().corePorts().get());
-    return new Messages.EgressGrant(List.copyOf(hosts), List.copyOf(allowPrivate), List.copyOf(corePorts));
+    return new Messages.EgressGrant(List.copyOf(hosts), List.copyOf(allowPrivate), List.copyOf(corePorts),
+        List.copyOf(tcp));
+  }
+
+  /** {@code entries} with the connection's host and port filled in; those left with a placeholder are dropped. */
+  static List<String> resolved(List<String> entries, String host, String port) {
+    List<String> out = new ArrayList<>();
+    for (String entry : entries) {
+      String r = entry;
+      if (host != null) {
+        r = r.replace("{connection.host}", host);
+      }
+      if (port != null) {
+        r = r.replace("{connection.port}", port);
+      }
+      if (!r.contains("{connection.")) {
+        out.add(r);
+      }
+    }
+    return out;
+  }
+
+  /**
+   * The port of the connection: its {@code port} field, else the default its config schema gives that field, else
+   * {@code null} (an entry that names the connection's port then grants nothing).
+   */
+  static String connectionPort(ConnectionConfig cfg, JsonNode configSchema) {
+    int port = cfg.integer("/port", -1);
+    if (port < 1 && configSchema != null) {
+      JsonNode dflt = configSchema.path("properties").path("port").path("default");
+      port = dflt.isIntegralNumber() ? dflt.asInt() : -1;
+    }
+    return port >= 1 && port <= 65_535 ? String.valueOf(port) : null;
   }
 
   /** The host of the connection, from a {@code baseUrl}/{@code url}/{@code endpoint} field, or a {@code host} field. */

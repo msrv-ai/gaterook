@@ -146,11 +146,25 @@ public final class Messages {
   /**
    * Where a call may go through {@code ExecContext.egress()}: {@code host:port} pairs (the manifest's
    * {@code access.hosts} resolved against the connection), the private ranges the environment's policy allows for the
-   * connection, and the core's own ports, which are never reachable.
+   * connection, and the core's own ports, which are never reachable. {@code tcp} lists the {@code host:port}
+   * destinations of the plugin's own TCP connections ({@code access.tcp} resolved the same way), which the host's TCP
+   * gate allows under the same private ranges; it is written only when the plugin declares some.
    */
-  public record EgressGrant(List<String> hosts, List<String> allowPrivate, List<Integer> corePorts) {
+  public record EgressGrant(List<String> hosts, List<String> allowPrivate, List<Integer> corePorts, List<String> tcp) {
 
-    public static final EgressGrant NONE = new EgressGrant(List.of(), List.of(), List.of());
+    public static final EgressGrant NONE = new EgressGrant(List.of(), List.of(), List.of(), List.of());
+
+    public EgressGrant {
+      hosts = List.copyOf(hosts);
+      allowPrivate = List.copyOf(allowPrivate);
+      corePorts = List.copyOf(corePorts);
+      tcp = tcp == null ? List.of() : List.copyOf(tcp);
+    }
+
+    /** A grant without TCP destinations. */
+    public EgressGrant(List<String> hosts, List<String> allowPrivate, List<Integer> corePorts) {
+      this(hosts, allowPrivate, corePorts, List.of());
+    }
 
     ObjectNode write() {
       ObjectNode o = GppJson.object();
@@ -158,6 +172,9 @@ public final class Messages {
       WireCodec.strings(o.putArray("allowPrivate"), allowPrivate);
       ArrayNode ports = o.putArray("corePorts");
       corePorts.forEach(ports::add);
+      if (!tcp.isEmpty()) {
+        WireCodec.strings(o.putArray("tcp"), tcp);
+      }
       return o;
     }
 
@@ -170,7 +187,7 @@ public final class Messages {
         ports.add(p.asInt());
       }
       return new EgressGrant(WireCodec.strings(n.path("hosts")), WireCodec.strings(n.path("allowPrivate")),
-          List.copyOf(ports));
+          List.copyOf(ports), WireCodec.strings(n.path("tcp")));
     }
   }
 

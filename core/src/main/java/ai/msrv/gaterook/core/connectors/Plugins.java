@@ -57,7 +57,8 @@ public class Plugins {
   /** What an update would change, for the preview. */
   public record UpdatePlan(String id, String name, String from, String to, boolean signed, String packageFile,
       long packageSize, String packageSha256, List<ToolLine> toolsBefore, List<ToolLine> toolsAfter,
-      List<String> hostsBefore, List<String> hostsAfter, List<String> commandsBefore, List<String> commandsAfter) {}
+      List<String> hostsBefore, List<String> hostsAfter, List<String> commandsBefore, List<String> commandsAfter,
+      List<String> tcpBefore, List<String> tcpAfter) {}
 
   /** A tool of a manifest: its name, whether it is declared read only, its declared annotations as one text. */
   public record ToolLine(String name, boolean readOnly, String annotations) {}
@@ -125,7 +126,7 @@ public class Plugins {
     PluginService.UpdatePlan p = service.updatePlan(id, to);
     return new UpdatePlan(p.id(), p.name(), p.from(), p.to(), p.signed(), p.packageFile(), p.packageSize(),
         p.packageSha256(), lines(p.toolsBefore()), lines(p.toolsAfter()), p.hostsBefore(), p.hostsAfter(),
-        p.commandsBefore(), p.commandsAfter());
+        p.commandsBefore(), p.commandsAfter(), p.tcpBefore(), p.tcpAfter());
   }
 
   public void update(String id, String to, boolean acknowledgeUnsigned, String reason) {

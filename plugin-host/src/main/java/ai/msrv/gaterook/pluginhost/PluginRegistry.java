@@ -111,6 +111,15 @@ final class PluginRegistry implements ConnectorEndpoint.Generations {
         throw failed("sandbox", "Couldn't run the plugin at low integrity: " + why);
       }
     }
+    // A plugin that declares TCP destinations gets the TCP gate before a line of it runs: from now on every
+    // java.net.Socket of the process connects through it.
+    if (!manifest.access().tcp().isEmpty()) {
+      try {
+        TcpGate.install();
+      } catch (IOException | RuntimeException e) {
+        throw failed("sandbox", "Can't start the TCP gate: " + e.getMessage());
+      }
+    }
     GatewayPluginManager manager = new GatewayPluginManager(jar.getParent(), apiOnly);
     String pluginId;
     try {
