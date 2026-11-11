@@ -100,8 +100,8 @@ class ConnectorCatalogApiIT {
       new KitCard("Cloud", "gcp", null, "GCP", "cloud", "built-in", 7,
           "Resources, metrics, Cloud Logging and any Google Cloud API, with the connection's Google identity. "
               + "Changes wait for approval."),
-      new KitCard("Cloud", "aws", null, "AWS", "cloud", "built-in", 2,
-          "Resources, statuses and metrics, read with AssumeRole."),
+      new KitCard("Cloud", "aws", null, "AWS", "cloud", "built-in", 4,
+          "Resources, statuses, metrics and any AWS API, with AssumeRole. Changes wait for approval."),
       new KitCard("HTTP and MCP", "http", null, "HTTP API", "globe", "built-in", 2,
           "One base URL with an allowlist. GET reads; every other method waits for approval."),
       new KitCard("HTTP and MCP", "mcp-server", null, "External MCP server", "plug", "mcp-server", null,

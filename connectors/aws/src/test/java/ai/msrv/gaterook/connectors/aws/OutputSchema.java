@@ -19,6 +19,8 @@ final class OutputSchema {
       SCHEMAS.load("aws_describe.output"));
   private static final Schema METRICS = REGISTRY.getSchema(SchemaLocation.of("urn:mcp-gateway:aws_metrics.output"),
       SCHEMAS.load("aws_metrics.output"));
+  private static final Schema API_READ = REGISTRY.getSchema(SchemaLocation.of(
+      "urn:mcp-gateway:aws_api_read.output"), SCHEMAS.load("aws_api_read.output"));
 
   private OutputSchema() {}
 
@@ -28,6 +30,10 @@ final class OutputSchema {
 
   static ToolResult metrics(ToolResult r) {
     return valid(METRICS, r);
+  }
+
+  static ToolResult apiRead(ToolResult r) {
+    return valid(API_READ, r);
   }
 
   private static ToolResult valid(Schema schema, ToolResult r) {

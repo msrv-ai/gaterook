@@ -28,9 +28,11 @@ import tools.jackson.dataformat.cbor.CBORMapper;
 
 /**
  * AWS on this computer for the tests (report 09 §8): one MockWebServer answers STS (Query/XML), Cloud Control (JSON
- * 1.0, {@code X-Amz-Target: CloudApiService.<Op>}) and CloudWatch (Smithy RPCv2 CBOR on
- * {@code /service/GraniteServiceVersion20100801/operation/<Op>}, timestamps as CBOR tag 1). AssumeRole hands out an
- * {@code ASIA…} session whose secret and token are canaries; GetCallerIdentity answers by the key that signed it.
+ * 1.0, {@code X-Amz-Target: CloudApiService.<Op>}), CloudWatch (Smithy RPCv2 CBOR on
+ * {@code /service/GraniteServiceVersion20100801/operation/<Op>}, timestamps as CBOR tag 1) and every service of
+ * {@code aws_api_read} and {@code aws_api_change} (their test endpoint {@code aws.api}; REST requests by their path).
+ * AssumeRole hands out an {@code ASIA…} session whose secret and token are canaries; GetCallerIdentity answers by the
+ * key that signed it.
  */
 final class FakeAws implements AutoCloseable {
 
@@ -72,7 +74,7 @@ final class FakeAws implements AutoCloseable {
     server.start(InetAddress.getByName("127.0.0.1"), 0);
     base = URI.create("http://127.0.0.1:" + server.getPort());
     cloud = new CloudCredentials(new CloudEndpoints(null, null, null, base, null, null,
-        Map.of("aws.cloudcontrol", base, "aws.monitoring", base)), Clock.systemUTC());
+        Map.of("aws.cloudcontrol", base, "aws.monitoring", base, "aws.api", base)), Clock.systemUTC());
   }
 
   void on(String operation, Function<RecordedRequest, MockResponse> handler) {

@@ -9,3 +9,6 @@ core/src/test/resources/mcp-schema/** -text -whitespace
 
 # Existing Flyway migrations are immutable, including comments and line endings.
 core/src/main/resources/db/migration/*.sql -text
+
+# The generated AWS API catalog (scripts/aws-api-catalog.py) stores one gzip file per service.
+connectors/aws/src/main/resources/connectors/aws/api/services/*.json.gz binary

@@ -47,12 +47,24 @@ final class Redactor {
 
   private Redactor() {}
 
+  /** Keys of cursors and page markers: a generic AWS answer keeps them readable ({@link #redactAnswer}). */
+  private static final Pattern CURSOR_KEY = Pattern.compile("(?i).*(nexttoken|pagetoken|paginationtoken|"
+      + "continuationtoken|marker|nextmarker|nextpagetoken|startingtoken|nextcontinuationtoken)$");
+
   /** Masks in place; returns the number of values masked. */
   static int redact(JsonNode node) {
-    return walk(node);
+    return walk(node, false);
   }
 
-  private static int walk(JsonNode node) {
+  /**
+   * As {@link #redact}, for the answer of any AWS operation ({@code aws_api_read}): the same rules, except that a key
+   * naming a cursor or page marker ({@code NextToken}, {@code Marker}) is not taken for a secret.
+   */
+  static int redactAnswer(JsonNode node) {
+    return walk(node, true);
+  }
+
+  private static int walk(JsonNode node, boolean keepCursors) {
     int masked = 0;
     if (node instanceof ObjectNode o) {
       List<Map.Entry<String, JsonNode>> fields = new ArrayList<>(o.properties());
@@ -66,7 +78,7 @@ final class Redactor {
           masked += maskAll((ObjectNode) v.path("Variables"));
         } else if ((env || k.equals("AssociationParameters")) && v.isArray()) {
           masked += maskItemValues((ArrayNode) v);
-          masked += walk(v);
+          masked += walk(v, keepCursors);
         } else if (env && v instanceof ObjectNode map) {
           // A SageMaker container's map of variables, or a CodeBuild environment whose EnvironmentVariables list the
           // walk masks: the variables are the UPPER_SNAKE keys, CodeBuild's own settings are PascalCase.
@@ -75,7 +87,7 @@ final class Redactor {
               masked += maskField(map, name);
             }
           }
-          masked += walk(v);
+          masked += walk(v, keepCursors);
         } else if (k.endsWith("Headers") && v.isArray()) {
           for (JsonNode header : v) {
             if (header instanceof ObjectNode h) {
@@ -90,18 +102,18 @@ final class Redactor {
               masked += maskField(setting, "Value");
             }
           }
-          masked += walk(v);
+          masked += walk(v, keepCursors);
         } else if (k.equals("RepositoryCredentials") && v.isObject()) {
           masked += maskAll((ObjectNode) v);
-        } else if (v.isValueNode() && sensitiveKey(k)) {
+        } else if (v.isValueNode() && sensitiveKey(k) && !(keepCursors && CURSOR_KEY.matcher(k).matches())) {
           masked += maskField(o, k);
         } else {
-          masked += walk(v);
+          masked += walk(v, keepCursors);
         }
       }
     } else if (node instanceof ArrayNode a) {
       for (JsonNode item : a) {
-        masked += walk(item);
+        masked += walk(item, keepCursors);
       }
     }
     return masked;

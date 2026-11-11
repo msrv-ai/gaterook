@@ -45,7 +45,9 @@ class AwsConnectorTest {
     assertThat(m.name()).isEqualTo("AWS");
     assertThat(m.group()).isEqualTo("Cloud");
     assertThat(m.icon()).isEqualTo("cloud");
-    assertThat(m.description()).isEqualTo("Resources, statuses and metrics, read with AssumeRole.");
+    assertThat(m.description()).isEqualTo("Resources, statuses, metrics and any AWS API, with AssumeRole. Changes "
+        + "wait for approval.");
+    assertThat(m.access().hosts()).contains("*.amazonaws.com", "*.amazonaws.com.cn", "*.api.aws");
     assertThat(m.configSchema().path("type").asString()).isEqualTo("object");
     assertThat(m.policySchema().path("x-policy-section").asString()).isEqualTo("cloud");
     assertThat(m.access().files()).contains("~/.aws/config", "~/.aws/credentials");
@@ -53,9 +55,11 @@ class AwsConnectorTest {
 
   @Test
   void publishesTheToolsOfTheKit() {
-    List<ToolDefinition> tools = connector.manifest().tools();
+    List<ToolDefinition> all = connector.manifest().tools();
+    assertThat(all).extracting(ToolDefinition::name).containsExactly("aws_describe", "aws_metrics", "aws_api_read",
+        "aws_api_change");
+    List<ToolDefinition> tools = all.subList(0, 3);
 
-    assertThat(tools).extracting(ToolDefinition::name).containsExactly("aws_describe", "aws_metrics");
     for (ToolDefinition t : tools) {
       assertThat(t.nature()).as(t.name()).isEqualTo(Nature.READ);
       assertThat(t.defaultMode()).as(t.name()).isEqualTo(Mode.READ_ONLY);
@@ -71,6 +75,20 @@ class AwsConnectorTest {
     assertThat(tools.get(0).description()).startsWith("Describe resources such as instances, load balancers and "
         + "queues");
     assertThat(tools.get(1).description()).startsWith("Read CloudWatch metrics of one resource");
+    assertThat(tools.get(2).description()).startsWith("Call a read operation of any AWS API");
+    assertThat(tools.get(2).inputSchema().at("/required").toString())
+        .isEqualTo("[\"connection\",\"service\",\"operation\"]");
+
+    // aws_api_change: every call waits for a person, on every environment, as gcp_api_change does.
+    ToolDefinition change = all.get(3);
+    assertThat(change.nature()).isEqualTo(Nature.MUTATION);
+    assertThat(change.defaultMode()).isEqualTo(Mode.APPROVAL);
+    assertThat(change.prodDefaultMode()).isEqualTo(Mode.APPROVAL);
+    assertThat(change.outputSchema()).isNull();
+    assertThat(change.annotations().readOnlyHint()).isFalse();
+    assertThat(change.annotations().destructiveHint()).isTrue();
+    assertThat(change.inputSchema().at("/properties/cursor").isMissingNode()).isTrue();
+    assertThat(change.description()).startsWith("Call an AWS API operation that changes something");
   }
 
   @Test
