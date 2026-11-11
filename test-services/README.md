@@ -1,6 +1,6 @@
 # Connector test services
 
-Docker Compose supplies disposable servers for connector integration tests: PostgreSQL, MySQL, MariaDB, Oracle Database, SQL Server, MongoDB, Redis, Loki, OpenSearch, Elasticsearch, moto, Vault, OpenSSH, and k3s. This avoids relying on Linux x86-64 fixture binaries when testing on macOS or another Docker-capable machine.
+Docker Compose supplies disposable servers for connector integration tests: PostgreSQL, MySQL, MariaDB, Oracle Database, SQL Server, the Azure Cosmos DB emulator, MongoDB, Redis, Loki, OpenSearch, Elasticsearch, moto, Vault, OpenSSH, and k3s. This avoids relying on Linux x86-64 fixture binaries when testing on macOS or another Docker-capable machine.
 
 Services bind to `127.0.0.1`. Credentials are public test fixtures, and service data is disposable. Tests reset databases, users, and server settings; never point this suite at real data.
 
@@ -14,7 +14,7 @@ scripts/test-services.sh run mvn -B -ntp verify -Pservices
 scripts/test-services.sh down
 ```
 
-The default starts everything except Kubernetes and SQL Server and waits for health checks. Profiles are `sql`, `oracle`, `sqlserver`, `cockroach`, `mongo`, `redis`, `logs`, `aws`, `dynamodb`, `vault`, `ssh`, `k8s`, and `all`:
+The default starts everything except Kubernetes and SQL Server and waits for health checks. Profiles are `sql`, `oracle`, `sqlserver`, `cockroach`, `cosmosdb`, `mongo`, `redis`, `logs`, `aws`, `dynamodb`, `vault`, `ssh`, `k8s`, and `all`:
 
 ```bash
 scripts/test-services.sh up sql redis
@@ -47,6 +47,7 @@ The committed [.env](.env) contains image pins, ports, and disposable passwords.
 | `oracle` | [gvenzl/oracle-free](https://github.com/gvenzl/oci-oracle-free) 23.26.3-slim, service `FREEPDB1` | 55521 | sql, oracle |
 | `sqlserver` | SQL Server 2022 CU23 Developer, x86-64 image | 55433 | sqlserver |
 | `cockroach` | CockroachDB v26.3.5, one in-memory node with TLS | 55257 | cockroach |
+| `cosmosdb` | Azure Cosmos DB Linux emulator vNext (EN20261019, pinned by digest), plain HTTP | 55081 | cosmosdb |
 | `mongo`, `mongo-open`, `mongo-tls` | MongoDB 8.2.4 with auth / no auth / required TLS | 55017 / 55018 / 55019 | mongo |
 | `mongo7`, `mongo9` | MongoDB 7.0.45 / 9.0.4 | 55070 / 55090 | mongo |
 | `redis` | Redis 7.0.15, plain and TLS listeners | 55379 / 55380 | redis |
@@ -107,3 +108,19 @@ scripts/test-services.sh run mvn -B -ntp -pl connectors/sql -am verify -Pservice
 ```
 
 The ordinary `services` Maven profile does not enable CockroachDB tests. See [CockroachDB](../docs/cockroachdb.md).
+
+## Azure Cosmos DB
+
+The Azure Cosmos DB emulator is opt-in: the Linux emulator vNext runs the API for NoSQL in gateway mode on x86-64 and
+ARM64, with PostgreSQL inside, in about 700 MB within a 2 GiB container limit. It listens on plain HTTP; its data lives
+in the container and is removed with it. It enforces no authentication: the test signs with Microsoft's published,
+well-known emulator key from `.env`, and the connector's signatures are checked against a fake instead. The test makes
+and drops its own database `gaterook_cosmos_it`.
+
+```bash
+scripts/test-services.sh up cosmosdb
+scripts/test-services.sh run mvn -B -ntp -pl connectors/cosmosdb -am verify -Pservices,cosmosdb-it -Dit.test=CosmosEmulatorIT -Dfailsafe.failIfNoSpecifiedTests=false
+```
+
+The ordinary `services` Maven profile does not enable Cosmos DB tests. See [Azure Cosmos DB](../docs/cosmosdb.md) for what
+the emulator does differently from an Azure account.
