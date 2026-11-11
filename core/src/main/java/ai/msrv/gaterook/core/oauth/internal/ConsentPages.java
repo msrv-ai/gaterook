@@ -43,15 +43,19 @@ final class ConsentPages {
 
   private ConsentPages() {}
 
-  /** The page the browser waits on while the person decides in the app. */
-  static String waiting(String rid, String code, String clientHost, String redirectHost, String endpoint,
+  /**
+   * The page the browser waits on while the person decides in the app.
+   *
+   * @param client who asks, as the app's dialog names it ({@code OAuthServer.consentName})
+   */
+  static String waiting(String rid, String code, String client, String redirectHost, String endpoint,
       long secondsLeft) {
     return page("Confirm on your computer", "<main data-rid=\"" + esc(rid) + "\">"
         + "<h1>Confirm in GateRook on your computer</h1>"
-        + "<p>" + esc(clientHost) + " asks to sign in to endpoint <b>" + esc(endpoint) + "</b>. GateRook shows "
+        + "<p>" + esc(client) + " asks to sign in to endpoint <b>" + esc(endpoint) + "</b>. GateRook shows "
         + "the same code. Allow it there only if you started this sign-in and the codes match.</p>"
         + "<div class=\"code\" aria-label=\"Code\">" + esc(code) + "</div>"
-        + "<dl><dt>Client</dt><dd>" + esc(clientHost) + "</dd><dt>Returns to</dt><dd>" + esc(redirectHost)
+        + "<dl><dt>Client</dt><dd>" + esc(client) + "</dd><dt>Returns to</dt><dd>" + esc(redirectHost)
         + "</dd><dt>Endpoint</dt><dd>" + esc(endpoint) + "</dd></dl>"
         + "<p class=\"status\" id=\"status\" role=\"status\">Waiting for you to allow it… (" + secondsLeft / 60
         + " min left)</p><p class=\"warn\">If you didn't start this, deny it in GateRook.</p></main>", true);

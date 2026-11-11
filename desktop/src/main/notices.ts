@@ -145,11 +145,15 @@ export function consentNotice(data: unknown): { id: string; title: string; body:
   const id = text(d['id'], 64);
   const code = typeof d['code'] === 'string' && /^[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(d['code']) ? d['code'] : null;
   if (!id || !code) return null;
-  const host = text(d['clientHost'], 128) ?? 'An app';
+  // An app on this computer is the name it registered with: the host of its first callback says nothing about it
+  // (VS Code registers insiders.vscode.dev first), as in the app's own dialog.
+  const registered = d['clientName'];
+  const name = d['clientKind'] === 'dcr' && typeof registered === 'string' ? text(registered.trim(), 128) : null;
+  const who = name ?? text(d['clientHost'], 128) ?? 'An app';
   const endpoint = text(d['endpoint'], 64);
   return {
     id,
-    title: `${host} wants to sign in · code ${code}`,
+    title: `${who} wants to sign in · code ${code}`,
     body: `Check the code, then allow or deny it in GateRook${endpoint ? ` (endpoint ${endpoint})` : ''}.`,
   };
 }
