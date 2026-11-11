@@ -174,12 +174,20 @@ final class TestCtx implements ExecContext {
     private static final byte[] KEY = "dynamodb-test-handle-key-0123456".getBytes(StandardCharsets.UTF_8);
     private final Clock clock;
 
+    /** The core's rule for a purpose (SealedHandles): lower-case letters, digits, dots and dashes. */
+    private static void check(String purpose) {
+      if (purpose == null || !purpose.matches("[a-z][a-z0-9.-]{0,47}")) {
+        throw new IllegalArgumentException("Invalid handle purpose: " + purpose);
+      }
+    }
+
     Handles(Clock clock) {
       this.clock = clock;
     }
 
     @Override
     public String seal(String purpose, JsonNode payload, Duration ttl) {
+      check(purpose);
       ObjectNode body = JsonNodeFactory.instance.objectNode();
       body.put("p", purpose);
       body.put("x", clock.instant().plus(ttl).getEpochSecond());
@@ -191,6 +199,7 @@ final class TestCtx implements ExecContext {
 
     @Override
     public Optional<JsonNode> open(String purpose, String handle) {
+      check(purpose);
       int dot = handle.indexOf('.');
       if (dot <= 0) {
         return Optional.empty();

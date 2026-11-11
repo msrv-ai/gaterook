@@ -25,12 +25,20 @@ final class Cursors {
 
   private Cursors() {}
 
+  /**
+   * The handle's purpose for a tool's cursors: {@code dynamodb.<tool>} with dashes, as the core's sealed handles take
+   * lower-case letters, digits, dots and dashes only.
+   */
+  static String purpose(String tool) {
+    return "dynamodb." + tool.replace('_', '-');
+  }
+
   static String seal(ExecContext ctx, String tool, String connectionId, String hash, JsonNode position) {
     ObjectNode n = JsonNodeFactory.instance.objectNode();
     n.put("c", connectionId);
     n.put("h", hash);
     n.set("p", position);
-    return PREFIX + ctx.handles().seal("dynamodb." + tool, n, TTL);
+    return PREFIX + ctx.handles().seal(purpose(tool), n, TTL);
   }
 
   /** Where the page of {@code cursor} starts, checked against the connection and the request. */
@@ -40,7 +48,7 @@ final class Cursors {
       throw ConnectorException.badInput("This cursor doesn't come from " + tool + ". Pass nextCursor of the "
           + "previous answer, or leave cursor out.");
     }
-    Optional<JsonNode> body = ctx.handles().open("dynamodb." + tool, cursor.substring(PREFIX.length()));
+    Optional<JsonNode> body = ctx.handles().open(purpose(tool), cursor.substring(PREFIX.length()));
     if (body.isEmpty()) {
       throw ConnectorException.badInput("The cursor is invalid or older than 24 hours. Start again without cursor.");
     }

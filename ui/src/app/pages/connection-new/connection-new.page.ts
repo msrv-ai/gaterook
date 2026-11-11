@@ -1024,10 +1024,11 @@ export class ConnectionNewPage {
     }
   }
 
-  /** "Change user": back to Configure with focus on the User field. */
+  /** "Change user" (or, for a database file, "Choose another file"): back to Configure, focus on that field. */
   protected changeUser(): void {
     const s = this.form()?.state();
-    const node = s?.compiled.all.find((n) => /^(user|username|login)$/i.test(n.key));
+    const node = s?.compiled.all.find((n) => /^(user|username|login)$/i.test(n.key))
+      ?? s?.compiled.all.find((n) => n.key === 'file');
     this.go(2, { focus: node && s ? s.id(node) : null });
   }
 

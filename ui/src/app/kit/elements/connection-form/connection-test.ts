@@ -197,16 +197,16 @@ function severity(h: TestHint): string {
               <div class="gw-alert gw-alert--warning gw-alert--compact">
                 <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
                 <div class="gw-alert__content">
-                  <p class="gw-alert__title">This user can write</p>
+                  <p class="gw-alert__title">{{ writesFile() ? 'GateRook can write this file' : 'This user can write' }}</p>
                   <p class="gw-alert__body">{{ writeAdvice() }}</p>
                 </div>
                 @if (changeUserButton()) {
                   <div class="gw-alert__actions">
-                    <button class="gw-btn gw-btn--link" type="button" (click)="changeUser.emit()">Change user<span class="gw-sr-only"> {{ o.identity }}</span></button>
+                    <button class="gw-btn gw-btn--link" type="button" (click)="changeUser.emit()">@if (writesFile()) {Choose another file} @else {Change user<span class="gw-sr-only"> {{ o.identity }}</span>}</button>
                   </div>
                 } @else if (userFieldId()) {
                   <div class="gw-alert__actions">
-                    <a class="gw-btn gw-btn--link" [attr.href]="'#' + userFieldId()" (click)="focusUser($event)">Change user<span class="gw-sr-only"> {{ o.identity }}</span></a>
+                    <a class="gw-btn gw-btn--link" [attr.href]="'#' + userFieldId()" (click)="focusUser($event)">@if (writesFile()) {Choose another file} @else {Change user<span class="gw-sr-only"> {{ o.identity }}</span>}</a>
                   </div>
                 }
               </div>
@@ -403,6 +403,9 @@ export class GwConnectionTest {
   private readonly writeHint = computed(() =>
     this.canWrite() ? ((this.outcome()?.hints ?? []).find((h) => /write/i.test(h.code)) ?? null) : null,
   );
+
+  /** A database file (SQLite, DuckDB): the connector's write hint names the file field, not a user. */
+  protected readonly writesFile = computed(() => /(^|\/)file$/.test(this.writeHint()?.field ?? ''));
 
   /** The write warning's body: the connector's advice after its first sentence, or the kit's general one. */
   protected readonly writeAdvice = computed(() => {

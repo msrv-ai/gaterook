@@ -164,3 +164,43 @@ describe('connection test: Google sign-in', () => {
     expect(v.run).not.toHaveBeenCalled();
   });
 });
+
+describe('connection test: write warning', () => {
+  const WRITES: TestOutcome = {
+    ok: true, latencyMs: 0, serverVersion: 'SQLite 3.53.4', identity: null,
+    permissions: { level: 'WRITE', read: 'SELECT on 3 tables', write: 'INSERT, UPDATE, DELETE on main.*', admin: [], details: null },
+    hints: [{ severity: 'INFO', code: 'sql.user-can-write', field: '/connection/file',
+      text: 'GateRook may write this file. Fine for dev: every write still waits for approval.', snippet: null }],
+    checks: [], error: null, needsConfirmation: null, confirmationId: null, suggestedPolicyChange: null, details: null,
+  };
+
+  async function renderWrites(outcome: TestOutcome) {
+    TestBed.configureTestingModule({ providers: [provideKitIcons(), { provide: DesktopBridge, useValue: {} }] });
+    const fixture = TestBed.createComponent(GwConnectionTest);
+    fixture.componentRef.setInput('state', 'done');
+    fixture.componentRef.setInput('outcome', outcome);
+    fixture.componentRef.setInput('changeUserButton', true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    return {
+      title: el.querySelector('.gw-alert--warning .gw-alert__title')?.textContent?.trim(),
+      body: el.querySelector('.gw-alert--warning .gw-alert__body')?.textContent?.trim(),
+      action: el.querySelector('.gw-alert--warning .gw-alert__actions button')?.textContent?.trim(),
+    };
+  }
+
+  it('says a database file can be written, and offers another file', async () => {
+    const w = await renderWrites(WRITES);
+    expect(w.title).toBe('GateRook can write this file');
+    expect(w.body).toBe('Fine for dev: every write still waits for approval.');
+    expect(w.action).toBe('Choose another file');
+  });
+
+  it('keeps the user wording for a database user', async () => {
+    const w = await renderWrites({ ...WRITES, identity: 'rw', hints: [{ severity: 'INFO', code: 'sql.user-can-write',
+      field: '/credentials/user', text: 'This user can write. Fine for dev: every write still waits for approval.', snippet: null }] });
+    expect(w.title).toBe('This user can write');
+    expect(w.action).toBe('Change user rw');
+  });
+});
