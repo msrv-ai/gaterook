@@ -536,6 +536,28 @@ public class AuditQueries {
     return em.createQuery(cq).setMaxResults(1).getResultList().stream().findFirst();
   }
 
+  /** A tool and the calls of it an endpoint received. */
+  public record ToolCalls(String tool, long calls) {}
+
+  /**
+   * The tools of {@code endpointSlug} with the most calls received since {@code since}, most first, then by name; at
+   * most {@code limit}. The index {@code (endpoint_slug, created_at)} bounds the rows read. A call that a tool runs
+   * through {@code call_tool} counts for that tool: its rows name it.
+   */
+  @Transactional(readOnly = true)
+  public List<ToolCalls> mostCalled(String endpointSlug, Instant since, int limit) {
+    CriteriaBuilder cb = em.getCriteriaBuilder();
+    CriteriaQuery<Tuple> cq = cb.createTupleQuery();
+    Root<ToolCallEntity> root = cq.from(ToolCallEntity.class);
+    cq.multiselect(root.get("toolName"), cb.count(root))
+        .where(cb.equal(root.get("phase"), CallPhase.RECEIVED), cb.equal(root.get("endpointSlug"), endpointSlug),
+            cb.greaterThanOrEqualTo(root.get("createdAt"), since))
+        .groupBy(root.get("toolName"))
+        .orderBy(cb.desc(cb.count(root)), cb.asc(root.get("toolName")));
+    return em.createQuery(cq).setMaxResults(limit).getResultList().stream()
+        .map(t -> new ToolCalls(t.get(0, String.class), t.get(1, Long.class))).toList();
+  }
+
   /**
    * The value of {@code column} ({@code token} or {@code tool}) with the most calls received since {@code since},
    * or empty without calls.

@@ -77,8 +77,8 @@ public class EndpointService {
    * one also answers 2025-06-18 and 2025-03-26), how approvals reach the agent ({@code auto}: MRTR when the client
    * declares {@code elicitation.url}, else a handle), how long the first answer waits for a person. ARCHITECTURE.md
    * A3 fixes the rest of the wait (20 s per MRTR round, 45 s budget, 5 rounds), so it is no setting. {@code toolList}
-   * says whether tools/list shows every tool or only the gateway's own and those of the pinned connections, the rest
-   * found by {@code find_tools} (§5.7); unset is {@code auto}.
+   * says whether tools/list shows every tool or only the gateway's own, the {@code mostUsed} tools agents call most
+   * and those of the pinned connections, the rest found by {@code find_tools} (§5.7); unset is {@code auto}.
    */
   static final ObjectNode SETTINGS_SCHEMA = (ObjectNode) JsonMapper.builder().build()
       .readTree("""
@@ -92,6 +92,7 @@ public class EndpointService {
            "toolList":{"type":"object","additionalProperties":false,
              "properties":{
                "mode":{"enum":["auto","all","search"]},
+               "mostUsed":{"type":"integer","minimum":0,"maximum":40},
                "pinned":{"type":"array","maxItems":64,"uniqueItems":true,
                  "items":{"type":"string","minLength":1,"maxLength":128}}}}}""");
 

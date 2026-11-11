@@ -129,9 +129,10 @@ class EndpointsController {
    * @param tools       how many tools the model may call
    * @param listedTools how many of them tools/list shows
    * @param bytes       their names, titles, descriptions and input schemas as AI apps get them, in UTF-8 bytes
+   * @param mostUsedTools the tools listed because agents call them most here, most called first
    */
   record ToolListState(boolean search, int tools, int listedTools, long bytes, int searchAboveTools,
-      long searchAboveBytes) {}
+      long searchAboveBytes, List<String> mostUsedTools) {}
 
   /**
    * One "Start from" card of New endpoint ({@code GET /api/endpoint-starts}): available connections and the tool
@@ -523,12 +524,14 @@ class EndpointsController {
         new Usage(audit.received(s.slug(), now.minus(Duration.ofMinutes(1))), rates.perToken(), rates.perTool()),
         List.copyOf(revisions), gateway.defaultInstructions(s), toolList(published.list()),
         new ToolListState(published.list().search(), published.list().tools(), listedTools(published),
-            published.list().bytes(), ToolCatalog.SEARCH_ABOVE_TOOLS, ToolCatalog.SEARCH_ABOVE_BYTES));
+            published.list().bytes(), ToolCatalog.SEARCH_ABOVE_TOOLS, ToolCatalog.SEARCH_ABOVE_BYTES,
+            published.list().mostUsed()));
   }
 
   private static JsonNode toolList(ToolCatalog.ToolList list) {
     ObjectNode out = JsonNodeFactory.instance.objectNode().put("mode", list.mode());
     list.pinned().forEach(out.putArray("pinned")::add);
+    out.put("mostUsed", list.mostUsedLimit());
     return out;
   }
 

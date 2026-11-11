@@ -105,7 +105,7 @@ public class CoreToolsHandler {
     ToolResult result;
     long resourceMs = 0;
     if (CoreTools.LIST_CONNECTIONS.equals(tool.name())) {
-      result = mask(list(s), policies.maskPolicy(s.env()), 0);
+      result = mask(list(s, r.catalog()), policies.maskPolicy(s.env()), 0);
     } else {
       if (wired == null) {
         result = ToolResult.error("Connection " + connection + " is not available on " + s.slug() + ".");
@@ -133,10 +133,16 @@ public class CoreToolsHandler {
     return ResultWriter.callToolResult(r.env(), result, callId, r.span().traceId(), null);
   }
 
-  private static ToolResult list(EndpointSnapshot s) {
+  /**
+   * Every usable connection with its tools. An endpoint that searches its tools (ARCHITECTURE.md §5.7) marks those
+   * tools/list doesn't show ({@code listed: false}) and says how to reach them.
+   */
+  private static ToolResult list(EndpointSnapshot s, ToolCatalog.Catalog catalog) {
+    boolean search = catalog.list().search();
     ObjectNode out = JsonNodeFactory.instance.objectNode();
     ArrayNode list = out.putArray("connections");
     StringBuilder text = new StringBuilder();
+    int unlisted = 0;
     for (EndpointSnapshot.Wired w : s.connections()) {
       if (!w.usable()) {
         continue;
@@ -153,15 +159,27 @@ public class CoreToolsHandler {
       List<String> names = new ArrayList<>();
       for (EndpointSnapshot.Pair p : s.pairs()) {
         if (p.config().id().equals(w.config().id()) && p.on()) {
-          tools.addObject().put("name", p.tool().name()).put("mode", mode(p.mode()));
-          names.add(p.tool().name() + (p.mode() == Mode.APPROVAL ? " (approval)" : ""));
+          ObjectNode t = tools.addObject().put("name", p.tool().name()).put("mode", mode(p.mode()));
+          boolean shown = !search || catalog.listed(p.tool().name());
+          if (search) {
+            t.put("listed", shown);
+          }
+          unlisted += shown ? 0 : 1;
+          names.add(p.tool().name() + (p.mode() == Mode.APPROVAL ? " (approval)" : "") + (shown ? "" : "*"));
         }
       }
       text.append(w.config().name()).append(w.enabled() ? "" : " (disabled by the user)").append(" · ").append(w.manifest().name()).append(" · ")
           .append(w.config().env().id()).append(": ").append(names.isEmpty() ? "no tools" : String.join(", ", names))
           .append('\n');
     }
-    return ToolResult.json(out, text.isEmpty() ? "No connections on " + s.slug() + "." : text.toString().strip());
+    if (text.isEmpty()) {
+      return ToolResult.json(out, "No connections on " + s.slug() + ".");
+    }
+    if (unlisted > 0) {
+      text.append("\n* not in tools/list: find_tools gives a tool's definition by its name or finds it by what it "
+          + "does; call_read_tool runs one that only reads, call_tool any other.");
+    }
+    return ToolResult.json(out, text.toString().strip());
   }
 
   private ConnectorInvoker.Outcome describe(McpRequest r, EndpointSnapshot s, EndpointSnapshot.Wired w,

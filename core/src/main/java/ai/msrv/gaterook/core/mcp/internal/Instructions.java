@@ -10,15 +10,15 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 
 /**
  * The {@code instructions} of {@code initialize} and {@code server/discover} (kit endpoint-detail › Settings › Server
  * instructions): the endpoint's own text when the person wrote one, else the kit's default for this endpoint, which
  * names the tools that wait for approval and keeps the approval rules (an agent that knows them waits instead of
  * retrying), plus the line §9 requires about {@code ‹masked›}. An endpoint that searches its tools (§5.7) says how to
- * find and run them first, and names only the tools it lists; the connections of the others close it. The first 512
- * characters stand on their own (Codex reads only those). Never secrets: every agent on the endpoint reads it.
+ * find and run them first, and names only the tools it lists; the connections of the others, with their tool counts,
+ * close it, so the model knows what it can search for. The first 512 characters stand on their own (Codex reads only
+ * those). Never secrets: every agent on the endpoint reads it.
  */
 public final class Instructions {
 
@@ -55,21 +55,25 @@ public final class Instructions {
     StringBuilder out = new StringBuilder();
     out.append("You are connected to GateRook, endpoint \"").append(s.slug()).append("\" (")
         .append(describe(s.env())).append(").\n\n");
-    Map<String, Integer> found = new TreeMap<>();
-    if (catalog.list().search()) {
-      for (ToolCatalog.PublishedTool t : catalog.tools()) {
-        if (ToolSearch.searchable(t) && !catalog.listed(t.name())) {
-          t.pairs().stream().map(EndpointSnapshot.Pair::connectionName).distinct()
-              .forEach(c -> found.merge(c, 1, Integer::sum));
-        }
-      }
+    ToolCatalog.ToolList list = catalog.list();
+    if (list.search()) {
       long unlisted = catalog.tools().stream().filter(t -> ToolSearch.searchable(t) && !catalog.listed(t.name()))
           .count();
-      List<String> pinned = catalog.list().pinned().stream().filter(c -> s.connection(c).isPresent()).toList();
+      List<String> pinned = list.pinned().stream().filter(c -> s.connection(c).isPresent()).toList();
+      List<String> shows = new ArrayList<>();
+      shows.add("GateRook's own tools");
+      if (!list.mostUsed().isEmpty()) {
+        shows.add(list.mostUsed().size() == 1 ? "the one agents call most here"
+            : "the " + list.mostUsed().size() + " agents call most here");
+      }
+      if (!pinned.isEmpty()) {
+        shows.add("those of " + join(pinned));
+      }
       out.append("Finding tools\n");
-      wrap(out, "- tools/list shows only GateRook's own tools" + (pinned.isEmpty() ? "" : " and those of "
-          + join(pinned)) + ". find_tools finds the other " + unlisted + " by what they do or by name. Run one "
-          + "that only reads with call_read_tool, any other with call_tool: its own rules apply.", 72);
+      wrap(out, "- tools/list shows " + join(shows) + ". " + (unlisted == 0 ? "find_tools finds every tool"
+          : "find_tools finds the other " + unlisted) + " by what they do or by name, on the connections listed "
+          + "at the end. Run one that only reads with call_read_tool, any other with call_tool: its own rules "
+          + "apply.", 72);
       out.append('\n');
     }
     out.append("Reading\n");
@@ -101,13 +105,15 @@ public final class Instructions {
     out.append("  the action, it needs a new approval.\n");
     out.append("- No answer before the timeout means denied. Ask the user before you\n");
     out.append("  try the same action again.");
-    if (!found.isEmpty()) {
-      out.append("\n\nTools find_tools finds\n");
-      List<String> labels = new ArrayList<>();
-      found.forEach((connection, n) -> labels.add(connection + s.connection(connection)
-          .map(w -> " (" + w.manifest().name() + ")").orElse("") + ": " + n + (n == 1 ? " tool" : " tools")));
-      for (String label : labels) {
-        out.append("- ").append(label).append('\n');
+    if (list.search() && !list.elsewhere().isEmpty()) {
+      // What else there is: the model searches only for what it knows exists.
+      out.append("\n\nMore tools, through find_tools\n");
+      List<Map.Entry<String, Integer>> byCount = new ArrayList<>(list.elsewhere().entrySet());
+      byCount.sort(Map.Entry.<String, Integer>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()));
+      for (Map.Entry<String, Integer> e : byCount) {
+        int n = e.getValue();
+        out.append("- ").append(e.getKey()).append(s.connection(e.getKey()).map(w -> " (" + w.manifest().name() + ")")
+            .orElse("")).append(": ").append(n).append(n == 1 ? " tool" : " tools").append('\n');
       }
       out.setLength(out.length() - 1);
     }

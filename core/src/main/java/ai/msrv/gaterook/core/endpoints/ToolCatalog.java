@@ -159,16 +159,19 @@ public class ToolCatalog {
   /**
    * How {@code tools/list} shows the tools ({@code settings.toolList}, §5.7).
    *
-   * @param mode   {@link #ALL}, {@link #SEARCH} or {@link #AUTO}, as the person set it ({@code auto} unless set)
-   * @param search whether tools/list shows only {@code listed}, and {@code find_tools} finds the rest
-   * @param pinned the connections whose tools are listed in search
-   * @param listed the names tools/list shows (before what a client without MCP Apps doesn't get)
-   * @param tools  how many tools the model may call ({@link ToolSearch#searchable})
-   * @param bytes  their names, titles, descriptions and input schemas as clients get them, in UTF-8 bytes: what an AI
-   *               app that loads every definition puts in the model's context
+   * @param mode          {@link #ALL}, {@link #SEARCH} or {@link #AUTO}, as the person set it ({@code auto} unless set)
+   * @param search        whether tools/list shows only {@code listed}, and {@code find_tools} finds the rest
+   * @param pinned        the connections whose tools are listed in search
+   * @param mostUsedLimit how many of the tools agents call most are listed in search ({@code settings.toolList.mostUsed})
+   * @param mostUsed      those listed now because agents call them most, most called first: none a pin lists anyway
+   * @param listed        the names tools/list shows (before what a client without MCP Apps doesn't get)
+   * @param tools         how many tools the model may call ({@link ToolSearch#searchable})
+   * @param bytes         their names, titles, descriptions and input schemas as clients get them, in UTF-8 bytes: what
+   *                      an AI app that loads every definition puts in the model's context
+   * @param elsewhere     in search, the tools tools/list doesn't show, by connection: how many each has
    */
-  public record ToolList(String mode, boolean search, List<String> pinned, Set<String> listed, int tools,
-      long bytes) {}
+  public record ToolList(String mode, boolean search, List<String> pinned, int mostUsedLimit, List<String> mostUsed,
+      Set<String> listed, int tools, long bytes, Map<String, Integer> elsewhere) {}
 
   /**
    * The list of one endpoint: every tool it publishes, callable by its name, and which of them {@code tools/list}
@@ -235,25 +238,47 @@ public class ToolCatalog {
     }
   }
 
-  private record Memo(EndpointSnapshot snapshot, Catalog catalog) {}
+  private record Memo(EndpointSnapshot snapshot, long usage, Catalog catalog) {}
+
+  /** How many of the tools agents call most a searched list shows unless the person chose. */
+  public static final int MOST_USED = 10;
+
+  /** At most this many connections are named in {@code find_tools}'s description; the rest are counted. */
+  static final int NAMED_CONNECTIONS = 8;
 
   private final PolicyEngine engine;
+  private final java.util.function.Supplier<ToolPopularity> popularity;
   private final Map<String, Memo> memo = new ConcurrentHashMap<>();
 
   public ToolCatalog(PolicyEngine engine) {
-    this.engine = engine;
+    this(engine, ToolPopularity.NONE);
   }
 
-  /** The catalog of {@code snapshot}: built once for each snapshot (by identity), then reused. */
+  public ToolCatalog(PolicyEngine engine, ToolPopularity popularity) {
+    this.engine = engine;
+    this.popularity = () -> popularity;
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
+  public ToolCatalog(PolicyEngine engine, org.springframework.beans.factory.ObjectProvider<ToolPopularity> popularity) {
+    this.engine = engine;
+    this.popularity = () -> popularity.getIfAvailable(() -> ToolPopularity.NONE);
+  }
+
+  /**
+   * The catalog of {@code snapshot}: built once for each snapshot (by identity), then reused until the tools agents
+   * call most are counted differently.
+   */
   public Catalog forEndpoint(EndpointSnapshot snapshot) {
     String id = snapshot.id();
+    long usage = popularity.get().version();
     Memo m = id == null ? null : memo.get(id);
-    if (m != null && m.snapshot() == snapshot) {
+    if (m != null && m.snapshot() == snapshot && m.usage() == usage) {
       return m.catalog();
     }
     Catalog built = build(snapshot);
     if (id != null) {
-      memo.put(id, new Memo(snapshot, built));
+      memo.put(id, new Memo(snapshot, usage, built));
     }
     return built;
   }
@@ -274,6 +299,9 @@ public class ToolCatalog {
     JsonNode setting = snapshot.settings() == null ? null : snapshot.settings().path("toolList");
     String listMode = mode(setting);
     List<String> pinned = pinned(setting);
+    int mostUsedLimit = mostUsed(setting);
+    List<String> mostUsed = new ArrayList<>();
+    Map<String, Integer> elsewhere = new java.util.TreeMap<>();
     boolean search = false;
     int count = 0;
     long bytes = 0;
@@ -312,7 +340,26 @@ public class ToolCatalog {
         default -> count > SEARCH_ABOVE_TOOLS || bytes > SEARCH_ABOVE_BYTES;
       };
       if (search) {
-        out.add(coreTool(snapshot, CoreTools.findTools(), false));
+        Map<String, PublishedTool> byTool = new HashMap<>();
+        out.forEach(t -> byTool.put(t.name(), t));
+        if (mostUsedLimit > 0) {
+          for (String name : popularity.get().mostCalled(snapshot)) {
+            PublishedTool t = byTool.get(name);
+            if (mostUsed.size() == mostUsedLimit) {
+              break;
+            }
+            if (t != null && ToolSearch.searchable(t) && !pinnedTool(t, pinned) && !mostUsed.contains(name)) {
+              mostUsed.add(name);
+            }
+          }
+        }
+        for (PublishedTool t : out) {
+          if (ToolSearch.searchable(t) && !pinnedTool(t, pinned) && !mostUsed.contains(t.name())) {
+            t.pairs().stream().map(EndpointSnapshot.Pair::connectionName).distinct()
+                .forEach(c -> elsewhere.merge(c, 1, Integer::sum));
+          }
+        }
+        out.add(coreTool(snapshot, CoreTools.findTools(reach(snapshot, elsewhere)), false));
         out.add(coreTool(snapshot, CoreTools.callTool(), false));
         out.add(coreTool(snapshot, CoreTools.callReadTool(), false));
       }
@@ -322,13 +369,54 @@ public class ToolCatalog {
     Set<String> listed = new LinkedHashSet<>();
     List<PublishedTool> shown = new ArrayList<>();
     for (PublishedTool t : out) {
-      if (!search || t.core() || t.pairs().stream().anyMatch(p -> pinned.contains(p.connectionName()))) {
+      if (!search || t.core() || pinnedTool(t, pinned) || mostUsed.contains(t.name())) {
         listed.add(t.name());
         shown.add(t);
       }
     }
     return new Catalog(List.copyOf(out), search ? hash(shown) + ":" + SEARCH : hash(shown), List.copyOf(problems),
-        new ToolList(listMode, search, pinned, Set.copyOf(listed), count, bytes));
+        new ToolList(listMode, search, pinned, mostUsedLimit, List.copyOf(mostUsed), Set.copyOf(listed), count, bytes,
+            java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(elsewhere))));
+  }
+
+  private static boolean pinnedTool(PublishedTool t, List<String> pinned) {
+    return t.pairs().stream().anyMatch(p -> pinned.contains(p.connectionName()));
+  }
+
+  /**
+   * What {@code find_tools} says it reaches: "73 on sentry-mcp (Sentry), 61 on pb-mcp (ProvenBase) and 4 on 2 more
+   * connections", the connections with the most tools first. Every client reads a tool's description, instructions
+   * or not.
+   */
+  static String reach(EndpointSnapshot snapshot, Map<String, Integer> elsewhere) {
+    List<Map.Entry<String, Integer>> byCount = new ArrayList<>(elsewhere.entrySet());
+    byCount.sort(Map.Entry.<String, Integer>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()));
+    List<String> named = new ArrayList<>();
+    int rest = 0;
+    int restConnections = 0;
+    for (int i = 0; i < byCount.size(); i++) {
+      Map.Entry<String, Integer> e = byCount.get(i);
+      if (i < NAMED_CONNECTIONS) {
+        String type = snapshot.connection(e.getKey()).map(w -> w.manifest().name()).orElse(null);
+        named.add(e.getValue() + " on " + e.getKey() + (type == null ? "" : " (" + type + ")"));
+      } else {
+        rest += e.getValue();
+        restConnections++;
+      }
+    }
+    if (restConnections > 0) {
+      named.add(rest + " on " + restConnections + (restConnections == 1 ? " more connection" : " more connections"));
+    }
+    if (named.size() <= 1) {
+      return String.join("", named);
+    }
+    return String.join(", ", named.subList(0, named.size() - 1)) + " and " + named.get(named.size() - 1);
+  }
+
+  /** {@code settings.toolList.mostUsed}; {@link #MOST_USED} when unset. */
+  static int mostUsed(JsonNode setting) {
+    JsonNode n = setting == null ? null : setting.get("mostUsed");
+    return n != null && n.isInt() ? Math.max(0, Math.min(40, n.asInt())) : MOST_USED;
   }
 
   /** {@code settings.toolList.mode}; {@code auto} when unset or unknown. */

@@ -89,6 +89,8 @@ export interface EndpointToolList {
   readonly mode: ToolListMode;
   /** Connections whose tools are listed while the endpoint searches the others. */
   readonly pinned?: string[];
+  /** How many of the tools agents call most are listed while the endpoint searches (10 unless set). */
+  readonly mostUsed?: number;
 }
 
 export interface EndpointToolListState {
@@ -101,6 +103,8 @@ export interface EndpointToolListState {
   readonly bytes: number;
   readonly searchAboveTools: number;
   readonly searchAboveBytes: number;
+  /** The tools listed because agents call them most here (30 days, counted daily), most called first. */
+  readonly mostUsedTools?: string[];
 }
 
 /** The ways to start a new endpoint (`POST /api/endpoints` `startFrom`). */
@@ -199,7 +203,7 @@ export interface EndpointSettingsUpdate extends WithReason {
   readonly approvalWait?: JsonObject;
   readonly oauthEnabled?: boolean;
   /** A merge patch: `pinned: null` clears the pins. */
-  readonly toolList?: { readonly mode?: ToolListMode; readonly pinned?: string[] | null };
+  readonly toolList?: { readonly mode?: ToolListMode; readonly pinned?: string[] | null; readonly mostUsed?: number };
   readonly version: number;
   readonly confirm?: string | null;
 }
