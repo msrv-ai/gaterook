@@ -1,12 +1,15 @@
+import { HistogramBucket } from '../../core/api/activity.api';
 import { ConnectionHealth, ConnectionUsedBy, StoredSecret, TestOutcome } from '../../core/api/connections.api';
 import { ConnectorCard, ConnectorGroup, ConnectorKind, ConnectorTool } from '../../core/api/connector-types.api';
 import { EndpointSummary } from '../../core/api/endpoints.api';
+import { Insights } from '../../core/api/insights.api';
 import { EnvPolicy } from '../../core/api/policies.api';
 import { Env, JsonObject, JsonValue, ToolAnnotations, ToolMode } from '../../core/api/types';
-import { duration, everyInterval, formatCount } from '../../core/time/time-format';
+import { clockTime, duration, everyInterval, formatCount, shortDate } from '../../core/time/time-format';
 import { ProdDefault } from '../../kit/elements/connection-form/connection-form';
 import { testConfirmTitle, testFailureTitle } from '../../kit/elements/connection-form/connection-test';
 import { clientName } from '../../kit/elements/shared/client-mark';
+import { PageLink, StatDelta, activityLink, bucketUnit, callsDelta, rangeWords, sparkPoints as trendPoints } from '../insights/insights-view';
 
 /**
  * The words and decisions of Add connection that need no DOM: the wizard's stepper,
@@ -651,6 +654,60 @@ export function usedByMeta(uses: readonly EndpointUse[]): { readonly tools: numb
 /** `activity?q=` for a connection, or one of its tools on one endpoint ("connection:dev-db tool:sql_query endpoint:dev"). */
 export function activityQuery(connection: string, tool?: string | null, endpoint?: string | null): string {
   return [`connection:${connection}`, tool ? `tool:${tool}` : null, endpoint ? `endpoint:${endpoint}` : null].filter(Boolean).join(' ');
+}
+
+/** The tools the Tools tab lists: one row per tool, however many endpoints it is on (the tab's count). */
+export function toolCount(usedBy: readonly ConnectionUsedBy[]): number {
+  return new Set(usedBy.map((use) => use.tool)).size;
+}
+
+/** A run of the stat's line under "Calls, last 30 days": text, or a link to the calls behind a number. */
+export interface CallsMetaPart {
+  readonly text: string;
+  readonly link?: PageLink;
+}
+
+/** The stat "Calls, last 30 days", from `GET /api/insights?q=connection:<name>` over the last 30 days. */
+export interface CallsStat {
+  /** Calls with a decision, as Insights counts them ("1,284"). */
+  readonly value: string;
+  /** Calls per day as a `gw-sparkline`, with the busiest day in words; null without a call to draw. */
+  readonly chart: { readonly points: string; readonly label: string } | null;
+  /** Against the 30 days before; null when the audit doesn't reach back that far or neither range has a call. */
+  readonly delta: StatDelta | null;
+  /** "3 errors · 12 denied by policy", each opening its calls in Activity, or one plain sentence. */
+  readonly meta: readonly CallsMetaPart[];
+}
+
+export function callsStat(insights: Insights, connection: string, now: number): CallsStat {
+  const cur = insights.kpis.current;
+  const prev = insights.kpis.previous;
+  const h = insights.callsOverTime;
+  const words = rangeWords('30d');
+  let peak: HistogramBucket | null = null;
+  for (const b of h.buckets) if (b.total > 0 && (!peak || b.total > peak.total)) peak = b;
+  let chart: CallsStat['chart'] = null;
+  if (peak) {
+    const days = h.stepHours >= 24;
+    const at = days ? shortDate(peak.from, now) : clockTime(peak.from, false);
+    const when = at === 'Today' ? 'today' : `${days ? 'on' : 'at'} ${at}`;
+    chart = {
+      points: trendPoints(h.buckets.map((b) => b.total)),
+      label: `Calls per ${bucketUnit(h.stepHours)}, ${words.span}: peak of ${formatCount(peak.total)} ${when}`,
+    };
+  }
+  const query = activityQuery(connection);
+  const meta: CallsMetaPart[] = [];
+  if (cur.errors > 0) meta.push({ text: `${formatCount(cur.errors)} ${cur.errors === 1 ? 'error' : 'errors'}`, link: activityLink(query, '30d', ['decision:error']) });
+  if (cur.denied > 0) meta.push({ text: `${formatCount(cur.denied)} denied by policy`, link: activityLink(query, '30d', ['decision:denied']) });
+  if (cur.pending > 0) meta.push({ text: `${formatCount(cur.pending)} waiting for approval`, link: { route: '/approvals' } });
+  if (!meta.length) meta.push({ text: cur.calls > 0 ? 'No errors or denials' : `No calls in the ${words.span}` });
+  return {
+    value: formatCount(cur.calls),
+    chart,
+    delta: prev && (cur.calls > 0 || prev.calls > 0) ? callsDelta(cur.calls, prev.calls, words.previous) : null,
+    meta,
+  };
 }
 
 /** Delete's sentence about the credentials: what is destroyed here and what stays in its store. */

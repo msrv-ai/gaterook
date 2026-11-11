@@ -9,6 +9,7 @@ import { ApprovalItem, ApprovalsApi } from '../../core/api/approvals.api';
 import { ConnectionDetail, ConnectionsApi, CreateConnectionRequest, TestConfirmed, TestDraftRequest, TestOutcome, UpdateConnectionRequest } from '../../core/api/connections.api';
 import { ConnectionFormSpec, ConnectorCatalog, ConnectorTool, ConnectorTypeDetail, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { ConnectionPreview, EndpointSummary, EndpointsApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
+import { Insights, InsightsApi, InsightsQuery } from '../../core/api/insights.api';
 import { Policies, PoliciesApi } from '../../core/api/policies.api';
 import { MasterKeyApi, MasterKeyStatus, SecretRow, SecretsApi } from '../../core/api/secrets.api';
 import { JsonObject, ToolMode } from '../../core/api/types';
@@ -18,6 +19,7 @@ import { Announcer } from '../../kit/announcer';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
+import { busyMonth } from './connection-calls.fixtures';
 import { ConnectionNewPage } from './connection-new.page';
 
 /**
@@ -243,6 +245,9 @@ class FakeCore {
   endpointTools: ToolRow[] = [];
   modes: { slug: string; toolKey: string; connection: string | null; mode: ToolMode; version: number }[] = [];
   lastBackupAt: string | null = null;
+  /** `GET /api/insights` for the edit view's "Calls, last 30 days", and what it was asked. */
+  insights: Insights | ApiError = busyMonth(NOW);
+  insightQueries: InsightsQuery[] = [];
 }
 
 const row = (name: string, mode: ToolMode): ToolRow => ({
@@ -372,6 +377,13 @@ beforeEach(() => {
   };
   const masterKey: Partial<MasterKeyApi> = { status: vi.fn(async () => ({ lastBackupAt: core.lastBackupAt }) as MasterKeyStatus) };
   const approvals: Partial<ApprovalsApi> = { list: vi.fn(async () => ({ status: 'pending', items: [PENDING], nextCursor: null, pending: 1, counts: {} }) as never) };
+  const insights: Partial<InsightsApi> = {
+    get: vi.fn(async (query?: InsightsQuery) => {
+      core.insightQueries.push(structuredClone(query ?? {}));
+      if (core.insights instanceof ApiError) throw core.insights;
+      return structuredClone(core.insights);
+    }),
+  };
   @Component({ template: '' })
   class Elsewhere {}
   TestBed.configureTestingModule({
@@ -393,6 +405,7 @@ beforeEach(() => {
       { provide: SecretsApi, useValue: secrets },
       { provide: ApprovalsApi, useValue: approvals },
       { provide: MasterKeyApi, useValue: masterKey },
+      { provide: InsightsApi, useValue: insights },
       { provide: EVENT_STREAM_FETCH, useValue: (() => new Promise<Response>(() => undefined)) as typeof fetch },
     ],
   });
@@ -1869,8 +1882,11 @@ describe('Connection: edit view', () => {
     expect(text(p.q('.gw-page-header__meta .gw-status'))).toBe('Healthy · 12 ms');
     expect(Array.from(p.el.querySelectorAll('.gw-stat')).map(text)).toEqual([
       'Health check, last 24 hours 12ms Between 10 ms and 15 ms · checked every minute',
+      'Calls, last 30 days 412 +18% vs previous 30 days 3 errors · 2 denied by policy · 1 waiting for approval',
       'Used by 1endpoint 3 tools on dev · Claude Desktop and Codex',
     ]);
+    expect(core.insightQueries).toEqual([{ q: 'connection:dev-db', from: new Date(NOW - 30 * 86_400_000).toISOString(), to: new Date(NOW).toISOString() }]);
+    expect(text(p.q('#connection-tools-tab'))).toBe('Tools 3 tools');
     expect(Array.from(p.el.querySelectorAll('#used-by tbody tr')).map((r) => text(r.querySelector('th')))).toEqual(['sql_list_schemas', 'sql_query', 'sql_execute']);
     expect(p.el.querySelector('#used-by tbody a.gw-btn')?.getAttribute('href')).toBe('/activity?q=connection:dev-db%20tool:sql_list_schemas%20endpoint:dev');
     expect(text(p.q('#step-2-title'))).toBe('Settings');
@@ -1878,6 +1894,23 @@ describe('Connection: edit view', () => {
     expect((document.getElementById('cf-name') as HTMLInputElement).readOnly).toBe(false);
     expect(text(p.q('#cf-name-hint'))).toContain('Renaming applies from the next call: endpoints, policies and secret names follow, and past calls keep the old name.');
     expect(text(p.q('.gw-secret[data-state=stored]'))).toContain('version 3');
+  });
+
+  it('counts each tool once in the Tools tab, and keeps the page when the calls do not load', async () => {
+    core.detail = { ...structuredClone(DETAIL), usedBy: [...DETAIL.usedBy, { tool: 'sql_query', endpoint: 'stage-readonly', mode: 'READ_ONLY' }] };
+    core.insights = new ApiError('server', 500, { title: 'The core failed', detail: 'Insights could not be computed.' });
+    const p = await open('/connections/dev-db');
+    expect(text(p.q('#connection-tools-tab .gw-tabs__count'))).toBe('3 tools');
+    expect(Array.from(p.el.querySelectorAll('#used-by tbody tr'))).toHaveLength(3);
+    expect(Array.from(p.el.querySelectorAll('.gw-stat')).map(text)).toEqual([
+      'Health check, last 24 hours 12ms Between 10 ms and 15 ms · checked every minute',
+      "Calls, last 30 days The calls didn't load. Try again to load the calls of dev-db",
+      'Used by 2endpoints 4 tools on dev and stage-readonly · Claude Desktop and Codex',
+    ]);
+    core.insights = busyMonth(NOW);
+    p.button('Try again').click();
+    await p.settle();
+    expect(text(p.q('.gw-stat:nth-child(2) .gw-stat__value'))).toBe('412');
   });
 
   it('renames the connection with its settings and opens it under the new name', async () => {
@@ -1944,7 +1977,8 @@ describe('Connection: edit view', () => {
       items: [{ name: 'search-dev', host: 'search.example.test:9200', usedBy: ['dev'] }], facets: {}, total: 1,
     } as never);
     const p = await open('/connections/search-dev');
-    expect(Array.from(p.el.querySelectorAll('.gw-stat')).map(text)[1]).toBe('Used by 1endpoint 0 tools on dev · Claude Desktop and Codex');
+    expect(Array.from(p.el.querySelectorAll('.gw-stat')).map(text)[2]).toBe('Used by 1endpoint 0 tools on dev · Claude Desktop and Codex');
+    expect(text(p.q('#connection-tools-tab .gw-tabs__count'))).toBe('0 tools');
     p.q<HTMLButtonElement>('#connection-tools-tab')!.click();
     await p.settle();
     expect(text(p.q('#used-by .gw-empty__title'))).toBe('No tools available');
@@ -1958,7 +1992,7 @@ describe('Connection: edit view', () => {
       items: [{ name: 'dev-db', usedBy: [] }], facets: {}, total: 1,
     } as never);
     const p = await open('/connections/dev-db');
-    expect(Array.from(p.el.querySelectorAll('.gw-stat')).map(text)[1]).toContain('Used by 0endpoints');
+    expect(Array.from(p.el.querySelectorAll('.gw-stat')).map(text)[2]).toContain('Used by 0endpoints');
     expect(text(p.q('#used-by .gw-empty__title'))).toBe('Not on an endpoint yet');
     expect(p.q<HTMLAnchorElement>('#used-by .gw-empty__actions a')!.getAttribute('href')).toBe('/endpoints');
   });
@@ -1971,7 +2005,7 @@ describe('Connection: edit view', () => {
     const toolsTab = p.q<HTMLButtonElement>('#connection-tools-tab')!;
     const form = p.q<HTMLFormElement>('#cf-form')!;
     expect(text(settingsTab)).toBe('Settings');
-    expect(text(toolsTab)).toBe('Tools');
+    expect(text(toolsTab)).toBe('Tools 3 tools');
     expect(settings.hidden).toBe(false);
     expect(tools.hidden).toBe(true);
     expect(settings.contains(p.q('#delete-connection'))).toBe(true);
