@@ -120,7 +120,8 @@ final class SqlRules {
       return common;
     }
     if (p.syntax() != SqlSyntax.POSTGRES && a.count() > 1) {
-      return Classification.deny(p.rule("multi-statement"), (p.mysql() ? "MySQL" : p.sqlServer() ? "SQL Server" : "Oracle") + " runs one statement per sql_execute; this has "
+      return Classification.deny(p.rule("multi-statement"), (p.mysql() ? "MySQL" : p.sqlServer() ? "SQL Server"
+          : p.syntax() == SqlSyntax.SQLITE ? "SQLite" : "Oracle") + " runs one statement per sql_execute; this has "
           + a.count() + ".", "Send them one by one, each waits for approval.");
     }
     if (a.count() > MAX_POSTGRES_STATEMENTS) {
@@ -237,6 +238,16 @@ final class SqlRules {
   private static Classification tables(Analysis a, SqlPolicy p) {
     if (!p.allowlist().restricted() && !p.sqlServer()) {
       return null;
+    }
+    if (p.syntax() == SqlSyntax.SQLITE) {
+      for (FunctionRules.FunctionRef f : a.functions()) {
+        String name = IdentifierRules.asciiLower(f.parts().getLast().replaceAll("^[\\[\"`]|[\\]\"`]$", ""));
+        if (name.startsWith("pragma_")) {
+          // A pragma function reads the structure of any table it is given by name, past the allowlist.
+          return Classification.deny(p.rule("table-not-allowed"), f.written() + " reads the structure of any table, "
+              + "and on " + p.env() + " only some tables are open to agents.", "Call sql_describe_table instead.");
+        }
+      }
     }
     for (StatementFacts s : a.statements()) {
       if (s.tables() == null) {

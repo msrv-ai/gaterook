@@ -81,6 +81,28 @@ services:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       <<: *health
 
+  # CockroachDB speaks PostgreSQL's protocol: the postgres connector against one in-memory node. The image makes
+  # its own CA and certificates in run/cockroach-certs (TLS on, password sign-in) and the admin user gaterook; the
+  # IT adds a reader.
+  cockroach:
+    image: cockroachdb/cockroach:${GW_COCKROACH_TAG}
+    container_name: gw-test-cockroach
+    profiles: [cockroach, all]
+    mem_limit: 2g
+    command: ["start-single-node", "--store=type=mem,size=1GiB", "--cache=64MiB", "--max-sql-memory=256MiB"]
+    environment:
+      COCKROACH_USER: gaterook
+      COCKROACH_PASSWORD: ${GW_COCKROACH_PASSWORD}
+      COCKROACH_DATABASE: gaterook
+    volumes:
+      # The image's CA and certificates (for 127.0.0.1): the IT verifies the server with ca.crt.
+      - ./run/cockroach-certs:/cockroach/certs
+    ports:
+      - "127.0.0.1:${GW_COCKROACH_PORT}:26257"
+    healthcheck:
+      test: ["CMD", "/cockroach/cockroach", "sql", "--certs-dir=/cockroach/certs", "--host=127.0.0.1", "-e", "SELECT 1"]
+      <<: *health
+
   # Oracle Free includes FREEPDB1 on both amd64 and arm64. Keep its large datafiles in the container layer:
   # they are removed with the container, without consuming the Docker VM's RAM as a data tmpfs would.
   oracle:
@@ -362,7 +384,7 @@ services:
   moto:
     image: motoserver/moto:${GW_MOTO_TAG}
     container_name: gw-test-moto
-    profiles: [logs, aws, all]
+    profiles: [logs, aws, dynamodb, all]
     ports:
       - "127.0.0.1:${GW_MOTO_PORT}:5000"
 

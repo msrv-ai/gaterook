@@ -1,0 +1,15 @@
+{
+  "area": "bigquery",
+  "module": "connectors/bigquery",
+  "connectorTypes": ["bigquery"],
+  "description": "Touches of the BigQuery connector for the native smoke (report 15 §6): the GoogleSQL reader and the schemas in the image, without I/O.",
+  "touches": [
+    {
+      "name": "bigquery-classify-without-io",
+      "connection": {"type": "bigquery", "env": "dev",
+        "config": {"project": "acme-analytics", "credentials": {"source": "adc"}}},
+      "call": {"tool": "bigquery_query", "arguments": {"sql": "DELETE FROM sales.orders WHERE true"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.bigquery.query-writes"}
+    }
+  ]
+}

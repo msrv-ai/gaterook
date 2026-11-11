@@ -2,7 +2,7 @@ package ai.msrv.gaterook.connectors.sql;
 
 /** Lexical and identifier rules used by a SQL server. */
 public enum SqlSyntax {
-  POSTGRES, MYSQL, ORACLE, SQLSERVER;
+  POSTGRES, MYSQL, ORACLE, SQLSERVER, SQLITE;
 
   static SqlSyntax of(boolean mysql) {
     return mysql ? MYSQL : POSTGRES;

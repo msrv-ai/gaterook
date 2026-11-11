@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "collection": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 6144,
+      "description": "The collection's path, such as users or users/alice/orders."
+    },
+    "collectionGroup": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1500,
+      "description": "Instead of collection: a collection ID such as orders, to query every collection with that ID."
+    },
+    "where": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "field",
+          "op"
+        ],
+        "properties": {
+          "field": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1500,
+            "description": "A field path such as status or address.city; a name with dots in backticks, `a.b`; __name__ for the document's path."
+          },
+          "op": {
+            "enum": [
+              "==",
+              "!=",
+              "<",
+              "<=",
+              ">",
+              ">=",
+              "array-contains",
+              "array-contains-any",
+              "in",
+              "not-in"
+            ]
+          },
+          "value": {
+            "description": "Plain JSON, or one Firestore typed value such as {\"timestampValue\": \"2026-01-02T03:04:05Z\"}. A list for in, not-in and array-contains-any. null and NaN compare with == and != only."
+          }
+        }
+      },
+      "description": "Filters that must all hold."
+    },
+    "orderBy": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "field"
+        ],
+        "properties": {
+          "field": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1500
+          },
+          "direction": {
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "default": "asc"
+          }
+        }
+      },
+      "description": "The order of the documents, such as [{\"field\": \"created\", \"direction\": \"desc\"}]. Ordering by a field leaves out documents without it."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 25,
+      "description": "Most documents to return; the endpoint caps it."
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 8192,
+      "description": "nextCursor of the previous answer; leave it out for the first page."
+    }
+  }
+}

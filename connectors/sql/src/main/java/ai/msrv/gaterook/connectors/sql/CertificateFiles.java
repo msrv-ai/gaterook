@@ -60,11 +60,6 @@ final class CertificateFiles {
     }
   }
 
-  /** A path that never exists: pgjdbc then doesn't fall back to the client certificate in ~/.postgresql. */
-  static Path none(Path folder) {
-    return folder.resolve("no-client-certificate");
-  }
-
   private static List<X509Certificate> certificates(String ca) throws IOException {
     List<X509Certificate> certificates;
     try {

@@ -25,7 +25,7 @@ import java.util.Set;
  * {@code \"} inside double quotes; a quoted JSON, YAML or HTTP-body key is a name, not a literal. Comments are not
  * literals and their quotes open nothing: SQL {@code --} to the end
  * of the line, {@code /* … *}{@code /} and MySQL's {@code #}, shell and YAML {@code #} at the start of a word. Where
- * the dialects of a language read quotes differently (PostgreSQL, MySQL or SQL Server, POSIX sh or bash), a character
+ * the dialects of a language read quotes differently (PostgreSQL, MySQL, SQL Server or SQLite, POSIX sh or bash), a character
  * is inside a literal only if all of them agree. A literal still open at the end of the text is no literal: an apostrophe can't
  * hide the rest of the action. A message with any such segment never offers Approve in a channel (§7.4).
  */
@@ -119,37 +119,41 @@ public final class ActionInspector {
    * @param escapeOutside    a backslash outside quotes makes the next character plain (shell: {@code \'} opens nothing)
    * @param runnableComments {@code /*! … *}{@code /} is code, not a comment (MySQL runs it): its quotes count
    * @param substitutions    {@code $(…)}, {@code ${…}} and backticks inside {@code "…"} are code (shell)
-   * @param sqlServerIdentifiers bracketed and double-quoted names contain no string literals (SQL Server)
+   * @param sqlServerIdentifiers bracketed and double-quoted names contain no string literals (SQL Server, SQLite)
    * @param keys             a quoted string followed by {@code :} is an object key, a name (JSON, YAML)
+   * @param backtickIdentifiers backtick-quoted names contain no string literals (SQLite, and MySQL's names)
    */
   private record Lexer(boolean dashComments, boolean dashNeedsSpace, boolean blockComments, boolean nestedBlocks,
       Hash hash, boolean doubleStrings, boolean singleEscapes, boolean doubleEscapes, char prefixEscapes,
       boolean dollarQuotes, boolean escapeOutside, boolean runnableComments, boolean substitutions,
-      boolean sqlServerIdentifiers, boolean keys) {}
+      boolean sqlServerIdentifiers, boolean keys, boolean backtickIdentifiers) {}
 
   /** Standard SQL: {@code '…'} with {@code ''}, {@code --} and flat block comments; {@code "…"} names. */
   private static final Lexer ANSI_SQL = new Lexer(true, false, true, false, Hash.NONE, false, false, false, (char) 0,
-      false, false, false, false, false, false);
+      false, false, false, false, false, false, false);
   private static final Lexer POSTGRES = new Lexer(true, false, true, true, Hash.NONE, false, false, false, 'E', true,
-      false, false, false, false, false);
-  private static final Lexer MYSQL = new Lexer(true, true, true, false, Hash.ANYWHERE, true, true, true, (char) 0,
-      false, false, true, false, false, false);
-  private static final Lexer SQL_SERVER = new Lexer(true, false, true, true, Hash.NONE, false, false, false, (char) 0,
-      false, false, false, false, true, false);
-  private static final Lexer POSIX_SH = new Lexer(false, false, false, false, Hash.WORD_START, true, false, true,
-      (char) 0, false, true, false, true, false, false);
-  private static final Lexer BASH = new Lexer(false, false, false, false, Hash.WORD_START, true, false, true, '$',
-      false, true, false, true, false, false);
-  private static final Lexer YAML = new Lexer(false, false, false, false, Hash.WORD_START, true, false, true, (char) 0,
-      false, false, false, false, false, true);
-  private static final Lexer JSON = new Lexer(false, false, false, false, Hash.NONE, true, false, true, (char) 0,
-      false, false, false, false, false, true);
-  private static final Lexer PLAIN = new Lexer(false, false, false, false, Hash.NONE, true, false, true, (char) 0,
       false, false, false, false, false, false);
+  private static final Lexer MYSQL = new Lexer(true, true, true, false, Hash.ANYWHERE, true, true, true, (char) 0,
+      false, false, true, false, false, false, false);
+  /** SQLite: flat block comments, no backslash escapes; {@code "…"}, {@code […]} and backtick names. */
+  private static final Lexer SQLITE = new Lexer(true, false, true, false, Hash.NONE, false, false, false, (char) 0,
+      false, false, false, false, true, false, true);
+  private static final Lexer SQL_SERVER = new Lexer(true, false, true, true, Hash.NONE, false, false, false, (char) 0,
+      false, false, false, false, true, false, false);
+  private static final Lexer POSIX_SH = new Lexer(false, false, false, false, Hash.WORD_START, true, false, true,
+      (char) 0, false, true, false, true, false, false, false);
+  private static final Lexer BASH = new Lexer(false, false, false, false, Hash.WORD_START, true, false, true, '$',
+      false, true, false, true, false, false, false);
+  private static final Lexer YAML = new Lexer(false, false, false, false, Hash.WORD_START, true, false, true, (char) 0,
+      false, false, false, false, false, true, false);
+  private static final Lexer JSON = new Lexer(false, false, false, false, Hash.NONE, true, false, true, (char) 0,
+      false, false, false, false, false, true, false);
+  private static final Lexer PLAIN = new Lexer(false, false, false, false, Hash.NONE, true, false, true, (char) 0,
+      false, false, false, false, false, false, false);
 
   /**
    * Which characters of {@code text} are inside a string literal of {@code language} (the quotes themselves are not).
-   * The action names a language, not a dialect ({@code sql} includes PostgreSQL, MySQL and SQL Server,
+   * The action names a language, not a dialect ({@code sql} includes PostgreSQL, MySQL, SQL Server and SQLite,
    * {@code sh} is any shell), and a dialect's quirk read the other way hides text: MySQL's {@code #} comment,
    * backslash escapes and the code inside {@code /*! … *}{@code /}, PostgreSQL's nested comments,
    * {@code E'…'} and dollar quotes, SQL Server's bracketed
@@ -160,7 +164,7 @@ public final class ActionInspector {
   static boolean[] literals(String text, String language) {
     String lang = language == null ? "" : language.toLowerCase(Locale.ROOT);
     List<Lexer> dialects = switch (lang) {
-      case "sql" -> List.of(ANSI_SQL, POSTGRES, MYSQL, SQL_SERVER);
+      case "sql" -> List.of(ANSI_SQL, POSTGRES, MYSQL, SQL_SERVER, SQLITE);
       case "sh", "bash", "shell" -> List.of(POSIX_SH, BASH);
       case "yaml", "yml" -> List.of(YAML);
       case "json", "http" -> List.of(JSON);
@@ -209,6 +213,8 @@ public final class ActionInspector {
         i = close + tag.length();
       } else if (lx.sqlServerIdentifiers() && (c == '[' || c == '"')) {
         i = endOfIdentifier(text, i, c == '[' ? ']' : '"');
+      } else if (lx.backtickIdentifiers() && c == '`') {
+        i = endOfIdentifier(text, i, '`');
       } else if (c == '\'' || (c == '"' && lx.doubleStrings())) {
         boolean escapes = c == '\'' ? lx.singleEscapes() || prefixed(text, i, lx.prefixEscapes()) : lx.doubleEscapes();
         int j = i + 1;

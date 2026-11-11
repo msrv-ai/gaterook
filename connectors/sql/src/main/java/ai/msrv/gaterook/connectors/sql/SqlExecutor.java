@@ -27,6 +27,10 @@ import java.util.List;
  * <p>A <b>change</b> runs in a read-write transaction with the same prelude and ends with COMMIT; any error before it
  * rolls back. A connection lost during COMMIT leaves the outcome unknown, and the call says so; it is never retried.
  *
+ * <p>SQLite reads use connections that open the file read-only, changes connections of their own (the pool picks
+ * them); its prelude turns {@code query_only} on for reads and starts the statement deadline that the driver's query
+ * timeout doesn't enforce.
+ *
  * <p>The agent's SQL runs as written: a plain {@link Statement} with escape processing off, so {@code {fn …}} isn't
  * rewritten and what ran is what was classified and approved. Template values are bound parameters.
  */
@@ -100,10 +104,18 @@ final class SqlExecutor {
     boolean broken = false;
     try {
       // Before the first statement: pgjdbc opens the transaction with BEGIN READ ONLY, Connector/J sets the session.
-      // Oracle uses SET TRANSACTION READ ONLY; SQL Server has no read-only transaction mode.
-      if (dialect.syntax() != SqlSyntax.ORACLE && !dialect.sqlServer()) c.setReadOnly(readOnly);
-      dialect.prelude(c, pool.server(), s, timeoutMs, readOnly);
-      T result = work.run(c, pool.server(), timeoutMs);
+      // Oracle uses SET TRANSACTION READ ONLY; SQL Server has no read-only transaction mode. SQLite reads come from a
+      // file handle opened read-only, and its prelude switches query_only.
+      if (dialect.syntax() != SqlSyntax.ORACLE && !dialect.sqlServer() && dialect.syntax() != SqlSyntax.SQLITE) {
+        c.setReadOnly(readOnly);
+      }
+      T result;
+      try {
+        dialect.prelude(c, pool.server(), s, timeoutMs, readOnly);
+        result = work.run(c, pool.server(), timeoutMs);
+      } finally {
+        dialect.afterWork(c);
+      }
       if (!commit) {
         c.rollback();
         return result;

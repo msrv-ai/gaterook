@@ -4646,6 +4646,829 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "additionalProperties": false
+  },
+  "sqlite": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "x-card": {
+      "description": "A SQLite database file on this computer. Read queries and schema."
+    },
+    "additionalProperties": false,
+    "required": [
+      "connection"
+    ],
+    "properties": {
+      "connection": {
+        "type": "object",
+        "title": "Database file",
+        "description": "GateRook opens the file on this computer: reads through a read-only handle, approved changes through their own. It never creates a file.",
+        "additionalProperties": false,
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "title": "Database file",
+            "x-file-picker": "sqlite-database",
+            "x-person-only": true,
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "^[^?\\u0000-\\u001f]+$",
+            "description": "An absolute path or ~/…, such as ~/projects/shop/db/development.sqlite3. Only you choose the file: an AI import can't."
+          }
+        }
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "Timeouts, locking, foreign keys and the pool. Policies can tighten limits per environment.",
+        "properties": {
+          "statementTimeoutMs": {
+            "type": "integer",
+            "title": "Statement timeout",
+            "minimum": 100,
+            "maximum": 600000,
+            "x-unit": "ms",
+            "x-stricter": "min",
+            "description": "GateRook interrupts slower statements. Empty: the environment policy."
+          },
+          "busyTimeoutMs": {
+            "type": "integer",
+            "title": "Lock wait",
+            "minimum": 0,
+            "maximum": 30000,
+            "default": 2000,
+            "x-unit": "ms",
+            "description": "How long a call waits while another program writes to the file."
+          },
+          "foreignKeys": {
+            "type": "boolean",
+            "title": "Enforce foreign keys",
+            "default": true,
+            "description": "SQLite checks the file's foreign keys, and runs their ON DELETE and ON UPDATE actions, on approved changes, as most apps that use them do."
+          },
+          "poolSize": {
+            "type": "integer",
+            "title": "Pool size",
+            "minimum": 1,
+            "maximum": 4,
+            "default": 2,
+            "x-unit": "connections"
+          }
+        }
+      }
+    }
+  },
+  "dynamodb": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Amazon DynamoDB",
+    "type": "object",
+    "x-card": {
+      "description": "Tables, Query, Scan and PartiQL. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "region",
+      "credentials"
+    ],
+    "properties": {
+      "region": {
+        "type": "string",
+        "title": "Region",
+        "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
+        "examples": [
+          "eu-central-1"
+        ],
+        "description": "The AWS region of the tables."
+      },
+      "tables": {
+        "type": "array",
+        "title": "Tables",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.*-]{1,255}$"
+        },
+        "description": "The tables agents may use; * matches any characters, such as orders-*. Empty: every table the credentials may read."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "enum": [
+              "accessKey",
+              "profile"
+            ],
+            "default": "accessKey",
+            "title": "Credentials source",
+            "x-enumTitles": [
+              "Access key",
+              "AWS profile on this computer"
+            ]
+          },
+          "roleArn": {
+            "type": "string",
+            "title": "Role to assume",
+            "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
+            "examples": [
+              "arn:aws:iam::412398765012:role/gw-dynamodb"
+            ],
+            "description": "With a role, GateRook limits each call to what it needs, enforced by AWS."
+          },
+          "externalId": {
+            "type": "string",
+            "title": "External ID",
+            "pattern": "^[\\w+=,.@:/-]{2,1224}$",
+            "x-generated": "gw-ext-<12 hex>",
+            "description": "Not a secret. Add it to the role's trust policy as sts:ExternalId"
+          },
+          "sessionSeconds": {
+            "type": "integer",
+            "title": "Session length",
+            "minimum": 900,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s"
+          },
+          "sessionPolicy": {
+            "enum": [
+              "generated",
+              "none"
+            ],
+            "default": "generated",
+            "title": "Session policy",
+            "x-forbidden-env-values": {
+              "prod": [
+                "none"
+              ]
+            },
+            "x-enumTitles": [
+              "Each call's own permissions, enforced by AWS (recommended)",
+              "The role's permissions as they are"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(accessKeyId|secretAccessKey|profile)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "accessKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "accessKeyId": {
+                  "type": "string",
+                  "title": "Access key ID",
+                  "pattern": "^AKIA[A-Z0-9]{16}$",
+                  "x-not-secret": true
+                },
+                "secretAccessKey": {
+                  "type": "string",
+                  "title": "Secret access key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password"
+                }
+              },
+              "required": [
+                "accessKeyId",
+                "secretAccessKey"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "profile"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "profile": {
+                  "type": "string",
+                  "title": "Profile",
+                  "maxLength": 128,
+                  "pattern": "\\S"
+                }
+              },
+              "required": [
+                "profile"
+              ]
+            }
+          }
+        ]
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "Read consistency. Policies set row limits and timeouts per environment.",
+        "properties": {
+          "consistentReads": {
+            "type": "boolean",
+            "title": "Strongly consistent reads",
+            "default": false,
+            "description": "Query and Scan read the latest data at twice the read capacity. A call may still ask for either."
+          }
+        }
+      }
+    }
+  },
+  "bigquery": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Google BigQuery",
+    "type": "object",
+    "x-card": {
+      "description": "Datasets, tables and GoogleSQL queries with a cost limit. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "project",
+      "credentials"
+    ],
+    "properties": {
+      "project": {
+        "type": "string",
+        "title": "Project",
+        "pattern": "^([a-z][a-z0-9-]{4,28}[a-z0-9]|[a-z0-9.-]{1,63}:[a-z][a-z0-9-]{4,28}[a-z0-9])$",
+        "examples": [
+          "acme-analytics"
+        ],
+        "description": "The Google Cloud project that runs, and pays for, the queries."
+      },
+      "location": {
+        "type": "string",
+        "title": "Location",
+        "pattern": "^[A-Za-z0-9-]{2,40}$",
+        "examples": [
+          "EU"
+        ],
+        "description": "Where the queries run, such as US, EU or europe-west1. Empty: BigQuery chooses from the tables."
+      },
+      "datasets": {
+        "type": "array",
+        "title": "Datasets",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^([a-z0-9.:-]{1,100}\\.)?[A-Za-z0-9_*]{1,1024}$"
+        },
+        "description": "The datasets agents may use: dataset or project.dataset, * matching any characters. Empty: every dataset the credentials may read."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Authentication",
+            "enum": [
+              "adc",
+              "serviceAccountKey"
+            ],
+            "default": "adc",
+            "x-enumTitles": [
+              "Existing Google sign-in (ADC)",
+              "Service account key (JSON)"
+            ],
+            "description": "Uses Application Default Credentials (ADC) on this computer, or a service account key."
+          },
+          "impersonate": {
+            "type": "string",
+            "title": "Service account to impersonate",
+            "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+            "examples": [
+              "gw-bigquery@acme-analytics.iam.gserviceaccount.com"
+            ]
+          },
+          "delegates": {
+            "type": "array",
+            "title": "Delegation chain",
+            "maxItems": 5,
+            "items": {
+              "type": "string"
+            },
+            "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
+          },
+          "lifetimeSeconds": {
+            "type": "integer",
+            "title": "Token lifetime",
+            "minimum": 300,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s"
+          },
+          "quotaProject": {
+            "type": "string",
+            "title": "Billed project",
+            "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
+          }
+        },
+        "patternProperties": {
+          "^(serviceAccountKey)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "serviceAccountKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "serviceAccountKey": {
+                  "type": "string",
+                  "title": "Service account key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "x-widget": "textarea",
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "serviceAccountKey"
+              ]
+            }
+          }
+        ]
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "The cost limit of one statement. Policies set row limits and timeouts per environment.",
+        "properties": {
+          "maxMbBilled": {
+            "type": "integer",
+            "title": "Data per statement",
+            "minimum": 10,
+            "maximum": 104857600,
+            "default": 10240,
+            "x-unit": "MB",
+            "x-stricter": "min",
+            "description": "The most bytes one statement may process (maximumBytesBilled). A dry run refuses a larger one before it runs."
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Cloud Firestore",
+    "type": "object",
+    "x-card": {
+      "description": "Documents, collections and queries. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "project",
+      "credentials"
+    ],
+    "properties": {
+      "project": {
+        "type": "string",
+        "title": "Project",
+        "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$",
+        "examples": [
+          "acme-stage"
+        ],
+        "description": "The ID of the Google Cloud project that holds the database."
+      },
+      "database": {
+        "type": "string",
+        "title": "Database",
+        "default": "(default)",
+        "pattern": "^(\\(default\\)|[a-z][a-z0-9-]{2,61}[a-z0-9])$",
+        "examples": [
+          "(default)"
+        ],
+        "description": "The Firestore database ID: (default) for the project's default database."
+      },
+      "collections": {
+        "type": "array",
+        "title": "Collections",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "maxLength": 1500,
+          "pattern": "^/?[^/\\u0000-\\u001f\\u007f#%\\\\]+(/[^/\\u0000-\\u001f\\u007f#%\\\\]+)*$"
+        },
+        "examples": [
+          [
+            "orders",
+            "users/*/orders"
+          ]
+        ],
+        "description": "The collections agents may use. An ID such as orders or audit-* allows every collection with that ID, collection-group queries included; a path such as /orders or users/*/orders allows the collections at that path (* is one ID, ** any number). Empty: every collection the credentials may read."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Authentication",
+            "description": "Uses Application Default Credentials (ADC) on this computer. If sign-in is missing or expired, test the connection and choose Sign in with Google, or run gcloud auth application-default login in a terminal.",
+            "enum": [
+              "adc",
+              "serviceAccountKey"
+            ],
+            "default": "adc",
+            "x-enumTitles": [
+              "Existing Google sign-in (ADC)",
+              "Service account key (JSON)"
+            ]
+          },
+          "impersonate": {
+            "type": "string",
+            "title": "Service account to impersonate",
+            "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+            "examples": [
+              "gw-firestore@acme-stage.iam.gserviceaccount.com"
+            ],
+            "description": "Recommended: each token is borrowed for a few minutes and limited to Datastore and Firestore. Grant roles/datastore.viewer, or roles/datastore.user for approved changes."
+          },
+          "lifetimeSeconds": {
+            "type": "integer",
+            "title": "Token lifetime",
+            "minimum": 300,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s"
+          },
+          "quotaProject": {
+            "type": "string",
+            "title": "Billed project",
+            "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
+          }
+        },
+        "patternProperties": {
+          "^(serviceAccountKey)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "serviceAccountKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "serviceAccountKey": {
+                  "type": "string",
+                  "title": "Service account key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "x-widget": "textarea",
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "serviceAccountKey"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "firebase-rtdb": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Firebase Realtime Database",
+    "type": "object",
+    "x-card": {
+      "description": "Paths, shallow reads and queries. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "databaseUrl",
+      "credentials"
+    ],
+    "properties": {
+      "databaseUrl": {
+        "type": "string",
+        "title": "Database URL",
+        "maxLength": 200,
+        "pattern": "^https://([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.firebaseio\\.com|[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.[a-z]{2,20}-[a-z]{2,20}[0-9]{1,2}\\.firebasedatabase\\.app)/?$",
+        "examples": [
+          "https://acme-default-rtdb.firebaseio.com",
+          "https://acme-eu.europe-west1.firebasedatabase.app"
+        ],
+        "description": "As the Firebase console shows it: https://<database>.firebaseio.com or https://<database>.<region>.firebasedatabase.app."
+      },
+      "paths": {
+        "type": "array",
+        "title": "Paths",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "maxLength": 768,
+          "pattern": "^[^/.$#\\[\\]%\\\\\\u0000-\\u001f\\u007f]+$"
+        },
+        "examples": [
+          [
+            "users",
+            "public-*"
+          ]
+        ],
+        "description": "The top-level paths agents may use, with everything under them; * matches any characters, such as public-*. Empty: the whole database."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Authentication",
+            "description": "Uses Application Default Credentials (ADC) on this computer. If sign-in is missing or expired, test the connection and choose Sign in with Google, or run gcloud auth application-default login in a terminal. Your own sign-in keeps the scopes it was given; a key or an impersonated service account gets firebase.database and userinfo.email.",
+            "enum": [
+              "adc",
+              "serviceAccountKey"
+            ],
+            "default": "adc",
+            "x-enumTitles": [
+              "Existing Google sign-in (ADC)",
+              "Service account key (JSON)"
+            ]
+          },
+          "impersonate": {
+            "type": "string",
+            "title": "Service account to impersonate",
+            "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+            "examples": [
+              "gw-rtdb@acme-stage.iam.gserviceaccount.com"
+            ],
+            "description": "Recommended: each token is borrowed for a few minutes and limited to the Realtime Database. Grant roles/firebasedatabase.viewer, or roles/firebasedatabase.admin for approved changes."
+          },
+          "lifetimeSeconds": {
+            "type": "integer",
+            "title": "Token lifetime",
+            "minimum": 300,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s"
+          }
+        },
+        "patternProperties": {
+          "^(serviceAccountKey)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "serviceAccountKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "serviceAccountKey": {
+                  "type": "string",
+                  "title": "Service account key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "x-widget": "textarea",
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "serviceAccountKey"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "snowflake": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Snowflake",
+    "type": "object",
+    "x-card": {
+      "description": "Read queries, schemas and tables. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "account",
+      "user",
+      "authentication"
+    ],
+    "properties": {
+      "account": {
+        "type": "string",
+        "title": "Account identifier",
+        "maxLength": 255,
+        "pattern": "^(?:[A-Za-z][A-Za-z0-9]{0,254}-[A-Za-z0-9_]{1,255}|[A-Za-z0-9]{1,64}(?:\\.[A-Za-z0-9-]{1,64}){0,2})$",
+        "examples": [
+          "myorg-myaccount"
+        ],
+        "description": "orgname-accountname, or an account locator with its region (xy12345.eu-central-1). Not a URL: GateRook connects to <account>.snowflakecomputing.com."
+      },
+      "privateLink": {
+        "type": "boolean",
+        "title": "Private connectivity",
+        "default": false,
+        "description": "Connect to <account>.privatelink.snowflakecomputing.com: AWS PrivateLink, Azure Private Link or Google Private Service Connect."
+      },
+      "user": {
+        "type": "string",
+        "title": "User",
+        "maxLength": 255,
+        "pattern": "^[A-Za-z0-9_.@$+-]{1,255}$",
+        "description": "The login name GateRook signs in as. Grant it only roles that read: Snowflake has no read-only transaction, so its roles are the boundary."
+      },
+      "authentication": {
+        "type": "object",
+        "title": "Authentication",
+        "required": [
+          "method"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "method": {
+            "enum": [
+              "keyPair",
+              "token"
+            ],
+            "default": "keyPair",
+            "title": "Sign in with",
+            "x-enumTitles": [
+              "Key pair",
+              "Programmatic access token"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(privateKey|token)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "keyPair"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "privateKey": {
+                  "type": "string",
+                  "title": "Private key (PEM)",
+                  "writeOnly": true,
+                  "x-gateway-secret": "pem",
+                  "x-widget": "textarea",
+                  "maxLength": 20000,
+                  "description": "An unencrypted RSA key of at least 2048 bits, PKCS#8 or PKCS#1. Its public key is the user's RSA_PUBLIC_KEY; Test connection shows its fingerprint."
+                }
+              },
+              "required": [
+                "privateKey"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "token"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "title": "Programmatic access token",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "maxLength": 8192,
+                  "description": "A token of the user, best restricted to a role that only reads. Snowflake accepts it only from addresses a network policy of the user allows."
+                }
+              },
+              "required": [
+                "token"
+              ]
+            }
+          }
+        ]
+      },
+      "warehouse": {
+        "type": "string",
+        "title": "Warehouse",
+        "maxLength": 257,
+        "pattern": "^(?:[A-Za-z_][A-Za-z0-9_$]{0,254}|\"(?:[^\"]|\"\"){1,255}\")$",
+        "description": "Runs the statements. Empty: the user's default warehouse."
+      },
+      "role": {
+        "type": "string",
+        "title": "Role",
+        "maxLength": 257,
+        "pattern": "^(?:[A-Za-z_][A-Za-z0-9_$]{0,254}|\"(?:[^\"]|\"\"){1,255}\")$",
+        "description": "Use a role that can only read outside dev. Empty: the user's default role."
+      },
+      "database": {
+        "type": "string",
+        "title": "Database",
+        "maxLength": 257,
+        "pattern": "^(?:[A-Za-z_][A-Za-z0-9_$]{0,254}|\"(?:[^\"]|\"\"){1,255}\")$",
+        "description": "Where names without a database resolve. Empty: the user's default namespace."
+      },
+      "schema": {
+        "type": "string",
+        "title": "Schema",
+        "maxLength": 257,
+        "pattern": "^(?:[A-Za-z_][A-Za-z0-9_$]{0,254}|\"(?:[^\"]|\"\"){1,255}\")$",
+        "description": "Where names without a schema resolve; needs Database. Write names with lower case or spaces in double quotes."
+      },
+      "tables": {
+        "type": "array",
+        "title": "Tables",
+        "maxItems": 100,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "maxLength": 767,
+          "pattern": "^[A-Za-z0-9_$*]{1,255}\\.[A-Za-z0-9_$*]{1,255}\\.[A-Za-z0-9_$*]{1,255}$"
+        },
+        "description": "The tables agents may use, as DATABASE.SCHEMA.TABLE; * matches any characters, such as ANALYTICS.PUBLIC.*, and case doesn't matter. Empty: every table the role may read."
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "Policies set row limits and timeouts per environment.",
+        "properties": {
+          "statementTimeoutSeconds": {
+            "type": "integer",
+            "title": "Statement timeout",
+            "minimum": 1,
+            "maximum": 3600,
+            "x-unit": "s",
+            "description": "Snowflake cancels slower statements. Empty: the environment policy's statement timeout; with both, the shorter applies."
+          }
+        }
+      }
+    }
   }
 };
 
@@ -6035,6 +6858,162 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       }
     }
   },
+  "sqlite": {
+    "sections": [
+      "/connection",
+      "/advanced"
+    ],
+    "loose": [],
+    "rows": {
+      "/connection": [
+        [
+          "/connection/file"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/statementTimeoutMs",
+          "/advanced/busyTimeoutMs"
+        ],
+        [
+          "/advanced/foreignKeys"
+        ],
+        [
+          "/advanced/poolSize"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/connection",
+        "kind": "object",
+        "title": "Database file",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/file",
+        "kind": "text",
+        "title": "Database file",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/statementTimeoutMs",
+        "kind": "number",
+        "title": "Statement timeout",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "ms",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/busyTimeoutMs",
+        "kind": "number",
+        "title": "Lock wait",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "ms",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/foreignKeys",
+        "kind": "checkbox",
+        "title": "Enforce foreign keys",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/poolSize",
+        "kind": "number",
+        "title": "Pool size",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "connections",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "connection": {},
+      "advanced": {
+        "busyTimeoutMs": 2000,
+        "foreignKeys": true,
+        "poolSize": 2
+      }
+    },
+    "prodDefaults": {
+      "connection": {},
+      "advanced": {
+        "busyTimeoutMs": 2000,
+        "foreignKeys": true,
+        "poolSize": 2
+      }
+    }
+  },
   "mongodb": {
     "sections": [
       "/connection",
@@ -6885,6 +7864,1179 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "maxValueKb": 64,
         "poolSize": 2,
         "noTouch": true
+      }
+    }
+  },
+  "dynamodb": {
+    "sections": [
+      "/credentials",
+      "/advanced"
+    ],
+    "loose": [
+      "/region",
+      "/tables"
+    ],
+    "rows": {
+      "/credentials": [
+        [
+          "/credentials/source"
+        ],
+        [
+          "/credentials/accessKeyId"
+        ],
+        [
+          "/credentials/secretAccessKey"
+        ],
+        [
+          "/credentials/profile"
+        ],
+        [
+          "/credentials/roleArn"
+        ],
+        [
+          "/credentials/externalId"
+        ],
+        [
+          "/credentials/sessionSeconds"
+        ],
+        [
+          "/credentials/sessionPolicy"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/consistentReads"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/region",
+        "kind": "text",
+        "title": "Region",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/tables",
+        "kind": "tags",
+        "title": "Tables",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/source",
+        "kind": "select",
+        "title": "Credentials source",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "accessKey",
+          "profile"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/accessKeyId",
+        "kind": "text",
+        "title": "Access key ID",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"accessKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/secretAccessKey",
+        "kind": "secret",
+        "title": "Secret access key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"accessKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/profile",
+        "kind": "text",
+        "title": "Profile",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"profile\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/roleArn",
+        "kind": "text",
+        "title": "Role to assume",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/externalId",
+        "kind": "text",
+        "title": "External ID",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/sessionSeconds",
+        "kind": "number",
+        "title": "Session length",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "s",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/sessionPolicy",
+        "kind": "select",
+        "title": "Session policy",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "generated",
+          "none"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": [
+          "none"
+        ],
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/consistentReads",
+        "kind": "checkbox",
+        "title": "Strongly consistent reads",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "credentials": {
+        "source": "accessKey",
+        "sessionSeconds": 900,
+        "sessionPolicy": "generated"
+      },
+      "advanced": {
+        "consistentReads": false
+      }
+    },
+    "prodDefaults": {
+      "credentials": {
+        "source": "accessKey",
+        "sessionSeconds": 900,
+        "sessionPolicy": "generated"
+      },
+      "advanced": {
+        "consistentReads": false
+      }
+    }
+  },
+  "bigquery": {
+    "sections": [
+      "/credentials",
+      "/advanced"
+    ],
+    "loose": [
+      "/project",
+      "/location",
+      "/datasets"
+    ],
+    "rows": {
+      "/credentials": [
+        [
+          "/credentials/source"
+        ],
+        [
+          "/credentials/serviceAccountKey"
+        ],
+        [
+          "/credentials/impersonate"
+        ],
+        [
+          "/credentials/delegates"
+        ],
+        [
+          "/credentials/lifetimeSeconds"
+        ],
+        [
+          "/credentials/quotaProject"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/maxMbBilled"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/project",
+        "kind": "text",
+        "title": "Project",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/location",
+        "kind": "text",
+        "title": "Location",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/datasets",
+        "kind": "tags",
+        "title": "Datasets",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/source",
+        "kind": "select",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "adc",
+          "serviceAccountKey"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/serviceAccountKey",
+        "kind": "secret",
+        "title": "Service account key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"serviceAccountKey\"]"
+        ],
+        "multiline": true,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/impersonate",
+        "kind": "text",
+        "title": "Service account to impersonate",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/delegates",
+        "kind": "tags",
+        "title": "Delegation chain",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/lifetimeSeconds",
+        "kind": "number",
+        "title": "Token lifetime",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "s",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/quotaProject",
+        "kind": "text",
+        "title": "Billed project",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxMbBilled",
+        "kind": "number",
+        "title": "Data per statement",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "MB",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "credentials": {
+        "source": "adc",
+        "lifetimeSeconds": 900
+      },
+      "advanced": {
+        "maxMbBilled": 10240
+      }
+    },
+    "prodDefaults": {
+      "credentials": {
+        "source": "adc",
+        "lifetimeSeconds": 900
+      },
+      "advanced": {
+        "maxMbBilled": 10240
+      }
+    }
+  },
+  "snowflake": {
+    "sections": [
+      "/authentication",
+      "/advanced"
+    ],
+    "loose": [
+      "/account",
+      "/privateLink",
+      "/user",
+      "/warehouse",
+      "/role",
+      "/database",
+      "/schema",
+      "/tables"
+    ],
+    "rows": {
+      "/authentication": [
+        [
+          "/authentication/method"
+        ],
+        [
+          "/authentication/privateKey"
+        ],
+        [
+          "/authentication/token"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/statementTimeoutSeconds"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/account",
+        "kind": "text",
+        "title": "Account identifier",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/privateLink",
+        "kind": "checkbox",
+        "title": "Private connectivity",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/user",
+        "kind": "text",
+        "title": "User",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/warehouse",
+        "kind": "text",
+        "title": "Warehouse",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/role",
+        "kind": "text",
+        "title": "Role",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/database",
+        "kind": "text",
+        "title": "Database",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/schema",
+        "kind": "text",
+        "title": "Schema",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/tables",
+        "kind": "tags",
+        "title": "Tables",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/authentication",
+        "kind": "object",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/authentication/method",
+        "kind": "select",
+        "title": "Sign in with",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "keyPair",
+          "token"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/authentication/privateKey",
+        "kind": "secret",
+        "title": "Private key (PEM)",
+        "required": true,
+        "secret": "pem",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "authentication.method in [\"keyPair\"]"
+        ],
+        "multiline": true,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/authentication/token",
+        "kind": "secret",
+        "title": "Programmatic access token",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "authentication.method in [\"token\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/statementTimeoutSeconds",
+        "kind": "number",
+        "title": "Statement timeout",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "s",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "privateLink": false,
+      "authentication": {
+        "method": "keyPair"
+      },
+      "advanced": {}
+    },
+    "prodDefaults": {
+      "privateLink": false,
+      "authentication": {
+        "method": "keyPair"
+      },
+      "advanced": {}
+    }
+  },
+  "firestore": {
+    "sections": [
+      "/credentials"
+    ],
+    "loose": [
+      "/project",
+      "/database",
+      "/collections"
+    ],
+    "rows": {
+      "/credentials": [
+        [
+          "/credentials/source"
+        ],
+        [
+          "/credentials/serviceAccountKey"
+        ],
+        [
+          "/credentials/impersonate"
+        ],
+        [
+          "/credentials/lifetimeSeconds"
+        ],
+        [
+          "/credentials/quotaProject"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/project",
+        "kind": "text",
+        "title": "Project",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/database",
+        "kind": "text",
+        "title": "Database",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/collections",
+        "kind": "tags",
+        "title": "Collections",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/source",
+        "kind": "select",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "adc",
+          "serviceAccountKey"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/serviceAccountKey",
+        "kind": "secret",
+        "title": "Service account key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"serviceAccountKey\"]"
+        ],
+        "multiline": true,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/impersonate",
+        "kind": "text",
+        "title": "Service account to impersonate",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/lifetimeSeconds",
+        "kind": "number",
+        "title": "Token lifetime",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "s",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/quotaProject",
+        "kind": "text",
+        "title": "Billed project",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "database": "(default)",
+      "credentials": {
+        "source": "adc",
+        "lifetimeSeconds": 900
+      }
+    },
+    "prodDefaults": {
+      "database": "(default)",
+      "credentials": {
+        "source": "adc",
+        "lifetimeSeconds": 900
+      }
+    }
+  },
+  "firebase-rtdb": {
+    "sections": [
+      "/credentials"
+    ],
+    "loose": [
+      "/databaseUrl",
+      "/paths"
+    ],
+    "rows": {
+      "/credentials": [
+        [
+          "/credentials/source"
+        ],
+        [
+          "/credentials/serviceAccountKey"
+        ],
+        [
+          "/credentials/impersonate"
+        ],
+        [
+          "/credentials/lifetimeSeconds"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/databaseUrl",
+        "kind": "text",
+        "title": "Database URL",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/paths",
+        "kind": "tags",
+        "title": "Paths",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/source",
+        "kind": "select",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "adc",
+          "serviceAccountKey"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/serviceAccountKey",
+        "kind": "secret",
+        "title": "Service account key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"serviceAccountKey\"]"
+        ],
+        "multiline": true,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/impersonate",
+        "kind": "text",
+        "title": "Service account to impersonate",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/lifetimeSeconds",
+        "kind": "number",
+        "title": "Token lifetime",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "s",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "credentials": {
+        "source": "adc",
+        "lifetimeSeconds": 900
+      }
+    },
+    "prodDefaults": {
+      "credentials": {
+        "source": "adc",
+        "lifetimeSeconds": 900
       }
     }
   },

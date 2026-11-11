@@ -359,10 +359,17 @@ export function checkPrompt(type: string | null, name: string | null): string {
     case 'mysql':
     case 'oracle':
     case 'sqlserver':
+    case 'sqlite':
+    case 'dynamodb':
+    case 'bigquery':
+    case 'snowflake':
     case 'sql':
       return `Show me the tables in ${name}`;
     case 'mongodb':
+    case 'firestore':
       return `Show me the collections in ${name}`;
+    case 'firebase-rtdb':
+      return `Show me the top-level paths in ${name}`;
     case 'redis':
       return `Show me a few keys in ${name}`;
     case 'opensearch':

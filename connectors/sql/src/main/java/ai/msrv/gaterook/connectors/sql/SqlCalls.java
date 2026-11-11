@@ -145,6 +145,9 @@ final class SqlCalls {
           "numeric", "nvarchar", "time", "varbinary", "varchar");
       case ORACLE -> Set.of("char", "decimal", "float", "nchar", "number", "numeric", "nvarchar2", "raw",
           "timestamp", "urowid", "varchar", "varchar2");
+      // SQLite takes any type name with sizes in parentheses; these are the ones written in casts.
+      case SQLITE -> Set.of("bigint", "char", "character", "decimal", "double", "float", "int", "integer", "nchar",
+          "numeric", "nvarchar", "real", "smallint", "tinyint", "varchar", "varying");
     };
   }
 

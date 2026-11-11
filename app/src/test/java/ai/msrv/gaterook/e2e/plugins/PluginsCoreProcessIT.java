@@ -94,6 +94,7 @@ class PluginsCoreProcessIT {
     FILES.put("/catalog/gw-jira-service-desk-1.3.0.jar", Files.readAllBytes(jiraJar("1.3.0")));
     FILES.put("/catalog/gw-clickhouse-0.6.1.jar", Files.readAllBytes(plugin("clickhouse", "gw-clickhouse-0.6.1.jar")));
     FILES.put("/catalog/gw-rabbitmq-0.3.0.jar", Files.readAllBytes(plugin("rabbitmq", "gw-rabbitmq-0.3.0.jar")));
+    FILES.put("/catalog/gw-duckdb-1.0.0.jar", Files.readAllBytes(plugin("duckdb", "gw-duckdb-1.0.0.jar")));
     FILES.put("/catalog/fixture-mcp.package-lock.json", Files.readAllBytes(npmFixture().resolve("package-lock.json")));
     byte[] index = index(1, List.of());
     FILES.put("/catalog/index.json", index);

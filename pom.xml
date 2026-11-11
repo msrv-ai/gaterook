@@ -38,6 +38,10 @@
     <module>connectors/kubernetes</module>
     <module>connectors/gcp</module>
     <module>connectors/aws</module>
+    <module>connectors/dynamodb</module>
+    <module>connectors/bigquery</module>
+    <module>connectors/firebase</module>
+    <module>connectors/snowflake</module>
     <module>connectors/http</module>
     <module>connectors/mcp-server</module>
     <module>core</module>
@@ -47,6 +51,7 @@
     <module>plugins/test-fixtures</module>
     <module>plugins/clickhouse</module>
     <module>plugins/rabbitmq</module>
+    <module>plugins/duckdb</module>
     <module>plugin-it</module>
     <module>bridge-cli</module>
   </modules>
@@ -75,6 +80,8 @@
     <google-auth.version>1.54.0</google-auth.version>
     <mssql-jdbc.version>13.6.0.jre11</mssql-jdbc.version>
     <jsqlparser.version>5.4</jsqlparser.version>
+    <!-- The DuckDB catalog plugin's engine (docs/duckdb.md); the plugin JAR carries two of its native libraries. -->
+    <duckdb-jdbc.version>2.0.0.1</duckdb-jdbc.version>
     <oracle-jdbc.version>23.26.4.0.0</oracle-jdbc.version>
     <sshd.version>2.20.0</sshd.version>
     <re2j.version>1.8</re2j.version>
@@ -107,6 +114,7 @@
     -->
     <it.tag.mysql>mysql-it</it.tag.mysql>
     <it.tag.sqlserver>sqlserver-it</it.tag.sqlserver>
+    <it.tag.cockroach>cockroach-it</it.tag.cockroach>
     <it.tag.mongo>mongo-it</it.tag.mongo>
     <it.tag.logs>logs-it</it.tag.logs>
     <it.tag.kube>kube-api</it.tag.kube>
@@ -120,7 +128,7 @@
     <it.services></it.services>
     <!-- Extra JVM options of the test forks: the tracing agent of the nightly metadata report (native.yml). -->
     <test.jvm.extra></test.jvm.extra>
-    <it.excludedGroups>${it.tag.mysql},${it.tag.sqlserver},${it.tag.mongo},${it.tag.logs},${it.tag.kube},${it.tag.vault},${it.tag.cloud},${it.tag.network},${it.tag.mcpclients},${it.tag.openapi},${it.tag.mcpservers}</it.excludedGroups>
+    <it.excludedGroups>${it.tag.mysql},${it.tag.sqlserver},${it.tag.cockroach},${it.tag.mongo},${it.tag.logs},${it.tag.kube},${it.tag.vault},${it.tag.cloud},${it.tag.network},${it.tag.mcpclients},${it.tag.openapi},${it.tag.mcpservers}</it.excludedGroups>
   </properties>
 
   <dependencyManagement>
@@ -189,6 +197,26 @@
       <dependency>
         <groupId>ai.msrv.gaterook</groupId>
         <artifactId>connectors-aws</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-dynamodb</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-bigquery</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-firebase</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-snowflake</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
@@ -281,6 +309,13 @@
         <groupId>com.github.jsqlparser</groupId>
         <artifactId>jsqlparser</artifactId>
         <version>${jsqlparser.version}</version>
+      </dependency>
+
+      <!-- ── Plugins: DuckDB (docs/duckdb.md) ──────────────────────────────────────────────────────────── -->
+      <dependency>
+        <groupId>org.duckdb</groupId>
+        <artifactId>duckdb_jdbc</artifactId>
+        <version>${duckdb-jdbc.version}</version>
       </dependency>
 
       <!-- ── Connectors: Redis (report 05) ─────────────────────────────────────────────────────────────── -->
@@ -706,6 +741,10 @@
     <profile>
       <id>sqlserver-it</id>
       <properties><it.tag.sqlserver>__enabled-sqlserver-it</it.tag.sqlserver></properties>
+    </profile>
+    <profile>
+      <id>cockroach-it</id>
+      <properties><it.tag.cockroach>__enabled-cockroach-it</it.tag.cockroach></properties>
     </profile>
     <profile>
       <id>mongo-it</id>

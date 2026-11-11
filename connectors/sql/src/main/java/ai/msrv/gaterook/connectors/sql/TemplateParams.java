@@ -404,18 +404,34 @@ final class TemplateParams {
         case Long n -> ps.setLong(i, n);
         case BigDecimal n -> ps.setBigDecimal(i, n);
         case Boolean v -> {
-          if (syntax == SqlSyntax.ORACLE) ps.setInt(i, v ? 1 : 0);
+          if (syntax == SqlSyntax.ORACLE || syntax == SqlSyntax.SQLITE) ps.setInt(i, v ? 1 : 0);
           else ps.setBoolean(i, v);
         }
         case OffsetDateTime t -> {
           if (syntax == SqlSyntax.MYSQL) ps.setObject(i, sessionTimes.get(times++));
+          else if (syntax == SqlSyntax.SQLITE) ps.setString(i, sqliteTime(t));
           else ps.setObject(i, t);
         }
-        case LocalDate d -> ps.setObject(i, d);
+        case LocalDate d -> {
+          if (syntax == SqlSyntax.SQLITE) ps.setString(i, d.toString());
+          else ps.setObject(i, d);
+        }
         default -> throw new SQLException("Unsupported template value " + b.value().getClass().getSimpleName());
       }
       i++;
     }
+  }
+
+  /**
+   * SQLite has no time type: a time is text, and SQLite's own date and time functions write UTC as
+   * {@code YYYY-MM-DD HH:MM:SS} (with {@code .SSS} when there are milliseconds), which compares as text in time order.
+   */
+  static String sqliteTime(OffsetDateTime t) {
+    LocalDateTime utc = t.withOffsetSameInstant(java.time.ZoneOffset.UTC).toLocalDateTime()
+        .truncatedTo(ChronoUnit.MILLIS);
+    String text = utc.toLocalDate() + " " + String.format(java.util.Locale.ROOT, "%02d:%02d:%02d", utc.getHour(),
+        utc.getMinute(), utc.getSecond());
+    return utc.getNano() == 0 ? text : text + String.format(java.util.Locale.ROOT, ".%03d", utc.getNano() / 1_000_000);
   }
 
   /**
@@ -469,13 +485,15 @@ final class TemplateParams {
       case STRING, ENUM -> Types.VARCHAR;
       case INTEGER -> Types.BIGINT;
       case NUMBER -> Types.NUMERIC;
-      case BOOLEAN -> syntax == SqlSyntax.ORACLE ? Types.NUMERIC : Types.BOOLEAN;
+      case BOOLEAN -> syntax == SqlSyntax.ORACLE ? Types.NUMERIC : syntax == SqlSyntax.SQLITE ? Types.INTEGER
+          : Types.BOOLEAN;
       case TIMESTAMP -> switch (syntax) {
         case MYSQL -> Types.TIMESTAMP;
         case SQLSERVER -> microsoft.sql.Types.DATETIMEOFFSET;
+        case SQLITE -> Types.VARCHAR;
         default -> Types.TIMESTAMP_WITH_TIMEZONE;
       };
-      case DATE -> Types.DATE;
+      case DATE -> syntax == SqlSyntax.SQLITE ? Types.VARCHAR : Types.DATE;
     };
   }
 

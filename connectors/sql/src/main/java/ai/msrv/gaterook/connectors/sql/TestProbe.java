@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.connectors.sql;
 
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
+import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.SecretResolver;
@@ -94,6 +95,9 @@ final class TestProbe {
     if (dialect.syntax() == SqlSyntax.ORACLE) {
       return TestResult.failure("sql.database", "Enter the Oracle service name in the connection settings.", null);
     }
+    if (dialect.syntax() == SqlSyntax.SQLITE) {
+      return TestResult.failure("sql.database", "A SQLite connection is one database file: choose it.", null);
+    }
     ConnectionSettings s = ConnectionSettings.of(cfg, dialect).withDatabase(
         dialect.mysql() ? null : discoveryDatabase(cfg), dialect.mysql());
     int budget = (int) Math.max(1, Math.min(BUDGET_MS, ctx.remaining().toMillis()));
@@ -163,6 +167,11 @@ final class TestProbe {
   private TestResult testOne(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, ConnectionSettings s) {
     long started = System.nanoTime();
     List<TestResult.Check> checks = new ArrayList<>();
+    try {
+      dialect.checkTarget(s, ctx);
+    } catch (ConnectorException e) {
+      return TestResult.failure("sql.file", e.getMessage(), null);
+    }
     int budget = (int) Math.max(1, Math.min(BUDGET_MS, ctx.remaining().toMillis()));
     Properties props;
     try {
@@ -215,14 +224,21 @@ final class TestProbe {
     SqlProbe probe = dialect.probe();
     long latency = latency(c);
     checks.add(new TestResult.Check("latency", true, latency, "Median of three " + dialect.pingSql()));
+    boolean file = dialect.syntax() == SqlSyntax.SQLITE;
     SqlProbe.Tls tls = probe.tls(c, server);
     boolean tlsKnown = tls != null || (dialect.sqlServer() && !"disable".equals(s.sslMode()));
     if (tls == null) {
       tls = new SqlProbe.Tls(!"disable".equals(s.sslMode()),
           tlsKnown ? "TLS required by connection settings" : "Unknown: the login cannot inspect transport metadata");
     }
-    checks.add(new TestResult.Check("tls", true, 0, !tlsKnown ? tls.version()
-        : tls.enabled() ? "Encrypted · " + tls.version() : "Not encrypted"));
+    if (file) {
+      // A file on this computer: nothing travels over a network.
+      tls = new SqlProbe.Tls(false, "Local file");
+      checks.add(new TestResult.Check("file", true, 0, fileDetail(c, s)));
+    } else {
+      checks.add(new TestResult.Check("tls", true, 0, !tlsKnown ? tls.version()
+          : tls.enabled() ? "Encrypted · " + tls.version() : "Not encrypted"));
+    }
     SqlProbe.Access access = probe.access(c, s, server);
     checks.add(new TestResult.Check("permissions", true, 0, access.write() == null ? "Read only" : "Can write"));
     List<String> missing = probe.missingSchemas(c, s.schemaAllowlist());
@@ -247,14 +263,18 @@ final class TestProbe {
     details.put("totalMs", ms(started));
     details.putObject("server").put("product", server.product()).put("version", server.version())
         .put("replica", access.replica());
-    ObjectNode tlsDetails = details.putObject("tls").put("version", tls.version());
-    if (tlsKnown) tlsDetails.put("enabled", tls.enabled());
-    else tlsDetails.putNull("enabled");
+    if (file) {
+      details.putObject("file").put("path", s.target());
+    } else {
+      ObjectNode tlsDetails = details.putObject("tls").put("version", tls.version());
+      if (tlsKnown) tlsDetails.put("enabled", tls.enabled());
+      else tlsDetails.putNull("enabled");
+    }
     ObjectNode snippets = details.putObject("snippets");
-    for (Hint h : hints(cfg.env(), s, access, tls, missing, server)) {
+    for (Hint h : file ? sqliteHints(cfg.env(), access) : hints(cfg.env(), s, access, tls, missing, server)) {
       if (!tlsKnown && "sql.tls-off".equals(h.code())) continue;
       result = result.withHint(h);
-      if ("sql.user-can-write".equals(h.code()) || "sql.superuser".equals(h.code())) {
+      if (!file && ("sql.user-can-write".equals(h.code()) || "sql.superuser".equals(h.code()))) {
         snippets.putObject(h.code()).put("language", "sql").put("text", probe.readOnlyUserSql(s));
       }
     }
@@ -315,6 +335,44 @@ final class TestProbe {
     return out;
   }
 
+  /** SQLite: no users or roles, only whether GateRook's account may write the file. */
+  static List<Hint> sqliteHints(Env env, SqlProbe.Access a) {
+    List<Hint> out = new ArrayList<>();
+    if (a.write() != null) {
+      boolean dev = env == Env.DEV;
+      out.add(new Hint(dev ? Severity.INFO : Severity.WARNING, "sql.user-can-write", "/connection/file",
+          "GateRook may write this file. " + (dev ? "Fine for dev: every write still waits for approval."
+              : "Every write still waits for approval, but on " + env.id() + " use a read-only copy of the file, or "
+              + "turn sql_execute off.")));
+    }
+    if (a.readableTables() == 0) {
+      out.add(new Hint(Severity.INFO, "sql.empty-database", "/connection/file",
+          "The database has no tables or views yet."));
+    }
+    return out;
+  }
+
+  /** {@code Local file · 1.2 MiB · journal wal}. */
+  private static String fileDetail(Connection c, ConnectionSettings s) throws SQLException {
+    long pages = 0;
+    long pageSize = 0;
+    String journal = null;
+    try (Statement st = c.createStatement()) {
+      try (ResultSet rs = st.executeQuery("PRAGMA page_count")) {
+        pages = rs.next() ? rs.getLong(1) : 0;
+      }
+      try (ResultSet rs = st.executeQuery("PRAGMA page_size")) {
+        pageSize = rs.next() ? rs.getLong(1) : 0;
+      }
+      try (ResultSet rs = st.executeQuery("PRAGMA journal_mode")) {
+        journal = rs.next() ? rs.getString(1) : null;
+      }
+    }
+    double mib = pages * pageSize / 1048576.0;
+    return "Local file · " + (mib < 0.1 ? (pages * pageSize / 1024) + " KiB" : String.format(Locale.US, "%.1f MiB", mib))
+        + (journal == null ? "" : " · journal " + journal.toLowerCase(Locale.ROOT));
+  }
+
   private static String danger(String privilege) {
     return switch (privilege.toLowerCase(Locale.ROOT)) {
       case "pg_execute_server_program" -> "it can run programs on the database server.";
@@ -344,6 +402,21 @@ final class TestProbe {
   /** The kit's texts for what keeps the test from connecting; the driver's chain under "technical". */
   TestResult failure(SQLException e, ConnectionSettings s, String user) {
     String technical = technical(e);
+    if (dialect.syntax() == SqlSyntax.SQLITE) {
+      String path = s.target();
+      return switch (e.getErrorCode()) {
+        case SqlErrors.SQLITE_CANTOPEN -> TestResult.failure("sql.file", "Can't open " + path + ". Check that the file "
+            + "exists and that GateRook may read it and its folder.", technical);
+        case SqlErrors.SQLITE_NOTADB -> TestResult.failure("sql.file", path + " isn't a SQLite database.", technical);
+        case SqlErrors.SQLITE_CORRUPT -> TestResult.failure("sql.file", path + " is damaged: "
+            + SqlErrors.describe(e) + ".", technical);
+        case SqlErrors.SQLITE_BUSY, SqlErrors.SQLITE_LOCKED -> TestResult.failure("sql.locked", "Another program "
+            + "holds a lock on " + path + ". Test again in a moment.", technical);
+        default -> TestResult.failure(e instanceof org.sqlite.SQLiteException ? "sql.error" : "sql.file",
+            e instanceof org.sqlite.SQLiteException ? SqlErrors.describe(e) + "." : SqlErrors.firstLine(e.getMessage())
+                + ".", technical);
+      };
+    }
     String state = SqlErrors.state(e);
     int code = e.getErrorCode();
     for (Throwable t = e; t != null; t = t.getCause()) {

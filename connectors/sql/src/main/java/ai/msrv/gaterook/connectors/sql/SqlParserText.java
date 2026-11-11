@@ -1,5 +1,6 @@
 package ai.msrv.gaterook.connectors.sql;
 
+import java.util.regex.Pattern;
 import net.sf.jsqlparser.parser.CCJSqlParser;
 import net.sf.jsqlparser.parser.CCJSqlParserConstants;
 import net.sf.jsqlparser.parser.CCJSqlParserTokenManager;
@@ -50,7 +51,7 @@ final class SqlParserText {
    */
   static CCJSqlParser configure(CCJSqlParser parser, SqlSyntax syntax) {
     return parser.withBackslashEscapeCharacter(syntax == SqlSyntax.MYSQL)
-        .withSquareBracketQuotation(syntax == SqlSyntax.SQLSERVER);
+        .withSquareBracketQuotation(syntax == SqlSyntax.SQLSERVER || syntax == SqlSyntax.SQLITE);
   }
 
   /**
@@ -95,8 +96,42 @@ final class SqlParserText {
         }
       }
     }
-    String rebuilt = text.toString();
+    String rebuilt = syntax == SqlSyntax.SQLITE ? sqliteWords(text.toString()) : text.toString();
     return readsToTheEnd(rebuilt, syntax) ? rebuilt : null;
+  }
+
+  /** SQLite's conflict clause after INSERT or UPDATE ({@code INSERT OR IGNORE}); INSERT OR REPLACE parses as is. */
+  private static final Pattern SQLITE_CONFLICT = Pattern.compile(
+      "(?i)(?<![\\p{L}\\p{N}_$])(INSERT\\s+OR\\s+(?:ROLLBACK|ABORT|FAIL|IGNORE)|UPDATE\\s+OR\\s+"
+          + "(?:ROLLBACK|ABORT|REPLACE|FAIL|IGNORE))(?![\\p{L}\\p{N}_$])");
+  /** SQLite's pattern operators GLOB and MATCH, not their function forms {@code glob(…)}, {@code match(…)}. */
+  private static final Pattern SQLITE_PATTERN_OPERATOR = Pattern.compile(
+      "(?i)(?<![\\p{L}\\p{N}_$])(?:GLOB|MATCH)(?![\\p{L}\\p{N}_$])(?!\\s*\\()");
+  private static final Pattern SQLITE_QUERY_PLAN = Pattern.compile(
+      "(?i)(?<![\\p{L}\\p{N}_$])EXPLAIN\\s+QUERY\\s+PLAN(?![\\p{L}\\p{N}_$])");
+
+  /**
+   * SQLite's words the parser doesn't know, in the code only: the conflict clause of INSERT and UPDATE becomes plain
+   * INSERT or UPDATE, GLOB and MATCH become LIKE, EXPLAIN QUERY PLAN becomes EXPLAIN. Each keeps the tables, calls and
+   * subqueries of the statement where they were, so what the parser reads still names everything the statement uses;
+   * what SQLite runs is the original text.
+   */
+  static String sqliteWords(String text) {
+    SqlLexer.Scan scan = SqlLexer.scan(text, SqlSyntax.SQLITE);
+    StringBuilder out = new StringBuilder(text.length());
+    for (SqlLexer.Segment segment : scan.segments()) {
+      String value = text.substring(segment.start(), segment.end());
+      if (segment.kind() != SqlLexer.Kind.CODE) {
+        out.append(value);
+        continue;
+      }
+      value = SQLITE_CONFLICT.matcher(value).replaceAll(m -> m.group(1).regionMatches(true, 0, "INSERT", 0, 6)
+          ? "INSERT" : "UPDATE");
+      value = SQLITE_PATTERN_OPERATOR.matcher(value).replaceAll("LIKE");
+      value = SQLITE_QUERY_PLAN.matcher(value).replaceAll("EXPLAIN");
+      out.append(value);
+    }
+    return out.toString();
   }
 
   /**

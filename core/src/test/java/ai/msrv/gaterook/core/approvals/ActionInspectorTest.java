@@ -137,6 +137,17 @@ class ActionInspectorTest {
   }
 
   @Test
+  void backtickNamesCannotHideConfusablesBehindApostrophes() {
+    // SQLite and MySQL read `…` as a name: an apostrophe in it opens no string.
+    for (String name : List.of("`n'аme'`", "`n``'аme'`", "`n/*'аme'*/`")) {
+      assertThat(ActionInspector.inspect("UPDATE " + name + " SET value = 1", "sql").confusables())
+          .as(name).isEqualTo(1);
+    }
+    assertThat(ActionInspector.inspect("UPDATE `it's` SET nаme = 'bob'", "sql").confusables()).isEqualTo(1);
+    assertThat(ActionInspector.inspect("UPDATE `orders` SET name = 'Ёжик'", "sql").clean()).isTrue();
+  }
+
+  @Test
   void tabsZeroWidthAndTrailingSpacesAreHidden() {
     ActionInspector.Inspection i = ActionInspector.inspect("rm\t-rf /tmp/x​  \nls   ", "sh");
     assertThat(i.segments()).extracting(ActionInspector.Segment::v).containsExactly("rm", "‹U+0009›", "-rf /tmp/x",

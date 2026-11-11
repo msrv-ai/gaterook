@@ -121,6 +121,7 @@ export const IPC = {
   saveFile: 'gw:save-file',
   openFile: 'gw:open-file',
   choosePrivateKeyFile: 'gw:choose-private-key-file',
+  chooseDatabaseFile: 'gw:choose-database-file',
   chooseRepository: 'gw:choose-repository',
   chooseVaultTokenFile: 'gw:choose-vault-token-file',
   signInToGoogle: 'gw:sign-in-to-google',

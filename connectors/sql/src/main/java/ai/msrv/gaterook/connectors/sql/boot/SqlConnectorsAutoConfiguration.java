@@ -6,6 +6,7 @@ import ai.msrv.gaterook.connectors.sql.MySqlDialect;
 import ai.msrv.gaterook.connectors.sql.OracleDialect;
 import ai.msrv.gaterook.connectors.sql.PostgresDialect;
 import ai.msrv.gaterook.connectors.sql.SqlServerDialect;
+import ai.msrv.gaterook.connectors.sql.SqliteDialect;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ImportRuntimeHints;
@@ -39,5 +40,10 @@ public class SqlConnectorsAutoConfiguration {
   @Bean
   Connector oracleConnector() {
     return new JdbcSqlConnector(new OracleDialect());
+  }
+
+  @Bean
+  Connector sqliteConnector() {
+    return new JdbcSqlConnector(new SqliteDialect());
   }
 }

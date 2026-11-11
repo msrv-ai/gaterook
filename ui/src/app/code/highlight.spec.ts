@@ -121,8 +121,19 @@ describe('SQL comment and literal rules are the dialect’s', () => {
   });
 
   it('maps connection types to dialects (MariaDB uses the MySQL type)', () => {
-    expect(['postgres', 'mysql', 'mariadb', 'oracle', 'sqlserver', 'clickhouse', 'redis', null].map(sqlDialectOf))
-      .toEqual(['postgres', 'mysql', 'mysql', 'oracle', 'sqlserver', 'clickhouse', null, null]);
+    expect(['postgres', 'mysql', 'mariadb', 'oracle', 'sqlserver', 'sqlite', 'clickhouse', 'redis', null].map(sqlDialectOf))
+      .toEqual(['postgres', 'mysql', 'mysql', 'oracle', 'sqlserver', 'sqlite', 'clickhouse', null, null]);
+  });
+
+  it('SQLite: flat block comments, backtick names and brackets that end at the first ]', () => {
+    // SQLite ends the comment at the first */: what follows runs.
+    const flat = sqlOn('DELETE FROM t /* a /* b */ WHERE id = 1 -- */', 'sqlite')[0];
+    expect(painted(flat, 'WHERE')).toEqual(['gw-tok-keyword']);
+    const tick = sqlOn("SELECT `it's` FROM t WHERE a = 'x'", 'sqlite')[0];
+    expect(painted(tick, 'FROM')).toEqual(['gw-tok-keyword']);
+    const bracket = sqlOn('SELECT [a]] FROM t', 'sqlite')[0];
+    expect(painted(bracket, 'FROM')).toEqual(['gw-tok-keyword']);
+    expect(painted(sqlOn("SELECT 'a\\' FROM t", 'sqlite')[0], 'FROM')).toEqual(['gw-tok-keyword']);
   });
 });
 

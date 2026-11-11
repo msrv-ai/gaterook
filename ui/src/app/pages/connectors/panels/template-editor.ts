@@ -63,7 +63,7 @@ export class GwTemplateEditor {
   private readonly host: HTMLElement = inject(ElementRef<HTMLElement>).nativeElement;
 
   readonly target = input.required<EditorTarget>();
-  /** The connections a SQL query can run on (PostgreSQL, MySQL, Oracle Database, SQL Server). */
+  /** The connections a SQL query can run on (PostgreSQL, MySQL, Oracle Database, SQL Server, SQLite). */
   readonly connections = input.required<readonly ConnectionRow[]>();
   /** A template was saved: the panel returns to its list and shows any compiler warnings. */
   readonly saved = output<TemplateSaved>();

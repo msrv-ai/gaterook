@@ -54,7 +54,8 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The SQL connector of one dialect: PostgreSQL, MySQL/MariaDB, Oracle Database or SQL Server (report 04, ARCHITECTURE.md §10 C1).
+ * The SQL connector of one dialect: PostgreSQL, MySQL/MariaDB, Oracle Database, SQL Server or a SQLite file (report 04,
+ * ARCHITECTURE.md §10 C1, docs/sqlite.md).
  *
  * <p>The route of a call comes from {@link SqlClassifier} and {@link SqlRules} in {@link #classify}, without I/O. The
  * PostgreSQL, MySQL and Oracle enforce a READ ONLY transaction ending with ROLLBACK for every read: {@code sql_query}, introspection
@@ -332,7 +333,12 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
   }
 
   private String readTransaction() {
-    return dialect.sqlServer() ? "Validated read query, always rolled back" : "Read only, always rolled back";
+    return dialect.sqlServer() ? "Validated read query, always rolled back"
+        : sqlite() ? "Read-only file handle, always rolled back" : "Read only, always rolled back";
+  }
+
+  private boolean sqlite() {
+    return syntax() == SqlSyntax.SQLITE;
   }
 
   private String transaction(Analysis a) {
@@ -402,7 +408,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     if (changes.isEmpty()) {
       return PreparedAction.approval(preview, null);
     }
-    SqlPools.Pool pool = pool(cfg, s, secrets, ctx);
+    SqlPools.Pool pool = pool(cfg, s, secrets, ctx, false);
     List<String> types = statementTypesOf(call);
     Estimates estimates = executor.explain(pool, s, ctx, cfg.name(),
         (c, server, timeoutMs) -> estimate(c, server, changes));
@@ -640,7 +646,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
    */
   ToolResult runRead(ConnectionConfig cfg, ConnectionSettings s, SecretResolver secrets, ExecContext ctx,
       BoundSql statement, int limit) throws ConnectorException {
-    SqlPools.Pool pool = pool(cfg, s, secrets, ctx);
+    SqlPools.Pool pool = pool(cfg, s, secrets, ctx, false);
     BoundSql executable = executable(statement);
     ResultReader.Read read = executor.read(pool, s, ctx, cfg.name(),
         (c, server, timeoutMs) -> executor.query(c, ctx, timeoutMs, executable, limit));
@@ -676,7 +682,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
 
   private ToolResult runChange(ConnectionConfig cfg, ConnectionSettings s, SecretResolver secrets, ExecContext ctx,
       BoundSql statement, List<String> types) throws ConnectorException {
-    SqlPools.Pool pool = pool(cfg, s, secrets, ctx);
+    SqlPools.Pool pool = pool(cfg, s, secrets, ctx, true);
     BoundSql executable = executable(statement);
     List<SqlExecutor.Applied> applied = executor.write(pool, s, ctx, cfg.name(),
         (c, server, timeoutMs) -> executor.change(c, ctx, timeoutMs, executable, types));
@@ -850,7 +856,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     }
     Allowlist allowlist = p.allowlist();
     String only = onlySchema;
-    SqlPools.Pool pool = pool(cfg, s, secrets, ctx);
+    SqlPools.Pool pool = pool(cfg, s, secrets, ctx, false);
     SqlCatalog.Listing listing = executor.read(pool, s, ctx, cfg.name(), (c, server, timeoutMs) ->
         dialect.catalog().forCall(ctx, timeoutMs).list(c, only, pattern, allowlist::allows, limit));
     ObjectNode out = JsonNodeFactory.instance.objectNode();
@@ -922,7 +928,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     if (mysql() && DatabaseSelection.configured(cfg) && !DatabaseSelection.selected(cfg).contains(table.schema())) {
       throw ConnectorException.denied("Database " + table.schema() + " is not selected for " + cfg.name() + ".");
     }
-    SqlPools.Pool pool = pool(cfg, s, secrets, ctx);
+    SqlPools.Pool pool = pool(cfg, s, secrets, ctx, false);
     Optional<ObjectNode> found = executor.read(pool, s, ctx, cfg.name(),
         (c, server, timeoutMs) -> dialect.catalog().forCall(ctx, timeoutMs).describe(c, table));
     if (found.isEmpty()) {
@@ -981,6 +987,11 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     if (!mysql() && s.database() != null) {
       out.put(oracle() ? "serviceName" : "database", s.database());
     }
+    if (s.file() != null && s.file().path() != null) {
+      // The name of the file only: its folders say where on this computer, which the agent doesn't need.
+      String path = s.file().path().replace('\\', '/');
+      out.put("file", path.substring(path.lastIndexOf('/') + 1));
+    }
     if (s.defaultSchema() != null) {
       out.put(mysql() ? "defaultDatabase" : "defaultSchema", s.defaultSchema());
     }
@@ -995,8 +1006,9 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     }
     out.put("reads", dialect.sqlServer()
         ? "One validated SELECT per sql_query, always rolled back; use a SELECT-only database user for server-enforced protection"
+        : sqlite() ? "One statement per sql_query, through a read-only handle of the file, rolled back"
         : "One statement per sql_query, in a read-only transaction that is rolled back");
-    out.put("changes", (mysql() || oracle() || dialect.sqlServer()) ? "One statement per sql_execute, after approval"
+    out.put("changes", (mysql() || oracle() || dialect.sqlServer() || sqlite()) ? "One statement per sql_execute, after approval"
         : "Up to " + SqlRules.MAX_POSTGRES_STATEMENTS + " statements per sql_execute in one transaction, after "
         + "approval");
     if (object != null && !object.isBlank()) {
@@ -1024,6 +1036,11 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
   @Override
   public HealthResult health(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
     ConnectionSettings s = ConnectionSettings.of(cfg, dialect);
+    try {
+      dialect.checkTarget(s, ctx);
+    } catch (ConnectorException e) {
+      return HealthResult.unreachable(e.getMessage());
+    }
     try (Credentials login = Credentials.resolve(cfg, secrets);
          Connection c = connect(s, login, ctx)) {
       try (Statement st = c.createStatement()) {
@@ -1042,7 +1059,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     }
   }
 
-  /** A connection outside the pool, with the budget of Test connection. */
+  /** A connection outside the pool, with the budget of Test connection; for reads where the dialect tells. */
   private Connection connect(ConnectionSettings s, Credentials login, ExecContext ctx)
       throws SQLException, IOException {
     ConnectionSettings bounded = s.withConnectTimeoutAtMost(TestProbe.BUDGET_MS);
@@ -1066,7 +1083,8 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
 
   @Override
   public boolean canRotate(ConnectionConfig cfg, String field) {
-    return !dialect.sqlServer() && ConnectionSettings.PASSWORD.equals(field) && cfg.string("/credentials/user") != null;
+    return !dialect.sqlServer() && !sqlite() && ConnectionSettings.PASSWORD.equals(field)
+        && cfg.string("/credentials/user") != null;
   }
 
   /**
@@ -1133,11 +1151,13 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
 
   // ── Pools ───────────────────────────────────────────────────────────────────────────────────────────────────
 
-  private SqlPools.Pool pool(ConnectionConfig cfg, ConnectionSettings s, SecretResolver secrets, ExecContext ctx)
-      throws ConnectorException {
+  /** The pool of reads, or with {@code write} of approved changes where the dialect keeps them apart (SQLite). */
+  private SqlPools.Pool pool(ConnectionConfig cfg, ConnectionSettings s, SecretResolver secrets, ExecContext ctx,
+      boolean write) throws ConnectorException {
+    dialect.checkTarget(s, ctx);
     Credentials login = Credentials.resolve(cfg, secrets);
     try {
-      return pools.pool(cfg, s, login, TestProbe.certificates(ctx));
+      return pools.pool(cfg, s, login, TestProbe.certificates(ctx), write);
     } catch (IOException e) {
       throw ConnectorException.badInput("The CA certificate of " + cfg.name() + " can't be used: " + e.getMessage());
     } catch (IllegalStateException e) {

@@ -8,19 +8,24 @@ import org.springframework.aot.hint.TypeReference;
 /**
  * Native-image hints of the SQL connectors; they live with the module, not in the core (ARCHITECTURE.md §2.3). The
  * drivers' own reflection is covered by the GraalVM reachability metadata repository (report 15 §4: postgresql,
- * mysql-connector-j, mssql-jdbc, HikariCP), including SQL Server's localized resource bundle. Oracle JDBC includes
- * its own native-image metadata. The module's native-image.properties includes the charsets SQL Server selects
+ * mysql-connector-j, mssql-jdbc, HikariCP), including SQL Server's localized resource bundle. Oracle JDBC and
+ * sqlite-jdbc include their own native-image metadata. The module's native-image.properties includes the charsets SQL Server selects
  * from runtime collation metadata. What is left here is what the connector names itself.
  */
 class SqlHints implements RuntimeHintsRegistrar {
 
-  /** pgjdbc instantiates {@code sslfactory} by name; PostgresDialect names it for a CA from the JVM's trust store. */
-  static final String PG_JAVA_SSL_FACTORY = "org.postgresql.ssl.DefaultJavaSSLFactory";
+  /** pgjdbc instantiates {@code sslfactory} by name with the connection's properties: PostgresDialect names it. */
+  static final String PG_SSL_FACTORY = "ai.msrv.gaterook.connectors.sql.PostgresSslFactory";
 
   @Override
   public void registerHints(RuntimeHints hints, ClassLoader classLoader) {
     // Tool, connection, policy and template schemas are read with getResourceAsStream: null in native without this.
     hints.resources().registerPattern("connectors/sql/*.schema.json");
-    hints.reflection().registerType(TypeReference.of(PG_JAVA_SSL_FACTORY), MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS);
+    hints.reflection().registerType(TypeReference.of(PG_SSL_FACTORY), MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS);
+    // sqlite-jdbc's native code calls progress() on the handler's own class through JNI.
+    hints.jni().registerType(TypeReference.of(SQLITE_DEADLINE), MemberCategory.INVOKE_DECLARED_METHODS);
   }
+
+  /** The statement deadline of SQLite calls: a progress handler. */
+  static final String SQLITE_DEADLINE = "ai.msrv.gaterook.connectors.sql.SqliteDialect$Deadline";
 }

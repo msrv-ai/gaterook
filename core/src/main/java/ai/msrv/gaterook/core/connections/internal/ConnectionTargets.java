@@ -17,10 +17,11 @@ public final class ConnectionTargets {
 
   /**
    * Property names that name where a connection connects; an MCP server's {@code command} is the program its secrets
-   * go to as environment variables.
+   * go to as environment variables, a Snowflake {@code account} the host its key signs in to
+   * ({@code <account>.snowflakecomputing.com}), a Realtime Database's {@code databaseUrl} where its token goes.
    */
   private static final Set<String> TARGET_KEYS = Set.of("host", "hostname", "server", "apiServer", "url", "uri",
-      "baseUrl", "baseUrls", "endpoint", "address", "command");
+      "baseUrl", "baseUrls", "endpoint", "address", "command", "account", "databaseUrl");
 
   private ConnectionTargets() {}
 
@@ -96,6 +97,11 @@ public final class ConnectionTargets {
       }
       return out.toString();
     }
+    if (c.path("file").isString()) {
+      // A database file on this computer (SQLite).
+      String file = c.path("file").asString();
+      return file.length() > 120 ? "…" + file.substring(file.length() - 119) : file;
+    }
     if (c.path("uri").isString()) {
       return address(c.path("uri").asString());
     }
@@ -136,6 +142,23 @@ public final class ConnectionTargets {
       if (config.at(ptr).isString()) {
         return config.at(ptr).asString();
       }
+    }
+    if (config.path("account").isString()) {
+      // Snowflake: the account, its private link, the default database.
+      String database = config.path("database").asString("");
+      return config.path("account").asString() + (config.path("privateLink").asBoolean(false) ? " (private link)" : "")
+          + (database.isBlank() ? "" : " · " + database);
+    }
+    if (config.path("databaseUrl").isString()) {
+      return address(config.path("databaseUrl").asString());
+    }
+    if (config.path("project").isString()) {
+      // BigQuery's location, a named Firestore database.
+      String detail = config.path("location").asString("");
+      if (detail.isBlank() && !"(default)".equals(config.path("database").asString("(default)"))) {
+        detail = config.path("database").asString("");
+      }
+      return config.path("project").asString() + (detail.isBlank() ? "" : " · " + detail);
     }
     return "";
   }

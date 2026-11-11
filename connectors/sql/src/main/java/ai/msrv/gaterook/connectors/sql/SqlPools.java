@@ -25,6 +25,9 @@ import java.util.concurrent.TimeUnit;
  * (a Vault lease) gets a new pool whose connections live shorter than the lease.
  *
  * <p>Hikari's housekeeping for every pool runs on one shared scheduler thread, and its connection threads are virtual.
+ *
+ * <p>A dialect whose reads use read-only connections ({@link SqlDialect#separateWriteConnections}, SQLite) has a
+ * second pool for approved changes, created at the first one.
  */
 final class SqlPools implements AutoCloseable {
 
@@ -37,7 +40,7 @@ final class SqlPools implements AutoCloseable {
   static final int SOCKET_TIMEOUT_MS = 610_000;
 
   private final SqlDialect dialect;
-  private record PoolKey(String connectionId, String database) {}
+  private record PoolKey(String connectionId, String database, boolean write) {}
   private final ConcurrentHashMap<PoolKey, Pool> pools = new ConcurrentHashMap<>();
   private ScheduledThreadPoolExecutor scheduler;
   private boolean closed;
@@ -101,6 +104,16 @@ final class SqlPools implements AutoCloseable {
    * {@code login}.
    */
   Pool pool(ConnectionConfig cfg, ConnectionSettings s, Credentials login, Path certificates) throws IOException {
+    return pool(cfg, s, login, certificates, false);
+  }
+
+  /**
+   * The pool for reads, or with {@code write} the one for approved changes of a dialect that keeps them apart. Takes
+   * ownership of {@code login}.
+   */
+  Pool pool(ConnectionConfig cfg, ConnectionSettings s, Credentials login, Path certificates, boolean write)
+      throws IOException {
+    boolean writes = write && dialect.separateWriteConnections();
     List<Pool> stale = new ArrayList<>();
     Pool result;
     synchronized (this) {
@@ -108,7 +121,7 @@ final class SqlPools implements AutoCloseable {
         login.close();
         throw new IllegalStateException("The SQL connector is closed");
       }
-      PoolKey key = new PoolKey(cfg.id(), s.database());
+      PoolKey key = new PoolKey(cfg.id(), s.database(), writes);
       for (Pool p : pools.values()) {
         if (p.connectionId.equals(cfg.id()) && p.configVersion != cfg.version() && pools.remove(p.key, p)) {
           closeLater(p);
@@ -124,7 +137,7 @@ final class SqlPools implements AutoCloseable {
         current.lastUsedNanos = System.nanoTime();
         return current;
       }
-      result = create(cfg, s, login, certificates);
+      result = create(cfg, s, login, certificates, writes);
       Pool replaced = pools.put(key, result);
       if (replaced != null) stale.add(replaced);
     }
@@ -132,19 +145,20 @@ final class SqlPools implements AutoCloseable {
     return result;
   }
 
-  private Pool create(ConnectionConfig cfg, ConnectionSettings s, Credentials login, Path certificates)
+  private Pool create(ConnectionConfig cfg, ConnectionSettings s, Credentials login, Path certificates, boolean write)
       throws IOException {
     CredentialAwareDataSource source;
     try {
       source = new CredentialAwareDataSource(dialect.driver(), dialect.url(s),
-          dialect.properties(s, certificates, SOCKET_TIMEOUT_MS), login);
+          dialect.properties(s, certificates, SOCKET_TIMEOUT_MS, write), login);
     } catch (IOException | RuntimeException e) {
       login.close();
       throw e;
     }
     HikariConfig hc = new HikariConfig();
     // The pool's name shows up in Hikari's log lines: neither host nor user.
-    hc.setPoolName("gw-sql-" + shortId(cfg.id()) + "-" + Integer.toHexString(java.util.Objects.hashCode(s.database())));
+    hc.setPoolName("gw-sql-" + shortId(cfg.id()) + "-" + Integer.toHexString(java.util.Objects.hashCode(s.database()))
+        + (write ? "-w" : ""));
     hc.setDataSource(source);
     hc.setMaximumPoolSize(s.poolSize());
     hc.setMinimumIdle(0);
@@ -156,10 +170,14 @@ final class SqlPools implements AutoCloseable {
     // No physical connection until the first call: a pool that can't connect yet is still created.
     hc.setInitializationFailTimeout(-1);
     hc.setAutoCommit(false);
+    if (dialect.separateWriteConnections()) {
+      // Hikari sets the flag on every connection it hands out; sqlite-jdbc refuses to change it from the file's mode.
+      hc.setReadOnly(!write);
+    }
     hc.setRegisterMbeans(false);
     hc.setThreadFactory(Thread.ofVirtual().name("gw-sql-" + shortId(cfg.id()) + "-", 0).factory());
     hc.setScheduledExecutor(scheduler());
-    return new Pool(new PoolKey(cfg.id(), s.database()), cfg.version(), new HikariDataSource(hc), source);
+    return new Pool(new PoolKey(cfg.id(), s.database(), write), cfg.version(), new HikariDataSource(hc), source);
   }
 
   /** {@code min(10 min, notAfter − now − 60 s)}, not below Hikari's 30 s (it would silently use 30 min instead). */
@@ -180,7 +198,12 @@ final class SqlPools implements AutoCloseable {
   }
 
   Pool current(String connectionId, String database) {
-    return pools.get(new PoolKey(connectionId, database));
+    return pools.get(new PoolKey(connectionId, database, false));
+  }
+
+  /** The pool of approved changes of a dialect that keeps them apart, if any (tests). */
+  Pool currentWrites(String connectionId, String database) {
+    return pools.get(new PoolKey(connectionId, database, true));
   }
 
   /** The connection changed or went away: its pool closes after its calls. */

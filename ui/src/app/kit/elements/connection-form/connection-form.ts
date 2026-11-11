@@ -106,6 +106,8 @@ export function signInTarget(type: string): string {
     case 'mysql':
     case 'oracle':
     case 'sqlserver':
+    case 'sqlite':
+    case 'snowflake':
     case 'sql':
     case 'mongodb':
     case 'redis':
@@ -126,6 +128,10 @@ export function signInTarget(type: string): string {
       return 'the API';
     case 'gcp':
     case 'aws':
+    case 'dynamodb':
+    case 'bigquery':
+    case 'firestore':
+    case 'firebase-rtdb':
       return 'the cloud account';
     default:
       return 'the service';

@@ -10,6 +10,7 @@ import { callCore, callCoreOk } from './core-client.ts';
 import { clientId, defaultFileName, filePurpose, linkId, openableConfig, revealableFolder, revealKind } from './file-purposes.ts';
 import type { Logger } from './log.ts';
 import type { CoreEndpoint } from './proxy.ts';
+import { chooseDatabasePath, type DatabaseKind } from './database-file-picker.ts';
 import { choosePrivateKeyPath } from './private-key-picker.ts';
 import { chooseRepositoryPath } from './repository-picker.ts';
 import { chooseVaultTokenPath, type VaultTokenFile } from './vault-token-picker.ts';
@@ -25,6 +26,13 @@ export interface FilesOptions {
 export async function choosePrivateKeyFile(o: FilesOptions): Promise<string | null> {
   const win = o.window();
   return choosePrivateKeyPath((options) => win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options));
+}
+
+/** A SQLite or DuckDB connection's database path is displayed in the form; the core or plugin checks the file. */
+export async function chooseDatabaseFile(o: FilesOptions, kind: DatabaseKind = 'sqlite'): Promise<string | null> {
+  const win = o.window();
+  return chooseDatabasePath((options) => win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options),
+    kind);
 }
 
 /** Returns the chosen repository folder without scanning it or requiring Git metadata. */

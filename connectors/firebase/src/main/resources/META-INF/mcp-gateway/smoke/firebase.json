@@ -1,0 +1,23 @@
+{
+  "area": "firebase",
+  "module": "connectors/firebase",
+  "connectorTypes": ["firestore", "firebase-rtdb"],
+  "description": "Touches of the Firebase connectors for the native smoke (report 15 §6): the path and list checks and the schemas in the image, without I/O.",
+  "touches": [
+    {
+      "name": "firestore-collection-not-allowed",
+      "connection": {"type": "firestore", "env": "dev",
+        "config": {"project": "acme-dev", "collections": ["users"], "credentials": {"source": "adc"}}},
+      "call": {"tool": "firestore_get_document", "arguments": {"document": "secrets/stripe"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.firestore.collection-not-allowed"}
+    },
+    {
+      "name": "rtdb-path-not-allowed",
+      "connection": {"type": "firebase-rtdb", "env": "dev",
+        "config": {"databaseUrl": "https://acme-dev-default-rtdb.firebaseio.com", "paths": ["users"],
+          "credentials": {"source": "adc"}}},
+      "call": {"tool": "rtdb_get", "arguments": {"path": "/secrets"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.firebase-rtdb.path-not-allowed"}
+    }
+  ]
+}

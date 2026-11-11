@@ -187,6 +187,7 @@ export function limitFields(type: string | null): LimitField[] {
     case 'mysql':
     case 'oracle':
     case 'sqlserver':
+    case 'sqlite':
       return [field('rowLimit', 'Row limit', 'rows', 'sql'), field('statementTimeoutMs', 'Timeout', 's', 'sql', 1000), field('maxResponseKb', 'Max response size', 'KB', 'sql')];
     case 'ssh':
       return [field('commandTimeoutSeconds', 'Timeout', 's', 'ssh'), field('maxOutputKb', 'Max output size', 'KB', 'ssh')];

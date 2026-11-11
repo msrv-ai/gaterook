@@ -43,6 +43,7 @@ function artifacts() {
     ['gw-jira-service-desk-1.3.0.jar', Buffer.from('jira 1.3.0 jar')],
     ['gw-clickhouse-0.6.1.jar', Buffer.from('clickhouse 0.6.1 jar')],
     ['gw-rabbitmq-0.3.0.jar', Buffer.from('rabbitmq 0.3.0 jar')],
+    ['gw-duckdb-1.0.0.jar', Buffer.from('duckdb 1.0.0 jar')],
     ['fixture-mcp.package-lock.json', LOCKFILE],
   ]);
 }
@@ -60,7 +61,7 @@ test('the source index of this folder signs: every artifact pinned, sequence, ti
   assert.equal(index.generatedAt, '2026-10-26T12:00:00Z');
   assert.equal(index.expiresAt, '2026-11-25T12:00:00Z');
   assert.deepEqual(index.entries.map((e) => `${e.kind}:${e.id}@${e.version}`), [
-    'plugin:jira-service-desk@1.3.0', 'plugin:clickhouse@0.6.1', 'plugin:rabbitmq@0.3.0',
+    'plugin:jira-service-desk@1.3.0', 'plugin:clickhouse@0.6.1', 'plugin:rabbitmq@0.3.0', 'plugin:duckdb@1.0.0',
     'template:pg-slow-queries@1.0.0',
   ]);
   const clickhouse = index.entries.find((e) => e.id === 'clickhouse');
@@ -70,7 +71,7 @@ test('the source index of this folder signs: every artifact pinned, sequence, ti
   assert.deepEqual(index.revoked, []);
   // The kit's cards: names, tool counts, signed or not.
   assert.deepEqual(index.entries.map((e) => [e.name, e.tools, e.signed]), [
-    ['Jira Service Desk', 6, true], ['ClickHouse', 6, true], ['RabbitMQ', 4, false],
+    ['Jira Service Desk', 6, true], ['ClickHouse', 6, true], ['RabbitMQ', 4, false], ['DuckDB', 4, true],
     ['PostgreSQL slow queries', 2, true],
   ]);
 });
@@ -144,7 +145,7 @@ test('every artifact is pinned: a missing one, an http URL or a lockfile that pi
     /doesn't pin @example\/catalog-test-server@1\.0\.0/);
 
   const scripts = structuredClone(withMcpFixture());
-  scripts.entries[4].npm.ignoreScripts = false;
+  scripts.entries[5].npm.ignoreScripts = false;
   assert.throws(() => prepareIndex(scripts, { artifacts: artifacts(), sequence: 1, now: NOW }), /--ignore-scripts/);
 });
 
@@ -178,7 +179,7 @@ test('the CLI signs with the key of the environment, verifies, and never writes 
     built, '--out', out, '--key-id', 'catalog-test', '--sequence', '5', '--now', NOW.toISOString()],
   { env: { PATH: process.env.PATH, [KEY_ENV]: seed }, encoding: 'utf8' });
   assert.equal(signed.status, 0, signed.stderr);
-  assert.match(signed.stdout, /Signed sequence 5, 4 entries/);
+  assert.match(signed.stdout, /Signed sequence 5, 5 entries/);
   assert.ok(signed.stdout.includes(trustLine('catalog-test', key)));
   const indexBytes = readFileSync(join(out, 'index.json'));
   const sigText = readFileSync(join(out, 'index.json.sig'), 'utf8');

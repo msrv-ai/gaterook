@@ -14,6 +14,8 @@
  * - Oracle: `'…'`, `q'[…]'` / `nq'…'` alternative quotes, `"…"` names, `--` and `/* … *\/` (not nested); the hints
  *   `--+…` and `/*+…*\/` are code.
  * - SQL Server: `'…'`, `"…"` and `[…]` names, `--` and nested `/* … *\/`.
+ * - SQLite: `'…'` with `''`, no backslash escapes; `"…"` and `` `…` `` names with doubled quotes, `[…]` names that end
+ *   at the first `]`; `--` and `/* … *\/` that does not nest.
  * - ClickHouse: `'…'` with backslash escapes, `"…"` and `` `…` `` names, `--`, `#` and `//` line comments, nested
  *   `/* … *\/` and `$tag$…$tag$` heredocs. Where the model can't follow the server (a `$` that opens no heredoc, a
  *   typographic quote ‘ ’ “ ”), everything after it is code.
@@ -22,10 +24,10 @@
  * only when they all agree ({@link sqlRoles}).
  */
 
-export type SqlDialect = 'postgres' | 'mysql' | 'oracle' | 'sqlserver' | 'clickhouse';
+export type SqlDialect = 'postgres' | 'mysql' | 'oracle' | 'sqlserver' | 'sqlite' | 'clickhouse';
 
 /** Every dialect GateRook reads: what a SQL text of an unknown connection is checked against. */
-export const SQL_DIALECTS: readonly SqlDialect[] = ['postgres', 'mysql', 'oracle', 'sqlserver', 'clickhouse'];
+export const SQL_DIALECTS: readonly SqlDialect[] = ['postgres', 'mysql', 'oracle', 'sqlserver', 'sqlite', 'clickhouse'];
 
 /** What one character is to the server. */
 export type SqlRole = typeof CODE | typeof STRING | typeof NAME | typeof COMMENT;
@@ -51,6 +53,8 @@ export function sqlDialectOf(connectionType: string | null | undefined): SqlDial
     case 'sqlserver':
     case 'mssql':
       return 'sqlserver';
+    case 'sqlite':
+      return 'sqlite';
     case 'clickhouse':
       return 'clickhouse';
     default:
@@ -60,7 +64,9 @@ export function sqlDialectOf(connectionType: string | null | undefined): SqlDial
 
 /** A construct that is still open where a text ends: its characters go on in the next text. */
 type Open =
-  | { readonly k: 'quote'; readonly close: string; readonly backslash: boolean; readonly role: SqlRole; readonly escaped: boolean }
+  | { readonly k: 'quote'; readonly close: string; readonly backslash: boolean; readonly role: SqlRole; readonly escaped: boolean;
+      /** False where a doubled closing character ends the name (SQLite's `[…]`). */
+      readonly doubled?: boolean }
   | { readonly k: 'line'; readonly role: SqlRole }
   | { readonly k: 'block'; readonly nested: boolean; readonly depth: number; readonly role: SqlRole }
   | { readonly k: 'tag'; readonly tag: string }
@@ -165,7 +171,7 @@ function closeAt(open: Open, text: string, from: number): { readonly end: number
           continue;
         }
         if (c === open.close) {
-          if (text[j + 1] === open.close) {
+          if (open.doubled !== false && text[j + 1] === open.close) {
             j += 2;
             continue;
           }
@@ -250,6 +256,13 @@ function openAt(dialect: SqlDialect, text: string, i: number, at: (k: number) =>
       if (c === '[') return quote(']', false, NAME);
       if (c === '-' && next === '-') return line(COMMENT);
       if (c === '/' && next === '*') return block(true, COMMENT);
+      return null;
+    case 'sqlite':
+      if (c === "'") return quote("'", false, STRING);
+      if (c === '"' || c === '`') return quote(c, false, NAME);
+      if (c === '[') return { open: { k: 'quote', close: ']', backslash: false, role: NAME, escaped: false, doubled: false }, length: 1 };
+      if (c === '-' && next === '-') return line(COMMENT);
+      if (c === '/' && next === '*') return block(false, COMMENT);
       return null;
     case 'clickhouse':
       if ((c === '-' && next === '-') || (c === '/' && next === '/')) return line(COMMENT);

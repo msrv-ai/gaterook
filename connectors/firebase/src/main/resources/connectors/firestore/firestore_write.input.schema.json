@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "operation",
+    "document"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "operation": {
+      "enum": [
+        "create",
+        "update",
+        "delete"
+      ],
+      "description": "create: a new document, refused if it exists. update: set the given fields of an existing document; the others stay. delete: remove an existing document (not its subcollections)."
+    },
+    "document": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 6144,
+      "description": "The document's path, such as users/alice or users/alice/orders/o-1."
+    },
+    "fields": {
+      "type": "object",
+      "maxProperties": 1000,
+      "description": "create and update: field names and values. Values are plain JSON (strings, numbers, true or false, null, lists, objects) or Firestore typed values such as {\"timestampValue\": \"2026-01-02T03:04:05Z\"} or {\"referenceValue\": \"users/alice\"}. A person approves the exact write."
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Why you need this change. Shown to the approver as unverified."
+    }
+  }
+}

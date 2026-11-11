@@ -65,7 +65,8 @@ record NamedSql(String jdbc, List<String> order, List<String> errors, Set<String
         } else if (c == '?') {
           if (syntax != SqlSyntax.POSTGRES) {
             errors.add("Write :name for a parameter: a bare ? isn't allowed in a "
-                + (syntax == SqlSyntax.MYSQL ? "MySQL" : syntax == SqlSyntax.SQLSERVER ? "SQL Server" : "Oracle") + " template.");
+                + (syntax == SqlSyntax.MYSQL ? "MySQL" : syntax == SqlSyntax.SQLSERVER ? "SQL Server"
+                    : syntax == SqlSyntax.SQLITE ? "SQLite" : "Oracle") + " template.");
             out.append('?');
           } else {
             out.append("??");

@@ -189,6 +189,16 @@ public final class CloudCredentials implements AutoCloseable {
   }
 
   /**
+   * Whether a Google token of these credentials may go to {@code url} of a Firebase Realtime Database: one of the
+   * database hosts Google runs ({@link GoogleApis#realtimeDatabase}), or any address when the tokens come from a test
+   * token endpoint, as for {@link #sendsGoogleTokensTo}. The two never stand in for each other: Google's API hosts are
+   * no database, and a database host is no API host.
+   */
+  public boolean sendsGoogleTokensToRealtimeDatabase(URI url) {
+    return GoogleApis.realtimeDatabase(url) || endpoints.gcpTokenUri() != null;
+  }
+
+  /**
    * The request headers of a Google API call ({@code Authorization}, {@code x-goog-user-project}); refreshes the
    * token when needed and hands the token to {@code taint}.
    *

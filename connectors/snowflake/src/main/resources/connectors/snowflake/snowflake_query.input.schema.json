@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "sql"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "sql": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100000,
+      "description": "One SELECT, WITH … SELECT, SHOW or DESCRIBE. Names without a database or schema resolve in the connection's. SYSTEM$ functions other than SYSTEM$TYPEOF and the clustering ones are refused."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 50,
+      "description": "Max rows; the endpoint caps it."
+    }
+  }
+}

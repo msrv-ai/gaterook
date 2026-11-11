@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "dataset"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "dataset": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1100,
+      "description": "A dataset of the connection's project, or project.dataset."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 100,
+      "description": "Most tables to return."
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 8192,
+      "description": "nextCursor of the previous answer; leave it out for the first page."
+    }
+  }
+}

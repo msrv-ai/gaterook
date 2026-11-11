@@ -7,7 +7,7 @@
   @let hintId = n.description ? id + '-hint' : null;
   @let lock = f.lockReason(n);
   @let lockId = lock ? id + '-lock' : null;
-  @let pickerHintId = filePicker() && !desktop.privateKeyPickerAvailable ? id + '-picker-hint' : null;
+  @let pickerHintId = filePicker() && !pickerAvailable() ? id + '-picker-hint' : null;
   @let pickerErrorId = filePicker() && filePickerError() ? id + '-picker-error' : null;
   @let describedBy = join(errId, hintId, lockId, pickerHintId, pickerErrorId);
 
@@ -384,7 +384,7 @@
                 />
                 <button class="gw-input-group__addon" type="button" [id]="id + '-choose'"
                   [attr.aria-label]="'Choose ' + lowerFirst(n.title)"
-                  [attr.aria-disabled]="!desktop.privateKeyPickerAvailable || choosingFile() || f.locked(n) ? 'true' : null"
+                  [attr.aria-disabled]="!pickerAvailable() || choosingFile() || f.locked(n) ? 'true' : null"
                   [attr.aria-busy]="choosingFile() ? 'true' : null"
                   [attr.aria-describedby]="join(pickerHintId, pickerErrorId, lockId)"
                   (click)="chooseFile()">Choose file…</button>

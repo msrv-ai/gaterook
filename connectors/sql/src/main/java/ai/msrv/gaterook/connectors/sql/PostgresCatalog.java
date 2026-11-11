@@ -23,18 +23,27 @@ final class PostgresCatalog implements SqlCatalog {
   /** A listing reads at most this many catalog rows: the counts of a huge database stay cheap and approximate. */
   static final int SCAN_LIMIT = 20_000;
 
-  private static final String VISIBLE = "c.relkind IN ('r','p','v','m','f') AND NOT c.relispartition "
-      + "AND n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg\\_toast%' "
-      + "AND n.nspname NOT LIKE 'pg\\_temp%' AND has_schema_privilege(n.oid, 'USAGE') "
-      + "AND has_table_privilege(c.oid, 'SELECT')";
+  /** Schemas that aren't data: PostgreSQL's catalogs, and CockroachDB's virtual {@code crdb_internal} and its kin. */
+  static final String NOT_DATA = "n.nspname NOT IN ('pg_catalog','information_schema','crdb_internal',"
+      + "'pg_extension')";
+
+  /**
+   * The candidates of a listing, before any privilege check; CockroachDB leaves {@code relispartition} NULL. Every
+   * query that checks a table's privilege does it outside a {@code MATERIALIZED} step that keeps only the candidates
+   * (an optimization fence on PostgreSQL 12+ and CockroachDB alike): CockroachDB refuses any privilege check of its
+   * {@code crdb_internal} tables and may evaluate the check before the conditions that leave them out.
+   */
+  private static final String CANDIDATES = "c.relkind IN ('r','p','v','m','f') AND NOT coalesce(c.relispartition, "
+      + "false) AND " + NOT_DATA + " AND n.nspname NOT LIKE 'pg\\_toast%' AND n.nspname NOT LIKE 'pg\\_temp%' "
+      + "AND has_schema_privilege(n.oid, 'USAGE')";
 
   @Override
   public Listing list(Connection c, String onlySchema, String pattern, Predicate<TableRef> allowed, int limit)
       throws SQLException {
     List<String> schemas = new ArrayList<>();
-    try (PreparedStatement st = c.prepareStatement("SELECT n.nspname FROM pg_namespace n WHERE "
-        + "n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg\\_%' "
-        + "AND has_schema_privilege(n.oid, 'USAGE') AND (?::text IS NULL OR n.nspname = ?) ORDER BY 1")) {
+    try (PreparedStatement st = c.prepareStatement("SELECT n.nspname FROM pg_namespace n WHERE " + NOT_DATA
+        + " AND n.nspname NOT LIKE 'pg\\_%' AND has_schema_privilege(n.oid, 'USAGE') "
+        + "AND (?::text IS NULL OR n.nspname = ?) ORDER BY 1")) {
       bind(st, 1, onlySchema);
       bind(st, 2, onlySchema);
       try (ResultSet rs = st.executeQuery()) {
@@ -46,10 +55,11 @@ final class PostgresCatalog implements SqlCatalog {
     List<Table> tables = new ArrayList<>();
     Map<String, int[]> counts = new LinkedHashMap<>();
     boolean truncated = false;
-    try (PreparedStatement st = c.prepareStatement("SELECT n.nspname, c.relname, c.relkind, "
-        + "CASE WHEN c.reltuples < 0 THEN NULL ELSE c.reltuples::bigint END, obj_description(c.oid, 'pg_class') "
-        + "FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE " + VISIBLE
-        + " AND (?::text IS NULL OR n.nspname = ?) AND (?::text IS NULL OR c.relname LIKE ?) ORDER BY 1, 2 LIMIT "
+    try (PreparedStatement st = c.prepareStatement("WITH t AS MATERIALIZED (SELECT c.oid, n.nspname, c.relname, "
+        + "c.relkind, c.reltuples FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE " + CANDIDATES
+        + " AND (?::text IS NULL OR n.nspname = ?) AND (?::text IS NULL OR c.relname LIKE ?)) "
+        + "SELECT nspname, relname, relkind, CASE WHEN reltuples < 0 THEN NULL ELSE reltuples::bigint END, "
+        + "obj_description(oid, 'pg_class') FROM t WHERE has_table_privilege(oid, 'SELECT') ORDER BY 1, 2 LIMIT "
         + (SCAN_LIMIT + 1))) {
       bind(st, 1, onlySchema);
       bind(st, 2, onlySchema);
@@ -87,11 +97,12 @@ final class PostgresCatalog implements SqlCatalog {
   public Optional<ObjectNode> describe(Connection c, TableRef table) throws SQLException {
     long oid;
     ObjectNode out = JsonNodeFactory.instance.objectNode();
-    try (PreparedStatement st = c.prepareStatement("SELECT c.oid, n.nspname, c.relname, c.relkind, "
-        + "CASE WHEN c.reltuples < 0 THEN NULL ELSE c.reltuples::bigint END, obj_description(c.oid, 'pg_class') "
-        + "FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = ? AND c.relname = ? "
-        + "AND c.relkind IN ('r','p','v','m','f') AND has_schema_privilege(n.oid, 'USAGE') "
-        + "AND has_table_privilege(c.oid, 'SELECT')")) {
+    try (PreparedStatement st = c.prepareStatement("WITH t AS MATERIALIZED (SELECT c.oid, n.nspname, c.relname, "
+        + "c.relkind, c.reltuples FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+        + "WHERE n.nspname = ? AND c.relname = ? AND c.relkind IN ('r','p','v','m','f') "
+        + "AND n.nspname NOT IN ('crdb_internal','pg_extension') AND has_schema_privilege(n.oid, 'USAGE')) "
+        + "SELECT oid, nspname, relname, relkind, CASE WHEN reltuples < 0 THEN NULL ELSE reltuples::bigint END, "
+        + "obj_description(oid, 'pg_class') FROM t WHERE has_table_privilege(oid, 'SELECT')")) {
       st.setString(1, table.schema());
       st.setString(2, table.name());
       try (ResultSet rs = st.executeQuery()) {

@@ -24,7 +24,8 @@ import { planFileKey } from './file-key.ts';
 import { FileKeyUnlock } from './file-key-unlock.ts';
 import { NativeUnlockClient } from './native-unlock.ts';
 import { OsFileKey } from './os-file-key.ts';
-import { chooseFile, choosePrivateKeyFile, chooseRepository, chooseVaultTokenFile, openClientConfig, openMcpb, reveal, type FilesOptions } from './files.ts';
+import { chooseDatabaseFile, chooseFile, choosePrivateKeyFile, chooseRepository, chooseVaultTokenFile, openClientConfig, openMcpb, reveal, type FilesOptions } from './files.ts';
+import { databaseKind } from './database-file-picker.ts';
 import { mcpSignInPage, signInEnded } from './mcp-sign-in.ts';
 import { isTrustedSender } from './ipc-guard.ts';
 import { GoogleSignIn } from './google-sign-in.ts';
@@ -745,6 +746,7 @@ export class Desktop {
     handle(IPC.saveFile, (purpose) => chooseFile(files, purpose, true));
     handle(IPC.openFile, (purpose) => chooseFile(files, purpose, false));
     handle(IPC.choosePrivateKeyFile, () => choosePrivateKeyFile(files));
+    handle(IPC.chooseDatabaseFile, (...args) => chooseDatabaseFile(files, databaseKind(args)));
     handle(IPC.chooseRepository, (...args) => {
       if (args.length) throw new Error('Repository selection does not accept arguments.');
       return chooseRepository(files);
