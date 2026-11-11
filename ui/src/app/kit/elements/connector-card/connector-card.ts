@@ -92,6 +92,9 @@ export class GwConnectorCardActions {}
  * tools it brings and the one thing to do next. Installing an unsigned plugin asks first in a danger confirmation
  * that names the risk; Install stays disabled until the acknowledgement is checked, focus starts on Cancel.
  *
+ * A built-in or plugin type shows its vendor's mark (`gw-icon-tile--mark`, the picker's `connectorMark`) where it has
+ * one, else its icon; templates and MCP servers keep their icon tiles.
+ *
  * Connectors › Installed and Catalog add a line under the description
  * (`[gwConnectorCardNote]`), a status in the footer (`card.status`), their own footer actions
  * (`[gwConnectorCardActions]` with `action: null`), and `confirmUnsigned=false` where the page reviews the package
@@ -117,6 +120,10 @@ export class GwConnectorCard {
   protected readonly uid = `cn-${++nextId}`;
   protected readonly note = contentChild(GwConnectorCardNote);
   protected readonly kind = computed(() => kindBadge(this.card().kind));
+  protected readonly mark = computed(() => {
+    const c = this.card();
+    return c.kind === 'built-in' || c.kind === 'plugin' ? connectorMark(c.type, c.variant) : null;
+  });
   protected readonly description = computed(() => literalParts(this.card().description, this.card().literals ?? []));
   protected readonly status = computed<ConnectorCardStatus | null>(() => {
     const c = this.card();

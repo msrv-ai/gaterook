@@ -106,6 +106,34 @@ describe('connector card: page slots', () => {
     expect(text(el.querySelector('.gw-card__footer [gwConnectorCardActions]'))).toBe('Page action');
   });
 
+  it('shows the vendor mark of a built-in or plugin type, and keeps the icon of the others', async () => {
+    const { el, host, settle } = await render();
+    const tile = () => el.querySelector('.gw-connector-card__identity .gw-icon-tile')!;
+    expect(tile().classList).toContain('gw-icon-tile--mark');
+    expect(tile().querySelector('img')!.getAttribute('src')).toBe('assets/integrations/clickhouse.svg');
+    expect(tile().querySelector('img')!.getAttribute('alt')).toBe('');
+
+    host.card.set({ ...CLICKHOUSE, type: 'gcp', name: 'GCP', icon: 'cloud', kind: 'built-in', signed: null, action: 'add' });
+    await settle();
+    expect(tile().querySelector('img')!.getAttribute('src')).toBe('assets/integrations/google-cloud.png');
+
+    host.card.set({ ...CLICKHOUSE, type: 'logs', variant: 'loki', name: 'Loki', kind: 'built-in', signed: null, action: 'add' });
+    await settle();
+    expect(tile().querySelector('img')!.getAttribute('src')).toBe('assets/integrations/loki.svg');
+
+    for (const card of [
+      { ...CLICKHOUSE, type: 'http', name: 'HTTP API', icon: 'globe', kind: 'built-in' as const, signed: null },
+      { ...CLICKHOUSE, type: 'postgres', name: 'PostgreSQL slow queries', icon: 'file-code', kind: 'template' as const, signed: null },
+      { ...CLICKHOUSE, type: 'mcp-server', name: 'github-mcp', icon: 'plug', kind: 'mcp-server' as const, signed: null },
+    ]) {
+      host.card.set({ ...card, action: null });
+      await settle();
+      expect(tile().classList, card.name).not.toContain('gw-icon-tile--mark');
+      expect(tile().querySelector('img'), card.name).toBeNull();
+      expect(tile().querySelector('svg'), card.name).not.toBeNull();
+    }
+  });
+
   it('stacks the installed line under the description', async () => {
     const { el } = await render(NoteHost);
     const stack = el.querySelector('.gw-card__body .gw-stack--sm');
