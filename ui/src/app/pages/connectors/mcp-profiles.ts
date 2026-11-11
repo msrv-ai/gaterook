@@ -5,12 +5,13 @@ import { templateParts } from './mcp-registry';
 
 /**
  * The vendor marks the Cloud platforms cards show, bundled with their provenance in `public/mcp-logos/SOURCES.md`; a
- * profile without one (DigitalOcean, whose GitHub avatar is its mascot, not its mark) shows a cloud icon.
+ * profile without one shows a cloud icon.
  */
 const LOGOS: Readonly<Record<string, string>> = {
   'aws-knowledge': 'mcp-logos/aws.png',
   'azure-devops': 'mcp-logos/azure-devops.svg',
   'cloudflare-api': 'mcp-logos/cloudflare.jpg',
+  digitalocean: 'mcp-logos/digitalocean.svg',
   firebase: 'mcp-logos/firebase.png',
   netlify: 'mcp-logos/netlify.png',
   supabase: 'mcp-logos/supabase.png',

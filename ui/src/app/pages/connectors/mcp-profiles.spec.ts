@@ -111,6 +111,7 @@ describe('Verified MCP profiles in Add MCP server', () => {
     expect(profileLogo(SUPABASE)).toBe('mcp-logos/supabase.png');
     expect(profileLogo(profile({ id: 'netlify' }))).toBe('mcp-logos/netlify.png');
     expect(profileLogo(profile({ id: 'azure-devops' }))).toBe('mcp-logos/azure-devops.svg');
-    expect(profileLogo(profile({ id: 'digitalocean' }))).toBeNull();
+    expect(profileLogo(profile({ id: 'digitalocean' }))).toBe('mcp-logos/digitalocean.svg');
+    expect(profileLogo(profile({ id: 'heroku' }))).toBeNull();
   });
 });
