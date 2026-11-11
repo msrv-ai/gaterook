@@ -78,6 +78,25 @@ export function oauthClientLabel(grant: OAuthGrant): string {
   return (grant.clientKind === 'dcr' ? grant.clientName?.trim() : null) || grant.client;
 }
 
+/**
+ * Who asks to sign in, as the consent names it. On this computer an app is the name it registered with, as "Signed in"
+ * names it afterwards: the host of its first callback says nothing about it (VS Code registers insiders.vscode.dev
+ * first, Cursor localhost). Through the tunnel a client stays its host, which its allowed redirect vouches for.
+ */
+export function consentClient(c: OAuthConsent): string {
+  return (c.ingress === 'LOCAL' && c.clientKind === 'dcr' ? c.clientName?.trim() : null) || c.clientHost;
+}
+
+/** The consent's first line: who asked, and when to allow it. */
+export function consentAsks(c: OAuthConsent): string {
+  if (c.ingress !== 'LOCAL') {
+    return `Someone signed in to ${c.clientHost} asked to connect. Allow it only if it was you and the code matches the one on the ${c.clientHost} page.`;
+  }
+  const name = consentClient(c);
+  const who = name === c.clientHost ? 'An app on this computer' : `An app on this computer registered as ${name}`;
+  return `${who} asked to connect. Allow it only if you started this sign-in and the code matches the one in your browser.`;
+}
+
 /** "Read access to stage-readonly", "Access to dev: 14 read only, 3 with approval". */
 export function consentWants(c: OAuthConsent): string {
   if (!c.tools.approval && !c.tools.bypass) return 'Read access to';

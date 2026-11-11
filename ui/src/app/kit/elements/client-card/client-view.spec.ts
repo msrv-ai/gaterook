@@ -28,7 +28,7 @@ import {
   toolsCell,
   viaText,
 } from './client-view';
-import { answerWithin, consentTools, consentWants, oauthClientLabel, tunnelHistory, tunnelLook, whilePublic } from './tunnel-view';
+import { answerWithin, consentAsks, consentClient, consentTools, consentWants, oauthClientLabel, tunnelHistory, tunnelLook, whilePublic } from './tunnel-view';
 import { DEMO_GRANTS, DEMO_TUNNEL_OFF, DEMO_TUNNEL_ON, DEMO_CONSENT } from '../../../dev/fixtures-clients';
 
 const words = (parts: readonly { text: string }[]) => parts.map((p) => p.text).join('');
@@ -284,6 +284,21 @@ describe('claude.ai card view (tunnel and OAuth)', () => {
     expect(tunnelHistory({ ...DEMO_TUNNEL_OFF, history: [] }, NOW, () => '')).toMatch(/never published$/);
     expect(tunnelHistory(DEMO_TUNNEL_ON, NOW, () => 'just now')).toBe('Public since just now');
     expect(whilePublic(DEMO_TUNNEL_OFF, DEMO_GRANTS)).toEqual({ calls: 19, lastAt: '2026-10-22T12:08:14+02:00' });
+  });
+
+  it('names a local sign-in by the app that registered, a tunnel one by its host', () => {
+    // VS Code registers insiders.vscode.dev as its first callback, whichever VS Code signs in.
+    const vsCode = { ...DEMO_CONSENT, ingress: 'LOCAL' as const, clientHost: 'insiders.vscode.dev', clientName: 'Visual Studio Code', clientKind: 'dcr' as const, redirectHost: '127.0.0.1' };
+    expect(consentClient(vsCode)).toBe('Visual Studio Code');
+    expect(consentAsks(vsCode)).toBe('An app on this computer registered as Visual Studio Code asked to connect. Allow it only if you started this sign-in and the code matches the one in your browser.');
+    expect(consentClient({ ...vsCode, clientName: ' ' })).toBe('insiders.vscode.dev');
+    const unnamed = { ...vsCode, clientHost: '127.0.0.1', clientName: '127.0.0.1' };
+    expect(consentClient(unnamed)).toBe('127.0.0.1');
+    expect(consentAsks(unnamed)).toBe('An app on this computer asked to connect. Allow it only if you started this sign-in and the code matches the one in your browser.');
+    // Through the tunnel anyone can register any name: the consent keeps the host its redirect vouches for.
+    expect(consentClient({ ...DEMO_CONSENT, ingress: 'TUNNEL', clientName: 'Visual Studio Code', clientKind: 'dcr' })).toBe('claude.ai');
+    expect(consentClient(DEMO_CONSENT)).toBe('claude.ai');
+    expect(consentAsks(DEMO_CONSENT)).toBe('Someone signed in to claude.ai asked to connect. Allow it only if it was you and the code matches the one on the claude.ai page.');
   });
 
   it('a consent says what it wants and how long it waits', () => {

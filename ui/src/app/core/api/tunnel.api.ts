@@ -72,7 +72,11 @@ export class TunnelApi {
 export interface OAuthConsent {
   readonly id: string;
   readonly code: string;
+  /** The client host; for a local registration, the host of its first callback (VS Code: insiders.vscode.dev). */
   readonly clientHost: string;
+  /** The registered display name, distinct from the callback host. */
+  readonly clientName?: string | null;
+  readonly clientKind?: 'cimd' | 'dcr';
   readonly ingress?: 'LOCAL' | 'TUNNEL';
   readonly redirectHost: string;
   readonly endpoint: string;

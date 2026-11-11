@@ -227,9 +227,23 @@ public class OAuthServer {
       case OPEN -> { }
     }
     log.info("Sign-in {} of {} for {} waits for the person (code {})", rid, client.host(), slug.get(), code);
-    String html = ConsentPages.waiting(rid, code, client.host(), OAuthUris.hostOf(redirect), slug.get(),
+    String html = ConsentPages.waiting(rid, code, consentName(server, client), OAuthUris.hostOf(redirect), slug.get(),
         Consents.TIMEOUT.toSeconds());
     return new Answer(200, html, null, cookieName(rid), cookie);
+  }
+
+  /**
+   * Who asks to sign in, as the person reads it while deciding. On this computer a registered app is the name it
+   * registered with, as Setup changes and "Signed in" name it: the host of its first callback says nothing about it
+   * (VS Code registers {@code https://insiders.vscode.dev/redirect} first, then its loopback callbacks). Through the
+   * tunnel the client stays its host, the part an allowed redirect vouches for: anyone can register any name there.
+   */
+  static String consentName(Issuers.Server server, Clients.Client client) {
+    if (!server.tunnel() && client.kind() == OAuthClientKind.DCR && client.name() != null
+        && !client.name().isBlank()) {
+      return client.name();
+    }
+    return client.host();
   }
 
   private static String scope(String requested) {

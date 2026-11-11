@@ -75,11 +75,14 @@ class OAuthClientStatusIT {
     assertThat(local.mcp(slug, null, "initialize").header("www-authenticate"))
         .contains("/.well-known/oauth-protected-resource/mcp/" + slug);
     String redirect = "http://127.0.0.1:33418/";
+    // VS Code desktop's registration (fetchDynamicRegistration), its callbacks in VS Code's order.
     TunnelWorld.Answer registered = local.post(null, "/oauth/register", Map.of("Content-Type", "application/json"),
         """
-        {"client_name":"Visual Studio Code","redirect_uris":["http://127.0.0.1:33418/",
-          "https://vscode.dev/redirect","https://insiders.vscode.dev/redirect"],
-          "grant_types":["authorization_code","refresh_token"],"token_endpoint_auth_method":"none"}
+        {"client_name":"Visual Studio Code","client_uri":"https://code.visualstudio.com",
+          "grant_types":["authorization_code","refresh_token"],"response_types":["code"],
+          "redirect_uris":["https://insiders.vscode.dev/redirect","https://vscode.dev/redirect",
+            "http://127.0.0.1/","http://127.0.0.1:33418/"],
+          "token_endpoint_auth_method":"none","application_type":"native"}
         """);
     assertThat(registered.status()).as(registered.body()).isEqualTo(201);
     String client = registered.json().path("client_id").asString();
@@ -90,6 +93,10 @@ class OAuthClientStatusIT {
     assertThat(jdbc.queryForObject("select count(*) from oauth_grant", Integer.class)).isZero();
     var waiting = local.waiting(OAuthFlow.params(client, redirect, pkce, target, "vscode-status"));
     assertThat(local.consent(waiting).path("clientName").asString()).isEqualTo("Visual Studio Code");
+    assertThat(local.consent(waiting).path("clientHost").asString()).isEqualTo("insiders.vscode.dev");
+    // The browser names the app that registered, not the host of its first callback.
+    assertThat(waiting.page().body()).contains("Visual Studio Code asks to sign in to endpoint")
+        .contains("<dt>Client</dt><dd>Visual Studio Code</dd>").doesNotContain("insiders.vscode.dev");
     String code = local.allow(waiting).get("code");
     assertThat(vscode().path("links")).isEmpty();
     var exchanged = local.exchange(client, redirect, code, pkce, target);

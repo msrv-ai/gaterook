@@ -4,13 +4,14 @@ import { TimeService } from '../../../core/time/time.service';
 import { ActivationGuard } from '../../activation-guard';
 import { GwDialog, GwDialogClose } from '../../dialog';
 import { GwIcon } from '../../icons';
-import { answerWithin, consentTools, consentWants } from './tunnel-view';
+import { answerWithin, consentAsks, consentClient, consentTools, consentWants } from './tunnel-view';
 
 let nextId = 0;
 
 /**
  * `<gw-oauth-consent [consent]="c" (decide)="…">` (client-card.html, the sign-in request): shown on this computer
- * when someone signs in through the tunnel (`oauth.consent.requested`). It opens by itself when `consent` is set and
+ * when an app on it or someone through the tunnel signs in (`oauth.consent.requested`). An app on this computer is
+ * named by the name it registered with, a tunnel client by its host (`consentClient`). It opens by itself when `consent` is set and
  * closes when it is cleared. Deny is the default: it has focus, and Esc, the close button and the backdrop all deny;
  * "Allow access" is the dialog's primary, never `--approve`. No answer in time denies on the core.
  *
@@ -30,8 +31,8 @@ let nextId = 0;
       @if (consent(); as c) {
         <header class="gw-dialog__header">
           <span class="gw-icon-tile"><svg lucideIcon="log-in" class="gw-icon"></svg></span>
-          <h2 class="gw-dialog__title" [id]="uid + '-t'">Allow {{ c.clientHost }} to sign in to <span class="gw-mono">{{ c.endpoint }}</span>?</h2>
-          <p class="gw-dialog__description" [id]="uid + '-d'">Someone signed in to {{ c.clientHost }} asked to connect. Allow it only if it was you and the code matches the one on the {{ c.clientHost }} page.</p>
+          <h2 class="gw-dialog__title" [id]="uid + '-t'">Allow {{ client() }} to sign in to <span class="gw-mono">{{ c.endpoint }}</span>?</h2>
+          <p class="gw-dialog__description" [id]="uid + '-d'">{{ asks() }}</p>
           <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close and deny" gwDialogClose="deny"><svg lucideIcon="x" class="gw-icon"></svg></button>
         </header>
         <div class="gw-dialog__body">
@@ -66,6 +67,15 @@ export class GwOAuthConsent {
   /** The consent the open dialog is about (the input may already be the next one when it closes). */
   private shown: OAuthConsent | null = null;
 
+  /** Who asks: a local app by its registered name, a tunnel client by its host. */
+  protected readonly client = computed(() => {
+    const c = this.consent();
+    return c ? consentClient(c) : '';
+  });
+  protected readonly asks = computed(() => {
+    const c = this.consent();
+    return c ? consentAsks(c) : '';
+  });
   protected readonly wants = computed(() => {
     const c = this.consent();
     return c ? consentWants(c) : '';

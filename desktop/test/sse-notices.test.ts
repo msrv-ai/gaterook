@@ -101,6 +101,13 @@ describe('desktop notifications of requests', () => {
     assert.deepEqual(consentNotice({ id: 'oc_1', code: '4F7-2KQ', ingress: 'LOCAL', clientHost: 'Cursor', endpoint: 'stage-readonly' }), {
       id: 'oc_1', title: 'Cursor wants to sign in · code 4F7-2KQ',
       body: 'Check the code, then allow or deny it in GateRook (endpoint stage-readonly).' });
+    // A registered app is its name, not the host of its first callback (VS Code: insiders.vscode.dev).
+    assert.deepEqual(consentNotice({ id: 'oc_2', code: '8SX-RJQ', ingress: 'LOCAL', clientHost: 'insiders.vscode.dev',
+      clientName: 'Visual Studio Code', clientKind: 'dcr', endpoint: 'default' }), {
+      id: 'oc_2', title: 'Visual Studio Code wants to sign in · code 8SX-RJQ',
+      body: 'Check the code, then allow or deny it in GateRook (endpoint default).' });
+    assert.equal(consentNotice({ id: 'oc_3', code: '8SX-RJQ', ingress: 'LOCAL', clientHost: 'localhost', clientName: ' ',
+      clientKind: 'dcr' })?.title, 'localhost wants to sign in · code 8SX-RJQ');
     assert.equal(consentNotice({ id: 'oc_1', code: 'nope', ingress: 'LOCAL' }), null);
     assert.equal(consentNotice({ id: 'oc_remote', code: '4F7-2KQ', ingress: 'TUNNEL', clientHost: 'claude.ai' }), null);
   });
