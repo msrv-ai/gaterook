@@ -379,6 +379,8 @@ export function checkPrompt(type: string | null, name: string | null): string {
       return `Show me the pods in ${name}`;
     case 'cloudflare':
       return `Show me the DNS zones in ${name}`;
+    case 's3':
+      return `Show me the buckets in ${name}`;
     case 'logs':
     case 'gcp-logging':
     case 'cloudwatch':

@@ -109,6 +109,9 @@ class ConnectorCatalogApiIT {
               + "expiry, with the connection's Entra ID identity. Changes wait for approval."),
       new KitCard("Cloud", "cloudflare", null, "Cloudflare", "cloud", "built-in", 13,
           "DNS, cache, Workers, Pages, analytics and tunnels. Changes wait for approval."),
+      new KitCard("Cloud", "s3", null, "S3 object storage", "archive", "built-in", 7,
+          "Buckets and objects on Amazon S3, Cloudflare R2, MinIO and other S3-compatible storage. Writes wait for "
+              + "approval."),
       new KitCard("HTTP and MCP", "http", null, "HTTP API", "globe", "built-in", 2,
           "One base URL with an allowlist. GET reads; every other method waits for approval."),
       new KitCard("HTTP and MCP", "mcp-server", null, "External MCP server", "plug", "mcp-server", null,
@@ -163,7 +166,7 @@ class ConnectorCatalogApiIT {
     // Connectors › Installed: one row per type, the MCP server type isn't one (its servers are, with K5).
     List<String> installed = each(catalog.path("installed"), "id");
     assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "sqlite", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "firestore", "firebase-rtdb", "opensearch", "elasticsearch", "ssh", "gcp-logging", "cloudwatch", "azure-monitor", "loki", "ssh-logs", "kubernetes",
-        "gcp", "aws", "azure", "cloudflare", "http");
+        "gcp", "aws", "azure", "cloudflare", "s3", "http");
     for (JsonNode row : catalog.path("installed")) {
       assertThat(row.path("state").asString()).isEqualTo("enabled");
       assertThat(row.path("kind").asString()).isEqualTo("built-in");

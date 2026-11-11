@@ -62,6 +62,7 @@ GateRook applies its MCP Firewall controls to built-in connectors and external M
 | Search engines | OpenSearch and Elasticsearch: discover indices, query documents, and review administrative requests |
 | Logs | [GCP Cloud Logging](docs/gcp-logs.md), AWS CloudWatch Logs, [Azure Monitor Logs](docs/azure.md#logs), Loki, and [selected log files over SSH](docs/ssh-log-files.md): search and read logs within configured limits |
 | Infrastructure and cloud | SSH commands and runbooks; Kubernetes resources, events, pod logs, and reviewed changes; AWS and GCP resource inspection and metrics; [any Google Cloud API method](docs/gcp-api.md) within the connection's scopes and [any AWS API operation](docs/aws-api.md), with reviewed changes; [Azure](docs/azure.md) Resource Graph inventory, Resource Manager calls with reviewed changes, metrics, alerts, the Activity Log, Storage data, Service Bus dead letters and Key Vault expiry; [Cloudflare](docs/cloudflare.md) zones, DNS, Workers and their logs, Pages, analytics and tunnels, with reviewed DNS changes, cache purges, deployments and rollbacks |
+| Object storage | [Amazon S3 and S3-compatible storage](docs/s3.md) such as Cloudflare R2, DigitalOcean Spaces, Backblaze B2 and MinIO: list buckets and objects, read text objects within limits, and review uploads, copies and deletes |
 | HTTP APIs | Scoped HTTP requests and selected operations imported from an OpenAPI specification |
 | [MCP servers](docs/mcp-servers.md) | Remote Streamable HTTP/SSE servers and local stdio commands, added by URL, command, or pasted configuration; tools follow GateRook's access rules and approvals |
 | [Official MCP Registry](https://registry.modelcontextprotocol.io/) | Search public MCP servers from GateRook and fill in supported remote URLs or npm/PyPI commands for review before connecting |
@@ -194,6 +195,7 @@ For the full connector integration suite, follow [the Docker test-services guide
 | [AWS APIs](docs/aws-api.md) | Calling any AWS operation by its API name, read and change classification, session policies, refused operations, and approved changes |
 | [Azure](docs/azure.md) | Entra ID sign-in, tenants and subscriptions, classified Resource Manager calls, service recipes, Azure Monitor, KQL logs, Storage, Service Bus and Key Vault |
 | [Cloudflare](docs/cloudflare.md) | API token permissions, zones and DNS, Workers Logs, Pages, analytics, masking, and approved changes |
+| [S3 object storage](docs/s3.md) | Amazon S3 roles and session policies, S3-compatible endpoints, bounded text reads, and approved uploads, copies and deletes |
 | [SSH log files](docs/ssh-log-files.md) | Remote file selection, searching, latest records, time ranges, and continuation |
 | [Repository layout](docs/repository-layout.md) | Source directories and their responsibilities |
 | [Migration scope](docs/migration.md) | Source inclusion, compatibility, and publication boundaries |

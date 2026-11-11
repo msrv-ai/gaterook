@@ -34,6 +34,21 @@ public final class AwsSessionPolicy {
     return this;
   }
 
+  /**
+   * {@code Allow} of {@code actions} on {@code resources} only while the request's {@code key} equals one of
+   * {@code values} ({@code StringEquals}), e.g. {@code kms:Decrypt} only through S3 ({@code kms:ViaService}).
+   */
+  public AwsSessionPolicy allowWhen(List<String> actions, List<String> resources, String key, List<String> values) {
+    if (key == null || key.isBlank() || values.isEmpty()) {
+      throw new IllegalArgumentException("A condition needs a key and values");
+    }
+    ObjectNode s = statement("Allow", actions, resources);
+    ArrayNode v = s.putObject("Condition").putObject("StringEquals").putArray(key);
+    values.forEach(v::add);
+    statements.add(s);
+    return this;
+  }
+
   /** Explicit {@code Deny}: wins over any allow of the role, e.g. {@code secretsmanager:GetSecretValue}. */
   public AwsSessionPolicy deny(List<String> actions, List<String> resources) {
     statements.add(statement("Deny", actions, resources));

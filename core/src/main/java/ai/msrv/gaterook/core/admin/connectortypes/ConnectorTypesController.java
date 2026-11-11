@@ -58,7 +58,7 @@ class ConnectorTypesController {
   /** Built-in types in the kit's order inside their groups. */
   static final List<String> KIT_ORDER = List.of("postgres", "mysql", "oracle", "sqlserver", "sqlite", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "firestore", "firebase-rtdb", "opensearch", "elasticsearch", "ssh",
       "gcp-logging", "cloudwatch", "azure-monitor", "loki", "logs", "ssh-logs", "kubernetes",
-      "gcp", "aws", "azure", "cloudflare", "http", "mcp-server");
+      "gcp", "aws", "azure", "cloudflare", "s3", "http", "mcp-server");
 
   record Reason(String reason) {}
 

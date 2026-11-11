@@ -1,0 +1,16 @@
+{
+  "area": "s3",
+  "module": "connectors/s3",
+  "connectorTypes": ["s3"],
+  "description": "Touches of the S3 connector for the native smoke (report 15 §6): the key and bucket checks and the schemas in the image, without I/O.",
+  "touches": [
+    {
+      "name": "s3-classify-without-io",
+      "connection": {"type": "s3", "env": "dev",
+        "config": {"region": "eu-central-1", "buckets": ["acme-reports"], "credentials": {"source": "accessKey", "accessKeyId": "AKIAIOSFODNN7EXAMPLE"}},
+        "secrets": {"/credentials/secretAccessKey": "smoke-only-0001"}},
+      "call": {"tool": "s3_read_object", "arguments": {"bucket": "acme-payroll", "key": "2026/11.csv"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.s3.bucket-not-allowed"}
+    }
+  ]
+}

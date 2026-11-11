@@ -136,6 +136,8 @@ export function signInTarget(type: string): string {
     case 'firestore':
     case 'firebase-rtdb':
       return 'the cloud account';
+    case 's3':
+      return 'the storage service';
     default:
       return 'the service';
   }

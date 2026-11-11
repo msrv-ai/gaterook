@@ -20,14 +20,14 @@ describe('schema-form goldens: every connector form the core serves', () => {
 
   it('covers the connector types of the catalog', () => {
     expect(Object.keys(CONNECTOR_FORMS).sort()).toEqual(
-      ['aws', 'azure', 'azure-monitor', 'cloudflare', 'gcp', 'gcp-logging', 'cloudwatch', 'loki', 'opensearch', 'elasticsearch', 'http', 'kubernetes', 'logs', 'mcp-server', 'mongodb', 'mysql', 'oracle', 'sqlserver', 'sqlite', 'dynamodb', 'bigquery', 'snowflake', 'firestore', 'firebase-rtdb', 'postgres', 'redis', 'ssh', 'ssh-logs'].sort(),
+      ['aws', 'azure', 'azure-monitor', 'cloudflare', 'gcp', 'gcp-logging', 'cloudwatch', 'loki', 'opensearch', 'elasticsearch', 'http', 'kubernetes', 'logs', 'mcp-server', 'mongodb', 'mysql', 'oracle', 'sqlserver', 'sqlite', 'dynamodb', 'bigquery', 'snowflake', 'firestore', 'firebase-rtdb', 'postgres', 'redis', 's3', 'ssh', 'ssh-logs'].sort(),
     );
   });
 
   it('labels the fields of the infrastructure connectors with titles, never with their property names', () => {
     // The log backend and OpenSearch-style API access are constants of the type, which the form never shows.
     const constants = new Set(['/backend', '/apiAccess']);
-    for (const type of ['aws', 'azure', 'gcp', 'gcp-logging', 'cloudwatch', 'azure-monitor', 'loki', 'opensearch', 'elasticsearch', 'logs', 'http', 'ssh', 'ssh-logs']) {
+    for (const type of ['aws', 'azure', 'gcp', 'gcp-logging', 'cloudwatch', 'azure-monitor', 'loki', 'opensearch', 'elasticsearch', 'logs', 'http', 's3', 'ssh', 'ssh-logs']) {
       const raw = CONNECTOR_GOLDENS[type].fields
         .filter((f) => !constants.has(f.pointer) && /^[a-z][A-Za-z0-9]*$/.test(f.title) && f.pointer.endsWith(`/${f.title}`))
         .map((f) => f.pointer);

@@ -6181,6 +6181,255 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         }
       }
     }
+  },
+  "s3": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "S3 object storage",
+    "type": "object",
+    "x-card": {
+      "description": "Buckets and objects on Amazon S3, Cloudflare R2, MinIO and other S3-compatible storage. Writes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "region",
+      "credentials"
+    ],
+    "properties": {
+      "endpoint": {
+        "type": "string",
+        "title": "Endpoint",
+        "maxLength": 2048,
+        "pattern": "^(https?://\\S+)?$",
+        "examples": [
+          "https://<account-id>.r2.cloudflarestorage.com"
+        ],
+        "description": "Empty for Amazon S3. For other S3-compatible storage, its endpoint URL, such as https://s3.us-west-002.backblazeb2.com or http://minio.internal:9000."
+      },
+      "buckets": {
+        "type": "array",
+        "title": "Buckets",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._*-]{1,222}$"
+        },
+        "description": "The buckets agents may use; * matches any characters, such as acme-reports-*. Empty: every bucket the credentials list, on Amazon S3 only buckets of the credentials' own account."
+      }
+    },
+    "patternProperties": {
+      "^(region|pathStyle|credentials)$": {}
+    },
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "endpoint": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "endpoint"
+          ]
+        },
+        "then": {
+          "required": [
+            "region",
+            "credentials"
+          ],
+          "properties": {
+            "region": {
+              "type": "string",
+              "title": "Region",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+              "examples": [
+                "auto"
+              ],
+              "description": "The region the provider names for this endpoint: auto for Cloudflare R2, us-east-1 when it names none."
+            },
+            "pathStyle": {
+              "type": "boolean",
+              "title": "Path-style addressing",
+              "default": true,
+              "description": "Requests go to the endpoint with the bucket in the path. Off: the bucket leads the host name, as some providers require."
+            },
+            "credentials": {
+              "type": "object",
+              "title": "Credentials",
+              "required": [
+                "accessKeyId",
+                "secretAccessKey"
+              ],
+              "additionalProperties": false,
+              "patternProperties": {
+                "^source$": {
+                  "const": "accessKey"
+                }
+              },
+              "properties": {
+                "accessKeyId": {
+                  "type": "string",
+                  "title": "Access key ID",
+                  "pattern": "^[A-Za-z0-9._+-]{3,128}$",
+                  "x-not-secret": true
+                },
+                "secretAccessKey": {
+                  "type": "string",
+                  "title": "Secret access key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password"
+                }
+              }
+            }
+          }
+        },
+        "else": {
+          "required": [
+            "region",
+            "credentials"
+          ],
+          "properties": {
+            "region": {
+              "type": "string",
+              "title": "Region",
+              "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
+              "examples": [
+                "eu-central-1"
+              ],
+              "description": "The AWS region of the buckets."
+            },
+            "credentials": {
+              "type": "object",
+              "title": "Credentials",
+              "required": [
+                "source"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "source": {
+                  "enum": [
+                    "accessKey",
+                    "profile"
+                  ],
+                  "default": "accessKey",
+                  "title": "Credentials source",
+                  "x-enumTitles": [
+                    "Access key",
+                    "AWS profile on this computer"
+                  ]
+                },
+                "roleArn": {
+                  "type": "string",
+                  "title": "Role to assume",
+                  "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
+                  "examples": [
+                    "arn:aws:iam::412398765012:role/gw-s3"
+                  ],
+                  "description": "With a role, GateRook limits each call to what it needs, enforced by AWS."
+                },
+                "externalId": {
+                  "type": "string",
+                  "title": "External ID",
+                  "pattern": "^[\\w+=,.@:/-]{2,1224}$",
+                  "x-generated": "gw-ext-<12 hex>",
+                  "description": "Not a secret. Add it to the role's trust policy as sts:ExternalId"
+                },
+                "sessionSeconds": {
+                  "type": "integer",
+                  "title": "Session length",
+                  "minimum": 900,
+                  "maximum": 3600,
+                  "default": 900,
+                  "x-unit": "s"
+                },
+                "sessionPolicy": {
+                  "enum": [
+                    "generated",
+                    "none"
+                  ],
+                  "default": "generated",
+                  "title": "Session policy",
+                  "x-forbidden-env-values": {
+                    "prod": [
+                      "none"
+                    ]
+                  },
+                  "x-enumTitles": [
+                    "Each call's own permissions, enforced by AWS (recommended)",
+                    "The role's permissions as they are"
+                  ]
+                }
+              },
+              "patternProperties": {
+                "^(accessKeyId|secretAccessKey|profile)$": {}
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "source": {
+                        "const": "accessKey"
+                      }
+                    },
+                    "required": [
+                      "source"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "accessKeyId": {
+                        "type": "string",
+                        "title": "Access key ID",
+                        "pattern": "^AKIA[A-Z0-9]{16}$",
+                        "x-not-secret": true
+                      },
+                      "secretAccessKey": {
+                        "type": "string",
+                        "title": "Secret access key",
+                        "writeOnly": true,
+                        "x-gateway-secret": "value",
+                        "format": "password"
+                      }
+                    },
+                    "required": [
+                      "accessKeyId",
+                      "secretAccessKey"
+                    ]
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "source": {
+                        "const": "profile"
+                      }
+                    },
+                    "required": [
+                      "source"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "profile": {
+                        "type": "string",
+                        "title": "Profile",
+                        "maxLength": 128,
+                        "pattern": "\\S"
+                      }
+                    },
+                    "required": [
+                      "profile"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
   }
 };
 
@@ -15322,6 +15571,376 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
     },
     "prodDefaults": {
       "credentials": {}
+    }
+  },
+  "s3": {
+    "sections": [
+      "/credentials",
+      "/credentials"
+    ],
+    "loose": [
+      "/endpoint",
+      "/region",
+      "/pathStyle",
+      "/region",
+      "/buckets"
+    ],
+    "rows": {
+      "/credentials": [
+        [
+          "/credentials/source"
+        ],
+        [
+          "/credentials/accessKeyId"
+        ],
+        [
+          "/credentials/secretAccessKey"
+        ],
+        [
+          "/credentials/profile"
+        ],
+        [
+          "/credentials/roleArn"
+        ],
+        [
+          "/credentials/externalId"
+        ],
+        [
+          "/credentials/sessionSeconds"
+        ],
+        [
+          "/credentials/sessionPolicy"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/endpoint",
+        "kind": "text",
+        "title": "Endpoint",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/region",
+        "kind": "text",
+        "title": "Region",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "endpoint length >= 1"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/pathStyle",
+        "kind": "checkbox",
+        "title": "Path-style addressing",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "endpoint length >= 1"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/region",
+        "kind": "text",
+        "title": "Region",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "not endpoint length >= 1"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/buckets",
+        "kind": "tags",
+        "title": "Buckets",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "endpoint length >= 1"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/accessKeyId",
+        "kind": "text",
+        "title": "Access key ID",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "endpoint length >= 1"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/secretAccessKey",
+        "kind": "secret",
+        "title": "Secret access key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "endpoint length >= 1"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "not endpoint length >= 1"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/source",
+        "kind": "select",
+        "title": "Credentials source",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "accessKey",
+          "profile"
+        ],
+        "when": [
+          "not endpoint length >= 1"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/accessKeyId",
+        "kind": "text",
+        "title": "Access key ID",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "not endpoint length >= 1",
+          "credentials.source in [\"accessKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/secretAccessKey",
+        "kind": "secret",
+        "title": "Secret access key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "not endpoint length >= 1",
+          "credentials.source in [\"accessKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/profile",
+        "kind": "text",
+        "title": "Profile",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "not endpoint length >= 1",
+          "credentials.source in [\"profile\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/roleArn",
+        "kind": "text",
+        "title": "Role to assume",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "not endpoint length >= 1"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/externalId",
+        "kind": "text",
+        "title": "External ID",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "not endpoint length >= 1"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/sessionSeconds",
+        "kind": "number",
+        "title": "Session length",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "s",
+        "options": [],
+        "when": [
+          "not endpoint length >= 1"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/sessionPolicy",
+        "kind": "select",
+        "title": "Session policy",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "generated",
+          "none"
+        ],
+        "when": [
+          "not endpoint length >= 1"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": [
+          "none"
+        ],
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "credentials": {
+        "source": "accessKey",
+        "sessionSeconds": 900,
+        "sessionPolicy": "generated"
+      }
+    },
+    "prodDefaults": {
+      "credentials": {
+        "source": "accessKey",
+        "sessionSeconds": 900,
+        "sessionPolicy": "generated"
+      }
     }
   },
   "http": {
