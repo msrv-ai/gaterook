@@ -42,9 +42,13 @@ final class Redactor {
   /** Maps (or {@code [{name, value}]} lists) whose every value is an environment variable. */
   private static final Set<String> ENV_MAPS = Set.of("environmentVariables", "buildEnvironmentVariables",
       "envVariables", "userEnvVars", "envVars", "env", "envs");
-  /** Keys that end in a sensitive word but hold counts or settings, not values. */
+  /**
+   * Keys that end in a sensitive word but hold counts, settings or cursors, not values: a list's
+   * {@code nextPageToken} is how an agent pages ({@code gcp_api_read}), as the core's masker also leaves it.
+   */
   private static final Pattern NOT_A_VALUE = Pattern.compile("(?i).*(count|ttl|seconds|enabled|type|policy|"
-      + "version|expir\\w*|time|duration|rotation\\w*|name|id|uri|url|ref|source|lifetime)$");
+      + "version|expir\\w*|time|duration|rotation\\w*|name|id|uri|url|ref|source|lifetime|pagetoken|nexttoken"
+      + "|continuationtoken|synctoken|resumetoken)$");
 
   private Redactor() {}
 

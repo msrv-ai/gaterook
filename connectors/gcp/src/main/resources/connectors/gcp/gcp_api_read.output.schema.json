@@ -1,0 +1,50 @@
+{
+  "type": "object",
+  "required": [
+    "provider",
+    "service",
+    "method",
+    "httpMethod",
+    "data",
+    "truncated"
+  ],
+  "properties": {
+    "provider": {
+      "const": "gcp"
+    },
+    "service": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "method": {
+      "type": "string"
+    },
+    "httpMethod": {
+      "type": "string"
+    },
+    "request": {
+      "type": "string"
+    },
+    "data": {},
+    "hiddenByPolicy": {
+      "type": "integer"
+    },
+    "masked": {
+      "type": "integer"
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "truncatedReason": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

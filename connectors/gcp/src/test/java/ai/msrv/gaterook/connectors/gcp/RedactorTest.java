@@ -143,6 +143,18 @@ class RedactorTest {
   }
 
   @Test
+  void pageTokensArePagingCursorsNotSecrets() {
+    JsonNode list = TestCtx.JSON.readTree("""
+        {"services":[],"nextPageToken":"CgwI-cnry-page","resumeToken":"r1","sessionToken":"cnry-session"}""");
+
+    assertThat(Redactor.redact(list)).isEqualTo(1);
+
+    assertThat(list.path("nextPageToken").asString()).isEqualTo("CgwI-cnry-page");
+    assertThat(list.path("resumeToken").asString()).isEqualTo("r1");
+    assertThat(list.path("sessionToken").asString()).isEqualTo(M);
+  }
+
+  @Test
   void maskingTwiceCountsOnce() {
     JsonNode n = TestCtx.JSON.readTree("{\"password\":\"x\"}");
 

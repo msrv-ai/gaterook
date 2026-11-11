@@ -85,6 +85,23 @@ final class Actions {
     return preview("gcp_metrics", lines, cfg, s, what, r.payload(), fields);
   }
 
+  /**
+   * A generic API call as its arguments name it: what a person sees for {@code gcp_api_read} in Approval mode, and
+   * for {@code gcp_api_change} until {@code prepare} has built the exact HTTP request from the Discovery document.
+   */
+  static ActionPreview api(ApiRequest r, Settings s, ConnectionConfig cfg) {
+    List<String> lines = new ArrayList<>();
+    lines.add(r.tool() + " · " + cfg.name() + " (GCP · " + s.target() + " · " + cfg.env().id() + ")");
+    lines.add(r.api() + (r.version() == null ? "" : " " + r.version()) + " " + r.method());
+    lines.add("params: " + r.params());
+    if (r.body() != null) {
+      lines.add("body: " + r.body());
+    }
+    return preview(r.tool(), lines, cfg, s, r.what(), r.payload(), List.of(
+        new ActionPreview.Field("API", r.api() + (r.version() == null ? "" : " " + r.version())),
+        new ActionPreview.Field("Method", r.method())));
+  }
+
   private static ActionPreview preview(String tool, List<String> lines, ConnectionConfig cfg, Settings s, String what,
       tools.jackson.databind.JsonNode payload, List<ActionPreview.Field> fields) {
     String summary = tool + " on " + cfg.name() + ": " + what;
