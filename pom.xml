@@ -44,6 +44,8 @@
     <module>connectors/snowflake</module>
     <module>connectors/prometheus</module>
     <module>connectors/influxdb</module>
+    <module>connectors/redshift</module>
+    <module>connectors/databricks</module>
     <module>connectors/http</module>
     <module>connectors/mcp-server</module>
     <module>core</module>
@@ -220,6 +222,11 @@
       </dependency>
       <dependency>
         <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-redshift</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
         <artifactId>connectors-snowflake</artifactId>
         <version>${project.version}</version>
       </dependency>
@@ -231,6 +238,11 @@
       <dependency>
         <groupId>ai.msrv.gaterook</groupId>
         <artifactId>connectors-influxdb</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-databricks</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
