@@ -22,7 +22,14 @@ final class OutputSchema {
   private static final Schema API_READ = REGISTRY.getSchema(
       SchemaLocation.of("urn:mcp-gateway:azure_api_read.output"), SCHEMAS.load("azure_api_read.output"));
 
+  private static final Schema STORAGE_READ = REGISTRY.getSchema(
+      SchemaLocation.of("urn:mcp-gateway:azure_storage_read.output"), SCHEMAS.load("azure_storage_read.output"));
+
   private OutputSchema() {}
+
+  static ToolResult storageRead(ToolResult r) {
+    return valid(STORAGE_READ, r);
+  }
 
   static ToolResult describe(ToolResult r) {
     return valid(DESCRIBE, r);

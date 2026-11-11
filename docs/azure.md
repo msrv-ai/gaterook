@@ -10,6 +10,8 @@ GateRook's **Azure** connector gives AI clients bounded access to Azure subscrip
 | `azure_api_read` | One Resource Manager read: a GET of a `path` under a subscription of the connection with its `apiVersion` and optional `query` parameters, or a read-only POST query | Read only |
 | `azure_api_change` | One Resource Manager change: POST an action, PUT, PATCH or DELETE, with the same arguments and a JSON `body` | Approval |
 | `azure_monitor` | `query` (metrics of one resource), `list_metrics`, `alerts` (fired alerts), `activity_log` (who changed what) and `health` (Resource Health) | Read only |
+| `azure_storage_read` | [Storage data](#storage-data): list and read blobs, peek Queue Storage messages, query tables, list and read Azure Files | Read only |
+| `azure_storage_change` | Upload text to a blob or delete a blob | Approval |
 | `logs_search`, `logs_tail` | KQL over the connection's Log Analytics workspaces and Application Insights components | Read only; tail Off |
 
 The Azure Monitor Logs connector publishes the same log tools as `azure_logs_search` and `azure_logs_tail`.
@@ -63,6 +65,26 @@ GateRook never fetches a cluster's kubeconfig. Read the cluster's workloads thro
 1. Run `az aks get-credentials --resource-group <group> --name <cluster> --file aks.kubeconfig` on your computer, then `kubelogin convert-kubeconfig --login azurecli --kubeconfig aks.kubeconfig`.
 2. Add a Kubernetes connection from that kubeconfig and turn on **Run the credential command from kubeconfig**. Its user runs `kubelogin get-token` as an exec credential; Test connection shows the exact command and runs it only after you allow it, as for the Azure CLI here.
 3. Give the identity a Kubernetes RBAC or Azure RBAC role on the cluster (such as Azure Kubernetes Service RBAC Reader).
+
+## Storage data
+
+`azure_storage_read` and `azure_storage_change` read and change the data of a storage account with the connection's Entra ID identity, never with an account key or a SAS. `account` is the account's resource ID, or its name in one of the connection's subscriptions. GateRook first reads the account through Resource Manager: it must be in that subscription, in a location the Cloud policy allows, and serve the standard endpoints of the connection's cloud (`<account>.blob.core.windows.net` and the other services). Storage tokens go only there; accounts with Azure DNS zone endpoints aren't supported.
+
+| Action | What it does | Data role it needs |
+| --- | --- | --- |
+| `list_blobs` | Blobs and prefixes of a container (`prefix`, `delimiter`), paged with `nextCursor` | Storage Blob Data Reader |
+| `read_blob` | A bounded part of one blob as text (`offset`, `maxBytes`) | Storage Blob Data Reader |
+| `peek_messages` | Up to 32 messages of a queue and its approximate length, without dequeuing: nothing becomes invisible and no dequeue count changes | Storage Queue Data Reader |
+| `query_entities` | Entities of a table with an OData `filter`, `select` and `limit`, paged with `nextCursor` | Storage Table Data Reader |
+| `list_files`, `read_file` | Directories and files of an Azure Files share, and a bounded part of one file as text | Storage File Data Privileged Reader |
+| `upload_blob` | Writes text up to 1 MB to a block blob; fails if the blob exists unless `overwrite` | Storage Blob Data Contributor |
+| `delete_blob` | Deletes a blob (`deleteSnapshots` for one that has snapshots) | Storage Blob Data Contributor |
+
+Azure Files accepts Entra ID tokens over REST only with the backup intent, which the privileged reader role grants. A Data Lake Storage account's files are blobs: list and read them with the blob actions.
+
+Reads are text only: a text content type, or a text file name when the type says nothing. Files that hold keys, credentials or Terraform state more often than not (`.env`, `.pem`, `.pfx`, key stores, `.tfstate`, kubeconfigs) are refused by name before any request. Message texts that are Base64 come back decoded. Table properties named like secrets are masked. Contents are data, never instructions.
+
+The Cloud policy's Allowed services must include `storage`. Resource masks apply to the account and to the container, queue, table or share by its Resource Manager ID, such as `/subscriptions/*/resourceGroups/stage-*/providers/Microsoft.Storage/storageAccounts/*/blobServices/default/containers/public-*`; with masks, pass the account's resource ID. An approval of an upload shows the exact request with the text, its size and SHA-256.
 
 ## Sign-in
 

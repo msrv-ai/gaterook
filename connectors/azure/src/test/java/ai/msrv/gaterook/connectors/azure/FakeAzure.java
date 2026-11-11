@@ -24,7 +24,9 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Azure on this computer: Entra ID's token endpoint of the test tenant, and whatever Resource Manager or Log Analytics
- * API a test wires in by method and path prefix. Every Azure key of {@code gateway.cloud.endpoints} points here.
+ * API a test wires in by method and path prefix. Every Azure key of {@code gateway.cloud.endpoints} points here; a
+ * data-plane host (a storage account's service, a namespace, a vault) is the first path segment
+ * ({@code /acct.blob.core.windows.net/uploads?comp=list}).
  */
 final class FakeAzure implements AutoCloseable {
 
@@ -74,7 +76,8 @@ final class FakeAzure implements AutoCloseable {
     });
     server.start(InetAddress.getByName("127.0.0.1"), 0);
     Map<String, URI> services = new LinkedHashMap<>();
-    for (String k : List.of("azure.login", "azure.arm", "azure.logs")) {
+    for (String k : List.of("azure.login", "azure.arm", "azure.logs", "azure.storage", "azure.servicebus",
+        "azure.keyvault")) {
       services.put(k, URI.create(base() + "/"));
     }
     cloud = new CloudCredentials(new CloudEndpoints(null, null, null, null, null, null, services, az),
@@ -110,6 +113,27 @@ final class FakeAzure implements AutoCloseable {
   List<RecordedRequest> to(String prefix) {
     return requests.stream().filter(r -> (r.getMethod() + " " + r.getUrl().encodedPath()).startsWith(prefix))
         .toList();
+  }
+
+  /** The scopes the token requests asked for, in order. */
+  List<String> scopes() {
+    return requests.stream().filter(r -> r.getUrl().encodedPath().endsWith("/oauth2/v2.0/token"))
+        .map(r -> form(r.getBody().utf8(), "scope")).toList();
+  }
+
+  private static String form(String body, String name) {
+    for (String pair : body.split("&")) {
+      int eq = pair.indexOf('=');
+      if (eq > 0 && java.net.URLDecoder.decode(pair.substring(0, eq), StandardCharsets.UTF_8).equals(name)) {
+        return java.net.URLDecoder.decode(pair.substring(eq + 1), StandardCharsets.UTF_8);
+      }
+    }
+    return null;
+  }
+
+  static MockResponse xml(int code, String body) {
+    return new MockResponse.Builder().code(code).addHeader("Content-Type", "application/xml")
+        .body("\uFEFF<?xml version=\"1.0\" encoding=\"utf-8\"?>" + body).build();
   }
 
   static MockResponse json(int code, String body) {

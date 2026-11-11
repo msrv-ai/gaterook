@@ -1,0 +1,123 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "action",
+    "account"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "action": {
+      "enum": [
+        "list_blobs",
+        "read_blob",
+        "peek_messages",
+        "query_entities",
+        "list_files",
+        "read_file"
+      ],
+      "description": "list_blobs and read_blob (Blob Storage), peek_messages (Queue Storage, nothing is dequeued), query_entities (Table Storage), list_files and read_file (Azure Files)"
+    },
+    "account": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 512,
+      "description": "The storage account's resource ID (/subscriptions/<id>/resourceGroups/<group>/providers/Microsoft.Storage/storageAccounts/<name>), or its name"
+    },
+    "subscription": {
+      "type": "string",
+      "description": "The account's subscription when account is a name; default: the connection's only subscription"
+    },
+    "container": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 63,
+      "description": "The blob container, such as uploads ($logs and $web too)"
+    },
+    "blob": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "The blob's full name in the container, such as reports/2026-q3.csv"
+    },
+    "queue": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 63,
+      "description": "The queue, for peek_messages"
+    },
+    "table": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 63,
+      "description": "The table, for query_entities"
+    },
+    "share": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 63,
+      "description": "The file share, for list_files and read_file"
+    },
+    "path": {
+      "type": "string",
+      "maxLength": 1024,
+      "description": "read_file: the file's path in the share; list_files: a directory (default: the root)"
+    },
+    "prefix": {
+      "type": "string",
+      "maxLength": 1024,
+      "description": "list_blobs: only names that start with it"
+    },
+    "delimiter": {
+      "type": "string",
+      "maxLength": 8,
+      "default": "/",
+      "description": "list_blobs: groups names into prefixes like folders; \"\" lists every blob"
+    },
+    "offset": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "read_blob, read_file: the first byte to read; continue with nextOffset"
+    },
+    "maxBytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 262144,
+      "description": "read_blob, read_file: bytes to read (default 65536, lowered to the call's size limit); peek_messages: bytes per message (default 4096, at most 65536)"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 32,
+      "default": 10,
+      "description": "peek_messages: messages to peek"
+    },
+    "filter": {
+      "type": "string",
+      "maxLength": 2048,
+      "description": "query_entities: an OData filter, such as PartitionKey eq 'orders' and Timestamp ge datetime'2026-11-01T00:00:00Z'"
+    },
+    "select": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "string"
+      },
+      "description": "query_entities: the properties to return"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "description": "list_blobs, list_files, query_entities: items per call (default 50, at most the Cloud policy's Items per call)"
+    },
+    "cursor": {
+      "type": "string",
+      "description": "nextCursor of the previous answer, with the same arguments"
+    }
+  }
+}

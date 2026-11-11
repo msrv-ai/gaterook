@@ -117,6 +117,93 @@ final class Actions {
     };
   }
 
+  /**
+   * An {@code azure_storage_read} or {@code azure_storage_change} call: for a change the exact request (method, the
+   * account's own URL, the headers that decide what happens, the uploaded text), for a read what it lists or reads.
+   */
+  static ActionPreview storage(StorageRequest r, Settings s, ConnectionConfig cfg) {
+    String host = s.credentials().cloud().storageHost(r.account().name(), r.action().service);
+    String url = "https://" + host + r.encodedPath();
+    List<ActionPreview.Field> fields = new ArrayList<>();
+    fields.add(new ActionPreview.Field("Storage account", r.account().rawId() != null ? r.account().rawId()
+        : r.account().name() + " (subscription " + r.account().subscription() + ")"));
+    fields.add(new ActionPreview.Field(cap(r.action().containerField()), r.container()));
+    if (!r.item().isEmpty()) {
+      fields.add(new ActionPreview.Field(r.action().service.equals("blob") ? "Blob" : "Path", r.item()));
+    }
+    if (r.read()) {
+      List<String> lines = new ArrayList<>();
+      lines.add(r.tool() + " · " + cfg.name() + " (Azure · " + s.target() + " · " + cfg.env().id() + ")");
+      lines.add(r.action().id + " " + url);
+      if (r.prefix() != null) {
+        lines.add("prefix: " + r.prefix());
+      }
+      if (r.filter() != null) {
+        lines.add("$filter: " + r.filter());
+      }
+      if (!r.select().isEmpty()) {
+        lines.add("$select: " + String.join(",", r.select()));
+      }
+      if (r.maxBytes() > 0) {
+        lines.add((r.action() == StorageRequest.Action.PEEK_MESSAGES ? "bytes per message: " : "bytes from "
+            + r.offset() + ": ") + r.maxBytes());
+      }
+      if (r.limit() > 0) {
+        lines.add("items: up to " + r.limit());
+      }
+      if (r.cursor() != null) {
+        lines.add("continues from the cursor of the previous call");
+      }
+      return preview(r.tool(), lines, cfg, s, r.action().id + " " + r.where(), r.payload(), fields);
+    }
+    StringBuilder text = new StringBuilder();
+    List<String> warnings = new ArrayList<>();
+    if (r.action() == StorageRequest.Action.UPLOAD_BLOB) {
+      text.append("PUT ").append(url).append('\n');
+      text.append("Authorization: Bearer ‹masked›\n");
+      text.append("x-ms-version: ").append(Storage.VERSION).append('\n');
+      text.append("x-ms-blob-type: BlockBlob\n");
+      text.append("Content-Type: ").append(r.contentType()).append('\n');
+      if (!r.overwrite()) {
+        text.append("If-None-Match: *\n");
+      }
+      text.append('\n').append(r.content());
+      fields.add(new ActionPreview.Field("Size", r.bodyBytes() + " bytes"));
+      fields.add(new ActionPreview.Field("SHA-256", sha256(r.content())));
+      warnings.add(r.overwrite() ? "Replaces the blob if it exists: its current content is gone unless the account "
+          + "keeps versions or soft-deleted blobs." : "Fails if the blob exists (If-None-Match: *).");
+    } else {
+      text.append("DELETE ").append(url).append('\n');
+      text.append("Authorization: Bearer ‹masked›\n");
+      text.append("x-ms-version: ").append(Storage.VERSION).append('\n');
+      if (r.deleteSnapshots()) {
+        text.append("x-ms-delete-snapshots: include\n");
+      }
+      warnings.add("Deletes the blob" + (r.deleteSnapshots() ? " and its snapshots" : "") + "; only the account's "
+          + "soft delete, if it is on, can bring it back.");
+    }
+    String summary = r.tool() + " on " + cfg.name() + ": " + r.action().id + " " + r.where();
+    return ActionPreview.of(ActionPreview.Kind.HTTP, "http", text.toString(), cfg.name() + " · " + host,
+        cut(summary))
+        .withFields(fields)
+        .withWarnings(warnings)
+        .withFacets(Map.of("provider", "azure", "tool", r.tool(), "action", r.action().id))
+        .withPayload(r.payload());
+  }
+
+  static String sha256(String text) {
+    try {
+      return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+          .digest(text.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    } catch (java.security.NoSuchAlgorithmException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  private static String cap(String s) {
+    return s.isEmpty() ? s : Character.toUpperCase(s.charAt(0)) + s.substring(1);
+  }
+
   static ActionPreview describe(DescribeRequest r, Settings s, ConnectionConfig cfg) {
     List<String> lines = new ArrayList<>();
     lines.add("azure_describe · " + cfg.name() + " (Azure · " + s.target() + " · " + cfg.env().id() + ")");

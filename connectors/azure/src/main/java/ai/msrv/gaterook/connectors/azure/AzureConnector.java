@@ -51,6 +51,9 @@ import tools.jackson.databind.node.ObjectNode;
 public final class AzureConnector implements Connector {
 
   public static final String TYPE = "azure";
+  /** The connector's own tools; the shared log tools come from {@link AzureLogs}. */
+  static final List<String> TOOLS = List.of("azure_describe", CallRequest.READ, CallRequest.CHANGE, "azure_monitor",
+      StorageRequest.READ, StorageRequest.CHANGE);
 
   private final ConnectorManifest manifest;
   private final CloudCredentials cloud;
@@ -80,7 +83,8 @@ public final class AzureConnector implements Connector {
         .policySchema(schemas.load("policy"))
         .tools(tools)
         .access(new RequiredAccess(List.of("management.azure.com", "login.microsoftonline.com",
-            "api.loganalytics.io"), List.of("az"), List.of("~/.azure")))
+            "api.loganalytics.io", "*.blob.core.windows.net", "*.queue.core.windows.net", "*.table.core.windows.net",
+            "*.file.core.windows.net"), List.of("az"), List.of("~/.azure")))
         .build();
   }
 
@@ -138,6 +142,21 @@ public final class AzureConnector implements Connector {
     } catch (Refusal e) {
       return Classification.deny(policy.rule(e.rule), e.getMessage(), e.hint);
     }
+    if (r instanceof StorageRequest st) {
+      long max = policy.limits() == null ? Long.MAX_VALUE : policy.limits().maxRequestBytes();
+      if (max > 0 && st.bodyBytes() > max) {
+        return Classification.deny(policy.rule("request_too_large"), "The content has " + st.bodyBytes() + " bytes; "
+            + cfg.env().id() + " allows " + max + ".", null);
+      }
+      decisions.remember(call.callId(), call.tool(), cfg.id(), cfg.version(), p);
+      if (!st.read()) {
+        ObjectNode facts = JsonNodeFactory.instance.objectNode().put("azure.storage.action", st.action().id)
+            .put("azure.storage.account", st.account().name()).put("azure.subscription", st.account().subscription());
+        return Classification.mutation("Azure Storage " + st.action().id + " " + Settings.abbreviate(st.where()),
+            facts);
+      }
+      return Classification.read();
+    }
     if (r instanceof CallRequest c) {
       long max = policy.limits() == null ? Long.MAX_VALUE : policy.limits().maxRequestBytes();
       if (max > 0 && c.bodyBytes() > max) {
@@ -169,6 +188,7 @@ public final class AzureConnector implements Connector {
         case CallRequest c -> Actions.call(c, s, cfg, cloud.azure().base(s.credentials().cloud(), Audience.ARM));
         case DescribeRequest d -> Actions.describe(d, s, cfg);
         case MonitorRequest m -> Actions.monitor(m, s, cfg);
+        case StorageRequest st -> Actions.storage(st, s, cfg);
         default -> throw new IllegalStateException();
       };
     } catch (Settings.InvalidSettingsException | Refusal e) {
@@ -211,8 +231,7 @@ public final class AzureConnector implements Connector {
   @Override
   public ToolResult execute(ToolCall call, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
       throws ConnectorException {
-    if (!List.of("azure_describe", CallRequest.READ, CallRequest.CHANGE, "azure_monitor").contains(call.tool())
-        && !AzureLogs.isTool(call.tool())) {
+    if (!TOOLS.contains(call.tool()) && !AzureLogs.isTool(call.tool())) {
       throw ConnectorException.badInput("The Azure connector has no tool " + call.tool() + ".");
     }
     Settings s;
@@ -251,6 +270,13 @@ public final class AzureConnector implements Connector {
       }
       case DescribeRequest d -> new ResourceGraph(c).run(d);
       case MonitorRequest m -> new Monitor(c).run(m);
+      case StorageRequest st -> {
+        if (!st.read() && (!ctx.approved() || approved.isEmpty())) {
+          throw ConnectorException.denied("azure_storage_change " + st.action().id + " changes Azure Storage: it "
+              + "runs only after the person approves the exact request.");
+        }
+        yield new Storage(c).run(st);
+      }
       default -> throw new IllegalStateException();
     };
   }
@@ -340,6 +366,7 @@ public final class AzureConnector implements Connector {
       case "azure_describe" -> DescribeRequest.of(args, s, p);
       case CallRequest.READ, CallRequest.CHANGE -> CallRequest.of(tool, args, s, p);
       case "azure_monitor" -> MonitorRequest.of(args, s, p, now);
+      case StorageRequest.READ, StorageRequest.CHANGE -> StorageRequest.of(tool, args, s, p);
       default -> throw new Refusal("bad_input", "The Azure connector has no tool " + tool + ".", null);
     };
   }
