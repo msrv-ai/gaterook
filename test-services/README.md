@@ -1,6 +1,6 @@
 # Connector test services
 
-Docker Compose supplies disposable servers for connector integration tests: PostgreSQL, MySQL, MariaDB, Oracle Database, SQL Server, MongoDB, Redis, Loki, OpenSearch, Elasticsearch, moto, Vault, OpenSSH, and k3s. This avoids relying on Linux x86-64 fixture binaries when testing on macOS or another Docker-capable machine.
+Docker Compose supplies disposable servers for connector integration tests: PostgreSQL, MySQL, MariaDB, Oracle Database, SQL Server, MongoDB, Redis, Loki, OpenSearch, Elasticsearch, moto, InfluxDB, Vault, OpenSSH, and k3s. This avoids relying on Linux x86-64 fixture binaries when testing on macOS or another Docker-capable machine.
 
 Services bind to `127.0.0.1`. Credentials are public test fixtures, and service data is disposable. Tests reset databases, users, and server settings; never point this suite at real data.
 
@@ -14,7 +14,7 @@ scripts/test-services.sh run mvn -B -ntp verify -Pservices
 scripts/test-services.sh down
 ```
 
-The default starts everything except Kubernetes and SQL Server and waits for health checks. Profiles are `sql`, `oracle`, `sqlserver`, `cockroach`, `mongo`, `redis`, `logs`, `aws`, `dynamodb`, `vault`, `ssh`, `k8s`, and `all`:
+The default starts everything except Kubernetes and SQL Server and waits for health checks. Profiles are `sql`, `oracle`, `sqlserver`, `cockroach`, `mongo`, `redis`, `logs`, `aws`, `dynamodb`, `influxdb`, `vault`, `ssh`, `k8s`, and `all`:
 
 ```bash
 scripts/test-services.sh up sql redis
@@ -56,6 +56,8 @@ The committed [.env](.env) contains image pins, ports, and disposable passwords.
 | `opensearch` | OpenSearch 3.9.0 without security plugin | 55200 | logs |
 | `elasticsearch` | Elasticsearch 9.5.5 with security disabled | 55201 | logs |
 | `moto` | moto 5.2.4 AWS emulator (STS, CloudWatch, DynamoDB) | 55500 | logs, aws, dynamodb |
+| `influxdb3` | InfluxDB 3 Core 3.12.1 in memory, admin token from `.env` | 55086 | influxdb |
+| `influxdb2` | InfluxDB 2.9.1 set up with organization `acme` and an operator token | 55087 | influxdb |
 | `vault` | Vault 2.2.1 dev mode | 55820 | vault, ssh |
 | `openssh` | Ubuntu 24.04 / OpenSSH 9.6p1 | 55022 | ssh |
 | `k3s` | k3s v1.37.0-k3s1, privileged | 55443 | k8s |
@@ -107,3 +109,20 @@ scripts/test-services.sh run mvn -B -ntp -pl connectors/sql -am verify -Pservice
 ```
 
 The ordinary `services` Maven profile does not enable CockroachDB tests. See [CockroachDB](../docs/cockroachdb.md).
+
+## InfluxDB
+
+InfluxDB is opt-in: two small servers, each with a 512 MiB container limit. `influxdb3` runs InfluxDB 3 Core with an
+in-memory object store; its admin token is the fixture value `GW_INFLUXDB3_TOKEN` of `.env`, which the container writes
+to a token file at start-up and loads with `--admin-token-file`, so no setup call or network access is needed. Only
+`/health` answers without the token, and telemetry upload and package management are off. `influxdb2` runs InfluxDB
+2.9 set up on every start with the user `gaterook`, the organization `acme`, the bucket `metrics` and the operator token
+`GW_INFLUXDB2_TOKEN`; its data lives in tmpfs. The test creates its own databases, a bucket and a token that may only
+read it, and removes them afterwards.
+
+```bash
+scripts/test-services.sh up influxdb
+scripts/test-services.sh run mvn -B -ntp -pl connectors/influxdb -am verify -Pservices,influxdb-it -Dit.test=InfluxDbIT -Dfailsafe.failIfNoSpecifiedTests=false
+```
+
+The ordinary `services` Maven profile does not enable InfluxDB tests. See [InfluxDB](../docs/influxdb.md).
