@@ -44,7 +44,7 @@ export interface ConnectionRow {
   readonly host: string | null;
   /** "Read replica", "Runbooks only": from the config and the last test. */
   readonly badges: string[];
-  /** `encrypted`, `vault`, `gcp-sm`, `aws-sm`, `short-lived`. */
+  /** `encrypted`, `vault`, `gcp-sm`, `aws-sm`, `azure-kv`, `short-lived`. */
   readonly secretSource: string | null;
   readonly health: ConnectionHealth;
   readonly usedBy: string[];

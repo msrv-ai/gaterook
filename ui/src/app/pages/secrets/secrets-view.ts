@@ -58,9 +58,16 @@ export interface StoreKindInfo {
   readonly pitch: string;
   /** The URI scheme of its references. */
   readonly scheme: string;
+  /** What the dashed card of a kind without a store says under its title. */
+  readonly subtitle: string;
+  /**
+   * A kind whose stores each read one place (a Vault cluster, a key vault): the dashed card after its stores that
+   * connects another one.
+   */
+  readonly another?: { readonly title: string; readonly description: string; readonly body: string; readonly action: string };
 }
 
-/** The three kinds, in the kit's order (External stores: Vault, GCP SM, AWS SM). */
+/** The kinds, in the kit's order (External stores: Vault, GCP SM, AWS SM), then Azure Key Vault. */
 export const STORE_KINDS: readonly StoreKindInfo[] = [
   {
     kind: 'vault',
@@ -69,6 +76,13 @@ export const STORE_KINDS: readonly StoreKindInfo[] = [
     icon: 'vault',
     pitch: 'The gateway signs in with AppRole or a token and reads references at call time. Vault can also issue SSH certificates.',
     scheme: 'vault://',
+    subtitle: 'Or OpenBao, its open-source fork',
+    another: {
+      title: 'Another Vault',
+      description: 'HashiCorp Vault or OpenBao',
+      body: 'Connect each Vault your passwords live in, such as one for prod and one for stage. A connection reads its secrets from the Vault you choose for it.',
+      action: 'Connect another Vault',
+    },
   },
   {
     kind: 'gcp-sm',
@@ -77,6 +91,7 @@ export const STORE_KINDS: readonly StoreKindInfo[] = [
     icon: 'cloud',
     pitch: 'The gateway reads references with your gcloud credentials, optionally as a read-only service account. No key file is needed.',
     scheme: 'gcp-sm://',
+    subtitle: 'Read with your gcloud credentials',
   },
   {
     kind: 'aws-sm',
@@ -85,6 +100,22 @@ export const STORE_KINDS: readonly StoreKindInfo[] = [
     icon: 'cloud',
     pitch: 'The gateway assumes a read-only role in your account. No static AWS keys go into references.',
     scheme: 'aws-sm://',
+    subtitle: 'Read with AssumeRole and an ExternalId',
+  },
+  {
+    kind: 'azure-kv',
+    title: 'Azure Key Vault',
+    short: 'Azure KV',
+    icon: 'cloud',
+    pitch: 'The gateway signs in to Entra ID as a service principal that may only get secrets, and reads one vault at call time.',
+    scheme: 'azure-kv://',
+    subtitle: 'Read with a service principal of Entra ID',
+    another: {
+      title: 'Another key vault',
+      description: 'Azure Key Vault',
+      body: 'A store reads one key vault. Connect each vault your references name, such as one for prod and one for stage.',
+      action: 'Connect another key vault',
+    },
   },
 ];
 
@@ -114,22 +145,23 @@ export function storeAnchors(stores: readonly SecretStore[]): Map<string, string
   return anchors;
 }
 
-/** The kit's short anchors: `#store-vault`, `#store-gcp`, `#store-aws`. */
+/** The kit's short anchors: `#store-vault`, `#store-gcp`, `#store-aws`, and `#store-azure`. */
 export function anchorKind(kind: string): string {
-  return kind.replace(/-sm$/, '');
+  return kind.replace(/-(sm|kv)$/, '');
 }
 
 // ── Stored secrets: filters, sort, rows ──────────────────────────────────────────────────────────────────────────
 
 export type SourceFilter = '' | 'local' | SecretStoreKind;
 
-/** The Source select (kit: All sources · Encrypted here · Vault · GCP SM · AWS SM). */
+/** The Source select (kit: All sources · Encrypted here · Vault · GCP SM · AWS SM; then Azure KV). */
 export const SOURCE_OPTIONS: readonly { readonly value: SourceFilter; readonly label: string }[] = [
   { value: '', label: 'All sources' },
   { value: 'local', label: 'Encrypted here' },
   { value: 'vault', label: 'Vault' },
   { value: 'gcp-sm', label: 'GCP SM' },
   { value: 'aws-sm', label: 'AWS SM' },
+  { value: 'azure-kv', label: 'Azure KV' },
 ];
 
 export interface Filters {
@@ -408,11 +440,11 @@ export function refTestLine(t: SecretRefTest): { readonly ok: boolean; readonly 
   return { ok: true, text: `${parts.join(' · ')}. The value was neither shown nor kept.` };
 }
 
-/** A reference typed into Replace reference: one of the three schemes (the core checks the rest). */
+/** A reference typed into Replace reference: one of the stores' schemes (the core checks the rest). */
 export function refProblem(uri: string): string | null {
   const v = uri.trim();
   if (!v) return 'Enter a reference such as vault://kv/stage/db#password.';
-  if (!kindOfRef(v)) return 'A reference starts with vault://, gcp-sm:// or aws-sm://.';
+  if (!kindOfRef(v)) return 'A reference starts with vault://, gcp-sm://, aws-sm:// or azure-kv://.';
   return null;
 }
 
@@ -671,13 +703,20 @@ export function storeStatus(s: SecretStore): { readonly tone: Tone; readonly lab
   return { tone: 'neutral', label: 'Not checked yet' };
 }
 
-/** The card's description: Vault's fork, GCP's project, AWS's region and how it reads. */
+/** The sovereign Azure clouds by the id a store keeps; the public cloud goes without saying. */
+const AZURE_CLOUDS: Readonly<Record<string, string>> = { AzureUSGovernment: 'Azure Government', AzureChinaCloud: 'Azure China (21Vianet)' };
+
+/** The card's description: Vault's fork, GCP's project, AWS's region and how it reads, Azure's sign-in and cloud. */
 export function storeDescription(s: SecretStore): string {
   switch (s.kind) {
     case 'vault':
       return 'Or OpenBao, its open-source fork';
     case 'gcp-sm':
       return stringAt(s.config, 'project') ? `Project ${stringAt(s.config, 'project')}` : 'Google Cloud';
+    case 'azure-kv': {
+      const cloud = AZURE_CLOUDS[stringAt(s.config, 'cloud') ?? ''];
+      return `Read with a service principal of Entra ID${cloud ? ` · ${cloud}` : ''}`;
+    }
     default: {
       const region = stringAt(s.config, 'region');
       const how = stringAt(s.config, 'credentials.roleArn') ? 'Read with AssumeRole and an ExternalId' : 'Read with your AWS credentials';
@@ -705,6 +744,16 @@ export function storeSignIn(s: SecretStore): TextPart[] {
     parts.push({ text: `gets a token, renewed every ${renewText(stringAt(s.config, 'renewIncrement') ?? '1h')}.` });
     const secret = secretName('/auth/secretId');
     if (secret) parts.push({ text: ' Secret ID: ' }, { text: secret, mono: true });
+    return parts;
+  }
+  if (s.kind === 'azure-kv') {
+    const certificate = stringAt(s.config, 'credentials.source') === 'clientCertificate';
+    const parts: TextPart[] = [{ text: 'Service principal ' }];
+    const client = stringAt(s.config, 'credentials.clientId');
+    if (client) parts.push({ text: client, mono: true }, { text: ' ' });
+    parts.push({ text: certificate ? 'with a certificate stored here' : 'with a client secret stored here' });
+    const stored = secretName(certificate ? '/credentials/certificate' : '/credentials/clientSecret');
+    if (stored) parts.push({ text: ': ' }, { text: stored, mono: true });
     return parts;
   }
   if (s.kind === 'gcp-sm') {

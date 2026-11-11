@@ -35,6 +35,7 @@ import {
   StoreKindInfo,
   TextPart,
   ToastText,
+  anchorKind,
   connectedToast,
   connectionsQuery,
   disconnectLead,
@@ -53,7 +54,7 @@ import {
   waitingFor,
   waitingText,
 } from './secrets-view';
-import { AWS_REGIONS, ChosenFile, ConnectModel, FIELD_POINTERS, SecretKey, connectRequest, emptyConnectModel, externalId, fieldProblem, isPlainHttp, storeName } from './store-connect';
+import { AWS_REGIONS, AZURE_CLOUDS, ChosenFile, ConnectModel, FIELD_POINTERS, SecretKey, connectRequest, emptyConnectModel, externalId, fieldProblem, isPlainHttp, storeName } from './store-connect';
 import { DesktopBridge, desktopErrorText } from '../../core/desktop/desktop-bridge';
 import { matchingVault, vaultIdentity } from './vault-identity';
 
@@ -80,7 +81,7 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
 
 /**
  * One card of External stores: a connected store, the dashed card of a kind that has none, or the dashed card that
- * connects another Vault (prod and stage often have their own).
+ * connects another Vault or key vault (prod and stage often have their own).
  */
 interface StoreCard {
   readonly key: string;
@@ -93,10 +94,10 @@ interface StoreCard {
 
 /**
  * Secrets › External stores (ARCHITECTURE.md §6 `/api/secret-stores`,
- * step S1): HashiCorp Vault / OpenBao, GCP Secret Manager and AWS Secrets Manager, read at call time and never copied
- * here. A connected store shows how it signs in and what reads through it, with Test and Disconnect; a kind without a
- * store is a dashed card with Connect and the references that wait for it. Until the core has the stores' API (S1 not
- * merged) the section says they aren't available yet.
+ * step S1): HashiCorp Vault / OpenBao, GCP Secret Manager, AWS Secrets Manager and Azure Key Vault, read at call time
+ * and never copied here. A connected store shows how it signs in and what reads through it, with Test and Disconnect;
+ * a kind without a store is a dashed card with Connect and the references that wait for it. Until the core has the
+ * stores' API (S1 not merged) the section says they aren't available yet.
  *
  * - Connect (kit `#dlg-connect-aws`, the same form for the other kinds): the kind's settings, its sign-in values typed
  *   once into password fields (read only when sent), Test and connect. AWS shows the ExternalId to put into the
@@ -132,8 +133,11 @@ export class GwExternalStores {
   private readonly vaultSecretId = viewChild<ElementRef<HTMLInputElement>>('vaultSecretId');
   private readonly vaultToken = viewChild<ElementRef<HTMLInputElement>>('vaultToken');
   private readonly gcpKey = viewChild<ElementRef<HTMLTextAreaElement>>('gcpKey');
+  private readonly azureSecret = viewChild<ElementRef<HTMLInputElement>>('azureSecret');
+  private readonly azureCertificate = viewChild<ElementRef<HTMLTextAreaElement>>('azureCertificate');
 
   protected readonly regions = AWS_REGIONS;
+  protected readonly azureClouds = AZURE_CLOUDS;
   protected readonly storeSignIn = storeSignIn;
   protected readonly storeReferences = storeReferences;
   protected readonly storeStatus = storeStatus;
@@ -146,16 +150,16 @@ export class GwExternalStores {
   protected readonly summary = computed(() => storesSummary(this.stores() ?? []));
 
   /**
-   * Kit order: Vault, GCP SM, AWS SM; each store of a kind, or one dashed card for a kind without any. Connected Vaults
-   * are followed by a dashed card for another one, and are named in their titles once there are several or one has a
-   * name of its own.
+   * Kit order: Vault, GCP SM, AWS SM, then Azure Key Vault; each store of a kind, or one dashed card for a kind without
+   * any. Connected Vaults and key vaults are followed by a dashed card for another one (each store reads one cluster or
+   * vault), and are named in their titles once there are several or a Vault has a name of its own.
    */
   protected readonly cards = computed<StoreCard[]>(() => {
     const stores = this.stores() ?? [];
     const anchors = storeAnchors(stores);
     return STORE_KINDS.flatMap((info): StoreCard[] => {
       const mine = stores.filter((s) => s.kind === info.kind);
-      if (!mine.length) return [{ key: info.kind, anchor: `store-${info.kind.replace(/-sm$/, '')}`, info, store: null, title: info.title }];
+      if (!mine.length) return [{ key: info.kind, anchor: `store-${anchorKind(info.kind)}`, info, store: null, title: info.title }];
       const cards: StoreCard[] = mine.map((s) => ({
         key: s.id,
         anchor: anchors.get(s.name) ?? s.id,
@@ -163,7 +167,7 @@ export class GwExternalStores {
         store: s,
         title: mine.length > 1 || (info.kind === 'vault' && s.name !== 'vault') ? `${info.title} · ${s.name}` : info.title,
       }));
-      if (info.kind === 'vault') cards.push({ key: 'vault-another', anchor: 'store-vault-another', info, store: null, title: info.title, another: true });
+      if (info.another) cards.push({ key: `${info.kind}-another`, anchor: `store-${anchorKind(info.kind)}-another`, info, store: null, title: info.title, another: true });
       return cards;
     });
   });
@@ -281,15 +285,18 @@ export class GwExternalStores {
 
   private beginConnect(info: StoreKindInfo, opener: HTMLElement): void {
     const rows = this.data.rows().value ?? [];
-    // AWS: the region a waiting reference names (aws-sm://eu-central-1/…), so the store resolves it at once.
+    // AWS: the region a waiting reference names (aws-sm://eu-central-1/…), so the store resolves it at once; Azure: the
+    // key vault one names (azure-kv://acme-kv/…), whose store it waits for.
     const waitingRef = rows.find((r) => r.state === 'not-connected' && kindOfRef(r.ref) === info.kind)?.ref ?? null;
     const region = waitingRef && info.kind === 'aws-sm' ? (/^aws-sm:\/\/([a-z0-9-]+)\//.exec(waitingRef)?.[1] ?? null) : null;
+    const vault = waitingRef && info.kind === 'azure-kv' ? (/^azure-kv:\/\/([a-z0-9-]+)\//.exec(waitingRef)?.[1] ?? '') : '';
     const taken = (this.stores() ?? []).map((s) => s.name);
     this.model.set({
       ...emptyConnectModel(),
       name: info.kind === 'vault' ? storeName('vault', emptyConnectModel(), taken) : '',
       region: region && AWS_REGIONS.includes(region) ? region : 'us-east-1',
       externalId: externalId(),
+      vault,
     });
     this.tokenFile.set(null);
     this.tokenFileError.set(null);
@@ -382,8 +389,8 @@ export class GwExternalStores {
       if (this.destroy.destroyed) return;
       this.clearSecrets();
       this.connectDialog().close('connected');
-      // Several Vaults: the toast names the one connected.
-      this.toast(connectedToast(info.kind === 'vault' ? `${info.title} · ${store.name}` : info.title, store, test));
+      // Several Vaults or key vaults: the toast names the one connected.
+      this.toast(connectedToast(info.another ? `${info.title} · ${store.name}` : info.title, store, test));
       this.storeConnected.emit({ store, test });
     } catch (err) {
       this.applyError(err);
@@ -429,12 +436,14 @@ export class GwExternalStores {
     if (kind === 'vault' && m.method === 'token' && m.tokenSource === 'stored' && !this.keptPrepared().has('/auth/token')) take('token', '/auth/token', this.vaultToken()?.nativeElement, 'Enter the Vault token.');
     if (kind === 'vault' && m.method === 'token' && m.tokenSource === 'file' && !this.tokenFile()) errors['tokenFile'] = 'Choose the file that holds the Vault token.';
     if (kind === 'gcp-sm' && m.gcpSource === 'serviceAccountKey') take('serviceAccountKey', '/credentials/serviceAccountKey', this.gcpKey()?.nativeElement, 'Paste the service account key (JSON).');
+    if (kind === 'azure-kv' && m.azureSource === 'clientSecret') take('clientSecret', '/credentials/clientSecret', this.azureSecret()?.nativeElement, 'Enter the client secret.');
+    if (kind === 'azure-kv' && m.azureSource === 'clientCertificate') take('certificate', '/credentials/certificate', this.azureCertificate()?.nativeElement, 'Paste the certificate and its private key (PEM).');
     this.secretErrors.set(errors);
     return out;
   }
 
   private clearSecrets(): void {
-    for (const ref of [this.awsSecret(), this.vaultSecretId(), this.vaultToken(), this.gcpKey()]) {
+    for (const ref of [this.awsSecret(), this.vaultSecretId(), this.vaultToken(), this.gcpKey(), this.azureSecret(), this.azureCertificate()]) {
       if (ref) ref.nativeElement.value = '';
     }
   }

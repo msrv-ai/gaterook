@@ -13,6 +13,7 @@ const PROVIDERS: Record<string, { readonly name: string; readonly icon: string }
   vault: { name: 'Vault', icon: 'vault' },
   'gcp-sm': { name: 'GCP Secret Manager', icon: 'cloud' },
   'aws-sm': { name: 'AWS Secrets Manager', icon: 'cloud' },
+  'azure-kv': { name: 'Azure Key Vault', icon: 'cloud' },
   'short-lived': { name: 'Short-lived', icon: 'timer' },
 };
 
@@ -174,7 +175,7 @@ export class GwSecret implements FormValueControl<string> {
   /** Id of the visible reason Rotate is unavailable (`aria-describedby`). */
   readonly rotateReasonId = input<string | null>(null);
 
-  /** `vault`, `gcp-sm`, `aws-sm`, `short-lived`. */
+  /** `vault`, `gcp-sm`, `aws-sm`, `azure-kv`, `short-lived`. */
   readonly provider = input<string>('vault');
   readonly ref = input<string>('');
   /** The reference noun used by its Test action. */

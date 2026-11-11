@@ -4,7 +4,7 @@
  * (`secretSources` of the form spec); these are only how each one reads.
  */
 export interface SecretSourceCopy {
-  /** The value of the radio and `data-source` in the kit (local · vault · gcp · aws). */
+  /** The value of the radio and `data-source` in the kit (local · vault · gcp · aws · azure). */
   readonly kit: string;
   readonly title: string;
   readonly icon: string;
@@ -63,6 +63,17 @@ export const SECRET_SOURCE_COPY: Readonly<Record<string, SecretSourceCopy>> = {
     hint: "Resolved at call time with the core's AWS profile.",
     test: 'Test reference',
   },
+  'azure-kv': {
+    kit: 'azure',
+    title: 'Azure Key Vault',
+    icon: 'cloud',
+    description: "Resolve azure-kv:// with the core's service principal.",
+    scheme: 'azure-kv://',
+    meta: 'Needs Key Vault Secrets User',
+    label: 'Secret reference',
+    hint: "The vault, the secret and an optional version, resolved at call time with the store's service principal.",
+    test: 'Test reference',
+  },
 };
 
 /** Copy for a source the kit doesn't know (a future store): its label from the core, a link icon. */
@@ -83,7 +94,12 @@ export function sourceCopy(id: string, label?: string | null): SecretSourceCopy 
 }
 
 /** How a reference into each kind of store starts; a value starting so is read from a store, not typed. */
-export const REFERENCE_SCHEMES: Readonly<Record<string, string>> = { vault: 'vault://', 'gcp-sm': 'gcp-sm://', 'aws-sm': 'aws-sm://' };
+export const REFERENCE_SCHEMES: Readonly<Record<string, string>> = {
+  vault: 'vault://',
+  'gcp-sm': 'gcp-sm://',
+  'aws-sm': 'aws-sm://',
+  'azure-kv': 'azure-kv://',
+};
 
 /** The kind of store a value names (`vault://kv/prod/db#username` → `vault`), or `null` for a typed value. */
 export function referenceKind(value: string | null | undefined): string | null {
@@ -132,6 +148,8 @@ export function referencePlaceholder(source: string, env: string, name: string, 
       return `gcp-sm://projects/<project>/secrets/${n}-${key}/versions/latest`;
     case 'aws-sm':
       return `aws-sm://<region>/${env}/${n}#${key}`;
+    case 'azure-kv':
+      return `azure-kv://<vault>/${n}#${key}`;
     default:
       return '';
   }

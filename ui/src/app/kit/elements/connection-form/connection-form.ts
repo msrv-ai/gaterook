@@ -36,7 +36,7 @@ import { mongodbFormConfig } from './mongodb-configuration';
 
 /** What Save (and Test) hand to the page: the request members of `POST /api/connections` / `/test`. */
 /** How a menu names one of several stores of a kind: "Vault · vault-stage". */
-const SHORT_TITLES: Readonly<Record<string, string>> = { vault: 'Vault', 'gcp-sm': 'GCP', 'aws-sm': 'AWS' };
+const SHORT_TITLES: Readonly<Record<string, string>> = { vault: 'Vault', 'gcp-sm': 'GCP', 'aws-sm': 'AWS', 'azure-kv': 'Azure' };
 
 export interface ConnectionFormValue {
   readonly name: string;

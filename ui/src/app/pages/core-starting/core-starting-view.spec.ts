@@ -167,6 +167,12 @@ describe('the card for each state of the core', () => {
     expect(v.kind === 'locked' && v.breakdown!.map((p) => (p.code ? `[${p.text}]` : p.text)).join('')).toBe(
       '6 connections, the [github-mcp] server token and the Vault sign-in',
     );
+    const azure = statusView(
+      state({ kind: 'locked', reason: 'MASTER_KEY_MISSING' }),
+      facts({ key: masterKey({ protectsBy: [{ kind: 'store', secrets: 1, owners: ['azure-acme-kv'] }], references: { count: 2, sources: ['vault', 'azure-kv'] } }) }),
+    );
+    expect(azure.kind === 'locked' && azure.referenceTo).toBe('Vault and Azure');
+    expect(azure.kind === 'locked' && azure.breakdown!.map((p) => p.text).join('')).toBe('the Azure sign-in');
     expect(protectsWords([{ kind: 'connection', secrets: 1, owners: ['dev-db'] }]).map((p) => p.text).join('')).toBe('1 connection');
     expect(
       protectsWords([
