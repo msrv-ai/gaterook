@@ -42,6 +42,7 @@
     <module>connectors/dynamodb</module>
     <module>connectors/s3</module>
     <module>connectors/bigquery</module>
+    <module>connectors/spanner</module>
     <module>connectors/firebase</module>
     <module>connectors/snowflake</module>
     <module>connectors/cloudflare</module>
@@ -140,6 +141,7 @@
     <it.tag.cosmosdb>cosmosdb-it</it.tag.cosmosdb>
     <it.tag.neo4j>neo4j-it</it.tag.neo4j>
     <it.tag.cassandra>cassandra-it</it.tag.cassandra>
+    <it.tag.spanner>spanner-it</it.tag.spanner>
     <it.tag.mongo>mongo-it</it.tag.mongo>
     <it.tag.logs>logs-it</it.tag.logs>
     <it.tag.kube>kube-api</it.tag.kube>
@@ -153,7 +155,7 @@
     <it.services></it.services>
     <!-- Extra JVM options of the test forks: the tracing agent of the nightly metadata report (native.yml). -->
     <test.jvm.extra></test.jvm.extra>
-    <it.excludedGroups>${it.tag.mysql},${it.tag.sqlserver},${it.tag.cockroach},${it.tag.trino},${it.tag.prometheus},${it.tag.influxdb},${it.tag.cosmosdb},${it.tag.neo4j},${it.tag.cassandra},${it.tag.mongo},${it.tag.logs},${it.tag.kube},${it.tag.vault},${it.tag.cloud},${it.tag.network},${it.tag.mcpclients},${it.tag.openapi},${it.tag.mcpservers}</it.excludedGroups>
+    <it.excludedGroups>${it.tag.mysql},${it.tag.sqlserver},${it.tag.cockroach},${it.tag.trino},${it.tag.prometheus},${it.tag.influxdb},${it.tag.cosmosdb},${it.tag.neo4j},${it.tag.cassandra},${it.tag.spanner},${it.tag.mongo},${it.tag.logs},${it.tag.kube},${it.tag.vault},${it.tag.cloud},${it.tag.network},${it.tag.mcpclients},${it.tag.openapi},${it.tag.mcpservers}</it.excludedGroups>
   </properties>
 
   <dependencyManagement>
@@ -242,6 +244,11 @@
       <dependency>
         <groupId>ai.msrv.gaterook</groupId>
         <artifactId>connectors-bigquery</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-spanner</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
@@ -880,6 +887,11 @@
       <!-- Apache Cassandra 5.0 of the Compose services (scripts/test-services.sh up cassandra), with -Pservices. -->
       <id>cassandra-it</id>
       <properties><it.tag.cassandra>__enabled-cassandra-it</it.tag.cassandra></properties>
+    </profile>
+    <profile>
+      <!-- Google's Spanner emulator of the Compose services (scripts/test-services.sh up spanner), with -Pservices. -->
+      <id>spanner-it</id>
+      <properties><it.tag.spanner>__enabled-spanner-it</it.tag.spanner></properties>
     </profile>
     <profile>
       <id>mongo-it</id>

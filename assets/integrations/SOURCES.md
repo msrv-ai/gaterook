@@ -724,3 +724,17 @@ symlink checks. The cloud packages are the ones listed in the sections above.
 These files retain their original geometry, colours, proportions and metadata. The SVGs contain no scripts, event
 handlers, embedded foreign content, embedded raster images or remote references; the PNGs passed a decode check. Cards
 show each one with the service's plain name on a light plate in every theme, never recoloured.
+
+## Spanner connector addition (2026-11-11)
+
+`spanner.svg` is the Cloud Spanner product icon from the same Google Cloud core product icons package as
+`bigquery.svg`, under the Google Cloud terms recorded in the connector-card additions above. It was extracted by exact
+name from that package (its SHA-256 is listed there), not downloaded again, and passed the same SVG checks.
+
+| File | Official source page | Exact downloaded asset |
+|---|---|---|
+| `spanner.svg` | [Google Cloud icon library](https://cloud.google.com/icons), [product icons overview (PDF)](https://services.google.com/fh/files/misc/google-cloud-product-icons.pdf) | [Core product icons ZIP](https://services.google.com/fh/files/misc/core-products-icons.zip), member `Unique Icons/Cloud Spanner/SVG/CloudSpanner-512-color.svg` |
+
+| File | Bytes | SHA-256 |
+|---|---:|---|
+| `spanner.svg` | 1735 | `8e6e5bd76d4f41afbd0f0056b5efa2335963f0dcfe7a0def3fa0bb393a02c700` |

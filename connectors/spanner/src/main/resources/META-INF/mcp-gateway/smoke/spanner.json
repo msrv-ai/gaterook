@@ -1,0 +1,15 @@
+{
+  "area": "spanner",
+  "module": "connectors/spanner",
+  "connectorTypes": ["spanner"],
+  "description": "Touches of the Spanner connector for the native smoke (report 15 §6): the statement reader and the schemas in the image, without I/O.",
+  "touches": [
+    {
+      "name": "spanner-classify-without-io",
+      "connection": {"type": "spanner", "env": "dev",
+        "config": {"project": "acme-prod", "instance": "orders-prod", "database": "orders", "credentials": {"source": "adc"}}},
+      "call": {"tool": "spanner_query", "arguments": {"sql": "DELETE FROM Orders WHERE true"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.spanner.query-writes"}
+    }
+  ]
+}

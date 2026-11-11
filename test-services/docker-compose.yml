@@ -5,7 +5,7 @@
 #   scripts/test-services.sh up sql redis      # or: docker compose -f test-services/docker-compose.yml --profile sql up -d --wait
 #   mvn -B -ntp verify -Pservices              # the ITs connect here instead of starting their own servers
 #
-# Profiles: sql · oracle · sqlserver · cockroach · trino · cosmosdb · cassandra · mongo · neo4j · redis · logs · aws · dynamodb · prometheus · influxdb · vault · ssh · k8s · all
+# Profiles: sql · oracle · sqlserver · cockroach · trino · cosmosdb · spanner · cassandra · mongo · neo4j · redis · logs · aws · dynamodb · prometheus · influxdb · vault · ssh · k8s · all
 name: gw-test
 
 x-health: &health
@@ -129,6 +129,17 @@ services:
     healthcheck:
       test: ["CMD", "/usr/lib/trino/bin/health-check"]
       <<: *health
+
+  # Google Cloud Spanner through Google's emulator (connectors/spanner): its REST API on plain HTTP, GoogleSQL and
+  # PostgreSQL-dialect databases in memory. It checks no credentials; the IT makes its own instance and databases. The
+  # image is distroless, so there is no health check: the IT waits for the REST port.
+  spanner:
+    image: gcr.io/cloud-spanner-emulator/emulator:${GW_SPANNER_TAG}
+    container_name: gw-test-spanner
+    profiles: [spanner, all]
+    mem_limit: 512m
+    ports:
+      - "127.0.0.1:${GW_SPANNER_PORT}:9020"
 
   # Azure Cosmos DB for NoSQL through the Linux emulator vNext (amd64 and arm64): the gateway on plain HTTP, about
   # 700 MB at rest. Its data lives in the container and goes with it. It checks no key or token; the IT signs with the

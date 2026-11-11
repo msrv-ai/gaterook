@@ -1,6 +1,6 @@
 # Connector test services
 
-Docker Compose supplies disposable servers for connector integration tests: PostgreSQL, MySQL, MariaDB, Oracle Database, SQL Server, CockroachDB, Trino, the Azure Cosmos DB emulator, Apache Cassandra, MongoDB, Neo4j, Redis, Loki, OpenSearch, Elasticsearch, moto, Prometheus, InfluxDB, Vault, OpenSSH, and k3s. This avoids relying on Linux x86-64 fixture binaries when testing on macOS or another Docker-capable machine.
+Docker Compose supplies disposable servers for connector integration tests: PostgreSQL, MySQL, MariaDB, Oracle Database, SQL Server, CockroachDB, Trino, the Azure Cosmos DB emulator, Google's Cloud Spanner emulator, Apache Cassandra, MongoDB, Neo4j, Redis, Loki, OpenSearch, Elasticsearch, moto, Prometheus, InfluxDB, Vault, OpenSSH, and k3s. This avoids relying on Linux x86-64 fixture binaries when testing on macOS or another Docker-capable machine.
 
 Services bind to `127.0.0.1`. Credentials are public test fixtures, and service data is disposable. Tests reset databases, users, and server settings; never point this suite at real data.
 
@@ -14,7 +14,7 @@ scripts/test-services.sh run mvn -B -ntp verify -Pservices
 scripts/test-services.sh down
 ```
 
-The default starts everything except Kubernetes, SQL Server, CockroachDB, Trino, the Cosmos DB emulator, Cassandra, Neo4j, Prometheus and InfluxDB and waits for health checks. Profiles are `sql`, `oracle`, `sqlserver`, `cockroach`, `trino`, `cosmosdb`, `cassandra`, `mongo`, `neo4j`, `redis`, `logs`, `aws`, `dynamodb`, `s3`, `prometheus`, `influxdb`, `vault`, `ssh`, `k8s`, and `all`:
+The default starts everything except Kubernetes, SQL Server, CockroachDB, Trino, the Cosmos DB and Spanner emulators, Cassandra, Neo4j, Prometheus and InfluxDB and waits for health checks. Profiles are `sql`, `oracle`, `sqlserver`, `cockroach`, `trino`, `cosmosdb`, `spanner`, `cassandra`, `mongo`, `neo4j`, `redis`, `logs`, `aws`, `dynamodb`, `s3`, `prometheus`, `influxdb`, `vault`, `ssh`, `k8s`, and `all`:
 
 ```bash
 scripts/test-services.sh up sql redis
@@ -49,6 +49,7 @@ The committed [.env](.env) contains image pins, ports, and disposable passwords.
 | `cockroach` | CockroachDB v26.3.5, one in-memory node with TLS | 55257 | cockroach |
 | `trino` | Trino 484 with the `memory` and `tpch` catalogs, no authentication | 55808 | trino |
 | `cosmosdb` | Azure Cosmos DB Linux emulator vNext (EN20261019, pinned by digest), plain HTTP | 55081 | cosmosdb |
+| `spanner` | Google Cloud Spanner emulator (2026-10-14 build, pinned by digest), REST on plain HTTP | 55920 | spanner |
 | `cassandra` | Apache Cassandra 5.0.9, one node with password sign-in and TLS next to plain CQL | 55042 | cassandra |
 | `mongo`, `mongo-open`, `mongo-tls` | MongoDB 8.2.4 with auth / no auth / required TLS | 55017 / 55018 / 55019 | mongo |
 | `mongo7`, `mongo9` | MongoDB 7.0.45 / 9.0.4 | 55070 / 55090 | mongo |
@@ -178,6 +179,14 @@ scripts/test-services.sh run mvn -B -ntp -pl connectors/cosmosdb -am verify -Pse
 
 The ordinary `services` Maven profile does not enable Cosmos DB tests. See [Azure Cosmos DB](../docs/cosmosdb.md) for what
 the emulator does differently from an Azure account.
+
+## Cloud Spanner
+
+`scripts/test-services.sh up spanner`, then `mvn -B -ntp -Pservices,spanner-it verify -pl connectors/spanner -am`.
+`SpannerEmulatorIT` creates the instance `gw-it` in project `gw-test-project` (or reuses it) and two databases of its
+own per run, one GoogleSQL and one PostgreSQL-dialect, over the emulator's REST API. The emulator checks no
+credentials: the IT points the connector at a token server on this computer, as the connector sends Google tokens only
+where a test token server goes with a test endpoint. Databases live in memory and go with the container.
 
 ## Neo4j
 

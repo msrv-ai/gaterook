@@ -90,6 +90,10 @@
     </dependency>
     <dependency>
       <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-spanner</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
       <artifactId>connectors-firebase</artifactId>
     </dependency>
     <dependency>
