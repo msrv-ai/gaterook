@@ -152,6 +152,98 @@ class ToolCatalogTest {
     assertThat(ui(catalog, "chart_data")).isEqualTo("{\"visibility\":[\"model\"]}");
   }
 
+  @Test
+  void aSnapshotsCatalogIsBuiltOnceAndAReplacedSnapshotGetsItsOwn() {
+    Endpoint e = new Endpoint();
+    e.mcp("notes", "notes_read", null);
+    ToolCatalog catalogs = new ToolCatalog(e.engine);
+    EndpointSnapshot first = e.snapshot();
+
+    ToolCatalog.Catalog built = catalogs.forEndpoint(first);
+
+    assertThat(catalogs.forEndpoint(first)).isSameAs(built);
+    EndpointSnapshot replaced = e.snapshot();
+    ToolCatalog.Catalog rebuilt = catalogs.forEndpoint(replaced);
+    assertThat(rebuilt).isNotSameAs(built);
+    assertThat(rebuilt.listHash()).isEqualTo(built.listHash());
+    assertThat(catalogs.forEndpoint(replaced)).isSameAs(rebuilt);
+    catalogs.onCatalogInvalidated(new EndpointCatalogInvalidated(null));
+    assertThat(catalogs.forEndpoint(replaced)).as("forgotten with its snapshot's eviction").isNotSameAs(rebuilt);
+  }
+
+  /** ARCHITECTURE.md §5.7: a long list is searched; every tool stays callable by its name. */
+  @Test
+  void autoSearchesALongListAndListsTheGatewaysOwnToolsAndThoseOfPinnedConnections() {
+    Endpoint e = new Endpoint();
+    for (int i = 0; i <= ToolCatalog.SEARCH_ABOVE_TOOLS; i++) {
+      e.mcp("big", "big_tool_" + i, null);
+    }
+    e.mcp("small", "small_read", null);
+
+    ToolCatalog.Catalog searched = new ToolCatalog(e.engine).forEndpoint(e.snapshot());
+
+    assertThat(searched.list().search()).isTrue();
+    assertThat(searched.list().mode()).isEqualTo("auto");
+    assertThat(searched.list().tools()).isEqualTo(ToolCatalog.SEARCH_ABOVE_TOOLS + 2);
+    assertThat(searched.tool("big_tool_0")).as("callable by its name").isPresent();
+    assertThat(searched.listed("big_tool_0")).isFalse();
+    assertThat(searched.listed("small_read")).isFalse();
+    for (String own : List.of("find_tools", "call_tool", "call_read_tool", "approval_status", "approval_card")) {
+      assertThat(searched.listed(own)).as(own).isTrue();
+    }
+    assertThat(searched.listHash()).endsWith(":search");
+
+    ToolCatalog.Catalog pinned = new ToolCatalog(e.engine).forEndpoint(e.snapshot(
+        "{\"toolList\":{\"pinned\":[\"small\",\"gone\"]}}"));
+    assertThat(pinned.listed("small_read")).isTrue();
+    assertThat(pinned.listed("big_tool_0")).isFalse();
+    assertThat(pinned.list().pinned()).containsExactly("small", "gone");
+
+    ToolCatalog.Catalog all = new ToolCatalog(e.engine).forEndpoint(e.snapshot("{\"toolList\":{\"mode\":\"all\"}}"));
+    assertThat(all.list().search()).isFalse();
+    assertThat(all.listed("big_tool_0")).isTrue();
+    assertThat(all.tool("find_tools")).as("only a searched list has it").isEmpty();
+    assertThat(all.tool("call_tool")).isEmpty();
+  }
+
+  @Test
+  void autoSearchesFewToolsWithLargeDefinitionsAndSearchSearchesAShortList() {
+    Endpoint large = new Endpoint();
+    large.mcp("docs", "docs_a", null, "x".repeat(60 * 1024));
+    large.mcp("docs", "docs_b", null, "y".repeat(60 * 1024));
+    ToolCatalog.Catalog heavy = new ToolCatalog(large.engine).forEndpoint(large.snapshot());
+    assertThat(heavy.list().tools()).isEqualTo(2);
+    assertThat(heavy.list().bytes()).isGreaterThan(ToolCatalog.SEARCH_ABOVE_BYTES);
+    assertThat(heavy.list().search()).isTrue();
+
+    Endpoint small = new Endpoint();
+    small.mcp("notes", "notes_read", null);
+    assertThat(new ToolCatalog(small.engine).forEndpoint(small.snapshot()).list().search()).isFalse();
+    ToolCatalog.Catalog asked = new ToolCatalog(small.engine).forEndpoint(small.snapshot(
+        "{\"toolList\":{\"mode\":\"search\"}}"));
+    assertThat(asked.list().search()).isTrue();
+    assertThat(asked.listed("notes_read")).isFalse();
+    assertThat(new ToolCatalog(small.engine).forEndpoint(small.snapshot("{\"toolList\":{\"mode\":\"bogus\"}}"))
+        .list().mode()).as("unknown is auto").isEqualTo("auto");
+  }
+
+  @Test
+  void aSearchedListsHashFollowsOnlyWhatToolsListShows() {
+    Endpoint a = new Endpoint();
+    Endpoint b = new Endpoint();
+    for (int i = 0; i <= ToolCatalog.SEARCH_ABOVE_TOOLS; i++) {
+      a.mcp("big", "big_tool_" + i, null);
+      b.mcp("big", "big_tool_" + i, null, i == 0 ? "Changed upstream" : "big_tool_" + i);
+    }
+
+    assertThat(new ToolCatalog(a.engine).forEndpoint(a.snapshot()).listHash())
+        .as("a change of a tool it doesn't list doesn't notify")
+        .isEqualTo(new ToolCatalog(b.engine).forEndpoint(b.snapshot()).listHash());
+    String all = "{\"toolList\":{\"mode\":\"all\"}}";
+    assertThat(new ToolCatalog(a.engine).forEndpoint(a.snapshot(all)).listHash())
+        .isNotEqualTo(new ToolCatalog(b.engine).forEndpoint(b.snapshot(all)).listHash());
+  }
+
   private static String ui(ToolCatalog.Catalog catalog, String tool) {
     return String.valueOf(catalog.tool(tool).orElseThrow(() -> new AssertionError(tool + " isn't published"))
         .clientUi());
@@ -164,7 +256,11 @@ class ToolCatalogTest {
     final List<EndpointSnapshot.Pair> pairs = new ArrayList<>();
 
     void mcp(String connection, String tool, String meta) {
-      pair(connection, ConnectorManifest.Kind.MCP_SERVER, ToolDefinition.builder(tool).description(tool)
+      mcp(connection, tool, meta, tool);
+    }
+
+    void mcp(String connection, String tool, String meta, String description) {
+      pair(connection, ConnectorManifest.Kind.MCP_SERVER, ToolDefinition.builder(tool).description(description)
           .inputSchema(JsonNodeFactory.instance.objectNode().put("type", "object"))
           .meta(meta == null ? null : tools.jackson.databind.json.JsonMapper.builder().build().readTree(meta))
           .build());
@@ -201,8 +297,13 @@ class ToolCatalogTest {
     }
 
     EndpointSnapshot snapshot() {
-      return new EndpointSnapshot("ep", "dev", "", Env.DEV, false, true, "", null, false, false, null, 1,
-          List.copyOf(connections), List.copyOf(pairs), List.of(), null);
+      return snapshot(null);
+    }
+
+    EndpointSnapshot snapshot(String settings) {
+      return new EndpointSnapshot("ep", "dev", "", Env.DEV, false, true, "",
+          settings == null ? null : tools.jackson.databind.json.JsonMapper.builder().build().readTree(settings),
+          false, false, null, 1, List.copyOf(connections), List.copyOf(pairs), List.of(), null);
     }
   }
 }

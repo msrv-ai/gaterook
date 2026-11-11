@@ -8,17 +8,22 @@ import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.connectors.ManifestCodec;
 import ai.msrv.gaterook.core.platform.CanonicalJson;
 import ai.msrv.gaterook.core.policy.PolicyEngine;
+import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
@@ -37,9 +42,25 @@ import tools.jackson.databind.node.ObjectNode;
  * ({@link PublishedTool#clientInputSchema}); the description names the values instead. A client that keeps the list
  * it loaded first, and checks arguments against it, still accepts a connection added later: Claude Desktop's Code and
  * Cowork sessions keep theirs for as long as the extension runs. A call is checked against the endpoint as it is then.
+ *
+ * <p>A long list is searched instead of listed (§5.7, {@code settings.toolList}): {@code tools/list} then shows the
+ * gateway's own tools, {@code find_tools}, {@code call_tool} and {@code call_read_tool}, and the tools of the
+ * connections the person pins; every published tool stays callable by its name. The catalog of a snapshot is built
+ * once: a snapshot is immutable and replaced on every change that could change its catalog (endpoint, connection,
+ * policy, a temporary bypass's end), so every request on it reuses the same catalog. Nothing may change its trees.
  */
 @Component
 public class ToolCatalog {
+
+  /** {@code auto} lists every tool up to this many, and up to {@link #SEARCH_ABOVE_BYTES} of definitions. */
+  public static final int SEARCH_ABOVE_TOOLS = 40;
+
+  /** About 25,000 tokens: what an AI app that loads every definition then puts in the model's context. */
+  public static final long SEARCH_ABOVE_BYTES = 100 * 1024;
+
+  public static final String ALL = "all";
+  public static final String SEARCH = "search";
+  public static final String AUTO = "auto";
 
   /**
    * One published tool and the pairs behind it.
@@ -136,26 +157,126 @@ public class ToolCatalog {
   }
 
   /**
-   * The list of one endpoint.
+   * How {@code tools/list} shows the tools ({@code settings.toolList}, §5.7).
    *
-   * @param problems tools left out, and why (a plugin's tool that clashes with a built-in one)
+   * @param mode   {@link #ALL}, {@link #SEARCH} or {@link #AUTO}, as the person set it ({@code auto} unless set)
+   * @param search whether tools/list shows only {@code listed}, and {@code find_tools} finds the rest
+   * @param pinned the connections whose tools are listed in search
+   * @param listed the names tools/list shows (before what a client without MCP Apps doesn't get)
+   * @param tools  how many tools the model may call ({@link ToolSearch#searchable})
+   * @param bytes  their names, titles, descriptions and input schemas as clients get them, in UTF-8 bytes: what an AI
+   *               app that loads every definition puts in the model's context
    */
-  public record Catalog(List<PublishedTool> tools, String listHash, List<String> problems) {
+  public record ToolList(String mode, boolean search, List<String> pinned, Set<String> listed, int tools,
+      long bytes) {}
+
+  /**
+   * The list of one endpoint: every tool it publishes, callable by its name, and which of them {@code tools/list}
+   * shows.
+   */
+  public static final class Catalog {
+
+    private final List<PublishedTool> tools;
+    private final String listHash;
+    private final List<String> problems;
+    private final ToolList list;
+    private final Map<String, PublishedTool> byName = new HashMap<>();
+    private volatile ToolSearch search;
+
+    Catalog(List<PublishedTool> tools, String listHash, List<String> problems, ToolList list) {
+      this.tools = tools;
+      this.listHash = listHash;
+      this.problems = problems;
+      this.list = list;
+      tools.forEach(t -> byName.putIfAbsent(t.name(), t));
+    }
+
+    /** By name. */
+    public List<PublishedTool> tools() {
+      return tools;
+    }
+
+    /** Over what tools/list shows: it changes with every change clients would see in it. */
+    public String listHash() {
+      return listHash;
+    }
+
+    /** Tools left out, and why (a plugin's tool that clashes with a built-in one). */
+    public List<String> problems() {
+      return problems;
+    }
+
+    public ToolList list() {
+      return list;
+    }
 
     public Optional<PublishedTool> tool(String name) {
-      return tools.stream().filter(t -> t.name().equals(name)).findFirst();
+      return Optional.ofNullable(name == null ? null : byName.get(name));
+    }
+
+    /** Whether tools/list shows it. */
+    public boolean listed(String name) {
+      return list.listed().contains(name);
+    }
+
+    /** The search of its tools, built on first use. */
+    public ToolSearch search() {
+      ToolSearch s = search;
+      if (s == null) {
+        synchronized (this) {
+          s = search;
+          if (s == null) {
+            s = ToolSearch.of(tools);
+            search = s;
+          }
+        }
+      }
+      return s;
     }
   }
 
+  private record Memo(EndpointSnapshot snapshot, Catalog catalog) {}
+
   private final PolicyEngine engine;
+  private final Map<String, Memo> memo = new ConcurrentHashMap<>();
 
   public ToolCatalog(PolicyEngine engine) {
     this.engine = engine;
   }
 
+  /** The catalog of {@code snapshot}: built once for each snapshot (by identity), then reused. */
   public Catalog forEndpoint(EndpointSnapshot snapshot) {
+    String id = snapshot.id();
+    Memo m = id == null ? null : memo.get(id);
+    if (m != null && m.snapshot() == snapshot) {
+      return m.catalog();
+    }
+    Catalog built = build(snapshot);
+    if (id != null) {
+      memo.put(id, new Memo(snapshot, built));
+    }
+    return built;
+  }
+
+  /** A replaced snapshot's catalog is never asked for again; a request that still holds it builds its own. */
+  @EventListener
+  public void onCatalogInvalidated(EndpointCatalogInvalidated e) {
+    if (e.endpointId() == null) {
+      memo.clear();
+    } else {
+      memo.remove(e.endpointId());
+    }
+  }
+
+  private Catalog build(EndpointSnapshot snapshot) {
     List<PublishedTool> out = new ArrayList<>();
     List<String> problems = new ArrayList<>();
+    JsonNode setting = snapshot.settings() == null ? null : snapshot.settings().path("toolList");
+    String listMode = mode(setting);
+    List<String> pinned = pinned(setting);
+    boolean search = false;
+    int count = 0;
+    long bytes = 0;
     if (!snapshot.blocked()) {
       boolean listed = snapshot.coreTool(CoreTools.LIST_CONNECTIONS).map(EndpointSnapshot.CorePair::mode)
           .orElse(Mode.OFF) != Mode.OFF;
@@ -179,10 +300,64 @@ public class ToolCatalog {
       out.add(coreTool(snapshot, CoreTools.connectionImportProgress(), false));
       out.add(coreTool(snapshot, CoreTools.submitConnectionImport(), false));
       out.add(coreTool(snapshot, CoreTools.openConnectionImport(), false));
+      for (PublishedTool t : out) {
+        if (ToolSearch.searchable(t)) {
+          count++;
+          bytes += modelBytes(t);
+        }
+      }
+      search = count > 0 && switch (listMode) {
+        case ALL -> false;
+        case SEARCH -> true;
+        default -> count > SEARCH_ABOVE_TOOLS || bytes > SEARCH_ABOVE_BYTES;
+      };
+      if (search) {
+        out.add(coreTool(snapshot, CoreTools.findTools(), false));
+        out.add(coreTool(snapshot, CoreTools.callTool(), false));
+        out.add(coreTool(snapshot, CoreTools.callReadTool(), false));
+      }
     }
     out.add(coreTool(snapshot, CoreTools.approvalStatus(), false));
     out.sort(java.util.Comparator.comparing(PublishedTool::name));
-    return new Catalog(List.copyOf(out), hash(out), List.copyOf(problems));
+    Set<String> listed = new LinkedHashSet<>();
+    List<PublishedTool> shown = new ArrayList<>();
+    for (PublishedTool t : out) {
+      if (!search || t.core() || t.pairs().stream().anyMatch(p -> pinned.contains(p.connectionName()))) {
+        listed.add(t.name());
+        shown.add(t);
+      }
+    }
+    return new Catalog(List.copyOf(out), search ? hash(shown) + ":" + SEARCH : hash(shown), List.copyOf(problems),
+        new ToolList(listMode, search, pinned, Set.copyOf(listed), count, bytes));
+  }
+
+  /** {@code settings.toolList.mode}; {@code auto} when unset or unknown. */
+  static String mode(JsonNode setting) {
+    String mode = setting == null ? AUTO : setting.path("mode").asString(AUTO);
+    return ALL.equals(mode) || SEARCH.equals(mode) ? mode : AUTO;
+  }
+
+  /** {@code settings.toolList.pinned}: names of connections. */
+  static List<String> pinned(JsonNode setting) {
+    List<String> out = new ArrayList<>();
+    if (setting != null) {
+      for (JsonNode n : setting.path("pinned")) {
+        if (n.isString() && !out.contains(n.asString())) {
+          out.add(n.asString());
+        }
+      }
+    }
+    return List.copyOf(out);
+  }
+
+  /** What the model reads of a tool: its name, title, description and input schema. */
+  private static long modelBytes(PublishedTool t) {
+    long n = utf8(t.name()) + utf8(t.title()) + utf8(t.description());
+    return n + (t.clientInputSchema() == null ? 0 : CanonicalJson.bytes(t.clientInputSchema()).length);
+  }
+
+  private static long utf8(String s) {
+    return s == null ? 0 : s.getBytes(StandardCharsets.UTF_8).length;
   }
 
   /** The pair a call names: the tool on the chosen connection (or the template tool's own connection). */

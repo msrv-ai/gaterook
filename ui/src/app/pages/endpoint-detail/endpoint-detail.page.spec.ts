@@ -981,6 +981,36 @@ describe('Endpoint detail page', () => {
       expect(text(el.querySelector('#ep-st-proto-err'))).toBe('Keep at least one revision: with none, no AI app can call dev.');
       expect(calls.some((c) => c.startsWith('settings'))).toBe(false);
     });
+
+    it('searches a long tool list and pins the connections whose tools stay listed (ARCHITECTURE.md §5.7)', async () => {
+      const state = { search: true, tools: 186, listedTools: 0, bytes: 359_000, searchAboveTools: 40, searchAboveBytes: 102_400 };
+      setup(() => Promise.resolve(detail({ settings: { toolList: { mode: 'auto' }, toolListState: state } })));
+      const { fixture, el } = await render({ slug: 'dev', tab: 'settings' });
+      expect(Array.from(el.querySelectorAll('#ep-st-tools .gw-kv__row')).map(kv)).toEqual([
+        'Tools of dev 186 tools · 351 KB of definitions, about 90,000 tokens',
+        "AI apps get GateRook's own tools; find_tools finds the other 186.",
+      ]);
+      expect(el.querySelector<HTMLInputElement>('#ep-st-tools-auto')!.checked).toBe(true);
+      expect(text(el.querySelector('#ep-st-tools-auto-hint'))).toBe('Every tool up to 40 tools and 100 KB of definitions, a searched list above that.');
+      const bar = el.querySelector('#ep-st-tools .gw-form__actions')!;
+      expect(bar.hasAttribute('hidden')).toBe(true);
+
+      el.querySelector<HTMLInputElement>('#ep-st-tools-search')!.click();
+      await settle(fixture);
+      el.querySelector<HTMLInputElement>('#ep-st-pin-orders-mongo')!.click();
+      el.querySelector<HTMLInputElement>('#ep-st-pin-dev-db')!.click();
+      await settle(fixture);
+      expect(bar.hasAttribute('hidden')).toBe(false);
+      el.querySelector('#ep-st-tools-form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+      await settle(fixture);
+      expect(calls).toContain('settings {"toolList":{"mode":"search","pinned":["dev-db","orders-mongo"]},"version":8}');
+      expect(toasts().at(-1)?.title).toBe('Tool list settings saved');
+
+      // Every tool: nothing is left to pin.
+      el.querySelector<HTMLInputElement>('#ep-st-tools-all')!.click();
+      await settle(fixture);
+      expect(el.querySelector('#ep-st-pin-dev-db')).toBeNull();
+    });
   });
 
   it('shows the endpoint wired to a different set when the route changes to another slug', async () => {

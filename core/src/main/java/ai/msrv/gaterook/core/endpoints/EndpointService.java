@@ -76,7 +76,9 @@ public class EndpointService {
    * The settings an endpoint stores besides its limits (report 01 §4): the revisions it serves (by era: the legacy
    * one also answers 2025-06-18 and 2025-03-26), how approvals reach the agent ({@code auto}: MRTR when the client
    * declares {@code elicitation.url}, else a handle), how long the first answer waits for a person. ARCHITECTURE.md
-   * A3 fixes the rest of the wait (20 s per MRTR round, 45 s budget, 5 rounds), so it is no setting.
+   * A3 fixes the rest of the wait (20 s per MRTR round, 45 s budget, 5 rounds), so it is no setting. {@code toolList}
+   * says whether tools/list shows every tool or only the gateway's own and those of the pinned connections, the rest
+   * found by {@code find_tools} (§5.7); unset is {@code auto}.
    */
   static final ObjectNode SETTINGS_SCHEMA = (ObjectNode) JsonMapper.builder().build()
       .readTree("""
@@ -86,7 +88,12 @@ public class EndpointService {
                  "items":{"enum":["2026-07-28","2025-11-25"]}},
                "approvalDelivery":{"enum":["auto","handle-only"]}}},
            "approvalWait":{"type":"object","additionalProperties":false,"required":["firstWaitSeconds"],
-             "properties":{"firstWaitSeconds":{"type":"integer","minimum":0,"maximum":25}}}}""");
+             "properties":{"firstWaitSeconds":{"type":"integer","minimum":0,"maximum":25}}},
+           "toolList":{"type":"object","additionalProperties":false,
+             "properties":{
+               "mode":{"enum":["auto","all","search"]},
+               "pinned":{"type":"array","maxItems":64,"uniqueItems":true,
+                 "items":{"type":"string","minLength":1,"maxLength":128}}}}}""");
 
   /** How a new endpoint starts (kit "Start from"). */
   public enum StartFrom {
@@ -133,7 +140,13 @@ public class EndpointService {
 
   /** {@code PUT /api/endpoints/{slug}/settings}; a {@code null} field stays as it is. */
   public record SettingsUpdate(String description, String access, String instructions, JsonNode limits,
-      JsonNode protocol, JsonNode approvalWait, Boolean oauthEnabled) {}
+      JsonNode protocol, JsonNode approvalWait, Boolean oauthEnabled, JsonNode toolList) {
+
+    public SettingsUpdate(String description, String access, String instructions, JsonNode limits, JsonNode protocol,
+        JsonNode approvalWait, Boolean oauthEnabled) {
+      this(description, access, instructions, limits, protocol, approvalWait, oauthEnabled, null);
+    }
+  }
 
   /**
    * What a deletion disconnected, revoked and rejected; the audit stays.
@@ -629,6 +642,9 @@ public class EndpointService {
       if (update.approvalWait() != null) {
         patches.put("approvalWait", update.approvalWait());
       }
+      if (update.toolList() != null) {
+        patches.put("toolList", update.toolList());
+      }
       for (Map.Entry<String, JsonNode> patch : patches.entrySet()) {
         ObjectNode next = patchSetting(settings, patch.getKey(), patch.getValue());
         if (!next.equals(settings.path(patch.getKey()))) {
@@ -696,8 +712,8 @@ public class EndpointService {
   }
 
   /**
-   * A merge patch of one settings object ({@code protocol}, {@code approvalWait}): the keys it names change, the rest
-   * stay; the result must match its schema in {@link #SETTINGS_SCHEMA}.
+   * A merge patch of one settings object ({@code protocol}, {@code approvalWait}, {@code toolList}): the keys it
+   * names change, the rest stay; the result must match its schema in {@link #SETTINGS_SCHEMA}.
    */
   private ObjectNode patchSetting(ObjectNode settings, String name, JsonNode patch) {
     if (!patch.isObject()) {
@@ -932,6 +948,15 @@ public class EndpointService {
         invalid(reset, v.message(), "/" + name + ("/".equals(v.pointer()) ? "" : v.pointer()));
         settings.set(name, defaultSettings().get(name));
         out.add(name);
+        break;
+      }
+    }
+    // Unset means auto, so an invalid one is reset by removing it.
+    if (settings.has("toolList")) {
+      for (SchemaValidator.Violation v : validator.validate(SETTINGS_SCHEMA.get("toolList"), settings.get("toolList"))) {
+        invalid(reset, v.message(), "/toolList" + ("/".equals(v.pointer()) ? "" : v.pointer()));
+        settings.remove("toolList");
+        out.add("toolList");
         break;
       }
     }

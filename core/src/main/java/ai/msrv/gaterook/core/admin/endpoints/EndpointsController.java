@@ -15,6 +15,7 @@ import ai.msrv.gaterook.core.endpoints.EndpointSnapshot;
 import ai.msrv.gaterook.core.endpoints.EndpointTools;
 import ai.msrv.gaterook.core.endpoints.TokenService;
 import ai.msrv.gaterook.core.endpoints.ToolCatalog;
+import ai.msrv.gaterook.core.endpoints.ToolSearch;
 import ai.msrv.gaterook.core.mcp.McpGateway;
 import ai.msrv.gaterook.core.playground.PlaygroundService;
 import ai.msrv.gaterook.core.policy.PolicyEngine;
@@ -37,6 +38,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Endpoints and the endpoint page (ARCHITECTURE.md §6 endpoints, endpoint-detail, kit {@code endpoints.html},
@@ -93,7 +96,7 @@ class EndpointsController {
   record Split(List<String> move, String newSlug, List<String> clients, String reason) {}
 
   record SettingsUpdate(String description, String access, String instructions, JsonNode limits, JsonNode protocol,
-      JsonNode approvalWait, Boolean oauthEnabled, Long version, String reason, String confirm) {}
+      JsonNode approvalWait, Boolean oauthEnabled, JsonNode toolList, Long version, String reason, String confirm) {}
 
   // ── Responses ───────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -112,10 +115,23 @@ class EndpointsController {
    * @param instructions        what the person wrote, or {@code null}: then clients get {@code defaultInstructions}
    * @param defaultInstructions the text the gateway writes for this endpoint (its approval tools, the approval rules,
    *                            the {@code ‹masked›} line), shown in the field while the person wrote none
+   * @param toolList            {@code mode} and {@code pinned} as set: {@code auto} and none unless set (§5.7)
+   * @param toolListState       what tools/list shows now
    */
   record Settings(String description, String access, String instructions, int instructionsMax, JsonNode limits,
       JsonNode protocol, JsonNode approvalWait, boolean oauthEnabled, long version, Usage usage,
-      List<Revision> revisions, String defaultInstructions) {}
+      List<Revision> revisions, String defaultInstructions, JsonNode toolList, ToolListState toolListState) {}
+
+  /**
+   * The tool list of an endpoint (§5.7).
+   *
+   * @param search      whether tools/list shows only the gateway's own tools and those of the pinned connections
+   * @param tools       how many tools the model may call
+   * @param listedTools how many of them tools/list shows
+   * @param bytes       their names, titles, descriptions and input schemas as AI apps get them, in UTF-8 bytes
+   */
+  record ToolListState(boolean search, int tools, int listedTools, long bytes, int searchAboveTools,
+      long searchAboveBytes) {}
 
   /**
    * One "Start from" card of New endpoint ({@code GET /api/endpoint-starts}): available connections and the tool
@@ -308,7 +324,8 @@ class EndpointsController {
       throw ApiRequestException.unprocessable("Version missing", "Send the version you edited.", "/version");
     }
     endpoints.updateSettings(slug, new EndpointService.SettingsUpdate(request.description(), request.access(),
-        request.instructions(), request.limits(), request.protocol(), request.approvalWait(), request.oauthEnabled()),
+        request.instructions(), request.limits(), request.protocol(), request.approvalWait(), request.oauthEnabled(),
+        request.toolList()),
         request.version(), Reasons.check(request.reason()));
     return settings(endpoints.snapshot(slug));
   }
@@ -487,6 +504,7 @@ class EndpointsController {
 
   private Settings settings(EndpointSnapshot s) {
     Instant now = clock.instant();
+    ToolCatalog.Catalog published = catalog.forEndpoint(s);
     PolicyEngine.Rates rates = engine.rates(s.env());
     List<Revision> revisions = new ArrayList<>();
     List<AuditQueries.Revision> used = audit.revisions(s.slug(), now.minus(Duration.ofDays(7)));
@@ -503,7 +521,20 @@ class EndpointsController {
         EndpointService.MAX_INSTRUCTIONS, s.settings().path("limits"), s.settings().path("protocol"),
         s.settings().path("approvalWait"), s.oauthEnabled(), s.version(),
         new Usage(audit.received(s.slug(), now.minus(Duration.ofMinutes(1))), rates.perToken(), rates.perTool()),
-        List.copyOf(revisions), gateway.defaultInstructions(s));
+        List.copyOf(revisions), gateway.defaultInstructions(s), toolList(published.list()),
+        new ToolListState(published.list().search(), published.list().tools(), listedTools(published),
+            published.list().bytes(), ToolCatalog.SEARCH_ABOVE_TOOLS, ToolCatalog.SEARCH_ABOVE_BYTES));
+  }
+
+  private static JsonNode toolList(ToolCatalog.ToolList list) {
+    ObjectNode out = JsonNodeFactory.instance.objectNode().put("mode", list.mode());
+    list.pinned().forEach(out.putArray("pinned")::add);
+    return out;
+  }
+
+  private static int listedTools(ToolCatalog.Catalog published) {
+    return (int) published.tools().stream().filter(t -> ToolSearch.searchable(t) && published.listed(t.name()))
+        .count();
   }
 
   private static List<String> moving(Split request) {

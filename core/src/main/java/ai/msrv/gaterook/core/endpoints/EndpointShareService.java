@@ -275,10 +275,11 @@ public class EndpointShareService {
     if (!Set.of("standard", "read-only").contains(endpoint.path("access").asString(""))) throw invalid("Invalid endpoint access.");
     text(endpoint.path("description"), 500, true); text(endpoint.path("instructions"), EndpointService.MAX_INSTRUCTIONS, true);
     JsonNode settings = endpoint.path("settings");
-    fields(settings, Set.of("limits", "protocol", "approvalWait"));
+    fields(settings, Set.of("limits", "protocol", "approvalWait", "toolList"));
     if (!settings.path("limits").isObject()) throw invalid("Invalid endpoint limits.");
     policies.checkNarrowing(settings.path("limits"), "/bundle/endpoint/settings/limits", "per endpoint");
     for (String name : List.of("protocol", "approvalWait")) if (!validator.validate(EndpointService.SETTINGS_SCHEMA.path(name), settings.path(name)).isEmpty()) throw invalid("Invalid endpoint protocol settings.");
+    if (settings.has("toolList") && !validator.validate(EndpointService.SETTINGS_SCHEMA.path("toolList"), settings.get("toolList")).isEmpty()) throw invalid("Invalid endpoint tool list settings.");
     if (!bundle.path("connections").isArray() || bundle.path("connections").size() > 100) throw invalid("Share at most 100 connections.");
     Set<String> ids = new HashSet<>();
     for (JsonNode entry : bundle.path("connections")) {

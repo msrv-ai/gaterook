@@ -11,7 +11,7 @@ import {
 import { FormField, form, maxLength, validate } from '@angular/forms/signals';
 import { RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
-import { EndpointSettings, EndpointSettingsUpdate } from '../../core/api/endpoints.api';
+import { EndpointSettings, EndpointSettingsUpdate, ToolListMode } from '../../core/api/endpoints.api';
 import { Env, JsonValue } from '../../core/api/types';
 import { Announcer } from '../../kit/announcer';
 import { GwCopy } from '../../kit/copy';
@@ -38,6 +38,9 @@ import {
   resourceMetadataUrl,
   revisionsByClient,
   servedRevisions,
+  toolListOf,
+  toolListShown,
+  toolListSize,
 } from './endpoint-detail-view';
 
 /** The settings nav of an endpoint (kit `#settings` panel): its sections' ids follow `ep-st-`. */
@@ -47,6 +50,7 @@ export const ENDPOINT_SETTINGS_GROUPS: readonly SettingsNavGroup[] = [
     items: [
       { id: 'instructions', label: 'Instructions', icon: 'message-square-text' },
       { id: 'limits', label: 'Limits', icon: 'gauge' },
+      { id: 'tools', label: 'Tool list', icon: 'list-filter' },
     ],
   },
   {
@@ -66,6 +70,12 @@ interface LimitsModel {
 
 interface ProtocolModel {
   revisions: { rev: string; on: boolean }[];
+}
+
+/** `settings.toolList` as the form edits it: pins sorted. */
+interface ToolListModel {
+  mode: ToolListMode;
+  pinned: string[];
 }
 
 /** Which field of the limits form holds which key of `settings.limits`. */
@@ -91,6 +101,8 @@ function protocolOf(settings: EndpointSettings | null): ProtocolModel {
 const sameLimits = (a: LimitsModel, b: LimitsModel) => a.size === b.size && a.perToken === b.perToken && a.perTool === b.perTool;
 const sameProtocol = (a: ProtocolModel, b: ProtocolModel) =>
   a.revisions.length === b.revisions.length && a.revisions.every((r, i) => r.rev === b.revisions[i].rev && r.on === b.revisions[i].on);
+const sameToolList = (a: ToolListModel, b: ToolListModel) =>
+  a.mode === b.mode && a.pinned.length === b.pinned.length && a.pinned.every((p, i) => p === b.pinned[i]);
 
 /**
  * A form's text that follows the core's value until the person edits it: a reload (an event, another tab's save)
@@ -105,11 +117,11 @@ function followSaved<T>(saved: () => T, same: (a: T, b: T) => boolean) {
 }
 
 /**
- * Endpoint detail › Settings: what the endpoint tells agents, how hard
- * it may be called, how clients sign in and which MCP revisions it answers. A settings nav on the left
- * (`ep-st-instructions`, `ep-st-limits`, `ep-st-auth`, `ep-st-protocol`; the fragment also selects the tab).
+ * Endpoint detail › Settings: what the endpoint tells agents, how hard it may be called, which of its tools AI apps
+ * list, how clients sign in and which MCP revisions it answers. A settings nav on the left (`ep-st-instructions`,
+ * `ep-st-limits`, `ep-st-tools`, `ep-st-auth`, `ep-st-protocol`; the fragment also selects the tab).
  *
- * Instructions, Limits and Protocol are forms with a Save bar that shows while something changed; the OAuth switch
+ * Instructions, Limits, Tool list and Protocol are forms with a Save bar that shows while something changed; the OAuth switch
  * applies at once and confirms with a toast. A reload while a form is being edited never overwrites it.
  */
 @Component({
@@ -200,6 +212,23 @@ export class GwEndpointSettings {
   protected readonly limitsError = signal<string | null>(null);
   protected readonly limitsSubmitted = signal(false);
 
+  // ── Tool list ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+  private readonly savedToolList = computed<ToolListModel>(() => toolListOf(this.settings()), { equal: sameToolList });
+  protected readonly toolListModel = followSaved(() => this.savedToolList(), sameToolList);
+  protected readonly toolListDirty = computed(() => !sameToolList(this.toolListModel(), this.savedToolList()));
+  protected readonly toolListBusy = signal(false);
+  protected readonly toolListError = signal<string | null>(null);
+  /** Null from a core that doesn't search tool lists. */
+  protected readonly toolListState = computed(() => this.settings()?.toolListState ?? null);
+  /** The endpoint's connections, then pins of connections it no longer has: they stay until unchecked. */
+  protected readonly pinChoices = computed(() => {
+    const names = (this.data.detail()?.connections ?? []).map((c) => c.name);
+    return [...names, ...this.toolListModel().pinned.filter((p) => !names.includes(p))];
+  });
+  protected readonly toolListSize = toolListSize;
+  protected readonly toolListShown = toolListShown;
+
   // ── Authorization ─────────────────────────────────────────────────────────────────────────────────────────────
 
   protected readonly activeTokenCount = computed(() => {
@@ -286,6 +315,32 @@ export class GwEndpointSettings {
     this.limitsForm().reset();
     this.limitsSubmitted.set(false);
     this.limitsError.set(null);
+  }
+
+  protected setToolListMode(e: Event): void {
+    const mode = (e.target as HTMLInputElement).value as ToolListMode;
+    this.toolListModel.update((m) => ({ ...m, mode }));
+  }
+
+  protected setPinned(connection: string, e: Event): void {
+    const on = (e.target as HTMLInputElement).checked;
+    this.toolListModel.update((m) => {
+      const others = m.pinned.filter((p) => p !== connection);
+      return { ...m, pinned: on ? [...others, connection].sort() : others };
+    });
+  }
+
+  protected async saveToolList(e: Event): Promise<void> {
+    e.preventDefault();
+    if (this.toolListBusy() || !this.toolListDirty()) return;
+    const { mode, pinned } = this.toolListModel();
+    await this.save({ toolList: { mode, pinned: pinned.length ? pinned : null } }, 'Tool list settings', this.toolListBusy, this.toolListError);
+  }
+
+  protected discardToolList(e: Event): void {
+    e.preventDefault();
+    this.toolListModel.set(this.savedToolList());
+    this.toolListError.set(null);
   }
 
   protected limitError(field: keyof LimitsModel): string | null {
