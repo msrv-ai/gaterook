@@ -5,7 +5,7 @@ import { ApiError } from '../../core/api/api-error';
 import { ConnectionRow, ConnectionsApi } from '../../core/api/connections.api';
 import { ConnectorCatalog, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointsApi } from '../../core/api/endpoints.api';
-import { CatalogIndex, McpRegistryPage, McpServersApi, McpSignIn, PluginsApi } from '../../core/api/plugins.api';
+import { CatalogIndex, McpProfile, McpRegistryPage, McpServersApi, McpSignIn, PluginsApi } from '../../core/api/plugins.api';
 import { SecretsApi } from '../../core/api/secrets.api';
 import { Template, TemplateSaved, TemplatesApi } from '../../core/api/templates.api';
 import { EventStream } from '../../core/events/event-stream';
@@ -85,6 +85,7 @@ interface Answers {
   rows: () => ConnectionRow[];
   update: () => ReturnType<typeof rabbitUpdate>;
   registry: (search: string, cursor: string | null) => Promise<McpRegistryPage>;
+  profiles: () => Promise<McpProfile[]>;
 }
 
 /**
@@ -123,6 +124,22 @@ const stripeRegistryServers: McpRegistryPage['servers'] = [
     remotes: [{ type: 'streamable-http', url: 'https://mcp.stripe.com', headers: [], variables: [] }] },
 ];
 
+/** GateRook's verified profiles as `GET /api/mcp-profiles` answers (§7.5): one whose registry entry is a Popular card. */
+function profilesFixture(): McpProfile[] {
+  const base = { category: 'Cloud platform', checked: '2026-11-11', command: [], notes: [], signIn: 'OAuth in your browser.' };
+  return [
+    { ...base, id: 'supabase', name: 'Supabase', publisher: 'Supabase', description: 'Projects, logs and read-only SQL.',
+      documentation: 'https://supabase.com/docs/guides/getting-started/mcp', registryName: 'com.supabase/mcp', transport: 'http',
+      url: 'https://mcp.supabase.com/mcp?project_ref={project_ref}&read_only=true',
+      placeholders: [{ name: 'project_ref', description: 'Your project’s reference, from its dashboard URL.' }],
+      pins: [{ parameter: 'read_only', setTo: 'true', purpose: 'Supabase lists only its read tools.', missing: 'Without read_only=true, Supabase lists its writes too.', set: null }],
+      tools: [] },
+    { ...base, id: 'cloudflare-api', name: 'Cloudflare API', publisher: 'Cloudflare', description: 'The whole Cloudflare API in Code Mode.',
+      documentation: 'https://github.com/cloudflare/mcp', registryName: null, transport: 'http', url: 'https://mcp.cloudflare.com/mcp',
+      placeholders: [], pins: [], tools: [{ tool: 'execute', start: 'approval', kind: 'code', reason: 'It runs JavaScript against the Cloudflare API.' }] },
+  ];
+}
+
 let calls: string[];
 let bodies: Record<string, unknown>;
 let events: FakeEvents;
@@ -141,6 +158,7 @@ function setup(over: Partial<Answers> = {}): void {
     rows: connectionRows,
     update: rabbitUpdate,
     registry: registryPage,
+    profiles: () => Promise.resolve([]),
     ...over,
   };
   const record = (name: string, body?: unknown) => {
@@ -245,6 +263,7 @@ function setup(over: Partial<Answers> = {}): void {
       record(`registry ${search}${cursor ? ` after ${cursor}` : ''}`);
       return answers.registry(search, cursor ?? null);
     },
+    profiles: () => answers.profiles(),
     action: (name, action) => {
       record(`server ${action} ${name}`);
       return Promise.resolve({ name, state: 'running', tools: 26, previousTools: 26 });
@@ -2215,6 +2234,48 @@ describe('Connectors page: MCP servers', () => {
       expect(card.querySelector('img')?.getAttribute('src')).toMatch(/^(mcp-logos|assets\/integrations)\//);
     }
     expect(calls.filter((call) => call.startsWith('registry'))).toEqual([]);
+    expect(el.querySelector('[aria-labelledby="mcp-profiles-title"]')).toBeNull();
+  });
+
+  it('shows the verified profiles as Cloud platforms cards that fill the profile’s setup', async () => {
+    setup({ profiles: () => Promise.resolve(profilesFixture()) });
+    const { fixture, el } = await render();
+    button(el, 'MCP servers').click();
+    await settle(fixture);
+    const list = el.querySelector('[aria-label="Cloud platform MCP servers with a verified profile"]')!;
+    expect(list.querySelectorAll('article')).toHaveLength(2);
+    expect(text(list)).toContain('Verified profile, checked 2026-11-11');
+    expect(list.querySelector('img')?.getAttribute('src')).toBe('mcp-logos/supabase.png');
+    const opener = button(list, 'Cloudflare API');
+    expect(opener.getAttribute('aria-label')).toBe('Add Cloudflare API with GateRook’s verified profile');
+    opener.click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    expect(add.open).toBe(true);
+    expect(add.querySelector<HTMLInputElement>('input[type="url"]')!.value).toBe('https://mcp.cloudflare.com/mcp');
+    expect(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!.value).toBe('cloudflare-api-mcp');
+    expect(text(add)).toContain('from GateRook’s verified profile of Cloudflare API. Its profile starts execute in Approval.');
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual([]);
+    expect(calls).not.toContain('review');
+  });
+
+  it('sets a Popular card up from its verified profile, with the vendor’s read-only switch in the URL', async () => {
+    setup({ profiles: () => Promise.resolve(profilesFixture()) });
+    const { fixture, el } = await render();
+    button(el, 'MCP servers').click();
+    await settle(fixture);
+    const popular = el.querySelector('[aria-label="Popular MCP servers for developers"]')!;
+    const supabase = button(popular, 'Supabase');
+    expect(supabase.getAttribute('aria-label')).toBe('Add Supabase with GateRook’s verified profile');
+    expect(text(supabase.closest('article'))).toContain('Verified profile');
+    supabase.click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    expect(calls.filter((call) => call.startsWith('registry'))).toEqual([]);
+    expect(add.querySelector<HTMLInputElement>('input[type="url"]')!.value)
+      .toBe('https://mcp.supabase.com/mcp?project_ref={project_ref}&read_only=true');
+    expect(text(add)).toContain('Replace {project_ref} in the URL with your own value.');
+    expect(text(add)).toContain('read_only=true: Supabase lists only its read tools.');
   });
 
   it('opens a discovery card with its exact live registry entry filled in and restores focus on cancel', async () => {

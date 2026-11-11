@@ -1,0 +1,144 @@
+package ai.msrv.gaterook.connectors.support.mcp;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+
+/**
+ * The profiles the build ships ({@code verified-profiles.json}), held to what GateRook checked on their servers on
+ * 2026-11-11: the addresses they recognize, the switches their setup sets, and the tools they start in Approval or
+ * Off. The index also passes every check {@link VerifiedProfiles#parse} makes, or this class wouldn't load.
+ */
+class BundledVerifiedProfilesTest {
+
+  private static final JsonMapper JSON = JsonMapper.builder().build();
+
+  private static JsonNode http(String url) {
+    ObjectNode c = JSON.createObjectNode();
+    c.put("transport", "http");
+    c.put("url", url);
+    return c;
+  }
+
+  private static JsonNode stdio(String... argv) {
+    ObjectNode c = JSON.createObjectNode();
+    c.put("transport", "stdio");
+    ArrayNode command = c.putArray("command");
+    for (String a : argv) {
+      command.add(a);
+    }
+    return c;
+  }
+
+  private static Optional<String> id(JsonNode config) {
+    return VerifiedProfiles.of(config).map(VerifiedProfiles.Profile::id);
+  }
+
+  private static VerifiedProfiles.Profile profile(String id) {
+    return VerifiedProfiles.byId(id).orElseThrow();
+  }
+
+  @Test
+  void theBuildShipsTheSevenCheckedServersInCardOrder() {
+    assertThat(VerifiedProfiles.all()).extracting(VerifiedProfiles.Profile::id).containsExactly("aws-knowledge",
+        "cloudflare-api", "digitalocean", "vercel", "firebase", "supabase", "netlify");
+    for (VerifiedProfiles.Profile p : VerifiedProfiles.all()) {
+      assertThat(VerifiedProfiles.of(VerifiedProfiles.sampleConfig(p))).as(p.id()).contains(p);
+      assertThat(p.documentation()).as(p.id()).startsWith("https://");
+      assertThat(p.tools()).as(p.id()).allSatisfy(t -> assertThat(t.reason()).endsWith("."));
+      assertThat(p.tools()).as(p.id()).filteredOn(t -> t.kind() == VerifiedProfiles.Kind.DELEGATING)
+          .allSatisfy(t -> assertThat(t.start()).isEqualTo(VerifiedProfiles.Start.OFF));
+    }
+  }
+
+  @Test
+  void eachVendorsServerIsRecognizedByItsAddressOrCommand() {
+    assertThat(id(http("https://knowledge-mcp.global.api.aws"))).contains("aws-knowledge");
+    assertThat(id(http("https://knowledge-mcp.global.api.aws/"))).contains("aws-knowledge");
+    assertThat(id(http("https://mcp.cloudflare.com/mcp"))).contains("cloudflare-api");
+    assertThat(id(http("https://mcp.cloudflare.com/mcp?codemode=false"))).contains("cloudflare-api");
+    assertThat(id(http("https://apps.mcp.digitalocean.com/mcp"))).contains("digitalocean");
+    assertThat(id(http("https://mcp.digitalocean.com/mcp"))).as("the router the registry names")
+        .contains("digitalocean");
+    assertThat(id(http("https://mcp.vercel.com"))).contains("vercel");
+    assertThat(id(http("https://mcp.vercel.com/my-team/my-project"))).contains("vercel");
+    assertThat(id(http("https://mcp.supabase.com/mcp?project_ref=abc&read_only=true"))).contains("supabase");
+    assertThat(id(http("https://mcp.netlify.com/mcp"))).contains("netlify");
+    assertThat(id(http("https://netlify-mcp.netlify.app/mcp"))).as("its older address").contains("netlify");
+    assertThat(id(stdio("npx", "-y", "firebase-tools@latest", "mcp", "--dir", "/work/app"))).contains("firebase");
+    assertThat(id(stdio("firebase", "mcp"))).contains("firebase");
+  }
+
+  @Test
+  void otherServersOnTheVendorsHostsAndLookalikesGetNoProfile() {
+    assertThat(id(http("https://mcp.vercel.com/docs/mcp"))).as("Vercel's documentation server").isEmpty();
+    assertThat(id(http("https://mcp.vercel.com/cli/mcp"))).as("Vercel's CLI server").isEmpty();
+    assertThat(id(http("https://observability.mcp.cloudflare.com/mcp"))).as("an older Cloudflare server")
+        .isEmpty();
+    assertThat(id(http("https://mcp.supabase.com.attacker.example/mcp"))).isEmpty();
+    assertThat(id(http("https://a.b.mcp.digitalocean.com/mcp"))).isEmpty();
+    assertThat(id(http("http://mcp.supabase.com/mcp"))).isEmpty();
+    assertThat(id(stdio("npx", "-y", "firebase-tools", "deploy"))).isEmpty();
+    assertThat(id(stdio("npx", "-y", "@supabase/mcp-server-supabase@0.16.1", "--read-only"))).isEmpty();
+  }
+
+  @Test
+  void supabasesSetupPinsReadOnlyAndAsksForTheProject() {
+    VerifiedProfiles.Profile supabase = profile("supabase");
+
+    assertThat(supabase.url()).isEqualTo("https://mcp.supabase.com/mcp?project_ref={project_ref}&read_only=true");
+    assertThat(supabase.placeholders()).extracting(VerifiedProfiles.Placeholder::name)
+        .containsExactly("project_ref");
+    String pinned = "https://mcp.supabase.com/mcp?project_ref=abcdefghijklmnopqrst&read_only=true";
+    assertThat(VerifiedProfiles.pins(supabase, pinned)).extracting(VerifiedProfiles.PinState::set)
+        .containsExactly(true, true);
+    List<VerifiedProfiles.PinState> bare = VerifiedProfiles.pins(supabase, "https://mcp.supabase.com/mcp");
+    assertThat(bare).extracting(VerifiedProfiles.PinState::set).containsExactly(false, false);
+    assertThat(bare.getFirst().pin().missing()).contains("Without read_only=true");
+    // In read-only mode Supabase itself runs SQL read-only, so execute_sql follows its declaration.
+    assertThat(supabase.rule("execute_sql")).isEmpty();
+    assertThat(supabase.rule("apply_migration")).get().extracting(VerifiedProfiles.ToolRule::kind)
+        .isEqualTo(VerifiedProfiles.Kind.CODE);
+  }
+
+  @Test
+  void passthroughDelegatingAndCredentialToolsStartStricter() {
+    assertThat(profile("cloudflare-api").rule("execute")).get().extracting(VerifiedProfiles.ToolRule::start)
+        .isEqualTo(VerifiedProfiles.Start.APPROVAL);
+    assertThat(profile("cloudflare-api").rule("whoami")).isEmpty();
+    assertThat(profile("digitalocean").rule("harness-runtime-send-input")).get()
+        .extracting(VerifiedProfiles.ToolRule::start).isEqualTo(VerifiedProfiles.Start.OFF);
+    assertThat(profile("digitalocean").rule("doks-get-kubeconfig")).get()
+        .extracting(VerifiedProfiles.ToolRule::kind).isEqualTo(VerifiedProfiles.Kind.CREDENTIALS);
+    assertThat(profile("vercel").rule("buy_domain")).get().extracting(VerifiedProfiles.ToolRule::start)
+        .isEqualTo(VerifiedProfiles.Start.OFF);
+    assertThat(profile("vercel").rule("get_project_env")).get().extracting(VerifiedProfiles.ToolRule::kind)
+        .isEqualTo(VerifiedProfiles.Kind.CREDENTIALS);
+    assertThat(profile("firebase").rule("apptesting_run_test")).get().extracting(VerifiedProfiles.ToolRule::start)
+        .isEqualTo(VerifiedProfiles.Start.OFF);
+    assertThat(profile("netlify").rule("netlify-deploy-site")).get().extracting(VerifiedProfiles.ToolRule::kind)
+        .isEqualTo(VerifiedProfiles.Kind.CREDENTIALS);
+    assertThat(profile("aws-knowledge").tools()).as("every tool of it is declared read only").isEmpty();
+  }
+
+  @Test
+  void netlifysSetupListsOneToolPerOperation() {
+    VerifiedProfiles.Profile netlify = profile("netlify");
+
+    assertThat(netlify.url()).isEqualTo("https://mcp.netlify.com/mcp?verbose=true");
+    assertThat(VerifiedProfiles.pins(netlify, "https://mcp.netlify.com/mcp"))
+        .extracting(VerifiedProfiles.PinState::set).containsExactly(false);
+  }
+
+  @Test
+  void firebasesSetupPinsTheCheckedRelease() {
+    assertThat(profile("firebase").command()).containsExactly("npx", "-y", "firebase-tools@15.35.0", "mcp");
+    assertThat(profile("firebase").transport()).isEqualTo("stdio");
+  }
+}

@@ -8,6 +8,7 @@ import ai.msrv.gaterook.connector.api.ToolDefinition.Nature;
 import ai.msrv.gaterook.connector.api.ToolDefinition.ResultShape;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Risk;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
+import ai.msrv.gaterook.connectors.support.mcp.VerifiedProfiles;
 import io.modelcontextprotocol.spec.McpSchema;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -25,9 +26,11 @@ import tools.jackson.databind.node.ObjectNode;
  * Snapshot entries of an MCP server's tools (one JSON object per tool, stored by the core in
  * {@code mcp_server.tools_snapshot}) and the {@link ToolDefinition}s published from them.
  *
- * <p>A tool is a READ only if it declares {@code readOnlyHint: true} and not {@code destructiveHint: true}; it
- * starts in Read only on an endpoint. Everything else is a mutation and starts in Approval. The declarations
- * remain unverified. Unset annotations take the protocol's pessimistic defaults (destructive, not idempotent, open world).
+ * <p>A tool is a READ only if it declares {@code readOnlyHint: true} and not {@code destructiveHint: true}, and
+ * GateRook's verified profile of the server ({@link VerifiedProfiles}) doesn't name it; it starts in Read only on an
+ * endpoint. Everything else is a mutation and starts in Approval, or Off where the profile says so. The declarations
+ * remain unverified. Unset annotations take the protocol's pessimistic defaults (destructive, not idempotent, open
+ * world).
  * Every tool counts as private data, untrusted content and a channel out for the risk callout: the gateway can't see
  * what a server does with what it is given.
  */
@@ -208,8 +211,17 @@ final class Snapshots {
 
   /** The tool as an endpoint publishes it, {@code server} being the connection's name. */
   static ToolDefinition definition(JsonNode entry, String server) {
+    return definition(entry, server, null);
+  }
+
+  /**
+   * The tool as an endpoint publishes it, with what GateRook's verified profile of the server says of it
+   * ({@link VerifiedProfiles}, or {@code null}): a tool the profile names is a mutation whatever the server declares,
+   * published with the protocol's pessimistic hints, and starts in Approval or Off.
+   */
+  static ToolDefinition definition(JsonNode entry, String server, VerifiedProfiles.ToolRule rule) {
     JsonNode annotations = entry.path("annotations");
-    boolean read = declaresReadOnly(annotations.isObject() ? (ObjectNode) annotations : null);
+    boolean read = rule == null && declaresReadOnly(annotations.isObject() ? (ObjectNode) annotations : null);
     Boolean idempotent = bool(annotations, "idempotentHint");
     Boolean openWorld = bool(annotations, "openWorldHint");
     Boolean destructive = bool(annotations, "destructiveHint");
@@ -218,11 +230,13 @@ final class Snapshots {
     if (description.isBlank()) {
       description = original + " of the MCP server " + server + ".";
     }
+    Mode start = read ? Mode.READ_ONLY : rule != null && rule.start() == VerifiedProfiles.Start.OFF ? Mode.OFF
+        : Mode.APPROVAL;
     ToolDefinition.Builder b = ToolDefinition.builder(entry.path("exposed").asString())
         .title(Texts.str(entry.path("title"), original))
         .description(description)
         .inputSchema(entry.path("inputSchema").deepCopy())
-        .defaultMode(read ? Mode.READ_ONLY : Mode.APPROVAL, read ? Mode.READ_ONLY : Mode.APPROVAL)
+        .defaultMode(start, start)
         .resultShape(ResultShape.JSON)
         .risk(new Risk(true, true, Egress.CHANNEL));
     JsonNode ui = entry.path("ui");
@@ -243,6 +257,9 @@ final class Snapshots {
       if (entry.path("outputSchema").isObject()) {
         b.outputSchema(entry.path("outputSchema").deepCopy());
       }
+    } else if (rule != null) {
+      // What the profile names may do anything the server's account can: none of the server's milder hints holds.
+      b.nature(Nature.MUTATION).annotations(new Annotations(false, true, false, true));
     } else {
       b.nature(Nature.MUTATION).annotations(new Annotations(false, destructive == null ? Boolean.TRUE : destructive,
           idempotent == null ? Boolean.FALSE : idempotent, openWorld == null ? Boolean.TRUE : openWorld));

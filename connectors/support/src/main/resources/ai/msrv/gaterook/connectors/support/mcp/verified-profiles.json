@@ -1,0 +1,200 @@
+{
+  "schema": 1,
+  "profiles": [
+    {
+      "id": "aws-knowledge",
+      "name": "AWS Knowledge",
+      "publisher": "AWS",
+      "category": "Cloud documentation",
+      "description": "Search AWS documentation, regional availability and AWS skills. Public and read only.",
+      "documentation": "https://github.com/awslabs/mcp",
+      "checked": "2026-11-11",
+      "url": "https://knowledge-mcp.global.api.aws",
+      "signIn": "None: the server is public.",
+      "notes": [
+        "All five of its tools are declared read only, so they start in Read only."
+      ],
+      "match": {"hosts": ["knowledge-mcp.global.api.aws"], "paths": ["/"]}
+    },
+    {
+      "id": "cloudflare-api",
+      "name": "Cloudflare API",
+      "publisher": "Cloudflare",
+      "category": "Cloud platform",
+      "description": "Search and call the whole Cloudflare API, from DNS and Workers to R2 and Zero Trust, in Code Mode.",
+      "documentation": "https://github.com/cloudflare/mcp",
+      "checked": "2026-11-11",
+      "url": "https://mcp.cloudflare.com/mcp",
+      "signIn": "OAuth in your browser, where GateRook signs in with its published client details, or a Cloudflare API token as a Bearer token.",
+      "notes": [
+        "Cloudflare has no read-only switch. Choose Read only on its consent page, or use a read-only API token, to keep execute to reads.",
+        "docs and search change nothing, but Cloudflare doesn't declare them read only, so they start in Approval.",
+        "With codemode=false in the URL, it lists one tool per API operation, about 3,000, annotated by HTTP method."
+      ],
+      "tools": [
+        {"tool": "execute", "start": "approval", "kind": "code",
+         "reason": "It runs JavaScript that can read, create, change or delete anything the sign-in reaches through the Cloudflare API, so GateRook can't tell a read from a change."}
+      ],
+      "match": {"hosts": ["mcp.cloudflare.com"], "paths": ["/mcp"]}
+    },
+    {
+      "id": "digitalocean",
+      "name": "DigitalOcean",
+      "publisher": "DigitalOcean",
+      "category": "Cloud platform",
+      "description": "Droplets, App Platform, Kubernetes, databases, networking and more, with one server per service.",
+      "documentation": "https://github.com/digitalocean-labs/mcp-digitalocean",
+      "registryName": "com.digitalocean/mcp",
+      "checked": "2026-11-11",
+      "url": "https://{service}.mcp.digitalocean.com/mcp",
+      "placeholders": [
+        {"name": "service", "description": "The service to connect, such as apps, droplets, doks, databases, networking, spaces, functions, volumes, docr, insights, accounts or docs (24 in all)."}
+      ],
+      "signIn": "OAuth in your browser, where GateRook registers itself, or a DigitalOcean API token as a Bearer token. The docs service needs no sign-in.",
+      "notes": [
+        "Each service is its own server: add one for each service you use.",
+        "DigitalOcean has no read-only switch. A read-only API token keeps its tools to reads."
+      ],
+      "tools": [
+        {"tool": "microvm-exec", "start": "approval", "kind": "code", "reason": "It runs a command in a MicroVM."},
+        {"tool": "microvm-file-write", "start": "approval", "kind": "code", "reason": "It writes a file into a MicroVM's workload."},
+        {"tool": "harness-runtime-exec-in-sandbox", "start": "approval", "kind": "code", "reason": "It runs a command in an agent session's sandbox."},
+        {"tool": "functions-invoke-action", "start": "approval", "kind": "code", "reason": "It runs one of your Functions."},
+        {"tool": "functions-create-or-update-action", "start": "approval", "kind": "code", "reason": "It creates or replaces the code of a Function."},
+        {"tool": "apps-create-app-from-spec", "start": "approval", "kind": "code", "reason": "It deploys an app with the code and commands its spec names."},
+        {"tool": "apps-update", "start": "approval", "kind": "code", "reason": "It redeploys an app with the code and commands its new spec names."},
+        {"tool": "harness-runtime-create-session", "start": "off", "kind": "delegating", "reason": "It starts a hosted AI agent, which then works with its own tools."},
+        {"tool": "harness-runtime-send-input", "start": "off", "kind": "delegating", "reason": "It hands a message to a hosted AI agent, which acts on it with its own tools."},
+        {"tool": "harness-runtime-fork-session", "start": "off", "kind": "delegating", "reason": "It starts copies of a hosted AI agent's session."},
+        {"tool": "harness-runtime-resume-session", "start": "off", "kind": "delegating", "reason": "It lets a paused hosted AI agent go on working."},
+        {"tool": "harness-runtime-resolve-hitl", "start": "off", "kind": "delegating", "reason": "It records your decision on an action a hosted AI agent waits to take."},
+        {"tool": "harness-runtime-create-trigger", "start": "off", "kind": "delegating", "reason": "It schedules hosted AI agents to start on a timer or a webhook."},
+        {"tool": "genai-run-evaluation-test-case", "start": "off", "kind": "delegating", "reason": "It runs your AI agents against an evaluation test case."},
+        {"tool": "genai-run-evaluation-workflow", "start": "off", "kind": "delegating", "reason": "It runs your AI agents through a whole evaluation."},
+        {"tool": "genai-simulation-create-run", "start": "off", "kind": "delegating", "reason": "It runs an AI agent through a set of simulated scenarios."},
+        {"tool": "doks-get-kubeconfig", "start": "approval", "kind": "credentials", "reason": "It returns a kubeconfig with credentials for the cluster."},
+        {"tool": "doks-get-credentials", "start": "approval", "kind": "credentials", "reason": "It returns credentials for the cluster."},
+        {"tool": "docr-docker-credentials", "start": "approval", "kind": "credentials", "reason": "It returns Docker credentials for your container registry."},
+        {"tool": "vector-db-get-credentials", "start": "approval", "kind": "credentials", "reason": "It returns the admin credentials of a vector database."},
+        {"tool": "spaces-key-create", "start": "approval", "kind": "credentials", "reason": "It creates a Spaces key and returns its secret."},
+        {"tool": "harness-runtime-rotate-trigger-secret", "start": "approval", "kind": "credentials", "reason": "It replaces a webhook trigger's signing secret and returns the new one."},
+        {"tool": "genai-model-eval-get-results-download-url", "start": "approval", "kind": "credentials", "reason": "It returns a presigned URL that gives anyone who has it the evaluation results."},
+        {"tool": "genai-simulation-get-scenario-set-download-url", "start": "approval", "kind": "credentials", "reason": "It returns a presigned URL that gives anyone who has it the scenario set."},
+        {"tool": "genai-simulation-get-episode-trajectory-url", "start": "approval", "kind": "credentials", "reason": "It returns a presigned URL that gives anyone who has it the episode's trajectory."},
+        {"tool": "harness-runtime-get-ingress-url", "start": "approval", "kind": "write", "reason": "Despite its name, it creates a public HTTPS address for the sandbox the first time it is called."}
+      ],
+      "match": {"hosts": ["mcp.digitalocean.com"], "hostSuffix": "mcp.digitalocean.com", "paths": ["/mcp"]}
+    },
+    {
+      "id": "vercel",
+      "name": "Vercel",
+      "publisher": "Vercel",
+      "category": "Deployment",
+      "description": "Projects, deployments, build and runtime logs, domains and environment variables on Vercel.",
+      "documentation": "https://vercel.com/docs/agent-resources/vercel-mcp",
+      "registryName": "com.vercel/vercel-mcp",
+      "checked": "2026-11-11",
+      "url": "https://mcp.vercel.com",
+      "signIn": "OAuth in your browser. Vercel admits only clients it reviewed or that publish their client details, as GateRook does.",
+      "notes": [
+        "Vercel publishes no tool annotations, so this profile names its riskiest tools from Vercel's documentation; the others start as the server declares them.",
+        "To limit it to one project, use https://mcp.vercel.com/<team>/<project> instead.",
+        "Vercel has no read-only switch: what its tools can change depends on your role in the team."
+      ],
+      "tools": [
+        {"tool": "buy_domain", "start": "off", "kind": "write", "reason": "It registers a domain and charges the team for it."},
+        {"tool": "run_session_command", "start": "approval", "kind": "code", "reason": "It runs a command in a Vercel Sandbox."},
+        {"tool": "write_session_files", "start": "approval", "kind": "code", "reason": "It writes files into a Vercel Sandbox, where commands then run them."},
+        {"tool": "deploy_to_vercel", "start": "approval", "kind": "code", "reason": "It deploys the files it is given to a live Vercel URL."},
+        {"tool": "create_deployment", "start": "approval", "kind": "code", "reason": "It deploys code from a Git source or from files."},
+        {"tool": "import-claude-design-from-url", "start": "approval", "kind": "code", "reason": "It fetches an HTML bundle and deploys it to Vercel."},
+        {"tool": "get_access_to_vercel_url", "start": "approval", "kind": "write", "reason": "Despite its name, it creates a temporary link that gets past a deployment's protection."},
+        {"tool": "get_project_env", "start": "approval", "kind": "credentials", "reason": "It returns the decrypted value of an environment variable."},
+        {"tool": "get_shared_env_var", "start": "approval", "kind": "credentials", "reason": "It returns the decrypted value of a shared environment variable."},
+        {"tool": "filter_project_envs", "start": "approval", "kind": "credentials", "reason": "It can return the decrypted values of a project's environment variables."}
+      ],
+      "match": {"hosts": ["mcp.vercel.com"], "paths": ["/", "/*/*"], "excludePaths": ["/cli/mcp", "/docs/mcp"]}
+    },
+    {
+      "id": "firebase",
+      "name": "Firebase",
+      "publisher": "Firebase",
+      "category": "App platform",
+      "description": "Firestore, Authentication, Hosting, Remote Config, Crashlytics and more through the Firebase CLI.",
+      "documentation": "https://firebase.google.com/docs/ai-assistance/mcp-server",
+      "registryName": "io.github.firebase/firebase-mcp",
+      "checked": "2026-11-11",
+      "command": ["npx", "-y", "firebase-tools@15.35.0", "mcp"],
+      "signIn": "The Firebase CLI's sign-in on this computer (firebase login), or Application Default Credentials.",
+      "notes": [
+        "Firebase has no read-only switch. Add --only with feature names, such as firestore,auth, or --tools with tool names to limit what it lists.",
+        "Add --dir with your project's folder to work with its files.",
+        "It also lists Google's remote Firestore, Data Connect and Developer Knowledge tools."
+      ],
+      "tools": [
+        {"tool": "firebase_deploy", "start": "approval", "kind": "code", "reason": "It deploys your local project, functions code included."},
+        {"tool": "dataconnect_execute_graphql", "start": "approval", "kind": "code", "reason": "It runs any GraphQL against your Data Connect service, mutations included."},
+        {"tool": "dataconnect_execute_in_emulator", "start": "approval", "kind": "code", "reason": "It runs any GraphQL against the Data Connect emulator."},
+        {"tool": "apptesting_run_test", "start": "off", "kind": "delegating", "reason": "It hands a test case to an AI agent that drives your app on remote devices."},
+        {"tool": "storage_get_object_download_url", "start": "approval", "kind": "credentials", "reason": "It returns a download URL that gives anyone who has it the object."}
+      ],
+      "match": {"npm": "firebase-tools", "bin": "firebase", "args": ["mcp"]}
+    },
+    {
+      "id": "supabase",
+      "name": "Supabase",
+      "publisher": "Supabase",
+      "category": "Databases",
+      "description": "Explore the schema, logs, advisors and data of one Supabase project, read only.",
+      "documentation": "https://supabase.com/docs/guides/getting-started/mcp",
+      "registryName": "com.supabase/mcp",
+      "checked": "2026-11-11",
+      "url": "https://mcp.supabase.com/mcp?project_ref={project_ref}&read_only=true",
+      "placeholders": [
+        {"name": "project_ref", "description": "Your project's reference, the ID in its dashboard URL (supabase.com/dashboard/project/<ref>)."}
+      ],
+      "pins": [
+        {"parameter": "read_only", "setTo": "true",
+         "purpose": "Supabase lists only its read tools, runs SQL read-only, and asks only for read access when you sign in.",
+         "missing": "Without read_only=true, Supabase also lists the tools that change your project and database, and its sign-in asks for write access. Those tools start in Approval."},
+        {"parameter": "project_ref",
+         "purpose": "The server reaches this one project, without the tools that list and manage your organizations and projects.",
+         "missing": "Without project_ref, Supabase's tools reach every project of your account."}
+      ],
+      "signIn": "OAuth in your browser, where GateRook registers itself, or a personal access token as a Bearer token.",
+      "notes": [
+        "With read_only=true Supabase declares execute_sql read only and runs it read-only, so it starts in Read only. Without the switch it starts in Approval.",
+        "Supabase leaves out its storage tools unless the URL's features parameter names storage."
+      ],
+      "tools": [
+        {"tool": "apply_migration", "start": "approval", "kind": "code", "reason": "It runs DDL that changes your database's schema."},
+        {"tool": "deploy_edge_function", "start": "approval", "kind": "code", "reason": "It deploys code as an Edge Function."}
+      ],
+      "match": {"hosts": ["mcp.supabase.com"], "paths": ["/mcp"]}
+    },
+    {
+      "id": "netlify",
+      "name": "Netlify",
+      "publisher": "Netlify",
+      "category": "Deployment",
+      "description": "Projects, deploys, environment variables, forms, extensions and edge traffic on Netlify.",
+      "documentation": "https://docs.netlify.com/welcome/build-with-ai/netlify-mcp-server/",
+      "checked": "2026-11-11",
+      "url": "https://mcp.netlify.com/mcp?verbose=true",
+      "pins": [
+        {"parameter": "verbose", "setTo": "true",
+         "purpose": "Netlify lists one tool per operation, so each change, such as renaming a project, gets a mode of its own.",
+         "missing": "Without verbose=true, Netlify groups its operations: one tool creates projects, changes environment variables, updates forms and deletes form submissions, so they share one mode."}
+      ],
+      "signIn": "OAuth in your browser, where GateRook registers itself, or a Netlify personal access token as a Bearer token.",
+      "notes": [
+        "Netlify has no read-only switch, and its read and write scopes don't limit its tools."
+      ],
+      "tools": [
+        {"tool": "netlify-deploy-site", "start": "approval", "kind": "credentials", "reason": "It doesn't deploy: it returns a command that carries a 30-minute token for your Netlify account and asks the agent to run it."},
+        {"tool": "netlify-deploy-services-updater", "start": "approval", "kind": "credentials", "reason": "Its deploy-site operation returns a command that carries a 30-minute token for your Netlify account and asks the agent to run it."}
+      ],
+      "match": {"hosts": ["mcp.netlify.com", "netlify-mcp.netlify.app"], "paths": ["/mcp"]}
+    }
+  ]
+}

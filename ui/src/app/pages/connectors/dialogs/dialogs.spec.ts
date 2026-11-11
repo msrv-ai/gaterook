@@ -312,6 +312,31 @@ describe('MCP server review', () => {
     expect(mcpReviewView(typed(['./server'])).version).toBeNull();
   });
 
+  it('shows the verified profile the core matched, with how its pins stand and the tools it starts', () => {
+    const profile = {
+      id: 'supabase', name: 'Supabase', publisher: 'Supabase', category: 'Cloud platform', description: '',
+      documentation: 'https://supabase.com/docs/guides/getting-started/mcp', registryName: 'com.supabase/mcp', checked: '2026-11-11',
+      transport: 'http' as const, url: 'https://mcp.supabase.com/mcp?project_ref={project_ref}&read_only=true', command: [],
+      placeholders: [], signIn: 'OAuth.', notes: [],
+      pins: [{ parameter: 'read_only', setTo: 'true', purpose: 'Supabase lists only its read tools.', missing: 'Without read_only=true …', set: false }],
+      tools: [{ tool: 'execute_sql', start: 'approval' as const, kind: 'write' as const, reason: 'It runs any SQL.' }],
+    };
+    const url = 'https://mcp.supabase.com/mcp?project_ref=abc';
+    const w = mcpReviewView({
+      review: sentryReview({ transport: 'http', url, argv: [], env: [], warnings: ['Without read_only=true …'], profile }),
+      source: { config: { name: 'supabase-mcp', transport: 'http', url } },
+      name: 'supabase-mcp',
+      transport: 'http',
+      target: url,
+      variables: [],
+      opener: null,
+    });
+    expect(w.profile).toBe(profile);
+    expect(w.profileStarts).toBe('execute_sql in Approval');
+    expect(w.warnings).toEqual(['Without read_only=true …']);
+    expect(mcpReviewView(typed(['npx', '-y', '@sentry/mcp-server@0.12.0']))).toMatchObject({ profile: null, profileStarts: '' });
+  });
+
   it('reviews a catalog server by the core’s name, pin and resolved command', () => {
     const w = mcpReviewView({
       review: sentryReview({ name: 'github-mcp', catalogEntry: 'github@0.6.2', argv: ['node', '/Users/me/.gaterook/mcp/github-mcp/dist/index.js'], env: ['GITHUB_PERSONAL_ACCESS_TOKEN'], sandbox: 'landlock' }),

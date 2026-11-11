@@ -267,14 +267,15 @@ public class ToolPairs {
   // ── Modes ───────────────────────────────────────────────────────────────────────────────────────────────────
 
   /**
-   * The mode a pair starts with (ARCHITECTURE.md §3 "Initial mode"): the manifest's default for the endpoint's
-   * environment; plugins start in Approval, MCP tools use their read-only declaration; on a read-only endpoint,
-   * no Approval and nothing that changes data.
+   * The mode a pair starts with (ARCHITECTURE.md §5.1): the manifest's default for the endpoint's environment;
+   * plugins start in Approval, MCP tools use their read-only declaration, except a tool their connector starts Off (a
+   * tool GateRook's verified profile of the server keeps off, one that hands requests to another agent); on a
+   * read-only endpoint, no Approval and nothing that changes data.
    */
   public static Mode initial(Offered t, Env endpointEnv, boolean readOnlyEndpoint) {
     Mode mode = endpointEnv == Env.PROD ? t.definition().prodDefaultMode() : t.definition().defaultMode();
     if (t.kind() == ConnectorManifest.Kind.MCP_SERVER) {
-      mode = t.automaticReadOnly() ? Mode.READ_ONLY : Mode.APPROVAL;
+      mode = mode == Mode.OFF ? Mode.OFF : t.automaticReadOnly() ? Mode.READ_ONLY : Mode.APPROVAL;
     } else if (t.kind() == ConnectorManifest.Kind.PLUGIN || mode == Mode.BYPASS) {
       mode = Mode.APPROVAL;
     }

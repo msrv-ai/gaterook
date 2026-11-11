@@ -1,7 +1,7 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { afterNextRender, ChangeDetectionStrategy, Component, ElementRef, inject, Injector, output, signal, viewChild } from '@angular/core';
 import { SecretInputs } from '../../../core/api/connections.api';
-import { McpServerAuthReview, McpServerConfig, McpServerReview, McpServerSource, McpSignIn } from '../../../core/api/plugins.api';
+import { McpProfile, McpServerAuthReview, McpServerConfig, McpServerReview, McpServerSource, McpSignIn } from '../../../core/api/plugins.api';
 import { Env } from '../../../core/api/types';
 import { GwCopy } from '../../../kit/copy';
 import { GwDialog, GwDialogClose } from '../../../kit/dialog';
@@ -9,6 +9,7 @@ import { GwIcon } from '../../../kit/icons';
 import { formatArgv, npmPackage, onThisComputer, serverPaths, signInHost } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
 import { cloudSecret, cloudSignInText } from '../mcp-cloud';
+import { profileStarts } from '../mcp-profiles';
 import { failureText } from './failure';
 import { McpReviewed } from './mcp-add.dialog';
 import { McpServerConnected } from './mcp-endpoint.dialog';
@@ -72,10 +73,14 @@ export interface McpReviewView {
   /** The cloud whose credentials could sign in instead of OAuth: the review offers to switch. */
   readonly suggest: 'google' | 'aws' | null;
   /**
-   * Over HTTP: the core's warnings (a key in the URL, plain HTTP). A command's are rows of the review already: its pin
-   * and where it runs.
+   * Over HTTP: the core's warnings (a key in the URL, plain HTTP, a switch of the verified profile the URL doesn't
+   * set). A command's are rows of the review already: its pin and where it runs.
    */
   readonly warnings: readonly string[];
+  /** GateRook's verified profile of the vendor's server, with how its pins stand in the URL, or null. */
+  readonly profile: McpProfile | null;
+  /** "execute in Approval": the tools the profile starts other than their annotations say, or ''. */
+  readonly profileStarts: string;
 }
 
 /**
@@ -158,6 +163,8 @@ export function mcpReviewView(r: McpReviewed): McpReviewView {
     cloudText: chosen ? cloudSignInText(chosen, review.url ?? r.target) : null,
     suggest: http && !cloud && !keyed && auth?.cloud ? auth.cloud : null,
     warnings: http ? (review.warnings ?? []) : [],
+    profile: review.profile ?? null,
+    profileStarts: review.profile ? profileStarts(review.profile.tools) : '',
   };
 }
 
@@ -281,7 +288,35 @@ let nextId = 0;
                   {{ a.registration === 'metadata-document' ? 'GateRook signs in there as GateRook, with the client details it publishes.' : a.registration === 'dynamic' ? 'GateRook registers itself there as GateRook.' : a.registration === 'gaterook-app' ? 'GateRook signs in there with its own app: you enter a one-time code on its page, with nothing to set up.' : a.registration === 'app' ? 'As your OAuth app.' : '' }}
                 </dd></div>
               }
-              <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value">Listed after the {{ w.http ? 'connection' : 'start' }} and Off everywhere. On an endpoint, declared reads start as Read only and other tools start as Approval. The server declares its own annotations; the gateway can't verify them.</dd></div>
+              @if (w.profile; as p) {
+                <!-- ARCHITECTURE §7.5: a verified profile only makes defaults stricter; it verifies no behavior. -->
+                <div class="gw-kv__row"><dt class="gw-kv__key">Verified profile</dt><dd class="gw-kv__value">
+                  {{ p.publisher }}’s own server. GateRook checked its tools, sign-in and switches on {{ p.checked }}; that doesn’t verify what the server does.
+                  <a class="gw-link" [href]="p.documentation" target="_blank" rel="noopener noreferrer">{{ p.publisher }}’s documentation<span class="gw-sr-only"> (opens in your browser)</span></a>
+                </dd></div>
+                @for (pin of p.pins; track pin.parameter) {
+                  <div class="gw-kv__row"><dt class="gw-kv__key"><span class="gw-mono">{{ pin.parameter }}</span></dt><dd class="gw-kv__value">
+                    @if (pin.set) {<span class="gw-badge gw-badge--success gw-badge--sm"><svg lucideIcon="check" class="gw-icon gw-badge__icon"></svg>Set</span>} @else {<span class="gw-badge gw-badge--warning gw-badge--sm"><svg lucideIcon="triangle-alert" class="gw-icon gw-badge__icon"></svg>Not set</span>} {{ pin.purpose }}
+                  </dd></div>
+                }
+              }
+              <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value">Listed after the {{ w.http ? 'connection' : 'start' }} and Off everywhere. On an endpoint, declared reads start as Read only and other tools start as Approval.@if (w.profileStarts) { Its verified profile starts {{ w.profileStarts }} whatever the server declares, and never as Read only.} The server declares its own annotations; the gateway can't verify them.</dd></div>
+              @if (w.profile?.tools?.length) {
+                <!-- A profile may name dozens of tools (one per DigitalOcean service): the first few, then the rest on request. -->
+                @let rules = w.profile!.tools;
+                <div class="gw-kv__row"><dt class="gw-kv__key">Starts stricter</dt><dd class="gw-kv__value">
+                  <ul class="gw-stack gw-stack--sm" [attr.id]="uid + '-profile-tools'">
+                    @for (t of rules; track t.tool; let i = $index) {
+                      @if (i < profileToolsShown || allProfileTools()) {
+                        <li><span class="gw-mono">{{ t.tool }}</span>: {{ t.start === 'off' ? 'Off' : 'Approval' }}. {{ t.reason }}</li>
+                      }
+                    }
+                  </ul>
+                  @if (rules.length > profileToolsShown && !allProfileTools()) {
+                    <button class="gw-btn gw-btn--link gw-btn--sm" type="button" [attr.aria-controls]="uid + '-profile-tools'" (click)="allProfileTools.set(true)">Show {{ rules.length - profileToolsShown }} more</button>
+                  }
+                </dd></div>
+              }
             </dl>
             @for (warning of w.warnings; track $index) {
               <div class="gw-alert gw-alert--warning gw-alert--compact">
@@ -424,6 +459,9 @@ export class GwMcpReviewDialog {
   protected readonly catalogSource = signal(false);
   private readonly source = signal<McpServerSource | null>(null);
   protected readonly view = signal<McpReviewView | null>(null);
+  /** How many of a verified profile's tools the review lists before Show more, and whether the person asked for all. */
+  protected readonly profileToolsShown = 4;
+  protected readonly allProfileTools = signal(false);
   protected readonly busy = signal(false);
   protected readonly acknowledged = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -596,6 +634,7 @@ export class GwMcpReviewDialog {
   show(reviewed: McpReviewed, canGoBack = false): void {
     this.canGoBack.set(canGoBack);
     this.switching.set(false);
+    this.allProfileTools.set(false);
     this.render(reviewed);
     this.dialog.openAfterRender(reviewed.opener);
   }

@@ -189,6 +189,59 @@ export interface McpServerReview {
   readonly warnings?: string[];
   /** Over HTTP: how the server wants clients to sign in, from one request to it without a sign-in. */
   readonly auth?: McpServerAuthReview | null;
+  /** GateRook's verified profile of the vendor's server these settings name, with how its pins stand; else absent. */
+  readonly profile?: McpProfile | null;
+}
+
+/**
+ * GateRook's verified profile of a vendor's own MCP server (`GET /api/mcp-profiles`, ARCHITECTURE.md §7.5): its setup
+ * URL with the vendor's read-only switches and the person's `{placeholders}`, or its setup command, and the tools that
+ * start in Approval or Off whatever they declare. A profile only makes defaults stricter; it never makes a tool Read
+ * only.
+ */
+export interface McpProfile {
+  readonly id: string;
+  readonly name: string;
+  readonly publisher: string;
+  readonly category: string;
+  readonly description: string;
+  readonly documentation: string;
+  /** The vendor's own entry in the Official MCP Registry (`com.supabase/mcp`), or null. */
+  readonly registryName: string | null;
+  /** The day GateRook last checked the server's tools, sign-in and switches (`2026-11-11`). */
+  readonly checked: string;
+  readonly transport: 'http' | 'stdio';
+  readonly url: string | null;
+  readonly command: readonly string[];
+  readonly placeholders: readonly McpProfilePlaceholder[];
+  readonly pins: readonly McpProfilePin[];
+  /** How it signs in, in one sentence. */
+  readonly signIn: string;
+  readonly notes: readonly string[];
+  readonly tools: readonly McpProfileTool[];
+}
+
+/** A query parameter the setup URL sets; `set` is how it stands in the reviewed URL (null on a card). */
+export interface McpProfilePin {
+  readonly parameter: string;
+  /** The value it sets (`true`), or null when it is the person's own (`project_ref`). */
+  readonly setTo: string | null;
+  readonly purpose: string;
+  readonly missing: string;
+  readonly set: boolean | null;
+}
+
+export interface McpProfilePlaceholder {
+  readonly name: string;
+  readonly description: string;
+}
+
+/** A tool the profile names, by the server's own name for it. */
+export interface McpProfileTool {
+  readonly tool: string;
+  readonly start: 'approval' | 'off';
+  readonly kind: 'code' | 'passthrough' | 'write' | 'delegating';
+  readonly reason: string;
 }
 
 /**
@@ -438,6 +491,11 @@ export class McpServersApi {
   /** Browse servers with an empty search, or match their names; `cursor` continues the previous page. */
   searchRegistry(search: string, cursor: string | null = null): Promise<McpRegistryPage> {
     return this.api.get('/api/mcp-registry/servers', { search, cursor });
+  }
+
+  /** GateRook's verified profiles of vendors' own servers, for the Cloud platforms cards. */
+  profiles(): Promise<McpProfile[]> {
+    return this.api.get('/api/mcp-profiles');
   }
 
   action(name: string, action: 'test' | 'start' | 'restart' | 'stop'): Promise<McpServerStarted> {

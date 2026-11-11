@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, output, viewChild } from '@angular/core';
+import { McpProfile } from '../../core/api/plugins.api';
 import { GwMcpAddDialog, McpReviewed } from './dialogs/mcp-add.dialog';
 import { GwMcpEndpointDialog, McpServerConnected } from './dialogs/mcp-endpoint.dialog';
 import { GwMcpReviewDialog } from './dialogs/mcp-review.dialog';
@@ -34,6 +35,11 @@ export class GwMcpSetupFlow {
 
   openRegistryResult(opener: HTMLElement | null, result: RegistryResult): void {
     this.add().openResult(opener, result);
+  }
+
+  /** A verified profile's card: Manual entry filled with its setup, then the same review. */
+  openProfile(opener: HTMLElement | null, profile: McpProfile): void {
+    this.add().openProfile(opener, profile);
   }
 
   /** Catalog entries begin at the same review without a manual-entry draft to return to. */

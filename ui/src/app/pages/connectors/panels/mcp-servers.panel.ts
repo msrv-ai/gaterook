@@ -11,6 +11,8 @@ import { ToastService } from '../../../kit/toast.service';
 import { McpServerView, joinAnd, plural, serverActivityQuery, serverPaths, serverStatus, signInText } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
 import { FEATURED_MCP_SERVERS } from '../mcp-featured-servers';
+import { profileForRegistryName, profileLogo } from '../mcp-profiles';
+import { McpProfile, McpServersApi } from '../../../core/api/plugins.api';
 import { failureDetails, failureText } from '../dialogs/failure';
 import { GwMcpRegistrySearch, McpRegistrySelection } from './mcp-registry-search';
 
@@ -25,6 +27,11 @@ export type McpServerAction = {
 } | {
   readonly type: 'add-registry';
   readonly registryName: string;
+  readonly server: null;
+  readonly opener: HTMLElement | null;
+} | {
+  readonly type: 'add-profile';
+  readonly profile: McpProfile;
   readonly server: null;
   readonly opener: HTMLElement | null;
 } | (McpRegistrySelection & { readonly type: 'use-registry'; readonly server: null });
@@ -51,6 +58,16 @@ export class GwMcpServersPanel {
   readonly slow = input(false);
   readonly action = output<McpServerAction>();
   protected readonly featured = FEATURED_MCP_SERVERS;
+  /** GateRook's verified profiles of vendors' own servers (Cloud platforms); empty from a core without them. */
+  protected readonly profiles = signal<readonly McpProfile[]>([]);
+  protected readonly profileLogo = profileLogo;
+  protected readonly profileFor = (registryName: string): McpProfile | null => profileForRegistryName(this.profiles(), registryName);
+
+  constructor() {
+    const mcp = inject(McpServersApi);
+    // Cards are a shortcut: without them (an older core, a failed load) every server can still be added by hand.
+    mcp.profiles().then((p) => this.profiles.set(Array.isArray(p) ? p : []), () => this.profiles.set([]));
+  }
 
   protected readonly restarting = signal<string | null>(null);
   protected readonly selectedServer = signal<McpServerView | null>(null);
@@ -71,8 +88,18 @@ export class GwMcpServersPanel {
     this.action.emit({ type: 'add', server: null, opener: e.currentTarget as HTMLElement | null });
   }
 
+  /** A Popular card sets its server up from GateRook's verified profile when there is one, else from the registry. */
   protected addFeatured(registryName: string, e: Event): void {
+    const profile = this.profileFor(registryName);
+    if (profile) {
+      this.addProfile(profile, e);
+      return;
+    }
     this.action.emit({ type: 'add-registry', registryName, server: null, opener: e.currentTarget as HTMLElement | null });
+  }
+
+  protected addProfile(profile: McpProfile, e: Event): void {
+    this.action.emit({ type: 'add-profile', profile, server: null, opener: e.currentTarget as HTMLElement | null });
   }
 
   protected useRegistry(selection: McpRegistrySelection): void {

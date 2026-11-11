@@ -421,6 +421,10 @@ export class ConnectorsPage {
       this.mcpSetup().openRegistry(a.opener, a.registryName);
       return;
     }
+    if (a.type === 'add-profile') {
+      this.mcpSetup().openProfile(a.opener, a.profile);
+      return;
+    }
     if (a.type === 'add' || !a.server) {
       this.mcpSetup().open(a.opener);
       return;
