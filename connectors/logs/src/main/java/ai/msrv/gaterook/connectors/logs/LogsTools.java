@@ -23,7 +23,7 @@ final class LogsTools {
   private static final String QUERY_GUIDANCE = " Use describe_connection for the connection's query language and "
       + "sources. GCP uses native Logs Explorer filters, e.g. resource.type=\"k8s_container\" AND severity>=ERROR; "
       + "Loki uses LogQL; CloudWatch search uses Logs Insights or filter patterns and tail uses filter patterns; "
-      + "OpenSearch uses Lucene query syntax.";
+      + "OpenSearch uses Lucene query syntax; Azure Monitor uses KQL.";
 
   static final String SEARCH_DESCRIPTION = "Search log entries, newest first, in the query language of the "
       + "connection. nextCursor pages to older entries: call again with the same query, source and cursor. Log lines "
@@ -108,6 +108,7 @@ final class LogsTools {
       case "gcp-logging" -> "gcp_logging_search";
       case "loki" -> "loki_search";
       case "cloudwatch" -> "cloudwatch_logs_search";
+      case "azure-monitor" -> "azure_logs_search";
       default -> "logs_search";
     };
   }
@@ -117,6 +118,7 @@ final class LogsTools {
       case "gcp-logging" -> "gcp_logging_tail";
       case "loki" -> "loki_tail";
       case "cloudwatch" -> "cloudwatch_logs_tail";
+      case "azure-monitor" -> "azure_logs_tail";
       default -> "logs_tail";
     };
   }
@@ -127,7 +129,9 @@ final class LogsTools {
       return shared.stream().filter(tool -> tool.name().startsWith("opensearch_"))
           .map(LogsTools::elasticsearchTool).toList();
     }
-    if (!List.of("gcp-logging", "loki", "cloudwatch", "opensearch").contains(backend)) return List.of();
+    if (!List.of("gcp-logging", "loki", "cloudwatch", "opensearch", "azure-monitor").contains(backend)) {
+      return List.of();
+    }
     List<ToolDefinition> tools = new ArrayList<>();
     for (ToolDefinition tool : shared) {
       if (tool.name().startsWith("opensearch_")) {
@@ -140,6 +144,8 @@ final class LogsTools {
           case "gcp-logging" -> "Optional: one configured project or log view resource name from describe_connection.";
           case "cloudwatch" -> "Optional: one configured CloudWatch log group from describe_connection.";
           case "opensearch" -> "Optional: one configured OpenSearch index pattern from describe_connection.";
+          case "azure-monitor" -> "Optional: one configured Log Analytics workspace ID or Application Insights "
+              + "resource ID from describe_connection.";
           default -> "Omit this field; select Loki streams in the LogQL query.";
         };
         ObjectNode input = (ObjectNode) tool.inputSchema().deepCopy();
@@ -208,6 +214,10 @@ final class LogsTools {
       case "cloudwatch" -> search
           ? "Use CloudWatch Logs Insights QL or a filter pattern according to this connection's search API setting."
           : "Use a CloudWatch filter pattern, for example ERROR or { $.level = \"error\" }. An empty pattern matches all scoped events.";
+      case "azure-monitor" -> "Use KQL that starts with a table, for example AppExceptions | where SeverityLevel >= 3. "
+          + (search ? "Rows need TimeGenerated (timestamp in Application Insights tables); a summarize answers as a "
+              + "table. " : "Tail reads log entries, not a summarize. ")
+          + "workspace(), app(), resource() and other cross-resource functions are refused.";
       default -> "Use an OpenSearch Lucene query_string expression. An empty query matches all scoped documents.";
     };
   }

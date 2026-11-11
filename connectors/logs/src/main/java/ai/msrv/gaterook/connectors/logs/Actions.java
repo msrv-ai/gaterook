@@ -46,6 +46,14 @@ final class Actions {
           lines.add("filter pattern: " + (r.query().isBlank() ? "(every event)" : r.query()));
         }
       }
+      case Settings.AzureMonitor a -> {
+        lines.add("sources: " + (r.source() != null ? r.source() : String.join(", ", a.sources())));
+        String column = r.source() != null && Settings.AzureMonitor.component(r.source()) ? "timestamp"
+            : "TimeGenerated";
+        long to = r.to() == null ? from : Search.nanos(r.to());
+        lines.add("query: " + AzureMonitorBackend.effective(r.query(), column, from, to, r.limit() + 1,
+            r.tool() == LogsRequest.Tool.TAIL));
+      }
       case Settings.OpenSearch o -> {
         lines.add("indices: " + (r.source() != null ? r.source() : String.join(",", o.indices())));
         lines.add("query_string: " + (r.query().isBlank() ? "(every document)" : r.query()));

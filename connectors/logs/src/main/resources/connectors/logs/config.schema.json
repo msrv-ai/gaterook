@@ -15,13 +15,15 @@
         "loki",
         "gcp-logging",
         "cloudwatch",
-        "opensearch"
+        "opensearch",
+        "azure-monitor"
       ],
       "x-enumTitles": [
         "Loki",
         "GCP Cloud Logging",
         "AWS CloudWatch",
-        "OpenSearch"
+        "OpenSearch",
+        "Azure Monitor Logs"
       ]
     }
   },
@@ -657,6 +659,179 @@
           }
         }
       ]
+    },
+    {
+      "title": "Azure Monitor Logs",
+      "required": [
+        "backend",
+        "credentials"
+      ],
+      "properties": {
+        "backend": {
+          "const": "azure-monitor"
+        },
+        "cloud": {
+          "title": "Cloud",
+          "enum": [
+            "AzureCloud",
+            "AzureUSGovernment",
+            "AzureChinaCloud"
+          ],
+          "default": "AzureCloud",
+          "x-enumTitles": [
+            "Azure",
+            "Azure Government",
+            "Azure China (21Vianet)"
+          ]
+        },
+        "tenantId": {
+          "type": "string",
+          "title": "Tenant (directory) ID",
+          "maxLength": 253,
+          "pattern": "^([0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}|[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$",
+          "examples": [
+            "contoso.onmicrosoft.com"
+          ],
+          "description": "A directory ID or domain. Required for a service principal or a device sign-in; empty uses the Azure CLI's default tenant."
+        },
+        "credentials": {
+          "type": "object",
+          "title": "Credentials",
+          "required": [
+            "source"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "enum": [
+                "cli",
+                "deviceCode",
+                "clientSecret",
+                "clientCertificate"
+              ],
+              "default": "cli",
+              "x-enumTitles": [
+                "Azure CLI sign-in on this computer (az login)",
+                "Sign in with a code in the browser",
+                "Service principal with a client secret",
+                "Service principal with a certificate"
+              ]
+            },
+            "clientId": {
+              "type": "string",
+              "title": "Application (client) ID",
+              "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$",
+              "description": "Required for a service principal. A device sign-in uses Azure CLI's public client unless you name your organization's app."
+            }
+          },
+          "patternProperties": {
+            "^(clientSecret|certificate)$": {}
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "source": {
+                    "const": "clientSecret"
+                  }
+                },
+                "required": [
+                  "source"
+                ]
+              },
+              "then": {
+                "required": [
+                  "clientId",
+                  "clientSecret"
+                ],
+                "properties": {
+                  "clientSecret": {
+                    "type": "string",
+                    "writeOnly": true,
+                    "x-gateway-secret": "value",
+                    "format": "password",
+                    "title": "Client secret",
+                    "minLength": 1
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "source": {
+                    "const": "clientCertificate"
+                  }
+                },
+                "required": [
+                  "source"
+                ]
+              },
+              "then": {
+                "required": [
+                  "clientId",
+                  "certificate"
+                ],
+                "properties": {
+                  "certificate": {
+                    "type": "string",
+                    "writeOnly": true,
+                    "x-gateway-secret": "value",
+                    "x-widget": "textarea",
+                    "maxLength": 20000,
+                    "minLength": 1,
+                    "title": "Certificate and private key (PEM)",
+                    "description": "An RSA private key (unencrypted PKCS#8 or PKCS#1) and its certificate, as az ad sp create-for-rbac --create-cert writes them."
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "trustedCli": {
+          "type": "string",
+          "title": "Allowed Azure CLI command",
+          "readOnly": true,
+          "x-person-only": true,
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Set by Test connection when you allow GateRook to run az account get-access-token with your user rights; a changed command needs your approval again."
+        },
+        "workspaces": {
+          "type": "array",
+          "title": "Log Analytics workspaces",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "title": "Workspace ID",
+            "pattern": "^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$"
+          },
+          "examples": [
+            [
+              "5b2f8c1e-0a3d-4e6f-9b7a-1c2d3e4f5a6b"
+            ]
+          ],
+          "description": "Workspace IDs (GUIDs, on the workspace's Overview) agents may query."
+        },
+        "applicationInsights": {
+          "type": "array",
+          "title": "Application Insights components",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "title": "Component resource ID",
+            "maxLength": 512,
+            "pattern": "^/subscriptions/[0-9a-fA-F-]{36}/resourceGroups/[^/]+/providers/[Mm]icrosoft\\.[Ii]nsights/components/[^/]+$"
+          },
+          "examples": [
+            [
+              "/subscriptions/0b1f6471-1bf0-4dda-aec3-111122223333/resourceGroups/stage-app/providers/Microsoft.Insights/components/stage-api"
+            ]
+          ],
+          "description": "Components whose requests, exceptions, dependencies and traces the log tools read."
+        }
+      }
     }
   ],
   "$defs": {

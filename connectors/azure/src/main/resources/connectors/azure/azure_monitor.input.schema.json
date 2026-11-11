@@ -1,0 +1,176 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "action": {
+      "enum": [
+        "query",
+        "list_metrics",
+        "alerts",
+        "activity_log",
+        "health"
+      ],
+      "default": "query"
+    },
+    "resource": {
+      "type": "string",
+      "maxLength": 2048,
+      "description": "Resource ID: required for query and list_metrics; narrows alerts, activity_log and health."
+    },
+    "subscription": {
+      "type": "string",
+      "maxLength": 36,
+      "description": "One of the connection's subscription IDs. Default: the resource's, else the first."
+    },
+    "metrics": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "maxLength": 128
+      },
+      "examples": [
+        [
+          "Percentage CPU"
+        ],
+        [
+          "Http5xx",
+          "Requests"
+        ]
+      ]
+    },
+    "aggregation": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "enum": [
+          "Average",
+          "Minimum",
+          "Maximum",
+          "Total",
+          "Count"
+        ]
+      },
+      "description": "Default: Average"
+    },
+    "interval": {
+      "enum": [
+        "PT1M",
+        "PT5M",
+        "PT15M",
+        "PT30M",
+        "PT1H",
+        "PT6H",
+        "PT12H",
+        "P1D"
+      ],
+      "description": "Default: the finest within the policy's data points"
+    },
+    "filter": {
+      "type": "string",
+      "maxLength": 1000,
+      "examples": [
+        "Instance eq '*'"
+      ],
+      "description": "Metric dimension filter ($filter)"
+    },
+    "namespace": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "top": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50
+    },
+    "from": {
+      "type": "string",
+      "maxLength": 40,
+      "description": "Default: -1h (query), -1d (alerts), -24h (activity_log)"
+    },
+    "to": {
+      "type": "string",
+      "maxLength": 40,
+      "default": "now"
+    },
+    "timeRange": {
+      "enum": [
+        "1h",
+        "1d",
+        "7d",
+        "30d"
+      ],
+      "description": "alerts without from/to. Default: 1d"
+    },
+    "state": {
+      "enum": [
+        "New",
+        "Acknowledged",
+        "Closed"
+      ]
+    },
+    "condition": {
+      "enum": [
+        "Fired",
+        "Resolved"
+      ],
+      "description": "alerts. Default: Fired"
+    },
+    "severity": {
+      "enum": [
+        "Sev0",
+        "Sev1",
+        "Sev2",
+        "Sev3",
+        "Sev4"
+      ]
+    },
+    "resourceGroup": {
+      "type": "string",
+      "maxLength": 90
+    },
+    "status": {
+      "enum": [
+        "Succeeded",
+        "Failed",
+        "Started",
+        "Accepted",
+        "Canceled"
+      ],
+      "description": "activity_log"
+    },
+    "level": {
+      "enum": [
+        "Critical",
+        "Error",
+        "Warning",
+        "Informational",
+        "Verbose"
+      ],
+      "description": "activity_log"
+    },
+    "operation": {
+      "type": "string",
+      "maxLength": 256,
+      "examples": [
+        "Microsoft.Web/sites/write"
+      ],
+      "description": "activity_log: part of the operation name"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 4096
+    }
+  }
+}

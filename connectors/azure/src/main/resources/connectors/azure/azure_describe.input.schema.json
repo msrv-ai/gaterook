@@ -1,0 +1,41 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "query": {
+      "type": "string",
+      "maxLength": 8000,
+      "examples": [
+        "resources | where type =~ 'microsoft.web/sites' | project id, name, location, state=properties.state",
+        "resourcecontainers | where type =~ 'microsoft.resources/subscriptions/resourcegroups' | project id, name, location"
+      ],
+      "description": "KQL over Resource Graph tables (resources, resourcecontainers, healthresources, …). Default: resources | project id, name, type, location, resourceGroup, tags"
+    },
+    "id": {
+      "type": "string",
+      "maxLength": 2048,
+      "description": "A resource ID from a query: that resource's snapshot instead of a query."
+    },
+    "subscription": {
+      "type": "string",
+      "maxLength": 36,
+      "description": "One of the connection's subscription IDs. Default: all of them."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 4096,
+      "description": "nextCursor of the previous call with the same arguments."
+    }
+  }
+}

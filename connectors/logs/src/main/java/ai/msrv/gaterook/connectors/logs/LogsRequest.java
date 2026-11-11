@@ -195,6 +195,7 @@ record LogsRequest(Tool tool, String query, String source, Instant from, Instant
       String what = switch (s) {
         case Settings.CloudWatch c -> "log groups";
         case Settings.OpenSearch o -> "index patterns";
+        case Settings.AzureMonitor a -> "workspaces and components";
         default -> "resources";
       };
       throw new Refusal("source_not_allowed", source + " isn't one of the " + what + " this connection may read.",
@@ -254,6 +255,25 @@ record LogsRequest(Tool tool, String query, String source, Instant from, Instant
       }
       case Settings.Loki l -> {
         // LogQL is checked by Loki itself; its parse errors reach the agent as they are.
+      }
+      case Settings.AzureMonitor a -> {
+        Optional<KqlQuery.Refused> refused = KqlQuery.outside(query);
+        if (refused.isPresent()) {
+          KqlQuery.Refused r = refused.get();
+          throw switch (r.reach()) {
+            case CROSS_RESOURCE -> new Refusal(r.reach().rule, r.word() + "() reads another workspace, application or "
+                + "service; this connection reads only its own workspaces and components.", "Pick one of them with "
+                + "source instead (describe_connection lists them).");
+            case EXTERNAL -> new Refusal(r.reach().rule, r.word() + " reaches data outside Azure Monitor Logs, which "
+                + "GateRook doesn't let queries do.", "Query the connection's tables only.");
+            case COMMAND -> new Refusal(r.reach().rule, "Control commands (a statement starting with .) aren't "
+                + "queries.", "Start with a table, like AppExceptions | where SeverityLevel >= 3.");
+          };
+        }
+        if (tool == Tool.TAIL && KqlQuery.aggregates(query)) {
+          throw new Refusal("kql_tail_aggregate", "A tail reads log entries; this query aggregates them.",
+              "Leave summarize, count and the like out, or use logs_search.");
+        }
       }
     }
   }
