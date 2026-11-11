@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "database",
+    "container",
+    "operation",
+    "partitionKey"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "database": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "The database's ID."
+    },
+    "container": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "The container's ID."
+    },
+    "operation": {
+      "enum": [
+        "create",
+        "upsert",
+        "replace",
+        "patch",
+        "delete"
+      ],
+      "description": "create: a new item, refused if its id exists in the partition. upsert: create, or replace the whole item with that id. replace: the whole existing item. patch: change some properties of an existing item. delete: remove an existing item."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1023,
+      "description": "The item's id: needed for replace, patch and delete; create and upsert take the item's own id."
+    },
+    "partitionKey": {
+      "type": [
+        "string",
+        "number",
+        "boolean",
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": [
+          "string",
+          "number",
+          "boolean",
+          "null"
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 3,
+      "description": "The item's partition key value, such as \"c-42\" (an array of values for a hierarchical key). It must match the item's value at the container's partition key path."
+    },
+    "item": {
+      "type": "object",
+      "description": "create, upsert and replace: the whole item as JSON, with its id. A person approves the exact body."
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "op",
+          "path"
+        ],
+        "properties": {
+          "op": {
+            "enum": [
+              "add",
+              "set",
+              "replace",
+              "remove",
+              "incr",
+              "move"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 1024,
+            "description": "A JSON Pointer such as /status or /items/0/qty; /tags/- appends to an array."
+          },
+          "value": {
+            "description": "The value of add, set and replace, or the number incr adds."
+          },
+          "from": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 1024,
+            "description": "move only: the path whose value moves."
+          }
+        }
+      },
+      "description": "patch: up to ten operations of Cosmos DB's partial document update, such as [{\"op\": \"set\", \"path\": \"/status\", \"value\": \"paid\"}, {\"op\": \"incr\", \"path\": \"/version\", \"value\": 1}]."
+    },
+    "condition": {
+      "type": "string",
+      "maxLength": 4096,
+      "description": "patch only: a filter the item must match, or nothing changes, such as FROM c WHERE c.status = 'open'."
+    },
+    "ifMatch": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "The item's _etag from cosmosdb_read_item: the change applies only if the item is still that version."
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Why you need this change. Shown to the approver as unverified."
+    }
+  }
+}

@@ -57,8 +57,10 @@ GateRook applies its MCP Firewall controls to built-in connectors and external M
 | Service | Supported capabilities |
 | --- | --- |
 | SQL databases | PostgreSQL and [CockroachDB](docs/cockroachdb.md), MySQL/MariaDB, [Oracle Database](docs/oracle.md), [SQL Server](docs/sql-server.md), [SQLite](docs/sqlite.md) files, and [DuckDB](docs/duckdb.md) files through a catalog plugin: inspect schemas, query data, and review changes before execution |
-| Document and key-value stores | MongoDB document queries and updates; [Redis](docs/redis.md) key inspection, reads, and reviewed value writes; [Amazon DynamoDB](docs/dynamodb.md) Query, Scan and PartiQL with reviewed changes; [Cloud Firestore](docs/firestore.md) documents and queries and the [Firebase Realtime Database](docs/firebase-rtdb.md) paths, with reviewed writes |
-| Data warehouses | [Google BigQuery](docs/bigquery.md): datasets, tables and GoogleSQL reads checked by a dry run and capped in bytes; [Snowflake](docs/snowflake.md): schemas, tables and reads checked against Snowflake's plan; both with reviewed changes |
+| Document, key-value and wide-column stores | MongoDB document queries and updates; [Redis](docs/redis.md) key inspection, reads, and reviewed value writes; [Amazon DynamoDB](docs/dynamodb.md) Query, Scan and PartiQL with reviewed changes; [Cloud Firestore](docs/firestore.md) documents and queries and the [Firebase Realtime Database](docs/firebase-rtdb.md) paths, with reviewed writes; [Azure Cosmos DB](docs/cosmosdb.md) for NoSQL containers, SQL queries and point reads, with reviewed item changes; [Apache Cassandra](docs/cassandra.md) keyspaces, tables and paged CQL reads, with reviewed changes |
+| Graph databases | [Neo4j](docs/neo4j.md): the graph's labels, relationship types and properties, and Cypher reads that Neo4j's plan and a read-only transaction both confirm, with reviewed writes |
+| Data warehouses | [Google BigQuery](docs/bigquery.md): datasets, tables and GoogleSQL reads checked by a dry run and capped in bytes; [Snowflake](docs/snowflake.md): schemas, tables and reads checked against Snowflake's plan; [Amazon Redshift](docs/redshift.md) through its Data API in read-only transactions; [Databricks SQL](docs/databricks.md) on Unity Catalog; [Trino and Presto](docs/trino.md) with reads checked by Trino's own plan; [Amazon Athena](docs/athena.md) within a workgroup's limits; all with reviewed changes |
+| Metrics and time series | [Prometheus](docs/prometheus.md) and compatible servers: PromQL queries, series, targets, rules and alerts, read only; [InfluxDB](docs/influxdb.md) 3, 2.x and 1.x: SQL and InfluxQL reads and reviewed writes |
 | Search engines | OpenSearch and Elasticsearch: discover indices, query documents, and review administrative requests |
 | Logs | [GCP Cloud Logging](docs/gcp-logs.md), AWS CloudWatch Logs, [Azure Monitor Logs](docs/azure.md#logs), Loki, and [selected log files over SSH](docs/ssh-log-files.md): search and read logs within configured limits |
 | Infrastructure and cloud | SSH commands and runbooks; Kubernetes resources, events, pod logs, and reviewed changes; AWS and GCP resource inspection and metrics; [any Google Cloud API method](docs/gcp-api.md) within the connection's scopes and [any AWS API operation](docs/aws-api.md), with reviewed changes; [Azure](docs/azure.md) Resource Graph inventory, Resource Manager calls with reviewed changes, metrics, alerts, the Activity Log, Storage data, Service Bus dead letters and Key Vault expiry; [Cloudflare](docs/cloudflare.md) zones, DNS, Workers and their logs, Pages, analytics and tunnels, with reviewed DNS changes, cache purges, deployments and rollbacks |
@@ -185,9 +187,18 @@ For the full connector integration suite, follow [the Docker test-services guide
 | [DuckDB](docs/duckdb.md) | The catalog plugin, database files and data folders, locked read-only instances, and platform limits |
 | [Amazon DynamoDB](docs/dynamodb.md) | Roles and session policies, Query, Scan and PartiQL, and approved changes |
 | [Google BigQuery](docs/bigquery.md) | Credentials and datasets, dry runs and byte limits, GoogleSQL reads, and approved changes |
+| [Amazon Redshift](docs/redshift.md) | Clusters and Serverless, roles and session policies, read-only transactions, and approved changes |
+| [Trino and Presto](docs/trino.md) | Coordinators and catalogs, password and JWT sign-in, plan-checked reads, cancellation, and approved changes |
+| [Amazon Athena](docs/athena.md) | Workgroups and result locations, roles and session policies, paged reads, and approved changes |
+| [Databricks SQL](docs/databricks.md) | Workspaces and SQL warehouses, tokens and service principals, Unity Catalog lists, and approved changes |
 | [Snowflake](docs/snowflake.md) | Key-pair and token sign-in, roles and warehouses, plan-checked reads, and approved changes |
 | [Cloud Firestore](docs/firestore.md) | Google identities, collection lists, queries, and approved document writes |
 | [Firebase Realtime Database](docs/firebase-rtdb.md) | Database URLs, path lists, shallow reads and queries, and approved writes |
+| [Azure Cosmos DB](docs/cosmosdb.md) | Account keys or Microsoft Entra ID, container lists, partition keys, SQL queries, and approved item changes |
+| [Apache Cassandra](docs/cassandra.md) | Contact points and data centers, password sign-in and TLS, paged CQL reads, and approved changes |
+| [Neo4j](docs/neo4j.md) | Password and bearer-token sign-in, TLS and routing, plan-checked Cypher reads, and approved writes |
+| [InfluxDB](docs/influxdb.md) | Server versions and tokens, SQL and InfluxQL reads, database lists, and approved line-protocol writes |
+| [Prometheus](docs/prometheus.md) | Servers and tenants, PromQL and range limits, series, targets, rules and alerts |
 | [Redis](docs/redis.md) | Reading and writing values, expiration, key and database scopes, and write limits |
 | [GCP logs](docs/gcp-logs.md) | Logs Explorer filters, GKE logs, credentials, scopes, and endpoint access |
 | [Google Cloud APIs](docs/gcp-api.md) | Calling API methods by their Discovery names, scope and policy checks, refused methods, and approved changes |

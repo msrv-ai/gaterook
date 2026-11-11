@@ -77,7 +77,7 @@ const PAGES: Record<string, { readonly label: string; readonly icon: string; rea
 
 /** The core's actions in the kit's words (verb + object), icon, hint and keywords. */
 const ACTIONS: Record<string, { readonly label: string; readonly icon: string; readonly hint: string; readonly keywords: string }> = {
-  'add-connection': { label: 'Add connection', icon: 'plus', hint: 'Database, SSH, logs, cluster', keywords: 'new resource postgres mysql oracle sqlserver sqlite dynamodb bigquery snowflake firestore firebase sql server mongodb redis kubernetes cloudflare' },
+  'add-connection': { label: 'Add connection', icon: 'plus', hint: 'Database, SSH, logs, cluster', keywords: 'new resource postgres mysql oracle sqlserver sqlite dynamodb bigquery snowflake firestore firebase sql server cassandra cql scylla keyspaces neo4j graph cypher cosmos cosmosdb azure athena trino presto databricks redshift influxdb prometheus mongodb redis kubernetes cloudflare' },
   'create-endpoint': { label: 'Create endpoint', icon: 'square-plus', hint: 'New MCP URL', keywords: 'new mcp url' },
   'test-all': { label: 'Test all connections', icon: 'activity', hint: 'Check every connection', keywords: 'health check' },
   'back-up-key': { label: 'Back up master key', icon: 'key-round', hint: 'Master key', keywords: 'backup export key' },

@@ -6181,6 +6181,1875 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         }
       }
     }
+  },
+  "redshift": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Amazon Redshift",
+    "type": "object",
+    "x-card": {
+      "description": "Schemas, tables and SQL queries in read-only transactions. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "region",
+      "target",
+      "database",
+      "credentials"
+    ],
+    "properties": {
+      "region": {
+        "type": "string",
+        "title": "Region",
+        "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
+        "examples": [
+          "eu-central-1"
+        ],
+        "description": "The AWS region of the cluster or workgroup."
+      },
+      "target": {
+        "type": "object",
+        "title": "Warehouse",
+        "required": [
+          "kind"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "cluster",
+              "serverless"
+            ],
+            "default": "cluster",
+            "title": "Type",
+            "x-enumTitles": [
+              "Provisioned cluster",
+              "Redshift Serverless workgroup"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(cluster|workgroup)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "cluster"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "cluster": {
+                  "type": "string",
+                  "title": "Cluster identifier",
+                  "maxLength": 63,
+                  "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+                  "examples": [
+                    "acme-analytics"
+                  ]
+                }
+              },
+              "required": [
+                "cluster"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "serverless"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "workgroup": {
+                  "type": "string",
+                  "title": "Workgroup",
+                  "maxLength": 128,
+                  "pattern": "^([a-z0-9-]{3,63}|arn:aws[a-z-]*:redshift-serverless:[a-z0-9-]+:\\d{12}:workgroup/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12})$",
+                  "examples": [
+                    "acme-wg"
+                  ],
+                  "description": "Its name, or its ARN: with the ARN, the session policy names this workgroup only."
+                }
+              },
+              "required": [
+                "workgroup"
+              ]
+            }
+          }
+        ]
+      },
+      "database": {
+        "type": "string",
+        "title": "Database",
+        "pattern": "^[A-Za-z_][A-Za-z0-9_$]{0,126}$",
+        "examples": [
+          "dev"
+        ],
+        "description": "The database the Data API connects to."
+      },
+      "databaseAuth": {
+        "type": "object",
+        "title": "Database sign-in",
+        "required": [
+          "method"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "method": {
+            "enum": [
+              "iam",
+              "dbUser",
+              "secret"
+            ],
+            "default": "iam",
+            "title": "Sign in as",
+            "x-enumTitles": [
+              "The AWS identity (IAM:user or IAMR:role)",
+              "A database user, with temporary credentials (clusters)",
+              "The user of a Secrets Manager secret"
+            ],
+            "description": "The Data API signs in for each call. GateRook never sees a database password."
+          }
+        },
+        "patternProperties": {
+          "^(dbUser|secretArn)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "dbUser"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "dbUser": {
+                  "type": "string",
+                  "title": "Database user",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_+.@$-]{0,127}$",
+                  "examples": [
+                    "gw_reader"
+                  ],
+                  "description": "Give it SELECT on the schemas agents read, and nothing more for reads."
+                }
+              },
+              "required": [
+                "dbUser"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "secret"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "secretArn": {
+                  "type": "string",
+                  "title": "Secret",
+                  "maxLength": 600,
+                  "pattern": "^(arn:aws[a-z-]*:secretsmanager:[a-z0-9-]+:\\d{12}:secret:[A-Za-z0-9/_+=.@-]{1,512}|[A-Za-z0-9/_+=.@-]{1,512})$",
+                  "examples": [
+                    "arn:aws:secretsmanager:eu-central-1:412398765012:secret:redshift/gw-reader-AbCdEf"
+                  ],
+                  "description": "Its ARN or name. The Data API reads its username and password; GateRook doesn't."
+                }
+              },
+              "required": [
+                "secretArn"
+              ]
+            }
+          }
+        ]
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "enum": [
+              "accessKey",
+              "profile"
+            ],
+            "default": "accessKey",
+            "title": "Credentials source",
+            "x-enumTitles": [
+              "Access key",
+              "AWS profile on this computer"
+            ]
+          },
+          "roleArn": {
+            "type": "string",
+            "title": "Role to assume",
+            "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
+            "examples": [
+              "arn:aws:iam::412398765012:role/gw-redshift"
+            ],
+            "description": "With a role, GateRook limits each call to this warehouse, database and sign-in, enforced by AWS."
+          },
+          "externalId": {
+            "type": "string",
+            "title": "External ID",
+            "pattern": "^[\\w+=,.@:/-]{2,1224}$",
+            "x-generated": "gw-ext-<12 hex>",
+            "description": "Not a secret. Add it to the role's trust policy as sts:ExternalId"
+          },
+          "sessionSeconds": {
+            "type": "integer",
+            "title": "Session length",
+            "minimum": 900,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s"
+          },
+          "sessionPolicy": {
+            "enum": [
+              "generated",
+              "none"
+            ],
+            "default": "generated",
+            "title": "Session policy",
+            "x-forbidden-env-values": {
+              "prod": [
+                "none"
+              ]
+            },
+            "x-enumTitles": [
+              "Each call's own permissions, enforced by AWS (recommended)",
+              "The role's permissions as they are"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(accessKeyId|secretAccessKey|profile)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "accessKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "accessKeyId": {
+                  "type": "string",
+                  "title": "Access key ID",
+                  "pattern": "^AKIA[A-Z0-9]{16}$",
+                  "x-not-secret": true
+                },
+                "secretAccessKey": {
+                  "type": "string",
+                  "title": "Secret access key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password"
+                }
+              },
+              "required": [
+                "accessKeyId",
+                "secretAccessKey"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "profile"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "profile": {
+                  "type": "string",
+                  "title": "Profile",
+                  "maxLength": 128,
+                  "pattern": "\\S"
+                }
+              },
+              "required": [
+                "profile"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "databricks": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Databricks SQL",
+    "type": "object",
+    "x-card": {
+      "description": "Unity Catalog tables and Databricks SQL queries on a SQL warehouse. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "host",
+      "warehouseId",
+      "auth"
+    ],
+    "properties": {
+      "host": {
+        "type": "string",
+        "title": "Workspace URL",
+        "maxLength": 300,
+        "pattern": "^https://[^/?#@\\s]+/?$",
+        "examples": [
+          "https://dbc-a1b2c3d4-e5f6.cloud.databricks.com"
+        ],
+        "description": "The workspace's https address, as the browser shows it."
+      },
+      "warehouseId": {
+        "type": "string",
+        "title": "SQL warehouse ID",
+        "pattern": "^[A-Za-z0-9-]{1,64}$",
+        "examples": [
+          "1a2b3c4d5e6f7a8b"
+        ],
+        "description": "From the warehouse's Connection details: the end of its HTTP path."
+      },
+      "catalog": {
+        "type": "string",
+        "title": "Default catalog",
+        "pattern": "^[A-Za-z0-9_-]{1,255}$",
+        "examples": [
+          "main"
+        ],
+        "description": "For tables named without a catalog. Empty: the workspace's default."
+      },
+      "schema": {
+        "type": "string",
+        "title": "Default schema",
+        "pattern": "^[A-Za-z0-9_-]{1,255}$",
+        "examples": [
+          "sales"
+        ],
+        "description": "For tables named without a schema. Empty: default."
+      },
+      "catalogs": {
+        "type": "array",
+        "title": "Catalogs",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_*-]{1,255}$"
+        },
+        "description": "The catalogs agents may use; * matches any characters. Empty: every catalog the identity may use."
+      },
+      "schemas": {
+        "type": "array",
+        "title": "Schemas",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^([A-Za-z0-9_*-]{1,255}\\.)?[A-Za-z0-9_*-]{1,255}$"
+        },
+        "description": "The schemas agents may use: schema or catalog.schema, * matching any characters. Empty: every schema of the catalogs."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Sign-in",
+        "required": [
+          "method"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "method": {
+            "enum": [
+              "oauth",
+              "token"
+            ],
+            "default": "oauth",
+            "title": "Sign in with",
+            "x-enumTitles": [
+              "A service principal (OAuth machine-to-machine, recommended)",
+              "A personal access token"
+            ],
+            "description": "Give a service principal USE CATALOG, USE SCHEMA and SELECT on what agents read, and CAN USE on the warehouse."
+          }
+        },
+        "patternProperties": {
+          "^(token|clientId|clientSecret)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "token"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "title": "Personal access token",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "maxLength": 4096
+                }
+              },
+              "required": [
+                "token"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "oauth"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "clientId": {
+                  "type": "string",
+                  "title": "Client ID",
+                  "pattern": "^[A-Za-z0-9._-]{1,128}$",
+                  "x-not-secret": true,
+                  "examples": [
+                    "6f0e2c9a-1b3d-4e5f-8a7b-9c0d1e2f3a4b"
+                  ],
+                  "description": "The service principal's application ID."
+                },
+                "clientSecret": {
+                  "type": "string",
+                  "title": "Client secret",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "maxLength": 4096,
+                  "description": "An OAuth secret of the service principal. GateRook exchanges it for a token of this workspace only."
+                }
+              },
+              "required": [
+                "clientId",
+                "clientSecret"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "trino": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Trino / Presto",
+    "type": "object",
+    "x-card": {
+      "description": "Catalogs, schemas and SQL reads checked by Trino's own plan. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "url",
+      "auth"
+    ],
+    "properties": {
+      "url": {
+        "type": "string",
+        "format": "uri",
+        "pattern": "^https?://[^/?#]+/?$",
+        "title": "Coordinator URL",
+        "examples": [
+          "https://trino.example.com:8443"
+        ],
+        "description": "The coordinator, with https:// (or http:// on this computer) and its port."
+      },
+      "engine": {
+        "title": "Engine",
+        "enum": [
+          "trino",
+          "presto"
+        ],
+        "default": "trino",
+        "x-enumTitles": [
+          "Trino",
+          "Presto"
+        ],
+        "description": "Presto (prestodb) speaks the same protocol with X-Presto headers."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Authentication",
+        "additionalProperties": false,
+        "required": [
+          "mode"
+        ],
+        "properties": {
+          "mode": {
+            "title": "Sign in with",
+            "enum": [
+              "basic",
+              "jwt",
+              "none"
+            ],
+            "default": "basic",
+            "x-enumTitles": [
+              "User and password",
+              "JWT bearer token",
+              "No authentication (dev, or a coordinator on this computer)"
+            ]
+          },
+          "user": {
+            "type": "string",
+            "title": "User",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^[ -~]+$",
+            "examples": [
+              "gaterook_reader"
+            ],
+            "description": "Statements run as this user. Give it read access only wherever you can: Trino's access control is the boundary. With a JWT, empty means the token's user."
+          }
+        },
+        "patternProperties": {
+          "^(password|token)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "basic"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "user",
+                "password"
+              ],
+              "properties": {
+                "password": {
+                  "type": "string",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Password",
+                  "description": "Stored encrypted by GateRook. It travels over TLS only, unless the coordinator runs on this computer."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "jwt"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "token"
+              ],
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "JWT",
+                  "description": "Sent as a bearer token, over TLS only unless the coordinator runs on this computer."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "none"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "user"
+              ]
+            }
+          }
+        ]
+      },
+      "catalog": {
+        "type": "string",
+        "title": "Default catalog",
+        "pattern": "^[A-Za-z0-9_][A-Za-z0-9_-]{0,127}$",
+        "examples": [
+          "hive"
+        ],
+        "description": "The catalog of names without one."
+      },
+      "schema": {
+        "type": "string",
+        "title": "Default schema",
+        "minLength": 1,
+        "maxLength": 255,
+        "pattern": "^[ -~]+$",
+        "description": "The schema of table names without one; needs a default catalog."
+      },
+      "catalogs": {
+        "type": "array",
+        "title": "Catalogs",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_*?-]{1,128}$"
+        },
+        "description": "The catalogs agents may use; * matches any characters. Every table Trino's plan reads must be in one of them. Empty: every catalog the user may read."
+      },
+      "caCertificate": {
+        "type": "string",
+        "maxLength": 20000,
+        "x-widget": "textarea",
+        "title": "CA certificate (PEM)",
+        "description": "Only for a private CA. Empty: the system trust store."
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "A scan limit per statement. Policies set row limits and timeouts per environment.",
+        "properties": {
+          "maxScanMb": {
+            "type": "integer",
+            "title": "Data scanned per statement",
+            "minimum": 1,
+            "maximum": 104857600,
+            "x-unit": "MB",
+            "x-stricter": "min",
+            "description": "Trino stops a statement that reads more from storage (query_max_scan_physical_bytes). Trino only; empty: Trino's own limit."
+          }
+        }
+      }
+    }
+  },
+  "athena": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Amazon Athena",
+    "type": "object",
+    "x-card": {
+      "description": "Data catalogs, databases and SQL reads within a workgroup's limits. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "region",
+      "credentials"
+    ],
+    "properties": {
+      "region": {
+        "type": "string",
+        "title": "Region",
+        "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
+        "examples": [
+          "eu-central-1"
+        ],
+        "description": "The AWS region of the workgroup and its data catalogs."
+      },
+      "workgroup": {
+        "type": "string",
+        "title": "Workgroup",
+        "pattern": "^[a-zA-Z0-9._-]{1,128}$",
+        "default": "primary",
+        "description": "Every query runs here. Its per-query data limit is the cost boundary: set one, and let the workgroup override client-side settings."
+      },
+      "catalog": {
+        "type": "string",
+        "title": "Data catalog",
+        "pattern": "^[A-Za-z0-9_/:-]{1,256}$",
+        "default": "AwsDataCatalog",
+        "description": "The catalog of names without one: AwsDataCatalog for AWS Glue."
+      },
+      "database": {
+        "type": "string",
+        "title": "Default database",
+        "pattern": "^[A-Za-z0-9_-]{1,255}$",
+        "examples": [
+          "sales"
+        ],
+        "description": "The database of table names without one."
+      },
+      "databases": {
+        "type": "array",
+        "title": "Databases",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^([A-Za-z0-9_/:*?-]{1,256}\\.)?[A-Za-z0-9_*?-]{1,255}$"
+        },
+        "description": "The databases agents may use: database in the data catalog above, or catalog.database, * matching any characters. Every table Athena's plan reads must be in one of them. Empty: every database the credentials may read."
+      },
+      "outputLocation": {
+        "type": "string",
+        "title": "Query results location",
+        "pattern": "^s3://[a-z0-9][a-z0-9.-]{1,61}[a-z0-9](/.*)?$",
+        "examples": [
+          "s3://acme-athena-results/gaterook/"
+        ],
+        "description": "Where Athena writes results, unless the workgroup sets its own. Empty: the workgroup's location, or results Athena keeps itself."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "enum": [
+              "accessKey",
+              "profile"
+            ],
+            "default": "accessKey",
+            "title": "Credentials source",
+            "x-enumTitles": [
+              "Access key",
+              "AWS profile on this computer"
+            ]
+          },
+          "roleArn": {
+            "type": "string",
+            "title": "Role to assume",
+            "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
+            "examples": [
+              "arn:aws:iam::412398765012:role/gw-athena"
+            ],
+            "description": "With a role, GateRook limits each call to what it needs, enforced by AWS."
+          },
+          "externalId": {
+            "type": "string",
+            "title": "External ID",
+            "pattern": "^[\\w+=,.@:/-]{2,1224}$",
+            "x-generated": "gw-ext-<12 hex>",
+            "description": "Not a secret. Add it to the role's trust policy as sts:ExternalId"
+          },
+          "sessionSeconds": {
+            "type": "integer",
+            "title": "Session length",
+            "minimum": 900,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s"
+          },
+          "sessionPolicy": {
+            "enum": [
+              "generated",
+              "none"
+            ],
+            "default": "generated",
+            "title": "Session policy",
+            "x-forbidden-env-values": {
+              "prod": [
+                "none"
+              ]
+            },
+            "x-enumTitles": [
+              "Each call's own permissions, enforced by AWS (recommended)",
+              "The role's permissions as they are"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(accessKeyId|secretAccessKey|profile)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "accessKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "accessKeyId": {
+                  "type": "string",
+                  "title": "Access key ID",
+                  "pattern": "^AKIA[A-Z0-9]{16}$",
+                  "x-not-secret": true
+                },
+                "secretAccessKey": {
+                  "type": "string",
+                  "title": "Secret access key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password"
+                }
+              },
+              "required": [
+                "accessKeyId",
+                "secretAccessKey"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "profile"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "profile": {
+                  "type": "string",
+                  "title": "Profile",
+                  "maxLength": 128,
+                  "pattern": "\\S"
+                }
+              },
+              "required": [
+                "profile"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "cosmosdb": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Azure Cosmos DB for NoSQL",
+    "type": "object",
+    "x-card": {
+      "description": "Databases, containers, SQL queries and items. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "endpoint",
+      "auth"
+    ],
+    "properties": {
+      "endpoint": {
+        "type": "string",
+        "title": "Account endpoint",
+        "maxLength": 300,
+        "pattern": "^(https://[A-Za-z0-9](?:[A-Za-z0-9-]{1,61}[A-Za-z0-9])\\.documents\\.azure\\.(?:com|us|cn)(?::443)?|https?://(?:localhost|127\\.0\\.0\\.1|\\[::1\\]):[0-9]{1,5})/?$",
+        "examples": [
+          "https://acme.documents.azure.com"
+        ],
+        "description": "The account's URI from its Keys page: https://<account>.documents.azure.com (.documents.azure.us in Azure Government, .documents.azure.cn in Azure operated by 21Vianet). The emulator on this computer: http://127.0.0.1:8081 in development builds, or its https:// address."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Authentication",
+        "required": [
+          "method"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "method": {
+            "enum": [
+              "key",
+              "entra"
+            ],
+            "default": "key",
+            "title": "Sign in with",
+            "x-enumTitles": [
+              "Account key",
+              "Microsoft Entra ID (service principal)"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(keyKind|accountKey|tenantId|clientId|clientSecret)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "key"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "keyKind": {
+                  "enum": [
+                    "readOnly",
+                    "readWrite"
+                  ],
+                  "default": "readOnly",
+                  "title": "Key",
+                  "x-enumTitles": [
+                    "Read-only key (recommended)",
+                    "Primary or secondary key (read and write)"
+                  ],
+                  "description": "Azure refuses every change made with a read-only key, so agents can't propose any. GateRook can't tell the keys apart without writing: say which one you paste."
+                },
+                "accountKey": {
+                  "type": "string",
+                  "title": "Account key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "maxLength": 200,
+                  "description": "A key of the account's Keys page (Read-only Keys, or Read-write Keys), the Base64 text of 88 characters."
+                }
+              },
+              "required": [
+                "keyKind",
+                "accountKey"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "entra"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "tenantId": {
+                  "type": "string",
+                  "title": "Directory (tenant) ID",
+                  "maxLength": 253,
+                  "pattern": "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$",
+                  "examples": [
+                    "00000000-0000-0000-0000-000000000000"
+                  ],
+                  "description": "The tenant of the service principal, or one of its domains such as acme.onmicrosoft.com."
+                },
+                "clientId": {
+                  "type": "string",
+                  "title": "Application (client) ID",
+                  "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                  "examples": [
+                    "00000000-0000-0000-0000-000000000000"
+                  ],
+                  "description": "Give the principal Cosmos DB Built-in Data Reader to read, or Data Contributor for approved changes, on the databases or containers agents use: the data-plane roles are the boundary."
+                },
+                "clientSecret": {
+                  "type": "string",
+                  "title": "Client secret",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "maxLength": 1024,
+                  "description": "The secret's Value, not its Secret ID."
+                }
+              },
+              "required": [
+                "tenantId",
+                "clientId",
+                "clientSecret"
+              ]
+            }
+          }
+        ]
+      },
+      "databases": {
+        "type": "array",
+        "title": "Databases",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[^/\\\\#?\\u0000-\\u001f\\u007f]{1,255}$"
+        },
+        "examples": [
+          [
+            "app",
+            "audit-*"
+          ]
+        ],
+        "description": "The databases agents may use; * matches any characters, such as audit-*. Empty: every database the credentials may read."
+      },
+      "containers": {
+        "type": "array",
+        "title": "Containers",
+        "maxItems": 100,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[^/\\\\#?\\u0000-\\u001f\\u007f]{1,255}(?:/[^/\\\\#?\\u0000-\\u001f\\u007f]{1,255})?$"
+        },
+        "examples": [
+          [
+            "orders",
+            "app/customers"
+          ]
+        ],
+        "description": "The containers agents may use: a container ID such as orders (in every allowed database), or database/container such as app/customers; * matches any characters. Empty: every container of the allowed databases."
+      },
+      "readConsistency": {
+        "enum": [
+          "account",
+          "Session",
+          "ConsistentPrefix",
+          "Eventual"
+        ],
+        "default": "account",
+        "title": "Read consistency",
+        "x-enumTitles": [
+          "The account's default",
+          "Session",
+          "Consistent prefix",
+          "Eventual"
+        ],
+        "description": "The consistency of queries and item reads. Cosmos DB refuses a level stronger than the account's default."
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "Policies set item limits and timeouts per environment.",
+        "properties": {
+          "crossPartitionQueries": {
+            "type": "boolean",
+            "title": "Cross-partition queries",
+            "default": true,
+            "description": "Off: every query names its partition key value, so none fans out over every partition and pays for each."
+          },
+          "maxPages": {
+            "type": "integer",
+            "title": "Pages per query",
+            "minimum": 1,
+            "maximum": 20,
+            "default": 5,
+            "description": "The pages of Cosmos DB's answer one call reads at most to fill its limit."
+          },
+          "maxItemKb": {
+            "type": "integer",
+            "title": "Largest change",
+            "minimum": 1,
+            "maximum": 2048,
+            "default": 2048,
+            "x-unit": "KB",
+            "description": "The largest body a change sends. Cosmos DB takes up to 2 MB; the endpoint's request size applies too."
+          }
+        }
+      }
+    }
+  },
+  "cassandra": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Apache Cassandra",
+    "type": "object",
+    "x-card": {
+      "description": "Keyspaces, tables and CQL reads on Cassandra and CQL-compatible services. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "contactPoints",
+      "localDataCenter"
+    ],
+    "properties": {
+      "contactPoints": {
+        "type": "array",
+        "title": "Contact points",
+        "minItems": 1,
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "maxLength": 300,
+          "pattern": "^(\\[[0-9A-Fa-f:.]+\\]|[A-Za-z0-9.-]+)(:\\d{1,5})?$"
+        },
+        "examples": [
+          [
+            "cassandra-1.example.com:9042",
+            "10.0.4.12:9042"
+          ]
+        ],
+        "description": "host:port of one or more nodes; the driver finds the others. Without a port: 9042. Amazon Keyspaces listens on 9142."
+      },
+      "localDataCenter": {
+        "type": "string",
+        "title": "Local data center",
+        "minLength": 1,
+        "maxLength": 128,
+        "examples": [
+          "datacenter1"
+        ],
+        "description": "The data center whose nodes serve every request, as nodetool status names it. Amazon Keyspaces: the region, such as eu-central-1."
+      },
+      "keyspace": {
+        "type": "string",
+        "title": "Keyspace",
+        "pattern": "^[A-Za-z0-9_]{1,48}$",
+        "examples": [
+          "shop"
+        ],
+        "description": "The keyspace of statements that name none, as Cassandra stores it: lower case unless it was created with quotes. Empty: statements name their keyspace."
+      },
+      "keyspaces": {
+        "type": "array",
+        "title": "Keyspaces",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_*?]{1,48}$"
+        },
+        "description": "The keyspaces agents may use; * matches any characters, such as shop_*. Empty: every keyspace but Cassandra's own system keyspaces."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "x-gateway-secret": "login",
+        "additionalProperties": false,
+        "properties": {
+          "user": {
+            "type": "string",
+            "title": "User",
+            "maxLength": 256,
+            "description": "The role GateRook signs in as. Use one that can only read wherever agents only read: the test below shows what it may do."
+          },
+          "password": {
+            "type": "string",
+            "title": "Password",
+            "description": "Empty: GateRook connects without signing in.",
+            "writeOnly": true,
+            "format": "password"
+          }
+        }
+      },
+      "tls": {
+        "type": "boolean",
+        "title": "Connection type",
+        "default": true,
+        "enum": [
+          true,
+          false
+        ],
+        "x-enumTitles": [
+          "TLS",
+          "Without TLS"
+        ],
+        "description": "TLS to every node. Without TLS, the password and the data cross the network in clear; outside dev the test warns."
+      },
+      "tlsVerify": {
+        "type": "string",
+        "title": "TLS verification",
+        "enum": [
+          "full",
+          "ca"
+        ],
+        "default": "full",
+        "x-enumTitles": [
+          "Verify the CA and host name",
+          "Verify the CA only"
+        ],
+        "description": "Verifying the CA only needs the cluster's own CA certificate below.",
+        "x-section": "/advanced"
+      },
+      "tlsServerName": {
+        "type": "string",
+        "title": "TLS server name",
+        "maxLength": 253,
+        "pattern": "^[A-Za-z0-9.-]+$",
+        "examples": [
+          "cassandra.eu-central-1.amazonaws.com"
+        ],
+        "description": "The name every node's certificate must carry, also sent as SNI. Empty: each node's own address. Amazon Keyspaces: its endpoint's name.",
+        "x-section": "/advanced"
+      },
+      "caCertificate": {
+        "type": "string",
+        "title": "CA certificate (PEM)",
+        "maxLength": 20000,
+        "x-widget": "textarea",
+        "description": "Only for a private CA. Empty: the system trust store.",
+        "x-section": "/advanced"
+      },
+      "consistency": {
+        "type": "string",
+        "title": "Read consistency",
+        "enum": [
+          "LOCAL_ONE",
+          "LOCAL_QUORUM"
+        ],
+        "default": "LOCAL_ONE",
+        "x-enumTitles": [
+          "LOCAL_ONE: one replica of the local data center answers",
+          "LOCAL_QUORUM: most replicas of the local data center answer"
+        ],
+        "description": "Changes always write at LOCAL_QUORUM, and lightweight transactions use LOCAL_SERIAL."
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "TLS details, timeouts and connections. Policies set row limits and timeouts per environment.",
+        "properties": {
+          "allowFiltering": {
+            "type": "boolean",
+            "title": "Allow ALLOW FILTERING",
+            "default": false,
+            "x-forbidden-env": [
+              "stage",
+              "prod"
+            ],
+            "description": "Dev only: reads may end with ALLOW FILTERING, which scans partitions, possibly the whole cluster."
+          },
+          "statementTimeoutMs": {
+            "type": "integer",
+            "title": "Statement timeout",
+            "minimum": 100,
+            "maximum": 600000,
+            "x-unit": "ms",
+            "description": "Reads stop after this long. Empty: the environment policy's statement timeout."
+          },
+          "connectTimeoutMs": {
+            "type": "integer",
+            "title": "Connect timeout",
+            "minimum": 500,
+            "maximum": 30000,
+            "default": 5000,
+            "x-unit": "ms"
+          },
+          "connectionsPerNode": {
+            "type": "integer",
+            "title": "Connections per node",
+            "minimum": 1,
+            "maximum": 8,
+            "default": 1,
+            "x-unit": "connections"
+          }
+        }
+      }
+    }
+  },
+  "neo4j": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Neo4j",
+    "type": "object",
+    "x-card": {
+      "description": "Cypher reads in read-only transactions, the graph's schema and its nodes and paths. Writes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "uri",
+      "authentication"
+    ],
+    "properties": {
+      "uri": {
+        "type": "string",
+        "title": "Connection URI",
+        "minLength": 1,
+        "maxLength": 300,
+        "pattern": "^(neo4j|bolt)(\\+s)?://[^/?#@\\s]+/?$",
+        "examples": [
+          "neo4j+s://a1b2c3d4.databases.neo4j.io"
+        ],
+        "description": "neo4j+s:// for a cluster or Aura, bolt+s:// for one server, with the host and port (7687 by default). neo4j:// and bolt:// without TLS reach only this computer (localhost)."
+      },
+      "database": {
+        "type": "string",
+        "title": "Database",
+        "default": "neo4j",
+        "pattern": "^[A-Za-z][A-Za-z0-9.-]{2,62}$",
+        "description": "Every call runs in this database. Not system."
+      },
+      "authentication": {
+        "type": "object",
+        "title": "Authentication",
+        "required": [
+          "method"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "method": {
+            "enum": [
+              "password",
+              "token"
+            ],
+            "default": "password",
+            "title": "Sign in with",
+            "x-enumTitles": [
+              "User and password",
+              "Bearer token (single sign-on)"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(user|password|token)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "password"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "user": {
+                  "type": "string",
+                  "title": "User",
+                  "minLength": 1,
+                  "maxLength": 256,
+                  "description": "Use a user with the reader role wherever you can. Test connection shows its roles."
+                },
+                "password": {
+                  "type": "string",
+                  "title": "Password",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "maxLength": 1024
+                },
+                "token": false
+              },
+              "required": [
+                "user",
+                "password"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "token"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "title": "Bearer token",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "maxLength": 16384,
+                  "description": "An access token of the identity provider Neo4j trusts (OIDC). It expires: paste a new one when Test connection says so."
+                },
+                "user": false,
+                "password": false
+              },
+              "required": [
+                "token"
+              ]
+            }
+          }
+        ]
+      },
+      "caCertificate": {
+        "type": "string",
+        "title": "CA certificate (PEM)",
+        "maxLength": 20000,
+        "x-widget": "textarea",
+        "x-section": "/advanced",
+        "description": "Only for a server whose certificate comes from a private CA, with neo4j+s:// or bolt+s://. GateRook still checks the host name. Empty: the system trust store."
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "Policies set row limits and timeouts per environment; these can only tighten them.",
+        "properties": {
+          "maxRows": {
+            "type": "integer",
+            "title": "Rows per query",
+            "minimum": 1,
+            "maximum": 10000,
+            "x-unit": "rows",
+            "x-stricter": "min",
+            "description": "Empty: the environment policy's row limit; with both, the lower applies."
+          },
+          "transactionTimeoutMs": {
+            "type": "integer",
+            "title": "Transaction timeout",
+            "minimum": 100,
+            "maximum": 600000,
+            "x-unit": "ms",
+            "x-stricter": "min",
+            "description": "Neo4j stops slower transactions. Empty: the environment policy's statement timeout; with both, the shorter applies."
+          },
+          "connectTimeoutMs": {
+            "type": "integer",
+            "title": "Connect timeout",
+            "minimum": 1000,
+            "maximum": 30000,
+            "default": 5000,
+            "x-unit": "ms"
+          }
+        }
+      }
+    }
+  },
+  "prometheus": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Prometheus",
+    "type": "object",
+    "x-card": {
+      "description": "PromQL queries, series, labels, targets, rules and alerts of Prometheus-compatible servers. Read only."
+    },
+    "additionalProperties": false,
+    "required": [
+      "url"
+    ],
+    "properties": {
+      "url": {
+        "type": "string",
+        "title": "Server URL",
+        "format": "uri",
+        "minLength": 8,
+        "maxLength": 2048,
+        "pattern": "^https?://[^/?#@\\s]+(/[^?#\\s]*)?$",
+        "examples": [
+          "https://prometheus.example.com"
+        ],
+        "description": "Where the server answers, with any path before /api/v1: https://mimir.example.com/prometheus for Mimir. Plain http:// only to this computer (localhost, 127.0.0.1)."
+      },
+      "tenant": {
+        "type": "string",
+        "title": "Tenant (X-Scope-OrgID)",
+        "maxLength": 150,
+        "pattern": "^[A-Za-z0-9!._*'()|-]*$",
+        "description": "For Grafana Mimir and Cortex, sent as X-Scope-OrgID. Several: team-a|team-b. Empty: no tenant header."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Credentials",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "title": "Authentication",
+            "enum": [
+              "none",
+              "basic",
+              "bearer"
+            ],
+            "default": "none",
+            "x-enumTitles": [
+              "No authentication",
+              "Username and password",
+              "Bearer token"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(username|secret)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "basic"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "username",
+                "secret"
+              ],
+              "properties": {
+                "username": {
+                  "type": "string",
+                  "title": "Username",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "pattern": "^[^:\\u0000-\\u001f\\u007f]*[^:\\s][^:\\u0000-\\u001f\\u007f]*$",
+                  "description": "Grafana Cloud: the numeric instance ID."
+                },
+                "secret": {
+                  "type": "string",
+                  "title": "Password",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "description": "Stored encrypted by GateRook. Grafana Cloud: an access policy token with metrics:read."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "bearer"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "secret"
+              ],
+              "properties": {
+                "secret": {
+                  "type": "string",
+                  "title": "Bearer token",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "description": "Stored encrypted by GateRook. Use a token that can only read."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "caCertificate": {
+        "type": "string",
+        "title": "CA certificate (PEM)",
+        "maxLength": 20000,
+        "x-widget": "textarea",
+        "description": "Only for a server whose certificate a private CA signed. GateRook then trusts this CA as well as the system's."
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "Limits of one call. Policies also cap rows, answer sizes and timeouts per environment.",
+        "properties": {
+          "maxSeries": {
+            "type": "integer",
+            "title": "Series per answer",
+            "minimum": 1,
+            "maximum": 10000,
+            "default": 1000,
+            "x-stricter": "min",
+            "description": "The most series one query or series lookup returns; the endpoint's row limit may be lower."
+          },
+          "maxPoints": {
+            "type": "integer",
+            "title": "Points per series",
+            "minimum": 10,
+            "maximum": 11000,
+            "default": 11000,
+            "x-stricter": "min",
+            "description": "The most points a range query may ask for per series: (end - start) / step + 1. Prometheus itself stops at 11,000."
+          },
+          "maxResponseMb": {
+            "type": "integer",
+            "title": "Server answer size",
+            "minimum": 1,
+            "maximum": 64,
+            "default": 16,
+            "x-unit": "MB",
+            "x-stricter": "min",
+            "description": "The most GateRook reads of one answer of the server. A larger answer is cut there and reported as cut."
+          }
+        }
+      }
+    }
+  },
+  "influxdb": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "InfluxDB",
+    "type": "object",
+    "x-card": {
+      "description": "Databases, measurements and SQL or InfluxQL reads of InfluxDB 3, 2.x and 1.x. Writes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "url",
+      "version",
+      "auth"
+    ],
+    "properties": {
+      "url": {
+        "type": "string",
+        "title": "Server URL",
+        "format": "uri",
+        "minLength": 8,
+        "maxLength": 2048,
+        "pattern": "^https?://[^\\s?#]+$",
+        "examples": [
+          "https://influxdb.example.com:8181"
+        ],
+        "description": "The server's address with https:// and its port, optionally with a path prefix. Plain http:// only to this computer (localhost, 127.0.0.1 or ::1)."
+      },
+      "version": {
+        "title": "Server",
+        "enum": [
+          "3",
+          "2",
+          "1"
+        ],
+        "default": "3",
+        "x-enumTitles": [
+          "InfluxDB 3 Core or Enterprise",
+          "InfluxDB 2.x or InfluxDB Cloud",
+          "InfluxDB 1.x"
+        ],
+        "description": "The API GateRook uses; Test connection checks it against the server. InfluxDB Cloud Serverless and Cloud Dedicated answer SQL only over Arrow Flight: choose InfluxDB 2.x for their InfluxQL and write APIs."
+      },
+      "organization": {
+        "type": "string",
+        "title": "Organization",
+        "maxLength": 256,
+        "pattern": "\\S",
+        "examples": [
+          "acme"
+        ],
+        "description": "InfluxDB 2.x only: the organization of the buckets. InfluxDB OSS needs it for writes; InfluxDB Cloud takes it from the token."
+      },
+      "databases": {
+        "type": "array",
+        "title": "Databases",
+        "maxItems": 100,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "examples": [
+          [
+            "telemetry",
+            "iot_*"
+          ]
+        ],
+        "description": "The databases agents may use (buckets on InfluxDB 2.x); * matches any characters, such as iot_*. Empty: every database the credentials may read."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Credentials",
+        "additionalProperties": false,
+        "required": [
+          "method"
+        ],
+        "properties": {
+          "method": {
+            "title": "Authentication",
+            "enum": [
+              "token",
+              "password",
+              "none"
+            ],
+            "default": "token",
+            "x-enumTitles": [
+              "API token (InfluxDB 3 and 2.x)",
+              "Username and password (InfluxDB 1.x)",
+              "No authentication"
+            ],
+            "x-forbidden-env-values": {
+              "prod": [
+                "none"
+              ]
+            },
+            "description": "InfluxDB 3 and 2.x sign in with a token, InfluxDB 1.x with a username and password. No authentication only for a server that checks none, never on prod."
+          }
+        },
+        "patternProperties": {
+          "^(token|username|password)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "token"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "required": [
+                "token"
+              ],
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "title": "API token",
+                  "minLength": 1,
+                  "maxLength": 4096,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "description": "Stored encrypted by GateRook. Prefer a token that may only read the databases agents use."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "password"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "required": [
+                "username",
+                "password"
+              ],
+              "properties": {
+                "username": {
+                  "type": "string",
+                  "title": "Username",
+                  "minLength": 1,
+                  "maxLength": 256,
+                  "pattern": "^[^\\u0000-\\u001f\\u007f:]+$"
+                },
+                "password": {
+                  "type": "string",
+                  "title": "Password",
+                  "minLength": 1,
+                  "maxLength": 4096,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "description": "Stored encrypted by GateRook."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "Limits of one read and one write, and a private CA. Policies set row limits and timeouts per environment.",
+        "properties": {
+          "maxRows": {
+            "type": "integer",
+            "title": "Rows per query",
+            "minimum": 1,
+            "maximum": 10000,
+            "default": 1000,
+            "x-stricter": "min",
+            "description": "The most rows one read returns; the endpoint's row limit applies as well."
+          },
+          "maxResponseKb": {
+            "type": "integer",
+            "title": "Response size",
+            "minimum": 16,
+            "maximum": 16384,
+            "default": 1024,
+            "x-unit": "KB",
+            "x-stricter": "min",
+            "description": "The most data one answer carries; a longer answer is cut and says so."
+          },
+          "maxWritePoints": {
+            "type": "integer",
+            "title": "Points per write",
+            "minimum": 1,
+            "maximum": 10000,
+            "default": 1000,
+            "x-stricter": "min",
+            "description": "The most points one approved write holds. A write is also at most 1 MiB of line protocol."
+          },
+          "caCertificate": {
+            "type": "string",
+            "title": "CA certificate (PEM)",
+            "maxLength": 20000,
+            "x-widget": "textarea",
+            "description": "Only for a server whose certificate comes from a private CA."
+          }
+        }
+      }
+    }
   }
 };
 
@@ -9402,6 +11271,1233 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "advanced": {}
     }
   },
+  "redshift": {
+    "sections": [
+      "/target",
+      "/databaseAuth",
+      "/credentials"
+    ],
+    "loose": [
+      "/region",
+      "/database"
+    ],
+    "rows": {
+      "/target": [
+        [
+          "/target/kind"
+        ],
+        [
+          "/target/cluster"
+        ],
+        [
+          "/target/workgroup"
+        ]
+      ],
+      "/databaseAuth": [
+        [
+          "/databaseAuth/method"
+        ],
+        [
+          "/databaseAuth/dbUser"
+        ],
+        [
+          "/databaseAuth/secretArn"
+        ]
+      ],
+      "/credentials": [
+        [
+          "/credentials/source"
+        ],
+        [
+          "/credentials/accessKeyId"
+        ],
+        [
+          "/credentials/secretAccessKey"
+        ],
+        [
+          "/credentials/profile"
+        ],
+        [
+          "/credentials/roleArn"
+        ],
+        [
+          "/credentials/externalId"
+        ],
+        [
+          "/credentials/sessionSeconds"
+        ],
+        [
+          "/credentials/sessionPolicy"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/region",
+        "kind": "text",
+        "title": "Region",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/database",
+        "kind": "text",
+        "title": "Database",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/target",
+        "kind": "object",
+        "title": "Warehouse",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/target/kind",
+        "kind": "select",
+        "title": "Type",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "cluster",
+          "serverless"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/target/cluster",
+        "kind": "text",
+        "title": "Cluster identifier",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "target.kind in [\"cluster\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/target/workgroup",
+        "kind": "text",
+        "title": "Workgroup",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "target.kind in [\"serverless\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/databaseAuth",
+        "kind": "object",
+        "title": "Database sign-in",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/databaseAuth/method",
+        "kind": "select",
+        "title": "Sign in as",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "iam",
+          "dbUser",
+          "secret"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/databaseAuth/dbUser",
+        "kind": "text",
+        "title": "Database user",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "databaseAuth.method in [\"dbUser\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/databaseAuth/secretArn",
+        "kind": "text",
+        "title": "Secret",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "databaseAuth.method in [\"secret\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/source",
+        "kind": "select",
+        "title": "Credentials source",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "accessKey",
+          "profile"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/accessKeyId",
+        "kind": "text",
+        "title": "Access key ID",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"accessKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/secretAccessKey",
+        "kind": "secret",
+        "title": "Secret access key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"accessKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/profile",
+        "kind": "text",
+        "title": "Profile",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"profile\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/roleArn",
+        "kind": "text",
+        "title": "Role to assume",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/externalId",
+        "kind": "text",
+        "title": "External ID",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/sessionSeconds",
+        "kind": "number",
+        "title": "Session length",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "s",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/sessionPolicy",
+        "kind": "select",
+        "title": "Session policy",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "generated",
+          "none"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": [
+          "none"
+        ],
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "target": {
+        "kind": "cluster"
+      },
+      "credentials": {
+        "source": "accessKey",
+        "sessionSeconds": 900,
+        "sessionPolicy": "generated"
+      }
+    },
+    "prodDefaults": {
+      "target": {
+        "kind": "cluster"
+      },
+      "credentials": {
+        "source": "accessKey",
+        "sessionSeconds": 900,
+        "sessionPolicy": "generated"
+      }
+    }
+  },
+  "databricks": {
+    "sections": [
+      "/auth"
+    ],
+    "loose": [
+      "/host",
+      "/warehouseId",
+      "/catalog",
+      "/schema",
+      "/catalogs",
+      "/schemas"
+    ],
+    "rows": {
+      "/auth": [
+        [
+          "/auth/method"
+        ],
+        [
+          "/auth/token"
+        ],
+        [
+          "/auth/clientId"
+        ],
+        [
+          "/auth/clientSecret"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/host",
+        "kind": "text",
+        "title": "Workspace URL",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/warehouseId",
+        "kind": "text",
+        "title": "SQL warehouse ID",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/catalog",
+        "kind": "text",
+        "title": "Default catalog",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/schema",
+        "kind": "text",
+        "title": "Default schema",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/catalogs",
+        "kind": "tags",
+        "title": "Catalogs",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/schemas",
+        "kind": "tags",
+        "title": "Schemas",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth",
+        "kind": "object",
+        "title": "Sign-in",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/method",
+        "kind": "select",
+        "title": "Sign in with",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "oauth",
+          "token"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/token",
+        "kind": "secret",
+        "title": "Personal access token",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"token\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/clientId",
+        "kind": "text",
+        "title": "Client ID",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"oauth\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/clientSecret",
+        "kind": "secret",
+        "title": "Client secret",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"oauth\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "auth": {
+        "method": "oauth"
+      }
+    },
+    "prodDefaults": {
+      "auth": {
+        "method": "oauth"
+      }
+    }
+  },
+  "trino": {
+    "sections": [
+      "/auth",
+      "/advanced"
+    ],
+    "loose": [
+      "/url",
+      "/engine",
+      "/catalog",
+      "/schema",
+      "/catalogs",
+      "/caCertificate"
+    ],
+    "rows": {
+      "/auth": [
+        [
+          "/auth/mode"
+        ],
+        [
+          "/auth/password"
+        ],
+        [
+          "/auth/token"
+        ],
+        [
+          "/auth/user"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/maxScanMb"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/url",
+        "kind": "text",
+        "title": "Coordinator URL",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/engine",
+        "kind": "select",
+        "title": "Engine",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "trino",
+          "presto"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/catalog",
+        "kind": "text",
+        "title": "Default catalog",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/schema",
+        "kind": "text",
+        "title": "Default schema",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/catalogs",
+        "kind": "tags",
+        "title": "Catalogs",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth",
+        "kind": "object",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/mode",
+        "kind": "select",
+        "title": "Sign in with",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "basic",
+          "jwt",
+          "none"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/password",
+        "kind": "secret",
+        "title": "Password",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.mode in [\"basic\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/token",
+        "kind": "secret",
+        "title": "JWT",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.mode in [\"jwt\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/user",
+        "kind": "text",
+        "title": "User",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxScanMb",
+        "kind": "number",
+        "title": "Data scanned per statement",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "MB",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "engine": "trino",
+      "auth": {
+        "mode": "basic"
+      },
+      "advanced": {}
+    },
+    "prodDefaults": {
+      "engine": "trino",
+      "auth": {
+        "mode": "basic"
+      },
+      "advanced": {}
+    }
+  },
+  "athena": {
+    "sections": [
+      "/credentials"
+    ],
+    "loose": [
+      "/region",
+      "/workgroup",
+      "/catalog",
+      "/database",
+      "/databases",
+      "/outputLocation"
+    ],
+    "rows": {
+      "/credentials": [
+        [
+          "/credentials/source"
+        ],
+        [
+          "/credentials/accessKeyId"
+        ],
+        [
+          "/credentials/secretAccessKey"
+        ],
+        [
+          "/credentials/profile"
+        ],
+        [
+          "/credentials/roleArn"
+        ],
+        [
+          "/credentials/externalId"
+        ],
+        [
+          "/credentials/sessionSeconds"
+        ],
+        [
+          "/credentials/sessionPolicy"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/region",
+        "kind": "text",
+        "title": "Region",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/workgroup",
+        "kind": "text",
+        "title": "Workgroup",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/catalog",
+        "kind": "text",
+        "title": "Data catalog",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/database",
+        "kind": "text",
+        "title": "Default database",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/databases",
+        "kind": "tags",
+        "title": "Databases",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/outputLocation",
+        "kind": "text",
+        "title": "Query results location",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/source",
+        "kind": "select",
+        "title": "Credentials source",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "accessKey",
+          "profile"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/accessKeyId",
+        "kind": "text",
+        "title": "Access key ID",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"accessKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/secretAccessKey",
+        "kind": "secret",
+        "title": "Secret access key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"accessKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/profile",
+        "kind": "text",
+        "title": "Profile",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"profile\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/roleArn",
+        "kind": "text",
+        "title": "Role to assume",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/externalId",
+        "kind": "text",
+        "title": "External ID",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/sessionSeconds",
+        "kind": "number",
+        "title": "Session length",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "s",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/sessionPolicy",
+        "kind": "select",
+        "title": "Session policy",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "generated",
+          "none"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": [
+          "none"
+        ],
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "workgroup": "primary",
+      "catalog": "AwsDataCatalog",
+      "credentials": {
+        "source": "accessKey",
+        "sessionSeconds": 900,
+        "sessionPolicy": "generated"
+      }
+    },
+    "prodDefaults": {
+      "workgroup": "primary",
+      "catalog": "AwsDataCatalog",
+      "credentials": {
+        "source": "accessKey",
+        "sessionSeconds": 900,
+        "sessionPolicy": "generated"
+      }
+    }
+  },
   "firestore": {
     "sections": [
       "/credentials"
@@ -9749,6 +12845,1503 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "credentials": {
         "source": "adc",
         "lifetimeSeconds": 900
+      }
+    }
+  },
+  "cosmosdb": {
+    "sections": [
+      "/auth",
+      "/advanced"
+    ],
+    "loose": [
+      "/endpoint",
+      "/databases",
+      "/containers",
+      "/readConsistency"
+    ],
+    "rows": {
+      "/auth": [
+        [
+          "/auth/method"
+        ],
+        [
+          "/auth/keyKind"
+        ],
+        [
+          "/auth/accountKey"
+        ],
+        [
+          "/auth/tenantId"
+        ],
+        [
+          "/auth/clientId"
+        ],
+        [
+          "/auth/clientSecret"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/crossPartitionQueries"
+        ],
+        [
+          "/advanced/maxPages",
+          "/advanced/maxItemKb"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/endpoint",
+        "kind": "text",
+        "title": "Account endpoint",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/databases",
+        "kind": "tags",
+        "title": "Databases",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/containers",
+        "kind": "tags",
+        "title": "Containers",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/readConsistency",
+        "kind": "select",
+        "title": "Read consistency",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "account",
+          "Session",
+          "ConsistentPrefix",
+          "Eventual"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth",
+        "kind": "object",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/method",
+        "kind": "select",
+        "title": "Sign in with",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "key",
+          "entra"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/keyKind",
+        "kind": "select",
+        "title": "Key",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "readOnly",
+          "readWrite"
+        ],
+        "when": [
+          "auth.method in [\"key\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/accountKey",
+        "kind": "secret",
+        "title": "Account key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"key\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/tenantId",
+        "kind": "text",
+        "title": "Directory (tenant) ID",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"entra\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/clientId",
+        "kind": "text",
+        "title": "Application (client) ID",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"entra\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/clientSecret",
+        "kind": "secret",
+        "title": "Client secret",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"entra\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/crossPartitionQueries",
+        "kind": "checkbox",
+        "title": "Cross-partition queries",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxPages",
+        "kind": "number",
+        "title": "Pages per query",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxItemKb",
+        "kind": "number",
+        "title": "Largest change",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "KB",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "auth": {
+        "method": "key",
+        "keyKind": "readOnly"
+      },
+      "readConsistency": "account",
+      "advanced": {
+        "crossPartitionQueries": true,
+        "maxPages": 5,
+        "maxItemKb": 2048
+      }
+    },
+    "prodDefaults": {
+      "auth": {
+        "method": "key",
+        "keyKind": "readOnly"
+      },
+      "readConsistency": "account",
+      "advanced": {
+        "crossPartitionQueries": true,
+        "maxPages": 5,
+        "maxItemKb": 2048
+      }
+    }
+  },
+  "cassandra": {
+    "sections": [
+      "/credentials",
+      "/advanced"
+    ],
+    "loose": [
+      "/contactPoints",
+      "/localDataCenter",
+      "/keyspace",
+      "/keyspaces",
+      "/tls",
+      "/consistency"
+    ],
+    "rows": {
+      "/credentials": [
+        [
+          "/credentials/user"
+        ],
+        [
+          "/credentials/password"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/allowFiltering"
+        ],
+        [
+          "/advanced/statementTimeoutMs",
+          "/advanced/connectTimeoutMs",
+          "/advanced/connectionsPerNode"
+        ],
+        [
+          "/tlsVerify"
+        ],
+        [
+          "/tlsServerName"
+        ],
+        [
+          "/caCertificate"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/contactPoints",
+        "kind": "tags",
+        "title": "Contact points",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/localDataCenter",
+        "kind": "text",
+        "title": "Local data center",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/keyspace",
+        "kind": "text",
+        "title": "Keyspace",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/keyspaces",
+        "kind": "tags",
+        "title": "Keyspaces",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/tls",
+        "kind": "select",
+        "title": "Connection type",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          true,
+          false
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/consistency",
+        "kind": "select",
+        "title": "Read consistency",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "LOCAL_ONE",
+          "LOCAL_QUORUM"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": false,
+        "secret": "login",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/user",
+        "kind": "text",
+        "title": "User",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/password",
+        "kind": "secret",
+        "title": "Password",
+        "required": false,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/allowFiltering",
+        "kind": "checkbox",
+        "title": "Allow ALLOW FILTERING",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": "all but default",
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/statementTimeoutMs",
+        "kind": "number",
+        "title": "Statement timeout",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "ms",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/connectTimeoutMs",
+        "kind": "number",
+        "title": "Connect timeout",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "ms",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/connectionsPerNode",
+        "kind": "number",
+        "title": "Connections per node",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "connections",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/tlsVerify",
+        "kind": "select",
+        "title": "TLS verification",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "full",
+          "ca"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/tlsServerName",
+        "kind": "text",
+        "title": "TLS server name",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "contactPoints": [],
+      "credentials": {},
+      "tls": true,
+      "tlsVerify": "full",
+      "consistency": "LOCAL_ONE",
+      "advanced": {
+        "allowFiltering": false,
+        "connectTimeoutMs": 5000,
+        "connectionsPerNode": 1
+      }
+    },
+    "prodDefaults": {
+      "contactPoints": [],
+      "credentials": {},
+      "tls": true,
+      "tlsVerify": "full",
+      "consistency": "LOCAL_ONE",
+      "advanced": {
+        "allowFiltering": false,
+        "connectTimeoutMs": 5000,
+        "connectionsPerNode": 1
+      }
+    }
+  },
+  "neo4j": {
+    "sections": [
+      "/authentication",
+      "/advanced"
+    ],
+    "loose": [
+      "/uri",
+      "/database"
+    ],
+    "rows": {
+      "/authentication": [
+        [
+          "/authentication/method"
+        ],
+        [
+          "/authentication/user"
+        ],
+        [
+          "/authentication/password"
+        ],
+        [
+          "/authentication/token"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/maxRows",
+          "/advanced/transactionTimeoutMs",
+          "/advanced/connectTimeoutMs"
+        ],
+        [
+          "/caCertificate"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/uri",
+        "kind": "text",
+        "title": "Connection URI",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/database",
+        "kind": "text",
+        "title": "Database",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/authentication",
+        "kind": "object",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/authentication/method",
+        "kind": "select",
+        "title": "Sign in with",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "password",
+          "token"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/authentication/user",
+        "kind": "text",
+        "title": "User",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "authentication.method in [\"password\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/authentication/password",
+        "kind": "secret",
+        "title": "Password",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "authentication.method in [\"password\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/authentication/token",
+        "kind": "secret",
+        "title": "Bearer token",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "authentication.method in [\"token\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxRows",
+        "kind": "number",
+        "title": "Rows per query",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "rows",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/transactionTimeoutMs",
+        "kind": "number",
+        "title": "Transaction timeout",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "ms",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/connectTimeoutMs",
+        "kind": "number",
+        "title": "Connect timeout",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "ms",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "database": "neo4j",
+      "authentication": {
+        "method": "password"
+      },
+      "advanced": {
+        "connectTimeoutMs": 5000
+      }
+    },
+    "prodDefaults": {
+      "database": "neo4j",
+      "authentication": {
+        "method": "password"
+      },
+      "advanced": {
+        "connectTimeoutMs": 5000
+      }
+    }
+  },
+  "prometheus": {
+    "sections": [
+      "/auth",
+      "/advanced"
+    ],
+    "loose": [
+      "/url",
+      "/tenant",
+      "/caCertificate"
+    ],
+    "rows": {
+      "/auth": [
+        [
+          "/auth/mode"
+        ],
+        [
+          "/auth/username"
+        ],
+        [
+          "/auth/secret"
+        ],
+        [
+          "/auth/secret"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/maxSeries",
+          "/advanced/maxPoints",
+          "/advanced/maxResponseMb"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/url",
+        "kind": "text",
+        "title": "Server URL",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/tenant",
+        "kind": "text",
+        "title": "Tenant (X-Scope-OrgID)",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth",
+        "kind": "object",
+        "title": "Credentials",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/mode",
+        "kind": "select",
+        "title": "Authentication",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "none",
+          "basic",
+          "bearer"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/username",
+        "kind": "text",
+        "title": "Username",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.mode in [\"basic\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/secret",
+        "kind": "secret",
+        "title": "Password",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.mode in [\"basic\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/secret",
+        "kind": "secret",
+        "title": "Bearer token",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.mode in [\"bearer\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxSeries",
+        "kind": "number",
+        "title": "Series per answer",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxPoints",
+        "kind": "number",
+        "title": "Points per series",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxResponseMb",
+        "kind": "number",
+        "title": "Server answer size",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "MB",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "auth": {
+        "mode": "none"
+      },
+      "advanced": {
+        "maxSeries": 1000,
+        "maxPoints": 11000,
+        "maxResponseMb": 16
+      }
+    },
+    "prodDefaults": {
+      "auth": {
+        "mode": "none"
+      },
+      "advanced": {
+        "maxSeries": 1000,
+        "maxPoints": 11000,
+        "maxResponseMb": 16
+      }
+    }
+  },
+  "influxdb": {
+    "sections": [
+      "/auth",
+      "/advanced"
+    ],
+    "loose": [
+      "/url",
+      "/version",
+      "/organization",
+      "/databases"
+    ],
+    "rows": {
+      "/auth": [
+        [
+          "/auth/method"
+        ],
+        [
+          "/auth/token"
+        ],
+        [
+          "/auth/username"
+        ],
+        [
+          "/auth/password"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/maxRows",
+          "/advanced/maxResponseKb",
+          "/advanced/maxWritePoints"
+        ],
+        [
+          "/advanced/caCertificate"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/url",
+        "kind": "text",
+        "title": "Server URL",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/version",
+        "kind": "select",
+        "title": "Server",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "3",
+          "2",
+          "1"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/organization",
+        "kind": "text",
+        "title": "Organization",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/databases",
+        "kind": "tags",
+        "title": "Databases",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/method",
+        "kind": "select",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "token",
+          "password",
+          "none"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": [
+          "none"
+        ],
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/token",
+        "kind": "secret",
+        "title": "API token",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"token\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/username",
+        "kind": "text",
+        "title": "Username",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"password\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/password",
+        "kind": "secret",
+        "title": "Password",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"password\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxRows",
+        "kind": "number",
+        "title": "Rows per query",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxResponseKb",
+        "kind": "number",
+        "title": "Response size",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "KB",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxWritePoints",
+        "kind": "number",
+        "title": "Points per write",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "version": "3",
+      "auth": {
+        "method": "token"
+      },
+      "advanced": {
+        "maxRows": 1000,
+        "maxResponseKb": 1024,
+        "maxWritePoints": 1000
+      }
+    },
+    "prodDefaults": {
+      "version": "3",
+      "auth": {
+        "method": "token"
+      },
+      "advanced": {
+        "maxRows": 1000,
+        "maxResponseKb": 1024,
+        "maxWritePoints": 1000
       }
     }
   },
