@@ -116,6 +116,7 @@ export function signInTarget(type: string): string {
     case 'influxdb':
     case 'trino':
     case 'neo4j':
+    case 'cassandra':
       return 'the database';
     case 'ssh':
     case 'ssh-logs':

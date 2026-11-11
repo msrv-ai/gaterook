@@ -7149,6 +7149,196 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         }
       }
     }
+  },
+  "cassandra": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Apache Cassandra",
+    "type": "object",
+    "x-card": {
+      "description": "Keyspaces, tables and CQL reads on Cassandra and CQL-compatible services. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "contactPoints",
+      "localDataCenter"
+    ],
+    "properties": {
+      "contactPoints": {
+        "type": "array",
+        "title": "Contact points",
+        "minItems": 1,
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "maxLength": 300,
+          "pattern": "^(\\[[0-9A-Fa-f:.]+\\]|[A-Za-z0-9.-]+)(:\\d{1,5})?$"
+        },
+        "examples": [
+          [
+            "cassandra-1.example.com:9042",
+            "10.0.4.12:9042"
+          ]
+        ],
+        "description": "host:port of one or more nodes; the driver finds the others. Without a port: 9042. Amazon Keyspaces listens on 9142."
+      },
+      "localDataCenter": {
+        "type": "string",
+        "title": "Local data center",
+        "minLength": 1,
+        "maxLength": 128,
+        "examples": [
+          "datacenter1"
+        ],
+        "description": "The data center whose nodes serve every request, as nodetool status names it. Amazon Keyspaces: the region, such as eu-central-1."
+      },
+      "keyspace": {
+        "type": "string",
+        "title": "Keyspace",
+        "pattern": "^[A-Za-z0-9_]{1,48}$",
+        "examples": [
+          "shop"
+        ],
+        "description": "The keyspace of statements that name none, as Cassandra stores it: lower case unless it was created with quotes. Empty: statements name their keyspace."
+      },
+      "keyspaces": {
+        "type": "array",
+        "title": "Keyspaces",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_*?]{1,48}$"
+        },
+        "description": "The keyspaces agents may use; * matches any characters, such as shop_*. Empty: every keyspace but Cassandra's own system keyspaces."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "x-gateway-secret": "login",
+        "additionalProperties": false,
+        "properties": {
+          "user": {
+            "type": "string",
+            "title": "User",
+            "maxLength": 256,
+            "description": "The role GateRook signs in as. Use one that can only read wherever agents only read: the test below shows what it may do."
+          },
+          "password": {
+            "type": "string",
+            "title": "Password",
+            "description": "Empty: GateRook connects without signing in.",
+            "writeOnly": true,
+            "format": "password"
+          }
+        }
+      },
+      "tls": {
+        "type": "boolean",
+        "title": "Connection type",
+        "default": true,
+        "enum": [
+          true,
+          false
+        ],
+        "x-enumTitles": [
+          "TLS",
+          "Without TLS"
+        ],
+        "description": "TLS to every node. Without TLS, the password and the data cross the network in clear; outside dev the test warns."
+      },
+      "tlsVerify": {
+        "type": "string",
+        "title": "TLS verification",
+        "enum": [
+          "full",
+          "ca"
+        ],
+        "default": "full",
+        "x-enumTitles": [
+          "Verify the CA and host name",
+          "Verify the CA only"
+        ],
+        "description": "Verifying the CA only needs the cluster's own CA certificate below.",
+        "x-section": "/advanced"
+      },
+      "tlsServerName": {
+        "type": "string",
+        "title": "TLS server name",
+        "maxLength": 253,
+        "pattern": "^[A-Za-z0-9.-]+$",
+        "examples": [
+          "cassandra.eu-central-1.amazonaws.com"
+        ],
+        "description": "The name every node's certificate must carry, also sent as SNI. Empty: each node's own address. Amazon Keyspaces: its endpoint's name.",
+        "x-section": "/advanced"
+      },
+      "caCertificate": {
+        "type": "string",
+        "title": "CA certificate (PEM)",
+        "maxLength": 20000,
+        "x-widget": "textarea",
+        "description": "Only for a private CA. Empty: the system trust store.",
+        "x-section": "/advanced"
+      },
+      "consistency": {
+        "type": "string",
+        "title": "Read consistency",
+        "enum": [
+          "LOCAL_ONE",
+          "LOCAL_QUORUM"
+        ],
+        "default": "LOCAL_ONE",
+        "x-enumTitles": [
+          "LOCAL_ONE: one replica of the local data center answers",
+          "LOCAL_QUORUM: most replicas of the local data center answer"
+        ],
+        "description": "Changes always write at LOCAL_QUORUM, and lightweight transactions use LOCAL_SERIAL."
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "TLS details, timeouts and connections. Policies set row limits and timeouts per environment.",
+        "properties": {
+          "allowFiltering": {
+            "type": "boolean",
+            "title": "Allow ALLOW FILTERING",
+            "default": false,
+            "x-forbidden-env": [
+              "stage",
+              "prod"
+            ],
+            "description": "Dev only: reads may end with ALLOW FILTERING, which scans partitions, possibly the whole cluster."
+          },
+          "statementTimeoutMs": {
+            "type": "integer",
+            "title": "Statement timeout",
+            "minimum": 100,
+            "maximum": 600000,
+            "x-unit": "ms",
+            "description": "Reads stop after this long. Empty: the environment policy's statement timeout."
+          },
+          "connectTimeoutMs": {
+            "type": "integer",
+            "title": "Connect timeout",
+            "minimum": 500,
+            "maximum": 30000,
+            "default": 5000,
+            "x-unit": "ms"
+          },
+          "connectionsPerNode": {
+            "type": "integer",
+            "title": "Connections per node",
+            "minimum": 1,
+            "maximum": 8,
+            "default": 1,
+            "x-unit": "connections"
+          }
+        }
+      }
+    }
   }
 };
 
@@ -12274,6 +12464,356 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "crossPartitionQueries": true,
         "maxPages": 5,
         "maxItemKb": 2048
+      }
+    }
+  },
+  "cassandra": {
+    "sections": [
+      "/credentials",
+      "/advanced"
+    ],
+    "loose": [
+      "/contactPoints",
+      "/localDataCenter",
+      "/keyspace",
+      "/keyspaces",
+      "/tls",
+      "/consistency"
+    ],
+    "rows": {
+      "/credentials": [
+        [
+          "/credentials/user"
+        ],
+        [
+          "/credentials/password"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/allowFiltering"
+        ],
+        [
+          "/advanced/statementTimeoutMs",
+          "/advanced/connectTimeoutMs",
+          "/advanced/connectionsPerNode"
+        ],
+        [
+          "/tlsVerify"
+        ],
+        [
+          "/tlsServerName"
+        ],
+        [
+          "/caCertificate"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/contactPoints",
+        "kind": "tags",
+        "title": "Contact points",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/localDataCenter",
+        "kind": "text",
+        "title": "Local data center",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/keyspace",
+        "kind": "text",
+        "title": "Keyspace",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/keyspaces",
+        "kind": "tags",
+        "title": "Keyspaces",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/tls",
+        "kind": "select",
+        "title": "Connection type",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          true,
+          false
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/consistency",
+        "kind": "select",
+        "title": "Read consistency",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "LOCAL_ONE",
+          "LOCAL_QUORUM"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": false,
+        "secret": "login",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/user",
+        "kind": "text",
+        "title": "User",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/password",
+        "kind": "secret",
+        "title": "Password",
+        "required": false,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/allowFiltering",
+        "kind": "checkbox",
+        "title": "Allow ALLOW FILTERING",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": "all but default",
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/statementTimeoutMs",
+        "kind": "number",
+        "title": "Statement timeout",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "ms",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/connectTimeoutMs",
+        "kind": "number",
+        "title": "Connect timeout",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "ms",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/connectionsPerNode",
+        "kind": "number",
+        "title": "Connections per node",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "connections",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/tlsVerify",
+        "kind": "select",
+        "title": "TLS verification",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "full",
+          "ca"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/tlsServerName",
+        "kind": "text",
+        "title": "TLS server name",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "contactPoints": [],
+      "credentials": {},
+      "tls": true,
+      "tlsVerify": "full",
+      "consistency": "LOCAL_ONE",
+      "advanced": {
+        "allowFiltering": false,
+        "connectTimeoutMs": 5000,
+        "connectionsPerNode": 1
+      }
+    },
+    "prodDefaults": {
+      "contactPoints": [],
+      "credentials": {},
+      "tls": true,
+      "tlsVerify": "full",
+      "consistency": "LOCAL_ONE",
+      "advanced": {
+        "allowFiltering": false,
+        "connectTimeoutMs": 5000,
+        "connectionsPerNode": 1
       }
     }
   },

@@ -399,6 +399,8 @@ export function checkPrompt(type: string | null, name: string | null): string {
       return `Show me the containers in ${name}`;
     case 'neo4j':
       return `Show me the node labels in ${name}`;
+    case 'cassandra':
+      return `Show me the keyspaces in ${name}`;
     default:
       return `Show me what you can see in ${name}`;
   }
