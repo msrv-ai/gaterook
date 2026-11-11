@@ -32,16 +32,20 @@ import tools.jackson.databind.node.ObjectNode;
  * Google's REST APIs on {@code java.net.http}, with google-auth only for the token (report 09 §2, §7): Cloud Asset,
  * Cloud Monitoring, Cloud Resource Manager and the eight services of {@link LiveRoutes}.
  *
- * <p>Reading is the only thing this class can do: {@link #get} and {@link #testIamPermissions} (a POST that asks which
- * permissions the caller has and changes nothing) are its only requests, and every URL is the gateway's own — a base
- * of a Google API plus a path the connector built (ARCHITECTURE.md §9 "SSRF": GCP REST is checked against its allowlist
- * before the request, not by the egress guard). Redirects are never followed (the token must not travel), answers are
- * read up to 8 MB, every request runs against the call's deadline, and the access token goes to the call's taint.
+ * <p>{@link #get}, {@link #getPublic} (Discovery documents, without the token) and {@link #testIamPermissions} (a POST
+ * that asks which permissions the caller has and changes nothing) only read. {@link #request} sends what
+ * {@code gcp_api_read} and {@code gcp_api_change} built from a Discovery document: a read, or a change a person
+ * approved. Every URL is the gateway's own — a base of a Google API plus a path the connector built (ARCHITECTURE.md
+ * §9 "SSRF": GCP REST is checked against its allowlist before the request, not by the egress guard). Redirects are
+ * never followed (the token must not travel), answers are read up to 8 MB, every request runs against the call's
+ * deadline, and the access token goes to the call's taint.
  */
 final class GoogleApi {
 
   /** Largest answer one request may give (report 09 §6 "HTTP"). */
   static final long MAX_BODY = 8L * 1024 * 1024;
+  /** Largest public Discovery document: Compute Engine v1's was 6.4 MB in November 2026, and documents grow. */
+  static final long MAX_DISCOVERY = 24L * 1024 * 1024;
   /** Time kept back from the deadline for building the answer. */
   static final Duration MARGIN = Duration.ofMillis(150);
   static final Duration MAX_REQUEST = Duration.ofSeconds(30);
@@ -110,7 +114,33 @@ final class GoogleApi {
   }
 
   JsonNode get(URI uri, String what) throws ConnectorException {
-    return send(HttpRequest.newBuilder(uri).GET(), uri, what);
+    return send(HttpRequest.newBuilder(uri).GET(), uri, what, true, false, false);
+  }
+
+  /**
+   * A GET without the connection's token: Google's public Discovery directory and documents ({@link Discovery}).
+   */
+  JsonNode getPublic(URI uri, String what) throws ConnectorException {
+    return send(HttpRequest.newBuilder(uri).GET(), uri, what, false, false, false);
+  }
+
+  /**
+   * A request of {@code gcp_api_read} or {@code gcp_api_change}, built by {@link Discovery#build} from a method of a
+   * Discovery document: GET, a read-only POST of {@link ApiRules}, or an approved change. A path may carry a
+   * percent-encoded {@code /} inside one segment (a Cloud Storage object name), never a dot segment.
+   *
+   * @param change whether the request changes something: after it left, a lost answer is an unknown outcome, never a
+   *               failure to retry
+   */
+  JsonNode request(String method, URI uri, JsonNode body, String what, boolean change) throws ConnectorException {
+    HttpRequest.Builder b = HttpRequest.newBuilder(uri);
+    HttpRequest.BodyPublisher publisher = body == null ? HttpRequest.BodyPublishers.noBody()
+        : HttpRequest.BodyPublishers.ofString(body.toString());
+    if (body != null) {
+      b.header("Content-Type", "application/json");
+    }
+    b.method(method, publisher);
+    return send(b, uri, what, true, true, change);
   }
 
   /**
@@ -124,7 +154,7 @@ final class GoogleApi {
     ObjectNode body = JsonNodeFactory.instance.objectNode();
     permissions.forEach(body.putArray("permissions")::add);
     JsonNode answer = send(HttpRequest.newBuilder(uri).header("Content-Type", "application/json")
-        .POST(HttpRequest.BodyPublishers.ofString(body.toString())), uri, what);
+        .POST(HttpRequest.BodyPublishers.ofString(body.toString())), uri, what, true, false, false);
     List<String> granted = new java.util.ArrayList<>();
     for (JsonNode p : answer.path("permissions")) {
       if (!p.asString("").isEmpty()) {
@@ -134,13 +164,20 @@ final class GoogleApi {
     return List.copyOf(granted);
   }
 
-  private JsonNode send(HttpRequest.Builder request, URI uri, String what) throws ConnectorException {
+  private JsonNode send(HttpRequest.Builder request, URI uri, String what, boolean authenticated,
+      boolean encodedSlashes, boolean change) throws ConnectorException {
     requireGoogle(uri);
-    requirePlainPath(uri);
+    if (encodedSlashes) {
+      requireNoDotSegments(uri);
+    } else {
+      requirePlainPath(uri);
+    }
     request.header("Accept", "application/json");
-    for (Map.Entry<String, List<String>> h : headers(uri).entrySet()) {
-      for (String v : h.getValue()) {
-        request.header(h.getKey(), v);
+    if (authenticated) {
+      for (Map.Entry<String, List<String>> h : headers(uri).entrySet()) {
+        for (String v : h.getValue()) {
+          request.header(h.getKey(), v);
+        }
       }
     }
     Duration left = ctx.remaining().minus(MARGIN);
@@ -154,21 +191,33 @@ final class GoogleApi {
       HttpResponse<InputStream> r = http.send(built, HttpResponse.BodyHandlers.ofInputStream());
       status = r.statusCode();
       try (InputStream in = r.body()) {
-        body = read(in, what);
+        body = read(in, what, authenticated ? MAX_BODY : MAX_DISCOVERY);
       }
     } catch (HttpConnectTimeoutException e) {
       throw ConnectorException.unavailable("Can't connect to " + host(uri) + " (timed out). Check that this computer "
           + "can reach Google Cloud.", e);
     } catch (HttpTimeoutException e) {
+      if (change) {
+        throw ConnectorException.outcomeUnknown(what + " didn't answer in time. The change may have been applied: "
+            + "read the resource before trying again.", e);
+      }
       throw ConnectorException.timeout(what + " didn't answer in time.");
     } catch (ConnectException e) {
       throw ConnectorException.unavailable("Can't connect to " + host(uri) + ": " + reason(e) + ".", e);
     } catch (SSLException e) {
       throw ConnectorException.unavailable("The TLS handshake with " + host(uri) + " failed: " + reason(e) + ".", e);
     } catch (IOException e) {
+      if (change) {
+        throw ConnectorException.outcomeUnknown(what + " failed after the request was sent (" + reason(e) + "). The "
+            + "change may have been applied: read the resource before trying again.", e);
+      }
       throw ConnectorException.unavailable(what + " failed: " + reason(e), e);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
+      if (change) {
+        throw ConnectorException.outcomeUnknown(what + " was cancelled after the request was sent. The change may "
+            + "have been applied: read the resource before trying again.", e);
+      }
       throw ConnectorException.timeout(what + " was cancelled.");
     }
     JsonNode tree;
@@ -199,6 +248,21 @@ final class GoogleApi {
     }
     if (path.contains("//") || raw.contains("%2e") || raw.contains("%2f")) {
       throw new IllegalArgumentException("An empty or encoded segment in a Google API path");
+    }
+  }
+
+  /**
+   * The paths of {@link #request}: like {@link #requirePlainPath}, but one segment may hold a percent-encoded
+   * {@code /} (Cloud Storage object names). No segment is empty, {@code .} or {@code ..}, raw or encoded.
+   */
+  static void requireNoDotSegments(URI uri) {
+    String raw = uri.getRawPath() == null ? "" : uri.getRawPath();
+    String[] segments = raw.split("/", -1);
+    for (int i = 1; i < segments.length; i++) {
+      String s = segments[i].toLowerCase(Locale.ROOT).replace("%2e", ".");
+      if (s.isEmpty() || s.equals(".") || s.equals("..")) {
+        throw new IllegalArgumentException("An empty or dot segment in a Google API path");
+      }
     }
   }
 
@@ -288,15 +352,15 @@ final class GoogleApi {
     return uri.getPort() < 0 ? uri.getHost() : uri.getHost() + ":" + uri.getPort();
   }
 
-  private static byte[] read(InputStream in, String what) throws IOException, ConnectorException {
+  private static byte[] read(InputStream in, String what, long max) throws IOException, ConnectorException {
     ByteArrayOutputStream out = new ByteArrayOutputStream(8192);
     byte[] buf = new byte[16384];
     long total = 0;
     int n;
     while ((n = in.read(buf)) > 0) {
       total += n;
-      if (total > MAX_BODY) {
-        throw ConnectorException.resourceError(what + " answered with more than " + (MAX_BODY >> 20) + " MB. Narrow "
+      if (total > max) {
+        throw ConnectorException.resourceError(what + " answered with more than " + (max >> 20) + " MB. Narrow "
             + "the query or lower limit.", null);
       }
       out.write(buf, 0, n);

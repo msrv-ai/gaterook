@@ -1,0 +1,55 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "service",
+    "method"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "service": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,62}$",
+      "description": "The API's short name: run, compute, storage, sqladmin, container, pubsub, cloudbuild, artifactregistry, clouderrorreporting, cloudtrace, recommender, cloudscheduler, cloudtasks, cloudfunctions"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^v[0-9][a-z0-9.]{0,15}$",
+      "description": "API version such as v1, v2 or v1beta1. Default: the version Google prefers"
+    },
+    "method": {
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^[A-Za-z][A-Za-z0-9]*(\\.[A-Za-z][A-Za-z0-9]*){0,11}$",
+      "description": "The Discovery method without the API prefix, such as projects.locations.services.list"
+    },
+    "params": {
+      "type": "object",
+      "maxProperties": 40,
+      "description": "Path and query parameters, such as {\"parent\": \"projects/acme-stage/locations/europe-west1\", \"pageSize\": 50}. Pass data.nextPageToken back as pageToken",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean",
+          "array"
+        ],
+        "maxItems": 50,
+        "items": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        }
+      }
+    },
+    "body": {
+      "type": "object",
+      "description": "Request body of a read-only POST (getIamPolicy, testIamPermissions); GET methods take none"
+    }
+  }
+}

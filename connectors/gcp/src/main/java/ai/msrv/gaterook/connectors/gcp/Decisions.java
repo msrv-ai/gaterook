@@ -41,6 +41,22 @@ final class Decisions {
     if (callId != null) decided.remove(callId);
   }
 
+  /**
+   * The policy {@code classify} applied, without using it up: {@code prepare} runs between {@code classify} and the
+   * call's {@code execute} ({@code gcp_api_change}), which takes it.
+   */
+  GcpPolicy peek(String callId, String tool, String connectionId, long version) {
+    if (callId == null) {
+      return null;
+    }
+    Decided d = decided.get(callId);
+    if (d == null || System.nanoTime() - d.atNanos() > TTL.toNanos() || !d.tool().equals(tool)
+        || !d.connectionId().equals(connectionId) || d.version() != version) {
+      return null;
+    }
+    return d.policy();
+  }
+
   /** The policy {@code classify} applied to this tool and connection version, once; {@code null} if none. */
   GcpPolicy take(String callId, String tool, String connectionId, long version) {
     if (callId == null) {

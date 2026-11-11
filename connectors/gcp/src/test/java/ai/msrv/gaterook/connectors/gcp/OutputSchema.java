@@ -19,8 +19,14 @@ final class OutputSchema {
       SCHEMAS.load("gcp_describe.output"));
   private static final Schema METRICS = REGISTRY.getSchema(SchemaLocation.of("urn:mcp-gateway:gcp_metrics.output"),
       SCHEMAS.load("gcp_metrics.output"));
+  private static final Schema API_READ = REGISTRY.getSchema(SchemaLocation.of("urn:mcp-gateway:gcp_api_read.output"),
+      SCHEMAS.load("gcp_api_read.output"));
 
   private OutputSchema() {}
+
+  static ToolResult apiRead(ToolResult r) {
+    return valid(API_READ, r);
+  }
 
   static ToolResult describe(ToolResult r) {
     return valid(DESCRIBE, r);

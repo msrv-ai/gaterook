@@ -46,8 +46,8 @@ class GcpConnectorTest {
     assertThat(m.name()).isEqualTo("GCP");
     assertThat(m.group()).isEqualTo("Cloud");
     assertThat(m.icon()).isEqualTo("cloud");
-    assertThat(m.description()).isEqualTo("Resources, statuses, metrics and Cloud Logging, read with the "
-        + "connection's Google identity.");
+    assertThat(m.description()).isEqualTo("Resources, metrics, Cloud Logging and any Google Cloud API, with the "
+        + "connection's Google identity. Changes wait for approval.");
     assertThat(m.configSchema().path("type").asString()).isEqualTo("object");
     assertThat(m.policySchema().path("x-policy-section").asString()).isEqualTo("cloud");
     assertThat(m.access().files()).containsExactly("~/.config/gcloud/application_default_credentials.json");
@@ -58,8 +58,20 @@ class GcpConnectorTest {
     List<ToolDefinition> tools = connector.manifest().tools();
 
     assertThat(tools).extracting(ToolDefinition::name).containsExactly("gcp_describe", "gcp_metrics",
-        "logs_search", "logs_tail");
+        "gcp_api_read", "gcp_api_change", "logs_search", "logs_tail");
     for (ToolDefinition t : tools) {
+      assertThat(t.inputSchema().at("/properties/connection").toString()).isEqualTo("{\"type\":\"string\"}");
+      assertThat(t.inputSchema().at("/required").toString()).contains("\"connection\"");
+      if (t.name().equals("gcp_api_change")) {
+        // The only tool that changes resources: approval everywhere, never Read only, no output schema.
+        assertThat(t.nature()).isEqualTo(Nature.MUTATION);
+        assertThat(t.defaultMode()).isEqualTo(Mode.APPROVAL);
+        assertThat(t.prodDefaultMode()).isEqualTo(Mode.APPROVAL);
+        assertThat(t.outputSchema()).isNull();
+        assertThat(t.annotations()).isEqualTo(ToolDefinition.Annotations.write(true));
+        assertThat(t.readOnlyModeAllowed()).isFalse();
+        continue;
+      }
       assertThat(t.nature()).as(t.name()).isEqualTo(Nature.READ);
       boolean tail = t.name().equals("logs_tail");
       assertThat(t.defaultMode()).isEqualTo(tail ? Mode.OFF : Mode.READ_ONLY);
@@ -67,8 +79,6 @@ class GcpConnectorTest {
       assertThat(t.outputSchema()).isNotNull();
       assertThat(t.annotations()).isEqualTo(tail ? new ToolDefinition.Annotations(true, false, false, false)
           : ToolDefinition.Annotations.read());
-      assertThat(t.inputSchema().at("/properties/connection").toString()).isEqualTo("{\"type\":\"string\"}");
-      assertThat(t.inputSchema().at("/required").toString()).contains("\"connection\"");
       assertThat(t.readOnlyModeAllowed()).isTrue();
     }
     try (LogsConnector logs = new LogsConnector(cloud)) {
@@ -83,12 +93,12 @@ class GcpConnectorTest {
     List<ToolDefinition> preview = connector.previewTools(Configs.of("draft", Env.DEV, "{}"));
 
     assertThat(preview).extracting(ToolDefinition::name)
-        .containsExactly("gcp_describe", "gcp_metrics", "logs_search", "logs_tail");
+        .containsExactly("gcp_describe", "gcp_metrics", "gcp_api_read", "gcp_api_change", "logs_search", "logs_tail");
     assertThat(preview).allSatisfy(tool -> assertThat(tool.description())
         .doesNotContain("OpenSearch", "Loki", "CloudWatch"));
     assertThat(preview.stream().filter(tool -> CloudLogs.isTool(tool.name())))
         .allSatisfy(tool -> assertThat(tool.description()).contains("Google Cloud Logging"));
-    assertThat(preview.get(2).inputSchema().at("/properties/query/description").asString())
+    assertThat(preview.get(4).inputSchema().at("/properties/query/description").asString())
         .contains("Google Cloud Logging").doesNotContain("OpenSearch", "Loki", "CloudWatch");
   }
 
@@ -110,6 +120,10 @@ class GcpConnectorTest {
     assertThat(tools.get(1).description()).endsWith(" Projects: gcp-dev: acme-dev; gcp-stage: acme-stage.");
     assertThat(tools.get(1).inputSchema().at("/properties/project/enum").toString())
         .isEqualTo("[\"acme-dev\",\"acme-stage\"]");
+    assertThat(tools.get(2).description()).endsWith(" Scopes: gcp-dev: projects/acme-dev (no live reads); gcp-stage: "
+        + "projects/acme-stage, folders/123456.");
+    assertThat(tools.get(3).description()).startsWith(GcpTools.API_CHANGE);
+    assertThat(tools.get(3).defaultMode()).isEqualTo(Mode.APPROVAL);
     assertThat(connector.manifest().tools().get(0).inputSchema().at("/properties/scope/enum").isMissingNode())
         .as("the manifest's schema stays as it is").isTrue();
   }
@@ -176,5 +190,22 @@ class GcpConnectorTest {
     assertThat(d.at("/logging/resourceNames")).isEqualTo(d.path("scopes"));
     assertThat(d.at("/logging/language").asString()).contains("Cloud Logging query language");
     assertThat(d.at("/logging/exampleQueries").toString()).contains("k8s_container");
+    assertThat(d.at("/api/tools").toString()).isEqualTo("[\"gcp_api_read\",\"gcp_api_change\"]");
+    assertThat(d.at("/api/examples/0/params/parent").asString()).isEqualTo("projects/acme-stage/locations/-");
+    assertThat(d.at("/api/refused").asString()).contains("Secrets");
+  }
+
+  @Test
+  void theApproverSeesAnApiCallAsItWasAskedUntilPrepareBuildsTheRequest() {
+    ActionPreview change = connector.describeAction(Configs.call("gcp_api_change", "gcp-stage", """
+        {"service":"run","method":"projects.locations.services.delete",
+         "params":{"name":"projects/acme-stage/locations/europe-west1/services/api"}}"""), Configs.stage());
+
+    assertThat(change.text()).isEqualTo("""
+        gcp_api_change · gcp-stage (GCP · projects/acme-stage +1 · stage)
+        run projects.locations.services.delete
+        params: {"name":"projects/acme-stage/locations/europe-west1/services/api"}""");
+    assertThat(change.payload().path("tool").asString()).isEqualTo("gcp_api_change");
+    assertThat(change.payload().path("method").asString()).isEqualTo("projects.locations.services.delete");
   }
 }

@@ -16,8 +16,9 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * GCP inventory and metric tools, with the unchanged shared log tools supplied by {@link CloudLogs}. Log tailing
- * keeps its shared Off default; the other tools default to Read only.
+ * GCP inventory, metric and generic API tools, with the unchanged shared log tools supplied by {@link CloudLogs}. Log
+ * tailing keeps its shared Off default, {@code gcp_api_change} waits for approval everywhere; the other tools default
+ * to Read only.
  */
 final class GcpTools {
 
@@ -30,6 +31,19 @@ final class GcpTools {
       + "(run.googleapis.com/request_count), filter by labels (resource.labels.service_name = \"api\"), from/to like "
       + "-1h and now, optional aligner, reducer and groupBy; action list_metrics: the metric types with recent data "
       + "(prefix); action alerts: open or closed alerts.";
+  static final String API_READ = "Call a read method of any Google Cloud API in the connection's scopes, named as "
+      + "in its Discovery document: service run, method projects.locations.services.revisions.list, params {parent: "
+      + "projects/acme-stage/locations/europe-west1/services/api}. Also: clouderrorreporting projects.groupStats.list "
+      + "{projectName, timeRange.period: PERIOD_1_DAY}; cloudtrace v1 projects.traces.list {projectId}; storage "
+      + "objects.list {bucket, prefix}; cloudbuild projects.builds.list {projectId}; recommender "
+      + "projects.locations.recommenders.recommendations.list. GET and read-only POSTs only; secrets, tokens, object "
+      + "contents and database rows are refused. Results follow the Cloud policy and are masked; pass "
+      + "data.nextPageToken back as params.pageToken.";
+  static final String API_CHANGE = "Call a Google Cloud API method that changes resources (create, patch, delete, "
+      + "run, restart, rollback) in the connection's scopes, named as in its Discovery document: service run, method "
+      + "projects.locations.services.patch, params {name, updateMask}, body. A person approves the exact HTTP request "
+      + "before it runs. A long-running operation comes back by name: follow it with gcp_api_read "
+      + "(…operations.get).";
 
   private GcpTools() {}
 
@@ -54,7 +68,31 @@ final class GcpTools {
             .nature(Nature.READ)
             .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY)
             .resultShape(ResultShape.JSON)
+            .build(),
+        ToolDefinition.builder(ApiRequest.READ)
+            .title("Read any Google Cloud API")
+            .description(API_READ)
+            .inputSchema(schemas.load("gcp_api_read.input"))
+            .outputSchema(schemas.load("gcp_api_read.output"))
+            .annotations(Annotations.read())
+            .nature(Nature.READ)
+            .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY)
+            .resultShape(ResultShape.JSON)
+            .build(),
+        ToolDefinition.builder(ApiRequest.CHANGE)
+            .title("Change Google Cloud resources (needs approval)")
+            .description(API_CHANGE)
+            .inputSchema(schemas.load("gcp_api_change.input"))
+            .annotations(Annotations.write(true))
+            .nature(Nature.MUTATION)
+            .defaultMode(Mode.APPROVAL, Mode.APPROVAL)
+            .resultShape(ResultShape.JSON)
             .build());
+  }
+
+  /** Whether a tool is one of the generic API tools. */
+  static boolean api(String tool) {
+    return ApiRequest.READ.equals(tool) || ApiRequest.CHANGE.equals(tool);
   }
 
   /**
@@ -96,6 +134,8 @@ final class GcpTools {
         enumOf(input, "scope", scopes);
         suffix = " Scopes: " + String.join("; ", scopeLines) + ". Live reads: "
             + String.join(", ", LiveRoutes.services()) + ".";
+      } else if (api(t.name())) {
+        suffix = " Scopes: " + String.join("; ", scopeLines) + ".";
       } else {
         enumOf(input, "project", projects);
         suffix = metricLines.isEmpty() ? "" : " Projects: " + String.join("; ", metricLines) + ".";
