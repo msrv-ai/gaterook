@@ -11,12 +11,15 @@ public final class ActivityDtos {
   /**
    * One call of the events table, as its latest audit row says.
    *
-   * @param id         the latest row's id: {@code GET /api/activity/events/{id}} and {@code #event-<id>}
-   * @param tokenLabel the trusted label of who called ({@code codex-laptop}, {@code gwt_K9xP…}, {@code playground})
+   * @param id           the latest row's id: {@code GET /api/activity/events/{id}} and {@code #event-<id>}
+   * @param tokenLabel   the trusted label of who called ({@code codex-laptop}, {@code gwt_K9xP…}, {@code playground})
+   * @param requestBytes what the app sent with the call (its arguments), {@code null} when the audit kept no size
+   * @param resultBytes  what went back to the app (the result or the error), {@code null} when nothing did
    */
   public record Event(long id, String callId, Instant at, String phase, String decision, String tool,
-      String connection, String env, String client, String endpoint, String tokenLabel, Long durationMs, String rule,
-      String approvalId, String traceId, String errorKind, String errorMessage) {}
+      String connection, String env, String client, String endpoint, String tokenLabel, Long durationMs,
+      Long requestBytes, Long resultBytes, String rule, String approvalId, String traceId, String errorKind,
+      String errorMessage) {}
 
   public record Page(List<Event> events, String nextCursor) {}
 
@@ -28,8 +31,8 @@ public final class ActivityDtos {
 
   public static Event event(AuditQueries.Event e) {
     return new Event(e.id(), e.callId(), e.at(), e.phase(), e.decision(), e.tool(), e.connection(), e.env(),
-        e.client(), e.endpoint(), e.token(), e.durationMs(), e.rule(), e.approvalId(), e.traceId(), e.errorKind(),
-        e.errorMessage());
+        e.client(), e.endpoint(), e.token(), e.durationMs(), e.requestBytes(), e.resultBytes(), e.rule(),
+        e.approvalId(), e.traceId(), e.errorKind(), e.errorMessage());
   }
 
   public static Change change(AuditQueries.Change c) {

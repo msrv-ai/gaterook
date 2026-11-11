@@ -18,6 +18,7 @@ import ai.msrv.gaterook.core.audit.internal.persistence.ToolCallRepository;
 import ai.msrv.gaterook.core.endpoints.EndpointConnections;
 import ai.msrv.gaterook.core.endpoints.EndpointService;
 import ai.msrv.gaterook.core.endpoints.TokenService;
+import ai.msrv.gaterook.core.platform.CanonicalJson;
 import ai.msrv.gaterook.core.platform.IntegrityAlerts;
 import ai.msrv.gaterook.core.platform.LocalListener;
 import ai.msrv.gaterook.core.platform.ProblemException;
@@ -100,6 +101,31 @@ class McpAuditIT {
       assertThat(q.events("prod-db", null, null, null, 10).events()).hasSize(1);
       assertThatThrownBy(() -> q.events("status:denied", null, null, null, 10)).isInstanceOf(ProblemException.class);
 
+      // Traffic: what a call sent comes from its received row (its arguments as canonical JSON), what went back from
+      // its completed row; a denied call got no result, an approved one both.
+      assertThat(q.events("decision:denied", null, null, null, 10).events()).singleElement().satisfies(e -> {
+        assertThat(e.requestBytes()).isEqualTo((long) CanonicalJson.bytes(args("connection", "prod-db", "sql",
+            "DROP TABLE order_sync_queue_old;")).length);
+        assertThat(e.resultBytes()).isNull();
+      });
+      assertThat(q.events("decision:approved", null, null, null, 10).events()).singleElement().satisfies(e -> {
+        assertThat(e.requestBytes()).isEqualTo((long) CanonicalJson.bytes(args("connection", "dev-db", "sql",
+            "UPDATE orders SET status = 'cancelled' WHERE id = 48213;")).length);
+        assertThat(e.resultBytes()).isPositive();
+      });
+      assertThat(q.events(null, null, null, null, 50).events()).allSatisfy(e -> assertThat(e.requestBytes())
+          .isPositive());
+      assertThat(core.jdbc().queryForObject("select count(*) from tool_call where request_bytes is not null "
+          + "and phase <> 'received'", Long.class)).as("only received rows carry what was sent").isZero();
+      // The hours of the range add up to the rows' sizes.
+      List<AuditQueries.HourTraffic> traffic = q.traffic(Instant.now().minus(Duration.ofHours(1)),
+          Instant.now().plusSeconds(60));
+      assertThat(traffic.stream().mapToLong(AuditQueries.HourTraffic::requestBytes).sum()).isEqualTo(core.jdbc()
+          .queryForObject("select sum(request_bytes) from tool_call where phase = 'received'", Long.class));
+      assertThat(traffic.stream().mapToLong(AuditQueries.HourTraffic::resultBytes).sum()).isEqualTo(core.jdbc()
+          .queryForObject("select sum(result_bytes) from tool_call where phase = 'completed'", Long.class))
+          .isPositive();
+
       // Pages, newest first.
       AuditQueries.Events first = q.events(null, null, null, null, 3);
       assertThat(first.events()).hasSize(3);
@@ -121,15 +147,25 @@ class McpAuditIT {
       assertThat(String.valueOf(t.summary().get("phases"))).contains("Explore");
 
       assertChainLinks(core);
+      // The writer and the check hash the same canonical form, the request size of the received rows included.
+      ToolCallRepository rows = core.bean(ToolCallRepository.class);
+      String prev = ChainHash.GENESIS;
+      for (long id : core.jdbc().queryForList("select id from tool_call order by id", Long.class)) {
+        var row = rows.findById(id).orElseThrow();
+        assertThat(ChainHash.ofStored(prev, row)).as("row " + id).isEqualTo(row.getRowSha256());
+        prev = row.getRowSha256();
+      }
     }
   }
 
   /**
-   * A decision rewritten, or only the derived hour bucket moved (which the canonical form leaves out, so a call would
-   * change its Insights and histogram bucket unseen): either way the chain breaks.
+   * A decision rewritten, only the derived hour bucket moved (which the canonical form leaves out, so a call would
+   * change its Insights and histogram bucket unseen), or a request size cleared (which the canonical form has only
+   * where it is set, so a cleared one looks like a row from before it): either way the chain breaks.
    */
   @org.junit.jupiter.params.ParameterizedTest(name = "set {0}")
-  @org.junit.jupiter.params.provider.ValueSource(strings = {"decision = 'denied'", "hour_bucket = hour_bucket - 24"})
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"decision = 'denied'", "hour_bucket = hour_bucket - 24",
+      "request_bytes = NULL"})
   void aRowEditedAroundTheTriggersIsFoundAtTheNextStart(String edit) throws Exception {
     Path home;
     try (TestCore a = world("audit-break")) {

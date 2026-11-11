@@ -37,10 +37,16 @@ public class AuditQueries {
 
   private static final long HOUR_MS = 3_600_000L;
 
-  /** One call as the events table shows it: its latest row. */
+  /**
+   * One call as the events table shows it: its latest row, with what the app sent ({@code requestBytes}, from the
+   * call's received row) and what went back to it ({@code resultBytes}, from the latest row: the completed one when the
+   * call ran). Either is {@code null} when the audit has no such size: a denied call returned no result, and rows
+   * written before V91 kept no request size.
+   */
   public record Event(long id, String callId, Instant at, String phase, String decision, String tool,
-      String connection, String env, String client, String endpoint, String token, Long durationMs, String rule,
-      String approvalId, String traceId, String errorKind, String errorMessage) {}
+      String connection, String env, String client, String endpoint, String token, Long durationMs,
+      Long requestBytes, Long resultBytes, String rule, String approvalId, String traceId, String errorKind,
+      String errorMessage) {}
 
   /** A page of events, newest first; {@code nextCursor} continues it ({@code null}: no more). */
   public record Events(List<Event> events, String nextCursor) {}
@@ -62,15 +68,16 @@ public class AuditQueries {
 
   /**
    * One stored row of a call, as the event detail shows it (Request, Arguments masked, Policy, Approval timeline,
-   * Result, Timing, Raw). Arguments and the result preview were masked before they were written.
+   * Result, Timing, Raw). Arguments and the result preview were masked before they were written; {@code requestBytes}
+   * is the size of the arguments as sent, on the received row only.
    */
   public record Row(long id, String phase, Instant at, String decision, String classification, String rule,
       String approvalId, String approvalDelivery, String protocolVersion, String ingress, String principalKind,
       String client, Map<String, Object> clientInfo, String tokenLabel, Map<String, Object> args, String argsSha256,
-      Long durationMs, Long gatewayMs, Long resourceMs, Long approvalWaitMs, Long resultBytes, String resultSha256,
-      String resultPreview, Integer maskedCount, Boolean truncated, String errorKind, String errorMessage,
-      Map<String, Object> facets, String actionSha256, String executedSha256, Boolean outcomeUnknown,
-      String decidedVia, boolean commented, String traceId, String spanId, String rowSha256) {}
+      Long requestBytes, Long durationMs, Long gatewayMs, Long resourceMs, Long approvalWaitMs, Long resultBytes,
+      String resultSha256, String resultPreview, Integer maskedCount, Boolean truncated, String errorKind,
+      String errorMessage, Map<String, Object> facets, String actionSha256, String executedSha256,
+      Boolean outcomeUnknown, String decidedVia, boolean commented, String traceId, String spanId, String rowSha256) {}
 
   /** One call: the events table's line and every row it wrote, oldest first. */
   public record Detail(Event event, List<Row> rows) {}
@@ -80,6 +87,14 @@ public class AuditQueries {
 
   /** The histogram of a range; every bar spans {@code stepHours}. */
   public record Histogram(Instant from, Instant to, int stepHours, List<Bucket> buckets) {}
+
+  /**
+   * The data of the calls of one clock hour: what apps sent with the calls received in it ({@code requestBytes}, from
+   * received rows) and what went back with the calls completed in it ({@code resultBytes}, from completed rows).
+   *
+   * @param hour epoch hours ({@code tool_call.hour_bucket})
+   */
+  public record HourTraffic(long hour, long requestBytes, long resultBytes) {}
 
   /** One value of a facet with the number of calls that have it. */
   public record FacetValue(String name, long count) {}
@@ -129,14 +144,53 @@ public class AuditQueries {
     cq.select(root).where(where.toArray(Predicate[]::new)).orderBy(cb.desc(root.get("id")));
     List<ToolCallEntity> rows = em.createQuery(cq).setMaxResults(size + 1).getResultList();
     boolean more = rows.size() > size;
-    List<Event> out = rows.stream().limit(size).map(AuditQueries::event).toList();
+    List<ToolCallEntity> page = rows.subList(0, Math.min(size, rows.size()));
+    Map<String, Long> sent = requestBytes(page);
+    List<Event> out = page.stream().map(r -> event(r, sent.get(r.getCallId()))).toList();
     return new Events(out, more ? Long.toString(out.get(out.size() - 1).id(), 36) : null);
   }
 
-  /** Every row of one call, oldest first (event detail: request, policy, approval timeline, result). */
+  /**
+   * What the apps sent with the calls of {@code latest} (their latest rows): a received row carries it itself, the
+   * calls that went further are looked up by their received rows in one query.
+   */
+  private Map<String, Long> requestBytes(List<ToolCallEntity> latest) {
+    Map<String, Long> out = new java.util.HashMap<>();
+    List<String> later = new ArrayList<>();
+    for (ToolCallEntity r : latest) {
+      if (r.getPhase() == CallPhase.RECEIVED) {
+        if (r.getRequestBytes() != null) {
+          out.put(r.getCallId(), r.getRequestBytes());
+        }
+      } else {
+        later.add(r.getCallId());
+      }
+    }
+    for (int i = 0; i < later.size(); i += 500) {
+      em.createQuery("select c.callId, c.requestBytes from ToolCallEntity c where c.phase = :phase "
+          + "and c.callId in :ids and c.requestBytes is not null", Tuple.class)
+          .setParameter("phase", CallPhase.RECEIVED).setParameter("ids", later.subList(i, Math.min(later.size(),
+              i + 500)))
+          .getResultList().forEach(t -> out.put(t.get(0, String.class), t.get(1, Long.class)));
+    }
+    return out;
+  }
+
+  /**
+   * Every row of one call, oldest first (event detail: request, policy, approval timeline, result): each as its own
+   * row says, with the request's size from the call's received row.
+   */
   @Transactional(readOnly = true)
   public List<Event> call(String callId) {
-    return calls.findByCallIdOrderByIdAsc(callId).stream().map(AuditQueries::event).toList();
+    List<ToolCallEntity> rows = calls.findByCallIdOrderByIdAsc(callId);
+    Long sent = sentWith(rows);
+    return rows.stream().map(r -> event(r, sent)).toList();
+  }
+
+  /** The request size of a call from its rows (its received row's). */
+  private static Long sentWith(List<ToolCallEntity> rows) {
+    return rows.stream().filter(r -> r.getPhase() == CallPhase.RECEIVED).map(ToolCallEntity::getRequestBytes)
+        .filter(java.util.Objects::nonNull).findFirst().orElse(null);
   }
 
   /**
@@ -243,7 +297,8 @@ public class AuditQueries {
   public Optional<Detail> detail(long rowId) {
     return calls.findById(rowId).map(r -> {
       List<ToolCallEntity> rows = calls.findByCallIdOrderByIdAsc(r.getCallId());
-      return new Detail(event(rows.get(rows.size() - 1)), rows.stream().map(AuditQueries::row).toList());
+      return new Detail(event(rows.get(rows.size() - 1), sentWith(rows)),
+          rows.stream().map(AuditQueries::row).toList());
     });
   }
 
@@ -360,6 +415,33 @@ public class AuditQueries {
       out.add(p95(byBar.getOrDefault((long) bar, List.of())));
     }
     return java.util.Collections.unmodifiableList(out);
+  }
+
+  /**
+   * The data of every clock hour of {@code [from, to)} that has any, oldest first: what apps sent with the calls
+   * received in the hour and what went back with the calls completed in it — two grouped sums over the time index,
+   * whatever the calls came to (a denied call sent its arguments too). Rows without a size add nothing.
+   */
+  @Transactional(readOnly = true)
+  public List<HourTraffic> traffic(Instant from, Instant to) {
+    Map<Long, long[]> byHour = new java.util.TreeMap<>();
+    sumByHour(CallPhase.RECEIVED, "requestBytes", from, to)
+        .forEach((hour, bytes) -> byHour.computeIfAbsent(hour, h -> new long[2])[0] += bytes);
+    sumByHour(CallPhase.COMPLETED, "resultBytes", from, to)
+        .forEach((hour, bytes) -> byHour.computeIfAbsent(hour, h -> new long[2])[1] += bytes);
+    List<HourTraffic> out = new ArrayList<>(byHour.size());
+    byHour.forEach((hour, sums) -> out.add(new HourTraffic(hour, sums[0], sums[1])));
+    return List.copyOf(out);
+  }
+
+  private Map<Long, Long> sumByHour(CallPhase phase, String attribute, Instant from, Instant to) {
+    Map<Long, Long> out = new java.util.HashMap<>();
+    em.createQuery("select c.hourBucket, sum(c." + attribute + ") from ToolCallEntity c where c.phase = :phase "
+        + "and c.createdAt >= :from and c.createdAt < :to and c." + attribute + " is not null group by c.hourBucket",
+        Tuple.class)
+        .setParameter("phase", phase).setParameter("from", from).setParameter("to", to).getResultList()
+        .forEach(t -> out.put(t.get(0, Long.class), ((Number) t.get(1)).longValue()));
+    return out;
   }
 
   /** The 95th percentile of {@code values} (nearest rank), {@code null} for none. */
@@ -613,11 +695,13 @@ public class AuditQueries {
     }
   }
 
-  private static Event event(ToolCallEntity r) {
+  /** @param requestBytes what the app sent with the call (its received row's size), or {@code null} */
+  private static Event event(ToolCallEntity r, Long requestBytes) {
     return new Event(r.getId(), r.getCallId(), r.getCreatedAt(), KebabCaseEnumConverter.idOf(r.getPhase()),
         KebabCaseEnumConverter.idOf(r.getDecision()), r.getToolName(), r.getConnectionName(),
         r.getEnv() == null ? null : r.getEnv().id(), r.getClient(), r.getEndpointSlug(), r.getTokenLabel(),
-        r.getDurationMs(), r.getRuleId(), r.getApprovalId(), r.getTraceId(), r.getErrorKind(), r.getErrorMessage());
+        r.getDurationMs(), requestBytes, r.getResultBytes(), r.getRuleId(), r.getApprovalId(), r.getTraceId(),
+        r.getErrorKind(), r.getErrorMessage());
   }
 
   private static Row row(ToolCallEntity r) {
@@ -627,7 +711,8 @@ public class AuditQueries {
         r.getApprovalDelivery() == null ? null : KebabCaseEnumConverter.idOf(r.getApprovalDelivery()),
         r.getProtocolVersion(), r.getIngress() == null ? null : r.getIngress().name().toLowerCase(Locale.ROOT),
         r.getPrincipalKind() == null ? null : r.getPrincipalKind().name().toLowerCase(Locale.ROOT), r.getClient(),
-        r.getClientInfo(), r.getTokenLabel(), r.getArgsMasked(), r.getArgsSha256(), r.getDurationMs(),
+        r.getClientInfo(), r.getTokenLabel(), r.getArgsMasked(), r.getArgsSha256(), r.getRequestBytes(),
+        r.getDurationMs(),
         r.getGatewayMs(), r.getResourceMs(), r.getApprovalWaitMs(), r.getResultBytes(), r.getResultSha256(),
         r.getResultPreview(), r.getMaskedCount(), r.getTruncated(), r.getErrorKind(), r.getErrorMessage(),
         r.getFacets(), r.getActionSha256(), r.getExecutedSha256(), r.getOutcomeUnknown(), r.getDecidedVia(),

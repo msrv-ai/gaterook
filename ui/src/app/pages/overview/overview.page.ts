@@ -37,6 +37,7 @@ import { OverviewConnectionTools } from './overview-connection-tools';
 import { activityLine, overviewState, retestToast, RetestResult } from './overview-view';
 import { MapConnection, endpointUnreachable, mapApps, mapConnections } from './overview-map-view';
 import { GwOverviewSetup } from './overview-setup';
+import { GwOverviewSummary } from './overview-summary';
 import { GwOverviewWires, OverviewWireTrace } from './overview-wires';
 import { OverviewRequestPath } from './overview-request-path';
 import { GwEndpointCreate } from '../endpoints/endpoint-create';
@@ -47,7 +48,7 @@ export const ENDPOINT_STORAGE_KEY = 'gw-overview-endpoint';
 /** Services the map lists before Show all: two full rows of the widest, three-column grid. */
 export const VISIBLE_SERVICES = 6;
 
-/** Live connection map for Overview. */
+/** Live connection map for Overview, with the last 30 days under it (GwOverviewSummary). */
 @Component({
   selector: 'gw-overview-page',
   imports: [
@@ -66,6 +67,7 @@ export const VISIBLE_SERVICES = 6;
     GwSearchClearButton,
     GwSearchClear,
     GwOverviewSetup,
+    GwOverviewSummary,
     GwMcpSetupFlow,
     GwOverviewWires,
     OverviewConnectionTools,

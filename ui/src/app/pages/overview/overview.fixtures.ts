@@ -1,7 +1,7 @@
 import { ApprovalItem } from '../../core/api/approvals.api';
 import { ClientCard, ClientLink, ClientsView } from '../../core/api/clients.api';
 import { ConnectionDetail, ConnectionRow } from '../../core/api/connections.api';
-import { HealthRow, Overview } from '../../core/api/overview.api';
+import { HealthRow, Overview, OverviewSummary, SummaryDay } from '../../core/api/overview.api';
 import { TunnelState } from '../../core/api/tunnel.api';
 import { Env } from '../../core/api/types';
 
@@ -291,4 +291,47 @@ export function tunnelOff(): TunnelState {
     error: null,
     history: [{ from: at(8, 40), to: at(12, 10), endpoint: 'stage-readonly', calls: 19 }],
   };
+}
+
+/**
+ * `GET /api/overview/summary` for the 30 days to October 22 (dates in Berlin, CEST): `days` sets a day's numbers by
+ * its date, every other day is empty; the totals add the days up.
+ */
+export function summary(days: { readonly [date: string]: Partial<Pick<SummaryDay, 'decisions' | 'requestBytes' | 'resultBytes'>> } = {}, over: Partial<OverviewSummary> = {}): OverviewSummary {
+  const list: SummaryDay[] = [];
+  const first = Date.UTC(2026, 8, 23);
+  for (let i = 0; i < 30; i++) {
+    const date = new Date(first + i * 86_400_000).toISOString().slice(0, 10);
+    const from = new Date(Date.parse(`${date}T00:00:00+02:00`)).toISOString();
+    const to = new Date(Date.parse(`${date}T00:00:00+02:00`) + 86_400_000).toISOString();
+    const d = days[date] ?? {};
+    const decisions = d.decisions ?? {};
+    list.push({ date, from, to, decisions, calls: Object.values(decisions).reduce((n, x) => n + x, 0), requestBytes: d.requestBytes ?? 0, resultBytes: d.resultBytes ?? 0 });
+  }
+  const decisions: Record<string, number> = {};
+  for (const d of list) for (const [k, n] of Object.entries(d.decisions)) decisions[k] = (decisions[k] ?? 0) + n;
+  return {
+    from: list[0].from,
+    to: new Date(NOW).toISOString(),
+    zone: 'Europe/Berlin',
+    firstCallAt: list.some((d) => d.calls) ? list.find((d) => d.calls)!.from : null,
+    totals: {
+      calls: list.reduce((n, d) => n + d.calls, 0),
+      decisions,
+      requestBytes: list.reduce((n, d) => n + d.requestBytes, 0),
+      resultBytes: list.reduce((n, d) => n + d.resultBytes, 0),
+    },
+    days: list,
+    ...over,
+  };
+}
+
+/** A month in use: a busy Monday, a denial, a rejection and an error, a few hundred kilobytes each way. */
+export function busySummary(): OverviewSummary {
+  return summary({
+    '2026-09-23': { decisions: { allowed: 40 }, requestBytes: 6_000, resultBytes: 90_000 },
+    '2026-10-05': { decisions: { allowed: 1_180, approved: 46, denied: 12, rejected: 2 }, requestBytes: 120_000, resultBytes: 3_500_000 },
+    '2026-10-21': { decisions: { allowed: 300, error: 4, expired: 1 }, requestBytes: 41_000, resultBytes: 610_000 },
+    '2026-10-22': { decisions: { allowed: 18, pending: 2, denied: 1 }, requestBytes: 2_048, resultBytes: 51_200 },
+  });
 }

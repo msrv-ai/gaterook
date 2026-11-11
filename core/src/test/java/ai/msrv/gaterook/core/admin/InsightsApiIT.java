@@ -15,6 +15,8 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -29,7 +31,8 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * The contract of {@code GET /api/insights} (ARCHITECTURE.md §6 insights; the UI's {@code insights.api.ts}) through
  * MockMvc: the first-run answer before any call, every field the page reads afterwards, the query language narrowing
- * every number but {@code unfilteredCalls}, and 422s at the field for a bad query or range.
+ * every number but {@code unfilteredCalls}, and 422s at the field for a bad query or range. With the same calls,
+ * Overview's last 30 days ({@code GET /api/overview/summary}) and the traffic of Activity's events.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class InsightsApiIT {
@@ -141,6 +144,61 @@ class InsightsApiIT {
         .isEqualTo(422);
   }
 
+  @Test
+  @Order(4)
+  void overviewSumsUpTheLastThirtyDaysByDayInThePersonsZone() {
+    JsonNode s = api.ok("/api/overview/summary?zone=" + enc("Europe/Berlin"));
+    assertThat(s.properties()).extracting(java.util.Map.Entry::getKey)
+        .containsExactlyInAnyOrder("from", "to", "zone", "firstCallAt", "totals", "days");
+    assertThat(s.path("zone").asString()).isEqualTo("Europe/Berlin");
+    assertThat(s.path("firstCallAt").isNull()).isFalse();
+    JsonNode days = s.path("days");
+    assertThat(days.size()).isEqualTo(30);
+    assertThat(days.get(29).path("date").asString()).isIn(LocalDate.now(ZoneId.of("Europe/Berlin")).toString(),
+        LocalDate.now(ZoneId.of("Europe/Berlin")).minusDays(1).toString());
+    for (String field : List.of("date", "from", "to", "decisions", "calls", "requestBytes", "resultBytes")) {
+      assertThat(days.get(0).has(field)).as(field).isTrue();
+    }
+    JsonNode totals = s.path("totals");
+    assertThat(totals.path("calls").asLong()).as("the four calls of the range test").isEqualTo(4);
+    assertThat(totals.path("decisions").path("allowed").asLong()).isEqualTo(2);
+    assertThat(totals.path("decisions").path("denied").asLong()).isEqualTo(1);
+    assertThat(totals.path("decisions").path("error").asLong()).isEqualTo(1);
+    long sent = 0;
+    long returned = 0;
+    for (JsonNode d : days) {
+      sent += d.path("requestBytes").asLong();
+      returned += d.path("resultBytes").asLong();
+    }
+    assertThat(totals.path("requestBytes").asLong()).as("three calls sent {}, the denied one its statement")
+        .isEqualTo(sent).isEqualTo(3 * 2 + CanonicalJson.bytes(JsonNodeFactory.instance.objectNode()
+            .put("sql", "DROP TABLE orders_archive")).length);
+    assertThat(totals.path("resultBytes").asLong()).as("three completed calls of 4 bytes").isEqualTo(returned)
+        .isEqualTo(12);
+    assertThat(api.ok("/api/overview/summary?zone=" + enc("Nowhere/Atlantis")).path("zone").asString())
+        .as("a zone this runtime doesn't know").isEqualTo(ZoneId.systemDefault().getId());
+    assertThat(api.ok("/api/overview/summary").path("zone").asString()).isEqualTo(ZoneId.systemDefault().getId());
+  }
+
+  @Test
+  @Order(5)
+  void activitysEventsSayWhatEachCallSentAndGotBack() {
+    JsonNode events = api.ok("/api/activity/events").path("events");
+    assertThat(events.size()).isEqualTo(4);
+    for (JsonNode e : events) {
+      assertThat(e.path("requestBytes").isNumber()).as("sent, " + e.path("tool").asString()).isTrue();
+      if (e.path("decision").asString().equals("denied")) {
+        assertThat(e.path("resultBytes").isNull()).as("a denied call got no result").isTrue();
+      } else {
+        assertThat(e.path("resultBytes").asLong()).isEqualTo(4);
+      }
+    }
+    JsonNode detail = api.ok("/api/activity/events/" + events.get(0).path("id").asLong());
+    assertThat(detail.path("event").path("requestBytes").isNumber()).isTrue();
+    assertThat(detail.path("rows").get(0).path("phase").asString()).isEqualTo("received");
+    assertThat(detail.path("rows").get(0).path("requestBytes").isNumber()).isTrue();
+  }
+
   private static void call(String tool, String connection, String decision, String rule, String client) {
     AuditWriter writer = core.bean(AuditWriter.class);
     Caller caller = new Caller(Caller.Kind.LOCAL_TOKEN, "tok_" + client, client + "-token", client, Ingress.LOCAL,
@@ -152,7 +210,8 @@ class InsightsApiIT {
     Env env = connection.startsWith("prod") ? Env.PROD : Env.DEV;
     AuditWriter.Call call = new AuditWriter.Call(Ids.next("tc_"), env == Env.PROD ? "incident-prod" : "dev", tool,
         tool, connection, env, caller, client, null, "2025-11-25", "4bf92f3577b34da6a3ce929d0e0e4736",
-        "00f067aa0ba902b7", false, args, CanonicalJson.sha256Hex(args), null);
+        "00f067aa0ba902b7", false, args, CanonicalJson.sha256Hex(args), (long) CanonicalJson.bytes(args).length,
+        null);
     switch (decision) {
       case "denied" -> writer.received(call, AuditWriter.Received.of(AuditWriter.Verdict.DENIED,
           Classification.Kind.DENY, rule));

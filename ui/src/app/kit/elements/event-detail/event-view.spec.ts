@@ -22,6 +22,7 @@ import {
   titleSource,
   tokenParts,
   traceLine,
+  trafficText,
 } from './event-view';
 
 const words = (parts: readonly { text: string }[]) => parts.map((p) => p.text).join('');
@@ -157,6 +158,18 @@ describe('event-detail view', () => {
     expect(words(resultStatus(DEMO_EVENTS.approved))).toBe('Executed · 1 row updated');
     expect(sizeText(DEMO_EVENTS.error)).toBe('118 B (the error returned to Codex)');
     expect(sizeText(DEMO_EVENTS.denied)).toBeNull();
+  });
+
+  it('traffic: what the call sent (received row) and what went back (completed row)', () => {
+    const sent = (d: EventDetail, bytes: number | null): EventDetail => ({
+      ...d,
+      rows: d.rows.map((r) => (r.phase === 'received' ? { ...r, requestBytes: bytes } : r)),
+    });
+    expect(trafficText(sent(DEMO_EVENTS.error, 96))).toBe('96 B in · 118 B out');
+    expect(trafficText(sent(DEMO_EVENTS.denied, 120))).toBe('120 B in');
+    // A call from before the core counted what was sent: only what went back.
+    expect(trafficText(DEMO_EVENTS.error)).toBe('118 B out');
+    expect(trafficText(DEMO_EVENTS.denied)).toBeNull();
   });
 
   it('splits the time into gateway, people and resource', () => {

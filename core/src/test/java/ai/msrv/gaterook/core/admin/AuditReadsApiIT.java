@@ -146,7 +146,8 @@ class AuditReadsApiIT {
     Caller caller = new Caller(Caller.Kind.LOCAL_TOKEN, "tok_codex", "codex-token", "codex", Ingress.LOCAL,
         "127.0.0.1");
     return new AuditWriter.Call(Ids.next("tc_"), "dev", tool, tool, "vm-a", Env.DEV, caller, "codex", null,
-        "2025-11-25", trace, "00f067aa0ba902b7", true, args, CanonicalJson.sha256Hex(args), facets);
+        "2025-11-25", trace, "00f067aa0ba902b7", true, args, CanonicalJson.sha256Hex(args),
+        (long) CanonicalJson.bytes(args).length, facets);
   }
 
   private static AuditWriter.Completion completion() {

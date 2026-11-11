@@ -18,8 +18,8 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The audit identity of a call (ARCHITECTURE.md §5 step 8): masked arguments and their hash, the client family, the
- * protocol revision, the trace, the facets the query language and the trace summarizer read.
+ * The audit identity of a call (ARCHITECTURE.md §5 step 8): masked arguments, their hash and their size as sent, the
+ * client family, the protocol revision, the trace, the facets the query language and the trace summarizer read.
  */
 @Component
 public class Calls {
@@ -65,11 +65,13 @@ public class Calls {
     if (extraFacets != null) {
       facets.setAll(extraFacets);
     }
-    String sha256 = arguments == null ? null : CanonicalJson.sha256Hex(arguments);
+    // One canonical text gives the arguments' digest and what the app sent with the call (Activity's "in").
+    byte[] sent = arguments == null ? null : CanonicalJson.bytes(arguments);
+    String sha256 = sent == null ? null : CanonicalJson.sha256Hex(sent);
     return new AuditWriter.Call(callId, r.snapshot().slug(), tool, toolKey, connection, env, r.caller(),
         client(r.caller(), r.env().clientInfo()), clientInfo(r.env().clientInfo()), r.env().version(),
         r.span().traceId(), r.span().spanId(), r.span().fromClient() || facets.has("task"),
-        storedArguments(masked, sha256), sha256, facets);
+        storedArguments(masked, sha256), sha256, sent == null ? null : (long) sent.length, facets);
   }
 
   /**

@@ -226,7 +226,7 @@ class AuditExportApiIT {
       ObjectNode args = JsonNodeFactory.instance.objectNode().put("sql", "SELECT 1");
       AuditWriter.Call call = new AuditWriter.Call(Ids.next("tc_"), "dev", tool, tool, "dev-db", Env.DEV, caller,
           "codex", null, "2025-11-25", "4bf92f3577b34da6a3ce929d0e0e4736", "00f067aa0ba902b7", false, args,
-          CanonicalJson.sha256Hex(args), null);
+          CanonicalJson.sha256Hex(args), (long) CanonicalJson.bytes(args).length, null);
       writer.received(call, AuditWriter.Received.of(AuditWriter.Verdict.ALLOWED, Classification.Kind.READ, null));
       writer.completed(call, new AuditWriter.Completion(AuditWriter.Verdict.ALLOWED, null, null, null, null, 12L, 2L,
           10L, null, 4L, "0".repeat(64), "1 row", 0, false, null, null, null, null, null));

@@ -517,7 +517,8 @@ class NotificationsIT {
     ObjectNode facets = JsonNodeFactory.instance.objectNode().put("nature", "mutation");
     AuditWriter.Call audit = new AuditWriter.Call(callId, "dev", "sql_execute", pair.toolKey(), "dev-db",
         pair.config().env(), caller, "codex", null, "2025-11-25", "0af7651916cd43dd8448eb211c80319c",
-        "b7ad6b7169203331", false, args, CanonicalJson.sha256Hex(args), facets);
+        "b7ad6b7169203331", false, args, CanonicalJson.sha256Hex(args), (long) CanonicalJson.bytes(args).length,
+        facets);
     return approvals.requestOrReuse(new ApprovalService.NewRequest(caller, s.id(), "dev", callId, call,
         pair.toolKey(), pair.config(), preview, null, NOTE, "dev.sql.write-approval", Classification.Kind.MUTATION,
         null, audit, AuditWriter.Delivery.HANDLE)).approval().id();

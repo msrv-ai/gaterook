@@ -19,12 +19,12 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * What an export writes (ARCHITECTURE.md §4 "Audit"): one record per {@code tool_call} row with every stored column —
- * arguments, previews and errors as the audit stored them, already masked — and its place in the hash chain
- * ({@code prevSha256}, {@code rowSha256}), so a receiver can check that the rows link and that none is missing; then
- * one {@code audit-head} record that vouches for the batch with an HMAC of the {@code audit-head/v1} key, the key of
- * the anchor in {@code setting audit.head-mac} ("head HMAC in every export"). Only the core holds the key: a
- * head can be checked by this installation, never forged by a reader of the SIEM.
+ * What an export writes (ARCHITECTURE.md §4 "Audit"): one record per {@code tool_call} row with the columns of
+ * {@link #FIELDS} — arguments, previews and errors as the audit stored them, already masked — and its place in the
+ * hash chain ({@code prevSha256}, {@code rowSha256}), so a receiver can check that the rows link and that none is
+ * missing; then one {@code audit-head} record that vouches for the batch with an HMAC of the {@code audit-head/v1}
+ * key, the key of the anchor in {@code setting audit.head-mac} ("head HMAC in every export"). Only the core holds the
+ * key: a head can be checked by this installation, never forged by a reader of the SIEM.
  * <ul>
  *   <li>JSON lines: a record per line, the head last; the format a SIEM gets in each syslog message too;</li>
  *   <li>CSV: the same fields as columns (JSON objects as text) under a header, the head as its last row with
@@ -40,7 +40,11 @@ public final class ExportRecords {
   /** {@code type} of the record that closes a batch. */
   public static final String HEAD = "audit-head";
 
-  /** The fields of a row's record, in order: the CSV header and the BigQuery columns. */
+  /**
+   * The fields of a row's record, in order: the CSV header and the BigQuery columns. {@code request_bytes} (V91, what a
+   * call sent) is not among them: BigQuery refuses a field its table lacks, so adding one stops every table made
+   * from this list until its owner adds the column.
+   */
   public static final List<String> FIELDS = List.of("type", "id", "callId", "phase", "at", "endpoint", "tool",
       "toolKey", "connection", "env", "client", "clientInfo", "tokenLabel", "principalKind", "ingress", "callerIp",
       "protocolVersion", "approvalDelivery", "traceId", "spanId", "args", "argsSha256", "classification",

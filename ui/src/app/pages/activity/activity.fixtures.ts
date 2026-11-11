@@ -40,11 +40,11 @@ export function call(id: number, msAgo: number, decision: Decision, tool: string
 /** The first rows of the kit's events table, newest first. */
 export function kitCalls(): ActivityEvent[] {
   return [
-    call(18, 30_000, 'pending', 'http_request', { connection: 'billing-api', env: 'stage', approvalId: 'ap_http', traceId: 'c7e19d4a02b84f6e9a31d5c8b7f20e64' }),
+    call(18, 30_000, 'pending', 'http_request', { connection: 'billing-api', env: 'stage', approvalId: 'ap_http', traceId: 'c7e19d4a02b84f6e9a31d5c8b7f20e64', requestBytes: 164 }),
     call(17, 48_000, 'pending', 'sql_execute', { approvalId: 'ap_sql', traceId: 'c7e19d4a02b84f6e9a31d5c8b7f20e64' }),
-    call(16, 2 * MIN, 'allowed', 'sql_query', { durationMs: 38, traceId: 'c7e19d4a02b84f6e9a31d5c8b7f20e64' }),
+    call(16, 2 * MIN, 'allowed', 'sql_query', { durationMs: 38, traceId: 'c7e19d4a02b84f6e9a31d5c8b7f20e64', requestBytes: 96, resultBytes: 2_150 }),
     call(15, 2.3 * MIN, 'allowed', 'ssh_run', { connection: 'dev-vm', client: 'claude-desktop', tokenLabel: 'claude-desktop', durationMs: 412 }),
-    call(9, 17 * MIN, 'denied', 'sql_execute', { connection: 'prod-replica', env: 'prod', client: 'claude-desktop', endpoint: 'incident-prod', tokenLabel: 'claude-desktop', durationMs: null, rule: 'prod.sql.block_ddl' }),
+    call(9, 17 * MIN, 'denied', 'sql_execute', { connection: 'prod-replica', env: 'prod', client: 'claude-desktop', endpoint: 'incident-prod', tokenLabel: 'claude-desktop', durationMs: null, rule: 'prod.sql.block_ddl', requestBytes: 120 }),
     call(6, 32 * MIN, 'rejected', 'k8s_apply', { connection: 'dev-cluster', client: 'claude-desktop', durationMs: null, approvalId: 'ap_k8s' }),
     call(4, 38 * MIN, 'approved', 'sql_execute', { durationMs: 47_000 }),
     call(3, 43 * MIN, 'error', 'redis_get', { connection: 'cache-redis', durationMs: 2_000 }),

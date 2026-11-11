@@ -110,6 +110,13 @@ public class ToolCallEntity {
   @Column(name = "args_sha256", length = 64)
   private String argsSha256;
 
+  /**
+   * UTF-8 bytes of the arguments the app sent, as canonical JSON before masking: the received row only (V91);
+   * {@code null} on other rows and on rows written before V91.
+   */
+  @Column(name = "request_bytes")
+  private Long requestBytes;
+
   @Enumerated(EnumType.STRING)
   @Column(name = "classification", length = 10)
   private Classification.Kind classification;
@@ -284,6 +291,10 @@ public class ToolCallEntity {
     return argsSha256;
   }
 
+  public Long getRequestBytes() {
+    return requestBytes;
+  }
+
   public Classification.Kind getClassification() {
     return classification;
   }
@@ -424,6 +435,12 @@ public class ToolCallEntity {
     public Builder arguments(Map<String, Object> argsMasked, String argsSha256) {
       row.argsMasked = argsMasked;
       row.argsSha256 = argsSha256;
+      return this;
+    }
+
+    /** What the app sent with the call, in bytes: set on the received row only. */
+    public Builder requestBytes(Long requestBytes) {
+      row.requestBytes = requestBytes;
       return this;
     }
 
