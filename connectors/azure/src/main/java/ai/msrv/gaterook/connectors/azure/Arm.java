@@ -271,6 +271,87 @@ final class Arm {
     return r;
   }
 
+  /**
+   * {@link #raw}, with the answer's header names in the case the server sent them. {@code java.net.http} gives them in
+   * lower case, and Service Bus sends a message's application properties as headers whose names are case-sensitive
+   * for its receivers: a resubmitted copy must keep them. {@code HttpURLConnection} keeps the case; the same token,
+   * host check, proxy, redirect, size and deadline rules apply.
+   */
+  Raw rawKeepingHeaderCase(Audience audience, String method, URI uri, Map<String, String> headers, byte[] body,
+      long max, String what) throws ConnectorException {
+    if (!cloud.azure().sendsTokensTo(cloudOf(), audience, uri)) {
+      throw new IllegalArgumentException("Not a " + audience.title() + " URL of " + cloudOf().id() + ": "
+          + uri.getScheme() + "://" + uri.getHost());
+    }
+    AzureCredentials.AccessToken token = token(audience);
+    Duration left = ctx.remaining().minus(MARGIN);
+    if (left.isNegative() || left.isZero()) {
+      throw ConnectorException.timeout(what + " didn't answer in time.");
+    }
+    int timeout = (int) Math.max(1, Math.min(left.toMillis(), MAX_REQUEST.toMillis()));
+    java.net.HttpURLConnection c = null;
+    try {
+      c = (java.net.HttpURLConnection) uri.toURL().openConnection(java.net.Proxy.NO_PROXY);
+      c.setInstanceFollowRedirects(false);
+      c.setUseCaches(false);
+      c.setConnectTimeout(Math.min(timeout, 5_000));
+      c.setReadTimeout(timeout);
+      c.setRequestMethod(method);
+      c.setRequestProperty("Authorization", "Bearer " + token.value());
+      c.setRequestProperty("x-ms-client-request-id", requestId());
+      headers.forEach(c::setRequestProperty);
+      if (body != null) {
+        c.setDoOutput(true);
+        c.setFixedLengthStreamingMode(body.length);
+        try (java.io.OutputStream out = c.getOutputStream()) {
+          out.write(body);
+        }
+      }
+      int status = c.getResponseCode();
+      Map<String, List<String>> received = new java.util.LinkedHashMap<>();
+      c.getHeaderFields().forEach((k, v) -> {
+        if (k != null) {
+          received.put(k, v);
+        }
+      });
+      InputStream stream = status >= 400 ? c.getErrorStream() : c.getInputStream();
+      ByteArrayOutputStream out = new ByteArrayOutputStream(8192);
+      boolean truncated = false;
+      if (stream != null) {
+        try (InputStream in = stream) {
+          byte[] buf = new byte[16384];
+          long total = 0;
+          int n;
+          while ((n = in.read(buf)) > 0) {
+            if (total + n > max) {
+              out.write(buf, 0, (int) (max - total));
+              truncated = true;
+              break;
+            }
+            total += n;
+            out.write(buf, 0, n);
+          }
+        }
+      }
+      if (status == 401) {
+        cloud.azure().invalidate(owner.id(), audience);
+      }
+      return new Raw(status, received, out.toByteArray(), truncated);
+    } catch (java.net.SocketTimeoutException e) {
+      throw ConnectorException.timeout(what + " didn't answer in time.");
+    } catch (ConnectException e) {
+      throw ConnectorException.unavailable("Can't connect to " + host(uri) + ": " + reason(e) + ".", e);
+    } catch (SSLException e) {
+      throw ConnectorException.unavailable("The TLS handshake with " + host(uri) + " failed: " + reason(e) + ".", e);
+    } catch (IOException e) {
+      throw ConnectorException.unavailable(what + " failed: " + reason(e), e);
+    } finally {
+      if (c != null && body == null) {
+        c.disconnect();
+      }
+    }
+  }
+
   /** Sends one request and reads up to {@code max} bytes of the answer; transport failures become refusals. */
   private Raw exchange(HttpRequest built, URI uri, long max, String what) throws ConnectorException {
     try {

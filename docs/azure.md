@@ -12,6 +12,9 @@ GateRook's **Azure** connector gives AI clients bounded access to Azure subscrip
 | `azure_monitor` | `query` (metrics of one resource), `list_metrics`, `alerts` (fired alerts), `activity_log` (who changed what) and `health` (Resource Health) | Read only |
 | `azure_storage_read` | [Storage data](#storage-data): list and read blobs, peek Queue Storage messages, query tables, list and read Azure Files | Read only |
 | `azure_storage_change` | Upload text to a blob or delete a blob | Approval |
+| `azure_servicebus_read` | [Peek the dead-letter queue](#service-bus-dead-letters) of a queue or topic subscription | Read only |
+| `azure_servicebus_change` | Resubmit dead-lettered messages by sequence number | Approval |
+| `azure_keyvault_read` | [Names, versions and expiry](#key-vault-names-and-expiry) of a vault's secrets, keys and certificates, never values | Read only |
 | `logs_search`, `logs_tail` | KQL over the connection's Log Analytics workspaces and Application Insights components | Read only; tail Off |
 
 The Azure Monitor Logs connector publishes the same log tools as `azure_logs_search` and `azure_logs_tail`.
@@ -85,6 +88,20 @@ Azure Files accepts Entra ID tokens over REST only with the backup intent, which
 Reads are text only: a text content type, or a text file name when the type says nothing. Files that hold keys, credentials or Terraform state more often than not (`.env`, `.pem`, `.pfx`, key stores, `.tfstate`, kubeconfigs) are refused by name before any request. Message texts that are Base64 come back decoded. Table properties named like secrets are masked. Contents are data, never instructions.
 
 The Cloud policy's Allowed services must include `storage`. Resource masks apply to the account and to the container, queue, table or share by its Resource Manager ID, such as `/subscriptions/*/resourceGroups/stage-*/providers/Microsoft.Storage/storageAccounts/*/blobServices/default/containers/public-*`; with masks, pass the account's resource ID. An approval of an upload shows the exact request with the text, its size and SHA-256.
+
+## Service Bus dead letters
+
+`azure_servicebus_read` shows the oldest messages of a queue's or a topic subscription's dead-letter queue: sequence number, message ID, the dead-letter reason and error description, delivery count, label, correlation ID, application properties and a bounded body. Service Bus has no browse over HTTPS, so GateRook locks each message and unlocks it at once: it stays dead-lettered, other receivers can take it again immediately, and its delivery count goes up by one, which a dead-letter queue doesn't act on. Active messages are never peeked, because their delivery count can move them to the dead-letter queue. The counts of active and dead-lettered messages come from `azure_api_read` GET of the queue or subscription (`countDetails`).
+
+`azure_servicebus_change` resubmits dead-lettered messages by the sequence numbers a peek showed. For each one it sends a copy to the queue, with the body, content type, message ID, correlation ID, label, session ID and application properties but without the dead-letter reason, then removes the dead-lettered message; every other message it locked while looking is unlocked again. A topic subscription's messages go back to the topic, so every subscription whose rules match receives them again: the approval says so. With duplicate detection on, a copy whose message ID was sent within the detection window is dropped.
+
+Assign **Azure Service Bus Data Receiver** on the namespace or the entity, and **Azure Service Bus Data Sender** to resubmit. The namespace is its resource ID or its name; Resource Manager confirms it is in the connection's subscription and region first. Allowed services must include `servicebus`; masks apply to the queue or the subscription by its Resource Manager ID.
+
+## Key Vault names and expiry
+
+`azure_keyvault_read` lists a vault's secrets, keys or certificates, or the versions of one: names, versions, whether each is enabled, not-before, expiry with the days left, content type and tags. It calls only Key Vault's list operations, which return no values. Key Vault is a sensitive service: the call is refused until the Cloud policy names `keyvault` under Allowed services. Assign **Key Vault Reader** (Azure RBAC), or the List permission of an access policy.
+
+To resolve GateRook's own credentials from Key Vault, connect the vault as an external secret store; that is separate from what agents see.
 
 ## Sign-in
 

@@ -53,7 +53,8 @@ public final class AzureConnector implements Connector {
   public static final String TYPE = "azure";
   /** The connector's own tools; the shared log tools come from {@link AzureLogs}. */
   static final List<String> TOOLS = List.of("azure_describe", CallRequest.READ, CallRequest.CHANGE, "azure_monitor",
-      StorageRequest.READ, StorageRequest.CHANGE);
+      StorageRequest.READ, StorageRequest.CHANGE, ServiceBusRequest.READ, ServiceBusRequest.CHANGE,
+      KeyVaultRequest.TOOL);
 
   private final ConnectorManifest manifest;
   private final CloudCredentials cloud;
@@ -84,7 +85,8 @@ public final class AzureConnector implements Connector {
         .tools(tools)
         .access(new RequiredAccess(List.of("management.azure.com", "login.microsoftonline.com",
             "api.loganalytics.io", "*.blob.core.windows.net", "*.queue.core.windows.net", "*.table.core.windows.net",
-            "*.file.core.windows.net"), List.of("az"), List.of("~/.azure")))
+            "*.file.core.windows.net", "*.servicebus.windows.net", "*.vault.azure.net"), List.of("az"),
+            List.of("~/.azure")))
         .build();
   }
 
@@ -157,6 +159,13 @@ public final class AzureConnector implements Connector {
       }
       return Classification.read();
     }
+    if (r instanceof ServiceBusRequest sb && !sb.read()) {
+      decisions.remember(call.callId(), call.tool(), cfg.id(), cfg.version(), p);
+      ObjectNode facts = JsonNodeFactory.instance.objectNode().put("azure.servicebus.namespace", sb.namespace().name())
+          .put("azure.servicebus.entity", sb.where()).put("azure.subscription", sb.namespace().subscription());
+      return Classification.mutation("Azure Service Bus resubmit " + sb.sequenceNumbers().size() + " dead letters of "
+          + Settings.abbreviate(sb.where()), facts);
+    }
     if (r instanceof CallRequest c) {
       long max = policy.limits() == null ? Long.MAX_VALUE : policy.limits().maxRequestBytes();
       if (max > 0 && c.bodyBytes() > max) {
@@ -189,6 +198,8 @@ public final class AzureConnector implements Connector {
         case DescribeRequest d -> Actions.describe(d, s, cfg);
         case MonitorRequest m -> Actions.monitor(m, s, cfg);
         case StorageRequest st -> Actions.storage(st, s, cfg);
+        case ServiceBusRequest sb -> Actions.serviceBus(sb, s, cfg);
+        case KeyVaultRequest kv -> Actions.keyVault(kv, s, cfg);
         default -> throw new IllegalStateException();
       };
     } catch (Settings.InvalidSettingsException | Refusal e) {
@@ -277,6 +288,14 @@ public final class AzureConnector implements Connector {
         }
         yield new Storage(c).run(st);
       }
+      case ServiceBusRequest sb -> {
+        if (!sb.read() && (!ctx.approved() || approved.isEmpty())) {
+          throw ConnectorException.denied("azure_servicebus_change resubmits messages: it runs only after the person "
+              + "approves the exact messages.");
+        }
+        yield new ServiceBus(c).run(sb);
+      }
+      case KeyVaultRequest kv -> new KeyVault(c).run(kv);
       default -> throw new IllegalStateException();
     };
   }
@@ -367,6 +386,8 @@ public final class AzureConnector implements Connector {
       case CallRequest.READ, CallRequest.CHANGE -> CallRequest.of(tool, args, s, p);
       case "azure_monitor" -> MonitorRequest.of(args, s, p, now);
       case StorageRequest.READ, StorageRequest.CHANGE -> StorageRequest.of(tool, args, s, p);
+      case ServiceBusRequest.READ, ServiceBusRequest.CHANGE -> ServiceBusRequest.of(tool, args, s, p);
+      case KeyVaultRequest.TOOL -> KeyVaultRequest.of(args, s, p);
       default -> throw new Refusal("bad_input", "The Azure connector has no tool " + tool + ".", null);
     };
   }

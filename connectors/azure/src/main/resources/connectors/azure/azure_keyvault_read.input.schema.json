@@ -1,0 +1,52 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "vault"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "vault": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 512,
+      "description": "The key vault's resource ID (/subscriptions/<id>/resourceGroups/<group>/providers/Microsoft.KeyVault/vaults/<name>), or its name"
+    },
+    "subscription": {
+      "type": "string",
+      "description": "The vault's subscription when vault is a name; default: the connection's only subscription"
+    },
+    "action": {
+      "enum": [
+        "secrets",
+        "secret_versions",
+        "keys",
+        "key_versions",
+        "certificates",
+        "certificate_versions"
+      ],
+      "default": "secrets",
+      "description": "What to list; the _versions actions list the versions of name"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 127,
+      "description": "The secret, key or certificate, for the _versions actions"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 25,
+      "default": 25,
+      "description": "Items per call"
+    },
+    "cursor": {
+      "type": "string",
+      "description": "nextCursor of the previous answer, with the same arguments"
+    }
+  }
+}

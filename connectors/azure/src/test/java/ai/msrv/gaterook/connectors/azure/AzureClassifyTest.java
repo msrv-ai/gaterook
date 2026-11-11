@@ -264,6 +264,7 @@ class AzureClassifyTest {
     assertThat(connector.supportsTool(CallRequest.CHANGE, Configs.prod())).isTrue();
     assertThat(connector.previewTools(Configs.prod())).extracting(t -> t.name())
         .containsExactly("azure_describe", "azure_api_read", "azure_api_change", "azure_monitor",
-            "azure_storage_read", "azure_storage_change");
+            "azure_storage_read", "azure_storage_change", "azure_servicebus_read", "azure_servicebus_change",
+            "azure_keyvault_read");
   }
 }

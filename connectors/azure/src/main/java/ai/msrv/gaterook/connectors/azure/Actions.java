@@ -191,6 +191,60 @@ final class Actions {
         .withPayload(r.payload());
   }
 
+  /** A dead-letter peek, or the exact messages a resubmit sends again and the requests it makes. */
+  static ActionPreview serviceBus(ServiceBusRequest r, Settings s, ConnectionConfig cfg) {
+    String host = s.credentials().cloud().serviceBusHost(r.namespace().name());
+    String dlq = "https://" + host + r.entityPath() + "/$DeadLetterQueue/messages";
+    List<ActionPreview.Field> fields = new ArrayList<>();
+    fields.add(new ActionPreview.Field("Namespace", r.namespace().rawId() != null ? r.namespace().rawId()
+        : r.namespace().name() + " (subscription " + r.namespace().subscription() + ")"));
+    fields.add(new ActionPreview.Field("Entity", r.entityText()));
+    if (r.read()) {
+      List<String> lines = new ArrayList<>();
+      lines.add(r.tool() + " · " + cfg.name() + " (Azure · " + s.target() + " · " + cfg.env().id() + ")");
+      lines.add("peek-lock and unlock up to " + r.count() + " messages: POST " + dlq + "/head, then PUT …/<id>/<lock>");
+      lines.add("bytes per message: " + r.maxBytes());
+      return preview(r.tool(), lines, cfg, s, "peek dead letters of " + r.where(), r.payload(), fields);
+    }
+    fields.add(new ActionPreview.Field("Sequence numbers", String.join(", ", r.numbersText())));
+    fields.add(new ActionPreview.Field("Looks through", "up to " + r.scan() + " dead-lettered messages"));
+    String target = "https://" + host + r.sendPath() + "/messages";
+    StringBuilder text = new StringBuilder();
+    text.append("For each dead-lettered message of ").append(r.where()).append(" with sequence number ")
+        .append(String.join(", ", r.numbersText())).append(":\n");
+    text.append("POST ").append(dlq).append("/head            (lock it)\n");
+    text.append("POST ").append(target).append("   (send a copy: body, content type, message ID, properties)\n");
+    text.append("DELETE ").append(dlq).append("/<id>/<lock>   (complete the dead letter)\n");
+    text.append("Every other locked message: PUT ").append(dlq).append("/<id>/<lock> (unlock)\n");
+    text.append("Authorization: Bearer ‹masked›\n");
+    List<String> warnings = new ArrayList<>();
+    warnings.add(r.queue() != null ? "Consumers of queue " + r.queue() + " receive these messages again."
+        : "The copies go to topic " + r.topic() + ": every subscription whose rules match receives them again, not "
+            + "only " + r.topicSubscription() + ".");
+    warnings.add("With duplicate detection on, a copy whose message ID was sent within the detection window is "
+        + "dropped.");
+    String summary = r.tool() + " on " + cfg.name() + ": resubmit " + r.sequenceNumbers().size() + " of " + r.where();
+    return ActionPreview.of(ActionPreview.Kind.HTTP, "http", text.toString(), cfg.name() + " · " + host,
+        cut(summary))
+        .withFields(fields)
+        .withWarnings(warnings)
+        .withFacets(Map.of("provider", "azure", "tool", r.tool()))
+        .withPayload(r.payload());
+  }
+
+  static ActionPreview keyVault(KeyVaultRequest r, Settings s, ConnectionConfig cfg) {
+    String host = s.credentials().cloud().keyVaultHost(r.vault().name());
+    List<String> lines = new ArrayList<>();
+    lines.add(KeyVaultRequest.TOOL + " · " + cfg.name() + " (Azure · " + s.target() + " · " + cfg.env().id() + ")");
+    lines.add("GET https://" + host + r.path() + "?api-version=" + KeyVault.API + "&maxresults=" + r.limit());
+    if (r.cursor() != null) {
+      lines.add("continues from the cursor of the previous call");
+    }
+    return preview(KeyVaultRequest.TOOL, lines, cfg, s, r.action().id + " of " + r.vault().name()
+        + (r.name() == null ? "" : "/" + r.name()), r.payload(), List.of(new ActionPreview.Field("Vault",
+        r.vault().rawId() != null ? r.vault().rawId() : r.vault().name())));
+  }
+
   static String sha256(String text) {
     try {
       return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
