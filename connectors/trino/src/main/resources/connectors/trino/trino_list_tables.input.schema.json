@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "catalog": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "A catalog of the connection. Empty: the connection's default catalog."
+    },
+    "schema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "The schema. Empty: the connection's default schema."
+    },
+    "like": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "Only names matching this SQL LIKE pattern, such as order%."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 200,
+      "description": "Most tables to return."
+    }
+  }
+}
