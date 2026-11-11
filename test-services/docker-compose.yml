@@ -104,14 +104,25 @@ services:
       <<: *health
 
   # Trino (connectors/trino): one coordinator that is its own worker, with only the built-in memory and tpch catalogs
-  # of trino/catalog and a 768 MiB heap (trino/jvm.config). No authentication: the IT names its user on loopback.
+  # of trino/catalog and only their two plugins loaded. The tpch generator keeps a 300 MB text pool in the 768 MiB
+  # heap, so the rest is kept small: capped native memory and a C1-only JIT (trino/jvm.config), two malloc arenas, few
+  # threads, little query memory and a short query history (trino/config.properties). Repeated IT runs peak near
+  # 1.05 GiB. No authentication: the IT names its user on loopback.
   trino:
     image: trinodb/trino:${GW_TRINO_TAG}
     container_name: gw-test-trino
     profiles: [trino, all]
     mem_limit: 1280m
+    environment:
+      MALLOC_ARENA_MAX: "2"
+    # Trino loads every plugin of its plugin directory: give it one with only the plugins of these catalogs.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - mkdir -p /tmp/plugin && ln -sf /usr/lib/trino/plugin/memory /usr/lib/trino/plugin/tpch /tmp/plugin/ && exec /usr/lib/trino/bin/launcher run --etc-dir /etc/trino
     volumes:
       - ./trino/jvm.config:/etc/trino/jvm.config:ro
+      - ./trino/config.properties:/etc/trino/config.properties:ro
       - ./trino/catalog:/etc/trino/catalog:ro
     ports:
       - "127.0.0.1:${GW_TRINO_PORT}:8080"

@@ -113,8 +113,10 @@ The ordinary `services` Maven profile does not enable CockroachDB tests. See [Co
 
 Trino is opt-in: one coordinator that is also its own worker, with a 768 MiB heap ([trino/jvm.config](trino/jvm.config))
 within a 1,280 MiB container limit. [trino/catalog](trino/catalog) replaces the image's catalogs with the built-in
-`memory` catalog (64 MB per node) and `tpch`, so nothing reaches another system. The coordinator has no
-authentication: the test names its user on loopback. Tables it creates in `memory` disappear with the container.
+`memory` catalog (64 MB per node) and `tpch`, so nothing reaches another system, and the container loads only these
+two plugins. [trino/config.properties](trino/config.properties) keeps query memory, threads and the query history
+small; repeated test runs peak near 1.05 GiB. The coordinator has no authentication: the test names its user on
+loopback. Tables it creates in `memory` disappear with the container.
 
 ```bash
 scripts/test-services.sh up trino
