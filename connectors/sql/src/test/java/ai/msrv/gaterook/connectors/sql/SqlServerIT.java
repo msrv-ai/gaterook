@@ -9,6 +9,7 @@ import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.TemplateKind;
+import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import java.nio.file.Path;
@@ -57,6 +58,8 @@ class SqlServerIT {
       st.execute("CREATE USER [" + READER + "] FOR LOGIN [" + READER + "] WITH DEFAULT_SCHEMA = dbo");
       st.execute("GRANT SELECT ON SCHEMA::dbo TO [" + READER + "]");
       st.execute("GRANT VIEW DEFINITION TO [" + READER + "]");
+      // A common read-only setup; the role owns the empty db_datareader schema, which must not count as a change.
+      st.execute("ALTER ROLE db_datareader ADD MEMBER [" + READER + "]");
     }
     try (Connection c = admin(OTHER_DATABASE); Statement st = c.createStatement()) {
       st.execute("CREATE TABLE dbo.orders (id int PRIMARY KEY)");
@@ -111,6 +114,8 @@ class SqlServerIT {
     var test = connector.test(cfg, secrets(READER), context());
     assertThat(test.ok()).as(test.toString()).isTrue();
     assertThat(test.serverVersion()).contains("SQL Server");
+    assertThat(test.permissions().level()).isEqualTo(TestResult.Level.READ);
+    assertThat(test.permissions().write()).isNull();
     assertThat(test.details().at("/tls/enabled").asBoolean()).isTrue();
     assertThat(connector.health(cfg, secrets(READER), context()).state())
         .isEqualTo(ai.msrv.gaterook.connector.api.HealthResult.State.HEALTHY);

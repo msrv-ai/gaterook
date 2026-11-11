@@ -14,6 +14,8 @@ private CA. **require** encrypts without validating the certificate; it is suita
 **disable** does not request encryption, although the server may require it. Connection testing reports effective
 permissions and TLS status; if a restricted login cannot inspect TLS metadata, the UI reports what the connection
 settings establish or leaves the status unknown. It does not require granting server-state permissions to a reader.
+Membership of `db_datareader` is reported as read access: the empty schema that each fixed database role owns gives
+no way to create or change objects.
 
 ## Bound reads and review exact SQL
 

@@ -12,6 +12,8 @@ Under **Advanced**, select the transport that matches the listener. The default,
 
 The default schema is the authenticated user's schema. Set **Default schema** to use another permitted schema. Unquoted Oracle identifiers use uppercase; double-quote case-sensitive names. Restrict accessible schemas with the connection's schema allowlist and the endpoint's SQL policy. When an external credential provider supplies the username, set an explicit default schema or qualify table names for schema introspection.
 
+**Test connection** reads what the user may do from Oracle's dictionary views, without write probes. Session privileges such as `CREATE SESSION` do not count as schema changes, and the grants Oracle gives `PUBLIC` on its own schemas do not count as writes, so a user with only `CREATE SESSION` and `SELECT` grants is reported as read-only.
+
 ## Bound reads and review database changes
 
 `sql_query` runs one analyzed read in an explicit read-only transaction and rolls it back when finished. Row, response-size and timeout limits apply. Oracle statement timeouts use JDBC cancellation rounded up to whole seconds. `sql_list_schemas` lists accessible tables and views within the allowlist; `sql_describe_table` returns their columns and constraints. SQL query templates bind parameter values through JDBC; boolean parameters use `1` and `0` for compatibility with Oracle 19c.
@@ -34,7 +36,7 @@ scripts/test-services.sh run mvn -B -ntp -pl connectors/sql -am verify -Pservice
 `GW_ORACLE_HOST` is set explicitly; that selects the external settings below instead of the Compose settings.
 See [connector test services](../test-services/README.md) for ports, credentials, profiles and cleanup.
 
-For an external fixture, use a disposable Oracle service and a separate test user with `CREATE SESSION`, `CREATE TABLE` and a small quota on its default tablespace. The tests create and remove `GW_ORACLE_IT_CUSTOMERS`, `GW_ORACLE_IT_ORDERS` and `"GateRook mixed table"` in that user's schema. They use TCP without TLS and must not run against production data.
+For an external fixture, use a disposable Oracle service and a separate test user with `CREATE SESSION`, `CREATE TABLE` and a small quota on its default tablespace. The tests create and remove `GW_ORACLE_IT_CUSTOMERS`, `GW_ORACLE_IT_ORDERS` and `"GateRook mixed table"` in that user's schema. They use TCP without TLS and must not run against production data. With the Compose service, the suite also creates and removes the `GW_ORACLE_IT_READER` user through `SYSTEM` to check that a reader is reported as read-only; an external fixture skips that test.
 
 From the repository root, with the normal Java toolchain configured:
 
