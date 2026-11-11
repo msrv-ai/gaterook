@@ -133,6 +133,8 @@ export function signInTarget(type: string): string {
     case 'firestore':
     case 'firebase-rtdb':
       return 'the cloud account';
+    case 'prometheus':
+      return 'the metrics server';
     default:
       return 'the service';
   }

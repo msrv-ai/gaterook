@@ -5469,6 +5469,175 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         }
       }
     }
+  },
+  "prometheus": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Prometheus",
+    "type": "object",
+    "x-card": {
+      "description": "PromQL queries, series, labels, targets, rules and alerts of Prometheus-compatible servers. Read only."
+    },
+    "additionalProperties": false,
+    "required": [
+      "url"
+    ],
+    "properties": {
+      "url": {
+        "type": "string",
+        "title": "Server URL",
+        "format": "uri",
+        "minLength": 8,
+        "maxLength": 2048,
+        "pattern": "^https?://[^/?#@\\s]+(/[^?#\\s]*)?$",
+        "examples": [
+          "https://prometheus.example.com"
+        ],
+        "description": "Where the server answers, with any path before /api/v1: https://mimir.example.com/prometheus for Mimir. Plain http:// only to this computer (localhost, 127.0.0.1)."
+      },
+      "tenant": {
+        "type": "string",
+        "title": "Tenant (X-Scope-OrgID)",
+        "maxLength": 150,
+        "pattern": "^[A-Za-z0-9!._*'()|-]*$",
+        "description": "For Grafana Mimir and Cortex, sent as X-Scope-OrgID. Several: team-a|team-b. Empty: no tenant header."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Credentials",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "title": "Authentication",
+            "enum": [
+              "none",
+              "basic",
+              "bearer"
+            ],
+            "default": "none",
+            "x-enumTitles": [
+              "No authentication",
+              "Username and password",
+              "Bearer token"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(username|secret)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "basic"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "username",
+                "secret"
+              ],
+              "properties": {
+                "username": {
+                  "type": "string",
+                  "title": "Username",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "pattern": "^[^:\\u0000-\\u001f\\u007f]*[^:\\s][^:\\u0000-\\u001f\\u007f]*$",
+                  "description": "Grafana Cloud: the numeric instance ID."
+                },
+                "secret": {
+                  "type": "string",
+                  "title": "Password",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "description": "Stored encrypted by GateRook. Grafana Cloud: an access policy token with metrics:read."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "bearer"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "secret"
+              ],
+              "properties": {
+                "secret": {
+                  "type": "string",
+                  "title": "Bearer token",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "description": "Stored encrypted by GateRook. Use a token that can only read."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "caCertificate": {
+        "type": "string",
+        "title": "CA certificate (PEM)",
+        "maxLength": 20000,
+        "x-widget": "textarea",
+        "x-person-only": true,
+        "description": "Only for a server whose certificate a private CA signed. GateRook then trusts this CA as well as the system's."
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "Limits of one call. Policies also cap rows, answer sizes and timeouts per environment.",
+        "properties": {
+          "maxSeries": {
+            "type": "integer",
+            "title": "Series per answer",
+            "minimum": 1,
+            "maximum": 10000,
+            "default": 1000,
+            "x-stricter": "min",
+            "description": "The most series one query or series lookup returns; the endpoint's row limit may be lower."
+          },
+          "maxPoints": {
+            "type": "integer",
+            "title": "Points per series",
+            "minimum": 10,
+            "maximum": 11000,
+            "default": 11000,
+            "x-stricter": "min",
+            "description": "The most points a range query may ask for per series: (end - start) / step + 1. Prometheus itself stops at 11,000."
+          },
+          "maxResponseMb": {
+            "type": "integer",
+            "title": "Server answer size",
+            "minimum": 1,
+            "maximum": 64,
+            "default": 16,
+            "x-unit": "MB",
+            "x-stricter": "min",
+            "description": "The most GateRook reads of one answer of the server. A larger answer is cut there and reported as cut."
+          }
+        }
+      }
+    }
   }
 };
 
@@ -9037,6 +9206,264 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "credentials": {
         "source": "adc",
         "lifetimeSeconds": 900
+      }
+    }
+  },
+  "prometheus": {
+    "sections": [
+      "/auth",
+      "/advanced"
+    ],
+    "loose": [
+      "/url",
+      "/tenant",
+      "/caCertificate"
+    ],
+    "rows": {
+      "/auth": [
+        [
+          "/auth/mode"
+        ],
+        [
+          "/auth/username"
+        ],
+        [
+          "/auth/secret"
+        ],
+        [
+          "/auth/secret"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/maxSeries",
+          "/advanced/maxPoints",
+          "/advanced/maxResponseMb"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/url",
+        "kind": "text",
+        "title": "Server URL",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/tenant",
+        "kind": "text",
+        "title": "Tenant (X-Scope-OrgID)",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth",
+        "kind": "object",
+        "title": "Credentials",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/mode",
+        "kind": "select",
+        "title": "Authentication",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "none",
+          "basic",
+          "bearer"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/username",
+        "kind": "text",
+        "title": "Username",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.mode in [\"basic\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/secret",
+        "kind": "secret",
+        "title": "Password",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.mode in [\"basic\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/secret",
+        "kind": "secret",
+        "title": "Bearer token",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.mode in [\"bearer\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxSeries",
+        "kind": "number",
+        "title": "Series per answer",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxPoints",
+        "kind": "number",
+        "title": "Points per series",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxResponseMb",
+        "kind": "number",
+        "title": "Server answer size",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "MB",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "auth": {
+        "mode": "none"
+      },
+      "advanced": {
+        "maxSeries": 1000,
+        "maxPoints": 11000,
+        "maxResponseMb": 16
+      }
+    },
+    "prodDefaults": {
+      "auth": {
+        "mode": "none"
+      },
+      "advanced": {
+        "maxSeries": 1000,
+        "maxPoints": 11000,
+        "maxResponseMb": 16
       }
     }
   },

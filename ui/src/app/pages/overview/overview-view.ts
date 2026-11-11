@@ -383,6 +383,8 @@ export function checkPrompt(type: string | null, name: string | null): string {
     case 'loki':
     case 'ssh-logs':
       return `Show me the latest errors in ${name}`;
+    case 'prometheus':
+      return `Show me the targets Prometheus scrapes in ${name}`;
     default:
       return `Show me what you can see in ${name}`;
   }
