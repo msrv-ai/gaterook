@@ -162,6 +162,8 @@ export const COMPATIBLE_SERVICES: readonly CompatibleService[] = [
     description: "With the stack's instance ID and an access policy token." },
 
   // ── Next to their base type ──
+  { id: 'pocketbase', type: 'sqlite', name: 'PocketBase', search: 'pb_data backend',
+    description: "Choose pb_data/data.db in PocketBase's folder. Approved changes skip PocketBase's API rules, hooks and realtime events." },
   { id: 'starburst', type: 'trino', name: 'Starburst', mark: 'starburst.svg', search: 'galaxy enterprise',
     description: 'Starburst Galaxy and Starburst Enterprise through the Trino connector.' },
   { id: 'azure', type: 'databricks', name: 'Azure Databricks', mark: 'azure-databricks.svg', search: 'microsoft',
