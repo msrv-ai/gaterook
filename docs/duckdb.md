@@ -13,7 +13,7 @@ Java support for plugins downloads on first use and is cached ([optional compone
 
 ## Choose the database file
 
-A DuckDB connection is one database file. Enter an absolute path or `~/…`, such as `~/projects/analytics/warehouse.duckdb`. There is no host, user or password: what GateRook may do with the file is what the plugin's process may do with it.
+A DuckDB connection is one database file. In the desktop app, **Choose** opens the system's file dialog; or enter an absolute path or `~/…`, such as `~/projects/analytics/warehouse.duckdb`. Choosing returns only the path: GateRook doesn't open the file until a call does. There is no host, user or password: what GateRook may do with the file is what the plugin's process may do with it.
 
 Only you choose the file. The setting is marked person-only, so an [AI connection import](ai-connection-import.md) cannot propose a path. GateRook refuses:
 

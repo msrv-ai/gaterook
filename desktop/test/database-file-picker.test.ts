@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { chooseDatabasePath } from '../src/main/database-file-picker.ts';
+import { chooseDatabasePath, databaseKind } from '../src/main/database-file-picker.ts';
 import { tempDir } from './helpers.ts';
 
-describe('SQLite database path picker', () => {
+describe('Database path picker', () => {
   it('chooses one file, hidden folders included, and returns only its absolute path', async () => {
     const t = tempDir('database-picker');
     try {
@@ -20,6 +20,30 @@ describe('SQLite database path picker', () => {
       });
       assert.equal(result, path);
     } finally { t.remove(); }
+  });
+
+  it('offers DuckDB files for a DuckDB connection', async () => {
+    const t = tempDir('database-picker');
+    try {
+      const path = join(t.dir, 'warehouse.duckdb');
+      writeFileSync(path, 'not a database: selection must not open or read it');
+      const result = await chooseDatabasePath(async (options) => {
+        assert.equal(options.title, 'Choose DuckDB database');
+        assert.deepEqual(options.filters?.map((f) => f.name), ['DuckDB databases', 'All files']);
+        assert.ok(options.filters?.[0]?.extensions.includes('duckdb'));
+        return { canceled: false, filePaths: [path] };
+      }, 'duckdb');
+      assert.equal(result, path);
+    } finally { t.remove(); }
+  });
+
+  it('takes no kind or one known kind from the renderer', () => {
+    assert.equal(databaseKind([]), 'sqlite');
+    assert.equal(databaseKind(['sqlite']), 'sqlite');
+    assert.equal(databaseKind(['duckdb']), 'duckdb');
+    for (const args of [['postgres'], ['duckdb', 'x'], [{ kind: 'duckdb' }], [null]]) {
+      assert.throws(() => databaseKind(args), /Unknown database kind/);
+    }
   });
 
   it('does not return any path when the person cancels or no file was chosen', async () => {

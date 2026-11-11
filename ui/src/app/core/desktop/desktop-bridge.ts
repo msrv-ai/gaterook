@@ -103,8 +103,11 @@ export interface GwDesktop {
   openFile(purpose: string): Promise<string | null>;
   /** Shows the native picker and returns the selected private key path, without reading its contents. */
   choosePrivateKeyFile(): Promise<string | null>;
-  /** Shows the native picker for a SQLite database and returns its path; the core opens the file, not main. */
-  chooseDatabaseFile?(): Promise<string | null>;
+  /**
+   * Shows the native picker for a SQLite database (or, with `duckdb`, a DuckDB one) and returns its path; the core or
+   * the plugin opens the file, not main.
+   */
+  chooseDatabaseFile?(kind?: 'sqlite' | 'duckdb'): Promise<string | null>;
   /** Selects the repository folder for an AI prompt without reading its files. */
   chooseRepository?(): Promise<string | null>;
   /**
@@ -227,8 +230,8 @@ export class DesktopBridge {
     return this.desktop?.choosePrivateKeyFile?.() ?? null;
   }
 
-  async chooseDatabaseFile(): Promise<string | null> {
-    return this.desktop?.chooseDatabaseFile?.() ?? null;
+  async chooseDatabaseFile(kind: 'sqlite' | 'duckdb' = 'sqlite'): Promise<string | null> {
+    return (kind === 'sqlite' ? this.desktop?.chooseDatabaseFile?.() : this.desktop?.chooseDatabaseFile?.(kind)) ?? null;
   }
 
   async chooseRepository(): Promise<string | null> {

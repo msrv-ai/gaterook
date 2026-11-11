@@ -105,7 +105,7 @@ describe('private key path field', () => {
 });
 
 describe('SQLite database file field', () => {
-  async function renderDatabase(choose: () => Promise<string | null>, available = true) {
+  async function renderDatabase(choose: (kind?: string) => Promise<string | null>, available = true) {
     const privateKey = vi.fn<() => Promise<string | null>>();
     TestBed.configureTestingModule({ providers: [provideKitIcons(), { provide: DesktopBridge, useValue: {
       privateKeyPickerAvailable: true, choosePrivateKeyFile: privateKey,
@@ -123,22 +123,45 @@ describe('SQLite database file field', () => {
   }
 
   it('chooses the database with the database picker, not the key picker', async () => {
-    const choose = vi.fn<() => Promise<string | null>>().mockResolvedValue('/example/projects/shop/db/development.sqlite3');
+    const choose = vi.fn<(kind?: string) => Promise<string | null>>().mockResolvedValue('/example/projects/shop/db/development.sqlite3');
     const p = await renderDatabase(choose);
     expect(p.button().getAttribute('aria-label')).toBe('Choose database file');
     p.button().click(); await p.settle();
-    expect(choose).toHaveBeenCalledExactlyOnceWith();
+    expect(choose).toHaveBeenCalledExactlyOnceWith('sqlite');
     expect(p.privateKey).not.toHaveBeenCalled();
     expect(p.input().value).toBe('/example/projects/shop/db/development.sqlite3');
     expect(p.form.value()['connection']).toEqual({ file: '/example/projects/shop/db/development.sqlite3' });
   });
 
   it('keeps manual entry when this desktop shell has no database picker', async () => {
-    const choose = vi.fn<() => Promise<string | null>>();
+    const choose = vi.fn<(kind?: string) => Promise<string | null>>();
     const p = await renderDatabase(choose, false);
     expect(p.button().getAttribute('aria-disabled')).toBe('true');
     p.button().click(); await p.settle();
     expect(choose).not.toHaveBeenCalled();
     expect(p.input().value).toBe('~/projects/shop/db/old.sqlite3');
+  });
+});
+
+describe('DuckDB database file field (the DuckDB plugin)', () => {
+  const schema: JsonObject = { type: 'object', additionalProperties: false, required: ['file'], properties: {
+    file: { type: 'string', title: 'Database file', 'x-file-picker': 'duckdb-database', 'x-person-only': true } } };
+
+  it('asks the desktop for a DuckDB file', async () => {
+    const choose = vi.fn<(kind?: string) => Promise<string | null>>().mockResolvedValue('/example/analytics/warehouse.duckdb');
+    const privateKey = vi.fn<() => Promise<string | null>>();
+    TestBed.configureTestingModule({ providers: [provideKitIcons(), { provide: DesktopBridge, useValue: {
+      privateKeyPickerAvailable: true, choosePrivateKeyFile: privateKey,
+      databasePickerAvailable: true, chooseDatabaseFile: choose } }] });
+    const form = createSchemaForm(schema, { idPrefix: 'dk', injector: TestBed.inject(Injector) });
+    const fixture = TestBed.createComponent(Host);
+    fixture.componentRef.setInput('form', form);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    el.querySelector<HTMLButtonElement>('#dk-file-choose')!.click();
+    await Promise.resolve(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    expect(choose).toHaveBeenCalledExactlyOnceWith('duckdb');
+    expect(privateKey).not.toHaveBeenCalled();
+    expect(form.value()['file']).toBe('/example/analytics/warehouse.duckdb');
   });
 });

@@ -45,16 +45,21 @@ export class GwSchemaField {
   protected readonly choosingFile = signal(false);
   protected readonly filePickerError = signal<string | null>(null);
 
-  /** The desktop's native picker for this field: an SSH private key or a SQLite database file. */
+  /** The desktop's native picker for this field: an SSH private key, or a SQLite or DuckDB database file. */
   protected filePicker(): boolean {
     const kind = this.node().schema['x-file-picker'];
-    return kind === 'ssh-private-key' || kind === 'sqlite-database';
+    return kind === 'ssh-private-key' || kind === 'sqlite-database' || kind === 'duckdb-database';
+  }
+
+  /** The database engine of a database file picker, or null for an SSH key. */
+  private databaseKind(): 'sqlite' | 'duckdb' | null {
+    const kind = this.node().schema['x-file-picker'];
+    return kind === 'sqlite-database' ? 'sqlite' : kind === 'duckdb-database' ? 'duckdb' : null;
   }
 
   /** Whether this desktop shell has the field's picker (an older one may not). */
   protected pickerAvailable(): boolean {
-    return this.node().schema['x-file-picker'] === 'sqlite-database' ? this.desktop.databasePickerAvailable
-      : this.desktop.privateKeyPickerAvailable;
+    return this.databaseKind() ? this.desktop.databasePickerAvailable : this.desktop.privateKeyPickerAvailable;
   }
 
   protected async chooseFile(): Promise<void> {
@@ -65,8 +70,8 @@ export class GwSchemaField {
     this.choosingFile.set(true);
     this.filePickerError.set(null);
     try {
-      const path = node.schema['x-file-picker'] === 'sqlite-database' ? await this.desktop.chooseDatabaseFile()
-        : await this.desktop.choosePrivateKeyFile();
+      const database = this.databaseKind();
+      const path = database ? await this.desktop.chooseDatabaseFile(database) : await this.desktop.choosePrivateKeyFile();
       // A dialog may outlive its form or an edit made while it was open.
       if (!this.destroyRef.destroyed && this.form() === form && this.node() === node
           && form.visible(node) && !form.locked(node) && this.value() === previous && path) {
