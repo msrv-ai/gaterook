@@ -19,7 +19,12 @@ import java.util.Set;
  * substitution {@code $(…)} reads like the command line itself, so {@code $(cat {x})} is fine — but not within any
  * kind of quoting. Arithmetic ({@code $((…))}, {@code ((…))}, {@code $[…]}) and {@code [[…]]} evaluate a quoted
  * value as an expression — bash runs {@code $(…)} inside an array subscript such as {@code a[$(id)]} — and
- * {@code eval} or {@code let} read their arguments again: a placeholder there is refused too.
+ * commands such as {@code eval}, {@code sh} or {@code ssh} read their arguments again: a placeholder there is
+ * refused too. Dispatch wrappers are also refused because their option grammars can select another interpreter.
+ * Command names must be literal; quoting and escapes in a literal name do not hide an evaluator.
+ *
+ * <p>Dollar-single quoting and quotes inside double-quoted parameter expansions have different boundaries across
+ * supported POSIX shells. A parameterized command using either form is refused rather than parsed as Bash only.
  *
  * <p>What the lexer can't tell for sure is refused: the cost is a runbook written another way, never a value that
  * leaves its quotes.
@@ -50,11 +55,13 @@ final class CommandLexer {
   }
 
   /** Words before the command's name that leave the next word in command position. */
-  private static final Set<String> PREFIXES = Set.of("!", "time", "if", "then", "else", "elif", "do", "while", "until",
+  private static final Set<String> PREFIXES = Set.of("!", "if", "then", "else", "elif", "do", "while", "until",
       "command", "builtin");
 
-  /** Commands that read their arguments again: a quoted value is a command or an expression for them. */
-  private static final Set<String> EVALUATORS = Set.of("eval", "let");
+  /** Commands that reinterpret arguments, or dispatch a command whose option grammar we do not parse. */
+  private static final Set<String> EVALUATORS = Set.of("eval", "let", "sh", "bash", "dash", "ash", "ksh", "ksh93",
+      "mksh", "zsh", "csh", "tcsh", "fish", "ssh", "su", "watch", "source", ".", "env", "sudo", "doas", "time",
+      "exec", "timeout", "nohup", "nice", "stdbuf", "xargs", "parallel", "busybox");
 
   /** One level of quoting or substitution, and what it needs to find its own end. */
   private static final class Frame {
@@ -63,7 +70,7 @@ final class CommandLexer {
     int depth;                   // SUBSHELL, ARITH: nested ( … ) or [ … ]
     boolean commandWord = true;  // TOP, SUBSHELL: the next word names a command
     boolean inWord;              // TOP, SUBSHELL: inside a word
-    String evaluator;            // TOP, SUBSHELL: eval or let, when the current command is one
+    String evaluator;            // TOP, SUBSHELL: a command whose arguments cannot be safely parameterized
 
     Frame(Kind kind, String opener) {
       this.kind = kind;
@@ -81,9 +88,13 @@ final class CommandLexer {
     stack.push(new Frame(Kind.TOP, ""));
     int i = 0;
     int n = command.length();
+    boolean ansiCQuoting = false;
+    boolean parameterQuotes = false;
     while (i < n) {
       Frame f = stack.peek();
       char c = command.charAt(i);
+      ansiCQuoting |= f.kind == Kind.ANSI_C;
+      parameterQuotes |= f.kind == Kind.PARAM && within(stack, Kind.DOUBLE) && (c == '\'' || c == '"');
       int placeholderEnd = placeholderEnd(command, i);
       if (placeholderEnd > 0) {
         String name = command.substring(i + 1, placeholderEnd - 1);
@@ -94,9 +105,12 @@ final class CommandLexer {
           if (!declared) {
             errors.add("{" + name + "} is not a parameter of this runbook");
             text.append(command, i, placeholderEnd);
+          } else if (f.commandWord) {
+            errors.add("{" + name + "} cannot select a command or appear before its literal name");
+            text.append(command, i, placeholderEnd);
           } else if (evaluator != null) {
-            errors.add("{" + name + "} is an argument of " + evaluator + ", which reads its value again: no "
-                + "quoting protects it there");
+            errors.add("{" + name + "} is an argument of " + evaluator
+                + ", which can execute or reinterpret its arguments: use a fixed command directly");
             text.append(command, i, placeholderEnd);
           } else {
             flush(text, segments);
@@ -177,6 +191,16 @@ final class CommandLexer {
       });
     }
     flush(text, segments);
+    if (segments.stream().anyMatch(s -> s instanceof Placeholder)) {
+      if (ansiCQuoting) {
+        errors.add("Dollar-single quoting ($'…') has shell-dependent boundaries: use plain quotes in a parameterized "
+            + "runbook");
+      }
+      if (parameterQuotes) {
+        errors.add("Quotes inside a double-quoted parameter expansion have shell-dependent boundaries: simplify "
+            + "the expansion in a parameterized runbook");
+      }
+    }
     return new Result(List.copyOf(segments), List.copyOf(errors));
   }
 
@@ -209,7 +233,6 @@ final class CommandLexer {
         } else {
           stack.pop(); // the end of $( … )
           Frame outer = stack.peek();
-          outer.commandWord = false;
           outer.inWord = true;
           return 1;
         }
@@ -218,6 +241,7 @@ final class CommandLexer {
       return 1;
     }
     boolean wordStart = !f.inWord;
+    boolean commandStart = f.commandWord;
     f.inWord = true;
     if (wordStart) {
       if (c == '#') {
@@ -243,32 +267,73 @@ final class CommandLexer {
       errors.add("A runbook is one line, so it can't have a heredoc (<<)");
       return 2;
     }
-    if (c == '{' && wordStart && i + 1 < n && Character.isWhitespace(s.charAt(i + 1))) {
-      f.commandWord = true; // { list; }: the next word names a command
-      f.inWord = false;
+    if (c == '{' && wordStart && commandStart && i + 1 < n && Character.isWhitespace(s.charAt(i + 1))) {
+      separator(f); // { list; }: the next word names a command
       return 1;
     }
     return quotes(s, i, stack);
   }
 
-  /** At the first word of a command: is it eval or let, a prefix such as {@code !}, or an assignment? */
+  /** Resolve a literal executable name, including paths and shell quote removal, before allowing arguments. */
   private static void commandWord(String s, int i, Frame f) {
     int end = i;
-    while (end < s.length() && (Character.isLetterOrDigit(s.charAt(end)) || s.charAt(end) == '_'
-        || s.charAt(end) == '!')) {
+    while (end < s.length() && (Character.isLetterOrDigit(s.charAt(end)) || s.charAt(end) == '_')) {
       end++;
     }
-    String word = s.substring(i, end);
-    boolean wordEnds = end == s.length() || " \t;&|()".indexOf(s.charAt(end)) >= 0;
-    if (end < s.length() && s.charAt(end) == '=' && !word.isEmpty() && !Character.isDigit(word.charAt(0))) {
-      return; // NAME=value: still before the command
+    if (end < s.length() && s.charAt(end) == '=' && end > i && !Character.isDigit(s.charAt(i))) {
+      return; // NAME=value: still before the command, including after a quoted assignment value
     }
-    if (wordEnds && EVALUATORS.contains(word)) {
-      f.evaluator = word;
+    String word = literalWord(s, i);
+    if (word == null || word.isEmpty()) {
+      f.evaluator = "a command whose name is not a fixed literal";
       f.commandWord = false;
-    } else if (!(wordEnds && PREFIXES.contains(word))) {
+      return;
+    }
+    String name = word.substring(word.lastIndexOf('/') + 1);
+    if (EVALUATORS.contains(name)) {
+      f.evaluator = name;
+      f.commandWord = false;
+    } else if (!PREFIXES.contains(name) && !word.startsWith("-")) {
       f.commandWord = false;
     }
+  }
+
+  /** Null means expansion or syntax we cannot resolve to one literal command name. */
+  private static String literalWord(String s, int start) {
+    StringBuilder word = new StringBuilder();
+    char quote = 0;
+    for (int i = start; i < s.length(); i++) {
+      char c = s.charAt(i);
+      if (quote == '\'') {
+        if (c == '\'') {
+          quote = 0;
+        } else {
+          word.append(c);
+        }
+      } else if (c == '\\') {
+        if (++i == s.length()) {
+          return null;
+        }
+        char next = s.charAt(i);
+        if (quote == '"' && "\\$`\"\n".indexOf(next) < 0) {
+          word.append('\\');
+        }
+        word.append(next);
+      } else if (quote == '"' && c == '"') {
+        quote = 0;
+      } else if (c == '$' || c == '`') {
+        return null;
+      } else if (quote == 0 && (c == '\'' || c == '"')) {
+        quote = c;
+      } else if (quote == 0 && " \t;&|()\n".indexOf(c) >= 0) {
+        break;
+      } else if (quote == 0 && "<>{}*?[]~".indexOf(c) >= 0) {
+        return null;
+      } else {
+        word.append(c);
+      }
+    }
+    return quote == 0 ? word.toString() : null;
   }
 
   private static void separator(Frame f) {
@@ -363,7 +428,6 @@ final class CommandLexer {
       stack.pop();
       Frame outer = stack.peek();
       if (outer.kind.commands()) {
-        outer.commandWord = false;
         outer.inWord = true;
       }
     }
@@ -400,7 +464,7 @@ final class CommandLexer {
     return null;
   }
 
-  /** {@code eval} or {@code let}, when a command around the position reads its arguments again. */
+  /** An evaluator or unresolved dispatcher around the placeholder, including an enclosing substitution. */
   private static String evaluator(Deque<Frame> stack) {
     for (Frame f : stack) {
       if (f.evaluator != null) {

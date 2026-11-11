@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.connectors.ssh;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -11,10 +12,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 
@@ -63,8 +69,10 @@ class ShellQuoteTest {
   }
 
   /** The same through a runbook: a string parameter reaches {@code printf} as one argument and nothing runs. */
-  @Test
-  void aRunbookStringParameterIsOneWordOnTheHost() throws Exception {
+  @ParameterizedTest
+  @ValueSource(strings = {"/bin/sh", "/bin/bash", "/bin/dash", "/bin/zsh"})
+  void aRunbookStringParameterIsOneWordOnTheHost(String shell) throws Exception {
+    assumeTrue(Files.isExecutable(Path.of(shell)), "Shell not installed: " + shell);
     Runbook rb = RunbookCompiler.compile(TestConfigs.runbook("echo-it", "printf '%s\\0' {text} {mode}", false, """
         [{"name":"text","type":"string","pattern":"(?s).*","maxLength":256,"allowLeadingDash":true},
          {"name":"mode","type":"enum","values":["a b","$(id)"]}]""")).runbook();
@@ -85,7 +93,7 @@ class ShellQuoteTest {
       expected.add(v.toString());
       expected.add(mode);
     }
-    assertThat(run(script.toString())).containsExactlyElementsOf(expected);
+    assertThat(run(script.toString(), shell)).containsExactlyElementsOf(expected);
   }
 
   /**
@@ -110,6 +118,46 @@ class ShellQuoteTest {
     assertThat(marker).exists();
   }
 
+  static Stream<Arguments> unsafeShellContexts() {
+    return Stream.of(
+        Arguments.of("/bin/sh", "sh -c {text}", "printf MP5 >&2"),
+        Arguments.of("/bin/sh", "'eval' {text}", "printf MP5 >&2"),
+        Arguments.of("/bin/sh", "e\\val {text}", "printf MP5 >&2"),
+        Arguments.of("/bin/sh", "v=literal; printf '%s' \"${v#'}\" {text} #'}\"", "$(printf MP5 >&2)"),
+        Arguments.of("/bin/sh", "v=literal; printf '%s' \"${v%'}\" {text} #'}\"", "$(printf MP5 >&2)"),
+        Arguments.of("/bin/dash", "printf '%s' $'\\'' {text} #'", "$(printf MP5 >&2)"));
+  }
+
+  /** A harmless stderr marker proves why quoting alone cannot protect these template positions. */
+  @ParameterizedTest
+  @MethodSource("unsafeShellContexts")
+  void reparsedValuesAreRejectedEvenForConfirmedReadOnlyRunbooks(String shell, String command, String value)
+      throws Exception {
+    assumeTrue(Files.isExecutable(Path.of(shell)), "Shell not installed: " + shell);
+    String rendered = command.replace("{text}", ShellQuote.quote(value));
+    Path script = Files.writeString(dir.resolve("reparsed.sh"), rendered + "\n", StandardCharsets.UTF_8);
+    Path stdout = dir.resolve("reparsed.out");
+    Path stderr = dir.resolve("reparsed.err");
+    Process process = new ProcessBuilder(shell, script.toString())
+        .redirectOutput(stdout.toFile()).redirectError(stderr.toFile()).start();
+    try {
+      assertThat(process.waitFor(10, TimeUnit.SECONDS)).isTrue();
+      assertThat(process.exitValue()).isZero();
+      assertThat(Files.readString(stderr)).isEqualTo("MP5");
+    } finally {
+      process.destroyForcibly();
+    }
+
+    var definition = TestConfigs.runbook("unsafe-echo", command, true,
+        "[{\"name\":\"text\",\"type\":\"string\",\"pattern\":\".*\",\"required\":true}]");
+    assertThat(RunbookCompiler.compile(definition).runbook()).isNull();
+    assertThat(RunbookCompiler.compile(definition).errors()).isNotEmpty();
+    // Previously compiled contributions must be rejected when existing templates are offered again.
+    assertThat(RunbookCompiler.fromContribution(definition).runbook()).isNull();
+    definition.put("readOnly", false);
+    assertThat(RunbookCompiler.compile(definition).runbook()).isNull();
+  }
+
   private void assertRoundTrip(List<String> values) throws Exception {
     StringBuilder script = new StringBuilder("printf '%s\\0'");
     for (String v : values) {
@@ -121,9 +169,13 @@ class ShellQuoteTest {
 
   /** Runs a script with {@code /bin/sh} and splits its output at NUL. */
   private List<String> run(String script) throws IOException, InterruptedException {
+    return run(script, "/bin/sh");
+  }
+
+  private List<String> run(String script, String shell) throws IOException, InterruptedException {
     Path file = Files.writeString(dir.resolve("quote-" + System.nanoTime() + ".sh"), script, StandardCharsets.UTF_8);
     Path marker = dir.resolve("ran");
-    ProcessBuilder pb = new ProcessBuilder("/bin/sh", file.toString()).redirectErrorStream(false);
+    ProcessBuilder pb = new ProcessBuilder(shell, file.toString()).redirectErrorStream(false);
     pb.environment().put("LC_ALL", "C.UTF-8");
     pb.environment().put("MARKER", marker.toString());
     Process p = pb.start();
