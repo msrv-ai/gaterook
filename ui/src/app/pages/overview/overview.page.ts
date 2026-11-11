@@ -44,6 +44,8 @@ import { GwEndpointCreate } from '../endpoints/endpoint-create';
 export const SKELETON_DELAY_MS = 300;
 /** The endpoint last chosen on Overview, which the page opens on the next visit. */
 export const ENDPOINT_STORAGE_KEY = 'gw-overview-endpoint';
+/** Services the map lists before Show all: two full rows of the widest, three-column grid. */
+export const VISIBLE_SERVICES = 6;
 
 /** Live connection map for Overview. */
 @Component({
@@ -140,16 +142,28 @@ export class OverviewPage {
   protected readonly filtered = computed(() =>
     this.assigned().filter((c) => this.matches(c) && (!this.problemsOnly() || c.unreachable)),
   );
-  protected readonly native = computed(() => {
-    const rows = this.filtered().filter((c) => !c.mcp);
-    return this.expanded() || this.query().trim() || this.problemsOnly() ? rows : rows.slice(0, 4);
-  });
-  protected readonly nativeCount = computed(() => this.assigned().filter((c) => !c.mcp).length);
-  protected readonly mcp = computed(() => this.filtered().filter((c) => c.mcp));
   protected readonly unassignedMcp = computed(() =>
     this.problemsOnly() || this.data.endpoints() === null
       ? []
       : (this.connections()?.filter((c) => c.mcp && !c.assigned && this.matches(c)) ?? []),
+  );
+  /** One list: the endpoint's services, built-in and MCP alike, then installed MCP servers no endpoint uses yet. */
+  protected readonly listed = computed(() => [...this.filtered(), ...this.unassignedMcp()]);
+  protected readonly compact = computed(
+    () => !this.expanded() && !this.query().trim() && !this.problemsOnly(),
+  );
+  protected readonly shown = computed(() =>
+    this.compact() ? this.listed().slice(0, VISIBLE_SERVICES) : this.listed(),
+  );
+  protected readonly foldable = computed(
+    () => !this.query().trim() && !this.problemsOnly() && this.listed().length > VISIBLE_SERVICES,
+  );
+  /** The empty state names what is missing; installed MCP servers may still follow it when nothing is searched. */
+  protected readonly empty = computed(
+    () =>
+      this.connections() !== null &&
+      !this.filtered().length &&
+      (!this.query().trim() || !this.unassignedMcp().length),
   );
   protected readonly detailConnection = computed(
     () => this.connections()?.find((c) => `service:${c.name}` === this.selectedNode()) ?? null,
@@ -176,7 +190,8 @@ export class OverviewPage {
         ? 'Access paused'
         : 'Protected access',
   );
-  protected readonly visibleConnections = computed(() => [...this.native(), ...this.mcp()]);
+  /** Map nodes with a line to the endpoint: the listed services it uses, not the installed servers after them. */
+  protected readonly visibleConnections = computed(() => this.shown().filter((c) => c.assigned));
   protected readonly wireServices = computed(() =>
     this.visibleConnections().map((c) => ({
       id: c.name,

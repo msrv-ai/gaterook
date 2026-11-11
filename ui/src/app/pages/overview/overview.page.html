@@ -182,7 +182,7 @@
               placeholder="Find a connection"
               aria-label="Find a connection"
               aria-describedby="ov-services-scope"
-              aria-controls="ov-services ov-mcp"
+              aria-controls="ov-services"
               aria-keyshortcuts="/"
               autocomplete="off"
               [value]="query()"
@@ -207,23 +207,12 @@
           </div>
         }
         <p class="gw-text-caption gw-fg-muted">Connection switches apply to all endpoints.</p>
-        <div
-          class="gw-stack gw-stack--sm gw-setup-map__network-native"
-          [class.gw-setup-map__network-native--empty]="!native().length"
-        >
+        <div class="gw-stack gw-stack--sm gw-setup-map__network-native">
           <ul
             class="gw-setup-map__network-grid"
             id="ov-services"
             [attr.aria-label]="'Connections on ' + (endpoint()?.slug ?? 'no endpoint')"
           >
-            @for (connection of native(); track connection.name) {
-              <li>
-                <ng-container
-                  [ngTemplateOutlet]="connectionRow"
-                  [ngTemplateOutletContext]="{ $implicit: connection }"
-                />
-              </li>
-            }
             @if (connections() === null) {
               <li class="gw-card">
                 <div class="gw-card__body gw-stack gw-stack--sm">
@@ -233,7 +222,7 @@
                   </button>
                 </div>
               </li>
-            } @else if (!native().length) {
+            } @else if (empty()) {
               <li class="gw-card gw-card--dashed gw-setup-map__network-empty">
                 <div class="gw-card__body gw-stack gw-stack--sm">
                   <p class="gw-text-small">
@@ -243,7 +232,7 @@
                         : problemsOnly()
                           ? 'No enabled unreachable connections'
                           : endpoint()
-                            ? 'No connectors on this endpoint'
+                            ? 'No services on this endpoint'
                             : 'Create an endpoint to share services'
                     }}
                   </p>
@@ -268,8 +257,16 @@
                 </div>
               </li>
             }
+            @for (connection of shown(); track connection.name) {
+              <li>
+                <ng-container
+                  [ngTemplateOutlet]="connectionRow"
+                  [ngTemplateOutletContext]="{ $implicit: connection }"
+                />
+              </li>
+            }
           </ul>
-          @if (nativeCount() > 4 && !query() && !problemsOnly()) {
+          @if (foldable()) {
             <button
               class="gw-btn gw-btn--ghost gw-btn--sm"
               type="button"
@@ -280,92 +277,6 @@
               {{ expanded() ? 'Show fewer' : 'Show all' }}
             </button>
           }
-        </div>
-        <div
-          class="gw-card gw-setup-map__network-mcp"
-          id="ov-mcp"
-          [class.gw-setup-map__network-mcp--empty]="!mcp().length && !unassignedMcp().length"
-          [hidden]="
-            (problemsOnly() && !mcp().length) ||
-            (!!query() && !mcp().length && !unassignedMcp().length)
-          "
-        >
-          <header class="gw-card__header">
-            <div class="gw-card__heading">
-              <h4 class="gw-card__title">
-                <svg lucideIcon="plug" class="gw-icon"></svg>MCP services
-              </h4>
-              <p class="gw-card__description">
-                {{
-                  endpoint()
-                    ? 'Endpoint: ' + endpoint()!.slug
-                    : 'Choose an endpoint to connect a service.'
-                }}
-              </p>
-            </div>
-          </header>
-          <div class="gw-card__body gw-stack gw-stack--sm">
-            <div class="gw-setup-map__network-mcp-grid">
-              @for (connection of mcp(); track connection.name) {
-                <ng-container
-                  [ngTemplateOutlet]="connectionRow"
-                  [ngTemplateOutletContext]="{ $implicit: connection }"
-                />
-              }
-              @for (connection of unassignedMcp(); track connection.name) {
-                <div class="gw-card gw-card--muted gw-setup-map__network-app">
-                  <div class="gw-setup-map__network-node">
-                    <span class="gw-icon-tile gw-icon-tile--neutral"
-                      ><svg lucideIcon="plug" class="gw-icon"></svg></span
-                    ><span class="gw-setup-map__network-label"
-                      ><span class="gw-setup-map__network-meta"
-                        ><strong class="gw-text-h3 gw-truncate" [title]="connection.name">{{ connection.name }}</strong
-                        ><span class="gw-sr-only">environment</span
-                        ><span [class]="'gw-env gw-env--sm gw-env--' + connection.row.env">{{ connection.row.env }}</span></span
-                      ><span class="gw-text-caption gw-fg-muted">Installed</span
-                      ><span class="gw-status gw-status--neutral"
-                        ><span class="gw-status__dot" aria-hidden="true"></span
-                        ><span class="gw-status__label"
-                          >Not connected to {{ endpoint()?.slug ?? 'an endpoint' }}</span
-                        ></span
-                      ></span
-                    >
-                  </div>
-                  <button
-                    class="gw-btn gw-btn--sm"
-                    type="button"
-                    (click)="connectService(connection, $event)"
-                    [attr.aria-label]="
-                      'Connect ' + connection.name + ' to endpoint ' + endpoint()?.slug
-                    "
-                    [attr.aria-disabled]="!endpoint() || mutationBlocked() ? 'true' : null"
-                    [title]="
-                      mutationBlocked() ??
-                      (!endpoint()
-                        ? 'Create an endpoint first.'
-                        : 'Review tool access before connecting.')
-                    "
-                  >
-                    Connect
-                  </button>
-                </div>
-              }
-              @if (!mcp().length && !unassignedMcp().length) {
-                <p class="gw-text-caption gw-fg-muted">
-                  {{
-                    connections() === null || data.endpoints() === null
-                      ? 'MCP connection status is unavailable.'
-                      : endpoint()
-                        ? 'No MCP services connected to this endpoint.'
-                        : 'No MCP services added yet.'
-                  }}
-                </p>
-              }
-            </div>
-            <button class="gw-btn gw-btn--ghost" type="button" (click)="openMcp($any($event.currentTarget))">
-              <svg lucideIcon="plus" class="gw-icon"></svg>Add an MCP service
-            </button>
-          </div>
         </div>
       </section>
       <section class="gw-card gw-setup-map__network-hub" aria-labelledby="ov-gateway-title" data-map-hub>
@@ -473,7 +384,7 @@
                       (click)="showProblems(ep)"
                       [attr.aria-label]="'Show ' + count + ' unreachable connections on ' + ep.slug"
                       [attr.aria-describedby]="'ov-health-tip-' + i"
-                      aria-controls="ov-services ov-mcp"
+                      aria-controls="ov-services"
                       [attr.aria-pressed]="endpoint()?.slug === ep.slug && problemsOnly()"
                     >
                       <span class="gw-badge gw-badge--danger"
@@ -727,82 +638,108 @@
   </section>
 }
 
+<!-- Every listed service, built-in or MCP: a map node with its switch, or an installed MCP server with Connect. -->
 <ng-template #connectionRow let-c>
   <div
     [class]="
       'gw-card gw-setup-map__network-service' +
       (c.unreachable ? ' gw-card--invalid' : !c.effectiveOn ? ' gw-card--muted' : '')
     "
-    [attr.data-map-service]="c.name"
-    [attr.data-selected]="selectedNode() === 'service:' + c.name"
+    [attr.data-map-service]="c.assigned ? c.name : null"
+    [attr.data-selected]="c.assigned ? selectedNode() === 'service:' + c.name : null"
   >
-    <button
-      class="gw-card--interactive gw-setup-map__network-node"
-      type="button"
-      (click)="inspect('service:' + c.name)"
-      (pointerenter)="hoverNode.set('service:' + c.name)"
-      (pointerleave)="hoverNode.set(null)"
-      (focus)="hoverNode.set('service:' + c.name)"
-      (blur)="hoverNode.set(null)"
-      [attr.aria-pressed]="selectedNode() === 'service:' + c.name"
-      aria-controls="ov-detail"
-    >
-      @if (mark(c); as logo) {
-        <img
-          class="gw-setup-map__network-mark"
-          [src]="'assets/integrations/' + logo + '.svg'"
-          alt=""
-        />
-      } @else {
-        <span class="gw-icon-tile gw-icon-tile--neutral"
-          ><svg [lucideIcon]="c.icon" class="gw-icon"></svg
-        ></span>
-      }
-      <span class="gw-setup-map__network-label"
-        ><span class="gw-setup-map__network-meta"
-          ><strong class="gw-text-h3 gw-truncate">{{ c.name }}</strong
-          ><span class="gw-sr-only">environment</span
-          ><span [class]="'gw-env gw-env--sm gw-env--' + c.row.env">{{ c.row.env }}</span></span
-        ><span class="gw-setup-map__network-meta"
-          ><span class="gw-text-caption gw-fg-muted gw-truncate">{{ c.typeLabel }}</span
-          >
-          @let tools = data.connectionToolCount(endpoint()?.slug ?? null, c.name);
-          @if (tools !== null) {
-            <span class="gw-badge gw-badge--outline gw-badge--sm">{{ tools }} {{ tools === 1 ? 'tool' : 'tools' }}</span>
-          }
-          <span [class]="'gw-status gw-status--' + c.state.tone"
-            ><span class="gw-status__dot" aria-hidden="true"></span
-            ><span class="gw-status__label">{{ c.state.label }}</span></span
-          ></span
-        ></span
-      ></button>
-    <div class="gw-setup-map__network-actions">
-      @if (!c.mcp) {
-        <span class="gw-tooltip gw-tooltip--end">
-          <a
-            class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-setup-map__network-settings"
-            [routerLink]="c.route"
-            [attr.aria-label]="'Open settings for ' + c.name"
-            [attr.aria-describedby]="'ov-settings-tip-' + c.name"
-          ><svg lucideIcon="settings" class="gw-icon gw-icon--sm" aria-hidden="true"></svg></a>
-          <span class="gw-tooltip__bubble" role="tooltip" [id]="'ov-settings-tip-' + c.name">Open connection settings</span>
-        </span>
-      }
-      <div class="gw-setup-map__network-toggle">
-        <gw-access-switch
-          kind="connection"
-          [name]="c.name"
-          [enabled]="c.enabled"
-          [compact]="true"
-          [blocked]="mutationBlocked() ?? c.blockedReason"
-          [pausedByEndpoint]="endpointOn() ? null : (endpoint()?.slug ?? null)"
-          (changed)="connectionChanged(c.name, $event)"
-        /><span class="gw-text-caption gw-fg-muted" aria-hidden="true">{{
-          c.enabled ? 'On' : 'Off'
-        }}</span>
+    @if (c.assigned) {
+      <button
+        class="gw-card--interactive gw-setup-map__network-node"
+        type="button"
+        (click)="inspect('service:' + c.name)"
+        (pointerenter)="hoverNode.set('service:' + c.name)"
+        (pointerleave)="hoverNode.set(null)"
+        (focus)="hoverNode.set('service:' + c.name)"
+        (blur)="hoverNode.set(null)"
+        [attr.aria-pressed]="selectedNode() === 'service:' + c.name"
+        aria-controls="ov-detail"
+      >
+        <ng-container [ngTemplateOutlet]="serviceLabel" [ngTemplateOutletContext]="{ $implicit: c }" />
+      </button>
+    } @else {
+      <div class="gw-setup-map__network-node">
+        <ng-container [ngTemplateOutlet]="serviceLabel" [ngTemplateOutletContext]="{ $implicit: c }" />
       </div>
+    }
+    <div class="gw-setup-map__network-actions">
+      <span class="gw-tooltip gw-tooltip--end">
+        <a
+          class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-setup-map__network-settings"
+          [routerLink]="['/connections', c.name]"
+          [attr.aria-label]="'Open settings for ' + c.name"
+          [attr.aria-describedby]="'ov-settings-tip-' + c.name"
+        ><svg lucideIcon="settings" class="gw-icon gw-icon--sm" aria-hidden="true"></svg></a>
+        <span class="gw-tooltip__bubble" role="tooltip" [id]="'ov-settings-tip-' + c.name">Open connection settings</span>
+      </span>
+      @if (c.assigned) {
+        <div class="gw-setup-map__network-toggle">
+          <gw-access-switch
+            kind="connection"
+            [name]="c.name"
+            [enabled]="c.enabled"
+            [compact]="true"
+            [blocked]="mutationBlocked() ?? c.blockedReason"
+            [pausedByEndpoint]="endpointOn() ? null : (endpoint()?.slug ?? null)"
+            (changed)="connectionChanged(c.name, $event)"
+          /><span class="gw-text-caption gw-fg-muted" aria-hidden="true">{{
+            c.enabled ? 'On' : 'Off'
+          }}</span>
+        </div>
+      } @else {
+        <button
+          class="gw-btn gw-btn--sm"
+          type="button"
+          (click)="connectService(c, $event)"
+          [attr.aria-label]="'Connect ' + c.name + ' to endpoint ' + endpoint()?.slug"
+          [attr.aria-disabled]="!endpoint() || mutationBlocked() ? 'true' : null"
+          [title]="
+            mutationBlocked() ??
+            (!endpoint() ? 'Create an endpoint first.' : 'Review tool access before connecting.')
+          "
+        >
+          Connect
+        </button>
+      }
     </div>
   </div>
+</ng-template>
+
+<ng-template #serviceLabel let-c>
+  @if (mark(c); as logo) {
+    <img
+      class="gw-setup-map__network-mark"
+      [src]="'assets/integrations/' + logo + '.svg'"
+      alt=""
+    />
+  } @else {
+    <span class="gw-icon-tile gw-icon-tile--neutral"
+      ><svg [lucideIcon]="c.icon" class="gw-icon"></svg
+    ></span>
+  }
+  <span class="gw-setup-map__network-label"
+    ><span class="gw-setup-map__network-meta"
+      ><strong class="gw-text-h3 gw-truncate" [title]="c.name">{{ c.name }}</strong
+      ><span class="gw-sr-only">environment</span
+      ><span [class]="'gw-env gw-env--sm gw-env--' + c.row.env">{{ c.row.env }}</span></span
+    ><span class="gw-setup-map__network-meta"
+      ><span class="gw-text-caption gw-fg-muted gw-truncate">{{ c.typeLabel }}</span
+      >
+      @let tools = data.connectionToolCount(endpoint()?.slug ?? null, c.name);
+      @if (tools !== null) {
+        <span class="gw-badge gw-badge--outline gw-badge--sm">{{ tools }} {{ tools === 1 ? 'tool' : 'tools' }}</span>
+      }
+      <span [class]="'gw-status gw-status--' + c.state.tone"
+        ><span class="gw-status__dot" aria-hidden="true"></span
+        ><span class="gw-status__label">{{ c.state.label }}</span></span
+      ></span
+    ></span
+  >
 </ng-template>
 
 <dialog
