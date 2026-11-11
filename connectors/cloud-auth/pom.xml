@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   CloudCredentials (ARCHITECTURE.md §2.1, reports 07, 09, 12): gcp(spec, scopes) -> GoogleCredentials (ADC, service
-  account key, impersonation for 900 s) and aws(spec, sessionPolicy) -> AwsCredentialsProvider (access key, profile,
-  AssumeRole + ExternalId). Shared by the Logs, GCP and AWS connectors and by the core's GCP/AWS secret stores.
+  account key, impersonation for 900 s), aws(spec, sessionPolicy) -> AwsCredentialsProvider (access key, profile,
+  AssumeRole + ExternalId) and azure() -> Entra ID tokens per audience (Azure CLI, device sign-in, service principal).
+  Shared by the Logs, GCP, AWS and Azure connectors and by the core's GCP/AWS secret stores.
   Implemented by step M1.3. No Spring.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -27,6 +28,11 @@
     <dependency>
       <groupId>tools.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <!-- PEM keys and certificates of Azure service principals, and sanitized command output. -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-support</artifactId>
     </dependency>
     <!-- Token only: User/ServiceAccount/ImpersonatedCredentials; the default NetHttpTransport. -->
     <dependency>
