@@ -12,6 +12,8 @@ import tools.jackson.databind.node.ObjectNode;
  * found, not one a database edit could put there — the secret's authenticated encryption covers it), as which client,
  * for which resource, and the tokens. JSON of this class's making, read without reflection.
  *
+ * @param resource    the {@code resource} parameter of its token requests (RFC 8707), or {@code null} without one, as
+ *                    at the Microsoft identity platform
  * @param scope       the scopes asked for at the sign-in ({@code null}: the server's default)
  * @param needsSignIn why the person has to sign in again (the renewal was refused), or {@code null}
  */
@@ -56,11 +58,20 @@ public record SignInBundle(String serverUrl, String resource, String issuer, URI
     return refreshToken != null;
   }
 
+  /**
+   * The scopes a renewal asks for again: the sign-in's, when it was made at the Microsoft identity platform (by its
+   * issuer and token endpoint), whose scopes name the token's audience and which renews for Microsoft Graph without
+   * them ({@link MicrosoftIdentityPlatform}); {@code null} elsewhere, where a renewal keeps the grant's scopes.
+   */
+  public String renewalScope() {
+    return MicrosoftIdentityPlatform.renews(issuer, tokenEndpoint) ? scope : null;
+  }
+
   public char[] toJson() {
     ObjectNode o = OAuthHttp.JSON.createObjectNode();
     o.put("format", FORMAT);
     o.put("serverUrl", serverUrl);
-    o.put("resource", resource);
+    put(o, "resource", resource);
     o.put("issuer", issuer);
     o.put("tokenEndpoint", tokenEndpoint.toString());
     if (revocation != null) {

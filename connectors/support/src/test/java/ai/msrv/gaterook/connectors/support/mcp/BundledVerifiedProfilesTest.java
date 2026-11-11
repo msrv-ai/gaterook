@@ -47,7 +47,8 @@ class BundledVerifiedProfilesTest {
   @Test
   void theBuildShipsTheCheckedServersInCardOrder() {
     assertThat(VerifiedProfiles.all()).extracting(VerifiedProfiles.Profile::id).containsExactly("aws-knowledge",
-        "cloudflare-api", "digitalocean", "vercel", "firebase", "supabase", "netlify", "azure-devops");
+        "cloudflare-api", "digitalocean", "vercel", "firebase", "supabase", "netlify", "azure-devops-remote",
+        "azure-devops");
     for (VerifiedProfiles.Profile p : VerifiedProfiles.all()) {
       assertThat(VerifiedProfiles.of(VerifiedProfiles.sampleConfig(p))).as(p.id()).contains(p);
       assertThat(p.documentation()).as(p.id()).startsWith("https://");
@@ -76,6 +77,10 @@ class BundledVerifiedProfilesTest {
     assertThat(id(stdio("npx", "-y", "@azure-devops/mcp@2.11.0", "contoso", "--authentication", "azcli")))
         .contains("azure-devops");
     assertThat(id(stdio("mcp-server-azuredevops", "contoso", "-d", "core"))).contains("azure-devops");
+    assertThat(id(http("https://mcp.dev.azure.com/contoso"))).contains("azure-devops-remote");
+    assertThat(id(http("https://mcp.dev.azure.com/contoso/"))).contains("azure-devops-remote");
+    assertThat(id(http("https://mcp.dev.azure.com"))).as("the root, which takes the organization in each call")
+        .contains("azure-devops-remote");
   }
 
   @Test
@@ -89,8 +94,43 @@ class BundledVerifiedProfilesTest {
     assertThat(id(http("http://mcp.supabase.com/mcp"))).isEmpty();
     assertThat(id(stdio("npx", "-y", "firebase-tools", "deploy"))).isEmpty();
     assertThat(id(stdio("npx", "-y", "@supabase/mcp-server-supabase@0.16.1", "--read-only"))).isEmpty();
-    assertThat(id(http("https://mcp.dev.azure.com/contoso"))).as("the remote server GateRook can't sign in to yet")
+    assertThat(id(http("https://mcp.dev.azure.com/contoso/mcp"))).as("a path Azure DevOps answers with 404")
         .isEmpty();
+    assertThat(id(http("https://mcp.dev.azure.com.attacker.example/contoso"))).isEmpty();
+    assertThat(id(http("http://mcp.dev.azure.com/contoso"))).isEmpty();
+    assertThat(id(http("https://dev.azure.com/contoso"))).isEmpty();
+  }
+
+  @Test
+  void azureDevOpssRemoteSetupPinsItsReadOnlyHeaderAndStartsEveryWriteInApproval() {
+    VerifiedProfiles.Profile remote = profile("azure-devops-remote");
+
+    assertThat(remote.url()).isEqualTo("https://mcp.dev.azure.com/{organization}");
+    assertThat(remote.placeholders()).extracting(VerifiedProfiles.Placeholder::name).containsExactly("organization");
+    assertThat(remote.headers()).containsExactly(new FixedHeaders.Header("X-MCP-Readonly", "true"));
+    assertThat(VerifiedProfiles.setupConfig(remote).path("fixedHeaders")).hasSize(1);
+    assertThat(remote.pins()).extracting(VerifiedProfiles.Pin::in).containsExactly(VerifiedProfiles.In.HEADER);
+
+    ObjectNode pinned = (ObjectNode) http("https://mcp.dev.azure.com/contoso");
+    pinned.putArray("fixedHeaders").addObject().put("name", "x-mcp-readonly").put("text", "true");
+    assertThat(VerifiedProfiles.pins(remote, pinned)).extracting(VerifiedProfiles.PinState::set).containsExactly(true);
+    ObjectNode other = (ObjectNode) http("https://mcp.dev.azure.com/contoso");
+    other.putArray("fixedHeaders").addObject().put("name", "X-MCP-Readonly").put("text", "TRUE");
+    assertThat(VerifiedProfiles.pins(remote, other)).as("Microsoft documents the string true")
+        .extracting(VerifiedProfiles.PinState::set).containsExactly(false);
+    List<VerifiedProfiles.PinState> bare = VerifiedProfiles.pins(remote, http("https://mcp.dev.azure.com/contoso"));
+    assertThat(bare).extracting(VerifiedProfiles.PinState::set).containsExactly(false);
+    assertThat(bare.getFirst().pin().missing()).contains("Without X-MCP-Readonly: true");
+
+    // Microsoft publishes no annotations for its remote tools: every write its documentation lists is named.
+    assertThat(remote.tools()).hasSize(18).allSatisfy(t -> assertThat(t.start())
+        .isEqualTo(VerifiedProfiles.Start.APPROVAL));
+    assertThat(remote.rule("pipelines_write")).get().extracting(VerifiedProfiles.ToolRule::kind)
+        .isEqualTo(VerifiedProfiles.Kind.CODE);
+    assertThat(remote.rule("enterprise_live_migration_write")).get().extracting(VerifiedProfiles.ToolRule::kind)
+        .isEqualTo(VerifiedProfiles.Kind.WRITE);
+    assertThat(remote.rule("wit_work_item")).as("a read").isEmpty();
+    assertThat(remote.rule("repo_file_write")).as("only the local server has it").isEmpty();
   }
 
   @Test

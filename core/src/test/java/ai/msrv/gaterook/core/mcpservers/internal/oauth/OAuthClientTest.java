@@ -101,8 +101,8 @@ class OAuthClientTest {
         + "\"}"));
     server.enqueue(json(200, "{\"access_token\":\"" + AT2 + "\",\"token_type\":\"Bearer\"}"));
     OAuthClient.exchange(http, URI.create(base + "/token"), c, "code-1", "verifier-1", "https://mcp.example.com/mcp",
-        NOW);
-    OAuthClient.refresh(http, URI.create(base + "/token"), c, "rt", "https://mcp.example.com/mcp", NOW);
+        null, NOW);
+    OAuthClient.refresh(http, URI.create(base + "/token"), c, "rt", "https://mcp.example.com/mcp", null, NOW);
     for (String grant : List.of("authorization_code", "refresh_token")) {
       RecordedRequest r = server.takeRequest();
       assertThat(r.getHeaders().get("Authorization")).as("a public client").isNull();
@@ -182,7 +182,7 @@ class OAuthClientTest {
         + "\"refresh_token\":\"" + RT + "\",\"scope\":\"read\"}"));
     OAuthClient.Client c = new OAuthClient.Client("c-1", null, "none", true, "http://localhost:5/callback");
     OAuthClient.Tokens t = OAuthClient.exchange(http, URI.create(base + "/token"), c, "code-1", "verifier-1",
-        "https://mcp.example.com/mcp", NOW);
+        "https://mcp.example.com/mcp", null, NOW);
     assertThat(t.accessToken()).isEqualTo(AT);
     assertThat(t.refreshToken()).isEqualTo(RT);
     assertThat(t.expiresAt()).isEqualTo(NOW.plusSeconds(3600));
@@ -200,7 +200,7 @@ class OAuthClientTest {
     server.enqueue(json(200, "{\"access_token\":\"" + AT + "\",\"token_type\":\"Bearer\"}"));
     OAuthClient.Client c = OAuthClient.preRegistered(as(List.of("client_secret_basic")), "id:1", "s&cret",
         URI.create("http://127.0.0.1:7471/callback"));
-    OAuthClient.Tokens t = OAuthClient.refresh(http, URI.create(base + "/token"), c, "rt-old", "res", NOW);
+    OAuthClient.Tokens t = OAuthClient.refresh(http, URI.create(base + "/token"), c, "rt-old", "res", null, NOW);
     assertThat(t.refreshToken()).as("no new one: the old one stays").isEqualTo("rt-old");
     assertThat(t.expiresAt()).isNull();
     RecordedRequest r = server.takeRequest();
@@ -216,7 +216,7 @@ class OAuthClientTest {
     server.enqueue(json(200, "{\"access_token\":\"" + AT + "\"}"));
     OAuthClient.Client c = OAuthClient.preRegistered(as(List.of("client_secret_post")), "id", "sec",
         URI.create("http://127.0.0.1:7471/callback"));
-    OAuthClient.refresh(http, URI.create(base + "/token"), c, "rt", "res", NOW);
+    OAuthClient.refresh(http, URI.create(base + "/token"), c, "rt", "res", null, NOW);
     RecordedRequest r = server.takeRequest();
     assertThat(r.getHeaders().get("Authorization")).isNull();
     assertThat(OAuthHttp.query(r.getBody().utf8())).containsEntry("client_id", "id").containsEntry("client_secret",
@@ -227,13 +227,13 @@ class OAuthClientTest {
   void aRefusedGrantKeepsItsErrorCodeAndOtherTokenTypesAreRefused() {
     server.enqueue(json(400, "{\"error\":\"invalid_grant\",\"error_description\":\"Refresh token revoked\"}"));
     OAuthClient.Client c = new OAuthClient.Client("c", null, "none", true, "http://localhost:5/callback");
-    assertThatThrownBy(() -> OAuthClient.refresh(http, URI.create(base + "/token"), c, "rt", "res", NOW))
+    assertThatThrownBy(() -> OAuthClient.refresh(http, URI.create(base + "/token"), c, "rt", "res", null, NOW))
         .isInstanceOfSatisfying(OAuthHttp.Failure.class, e -> {
           assertThat(e.error()).isEqualTo("invalid_grant");
           assertThat(e.getMessage()).contains("Refresh token revoked").doesNotContain("rt\"");
         });
     server.enqueue(json(200, "{\"access_token\":\"" + AT + "\",\"token_type\":\"DPoP\"}"));
-    assertThatThrownBy(() -> OAuthClient.exchange(http, URI.create(base + "/token"), c, "x", "v", "r", NOW))
+    assertThatThrownBy(() -> OAuthClient.exchange(http, URI.create(base + "/token"), c, "x", "v", "r", null, NOW))
         .hasMessageContaining("DPoP");
   }
 
@@ -244,19 +244,19 @@ class OAuthClientTest {
     for (String token : List.of("results", "fifteen-chars-1", "a token with spaces in it", "tab\\tinside-the-token-1",
         "not-ascii-\\u00e9-in-the-token", "x".repeat(OAuthClient.MAX_TOKEN_LENGTH + 1))) {
       server.enqueue(json(200, "{\"access_token\":\"" + token + "\",\"token_type\":\"Bearer\"}"));
-      assertThatThrownBy(() -> OAuthClient.exchange(http, URI.create(base + "/token"), c, "x", "v", "r", NOW))
+      assertThatThrownBy(() -> OAuthClient.exchange(http, URI.create(base + "/token"), c, "x", "v", "r", null, NOW))
           .as(token.length() > 40 ? "too long" : token).isInstanceOf(OAuthHttp.Failure.class)
           .hasMessageContaining("an access token that isn't shaped like one").hasMessageNotContaining(token);
     }
     server.enqueue(json(200, "{\"access_token\":\"" + AT + "\",\"refresh_token\":\"refresh\"}"));
-    assertThatThrownBy(() -> OAuthClient.refresh(http, URI.create(base + "/token"), c, RT, "r", NOW))
+    assertThatThrownBy(() -> OAuthClient.refresh(http, URI.create(base + "/token"), c, RT, "r", null, NOW))
         .isInstanceOf(OAuthHttp.Failure.class).hasMessageContaining("a refresh token that isn't shaped like one");
 
     // The shortest and the longest that are taken.
     server.enqueue(json(200, "{\"access_token\":\"" + "k".repeat(OAuthClient.MIN_TOKEN_LENGTH) + "\"}"));
-    assertDoesNotThrow(() -> OAuthClient.exchange(http, URI.create(base + "/token"), c, "x", "v", "r", NOW));
+    assertDoesNotThrow(() -> OAuthClient.exchange(http, URI.create(base + "/token"), c, "x", "v", "r", null, NOW));
     server.enqueue(json(200, "{\"access_token\":\"" + "k".repeat(OAuthClient.MAX_TOKEN_LENGTH) + "\"}"));
-    assertDoesNotThrow(() -> OAuthClient.exchange(http, URI.create(base + "/token"), c, "x", "v", "r", NOW));
+    assertDoesNotThrow(() -> OAuthClient.exchange(http, URI.create(base + "/token"), c, "x", "v", "r", null, NOW));
   }
 
   /** An authorization server like GitHub's: registered apps only, the device grant, errors answered with HTTP 200. */
@@ -402,7 +402,7 @@ class OAuthClientTest {
     server.enqueue(json(200, "{\"error\":\"bad_refresh_token\",\"error_description\":\"The refresh token passed is "
         + "incorrect or expired.\"}"));
     assertThatThrownBy(() -> OAuthClient.refresh(http, URI.create(base + "/token"), OAuthClient.ownApp("app-1"),
-        "ghr_old", "res", NOW)).isInstanceOfSatisfying(OAuthHttp.Failure.class, e -> {
+        "ghr_old", "res", null, NOW)).isInstanceOfSatisfying(OAuthHttp.Failure.class, e -> {
           assertThat(e.error()).isEqualTo("bad_refresh_token");
           assertThat(e.getMessage()).contains("incorrect or expired").doesNotContain("ghr_old");
         });

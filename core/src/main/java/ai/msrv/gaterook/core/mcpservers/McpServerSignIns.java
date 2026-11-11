@@ -16,6 +16,7 @@ import ai.msrv.gaterook.core.mcpservers.internal.oauth.AppBinding;
 import ai.msrv.gaterook.core.mcpservers.internal.oauth.Discovery;
 import ai.msrv.gaterook.core.mcpservers.internal.oauth.GateRookApps;
 import ai.msrv.gaterook.core.mcpservers.internal.oauth.LoopbackCallback;
+import ai.msrv.gaterook.core.mcpservers.internal.oauth.MicrosoftIdentityPlatform;
 import ai.msrv.gaterook.core.mcpservers.internal.oauth.OAuthClient;
 import ai.msrv.gaterook.core.mcpservers.internal.oauth.OAuthHttp;
 import ai.msrv.gaterook.core.mcpservers.internal.oauth.Pkce;
@@ -78,6 +79,11 @@ import tools.jackson.databind.node.ObjectNode;
  * own app ({@link GateRookApps}: GitHub), gets a device sign-in instead (RFC 8628): the flow asks for a one-time code,
  * the person enters it on the provider's page, and the flow polls the token endpoint until they allowed access. There
  * is no redirect and no listener, so the browser may be on any device.
+ *
+ * <p>The Microsoft identity platform (Microsoft Entra ID) admits only the person's app, registered in their tenant as a
+ * public client with the redirect URI {@code http://localhost/callback} on any port, and takes the token's audience
+ * from the scopes instead of the {@code resource} parameter, so the scopes must name the server
+ * ({@link MicrosoftIdentityPlatform}).
  *
  * <p>The tokens of a stored server are one encrypted secret of the server ({@link SignInBundle}), renewed in place:
  * no Setup change, no new connection version, so a renewal never restarts anything. A renewal the server refuses
@@ -236,30 +242,7 @@ public class McpServerSignIns {
         case NONE -> new AuthView("none", null, null, null, null, null, null, cloud, null);
         case REFUSED -> new AuthView("refused", null, null, null, null, null, d.message(), cloud, null);
         case UNKNOWN -> new AuthView("unknown", null, null, null, null, null, d.message(), cloud, null);
-        case OAUTH, OPTIONAL -> {
-          JsonNode auth = cfg.config().path("auth");
-          boolean app = auth.path("clientId").isString();
-          // GateRook's own app comes after the ways that need nothing registered in advance: those sign in through
-          // the browser's redirect, without a code to enter.
-          String registration = app ? "app"
-              : OAuthClient.acceptsMetadataDocument(d.server(), redirectFor(auth, false)) ? "metadata-document"
-              : d.server().dynamicRegistration() ? "dynamic"
-              : ownApp(d.server()).isPresent() ? "gaterook-app" : "app-required";
-          boolean appRequired = "app-required".equals(registration);
-          Boolean secret = app || appRequired ? !d.server().authMethods().contains("none") : null;
-          // A Desktop app client of Google takes any loopback address: there is nothing to register.
-          boolean google = "google".equals(cloud);
-          String redirect = (app || appRequired) && !google ? redirectFor(auth, true).toString() : null;
-          String message = !appRequired ? null : google ? "Google doesn't let apps register themselves. Sign in "
-              + "with Google Cloud credentials instead, or create an OAuth client of the Desktop app type in Google "
-              + "Cloud Console (APIs & Services › Credentials) and enter its client ID and client secret."
-              : d.server().issuer() + " doesn't let apps register themselves. Create an OAuth app there for GateRook "
-                  + "with the redirect URI " + redirect + ", then enter its client ID"
-                  + (Boolean.TRUE.equals(secret) ? " and client secret." : ".");
-          yield new AuthView(d.kind() == Discovery.Kind.OPTIONAL ? "optional" : "oauth", d.server().issuer(),
-              d.server().authorization().getHost(), scope(d, auth), registration, redirect, message, cloud, secret,
-              d.server().token().toString());
-        }
+        case OAUTH, OPTIONAL -> review(d, cfg.config().path("auth"), cloud, ownApp(d.server()).isPresent());
       };
     } catch (OAuthHttp.Failure e) {
       return new AuthView("unknown", null, null, null, null, null, e.getMessage(), cloud(url), null);
@@ -268,6 +251,51 @@ public class McpServerSignIns {
         contexts.evict(cfg.id());
       }
     }
+  }
+
+  /**
+   * The review of a server that offers an OAuth sign-in: how GateRook becomes its client, whether the person's OAuth
+   * app needs its client secret, the redirect URI to register in it, and what to do when the person needs one.
+   *
+   * @param gaterookApp GateRook has its own app at the server's authorization server ({@link GateRookApps})
+   */
+  static AuthView review(Discovery.Result d, JsonNode auth, String cloud, boolean gaterookApp) {
+    Discovery.Server s = d.server();
+    boolean app = auth.path("clientId").isString();
+    // GateRook's own app comes after the ways that need nothing registered in advance: those sign in through the
+    // browser's redirect, without a code to enter.
+    String registration = app ? "app"
+        : OAuthClient.acceptsMetadataDocument(s, redirectFor(auth, false)) ? "metadata-document"
+        : s.dynamicRegistration() ? "dynamic"
+        : gaterookApp ? "gaterook-app" : "app-required";
+    boolean appRequired = "app-required".equals(registration);
+    Boolean secret = app || appRequired ? !OAuthClient.publicClients(s) : null;
+    // A Desktop app client of Google takes any loopback address: there is nothing to register.
+    boolean google = "google".equals(cloud);
+    boolean microsoft = s.microsoftIdentityPlatform();
+    String redirect = (app || appRequired) && !google ? appRedirectToRegister(auth, s) : null;
+    String scope = scope(d, auth);
+    String message = !appRequired ? null : google ? "Google doesn't let apps register themselves. Sign in with Google "
+        + "Cloud credentials instead, or create an OAuth client of the Desktop app type in Google Cloud Console (APIs & "
+        + "Services › Credentials) and enter its client ID and client secret."
+        : microsoft ? entraAppNeeded(redirect) + " Then enter its Application (client) ID. It needs no client secret."
+        : s.issuer() + " doesn't let apps register themselves. Create an OAuth app there for GateRook with the "
+            + "redirect URI " + redirect + ", then enter its client ID" + (Boolean.TRUE.equals(secret)
+                ? " and client secret." : ".");
+    String audience = microsoft ? MicrosoftIdentityPlatform.audienceProblem(scope, d.serverUrl()) : null;
+    if (audience != null) {
+      message = message == null ? audience : message + " " + audience;
+    }
+    return new AuthView(d.kind() == Discovery.Kind.OPTIONAL ? "optional" : "oauth", s.issuer(),
+        s.authorization().getHost(), scope, registration, redirect, message, cloud, secret, s.token().toString());
+  }
+
+  /** What the person sets up in Microsoft Entra ID for a sign-in at the Microsoft identity platform. */
+  private static String entraAppNeeded(String redirect) {
+    return "Microsoft Entra ID doesn't let apps register themselves. Register an app for GateRook in your tenant "
+        + "(Microsoft Entra admin center › App registrations): add the redirect URI " + redirect + " under Mobile and "
+        + "desktop applications, turn on Allow public client flows, and add the API permissions of the server, with "
+        + "admin consent.";
   }
 
   // ── Sign-in flows ───────────────────────────────────────────────────────────────────────────────────────────
@@ -315,6 +343,7 @@ public class McpServerSignIns {
     }
     JsonNode auth = t.auth();
     String scope = scope(d, auth);
+    requireAudience(d, scope, t.url());
     String clientId = auth.path("clientId").isString() ? auth.path("clientId").asString() : null;
     String secret = t.clientSecret() == null || t.clientSecret().length == 0 ? null : new String(t.clientSecret());
     if (clientId != null && secret != null) {
@@ -324,7 +353,7 @@ public class McpServerSignIns {
     flow.secretVersion = t.secretVersion();
     try {
       if (clientId != null) {
-        flow.listen(redirectFor(auth, true));
+        flow.listen(appRedirect(auth, d.server()));
         flow.client = OAuthClient.preRegistered(d.server(), clientId, secret, flow.callback.redirectUri());
       } else if (OAuthClient.acceptsMetadataDocument(d.server(), redirectFor(auth, false))) {
         // Nothing to register, which the MCP authorization spec prefers to the deprecated dynamic registration: the
@@ -348,6 +377,9 @@ public class McpServerSignIns {
           Instant latest = clock.instant().plus(FLOW_TTL);
           flow.expiresAt = flow.device.expiresAt().isBefore(latest) ? flow.device.expiresAt() : latest;
           return flow;
+        } else if (d.server().microsoftIdentityPlatform()) {
+          throw new OAuthHttp.Failure(entraAppNeeded(appRedirectToRegister(auth, d.server())) + " Then enter its "
+              + "Application (client) ID in the server's sign-in settings.");
         } else {
           throw new OAuthHttp.Failure(d.server().issuer() + " doesn't let apps register themselves. Create an OAuth "
               + "app there for GateRook with the redirect URI " + redirectFor(auth, true) + ", then enter its "
@@ -364,6 +396,19 @@ public class McpServerSignIns {
         d.resource());
     flow.expiresAt = clock.instant().plus(FLOW_TTL);
     return flow;
+  }
+
+  /**
+   * At the Microsoft identity platform, which gets no {@code resource} parameter, only the scopes say whom the token is
+   * for: a sign-in starts only when they name the server ({@link MicrosoftIdentityPlatform#audienceProblem}).
+   */
+  static void requireAudience(Discovery.Result d, String scope, URI url) throws OAuthHttp.Failure {
+    if (d.server().microsoftIdentityPlatform()) {
+      String audience = MicrosoftIdentityPlatform.audienceProblem(scope, url);
+      if (audience != null) {
+        throw new OAuthHttp.Failure(audience);
+      }
+    }
   }
 
   /**
@@ -766,7 +811,7 @@ public class McpServerSignIns {
       }
       try {
         signedIn(OAuthClient.exchange(httpOf(cfg), server.token(), client, code, pkce.verifier(),
-            discovery.resource(), clock.instant()));
+            discovery.resource(), OAuthClient.audienceScope(server, scope), clock.instant()));
         return new LoopbackCallback.Page(200, "Signed in to " + name, "GateRook keeps this sign-in. You can close "
             + "this tab and go back to GateRook.", true);
       } catch (OAuthHttp.Failure | RuntimeException e) {
@@ -1085,7 +1130,7 @@ public class McpServerSignIns {
         OAuthClient.Tokens tokens;
         try {
           tokens = OAuthClient.refresh(httpOf(cfg), seen.tokenEndpoint(), seen.client(), seen.refreshToken(),
-              seen.resource(), clock.instant());
+              seen.resource(), seen.renewalScope(), clock.instant());
         } catch (OAuthHttp.Failure e) {
           if (e.error() != null && REFUSED_GRANT.contains(e.error())) {
             throw needs(seen.needing("the server refused to renew its sign-in (" + e.error() + ")"));
@@ -1187,7 +1232,7 @@ public class McpServerSignIns {
       SignInBundle b = bundle;
       try {
         OAuthClient.Tokens t = OAuthClient.refresh(httpOf(cfg), b.tokenEndpoint(), b.client(), b.refreshToken(),
-            b.resource(), clock.instant());
+            b.resource(), b.renewalScope(), clock.instant());
         learn(cfg.id(), t);
         bundle = b.renewed(t, clock.instant());
       } catch (OAuthHttp.Failure e) {
@@ -1257,6 +1302,26 @@ public class McpServerSignIns {
     int port = auth.path("callbackPort").isInt() ? auth.path("callbackPort").asInt() : app ? APP_CALLBACK_PORT : 0;
     String path = auth.path("callbackPath").isString() ? auth.path("callbackPath").asString() : DEFAULT_PATH;
     return URI.create("http://" + ("localhost".equals(host) ? "localhost" : "127.0.0.1") + ":" + port + path);
+  }
+
+  /**
+   * The redirect URI of a sign-in with the person's OAuth app at {@code server}: {@link #redirectFor} of an app, except
+   * at the Microsoft identity platform. There it is {@code http://localhost:<any free port>/callback}, or the person's
+   * host, port and path: the Entra admin center takes {@code http://localhost} but not {@code http://127.0.0.1} as the
+   * redirect URI of a desktop app, and Entra matches a loopback redirect URI with any port, so no fixed port can be
+   * taken by another program ({@link MicrosoftIdentityPlatform}).
+   */
+  static URI appRedirect(JsonNode auth, Discovery.Server server) {
+    return redirectFor(auth, !server.microsoftIdentityPlatform());
+  }
+
+  /**
+   * The redirect URI the person registers in their OAuth app at {@code server}: {@link #appRedirect}, without its port
+   * at the Microsoft identity platform, which ignores the port of a loopback redirect URI.
+   */
+  static String appRedirectToRegister(JsonNode auth, Discovery.Server server) {
+    URI u = appRedirect(auth, server);
+    return server.microsoftIdentityPlatform() ? "http://" + u.getHost() + u.getRawPath() : u.toString();
   }
 
   /** What binds a draft's sign-in to the server it is added as: its URL, sign-in settings and environment. */
