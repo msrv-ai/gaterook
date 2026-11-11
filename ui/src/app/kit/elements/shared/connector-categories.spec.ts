@@ -1,5 +1,5 @@
 import { ConnectorCard, ConnectorGroup } from '../../../core/api/connector-types.api';
-import { compatibleService, withCompatibleServices } from './compatible-services';
+import { COMPATIBLE_SERVICES, compatibleService, withCompatibleServices } from './compatible-services';
 import { connectorCategories, connectorMark, filterConnectorGroups } from './connector-categories';
 
 const card = (type: string, name: string, over: Partial<ConnectorCard> = {}): ConnectorCard => ({
@@ -67,15 +67,21 @@ describe('connector categories', () => {
     expect(connectorMark('kubernetes')).toBe('assets/integrations/kubernetes.svg');
   });
 
-  it('filters by name, other names, category and description: every word must match', () => {
+  it('matches the start of a word of a name, other name or category, never the description: every word must match', () => {
     const all = connectorCategories(CORE);
     expect(names(filterConnectorGroups(all, ''))).toEqual(names(all));
-    expect(names(filterConnectorGroups(all, '  Cockroach '))).toEqual(['SQL databases: postgres']);
+    expect(names(filterConnectorGroups(all, '  Post '))).toEqual(['SQL databases: postgres']);
+    expect(names(filterConnectorGroups(all, 'pg'))).toEqual(['SQL databases: postgres']);
+    // "sql" is a word of "SQL databases" but only part of "NoSQL".
+    expect(names(filterConnectorGroups(all, 'sql'))).toEqual(['SQL databases: postgres duckdb']);
     expect(names(filterConnectorGroups(all, 'nosql'))).toEqual(['NoSQL databases: mongodb cassandra']);
-    expect(names(filterConnectorGroups(all, 'scylladb'))).toEqual(['NoSQL databases: cassandra']);
-    expect(names(filterConnectorGroups(all, 'google warehouse'))).toEqual(['Data warehouses: bigquery']);
-    expect(names(filterConnectorGroups(all, 'google shell'))).toEqual([]);
+    expect(filterConnectorGroups(all, 'gres')).toEqual([]);
+    expect(names(filterConnectorGroups(all, 'cql'))).toEqual(['NoSQL databases: cassandra']);
+    expect(names(filterConnectorGroups(all, 'Google-Warehouse'))).toEqual(['Data warehouses: bigquery']);
+    expect(filterConnectorGroups(all, 'google shell')).toEqual([]);
     expect(names(filterConnectorGroups(all, 'promql'))).toEqual(['Metrics and time series: prometheus']);
+    // Every card's description says "reads".
+    expect(filterConnectorGroups(all, 'reads')).toEqual([]);
   });
 });
 
@@ -111,7 +117,33 @@ describe('compatible services', () => {
     expect(compatibleService('postgres', 'supabase')?.group).toBe('PostgreSQL-compatible');
     expect(compatibleService('postgres', null)).toBeNull();
     const all = connectorCategories(withCompatibleServices(core()));
-    expect(names(filterConnectorGroups(all, 'cockroach'))).toEqual(['SQL databases: postgres', 'PostgreSQL-compatible: postgres']);
+    expect(names(filterConnectorGroups(all, 'cockroach'))).toEqual(['PostgreSQL-compatible: postgres']);
     expect(filterConnectorGroups(all, 'supavisor')).toEqual([]);
+  });
+
+  it('finds a family by its base type’s words: "sql" finds the PostgreSQL-compatible services, never the NoSQL ones', () => {
+    const all = connectorCategories(withCompatibleServices([{ name: 'Databases', cards: [
+      card('postgres', 'PostgreSQL'), card('redis', 'Redis'), card('cassandra', 'Apache Cassandra'),
+      card('cosmosdb', 'Azure Cosmos DB', { description: 'SQL queries over containers.' }),
+    ] }]));
+    const found = (query: string) =>
+      filterConnectorGroups(all, query).map((g) => `${g.name}: ${g.cards.map((c) => c.variant ?? c.type).join(' ')}`);
+    const pg = all.find((g) => g.name === 'PostgreSQL-compatible')!.cards.map((c) => c.variant).join(' ');
+    expect(found('sql')).toEqual(['SQL databases: postgres', `PostgreSQL-compatible: ${pg}`]);
+    expect(found('nosql').map((line) => line.split(':')[0])).toEqual(['NoSQL databases', 'Redis-compatible', 'Cassandra-compatible']);
+    // The base type's other names reach its services; a service's own name finds its card, not the base type's.
+    expect(found('cql')).toEqual(['NoSQL databases: cassandra', 'Cassandra-compatible: scylladb keyspaces azure']);
+    expect(found('valkey')).toEqual(['Redis-compatible: valkey memorystore']);
+    expect(found('aurora')).toEqual(['PostgreSQL-compatible: aws-rds']);
+  });
+
+  it('finds every service by its name, and not its base type’s card', () => {
+    const types = [...new Set(COMPATIBLE_SERVICES.map((s) => s.type))];
+    const all = connectorCategories(withCompatibleServices([{ name: 'Databases', cards: types.map((t) => card(t, `${t} base`)) }]));
+    for (const s of COMPATIBLE_SERVICES) {
+      const keys = filterConnectorGroups(all, s.name).flatMap((g) => g.cards.map((c) => `${c.type}:${c.variant ?? ''}`));
+      expect(keys, s.name).toContain(`${s.type}:${s.id}`);
+      expect(keys, s.name).not.toContain(`${s.type}:`);
+    }
   });
 });

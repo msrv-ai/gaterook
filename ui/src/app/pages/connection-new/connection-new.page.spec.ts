@@ -1059,18 +1059,21 @@ describe('Add connection: wizard', () => {
     const total = radios().length;
     expect(status()).toBe(`${total} connector types`);
 
-    // Another name finds the base type and the compatible service's own card.
+    // A compatible service's name finds its own card; "sql" finds the SQL databases and their family, never NoSQL.
     await p.type('type-search', 'cockroach');
+    expect(titles()).toEqual(['PostgreSQL-compatible']);
+    expect(radios()).toEqual(['postgres:cockroachdb']);
+    expect(status()).toBe(`1 of ${total} connector types`);
+    await p.type('type-search', 'sql');
     expect(titles()).toEqual(['SQL databases', 'PostgreSQL-compatible']);
-    expect(radios()).toEqual(['postgres', 'postgres:cockroachdb']);
-    expect(status()).toBe(`2 of ${total} connector types`);
+    expect(radios()).not.toContain('mongodb');
 
     // Enter never submits the step: with one usable match it picks it.
-    await p.type('type-search', 'nosql');
+    await p.type('type-search', 'ssh');
     const input = document.getElementById('type-search') as HTMLInputElement;
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
     await p.settle();
-    expect(p.page().selected()).toBe('mongodb');
+    expect(p.page().selected()).toBe('ssh');
     expect(p.visible()).toEqual(['step-1']);
 
     await p.type('type-search', 'zzz');

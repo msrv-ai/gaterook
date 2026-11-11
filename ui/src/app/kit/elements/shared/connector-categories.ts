@@ -93,30 +93,33 @@ const MARKS: Readonly<Record<string, string>> = {
   'mcp-server': 'mcp',
 };
 
-/** Other names a developer may type for a type: compatible services, vendors and the language it speaks. */
+/**
+ * Other names a developer may type for a type: its vendor, short names and the language it speaks. The compatible
+ * services' cards share them (CQL finds ScyllaDB), so a service with a card of its own never belongs here: "Supabase"
+ * finds the Supabase card, not PostgreSQL's.
+ */
 const ALIASES: Readonly<Record<string, string>> = {
-  postgres: 'postgresql cockroachdb aurora rds supabase neon',
-  mysql: 'mariadb aurora rds',
+  postgres: 'postgresql pg psql',
   oracle: 'plsql',
-  sqlserver: 'mssql microsoft azure sql t-sql',
+  sqlserver: 'mssql microsoft t-sql',
   sqlite: 'file',
-  duckdb: 'parquet file',
-  mongodb: 'mongo atlas document',
-  redis: 'valkey cache key-value',
+  duckdb: 'parquet csv file',
+  mongodb: 'mongo document',
+  redis: 'cache key-value',
   dynamodb: 'aws amazon key-value document',
   firestore: 'firebase google gcp document',
   'firebase-rtdb': 'firebase realtime google gcp',
   cosmosdb: 'azure microsoft cosmos document',
-  cassandra: 'cql scylladb keyspaces wide-column',
+  cassandra: 'cql wide-column',
   neo4j: 'graph cypher',
   bigquery: 'google gcp warehouse',
   snowflake: 'warehouse',
   redshift: 'aws amazon warehouse',
   databricks: 'spark lakehouse unity catalog warehouse',
-  trino: 'presto starburst lakehouse',
+  trino: 'presto lakehouse',
   athena: 'aws amazon s3 glue',
   clickhouse: 'olap analytics',
-  opensearch: 'search aws',
+  opensearch: 'search',
   elasticsearch: 'elastic search',
   prometheus: 'promql metrics',
   influxdb: 'influx influxql time series metrics',
@@ -172,22 +175,37 @@ export function connectorCategories(groups: readonly ConnectorGroup[]): Connecto
   return [...byName].filter(([, cards]) => cards.length).map(([name, cards]) => ({ name, cards }));
 }
 
-/** What a search box matches for a card: its name, type, other names, category and description, in lower case. */
-export function connectorSearchText(card: ConnectorCard, category: string): string {
-  const service = compatibleService(card.type, card.variant);
-  // A compatible service matches its own words, not the base type's other names (Supabase isn't CockroachDB).
-  return [card.name, card.type, card.variant, service?.search, card.compatibleWith, service ? null : ALIASES[card.variant ?? ''],
-    service ? null : ALIASES[card.type], category, card.description]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
+/** The words of a text in lower case, split at anything but a letter or a digit: "T-SQL" is "t" and "sql". */
+function searchWords(text: string): string[] {
+  return text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 }
 
-/** The categories with only the cards that match every word of `query`; a blank query keeps everything. */
+/**
+ * The words a search box matches for a card: its name, type and variant, its other names and its category. A
+ * compatible service adds its own words and its base type's name, other names and category, so "sql" finds Supabase.
+ * A description isn't matched: Cosmos DB's mentions SQL queries, and "sql" must not find NoSQL databases.
+ */
+export function connectorSearchWords(card: ConnectorCard, category: string): string[] {
+  const service = compatibleService(card.type, card.variant);
+  // A service's variant id ("azure", "aws") is no type: its other names would be the cloud's, not the service's.
+  const variantAliases = service ? null : ALIASES[card.variant ?? ''];
+  const baseCategory = service ? CATEGORY_OF[card.type] : null;
+  return searchWords([card.name, card.type, card.variant, service?.search, card.compatibleWith, variantAliases,
+    ALIASES[card.type], category, baseCategory].filter(Boolean).join(' '));
+}
+
+/**
+ * The categories with only the cards that match every word of `query`, each as the start of one of the card's words
+ * ("post" finds PostgreSQL; "sql" finds the SQL databases but not "NoSQL"); a blank query keeps everything.
+ */
 export function filterConnectorGroups(groups: readonly ConnectorGroup[], query: string): ConnectorGroup[] {
-  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  if (!words.length) return [...groups];
+  const wanted = searchWords(query);
+  if (!wanted.length) return [...groups];
+  const matches = (card: ConnectorCard, category: string) => {
+    const words = connectorSearchWords(card, category);
+    return wanted.every((w) => words.some((word) => word.startsWith(w)));
+  };
   return groups
-    .map((g) => ({ name: g.name, cards: g.cards.filter((c) => words.every((w) => connectorSearchText(c, g.name).includes(w))) }))
+    .map((g) => ({ name: g.name, cards: g.cards.filter((c) => matches(c, g.name)) }))
     .filter((g) => g.cards.length);
 }
