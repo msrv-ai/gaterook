@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Google BigQuery",
+  "type": "object",
+  "x-card": {
+    "description": "Datasets, tables and GoogleSQL queries with a cost limit. Changes wait for approval."
+  },
+  "additionalProperties": false,
+  "required": [
+    "project",
+    "credentials"
+  ],
+  "properties": {
+    "project": {
+      "type": "string",
+      "title": "Project",
+      "pattern": "^([a-z][a-z0-9-]{4,28}[a-z0-9]|[a-z0-9.-]{1,63}:[a-z][a-z0-9-]{4,28}[a-z0-9])$",
+      "examples": [
+        "acme-analytics"
+      ],
+      "description": "The Google Cloud project that runs, and pays for, the queries."
+    },
+    "location": {
+      "type": "string",
+      "title": "Location",
+      "pattern": "^[A-Za-z0-9-]{2,40}$",
+      "examples": [
+        "EU"
+      ],
+      "description": "Where the queries run, such as US, EU or europe-west1. Empty: BigQuery chooses from the tables."
+    },
+    "datasets": {
+      "type": "array",
+      "title": "Datasets",
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^([a-z0-9.:-]{1,100}\\.)?[A-Za-z0-9_*]{1,1024}$"
+      },
+      "description": "The datasets agents may use: dataset or project.dataset, * matching any characters. Empty: every dataset the credentials may read."
+    },
+    "credentials": {
+      "type": "object",
+      "title": "Credentials",
+      "required": [
+        "source"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "title": "Authentication",
+          "enum": [
+            "adc",
+            "serviceAccountKey"
+          ],
+          "default": "adc",
+          "x-enumTitles": [
+            "Existing Google sign-in (ADC)",
+            "Service account key (JSON)"
+          ],
+          "description": "Uses Application Default Credentials (ADC) on this computer, or a service account key."
+        },
+        "impersonate": {
+          "type": "string",
+          "title": "Service account to impersonate",
+          "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+          "examples": [
+            "gw-bigquery@acme-analytics.iam.gserviceaccount.com"
+          ]
+        },
+        "delegates": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "string"
+          }
+        },
+        "lifetimeSeconds": {
+          "type": "integer",
+          "minimum": 300,
+          "maximum": 3600,
+          "default": 900,
+          "x-unit": "s"
+        },
+        "quotaProject": {
+          "type": "string",
+          "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
+        }
+      },
+      "patternProperties": {
+        "^(serviceAccountKey)$": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source": {
+                "const": "serviceAccountKey"
+              }
+            },
+            "required": [
+              "source"
+            ]
+          },
+          "then": {
+            "properties": {
+              "serviceAccountKey": {
+                "type": "string",
+                "title": "Service account key",
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "x-widget": "textarea",
+                "maxLength": 10000
+              }
+            },
+            "required": [
+              "serviceAccountKey"
+            ]
+          }
+        }
+      ]
+    },
+    "advanced": {
+      "type": "object",
+      "title": "Advanced",
+      "x-collapsed": true,
+      "additionalProperties": false,
+      "description": "The cost limit of one statement. Policies set row limits and timeouts per environment.",
+      "properties": {
+        "maxMbBilled": {
+          "type": "integer",
+          "title": "Data per statement",
+          "minimum": 10,
+          "maximum": 104857600,
+          "default": 10240,
+          "x-unit": "MB",
+          "x-stricter": "min",
+          "description": "The most bytes one statement may process (maximumBytesBilled). A dry run refuses a larger one before it runs."
+        }
+      }
+    }
+  }
+}

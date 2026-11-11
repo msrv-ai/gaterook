@@ -4897,6 +4897,150 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         }
       }
     }
+  },
+  "bigquery": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Google BigQuery",
+    "type": "object",
+    "x-card": {
+      "description": "Datasets, tables and GoogleSQL queries with a cost limit. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "project",
+      "credentials"
+    ],
+    "properties": {
+      "project": {
+        "type": "string",
+        "title": "Project",
+        "pattern": "^([a-z][a-z0-9-]{4,28}[a-z0-9]|[a-z0-9.-]{1,63}:[a-z][a-z0-9-]{4,28}[a-z0-9])$",
+        "examples": [
+          "acme-analytics"
+        ],
+        "description": "The Google Cloud project that runs, and pays for, the queries."
+      },
+      "location": {
+        "type": "string",
+        "title": "Location",
+        "pattern": "^[A-Za-z0-9-]{2,40}$",
+        "examples": [
+          "EU"
+        ],
+        "description": "Where the queries run, such as US, EU or europe-west1. Empty: BigQuery chooses from the tables."
+      },
+      "datasets": {
+        "type": "array",
+        "title": "Datasets",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^([a-z0-9.:-]{1,100}\\.)?[A-Za-z0-9_*]{1,1024}$"
+        },
+        "description": "The datasets agents may use: dataset or project.dataset, * matching any characters. Empty: every dataset the credentials may read."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Authentication",
+            "enum": [
+              "adc",
+              "serviceAccountKey"
+            ],
+            "default": "adc",
+            "x-enumTitles": [
+              "Existing Google sign-in (ADC)",
+              "Service account key (JSON)"
+            ],
+            "description": "Uses Application Default Credentials (ADC) on this computer, or a service account key."
+          },
+          "impersonate": {
+            "type": "string",
+            "title": "Service account to impersonate",
+            "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+            "examples": [
+              "gw-bigquery@acme-analytics.iam.gserviceaccount.com"
+            ]
+          },
+          "delegates": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "string"
+            }
+          },
+          "lifetimeSeconds": {
+            "type": "integer",
+            "minimum": 300,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s"
+          },
+          "quotaProject": {
+            "type": "string",
+            "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
+          }
+        },
+        "patternProperties": {
+          "^(serviceAccountKey)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "serviceAccountKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "serviceAccountKey": {
+                  "type": "string",
+                  "title": "Service account key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "x-widget": "textarea",
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "serviceAccountKey"
+              ]
+            }
+          }
+        ]
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "The cost limit of one statement. Policies set row limits and timeouts per environment.",
+        "properties": {
+          "maxMbBilled": {
+            "type": "integer",
+            "title": "Data per statement",
+            "minimum": 10,
+            "maximum": 104857600,
+            "default": 10240,
+            "x-unit": "MB",
+            "x-stricter": "min",
+            "description": "The most bytes one statement may process (maximumBytesBilled). A dry run refuses a larger one before it runs."
+          }
+        }
+      }
+    }
   }
 };
 
@@ -7579,6 +7723,261 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       },
       "advanced": {
         "consistentReads": false
+      }
+    }
+  },
+  "bigquery": {
+    "sections": [
+      "/credentials",
+      "/advanced"
+    ],
+    "loose": [
+      "/project",
+      "/location",
+      "/datasets"
+    ],
+    "rows": {
+      "/credentials": [
+        [
+          "/credentials/source"
+        ],
+        [
+          "/credentials/serviceAccountKey"
+        ],
+        [
+          "/credentials/impersonate"
+        ],
+        [
+          "/credentials/delegates"
+        ],
+        [
+          "/credentials/lifetimeSeconds"
+        ],
+        [
+          "/credentials/quotaProject"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/maxMbBilled"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/project",
+        "kind": "text",
+        "title": "Project",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/location",
+        "kind": "text",
+        "title": "Location",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/datasets",
+        "kind": "tags",
+        "title": "Datasets",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/source",
+        "kind": "select",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "adc",
+          "serviceAccountKey"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/serviceAccountKey",
+        "kind": "secret",
+        "title": "Service account key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"serviceAccountKey\"]"
+        ],
+        "multiline": true,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/impersonate",
+        "kind": "text",
+        "title": "Service account to impersonate",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/delegates",
+        "kind": "tags",
+        "title": "delegates",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/lifetimeSeconds",
+        "kind": "number",
+        "title": "lifetimeSeconds",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "s",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/quotaProject",
+        "kind": "text",
+        "title": "quotaProject",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxMbBilled",
+        "kind": "number",
+        "title": "Data per statement",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "MB",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "credentials": {
+        "source": "adc",
+        "lifetimeSeconds": 900
+      },
+      "advanced": {
+        "maxMbBilled": 10240
+      }
+    },
+    "prodDefaults": {
+      "credentials": {
+        "source": "adc",
+        "lifetimeSeconds": 900
+      },
+      "advanced": {
+        "maxMbBilled": 10240
       }
     }
   },

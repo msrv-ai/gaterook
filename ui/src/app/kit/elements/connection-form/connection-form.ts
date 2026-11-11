@@ -128,6 +128,7 @@ export function signInTarget(type: string): string {
     case 'gcp':
     case 'aws':
     case 'dynamodb':
+    case 'bigquery':
       return 'the cloud account';
     default:
       return 'the service';

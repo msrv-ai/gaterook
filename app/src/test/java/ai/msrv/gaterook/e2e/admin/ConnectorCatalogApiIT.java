@@ -73,6 +73,8 @@ class ConnectorCatalogApiIT {
           "Read and write values, and scan keys by pattern. Writes require approval by default."),
       new KitCard("Databases", "dynamodb", null, "Amazon DynamoDB", "database", "built-in", 6,
           "Tables, Query, Scan and PartiQL. Changes wait for approval."),
+      new KitCard("Databases", "bigquery", null, "Google BigQuery", "database", "built-in", 5,
+          "Datasets, tables and GoogleSQL queries with a cost limit. Changes wait for approval."),
       new KitCard("Databases", "opensearch", null, "OpenSearch", "database", "built-in", 3,
           "Query OpenSearch indices and use its REST API. Administrative requests require approval by default."),
       new KitCard("Databases", "elasticsearch", null, "Elasticsearch", "database", "built-in", 3,
@@ -146,7 +148,7 @@ class ConnectorCatalogApiIT {
 
     // Connectors › Installed: one row per type, the MCP server type isn't one (its servers are, with K5).
     List<String> installed = each(catalog.path("installed"), "id");
-    assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "sqlite", "mongodb", "redis", "dynamodb", "opensearch", "elasticsearch", "ssh", "gcp-logging", "cloudwatch", "loki", "ssh-logs", "kubernetes",
+    assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "sqlite", "mongodb", "redis", "dynamodb", "bigquery", "opensearch", "elasticsearch", "ssh", "gcp-logging", "cloudwatch", "loki", "ssh-logs", "kubernetes",
         "gcp", "aws", "http");
     for (JsonNode row : catalog.path("installed")) {
       assertThat(row.path("state").asString()).isEqualTo("enabled");

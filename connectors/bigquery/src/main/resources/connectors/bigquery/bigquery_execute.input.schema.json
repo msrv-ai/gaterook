@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "sql"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "sql": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100000,
+      "description": "One INSERT, UPDATE, DELETE, MERGE, TRUNCATE, CREATE, ALTER or DROP statement. A person approves the exact text and sees the bytes it processes."
+    },
+    "parameters": {
+      "type": "array",
+      "maxItems": 50,
+      "description": "Values of the statement's @name parameters.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "type",
+          "value"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$"
+          },
+          "type": {
+            "enum": [
+              "STRING",
+              "INT64",
+              "FLOAT64",
+              "NUMERIC",
+              "BIGNUMERIC",
+              "BOOL",
+              "DATE",
+              "DATETIME",
+              "TIME",
+              "TIMESTAMP"
+            ]
+          },
+          "value": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "reason": {
+      "type": "string",
+      "maxLength": 2000,
+      "description": "Why you need this change. Shown to the approver as unverified."
+    }
+  }
+}

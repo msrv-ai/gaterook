@@ -361,6 +361,7 @@ export function checkPrompt(type: string | null, name: string | null): string {
     case 'sqlserver':
     case 'sqlite':
     case 'dynamodb':
+    case 'bigquery':
     case 'sql':
       return `Show me the tables in ${name}`;
     case 'mongodb':
