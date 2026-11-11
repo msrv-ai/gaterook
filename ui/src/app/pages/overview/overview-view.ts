@@ -385,6 +385,8 @@ export function checkPrompt(type: string | null, name: string | null): string {
       return `Show me the latest errors in ${name}`;
     case 'prometheus':
       return `Show me the targets Prometheus scrapes in ${name}`;
+    case 'influxdb':
+      return `Show me the measurements in ${name}`;
     default:
       return `Show me what you can see in ${name}`;
   }

@@ -83,6 +83,8 @@ class ConnectorCatalogApiIT {
           "Paths, shallow reads and queries. Changes wait for approval."),
       new KitCard("Databases", "prometheus", null, "Prometheus", "activity", "built-in", 9,
           "PromQL queries, series, labels, targets, rules and alerts of Prometheus-compatible servers. Read only."),
+      new KitCard("Databases", "influxdb", null, "InfluxDB", "activity", "built-in", 5,
+          "Databases, measurements and SQL or InfluxQL reads of InfluxDB 3, 2.x and 1.x. Writes wait for approval."),
       new KitCard("Databases", "opensearch", null, "OpenSearch", "database", "built-in", 3,
           "Query OpenSearch indices and use its REST API. Administrative requests require approval by default."),
       new KitCard("Databases", "elasticsearch", null, "Elasticsearch", "database", "built-in", 3,
@@ -156,7 +158,7 @@ class ConnectorCatalogApiIT {
 
     // Connectors › Installed: one row per type, the MCP server type isn't one (its servers are, with K5).
     List<String> installed = each(catalog.path("installed"), "id");
-    assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "sqlite", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "firestore", "firebase-rtdb", "prometheus", "opensearch", "elasticsearch", "ssh", "gcp-logging", "cloudwatch", "loki", "ssh-logs", "kubernetes",
+    assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "sqlite", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "firestore", "firebase-rtdb", "prometheus", "influxdb", "opensearch", "elasticsearch", "ssh", "gcp-logging", "cloudwatch", "loki", "ssh-logs", "kubernetes",
         "gcp", "aws", "http");
     for (JsonNode row : catalog.path("installed")) {
       assertThat(row.path("state").asString()).isEqualTo("enabled");

@@ -5638,6 +5638,223 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         }
       }
     }
+  },
+  "influxdb": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "InfluxDB",
+    "type": "object",
+    "x-card": {
+      "description": "Databases, measurements and SQL or InfluxQL reads of InfluxDB 3, 2.x and 1.x. Writes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "url",
+      "version",
+      "auth"
+    ],
+    "properties": {
+      "url": {
+        "type": "string",
+        "title": "Server URL",
+        "format": "uri",
+        "minLength": 8,
+        "maxLength": 2048,
+        "pattern": "^https?://[^\\s?#]+$",
+        "examples": [
+          "https://influxdb.example.com:8181"
+        ],
+        "description": "The server's address with https:// and its port, optionally with a path prefix. Plain http:// only to this computer (localhost, 127.0.0.1 or ::1)."
+      },
+      "version": {
+        "title": "Server",
+        "enum": [
+          "3",
+          "2",
+          "1"
+        ],
+        "default": "3",
+        "x-enumTitles": [
+          "InfluxDB 3 Core or Enterprise",
+          "InfluxDB 2.x or InfluxDB Cloud",
+          "InfluxDB 1.x"
+        ],
+        "description": "The API GateRook uses; Test connection checks it against the server. InfluxDB Cloud Serverless and Cloud Dedicated answer SQL only over Arrow Flight: choose InfluxDB 2.x for their InfluxQL and write APIs."
+      },
+      "organization": {
+        "type": "string",
+        "title": "Organization",
+        "maxLength": 256,
+        "pattern": "\\S",
+        "examples": [
+          "acme"
+        ],
+        "description": "InfluxDB 2.x only: the organization of the buckets. InfluxDB OSS needs it for writes; InfluxDB Cloud takes it from the token."
+      },
+      "databases": {
+        "type": "array",
+        "title": "Databases",
+        "maxItems": 100,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "examples": [
+          [
+            "telemetry",
+            "iot_*"
+          ]
+        ],
+        "description": "The databases agents may use (buckets on InfluxDB 2.x); * matches any characters, such as iot_*. Empty: every database the credentials may read."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Credentials",
+        "additionalProperties": false,
+        "required": [
+          "method"
+        ],
+        "properties": {
+          "method": {
+            "title": "Authentication",
+            "enum": [
+              "token",
+              "password",
+              "none"
+            ],
+            "default": "token",
+            "x-enumTitles": [
+              "API token (InfluxDB 3 and 2.x)",
+              "Username and password (InfluxDB 1.x)",
+              "No authentication"
+            ],
+            "x-forbidden-env-values": {
+              "prod": [
+                "none"
+              ]
+            },
+            "description": "InfluxDB 3 and 2.x sign in with a token, InfluxDB 1.x with a username and password. No authentication only for a server that checks none, never on prod."
+          }
+        },
+        "patternProperties": {
+          "^(token|username|password)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "token"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "required": [
+                "token"
+              ],
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "title": "API token",
+                  "minLength": 1,
+                  "maxLength": 4096,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "description": "Stored encrypted by GateRook. Prefer a token that may only read the databases agents use."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "password"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "required": [
+                "username",
+                "password"
+              ],
+              "properties": {
+                "username": {
+                  "type": "string",
+                  "title": "Username",
+                  "minLength": 1,
+                  "maxLength": 256,
+                  "pattern": "^[^\\u0000-\\u001f\\u007f:]+$"
+                },
+                "password": {
+                  "type": "string",
+                  "title": "Password",
+                  "minLength": 1,
+                  "maxLength": 4096,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "description": "Stored encrypted by GateRook."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "Limits of one read and one write, and a private CA. Policies set row limits and timeouts per environment.",
+        "properties": {
+          "maxRows": {
+            "type": "integer",
+            "title": "Rows per query",
+            "minimum": 1,
+            "maximum": 10000,
+            "default": 1000,
+            "x-stricter": "min",
+            "description": "The most rows one read returns; the endpoint's row limit applies as well."
+          },
+          "maxResponseKb": {
+            "type": "integer",
+            "title": "Response size",
+            "minimum": 16,
+            "maximum": 16384,
+            "default": 1024,
+            "x-unit": "KB",
+            "x-stricter": "min",
+            "description": "The most data one answer carries; a longer answer is cut and says so."
+          },
+          "maxWritePoints": {
+            "type": "integer",
+            "title": "Points per write",
+            "minimum": 1,
+            "maximum": 10000,
+            "default": 1000,
+            "x-stricter": "min",
+            "description": "The most points one approved write holds. A write is also at most 1 MiB of line protocol."
+          },
+          "caCertificate": {
+            "type": "string",
+            "title": "CA certificate (PEM)",
+            "maxLength": 20000,
+            "x-widget": "textarea",
+            "description": "Only for a server whose certificate comes from a private CA."
+          }
+        }
+      }
+    }
   }
 };
 
@@ -9464,6 +9681,308 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "maxSeries": 1000,
         "maxPoints": 11000,
         "maxResponseMb": 16
+      }
+    }
+  },
+  "influxdb": {
+    "sections": [
+      "/auth",
+      "/advanced"
+    ],
+    "loose": [
+      "/url",
+      "/version",
+      "/organization",
+      "/databases"
+    ],
+    "rows": {
+      "/auth": [
+        [
+          "/auth/method"
+        ],
+        [
+          "/auth/token"
+        ],
+        [
+          "/auth/username"
+        ],
+        [
+          "/auth/password"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/maxRows",
+          "/advanced/maxResponseKb",
+          "/advanced/maxWritePoints"
+        ],
+        [
+          "/advanced/caCertificate"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/url",
+        "kind": "text",
+        "title": "Server URL",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/version",
+        "kind": "select",
+        "title": "Server",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "3",
+          "2",
+          "1"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/organization",
+        "kind": "text",
+        "title": "Organization",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/databases",
+        "kind": "tags",
+        "title": "Databases",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/method",
+        "kind": "select",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "token",
+          "password",
+          "none"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": [
+          "none"
+        ],
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/token",
+        "kind": "secret",
+        "title": "API token",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"token\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/username",
+        "kind": "text",
+        "title": "Username",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"password\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/password",
+        "kind": "secret",
+        "title": "Password",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"password\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxRows",
+        "kind": "number",
+        "title": "Rows per query",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxResponseKb",
+        "kind": "number",
+        "title": "Response size",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "KB",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxWritePoints",
+        "kind": "number",
+        "title": "Points per write",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "version": "3",
+      "auth": {
+        "method": "token"
+      },
+      "advanced": {
+        "maxRows": 1000,
+        "maxResponseKb": 1024,
+        "maxWritePoints": 1000
+      }
+    },
+    "prodDefaults": {
+      "version": "3",
+      "auth": {
+        "method": "token"
+      },
+      "advanced": {
+        "maxRows": 1000,
+        "maxResponseKb": 1024,
+        "maxWritePoints": 1000
       }
     }
   },

@@ -113,6 +113,7 @@ export function signInTarget(type: string): string {
     case 'redis':
     case 'opensearch':
     case 'elasticsearch':
+    case 'influxdb':
       return 'the database';
     case 'ssh':
     case 'ssh-logs':
