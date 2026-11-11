@@ -133,9 +133,12 @@ export function signInTarget(type: string): string {
     case 'bigquery':
     case 'firestore':
     case 'firebase-rtdb':
+    case 'redshift':
       return 'the cloud account';
     case 'prometheus':
       return 'the metrics server';
+    case 'databricks':
+      return 'the workspace';
     default:
       return 'the service';
   }

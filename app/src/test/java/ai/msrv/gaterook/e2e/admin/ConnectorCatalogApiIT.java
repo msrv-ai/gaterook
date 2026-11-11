@@ -77,6 +77,10 @@ class ConnectorCatalogApiIT {
           "Datasets, tables and GoogleSQL queries with a cost limit. Changes wait for approval."),
       new KitCard("Databases", "snowflake", null, "Snowflake", "database", "built-in", 4,
           "Read queries, schemas and tables. Changes wait for approval."),
+      new KitCard("Databases", "redshift", null, "Amazon Redshift", "database", "built-in", 5,
+          "Schemas, tables and SQL queries in read-only transactions. Changes wait for approval."),
+      new KitCard("Databases", "databricks", null, "Databricks SQL", "database", "built-in", 6,
+          "Unity Catalog tables and Databricks SQL queries on a SQL warehouse. Changes wait for approval."),
       new KitCard("Databases", "firestore", null, "Cloud Firestore", "database", "built-in", 4,
           "Documents, collections and queries. Changes wait for approval."),
       new KitCard("Databases", "firebase-rtdb", null, "Firebase Realtime Database", "database", "built-in", 2,
@@ -158,7 +162,7 @@ class ConnectorCatalogApiIT {
 
     // Connectors › Installed: one row per type, the MCP server type isn't one (its servers are, with K5).
     List<String> installed = each(catalog.path("installed"), "id");
-    assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "sqlite", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "firestore", "firebase-rtdb", "prometheus", "influxdb", "opensearch", "elasticsearch", "ssh", "gcp-logging", "cloudwatch", "loki", "ssh-logs", "kubernetes",
+    assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "sqlite", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "redshift", "databricks", "firestore", "firebase-rtdb", "prometheus", "influxdb", "opensearch", "elasticsearch", "ssh", "gcp-logging", "cloudwatch", "loki", "ssh-logs", "kubernetes",
         "gcp", "aws", "http");
     for (JsonNode row : catalog.path("installed")) {
       assertThat(row.path("state").asString()).isEqualTo("enabled");

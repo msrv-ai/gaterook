@@ -5855,6 +5855,507 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         }
       }
     }
+  },
+  "redshift": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Amazon Redshift",
+    "type": "object",
+    "x-card": {
+      "description": "Schemas, tables and SQL queries in read-only transactions. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "region",
+      "target",
+      "database",
+      "credentials"
+    ],
+    "properties": {
+      "region": {
+        "type": "string",
+        "title": "Region",
+        "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
+        "examples": [
+          "eu-central-1"
+        ],
+        "description": "The AWS region of the cluster or workgroup."
+      },
+      "target": {
+        "type": "object",
+        "title": "Warehouse",
+        "required": [
+          "kind"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "cluster",
+              "serverless"
+            ],
+            "default": "cluster",
+            "title": "Type",
+            "x-enumTitles": [
+              "Provisioned cluster",
+              "Redshift Serverless workgroup"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(cluster|workgroup)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "cluster"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "cluster": {
+                  "type": "string",
+                  "title": "Cluster identifier",
+                  "maxLength": 63,
+                  "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+                  "examples": [
+                    "acme-analytics"
+                  ]
+                }
+              },
+              "required": [
+                "cluster"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "serverless"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "workgroup": {
+                  "type": "string",
+                  "title": "Workgroup",
+                  "maxLength": 128,
+                  "pattern": "^([a-z0-9-]{3,63}|arn:aws[a-z-]*:redshift-serverless:[a-z0-9-]+:\\d{12}:workgroup/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12})$",
+                  "examples": [
+                    "acme-wg"
+                  ],
+                  "description": "Its name, or its ARN: with the ARN, the session policy names this workgroup only."
+                }
+              },
+              "required": [
+                "workgroup"
+              ]
+            }
+          }
+        ]
+      },
+      "database": {
+        "type": "string",
+        "title": "Database",
+        "pattern": "^[A-Za-z_][A-Za-z0-9_$]{0,126}$",
+        "examples": [
+          "dev"
+        ],
+        "description": "The database the Data API connects to."
+      },
+      "databaseAuth": {
+        "type": "object",
+        "title": "Database sign-in",
+        "required": [
+          "method"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "method": {
+            "enum": [
+              "iam",
+              "dbUser",
+              "secret"
+            ],
+            "default": "iam",
+            "title": "Sign in as",
+            "x-enumTitles": [
+              "The AWS identity (IAM:user or IAMR:role)",
+              "A database user, with temporary credentials (clusters)",
+              "The user of a Secrets Manager secret"
+            ],
+            "description": "The Data API signs in for each call. GateRook never sees a database password."
+          }
+        },
+        "patternProperties": {
+          "^(dbUser|secretArn)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "dbUser"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "dbUser": {
+                  "type": "string",
+                  "title": "Database user",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_+.@$-]{0,127}$",
+                  "examples": [
+                    "gw_reader"
+                  ],
+                  "description": "Give it SELECT on the schemas agents read, and nothing more for reads."
+                }
+              },
+              "required": [
+                "dbUser"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "secret"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "secretArn": {
+                  "type": "string",
+                  "title": "Secret",
+                  "maxLength": 600,
+                  "pattern": "^(arn:aws[a-z-]*:secretsmanager:[a-z0-9-]+:\\d{12}:secret:[A-Za-z0-9/_+=.@-]{1,512}|[A-Za-z0-9/_+=.@-]{1,512})$",
+                  "examples": [
+                    "arn:aws:secretsmanager:eu-central-1:412398765012:secret:redshift/gw-reader-AbCdEf"
+                  ],
+                  "description": "Its ARN or name. The Data API reads its username and password; GateRook doesn't."
+                }
+              },
+              "required": [
+                "secretArn"
+              ]
+            }
+          }
+        ]
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "enum": [
+              "accessKey",
+              "profile"
+            ],
+            "default": "accessKey",
+            "title": "Credentials source",
+            "x-enumTitles": [
+              "Access key",
+              "AWS profile on this computer"
+            ]
+          },
+          "roleArn": {
+            "type": "string",
+            "title": "Role to assume",
+            "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
+            "examples": [
+              "arn:aws:iam::412398765012:role/gw-redshift"
+            ],
+            "description": "With a role, GateRook limits each call to this warehouse, database and sign-in, enforced by AWS."
+          },
+          "externalId": {
+            "type": "string",
+            "title": "External ID",
+            "pattern": "^[\\w+=,.@:/-]{2,1224}$",
+            "x-generated": "gw-ext-<12 hex>",
+            "description": "Not a secret. Add it to the role's trust policy as sts:ExternalId"
+          },
+          "sessionSeconds": {
+            "type": "integer",
+            "title": "Session length",
+            "minimum": 900,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s"
+          },
+          "sessionPolicy": {
+            "enum": [
+              "generated",
+              "none"
+            ],
+            "default": "generated",
+            "title": "Session policy",
+            "x-forbidden-env-values": {
+              "prod": [
+                "none"
+              ]
+            },
+            "x-enumTitles": [
+              "Each call's own permissions, enforced by AWS (recommended)",
+              "The role's permissions as they are"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(accessKeyId|secretAccessKey|profile)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "accessKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "accessKeyId": {
+                  "type": "string",
+                  "title": "Access key ID",
+                  "pattern": "^AKIA[A-Z0-9]{16}$",
+                  "x-not-secret": true
+                },
+                "secretAccessKey": {
+                  "type": "string",
+                  "title": "Secret access key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password"
+                }
+              },
+              "required": [
+                "accessKeyId",
+                "secretAccessKey"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "profile"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "profile": {
+                  "type": "string",
+                  "title": "Profile",
+                  "maxLength": 128,
+                  "pattern": "\\S"
+                }
+              },
+              "required": [
+                "profile"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "databricks": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Databricks SQL",
+    "type": "object",
+    "x-card": {
+      "description": "Unity Catalog tables and Databricks SQL queries on a SQL warehouse. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "host",
+      "warehouseId",
+      "auth"
+    ],
+    "properties": {
+      "host": {
+        "type": "string",
+        "title": "Workspace URL",
+        "maxLength": 300,
+        "pattern": "^https://[^/?#@\\s]+/?$",
+        "examples": [
+          "https://dbc-a1b2c3d4-e5f6.cloud.databricks.com"
+        ],
+        "description": "The workspace's https address, as the browser shows it."
+      },
+      "warehouseId": {
+        "type": "string",
+        "title": "SQL warehouse ID",
+        "pattern": "^[A-Za-z0-9-]{1,64}$",
+        "examples": [
+          "1a2b3c4d5e6f7a8b"
+        ],
+        "description": "From the warehouse's Connection details: the end of its HTTP path."
+      },
+      "catalog": {
+        "type": "string",
+        "title": "Default catalog",
+        "pattern": "^[A-Za-z0-9_-]{1,255}$",
+        "examples": [
+          "main"
+        ],
+        "description": "For tables named without a catalog. Empty: the workspace's default."
+      },
+      "schema": {
+        "type": "string",
+        "title": "Default schema",
+        "pattern": "^[A-Za-z0-9_-]{1,255}$",
+        "examples": [
+          "sales"
+        ],
+        "description": "For tables named without a schema. Empty: default."
+      },
+      "catalogs": {
+        "type": "array",
+        "title": "Catalogs",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_*-]{1,255}$"
+        },
+        "description": "The catalogs agents may use; * matches any characters. Empty: every catalog the identity may use."
+      },
+      "schemas": {
+        "type": "array",
+        "title": "Schemas",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^([A-Za-z0-9_*-]{1,255}\\.)?[A-Za-z0-9_*-]{1,255}$"
+        },
+        "description": "The schemas agents may use: schema or catalog.schema, * matching any characters. Empty: every schema of the catalogs."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Sign-in",
+        "required": [
+          "method"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "method": {
+            "enum": [
+              "oauth",
+              "token"
+            ],
+            "default": "oauth",
+            "title": "Sign in with",
+            "x-enumTitles": [
+              "A service principal (OAuth machine-to-machine, recommended)",
+              "A personal access token"
+            ],
+            "description": "Give a service principal USE CATALOG, USE SCHEMA and SELECT on what agents read, and CAN USE on the warehouse."
+          }
+        },
+        "patternProperties": {
+          "^(token|clientId|clientSecret)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "token"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "title": "Personal access token",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "maxLength": 4096
+                }
+              },
+              "required": [
+                "token"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "oauth"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "clientId": {
+                  "type": "string",
+                  "title": "Client ID",
+                  "pattern": "^[A-Za-z0-9._-]{1,128}$",
+                  "x-not-secret": true,
+                  "examples": [
+                    "6f0e2c9a-1b3d-4e5f-8a7b-9c0d1e2f3a4b"
+                  ],
+                  "description": "The service principal's application ID."
+                },
+                "clientSecret": {
+                  "type": "string",
+                  "title": "Client secret",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "maxLength": 4096,
+                  "description": "An OAuth secret of the service principal. GateRook exchanges it for a token of this workspace only."
+                }
+              },
+              "required": [
+                "clientId",
+                "clientSecret"
+              ]
+            }
+          }
+        ]
+      }
+    }
   }
 };
 
@@ -9074,6 +9575,648 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "method": "keyPair"
       },
       "advanced": {}
+    }
+  },
+  "redshift": {
+    "sections": [
+      "/target",
+      "/databaseAuth",
+      "/credentials"
+    ],
+    "loose": [
+      "/region",
+      "/database"
+    ],
+    "rows": {
+      "/target": [
+        [
+          "/target/kind"
+        ],
+        [
+          "/target/cluster"
+        ],
+        [
+          "/target/workgroup"
+        ]
+      ],
+      "/databaseAuth": [
+        [
+          "/databaseAuth/method"
+        ],
+        [
+          "/databaseAuth/dbUser"
+        ],
+        [
+          "/databaseAuth/secretArn"
+        ]
+      ],
+      "/credentials": [
+        [
+          "/credentials/source"
+        ],
+        [
+          "/credentials/accessKeyId"
+        ],
+        [
+          "/credentials/secretAccessKey"
+        ],
+        [
+          "/credentials/profile"
+        ],
+        [
+          "/credentials/roleArn"
+        ],
+        [
+          "/credentials/externalId"
+        ],
+        [
+          "/credentials/sessionSeconds"
+        ],
+        [
+          "/credentials/sessionPolicy"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/region",
+        "kind": "text",
+        "title": "Region",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/database",
+        "kind": "text",
+        "title": "Database",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/target",
+        "kind": "object",
+        "title": "Warehouse",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/target/kind",
+        "kind": "select",
+        "title": "Type",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "cluster",
+          "serverless"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/target/cluster",
+        "kind": "text",
+        "title": "Cluster identifier",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "target.kind in [\"cluster\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/target/workgroup",
+        "kind": "text",
+        "title": "Workgroup",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "target.kind in [\"serverless\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/databaseAuth",
+        "kind": "object",
+        "title": "Database sign-in",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/databaseAuth/method",
+        "kind": "select",
+        "title": "Sign in as",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "iam",
+          "dbUser",
+          "secret"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/databaseAuth/dbUser",
+        "kind": "text",
+        "title": "Database user",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "databaseAuth.method in [\"dbUser\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/databaseAuth/secretArn",
+        "kind": "text",
+        "title": "Secret",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "databaseAuth.method in [\"secret\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/source",
+        "kind": "select",
+        "title": "Credentials source",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "accessKey",
+          "profile"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/accessKeyId",
+        "kind": "text",
+        "title": "Access key ID",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"accessKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/secretAccessKey",
+        "kind": "secret",
+        "title": "Secret access key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"accessKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/profile",
+        "kind": "text",
+        "title": "Profile",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"profile\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/roleArn",
+        "kind": "text",
+        "title": "Role to assume",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/externalId",
+        "kind": "text",
+        "title": "External ID",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/sessionSeconds",
+        "kind": "number",
+        "title": "Session length",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "s",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/sessionPolicy",
+        "kind": "select",
+        "title": "Session policy",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "generated",
+          "none"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": [
+          "none"
+        ],
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "target": {
+        "kind": "cluster"
+      },
+      "credentials": {
+        "source": "accessKey",
+        "sessionSeconds": 900,
+        "sessionPolicy": "generated"
+      }
+    },
+    "prodDefaults": {
+      "target": {
+        "kind": "cluster"
+      },
+      "credentials": {
+        "source": "accessKey",
+        "sessionSeconds": 900,
+        "sessionPolicy": "generated"
+      }
+    }
+  },
+  "databricks": {
+    "sections": [
+      "/auth"
+    ],
+    "loose": [
+      "/host",
+      "/warehouseId",
+      "/catalog",
+      "/schema",
+      "/catalogs",
+      "/schemas"
+    ],
+    "rows": {
+      "/auth": [
+        [
+          "/auth/method"
+        ],
+        [
+          "/auth/token"
+        ],
+        [
+          "/auth/clientId"
+        ],
+        [
+          "/auth/clientSecret"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/host",
+        "kind": "text",
+        "title": "Workspace URL",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/warehouseId",
+        "kind": "text",
+        "title": "SQL warehouse ID",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/catalog",
+        "kind": "text",
+        "title": "Default catalog",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/schema",
+        "kind": "text",
+        "title": "Default schema",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/catalogs",
+        "kind": "tags",
+        "title": "Catalogs",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/schemas",
+        "kind": "tags",
+        "title": "Schemas",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth",
+        "kind": "object",
+        "title": "Sign-in",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/method",
+        "kind": "select",
+        "title": "Sign in with",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "oauth",
+          "token"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/token",
+        "kind": "secret",
+        "title": "Personal access token",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"token\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/clientId",
+        "kind": "text",
+        "title": "Client ID",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"oauth\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/clientSecret",
+        "kind": "secret",
+        "title": "Client secret",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"oauth\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "auth": {
+        "method": "oauth"
+      }
+    },
+    "prodDefaults": {
+      "auth": {
+        "method": "oauth"
+      }
     }
   },
   "firestore": {

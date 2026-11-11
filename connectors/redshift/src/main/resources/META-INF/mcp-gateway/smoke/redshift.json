@@ -8,7 +8,8 @@
       "name": "redshift-classify-without-io",
       "connection": {"type": "redshift", "env": "dev",
         "config": {"region": "eu-central-1", "target": {"kind": "cluster", "cluster": "acme-analytics"},
-          "database": "dev", "credentials": {"source": "accessKey", "accessKeyId": "AKIAIOSFODNN7EXAMPLE"}}},
+          "database": "dev", "credentials": {"source": "accessKey", "accessKeyId": "AKIAIOSFODNN7EXAMPLE"}},
+        "secrets": {"/credentials/secretAccessKey": "smoke-only-0001"}},
       "call": {"tool": "redshift_query", "arguments": {"sql": "DELETE FROM sales.orders WHERE true"}},
       "expect": {"isError": true, "textStartsWith": "Denied by policy dev.redshift.query-writes"}
     }

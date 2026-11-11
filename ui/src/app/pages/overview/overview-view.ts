@@ -387,6 +387,10 @@ export function checkPrompt(type: string | null, name: string | null): string {
       return `Show me the targets Prometheus scrapes in ${name}`;
     case 'influxdb':
       return `Show me the measurements in ${name}`;
+    case 'redshift':
+      return `Show me the tables in ${name}`;
+    case 'databricks':
+      return `Show me the tables in ${name}`;
     default:
       return `Show me what you can see in ${name}`;
   }

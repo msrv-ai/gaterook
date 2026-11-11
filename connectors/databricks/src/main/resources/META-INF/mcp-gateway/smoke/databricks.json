@@ -8,7 +8,8 @@
       "name": "databricks-classify-without-io",
       "connection": {"type": "databricks", "env": "dev",
         "config": {"host": "https://dbc-a1b2c3d4-e5f6.cloud.databricks.com", "warehouseId": "1a2b3c4d5e6f7a8b",
-          "auth": {"method": "oauth", "clientId": "6f0e2c9a-1b3d-4e5f-8a7b-9c0d1e2f3a4b"}}},
+          "auth": {"method": "oauth", "clientId": "6f0e2c9a-1b3d-4e5f-8a7b-9c0d1e2f3a4b"}},
+        "secrets": {"/auth/clientSecret": "smoke-only-0001"}},
       "call": {"tool": "databricks_query", "arguments": {"sql": "DELETE FROM main.sales.orders WHERE true"}},
       "expect": {"isError": true, "textStartsWith": "Denied by policy dev.databricks.query-writes"}
     }
