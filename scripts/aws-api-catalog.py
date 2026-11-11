@@ -134,7 +134,9 @@ PROTOCOL_ORDER = ["aws.protocols#awsJson1_0", "aws.protocols#awsJson1_1", "aws.p
                   "smithy.protocols#rpcv2Cbor"]
 SUPPORTED_PROTOCOLS = {"awsJson1_0", "awsJson1_1", "restJson1", "awsQuery", "ec2Query", "restXml"}
 # restXml services whose addressing and signing rules are their own (virtual hosts, checksums, account host labels).
-DEFERRED = {"s3": "S3 has its own addressing and object rules, so aws_api_read and aws_api_change don't call it.",
+DEFERRED = {"s3": "S3 has its own addressing and object rules, so aws_api_read and aws_api_change don't call it. "
+                  "Use an S3 object storage connection's s3_* tools for buckets and objects; if this endpoint has "
+                  "none, ask the user to add one.",
             "s3-control": "S3 Control needs account host labels and request checksums, which aws_api_read and "
                           "aws_api_change don't send."}
 

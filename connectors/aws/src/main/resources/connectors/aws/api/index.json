@@ -3899,7 +3899,7 @@
    "aliases": [],
    "operations": 112,
    "readonly": 0,
-   "unsupported": "S3 has its own addressing and object rules, so aws_api_read and aws_api_change don't call it."
+   "unsupported": "S3 has its own addressing and object rules, so aws_api_read and aws_api_change don't call it. Use an S3 object storage connection's s3_* tools for buckets and objects; if this endpoint has none, ask the user to add one."
   },
   "s3control": {
    "sdkId": "S3 Control",

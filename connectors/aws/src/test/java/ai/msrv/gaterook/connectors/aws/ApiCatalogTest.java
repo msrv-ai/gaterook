@@ -36,8 +36,9 @@ class ApiCatalogTest {
 
   @Test
   void servicesItCantCallSayWhy() {
-    // S3 is out of reach as a whole, its object reads included: bucket and object access has rules of its own.
-    assertThat(catalog.find("s3").unsupported()).contains("S3 has its own addressing and object rules");
+    // S3 is out of reach as a whole, its object reads included: buckets and objects have a connector of their own.
+    assertThat(catalog.find("s3").unsupported()).contains("S3 has its own addressing and object rules")
+        .contains("S3 object storage connection's s3_* tools");
     assertThat(catalog.find("s3control").unsupported()).contains("account host labels");
     assertThat(catalog.find("cloudwatchomni").unsupported()).contains("rpcv2Cbor");
     assertThat(catalog.find("codecatalyst").unsupported()).contains("bearer tokens");
