@@ -41,6 +41,7 @@
     <module>connectors/dynamodb</module>
     <module>connectors/bigquery</module>
     <module>connectors/trino</module>
+    <module>connectors/athena</module>
     <module>connectors/http</module>
     <module>connectors/mcp-server</module>
     <module>core</module>
@@ -209,6 +210,11 @@
       <dependency>
         <groupId>ai.msrv.gaterook</groupId>
         <artifactId>connectors-trino</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-athena</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

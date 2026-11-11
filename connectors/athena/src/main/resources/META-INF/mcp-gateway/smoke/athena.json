@@ -1,0 +1,15 @@
+{
+  "area": "athena",
+  "module": "connectors/athena",
+  "connectorTypes": ["athena"],
+  "description": "Touches of the Athena connector for the native smoke (report 15 §6): the Athena SQL reader and the schemas in the image, without I/O.",
+  "touches": [
+    {
+      "name": "athena-classify-without-io",
+      "connection": {"type": "athena", "env": "dev",
+        "config": {"region": "eu-central-1", "workgroup": "primary", "credentials": {"source": "accessKey", "accessKeyId": "AKIAIOSFODNN7EXAMPLE"}}},
+      "call": {"tool": "athena_query", "arguments": {"sql": "UNLOAD (SELECT * FROM sales.orders) TO 's3://acme-exports/orders/'"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.athena.forbidden"}
+    }
+  ]
+}
