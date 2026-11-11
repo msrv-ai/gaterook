@@ -5286,6 +5286,185 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         ]
       }
     }
+  },
+  "snowflake": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Snowflake",
+    "type": "object",
+    "x-card": {
+      "description": "Read queries, schemas and tables. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "account",
+      "user",
+      "authentication"
+    ],
+    "properties": {
+      "account": {
+        "type": "string",
+        "title": "Account identifier",
+        "maxLength": 255,
+        "pattern": "^(?:[A-Za-z][A-Za-z0-9]{0,254}-[A-Za-z0-9_]{1,255}|[A-Za-z0-9]{1,64}(?:\\.[A-Za-z0-9-]{1,64}){0,2})$",
+        "examples": [
+          "myorg-myaccount"
+        ],
+        "description": "orgname-accountname, or an account locator with its region (xy12345.eu-central-1). Not a URL: GateRook connects to <account>.snowflakecomputing.com."
+      },
+      "privateLink": {
+        "type": "boolean",
+        "title": "Private connectivity",
+        "default": false,
+        "description": "Connect to <account>.privatelink.snowflakecomputing.com: AWS PrivateLink, Azure Private Link or Google Private Service Connect."
+      },
+      "user": {
+        "type": "string",
+        "title": "User",
+        "maxLength": 255,
+        "pattern": "^[A-Za-z0-9_.@$+-]{1,255}$",
+        "description": "The login name GateRook signs in as. Grant it only roles that read: Snowflake has no read-only transaction, so its roles are the boundary."
+      },
+      "authentication": {
+        "type": "object",
+        "title": "Authentication",
+        "required": [
+          "method"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "method": {
+            "enum": [
+              "keyPair",
+              "token"
+            ],
+            "default": "keyPair",
+            "title": "Sign in with",
+            "x-enumTitles": [
+              "Key pair",
+              "Programmatic access token"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(privateKey|token)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "keyPair"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "privateKey": {
+                  "type": "string",
+                  "title": "Private key (PEM)",
+                  "writeOnly": true,
+                  "x-gateway-secret": "pem",
+                  "x-widget": "textarea",
+                  "maxLength": 20000,
+                  "description": "An unencrypted RSA key of at least 2048 bits, PKCS#8 or PKCS#1. Its public key is the user's RSA_PUBLIC_KEY; Test connection shows its fingerprint."
+                }
+              },
+              "required": [
+                "privateKey"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "token"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "title": "Programmatic access token",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "maxLength": 8192,
+                  "description": "A token of the user, best restricted to a role that only reads. Snowflake accepts it only from addresses a network policy of the user allows."
+                }
+              },
+              "required": [
+                "token"
+              ]
+            }
+          }
+        ]
+      },
+      "warehouse": {
+        "type": "string",
+        "title": "Warehouse",
+        "maxLength": 257,
+        "pattern": "^(?:[A-Za-z_][A-Za-z0-9_$]{0,254}|\"(?:[^\"]|\"\"){1,255}\")$",
+        "description": "Runs the statements. Empty: the user's default warehouse."
+      },
+      "role": {
+        "type": "string",
+        "title": "Role",
+        "maxLength": 257,
+        "pattern": "^(?:[A-Za-z_][A-Za-z0-9_$]{0,254}|\"(?:[^\"]|\"\"){1,255}\")$",
+        "description": "Use a role that can only read outside dev. Empty: the user's default role."
+      },
+      "database": {
+        "type": "string",
+        "title": "Database",
+        "maxLength": 257,
+        "pattern": "^(?:[A-Za-z_][A-Za-z0-9_$]{0,254}|\"(?:[^\"]|\"\"){1,255}\")$",
+        "description": "Where names without a database resolve. Empty: the user's default namespace."
+      },
+      "schema": {
+        "type": "string",
+        "title": "Schema",
+        "maxLength": 257,
+        "pattern": "^(?:[A-Za-z_][A-Za-z0-9_$]{0,254}|\"(?:[^\"]|\"\"){1,255}\")$",
+        "description": "Where names without a schema resolve; needs Database. Write names with lower case or spaces in double quotes."
+      },
+      "tables": {
+        "type": "array",
+        "title": "Tables",
+        "maxItems": 100,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "maxLength": 767,
+          "pattern": "^[A-Za-z0-9_$*]{1,255}\\.[A-Za-z0-9_$*]{1,255}\\.[A-Za-z0-9_$*]{1,255}$"
+        },
+        "description": "The tables agents may use, as DATABASE.SCHEMA.TABLE; * matches any characters, such as ANALYTICS.PUBLIC.*, and case doesn't matter. Empty: every table the role may read."
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "Policies set row limits and timeouts per environment.",
+        "properties": {
+          "statementTimeoutSeconds": {
+            "type": "integer",
+            "title": "Statement timeout",
+            "minimum": 1,
+            "maximum": 3600,
+            "x-unit": "s",
+            "description": "Snowflake cancels slower statements. Empty: the environment policy's statement timeout; with both, the shorter applies."
+          }
+        }
+      }
+    }
   }
 };
 
@@ -8224,6 +8403,287 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "advanced": {
         "maxMbBilled": 10240
       }
+    }
+  },
+  "snowflake": {
+    "sections": [
+      "/authentication",
+      "/advanced"
+    ],
+    "loose": [
+      "/account",
+      "/privateLink",
+      "/user",
+      "/warehouse",
+      "/role",
+      "/database",
+      "/schema",
+      "/tables"
+    ],
+    "rows": {
+      "/authentication": [
+        [
+          "/authentication/method"
+        ],
+        [
+          "/authentication/privateKey"
+        ],
+        [
+          "/authentication/token"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/statementTimeoutSeconds"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/account",
+        "kind": "text",
+        "title": "Account identifier",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/privateLink",
+        "kind": "checkbox",
+        "title": "Private connectivity",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/user",
+        "kind": "text",
+        "title": "User",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/warehouse",
+        "kind": "text",
+        "title": "Warehouse",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/role",
+        "kind": "text",
+        "title": "Role",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/database",
+        "kind": "text",
+        "title": "Database",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/schema",
+        "kind": "text",
+        "title": "Schema",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/tables",
+        "kind": "tags",
+        "title": "Tables",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/authentication",
+        "kind": "object",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/authentication/method",
+        "kind": "select",
+        "title": "Sign in with",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "keyPair",
+          "token"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/authentication/privateKey",
+        "kind": "secret",
+        "title": "Private key (PEM)",
+        "required": true,
+        "secret": "pem",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "authentication.method in [\"keyPair\"]"
+        ],
+        "multiline": true,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/authentication/token",
+        "kind": "secret",
+        "title": "Programmatic access token",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "authentication.method in [\"token\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/statementTimeoutSeconds",
+        "kind": "number",
+        "title": "Statement timeout",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "s",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "privateLink": false,
+      "authentication": {
+        "method": "keyPair"
+      },
+      "advanced": {}
+    },
+    "prodDefaults": {
+      "privateLink": false,
+      "authentication": {
+        "method": "keyPair"
+      },
+      "advanced": {}
     }
   },
   "firestore": {

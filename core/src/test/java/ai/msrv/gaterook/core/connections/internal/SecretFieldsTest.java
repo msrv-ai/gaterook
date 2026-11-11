@@ -187,6 +187,12 @@ class SecretFieldsTest {
         + "?tls=true\"}}"))).as("no scheme, user info or query").isEqualTo("mongo.dev:27017/app");
     assertThat(ConnectionTargets.display(j("{\"regions\":[\"eu-central-1\"]}"))).isEqualTo("eu-central-1");
     assertThat(ConnectionTargets.display(j("{}"))).isEmpty();
+    // Where a stored key or token goes is a target too: a Snowflake account, a Realtime Database.
+    assertThat(ConnectionTargets.changedTarget(j("{\"account\":\"acme-analytics\",\"user\":\"GW\"}"),
+        j("{\"account\":\"evil-analytics\",\"user\":\"GW\"}"))).contains("evil-analytics");
+    assertThat(ConnectionTargets.changedTarget(j("{\"databaseUrl\":\"https://acme-default-rtdb.firebaseio.com\"}"),
+        j("{\"databaseUrl\":\"https://evil-default-rtdb.firebaseio.com\"}")))
+        .contains("https://evil-default-rtdb.firebaseio.com");
   }
 
   @Test
@@ -212,6 +218,22 @@ class SecretFieldsTest {
         .isEqualTo("projects/acme-prod");
     assertThat(ConnectionTargets.display(j("{\"backend\":\"cloudwatch\",\"region\":\"eu-west-1\"}")))
         .isEqualTo("eu-west-1");
+    assertThat(ConnectionTargets.display(j("{\"connection\":{\"file\":\"/home/dev/shop/db/development.sqlite3\"}}")))
+        .isEqualTo("/home/dev/shop/db/development.sqlite3");
+    assertThat(ConnectionTargets.display(j("{\"account\":\"acme-analytics\",\"database\":\"SALES\"}")))
+        .isEqualTo("acme-analytics · SALES");
+    assertThat(ConnectionTargets.display(j("{\"account\":\"acme-analytics\",\"privateLink\":true}")))
+        .isEqualTo("acme-analytics (private link)");
+    assertThat(ConnectionTargets.display(j("{\"databaseUrl\":\"https://acme-default-rtdb.firebaseio.com/\"}")))
+        .isEqualTo("acme-default-rtdb.firebaseio.com");
+    assertThat(ConnectionTargets.display(j("{\"project\":\"acme-analytics\",\"location\":\"EU\"}")))
+        .isEqualTo("acme-analytics · EU");
+    assertThat(ConnectionTargets.display(j("{\"project\":\"acme-stage\",\"database\":\"(default)\"}")))
+        .isEqualTo("acme-stage");
+    assertThat(ConnectionTargets.display(j("{\"project\":\"acme-stage\",\"database\":\"orders-db\"}")))
+        .isEqualTo("acme-stage · orders-db");
+    assertThat(ConnectionTargets.display(j("{\"region\":\"eu-central-1\",\"tables\":[\"orders\"]}")))
+        .as("DynamoDB").isEqualTo("eu-central-1");
   }
 
   /** Review API #5: never user info, a query or a fragment — however the URI was typed. */

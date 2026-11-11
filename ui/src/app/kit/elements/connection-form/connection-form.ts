@@ -107,6 +107,7 @@ export function signInTarget(type: string): string {
     case 'oracle':
     case 'sqlserver':
     case 'sqlite':
+    case 'snowflake':
     case 'sql':
     case 'mongodb':
     case 'redis':
