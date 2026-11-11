@@ -391,6 +391,10 @@ export function checkPrompt(type: string | null, name: string | null): string {
       return `Show me the tables in ${name}`;
     case 'databricks':
       return `Show me the tables in ${name}`;
+    case 'trino':
+      return `Show me the tables in ${name}`;
+    case 'athena':
+      return `Show me the tables in ${name}`;
     default:
       return `Show me what you can see in ${name}`;
   }

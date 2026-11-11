@@ -6356,6 +6356,404 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         ]
       }
     }
+  },
+  "trino": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Trino / Presto",
+    "type": "object",
+    "x-card": {
+      "description": "Catalogs, schemas and SQL reads checked by Trino's own plan. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "url",
+      "auth"
+    ],
+    "properties": {
+      "url": {
+        "type": "string",
+        "format": "uri",
+        "pattern": "^https?://[^/?#]+/?$",
+        "title": "Coordinator URL",
+        "examples": [
+          "https://trino.example.com:8443"
+        ],
+        "description": "The coordinator, with https:// (or http:// on this computer) and its port."
+      },
+      "engine": {
+        "title": "Engine",
+        "enum": [
+          "trino",
+          "presto"
+        ],
+        "default": "trino",
+        "x-enumTitles": [
+          "Trino",
+          "Presto"
+        ],
+        "description": "Presto (prestodb) speaks the same protocol with X-Presto headers."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Authentication",
+        "additionalProperties": false,
+        "required": [
+          "mode"
+        ],
+        "properties": {
+          "mode": {
+            "title": "Sign in with",
+            "enum": [
+              "basic",
+              "jwt",
+              "none"
+            ],
+            "default": "basic",
+            "x-enumTitles": [
+              "User and password",
+              "JWT bearer token",
+              "No authentication (dev, or a coordinator on this computer)"
+            ]
+          },
+          "user": {
+            "type": "string",
+            "title": "User",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^[ -~]+$",
+            "examples": [
+              "gaterook_reader"
+            ],
+            "description": "Statements run as this user. Give it read access only wherever you can: Trino's access control is the boundary. With a JWT, empty means the token's user."
+          }
+        },
+        "patternProperties": {
+          "^(password|token)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "basic"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "user",
+                "password"
+              ],
+              "properties": {
+                "password": {
+                  "type": "string",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Password",
+                  "description": "Stored encrypted by GateRook. It travels over TLS only, unless the coordinator runs on this computer."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "jwt"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "token"
+              ],
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "JWT",
+                  "description": "Sent as a bearer token, over TLS only unless the coordinator runs on this computer."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "none"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "user"
+              ]
+            }
+          }
+        ]
+      },
+      "catalog": {
+        "type": "string",
+        "title": "Default catalog",
+        "pattern": "^[A-Za-z0-9_][A-Za-z0-9_-]{0,127}$",
+        "examples": [
+          "hive"
+        ],
+        "description": "The catalog of names without one."
+      },
+      "schema": {
+        "type": "string",
+        "title": "Default schema",
+        "minLength": 1,
+        "maxLength": 255,
+        "pattern": "^[ -~]+$",
+        "description": "The schema of table names without one; needs a default catalog."
+      },
+      "catalogs": {
+        "type": "array",
+        "title": "Catalogs",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_*?-]{1,128}$"
+        },
+        "description": "The catalogs agents may use; * matches any characters. Every table Trino's plan reads must be in one of them. Empty: every catalog the user may read."
+      },
+      "caCertificate": {
+        "type": "string",
+        "maxLength": 20000,
+        "x-widget": "textarea",
+        "title": "CA certificate (PEM)",
+        "description": "Only for a private CA. Empty: the system trust store."
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "A scan limit per statement. Policies set row limits and timeouts per environment.",
+        "properties": {
+          "maxScanMb": {
+            "type": "integer",
+            "title": "Data scanned per statement",
+            "minimum": 1,
+            "maximum": 104857600,
+            "x-unit": "MB",
+            "x-stricter": "min",
+            "description": "Trino stops a statement that reads more from storage (query_max_scan_physical_bytes). Trino only; empty: Trino's own limit."
+          }
+        }
+      }
+    }
+  },
+  "athena": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Amazon Athena",
+    "type": "object",
+    "x-card": {
+      "description": "Data catalogs, databases and SQL reads within a workgroup's limits. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "region",
+      "credentials"
+    ],
+    "properties": {
+      "region": {
+        "type": "string",
+        "title": "Region",
+        "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
+        "examples": [
+          "eu-central-1"
+        ],
+        "description": "The AWS region of the workgroup and its data catalogs."
+      },
+      "workgroup": {
+        "type": "string",
+        "title": "Workgroup",
+        "pattern": "^[a-zA-Z0-9._-]{1,128}$",
+        "default": "primary",
+        "description": "Every query runs here. Its per-query data limit is the cost boundary: set one, and let the workgroup override client-side settings."
+      },
+      "catalog": {
+        "type": "string",
+        "title": "Data catalog",
+        "pattern": "^[A-Za-z0-9_/:-]{1,256}$",
+        "default": "AwsDataCatalog",
+        "description": "The catalog of names without one: AwsDataCatalog for AWS Glue."
+      },
+      "database": {
+        "type": "string",
+        "title": "Default database",
+        "pattern": "^[A-Za-z0-9_-]{1,255}$",
+        "examples": [
+          "sales"
+        ],
+        "description": "The database of table names without one."
+      },
+      "databases": {
+        "type": "array",
+        "title": "Databases",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^([A-Za-z0-9_/:*?-]{1,256}\\.)?[A-Za-z0-9_*?-]{1,255}$"
+        },
+        "description": "The databases agents may use: database in the data catalog above, or catalog.database, * matching any characters. Every table Athena's plan reads must be in one of them. Empty: every database the credentials may read."
+      },
+      "outputLocation": {
+        "type": "string",
+        "title": "Query results location",
+        "pattern": "^s3://[a-z0-9][a-z0-9.-]{1,61}[a-z0-9](/.*)?$",
+        "examples": [
+          "s3://acme-athena-results/gaterook/"
+        ],
+        "description": "Where Athena writes results, unless the workgroup sets its own. Empty: the workgroup's location, or results Athena keeps itself."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "enum": [
+              "accessKey",
+              "profile"
+            ],
+            "default": "accessKey",
+            "title": "Credentials source",
+            "x-enumTitles": [
+              "Access key",
+              "AWS profile on this computer"
+            ]
+          },
+          "roleArn": {
+            "type": "string",
+            "title": "Role to assume",
+            "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
+            "examples": [
+              "arn:aws:iam::412398765012:role/gw-athena"
+            ],
+            "description": "With a role, GateRook limits each call to what it needs, enforced by AWS."
+          },
+          "externalId": {
+            "type": "string",
+            "title": "External ID",
+            "pattern": "^[\\w+=,.@:/-]{2,1224}$",
+            "x-generated": "gw-ext-<12 hex>",
+            "description": "Not a secret. Add it to the role's trust policy as sts:ExternalId"
+          },
+          "sessionSeconds": {
+            "type": "integer",
+            "title": "Session length",
+            "minimum": 900,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s"
+          },
+          "sessionPolicy": {
+            "enum": [
+              "generated",
+              "none"
+            ],
+            "default": "generated",
+            "title": "Session policy",
+            "x-forbidden-env-values": {
+              "prod": [
+                "none"
+              ]
+            },
+            "x-enumTitles": [
+              "Each call's own permissions, enforced by AWS (recommended)",
+              "The role's permissions as they are"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(accessKeyId|secretAccessKey|profile)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "accessKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "accessKeyId": {
+                  "type": "string",
+                  "title": "Access key ID",
+                  "pattern": "^AKIA[A-Z0-9]{16}$",
+                  "x-not-secret": true
+                },
+                "secretAccessKey": {
+                  "type": "string",
+                  "title": "Secret access key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password"
+                }
+              },
+              "required": [
+                "accessKeyId",
+                "secretAccessKey"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "profile"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "profile": {
+                  "type": "string",
+                  "title": "Profile",
+                  "maxLength": 128,
+                  "pattern": "\\S"
+                }
+              },
+              "required": [
+                "profile"
+              ]
+            }
+          }
+        ]
+      }
+    }
   }
 };
 
@@ -10216,6 +10614,591 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
     "prodDefaults": {
       "auth": {
         "method": "oauth"
+      }
+    }
+  },
+  "trino": {
+    "sections": [
+      "/auth",
+      "/advanced"
+    ],
+    "loose": [
+      "/url",
+      "/engine",
+      "/catalog",
+      "/schema",
+      "/catalogs",
+      "/caCertificate"
+    ],
+    "rows": {
+      "/auth": [
+        [
+          "/auth/mode"
+        ],
+        [
+          "/auth/password"
+        ],
+        [
+          "/auth/token"
+        ],
+        [
+          "/auth/user"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/maxScanMb"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/url",
+        "kind": "text",
+        "title": "Coordinator URL",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/engine",
+        "kind": "select",
+        "title": "Engine",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "trino",
+          "presto"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/catalog",
+        "kind": "text",
+        "title": "Default catalog",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/schema",
+        "kind": "text",
+        "title": "Default schema",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/catalogs",
+        "kind": "tags",
+        "title": "Catalogs",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth",
+        "kind": "object",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/mode",
+        "kind": "select",
+        "title": "Sign in with",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "basic",
+          "jwt",
+          "none"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/password",
+        "kind": "secret",
+        "title": "Password",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.mode in [\"basic\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/token",
+        "kind": "secret",
+        "title": "JWT",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.mode in [\"jwt\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/user",
+        "kind": "text",
+        "title": "User",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxScanMb",
+        "kind": "number",
+        "title": "Data scanned per statement",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "MB",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "engine": "trino",
+      "auth": {
+        "mode": "basic"
+      },
+      "advanced": {}
+    },
+    "prodDefaults": {
+      "engine": "trino",
+      "auth": {
+        "mode": "basic"
+      },
+      "advanced": {}
+    }
+  },
+  "athena": {
+    "sections": [
+      "/credentials"
+    ],
+    "loose": [
+      "/region",
+      "/workgroup",
+      "/catalog",
+      "/database",
+      "/databases",
+      "/outputLocation"
+    ],
+    "rows": {
+      "/credentials": [
+        [
+          "/credentials/source"
+        ],
+        [
+          "/credentials/accessKeyId"
+        ],
+        [
+          "/credentials/secretAccessKey"
+        ],
+        [
+          "/credentials/profile"
+        ],
+        [
+          "/credentials/roleArn"
+        ],
+        [
+          "/credentials/externalId"
+        ],
+        [
+          "/credentials/sessionSeconds"
+        ],
+        [
+          "/credentials/sessionPolicy"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/region",
+        "kind": "text",
+        "title": "Region",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/workgroup",
+        "kind": "text",
+        "title": "Workgroup",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/catalog",
+        "kind": "text",
+        "title": "Data catalog",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/database",
+        "kind": "text",
+        "title": "Default database",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/databases",
+        "kind": "tags",
+        "title": "Databases",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/outputLocation",
+        "kind": "text",
+        "title": "Query results location",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/source",
+        "kind": "select",
+        "title": "Credentials source",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "accessKey",
+          "profile"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/accessKeyId",
+        "kind": "text",
+        "title": "Access key ID",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"accessKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/secretAccessKey",
+        "kind": "secret",
+        "title": "Secret access key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"accessKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/profile",
+        "kind": "text",
+        "title": "Profile",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"profile\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/roleArn",
+        "kind": "text",
+        "title": "Role to assume",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/externalId",
+        "kind": "text",
+        "title": "External ID",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/sessionSeconds",
+        "kind": "number",
+        "title": "Session length",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "s",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/sessionPolicy",
+        "kind": "select",
+        "title": "Session policy",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "generated",
+          "none"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": [
+          "none"
+        ],
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "workgroup": "primary",
+      "catalog": "AwsDataCatalog",
+      "credentials": {
+        "source": "accessKey",
+        "sessionSeconds": 900,
+        "sessionPolicy": "generated"
+      }
+    },
+    "prodDefaults": {
+      "workgroup": "primary",
+      "catalog": "AwsDataCatalog",
+      "credentials": {
+        "source": "accessKey",
+        "sessionSeconds": 900,
+        "sessionPolicy": "generated"
       }
     }
   },

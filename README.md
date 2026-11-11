@@ -58,7 +58,7 @@ GateRook applies its MCP Firewall controls to built-in connectors and external M
 | --- | --- |
 | SQL databases | PostgreSQL and [CockroachDB](docs/cockroachdb.md), MySQL/MariaDB, [Oracle Database](docs/oracle.md), [SQL Server](docs/sql-server.md), [SQLite](docs/sqlite.md) files, and [DuckDB](docs/duckdb.md) files through a catalog plugin: inspect schemas, query data, and review changes before execution |
 | Document and key-value stores | MongoDB document queries and updates; [Redis](docs/redis.md) key inspection, reads, and reviewed value writes; [Amazon DynamoDB](docs/dynamodb.md) Query, Scan and PartiQL with reviewed changes; [Cloud Firestore](docs/firestore.md) documents and queries and the [Firebase Realtime Database](docs/firebase-rtdb.md) paths, with reviewed writes |
-| Data warehouses | [Google BigQuery](docs/bigquery.md): datasets, tables and GoogleSQL reads checked by a dry run and capped in bytes; [Snowflake](docs/snowflake.md): schemas, tables and reads checked against Snowflake's plan; [Amazon Redshift](docs/redshift.md) through its Data API in read-only transactions; [Databricks SQL](docs/databricks.md) on Unity Catalog; all with reviewed changes |
+| Data warehouses | [Google BigQuery](docs/bigquery.md): datasets, tables and GoogleSQL reads checked by a dry run and capped in bytes; [Snowflake](docs/snowflake.md): schemas, tables and reads checked against Snowflake's plan; [Amazon Redshift](docs/redshift.md) through its Data API in read-only transactions; [Databricks SQL](docs/databricks.md) on Unity Catalog; [Trino and Presto](docs/trino.md) with reads checked by Trino's own plan; [Amazon Athena](docs/athena.md) within a workgroup's limits; all with reviewed changes |
 | Metrics and time series | [Prometheus](docs/prometheus.md) and compatible servers: PromQL queries, series, targets, rules and alerts, read only; [InfluxDB](docs/influxdb.md) 3, 2.x and 1.x: SQL and InfluxQL reads and reviewed writes |
 | Search engines | OpenSearch and Elasticsearch: discover indices, query documents, and review administrative requests |
 | Logs | [GCP Cloud Logging](docs/gcp-logs.md), AWS CloudWatch Logs, Loki, and [selected log files over SSH](docs/ssh-log-files.md): search and read logs within configured limits |
@@ -186,6 +186,8 @@ For the full connector integration suite, follow [the Docker test-services guide
 | [Amazon DynamoDB](docs/dynamodb.md) | Roles and session policies, Query, Scan and PartiQL, and approved changes |
 | [Google BigQuery](docs/bigquery.md) | Credentials and datasets, dry runs and byte limits, GoogleSQL reads, and approved changes |
 | [Amazon Redshift](docs/redshift.md) | Clusters and Serverless, roles and session policies, read-only transactions, and approved changes |
+| [Trino and Presto](docs/trino.md) | Coordinators and catalogs, password and JWT sign-in, plan-checked reads, cancellation, and approved changes |
+| [Amazon Athena](docs/athena.md) | Workgroups and result locations, roles and session policies, paged reads, and approved changes |
 | [Databricks SQL](docs/databricks.md) | Workspaces and SQL warehouses, tokens and service principals, Unity Catalog lists, and approved changes |
 | [Snowflake](docs/snowflake.md) | Key-pair and token sign-in, roles and warehouses, plan-checked reads, and approved changes |
 | [Cloud Firestore](docs/firestore.md) | Google identities, collection lists, queries, and approved document writes |

@@ -7,7 +7,8 @@
     {
       "name": "athena-classify-without-io",
       "connection": {"type": "athena", "env": "dev",
-        "config": {"region": "eu-central-1", "workgroup": "primary", "credentials": {"source": "accessKey", "accessKeyId": "AKIAIOSFODNN7EXAMPLE"}}},
+        "config": {"region": "eu-central-1", "workgroup": "primary", "credentials": {"source": "accessKey", "accessKeyId": "AKIAIOSFODNN7EXAMPLE"}},
+        "secrets": {"/credentials/secretAccessKey": "smoke-only-0001"}},
       "call": {"tool": "athena_query", "arguments": {"sql": "UNLOAD (SELECT * FROM sales.orders) TO 's3://acme-exports/orders/'"}},
       "expect": {"isError": true, "textStartsWith": "Denied by policy dev.athena.forbidden"}
     }

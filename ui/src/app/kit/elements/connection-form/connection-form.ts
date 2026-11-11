@@ -114,6 +114,7 @@ export function signInTarget(type: string): string {
     case 'opensearch':
     case 'elasticsearch':
     case 'influxdb':
+    case 'trino':
       return 'the database';
     case 'ssh':
     case 'ssh-logs':
@@ -134,6 +135,7 @@ export function signInTarget(type: string): string {
     case 'firestore':
     case 'firebase-rtdb':
     case 'redshift':
+    case 'athena':
       return 'the cloud account';
     case 'prometheus':
       return 'the metrics server';

@@ -40,7 +40,7 @@ class BuiltInConnectorCatalogTest {
 
   /** Current built-in tool counts used by the runtime connector catalog. */
   private static final Map<String, Integer> TOOLS_PER_CONNECTOR = orderedMap(
-      "PostgreSQL", 4, "MySQL", 4, "Oracle Database", 4, "SQL Server", 4, "SQLite", 4, "MongoDB", 4, "Redis", 8, "Amazon DynamoDB", 6, "Google BigQuery", 5, "Snowflake", 4, "Amazon Redshift", 5, "Databricks SQL", 6, "Cloud Firestore", 4, "Firebase Realtime Database", 2, "Prometheus", 9, "InfluxDB", 5, "SSH", 2, "Logs", 5, "SSH log files", 3,
+      "PostgreSQL", 4, "MySQL", 4, "Oracle Database", 4, "SQL Server", 4, "SQLite", 4, "MongoDB", 4, "Redis", 8, "Amazon DynamoDB", 6, "Google BigQuery", 5, "Snowflake", 4, "Amazon Redshift", 5, "Databricks SQL", 6, "Trino / Presto", 6, "Amazon Athena", 6, "Cloud Firestore", 4, "Firebase Realtime Database", 2, "Prometheus", 9, "InfluxDB", 5, "SSH", 2, "Logs", 5, "SSH log files", 3,
       "Kubernetes", 4, "GCP", 4, "AWS", 2, "HTTP API", 2, "GCP Cloud Logging", 2, "AWS CloudWatch", 2,
       "Loki", 2, "OpenSearch", 3, "Elasticsearch", 3);
 
@@ -62,7 +62,7 @@ class BuiltInConnectorCatalogTest {
 
   /** Names a tool of each built-in family must start with; reserved for them against plugins and MCP servers. */
   private static final Map<String, String> TOOL_PREFIX = orderedMap("postgres", "sql_", "mysql", "sql_", "oracle", "sql_", "sqlserver", "sql_", "sqlite", "sql_",
-      "mongodb", "mongo_", "redis", "redis_", "dynamodb", "dynamodb_", "bigquery", "bigquery_", "snowflake", "snowflake_", "redshift", "redshift_", "databricks", "databricks_", "firestore", "firestore_", "firebase-rtdb", "rtdb_", "prometheus", "prometheus_", "influxdb", "influxdb_", "ssh", "ssh_", "ssh-logs", "ssh_logs_", "logs", "logs_",
+      "mongodb", "mongo_", "redis", "redis_", "dynamodb", "dynamodb_", "bigquery", "bigquery_", "snowflake", "snowflake_", "redshift", "redshift_", "databricks", "databricks_", "trino", "trino_", "athena", "athena_", "firestore", "firestore_", "firebase-rtdb", "rtdb_", "prometheus", "prometheus_", "influxdb", "influxdb_", "ssh", "ssh_", "ssh-logs", "ssh_logs_", "logs", "logs_",
       "kubernetes", "k8s_", "gcp", "gcp_", "aws", "aws_", "http", "http_",
       "gcp-logging", "gcp_logging_", "cloudwatch", "cloudwatch_logs_", "loki", "loki_", "opensearch", "opensearch_",
       "elasticsearch", "elasticsearch_");
@@ -99,7 +99,7 @@ class BuiltInConnectorCatalogTest {
 
   @Test
   void everyConnectorModuleRegistersItsConnectorTypes() {
-    assertThat(byId.keySet()).containsExactlyInAnyOrder("postgres", "mysql", "oracle", "sqlserver", "sqlite", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "redshift", "databricks", "firestore", "firebase-rtdb", "prometheus", "influxdb", "ssh", "logs", "ssh-logs",
+    assertThat(byId.keySet()).containsExactlyInAnyOrder("postgres", "mysql", "oracle", "sqlserver", "sqlite", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "redshift", "databricks", "trino", "athena", "firestore", "firebase-rtdb", "prometheus", "influxdb", "ssh", "logs", "ssh-logs",
         "kubernetes", "gcp", "aws", "http", "mcp-server", "gcp-logging", "cloudwatch", "loki", "opensearch", "elasticsearch");
     assertThat(connectors).hasSize(byId.size());
   }
@@ -193,7 +193,7 @@ class BuiltInConnectorCatalogTest {
         }
       }
     }
-    assertThat(seen).hasSize(91);
+    assertThat(seen).hasSize(103);
   }
 
   @Test
