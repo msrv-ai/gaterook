@@ -110,8 +110,7 @@ record CosmosEndpoint(String scheme, String host, int port, Cloud cloud, String 
       }
     }
     throw new Invalid("GateRook sends Cosmos DB keys and tokens only to Azure's Cosmos DB hosts "
-        + "(https://<account>.documents.azure.com, .documents.azure.us or .documents.azure.cn) and to the emulator "
-        + "on this computer, not to " + host + ".");
+        + "(https://<account>.documents.azure.com, .documents.azure.us or .documents.azure.cn), not to " + host + ".");
   }
 
   static boolean loopback(String host) {

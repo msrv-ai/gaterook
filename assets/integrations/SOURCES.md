@@ -261,14 +261,9 @@ exact name, with path-traversal and symlink checks. Packages whose marks are not
 
 ### Not included
 
-- **Oracle Database:** Oracle's [logo guidelines](https://www.oracle.com/legal/logos/)
-  require Oracle's written authorisation to use the Oracle logo or the O Tag,
-  and its brand guidelines say downloading the artwork needs an Oracle
-  account. That sign-in was not used, and oracle.com refused the automated
-  request (HTTP 403). Oracle publishes no Oracle Database product icon; the
-  [OCI diagram toolkit](https://docs.oracle.com/en-us/iaas/Content/General/Reference/graphicsfordiagrams.htm)
-  draws its service icons as native PowerPoint shapes and offers no SVG.
-  Requests go to trademar_us@oracle.com with a written summary and mock-up.
+- **Oracle Database:** not in this collection: oracle.com refused the automated request and Oracle publishes no
+  Oracle Database product icon. The Oracle mark was later taken from Oracle's own GitHub repository; see the
+  compatible-service additions below, which also record Oracle's written-authorisation requirement.
 - **Google Cloud:** the press kit offers only the "Google Cloud" wordmark lockup, unreadable on a 32 px tile, and
   no symbol-only file. The GCP card uses Google Cloud's site icon instead; see the cloud connector additions below.
 
@@ -327,3 +322,405 @@ image and macOS resource forks under `__MACOSX/`, none of them extracted into th
 The PNG files are the downloaded bytes, unmodified; the SVGs keep their original geometry, colours, proportions and
 metadata, with no scripts, event handlers, embedded foreign content, embedded raster images or remote asset
 references. Cards show each one with the service's plain name on a light plate in every theme, never recoloured.
+
+## Compatible-service additions (2026-11-11)
+
+Downloaded on 2026-11-11 for the cards of services that speak a built-in connector's protocol (Supabase, Valkey, Amazon
+Aurora and RDS, Oracle Autonomous Database and others) on the Add connection page, under the same terms as above:
+intact vendor-provided artwork, not GateRook artwork, not covered by a blanket open-source licence, identifying the
+services being connected without indicating sponsorship or endorsement. Most of these vendors restrict logo use in a
+product interface; the notes record each condition, and this record does not assert that any permission has been
+granted. `oracle.svg` also gives the Oracle Database card its mark. `mariadb.svg`, `cockroachdb.svg` and `scylladb.svg`
+come from the connector-card collection of the same day. Cards whose vendor publishes no usable mark keep the base
+connector's icon.
+
+| File | Official source page | Exact downloaded asset |
+|---|---|---|
+| `aws-rds.svg` | as above | AWS icon package ZIP, member `Architecture-Service-Icons_07312026/Arch_Databases/32/Arch_Amazon-RDS_32.svg` |
+| `aws-documentdb.svg` | as above | AWS icon package ZIP, member `Architecture-Service-Icons_07312026/Arch_Databases/32/Arch_Amazon-DocumentDB_32.svg` |
+| `aws-elasticache.svg` | as above | AWS icon package ZIP, member `Architecture-Service-Icons_07312026/Arch_Databases/32/Arch_Amazon-ElastiCache_32.svg` |
+| `aws-keyspaces.svg` | as above | AWS icon package ZIP, member `Architecture-Service-Icons_07312026/Arch_Databases/32/Arch_Amazon-Keyspaces_32.svg` |
+| `aws-opensearch.svg` | as above | AWS icon package ZIP, member `Architecture-Service-Icons_07312026/Arch_Analytics/32/Arch_Amazon-OpenSearch-Service_32.svg` |
+| `aws-eks.svg` | as above | AWS icon package ZIP, member `Architecture-Service-Icons_07312026/Arch_Containers/32/Arch_Amazon-Elastic-Kubernetes-Service_32.svg` |
+| `azure-postgresql.svg` | [Azure icons, Azure Architecture Center](https://learn.microsoft.com/en-us/azure/architecture/icons/) | [Azure Public Service Icons V25 ZIP](https://arch-center.azureedge.net/icons/Azure_Public_Service_Icons_V25.zip) (copy from the earlier collection), member `Azure_Public_Service_Icons/Icons/databases/10131-icon-service-Azure-Database-PostgreSQL-Server.svg` |
+| `azure-mysql.svg` | as above | Azure icons ZIP, member `Azure_Public_Service_Icons/Icons/databases/10122-icon-service-Azure-Database-MySQL-Server.svg` |
+| `azure-cache-redis.svg` | as above | Azure icons ZIP, member `Azure_Public_Service_Icons/Icons/databases/10137-icon-service-Cache-Redis.svg` |
+| `azure-sql-mi.svg` | as above | Azure icons ZIP, member `Azure_Public_Service_Icons/Icons/databases/10136-icon-service-SQL-Managed-Instance.svg` |
+| `azure-cassandra.svg` | as above | Azure icons ZIP, member `Azure_Public_Service_Icons/Icons/other/02663-icon-service-Managed-Instance-Apache-Cassandra.svg` |
+| `azure-aks.svg` | as above | Azure icons ZIP, member `Azure_Public_Service_Icons/Icons/containers/10023-icon-service-Kubernetes-Services.svg` (the `compute/` copy is byte-identical) |
+| `azure-databricks.svg` | as above | Azure icons ZIP, member `Azure_Public_Service_Icons/Icons/analytics/10787-icon-service-Azure-Databricks.svg` |
+| `azure-sql.svg` | as above | Azure icons ZIP, member `Azure_Public_Service_Icons/Icons/databases/02390-icon-service-Azure-SQL.svg` (byte-identical to the earlier alternate `../marks/alternates/sqlserver-azure-sql.svg`) |
+| `gcp-cloud-sql.svg` | [Google Cloud icon library](https://cloud.google.com/icons), [product icons overview (PDF, May 2026)](https://services.google.com/fh/files/misc/google-cloud-product-icons.pdf) | [Core product icons ZIP](https://services.google.com/fh/files/misc/core-products-icons.zip) (copy from the earlier collection), member `Unique Icons/Cloud SQL/SVG/CloudSQL-512-color.svg` |
+| `gcp-alloydb.svg` | as above | Core product icons ZIP, member `Unique Icons/AlloyDB/SVG/AlloyDB-512-color.svg` |
+| `gcp-gke.svg` | as above | Core product icons ZIP, member `Unique Icons/GKE/SVG/GKE-512-color.svg` |
+| `gcp-memorystore.svg` | as above | [Category icons ZIP](https://services.google.com/fh/files/misc/category-icons.zip) (copy from the earlier collection), member `Category Icons/Databases/SVG/Databases-512-color.svg` |
+| `oracle.svg` | [Oracle MCP servers repository, Oracle's GitHub organisation](https://github.com/oracle/mcp), [Oracle logo guidelines](https://www.oracle.com/legal/logos/) | [Oracle "O" SVG](https://raw.githubusercontent.com/oracle/mcp/main/oracle.svg) |
+| `supabase.svg` | [Supabase brand guidelines](https://supabase.com/brand) | [Supabase icon SVG](https://supabase.com/brand-assets/supabase-icon-green-transparent.svg) |
+| `neon.svg` | [Neon brand guidelines](https://neon.com/brand) | [Neon logomark for light backgrounds](https://neon.com/brand/neon-logomark-light-color.svg?updated=2026-06-03) |
+| `timescale.svg` | [Tiger Data brand](https://www.tigerdata.com/brand), [Tiger Data trademarks](https://www.tigerdata.com/legal/trademarks), [TimescaleDB repository](https://github.com/timescale/timescaledb) | [Tiger Data badge, black SVG](https://assets.tigerdata.com/timescale-web/brand/tiger-data/flat-logos/download/badge-black.svg) |
+| `postgis.svg` | [PostGIS website](https://postgis.net/) | [Site brand image](https://postgis.net/brand.svg) (byte-identical to [the site's SVG favicon](https://postgis.net/favicon/favicon.svg)) |
+| `yugabytedb.svg` | [Yugabyte brand logos](https://www.yugabyte.com/yugabyte-brand-logos/) | [YugabyteDB logo 2023 ZIP](https://www.yugabyte.com/wp-content/uploads/2023/04/yugabytedb-logo-2023.zip), member `Logo Assets 2/Logomark/RGB/Color/SVG/Yugabyte-Logomark-RGB.svg` |
+| `edb.png` | [EDB documentation site](https://www.enterprisedb.com/docs/) (declares it as `apple-touch-icon` 512 x 512), [EDB media resources](https://www.enterprisedb.com/press-room/media-resources), [EDB trademarks](https://www.enterprisedb.com/trademarks) | [Docs site icon PNG](https://www.enterprisedb.com/docs/icons/icon-512x512.png?v=5e297e8d230454ea0728660cf024982c) |
+| `planetscale.svg` | [PlanetScale brand assets](https://planetscale.com/brand), [PlanetScale site terms](https://planetscale.com/legal/siteterms) | [Logo mark, black SVG](https://planetscale.com/brand/planetscale-logo-mark-black.svg) |
+| `vitess.svg` | [CNCF artwork](https://github.com/cncf/artwork) | [Vitess colour icon SVG](https://raw.githubusercontent.com/cncf/artwork/main/projects/vitess/icon/color/vitess-icon-color.svg) |
+| `tidb.svg` | [TiDB brand guidelines](https://www.pingcap.com/tidb-brand-guidelines/) | [TiDB logo and symbol ZIP](https://static.pingcap.com/files/2024/09/26051203/TiDB-Logo-Symbol.zip), member `TiDB Logo + Symbol/2. Symbol/SVG/TiDB-Symbol-Red-RGB.svg` |
+| `singlestore.png` | [SingleStore visual identity guidelines](https://www.singlestore.com/brand/) (its pages declare the icon as `apple-touch-icon` 512 x 512), [SingleStore terms](https://www.singlestore.com/terms/) | [Site icon PNG](https://www.singlestore.com/icons/icon-512x512.png?v=277b9cbbe31e8bc416504cf3b902d430) |
+| `percona.svg` | [Percona brand resources](https://www.percona.com/brand-resources/), [Percona trademark policy](https://www.percona.com/trademark-policy/) | "Percona Logomark Only - Full Colour" SVG, the [Google Drive file](https://drive.google.com/file/d/1JYquU2BJuk31aU20Z7BJ4W_IqfbyKeDi/view?usp=sharing) linked from the brand page, fetched as `https://drive.google.com/uc?export=download&id=1JYquU2BJuk31aU20Z7BJ4W_IqfbyKeDi` (served from `drive.usercontent.google.com`) |
+| `oceanbase.svg` | [OceanBase Design, OceanBase's design system in its GitHub organisation](https://github.com/oceanbase/oceanbase-design) | [OceanBase symbol SVG](https://raw.githubusercontent.com/oceanbase/oceanbase-design/master/public/assets/oceanbase_logo.svg) |
+| `polardb.png` | [PolarDB for PostgreSQL documentation repository, polardb GitHub organisation](https://github.com/polardb/polardb-pg-docs); used as the logo of [PolarDB for PostgreSQL](https://github.com/polardb/PolarDB-for-PostgreSQL) | [PolarDB logo PNG](https://raw.githubusercontent.com/polardb/polardb-pg-docs/main/docs/.vuepress/public/images/polardb.png) |
+| `starrocks.svg` | [StarRocks documentation](https://docs.starrocks.io/) (navbar logo; source `docs/docusaurus/static/img/logo.svg` in [StarRocks/starrocks](https://github.com/StarRocks/starrocks)) | [StarRocks symbol SVG](https://docs.starrocks.io/img/logo.svg) |
+| `doris.svg` | [Apache Doris brand assets](https://doris.apache.org/brand-assets/) | ["Doris Logo - Stacked" for light backgrounds](https://doris.apache.org/images/brand-assets/doris-logo-stacked-primary.svg) |
+| `valkey.svg` | [Valkey website](https://valkey.io/), [valkey-website repository](https://github.com/valkey-io/valkey-website) | [Valkey logo SVG](https://valkey.io/img/Valkey-logo.svg) |
+| `upstash.svg` | [Upstash brand assets](https://upstash.com/brand) | [Upstash icon for white backgrounds](https://upstash.com/logo/upstash-icon-white-bg.svg) |
+| `dragonfly.svg` | [DragonflyDB website](https://www.dragonflydb.io/) (declares it as the SVG favicon), [DragonflyDB terms of use](https://www.dragonflydb.io/terms) | [Site favicon SVG](https://www.dragonflydb.io/favicon.svg) |
+| `garnet.png` | [Garnet website](https://microsoft.github.io/garnet/), [microsoft/garnet](https://github.com/microsoft/garnet) | [Garnet diamond logo PNG](https://microsoft.github.io/garnet/img/garnet-logo-diamond.png) |
+| `thanos.svg` | [CNCF artwork](https://github.com/cncf/artwork) | [Thanos colour icon SVG](https://raw.githubusercontent.com/cncf/artwork/main/projects/thanos/icon/color/thanos-icon-color.svg) |
+| `mimir.svg` | [Grafana repository, grafana GitHub organisation](https://github.com/grafana/grafana/tree/main/public/img/alerting), [Grafana Labs trademark policy](https://grafana.com/trademark-policy/) | [Mimir logo SVG](https://raw.githubusercontent.com/grafana/grafana/main/public/img/alerting/mimir_logo.svg) |
+| `cortex.svg` | [CNCF artwork](https://github.com/cncf/artwork) | [Cortex colour icon SVG](https://raw.githubusercontent.com/cncf/artwork/main/projects/cortex/icon/color/cortex-icon-color.svg) |
+| `victoriametrics.png` | [VictoriaMetrics README, "VictoriaMetrics Logo"](https://github.com/VictoriaMetrics/VictoriaMetrics#victoriametrics-logo) | [VM_logo.zip](https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/master/VM_logo.zip), member `LOGO PACK GITHUB/SYMBOL/symbol-black.png` |
+| `grafana.svg` | [Grafana repository](https://github.com/grafana/grafana/tree/main/public/img), [Grafana Labs trademark policy](https://grafana.com/trademark-policy/) | [Grafana icon SVG](https://raw.githubusercontent.com/grafana/grafana/main/public/img/grafana_icon.svg) |
+| `starburst.svg` | [Starburst brand guidelines: logos](https://brand.starburst.io/logos) | [Starburst logo kit ZIP](https://brand.starburst.io/files/logos.zip), member `logos/logomark/black/starburst_brandmark_black.svg` |
+| `k3s.svg` | [CNCF artwork](https://github.com/cncf/artwork) | [K3s colour icon SVG](https://raw.githubusercontent.com/cncf/artwork/main/projects/k3s/icon/color/k3s-icon-color.svg) |
+| `greenplum.png` | Greenplum symbol: the greenplum-db organisation avatar (140 x 140, served by GitHub's avatar service) | [Organisation avatar](https://avatars.githubusercontent.com/u/14097842?v=4) |
+| `mariadb.svg` | [MariaDB logos](https://mariadb.com/about-us/logos/), [MariaDB trademarks](https://mariadb.com/trademarks/) | [Black vertical logo SVG](https://wp.mariadb.com/wp-content/uploads/2026/11/mariaDBLogo_vertical_dark_transparent.svg) (the page's [download link](https://mariadb.com/download/53702) serves the same bytes) |
+| `cockroachdb.svg` | [Cockroach Labs GitHub organisation, `langchain-cockroachdb`](https://github.com/cockroachdb/langchain-cockroachdb/blob/main/assets/cockroachdb_logo.svg) | [Cockroach Labs brandmark SVG](https://raw.githubusercontent.com/cockroachdb/langchain-cockroachdb/main/assets/cockroachdb_logo.svg) |
+| `scylladb.svg` | [ScyllaDB media kit](https://www.scylladb.com/media-kit/) | [ScyllaDB logo kit 2024 ZIP](https://www.scylladb.com/wp-content/uploads/ScyllaDB-brand-kit-logo-2024.zip), member `ScyllaDB-brand-kit-logo/Logo/Web/SVG/scylladb-logo-vertical.svg` |
+
+### Checksums
+
+| File | Bytes | SHA-256 |
+|---|---:|---|
+| `aws-documentdb.svg` | 3985 | `b4d0f90ebf8c10159c8b3cf85eaa6e4818556927d30daa2aa1c13741354d04de` |
+| `aws-eks.svg` | 2610 | `ece93ecb16e9710c87f2135de8e8057ff17da16eb817d6d2a27a55520fed2f08` |
+| `aws-elasticache.svg` | 4465 | `60a2c052a36c06462498aece6aa544a42670a1cdf05bf5ee05f2670b220b4f88` |
+| `aws-keyspaces.svg` | 2549 | `fa347d06170a7da1e3525cef9c329cf8947cbe2f76292d90b0bd8bef856eecc1` |
+| `aws-opensearch.svg` | 2350 | `483d2233926ebc15fbfb8a6baaf5076b4216cc6efdd056e33444d3c9fc705179` |
+| `aws-rds.svg` | 2672 | `b7dc3f25c4a18d8f40dc85cacbc5fa509c7541e63b4125292242eed1ab31adad` |
+| `azure-aks.svg` | 3943 | `81954a481503057498d543a51863b2eb4673284e109662cdc421051d11dba25c` |
+| `azure-cache-redis.svg` | 2807 | `39a62e5d2c573c1a3184eb2a818a3be09b25716e976acbada62c777c41a67ab9` |
+| `azure-cassandra.svg` | 3068 | `efb7956ac1b63aae82f8bfb7e3e95c0aa88e2caf324c6f75f1acadbd9affc4f1` |
+| `azure-databricks.svg` | 456 | `ea499005b9f8ed811d14e5e048fe6138ca2aa89250373c71e32f39793acb8dc4` |
+| `azure-mysql.svg` | 1616 | `c04e7d46a45d722e9fde06976843263cb1ef80fd6a5005dd9ce720aa130688ee` |
+| `azure-postgresql.svg` | 3564 | `8232e8ecfbd607ce3b54646199805a823646d71e552f9aa71e7a3952cde35620` |
+| `azure-sql-mi.svg` | 2583 | `ecf79797b7a8f7825eb4c987b1269d035fe3408f999149f29106fc24a62b0452` |
+| `azure-sql.svg` | 1666 | `c2c81766a697920a115ad8532642bccaab257d1d3db7388aa35fdbb9a6db8be0` |
+| `cockroachdb.svg` | 3006 | `7988aeff299871249ddeb5e276ec5ad50402ee8a782be6c983149529abaff292` |
+| `cortex.svg` | 1923 | `50d2e99b22b9fb5aa0ec262638fa5f3b3c7373a949f336859441043db968b95a` |
+| `doris.svg` | 2358 | `bf11d8d1cefff1ffea8677be6aaf6217f8998f3670972f87ef879c5823a6f687` |
+| `dragonfly.svg` | 3856 | `b6aa0baec807017f35e05f2260d2909d9b8d9b2a8ead19775858bc5e0a9b23ec` |
+| `edb.png` | 128279 | `41eccc7e7526b451ecc0b36555d077ea1085fa5a8d5360eef7c2cff6995b5e6a` |
+| `garnet.png` | 96830 | `b0b4c7104958fd74043257d83bede01bdf63b9748bc800bc18d073d46e23d98c` |
+| `gcp-alloydb.svg` | 2101 | `6bbb783296fb9d7426c2247ebf1453a3f89842040e46d1d2588676fc6115aeee` |
+| `gcp-cloud-sql.svg` | 2531 | `4e0d3d2049a67f64e5a2c88f836bf2d1786f809a72d82279b18906ec9d6b35c9` |
+| `gcp-gke.svg` | 2907 | `6a33654c499bc4c38012661875a1a8c1bf2cdf01be8fdcc90d1c6504657878ec` |
+| `gcp-memorystore.svg` | 2161 | `f9ecdabe95c8c30cd6adabcb3e521f7fe462eacd63ce19021222a2a1b41a7266` |
+| `grafana.svg` | 5690 | `50806d5a65779e79f746398570e0fc322d5de55e19f0be87a275963f0947bb5e` |
+| `greenplum.png` | 3824 | `7d5dc207c10736449c4494e587530fa7f94b184749d45823df725e2ede8fafe6` |
+| `k3s.svg` | 957 | `c6231341ab65571c02701703e627875b6f426ed819aad5f263f1ea8c18b8af09` |
+| `mariadb.svg` | 7443 | `b76b00a0af6056d521ed83c338d635895fa1be052dcf849d74d4fe2b2799d58b` |
+| `mimir.svg` | 1065 | `b9b6a19d8c77c83ad47781a864a69fb2500ed689d33308c3b52dcd4f30a9c1dc` |
+| `neon.svg` | 275 | `2b1aaef0b2de5d30b9a00778a0a9b9df2255be08a939a9521f3c93a46de521cf` |
+| `oceanbase.svg` | 2417 | `837ebd84390687dddd01f6880eb2cc88f1ece2cf65b2441ad6295d3db46d07bc` |
+| `oracle.svg` | 272 | `1ef2737f81314112ebad6d490c647d45b46d4ba0e3a16cf441aaaf32dac92388` |
+| `percona.svg` | 822 | `bceb643a5005163837fca9de57e435dc03e9a771c21af869c8ea1261fe89d4ed` |
+| `planetscale.svg` | 471 | `f15c3ee6cbf65c2324ab73b6f36c376aa55a303ebccab42e26a14c8ac1155c2d` |
+| `polardb.png` | 10503 | `75937c3d3bdbd72b94a4fb1765c668e95a1c4e140c0ed5bddd24b4b3709b0ba4` |
+| `postgis.svg` | 94811 | `065e9730a63ce947d0d0427479d3000c41460c5b470bc200de24e2ee90ec8505` |
+| `scylladb.svg` | 11312 | `be7c587c651c27d3895d4c01d8be53202a23e068c429995e0d9f5f509e4b22de` |
+| `singlestore.png` | 42686 | `0290f697d15d7944ea71d7832bb9a7fe0d54845a7d5dc1f04e4357308f89dc59` |
+| `starburst.svg` | 4424 | `8e4d2bbadafc5e512ef31b33a85caf11ded8820228890339e845082a064029b5` |
+| `starrocks.svg` | 2270 | `d858020733c75f51c32f55f1b5785cf12dc7c7d3729bb641148f0d8094574b1b` |
+| `supabase.svg` | 1107 | `eb9ffcd100ad26228a578100ba7cbfc5b383e4995338d122abdc6a3b4d210ed3` |
+| `thanos.svg` | 960 | `035fafccdce875c061d1f251ea1124090e13a759ed5e344be450114c9dd166c5` |
+| `tidb.svg` | 721 | `db4e6ad7d66bd99f3b5ec25c0c8621fab90b24e811e11617d3f53443193efb7e` |
+| `timescale.svg` | 2494 | `e97d189a745c2fbd98ca04123be195ee3e40aa99da2f3ffef73724325d049fd0` |
+| `upstash.svg` | 1619 | `e96aca390468d5cf86d888c7b7e640c2379ec1660d464f125ab6e0f3c3c520c2` |
+| `valkey.svg` | 1365 | `36a2375e56420a570f6a0346dde019314204c05f5326c0f00d39114e63397f37` |
+| `victoriametrics.png` | 11017 | `f1c040d1c058e8f04305f422550d68c19f730469382be0cad95128393eb4c271` |
+| `vitess.svg` | 3400 | `c6d8100e52eb19668bbfa9950c3d84e72dd46c4a4d4ef9cd5ca24c49926289db` |
+| `yugabytedb.svg` | 1521 | `a3aa03d4dd0e6871e6bf3bc95bee8d7bc482fb0764b77ffe9e552766b1b41234` |
+
+### Packages
+
+Each package was downloaded once; only the listed members were extracted, by exact name, with path-traversal and
+symlink checks. The cloud packages are the ones listed in the sections above.
+
+| Package | Bytes | SHA-256 |
+|---|---:|---|
+| [AWS icon package 2026-07-31](https://d1.awsstatic.com/onedam/marketing-channels/website/public/shared/architecture-icon-release/Icon-package_07312026.5846e92413caa21490223536cc97f1269e44fa92.zip) | 13988918 | `d2d166c453526471749d520e0db022c459abef759d2946cf2dd1d1c992dc6526` |
+| [Azure Public Service Icons V25](https://arch-center.azureedge.net/icons/Azure_Public_Service_Icons_V25.zip) | 1045239 | `f293d99252b3638557dd08ccbff9f2529083473d39b373fb2af29a7200351339` |
+| [Google Cloud core product icons](https://services.google.com/fh/files/misc/core-products-icons.zip) | 318678 | `6531a10f58bc599c24d9a455d81dd757c1a03c3c43da9cddf639b859c1c1eece` |
+| [Google Cloud category icons](https://services.google.com/fh/files/misc/category-icons.zip) | 795968 | `e5bc3abd3527dc2500e9bff7f15870783e2c764129c49b7cd4c1b4e105345002` |
+| [YugabyteDB logo 2023](https://www.yugabyte.com/wp-content/uploads/2023/04/yugabytedb-logo-2023.zip) | 22748826 | `74263686a35443bdfccd0ef3bc8e7c739568f548d8c86b8c36aba1842b4ec78c` |
+| [TiDB logo and symbol](https://static.pingcap.com/files/2024/09/26051203/TiDB-Logo-Symbol.zip) | 165238 | `98b5fbb2dfe473d5a1667f73160cf918c7a6a10afe38c4f57e6c38362b7b1823` |
+| [VictoriaMetrics VM_logo.zip](https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/master/VM_logo.zip) | 4461282 | `4cd326f88067504378b2d1420859f8140d533c41b9317a09c394791f2df478be` |
+| [Starburst logo kit](https://brand.starburst.io/files/logos.zip) | 272969 | `e1340557110f37972e3bc56a534c53be17e24a50da47c18d07e4ba650dc92724` |
+| [ScyllaDB logo kit 2024](https://www.scylladb.com/wp-content/uploads/ScyllaDB-brand-kit-logo-2024.zip) | 19103646 | `b977ce28d5d601165e1b5a501934c8e7ff37e5ca1971c962733c55fc858cad86` |
+
+### Asset notes
+
+- **Cloud icon packs (AWS, Azure, Google Cloud):** same packages and terms as in
+  the sections above. AWS icons are for architecture diagrams and technical
+  material and the AWS Trademark Guidelines limit fair use to plain text; the
+  Azure icons are permitted in architectural diagrams, training material and
+  documentation, with every other use reserved for Microsoft's explicit
+  permission and the full service name shown near the icon; Google Cloud icons
+  are offered for diagrams and documentation, and other use of Google brand
+  features needs Google's approval. The 32 px AWS variants were taken; the
+  Amazon DocumentDB 32 px file declares a 64 x 64 viewBox as shipped. The
+  Google Cloud overview (May 2026) gives Cloud SQL, AlloyDB and GKE unique core
+  icons and assigns Memorystore the shared Databases category icon, so
+  `gcp-memorystore.svg` is byte-identical to the shipped `firestore.svg`; the
+  legacy console icons were not used. The Azure pack also contains an Azure
+  Managed Redis icon (alternate). `azure-aks.svg` appears in the pack under both
+  `containers/` and `compute/` with the same bytes.
+- **Oracle:** the Oracle "O" in Oracle Red `#C74634`, from the root of Oracle's
+  official `oracle/mcp` repository (Oracle's MCP servers), added in commit
+  `3a897a8769a29a3fb50e95cfce33f6cf8d4a5757` on 2025-08-09. Its path is
+  identical to the "O" of the full Oracle logo in Oracle's
+  `oracle/langchain-oracle` repository (`.github/images/oracle-logo.svg`).
+  Oracle's guidelines cover both the Oracle logo and the "O Tag". The
+  repository's UPL-1.0 licence grants no trademark rights. Alternate: the
+  oracle.com site icon (`apple-touch-icon`, 180 x 180 PNG, `#E55844`), which
+  www.oracle.com pages declare. oracle.com
+  still answers HTTP 403 to automated page requests, but this static icon was
+  served (HTTP 200) by Akamai Image Manager. Its bytes may differ for other
+  clients, Oracle's
+  [logo guidelines](https://www.oracle.com/legal/logos/) require Oracle's written
+  authorisation to use the Oracle logo or the O Tag. Non-partners request it
+  from trademar_us@oracle.com with a written summary and a mock-up of the
+  proposed use; the stated turnaround is about one week. Authorised users must
+  not alter the logos. The OCI diagram toolkit is published only as PowerPoint,
+  draw.io and Visio files, and the brand-kit artwork still needs an Oracle
+  account. A third Oracle-org candidate, the OCI Designer Toolkit's
+  `okitclassic/okitserver/static/svg/oracle.svg` (`#E55844`), was not used because its shape sits at the top of its viewBox.
+- **Supabase:** the green symbol, which the brand page recommends "in small
+  spaces, such as avatars, app icons, or a row of partner logos". The page
+  asks that the logos be used only to refer to Supabase and not be changed or
+  recoloured; Supabase and its logo are trademarks of Supabase Inc. No
+  permission request is described.
+- **Neon:** the logomark for light backgrounds (`#37C38F`); the dark-background
+  file (`#34D59A`) is an alternate. The brand page allows the logomark where the
+  full logo does not fit or where only the symbols of several brands are shown,
+  and forbids editing, distorting, recolouring or reconfiguring the logo. The
+  page notes that Neon is part of the Databricks platform; it states no
+  permission requirement.
+- **TimescaleDB (Tiger Data):** Timescale, Inc. now trades as Tiger Data. The
+  brand page offers only Tiger Data logos (horizontal and badge, in black,
+  white and yellow), and the TimescaleDB repository README shows the Tiger Data
+  logo, so the Tiger Data badge represents TimescaleDB; there is no separate
+  TimescaleDB mark. The black badge is for light backgrounds. The
+  [trademark policy](https://www.tigerdata.com/legal/trademarks) (updated
+  2025-06-17) allows the marks only to identify Tiger Data products, requires
+  the trademark notice ("[TRADEMARK] is a trademark of Timescale, Inc., d/b/a
+  Tiger Data"), forbids editing or recolouring logos or using them so small that
+  design features are lost, and asks for clear space at least the height of the
+  logo. Questions: legal@tigerdata.com.
+- **PostGIS:** the image postgis.net shows as its brand in the site header
+  (byte-identical to the site's SVG favicon): a 400 x 400 globe drawing of
+  about 95 KB. The logo in the PostGIS source documentation is a PNG. No
+  PostGIS logo-usage policy was found; PostGIS is an OSGeo community project.
+- **YugabyteDB:** the colour logomark from the official 2023 logo package; the
+  dark-background version is an alternate. The bundled logo guideline (Feb 2023)
+  allows the logomark alone when the full logo does not fit (for example as a
+  favicon or user picture), sets a 20 px minimum height and clear space equal to
+  the logomark's size, forbids transformation, effects and outlines, and forbids
+  using the dark-background version on light backgrounds and vice versa. No
+  trademark policy page was found; the website terms reserve all rights in
+  logos.
+- **EDB:** EDB's current brand uses the "Loop" icon. Every EDB SVG found that
+  carries it embeds the icon as a PNG and fails the embedded-raster rule: the
+  website header `logo2.svg` and the documentation lockups
+  `edb_postgres_ai_lightmode.svg` (the same bytes), `edb_postgres_ai_darkmode.svg`
+  and `edb_landscape_color_grey.svg`. The brand portal (edb.frontify.com) is a
+  JavaScript application that a plain HTTP client cannot read, and nothing was
+  downloaded from it. The SVG symbols in EDB's GitHub organisation are the
+  earlier elephant mark, which the brand book says has been retired in favour of
+  Loop. The mark is therefore the 512 x 512 `apple-touch-icon` of EDB's
+  documentation site. The
+  brand book digest asks for clear space, unaltered colours and no stretching
+  or attached text. The [trademark page](https://www.enterprisedb.com/trademarks)
+  lists the logos as trademarks of EnterpriseDB Corporation and grants no logo
+  licence. Questions go to legal-notices@enterprisedb.com; "allow several weeks
+  for a response".
+- **Greenplum:** the open-source Greenplum Database logo (symbol and "GREENPLUM
+  DATABASE" wordmark, `#80BC00`), from the root of the official
+  `greenplum-db/gpdb-archive` repository, last changed in commit
+  `cf201991b7814e7f4f46ac8b830088686e1e0900` ("Fix the opensource GDPB logo",
+  2023-03-28). The repository is archived (last push May 2024); the product
+  continues as VMware Tanzu Greenplum from Broadcom, and greenplum.org now
+  fails TLS hostname verification (not bypassed). No symbol-only file exists, so
+  this is a wordmark lockup. Alternate: the greenplum-db organisation avatar, a
+  140 x 140 PNG produced by GitHub's avatar service rather than a vendor-published
+  file. No Greenplum or Broadcom logo-usage terms were found. The card uses that avatar, the symbol alone, as `greenplum.png`: the wordmark lock-up is unreadable on a 32 px tile.
+- **PlanetScale:** the black logo mark, which the brand page recommends "when
+  space is constrained". The brand page states no terms; the
+  [site terms](https://planetscale.com/legal/siteterms) forbid using
+  PlanetScale's Brand Features without its prior written consent.
+- **Vitess, Thanos, Cortex, K3s:** CNCF artwork under the Linux Foundation
+  trademark usage guidelines quoted in the repository's `LICENSE.md`, as for
+  Kubernetes and Prometheus above. Logos may link to the
+  project and support accurate compatibility statements without implied
+  endorsement; showing them on websites or marketing that promote your products
+  needs written permission. Last changes: Vitess
+  `e6aba42afaf413ce86832a8c0e5a34abdc676bdc` (2025-05-27), Thanos and Cortex
+  `40e2e8948509b40e4bad479446aaec18d6273bf2`, K3s
+  `ee5463f22889cecad7f69cb1892578e474ffa415`. k3s.io calls K3s a CNCF Sandbox
+  project and refers to the Linux Foundation's trademark page. The CNCF
+  "dragonfly" project is an unrelated P2P distribution system, not DragonflyDB.
+- **TiDB:** the red TiDB symbol (`#DC150B`) from the "Download SVG and PNG
+  Assets" package on the brand guidelines page. The page sets clear space and
+  minimum sizes, shows incorrect uses, and refers questions to
+  mkt-team@pingcap.com. PingCAP publishes no trademark policy.
+- **SingleStore:** the brand page offers only horizontal lock-ups (black and
+  white ZIPs) and prefers "solid black or solid white in a horizontal
+  orientation". The square symbol is available only as the site's 512 x 512
+  `apple-touch-icon`, which is the mark here; the black lock-up is an
+  alternate. The icon draws the black symbol on a white rounded square with
+  transparent corners. The brand page forbids stretching, reversing, flipping
+  or altering logos, and the [terms](https://www.singlestore.com/terms/) forbid
+  using SingleStore's Marks without its prior written consent.
+- **Percona:** the full-colour logomark (`#653DF4`) from the official brand
+  page. Downloads are Google Drive files linked from that page; the page's own
+  one-colour preview SVG is an alternate. The
+  [trademark policy](https://www.percona.com/trademark-policy/) covers
+  Percona's "distinctive visual icons and logos". It requires Percona's
+  written permission to use a mark in the name, URL or another identifying
+  characteristic of a product or service, except for nominative fair use and
+  GPL redistribution. Questions: trademarks@percona.com.
+- **OceanBase:** the symbol from OceanBase's official design-system repository,
+  introduced in commit `5512e6887ef8ca0c7423e4aaaaa71e0f9462261a` ("replace
+  OceanBase brand logo across ui, icons and doc site", 2026-06-14); the main
+  repository's horizontal logo (commit `a7d679d886cb0931f79c0deb61ef5cb2520a534d`,
+  2026-07-14) is an alternate. en.oceanbase.com, including its brand page,
+  answered automated requests with a Vercel Security Checkpoint (HTTP 429), so
+  OceanBase's own brand terms could not be read; no other usage terms were found.
+- **PolarDB:** the PolarDB logo (orange polar bear, 220 x 220 PNG) used as the
+  README logo of PolarDB for PostgreSQL, from the docs repository of Alibaba
+  Cloud's official `polardb` GitHub organisation (commit
+  `d10f527555ae396d5d9862b08eaa0c53f9582ddf`, 2026-03-04). No SVG exists. The
+  PolarDB-X site's SVG favicon embeds a PNG (rejected), and Alibaba Cloud's
+  product page offers no downloadable icon. No Alibaba Cloud logo-usage
+  guidelines were found. Its published program terms, for example the
+  [Alibaba Cloud Academy membership terms](https://www.alibabacloud.com/help/en/legal/latest/alibaba-cloud-academy-membership-program-alibaba-cloud-academy-membership-program)
+  (updated 2026-08-28), forbid using Alibaba Cloud names, logos, icons or
+  brands for marketing, publicity or other purposes without prior written
+  consent. Treat this mark as needing written permission.
+- **StarRocks:** the symbol in the documentation site's navbar, byte-identical
+  to `docs/docusaurus/static/img/logo.svg` in the StarRocks repository (commit
+  `c16c9d5dd2799304109f2ae6b600ecd2ae396de2`). starrocks.io/brand returns 404.
+  The site footer names the StarRocks Project a Series of LF Projects, LLC, and
+  refers to lfprojects.org for the trademark policy. That policy is the LF
+  Projects policy that also covers Presto and Trino: a logo may link
+  to the project home page, and websites or marketing that promote your products
+  need written permission.
+- **Apache Doris:** the "Doris Logo - Stacked" for light backgrounds (the most
+  square of the offered lockups; no symbol-only file). The official brand assets
+  page (added 2026-07-12) offers the SVGs "for articles, presentations,
+  community events, integrations, and other materials that reference the
+  project". It states that Apache Doris, Doris and the Doris logo are trademarks
+  of The Apache Software Foundation and asks for clear and accurate references.
+  The ASF trademark policy (see Cassandra above) still
+  requires approval for logo use other than a hyperlink to the project. The
+  page also offers "Apache Doris" lockups. The ASF's own original
+  (`comdev/project-logos/originals/doris.svg`) is a wide 952 x 341 logo and was
+  not used.
+- **Valkey:** the symbol served by valkey.io (byte-identical to
+  `static/img/Valkey-logo.svg` in the website repository). The site footer
+  states that Valkey and the Valkey logo are trademarks of LF Projects, LLC,
+  and links the LF Projects trademark policy (as for StarRocks). No brand page
+  was found (`/brand/`, `/branding/` and `/logo/` return 404).
+- **Upstash:** the icon for white backgrounds from the brand page, which states
+  no usage terms; the terms of service contain no logo licence. The SVG has no
+  viewBox (118 x 118 width and height) and scales as an image. The brand page
+  also contains text addressed to AI agents about a free database; it was
+  treated as page content and not acted on.
+- **DragonflyDB:** no brand or press page exists. The mark is the site's
+  declared SVG favicon: a white dragonfly on a dark rounded square. It contains
+  a `prefers-color-scheme: dark` media query that inverts the colours, so it may
+  render light-on-dark or dark-on-light depending on the viewer's colour scheme.
+  The [terms of use](https://www.dragonflydb.io/terms) grant no licence to
+  DragonflyDB's marks and logos ("you will avoid using any of those marks,
+  except as permitted herein").
+- **Microsoft Garnet:** only PNG logos exist (website `img/` and repository
+  `website/static/img/`). The diamond is the website's navbar logo (added in
+  commit `e72aab560d7c0701d4ff053fe321a0d8d25cc35b`). It is RGB without
+  transparency: the white background and drop shadow are part of the image.
+  The README subjects Microsoft trademarks and logos to Microsoft's Trademark &
+  Brand Guidelines, under which many logo uses need a licence.
+- **Grafana and Grafana Mimir:** the Grafana icon (`public/img/grafana_icon.svg`)
+  and the Mimir logo (`public/img/alerting/mimir_logo.svg`, commit
+  `18862a22a65dd2238408d223ba0e9fe22ad4f277`, "Alerting: use mimir logo") come
+  from Grafana Labs' main repository. The grafana/mimir repository ships PNG
+  logos only. Grafana Labs' trademark usage policy forbids altering the logos (scaling is
+  allowed). It also forbids use on any website or in commercial or marketing
+  contexts without Grafana Labs' express written permission:
+  hello@grafana.com.
+- **VictoriaMetrics:** the black symbol PNG (404 x 466, transparent) from the
+  official `VM_logo.zip` linked in the README; the package contains PNG, JPEG
+  and Illustrator files but no SVG, and the white symbol is an alternate. The
+  README rules (commit `df665a13c90042d6b324aa6a0a8ddf13b7289ca0`) ask for
+  clear space and unchanged proportions, spacing and alignment, and allow
+  resizing. No trademark policy is published.
+- **Starburst:** the brandmark from the logo kit linked on Starburst's brand
+  site. The kit's default `logos/logomark/starburst_brandmark.svg` uses
+  `currentColor`. The black
+  variant with an explicit `#080808` fill was taken so that it renders the same
+  as an image. The brand site requires the approved variations without
+  alteration, a 24 px minimum logomark height and clear space of half the
+  logomark. Starburst and Starburst Data are registered trademarks of
+  Starburst Data, Inc.; no third-party logo licence is stated.
+- **MariaDB:** MariaDB plc replaced its logo files this month (uploads dated
+  2026-11-09). The logos page asks not to rotate or recolour the logo (use
+  only the supplied versions), to scale it proportionally and to leave white
+  space around it; questions go to marketing@mariadb.com. The trademark page
+  requires the established graphical form and colours and asks for advice and
+  clearance from MariaDB before marketing materials use its marks outside
+  Finland. No sea-lion-only file is offered; the vertical lockup is the most
+  square. The white version
+  ([SVG](https://wp.mariadb.com/wp-content/uploads/2026/11/mariaDBLogo_vertical_light_transparent.svg))
+  is for dark backgrounds.
+- **CockroachDB:** Cockroach Labs offers no brand or press page with logo
+  downloads (its press page has none; `/brand/`, `/media-kit/` and
+  `/press-kit/` return 404) and publishes no trademark guidelines; its
+  [website terms](https://www.cockroachlabs.com/website-terms-of-use/) reserve
+  all rights in site content. The file is from Cockroach Labs' own GitHub
+  organisation, titled "Cockroach Labs brandmark", and was introduced on
+  2026-11-10 in commit `76ad91db648fbf41fbfea854ff38bc4cc2121e47`, replacing
+  the earlier insect mark. Its geometry matches the brand image in the
+  cockroachlabs.com footer, which is inline and not downloadable. The
+  `claude-plugin` repository logo embeds a PNG and was not used. Black only.
+- **ScyllaDB:** the media kit welcomes using the logos to link to the
+  ScyllaDB website and the product mascots to represent an integration with
+  ScyllaDB; it forbids modified versions, merging into your own logo and
+  changes to colours, dimensions or added text. The kit has horizontal and
+  vertical lockups only; the vertical one is closest to square. The
+  symbol-only site favicon is an alternate (a scylladb.com theme asset, not
+  part of the kit). The mascot kit was not downloaded.
+
+### Not included
+
+- **FerretDB:** www.ferretdb.com now shows a Squarespace "Website Expired" page
+  (HTTP 404) and docs.ferretdb.io does not resolve, so the only official source
+  is the FerretDB repository. Its documentation configuration uses
+  `logo-dark.jpg` (dark artwork on an opaque white JPEG) in light mode and
+  `logo-light.png` (white artwork on transparency) in dark mode; both are
+  horizontal lockups and no SVG exists. The PNG was taken because the mark
+  format allows only SVG or PNG; it is white and needs a dark tile. No FerretDB
+  usage terms are published.
+- **KeyDB:** no official logo file is published any more. keydb.dev and
+  docs.keydb.dev only redirect to the `Snapchat/KeyDB-docs` repository, which
+  contains no images. The `Snapchat/KeyDB` repository contains no KeyDB logo.
+  The original EQ-Alpha GitHub organisation has no repositories and a default
+  avatar. KeyDB belongs to Snap Inc.
+- **Red Hat OpenShift:** Red Hat's brand standards offer product logos and
+  technology icons through its Adobe brand portal, for Red Hat materials and
+  for partner materials approved by Red Hat's partner team. Its
+  [trademark guidelines](https://www.redhat.com/en/about/trademark-guidelines-and-policies)
+  state that they give no permission to use a Red Hat logo. Such use needs
+  "a separate, express written agreement with Red Hat"; contact
+  trademarks@redhat.com. Nothing was downloaded.
+
+These files retain their original geometry, colours, proportions and metadata. The SVGs contain no scripts, event
+handlers, embedded foreign content, embedded raster images or remote references; the PNGs passed a decode check. Cards
+show each one with the service's plain name on a light plate in every theme, never recoloured.

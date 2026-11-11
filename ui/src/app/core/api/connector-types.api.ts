@@ -21,9 +21,13 @@ export interface ConnectorCard {
   readonly toolsFrom: string | null;
   readonly connections: number;
   readonly available: boolean;
-  /** Why the card is unavailable ("Not installed. Install it from the catalog…"). */
+  /** Why the card is unavailable ("Not installed yet. Continue reviews it and installs it from the catalog."). */
   readonly reason: string | null;
   readonly presetConfig: JsonValue;
+  /** `id@version` of a plugin the signed catalog offers and this core hasn't installed: the wizard installs it. */
+  readonly catalogRef?: string | null;
+  /** Set by the wizard, not the core: a compatible service's card names its base connector ("PostgreSQL"). */
+  readonly compatibleWith?: string | null;
 }
 
 export interface ConnectorGroup {

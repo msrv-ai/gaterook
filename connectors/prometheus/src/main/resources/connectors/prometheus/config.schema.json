@@ -20,7 +20,7 @@
       "examples": [
         "https://prometheus.example.com"
       ],
-      "description": "Where the server answers, with any path before /api/v1: https://mimir.example.com/prometheus for Mimir. Plain http:// only to this computer (localhost, 127.0.0.1)."
+      "description": "Where the server answers, with any path before /api/v1: https://mimir.example.com/prometheus for Mimir. Plain http:// only to this computer."
     },
     "tenant": {
       "type": "string",

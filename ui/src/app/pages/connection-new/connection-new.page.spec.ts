@@ -11,6 +11,7 @@ import { ConnectionFormSpec, ConnectorCatalog, ConnectorTool, ConnectorTypeDetai
 import { ConnectionPreview, EndpointSummary, EndpointsApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { Insights, InsightsApi, InsightsQuery } from '../../core/api/insights.api';
 import { Policies, PoliciesApi } from '../../core/api/policies.api';
+import { PluginCheck, PluginsApi } from '../../core/api/plugins.api';
 import { MasterKeyApi, MasterKeyStatus, SecretRow, SecretsApi } from '../../core/api/secrets.api';
 import { JsonObject, ToolMode } from '../../core/api/types';
 import { EVENT_STREAM_FETCH, EventStream } from '../../core/events/event-stream';
@@ -19,6 +20,7 @@ import { Announcer } from '../../kit/announcer';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
+import { clickhouseCheck } from '../connectors/connectors.fixtures';
 import { busyMonth } from './connection-calls.fixtures';
 import { ConnectionNewPage } from './connection-new.page';
 
@@ -70,7 +72,7 @@ const CATALOG: ConnectorCatalog = {
       name: 'Databases',
       cards: [
         { type: 'postgres', variant: null, name: 'PostgreSQL', icon: 'database', description: 'Read queries, schema, EXPLAIN. Writes wait for approval.', kind: 'built-in', version: null, signed: null, tools: 3, toolsFrom: null, connections: 3, available: true, reason: null, presetConfig: null },
-        { type: 'clickhouse', variant: null, name: 'ClickHouse', icon: 'database', description: 'Analytics.', kind: 'plugin', version: '1.0.0', signed: true, tools: 6, toolsFrom: null, connections: 0, available: false, reason: 'Not installed. Install it from the catalog in Connectors first.', presetConfig: null },
+        { type: 'clickhouse', variant: null, name: 'ClickHouse', icon: 'database', description: 'Analytics.', kind: 'plugin', version: '1.0.0', signed: true, tools: 6, toolsFrom: null, connections: 0, available: false, reason: 'Not installed yet. Continue reviews it and installs it from the catalog.', presetConfig: null, catalogRef: 'clickhouse@1.0.0' },
       ],
     },
   ],
@@ -234,6 +236,10 @@ class FakeCore {
   detail: ConnectionDetail | ApiError = structuredClone(DETAIL);
   spec: ConnectionFormSpec = structuredClone(SPEC);
   catalog: ConnectorCatalog | ApiError = structuredClone(CATALOG);
+  pluginChecks: string[] = [];
+  formTypes: string[] = [];
+  nextPluginCheck: PluginCheck | ApiError = clickhouseCheck(true);
+  pluginInstalls: { stagingId: string; acknowledgeUnsigned: boolean }[] = [];
   replaced: { id: string; value: string; reason: string | null | undefined }[] = [];
   references: { id: string; uri: string; store: string | null | undefined; reason: string | null | undefined }[] = [];
   referenceFails: ApiError[] = [];
@@ -270,12 +276,33 @@ let core: FakeCore;
 beforeEach(() => {
   now.set(NOW);
   core = new FakeCore();
+  const plugins: Partial<PluginsApi> = {
+    check: vi.fn(async (source: { readonly url: string } | { readonly catalog: string }) => {
+      core.pluginChecks.push('catalog' in source ? source.catalog : source.url);
+      if (core.nextPluginCheck instanceof ApiError) throw core.nextPluginCheck;
+      return structuredClone(core.nextPluginCheck);
+    }),
+    ensureRuntime: vi.fn(async () => undefined),
+    install: vi.fn(async (stagingId: string, acknowledgeUnsigned = false) => {
+      core.pluginInstalls.push({ stagingId, acknowledgeUnsigned });
+      // The core now offers the installed plugin's type: the card is usable and no longer installs.
+      if (!(core.catalog instanceof ApiError)) {
+        core.catalog = { ...core.catalog, groups: core.catalog.groups.map((g) => ({
+          ...g, cards: g.cards.map((c) => c.catalogRef ? { ...c, available: true, reason: null, catalogRef: null } : c),
+        })) };
+      }
+      return {};
+    }),
+  };
   const types: Partial<ConnectorTypesApi> = {
     catalog: vi.fn(async () => {
       if (core.catalog instanceof ApiError) throw core.catalog;
       return structuredClone(core.catalog);
     }),
-    form: vi.fn(async () => structuredClone(core.spec)),
+    form: vi.fn(async (type: string) => {
+      core.formTypes.push(type);
+      return structuredClone(core.spec);
+    }),
     get: vi.fn(async () => structuredClone(TYPE)),
     previewTools: vi.fn(async (type: string, config: JsonObject, env: string) => {
       core.toolRequests.push(structuredClone({ type, config, env }));
@@ -406,6 +433,7 @@ beforeEach(() => {
       { provide: ApprovalsApi, useValue: approvals },
       { provide: MasterKeyApi, useValue: masterKey },
       { provide: InsightsApi, useValue: insights },
+      { provide: PluginsApi, useValue: plugins },
       { provide: EVENT_STREAM_FETCH, useValue: (() => new Promise<Response>(() => undefined)) as typeof fetch },
     ],
   });
@@ -995,10 +1023,12 @@ describe('Add connection: wizard', () => {
     expect(visible()).toEqual(['step-1']);
     expect(steps()).toEqual(['current:1 Choose type', 'upcoming:2 Configure', 'upcoming:3 Test', 'upcoming:4 Add to endpoint']);
     const radios = Array.from(el.querySelectorAll<HTMLInputElement>('#step-1 input[type=radio]'));
-    expect(radios.map((r) => [r.value, r.checked, r.getAttribute('aria-disabled')])).toEqual([
+    // ClickHouse isn't installed but the signed catalog offers it: it can be chosen, and Continue installs it.
+    expect(radios.filter((r) => !r.value.includes(':')).map((r) => [r.value, r.checked, r.getAttribute('aria-disabled')])).toEqual([
       ['postgres', true, null],
-      ['clickhouse', false, 'true'],
+      ['clickhouse', false, null],
     ]);
+    expect(radios.some((r) => r.value === 'postgres:supabase')).toBe(true);
     expect(text(el.querySelector('#step-1 .gw-form__note'))).toBe('3 connections use PostgreSQL');
     expect(document.activeElement).toBe(document.body);
   });
@@ -1019,24 +1049,31 @@ describe('Add connection: wizard', () => {
     const titles = () => Array.from(p.el.querySelectorAll('#step-1 .gw-connector-card__group-title')).map((h) => text(h));
     const radios = () => Array.from(p.el.querySelectorAll<HTMLInputElement>('#step-1 input[type=radio]')).map((r) => r.value);
     const status = () => text(p.el.querySelector('#step-1 search [role=status]'));
-    expect(titles()).toEqual(['SQL databases', 'NoSQL databases', 'Data warehouses', 'Remote access']);
+    // The base types first, then the services that speak a base type's protocol.
+    expect(titles()).toEqual(['SQL databases', 'NoSQL databases', 'Data warehouses', 'Remote access', 'PostgreSQL-compatible',
+      'MongoDB-compatible']);
     const mark = p.el.querySelector<HTMLImageElement>('#step-1 input[value="postgres"] ~ .gw-choice-card__mark img')!;
     expect(mark.getAttribute('src')).toBe('assets/integrations/postgresql.svg');
     expect(mark.getAttribute('alt')).toBe('');
     expect(p.el.querySelector('#step-1 input[value="ssh"] ~ .gw-choice-card__icon')).not.toBeNull();
-    expect(status()).toBe('4 connector types');
+    const total = radios().length;
+    expect(status()).toBe(`${total} connector types`);
 
+    // A compatible service's name finds its own card; "sql" finds the SQL databases and their family, never NoSQL.
     await p.type('type-search', 'cockroach');
-    expect(titles()).toEqual(['SQL databases']);
-    expect(radios()).toEqual(['postgres']);
-    expect(status()).toBe('1 of 4 connector types');
+    expect(titles()).toEqual(['PostgreSQL-compatible']);
+    expect(radios()).toEqual(['postgres:cockroachdb']);
+    expect(status()).toBe(`1 of ${total} connector types`);
+    await p.type('type-search', 'sql');
+    expect(titles()).toEqual(['SQL databases', 'PostgreSQL-compatible']);
+    expect(radios()).not.toContain('mongodb');
 
     // Enter never submits the step: with one usable match it picks it.
-    await p.type('type-search', 'nosql');
+    await p.type('type-search', 'ssh');
     const input = document.getElementById('type-search') as HTMLInputElement;
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
     await p.settle();
-    expect(p.page().selected()).toBe('mongodb');
+    expect(p.page().selected()).toBe('ssh');
     expect(p.visible()).toEqual(['step-1']);
 
     await p.type('type-search', 'zzz');
@@ -1044,8 +1081,50 @@ describe('Add connection: wizard', () => {
     expect(text(p.el.querySelector('#step-1 .gw-empty__title'))).toBe('No connector type matches “zzz”');
     p.button('Clear search').click();
     await p.settle();
-    expect(radios()).toEqual(['postgres', 'mongodb', 'clickhouse', 'ssh']);
+    expect(radios()).toHaveLength(total);
     expect(document.activeElement).toBe(input);
+  });
+
+  it('a compatible service opens its base connector with the service’s starting values', async () => {
+    const p = await open();
+    const supabase = p.q<HTMLInputElement>('#step-1 input[value="postgres:supabase"]')!;
+    const card = supabase.closest('label')!;
+    expect(text(card.querySelector('.gw-choice-card__title'))).toBe('Supabase');
+    expect(text(card.querySelector('.gw-choice-card__meta'))).toBe('PostgreSQL connector · 3 tools');
+    expect(card.querySelector('.gw-choice-card__mark img')!.getAttribute('src')).toBe('assets/integrations/supabase.svg');
+    // A service without a mark of its own shows the base type's icon, never the base type's mark.
+    const greenplum = p.q<HTMLInputElement>('#step-1 input[value="postgres:greenplum"]')!.closest('label')!;
+    expect(greenplum.querySelector('.gw-choice-card__mark, .gw-choice-card__icon')).not.toBeNull();
+    supabase.click();
+    await p.settle();
+    // No connection count of its own: the base type's count isn't the service's.
+    expect(p.el.querySelector('#step-1 .gw-form__note')).toBeNull();
+    p.button('Continue').click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-2']);
+    expect(core.formTypes.at(-1)).toBe('postgres');
+    const start = (p.page() as unknown as { startConfig(): unknown }).startConfig();
+    expect(start).toEqual({ connection: { sslMode: 'verify-full' } });
+  });
+
+  it('a catalog plugin that isn’t installed is reviewed and installed on Continue, then Configure opens on it', async () => {
+    const p = await open();
+    p.q<HTMLInputElement>('#step-1 input[value="clickhouse"]')!.click();
+    await p.settle();
+    expect(text(p.el.querySelector('#step-1 .gw-form__note'))).toBe(
+      "The ClickHouse plugin isn't installed yet: Continue shows what it is and installs it from the catalog.");
+    p.button('Continue').click();
+    await p.settle();
+    expect(core.pluginChecks).toEqual(['clickhouse@1.0.0']);
+    const review = document.querySelector<HTMLDialogElement>('dialog.gw-dialog[open]')!;
+    expect(text(review.querySelector('.gw-dialog__title'))).toBe('Install ClickHouse plugin');
+    expect(p.visible()).toEqual(['step-1']);
+    p.button('Install ClickHouse plugin', review).click();
+    await p.settle();
+    expect(core.pluginInstalls).toEqual([{ stagingId: 'stg-1', acknowledgeUnsigned: false }]);
+    expect(review.open).toBe(false);
+    expect(p.visible()).toEqual(['step-2']);
+    expect(core.formTypes.at(-1)).toBe('clickhouse');
   });
 
   it('Continue opens Configure: the form from the schema, focus on the step title, "Step 2 of 4: Configure"', async () => {
@@ -1365,7 +1444,8 @@ describe('Add connection: wizard', () => {
     core.catalog = structuredClone(CATALOG);
     p.button('Try again').click();
     await p.settle();
-    expect(p.el.querySelectorAll('#step-1 input[type=radio]')).toHaveLength(2);
+    const base = Array.from(p.el.querySelectorAll<HTMLInputElement>('#step-1 input[type=radio]')).filter((r) => !r.value.includes(':'));
+    expect(base).toHaveLength(2);
   });
 });
 

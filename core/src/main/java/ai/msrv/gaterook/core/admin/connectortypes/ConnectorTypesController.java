@@ -76,10 +76,12 @@ class ConnectorTypesController {
    * @param available   whether a connection can be made with it now; else {@code reason}
    * @param variant     the {@code x-variants} entry this card stands for, or {@code null}
    * @param connections connections of this type (and variant)
+   * @param catalogRef  {@code id@version} of a plugin the signed catalog offers and this core hasn't installed: the
+   *                    wizard reviews and installs it when it is chosen; otherwise {@code null}
    */
   record Card(String type, String variant, String name, String icon, String description, String kind,
       String version, Boolean signed, Integer tools, String toolsFrom, int connections, boolean available,
-      String reason, JsonNode presetConfig) {}
+      String reason, JsonNode presetConfig, String catalogRef) {}
 
   /** {@code state}: {@code enabled}, {@code disabled} or {@code changed-outside} (fail closed until reviewed). */
   record Installed(String id, String kind, String name, String icon, String group, String description,
@@ -124,7 +126,7 @@ class ConnectorTypesController {
       List<SecretSource> secretSources, EnvDefaults envDefaults, List<Variant> variants) {}
 
   /** The picker's line for a catalog plugin that isn't installed (kit {@code connection-new.html}, ClickHouse). */
-  static final String NOT_INSTALLED = "Not installed. Install it from the catalog in Connectors first.";
+  static final String NOT_INSTALLED = "Not installed yet. Continue reviews it and installs it from the catalog.";
 
   private final ConnectorRegistry registry;
   private final ConnectionConfigs connections;
@@ -163,8 +165,8 @@ class ConnectorTypesController {
         stored.stream().filter(s -> s.config().type().equals(m.id())).forEach(s -> installed.add(server(t, s)));
       }
     }
-    // The catalog's plugins that aren't installed: disabled cards in their group, so the wizard says where to get them
-    // (kit: ClickHouse under Databases, "Not installed. Install it from the catalog in Connectors first.").
+    // The catalog's plugins that aren't installed: cards in their group that the wizard installs when one is chosen
+    // (kit: ClickHouse under Databases, with the review of the signed package before it loads).
     for (Plugins.Entry e : plugins.notInstalledPlugins()) {
       if (registry.type(e.id()).isPresent()) {
         continue;
@@ -172,7 +174,7 @@ class ConnectorTypesController {
       String g = e.group() != null && GROUPS.contains(e.group()) ? e.group() : "HTTP and MCP";
       byGroup.computeIfAbsent(g, k -> new ArrayList<>()).add(new Card(e.id(), null, e.name(),
           e.icon() == null ? "puzzle" : e.icon(), e.description(), "plugin", e.version(), e.signed(), e.tools(), null,
-          0, false, NOT_INSTALLED, null));
+          0, false, NOT_INSTALLED, null, e.id() + "@" + e.version()));
     }
     List<Group> groups = new ArrayList<>();
     byGroup.forEach((name, cards) -> {
@@ -275,14 +277,14 @@ class ConnectorTypesController {
     List<Variant> variants = variants(m);
     if (variants.isEmpty()) {
       return List.of(new Card(m.id(), null, m.name(), m.icon(), cardDescription(m), kind, m.version(), signed, tools,
-          toolsFrom, count(stored, m.id(), null), t.usable(), reason, null));
+          toolsFrom, count(stored, m.id(), null), t.usable(), reason, null, null));
     }
     List<Card> out = new ArrayList<>();
     for (Variant v : variants) {
       out.add(new Card(m.id(), v.id(), v.name(), v.icon() == null ? m.icon() : v.icon(), v.description(), kind,
           m.version(), signed, variantToolCount(m, v.id(), tools), toolsFrom,
           count(stored, m.id(), v.presetConfig()), t.usable(), reason,
-          v.presetConfig()));
+          v.presetConfig(), null));
     }
     return out;
   }

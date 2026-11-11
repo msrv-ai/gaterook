@@ -81,6 +81,8 @@ Built-in connectors give AI structured tools for the services you already operat
 | **HTTP APIs** | HTTP requests and [OpenAPI imports](docs/http-api-import.md) | Expose selected API operations as scoped MCP tools. |
 | **External MCP servers** | Remote Streamable HTTP / SSE and local stdio | Bring existing MCP tools behind GateRook's permissions and approvals. |
 
+**Compatible services** such as Supabase, Neon, Amazon Aurora and RDS, Cloud SQL, PlanetScale, TiDB, Valkey, Amazon ElastiCache, ScyllaDB and Thanos have cards of their own in **Add connection** that open the supported connector with the service's starting settings; plugins that the signed catalog offers can be installed there too. See [compatible services](docs/compatible-services.md).
+
 ![GateRook connector catalog showing built-in database and SSH integrations.](docs/images/gaterook-connectors.png)
 
 **Less manual setup:** [import connections with AI](docs/ai-connection-import.md) from a repository, then review each discovery and its endpoint before saving. For APIs, [import an OpenAPI specification](docs/http-api-import.md) and choose which operations to expose. Incomplete discoveries can stay disabled until you finish setup.

@@ -265,12 +265,14 @@ class CatalogApiIT {
 
   @Test
   @Order(6)
-  void theWizardOffersPluginsThatArentInstalledAsDisabledSignedCards() {
+  void theWizardOffersPluginsThatArentInstalledToInstallFromTheCatalog() {
     JsonNode types = api.ok("/api/connector-types");
     JsonNode clickhouse = card(types, "Databases", "clickhouse");
     assertThat(clickhouse.path("available").asBoolean()).isFalse();
     assertThat(clickhouse.path("reason").asString())
-        .isEqualTo("Not installed. Install it from the catalog in Connectors first.");
+        .isEqualTo("Not installed yet. Continue reviews it and installs it from the catalog.");
+    // What the wizard checks and installs when the card is chosen: the entry the signed index offers.
+    assertThat(clickhouse.path("catalogRef").asString()).isEqualTo("clickhouse@" + clickhouse.path("version").asString());
     assertThat(clickhouse.path("signed").asBoolean()).isTrue();
     assertThat(clickhouse.path("tools").asInt()).isEqualTo(6);
     assertThat(clickhouse.path("kind").asString()).isEqualTo("plugin");
@@ -278,6 +280,7 @@ class CatalogApiIT {
     JsonNode rabbit = card(types, "HTTP and MCP", "rabbitmq");
     assertThat(rabbit.path("signed").asBoolean()).isFalse();
     assertThat(rabbit.path("available").asBoolean()).isFalse();
+    assertThat(rabbit.path("catalogRef").asString()).startsWith("rabbitmq@");
   }
 
   // ── Offline, refused, revoked ───────────────────────────────────────────────────────────────────────────────

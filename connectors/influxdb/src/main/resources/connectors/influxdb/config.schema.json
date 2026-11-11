@@ -22,7 +22,7 @@
       "examples": [
         "https://influxdb.example.com:8181"
       ],
-      "description": "The server's address with https:// and its port, optionally with a path prefix. Plain http:// only to this computer (localhost, 127.0.0.1 or ::1)."
+      "description": "The server's address with https:// and its port, optionally with a path prefix. Plain http:// only to this computer."
     },
     "version": {
       "title": "Server",
