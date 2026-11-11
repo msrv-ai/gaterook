@@ -87,6 +87,17 @@ npm run build -w ui
 npm run build -w desktop
 ```
 
+### AWS API catalog
+
+The AWS connector's [generic API tools](aws-api.md) read a catalog generated from the public Smithy models of every AWS service (`https://github.com/aws/api-models-aws`): `connectors/aws/src/main/resources/connectors/aws/api/index.json` and one gzipped model per service, without documentation. The index records the models commit it came from. Regenerate it from a checkout of that repository:
+
+```bash
+git clone --depth 1 https://github.com/aws/api-models-aws.git /path/to/api-models-aws
+python3 scripts/aws-api-catalog.py --models /path/to/api-models-aws
+```
+
+The generator needs only the Python 3 standard library and writes the same files for the same commit. It records facts, not decisions: which operations are reads, refused or data plane is decided by the connector's code and covered by its tests (`mvn -B -ntp -pl connectors/aws -am verify`). Endpoints are resolved when the catalog is generated, from each model's endpoint rules, for the `aws`, `aws-cn` and `aws-us-gov` partitions. Review the index diff, run the connector tests and keep the clone outside the repository, or in the ignored `ai/` directory.
+
 ## Desktop launcher
 
 ```bash

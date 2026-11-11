@@ -1,0 +1,55 @@
+{
+  "type": "object",
+  "required": [
+    "provider",
+    "service",
+    "operation",
+    "region",
+    "access",
+    "result",
+    "masked",
+    "truncated",
+    "nextCursor"
+  ],
+  "properties": {
+    "provider": {
+      "const": "aws"
+    },
+    "service": {
+      "type": "string"
+    },
+    "operation": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "account": {
+      "type": "string"
+    },
+    "access": {
+      "enum": [
+        "read",
+        "change"
+      ]
+    },
+    "result": {
+      "type": "object"
+    },
+    "masked": {
+      "type": "integer"
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "nextCursor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "requestId": {
+      "type": "string"
+    }
+  }
+}

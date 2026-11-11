@@ -1,0 +1,62 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "service",
+    "operation"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string",
+      "description": "Default: the connection's first region"
+    },
+    "service": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$",
+      "description": "As the AWS CLI names it",
+      "examples": [
+        "ecs",
+        "lambda",
+        "elbv2",
+        "cloudformation",
+        "ec2",
+        "logs",
+        "ce"
+      ]
+    },
+    "operation": {
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+      "description": "A read operation: its API name, or as the CLI or boto3 spell it",
+      "examples": [
+        "DescribeServices",
+        "describe-target-health",
+        "get_function_configuration"
+      ]
+    },
+    "parameters": {
+      "type": "object",
+      "maxProperties": 64,
+      "description": "The operation's input members, named as in the API reference",
+      "examples": [
+        {
+          "cluster": "stage",
+          "services": [
+            "api"
+          ]
+        }
+      ]
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 4096,
+      "description": "nextCursor of the previous answer"
+    }
+  }
+}

@@ -16,8 +16,10 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The two read tools of AWS (report 09 §3, kit endpoint-detail). Both are pure READ, so both publish an
- * outputSchema; the kit's mode is Read only on every environment ("Read only · Idempotent").
+ * The tools of AWS (report 09 §3, kit endpoint-detail). {@code aws_describe}, {@code aws_metrics} and
+ * {@code aws_api_read} are pure READ, so they publish an outputSchema; the kit's mode is Read only on every environment
+ * ("Read only · Idempotent"). {@code aws_api_change} is a MUTATION: a person approves each exact request, on every
+ * environment, as with {@code gcp_api_change}.
  */
 final class AwsTools {
 
@@ -32,6 +34,19 @@ final class AwsTools {
       + "stat: Average}) and math over their ids (expressions: [{id: e1, expression: \"100 * m2 / m1\"}]), from/to "
       + "like -1h and now; action list_metrics: the metrics with data in the last 3 hours (namespace, metric, "
       + "dimensions); action alarms: alarms in a state (ALARM by default).";
+  static final String API_READ = "Call a read operation of any AWS API: service as the AWS CLI names it (ecs, "
+      + "lambda, elbv2, cloudformation, ce), operation as in the API reference (DescribeServices), parameters as its "
+      + "input members: ecs DescribeServices {cluster: stage, services: [api]}; elbv2 DescribeTargetHealth "
+      + "{TargetGroupArn}; cloudformation DescribeStackEvents {StackName}; lambda GetFunctionConfiguration "
+      + "{FunctionName}; cloudtrail LookupEvents {StartTime}. Reads only: secrets, credentials, tokens and data-plane "
+      + "reads (objects, items, messages, log events) are refused. Secrets in answers are masked; pass nextCursor back "
+      + "as cursor for the next page.";
+  static final String API_CHANGE = "Call an AWS API operation that changes something (update, scale, restart, "
+      + "deploy, delete): service as the AWS CLI names it, operation as in the API reference, parameters as its input "
+      + "members: ecs UpdateService {cluster, service, forceNewDeployment: true}; autoscaling SetDesiredCapacity "
+      + "{AutoScalingGroupName, DesiredCapacity}; lambda UpdateAlias {FunctionName, Name, FunctionVersion}. A person "
+      + "approves the exact request before it runs; AWS allows the session only that action. Secret values are never "
+      + "sent.";
 
   private AwsTools() {}
 
@@ -55,6 +70,25 @@ final class AwsTools {
             .annotations(Annotations.read())
             .nature(Nature.READ)
             .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY)
+            .resultShape(ResultShape.JSON)
+            .build(),
+        ToolDefinition.builder(ApiRequest.READ)
+            .title("Read any AWS API")
+            .description(API_READ)
+            .inputSchema(schemas.load("aws_api_read.input"))
+            .outputSchema(schemas.load("aws_api_read.output"))
+            .annotations(Annotations.read())
+            .nature(Nature.READ)
+            .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY)
+            .resultShape(ResultShape.JSON)
+            .build(),
+        ToolDefinition.builder(ApiRequest.CHANGE)
+            .title("Change AWS resources (needs approval)")
+            .description(API_CHANGE)
+            .inputSchema(schemas.load("aws_api_change.input"))
+            .annotations(Annotations.write(true))
+            .nature(Nature.MUTATION)
+            .defaultMode(Mode.APPROVAL, Mode.APPROVAL)
             .resultShape(ResultShape.JSON)
             .build());
   }

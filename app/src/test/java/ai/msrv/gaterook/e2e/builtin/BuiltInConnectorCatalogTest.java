@@ -41,7 +41,7 @@ class BuiltInConnectorCatalogTest {
   /** Current built-in tool counts used by the runtime connector catalog. */
   private static final Map<String, Integer> TOOLS_PER_CONNECTOR = orderedMap(
       "PostgreSQL", 4, "MySQL", 4, "Oracle Database", 4, "SQL Server", 4, "SQLite", 4, "MongoDB", 4, "Redis", 8, "Amazon DynamoDB", 6, "Google BigQuery", 5, "Snowflake", 4, "Cloud Firestore", 4, "Firebase Realtime Database", 2, "SSH", 2, "Logs", 5, "SSH log files", 3,
-      "Kubernetes", 4, "GCP", 7, "AWS", 2, "HTTP API", 2, "GCP Cloud Logging", 2, "AWS CloudWatch", 2,
+      "Kubernetes", 4, "GCP", 7, "AWS", 4, "HTTP API", 2, "GCP Cloud Logging", 2, "AWS CloudWatch", 2,
       "Loki", 2, "OpenSearch", 3, "Elasticsearch", 3);
 
   /** Current default modes for the connection types in the demo world's {@code dev} endpoint. */
@@ -57,7 +57,8 @@ class BuiltInConnectorCatalogTest {
       "logs", Map.of("logs_search", Mode.READ_ONLY, "logs_tail", Mode.OFF),
       "kubernetes", Map.of("k8s_get", Mode.READ_ONLY, "k8s_logs", Mode.OFF, "k8s_rollout_restart", Mode.APPROVAL,
           "k8s_apply", Mode.OFF),
-      "aws", Map.of("aws_describe", Mode.READ_ONLY, "aws_metrics", Mode.READ_ONLY),
+      "aws", Map.of("aws_describe", Mode.READ_ONLY, "aws_metrics", Mode.READ_ONLY, "aws_api_read", Mode.READ_ONLY,
+          "aws_api_change", Mode.APPROVAL),
       "http", Map.of("http_get", Mode.OFF, "http_request", Mode.APPROVAL));
 
   /** Names a tool of each built-in family must start with; reserved for them against plugins and MCP servers. */
@@ -150,7 +151,7 @@ class BuiltInConnectorCatalogTest {
 
   @Test
   void devEndpointUsesTheCurrentDefaultModes() {
-    // The demo endpoint has 30 tools, 14 read only · 11 approval · 5 off. Defaults of its 8 connection types, then the
+    // The demo endpoint has 32 tools, 15 read only · 12 approval · 5 off. Defaults of its 8 connection types, then the
     // Setup change of 10:40 (http_get on billing-api: Read only → Off), plus the core tools list_connections and
     // describe_connection, both Read only.
     Map<Mode, Integer> modes = new EnumMap<>(Mode.class);
@@ -173,7 +174,7 @@ class BuiltInConnectorCatalogTest {
     modes.merge(Mode.READ_ONLY, 2, Integer::sum);
 
     assertThat(modes).containsExactlyInAnyOrderEntriesOf(
-        Map.of(Mode.READ_ONLY, 14, Mode.APPROVAL, 11, Mode.OFF, 5));
+        Map.of(Mode.READ_ONLY, 15, Mode.APPROVAL, 12, Mode.OFF, 5));
   }
 
   @Test
@@ -193,7 +194,7 @@ class BuiltInConnectorCatalogTest {
         }
       }
     }
-    assertThat(seen).hasSize(69);
+    assertThat(seen).hasSize(71);
   }
 
   @Test

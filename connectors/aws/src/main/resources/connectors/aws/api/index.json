@@ -1,0 +1,4866 @@
+{
+ "format": 1,
+ "source": "https://github.com/aws/api-models-aws",
+ "revision": "5ff5b20d1c425dffd72b38b9a8019ef65824f4fe",
+ "revisionDate": "2026-11-10T19:04:49Z",
+ "services": {
+  "accessanalyzer": {
+   "sdkId": "AccessAnalyzer",
+   "model": "accessanalyzer",
+   "version": "2019-11-01",
+   "protocol": "restJson1",
+   "iam": "access-analyzer",
+   "aliases": [
+    "access-analyzer"
+   ],
+   "operations": 39,
+   "readonly": 22
+  },
+  "account": {
+   "sdkId": "Account",
+   "model": "account",
+   "version": "2021-02-01",
+   "protocol": "restJson1",
+   "iam": "account",
+   "aliases": [],
+   "operations": 18,
+   "readonly": 8
+  },
+  "account-access": {
+   "sdkId": "Account Access",
+   "model": "account-access",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "account-access",
+   "aliases": [
+    "accountaccess"
+   ],
+   "operations": 11,
+   "readonly": 5
+  },
+  "account-access-runtime": {
+   "sdkId": "Account Access Runtime",
+   "model": "account-access-runtime",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "account-access",
+   "aliases": [
+    "accountaccessruntime"
+   ],
+   "operations": 2,
+   "readonly": 2,
+   "unsupported": "Account Access Runtime signs requests with bearer tokens, not AWS credentials."
+  },
+  "acm": {
+   "sdkId": "ACM",
+   "model": "acm",
+   "version": "2015-12-08",
+   "protocol": "awsJson1_1",
+   "iam": "acm",
+   "aliases": [],
+   "operations": 40,
+   "readonly": 11
+  },
+  "acm-pca": {
+   "sdkId": "ACM PCA",
+   "model": "acm-pca",
+   "version": "2017-08-22",
+   "protocol": "awsJson1_1",
+   "iam": "acm-pca",
+   "aliases": [
+    "acmpca"
+   ],
+   "operations": 23,
+   "readonly": 0
+  },
+  "agent-registry": {
+   "sdkId": "Agent Registry",
+   "model": "agent-registry",
+   "version": "2025-12-01",
+   "protocol": "restJson1",
+   "iam": "agent-registry",
+   "aliases": [
+    "agentregistry"
+   ],
+   "operations": 3,
+   "readonly": 1
+  },
+  "agent-registry-control": {
+   "sdkId": "Agent Registry Control",
+   "model": "agent-registry-control",
+   "version": "2025-12-01",
+   "protocol": "restJson1",
+   "iam": "agent-registry",
+   "aliases": [
+    "agentregistrycontrol"
+   ],
+   "operations": 15,
+   "readonly": 5
+  },
+  "aiops": {
+   "sdkId": "AIOps",
+   "model": "aiops",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "aiops",
+   "aliases": [],
+   "operations": 11,
+   "readonly": 4
+  },
+  "amp": {
+   "sdkId": "amp",
+   "model": "amp",
+   "version": "2020-08-01",
+   "protocol": "restJson1",
+   "iam": "aps",
+   "aliases": [
+    "aps"
+   ],
+   "operations": 44,
+   "readonly": 16
+  },
+  "amplify": {
+   "sdkId": "Amplify",
+   "model": "amplify",
+   "version": "2017-07-25",
+   "protocol": "restJson1",
+   "iam": "amplify",
+   "aliases": [],
+   "operations": 37,
+   "readonly": 0
+  },
+  "amplifybackend": {
+   "sdkId": "AmplifyBackend",
+   "model": "amplifybackend",
+   "version": "2020-08-11",
+   "protocol": "restJson1",
+   "iam": "amplifybackend",
+   "aliases": [],
+   "operations": 31,
+   "readonly": 0
+  },
+  "amplifyuibuilder": {
+   "sdkId": "AmplifyUIBuilder",
+   "model": "amplifyuibuilder",
+   "version": "2021-08-11",
+   "protocol": "restJson1",
+   "iam": "amplifyuibuilder",
+   "aliases": [],
+   "operations": 28,
+   "readonly": 13
+  },
+  "apigateway": {
+   "sdkId": "API Gateway",
+   "model": "api-gateway",
+   "version": "2015-07-09",
+   "protocol": "restJson1",
+   "iam": "apigateway",
+   "aliases": [
+    "api-gateway"
+   ],
+   "operations": 124,
+   "readonly": 0
+  },
+  "apigatewaymanagementapi": {
+   "sdkId": "ApiGatewayManagementApi",
+   "model": "apigatewaymanagementapi",
+   "version": "2018-11-29",
+   "protocol": "restJson1",
+   "iam": "apigateway",
+   "aliases": [],
+   "operations": 3,
+   "readonly": 0
+  },
+  "apigatewayv2": {
+   "sdkId": "ApiGatewayV2",
+   "model": "apigatewayv2",
+   "version": "2018-11-29",
+   "protocol": "restJson1",
+   "iam": "apigateway",
+   "aliases": [],
+   "operations": 103,
+   "readonly": 0
+  },
+  "appconfig": {
+   "sdkId": "AppConfig",
+   "model": "appconfig",
+   "version": "2019-10-09",
+   "protocol": "restJson1",
+   "iam": "appconfig",
+   "aliases": [],
+   "operations": 56,
+   "readonly": 5
+  },
+  "appconfigdata": {
+   "sdkId": "AppConfigData",
+   "model": "appconfigdata",
+   "version": "2021-11-11",
+   "protocol": "restJson1",
+   "iam": "appconfigdata",
+   "aliases": [],
+   "operations": 2,
+   "readonly": 1
+  },
+  "appfabric": {
+   "sdkId": "AppFabric",
+   "model": "appfabric",
+   "version": "2023-05-19",
+   "protocol": "restJson1",
+   "iam": "appfabric",
+   "aliases": [],
+   "operations": 26,
+   "readonly": 10
+  },
+  "appflow": {
+   "sdkId": "Appflow",
+   "model": "appflow",
+   "version": "2020-08-23",
+   "protocol": "restJson1",
+   "iam": "appflow",
+   "aliases": [],
+   "operations": 25,
+   "readonly": 0
+  },
+  "appintegrations": {
+   "sdkId": "AppIntegrations",
+   "model": "appintegrations",
+   "version": "2020-07-29",
+   "protocol": "restJson1",
+   "iam": "app-integrations",
+   "aliases": [
+    "app-integrations"
+   ],
+   "operations": 23,
+   "readonly": 0
+  },
+  "application-autoscaling": {
+   "sdkId": "Application Auto Scaling",
+   "model": "application-auto-scaling",
+   "version": "2016-02-06",
+   "protocol": "awsJson1_1",
+   "iam": "application-autoscaling",
+   "aliases": [
+    "application-auto-scaling",
+    "applicationautoscaling"
+   ],
+   "operations": 14,
+   "readonly": 0
+  },
+  "application-insights": {
+   "sdkId": "Application Insights",
+   "model": "application-insights",
+   "version": "2018-11-25",
+   "protocol": "awsJson1_1",
+   "iam": "applicationinsights",
+   "aliases": [
+    "applicationinsights"
+   ],
+   "operations": 33,
+   "readonly": 0
+  },
+  "application-signals": {
+   "sdkId": "Application Signals",
+   "model": "application-signals",
+   "version": "2024-04-15",
+   "protocol": "restJson1",
+   "iam": "application-signals",
+   "aliases": [
+    "applicationsignals"
+   ],
+   "operations": 30,
+   "readonly": 13
+  },
+  "applicationcostprofiler": {
+   "sdkId": "ApplicationCostProfiler",
+   "model": "applicationcostprofiler",
+   "version": "2020-09-10",
+   "protocol": "restJson1",
+   "iam": "application-cost-profiler",
+   "aliases": [
+    "application-cost-profiler"
+   ],
+   "operations": 6,
+   "readonly": 0
+  },
+  "appmesh": {
+   "sdkId": "App Mesh",
+   "model": "app-mesh",
+   "version": "2019-01-25",
+   "protocol": "restJson1",
+   "iam": "appmesh",
+   "aliases": [
+    "app-mesh"
+   ],
+   "operations": 38,
+   "readonly": 15
+  },
+  "apprunner": {
+   "sdkId": "AppRunner",
+   "model": "apprunner",
+   "version": "2020-05-15",
+   "protocol": "awsJson1_0",
+   "iam": "apprunner",
+   "aliases": [],
+   "operations": 37,
+   "readonly": 0
+  },
+  "appstream": {
+   "sdkId": "AppStream",
+   "model": "appstream",
+   "version": "2016-12-01",
+   "protocol": "awsJson1_1",
+   "iam": "appstream",
+   "aliases": [
+    "appstream2"
+   ],
+   "operations": 89,
+   "readonly": 0
+  },
+  "appsync": {
+   "sdkId": "AppSync",
+   "model": "appsync",
+   "version": "2017-07-25",
+   "protocol": "restJson1",
+   "iam": "appsync",
+   "aliases": [],
+   "operations": 74,
+   "readonly": 0
+  },
+  "arc-region-switch": {
+   "sdkId": "ARC Region switch",
+   "model": "arc-region-switch",
+   "version": "2022-07-26",
+   "protocol": "awsJson1_0",
+   "iam": "arc-region-switch",
+   "aliases": [
+    "arcregionswitch"
+   ],
+   "operations": 22,
+   "readonly": 12
+  },
+  "arc-zonal-shift": {
+   "sdkId": "ARC Zonal Shift",
+   "model": "arc-zonal-shift",
+   "version": "2022-10-30",
+   "protocol": "restJson1",
+   "iam": "arc-zonal-shift",
+   "aliases": [
+    "arczonalshift"
+   ],
+   "operations": 15,
+   "readonly": 5
+  },
+  "artifact": {
+   "sdkId": "Artifact",
+   "model": "artifact",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "artifact",
+   "aliases": [],
+   "operations": 17,
+   "readonly": 11
+  },
+  "athena": {
+   "sdkId": "Athena",
+   "model": "athena",
+   "version": "2017-05-18",
+   "protocol": "awsJson1_1",
+   "iam": "athena",
+   "aliases": [],
+   "operations": 75,
+   "readonly": 2
+  },
+  "auditmanager": {
+   "sdkId": "AuditManager",
+   "model": "auditmanager",
+   "version": "2017-07-25",
+   "protocol": "restJson1",
+   "iam": "auditmanager",
+   "aliases": [],
+   "operations": 62,
+   "readonly": 0
+  },
+  "autoscaling": {
+   "sdkId": "Auto Scaling",
+   "model": "auto-scaling",
+   "version": "2011-01-01",
+   "protocol": "awsQuery",
+   "iam": "autoscaling",
+   "aliases": [
+    "auto-scaling"
+   ],
+   "operations": 68,
+   "readonly": 0
+  },
+  "autoscaling-plans": {
+   "sdkId": "Auto Scaling Plans",
+   "model": "auto-scaling-plans",
+   "version": "2018-01-06",
+   "protocol": "awsJson1_1",
+   "iam": "autoscaling-plans",
+   "aliases": [
+    "auto-scaling-plans",
+    "autoscalingplans"
+   ],
+   "operations": 6,
+   "readonly": 0
+  },
+  "b2bi": {
+   "sdkId": "b2bi",
+   "model": "b2bi",
+   "version": "2022-06-23",
+   "protocol": "awsJson1_0",
+   "iam": "b2bi",
+   "aliases": [],
+   "operations": 30,
+   "readonly": 10
+  },
+  "backup": {
+   "sdkId": "Backup",
+   "model": "backup",
+   "version": "2018-11-15",
+   "protocol": "restJson1",
+   "iam": "backup",
+   "aliases": [],
+   "operations": 115,
+   "readonly": 4
+  },
+  "backup-gateway": {
+   "sdkId": "Backup Gateway",
+   "model": "backup-gateway",
+   "version": "2021-01-01",
+   "protocol": "awsJson1_0",
+   "iam": "backup-gateway",
+   "aliases": [
+    "backupgateway"
+   ],
+   "operations": 25,
+   "readonly": 8
+  },
+  "backupsearch": {
+   "sdkId": "BackupSearch",
+   "model": "backupsearch",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "backup-search",
+   "aliases": [
+    "backup-search"
+   ],
+   "operations": 12,
+   "readonly": 7
+  },
+  "batch": {
+   "sdkId": "Batch",
+   "model": "batch",
+   "version": "2016-08-10",
+   "protocol": "restJson1",
+   "iam": "batch",
+   "aliases": [],
+   "operations": 48,
+   "readonly": 0
+  },
+  "bcm-dashboards": {
+   "sdkId": "BCM Dashboards",
+   "model": "bcm-dashboards",
+   "version": "2025-08-18",
+   "protocol": "awsJson1_0",
+   "iam": "bcm-dashboards",
+   "aliases": [
+    "bcmdashboards"
+   ],
+   "operations": 15,
+   "readonly": 6
+  },
+  "bcm-data-exports": {
+   "sdkId": "BCM Data Exports",
+   "model": "bcm-data-exports",
+   "version": "2023-11-26",
+   "protocol": "awsJson1_1",
+   "iam": "bcm-data-exports",
+   "aliases": [
+    "bcmdataexports"
+   ],
+   "operations": 12,
+   "readonly": 7
+  },
+  "bcm-pricing-calculator": {
+   "sdkId": "BCM Pricing Calculator",
+   "model": "bcm-pricing-calculator",
+   "version": "2024-06-19",
+   "protocol": "awsJson1_0",
+   "iam": "bcm-pricing-calculator",
+   "aliases": [
+    "bcmpricingcalculator"
+   ],
+   "operations": 36,
+   "readonly": 15
+  },
+  "bcm-recommended-actions": {
+   "sdkId": "BCM Recommended Actions",
+   "model": "bcm-recommended-actions",
+   "version": "2024-11-14",
+   "protocol": "awsJson1_0",
+   "iam": "bcm-recommended-actions",
+   "aliases": [
+    "bcmrecommendedactions"
+   ],
+   "operations": 1,
+   "readonly": 0
+  },
+  "bedrock": {
+   "sdkId": "Bedrock",
+   "model": "bedrock",
+   "version": "2023-04-20",
+   "protocol": "restJson1",
+   "iam": "bedrock",
+   "aliases": [],
+   "operations": 108,
+   "readonly": 49
+  },
+  "bedrock-agent": {
+   "sdkId": "Bedrock Agent",
+   "model": "bedrock-agent",
+   "version": "2023-06-05",
+   "protocol": "restJson1",
+   "iam": "bedrock",
+   "aliases": [
+    "bedrockagent"
+   ],
+   "operations": 86,
+   "readonly": 36
+  },
+  "bedrock-agent-runtime": {
+   "sdkId": "Bedrock Agent Runtime",
+   "model": "bedrock-agent-runtime",
+   "version": "2023-07-26",
+   "protocol": "restJson1",
+   "iam": "bedrock",
+   "aliases": [
+    "bedrockagentruntime"
+   ],
+   "operations": 35,
+   "readonly": 16
+  },
+  "bedrock-agentcore": {
+   "sdkId": "Bedrock AgentCore",
+   "model": "bedrock-agentcore",
+   "version": "2024-02-28",
+   "protocol": "restJson1",
+   "iam": "bedrock-agentcore",
+   "aliases": [
+    "bedrockagentcore"
+   ],
+   "operations": 68,
+   "readonly": 24
+  },
+  "bedrock-agentcore-control": {
+   "sdkId": "Bedrock AgentCore Control",
+   "model": "bedrock-agentcore-control",
+   "version": "2023-06-05",
+   "protocol": "restJson1",
+   "iam": "bedrock-agentcore",
+   "aliases": [
+    "bedrockagentcorecontrol"
+   ],
+   "operations": 172,
+   "readonly": 75
+  },
+  "bedrock-data-automation": {
+   "sdkId": "Bedrock Data Automation",
+   "model": "bedrock-data-automation",
+   "version": "2023-07-26",
+   "protocol": "restJson1",
+   "iam": "bedrock",
+   "aliases": [
+    "bedrockdataautomation"
+   ],
+   "operations": 27,
+   "readonly": 11
+  },
+  "bedrock-data-automation-runtime": {
+   "sdkId": "Bedrock Data Automation Runtime",
+   "model": "bedrock-data-automation-runtime",
+   "version": "2024-06-13",
+   "protocol": "awsJson1_1",
+   "iam": "bedrock",
+   "aliases": [
+    "bedrockdataautomationruntime"
+   ],
+   "operations": 6,
+   "readonly": 1
+  },
+  "bedrock-runtime": {
+   "sdkId": "Bedrock Runtime",
+   "model": "bedrock-runtime",
+   "version": "2023-09-30",
+   "protocol": "restJson1",
+   "iam": "bedrock",
+   "aliases": [
+    "bedrockruntime"
+   ],
+   "operations": 11,
+   "readonly": 3
+  },
+  "billing": {
+   "sdkId": "Billing",
+   "model": "billing",
+   "version": "2023-09-07",
+   "protocol": "awsJson1_0",
+   "iam": "billing",
+   "aliases": [],
+   "operations": 32,
+   "readonly": 16
+  },
+  "billingconductor": {
+   "sdkId": "billingconductor",
+   "model": "billingconductor",
+   "version": "2021-07-30",
+   "protocol": "restJson1",
+   "iam": "billingconductor",
+   "aliases": [],
+   "operations": 34,
+   "readonly": 12
+  },
+  "braket": {
+   "sdkId": "Braket",
+   "model": "braket",
+   "version": "2019-09-01",
+   "protocol": "restJson1",
+   "iam": "braket",
+   "aliases": [],
+   "operations": 17,
+   "readonly": 7
+  },
+  "budgets": {
+   "sdkId": "Budgets",
+   "model": "budgets",
+   "version": "2016-10-20",
+   "protocol": "awsJson1_1",
+   "iam": "budgets",
+   "aliases": [],
+   "operations": 26,
+   "readonly": 0
+  },
+  "ce": {
+   "sdkId": "Cost Explorer",
+   "model": "cost-explorer",
+   "version": "2017-10-25",
+   "protocol": "awsJson1_1",
+   "iam": "ce",
+   "aliases": [
+    "cost-explorer",
+    "costexplorer"
+   ],
+   "operations": 47,
+   "readonly": 0
+  },
+  "chatbot": {
+   "sdkId": "chatbot",
+   "model": "chatbot",
+   "version": "2017-10-11",
+   "protocol": "restJson1",
+   "iam": "chatbot",
+   "aliases": [],
+   "operations": 34,
+   "readonly": 13
+  },
+  "chime": {
+   "sdkId": "Chime",
+   "model": "chime",
+   "version": "2018-05-01",
+   "protocol": "restJson1",
+   "iam": "chime",
+   "aliases": [],
+   "operations": 62,
+   "readonly": 0
+  },
+  "chime-sdk-identity": {
+   "sdkId": "Chime SDK Identity",
+   "model": "chime-sdk-identity",
+   "version": "2021-04-20",
+   "protocol": "restJson1",
+   "iam": "chime",
+   "aliases": [
+    "chimesdkidentity",
+    "identity-chime"
+   ],
+   "operations": 30,
+   "readonly": 0
+  },
+  "chime-sdk-media-pipelines": {
+   "sdkId": "Chime SDK Media Pipelines",
+   "model": "chime-sdk-media-pipelines",
+   "version": "2021-07-15",
+   "protocol": "restJson1",
+   "iam": "chime",
+   "aliases": [
+    "chimesdkmediapipelines",
+    "media-pipelines-chime"
+   ],
+   "operations": 31,
+   "readonly": 0
+  },
+  "chime-sdk-meetings": {
+   "sdkId": "Chime SDK Meetings",
+   "model": "chime-sdk-meetings",
+   "version": "2021-07-15",
+   "protocol": "restJson1",
+   "iam": "chime",
+   "aliases": [
+    "chimesdkmeetings",
+    "meetings-chime"
+   ],
+   "operations": 16,
+   "readonly": 0
+  },
+  "chime-sdk-messaging": {
+   "sdkId": "Chime SDK Messaging",
+   "model": "chime-sdk-messaging",
+   "version": "2021-05-15",
+   "protocol": "restJson1",
+   "iam": "chime",
+   "aliases": [
+    "chimesdkmessaging",
+    "messaging-chime"
+   ],
+   "operations": 51,
+   "readonly": 0
+  },
+  "chime-sdk-voice": {
+   "sdkId": "Chime SDK Voice",
+   "model": "chime-sdk-voice",
+   "version": "2022-08-03",
+   "protocol": "restJson1",
+   "iam": "chime",
+   "aliases": [
+    "chimesdkvoice",
+    "voice-chime"
+   ],
+   "operations": 96,
+   "readonly": 0
+  },
+  "cleanrooms": {
+   "sdkId": "CleanRooms",
+   "model": "cleanrooms",
+   "version": "2022-02-17",
+   "protocol": "restJson1",
+   "iam": "cleanrooms",
+   "aliases": [],
+   "operations": 103,
+   "readonly": 50
+  },
+  "cleanroomsml": {
+   "sdkId": "CleanRoomsML",
+   "model": "cleanroomsml",
+   "version": "2023-09-06",
+   "protocol": "restJson1",
+   "iam": "cleanrooms-ml",
+   "aliases": [
+    "cleanrooms-ml"
+   ],
+   "operations": 59,
+   "readonly": 31
+  },
+  "cloud9": {
+   "sdkId": "Cloud9",
+   "model": "cloud9",
+   "version": "2017-09-23",
+   "protocol": "awsJson1_1",
+   "iam": "cloud9",
+   "aliases": [],
+   "operations": 13,
+   "readonly": 0
+  },
+  "cloudcontrol": {
+   "sdkId": "CloudControl",
+   "model": "cloudcontrol",
+   "version": "2021-09-30",
+   "protocol": "awsJson1_0",
+   "iam": "cloudformation",
+   "aliases": [
+    "cloudcontrolapi"
+   ],
+   "operations": 8,
+   "readonly": 0
+  },
+  "clouddirectory": {
+   "sdkId": "CloudDirectory",
+   "model": "clouddirectory",
+   "version": "2017-01-11",
+   "protocol": "restJson1",
+   "iam": "clouddirectory",
+   "aliases": [],
+   "operations": 66,
+   "readonly": 0
+  },
+  "cloudformation": {
+   "sdkId": "CloudFormation",
+   "model": "cloudformation",
+   "version": "2010-05-15",
+   "protocol": "awsQuery",
+   "iam": "cloudformation",
+   "aliases": [],
+   "operations": 90,
+   "readonly": 0
+  },
+  "cloudfront": {
+   "sdkId": "CloudFront",
+   "model": "cloudfront",
+   "version": "2020-05-31",
+   "protocol": "restXml",
+   "iam": "cloudfront",
+   "aliases": [],
+   "operations": 167,
+   "readonly": 0
+  },
+  "cloudfront-keyvaluestore": {
+   "sdkId": "CloudFront KeyValueStore",
+   "model": "cloudfront-keyvaluestore",
+   "version": "2022-07-26",
+   "protocol": "restJson1",
+   "iam": "key-value-store",
+   "aliases": [
+    "cloudfrontkeyvaluestore"
+   ],
+   "operations": 6,
+   "readonly": 3,
+   "unsupported": "CloudFront KeyValueStore: KVS ARN must be provided to use this service"
+  },
+  "cloudhsm": {
+   "sdkId": "CloudHSM",
+   "model": "cloudhsm",
+   "version": "2014-05-30",
+   "protocol": "awsJson1_1",
+   "iam": "cloudhsm",
+   "aliases": [],
+   "operations": 20,
+   "readonly": 0
+  },
+  "cloudhsmv2": {
+   "sdkId": "CloudHSM V2",
+   "model": "cloudhsm-v2",
+   "version": "2017-04-28",
+   "protocol": "awsJson1_1",
+   "iam": "cloudhsm",
+   "aliases": [
+    "cloudhsm-v2"
+   ],
+   "operations": 18,
+   "readonly": 0
+  },
+  "cloudsearch": {
+   "sdkId": "CloudSearch",
+   "model": "cloudsearch",
+   "version": "2013-01-01",
+   "protocol": "awsQuery",
+   "iam": "cloudsearch",
+   "aliases": [],
+   "operations": 26,
+   "readonly": 0
+  },
+  "cloudsearch-domain": {
+   "sdkId": "CloudSearch Domain",
+   "model": "cloudsearch-domain",
+   "version": "2013-01-01",
+   "protocol": "restJson1",
+   "iam": "cloudsearch",
+   "aliases": [
+    "cloudsearchdomain"
+   ],
+   "operations": 3,
+   "readonly": 0
+  },
+  "cloudtrail": {
+   "sdkId": "CloudTrail",
+   "model": "cloudtrail",
+   "version": "2013-11-01",
+   "protocol": "awsJson1_1",
+   "iam": "cloudtrail",
+   "aliases": [],
+   "operations": 60,
+   "readonly": 0
+  },
+  "cloudtrail-data": {
+   "sdkId": "CloudTrail Data",
+   "model": "cloudtrail-data",
+   "version": "2021-08-11",
+   "protocol": "restJson1",
+   "iam": "cloudtrail-data",
+   "aliases": [
+    "cloudtraildata"
+   ],
+   "operations": 1,
+   "readonly": 0
+  },
+  "cloudwatch": {
+   "sdkId": "CloudWatch",
+   "model": "cloudwatch",
+   "version": "2010-08-01",
+   "protocol": "awsJson1_0",
+   "iam": "cloudwatch",
+   "aliases": [
+    "monitoring"
+   ],
+   "operations": 55,
+   "readonly": 1
+  },
+  "cloudwatch-events": {
+   "sdkId": "CloudWatch Events",
+   "model": "cloudwatch-events",
+   "version": "2015-10-07",
+   "protocol": "awsJson1_1",
+   "iam": "events",
+   "aliases": [
+    "cloudwatchevents"
+   ],
+   "operations": 51,
+   "readonly": 0
+  },
+  "cloudwatchomni": {
+   "sdkId": "CloudWatchOmni",
+   "model": "cloudwatchomni",
+   "version": "2025-01-01",
+   "protocol": "rpcv2Cbor",
+   "iam": "cloudwatch",
+   "aliases": [
+    "cloudwatch-omni"
+   ],
+   "operations": 62,
+   "readonly": 23,
+   "unsupported": "CloudWatchOmni speaks only rpcv2Cbor, which aws_api_read and aws_api_change don't send yet."
+  },
+  "codeartifact": {
+   "sdkId": "codeartifact",
+   "model": "codeartifact",
+   "version": "2018-09-22",
+   "protocol": "restJson1",
+   "iam": "codeartifact",
+   "aliases": [],
+   "operations": 48,
+   "readonly": 0
+  },
+  "codebuild": {
+   "sdkId": "CodeBuild",
+   "model": "codebuild",
+   "version": "2016-10-06",
+   "protocol": "awsJson1_1",
+   "iam": "codebuild",
+   "aliases": [],
+   "operations": 59,
+   "readonly": 0
+  },
+  "codecatalyst": {
+   "sdkId": "CodeCatalyst",
+   "model": "codecatalyst",
+   "version": "2022-09-28",
+   "protocol": "restJson1",
+   "iam": "codecatalyst",
+   "aliases": [],
+   "operations": 38,
+   "readonly": 20,
+   "unsupported": "CodeCatalyst signs requests with bearer tokens, not AWS credentials."
+  },
+  "codecommit": {
+   "sdkId": "CodeCommit",
+   "model": "codecommit",
+   "version": "2015-04-13",
+   "protocol": "awsJson1_1",
+   "iam": "codecommit",
+   "aliases": [],
+   "operations": 80,
+   "readonly": 0
+  },
+  "codeconnections": {
+   "sdkId": "CodeConnections",
+   "model": "codeconnections",
+   "version": "2023-12-01",
+   "protocol": "awsJson1_0",
+   "iam": "codeconnections",
+   "aliases": [],
+   "operations": 27,
+   "readonly": 0
+  },
+  "codedeploy": {
+   "sdkId": "CodeDeploy",
+   "model": "codedeploy",
+   "version": "2014-10-06",
+   "protocol": "awsJson1_1",
+   "iam": "codedeploy",
+   "aliases": [],
+   "operations": 47,
+   "readonly": 0
+  },
+  "codeguru-reviewer": {
+   "sdkId": "CodeGuru Reviewer",
+   "model": "codeguru-reviewer",
+   "version": "2019-09-19",
+   "protocol": "restJson1",
+   "iam": "codeguru-reviewer",
+   "aliases": [
+    "codegurureviewer"
+   ],
+   "operations": 14,
+   "readonly": 0
+  },
+  "codeguru-security": {
+   "sdkId": "CodeGuru Security",
+   "model": "codeguru-security",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "codeguru-security",
+   "aliases": [
+    "codegurusecurity"
+   ],
+   "operations": 13,
+   "readonly": 8
+  },
+  "codeguruprofiler": {
+   "sdkId": "CodeGuruProfiler",
+   "model": "codeguruprofiler",
+   "version": "2019-07-18",
+   "protocol": "restJson1",
+   "iam": "codeguru-profiler",
+   "aliases": [
+    "codeguru-profiler"
+   ],
+   "operations": 23,
+   "readonly": 12
+  },
+  "codepipeline": {
+   "sdkId": "CodePipeline",
+   "model": "codepipeline",
+   "version": "2015-07-09",
+   "protocol": "awsJson1_1",
+   "iam": "codepipeline",
+   "aliases": [],
+   "operations": 44,
+   "readonly": 0
+  },
+  "codestar-connections": {
+   "sdkId": "CodeStar connections",
+   "model": "codestar-connections",
+   "version": "2019-12-01",
+   "protocol": "awsJson1_0",
+   "iam": "codestar-connections",
+   "aliases": [
+    "codestarconnections"
+   ],
+   "operations": 27,
+   "readonly": 0
+  },
+  "codestar-notifications": {
+   "sdkId": "codestar notifications",
+   "model": "codestar-notifications",
+   "version": "2019-10-15",
+   "protocol": "restJson1",
+   "iam": "codestar-notifications",
+   "aliases": [
+    "codestarnotifications"
+   ],
+   "operations": 13,
+   "readonly": 0
+  },
+  "cognito-identity": {
+   "sdkId": "Cognito Identity",
+   "model": "cognito-identity",
+   "version": "2014-06-30",
+   "protocol": "awsJson1_1",
+   "iam": "cognito-identity",
+   "aliases": [
+    "cognitoidentity"
+   ],
+   "operations": 23,
+   "readonly": 0
+  },
+  "cognito-idp": {
+   "sdkId": "Cognito Identity Provider",
+   "model": "cognito-identity-provider",
+   "version": "2016-04-18",
+   "protocol": "awsJson1_1",
+   "iam": "cognito-idp",
+   "aliases": [
+    "cognito-identity-provider",
+    "cognitoidentityprovider"
+   ],
+   "operations": 132,
+   "readonly": 0
+  },
+  "cognito-sync": {
+   "sdkId": "Cognito Sync",
+   "model": "cognito-sync",
+   "version": "2014-06-30",
+   "protocol": "restJson1",
+   "iam": "cognito-sync",
+   "aliases": [
+    "cognitosync"
+   ],
+   "operations": 17,
+   "readonly": 0
+  },
+  "comprehend": {
+   "sdkId": "Comprehend",
+   "model": "comprehend",
+   "version": "2017-11-27",
+   "protocol": "awsJson1_1",
+   "iam": "comprehend",
+   "aliases": [],
+   "operations": 85,
+   "readonly": 0
+  },
+  "comprehendmedical": {
+   "sdkId": "ComprehendMedical",
+   "model": "comprehendmedical",
+   "version": "2018-10-30",
+   "protocol": "awsJson1_1",
+   "iam": "comprehendmedical",
+   "aliases": [],
+   "operations": 26,
+   "readonly": 0
+  },
+  "compute-optimizer": {
+   "sdkId": "Compute Optimizer",
+   "model": "compute-optimizer",
+   "version": "2019-11-01",
+   "protocol": "awsJson1_0",
+   "iam": "compute-optimizer",
+   "aliases": [
+    "computeoptimizer"
+   ],
+   "operations": 28,
+   "readonly": 0
+  },
+  "compute-optimizer-automation": {
+   "sdkId": "Compute Optimizer Automation",
+   "model": "compute-optimizer-automation",
+   "version": "2025-09-22",
+   "protocol": "awsJson1_0",
+   "iam": "compute-optimizer",
+   "aliases": [
+    "aco-automation",
+    "computeoptimizerautomation"
+   ],
+   "operations": 23,
+   "readonly": 5
+  },
+  "config": {
+   "sdkId": "Config Service",
+   "model": "config-service",
+   "version": "2014-11-12",
+   "protocol": "awsJson1_1",
+   "iam": "config",
+   "aliases": [
+    "config-service",
+    "configservice"
+   ],
+   "operations": 102,
+   "readonly": 0
+  },
+  "connect": {
+   "sdkId": "Connect",
+   "model": "connect",
+   "version": "2017-08-08",
+   "protocol": "restJson1",
+   "iam": "connect",
+   "aliases": [],
+   "operations": 404,
+   "readonly": 2
+  },
+  "connect-contact-lens": {
+   "sdkId": "Connect Contact Lens",
+   "model": "connect-contact-lens",
+   "version": "2020-08-21",
+   "protocol": "restJson1",
+   "iam": "connect",
+   "aliases": [
+    "connectcontactlens",
+    "contact-lens"
+   ],
+   "operations": 1,
+   "readonly": 0
+  },
+  "connectcampaigns": {
+   "sdkId": "ConnectCampaigns",
+   "model": "connectcampaigns",
+   "version": "2021-01-30",
+   "protocol": "restJson1",
+   "iam": "connect-campaigns",
+   "aliases": [],
+   "operations": 22,
+   "readonly": 4
+  },
+  "connectcampaignsv2": {
+   "sdkId": "ConnectCampaignsV2",
+   "model": "connectcampaignsv2",
+   "version": "2024-04-23",
+   "protocol": "restJson1",
+   "iam": "connect-campaigns",
+   "aliases": [],
+   "operations": 37,
+   "readonly": 6
+  },
+  "connectcases": {
+   "sdkId": "ConnectCases",
+   "model": "connectcases",
+   "version": "2022-10-03",
+   "protocol": "restJson1",
+   "iam": "cases",
+   "aliases": [
+    "cases"
+   ],
+   "operations": 45,
+   "readonly": 18
+  },
+  "connecthealth": {
+   "sdkId": "ConnectHealth",
+   "model": "connecthealth",
+   "version": "2025-01-29",
+   "protocol": "restJson1",
+   "iam": "health-agent",
+   "aliases": [
+    "health-agent"
+   ],
+   "operations": 16,
+   "readonly": 7
+  },
+  "connectparticipant": {
+   "sdkId": "ConnectParticipant",
+   "model": "connectparticipant",
+   "version": "2018-09-07",
+   "protocol": "restJson1",
+   "iam": "connect",
+   "aliases": [],
+   "operations": 11,
+   "readonly": 0
+  },
+  "continuum": {
+   "sdkId": "Continuum",
+   "model": "continuum",
+   "version": "2022-07-26",
+   "protocol": "restJson1",
+   "iam": "continuum",
+   "aliases": [],
+   "operations": 33,
+   "readonly": 18
+  },
+  "controlcatalog": {
+   "sdkId": "ControlCatalog",
+   "model": "controlcatalog",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "controlcatalog",
+   "aliases": [],
+   "operations": 6,
+   "readonly": 6
+  },
+  "controltower": {
+   "sdkId": "ControlTower",
+   "model": "controltower",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "controltower",
+   "aliases": [],
+   "operations": 28,
+   "readonly": 14
+  },
+  "cost-optimization-hub": {
+   "sdkId": "Cost Optimization Hub",
+   "model": "cost-optimization-hub",
+   "version": "2022-07-26",
+   "protocol": "awsJson1_0",
+   "iam": "cost-optimization-hub",
+   "aliases": [
+    "costoptimizationhub"
+   ],
+   "operations": 8,
+   "readonly": 6
+  },
+  "cur": {
+   "sdkId": "Cost and Usage Report Service",
+   "model": "cost-and-usage-report-service",
+   "version": "2017-01-06",
+   "protocol": "awsJson1_1",
+   "iam": "cur",
+   "aliases": [
+    "cost-and-usage-report-service",
+    "costandusagereportservice"
+   ],
+   "operations": 7,
+   "readonly": 0
+  },
+  "customer-profiles": {
+   "sdkId": "Customer Profiles",
+   "model": "customer-profiles",
+   "version": "2020-08-15",
+   "protocol": "restJson1",
+   "iam": "profile",
+   "aliases": [
+    "customerprofiles",
+    "profile"
+   ],
+   "operations": 115,
+   "readonly": 15
+  },
+  "data-pipeline": {
+   "sdkId": "Data Pipeline",
+   "model": "data-pipeline",
+   "version": "2012-10-29",
+   "protocol": "awsJson1_1",
+   "iam": "datapipeline",
+   "aliases": [
+    "datapipeline"
+   ],
+   "operations": 19,
+   "readonly": 0
+  },
+  "databrew": {
+   "sdkId": "DataBrew",
+   "model": "databrew",
+   "version": "2017-07-25",
+   "protocol": "restJson1",
+   "iam": "databrew",
+   "aliases": [],
+   "operations": 44,
+   "readonly": 0
+  },
+  "dataexchange": {
+   "sdkId": "DataExchange",
+   "model": "dataexchange",
+   "version": "2017-07-25",
+   "protocol": "restJson1",
+   "iam": "dataexchange",
+   "aliases": [],
+   "operations": 37,
+   "readonly": 15
+  },
+  "datasync": {
+   "sdkId": "DataSync",
+   "model": "datasync",
+   "version": "2018-11-09",
+   "protocol": "awsJson1_1",
+   "iam": "datasync",
+   "aliases": [],
+   "operations": 53,
+   "readonly": 0
+  },
+  "datazone": {
+   "sdkId": "DataZone",
+   "model": "datazone",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "datazone",
+   "aliases": [],
+   "operations": 195,
+   "readonly": 76
+  },
+  "dax": {
+   "sdkId": "DAX",
+   "model": "dax",
+   "version": "2017-04-19",
+   "protocol": "awsJson1_1",
+   "iam": "dax",
+   "aliases": [],
+   "operations": 21,
+   "readonly": 0
+  },
+  "deadline": {
+   "sdkId": "deadline",
+   "model": "deadline",
+   "version": "2023-10-12",
+   "protocol": "restJson1",
+   "iam": "deadline",
+   "aliases": [],
+   "operations": 127,
+   "readonly": 64
+  },
+  "detective": {
+   "sdkId": "Detective",
+   "model": "detective",
+   "version": "2018-10-26",
+   "protocol": "restJson1",
+   "iam": "detective",
+   "aliases": [],
+   "operations": 29,
+   "readonly": 0
+  },
+  "device-farm": {
+   "sdkId": "Device Farm",
+   "model": "device-farm",
+   "version": "2015-06-23",
+   "protocol": "awsJson1_1",
+   "iam": "devicefarm",
+   "aliases": [
+    "devicefarm"
+   ],
+   "operations": 77,
+   "readonly": 0
+  },
+  "devops-agent": {
+   "sdkId": "DevOps Agent",
+   "model": "devops-agent",
+   "version": "2026-01-01",
+   "protocol": "restJson1",
+   "iam": "aidevops",
+   "aliases": [
+    "aidevops",
+    "devopsagent"
+   ],
+   "operations": 63,
+   "readonly": 23
+  },
+  "devops-guru": {
+   "sdkId": "DevOps Guru",
+   "model": "devops-guru",
+   "version": "2020-12-01",
+   "protocol": "restJson1",
+   "iam": "devops-guru",
+   "aliases": [
+    "devopsguru"
+   ],
+   "operations": 31,
+   "readonly": 0
+  },
+  "directconnect": {
+   "sdkId": "Direct Connect",
+   "model": "direct-connect",
+   "version": "2012-10-25",
+   "protocol": "awsJson1_1",
+   "iam": "directconnect",
+   "aliases": [
+    "direct-connect"
+   ],
+   "operations": 73,
+   "readonly": 0
+  },
+  "discovery": {
+   "sdkId": "Application Discovery Service",
+   "model": "application-discovery-service",
+   "version": "2015-11-01",
+   "protocol": "awsJson1_1",
+   "iam": "discovery",
+   "aliases": [
+    "application-discovery-service",
+    "applicationdiscoveryservice"
+   ],
+   "operations": 28,
+   "readonly": 0
+  },
+  "dlm": {
+   "sdkId": "DLM",
+   "model": "dlm",
+   "version": "2018-01-12",
+   "protocol": "restJson1",
+   "iam": "dlm",
+   "aliases": [],
+   "operations": 8,
+   "readonly": 0
+  },
+  "dms": {
+   "sdkId": "Database Migration Service",
+   "model": "database-migration-service",
+   "version": "2016-01-01",
+   "protocol": "awsJson1_1",
+   "iam": "dms",
+   "aliases": [
+    "database-migration-service",
+    "databasemigrationservice"
+   ],
+   "operations": 119,
+   "readonly": 0
+  },
+  "docdb": {
+   "sdkId": "DocDB",
+   "model": "docdb",
+   "version": "2014-10-31",
+   "protocol": "awsQuery",
+   "iam": "rds",
+   "aliases": [],
+   "operations": 56,
+   "readonly": 0
+  },
+  "docdb-elastic": {
+   "sdkId": "DocDB Elastic",
+   "model": "docdb-elastic",
+   "version": "2022-11-28",
+   "protocol": "restJson1",
+   "iam": "docdb-elastic",
+   "aliases": [
+    "docdbelastic"
+   ],
+   "operations": 19,
+   "readonly": 7
+  },
+  "drs": {
+   "sdkId": "drs",
+   "model": "drs",
+   "version": "2020-02-26",
+   "protocol": "restJson1",
+   "iam": "drs",
+   "aliases": [],
+   "operations": 70,
+   "readonly": 23
+  },
+  "ds": {
+   "sdkId": "Directory Service",
+   "model": "directory-service",
+   "version": "2015-04-16",
+   "protocol": "awsJson1_1",
+   "iam": "ds",
+   "aliases": [
+    "directory-service",
+    "directoryservice"
+   ],
+   "operations": 80,
+   "readonly": 0
+  },
+  "ds-data": {
+   "sdkId": "Directory Service Data",
+   "model": "directory-service-data",
+   "version": "2023-05-31",
+   "protocol": "restJson1",
+   "iam": "ds",
+   "aliases": [
+    "directory-service-data",
+    "directoryservicedata"
+   ],
+   "operations": 17,
+   "readonly": 8
+  },
+  "dsql": {
+   "sdkId": "DSQL",
+   "model": "dsql",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "dsql",
+   "aliases": [],
+   "operations": 16,
+   "readonly": 7
+  },
+  "dynamodb": {
+   "sdkId": "DynamoDB",
+   "model": "dynamodb",
+   "version": "2012-08-10",
+   "protocol": "awsJson1_0",
+   "iam": "dynamodb",
+   "aliases": [],
+   "operations": 62,
+   "readonly": 0
+  },
+  "dynamodbstreams": {
+   "sdkId": "DynamoDB Streams",
+   "model": "dynamodb-streams",
+   "version": "2012-08-10",
+   "protocol": "awsJson1_0",
+   "iam": "dynamodb",
+   "aliases": [
+    "dynamodb-streams"
+   ],
+   "operations": 4,
+   "readonly": 0
+  },
+  "ebs": {
+   "sdkId": "EBS",
+   "model": "ebs",
+   "version": "2019-11-02",
+   "protocol": "restJson1",
+   "iam": "ebs",
+   "aliases": [],
+   "operations": 6,
+   "readonly": 0
+  },
+  "ec2": {
+   "sdkId": "EC2",
+   "model": "ec2",
+   "version": "2016-11-15",
+   "protocol": "ec2Query",
+   "iam": "ec2",
+   "aliases": [],
+   "operations": 811,
+   "readonly": 0
+  },
+  "ec2-instance-connect": {
+   "sdkId": "EC2 Instance Connect",
+   "model": "ec2-instance-connect",
+   "version": "2018-04-02",
+   "protocol": "awsJson1_1",
+   "iam": "ec2-instance-connect",
+   "aliases": [
+    "ec2instanceconnect"
+   ],
+   "operations": 2,
+   "readonly": 0
+  },
+  "ecr": {
+   "sdkId": "ECR",
+   "model": "ecr",
+   "version": "2015-09-21",
+   "protocol": "awsJson1_1",
+   "iam": "ecr",
+   "aliases": [],
+   "operations": 62,
+   "readonly": 0
+  },
+  "ecr-public": {
+   "sdkId": "ECR PUBLIC",
+   "model": "ecr-public",
+   "version": "2020-10-30",
+   "protocol": "awsJson1_1",
+   "iam": "ecr-public",
+   "aliases": [
+    "ecrpublic"
+   ],
+   "operations": 23,
+   "readonly": 0
+  },
+  "ecs": {
+   "sdkId": "ECS",
+   "model": "ecs",
+   "version": "2014-11-13",
+   "protocol": "awsJson1_1",
+   "iam": "ecs",
+   "aliases": [],
+   "operations": 88,
+   "readonly": 35
+  },
+  "efs": {
+   "sdkId": "EFS",
+   "model": "efs",
+   "version": "2015-02-01",
+   "protocol": "restJson1",
+   "iam": "elasticfilesystem",
+   "aliases": [
+    "elasticfilesystem"
+   ],
+   "operations": 31,
+   "readonly": 0
+  },
+  "eks": {
+   "sdkId": "EKS",
+   "model": "eks",
+   "version": "2017-11-01",
+   "protocol": "restJson1",
+   "iam": "eks",
+   "aliases": [],
+   "operations": 70,
+   "readonly": 0
+  },
+  "eks-auth": {
+   "sdkId": "EKS Auth",
+   "model": "eks-auth",
+   "version": "2023-11-26",
+   "protocol": "restJson1",
+   "iam": "eks-auth",
+   "aliases": [
+    "eksauth"
+   ],
+   "operations": 1,
+   "readonly": 0
+  },
+  "elasticache": {
+   "sdkId": "ElastiCache",
+   "model": "elasticache",
+   "version": "2015-02-02",
+   "protocol": "awsQuery",
+   "iam": "elasticache",
+   "aliases": [],
+   "operations": 77,
+   "readonly": 0
+  },
+  "elasticbeanstalk": {
+   "sdkId": "Elastic Beanstalk",
+   "model": "elastic-beanstalk",
+   "version": "2010-12-01",
+   "protocol": "awsQuery",
+   "iam": "elasticbeanstalk",
+   "aliases": [
+    "elastic-beanstalk"
+   ],
+   "operations": 47,
+   "readonly": 0
+  },
+  "elb": {
+   "sdkId": "Elastic Load Balancing",
+   "model": "elastic-load-balancing",
+   "version": "2012-06-01",
+   "protocol": "awsQuery",
+   "iam": "elasticloadbalancing",
+   "aliases": [
+    "elastic-load-balancing"
+   ],
+   "operations": 29,
+   "readonly": 0
+  },
+  "elbv2": {
+   "sdkId": "Elastic Load Balancing v2",
+   "model": "elastic-load-balancing-v2",
+   "version": "2015-12-01",
+   "protocol": "awsQuery",
+   "iam": "elasticloadbalancing",
+   "aliases": [
+    "elastic-load-balancing-v2",
+    "elasticloadbalancingv2"
+   ],
+   "operations": 51,
+   "readonly": 0
+  },
+  "elementalinference": {
+   "sdkId": "ElementalInference",
+   "model": "elementalinference",
+   "version": "2018-11-14",
+   "protocol": "restJson1",
+   "iam": "elemental-inference",
+   "aliases": [
+    "elemental-inference"
+   ],
+   "operations": 24,
+   "readonly": 10
+  },
+  "emr": {
+   "sdkId": "EMR",
+   "model": "emr",
+   "version": "2009-03-31",
+   "protocol": "awsJson1_1",
+   "iam": "elasticmapreduce",
+   "aliases": [
+    "elasticmapreduce"
+   ],
+   "operations": 65,
+   "readonly": 0
+  },
+  "emr-containers": {
+   "sdkId": "EMR containers",
+   "model": "emr-containers",
+   "version": "2020-10-01",
+   "protocol": "restJson1",
+   "iam": "emr-containers",
+   "aliases": [
+    "emrcontainers"
+   ],
+   "operations": 25,
+   "readonly": 0
+  },
+  "emr-serverless": {
+   "sdkId": "EMR Serverless",
+   "model": "emr-serverless",
+   "version": "2021-07-13",
+   "protocol": "restJson1",
+   "iam": "emr-serverless",
+   "aliases": [
+    "emrserverless"
+   ],
+   "operations": 22,
+   "readonly": 10
+  },
+  "endusermessaging": {
+   "sdkId": "EndUserMessaging",
+   "model": "endusermessaging",
+   "version": "2026-09-21",
+   "protocol": "restJson1",
+   "iam": "end-user-messaging",
+   "aliases": [
+    "end-user-messaging"
+   ],
+   "operations": 27,
+   "readonly": 10
+  },
+  "entityresolution": {
+   "sdkId": "EntityResolution",
+   "model": "entityresolution",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "entityresolution",
+   "aliases": [],
+   "operations": 38,
+   "readonly": 17
+  },
+  "es": {
+   "sdkId": "Elasticsearch Service",
+   "model": "elasticsearch-service",
+   "version": "2015-01-01",
+   "protocol": "restJson1",
+   "iam": "es",
+   "aliases": [
+    "elasticsearch-service",
+    "elasticsearchservice"
+   ],
+   "operations": 52,
+   "readonly": 0
+  },
+  "eventbridgev2": {
+   "sdkId": "EventBridgeV2",
+   "model": "eventbridgev2",
+   "version": "2025-05-15",
+   "protocol": "rpcv2Cbor",
+   "iam": "events",
+   "aliases": [
+    "eventsv2"
+   ],
+   "operations": 25,
+   "readonly": 9,
+   "unsupported": "EventBridgeV2 speaks only rpcv2Cbor, which aws_api_read and aws_api_change don't send yet."
+  },
+  "events": {
+   "sdkId": "EventBridge",
+   "model": "eventbridge",
+   "version": "2015-10-07",
+   "protocol": "awsJson1_1",
+   "iam": "events",
+   "aliases": [
+    "eventbridge"
+   ],
+   "operations": 57,
+   "readonly": 0
+  },
+  "evs": {
+   "sdkId": "evs",
+   "model": "evs",
+   "version": "2023-07-27",
+   "protocol": "awsJson1_0",
+   "iam": "evs",
+   "aliases": [],
+   "operations": 24,
+   "readonly": 10
+  },
+  "firehose": {
+   "sdkId": "Firehose",
+   "model": "firehose",
+   "version": "2015-08-04",
+   "protocol": "awsJson1_1",
+   "iam": "firehose",
+   "aliases": [],
+   "operations": 12,
+   "readonly": 0
+  },
+  "fis": {
+   "sdkId": "fis",
+   "model": "fis",
+   "version": "2020-12-01",
+   "protocol": "restJson1",
+   "iam": "fis",
+   "aliases": [],
+   "operations": 26,
+   "readonly": 0
+  },
+  "fms": {
+   "sdkId": "FMS",
+   "model": "fms",
+   "version": "2018-01-01",
+   "protocol": "awsJson1_1",
+   "iam": "fms",
+   "aliases": [],
+   "operations": 42,
+   "readonly": 0
+  },
+  "forecast": {
+   "sdkId": "forecast",
+   "model": "forecast",
+   "version": "2018-06-26",
+   "protocol": "awsJson1_1",
+   "iam": "forecast",
+   "aliases": [],
+   "operations": 63,
+   "readonly": 0
+  },
+  "forecastquery": {
+   "sdkId": "forecastquery",
+   "model": "forecastquery",
+   "version": "2018-06-26",
+   "protocol": "awsJson1_1",
+   "iam": "forecast",
+   "aliases": [],
+   "operations": 2,
+   "readonly": 0
+  },
+  "frauddetector": {
+   "sdkId": "FraudDetector",
+   "model": "frauddetector",
+   "version": "2019-11-15",
+   "protocol": "awsJson1_1",
+   "iam": "frauddetector",
+   "aliases": [],
+   "operations": 73,
+   "readonly": 0
+  },
+  "freetier": {
+   "sdkId": "FreeTier",
+   "model": "freetier",
+   "version": "2023-09-07",
+   "protocol": "awsJson1_0",
+   "iam": "freetier",
+   "aliases": [],
+   "operations": 5,
+   "readonly": 3
+  },
+  "fsx": {
+   "sdkId": "FSx",
+   "model": "fsx",
+   "version": "2018-03-01",
+   "protocol": "awsJson1_1",
+   "iam": "fsx",
+   "aliases": [],
+   "operations": 48,
+   "readonly": 0
+  },
+  "gamelift": {
+   "sdkId": "GameLift",
+   "model": "gamelift",
+   "version": "2015-10-01",
+   "protocol": "awsJson1_1",
+   "iam": "gamelift",
+   "aliases": [],
+   "operations": 120,
+   "readonly": 0
+  },
+  "gameliftstreams": {
+   "sdkId": "GameLiftStreams",
+   "model": "gameliftstreams",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "gameliftstreams",
+   "aliases": [],
+   "operations": 30,
+   "readonly": 11
+  },
+  "geo-maps": {
+   "sdkId": "Geo Maps",
+   "model": "geo-maps",
+   "version": "2020-11-19",
+   "protocol": "restJson1",
+   "iam": "geo-maps",
+   "aliases": [
+    "geomaps"
+   ],
+   "operations": 5,
+   "readonly": 5
+  },
+  "geo-places": {
+   "sdkId": "Geo Places",
+   "model": "geo-places",
+   "version": "2020-11-19",
+   "protocol": "restJson1",
+   "iam": "geo-places",
+   "aliases": [
+    "geoplaces"
+   ],
+   "operations": 7,
+   "readonly": 7
+  },
+  "geo-routes": {
+   "sdkId": "Geo Routes",
+   "model": "geo-routes",
+   "version": "2020-11-19",
+   "protocol": "restJson1",
+   "iam": "geo-routes",
+   "aliases": [
+    "georoutes"
+   ],
+   "operations": 5,
+   "readonly": 5
+  },
+  "glacier": {
+   "sdkId": "Glacier",
+   "model": "glacier",
+   "version": "2012-06-01",
+   "protocol": "restJson1",
+   "iam": "glacier",
+   "aliases": [],
+   "operations": 33,
+   "readonly": 0
+  },
+  "globalaccelerator": {
+   "sdkId": "Global Accelerator",
+   "model": "global-accelerator",
+   "version": "2018-08-08",
+   "protocol": "awsJson1_1",
+   "iam": "globalaccelerator",
+   "aliases": [
+    "global-accelerator"
+   ],
+   "operations": 56,
+   "readonly": 0
+  },
+  "glue": {
+   "sdkId": "Glue",
+   "model": "glue",
+   "version": "2017-03-31",
+   "protocol": "awsJson1_1",
+   "iam": "glue",
+   "aliases": [],
+   "operations": 314,
+   "readonly": 6
+  },
+  "grafana": {
+   "sdkId": "grafana",
+   "model": "grafana",
+   "version": "2020-08-18",
+   "protocol": "restJson1",
+   "iam": "grafana",
+   "aliases": [],
+   "operations": 25,
+   "readonly": 8
+  },
+  "greengrass": {
+   "sdkId": "Greengrass",
+   "model": "greengrass",
+   "version": "2017-06-07",
+   "protocol": "restJson1",
+   "iam": "greengrass",
+   "aliases": [],
+   "operations": 92,
+   "readonly": 0
+  },
+  "greengrassv2": {
+   "sdkId": "GreengrassV2",
+   "model": "greengrassv2",
+   "version": "2020-11-30",
+   "protocol": "restJson1",
+   "iam": "greengrass",
+   "aliases": [],
+   "operations": 29,
+   "readonly": 0
+  },
+  "groundstation": {
+   "sdkId": "GroundStation",
+   "model": "groundstation",
+   "version": "2019-05-23",
+   "protocol": "restJson1",
+   "iam": "groundstation",
+   "aliases": [],
+   "operations": 40,
+   "readonly": 21
+  },
+  "guardduty": {
+   "sdkId": "GuardDuty",
+   "model": "guardduty",
+   "version": "2017-11-28",
+   "protocol": "restJson1",
+   "iam": "guardduty",
+   "aliases": [],
+   "operations": 102,
+   "readonly": 6
+  },
+  "health": {
+   "sdkId": "Health",
+   "model": "health",
+   "version": "2016-08-04",
+   "protocol": "awsJson1_1",
+   "iam": "health",
+   "aliases": [],
+   "operations": 15,
+   "readonly": 0
+  },
+  "healthlake": {
+   "sdkId": "HealthLake",
+   "model": "healthlake",
+   "version": "2017-07-01",
+   "protocol": "awsJson1_0",
+   "iam": "healthlake",
+   "aliases": [],
+   "operations": 26,
+   "readonly": 5
+  },
+  "iam": {
+   "sdkId": "IAM",
+   "model": "iam",
+   "version": "2010-05-08",
+   "protocol": "awsQuery",
+   "iam": "iam",
+   "aliases": [],
+   "operations": 180,
+   "readonly": 0
+  },
+  "iam-toolbox": {
+   "sdkId": "IAM Toolbox",
+   "model": "iam-toolbox",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "iam",
+   "aliases": [
+    "iamtoolbox"
+   ],
+   "operations": 1,
+   "readonly": 1
+  },
+  "identitystore": {
+   "sdkId": "identitystore",
+   "model": "identitystore",
+   "version": "2020-06-15",
+   "protocol": "awsJson1_1",
+   "iam": "identitystore",
+   "aliases": [],
+   "operations": 22,
+   "readonly": 13
+  },
+  "imagebuilder": {
+   "sdkId": "imagebuilder",
+   "model": "imagebuilder",
+   "version": "2019-12-02",
+   "protocol": "restJson1",
+   "iam": "imagebuilder",
+   "aliases": [],
+   "operations": 77,
+   "readonly": 0
+  },
+  "inspector": {
+   "sdkId": "Inspector",
+   "model": "inspector",
+   "version": "2016-02-16",
+   "protocol": "awsJson1_1",
+   "iam": "inspector",
+   "aliases": [],
+   "operations": 37,
+   "readonly": 0
+  },
+  "inspector-scan": {
+   "sdkId": "Inspector Scan",
+   "model": "inspector-scan",
+   "version": "2023-08-08",
+   "protocol": "restJson1",
+   "iam": "inspector-scan",
+   "aliases": [
+    "inspectorscan"
+   ],
+   "operations": 1,
+   "readonly": 0
+  },
+  "inspector2": {
+   "sdkId": "Inspector2",
+   "model": "inspector2",
+   "version": "2020-06-08",
+   "protocol": "restJson1",
+   "iam": "inspector2",
+   "aliases": [],
+   "operations": 84,
+   "readonly": 7
+  },
+  "interconnect": {
+   "sdkId": "Interconnect",
+   "model": "interconnect",
+   "version": "2022-07-26",
+   "protocol": "awsJson1_0",
+   "iam": "interconnect",
+   "aliases": [],
+   "operations": 13,
+   "readonly": 7
+  },
+  "internetmonitor": {
+   "sdkId": "InternetMonitor",
+   "model": "internetmonitor",
+   "version": "2021-06-03",
+   "protocol": "restJson1",
+   "iam": "internetmonitor",
+   "aliases": [],
+   "operations": 16,
+   "readonly": 11
+  },
+  "invoicing": {
+   "sdkId": "Invoicing",
+   "model": "invoicing",
+   "version": "2024-12-01",
+   "protocol": "awsJson1_0",
+   "iam": "invoicing",
+   "aliases": [],
+   "operations": 21,
+   "readonly": 7
+  },
+  "iot": {
+   "sdkId": "IoT",
+   "model": "iot",
+   "version": "2015-05-28",
+   "protocol": "restJson1",
+   "iam": "iot",
+   "aliases": [],
+   "operations": 272,
+   "readonly": 0
+  },
+  "iot-data": {
+   "sdkId": "IoT Data Plane",
+   "model": "iot-data-plane",
+   "version": "2015-05-28",
+   "protocol": "restJson1",
+   "iam": "iotdata",
+   "aliases": [
+    "iot-data-plane",
+    "iotdata",
+    "iotdataplane"
+   ],
+   "operations": 11,
+   "readonly": 0
+  },
+  "iot-jobs-data": {
+   "sdkId": "IoT Jobs Data Plane",
+   "model": "iot-jobs-data-plane",
+   "version": "2017-09-29",
+   "protocol": "restJson1",
+   "iam": "iot-jobs-data",
+   "aliases": [
+    "iot-jobs-data-plane",
+    "iotjobsdataplane"
+   ],
+   "operations": 5,
+   "readonly": 0
+  },
+  "iot-managed-integrations": {
+   "sdkId": "IoT Managed Integrations",
+   "model": "iot-managed-integrations",
+   "version": "2025-03-03",
+   "protocol": "restJson1",
+   "iam": "iotmanagedintegrations",
+   "aliases": [
+    "iotmanagedintegrations"
+   ],
+   "operations": 83,
+   "readonly": 40
+  },
+  "iotdeviceadvisor": {
+   "sdkId": "IotDeviceAdvisor",
+   "model": "iotdeviceadvisor",
+   "version": "2020-09-18",
+   "protocol": "restJson1",
+   "iam": "iotdeviceadvisor",
+   "aliases": [],
+   "operations": 14,
+   "readonly": 0
+  },
+  "iotfleetwise": {
+   "sdkId": "IoTFleetWise",
+   "model": "iotfleetwise",
+   "version": "2021-06-17",
+   "protocol": "awsJson1_0",
+   "iam": "iotfleetwise",
+   "aliases": [],
+   "operations": 57,
+   "readonly": 25
+  },
+  "iotsecuretunneling": {
+   "sdkId": "IoTSecureTunneling",
+   "model": "iotsecuretunneling",
+   "version": "2018-10-05",
+   "protocol": "awsJson1_1",
+   "iam": "iot",
+   "aliases": [],
+   "operations": 8,
+   "readonly": 0
+  },
+  "iotsitewise": {
+   "sdkId": "IoTSiteWise",
+   "model": "iotsitewise",
+   "version": "2019-12-02",
+   "protocol": "restJson1",
+   "iam": "iotsitewise",
+   "aliases": [],
+   "operations": 149,
+   "readonly": 23
+  },
+  "iotthingsgraph": {
+   "sdkId": "IoTThingsGraph",
+   "model": "iotthingsgraph",
+   "version": "2018-09-06",
+   "protocol": "awsJson1_1",
+   "iam": "iotthingsgraph",
+   "aliases": [],
+   "operations": 35,
+   "readonly": 0
+  },
+  "iottwinmaker": {
+   "sdkId": "IoTTwinMaker",
+   "model": "iottwinmaker",
+   "version": "2021-11-29",
+   "protocol": "restJson1",
+   "iam": "iottwinmaker",
+   "aliases": [],
+   "operations": 40,
+   "readonly": 3
+  },
+  "iotwireless": {
+   "sdkId": "IoT Wireless",
+   "model": "iot-wireless",
+   "version": "2020-11-22",
+   "protocol": "restJson1",
+   "iam": "iotwireless",
+   "aliases": [
+    "iot-wireless"
+   ],
+   "operations": 112,
+   "readonly": 0
+  },
+  "ivs": {
+   "sdkId": "ivs",
+   "model": "ivs",
+   "version": "2020-07-14",
+   "protocol": "restJson1",
+   "iam": "ivs",
+   "aliases": [],
+   "operations": 46,
+   "readonly": 23
+  },
+  "ivs-realtime": {
+   "sdkId": "IVS RealTime",
+   "model": "ivs-realtime",
+   "version": "2020-07-14",
+   "protocol": "restJson1",
+   "iam": "ivs",
+   "aliases": [
+    "ivsrealtime"
+   ],
+   "operations": 40,
+   "readonly": 19
+  },
+  "ivschat": {
+   "sdkId": "ivschat",
+   "model": "ivschat",
+   "version": "2020-07-14",
+   "protocol": "restJson1",
+   "iam": "ivschat",
+   "aliases": [],
+   "operations": 17,
+   "readonly": 4
+  },
+  "kafka": {
+   "sdkId": "Kafka",
+   "model": "kafka",
+   "version": "2018-11-14",
+   "protocol": "restJson1",
+   "iam": "kafka",
+   "aliases": [],
+   "operations": 64,
+   "readonly": 0
+  },
+  "kafkaconnect": {
+   "sdkId": "KafkaConnect",
+   "model": "kafkaconnect",
+   "version": "2021-09-14",
+   "protocol": "restJson1",
+   "iam": "kafkaconnect",
+   "aliases": [],
+   "operations": 21,
+   "readonly": 9
+  },
+  "kendra": {
+   "sdkId": "kendra",
+   "model": "kendra",
+   "version": "2019-02-03",
+   "protocol": "awsJson1_1",
+   "iam": "kendra",
+   "aliases": [],
+   "operations": 66,
+   "readonly": 0
+  },
+  "kendra-ranking": {
+   "sdkId": "Kendra Ranking",
+   "model": "kendra-ranking",
+   "version": "2022-10-19",
+   "protocol": "awsJson1_0",
+   "iam": "kendra-ranking",
+   "aliases": [
+    "kendraranking"
+   ],
+   "operations": 9,
+   "readonly": 0
+  },
+  "keyspaces": {
+   "sdkId": "Keyspaces",
+   "model": "keyspaces",
+   "version": "2022-02-10",
+   "protocol": "awsJson1_0",
+   "iam": "cassandra",
+   "aliases": [],
+   "operations": 19,
+   "readonly": 0
+  },
+  "keyspacesstreams": {
+   "sdkId": "KeyspacesStreams",
+   "model": "keyspacesstreams",
+   "version": "2024-09-09",
+   "protocol": "awsJson1_0",
+   "iam": "cassandra",
+   "aliases": [
+    "cassandra-streams"
+   ],
+   "operations": 4,
+   "readonly": 0
+  },
+  "kinesis": {
+   "sdkId": "Kinesis",
+   "model": "kinesis",
+   "version": "2013-12-02",
+   "protocol": "awsJson1_1",
+   "iam": "kinesis",
+   "aliases": [],
+   "operations": 45,
+   "readonly": 2
+  },
+  "kinesis-video-archived-media": {
+   "sdkId": "Kinesis Video Archived Media",
+   "model": "kinesis-video-archived-media",
+   "version": "2017-09-30",
+   "protocol": "restJson1",
+   "iam": "kinesisvideo",
+   "aliases": [
+    "kinesisvideoarchivedmedia"
+   ],
+   "operations": 6,
+   "readonly": 0
+  },
+  "kinesis-video-media": {
+   "sdkId": "Kinesis Video Media",
+   "model": "kinesis-video-media",
+   "version": "2017-09-30",
+   "protocol": "restJson1",
+   "iam": "kinesisvideo",
+   "aliases": [
+    "kinesisvideomedia"
+   ],
+   "operations": 1,
+   "readonly": 0
+  },
+  "kinesis-video-signaling": {
+   "sdkId": "Kinesis Video Signaling",
+   "model": "kinesis-video-signaling",
+   "version": "2019-12-04",
+   "protocol": "restJson1",
+   "iam": "kinesisvideo",
+   "aliases": [
+    "kinesisvideosignaling"
+   ],
+   "operations": 2,
+   "readonly": 0
+  },
+  "kinesis-video-webrtc-storage": {
+   "sdkId": "Kinesis Video WebRTC Storage",
+   "model": "kinesis-video-webrtc-storage",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "kinesisvideo",
+   "aliases": [
+    "kinesisvideowebrtcstorage"
+   ],
+   "operations": 2,
+   "readonly": 0
+  },
+  "kinesisanalytics": {
+   "sdkId": "Kinesis Analytics",
+   "model": "kinesis-analytics",
+   "version": "2015-08-14",
+   "protocol": "awsJson1_1",
+   "iam": "kinesisanalytics",
+   "aliases": [
+    "kinesis-analytics"
+   ],
+   "operations": 20,
+   "readonly": 0
+  },
+  "kinesisanalyticsv2": {
+   "sdkId": "Kinesis Analytics V2",
+   "model": "kinesis-analytics-v2",
+   "version": "2018-05-23",
+   "protocol": "awsJson1_1",
+   "iam": "kinesisanalytics",
+   "aliases": [
+    "kinesis-analytics-v2"
+   ],
+   "operations": 33,
+   "readonly": 0
+  },
+  "kinesisvideo": {
+   "sdkId": "Kinesis Video",
+   "model": "kinesis-video",
+   "version": "2017-09-30",
+   "protocol": "restJson1",
+   "iam": "kinesisvideo",
+   "aliases": [
+    "kinesis-video"
+   ],
+   "operations": 32,
+   "readonly": 0
+  },
+  "kms": {
+   "sdkId": "KMS",
+   "model": "kms",
+   "version": "2014-11-01",
+   "protocol": "awsJson1_1",
+   "iam": "kms",
+   "aliases": [],
+   "operations": 56,
+   "readonly": 0
+  },
+  "lakeformation": {
+   "sdkId": "LakeFormation",
+   "model": "lakeformation",
+   "version": "2017-03-31",
+   "protocol": "restJson1",
+   "iam": "lakeformation",
+   "aliases": [],
+   "operations": 71,
+   "readonly": 0
+  },
+  "lambda": {
+   "sdkId": "Lambda",
+   "model": "lambda",
+   "version": "2015-03-31",
+   "protocol": "restJson1",
+   "iam": "lambda",
+   "aliases": [],
+   "operations": 88,
+   "readonly": 38
+  },
+  "lambda-core": {
+   "sdkId": "Lambda Core",
+   "model": "lambda-core",
+   "version": "2026-04-30",
+   "protocol": "restJson1",
+   "iam": "lambda",
+   "aliases": [
+    "lambdacore"
+   ],
+   "operations": 6,
+   "readonly": 3
+  },
+  "lambda-microvms": {
+   "sdkId": "Lambda Microvms",
+   "model": "lambda-microvms",
+   "version": "2025-09-09",
+   "protocol": "restJson1",
+   "iam": "lambda",
+   "aliases": [
+    "lambdamicrovms"
+   ],
+   "operations": 24,
+   "readonly": 11
+  },
+  "lambda-web": {
+   "sdkId": "Lambda Web",
+   "model": "lambda-web",
+   "version": "2025-03-07",
+   "protocol": "restJson1",
+   "iam": "lambda",
+   "aliases": [
+    "lambdaweb"
+   ],
+   "operations": 20,
+   "readonly": 9
+  },
+  "launch-wizard": {
+   "sdkId": "Launch Wizard",
+   "model": "launch-wizard",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "launchwizard",
+   "aliases": [
+    "launchwizard"
+   ],
+   "operations": 15,
+   "readonly": 10
+  },
+  "lex-models": {
+   "sdkId": "Lex Model Building Service",
+   "model": "lex-model-building-service",
+   "version": "2017-04-19",
+   "protocol": "restJson1",
+   "iam": "lex",
+   "aliases": [
+    "lex-model-building-service",
+    "lexmodelbuildingservice"
+   ],
+   "operations": 42,
+   "readonly": 0
+  },
+  "lex-models-v2": {
+   "sdkId": "Lex Models V2",
+   "model": "lex-models-v2",
+   "version": "2020-08-07",
+   "protocol": "restJson1",
+   "iam": "lex",
+   "aliases": [
+    "lexmodelsv2",
+    "models-v2-lex"
+   ],
+   "operations": 107,
+   "readonly": 0
+  },
+  "lex-runtime": {
+   "sdkId": "Lex Runtime Service",
+   "model": "lex-runtime-service",
+   "version": "2016-11-28",
+   "protocol": "restJson1",
+   "iam": "lex",
+   "aliases": [
+    "lex-runtime-service",
+    "lexruntimeservice"
+   ],
+   "operations": 5,
+   "readonly": 0
+  },
+  "lex-runtime-v2": {
+   "sdkId": "Lex Runtime V2",
+   "model": "lex-runtime-v2",
+   "version": "2020-08-07",
+   "protocol": "restJson1",
+   "iam": "lex",
+   "aliases": [
+    "lexruntimev2",
+    "runtime-v2-lex"
+   ],
+   "operations": 6,
+   "readonly": 0
+  },
+  "license-manager": {
+   "sdkId": "License Manager",
+   "model": "license-manager",
+   "version": "2018-08-01",
+   "protocol": "awsJson1_1",
+   "iam": "license-manager",
+   "aliases": [
+    "licensemanager"
+   ],
+   "operations": 62,
+   "readonly": 0
+  },
+  "license-manager-linux-subscriptions": {
+   "sdkId": "License Manager Linux Subscriptions",
+   "model": "license-manager-linux-subscriptions",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "license-manager-linux-subscriptions",
+   "aliases": [
+    "licensemanagerlinuxsubscriptions"
+   ],
+   "operations": 11,
+   "readonly": 1
+  },
+  "license-manager-user-subscriptions": {
+   "sdkId": "License Manager User Subscriptions",
+   "model": "license-manager-user-subscriptions",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "license-manager-user-subscriptions",
+   "aliases": [
+    "licensemanagerusersubscriptions"
+   ],
+   "operations": 17,
+   "readonly": 1
+  },
+  "lightsail": {
+   "sdkId": "Lightsail",
+   "model": "lightsail",
+   "version": "2016-11-28",
+   "protocol": "awsJson1_1",
+   "iam": "lightsail",
+   "aliases": [],
+   "operations": 162,
+   "readonly": 0
+  },
+  "location": {
+   "sdkId": "Location",
+   "model": "location",
+   "version": "2020-11-19",
+   "protocol": "restJson1",
+   "iam": "geo",
+   "aliases": [
+    "geo"
+   ],
+   "operations": 64,
+   "readonly": 33
+  },
+  "logs": {
+   "sdkId": "CloudWatch Logs",
+   "model": "cloudwatch-logs",
+   "version": "2014-03-28",
+   "protocol": "awsJson1_1",
+   "iam": "logs",
+   "aliases": [
+    "cloudwatch-logs",
+    "cloudwatchlogs"
+   ],
+   "operations": 118,
+   "readonly": 0
+  },
+  "lookoutequipment": {
+   "sdkId": "LookoutEquipment",
+   "model": "lookoutequipment",
+   "version": "2020-12-15",
+   "protocol": "awsJson1_0",
+   "iam": "lookoutequipment",
+   "aliases": [],
+   "operations": 49,
+   "readonly": 0
+  },
+  "m2": {
+   "sdkId": "m2",
+   "model": "m2",
+   "version": "2021-04-28",
+   "protocol": "restJson1",
+   "iam": "m2",
+   "aliases": [],
+   "operations": 37,
+   "readonly": 20
+  },
+  "machine-learning": {
+   "sdkId": "Machine Learning",
+   "model": "machine-learning",
+   "version": "2014-12-12",
+   "protocol": "awsJson1_1",
+   "iam": "machinelearning",
+   "aliases": [
+    "machinelearning"
+   ],
+   "operations": 28,
+   "readonly": 0
+  },
+  "macie2": {
+   "sdkId": "Macie2",
+   "model": "macie2",
+   "version": "2020-01-01",
+   "protocol": "restJson1",
+   "iam": "macie2",
+   "aliases": [],
+   "operations": 81,
+   "readonly": 0
+  },
+  "mailmanager": {
+   "sdkId": "MailManager",
+   "model": "mailmanager",
+   "version": "2023-10-17",
+   "protocol": "awsJson1_0",
+   "iam": "ses",
+   "aliases": [
+    "mail-manager"
+   ],
+   "operations": 60,
+   "readonly": 26
+  },
+  "managedblockchain": {
+   "sdkId": "ManagedBlockchain",
+   "model": "managedblockchain",
+   "version": "2018-09-24",
+   "protocol": "restJson1",
+   "iam": "managedblockchain",
+   "aliases": [],
+   "operations": 27,
+   "readonly": 0
+  },
+  "managedblockchain-query": {
+   "sdkId": "ManagedBlockchain Query",
+   "model": "managedblockchain-query",
+   "version": "2023-05-04",
+   "protocol": "restJson1",
+   "iam": "managedblockchain-query",
+   "aliases": [
+    "managedblockchainquery"
+   ],
+   "operations": 9,
+   "readonly": 9
+  },
+  "marketplace-agreement": {
+   "sdkId": "Marketplace Agreement",
+   "model": "marketplace-agreement",
+   "version": "2020-03-01",
+   "protocol": "awsJson1_0",
+   "iam": "aws-marketplace",
+   "aliases": [
+    "agreement-marketplace",
+    "marketplaceagreement"
+   ],
+   "operations": 25,
+   "readonly": 2
+  },
+  "marketplace-catalog": {
+   "sdkId": "Marketplace Catalog",
+   "model": "marketplace-catalog",
+   "version": "2018-09-17",
+   "protocol": "restJson1",
+   "iam": "aws-marketplace",
+   "aliases": [
+    "marketplacecatalog"
+   ],
+   "operations": 15,
+   "readonly": 0
+  },
+  "marketplace-commerce-analytics": {
+   "sdkId": "Marketplace Commerce Analytics",
+   "model": "marketplace-commerce-analytics",
+   "version": "2015-07-01",
+   "protocol": "awsJson1_1",
+   "iam": "marketplacecommerceanalytics",
+   "aliases": [
+    "marketplacecommerceanalytics"
+   ],
+   "operations": 2,
+   "readonly": 0
+  },
+  "marketplace-deployment": {
+   "sdkId": "Marketplace Deployment",
+   "model": "marketplace-deployment",
+   "version": "2023-01-25",
+   "protocol": "restJson1",
+   "iam": "aws-marketplace",
+   "aliases": [
+    "deployment-marketplace",
+    "marketplacedeployment"
+   ],
+   "operations": 4,
+   "readonly": 1
+  },
+  "marketplace-discovery": {
+   "sdkId": "Marketplace Discovery",
+   "model": "marketplace-discovery",
+   "version": "2026-02-05",
+   "protocol": "restJson1",
+   "iam": "aws-marketplace",
+   "aliases": [
+    "discovery-marketplace",
+    "marketplacediscovery"
+   ],
+   "operations": 9,
+   "readonly": 9
+  },
+  "marketplace-entitlement-service": {
+   "sdkId": "Marketplace Entitlement Service",
+   "model": "marketplace-entitlement-service",
+   "version": "2017-01-11",
+   "protocol": "awsJson1_1",
+   "iam": "aws-marketplace",
+   "aliases": [
+    "marketplaceentitlementservice"
+   ],
+   "operations": 1,
+   "readonly": 0
+  },
+  "marketplace-reporting": {
+   "sdkId": "Marketplace Reporting",
+   "model": "marketplace-reporting",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "aws-marketplace",
+   "aliases": [
+    "marketplacereporting",
+    "reporting-marketplace"
+   ],
+   "operations": 1,
+   "readonly": 1
+  },
+  "mediaconnect": {
+   "sdkId": "MediaConnect",
+   "model": "mediaconnect",
+   "version": "2018-11-14",
+   "protocol": "restJson1",
+   "iam": "mediaconnect",
+   "aliases": [],
+   "operations": 96,
+   "readonly": 34
+  },
+  "mediaconvert": {
+   "sdkId": "MediaConvert",
+   "model": "mediaconvert",
+   "version": "2017-08-29",
+   "protocol": "restJson1",
+   "iam": "mediaconvert",
+   "aliases": [],
+   "operations": 34,
+   "readonly": 0
+  },
+  "medialive": {
+   "sdkId": "MediaLive",
+   "model": "medialive",
+   "version": "2017-10-14",
+   "protocol": "restJson1",
+   "iam": "medialive",
+   "aliases": [],
+   "operations": 123,
+   "readonly": 0
+  },
+  "mediapackage": {
+   "sdkId": "MediaPackage",
+   "model": "mediapackage",
+   "version": "2017-10-12",
+   "protocol": "restJson1",
+   "iam": "mediapackage",
+   "aliases": [],
+   "operations": 19,
+   "readonly": 0
+  },
+  "mediapackage-vod": {
+   "sdkId": "MediaPackage Vod",
+   "model": "mediapackage-vod",
+   "version": "2018-11-07",
+   "protocol": "restJson1",
+   "iam": "mediapackage-vod",
+   "aliases": [
+    "mediapackagevod"
+   ],
+   "operations": 17,
+   "readonly": 0
+  },
+  "mediapackagev2": {
+   "sdkId": "MediaPackageV2",
+   "model": "mediapackagev2",
+   "version": "2022-12-25",
+   "protocol": "restJson1",
+   "iam": "mediapackagev2",
+   "aliases": [],
+   "operations": 30,
+   "readonly": 11
+  },
+  "mediastore": {
+   "sdkId": "MediaStore",
+   "model": "mediastore",
+   "version": "2017-09-01",
+   "protocol": "awsJson1_1",
+   "iam": "mediastore",
+   "aliases": [],
+   "operations": 21,
+   "readonly": 0
+  },
+  "mediastore-data": {
+   "sdkId": "MediaStore Data",
+   "model": "mediastore-data",
+   "version": "2017-09-01",
+   "protocol": "restJson1",
+   "iam": "mediastore",
+   "aliases": [
+    "mediastoredata"
+   ],
+   "operations": 5,
+   "readonly": 0
+  },
+  "mediatailor": {
+   "sdkId": "MediaTailor",
+   "model": "mediatailor",
+   "version": "2018-04-23",
+   "protocol": "restJson1",
+   "iam": "mediatailor",
+   "aliases": [],
+   "operations": 48,
+   "readonly": 19
+  },
+  "medical-imaging": {
+   "sdkId": "Medical Imaging",
+   "model": "medical-imaging",
+   "version": "2023-07-19",
+   "protocol": "restJson1",
+   "iam": "medical-imaging",
+   "aliases": [
+    "medicalimaging"
+   ],
+   "operations": 18,
+   "readonly": 9
+  },
+  "memorydb": {
+   "sdkId": "MemoryDB",
+   "model": "memorydb",
+   "version": "2021-01-01",
+   "protocol": "awsJson1_1",
+   "iam": "memorydb",
+   "aliases": [
+    "memory-db"
+   ],
+   "operations": 45,
+   "readonly": 0
+  },
+  "meteringmarketplace": {
+   "sdkId": "Marketplace Metering",
+   "model": "marketplace-metering",
+   "version": "2016-01-14",
+   "protocol": "awsJson1_1",
+   "iam": "aws-marketplace",
+   "aliases": [
+    "marketplace-metering",
+    "marketplacemetering"
+   ],
+   "operations": 4,
+   "readonly": 0
+  },
+  "mgh": {
+   "sdkId": "Migration Hub",
+   "model": "migration-hub",
+   "version": "2017-05-31",
+   "protocol": "awsJson1_1",
+   "iam": "mgh",
+   "aliases": [
+    "migration-hub",
+    "migrationhub"
+   ],
+   "operations": 21,
+   "readonly": 0
+  },
+  "mgn": {
+   "sdkId": "mgn",
+   "model": "mgn",
+   "version": "2020-02-26",
+   "protocol": "restJson1",
+   "iam": "mgn",
+   "aliases": [],
+   "operations": 95,
+   "readonly": 34
+  },
+  "migration-hub-refactor-spaces": {
+   "sdkId": "Migration Hub Refactor Spaces",
+   "model": "migration-hub-refactor-spaces",
+   "version": "2021-10-26",
+   "protocol": "restJson1",
+   "iam": "refactor-spaces",
+   "aliases": [
+    "migrationhubrefactorspaces",
+    "refactor-spaces"
+   ],
+   "operations": 24,
+   "readonly": 11
+  },
+  "migrationhub-config": {
+   "sdkId": "MigrationHub Config",
+   "model": "migrationhub-config",
+   "version": "2019-06-30",
+   "protocol": "awsJson1_1",
+   "iam": "mgh",
+   "aliases": [
+    "migrationhubconfig"
+   ],
+   "operations": 4,
+   "readonly": 0
+  },
+  "migrationhuborchestrator": {
+   "sdkId": "MigrationHubOrchestrator",
+   "model": "migrationhuborchestrator",
+   "version": "2021-08-28",
+   "protocol": "restJson1",
+   "iam": "migrationhub-orchestrator",
+   "aliases": [
+    "migrationhub-orchestrator"
+   ],
+   "operations": 31,
+   "readonly": 14
+  },
+  "migrationhubstrategy": {
+   "sdkId": "MigrationHubStrategy",
+   "model": "migrationhubstrategy",
+   "version": "2020-02-19",
+   "protocol": "restJson1",
+   "iam": "migrationhub-strategy",
+   "aliases": [
+    "migrationhub-strategy"
+   ],
+   "operations": 22,
+   "readonly": 13
+  },
+  "mpa": {
+   "sdkId": "MPA",
+   "model": "mpa",
+   "version": "2022-07-26",
+   "protocol": "restJson1",
+   "iam": "mpa",
+   "aliases": [],
+   "operations": 22,
+   "readonly": 12
+  },
+  "mq": {
+   "sdkId": "mq",
+   "model": "mq",
+   "version": "2017-11-27",
+   "protocol": "restJson1",
+   "iam": "mq",
+   "aliases": [],
+   "operations": 25,
+   "readonly": 0
+  },
+  "mturk": {
+   "sdkId": "MTurk",
+   "model": "mturk",
+   "version": "2017-01-17",
+   "protocol": "awsJson1_1",
+   "iam": "mturk-requester",
+   "aliases": [
+    "mturk-requester"
+   ],
+   "operations": 39,
+   "readonly": 0
+  },
+  "mwaa": {
+   "sdkId": "MWAA",
+   "model": "mwaa",
+   "version": "2020-07-01",
+   "protocol": "restJson1",
+   "iam": "airflow",
+   "aliases": [
+    "airflow"
+   ],
+   "operations": 12,
+   "readonly": 3
+  },
+  "mwaa-serverless": {
+   "sdkId": "MWAA Serverless",
+   "model": "mwaa-serverless",
+   "version": "2024-07-26",
+   "protocol": "awsJson1_0",
+   "iam": "airflow-serverless",
+   "aliases": [
+    "airflow-serverless",
+    "mwaaserverless"
+   ],
+   "operations": 15,
+   "readonly": 8
+  },
+  "neptune": {
+   "sdkId": "Neptune",
+   "model": "neptune",
+   "version": "2014-10-31",
+   "protocol": "awsQuery",
+   "iam": "rds",
+   "aliases": [],
+   "operations": 70,
+   "readonly": 0
+  },
+  "neptune-graph": {
+   "sdkId": "Neptune Graph",
+   "model": "neptune-graph",
+   "version": "2023-11-29",
+   "protocol": "restJson1",
+   "iam": "neptune-graph",
+   "aliases": [
+    "neptunegraph"
+   ],
+   "operations": 34,
+   "readonly": 14
+  },
+  "neptunedata": {
+   "sdkId": "neptunedata",
+   "model": "neptunedata",
+   "version": "2023-08-01",
+   "protocol": "restJson1",
+   "iam": "neptune-db",
+   "aliases": [
+    "neptune-db"
+   ],
+   "operations": 48,
+   "readonly": 25
+  },
+  "network-firewall": {
+   "sdkId": "Network Firewall",
+   "model": "network-firewall",
+   "version": "2020-11-12",
+   "protocol": "awsJson1_0",
+   "iam": "network-firewall",
+   "aliases": [
+    "networkfirewall"
+   ],
+   "operations": 90,
+   "readonly": 0
+  },
+  "network-security-manager": {
+   "sdkId": "Network Security Manager",
+   "model": "network-security-manager",
+   "version": "2025-10-30",
+   "protocol": "restJson1",
+   "iam": "network-security-manager",
+   "aliases": [
+    "networksecuritymanager"
+   ],
+   "operations": 46,
+   "readonly": 21
+  },
+  "networkflowmonitor": {
+   "sdkId": "NetworkFlowMonitor",
+   "model": "networkflowmonitor",
+   "version": "2023-04-19",
+   "protocol": "restJson1",
+   "iam": "networkflowmonitor",
+   "aliases": [],
+   "operations": 25,
+   "readonly": 15
+  },
+  "networkmanager": {
+   "sdkId": "NetworkManager",
+   "model": "networkmanager",
+   "version": "2019-07-05",
+   "protocol": "restJson1",
+   "iam": "networkmanager",
+   "aliases": [],
+   "operations": 97,
+   "readonly": 0
+  },
+  "networkmonitor": {
+   "sdkId": "NetworkMonitor",
+   "model": "networkmonitor",
+   "version": "2023-08-01",
+   "protocol": "restJson1",
+   "iam": "networkmonitor",
+   "aliases": [],
+   "operations": 12,
+   "readonly": 4
+  },
+  "notifications": {
+   "sdkId": "Notifications",
+   "model": "notifications",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "notifications",
+   "aliases": [],
+   "operations": 40,
+   "readonly": 19
+  },
+  "notificationscontacts": {
+   "sdkId": "NotificationsContacts",
+   "model": "notificationscontacts",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "notifications-contacts",
+   "aliases": [
+    "notifications-contacts"
+   ],
+   "operations": 9,
+   "readonly": 3
+  },
+  "nova-act": {
+   "sdkId": "Nova Act",
+   "model": "nova-act",
+   "version": "2025-08-22",
+   "protocol": "restJson1",
+   "iam": "nova-act",
+   "aliases": [
+    "novaact"
+   ],
+   "operations": 16,
+   "readonly": 7
+  },
+  "oam": {
+   "sdkId": "OAM",
+   "model": "oam",
+   "version": "2022-06-10",
+   "protocol": "restJson1",
+   "iam": "oam",
+   "aliases": [],
+   "operations": 15,
+   "readonly": 7
+  },
+  "observabilityadmin": {
+   "sdkId": "ObservabilityAdmin",
+   "model": "observabilityadmin",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "observabilityadmin",
+   "aliases": [],
+   "operations": 45,
+   "readonly": 18
+  },
+  "odb": {
+   "sdkId": "odb",
+   "model": "odb",
+   "version": "2024-08-20",
+   "protocol": "awsJson1_0",
+   "iam": "odb",
+   "aliases": [],
+   "operations": 81,
+   "readonly": 36
+  },
+  "omics": {
+   "sdkId": "Omics",
+   "model": "omics",
+   "version": "2022-11-28",
+   "protocol": "restJson1",
+   "iam": "omics",
+   "aliases": [],
+   "operations": 107,
+   "readonly": 51
+  },
+  "opensearch": {
+   "sdkId": "OpenSearch",
+   "model": "opensearch",
+   "version": "2021-01-01",
+   "protocol": "restJson1",
+   "iam": "es",
+   "aliases": [],
+   "operations": 103,
+   "readonly": 2
+  },
+  "opensearchserverless": {
+   "sdkId": "OpenSearchServerless",
+   "model": "opensearchserverless",
+   "version": "2021-11-01",
+   "protocol": "awsJson1_0",
+   "iam": "aoss",
+   "aliases": [
+    "aoss"
+   ],
+   "operations": 54,
+   "readonly": 22
+  },
+  "organizations": {
+   "sdkId": "Organizations",
+   "model": "organizations",
+   "version": "2016-11-28",
+   "protocol": "awsJson1_1",
+   "iam": "organizations",
+   "aliases": [],
+   "operations": 63,
+   "readonly": 0
+  },
+  "osis": {
+   "sdkId": "OSIS",
+   "model": "osis",
+   "version": "2022-01-01",
+   "protocol": "restJson1",
+   "iam": "osis",
+   "aliases": [],
+   "operations": 22,
+   "readonly": 0
+  },
+  "outposts": {
+   "sdkId": "Outposts",
+   "model": "outposts",
+   "version": "2019-12-03",
+   "protocol": "restJson1",
+   "iam": "outposts",
+   "aliases": [],
+   "operations": 45,
+   "readonly": 0
+  },
+  "partnercentral-account": {
+   "sdkId": "PartnerCentral Account",
+   "model": "partnercentral-account",
+   "version": "2025-04-04",
+   "protocol": "awsJson1_0",
+   "iam": "partnercentral",
+   "aliases": [
+    "partnercentralaccount"
+   ],
+   "operations": 34,
+   "readonly": 15
+  },
+  "partnercentral-benefits": {
+   "sdkId": "PartnerCentral Benefits",
+   "model": "partnercentral-benefits",
+   "version": "2018-05-10",
+   "protocol": "awsJson1_0",
+   "iam": "partnercentral",
+   "aliases": [
+    "partnercentralbenefits"
+   ],
+   "operations": 17,
+   "readonly": 1
+  },
+  "partnercentral-channel": {
+   "sdkId": "PartnerCentral Channel",
+   "model": "partnercentral-channel",
+   "version": "2024-03-18",
+   "protocol": "awsJson1_0",
+   "iam": "partnercentral",
+   "aliases": [
+    "partnercentralchannel"
+   ],
+   "operations": 17,
+   "readonly": 5
+  },
+  "partnercentral-revenue-measurement": {
+   "sdkId": "PartnerCentral Revenue Measurement",
+   "model": "partnercentral-revenue-measurement",
+   "version": "2022-07-26",
+   "protocol": "rpcv2Cbor",
+   "iam": "partnercentral",
+   "aliases": [
+    "partnercentral",
+    "partnercentral-prm",
+    "partnercentralrevenuemeasurement"
+   ],
+   "operations": 18,
+   "readonly": 10,
+   "unsupported": "PartnerCentral Revenue Measurement speaks only rpcv2Cbor, which aws_api_read and aws_api_change don't send yet."
+  },
+  "partnercentral-selling": {
+   "sdkId": "PartnerCentral Selling",
+   "model": "partnercentral-selling",
+   "version": "2022-07-26",
+   "protocol": "awsJson1_0",
+   "iam": "partnercentral",
+   "aliases": [
+    "partnercentralselling"
+   ],
+   "operations": 45,
+   "readonly": 21
+  },
+  "payment-cryptography": {
+   "sdkId": "Payment Cryptography",
+   "model": "payment-cryptography",
+   "version": "2021-09-14",
+   "protocol": "awsJson1_0",
+   "iam": "payment-cryptography",
+   "aliases": [
+    "paymentcryptography"
+   ],
+   "operations": 32,
+   "readonly": 8
+  },
+  "payment-cryptography-data": {
+   "sdkId": "Payment Cryptography Data",
+   "model": "payment-cryptography-data",
+   "version": "2022-02-03",
+   "protocol": "restJson1",
+   "iam": "payment-cryptography",
+   "aliases": [
+    "paymentcryptographydata"
+   ],
+   "operations": 15,
+   "readonly": 0
+  },
+  "pca-connector-ad": {
+   "sdkId": "Pca Connector Ad",
+   "model": "pca-connector-ad",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "pca-connector-ad",
+   "aliases": [
+    "pcaconnectorad"
+   ],
+   "operations": 25,
+   "readonly": 11
+  },
+  "pca-connector-scep": {
+   "sdkId": "Pca Connector Scep",
+   "model": "pca-connector-scep",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "pca-connector-scep",
+   "aliases": [
+    "pcaconnectorscep"
+   ],
+   "operations": 12,
+   "readonly": 6
+  },
+  "pcs": {
+   "sdkId": "PCS",
+   "model": "pcs",
+   "version": "2023-02-10",
+   "protocol": "awsJson1_0",
+   "iam": "pcs",
+   "aliases": [],
+   "operations": 19,
+   "readonly": 7
+  },
+  "personalize": {
+   "sdkId": "Personalize",
+   "model": "personalize",
+   "version": "2018-05-22",
+   "protocol": "awsJson1_1",
+   "iam": "personalize",
+   "aliases": [],
+   "operations": 71,
+   "readonly": 0
+  },
+  "personalize-events": {
+   "sdkId": "Personalize Events",
+   "model": "personalize-events",
+   "version": "2018-03-22",
+   "protocol": "restJson1",
+   "iam": "personalize",
+   "aliases": [
+    "personalizeevents"
+   ],
+   "operations": 5,
+   "readonly": 0
+  },
+  "personalize-runtime": {
+   "sdkId": "Personalize Runtime",
+   "model": "personalize-runtime",
+   "version": "2018-05-22",
+   "protocol": "restJson1",
+   "iam": "personalize",
+   "aliases": [
+    "personalizeruntime"
+   ],
+   "operations": 3,
+   "readonly": 0
+  },
+  "pi": {
+   "sdkId": "PI",
+   "model": "pi",
+   "version": "2018-02-27",
+   "protocol": "awsJson1_1",
+   "iam": "pi",
+   "aliases": [],
+   "operations": 14,
+   "readonly": 0
+  },
+  "pinpoint": {
+   "sdkId": "Pinpoint",
+   "model": "pinpoint",
+   "version": "2016-12-01",
+   "protocol": "restJson1",
+   "iam": "mobiletargeting",
+   "aliases": [
+    "mobiletargeting"
+   ],
+   "operations": 122,
+   "readonly": 0
+  },
+  "pinpoint-email": {
+   "sdkId": "Pinpoint Email",
+   "model": "pinpoint-email",
+   "version": "2018-07-26",
+   "protocol": "restJson1",
+   "iam": "ses",
+   "aliases": [
+    "pinpointemail"
+   ],
+   "operations": 42,
+   "readonly": 0
+  },
+  "pinpoint-sms-voice": {
+   "sdkId": "Pinpoint SMS Voice",
+   "model": "pinpoint-sms-voice",
+   "version": "2018-09-05",
+   "protocol": "restJson1",
+   "iam": "sms-voice",
+   "aliases": [
+    "pinpointsmsvoice"
+   ],
+   "operations": 8,
+   "readonly": 0
+  },
+  "pinpoint-sms-voice-v2": {
+   "sdkId": "Pinpoint SMS Voice V2",
+   "model": "pinpoint-sms-voice-v2",
+   "version": "2022-03-31",
+   "protocol": "awsJson1_0",
+   "iam": "sms-voice",
+   "aliases": [
+    "pinpointsmsvoicev2"
+   ],
+   "operations": 110,
+   "readonly": 1
+  },
+  "pipes": {
+   "sdkId": "Pipes",
+   "model": "pipes",
+   "version": "2015-10-07",
+   "protocol": "restJson1",
+   "iam": "pipes",
+   "aliases": [],
+   "operations": 10,
+   "readonly": 3
+  },
+  "polly": {
+   "sdkId": "Polly",
+   "model": "polly",
+   "version": "2016-06-10",
+   "protocol": "restJson1",
+   "iam": "polly",
+   "aliases": [],
+   "operations": 13,
+   "readonly": 0
+  },
+  "pricing": {
+   "sdkId": "Pricing",
+   "model": "pricing",
+   "version": "2017-10-15",
+   "protocol": "awsJson1_1",
+   "iam": "pricing",
+   "aliases": [],
+   "operations": 5,
+   "readonly": 0
+  },
+  "pricing-plan-manager": {
+   "sdkId": "Pricing Plan Manager",
+   "model": "pricing-plan-manager",
+   "version": "2025-08-05",
+   "protocol": "restJson1",
+   "iam": "pricingplanmanager",
+   "aliases": [
+    "pricingplanmanager"
+   ],
+   "operations": 9,
+   "readonly": 2
+  },
+  "proton": {
+   "sdkId": "Proton",
+   "model": "proton",
+   "version": "2020-07-20",
+   "protocol": "awsJson1_0",
+   "iam": "proton",
+   "aliases": [],
+   "operations": 87,
+   "readonly": 37
+  },
+  "qapps": {
+   "sdkId": "QApps",
+   "model": "qapps",
+   "version": "2023-11-27",
+   "protocol": "restJson1",
+   "iam": "qapps",
+   "aliases": [],
+   "operations": 35,
+   "readonly": 10
+  },
+  "qbusiness": {
+   "sdkId": "QBusiness",
+   "model": "qbusiness",
+   "version": "2023-11-27",
+   "protocol": "restJson1",
+   "iam": "qbusiness",
+   "aliases": [],
+   "operations": 83,
+   "readonly": 34
+  },
+  "qconnect": {
+   "sdkId": "QConnect",
+   "model": "qconnect",
+   "version": "2020-10-19",
+   "protocol": "restJson1",
+   "iam": "wisdom",
+   "aliases": [],
+   "operations": 96,
+   "readonly": 40
+  },
+  "quicksight": {
+   "sdkId": "QuickSight",
+   "model": "quicksight",
+   "version": "2018-04-01",
+   "protocol": "restJson1",
+   "iam": "quicksight",
+   "aliases": [],
+   "operations": 301,
+   "readonly": 37
+  },
+  "ram": {
+   "sdkId": "RAM",
+   "model": "ram",
+   "version": "2018-01-04",
+   "protocol": "restJson1",
+   "iam": "ram",
+   "aliases": [],
+   "operations": 36,
+   "readonly": 0
+  },
+  "rbin": {
+   "sdkId": "rbin",
+   "model": "rbin",
+   "version": "2021-06-15",
+   "protocol": "restJson1",
+   "iam": "rbin",
+   "aliases": [],
+   "operations": 10,
+   "readonly": 0
+  },
+  "rds": {
+   "sdkId": "RDS",
+   "model": "rds",
+   "version": "2014-10-31",
+   "protocol": "awsQuery",
+   "iam": "rds",
+   "aliases": [],
+   "operations": 168,
+   "readonly": 0
+  },
+  "rds-data": {
+   "sdkId": "RDS Data",
+   "model": "rds-data",
+   "version": "2018-08-01",
+   "protocol": "restJson1",
+   "iam": "rds-data",
+   "aliases": [
+    "rdsdata"
+   ],
+   "operations": 6,
+   "readonly": 0
+  },
+  "redshift": {
+   "sdkId": "Redshift",
+   "model": "redshift",
+   "version": "2012-12-01",
+   "protocol": "awsQuery",
+   "iam": "redshift",
+   "aliases": [],
+   "operations": 145,
+   "readonly": 0
+  },
+  "redshift-data": {
+   "sdkId": "Redshift Data",
+   "model": "redshift-data",
+   "version": "2019-12-20",
+   "protocol": "awsJson1_1",
+   "iam": "redshift-data",
+   "aliases": [
+    "redshiftdata"
+   ],
+   "operations": 12,
+   "readonly": 9
+  },
+  "redshift-serverless": {
+   "sdkId": "Redshift Serverless",
+   "model": "redshift-serverless",
+   "version": "2021-04-21",
+   "protocol": "awsJson1_1",
+   "iam": "redshift-serverless",
+   "aliases": [
+    "redshiftserverless"
+   ],
+   "operations": 65,
+   "readonly": 26
+  },
+  "rekognition": {
+   "sdkId": "Rekognition",
+   "model": "rekognition",
+   "version": "2016-06-27",
+   "protocol": "awsJson1_1",
+   "iam": "rekognition",
+   "aliases": [],
+   "operations": 75,
+   "readonly": 0
+  },
+  "repostspace": {
+   "sdkId": "repostspace",
+   "model": "repostspace",
+   "version": "2022-05-13",
+   "protocol": "restJson1",
+   "iam": "repostspace",
+   "aliases": [],
+   "operations": 19,
+   "readonly": 5
+  },
+  "resiliencehub": {
+   "sdkId": "resiliencehub",
+   "model": "resiliencehub",
+   "version": "2020-04-30",
+   "protocol": "restJson1",
+   "iam": "resiliencehub",
+   "aliases": [],
+   "operations": 63,
+   "readonly": 8
+  },
+  "resiliencehubv2": {
+   "sdkId": "resiliencehubv2",
+   "model": "resiliencehubv2",
+   "version": "2026-02-17",
+   "protocol": "restJson1",
+   "iam": "resiliencehub",
+   "aliases": [],
+   "operations": 73,
+   "readonly": 35
+  },
+  "resource-explorer-2": {
+   "sdkId": "Resource Explorer 2",
+   "model": "resource-explorer-2",
+   "version": "2022-07-28",
+   "protocol": "restJson1",
+   "iam": "resource-explorer-2",
+   "aliases": [
+    "resourceexplorer2"
+   ],
+   "operations": 32,
+   "readonly": 17
+  },
+  "resource-groups": {
+   "sdkId": "Resource Groups",
+   "model": "resource-groups",
+   "version": "2017-11-27",
+   "protocol": "restJson1",
+   "iam": "resource-groups",
+   "aliases": [
+    "resourcegroups"
+   ],
+   "operations": 23,
+   "readonly": 0
+  },
+  "resourcegroupstaggingapi": {
+   "sdkId": "Resource Groups Tagging API",
+   "model": "resource-groups-tagging-api",
+   "version": "2017-01-26",
+   "protocol": "awsJson1_1",
+   "iam": "tagging",
+   "aliases": [
+    "resource-groups-tagging-api",
+    "tagging"
+   ],
+   "operations": 9,
+   "readonly": 0
+  },
+  "rolesanywhere": {
+   "sdkId": "RolesAnywhere",
+   "model": "rolesanywhere",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "rolesanywhere",
+   "aliases": [],
+   "operations": 30,
+   "readonly": 9
+  },
+  "route53": {
+   "sdkId": "Route 53",
+   "model": "route-53",
+   "version": "2013-04-01",
+   "protocol": "restXml",
+   "iam": "route53",
+   "aliases": [
+    "route-53"
+   ],
+   "operations": 71,
+   "readonly": 0
+  },
+  "route53-recovery-cluster": {
+   "sdkId": "Route53 Recovery Cluster",
+   "model": "route53-recovery-cluster",
+   "version": "2019-12-02",
+   "protocol": "awsJson1_0",
+   "iam": "route53-recovery-cluster",
+   "aliases": [
+    "route53recoverycluster"
+   ],
+   "operations": 4,
+   "readonly": 0
+  },
+  "route53-recovery-control-config": {
+   "sdkId": "Route53 Recovery Control Config",
+   "model": "route53-recovery-control-config",
+   "version": "2020-11-02",
+   "protocol": "restJson1",
+   "iam": "route53-recovery-control-config",
+   "aliases": [
+    "route53recoverycontrolconfig"
+   ],
+   "operations": 25,
+   "readonly": 0
+  },
+  "route53-recovery-readiness": {
+   "sdkId": "Route53 Recovery Readiness",
+   "model": "route53-recovery-readiness",
+   "version": "2019-12-02",
+   "protocol": "restJson1",
+   "iam": "route53-recovery-readiness",
+   "aliases": [
+    "route53recoveryreadiness"
+   ],
+   "operations": 32,
+   "readonly": 0
+  },
+  "route53domains": {
+   "sdkId": "Route 53 Domains",
+   "model": "route-53-domains",
+   "version": "2014-05-15",
+   "protocol": "awsJson1_1",
+   "iam": "route53domains",
+   "aliases": [
+    "route-53-domains"
+   ],
+   "operations": 36,
+   "readonly": 1
+  },
+  "route53globalresolver": {
+   "sdkId": "Route53GlobalResolver",
+   "model": "route53globalresolver",
+   "version": "2022-09-27",
+   "protocol": "restJson1",
+   "iam": "route53globalresolver",
+   "aliases": [],
+   "operations": 48,
+   "readonly": 18
+  },
+  "route53profiles": {
+   "sdkId": "Route53Profiles",
+   "model": "route53profiles",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "route53profiles",
+   "aliases": [],
+   "operations": 17,
+   "readonly": 7
+  },
+  "route53resolver": {
+   "sdkId": "Route53Resolver",
+   "model": "route53resolver",
+   "version": "2018-04-01",
+   "protocol": "awsJson1_1",
+   "iam": "route53resolver",
+   "aliases": [],
+   "operations": 72,
+   "readonly": 0
+  },
+  "rtbfabric": {
+   "sdkId": "RTBFabric",
+   "model": "rtbfabric",
+   "version": "2023-05-15",
+   "protocol": "restJson1",
+   "iam": "rtbfabric",
+   "aliases": [],
+   "operations": 36,
+   "readonly": 13
+  },
+  "rum": {
+   "sdkId": "RUM",
+   "model": "rum",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "rum",
+   "aliases": [],
+   "operations": 20,
+   "readonly": 7
+  },
+  "s3": {
+   "sdkId": "S3",
+   "model": "s3",
+   "version": "2006-03-01",
+   "protocol": "restXml",
+   "iam": "s3",
+   "aliases": [],
+   "operations": 112,
+   "readonly": 0,
+   "unsupported": "S3 has its own addressing and object rules, so aws_api_read and aws_api_change don't call it."
+  },
+  "s3control": {
+   "sdkId": "S3 Control",
+   "model": "s3-control",
+   "version": "2018-08-20",
+   "protocol": "restXml",
+   "iam": "s3",
+   "aliases": [
+    "s3-control"
+   ],
+   "operations": 97,
+   "readonly": 0,
+   "unsupported": "S3 Control needs account host labels and request checksums, which aws_api_read and aws_api_change don't send."
+  },
+  "s3files": {
+   "sdkId": "S3Files",
+   "model": "s3files",
+   "version": "2025-05-05",
+   "protocol": "restJson1",
+   "iam": "s3files",
+   "aliases": [],
+   "operations": 21,
+   "readonly": 9
+  },
+  "s3outposts": {
+   "sdkId": "S3Outposts",
+   "model": "s3outposts",
+   "version": "2017-07-25",
+   "protocol": "restJson1",
+   "iam": "s3-outposts",
+   "aliases": [
+    "s3-outposts"
+   ],
+   "operations": 5,
+   "readonly": 0
+  },
+  "s3tables": {
+   "sdkId": "S3Tables",
+   "model": "s3tables",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "s3tables",
+   "aliases": [],
+   "operations": 57,
+   "readonly": 26
+  },
+  "s3vectors": {
+   "sdkId": "S3Vectors",
+   "model": "s3vectors",
+   "version": "2025-07-15",
+   "protocol": "restJson1",
+   "iam": "s3vectors",
+   "aliases": [],
+   "operations": 21,
+   "readonly": 9
+  },
+  "sagemaker": {
+   "sdkId": "SageMaker",
+   "model": "sagemaker",
+   "version": "2017-07-24",
+   "protocol": "awsJson1_1",
+   "iam": "sagemaker",
+   "aliases": [],
+   "operations": 414,
+   "readonly": 8
+  },
+  "sagemaker-a2i-runtime": {
+   "sdkId": "SageMaker A2I Runtime",
+   "model": "sagemaker-a2i-runtime",
+   "version": "2019-11-07",
+   "protocol": "restJson1",
+   "iam": "sagemaker",
+   "aliases": [
+    "sagemakera2iruntime"
+   ],
+   "operations": 5,
+   "readonly": 0
+  },
+  "sagemaker-edge": {
+   "sdkId": "Sagemaker Edge",
+   "model": "sagemaker-edge",
+   "version": "2020-09-23",
+   "protocol": "restJson1",
+   "iam": "sagemaker",
+   "aliases": [
+    "sagemakeredge"
+   ],
+   "operations": 3,
+   "readonly": 0
+  },
+  "sagemaker-featurestore-runtime": {
+   "sdkId": "SageMaker FeatureStore Runtime",
+   "model": "sagemaker-featurestore-runtime",
+   "version": "2020-07-01",
+   "protocol": "restJson1",
+   "iam": "sagemaker",
+   "aliases": [
+    "sagemakerfeaturestoreruntime"
+   ],
+   "operations": 7,
+   "readonly": 1
+  },
+  "sagemaker-geospatial": {
+   "sdkId": "SageMaker Geospatial",
+   "model": "sagemaker-geospatial",
+   "version": "2020-05-27",
+   "protocol": "restJson1",
+   "iam": "sagemaker-geospatial",
+   "aliases": [
+    "sagemakergeospatial"
+   ],
+   "operations": 19,
+   "readonly": 9
+  },
+  "sagemaker-metrics": {
+   "sdkId": "SageMaker Metrics",
+   "model": "sagemaker-metrics",
+   "version": "2022-09-30",
+   "protocol": "restJson1",
+   "iam": "sagemaker",
+   "aliases": [
+    "sagemakermetrics"
+   ],
+   "operations": 2,
+   "readonly": 0
+  },
+  "sagemaker-runtime": {
+   "sdkId": "SageMaker Runtime",
+   "model": "sagemaker-runtime",
+   "version": "2017-05-13",
+   "protocol": "restJson1",
+   "iam": "sagemaker",
+   "aliases": [
+    "sagemakerruntime"
+   ],
+   "operations": 3,
+   "readonly": 0
+  },
+  "sagemaker-runtime-http2": {
+   "sdkId": "SageMaker Runtime HTTP2",
+   "model": "sagemaker-runtime-http2",
+   "version": "2025-10-01",
+   "protocol": "restJson1",
+   "iam": "sagemaker",
+   "aliases": [
+    "sagemakerruntimehttp2"
+   ],
+   "operations": 1,
+   "readonly": 0
+  },
+  "sagemakerjobruntime": {
+   "sdkId": "SagemakerJobRuntime",
+   "model": "sagemakerjobruntime",
+   "version": "2026-02-01",
+   "protocol": "restJson1",
+   "iam": "sagemaker",
+   "aliases": [],
+   "operations": 4,
+   "readonly": 0
+  },
+  "sagemakertrainingsessionruntime": {
+   "sdkId": "SageMakerTrainingSessionRuntime",
+   "model": "sagemakertrainingsessionruntime",
+   "version": "2025-02-10",
+   "protocol": "restJson1",
+   "iam": "sagemaker",
+   "aliases": [],
+   "operations": 6,
+   "readonly": 2
+  },
+  "savingsplans": {
+   "sdkId": "savingsplans",
+   "model": "savingsplans",
+   "version": "2019-06-28",
+   "protocol": "restJson1",
+   "iam": "savingsplans",
+   "aliases": [],
+   "operations": 10,
+   "readonly": 0
+  },
+  "scheduler": {
+   "sdkId": "Scheduler",
+   "model": "scheduler",
+   "version": "2021-06-30",
+   "protocol": "restJson1",
+   "iam": "scheduler",
+   "aliases": [],
+   "operations": 12,
+   "readonly": 5
+  },
+  "schemas": {
+   "sdkId": "schemas",
+   "model": "schemas",
+   "version": "2019-12-02",
+   "protocol": "restJson1",
+   "iam": "schemas",
+   "aliases": [],
+   "operations": 31,
+   "readonly": 0
+  },
+  "secretsmanager": {
+   "sdkId": "Secrets Manager",
+   "model": "secrets-manager",
+   "version": "2017-10-17",
+   "protocol": "awsJson1_1",
+   "iam": "secretsmanager",
+   "aliases": [
+    "secrets-manager"
+   ],
+   "operations": 23,
+   "readonly": 0
+  },
+  "security-ir": {
+   "sdkId": "Security IR",
+   "model": "security-ir",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "security-ir",
+   "aliases": [
+    "securityir"
+   ],
+   "operations": 25,
+   "readonly": 11
+  },
+  "securityagent": {
+   "sdkId": "SecurityAgent",
+   "model": "securityagent",
+   "version": "2025-09-06",
+   "protocol": "restJson1",
+   "iam": "securityagent",
+   "aliases": [],
+   "operations": 96,
+   "readonly": 21
+  },
+  "securityhub": {
+   "sdkId": "SecurityHub",
+   "model": "securityhub",
+   "version": "2018-10-26",
+   "protocol": "restJson1",
+   "iam": "securityhub",
+   "aliases": [],
+   "operations": 126,
+   "readonly": 2
+  },
+  "securitylake": {
+   "sdkId": "SecurityLake",
+   "model": "securitylake",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "securitylake",
+   "aliases": [],
+   "operations": 31,
+   "readonly": 8
+  },
+  "serverlessrepo": {
+   "sdkId": "ServerlessApplicationRepository",
+   "model": "serverlessapplicationrepository",
+   "version": "2017-09-08",
+   "protocol": "restJson1",
+   "iam": "serverlessrepo",
+   "aliases": [
+    "serverlessapplicationrepository"
+   ],
+   "operations": 14,
+   "readonly": 0
+  },
+  "service-quotas": {
+   "sdkId": "Service Quotas",
+   "model": "service-quotas",
+   "version": "2019-06-24",
+   "protocol": "awsJson1_1",
+   "iam": "servicequotas",
+   "aliases": [
+    "servicequotas"
+   ],
+   "operations": 26,
+   "readonly": 0
+  },
+  "servicecatalog": {
+   "sdkId": "Service Catalog",
+   "model": "service-catalog",
+   "version": "2015-12-10",
+   "protocol": "awsJson1_1",
+   "iam": "servicecatalog",
+   "aliases": [
+    "service-catalog"
+   ],
+   "operations": 90,
+   "readonly": 0
+  },
+  "servicecatalog-appregistry": {
+   "sdkId": "Service Catalog AppRegistry",
+   "model": "service-catalog-appregistry",
+   "version": "2020-06-24",
+   "protocol": "restJson1",
+   "iam": "servicecatalog",
+   "aliases": [
+    "service-catalog-appregistry",
+    "servicecatalogappregistry"
+   ],
+   "operations": 24,
+   "readonly": 0
+  },
+  "servicediscovery": {
+   "sdkId": "ServiceDiscovery",
+   "model": "servicediscovery",
+   "version": "2017-03-14",
+   "protocol": "awsJson1_1",
+   "iam": "servicediscovery",
+   "aliases": [],
+   "operations": 30,
+   "readonly": 0
+  },
+  "ses": {
+   "sdkId": "SES",
+   "model": "ses",
+   "version": "2010-12-01",
+   "protocol": "awsQuery",
+   "iam": "ses",
+   "aliases": [],
+   "operations": 71,
+   "readonly": 0
+  },
+  "sesv2": {
+   "sdkId": "SESv2",
+   "model": "sesv2",
+   "version": "2019-09-27",
+   "protocol": "restJson1",
+   "iam": "ses",
+   "aliases": [],
+   "operations": 116,
+   "readonly": 0
+  },
+  "shield": {
+   "sdkId": "Shield",
+   "model": "shield",
+   "version": "2016-06-02",
+   "protocol": "awsJson1_1",
+   "iam": "shield",
+   "aliases": [],
+   "operations": 36,
+   "readonly": 0
+  },
+  "signer": {
+   "sdkId": "signer",
+   "model": "signer",
+   "version": "2017-08-25",
+   "protocol": "restJson1",
+   "iam": "signer",
+   "aliases": [],
+   "operations": 19,
+   "readonly": 0
+  },
+  "signer-data": {
+   "sdkId": "Signer Data",
+   "model": "signer-data",
+   "version": "2017-08-25",
+   "protocol": "restJson1",
+   "iam": "signer",
+   "aliases": [
+    "data-signer",
+    "signerdata"
+   ],
+   "operations": 1,
+   "readonly": 1
+  },
+  "signin": {
+   "sdkId": "Signin",
+   "model": "signin",
+   "version": "2023-01-01",
+   "protocol": "restJson1",
+   "iam": "signin",
+   "aliases": [],
+   "operations": 13,
+   "readonly": 4
+  },
+  "simpledbv2": {
+   "sdkId": "SimpleDBv2",
+   "model": "simpledbv2",
+   "version": "2025-09-26",
+   "protocol": "restJson1",
+   "iam": "sdb",
+   "aliases": [
+    "sdb"
+   ],
+   "operations": 3,
+   "readonly": 2
+  },
+  "snow-device-management": {
+   "sdkId": "Snow Device Management",
+   "model": "snow-device-management",
+   "version": "2021-08-04",
+   "protocol": "restJson1",
+   "iam": "snow-device-management",
+   "aliases": [
+    "snowdevicemanagement"
+   ],
+   "operations": 13,
+   "readonly": 9
+  },
+  "snowball": {
+   "sdkId": "Snowball",
+   "model": "snowball",
+   "version": "2016-06-30",
+   "protocol": "awsJson1_1",
+   "iam": "snowball",
+   "aliases": [],
+   "operations": 27,
+   "readonly": 0
+  },
+  "sns": {
+   "sdkId": "SNS",
+   "model": "sns",
+   "version": "2010-03-31",
+   "protocol": "awsQuery",
+   "iam": "sns",
+   "aliases": [],
+   "operations": 42,
+   "readonly": 0
+  },
+  "socialmessaging": {
+   "sdkId": "SocialMessaging",
+   "model": "socialmessaging",
+   "version": "2024-01-01",
+   "protocol": "restJson1",
+   "iam": "social-messaging",
+   "aliases": [
+    "social-messaging"
+   ],
+   "operations": 38,
+   "readonly": 12
+  },
+  "sqs": {
+   "sdkId": "SQS",
+   "model": "sqs",
+   "version": "2012-11-05",
+   "protocol": "awsJson1_0",
+   "iam": "sqs",
+   "aliases": [],
+   "operations": 23,
+   "readonly": 0
+  },
+  "ssm": {
+   "sdkId": "SSM",
+   "model": "ssm",
+   "version": "2014-11-06",
+   "protocol": "awsJson1_1",
+   "iam": "ssm",
+   "aliases": [],
+   "operations": 154,
+   "readonly": 3
+  },
+  "ssm-contacts": {
+   "sdkId": "SSM Contacts",
+   "model": "ssm-contacts",
+   "version": "2021-05-03",
+   "protocol": "awsJson1_1",
+   "iam": "ssm-contacts",
+   "aliases": [
+    "ssmcontacts"
+   ],
+   "operations": 39,
+   "readonly": 0
+  },
+  "ssm-guiconnect": {
+   "sdkId": "SSM GuiConnect",
+   "model": "ssm-guiconnect",
+   "version": "2021-05-01",
+   "protocol": "restJson1",
+   "iam": "ssm-guiconnect",
+   "aliases": [
+    "ssmguiconnect"
+   ],
+   "operations": 3,
+   "readonly": 1
+  },
+  "ssm-incidents": {
+   "sdkId": "SSM Incidents",
+   "model": "ssm-incidents",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "ssm-incidents",
+   "aliases": [
+    "ssmincidents"
+   ],
+   "operations": 31,
+   "readonly": 13
+  },
+  "ssm-quicksetup": {
+   "sdkId": "SSM QuickSetup",
+   "model": "ssm-quicksetup",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "ssm-quicksetup",
+   "aliases": [
+    "ssmquicksetup"
+   ],
+   "operations": 14,
+   "readonly": 6
+  },
+  "ssm-sap": {
+   "sdkId": "Ssm Sap",
+   "model": "ssm-sap",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "ssm-sap",
+   "aliases": [
+    "ssmsap"
+   ],
+   "operations": 27,
+   "readonly": 15
+  },
+  "sso": {
+   "sdkId": "SSO",
+   "model": "sso",
+   "version": "2019-06-10",
+   "protocol": "restJson1",
+   "iam": "awsssoportal",
+   "aliases": [
+    "awsssoportal"
+   ],
+   "operations": 4,
+   "readonly": 0
+  },
+  "sso-admin": {
+   "sdkId": "SSO Admin",
+   "model": "sso-admin",
+   "version": "2020-07-20",
+   "protocol": "awsJson1_1",
+   "iam": "sso",
+   "aliases": [
+    "ssoadmin"
+   ],
+   "operations": 79,
+   "readonly": 10
+  },
+  "sso-oidc": {
+   "sdkId": "SSO OIDC",
+   "model": "sso-oidc",
+   "version": "2019-06-10",
+   "protocol": "restJson1",
+   "iam": "sso-oauth",
+   "aliases": [
+    "oidc",
+    "sso-oauth",
+    "ssooidc"
+   ],
+   "operations": 4,
+   "readonly": 0
+  },
+  "stepfunctions": {
+   "sdkId": "SFN",
+   "model": "sfn",
+   "version": "2016-11-23",
+   "protocol": "awsJson1_0",
+   "iam": "states",
+   "aliases": [
+    "sfn",
+    "states"
+   ],
+   "operations": 37,
+   "readonly": 0
+  },
+  "storagegateway": {
+   "sdkId": "Storage Gateway",
+   "model": "storage-gateway",
+   "version": "2013-06-30",
+   "protocol": "awsJson1_1",
+   "iam": "storagegateway",
+   "aliases": [
+    "storage-gateway"
+   ],
+   "operations": 96,
+   "readonly": 0
+  },
+  "sts": {
+   "sdkId": "STS",
+   "model": "sts",
+   "version": "2011-06-15",
+   "protocol": "awsQuery",
+   "iam": "sts",
+   "aliases": [],
+   "operations": 11,
+   "readonly": 0
+  },
+  "supplychain": {
+   "sdkId": "SupplyChain",
+   "model": "supplychain",
+   "version": "2024-01-01",
+   "protocol": "restJson1",
+   "iam": "scn",
+   "aliases": [
+    "scn"
+   ],
+   "operations": 30,
+   "readonly": 14
+  },
+  "support": {
+   "sdkId": "Support",
+   "model": "support",
+   "version": "2013-04-15",
+   "protocol": "awsJson1_1",
+   "iam": "support",
+   "aliases": [],
+   "operations": 20,
+   "readonly": 0
+  },
+  "support-app": {
+   "sdkId": "Support App",
+   "model": "support-app",
+   "version": "2021-08-20",
+   "protocol": "restJson1",
+   "iam": "supportapp",
+   "aliases": [
+    "supportapp"
+   ],
+   "operations": 10,
+   "readonly": 3
+  },
+  "supportauthz": {
+   "sdkId": "SupportAuthZ",
+   "model": "supportauthz",
+   "version": "2026-06-30",
+   "protocol": "restJson1",
+   "iam": "supportauthz",
+   "aliases": [],
+   "operations": 11,
+   "readonly": 6
+  },
+  "sustainability": {
+   "sdkId": "Sustainability",
+   "model": "sustainability",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "sustainability",
+   "aliases": [],
+   "operations": 4,
+   "readonly": 4
+  },
+  "swf": {
+   "sdkId": "SWF",
+   "model": "swf",
+   "version": "2012-01-25",
+   "protocol": "awsJson1_0",
+   "iam": "swf",
+   "aliases": [],
+   "operations": 39,
+   "readonly": 0
+  },
+  "synthetics": {
+   "sdkId": "synthetics",
+   "model": "synthetics",
+   "version": "2017-10-11",
+   "protocol": "restJson1",
+   "iam": "synthetics",
+   "aliases": [],
+   "operations": 22,
+   "readonly": 0
+  },
+  "taxsettings": {
+   "sdkId": "TaxSettings",
+   "model": "taxsettings",
+   "version": "2018-05-10",
+   "protocol": "restJson1",
+   "iam": "tax",
+   "aliases": [
+    "tax"
+   ],
+   "operations": 16,
+   "readonly": 8
+  },
+  "textract": {
+   "sdkId": "Textract",
+   "model": "textract",
+   "version": "2018-06-27",
+   "protocol": "awsJson1_1",
+   "iam": "textract",
+   "aliases": [],
+   "operations": 25,
+   "readonly": 0
+  },
+  "timestream-influxdb": {
+   "sdkId": "Timestream InfluxDB",
+   "model": "timestream-influxdb",
+   "version": "2023-01-27",
+   "protocol": "awsJson1_0",
+   "iam": "timestream-influxdb",
+   "aliases": [
+    "timestreaminfluxdb"
+   ],
+   "operations": 24,
+   "readonly": 10
+  },
+  "timestream-query": {
+   "sdkId": "Timestream Query",
+   "model": "timestream-query",
+   "version": "2018-11-01",
+   "protocol": "awsJson1_0",
+   "iam": "timestream",
+   "aliases": [
+    "timestreamquery"
+   ],
+   "operations": 15,
+   "readonly": 0
+  },
+  "timestream-write": {
+   "sdkId": "Timestream Write",
+   "model": "timestream-write",
+   "version": "2018-11-01",
+   "protocol": "awsJson1_0",
+   "iam": "timestream",
+   "aliases": [
+    "timestreamwrite"
+   ],
+   "operations": 19,
+   "readonly": 0
+  },
+  "transcribe": {
+   "sdkId": "Transcribe",
+   "model": "transcribe",
+   "version": "2017-10-26",
+   "protocol": "awsJson1_1",
+   "iam": "transcribe",
+   "aliases": [],
+   "operations": 44,
+   "readonly": 0
+  },
+  "transcribe-streaming": {
+   "sdkId": "Transcribe Streaming",
+   "model": "transcribe-streaming",
+   "version": "2017-10-26",
+   "protocol": "restJson1",
+   "iam": "transcribe",
+   "aliases": [
+    "transcribestreaming"
+   ],
+   "operations": 5,
+   "readonly": 0
+  },
+  "transfer": {
+   "sdkId": "Transfer",
+   "model": "transfer",
+   "version": "2018-11-05",
+   "protocol": "awsJson1_1",
+   "iam": "transfer",
+   "aliases": [],
+   "operations": 71,
+   "readonly": 26
+  },
+  "translate": {
+   "sdkId": "Translate",
+   "model": "translate",
+   "version": "2017-07-01",
+   "protocol": "awsJson1_1",
+   "iam": "translate",
+   "aliases": [],
+   "operations": 19,
+   "readonly": 0
+  },
+  "trustedadvisor": {
+   "sdkId": "TrustedAdvisor",
+   "model": "trustedadvisor",
+   "version": "2022-09-15",
+   "protocol": "restJson1",
+   "iam": "trustedadvisor",
+   "aliases": [],
+   "operations": 12,
+   "readonly": 9
+  },
+  "uxc": {
+   "sdkId": "uxc",
+   "model": "uxc",
+   "version": "2024-07-01",
+   "protocol": "restJson1",
+   "iam": "uxc",
+   "aliases": [],
+   "operations": 3,
+   "readonly": 2
+  },
+  "verifiedpermissions": {
+   "sdkId": "VerifiedPermissions",
+   "model": "verifiedpermissions",
+   "version": "2021-12-01",
+   "protocol": "awsJson1_0",
+   "iam": "verifiedpermissions",
+   "aliases": [],
+   "operations": 34,
+   "readonly": 17
+  },
+  "voice-id": {
+   "sdkId": "Voice ID",
+   "model": "voice-id",
+   "version": "2021-09-27",
+   "protocol": "awsJson1_0",
+   "iam": "voiceid",
+   "aliases": [
+    "voiceid"
+   ],
+   "operations": 29,
+   "readonly": 2
+  },
+  "vpc-lattice": {
+   "sdkId": "VPC Lattice",
+   "model": "vpc-lattice",
+   "version": "2022-11-30",
+   "protocol": "restJson1",
+   "iam": "vpc-lattice",
+   "aliases": [
+    "vpclattice"
+   ],
+   "operations": 73,
+   "readonly": 30
+  },
+  "waf": {
+   "sdkId": "WAF",
+   "model": "waf",
+   "version": "2015-08-24",
+   "protocol": "awsJson1_1",
+   "iam": "waf",
+   "aliases": [],
+   "operations": 77,
+   "readonly": 0
+  },
+  "waf-regional": {
+   "sdkId": "WAF Regional",
+   "model": "waf-regional",
+   "version": "2016-11-28",
+   "protocol": "awsJson1_1",
+   "iam": "waf-regional",
+   "aliases": [
+    "wafregional"
+   ],
+   "operations": 81,
+   "readonly": 0
+  },
+  "wafv2": {
+   "sdkId": "WAFV2",
+   "model": "wafv2",
+   "version": "2019-07-29",
+   "protocol": "awsJson1_1",
+   "iam": "wafv2",
+   "aliases": [],
+   "operations": 59,
+   "readonly": 0
+  },
+  "wellarchitected": {
+   "sdkId": "WellArchitected",
+   "model": "wellarchitected",
+   "version": "2020-03-31",
+   "protocol": "restJson1",
+   "iam": "wellarchitected",
+   "aliases": [],
+   "operations": 95,
+   "readonly": 11
+  },
+  "wickr": {
+   "sdkId": "Wickr",
+   "model": "wickr",
+   "version": "2024-02-01",
+   "protocol": "restJson1",
+   "iam": "wickr",
+   "aliases": [],
+   "operations": 44,
+   "readonly": 19
+  },
+  "wisdom": {
+   "sdkId": "Wisdom",
+   "model": "wisdom",
+   "version": "2020-10-19",
+   "protocol": "restJson1",
+   "iam": "wisdom",
+   "aliases": [],
+   "operations": 41,
+   "readonly": 19
+  },
+  "workdocs": {
+   "sdkId": "WorkDocs",
+   "model": "workdocs",
+   "version": "2016-05-01",
+   "protocol": "restJson1",
+   "iam": "workdocs",
+   "aliases": [],
+   "operations": 44,
+   "readonly": 0
+  },
+  "workmail": {
+   "sdkId": "WorkMail",
+   "model": "workmail",
+   "version": "2017-10-01",
+   "protocol": "awsJson1_1",
+   "iam": "workmail",
+   "aliases": [],
+   "operations": 92,
+   "readonly": 0
+  },
+  "workmailmessageflow": {
+   "sdkId": "WorkMailMessageFlow",
+   "model": "workmailmessageflow",
+   "version": "2019-05-01",
+   "protocol": "restJson1",
+   "iam": "workmailmessageflow",
+   "aliases": [],
+   "operations": 2,
+   "readonly": 0
+  },
+  "workspaces": {
+   "sdkId": "WorkSpaces",
+   "model": "workspaces",
+   "version": "2015-04-08",
+   "protocol": "awsJson1_1",
+   "iam": "workspaces",
+   "aliases": [],
+   "operations": 91,
+   "readonly": 0
+  },
+  "workspaces-instances": {
+   "sdkId": "Workspaces Instances",
+   "model": "workspaces-instances",
+   "version": "2022-07-26",
+   "protocol": "awsJson1_0",
+   "iam": "workspaces-instances",
+   "aliases": [
+    "workspacesinstances"
+   ],
+   "operations": 14,
+   "readonly": 5
+  },
+  "workspaces-thin-client": {
+   "sdkId": "WorkSpaces Thin Client",
+   "model": "workspaces-thin-client",
+   "version": "2023-08-22",
+   "protocol": "restJson1",
+   "iam": "thinclient",
+   "aliases": [
+    "thinclient",
+    "workspacesthinclient"
+   ],
+   "operations": 16,
+   "readonly": 7
+  },
+  "workspaces-web": {
+   "sdkId": "WorkSpaces Web",
+   "model": "workspaces-web",
+   "version": "2020-07-08",
+   "protocol": "restJson1",
+   "iam": "workspaces-web",
+   "aliases": [
+    "workspacesweb"
+   ],
+   "operations": 75,
+   "readonly": 26
+  },
+  "xray": {
+   "sdkId": "XRay",
+   "model": "xray",
+   "version": "2016-04-12",
+   "protocol": "restJson1",
+   "iam": "xray",
+   "aliases": [],
+   "operations": 38,
+   "readonly": 0
+  }
+ }
+}

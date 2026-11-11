@@ -170,11 +170,11 @@ class DemoWorldIT {
 
   @Test
   @Order(1)
-  void devHasThirtyToolsWithTheCurrentDefaults() {
+  void devHasThirtyTwoToolsWithTheCurrentDefaults() {
     EndpointService.Summary dev = endpoints.get("dev");
     assertThat(dev.url()).endsWith("/mcp/dev");
     assertThat(dev.connections()).isEqualTo(8);
-    assertThat(dev.tools()).as("14 read only · 11 approval · 5 off").isEqualTo(new EndpointService.ToolCounts(14, 11,
+    assertThat(dev.tools()).as("15 read only · 12 approval · 5 off").isEqualTo(new EndpointService.ToolCounts(15, 12,
         5));
     assertThat(dev.tokensActive()).isEqualTo(2);
     Map<String, Mode> modes = snapshots.bySlug("dev").orElseThrow().pairs().stream()
@@ -195,6 +195,7 @@ class DemoWorldIT {
         Map.entry("dev-cluster k8s_get", Mode.READ_ONLY), Map.entry("dev-cluster k8s_logs", Mode.OFF),
         Map.entry("dev-cluster k8s_rollout_restart", Mode.APPROVAL), Map.entry("dev-cluster k8s_apply", Mode.OFF),
         Map.entry("aws-stage aws_describe", Mode.READ_ONLY), Map.entry("aws-stage aws_metrics", Mode.READ_ONLY),
+        Map.entry("aws-stage aws_api_read", Mode.READ_ONLY), Map.entry("aws-stage aws_api_change", Mode.APPROVAL),
         Map.entry("billing-api http_get", Mode.OFF), Map.entry("billing-api http_request", Mode.APPROVAL)));
     assertThat(jdbc.queryForObject("select count(*) from setup_change where what = 'mode' and endpoint_slug = 'dev' "
         + "and subject = 'http_get on billing-api, endpoint dev'", Integer.class)).isEqualTo(1);
@@ -390,7 +391,7 @@ class DemoWorldIT {
     EndpointService.Summary dev = endpoints.get("dev");
     assertThat(dev.connections()).isEqualTo(7);
     assertThat(dev.tools()).as("dev-db's 3 read only and 1 approval are gone").isEqualTo(
-        new EndpointService.ToolCounts(11, 10, 5));
+        new EndpointService.ToolCounts(12, 11, 5));
     assertThat(endpoints.get("sql-mix").connections()).isEqualTo(1);
   }
 

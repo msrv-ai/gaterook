@@ -84,6 +84,55 @@ final class Actions {
     return preview("aws_metrics", lines, cfg, s, r.region(), what, r.payload(), fields);
   }
 
+  /**
+   * {@code aws_api_read} and {@code aws_api_change}: the request exactly as it goes to AWS — method, URL, the
+   * protocol's and the bound headers, the body — and what AWS lets the session do. Credentials and the signature are
+   * added when it runs.
+   */
+  static ActionPreview call(ApiRequest r, Settings s, ConnectionConfig cfg) {
+    ApiModel m = r.model();
+    ApiModel.Operation op = r.op();
+    List<String> lines = new ArrayList<>();
+    lines.add(r.tool() + " · " + cfg.name() + " (AWS · " + target(s, r.region()) + " · " + cfg.env().id() + ")");
+    List<ActionPreview.Field> fields = new ArrayList<>();
+    fields.add(new ActionPreview.Field("Service", m.sdkId + " (" + m.name + ")"));
+    fields.add(new ActionPreview.Field("Operation", op.name()));
+    fields.add(new ActionPreview.Field("Region", r.region()));
+    fields.add(new ActionPreview.Field("IAM action", r.iamAction()));
+    List<String> warnings = new ArrayList<>();
+    try {
+      ApiWire.Request wire = ApiWire.build(m, op, r.parameters());
+      ApiModel.Endpoint e = m.endpoint(op, r.region());
+      String host = ApiWire.hostPrefix(m, op, r.parameters()) + e.url().getRawAuthority();
+      String base = e.url().getRawPath() == null || e.url().getRawPath().equals("/") ? "" : e.url().getRawPath();
+      lines.add(wire.method() + " " + e.url().getScheme() + "://" + host + base + wire.target());
+      lines.addAll(ApiWire.previewHeaders(wire));
+      if (wire.body().length > 0) {
+        lines.add("");
+        lines.add(wire.bodyText());
+      }
+    } catch (Refusal e) {
+      // classify() refuses such a call before any request exists.
+      lines.add(r.model().name + " " + op.name() + " " + r.parameters());
+    }
+    if (r.cursor() != null) {
+      lines.add("continues from the cursor of the previous call");
+    }
+    if (s.enforcedByAws()) {
+      fields.add(new ActionPreview.Field("Session", r.access() == ApiRules.Access.READ
+          ? "Read actions of " + m.iam + " only, enforced by AWS"
+          : "Only " + r.iamAction() + ", enforced by AWS"));
+    } else {
+      warnings.add("AWS doesn't limit this session to " + r.iamAction() + ": the credentials' own permissions "
+          + "apply.");
+    }
+    fields.add(new ActionPreview.Field("Retried", "No: a request whose answer is lost is reported as unknown"));
+    String what = m.name + " " + op.name();
+    return preview(r.tool(), lines, cfg, s, r.region(), what, r.payload(), fields).withWarnings(warnings)
+        .withFacets(Map.of("provider", "aws", "tool", r.tool(), "region", r.region(), "service", m.name,
+            "operation", op.name(), "access", r.access() == ApiRules.Access.READ ? "read" : "change"));
+  }
+
   private static String target(Settings s, String region) {
     String account = s.account();
     StringBuilder t = new StringBuilder(region);
