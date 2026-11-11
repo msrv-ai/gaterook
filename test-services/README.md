@@ -1,6 +1,6 @@
 # Connector test services
 
-Docker Compose supplies disposable servers for connector integration tests: PostgreSQL, MySQL, MariaDB, Oracle Database, SQL Server, MongoDB, Redis, Loki, OpenSearch, Elasticsearch, moto, Vault, OpenSSH, and k3s. This avoids relying on Linux x86-64 fixture binaries when testing on macOS or another Docker-capable machine.
+Docker Compose supplies disposable servers for connector integration tests: PostgreSQL, MySQL, MariaDB, Oracle Database, SQL Server, MongoDB, Redis, Loki, OpenSearch, Elasticsearch, moto, Prometheus, Vault, OpenSSH, and k3s. This avoids relying on Linux x86-64 fixture binaries when testing on macOS or another Docker-capable machine.
 
 Services bind to `127.0.0.1`. Credentials are public test fixtures, and service data is disposable. Tests reset databases, users, and server settings; never point this suite at real data.
 
@@ -14,7 +14,7 @@ scripts/test-services.sh run mvn -B -ntp verify -Pservices
 scripts/test-services.sh down
 ```
 
-The default starts everything except Kubernetes and SQL Server and waits for health checks. Profiles are `sql`, `oracle`, `sqlserver`, `cockroach`, `mongo`, `redis`, `logs`, `aws`, `dynamodb`, `vault`, `ssh`, `k8s`, and `all`:
+The default starts everything except Kubernetes, SQL Server, CockroachDB and Prometheus and waits for health checks. Profiles are `sql`, `oracle`, `sqlserver`, `cockroach`, `mongo`, `redis`, `logs`, `aws`, `dynamodb`, `prometheus`, `vault`, `ssh`, `k8s`, and `all`:
 
 ```bash
 scripts/test-services.sh up sql redis
@@ -56,6 +56,7 @@ The committed [.env](.env) contains image pins, ports, and disposable passwords.
 | `opensearch` | OpenSearch 3.9.0 without security plugin | 55200 | logs |
 | `elasticsearch` | Elasticsearch 9.5.5 with security disabled | 55201 | logs |
 | `moto` | moto 5.2.4 AWS emulator (STS, CloudWatch, DynamoDB) | 55500 | logs, aws, dynamodb |
+| `prometheus` | Prometheus v3.15.1 scraping itself, with a down target, a dropped target and rules | 55909 | prometheus |
 | `vault` | Vault 2.2.1 dev mode | 55820 | vault, ssh |
 | `openssh` | Ubuntu 24.04 / OpenSSH 9.6p1 | 55022 | ssh |
 | `k3s` | k3s v1.37.0-k3s1, privileged | 55443 | k8s |
@@ -69,7 +70,7 @@ The ignored `run/` directory holds generated certificates, SSH keys/logs, and ku
 
 ## Fixture isolation and platform differences
 
-SQL fixtures recreate their test database and roles. Oracle recreates only its named test tables in the dedicated test user's schema; it never resets other schemas. Oracle data lives in the container's writable layer, survives a restart, and is removed by `down`. MongoDB removes non-system databases/users and resets fail points. Redis reloads ACLs, clears statistics/logs and data, and restores changed passwords. Loki uses per-run tenants; OpenSearch recreates test indexes; Elasticsearch creates and deletes uniquely named test indexes; moto resets its emulator state. Vault recreates engines and roles, revoking database leases. SSH tests reset logs and inspect child processes. Kubernetes tests recreate a dedicated namespace and workload.
+SQL fixtures recreate their test database and roles. Oracle recreates only its named test tables in the dedicated test user's schema; it never resets other schemas. Oracle data lives in the container's writable layer, survives a restart, and is removed by `down`. MongoDB removes non-system databases/users and resets fail points. Redis reloads ACLs, clears statistics/logs and data, and restores changed passwords. Loki uses per-run tenants; Prometheus is only read; OpenSearch recreates test indexes; Elasticsearch creates and deletes uniquely named test indexes; moto resets its emulator state. Vault recreates engines and roles, revoking database leases. SSH tests reset logs and inspect child processes. Kubernetes tests recreate a dedicated namespace and workload.
 
 The Compose MongoDB 8.x fixture uses 8.2.4 because the original investigation found a Linux-kernel compatibility problem in 8.0.x; see [SERVER-121912](https://jira.mongodb.org/browse/SERVER-121912). Redis glob matching differs for high bytes between signed-`char` and unsigned-`char` platforms; tests probe the server's behavior rather than assuming the client architecture.
 
@@ -107,3 +108,17 @@ scripts/test-services.sh run mvn -B -ntp -pl connectors/sql -am verify -Pservice
 ```
 
 The ordinary `services` Maven profile does not enable CockroachDB tests. See [CockroachDB](../docs/cockroachdb.md).
+
+## Prometheus
+
+Prometheus is opt-in: one server keeps a day of its own metrics in memory, within a 256 MiB container limit. Its
+configuration in `prometheus/` scrapes the server itself every 5 seconds, keeps a target that is down and one that
+relabeling drops, and evaluates a recording rule and an alert that always fires. It needs no credentials, and no admin,
+lifecycle or remote write endpoint is enabled.
+
+```bash
+scripts/test-services.sh up prometheus
+scripts/test-services.sh run mvn -B -ntp -pl connectors/prometheus -am verify -Pservices,prometheus-it -Dit.test=PrometheusIT -Dfailsafe.failIfNoSpecifiedTests=false
+```
+
+The ordinary `services` Maven profile does not enable Prometheus tests. See [Prometheus](../docs/prometheus.md).

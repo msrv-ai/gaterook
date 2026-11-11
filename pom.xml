@@ -42,6 +42,7 @@
     <module>connectors/bigquery</module>
     <module>connectors/firebase</module>
     <module>connectors/snowflake</module>
+    <module>connectors/prometheus</module>
     <module>connectors/http</module>
     <module>connectors/mcp-server</module>
     <module>core</module>
@@ -115,6 +116,7 @@
     <it.tag.mysql>mysql-it</it.tag.mysql>
     <it.tag.sqlserver>sqlserver-it</it.tag.sqlserver>
     <it.tag.cockroach>cockroach-it</it.tag.cockroach>
+    <it.tag.prometheus>prometheus-it</it.tag.prometheus>
     <it.tag.mongo>mongo-it</it.tag.mongo>
     <it.tag.logs>logs-it</it.tag.logs>
     <it.tag.kube>kube-api</it.tag.kube>
@@ -128,7 +130,7 @@
     <it.services></it.services>
     <!-- Extra JVM options of the test forks: the tracing agent of the nightly metadata report (native.yml). -->
     <test.jvm.extra></test.jvm.extra>
-    <it.excludedGroups>${it.tag.mysql},${it.tag.sqlserver},${it.tag.cockroach},${it.tag.mongo},${it.tag.logs},${it.tag.kube},${it.tag.vault},${it.tag.cloud},${it.tag.network},${it.tag.mcpclients},${it.tag.openapi},${it.tag.mcpservers}</it.excludedGroups>
+    <it.excludedGroups>${it.tag.mysql},${it.tag.sqlserver},${it.tag.cockroach},${it.tag.prometheus},${it.tag.mongo},${it.tag.logs},${it.tag.kube},${it.tag.vault},${it.tag.cloud},${it.tag.network},${it.tag.mcpclients},${it.tag.openapi},${it.tag.mcpservers}</it.excludedGroups>
   </properties>
 
   <dependencyManagement>
@@ -217,6 +219,11 @@
       <dependency>
         <groupId>ai.msrv.gaterook</groupId>
         <artifactId>connectors-snowflake</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-prometheus</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
@@ -745,6 +752,11 @@
     <profile>
       <id>cockroach-it</id>
       <properties><it.tag.cockroach>__enabled-cockroach-it</it.tag.cockroach></properties>
+    </profile>
+    <profile>
+      <!-- Prometheus of the test services (scripts/test-services.sh up prometheus), with -Pservices. -->
+      <id>prometheus-it</id>
+      <properties><it.tag.prometheus>__enabled-prometheus-it</it.tag.prometheus></properties>
     </profile>
     <profile>
       <id>mongo-it</id>
