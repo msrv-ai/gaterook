@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "path": {
+      "type": "string",
+      "maxLength": 25000,
+      "description": "Where to read, such as /users/alice. Leave it out for the root."
+    },
+    "shallow": {
+      "type": "boolean",
+      "description": "Only the keys of the children, each as true. Default: true at the root without a query, else false. Can't be combined with a query."
+    },
+    "orderBy": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 768,
+      "description": "$key, $value, $priority or a child such as score or address/city; the others need it. A child needs .indexOn in the database's rules."
+    },
+    "limitToFirst": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "description": "The first children in orderBy's order; the endpoint caps it."
+    },
+    "limitToLast": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "description": "The last children in orderBy's order; the endpoint caps it."
+    },
+    "startAt": {
+      "type": [
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ],
+      "maxLength": 1024,
+      "description": "Children from this value of orderBy on."
+    },
+    "endAt": {
+      "type": [
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ],
+      "maxLength": 1024,
+      "description": "Children up to this value of orderBy."
+    },
+    "equalTo": {
+      "type": [
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ],
+      "maxLength": 1024,
+      "description": "Children whose value of orderBy is this."
+    }
+  }
+}
