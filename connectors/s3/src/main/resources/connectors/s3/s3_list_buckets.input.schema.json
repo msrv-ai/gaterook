@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "prefix": {
+      "type": "string",
+      "maxLength": 222,
+      "description": "Only buckets whose names start with this."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 100,
+      "description": "Most buckets to return."
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 8192,
+      "description": "nextCursor of the previous answer; leave it out for the first page."
+    }
+  }
+}

@@ -30,6 +30,7 @@ export const CONNECTOR_ICONS: Record<string, string> = {
   aws: 'cloud',
   azure: 'cloud',
   cloudflare: 'cloud',
+  s3: 'archive',
   http: 'globe',
   'mcp-server': 'plug',
 };
@@ -61,6 +62,7 @@ export const CONNECTOR_NAMES: Record<string, string> = {
   aws: 'AWS',
   azure: 'Azure',
   cloudflare: 'Cloudflare',
+  s3: 'S3 object storage',
   http: 'HTTP API',
   'mcp-server': 'External MCP server',
 };

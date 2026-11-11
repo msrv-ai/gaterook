@@ -52,7 +52,7 @@ An answer holds the operation's output in `result`, under the model's member nam
 
 **The request.** GateRook builds the method, URL, headers and body from the service's model and resolves the endpoint from the model's endpoint rules. Path segments `.` and `..` are refused, a host prefix takes only DNS labels, and keys an agent supplies for headers or query parameters are plain names. The request is signed with SigV4 for the service and region the endpoint names. Redirects are not followed and nothing is retried.
 
-**Protocols.** JSON (`awsJson1_0`, `awsJson1_1`, `restJson1`), Query (`awsQuery`, `ec2Query`) and REST-XML (CloudFront, Route 53) services are supported. S3 and S3 Control are not available through these tools yet, nor are services that speak only Smithy RPCv2 CBOR, streaming operations, endpoint discovery (Timestream) and endpoints that sign only with SigV4a.
+**Protocols.** JSON (`awsJson1_0`, `awsJson1_1`, `restJson1`), Query (`awsQuery`, `ec2Query`) and REST-XML (CloudFront, Route 53) services are supported. S3 and S3 Control are not available through these tools (buckets and objects have their own [S3 object storage](s3.md) connector), nor are services that speak only Smithy RPCv2 CBOR, streaming operations, endpoint discovery (Timestream) and endpoints that sign only with SigV4a.
 
 **The Cloud policy.** The environment's **Policies → Cloud** settings apply:
 

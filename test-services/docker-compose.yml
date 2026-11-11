@@ -384,7 +384,7 @@ services:
   moto:
     image: motoserver/moto:${GW_MOTO_TAG}
     container_name: gw-test-moto
-    profiles: [logs, aws, dynamodb, all]
+    profiles: [logs, aws, dynamodb, s3, all]
     ports:
       - "127.0.0.1:${GW_MOTO_PORT}:5000"
 

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "bucket"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "bucket": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{1,220}[A-Za-z0-9]$",
+      "description": "The bucket, such as acme-reports."
+    },
+    "prefix": {
+      "type": "string",
+      "maxLength": 1024,
+      "description": "Only keys that start with this, such as reports/2026/."
+    },
+    "delimiter": {
+      "type": "string",
+      "maxLength": 16,
+      "default": "/",
+      "description": "Groups keys that continue past it after the prefix into commonPrefixes. Default /; an empty string lists every key under the prefix."
+    },
+    "startAfter": {
+      "type": "string",
+      "maxLength": 1024,
+      "description": "List keys after this one, in S3's order."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 100,
+      "description": "Most keys and prefixes to return; the endpoint caps it."
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 8192,
+      "description": "nextCursor of the previous answer; leave it out for the first page."
+    }
+  }
+}

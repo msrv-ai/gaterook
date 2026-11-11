@@ -126,6 +126,12 @@ public final class ConnectionTargets {
       String url = config.path("url").asString();
       return config.has("transport") ? Masker.standard().url(withoutQuery(withoutUserInfo(url))) : address(url);
     }
+    if (config.path("endpoint").isString() && !config.path("endpoint").asString().isBlank()) {
+      // S3-compatible storage: its endpoint, scheme included (http sends objects in the clear), not the region its
+      // provider names (auto for R2).
+      String endpoint = withoutQuery(withoutUserInfo(config.path("endpoint").asString().strip()));
+      return endpoint.endsWith("/") ? endpoint.substring(0, endpoint.length() - 1) : endpoint;
+    }
     if (config.at("/regions/0").isString()) {
       String account = config.path("accountAlias").asString("");
       if (account.isBlank()) {

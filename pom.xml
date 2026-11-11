@@ -40,6 +40,7 @@
     <module>connectors/aws</module>
     <module>connectors/azure</module>
     <module>connectors/dynamodb</module>
+    <module>connectors/s3</module>
     <module>connectors/bigquery</module>
     <module>connectors/firebase</module>
     <module>connectors/snowflake</module>
@@ -209,6 +210,11 @@
       <dependency>
         <groupId>ai.msrv.gaterook</groupId>
         <artifactId>connectors-dynamodb</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-s3</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
