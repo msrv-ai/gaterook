@@ -56,6 +56,7 @@ class HttpServersTest {
   private int port;
   private final List<String> sessions = new CopyOnWriteArrayList<>();
   private final List<String> versions = new CopyOnWriteArrayList<>();
+  private final List<String> readOnly = new CopyOnWriteArrayList<>();
   private EgressClients clients;
   private McpServers runtime;
 
@@ -91,6 +92,9 @@ class HttpServersTest {
       }
       if (r.getHeader("MCP-Protocol-Version") != null) {
         versions.add(r.getHeader("MCP-Protocol-Version"));
+      }
+      if (r.getHeader("X-MCP-Readonly") != null) {
+        readOnly.add(r.getHeader("X-MCP-Readonly"));
       }
       chain.doFilter(request, response);
     };
@@ -157,6 +161,38 @@ class HttpServersTest {
     assertThat(sessions).isNotEmpty().allMatch(s -> s.equals(sessions.getFirst()));
     assertThat(versions).isNotEmpty().allMatch("2025-11-25"::equals);
     assertThat(ctx.taints).contains(TOKEN);
+  }
+
+  /** A server's switch written in its settings goes with every request as it is, and isn't a secret to mask. */
+  @Test
+  void aFixedHeaderGoesWithEveryRequest() throws Exception {
+    ConnectionConfig cfg = Fixtures.cfg("cn_http", "lookup-api", Env.DEV, 1, Fixtures.object("""
+        {"transport":"http","url":"http://127.0.0.1:%d/mcp","headers":[{"name":"Authorization"}],
+         "fixedHeaders":[{"name":"X-MCP-Readonly","text":"true"}]}""".formatted(port)));
+    Fixtures.Secrets secrets = new Fixtures.Secrets().with("/headers/0/secretRef", TOKEN);
+    Fixtures.Context ctx = ctx("127.0.0.1/32");
+
+    McpServerRuntime.Handshake h = runtime.probe(cfg, secrets, ctx);
+
+    assertThat(h.serverVersion()).isEqualTo("4.5.6");
+    assertThat(readOnly).isNotEmpty().allMatch("true"::equals);
+    assertThat(ctx.taints).doesNotContain("true");
+    // Another value is another session: a session made with the old switch doesn't carry on.
+    ServerConfig before = ServerConfig.of(cfg);
+    ServerConfig after = ServerConfig.of(Fixtures.cfg("cn_http", "lookup-api", Env.DEV, 2, Fixtures.object("""
+        {"transport":"http","url":"http://127.0.0.1:%d/mcp","headers":[{"name":"Authorization"}],
+         "fixedHeaders":[{"name":"X-MCP-Readonly","text":"false"}]}""".formatted(port))));
+    assertThat(McpServers.configFingerprint(after, null)).isNotEqualTo(McpServers.configFingerprint(before, null));
+  }
+
+  @Test
+  void aFixedHeaderNeverCarriesACredential() {
+    ConnectionConfig cfg = Fixtures.cfg("cn_http", "lookup-api", Env.DEV, 1, Fixtures.object("""
+        {"transport":"http","url":"http://127.0.0.1:%d/mcp","fixedHeaders":[{"name":"Authorization",
+         "text":"%s"}]}""".formatted(port, TOKEN)));
+
+    assertThatThrownBy(() -> runtime.probe(cfg, new Fixtures.Secrets(), ctx("127.0.0.1/32")))
+        .hasMessageContaining("Authorization can't have a fixed value");
   }
 
   @Test

@@ -40,6 +40,9 @@ class VerifiedProfilesTest {
          "description": "One server per service.", "documentation": "https://docs.ocean.example/mcp",
          "checked": "2026-11-11", "url": "https://{service}.mcp.ocean.example/mcp",
          "placeholders": [{"name": "service", "description": "apps, droplets."}],
+         "headers": [{"name": "X-Read-Only", "text": "true"}, {"name": "X-Toolsets", "text": "apps,dns"}],
+         "pins": [{"header": "X-Read-Only", "setTo": "true", "purpose": "Ocean lists only reads.",
+                   "missing": "Without X-Read-Only: true, Ocean lists its writes too."}],
          "signIn": "A token.",
          "match": {"hosts": ["mcp.ocean.example"], "hostSuffix": "mcp.ocean.example", "paths": ["/mcp"]}},
         {"id": "fire", "name": "Fire", "publisher": "Fire", "category": "Cloud platform",
@@ -158,20 +161,37 @@ class VerifiedProfilesTest {
   void pinsSayHowTheyStandInTheUrl() {
     VerifiedProfiles.Profile acme = profile("acme");
 
-    assertThat(VerifiedProfiles.pins(acme, "https://mcp.acme.example/mcp?project=p1&read_only=true"))
+    assertThat(VerifiedProfiles.pins(acme, http("https://mcp.acme.example/mcp?project=p1&read_only=true")))
         .extracting(VerifiedProfiles.PinState::set).containsExactly(true, true);
-    assertThat(VerifiedProfiles.pins(acme, "https://mcp.acme.example/mcp?read_only=false&project=p1"))
+    assertThat(VerifiedProfiles.pins(acme, http("https://mcp.acme.example/mcp?read_only=false&project=p1")))
         .extracting(VerifiedProfiles.PinState::set).containsExactly(false, true);
-    assertThat(VerifiedProfiles.pins(acme, "https://mcp.acme.example/mcp"))
+    assertThat(VerifiedProfiles.pins(acme, http("https://mcp.acme.example/mcp")))
         .extracting(VerifiedProfiles.PinState::set).containsExactly(false, false);
-    assertThat(VerifiedProfiles.pins(acme, "https://mcp.acme.example/mcp?project={project}&read_only=true"))
+    assertThat(VerifiedProfiles.pins(acme, http("https://mcp.acme.example/mcp?project={project}&read_only=true")))
         .as("a placeholder isn't the person's value").extracting(VerifiedProfiles.PinState::set)
         .containsExactly(true, false);
-    assertThat(VerifiedProfiles.pins(acme, "https://mcp.acme.example/mcp?project=&read_only=TRUE"))
+    assertThat(VerifiedProfiles.pins(acme, http("https://mcp.acme.example/mcp?project=&read_only=TRUE")))
         .extracting(VerifiedProfiles.PinState::set).containsExactly(false, false);
-    assertThat(VerifiedProfiles.pins(acme, "https://mcp.acme.example/mcp?read_only=true&read_only=false#x"))
+    assertThat(VerifiedProfiles.pins(acme, http("https://mcp.acme.example/mcp?read_only=true&read_only=false#x")))
         .as("the first of a repeated name counts").first().extracting(VerifiedProfiles.PinState::set)
         .isEqualTo(true);
+  }
+
+  @Test
+  void aHeaderPinStandsInTheFixedHeadersWhateverTheNamesCase() {
+    VerifiedProfiles.Profile ocean = profile("ocean");
+    ObjectNode set = (ObjectNode) http("https://apps.mcp.ocean.example/mcp");
+    set.putArray("fixedHeaders").addObject().put("name", "x-read-only").put("text", "true");
+    ObjectNode other = (ObjectNode) http("https://apps.mcp.ocean.example/mcp");
+    other.putArray("fixedHeaders").addObject().put("name", "X-Read-Only").put("text", "false");
+
+    assertThat(ocean.pins()).extracting(VerifiedProfiles.Pin::in).containsExactly(VerifiedProfiles.In.HEADER);
+    assertThat(VerifiedProfiles.pins(ocean, set)).extracting(VerifiedProfiles.PinState::set).containsExactly(true);
+    assertThat(VerifiedProfiles.pins(ocean, other)).extracting(VerifiedProfiles.PinState::set)
+        .containsExactly(false);
+    assertThat(VerifiedProfiles.pins(ocean, http("https://apps.mcp.ocean.example/mcp")))
+        .extracting(VerifiedProfiles.PinState::set).containsExactly(false);
+    assertThat(VerifiedProfiles.setupConfig(ocean).path("fixedHeaders")).hasSize(2);
   }
 
   @Test
@@ -219,6 +239,18 @@ class VerifiedProfilesTest {
         "\"match\": {\"hosts\": [\"mcp.fire.example\"], \"paths\": [\"/mcp\"]}"), "doesn't fit its setup");
     assertBad(FIXTURE.replace("\"hostSuffix\": \"mcp.ocean.example\", \"paths\": [\"/mcp\"]",
         "\"hostSuffix\": \"mcp.ocean.example\", \"paths\": []"), "doesn't fit its setup");
+  }
+
+  @Test
+  void aHeaderPinNeedsTheSetupToSendItAndNoHeaderCarriesACredential() {
+    assertBad(FIXTURE.replace("{\"name\": \"X-Read-Only\", \"text\": \"true\"}, ", ""), "pins X-Read-Only");
+    assertBad(FIXTURE.replace("{\"name\": \"X-Read-Only\", \"text\": \"true\"}",
+        "{\"name\": \"X-Read-Only\", \"text\": \"yes\"}"), "pins X-Read-Only");
+    assertBad(FIXTURE.replace("{\"name\": \"X-Toolsets\", \"text\": \"apps,dns\"}",
+        "{\"name\": \"Authorization\", \"text\": \"Bearer x\"}"), "credential");
+    assertBad(FIXTURE.replace("\"command\": [\"npx\", \"-y\", \"fire-tools@1.2.3\", \"mcp\"],",
+        "\"command\": [\"npx\", \"-y\", \"fire-tools@1.2.3\", \"mcp\"], \"headers\": [{\"name\": \"X-A\", "
+        + "\"text\": \"b\"}],"), "a command has no headers");
   }
 
   @Test

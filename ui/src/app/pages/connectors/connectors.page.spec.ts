@@ -126,13 +126,13 @@ const stripeRegistryServers: McpRegistryPage['servers'] = [
 
 /** GateRook's verified profiles as `GET /api/mcp-profiles` answers (§7.5): one whose registry entry is a Popular card. */
 function profilesFixture(): McpProfile[] {
-  const base = { category: 'Cloud platform', checked: '2026-11-11', command: [], notes: [], signIn: 'OAuth in your browser.' };
+  const base = { category: 'Cloud platform', checked: '2026-11-11', command: [], headers: [], notes: [], signIn: 'OAuth in your browser.' };
   return [
     { ...base, id: 'supabase', name: 'Supabase', publisher: 'Supabase', description: 'Projects, logs and read-only SQL.',
       documentation: 'https://supabase.com/docs/guides/getting-started/mcp', registryName: 'com.supabase/mcp', transport: 'http',
       url: 'https://mcp.supabase.com/mcp?project_ref={project_ref}&read_only=true',
       placeholders: [{ name: 'project_ref', description: 'Your project’s reference, from its dashboard URL.' }],
-      pins: [{ parameter: 'read_only', setTo: 'true', purpose: 'Supabase lists only its read tools.', missing: 'Without read_only=true, Supabase lists its writes too.', set: null }],
+      pins: [{ in: 'query', name: 'read_only', setTo: 'true', purpose: 'Supabase lists only its read tools.', missing: 'Without read_only=true, Supabase lists its writes too.', set: null }],
       tools: [] },
     { ...base, id: 'cloudflare-api', name: 'Cloudflare API', publisher: 'Cloudflare', description: 'The whole Cloudflare API in Code Mode.',
       documentation: 'https://github.com/cloudflare/mcp', registryName: null, transport: 'http', url: 'https://mcp.cloudflare.com/mcp',

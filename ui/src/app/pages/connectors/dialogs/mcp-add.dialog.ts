@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, output, signal, viewChild } from '@angular/core';
-import { McpProfile, McpServerAuthConfig, McpServerConfig, McpServerReview, McpServerSource } from '../../../core/api/plugins.api';
+import { McpFixedHeader, McpProfile, McpServerAuthConfig, McpServerConfig, McpServerReview, McpServerSource } from '../../../core/api/plugins.api';
 import { Env } from '../../../core/api/types';
 import { GwDialog, GwDialogClose } from '../../../kit/dialog';
 import { GwToggle } from '../../../kit/disclosure';
@@ -50,6 +50,7 @@ export interface McpFormErrors {
   readonly command?: string;
   readonly url?: string;
   readonly variables?: string;
+  readonly fixedHeaders?: string;
   readonly clientId?: string;
   readonly scopes?: string;
   readonly callbackPort?: string;
@@ -118,6 +119,7 @@ export function mcpRequest(
   url: string,
   variables: readonly McpVariableDraft[],
   signIn: McpSignInOptions = NO_SIGN_IN_OPTIONS,
+  fixedHeaders: readonly McpFixedHeader[] = [],
 ): { readonly source: McpServerSource; readonly errors: null } | { readonly source: null; readonly errors: McpFormErrors } {
   const errors: { -readonly [K in keyof McpFormErrors]?: string } = {};
   const n = name.trim();
@@ -189,11 +191,20 @@ export function mcpRequest(
       }
     }
   }
+  // A verified profile's switches (X-MCP-Readonly: true): sent as written, so never a credential or a secret's name.
+  const fixed = transport === 'http' ? fixedHeaders.map((h) => ({ name: h.name.trim(), text: h.text })) : [];
+  for (const h of fixed) {
+    const key = h.name.toLowerCase();
+    if (!HEADER_NAME.test(h.name)) errors.fixedHeaders = `${h.name} isn't a header name: letters, digits and -.`;
+    else if (['authorization', 'proxy-authorization', 'cookie'].includes(key)) errors.fixedHeaders = `${h.name} carries a credential: add it as a header whose value the review asks for.`;
+    else if (bindings.some((b) => b.name.toLowerCase() === key)) errors.fixedHeaders = `${h.name} is also a header whose value the review asks for. Keep one.`;
+    if (errors.fixedHeaders) break;
+  }
   if (Object.keys(errors).length) return { source: null, errors };
   const config: McpServerConfig =
     transport === 'stdio'
       ? { name: n, transport, command: argv, env: bindings }
-      : { name: n, transport, url: url.trim(), headers: bindings, ...(auth ? { auth } : {}) };
+      : { name: n, transport, url: url.trim(), headers: bindings, ...(fixed.length ? { fixedHeaders: fixed } : {}), ...(auth ? { auth } : {}) };
   return { source: { config }, errors: null };
 }
 
@@ -480,6 +491,20 @@ let nextId = 0;
                 @if (errors().variables) {<p class="gw-field__error" [id]="uid + '-var-err'" role="alert"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().variables }}</p>}
                 <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" (click)="addVariable()"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg>{{ transport() === 'http' ? 'Add header' : 'Add variable' }}</button></div>
               </fieldset>
+              @if (transport() === 'http' && fixedHeaders().length) {
+                <!-- A verified profile's switches (X-MCP-Readonly: true): sent as written, not secrets. Editable later in
+                     the server's settings; dropping one here makes the review warn. -->
+                <fieldset class="gw-field" [attr.aria-describedby]="uid + '-fixed-hint'">
+                  <legend class="gw-field__label">Headers with a fixed value</legend>
+                  <ul class="gw-stack gw-stack--sm">
+                    @for (h of fixedHeaders(); track h.name; let i = $index) {
+                      <li><code class="gw-code">{{ h.name }}: {{ h.text }}</code> <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" [id]="uid + '-fixed-' + i" (click)="removeFixedHeader(i)">Remove<span class="gw-sr-only"> {{ h.name }}</span></button></li>
+                    }
+                  </ul>
+                  <p class="gw-field__hint" [id]="uid + '-fixed-hint'">Sent with every request as written here, not as secrets. Change them later in the server's settings.</p>
+                  @if (errors().fixedHeaders) {<p class="gw-field__error" role="alert"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().fixedHeaders }}</p>}
+                </fieldset>
+              }
               @if (error()) {
                 <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
                   <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
@@ -593,6 +618,8 @@ export class GwMcpAddDialog {
   protected readonly command = signal('');
   protected readonly url = signal('');
   protected readonly variables = signal<readonly McpVariableDraft[]>([{ name: '' }]);
+  /** Headers sent as written, a verified profile's switches (`X-MCP-Readonly: true`); the person may drop one. */
+  protected readonly fixedHeaders = signal<readonly McpFixedHeader[]>([]);
   protected readonly clientId = signal('');
   protected readonly scopes = signal('');
   protected readonly callbackPort = signal('');
@@ -666,6 +693,7 @@ export class GwMcpAddDialog {
     this.command.set('');
     this.url.set('');
     this.variables.set([{ name: '' }]);
+    this.fixedHeaders.set([]);
     this.clientId.set('');
     this.scopes.set('');
     this.callbackPort.set('');
@@ -785,6 +813,7 @@ export class GwMcpAddDialog {
       this.suggested.set(r.name);
     }
     this.variables.set(r.variables.length ? r.variables.map((name) => ({ name })) : [{ name: '' }]);
+    this.fixedHeaders.set(r.transport === 'http' ? (r.fixedHeaders ?? []) : []);
     // A sign-in chosen for the previous server isn't this one's: a Google token or an AWS signature included.
     if (r.auth) this.applySignIn(r.auth);
     else if (this.signInWith() !== 'oauth') this.setSignInWith('oauth');
@@ -794,6 +823,7 @@ export class GwMcpAddDialog {
       ...(r.name ? ['the name'] : []),
       r.transport === 'http' ? 'the URL' : 'the command',
       ...(r.variables.length ? [r.variables.length === 1 ? `one ${kind}` : `${r.variables.length} ${kind}s`] : []),
+      ...(r.transport === 'http' && r.fixedHeaders?.length ? [r.fixedHeaders.length === 1 ? 'one header with a fixed value' : `${r.fixedHeaders.length} headers with a fixed value`] : []),
     ]);
   }
 
@@ -992,6 +1022,12 @@ export class GwMcpAddDialog {
     this.clear('variables');
   }
 
+  /** Drops a header with a fixed value, such as a profile's read-only switch: the review then warns that it's missing. */
+  protected removeFixedHeader(i: number): void {
+    this.fixedHeaders.update((rows) => rows.filter((_, j) => j !== i));
+    this.clear('fixedHeaders');
+  }
+
   protected addVariable(): void {
     this.variables.update((rows) => [...rows, { name: '' }]);
     const i = this.variables().length - 1;
@@ -1018,16 +1054,16 @@ export class GwMcpAddDialog {
       externalId: this.externalId(),
       service: this.service(),
       region: this.region(),
-    });
+    }, this.fixedHeaders());
     if (r.errors) {
       this.errors.set(r.errors);
       // The first refused field (the always-visible ones first); a sign-in option opens its section.
       const order: readonly [keyof McpFormErrors, string][] = [['name', 'name'], ['command', 'command'], ['url', 'url'],
-        ['variables', 'var-name-0'], ['clientId', 'client'], ['impersonate', 'impersonate'], ['quotaProject', 'quota'],
+        ['variables', 'var-name-0'], ['fixedHeaders', 'fixed-0'], ['clientId', 'client'], ['impersonate', 'impersonate'], ['quotaProject', 'quota'],
         ['scopes', 'scopes'], ['callbackPort', 'port'], ['profile', 'profile'], ['accessKeyId', 'key-id'],
         ['roleArn', 'role'], ['externalId', 'external'], ['service', 'service'], ['region', 'region']];
       const first = order.find(([key]) => r.errors[key]);
-      if (first && !['name', 'command', 'url', 'variables'].includes(first[0])) this.signInOpen.set(true);
+      if (first && !['name', 'command', 'url', 'variables', 'fixedHeaders'].includes(first[0])) this.signInOpen.set(true);
       setTimeout(() => this.host.querySelector<HTMLElement>(`#${this.uid}-${first?.[1] ?? 'name'}`)?.focus());
       return;
     }

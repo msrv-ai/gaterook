@@ -45,9 +45,9 @@ class BundledVerifiedProfilesTest {
   }
 
   @Test
-  void theBuildShipsTheSevenCheckedServersInCardOrder() {
+  void theBuildShipsTheCheckedServersInCardOrder() {
     assertThat(VerifiedProfiles.all()).extracting(VerifiedProfiles.Profile::id).containsExactly("aws-knowledge",
-        "cloudflare-api", "digitalocean", "vercel", "firebase", "supabase", "netlify");
+        "cloudflare-api", "digitalocean", "vercel", "firebase", "supabase", "netlify", "azure-devops");
     for (VerifiedProfiles.Profile p : VerifiedProfiles.all()) {
       assertThat(VerifiedProfiles.of(VerifiedProfiles.sampleConfig(p))).as(p.id()).contains(p);
       assertThat(p.documentation()).as(p.id()).startsWith("https://");
@@ -73,6 +73,9 @@ class BundledVerifiedProfilesTest {
     assertThat(id(http("https://netlify-mcp.netlify.app/mcp"))).as("its older address").contains("netlify");
     assertThat(id(stdio("npx", "-y", "firebase-tools@latest", "mcp", "--dir", "/work/app"))).contains("firebase");
     assertThat(id(stdio("firebase", "mcp"))).contains("firebase");
+    assertThat(id(stdio("npx", "-y", "@azure-devops/mcp@2.11.0", "contoso", "--authentication", "azcli")))
+        .contains("azure-devops");
+    assertThat(id(stdio("mcp-server-azuredevops", "contoso", "-d", "core"))).contains("azure-devops");
   }
 
   @Test
@@ -86,6 +89,8 @@ class BundledVerifiedProfilesTest {
     assertThat(id(http("http://mcp.supabase.com/mcp"))).isEmpty();
     assertThat(id(stdio("npx", "-y", "firebase-tools", "deploy"))).isEmpty();
     assertThat(id(stdio("npx", "-y", "@supabase/mcp-server-supabase@0.16.1", "--read-only"))).isEmpty();
+    assertThat(id(http("https://mcp.dev.azure.com/contoso"))).as("the remote server GateRook can't sign in to yet")
+        .isEmpty();
   }
 
   @Test
@@ -96,9 +101,9 @@ class BundledVerifiedProfilesTest {
     assertThat(supabase.placeholders()).extracting(VerifiedProfiles.Placeholder::name)
         .containsExactly("project_ref");
     String pinned = "https://mcp.supabase.com/mcp?project_ref=abcdefghijklmnopqrst&read_only=true";
-    assertThat(VerifiedProfiles.pins(supabase, pinned)).extracting(VerifiedProfiles.PinState::set)
+    assertThat(VerifiedProfiles.pins(supabase, http(pinned))).extracting(VerifiedProfiles.PinState::set)
         .containsExactly(true, true);
-    List<VerifiedProfiles.PinState> bare = VerifiedProfiles.pins(supabase, "https://mcp.supabase.com/mcp");
+    List<VerifiedProfiles.PinState> bare = VerifiedProfiles.pins(supabase, http("https://mcp.supabase.com/mcp"));
     assertThat(bare).extracting(VerifiedProfiles.PinState::set).containsExactly(false, false);
     assertThat(bare.getFirst().pin().missing()).contains("Without read_only=true");
     // In read-only mode Supabase itself runs SQL read-only, so execute_sql follows its declaration.
@@ -125,6 +130,10 @@ class BundledVerifiedProfilesTest {
     assertThat(profile("netlify").rule("netlify-deploy-site")).get().extracting(VerifiedProfiles.ToolRule::kind)
         .isEqualTo(VerifiedProfiles.Kind.CREDENTIALS);
     assertThat(profile("aws-knowledge").tools()).as("every tool of it is declared read only").isEmpty();
+    assertThat(profile("azure-devops").rule("wit_work_item_attachment")).get()
+        .extracting(VerifiedProfiles.ToolRule::kind).isEqualTo(VerifiedProfiles.Kind.WRITE);
+    assertThat(profile("azure-devops").rule("pipelines_write")).get().extracting(VerifiedProfiles.ToolRule::start)
+        .isEqualTo(VerifiedProfiles.Start.APPROVAL);
   }
 
   @Test
@@ -132,7 +141,7 @@ class BundledVerifiedProfilesTest {
     VerifiedProfiles.Profile netlify = profile("netlify");
 
     assertThat(netlify.url()).isEqualTo("https://mcp.netlify.com/mcp?verbose=true");
-    assertThat(VerifiedProfiles.pins(netlify, "https://mcp.netlify.com/mcp"))
+    assertThat(VerifiedProfiles.pins(netlify, http("https://mcp.netlify.com/mcp")))
         .extracting(VerifiedProfiles.PinState::set).containsExactly(false);
   }
 

@@ -3449,13 +3449,40 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                   }
                 }
               }
+            },
+            "fixedHeaders": {
+              "type": "array",
+              "title": "Headers with a fixed value",
+              "description": "Sent with every request as written here, not as secrets: switches such as X-MCP-Readonly: true. A key belongs in a header from a secret.",
+              "maxItems": 16,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "text"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "title": "Header",
+                    "pattern": "^[A-Za-z0-9-]{1,64}$"
+                  },
+                  "text": {
+                    "type": "string",
+                    "title": "Value",
+                    "maxLength": 256,
+                    "pattern": "^[\\x20-\\x7E]*$"
+                  }
+                }
+              }
             }
           }
         }
       }
     ],
     "patternProperties": {
-      "^(command|env|inheritEnv|offThisComputer|url|headers|auth)$": {}
+      "^(command|env|inheritEnv|offThisComputer|url|headers|fixedHeaders|auth)$": {}
     }
   },
   "ssh-logs": {
@@ -15736,6 +15763,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "/offThisComputer",
       "/url",
       "/headers",
+      "/fixedHeaders",
       "/start",
       "/idleStopMinutes",
       "/startTimeoutSeconds",
@@ -15953,6 +15981,24 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/headers",
         "kind": "json",
         "title": "Headers from secrets",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/fixedHeaders",
+        "kind": "json",
+        "title": "Headers with a fixed value",
         "required": false,
         "secret": null,
         "mono": false,

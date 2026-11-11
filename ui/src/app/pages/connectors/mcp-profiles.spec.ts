@@ -13,6 +13,7 @@ function profile(p: Partial<McpProfile> & { readonly id: string }): McpProfile {
     checked: '2026-11-11',
     transport: 'http',
     url: null,
+    headers: [],
     command: [],
     placeholders: [],
     pins: [],
@@ -30,8 +31,8 @@ const SUPABASE = profile({
   url: 'https://mcp.supabase.com/mcp?project_ref={project_ref}&read_only=true',
   placeholders: [{ name: 'project_ref', description: 'Your project’s reference, from its dashboard URL.' }],
   pins: [
-    { parameter: 'read_only', setTo: 'true', purpose: 'Supabase lists only its read tools.', missing: 'Without read_only=true …', set: null },
-    { parameter: 'project_ref', setTo: null, purpose: 'One project only.', missing: 'Without project_ref …', set: null },
+    { in: 'query', name: 'read_only', setTo: 'true', purpose: 'Supabase lists only its read tools.', missing: 'Without read_only=true …', set: null },
+    { in: 'query', name: 'project_ref', setTo: null, purpose: 'One project only.', missing: 'Without project_ref …', set: null },
   ],
 });
 
@@ -82,6 +83,21 @@ describe('Verified MCP profiles in Add MCP server', () => {
     expect('error' in filled ? filled.error : filled.command).toBe('npx -y firebase-tools@15.0.0 mcp');
     expect('error' in filled ? null : filled.transport).toBe('stdio');
     expect('error' in filled ? null : filled.name).toBe('firebase-mcp');
+  });
+
+  it('sends a header switch as a fixed header and says so', () => {
+    const devops = profile({
+      id: 'azure-devops',
+      name: 'Azure DevOps',
+      url: 'https://mcp.dev.azure.com/{organization}',
+      headers: [{ name: 'X-MCP-Readonly', text: 'true' }],
+      pins: [{ in: 'header', name: 'X-MCP-Readonly', setTo: 'true', purpose: 'Only its read tools.', missing: '', set: null }],
+    });
+    const filled = fromProfile(devops);
+    expect('error' in filled ? null : filled.fixedHeaders).toEqual([{ name: 'X-MCP-Readonly', text: 'true' }]);
+    expect('error' in filled ? null : filled.notes).toContain('Header X-MCP-Readonly set to true: Only its read tools.');
+    const supabase = fromProfile(SUPABASE);
+    expect('error' in supabase ? null : supabase.fixedHeaders).toBeUndefined();
   });
 
   it('refuses a profile over HTTP without a URL', () => {
