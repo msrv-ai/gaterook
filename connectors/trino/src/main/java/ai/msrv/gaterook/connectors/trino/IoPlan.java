@@ -11,7 +11,9 @@ import tools.jackson.databind.json.JsonMapper;
  * Trino's answer to {@code EXPLAIN (TYPE IO, FORMAT JSON) <statement>}: the tables the statement reads
  * ({@code inputTableColumnInfos}) and the table it writes ({@code outputTable}), each as catalog, schema and table.
  * Views count as the tables Trino reads through them. A data definition statement isn't planned: Trino answers with the
- * statement's own text, which is {@link #planned()} {@code false}.
+ * statement's own text, which is {@link #planned()} {@code false}. GateRook asks only for the plan of reads (a change's
+ * read of what it reads included) and of data definition statements, never of a write, so a plan that names a table
+ * written is refused.
  *
  * @param inputs  the tables read, in Trino's order
  * @param output  the table written, or {@code null}

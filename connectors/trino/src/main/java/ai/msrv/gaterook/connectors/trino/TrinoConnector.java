@@ -46,9 +46,11 @@ import tools.jackson.databind.node.ObjectNode;
  * {@code EXPLAIN} without {@code ANALYZE} are reads; sessions, roles, grants, transactions, prepared statements,
  * procedures, catalogs, outside table functions and AI functions are refused. Before a read runs, Trino itself plans
  * it: {@code EXPLAIN (TYPE IO, FORMAT JSON)} must name no table it writes, and every table it reads must be in a
- * catalog of the connection ({@link IoPlan}). A change shows the same plan in its approval, runs once and is never
- * retried; a lost answer leaves its outcome unknown. The user's own access control in Trino stays part of the
- * boundary.
+ * catalog of the connection ({@link IoPlan}). GateRook never asks Trino to plan a write: Trino plans one through its
+ * catalog's write hooks, and a memory catalog creates the table of a {@code CREATE TABLE AS} while it is only being
+ * planned. A change is planned by a read of what it reads instead, and writes the table its own name says; its
+ * approval shows both, it runs once and is never retried; a lost answer leaves its outcome unknown. The user's own
+ * access control in Trino stays part of the boundary.
  */
 public final class TrinoConnector implements Connector {
 
@@ -279,8 +281,11 @@ public final class TrinoConnector implements Connector {
   }
 
   /**
-   * Trino's plan before a person is asked: the tables a change reads and the one it writes. A statement Trino refuses,
-   * a read sent as a change, or one that reaches past the connection's catalogs is never put to a person.
+   * Trino's plan before a person is asked. A change Trino plans as a write is never planned itself: Trino would begin
+   * the write in its catalog while planning it. GateRook plans the read of what the change reads ({@link TrinoSql})
+   * and shows the tables it reads and the table the statement's own name says it writes. A data definition statement
+   * is echoed by Trino without running. A statement whose read Trino refuses, a read sent as a change, or one that
+   * reaches past the connection's catalogs is never put to a person.
    */
   @Override
   public PreparedAction prepare(ToolCall call, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
@@ -300,15 +305,19 @@ public final class TrinoConnector implements Connector {
           return PreparedAction.reject(st.read() ? "This is a read. Use trino_query; it doesn't need approval."
               : Objects.requireNonNullElse(st.problem(), "trino_execute runs one analyzed change."));
         }
-        IoPlan plan = plan(c, st.sql());
-        checkChange(plan, s);
+        String problem = refs(st, s, ctx.env() == null ? "this environment" : ctx.env().id());
+        if (problem != null) {
+          return PreparedAction.reject(problem);
+        }
         impact.add(new Field("Statement", st.type()));
-        if (plan.planned()) {
-          impact.add(new Field("Writes", plan.output() == null ? "No table, by Trino's plan" : plan.output().text()));
-          if (!plan.inputs().isEmpty()) {
-            impact.add(new Field("Reads", shorten(String.join(", ", plan.inputNames()), 2_000)));
-          }
+        if (st.planned() != null) {
+          IoPlan plan = plan(c, st.planned());
+          checkChange(plan, s);
+          impact.add(new Field("Writes", written(st.target(), s)));
+          impact.add(new Field("Reads", plan.inputs().isEmpty() ? "No table, by Trino's plan"
+              : shorten(String.join(", ", plan.inputNames()), 2_000)));
         } else {
+          definition(c, st);
           impact.add(new Field("Trino's plan", "None: Trino checks a data definition statement when it runs it"));
         }
       } else {
@@ -337,8 +346,34 @@ public final class TrinoConnector implements Connector {
 
   // ── Trino's plan ────────────────────────────────────────────────────────────────────────────────────────────
 
-  /** {@code EXPLAIN (TYPE IO, FORMAT JSON) <statement>}: what Trino says the statement reads and writes. */
-  IoPlan plan(Call c, String statement) throws ConnectorException {
+  /**
+   * {@code EXPLAIN (TYPE IO, FORMAT JSON) <read>}: what Trino says a read reads. Only a statement GateRook reads as a
+   * read is sent, a change's read of what it reads included; never a write, which Trino plans through its catalog's
+   * write hooks.
+   */
+  IoPlan plan(Call c, String read) throws ConnectorException {
+    if (!TrinoSql.read(read).read()) {
+      throw ConnectorException.denied("GateRook asks Trino to plan reads only.");
+    }
+    return explain(c, read);
+  }
+
+  /**
+   * {@code EXPLAIN (TYPE IO, FORMAT JSON) <statement>} of a data definition statement, which Trino parses and answers
+   * with the statement's own text without running it. Trino planning it would mean it runs it as a write after all,
+   * which GateRook doesn't put to a person.
+   */
+  void definition(Call c, TrinoSql.Statement st) throws ConnectorException {
+    if (!st.change() || st.planned() != null) {
+      throw ConnectorException.denied("GateRook asks Trino to plan reads only.");
+    }
+    if (explain(c, st.sql()).planned()) {
+      throw ConnectorException.denied("Trino plans " + st.type() + " as a write, not as a data definition "
+          + "statement: GateRook doesn't run it.");
+    }
+  }
+
+  private IoPlan explain(Call c, String statement) throws ConnectorException {
     String[] text = new String[1];
     http.run(c, "EXPLAIN (TYPE IO, FORMAT JSON) " + statement, Purpose.READ, (columns, row) -> {
       if (text[0] == null && row.isArray() && !row.isEmpty()) {
@@ -367,13 +402,28 @@ public final class TrinoConnector implements Connector {
     checkInputs(plan, s);
   }
 
-  /** A change: what Trino's plan writes and reads is in catalogs of the connection. */
+  /**
+   * A change, by Trino's plan of the read of what it reads: a plan of a query that writes no table, whose tables are
+   * all in catalogs of the connection. The table the change writes is its own target, which {@link #refs} checks.
+   */
   static void checkChange(IoPlan plan, TrinoSettings s) throws ConnectorException {
-    if (plan.planned() && plan.output() != null && !s.allows(plan.output().catalog())) {
-      throw ConnectorException.denied("The statement writes " + plan.output().text() + ", which isn't in a catalog "
-          + "of this connection.");
+    if (!plan.planned() || plan.output() != null) {
+      throw ConnectorException.denied("Trino's plan of what the change reads isn't the plan of a read, and GateRook "
+          + "doesn't run what it can't check.");
     }
     checkInputs(plan, s);
+  }
+
+  /** The table a change writes, as its own name says, with the connection's default catalog and schema. */
+  static String written(Ref target, TrinoSettings s) {
+    List<String> parts = new ArrayList<>(target.name().parts().stream().map(p -> p.toLowerCase(Locale.ROOT)).toList());
+    if (parts.size() == 1 && s.schema() != null) {
+      parts.addFirst(s.schema().toLowerCase(Locale.ROOT));
+    }
+    if (parts.size() == 2 && s.catalog() != null) {
+      parts.addFirst(s.catalog().toLowerCase(Locale.ROOT));
+    }
+    return String.join(".", parts);
   }
 
   private static void checkInputs(IoPlan plan, TrinoSettings s) throws ConnectorException {
@@ -662,7 +712,12 @@ public final class TrinoConnector implements Connector {
     if (problem != null) {
       throw ConnectorException.denied(problem);
     }
-    checkChange(plan(c, st.sql()), c.settings());
+    // Checked again right before it runs: the read of what it reads, never the write itself.
+    if (st.planned() != null) {
+      checkChange(plan(c, st.planned()), c.settings());
+    } else {
+      definition(c, st);
+    }
     TrinoHttp.Result r = http.run(c, st.sql(), Purpose.CHANGE, (columns, row) -> true);
     ObjectNode out = F.objectNode().put("committed", true).put("statement", st.type())
         .put("target", st.target().name().text());

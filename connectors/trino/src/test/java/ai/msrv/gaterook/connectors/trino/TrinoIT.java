@@ -2,6 +2,7 @@ package ai.msrv.gaterook.connectors.trino;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import ai.msrv.gaterook.connector.api.ActionPreview;
@@ -21,6 +22,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -37,15 +40,18 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * The Trino connector against Trino 484 of the test services (profile {@code trino}: the built-in memory and tpch
  * catalogs, no authentication on loopback). Start it with {@code scripts/test-services.sh up trino}, then run with
- * {@code -Pservices,trino-it}. Every tool as an agent calls it, a write that Trino's own IO plan names refused through
- * the read tool, an approved CREATE TABLE and INSERT into memory, the row and size limits, and a query cancelled at the
- * call's deadline: the coordinator's own record of each query says how it ended.
+ * {@code -Pservices,trino-it}. Every tool as an agent calls it, a write refused through the read tool and never
+ * planned, an approved CREATE TABLE, CREATE TABLE AS and INSERT into memory with nothing written before the approval,
+ * the reads Trino plans for DELETE, UPDATE and MERGE, the row and size limits, and a query cancelled at the call's
+ * deadline: the coordinator's own record of each query says how it ended.
  */
 @Tag("trino-it")
 class TrinoIT {
 
   private static final JsonMapper JSON = JsonMapper.builder().build();
   private static final String TABLE = "memory.default.gaterook_it_orders";
+  /** A suffix of this run's own tables: the coordinator's record of queries keeps those of earlier runs a while. */
+  private static final String RUN = Long.toHexString(System.nanoTime() & 0xffffffL);
   private static final TestSecrets NONE = new TestSecrets();
   private static TrinoConnector connector;
   private static ConnectionConfig cfg;
@@ -107,17 +113,45 @@ class TrinoIT {
     return connector.execute(call, cfg, NONE, TestCtx.of().approved(prepared.preview().payload()));
   }
 
-  /** A statement sent straight to the coordinator (setup), followed to its end. */
-  private static void direct(String statement) throws Exception {
+  /** A statement sent straight to the coordinator (setup and checks), followed to its end: its rows. */
+  private static List<JsonNode> direct(String statement) throws Exception {
     HttpClient http = HttpClient.newHttpClient();
     HttpResponse<String> r = http.send(HttpRequest.newBuilder(base.resolve("/v1/statement"))
         .header("X-Trino-User", "gaterook_it").POST(HttpRequest.BodyPublishers.ofString(statement)).build(),
         HttpResponse.BodyHandlers.ofString());
     JsonNode page = JSON.readTree(r.body());
+    List<JsonNode> rows = new ArrayList<>();
+    page.path("data").forEach(rows::add);
     while (page.path("nextUri").isString()) {
       page = JSON.readTree(http.send(HttpRequest.newBuilder(URI.create(page.get("nextUri").asString())).GET().build(),
           HttpResponse.BodyHandlers.ofString()).body());
+      page.path("data").forEach(rows::add);
     }
+    if (page.path("error").isObject()) {
+      throw new IllegalStateException(statement + ": " + page.path("error").path("message").asString());
+    }
+    return rows;
+  }
+
+  /** Whether {@code memory.default} has the table, as the coordinator's own metadata says. */
+  private static boolean exists(String table) throws Exception {
+    return !direct("SELECT table_name FROM memory.information_schema.tables WHERE table_schema = 'default' AND "
+        + "table_name = '" + table + "'").isEmpty();
+  }
+
+  /** How many rows a table has, read straight from the coordinator. */
+  private static long count(String table) throws Exception {
+    return direct("SELECT count(*) FROM " + table).getFirst().get(0).asLong();
+  }
+
+  /** The statements the coordinator received lately that contain {@code text}, by its own record of queries. */
+  private static List<String> received(String text) throws Exception {
+    List<String> out = new ArrayList<>();
+    for (JsonNode row : direct("SELECT query FROM system.runtime.queries WHERE strpos(query, '" + text + "') > 0 "
+        + "AND strpos(query, 'system.runtime.queries') = 0")) {
+      out.add(row.get(0).asString());
+    }
+    return out;
   }
 
   /** How the coordinator says query {@code id} ended: {@code FINISHED}, or {@code FAILED:USER_CANCELED}. */
@@ -180,26 +214,35 @@ class TrinoIT {
   }
 
   @Test
-  void aWriteIsRefusedThroughTheReadToolAndTrinosPlanSaysSo() throws Exception {
+  void aWriteIsRefusedThroughTheReadToolAndNeverPlanned() throws Exception {
     Classification route = classify(call("trino_query", sql("INSERT INTO " + TABLE + " VALUES (1, 'x')")));
     assertThat(route.kind()).isEqualTo(Classification.Kind.DENY);
     assertThat(route.ruleId()).isEqualTo("dev.trino.query-writes");
-    // Trino's own IO plan of the write names its target, which the read check refuses.
-    direct("CREATE TABLE IF NOT EXISTS memory.default.gaterook_it_plan (id bigint, name varchar)");
+    TrinoHttp.Call c = new TrinoHttp.Call(cfg, TrinoSettings.of(cfg), NONE, TestCtx.of());
+    String plan = "gaterook_it_plan_" + RUN;
+    direct("DROP TABLE IF EXISTS memory.default." + plan);
     try {
-      TrinoHttp.Call c = new TrinoHttp.Call(cfg, TrinoSettings.of(cfg), NONE, TestCtx.of());
-      IoPlan plan = connector.plan(c, "INSERT INTO memory.default.gaterook_it_plan SELECT nationkey, name FROM "
-          + "tpch.tiny.nation");
-      assertThat(plan.planned()).isTrue();
-      assertThat(plan.output().text()).isEqualTo("memory.default.gaterook_it_plan");
-      assertThat(plan.inputNames()).containsExactly("tpch.tiny.nation");
-      assertThatThrownBy(() -> TrinoConnector.checkRead(plan, c.settings())).isInstanceOfSatisfying(
-          ConnectorException.class, e -> assertThat(e.getMessage()).contains("writes to "
-              + "memory.default.gaterook_it_plan"));
-      // A data definition statement is no query either.
-      assertThat(connector.plan(c, "DROP TABLE memory.default.gaterook_it_plan").planned()).isFalse();
+      // Planning a CREATE TABLE AS would create its table in memory: GateRook doesn't ask Trino for it.
+      assertThatThrownBy(() -> connector.plan(c, "CREATE TABLE memory.default." + plan + " AS SELECT nationkey, name "
+          + "FROM tpch.tiny.nation")).isInstanceOfSatisfying(ConnectorException.class,
+              e -> assertThat(e.getMessage()).contains("plan reads only"));
+      assertThat(exists(plan)).isFalse();
+      // A data definition statement is echoed by Trino, not run: the table it drops is still there.
+      direct("CREATE TABLE memory.default." + plan + " (id bigint, name varchar)");
+      connector.definition(c, TrinoSql.read("DROP TABLE memory.default." + plan));
+      assertThat(exists(plan)).isTrue();
+      // The plan of a write's read writes nothing and names what the write reads.
+      IoPlan io = connector.plan(c, TrinoSql.read("INSERT INTO memory.default." + plan + " SELECT nationkey, name "
+          + "FROM tpch.tiny.nation").planned());
+      assertThat(io.planned()).isTrue();
+      assertThat(io.output()).isNull();
+      assertThat(io.inputNames()).containsExactly("tpch.tiny.nation");
+      assertThat(count("memory.default." + plan)).isZero();
+      // By the coordinator's own record, it was never asked to plan either write.
+      assertThat(received(plan)).isNotEmpty().noneMatch(q -> q.startsWith("EXPLAIN (TYPE IO, FORMAT JSON) CREATE "
+          + "TABLE memory.default." + plan + " AS") || q.startsWith("EXPLAIN (TYPE IO, FORMAT JSON) INSERT"));
     } finally {
-      direct("DROP TABLE IF EXISTS memory.default.gaterook_it_plan");
+      direct("DROP TABLE IF EXISTS memory.default." + plan);
     }
     // A catalog off the list is refused by the plan, also when the statement doesn't name it.
     ConnectionConfig onlyMemory = new ConnectionConfig("conn-trino-it-memory", "it-trino", "trino", Env.DEV, 1,
@@ -216,19 +259,98 @@ class TrinoIT {
     ToolCall insert = call("trino_execute", sql("INSERT INTO " + TABLE + " SELECT nationkey, name FROM "
         + "tpch.tiny.nation WHERE nationkey < 2"));
     PreparedAction prepared = connector.prepare(insert, cfg, NONE, TestCtx.of());
-    assertThat(prepared.preview().impact()).extracting(ActionPreview.Field::value).contains(TABLE,
-        "tpch.tiny.nation");
+    assertThat(prepared.outcome()).as(prepared.message()).isEqualTo(PreparedAction.Outcome.APPROVAL);
+    assertThat(prepared.preview().impact()).extracting(ActionPreview.Field::label, ActionPreview.Field::value)
+        .contains(tuple("Writes", TABLE), tuple("Reads", "tpch.tiny.nation"));
+    // Before a person approves, the table has no row.
+    assertThat(count(TABLE)).isZero();
     ToolResult inserted = connector.execute(insert, cfg, NONE, TestCtx.of().approved(prepared.preview().payload()));
     assertThat(inserted.structuredContent().path("rowsAffected").asInt()).isEqualTo(2);
     assertThat(ended(inserted.structuredContent().path("queryId").asString())).isEqualTo("FINISHED");
     ToolResult back = read("trino_query", sql("SELECT id, name FROM " + TABLE + " ORDER BY id"), TestCtx.of());
     assertThat(back.table().rows().toString()).isEqualTo("[[0,\"ALGERIA\"],[1,\"ARGENTINA\"]]");
-    // Without approval nothing runs; what Trino refuses is never put to a person.
+    // Without approval nothing runs.
     assertThatThrownBy(() -> connector.execute(insert, cfg, NONE, TestCtx.of())).hasMessageContaining("Not approved");
-    PreparedAction delete = connector.prepare(call("trino_execute", sql("DELETE FROM " + TABLE + " WHERE id = 0")),
-        cfg, NONE, TestCtx.of());
-    assertThat(delete.outcome()).isEqualTo(PreparedAction.Outcome.REJECT);
-    assertThat(delete.message()).contains("does not support");
+    // What only the write itself shows (memory deletes no rows) is Trino's answer to the approved statement: nothing
+    // ran, and the rows are as they were.
+    ToolCall delete = call("trino_execute", sql("DELETE FROM " + TABLE + " WHERE id = 0"));
+    PreparedAction approval = connector.prepare(delete, cfg, NONE, TestCtx.of());
+    assertThat(approval.outcome()).as(approval.message()).isEqualTo(PreparedAction.Outcome.APPROVAL);
+    assertThatThrownBy(() -> connector.execute(delete, cfg, NONE, TestCtx.of().approved(approval.preview().payload())))
+        .isInstanceOfSatisfying(ConnectorException.class, e -> {
+          assertThat(e.kind()).isEqualTo(ConnectorException.Kind.BAD_INPUT);
+          assertThat(e.getMessage()).contains("does not support", "Nothing ran");
+        });
+    assertThat(count(TABLE)).isEqualTo(2);
+  }
+
+  @Test
+  void anApprovedCreateTableAsCreatesNothingBeforeTheApproval() throws Exception {
+    String name = "gaterook_it_ctas_" + RUN;
+    String table = "memory.default." + name;
+    direct("DROP TABLE IF EXISTS " + table);
+    try {
+      String statement = "CREATE TABLE " + table + " AS (SELECT nationkey AS id, name FROM tpch.tiny.nation WHERE "
+          + "nationkey < 3) WITH DATA";
+      ToolCall create = call("trino_execute", sql(statement));
+      assertThat(classify(create).kind()).isEqualTo(Classification.Kind.MUTATION);
+      PreparedAction prepared = connector.prepare(create, cfg, NONE, TestCtx.of());
+      assertThat(prepared.outcome()).as(prepared.message()).isEqualTo(PreparedAction.Outcome.APPROVAL);
+      assertThat(prepared.preview().impact()).extracting(ActionPreview.Field::label, ActionPreview.Field::value)
+          .contains(tuple("Statement", "CREATE TABLE AS"), tuple("Writes", table), tuple("Reads", "tpch.tiny.nation"));
+      // Trino planned the query only: before a person approves, the table doesn't exist.
+      assertThat(exists(name)).isFalse();
+
+      ToolResult created = connector.execute(create, cfg, NONE, TestCtx.of().approved(prepared.preview().payload()));
+      assertThat(created.structuredContent().path("rowsAffected").asInt()).isEqualTo(3);
+      assertThat(ended(created.structuredContent().path("queryId").asString())).isEqualTo("FINISHED");
+      // By the coordinator's own record, it ran the approved statement and was never asked to plan it, neither before
+      // the approval nor right before the run.
+      assertThat(received(name)).contains(statement).noneMatch(q -> q.startsWith("EXPLAIN"));
+      ToolResult back = read("trino_query", sql("SELECT id, name FROM " + table + " ORDER BY id"), TestCtx.of());
+      assertThat(back.table().rows().toString()).isEqualTo("[[0,\"ALGERIA\"],[1,\"ARGENTINA\"],[2,\"BRAZIL\"]]");
+    } finally {
+      direct("DROP TABLE IF EXISTS " + table);
+    }
+  }
+
+  @Test
+  void deleteUpdateAndMergeArePlannedByWhatTheyRead() throws Exception {
+    String name = "gaterook_it_merge_" + RUN;
+    String table = "memory.default." + name;
+    direct("DROP TABLE IF EXISTS " + table);
+    direct("CREATE TABLE " + table + " AS SELECT nationkey AS id, name FROM tpch.tiny.nation WHERE nationkey < 5");
+    try {
+      for (String statement : List.of(
+          "DELETE FROM " + table + " WHERE id IN (SELECT nationkey FROM tpch.tiny.nation WHERE regionkey = 1)",
+          "UPDATE " + table + " SET name = (SELECT max(name) FROM tpch.tiny.nation) WHERE id = 1",
+          "MERGE INTO " + table + " t USING (SELECT nationkey, name FROM tpch.tiny.nation) n ON t.id = n.nationkey "
+              + "WHEN MATCHED AND n.name <> t.name THEN UPDATE SET name = n.name "
+              + "WHEN NOT MATCHED THEN INSERT (id, name) VALUES (n.nationkey, n.name)")) {
+        PreparedAction prepared = connector.prepare(call("trino_execute", sql(statement)), cfg, NONE, TestCtx.of());
+        assertThat(prepared.outcome()).as(statement + ": " + prepared.message())
+            .isEqualTo(PreparedAction.Outcome.APPROVAL);
+        assertThat(prepared.preview().impact()).extracting(ActionPreview.Field::label, ActionPreview.Field::value)
+            .as(statement).contains(tuple("Writes", table));
+        String reads = prepared.preview().impact().stream().filter(f -> f.label().equals("Reads")).findFirst()
+            .orElseThrow().value();
+        assertThat(reads).as(statement).contains(table, "tpch.tiny.nation");
+      }
+      // A source table off the connection's list stops the change before a person is asked.
+      ConnectionConfig onlyMemory = new ConnectionConfig("conn-trino-it-memory", "it-trino", "trino", Env.DEV, 1,
+          ((ObjectNode) cfg.config().deepCopy()).put("catalog", "memory").put("schema", "default")
+              .set("catalogs", JsonNodeFactory.instance.arrayNode().add("memory")), Set.of(), null);
+      PreparedAction outside = connector.prepare(call("trino_execute", sql("MERGE INTO " + table + " t USING "
+          + "tpch.tiny.nation n ON t.id = n.nationkey WHEN MATCHED THEN DELETE")), onlyMemory, NONE, TestCtx.of());
+      assertThat(outside.outcome()).isEqualTo(PreparedAction.Outcome.REJECT);
+      assertThat(outside.message()).contains("tpch.tiny.nation");
+      assertThat(count(table)).isEqualTo(5);
+      assertThat(received(name)).isNotEmpty().noneMatch(q -> q.startsWith("EXPLAIN (TYPE IO, FORMAT JSON) DELETE")
+          || q.startsWith("EXPLAIN (TYPE IO, FORMAT JSON) UPDATE") || q.startsWith("EXPLAIN (TYPE IO, FORMAT JSON) "
+          + "MERGE"));
+    } finally {
+      direct("DROP TABLE IF EXISTS " + table);
+    }
   }
 
   @Test

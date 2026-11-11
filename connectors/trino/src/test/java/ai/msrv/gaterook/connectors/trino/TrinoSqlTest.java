@@ -150,6 +150,122 @@ class TrinoSqlTest {
   }
 
   @Test
+  void aWriteIsPlannedByAReadOfWhatItReads() {
+    record Case(String sql, String read) {}
+    for (Case c : List.of(
+        // INSERT: its query, after the target, a branch and a column list.
+        new Case("INSERT INTO memory.default.t SELECT * FROM tpch.tiny.nation", "SELECT * FROM tpch.tiny.nation"),
+        new Case("INSERT INTO t (id, \"Name, Full\") VALUES (1, 'x, y')", "VALUES (1, 'x, y')"),
+        new Case("insert into t (select 1)", "select 1"),
+        new Case("INSERT INTO t (a) ((SELECT 1) UNION ALL (SELECT 2))", "(SELECT 1) UNION ALL (SELECT 2)"),
+        new Case("INSERT INTO t WITH x AS (SELECT 1 a) SELECT a FROM x;", "WITH x AS (SELECT 1 a) SELECT a FROM x"),
+        new Case("INSERT INTO iceberg.s.t @ audit (id) SELECT id FROM u -- copy\n", "SELECT id FROM u"),
+        new Case("  INSERT INTO t /* the query */ SELECT 'INSERT INTO x' AS s", "SELECT 'INSERT INTO x' AS s"),
+        // CREATE TABLE AS: its query, without WITH [NO] DATA and the parentheses around it.
+        new Case("CREATE TABLE IF NOT EXISTS memory.default.t (a, b) COMMENT 'AS SELECT' WITH (x = 'AS') AS "
+            + "SELECT 1, 2 WITH NO DATA", "SELECT 1, 2"),
+        new Case("CREATE OR REPLACE TABLE t AS (WITH x AS (SELECT 1 a) SELECT a FROM x) WITH DATA",
+            "WITH x AS (SELECT 1 a) SELECT a FROM x"),
+        new Case("CREATE TABLE \"AS\" AS SELECT * FROM (SELECT 1 AS \"WITH\") WHERE true", "SELECT * FROM (SELECT 1 "
+            + "AS \"WITH\") WHERE true"),
+        // DELETE: the rows it reads.
+        new Case("DELETE FROM memory.default.t WHERE id IN (SELECT id FROM hive.s.u) -- old",
+            "SELECT 1 FROM memory.default.t WHERE id IN (SELECT id FROM hive.s.u)"),
+        new Case("DELETE FROM \"My Table\"", "SELECT 1 FROM \"My Table\""),
+        new Case("DELETE FROM t -- all old rows\nWHERE ts < DATE '2020-01-01'",
+            "SELECT 1 FROM t WHERE ts < DATE '2020-01-01'"),
+        new Case("DELETE FROM t @ b WHERE id = 1", "SELECT 1 FROM t WHERE id = 1"),
+        // UPDATE: the new values, from the rows it reads.
+        new Case("UPDATE t SET a = 'x, y = z', b = coalesce(b, ARRAY[1, 2]), \"c\" = CASE WHEN a = 1 THEN 2 ELSE 3 "
+            + "END WHERE id = (SELECT max(id) FROM u)", "SELECT 'x, y = z', coalesce(b, ARRAY[1, 2]), CASE WHEN a = 1 "
+            + "THEN 2 ELSE 3 END FROM t WHERE id = (SELECT max(id) FROM u)"),
+        new Case("UPDATE hive.s.t SET paid = true", "SELECT true FROM hive.s.t"),
+        // MERGE: every condition and value, over the target joined with the source.
+        new Case("MERGE INTO memory.default.t AS a USING (SELECT * FROM tpch.tiny.nation) n ON a.id = n.nationkey "
+            + "WHEN MATCHED AND n.name = 'WHEN MATCHED' THEN UPDATE SET name = n.name, note = 'x' "
+            + "WHEN MATCHED THEN DELETE "
+            + "WHEN NOT MATCHED THEN INSERT (id, name) VALUES (n.nationkey, upper(n.name))",
+            "SELECT n.name = 'WHEN MATCHED', n.name, 'x', n.nationkey, upper(n.name) FROM memory.default.t a FULL "
+                + "JOIN (SELECT * FROM tpch.tiny.nation) n ON a.id = n.nationkey"),
+        new Case("MERGE INTO t USING u ON t.id = u.id WHEN MATCHED THEN DELETE",
+            "SELECT 1 FROM t FULL JOIN u ON t.id = u.id"),
+        new Case("MERGE INTO t \"T\" USING s.u AS \"U\" ON CASE WHEN \"U\".k = 1 THEN \"T\".id ELSE 0 END = \"U\".id "
+            + "WHEN NOT MATCHED AND (SELECT count(*) FROM v) > 0 THEN INSERT VALUES (\"U\".id, ROW(1, 2))",
+            "SELECT (SELECT count(*) FROM v) > 0, \"U\".id, ROW(1, 2) FROM t \"T\" FULL JOIN s.u AS \"U\" ON CASE "
+                + "WHEN \"U\".k = 1 THEN \"T\".id ELSE 0 END = \"U\".id"),
+        // Statements that read and write one table: the table.
+        new Case("ANALYZE hive.s.t WITH (partitions = ARRAY[ARRAY['1']])", "SELECT 1 FROM hive.s.t"),
+        new Case("REFRESH MATERIALIZED VIEW hive.s.mv", "SELECT 1 FROM hive.s.mv"),
+        new Case("ALTER TABLE hive.s.t EXECUTE optimize(file_size_threshold => '10MB') WHERE part = 1",
+            "SELECT 1 FROM hive.s.t WHERE part = 1"),
+        new Case("ALTER TABLE iceberg.s.t EXECUTE expire_snapshots", "SELECT 1 FROM iceberg.s.t"),
+        new Case("ALTER MATERIALIZED VIEW iceberg.s.mv EXECUTE optimize", "SELECT 1 FROM iceberg.s.mv"))) {
+      Statement st = read(c.sql());
+      assertThat(st.kind()).as(c.sql()).isEqualTo(Kind.CHANGE);
+      assertThat(st.planned()).as(c.sql()).isEqualTo(c.read());
+      // The read is one query the gateway reads as a read: never the write itself.
+      assertThat(read(st.planned()).kind()).as(c.sql()).isEqualTo(Kind.READ);
+    }
+    // What is sent is still the statement itself.
+    assertThat(read("INSERT INTO t SELECT 1;").sql()).isEqualTo("INSERT INTO t SELECT 1");
+  }
+
+  @Test
+  void aDataDefinitionStatementHasNoRead() {
+    for (String sql : List.of("CREATE TABLE t (id bigint)", "CREATE TABLE a.s.t (LIKE b.s.u)", "DROP TABLE t",
+        "ALTER TABLE t ADD COLUMN c varchar", "ALTER TABLE t RENAME TO u", "ALTER MATERIALIZED VIEW mv SET PROPERTIES "
+            + "x = 1", "TRUNCATE TABLE t", "COMMENT ON TABLE t IS 'x'", "CREATE VIEW v AS SELECT * FROM t",
+        "CREATE MATERIALIZED VIEW mv AS SELECT 1 x", "CREATE SCHEMA memory.s", "ALTER VIEW v REFRESH",
+        "CREATE FUNCTION memory.default.twice(x bigint) RETURNS bigint RETURN x * 2")) {
+      Statement st = read(sql);
+      assertThat(st.kind()).as(sql).isEqualTo(Kind.CHANGE);
+      assertThat(st.planned()).as(sql).isNull();
+    }
+  }
+
+  @Test
+  void aWriteWhoseReadCantBeBuiltWithCertaintyIsRefused() {
+    for (String sql : List.of("INSERT INTO t", "INSERT INTO t (a, b)", "INSERT INTO t (a b) SELECT 1, 2",
+        "INSERT INTO t (a,) SELECT 1", "INSERT INTO t TABLE u", "INSERT INTO t @ SELECT 1", "INSERT INTO t x SELECT 1",
+        "INSERT INTO t VALUES (1", "INSERT INTO t SELECT ARRAY[1, 2) FROM u",
+        "CREATE TABLE t AS", "CREATE TABLE t AS WITH NO DATA", "CREATE TABLE t AS TABLE u",
+        "DELETE FROM t x WHERE true", "DELETE FROM t WHERE", "DELETE FROM t USING u",
+        "UPDATE t SET (a, b) = (1, 2)", "UPDATE t SET a = WHERE id = 1", "UPDATE t SET a = 1, WHERE id = 1",
+        "UPDATE t SET a = 1 WHERE", "UPDATE t a SET a = 1", "UPDATE t SET a = CASE WHEN b THEN 1 WHERE c",
+        "UPDATE t SET a.b = 1",
+        "MERGE INTO t USING a JOIN b ON a.id = b.id ON t.id = a.id WHEN MATCHED THEN DELETE",
+        "MERGE INTO t USING u ON t.id = u.id", "MERGE INTO t USING u WHEN MATCHED THEN DELETE",
+        "MERGE INTO t USING u ON t.id = u.id WHEN MATCHED THEN UPSERT",
+        "MERGE INTO t USING u ON t.id = u.id WHEN MATCHED AND THEN DELETE",
+        "MERGE INTO t USING u ON t.id = u.id WHEN MATCHED THEN DELETE x",
+        "MERGE INTO t USING u ON t.id = u.id WHEN NOT MATCHED BY SOURCE THEN DELETE",
+        "MERGE INTO t USING u ON t.id = u.id WHEN NOT MATCHED THEN INSERT VALUES ()",
+        "MERGE INTO t USING u ON t.id = u.id WHEN NOT MATCHED THEN INSERT VALUES (1) x",
+        "MERGE INTO t USING u ON t.id = u.id WHEN MATCHED THEN UPDATE SET",
+        "ANALYZE t x", "REFRESH MATERIALIZED VIEW mv x", "ALTER TABLE t EXECUTE", "ALTER TABLE t EXECUTE x y",
+        "ALTER TABLE t EXECUTE optimize(a => 1 WHERE p = 1")) {
+      Statement st = read(sql);
+      assertThat(st.kind()).as(sql).isIn(Kind.UNREADABLE, Kind.FORBIDDEN);
+      assertThat(st.problem()).as(sql).isNotBlank();
+      assertThat(st.planned()).as(sql).isNull();
+    }
+    // A CREATE TABLE AS whose query sets session properties is refused as the read would be.
+    Statement session = read("CREATE TABLE t AS WITH SESSION query_max_run_time = '1h' SELECT 1");
+    assertThat(session.kind()).isEqualTo(Kind.FORBIDDEN);
+    assertThat(session.problem()).contains("WITH SESSION");
+    assertThat(read("INSERT INTO t TABLE u").problem()).contains("SELECT * FROM table");
+    assertThat(read("MERGE INTO t USING a JOIN b ON a.id = b.id ON t.id = a.id WHEN MATCHED THEN DELETE").problem())
+        .contains("subquery");
+  }
+
+  @Test
+  void theTextOfAnExplainedQueryIsWhereItsTokensAre() {
+    // Leading white space before the statement doesn't move where the explained query starts.
+    assertThat(read("  \n EXPLAIN SELECT 1").planned()).isEqualTo("SELECT 1");
+    assertThat(read("\tSHOW STATS FOR (SELECT * FROM nation)").planned()).isEqualTo("SELECT * FROM nation");
+  }
+
+  @Test
   void showAndDescribeNameWhatTheyShow() {
     assertThat(read("SHOW CATALOGS").catalogs()).isTrue();
     assertThat(read("SHOW SCHEMAS FROM hive").refs()).extracting(r -> r.name().catalog(r.role()))

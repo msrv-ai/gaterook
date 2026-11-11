@@ -1,6 +1,8 @@
 package ai.msrv.gaterook.connectors.trino;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -17,6 +19,15 @@ import java.util.Set;
  * ({@link IoPlan}). Sessions, roles, grants, transactions, prepared statements, procedures and catalogs are never run
  * through GateRook; table functions other than Trino's built-in {@code sequence} and {@code exclude_columns} are
  * refused, as a pass-through query of a JDBC catalog can change data that no plan shows.
+ *
+ * <p>Trino plans a write through its catalog's write hooks: planning {@code CREATE TABLE AS}, {@code INSERT},
+ * {@code DELETE}, {@code UPDATE}, {@code MERGE}, {@code ANALYZE}, {@code REFRESH MATERIALIZED VIEW} or
+ * {@code ALTER … EXECUTE} begins the write in the catalog, and a memory catalog creates the table of a
+ * {@code CREATE TABLE AS} at that point, even for an {@code EXPLAIN}. So a change Trino plans as a write is never
+ * planned before a person approves it: it carries a read-only query of what it reads instead
+ * ({@link Statement#planned}), built from its own tokens, and a change whose read can't be built with certainty is
+ * {@link Kind#UNREADABLE}. Trino doesn't plan a data definition statement: it answers its {@code EXPLAIN} with the
+ * statement's own text without running it.
  */
 final class TrinoSql {
 
@@ -62,8 +73,11 @@ final class TrinoSql {
    *
    * @param type      what it is, upper case: {@code SELECT}, {@code SHOW TABLES}, {@code INSERT}, {@code CREATE TABLE AS}
    * @param sql       the text that is sent: the statement without a final semicolon
-   * @param planned   for a read, the text whose IO plan decides it (the query an {@code EXPLAIN} explains); else
-   *                  {@code null}
+   * @param planned   the query whose IO plan decides it, which is always a read: for a read, its own text or the query
+   *                  an {@code EXPLAIN} explains; for a change Trino plans as a write, the read-only query of what it
+   *                  reads (the query of an {@code INSERT}, {@code SELECT 1 FROM t WHERE c} of a {@code DELETE}, …),
+   *                  as Trino would begin the write while planning the change itself; {@code null} for a data
+   *                  definition statement, which Trino doesn't plan
    * @param target    for a change, the object it changes; else {@code null}
    * @param targetAt  the token where {@link #target}'s name starts, or {@code -1}
    * @param refs      names whose catalog the connection checks (show and describe objects, qualified functions)
@@ -82,6 +96,11 @@ final class TrinoSql {
       return new Statement(kind, type, sql, planned, target, targetAt, List.copyOf(more), planless, catalogs, problem);
     }
 
+    /** This change, planned by {@code read}: the read-only query of what it reads. */
+    Statement plannedBy(String read) {
+      return new Statement(kind, type, sql, read, target, targetAt, refs, planless, catalogs, problem);
+    }
+
     boolean read() {
       return kind == Kind.READ;
     }
@@ -96,6 +115,9 @@ final class TrinoSql {
   /** Table functions of Trino's own: they read what their arguments name and nothing else. */
   private static final Set<String> SAFE_TABLE_FUNCTIONS = Set.of("sequence", "exclude_columns");
   private static final Set<String> QUERIES = Set.of("SELECT", "WITH", "VALUES");
+  /** Changes Trino plans as a write, besides {@code ALTER TABLE … EXECUTE} and its materialized view form. */
+  private static final Set<String> PLANNED_WRITES = Set.of("INSERT", "CREATE TABLE AS", "DELETE", "UPDATE", "MERGE",
+      "ANALYZE", "REFRESH MATERIALIZED VIEW");
   private static final String SESSIONS = "sessions belong to the gateway, which sets them for each call";
 
   private TrinoSql() {}
@@ -109,8 +131,9 @@ final class TrinoSql {
    *
    * @param text  {@code WORD}: upper case; {@code QUOTED}: the name without quotes; {@code PUNCT}: the character
    * @param start where it starts in the text
+   * @param end   where it ends in the text (exclusive): a closing quote included
    */
-  record Token(T type, String text, int start) {
+  record Token(T type, String text, int start, int end) {
 
     boolean is(String word) {
       return type == T.WORD && text.equals(word);
@@ -197,7 +220,7 @@ final class TrinoSql {
         if (c == '"' && value.isEmpty()) {
           return new Scan(out, n, "A quoted name is empty.");
         }
-        out.add(new Token(c == '"' ? T.QUOTED : T.STRING, value.toString(), i));
+        out.add(new Token(c == '"' ? T.QUOTED : T.STRING, value.toString(), i, j + 1));
         i = j + 1;
         continue;
       }
@@ -213,7 +236,7 @@ final class TrinoSql {
         while (j < n && (isAsciiLetterOrDigit(sql.charAt(j)) || sql.charAt(j) == '_')) {
           j++;
         }
-        out.add(new Token(T.WORD, sql.substring(i, j).toUpperCase(Locale.ROOT), i));
+        out.add(new Token(T.WORD, sql.substring(i, j).toUpperCase(Locale.ROOT), i, j));
         i = j;
         continue;
       }
@@ -224,11 +247,11 @@ final class TrinoSql {
             || sql.charAt(j - 1) == 'E')))) {
           j++;
         }
-        out.add(new Token(T.NUMBER, sql.substring(i, j), i));
+        out.add(new Token(T.NUMBER, sql.substring(i, j), i, j));
         i = j;
         continue;
       }
-      out.add(new Token(T.PUNCT, String.valueOf(c), i));
+      out.add(new Token(T.PUNCT, String.valueOf(c), i, i + 1));
       i++;
     }
     // One final semicolon is cut off: Trino refuses it. Any other ends a statement before another.
@@ -269,18 +292,24 @@ final class TrinoSql {
       return Statement.refused(scan.problem().startsWith("One statement") ? Kind.FORBIDDEN : Kind.UNREADABLE,
           "statement", scan.problem());
     }
-    List<Token> t = scan.tokens();
-    if (t.isEmpty()) {
+    if (scan.tokens().isEmpty()) {
       return Statement.refused(Kind.UNREADABLE, "statement", "The statement has no keyword.");
     }
     String text = sql.substring(0, scan.end()).strip();
+    // The tokens of the text that is sent, so that where they start and end is where they are in it.
+    Scan sent = scan(text);
+    if (sent.problem() != null || sent.tokens().size() != scan.tokens().size()) {
+      return Statement.refused(Kind.UNREADABLE, "statement", "The statement can't be read with certainty.");
+    }
+    List<Token> t = sent.tokens();
     Statement st = statement(t, text);
     if (st.kind() == Kind.READ || st.kind() == Kind.CHANGE) {
       Functions f = functions(t, st);
       if (f.problem() != null) {
         return Statement.refused(Kind.FORBIDDEN, st.type(), f.problem());
       }
-      return st.withRefs(f.refs());
+      st = st.withRefs(f.refs());
+      return st.change() ? reads(t, text, st) : st;
     }
     return st;
   }
@@ -707,6 +736,417 @@ final class TrinoSql {
     return j;
   }
 
+  // ── What a change reads ─────────────────────────────────────────────────────────────────────────────────────
+
+  /** The read-only query of what a change reads, or why GateRook can't build it with certainty. */
+  private record Read(String query, String problem) {
+
+    static Read of(String query) {
+      return new Read(query, null);
+    }
+
+    static Read refused(String problem) {
+      return new Read(null, problem);
+    }
+  }
+
+  /**
+   * A change Trino plans as a write, planned by the read-only query of what it reads; a data definition statement as
+   * it is; or the change refused when that query can't be built with certainty. The query is cut from the statement's
+   * own text at its tokens, so a string, a quoted name or a comment stays whole and no comment hides what follows it;
+   * GateRook reads the query once more, and it must be a query (SELECT, WITH or VALUES) that GateRook reads as a read.
+   */
+  private static Statement reads(List<Token> t, String text, Statement st) {
+    boolean execute = (st.type().equals("ALTER TABLE") || st.type().equals("ALTER MATERIALIZED VIEW"))
+        && word(t, after(st), "EXECUTE");
+    if (!execute && !PLANNED_WRITES.contains(st.type())) {
+      return st;
+    }
+    int[] depth = nesting(t);
+    if (depth == null) {
+      return Statement.refused(Kind.UNREADABLE, st.type(), "The parentheses, brackets or CASE … END of " + st.type()
+          + " don't pair up, so GateRook can't tell what it reads.");
+    }
+    Read derived = execute ? execute(t, text, st, depth) : switch (st.type()) {
+      case "INSERT" -> insert(t, text, st);
+      case "CREATE TABLE AS" -> createAs(t, text, st, depth);
+      case "DELETE" -> delete(t, text, st);
+      case "UPDATE" -> update(t, text, st, depth);
+      case "MERGE" -> merge(t, text, st, depth);
+      case "ANALYZE" -> analyze(t, text, st);
+      case "REFRESH MATERIALIZED VIEW" -> after(st) == t.size() ? Read.of("SELECT 1 FROM " + target(t, text, st))
+          : Read.refused("Write REFRESH MATERIALIZED VIEW name.");
+      default -> Read.refused(st.type() + " isn't a change GateRook plans.");
+    };
+    if (derived.problem() != null) {
+      return Statement.refused(Kind.UNREADABLE, st.type(), derived.problem());
+    }
+    Statement query = read(derived.query());
+    if (query.kind() != Kind.READ || !(query.type().equals("SELECT") || query.type().equals("VALUES"))) {
+      String why = query.problem() != null ? query.problem() : query.type() + " isn't a query.";
+      return Statement.refused(query.kind() == Kind.FORBIDDEN ? Kind.FORBIDDEN : Kind.UNREADABLE, st.type(),
+          "GateRook plans " + st.type() + " by a read of what it reads, and can't read that as a query: " + why);
+    }
+    return st.plannedBy(derived.query());
+  }
+
+  /** {@code INSERT INTO t [@ branch] [(column, …)] query}: the query. */
+  private static Read insert(List<Token> t, String text, Statement st) {
+    int j = branch(t, after(st));
+    if (j < 0) {
+      return Read.refused("Write INSERT INTO table [@ branch] [(columns)] SELECT ….");
+    }
+    if (punct(t, j, '(') && !startsQuery(t, j + 1)) {
+      int close = closing(t, j);
+      if (close < 0 || !names(t, j + 1, close)) {
+        return Read.refused("The column list of INSERT is names separated by commas: INSERT INTO table (a, b) "
+            + "SELECT ….");
+      }
+      j = close + 1;
+    }
+    if (!startsQuery(t, j)) {
+      return Read.refused("INSERT inserts a query: write INSERT INTO table [(columns)] followed by SELECT …, WITH … "
+          + "or VALUES ….");
+    }
+    if (t.get(j).is("TABLE")) {
+      return Read.refused("GateRook plans INSERT by the query it inserts and reads SELECT, WITH or VALUES there: "
+          + "write SELECT * FROM table instead of TABLE table.");
+    }
+    return Read.of(query(t, text, j, t.size() - 1));
+  }
+
+  /** {@code CREATE TABLE t [(column, …)] [COMMENT …] [WITH (…)] AS query [WITH [NO] DATA]}: the query. */
+  private static Read createAs(List<Token> t, String text, Statement st, int[] depth) {
+    int as = -1;
+    for (int k = after(st); k < t.size(); k++) {
+      if (depth[k] == 0 && t.get(k).is("AS")) {
+        as = k;
+        break;
+      }
+    }
+    int end = t.size() - 1;
+    if (word(t, end, "DATA") && word(t, end - 1, "WITH")) {
+      end -= 2;
+    } else if (word(t, end, "DATA") && word(t, end - 1, "NO") && word(t, end - 2, "WITH")) {
+      end -= 3;
+    }
+    if (as < 0 || as + 1 > end || !startsQuery(t, as + 1) || t.get(as + 1).is("TABLE")) {
+      return Read.refused("CREATE TABLE AS creates a table from a query: write CREATE TABLE table AS SELECT …, WITH "
+          + "… or VALUES …, optionally followed by WITH [NO] DATA.");
+    }
+    return Read.of(query(t, text, as + 1, end));
+  }
+
+  /** {@code DELETE FROM t [@ branch] [WHERE condition]}: {@code SELECT 1 FROM t [WHERE condition]}. */
+  private static Read delete(List<Token> t, String text, Statement st) {
+    int j = branch(t, after(st));
+    String from = "SELECT 1 FROM " + target(t, text, st);
+    if (j == t.size()) {
+      return Read.of(from);
+    }
+    if (j < 0 || !word(t, j, "WHERE") || j + 1 >= t.size()) {
+      return Read.refused("Write DELETE FROM table [WHERE condition]: GateRook plans it by the rows it reads.");
+    }
+    return Read.of(from + " " + slice(t, text, j, t.size() - 1));
+  }
+
+  /**
+   * {@code UPDATE t [@ branch] SET a = v1, b = v2 [WHERE condition]}:
+   * {@code SELECT v1, v2 FROM t [WHERE condition]}.
+   */
+  private static Read update(List<Token> t, String text, Statement st, int[] depth) {
+    int j = branch(t, after(st));
+    if (j < 0 || !word(t, j, "SET")) {
+      return Read.refused("Write UPDATE table SET column = value, … [WHERE condition]: GateRook plans it by the "
+          + "values it reads.");
+    }
+    int where = j + 1;
+    while (where < t.size() && !(depth[where] == 0 && t.get(where).is("WHERE"))) {
+      where++;
+    }
+    List<String> values = new ArrayList<>();
+    if (!assignments(t, text, depth, j + 1, where, values) || (where < t.size() && where + 1 == t.size())) {
+      return Read.refused("Write UPDATE table SET column = value, … [WHERE condition]: GateRook plans it by the "
+          + "values it reads.");
+    }
+    return Read.of("SELECT " + String.join(", ", values) + " FROM " + target(t, text, st)
+        + (where < t.size() ? " " + slice(t, text, where, t.size() - 1) : ""));
+  }
+
+  /**
+   * {@code MERGE INTO t [@ branch] [[AS] a] USING s [[AS] b] ON c WHEN …}: {@code SELECT <each WHEN … AND condition,
+   * each UPDATE SET value and each INSERT value, or 1> FROM t [a] FULL JOIN s [b] ON c}. A source that is itself a join
+   * is refused: its own ON can't be told from the MERGE's.
+   */
+  private static Read merge(List<Token> t, String text, Statement st, int[] depth) {
+    String shape = "Write MERGE INTO table [alias] USING source [alias] ON condition WHEN …: GateRook plans it by what "
+        + "it reads.";
+    int j = branch(t, after(st));
+    if (j < 0) {
+      return Read.refused(shape);
+    }
+    String alias = null;
+    if (word(t, j, "AS")) {
+      if (j + 1 >= t.size() || !t.get(j + 1).name()) {
+        return Read.refused(shape);
+      }
+      alias = slice(t, text, j + 1, j + 1);
+      j += 2;
+    } else if (j < t.size() && t.get(j).name() && !t.get(j).is("USING")) {
+      alias = slice(t, text, j, j);
+      j++;
+    }
+    if (!word(t, j, "USING")) {
+      return Read.refused(shape);
+    }
+    int source = j + 1;
+    int on = -1;
+    for (int k = source; k < t.size(); k++) {
+      if (depth[k] == 0 && t.get(k).is("JOIN")) {
+        return Read.refused("The source of MERGE is a join, whose ON GateRook can't tell from the MERGE's own: put "
+            + "it in a subquery, USING (SELECT … FROM a JOIN b ON …) s.");
+      }
+      if (depth[k] == 0 && t.get(k).is("ON")) {
+        on = k;
+        break;
+      }
+    }
+    int when = on < 0 ? -1 : nextWhen(t, depth, on + 1);
+    if (on <= source || when <= on + 1 || when == t.size()) {
+      return Read.refused(shape);
+    }
+    String cases = "Each WHEN of MERGE is WHEN [NOT] MATCHED [AND condition] THEN followed by UPDATE SET column = "
+        + "value, …, DELETE or INSERT [(columns)] VALUES (…).";
+    List<String> values = new ArrayList<>();
+    for (int k = when; k < t.size(); ) {
+      int next = nextWhen(t, depth, k + 1);
+      int m = k + 1 + (word(t, k + 1, "NOT") ? 1 : 0);
+      if (!word(t, m, "MATCHED")) {
+        return Read.refused(cases);
+      }
+      int then = m + 1;
+      while (then < next && !(depth[then] == 0 && t.get(then).is("THEN"))) {
+        then++;
+      }
+      if (then >= next) {
+        return Read.refused(cases);
+      }
+      if (then > m + 1) {
+        if (!word(t, m + 1, "AND") || then == m + 2) {
+          return Read.refused(cases);
+        }
+        values.add(slice(t, text, m + 2, then - 1));
+      }
+      int action = then + 1;
+      if (word(t, action, "DELETE")) {
+        if (action + 1 != next) {
+          return Read.refused(cases);
+        }
+      } else if (word(t, action, "UPDATE") && word(t, action + 1, "SET")) {
+        if (action + 2 >= next || !assignments(t, text, depth, action + 2, next, values)) {
+          return Read.refused(cases);
+        }
+      } else if (word(t, action, "INSERT")) {
+        int v = action + 1;
+        if (punct(t, v, '(')) {
+          int close = closing(t, v);
+          if (close < 0 || !names(t, v + 1, close)) {
+            return Read.refused(cases);
+          }
+          v = close + 1;
+        }
+        int close = word(t, v, "VALUES") && punct(t, v + 1, '(') ? closing(t, v + 1) : -1;
+        if (close != next - 1 || close == v + 2) {
+          return Read.refused(cases);
+        }
+        List<String> inserted = list(t, text, depth, v + 2, close);
+        if (inserted == null) {
+          return Read.refused(cases);
+        }
+        values.addAll(inserted);
+      } else {
+        return Read.refused(cases);
+      }
+      k = next;
+    }
+    return Read.of("SELECT " + (values.isEmpty() ? "1" : String.join(", ", values)) + " FROM " + target(t, text, st)
+        + (alias == null ? "" : " " + alias) + " FULL JOIN " + slice(t, text, source, on - 1) + " ON "
+        + slice(t, text, on + 1, when - 1));
+  }
+
+  /** {@code ANALYZE t [WITH (property = value, …)]}: {@code SELECT 1 FROM t}; the properties are constants. */
+  private static Read analyze(List<Token> t, String text, Statement st) {
+    int j = after(st);
+    if (j != t.size() && !(word(t, j, "WITH") && punct(t, j + 1, '(') && closing(t, j + 1) == t.size() - 1)) {
+      return Read.refused("Write ANALYZE table [WITH (property = value, …)].");
+    }
+    return Read.of("SELECT 1 FROM " + target(t, text, st));
+  }
+
+  /**
+   * {@code ALTER TABLE t EXECUTE procedure[(argument, …)] [WHERE condition]}, and the same of a materialized view:
+   * {@code SELECT 1 FROM t [WHERE condition]}; the arguments are constants.
+   */
+  private static Read execute(List<Token> t, String text, Statement st, int[] depth) {
+    int j = after(st) + 1;
+    String shape = "Write " + st.type() + " name EXECUTE procedure[(arguments)] [WHERE condition].";
+    if (j >= t.size() || !t.get(j).name()) {
+      return Read.refused(shape);
+    }
+    j++;
+    if (punct(t, j, '(')) {
+      int close = closing(t, j);
+      if (close < 0) {
+        return Read.refused(shape);
+      }
+      j = close + 1;
+    }
+    String from = "SELECT 1 FROM " + target(t, text, st);
+    if (j == t.size()) {
+      return Read.of(from);
+    }
+    if (!word(t, j, "WHERE") || depth[j] != 0 || j + 1 >= t.size()) {
+      return Read.refused(shape);
+    }
+    return Read.of(from + " " + slice(t, text, j, t.size() - 1));
+  }
+
+  /**
+   * {@code column = value, …} from {@code from} up to {@code to} (exclusive) at the statement's top level: each value
+   * into {@code values}; {@code false} when it isn't such a list.
+   */
+  private static boolean assignments(List<Token> t, String text, int[] depth, int from, int to, List<String> values) {
+    if (from >= to) {
+      return false;
+    }
+    int k = from;
+    while (k < to) {
+      if (!t.get(k).name() || !punct(t, k + 1, '=') || depth[k] != 0) {
+        return false;
+      }
+      int value = k + 2;
+      int end = value;
+      while (end < to && !(depth[end] == 0 && t.get(end).punct(','))) {
+        end++;
+      }
+      if (end == value || end == to - 1) {
+        return false;
+      }
+      values.add(slice(t, text, value, end - 1));
+      k = end + 1;
+    }
+    return true;
+  }
+
+  /** The items of a list from {@code from} up to {@code to} (exclusive), split at its own commas; or {@code null}. */
+  private static List<String> list(List<Token> t, String text, int[] depth, int from, int to) {
+    List<String> out = new ArrayList<>();
+    int level = depth[from];
+    int start = from;
+    for (int k = from; k <= to; k++) {
+      if (k == to || (depth[k] == level && t.get(k).punct(','))) {
+        if (k == start) {
+          return null;
+        }
+        out.add(slice(t, text, start, k - 1));
+        start = k + 1;
+      }
+    }
+    return out;
+  }
+
+  /** The next {@code WHEN} of a MERGE at the top level from {@code k}, or the end. */
+  private static int nextWhen(List<Token> t, int[] depth, int k) {
+    while (k < t.size() && !(depth[k] == 0 && t.get(k).is("WHEN"))) {
+      k++;
+    }
+    return k;
+  }
+
+  /**
+   * How deep each token is in parentheses, brackets, braces and {@code CASE … END}, a closing one as deep as its
+   * opening one; {@code null} when they don't pair up.
+   */
+  static int[] nesting(List<Token> t) {
+    int[] depth = new int[t.size()];
+    Deque<String> open = new ArrayDeque<>();
+    for (int k = 0; k < t.size(); k++) {
+      Token tok = t.get(k);
+      String closes = tok.punct(')') ? "(" : tok.punct(']') ? "[" : tok.punct('}') ? "{" : tok.is("END") ? "CASE"
+          : null;
+      if (closes != null) {
+        if (open.isEmpty() || !open.peek().equals(closes)) {
+          return null;
+        }
+        open.pop();
+        depth[k] = open.size();
+        continue;
+      }
+      depth[k] = open.size();
+      if (tok.punct('(') || tok.punct('[') || tok.punct('{')) {
+        open.push(tok.text());
+      } else if (tok.is("CASE")) {
+        open.push("CASE");
+      }
+    }
+    return open.isEmpty() ? depth : null;
+  }
+
+  /** The token after a change's target. */
+  private static int after(Statement st) {
+    return st.targetAt() + tokens(st.target().name());
+  }
+
+  /** The target's name as written. */
+  private static String target(List<Token> t, String text, Statement st) {
+    return slice(t, text, st.targetAt(), after(st) - 1);
+  }
+
+  /** After an optional {@code @ branch} at {@code j}; {@code -1} when {@code @} names no branch. */
+  private static int branch(List<Token> t, int j) {
+    if (!punct(t, j, '@')) {
+      return j;
+    }
+    return j + 1 < t.size() && t.get(j + 1).name() ? j + 2 : -1;
+  }
+
+  /** Whether a query starts at {@code j}: {@code SELECT}, {@code WITH}, {@code VALUES}, {@code TABLE} or {@code (}. */
+  private static boolean startsQuery(List<Token> t, int j) {
+    return j < t.size() && (t.get(j).punct('(') || QUERIES.contains(wordAt(t, j)) || t.get(j).is("TABLE"));
+  }
+
+  /** The query from {@code from} to {@code to}, without parentheses around all of it (a statement can't be one). */
+  private static String query(List<Token> t, String text, int from, int to) {
+    while (from < to && t.get(from).punct('(') && closing(t, from) == to) {
+      from++;
+      to--;
+    }
+    return slice(t, text, from, to);
+  }
+
+  /** Whether {@code from} up to {@code to} (exclusive) is one or more names separated by commas. */
+  private static boolean names(List<Token> t, int from, int to) {
+    if (from >= to) {
+      return false;
+    }
+    for (int k = from; k < to; k++) {
+      boolean name = (k - from) % 2 == 0;
+      if (name ? !t.get(k).name() : !t.get(k).punct(',')) {
+        return false;
+      }
+    }
+    return (to - from) % 2 == 1;
+  }
+
+  /** The text from token {@code from} to token {@code to}, both included, as written. */
+  private static String slice(List<Token> t, String text, int from, int to) {
+    return text.substring(t.get(from).start(), t.get(to).end());
+  }
+
+  private static boolean punct(List<Token> t, int j, char c) {
+    return j >= 0 && j < t.size() && t.get(j).punct(c);
+  }
+
   // ── Functions ───────────────────────────────────────────────────────────────────────────────────────────────
 
   /** What {@link #functions} found: why the statement is refused, or the refs it adds to the statement's own. */
@@ -820,7 +1260,7 @@ final class TrinoSql {
   }
 
   private static boolean word(List<Token> t, int j, String word) {
-    return j < t.size() && t.get(j).is(word);
+    return j >= 0 && j < t.size() && t.get(j).is(word);
   }
 
   private static String wordAt(List<Token> t, int j) {
