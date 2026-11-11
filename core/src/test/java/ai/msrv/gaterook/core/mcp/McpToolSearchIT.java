@@ -49,7 +49,8 @@ class McpToolSearchIT {
     }
     endpoints.updateSettings("dev", new EndpointService.SettingsUpdate(null, null, null, null, null,
         JsonNodeFactory.instance.objectNode().put("firstWaitSeconds", 0), null,
-        JsonNodeFactory.instance.objectNode().put("mode", "search")), endpoints.get("dev").version(), null);
+        JsonNodeFactory.instance.objectNode().put("mode", "search").put("mostUsed", 0)), endpoints.get("dev").version(),
+        null);
     dev = new McpClient(core.bean(LocalListener.class).port(), "dev",
         core.bean(TokenService.class).issue("dev", "search-agent", 7, null).token());
   }
@@ -79,7 +80,7 @@ class McpToolSearchIT {
         .contains("find_tools finds the other 2 by what they do or by name");
     assertThat(instructions).doesNotContain("sql_execute changes data")
         .contains("- find_tools says which of the tools it finds wait for a person.")
-        .endsWith("Tools find_tools finds\n- dev-db (FakePG): 2 tools");
+        .endsWith("More tools, through find_tools\n- dev-db (FakePG): 2 tools");
   }
 
   @Test
@@ -189,6 +190,43 @@ class McpToolSearchIT {
     } finally {
       setToolList(JsonNodeFactory.instance.objectNode().put("mode", "search").putNull("pinned"));
     }
+  }
+
+  /** The tools agents call most are listed; the count holds for a day, so this test recounts at once. */
+  @Test
+  void theToolsAgentsCallMostAreListedAndTheOthersAreFoundWhereTheyAre() {
+    endpoints.create("pop", null, EndpointService.StartFrom.EMPTY, null);
+    core.bean(EndpointConnections.class).add("pop", "dev-db", null);
+    var listing = endpoints.snapshot("pop").coreTool(CoreTools.LIST_CONNECTIONS).orElseThrow();
+    core.bean(EndpointTools.class).setMode("pop", CoreTools.LIST_CONNECTIONS, null, Mode.READ_ONLY, null, null,
+        listing.rowVersion(), null);
+    endpoints.updateSettings("pop", new EndpointService.SettingsUpdate(null, null, null, null, null, null, null,
+        JsonNodeFactory.instance.objectNode().put("mode", "search")), endpoints.get("pop").version(), null);
+    McpClient pop = new McpClient(core.bean(LocalListener.class).port(), "pop",
+        core.bean(TokenService.class).issue("pop", "popular-agent", 7, null).token());
+    JsonNode before = pop.legacy("tools/list", null).result();
+    assertThat(names(before.path("tools"))).doesNotContain("sql_query", "sql_execute");
+    assertThat(tool(before, "find_tools").path("description").asString())
+        .startsWith("Finds the tools of this endpoint that tools/list doesn't show: 2 on dev-db (FakePG).");
+
+    for (int i = 0; i < 3; i++) {
+      JsonNode ran = pop.legacyCall("call_read_tool", run("sql_query", args("connection", "dev-db", "sql",
+          "SELECT " + i))).result();
+      assertThat(ran.path("isError").asBoolean()).as(ran.toString()).isFalse();
+    }
+    core.bean(ai.msrv.gaterook.core.insights.PopularTools.class).recountNow();
+
+    JsonNode after = pop.legacy("tools/list", null).result();
+    assertThat(names(after.path("tools"))).contains("sql_query").doesNotContain("sql_execute");
+    assertThat(tool(after, "find_tools").path("description").asString())
+        .startsWith("Finds the tools of this endpoint that tools/list doesn't show: 1 on dev-db (FakePG).");
+    String instructions = pop.initialize("2025-11-25").result().path("instructions").asString();
+    assertThat(instructions.replaceAll("\\s+", " "))
+        .contains("tools/list shows GateRook's own tools and the one agents call most here. find_tools finds the "
+            + "other 1 by what they do or by name");
+    JsonNode connections = pop.legacyCall("list_connections", JsonNodeFactory.instance.objectNode()).result();
+    assertThat(connections.at("/content/0/text").asString()).contains("sql_execute (approval)*")
+        .contains("* not in tools/list: find_tools gives a tool's definition");
   }
 
   private static void setToolList(JsonNode toolList) {

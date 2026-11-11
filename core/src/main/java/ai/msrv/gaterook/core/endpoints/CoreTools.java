@@ -231,6 +231,14 @@ public final class CoreTools {
    * never a resource.
    */
   public static ToolDefinition findTools() {
+    return findTools(null);
+  }
+
+  /**
+   * @param reach the tools tools/list doesn't show, by connection ("73 on sentry-mcp (Sentry) and 4 on logs"), or
+   *              {@code null}: every AI app reads a tool's description, so this one says what else there is
+   */
+  public static ToolDefinition findTools(String reach) {
     ObjectNode input = object();
     ObjectNode properties = (ObjectNode) input.get("properties");
     properties.putObject("query").put("type", "string").put("minLength", 1).put("maxLength", 200)
@@ -246,10 +254,11 @@ public final class CoreTools {
         .put("default", ToolSearch.DEFAULT_LIMIT);
     return ToolDefinition.builder(FIND_TOOLS)
         .title("Find tools")
-        .description("Finds the tools of this endpoint that aren't listed. Give a query, a few words about what you "
-            + "want to do, or names. Each match says what it does, whether it waits for a person's approval and, for "
-            + "the best ones, its inputSchema. Run a match that only reads with call_read_tool, any other with "
-            + "call_tool.")
+        .description((reach == null || reach.isBlank() ? "Finds the tools of this endpoint that aren't listed."
+            : "Finds the tools of this endpoint that tools/list doesn't show: " + reach + ".")
+            + " Give a query, a few words about what you want to do, or names. Each match says what it does, whether "
+            + "it waits for a person's approval and, for the best ones, its inputSchema. Run a match that only reads "
+            + "with call_read_tool, any other with call_tool.")
         .inputSchema(input)
         .annotations(Annotations.read())
         .nature(Nature.READ)

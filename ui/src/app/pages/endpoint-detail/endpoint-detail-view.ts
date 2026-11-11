@@ -74,10 +74,16 @@ export function servedRevisions(settings: EndpointSettings | null): string[] {
 }
 
 /** `settings.toolList` with its defaults, pins sorted: `auto` and none unless the person chose (ARCHITECTURE.md §5.7). */
-export function toolListOf(settings: EndpointSettings | null): { readonly mode: ToolListMode; readonly pinned: string[] } {
+/** How many of the tools agents call most a searched list shows unless the person chose (`ToolCatalog.MOST_USED`). */
+export const MOST_USED_DEFAULT = 10;
+
+/** The choices of Settings › Tool list › Most-used tools. */
+export const MOST_USED_CHOICES: readonly number[] = [0, 5, 10, 20, 30, 40];
+
+export function toolListOf(settings: EndpointSettings | null): { readonly mode: ToolListMode; readonly pinned: string[]; readonly mostUsed: number } {
   const t = settings?.toolList;
   const mode: ToolListMode = t?.mode === 'all' || t?.mode === 'search' ? t.mode : 'auto';
-  return { mode, pinned: [...(t?.pinned ?? [])].sort() };
+  return { mode, pinned: [...(t?.pinned ?? [])].sort(), mostUsed: typeof t?.mostUsed === 'number' ? t.mostUsed : MOST_USED_DEFAULT };
 }
 
 /** "186 tools · 351 KB of definitions, about 90,000 tokens": what an AI app that loads every definition reads. */
@@ -93,9 +99,12 @@ export function toolListSize(state: EndpointToolListState): string {
 export function toolListShown(state: EndpointToolListState): string {
   if (!state.search) return 'Every tool.';
   const found = state.tools - state.listedTools;
-  return state.listedTools
-    ? `GateRook's own tools and ${plural(state.listedTools, 'pinned tool')}; find_tools finds the other ${formatCount(found)}.`
-    : `GateRook's own tools; find_tools finds the other ${formatCount(found)}.`;
+  const mostUsed = state.mostUsedTools?.length ?? 0;
+  const pinned = state.listedTools - mostUsed;
+  const parts = ["GateRook's own tools"];
+  if (mostUsed) parts.push(mostUsed === 1 ? 'the most used one' : `the ${formatCount(mostUsed)} most used`);
+  if (pinned) parts.push(plural(pinned, 'pinned tool'));
+  return `${andList(parts)}; find_tools finds the other ${formatCount(found)}.`;
 }
 
 /** "Tokens · OAuth off" (the kit's sign-in badge; it follows the OAuth switch of Settings). */

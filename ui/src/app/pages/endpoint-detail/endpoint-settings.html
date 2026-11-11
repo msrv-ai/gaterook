@@ -112,13 +112,16 @@
       <form class="gw-form__section" id="ep-st-tools-form" aria-labelledby="ep-st-tools-legend" (submit)="saveToolList($event)" (reset)="discardToolList($event)">
         <header class="gw-form__section-header">
           <h3 class="gw-form__legend" id="ep-st-tools-legend">Listed tools</h3>
-          <p class="gw-form__description">An AI app puts every tool it lists into the model's context before the first message, and some refuse more than 128. A searched list keeps GateRook's own tools: <code class="gw-code">find_tools</code> finds the others by what they do, and <code class="gw-code">call_tool</code> or <code class="gw-code">call_read_tool</code> runs them with their own modes, approvals and audit.</p>
+          <p class="gw-form__description">An AI app puts every tool it lists into the model's context before the first message, and some refuse more than 128. A searched list keeps GateRook's own tools and the ones agents use most, and tells agents which connections have the others: <code class="gw-code">find_tools</code> finds them by what they do, and <code class="gw-code">call_tool</code> or <code class="gw-code">call_read_tool</code> runs them with their own modes, approvals and audit.</p>
         </header>
         <div class="gw-form__rows">
           @if (toolListState(); as st) {
             <dl class="gw-kv gw-kv--dense">
               <div class="gw-kv__row"><dt class="gw-kv__key">Tools of {{ ep }}</dt><dd class="gw-kv__value">{{ toolListSize(st) }}</dd></div>
               <div class="gw-kv__row"><dt class="gw-kv__key">AI apps get</dt><dd class="gw-kv__value">{{ toolListShown(st) }}</dd></div>
+              @if (st.search && st.mostUsedTools?.length) {
+                <div class="gw-kv__row"><dt class="gw-kv__key">Most used here</dt><dd class="gw-kv__value gw-mono">{{ st.mostUsedTools!.join(', ') }}</dd></div>
+              }
             </dl>
           }
           @let mode = toolListModel().mode;
@@ -140,9 +143,20 @@
               <input class="gw-radio__input" type="radio" name="ep-st-tools-mode" id="ep-st-tools-search" value="search" [checked]="mode === 'search'" aria-describedby="ep-st-tools-search-hint" (change)="setToolListMode($event)">
               <span class="gw-radio__control" aria-hidden="true"></span>
               <label class="gw-radio__label" for="ep-st-tools-search">Always search</label>
-              <p class="gw-radio__hint" id="ep-st-tools-search-hint">GateRook's own tools and those of the connections pinned below, however short the list.</p>
+              <p class="gw-radio__hint" id="ep-st-tools-search-hint">GateRook's own tools, the most-used ones and those of the connections pinned below, however short the list.</p>
             </div>
           </fieldset>
+          @if (mode !== 'all') {
+            <div class="gw-field">
+              <label class="gw-field__label" for="ep-st-tools-most">Most-used tools listed</label>
+              <select class="gw-select" id="ep-st-tools-most" aria-describedby="ep-st-tools-most-hint" (change)="setMostUsed($event)">
+                @for (n of mostUsedChoices(); track n) {
+                  <option [value]="n" [selected]="toolListModel().mostUsed === n">{{ n === 0 ? 'None' : n }}{{ n === mostUsedDefault ? ' (default)' : '' }}</option>
+                }
+              </select>
+              <p class="gw-field__hint" id="ep-st-tools-most-hint">The tools agents called most on {{ ep }} over the last 30 days join GateRook's own tools in the list. GateRook counts them again each day, so the list stays the same in between.</p>
+            </div>
+          }
           @if (mode !== 'all' && pinChoices().length) {
             <fieldset class="gw-field" aria-describedby="ep-st-pin-hint">
               <legend class="gw-field__label">Always list the tools of</legend>

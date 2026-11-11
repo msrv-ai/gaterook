@@ -244,6 +244,96 @@ class ToolCatalogTest {
         .isNotEqualTo(new ToolCatalog(b.engine).forEndpoint(b.snapshot(all)).listHash());
   }
 
+  @Test
+  void aSearchedListShowsTheToolsAgentsCallMostAndSaysWhereTheOthersAre() {
+    Endpoint e = new Endpoint();
+    for (int i = 0; i <= ToolCatalog.SEARCH_ABOVE_TOOLS; i++) {
+      e.mcp("big", "big_tool_" + i, null);
+    }
+    e.mcp("small", "small_read", null);
+    e.mcp("small", "small_other", null);
+    Popularity popular = new Popularity(List.of("big_tool_7", "find_tools", "gone_tool", "small_read", "big_tool_3",
+        "big_tool_9"));
+
+    ToolCatalog.Catalog c = new ToolCatalog(e.engine, popular).forEndpoint(e.snapshot(
+        "{\"toolList\":{\"mostUsed\":2,\"pinned\":[\"small\"]}}"));
+
+    assertThat(c.list().mostUsed()).as("the gateway's own, unknown and pinned tools are skipped")
+        .containsExactly("big_tool_7", "big_tool_3");
+    assertThat(c.listed("big_tool_7")).isTrue();
+    assertThat(c.listed("big_tool_9")).isFalse();
+    assertThat(c.listed("small_other")).isTrue();
+    assertThat(c.list().elsewhere()).isEqualTo(java.util.Map.of("big", ToolCatalog.SEARCH_ABOVE_TOOLS - 1));
+    assertThat(c.tool("find_tools").orElseThrow().description())
+        .startsWith("Finds the tools of this endpoint that tools/list doesn't show: 39 on big (big). Give a query");
+
+    assertThat(new ToolCatalog(e.engine, popular).forEndpoint(e.snapshot()).list().mostUsed())
+        .as("10 unless set, and nothing pinned").containsExactly("big_tool_7", "small_read", "big_tool_3", "big_tool_9");
+    assertThat(new ToolCatalog(e.engine, popular).forEndpoint(e.snapshot("{\"toolList\":{\"mostUsed\":0}}"))
+        .list().mostUsed()).isEmpty();
+    assertThat(new ToolCatalog(e.engine, popular).forEndpoint(e.snapshot("{\"toolList\":{\"mode\":\"all\"}}"))
+        .list().mostUsed()).as("every tool is listed anyway").isEmpty();
+  }
+
+  @Test
+  void aCatalogIsBuiltAgainWhenTheToolsAgentsCallMostAreCountedDifferently() {
+    Endpoint e = new Endpoint();
+    for (int i = 0; i <= ToolCatalog.SEARCH_ABOVE_TOOLS; i++) {
+      e.mcp("big", "big_tool_" + i, null);
+    }
+    Popularity popular = new Popularity(List.of("big_tool_1"));
+    ToolCatalog catalogs = new ToolCatalog(e.engine, popular);
+    EndpointSnapshot s = e.snapshot();
+    ToolCatalog.Catalog before = catalogs.forEndpoint(s);
+    assertThat(catalogs.forEndpoint(s)).isSameAs(before);
+
+    popular.tools = List.of("big_tool_2");
+    popular.version++;
+
+    ToolCatalog.Catalog after = catalogs.forEndpoint(s);
+    assertThat(after).isNotSameAs(before);
+    assertThat(after.list().mostUsed()).containsExactly("big_tool_2");
+    assertThat(after.listHash()).isNotEqualTo(before.listHash());
+  }
+
+  @Test
+  void findToolsNamesTheConnectionsWithTheMostToolsAndCountsTheRest() {
+    Endpoint e = new Endpoint();
+    for (int c = 0; c < ToolCatalog.NAMED_CONNECTIONS + 2; c++) {
+      e.mcp("conn" + c, "conn" + c + "_tool", null);
+    }
+    e.mcp("conn5", "conn5_more", null);
+    java.util.Map<String, Integer> elsewhere = new java.util.TreeMap<>();
+    for (int c = 0; c < ToolCatalog.NAMED_CONNECTIONS + 2; c++) {
+      elsewhere.put("conn" + c, c == 5 ? 2 : 1);
+    }
+
+    assertThat(ToolCatalog.reach(e.snapshot(), elsewhere)).isEqualTo("2 on conn5 (conn5), 1 on conn0 (conn0), 1 on "
+        + "conn1 (conn1), 1 on conn2 (conn2), 1 on conn3 (conn3), 1 on conn4 (conn4), 1 on conn6 (conn6), 1 on conn7 "
+        + "(conn7) and 2 on 2 more connections");
+    assertThat(ToolCatalog.reach(e.snapshot(), java.util.Map.of("conn0", 3))).isEqualTo("3 on conn0 (conn0)");
+  }
+
+  /** Counts set by the test. */
+  private static final class Popularity implements ToolPopularity {
+    List<String> tools;
+    long version;
+
+    Popularity(List<String> tools) {
+      this.tools = tools;
+    }
+
+    @Override
+    public List<String> mostCalled(EndpointSnapshot endpoint) {
+      return tools;
+    }
+
+    @Override
+    public long version() {
+      return version;
+    }
+  }
+
   private static String ui(ToolCatalog.Catalog catalog, String tool) {
     return String.valueOf(catalog.tool(tool).orElseThrow(() -> new AssertionError(tool + " isn't published"))
         .clientUi());

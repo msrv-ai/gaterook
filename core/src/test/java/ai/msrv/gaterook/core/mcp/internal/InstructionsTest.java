@@ -13,6 +13,7 @@ import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshot;
 import ai.msrv.gaterook.core.endpoints.ToolCatalog;
+import ai.msrv.gaterook.core.endpoints.ToolPopularity;
 import ai.msrv.gaterook.core.policy.PolicyEngine;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -50,11 +51,40 @@ class InstructionsTest {
 
     String text = Instructions.defaults(e.snapshot(settings), e.catalog(settings));
 
-    assertThat(text.substring(0, 512).replaceAll("\\s+", " ")).contains("Finding tools - tools/list shows only "
-        + "GateRook's own tools and those of notes. find_tools finds the other 45 by what they do or by name.");
+    assertThat(text.substring(0, 512).replaceAll("\\s+", " ")).contains("Finding tools - tools/list shows "
+        + "GateRook's own tools and those of notes. find_tools finds the other 45 by what they do or by name, on the "
+        + "connections listed at the end.");
     assertThat(text).contains("- notes_write needs a person.").doesNotContain("sentry_tool_0 ")
         .contains("- find_tools says which of the tools it finds wait for a person.")
-        .endsWith("Tools find_tools finds\n- sentry (Sentry): 45 tools");
+        .endsWith("More tools, through find_tools\n- sentry (Sentry): 45 tools");
+  }
+
+  @Test
+  void aSearchedEndpointNamesHowManyOfTheToolsAgentsCallMostItLists() {
+    Endpoint e = new Endpoint();
+    for (int i = 0; i < 45; i++) {
+      e.tool("sentry", "sentry_tool_" + i, Mode.READ_ONLY, null);
+    }
+    e.tool("crm", "crm_read", Mode.READ_ONLY, null);
+    ToolPopularity popular = new ToolPopularity() {
+      @Override
+      public List<String> mostCalled(EndpointSnapshot endpoint) {
+        return List.of("sentry_tool_3", "crm_read", "sentry_tool_1");
+      }
+
+      @Override
+      public long version() {
+        return 1;
+      }
+    };
+    String settings = "{\"toolList\":{\"mostUsed\":2}}";
+
+    String text = Instructions.defaults(e.snapshot(settings), new ToolCatalog(e.engine, popular)
+        .forEndpoint(e.snapshot(settings)));
+
+    assertThat(text.replaceAll("\\s+", " ")).contains("tools/list shows GateRook's own tools and the 2 agents call "
+        + "most here. find_tools finds the other 44 by what they do or by name");
+    assertThat(text).endsWith("More tools, through find_tools\n- sentry (Sentry): 44 tools");
   }
 
   /** Every tool on an MCP server's connection, as the person set its mode. */

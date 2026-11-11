@@ -38,6 +38,8 @@ import {
   resourceMetadataUrl,
   revisionsByClient,
   servedRevisions,
+  MOST_USED_CHOICES,
+  MOST_USED_DEFAULT,
   toolListOf,
   toolListShown,
   toolListSize,
@@ -76,6 +78,7 @@ interface ProtocolModel {
 interface ToolListModel {
   mode: ToolListMode;
   pinned: string[];
+  mostUsed: number;
 }
 
 /** Which field of the limits form holds which key of `settings.limits`. */
@@ -102,7 +105,7 @@ const sameLimits = (a: LimitsModel, b: LimitsModel) => a.size === b.size && a.pe
 const sameProtocol = (a: ProtocolModel, b: ProtocolModel) =>
   a.revisions.length === b.revisions.length && a.revisions.every((r, i) => r.rev === b.revisions[i].rev && r.on === b.revisions[i].on);
 const sameToolList = (a: ToolListModel, b: ToolListModel) =>
-  a.mode === b.mode && a.pinned.length === b.pinned.length && a.pinned.every((p, i) => p === b.pinned[i]);
+  a.mode === b.mode && a.mostUsed === b.mostUsed && a.pinned.length === b.pinned.length && a.pinned.every((p, i) => p === b.pinned[i]);
 
 /**
  * A form's text that follows the core's value until the person edits it: a reload (an event, another tab's save)
@@ -228,6 +231,9 @@ export class GwEndpointSettings {
   });
   protected readonly toolListSize = toolListSize;
   protected readonly toolListShown = toolListShown;
+  /** The usual choices, and a value set through the API that isn't one of them. */
+  protected readonly mostUsedChoices = computed(() => [...new Set([...MOST_USED_CHOICES, this.toolListModel().mostUsed])].sort((a, b) => a - b));
+  protected readonly mostUsedDefault = MOST_USED_DEFAULT;
 
   // ── Authorization ─────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -330,11 +336,16 @@ export class GwEndpointSettings {
     });
   }
 
+  protected setMostUsed(e: Event): void {
+    const mostUsed = Number((e.target as HTMLSelectElement).value);
+    this.toolListModel.update((m) => ({ ...m, mostUsed }));
+  }
+
   protected async saveToolList(e: Event): Promise<void> {
     e.preventDefault();
     if (this.toolListBusy() || !this.toolListDirty()) return;
-    const { mode, pinned } = this.toolListModel();
-    await this.save({ toolList: { mode, pinned: pinned.length ? pinned : null } }, 'Tool list settings', this.toolListBusy, this.toolListError);
+    const { mode, pinned, mostUsed } = this.toolListModel();
+    await this.save({ toolList: { mode, pinned: pinned.length ? pinned : null, mostUsed } }, 'Tool list settings', this.toolListBusy, this.toolListError);
   }
 
   protected discardToolList(e: Event): void {
