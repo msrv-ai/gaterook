@@ -51,7 +51,8 @@ describe('connector categories', () => {
     expect(connectorMark('firebase-rtdb')).toBe('assets/integrations/firebase-realtime-database.svg');
     expect(connectorMark('gcp-logging')).toBe('assets/integrations/cloud-logging.svg');
     expect(connectorMark('mcp-server')).toBe('assets/integrations/mcp.svg');
-    for (const type of ['oracle', 'ssh', 'ssh-logs', 'http', 'acme-db']) {
+    expect(connectorMark('oracle')).toBe('assets/integrations/oracle.svg');
+    for (const type of ['ssh', 'ssh-logs', 'http', 'acme-db']) {
       expect(connectorMark(type), type).toBeNull();
     }
   });
@@ -114,6 +115,9 @@ describe('compatible services', () => {
   it('shows a service’s own mark, never its base type’s, and finds it by its own words only', () => {
     expect(connectorMark('postgres', 'supabase')).toBe('assets/integrations/supabase.svg');
     expect(connectorMark('mongodb', 'atlas')).toBe('assets/integrations/mongodb.svg');
+    expect(connectorMark('postgres', 'edb')).toBe('assets/integrations/edb.png');
+    // A service whose vendor publishes no mark usable on the light plate shows the base type's icon.
+    expect(connectorMark('mongodb', 'ferretdb')).toBeNull();
     expect(compatibleService('postgres', 'supabase')?.group).toBe('PostgreSQL-compatible');
     expect(compatibleService('postgres', null)).toBeNull();
     const all = connectorCategories(withCompatibleServices(core()));

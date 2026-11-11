@@ -53,11 +53,12 @@ const CATEGORY_OF: Readonly<Record<string, string>> = {
  * Connector type → its vendor's mark in `assets/integrations/` (official artwork; provenance and terms in its
  * SOURCES.md): an SVG file's base name, or a file name with its extension for the PNG marks of Google Cloud (its site
  * icon: the asset collection has only a lockup unreadable on a 32 px tile) and Cloudflare (its press kit has no SVG).
- * A type without one keeps its kit icon: Oracle, and the protocols (SSH, HTTP) that have no vendor.
+ * A type without one keeps its kit icon: the protocols (SSH, HTTP) that have no vendor.
  */
 const MARKS: Readonly<Record<string, string>> = {
   postgres: 'postgresql',
   mysql: 'mysql',
+  oracle: 'oracle',
   sqlserver: 'sqlserver',
   sqlite: 'sqlite',
   duckdb: 'duckdb',
