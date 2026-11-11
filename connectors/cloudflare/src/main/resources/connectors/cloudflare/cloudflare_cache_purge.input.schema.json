@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "zone"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "zone": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 253,
+      "description": "A zone by name, such as example.com, or by its 32-character ID."
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 8,
+        "maxLength": 2048
+      },
+      "description": "Full URLs of the zone, such as https://www.example.com/css/site.css."
+    },
+    "tags": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1024
+      },
+      "description": "Cache-Tag values: every cached response tagged with one of them."
+    },
+    "prefixes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 1024
+      },
+      "description": "A host and path without the scheme, such as www.example.com/blog/."
+    },
+    "hosts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 253
+      },
+      "description": "Host names of the zone: everything cached for them."
+    },
+    "everything": {
+      "type": "boolean",
+      "const": true,
+      "description": "Purge everything cached for the zone."
+    }
+  }
+}

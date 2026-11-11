@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "zone",
+    "action"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "zone": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 253,
+      "description": "A zone by name, such as example.com, or by its 32-character ID."
+    },
+    "action": {
+      "enum": [
+        "create",
+        "update",
+        "delete"
+      ],
+      "description": "create a record; update changes only the fields given; delete removes the record."
+    },
+    "record": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$",
+      "description": "The record to update or delete, by its ID from cloudflare_dns_records."
+    },
+    "type": {
+      "enum": [
+        "A",
+        "AAAA",
+        "CAA",
+        "CERT",
+        "CNAME",
+        "DNSKEY",
+        "DS",
+        "HTTPS",
+        "LOC",
+        "MX",
+        "NAPTR",
+        "NS",
+        "OPENPGPKEY",
+        "PTR",
+        "SMIMEA",
+        "SRV",
+        "SSHFP",
+        "SVCB",
+        "TLSA",
+        "TXT",
+        "URI"
+      ],
+      "description": "The record type. Required to create."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 253,
+      "description": "www.example.com, www (in the zone) or @ (the zone itself). Required to create."
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "description": "The record's value: an address for A and AAAA, a host name for CNAME, MX, NS and PTR, the text of TXT."
+    },
+    "data": {
+      "type": "object",
+      "maxProperties": 12,
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number"
+        ]
+      },
+      "description": "The structured value of CAA, SRV, HTTPS, SVCB, URI, TLSA, DS and similar types, as Cloudflare names its fields: {\"flags\": 0, \"tag\": \"issue\", \"value\": \"letsencrypt.org\"} for CAA."
+    },
+    "ttl": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 86400,
+      "description": "Seconds, 30 to 86400, or 1 for automatic."
+    },
+    "proxied": {
+      "type": "boolean",
+      "description": "Proxy the record through Cloudflare (A, AAAA and CNAME)."
+    },
+    "priority": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 65535,
+      "description": "MX and URI priority."
+    },
+    "comment": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "A note on the record."
+    },
+    "tags": {
+      "type": "array",
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[^:\\s]{1,100}(:[^\\s].{0,98})?$"
+      },
+      "description": "Tags as name:value."
+    }
+  }
+}

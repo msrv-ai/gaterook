@@ -234,6 +234,11 @@ class SecretFieldsTest {
         .isEqualTo("acme-stage · orders-db");
     assertThat(ConnectionTargets.display(j("{\"region\":\"eu-central-1\",\"tables\":[\"orders\"]}")))
         .as("DynamoDB").isEqualTo("eu-central-1");
+    assertThat(ConnectionTargets.display(j("{\"accountId\":\"0123456789abcdef0123456789abcdef\","
+        + "\"credentials\":{}}"))).as("Cloudflare, every zone").isEqualTo("account 0123456789abcdef0123456789abcdef");
+    assertThat(ConnectionTargets.display(j("{\"accountId\":\"0123456789abcdef0123456789abcdef\",\"zones\":"
+        + "[\"example.com\",\"example.org\",\"example.net\"]}"))).as("Cloudflare, listed zones")
+        .isEqualTo("example.com, example.org +1");
   }
 
   /** Review API #5: never user info, a query or a fragment — however the URI was typed. */

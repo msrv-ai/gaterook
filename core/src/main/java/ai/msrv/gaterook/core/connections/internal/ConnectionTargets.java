@@ -160,6 +160,22 @@ public final class ConnectionTargets {
       }
       return config.path("project").asString() + (detail.isBlank() ? "" : " · " + detail);
     }
+    String cloudflare = config.path("accountId").asString("");
+    if (cloudflare.matches("[0-9a-f]{32}")) {
+      // Cloudflare: its listed zones, or the account when agents may use every zone of it.
+      List<String> zones = new ArrayList<>();
+      for (JsonNode z : config.path("zones")) {
+        String zone = oneLine(z.asString(""), 253);
+        if (zone != null) {
+          zones.add(zone);
+        }
+      }
+      if (zones.isEmpty()) {
+        return "account " + cloudflare;
+      }
+      return zones.size() <= 2 ? String.join(", ", zones) : zones.get(0) + ", " + zones.get(1) + " +"
+          + (zones.size() - 2);
+    }
     return "";
   }
 

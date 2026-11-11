@@ -130,6 +130,7 @@ export function signInTarget(type: string): string {
     case 'gcp':
     case 'aws':
     case 'azure':
+    case 'cloudflare':
     case 'dynamodb':
     case 'bigquery':
     case 'firestore':

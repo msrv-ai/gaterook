@@ -43,6 +43,7 @@
     <module>connectors/bigquery</module>
     <module>connectors/firebase</module>
     <module>connectors/snowflake</module>
+    <module>connectors/cloudflare</module>
     <module>connectors/http</module>
     <module>connectors/mcp-server</module>
     <module>core</module>
@@ -223,6 +224,11 @@
       <dependency>
         <groupId>ai.msrv.gaterook</groupId>
         <artifactId>connectors-snowflake</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-cloudflare</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
