@@ -58,7 +58,7 @@ export function stepTime(ms: number): string {
  * the latest line of a step decides its state. A step with no line yet is upcoming — unless a later step already
  * reported, then the core is past it. Before any line (Electron just spawned the core) the process itself runs.
  */
-export function progressSteps(lines: readonly CoreStep[], address: string, keyPath: string): StatusStep[] {
+export function progressSteps(lines: readonly CoreStep[], keyPath: string): StatusStep[] {
   const last = new Map<string, CoreStep>();
   for (const l of lines) last.set(l.step, l);
   const reached = STEPS.reduce((n, id, i) => (last.has(id) ? i : n), -1);
@@ -69,7 +69,7 @@ export function progressSteps(lines: readonly CoreStep[], address: string, keyPa
     else if (i < reached || (id === 'runtime' && reached > 0)) state = 'complete';
     else if (id === 'runtime' && reached < 0) state = 'current';
     else state = 'upcoming';
-    return { id, state, ...describe(id, state, line?.ms ?? null, address, keyPath) };
+    return { id, state, ...describe(id, state, line?.ms ?? null, keyPath) };
   });
 }
 
@@ -78,7 +78,6 @@ function describe(
   id: StepId,
   state: StatusStep['state'],
   ms: number | null,
-  address: string,
   keyPath: string,
 ): Pick<StatusStep, 'description' | 'mono'> {
   const took = ms !== null ? ` · ${stepTime(ms)}` : '';
@@ -93,9 +92,9 @@ function describe(
     case 'db-migrations':
       return state === 'complete' ? { description: `Up to date${took}` } : {};
     case 'local-api':
-      if (state === 'current') return { description: 'Binding', mono: address };
-      if (state === 'complete') return { description: 'Listening on', mono: address };
-      return {};
+      // Unlike the kit's "Binding 127.0.0.1:7465", no address: the screen names it only in the cards about it
+      // (port in use, unreachable).
+      return state === 'complete' ? { description: 'Listening' } : {};
   }
 }
 
@@ -209,9 +208,9 @@ export function statusView(state: CoreState, facts: ScreenFacts): StatusScreenVi
         authentication: state.authentication, keychainService: state.keychainService };
     case 'connecting':
       // In Electron the core has just been spawned; a browser knows nothing until /api/health answers.
-      return { kind: 'starting', steps: facts.desktop ? progressSteps([], facts.address, keyPath) : [] };
+      return { kind: 'starting', steps: facts.desktop ? progressSteps([], keyPath) : [] };
     case 'starting':
-      return { kind: 'starting', steps: progressSteps(state.steps, facts.address, keyPath) };
+      return { kind: 'starting', steps: progressSteps(state.steps, keyPath) };
     case 'locked': {
       const reason = state.reason === 'MASTER_KEY_INVALID' ? 'MASTER_KEY_INVALID' : 'MASTER_KEY_MISSING';
       // The core is up and locked (§7.1 case b): it migrated the database and listens, but holds no key that opens
@@ -247,7 +246,7 @@ export function statusView(state: CoreState, facts: ScreenFacts): StatusScreenVi
         state.reason === 'READY_TIMEOUT'
           ? state.steps
           : [...state.steps.filter((l) => l.step !== 'runtime'), { step: 'runtime', state: 'done' as const, ms: state.steps.find((l) => l.step === 'runtime')?.ms ?? null }];
-      const steps = stopped(progressSteps(lines, facts.address, keyPath));
+      const steps = stopped(progressSteps(lines, keyPath));
       if (state.reason === 'PORT_IN_USE') {
         // The failure line names the port that is taken ("Address already in use: 127.0.0.1:7466",
         // platform.boot.StartupFailures): the core binds the tunnel's public listener at start too.
