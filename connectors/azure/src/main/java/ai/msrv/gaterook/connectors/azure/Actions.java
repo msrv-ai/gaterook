@@ -9,7 +9,7 @@ import java.util.Map;
 import tools.jackson.databind.JsonNode;
 
 /**
- * What a person sees before an Azure call runs: for {@code azure_call} the HTTP request exactly as it goes to
+ * What a person sees before an Azure call runs: for {@code azure_api_change} the HTTP request exactly as it goes to
  * Resource Manager (method, URL with every parameter, the masked authorization, the JSON body), for the read tools
  * the Resource Graph query or the Azure Monitor request with absolute times. The approved call runs the stored
  * payload, not the arguments evaluated again later.
@@ -18,7 +18,11 @@ final class Actions {
 
   private Actions() {}
 
-  /** @param base the Resource Manager base URL of the connection's cloud (or its test endpoint) */
+  /**
+   * The exact Resource Manager request of {@code azure_api_read} or {@code azure_api_change}.
+   *
+   * @param base the Resource Manager base URL of the connection's cloud (or its test endpoint)
+   */
   static ActionPreview call(CallRequest r, Settings s, ConnectionConfig cfg, URI base) {
     StringBuilder text = new StringBuilder();
     String root = base.toString().endsWith("/") ? base.toString().substring(0, base.toString().length() - 1)
@@ -48,12 +52,12 @@ final class Actions {
     if (r.method().equals("PUT")) {
       warnings.add("PUT replaces the whole resource with the body: properties left out are reset.");
     }
-    String summary = "azure_call on " + cfg.name() + ": " + r.method() + " " + r.rawPath();
+    String summary = r.tool() + " on " + cfg.name() + ": " + r.method() + " " + r.rawPath();
     return ActionPreview.of(ActionPreview.Kind.HTTP, "http", text.toString(), cfg.name() + " · " + s.target(),
         cut(summary))
         .withFields(fields)
         .withWarnings(warnings)
-        .withFacets(Map.of("provider", "azure", "tool", "azure_call", "method", r.method()))
+        .withFacets(Map.of("provider", "azure", "tool", r.tool(), "method", r.method()))
         .withPayload(r.payload());
   }
 

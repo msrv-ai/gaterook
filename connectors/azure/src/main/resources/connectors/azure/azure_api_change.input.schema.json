@@ -1,0 +1,57 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "method",
+    "path",
+    "apiVersion"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "method": {
+      "enum": [
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ]
+    },
+    "path": {
+      "type": "string",
+      "maxLength": 2048,
+      "examples": [
+        "/subscriptions/0b1f6471-1bf0-4dda-aec3-111122223333/resourceGroups/stage-app/providers/Microsoft.Web/sites/api"
+      ],
+      "description": "Resource Manager path under one of the connection's subscriptions; no host or query."
+    },
+    "apiVersion": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}(-(preview|beta|alpha|privatepreview))?$",
+      "examples": [
+        "2024-04-01"
+      ]
+    },
+    "query": {
+      "type": "object",
+      "maxProperties": 20,
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
+      },
+      "description": "Other query parameters, like $filter, $top, $expand or $skipToken from next.query of the previous answer."
+    },
+    "body": {
+      "type": [
+        "object",
+        "array"
+      ],
+      "description": "JSON body of POST, PUT or PATCH. PUT replaces the whole resource."
+    }
+  }
+}

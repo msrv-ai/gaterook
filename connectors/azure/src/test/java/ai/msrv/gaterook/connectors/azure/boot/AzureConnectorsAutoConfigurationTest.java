@@ -33,7 +33,7 @@ class AzureConnectorsAutoConfigurationTest {
     RuntimeHints hints = new RuntimeHints();
     new AzureHints().registerHints(hints, getClass().getClassLoader());
 
-    assertThat(RuntimeHintsPredicates.resource().forResource("connectors/azure/azure_call.input.schema.json"))
+    assertThat(RuntimeHintsPredicates.resource().forResource("connectors/azure/azure_api_read.input.schema.json"))
         .accepts(hints);
     assertThat(RuntimeHintsPredicates.resource().forResource("connectors/azure/config.schema.json"))
         .accepts(hints);

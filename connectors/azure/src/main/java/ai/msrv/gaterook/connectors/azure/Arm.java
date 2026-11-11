@@ -165,7 +165,7 @@ final class Arm {
     return a.body();
   }
 
-  /** One request, any answer: {@code azure_call} hands 4xx answers to the agent as data. */
+  /** One request, any answer: the API tools hand 4xx answers to the agent as data. */
   Answer send(String method, URI uri, JsonNode body, String what) throws ConnectorException {
     if (!cloud.azure().sendsTokensTo(cloudOf(), Audience.ARM, uri)) {
       throw new IllegalArgumentException("Not a Resource Manager URL of " + cloudOf().id() + ": " + uri.getScheme()

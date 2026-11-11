@@ -16,8 +16,8 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Runs one {@code azure_call}: the request exactly as {@link CallRequest} built it (an approved change: as the person
- * approved it), the answer as data — a 4xx is Azure's answer, not a failure of the tool.
+ * Runs one {@code azure_api_read} or {@code azure_api_change}: the request exactly as {@link CallRequest} built it (a
+ * change: as the person approved it), the answer as data — a 4xx is Azure's answer, not a failure of the tool.
  *
  * <p>A read's answer is checked against the Cloud policy where it says what it is: the items of a list
  * ({@code value}) and a single resource are hidden when their service, location or ID isn't allowed. Every answer is
@@ -120,11 +120,11 @@ final class AzureCall {
     t.append('\n').append(Call.utf8(pretty) + Call.utf8(s.toString()) <= call.budget() ? pretty
         : "The answer is in structuredContent body.");
     if (next != null) {
-      t.append("\nMore: call azure_call again with the same arguments and query ").append(next.path("query"));
+      t.append("\nMore: call azure_api_read again with the same arguments and query ").append(next.path("query"));
     }
     if (operation != null) {
-      t.append("\nThe operation runs on: GET ").append(operation.path("path").asString()).append(" api-version ")
-          .append(operation.path("apiVersion").asString());
+      t.append("\nThe operation runs on: follow it with azure_api_read GET ").append(operation.path("path").asString())
+          .append(" api-version ").append(operation.path("apiVersion").asString());
     }
     for (String note : notes) {
       t.append('\n').append(note);

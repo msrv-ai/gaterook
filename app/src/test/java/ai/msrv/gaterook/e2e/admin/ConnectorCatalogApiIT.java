@@ -103,7 +103,7 @@ class ConnectorCatalogApiIT {
           "Resources, statuses, metrics and Cloud Logging, read with the connection's Google identity."),
       new KitCard("Cloud", "aws", null, "AWS", "cloud", "built-in", 2,
           "Resources, statuses and metrics, read with AssumeRole."),
-      new KitCard("Cloud", "azure", null, "Azure", "cloud", "built-in", 5,
+      new KitCard("Cloud", "azure", null, "Azure", "cloud", "built-in", 6,
           "Resources, Resource Manager calls, metrics, alerts, the Activity Log and Azure Monitor logs, with the "
               + "connection's Entra ID identity. Changes wait for approval."),
       new KitCard("HTTP and MCP", "http", null, "HTTP API", "globe", "built-in", 2,

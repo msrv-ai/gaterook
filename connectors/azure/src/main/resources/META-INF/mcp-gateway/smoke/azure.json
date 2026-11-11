@@ -8,7 +8,7 @@
       "name": "secret-action-denied",
       "connection": {"type": "azure", "env": "dev",
         "config": {"tenantId": "6f1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", "subscriptions": ["0b1f6471-1bf0-4dda-aec3-111122223333"], "credentials": {"source": "cli"}}},
-      "call": {"tool": "azure_call", "arguments": {"method": "POST", "path": "/subscriptions/0b1f6471-1bf0-4dda-aec3-111122223333/resourceGroups/smoke/providers/Microsoft.Storage/storageAccounts/smoke/listKeys", "apiVersion": "2023-05-01"}},
+      "call": {"tool": "azure_api_change", "arguments": {"method": "POST", "path": "/subscriptions/0b1f6471-1bf0-4dda-aec3-111122223333/resourceGroups/smoke/providers/Microsoft.Storage/storageAccounts/smoke/listKeys", "apiVersion": "2023-05-01"}},
       "expect": {"isError": true, "textStartsWith": "Denied by policy dev.cloud.azure_secret_action"}
     },
     {

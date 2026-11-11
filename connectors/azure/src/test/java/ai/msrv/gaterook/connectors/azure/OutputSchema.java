@@ -19,6 +19,8 @@ final class OutputSchema {
       SchemaLocation.of("urn:mcp-gateway:azure_describe.output"), SCHEMAS.load("azure_describe.output"));
   private static final Schema MONITOR = REGISTRY.getSchema(
       SchemaLocation.of("urn:mcp-gateway:azure_monitor.output"), SCHEMAS.load("azure_monitor.output"));
+  private static final Schema API_READ = REGISTRY.getSchema(
+      SchemaLocation.of("urn:mcp-gateway:azure_api_read.output"), SCHEMAS.load("azure_api_read.output"));
 
   private OutputSchema() {}
 
@@ -28,6 +30,10 @@ final class OutputSchema {
 
   static ToolResult monitor(ToolResult r) {
     return valid(MONITOR, r);
+  }
+
+  static ToolResult apiRead(ToolResult r) {
+    return valid(API_READ, r);
   }
 
   private static ToolResult valid(Schema schema, ToolResult r) {

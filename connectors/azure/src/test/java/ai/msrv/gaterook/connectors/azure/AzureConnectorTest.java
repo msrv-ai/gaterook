@@ -272,7 +272,7 @@ class AzureConnectorTest {
         });
   }
 
-  // ── azure_call ──────────────────────────────────────────────────────────────────────────────────────────────
+  // ── azure_api_read, azure_api_change ────────────────────────────────────────────────────────────────────────
 
   @Test
   void aGetReturnsAzuresAnswerFilteredAndMasked() throws Exception {
@@ -283,8 +283,8 @@ class AzureConnectorTest {
         + "&%24skiptoken=abc%3D\"}"));
     PolicyView regions = Configs.policy(Env.STAGE, "{\"regions\":[\"West Europe\"]}");
 
-    ToolResult r = run(cfg, regions, "azure_call", "{\"path\":\"/subscriptions/" + SUB + "/resourceGroups\","
-        + "\"apiVersion\":\"2021-04-01\",\"query\":{\"$top\":10}}", TestCtx.of());
+    ToolResult r = OutputSchema.apiRead(run(cfg, regions, CallRequest.READ, "{\"path\":\"/subscriptions/" + SUB + "/resourceGroups\","
+        + "\"apiVersion\":\"2021-04-01\",\"query\":{\"$top\":10}}", TestCtx.of()));
 
     JsonNode s = r.structuredContent();
     assertThat(r.isError()).isFalse();
@@ -302,7 +302,8 @@ class AzureConnectorTest {
     azure.on("GET " + SITE, r -> FakeAzure.json(403, "{\"error\":{\"code\":\"AuthorizationFailed\",\"message\":"
         + "\"The client does not have authorization to perform action 'Microsoft.Web/sites/read'.\"}}"));
 
-    ToolResult r = run("azure_call", "{\"path\":\"" + SITE + "\",\"apiVersion\":\"2023-12-01\"}");
+    ToolResult r = OutputSchema.apiRead(run(CallRequest.READ, "{\"path\":\"" + SITE + "\",\"apiVersion\":"
+        + "\"2023-12-01\"}"));
 
     assertThat(r.isError()).isFalse();
     assertThat(r.structuredContent().path("status").asInt()).isEqualTo(403);
@@ -315,7 +316,7 @@ class AzureConnectorTest {
         .addHeader("Azure-AsyncOperation", "https://management.azure.com/subscriptions/" + SUB
             + "/providers/Microsoft.Web/locations/westeurope/operations/op-1?api-version=2023-12-01").build());
     String args = "{\"method\":\"POST\",\"path\":\"" + SITE + "/restart\",\"apiVersion\":\"2023-12-01\"}";
-    ToolCall call = Configs.call("azure_call", cfg.name(), args);
+    ToolCall call = Configs.call(CallRequest.CHANGE, cfg.name(), args);
     Classification k = connector.classify(call, cfg, Configs.policy(Env.STAGE));
     assertThat(k.kind()).isEqualTo(Classification.Kind.MUTATION);
 
@@ -336,7 +337,8 @@ class AzureConnectorTest {
   @Test
   void aTokenOfAnotherTenantIsRefusedAtCallTime() {
     ConnectionConfig c = tested(Configs.stage());
-    ToolCall call = Configs.call("azure_call", c.name(), "{\"path\":\"" + SITE + "\",\"apiVersion\":\"2023-12-01\"}");
+    ToolCall call = Configs.call(CallRequest.READ, c.name(), "{\"path\":\"" + SITE + "\",\"apiVersion\":"
+        + "\"2023-12-01\"}");
     connector.classify(call, c, Configs.policy(Env.STAGE));
     azure.tokenTenant = "11111111-2222-4333-8444-555555555555";
 

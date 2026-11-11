@@ -13,12 +13,10 @@
     "method": {
       "enum": [
         "GET",
-        "POST",
-        "PUT",
-        "PATCH",
-        "DELETE"
+        "POST"
       ],
-      "default": "GET"
+      "default": "GET",
+      "description": "POST only for read-only queries: Cost Management query and forecast, the subscription's metrics batch, checkNameAvailability."
     },
     "path": {
       "type": "string",
@@ -52,7 +50,7 @@
         "object",
         "array"
       ],
-      "description": "JSON body of POST, PUT or PATCH."
+      "description": "JSON body of a read-only POST query."
     }
   }
 }

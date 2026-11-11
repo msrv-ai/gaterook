@@ -7,20 +7,23 @@ GateRook's **Azure** connector gives AI clients bounded access to Azure subscrip
 | Tool | What it does | Default mode |
 | --- | --- | --- |
 | `azure_describe` | KQL over Resource Graph tables (`resources`, `resourcecontainers`, `healthresources`, …) in the connection's subscriptions, or the snapshot of one resource by `id` | Read only |
-| `azure_call` | One Resource Manager request: `method`, `path` under a subscription of the connection, `apiVersion`, optional `query` parameters and JSON `body` | Read only: GET runs, changes wait for approval |
+| `azure_api_read` | One Resource Manager read: a GET of a `path` under a subscription of the connection with its `apiVersion` and optional `query` parameters, or a read-only POST query | Read only |
+| `azure_api_change` | One Resource Manager change: POST an action, PUT, PATCH or DELETE, with the same arguments and a JSON `body` | Approval |
 | `azure_monitor` | `query` (metrics of one resource), `list_metrics`, `alerts` (fired alerts), `activity_log` (who changed what) and `health` (Resource Health) | Read only |
 | `logs_search`, `logs_tail` | KQL over the connection's Log Analytics workspaces and Application Insights components | Read only; tail Off |
 
 The Azure Monitor Logs connector publishes the same log tools as `azure_logs_search` and `azure_logs_tail`.
 
-## How `azure_call` decides
+## How the API tools tell reads from changes
 
 Agents never pass a URL. GateRook builds the request on the cloud's Resource Manager host from a checked path, percent-encodes every segment, and refuses paths outside the connection's subscriptions.
 
 1. An action that hands out keys, secrets or credentials is refused whatever the method: `listKeys`, `listSecrets`, `listCredentials`, `listConnectionStrings`, `listClusterUserCredential`, `listAccountSas`, `listCallbackUrl`, `regenerate…`, App Service `config/<name>/list` and `publishxml`, among others. Azure's API contract keeps secrets out of GET answers and returns them from such actions.
-2. GET is a read.
+2. GET is a read, for `azure_api_read`.
 3. A POST is a read only for queries that change nothing: Cost Management `query` and `forecast`, the subscription's metrics batch (`/subscriptions/<id>/providers/Microsoft.Insights/metrics`) and `checkNameAvailability`.
-4. Every other POST, and every PUT, PATCH and DELETE, waits for a person to approve the exact request. The approval shows the method, the full URL with every parameter, and the body. An approved call runs exactly what was approved.
+4. Every other POST, and every PUT, PATCH and DELETE, is a change for `azure_api_change`, which waits for a person to approve the exact request. The approval shows the method, the full URL with every parameter, and the body. An approved call runs exactly what was approved.
+
+Each tool refuses the other's requests and names the right one, so an endpoint can keep `azure_api_change` Off while agents read.
 
 Answers are data: a 403 or 404 from Azure comes back to the agent with its status and error. Paging and long-running operations come back as arguments for the next call (`next.query` with the `$skipToken`, `operation` with the path and API version to GET), never as URLs to follow. Values that look like secrets are masked before the core's own masking: app settings and connection strings, container environment values and secrets, fields named like passwords, keys or SAS tokens, and connection strings or SAS URLs anywhere.
 

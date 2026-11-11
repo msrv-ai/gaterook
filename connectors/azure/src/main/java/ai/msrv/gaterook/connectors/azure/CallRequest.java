@@ -13,9 +13,9 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * One {@code azure_call}: a Resource Manager request the gateway builds from a method, a path under one of the
- * connection's subscriptions, an {@code api-version}, query parameters and a JSON body — never a URL. Checked without
- * I/O, the same way in {@code classify}, the approval preview and {@code execute}.
+ * One call of {@code azure_api_read} or {@code azure_api_change}: a Resource Manager request the gateway builds from a
+ * method, a path under one of the connection's subscriptions, an {@code api-version}, query parameters and a JSON body
+ * — never a URL. Checked without I/O, the same way in {@code classify}, the approval preview and {@code execute}.
  *
  * <p>The classification follows AutoRest's {@code x-ms-secret} contract: a GET never returns a secret, a POST action
  * may. So:
@@ -28,17 +28,22 @@ import tools.jackson.databind.node.ObjectNode;
  *   <li>every other POST and every PUT, PATCH and DELETE changes something and waits for the person's approval of
  *       the exact request.</li>
  * </ol>
+ * Reads go through {@code azure_api_read} and changes through {@code azure_api_change}; each tool refuses the other's
+ * requests and names the right one.
  *
  * @param query the query parameters besides {@code api-version}, sorted, as they are sent
  * @param body  the JSON body, or {@code null}
  */
-record CallRequest(String method, ResourceIds.Parsed path, String rawPath, String apiVersion,
+record CallRequest(String tool, String method, ResourceIds.Parsed path, String rawPath, String apiVersion,
     Map<String, String> query, JsonNode body, Kind kind) {
 
   /** What the call is, for the classification. */
   enum Kind { READ, READ_POST, CHANGE }
 
-  static final Set<String> METHODS = Set.of("GET", "POST", "PUT", "PATCH", "DELETE");
+  static final String READ = "azure_api_read";
+  static final String CHANGE = "azure_api_change";
+  static final Set<String> READ_METHODS = Set.of("GET", "POST");
+  static final Set<String> CHANGE_METHODS = Set.of("POST", "PUT", "PATCH", "DELETE");
   static final Pattern API_VERSION = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}(-(preview|beta|alpha|privatepreview))?$");
   private static final Pattern QUERY_KEY = Pattern.compile("^\\$?[A-Za-z][A-Za-z0-9_.-]{0,40}$");
   static final int MAX_QUERY_VALUE = 4_096;
@@ -48,11 +53,13 @@ record CallRequest(String method, ResourceIds.Parsed path, String rawPath, Strin
   private static final List<String> SECRET_WORDS = List.of("key", "secret", "credential", "connectionstring",
       "password", "token", "sas", "callbackurl", "publishingprofile", "dataplaneaccess");
 
-  static CallRequest of(JsonNode args, Settings s, AzurePolicy p) throws Refusal {
-    String method = text(args, "method", "GET").toUpperCase(Locale.ROOT);
-    if (!METHODS.contains(method)) {
-      throw new Refusal("bad_input", "method is GET, POST, PUT, PATCH or DELETE, not " + Settings.abbreviate(method)
-          + ".", null);
+  static CallRequest of(String tool, JsonNode args, Settings s, AzurePolicy p) throws Refusal {
+    boolean change = CHANGE.equals(tool);
+    String method = text(args, "method", change ? "" : "GET").toUpperCase(Locale.ROOT);
+    if (!(change ? CHANGE_METHODS : READ_METHODS).contains(method)) {
+      throw new Refusal("bad_input", change ? "method of azure_api_change is POST, PUT, PATCH or DELETE."
+          : "method of azure_api_read is GET or POST (read-only queries only).", change ? "Reads go through "
+          + "azure_api_read." : null);
     }
     String raw = text(args, "path", "");
     ResourceIds.Parsed path = ResourceIds.parse(raw);
@@ -122,12 +129,15 @@ record CallRequest(String method, ResourceIds.Parsed path, String rawPath, Strin
       case "POST" -> readOnlyPost(path) ? Kind.READ_POST : Kind.CHANGE;
       default -> Kind.CHANGE;
     };
-    return new CallRequest(method, path, raw, apiVersion, query, body, kind);
-  }
-
-  /** The approved form: what {@link #payload} stored, checked again. */
-  static CallRequest ofPayload(JsonNode payload, Settings s, AzurePolicy p) throws Refusal {
-    return of(payload.path("arguments"), s, p);
+    String what = method + " " + Settings.abbreviate(raw);
+    if (!change && kind == Kind.CHANGE) {
+      throw new Refusal("not_a_read", what + " changes Azure.", "Call it with azure_api_change: a person approves "
+          + "the exact request.");
+    }
+    if (change && kind != Kind.CHANGE) {
+      throw new Refusal("is_a_read", what + " only reads.", "Call it with azure_api_read.");
+    }
+    return new CallRequest(change ? CHANGE : READ, method, path, raw, apiVersion, query, body, kind);
   }
 
   boolean read() {
@@ -223,7 +233,7 @@ record CallRequest(String method, ResourceIds.Parsed path, String rawPath, Strin
   /** The canonical form an approval stores and executes. */
   ObjectNode payload() {
     ObjectNode p = JsonNodeFactory.instance.objectNode();
-    p.put("tool", "azure_call");
+    p.put("tool", tool);
     ObjectNode a = p.putObject("arguments");
     a.put("method", method);
     a.put("path", rawPath);
