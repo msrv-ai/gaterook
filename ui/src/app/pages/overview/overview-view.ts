@@ -397,6 +397,8 @@ export function checkPrompt(type: string | null, name: string | null): string {
       return `Show me the tables in ${name}`;
     case 'cosmosdb':
       return `Show me the containers in ${name}`;
+    case 'neo4j':
+      return `Show me the node labels in ${name}`;
     default:
       return `Show me what you can see in ${name}`;
   }

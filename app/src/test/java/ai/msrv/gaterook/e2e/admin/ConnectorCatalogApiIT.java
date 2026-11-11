@@ -91,6 +91,8 @@ class ConnectorCatalogApiIT {
           "Paths, shallow reads and queries. Changes wait for approval."),
       new KitCard("Databases", "cosmosdb", null, "Azure Cosmos DB", "database", "built-in", 6,
           "Databases, containers, SQL queries and items. Changes wait for approval."),
+      new KitCard("Databases", "neo4j", null, "Neo4j", "waypoints", "built-in", 3,
+          "Cypher reads in read-only transactions, the graph's schema and its nodes and paths. Writes wait for approval."),
       new KitCard("Databases", "prometheus", null, "Prometheus", "activity", "built-in", 9,
           "PromQL queries, series, labels, targets, rules and alerts of Prometheus-compatible servers. Read only."),
       new KitCard("Databases", "influxdb", null, "InfluxDB", "activity", "built-in", 5,
@@ -168,7 +170,7 @@ class ConnectorCatalogApiIT {
 
     // Connectors › Installed: one row per type, the MCP server type isn't one (its servers are, with K5).
     List<String> installed = each(catalog.path("installed"), "id");
-    assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "sqlite", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "redshift", "databricks", "trino", "athena", "firestore", "firebase-rtdb", "cosmosdb", "prometheus", "influxdb", "opensearch", "elasticsearch", "ssh", "gcp-logging", "cloudwatch", "loki", "ssh-logs", "kubernetes",
+    assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "sqlite", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "redshift", "databricks", "trino", "athena", "firestore", "firebase-rtdb", "cosmosdb", "neo4j", "prometheus", "influxdb", "opensearch", "elasticsearch", "ssh", "gcp-logging", "cloudwatch", "loki", "ssh-logs", "kubernetes",
         "gcp", "aws", "http");
     for (JsonNode row : catalog.path("installed")) {
       assertThat(row.path("state").asString()).isEqualTo("enabled");

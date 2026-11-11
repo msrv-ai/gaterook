@@ -6980,6 +6980,175 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         }
       }
     }
+  },
+  "neo4j": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Neo4j",
+    "type": "object",
+    "x-card": {
+      "description": "Cypher reads in read-only transactions, the graph's schema and its nodes and paths. Writes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "uri",
+      "authentication"
+    ],
+    "properties": {
+      "uri": {
+        "type": "string",
+        "title": "Connection URI",
+        "minLength": 1,
+        "maxLength": 300,
+        "pattern": "^(neo4j|bolt)(\\+s)?://[^/?#@\\s]+/?$",
+        "examples": [
+          "neo4j+s://a1b2c3d4.databases.neo4j.io"
+        ],
+        "description": "neo4j+s:// for a cluster or Aura, bolt+s:// for one server, with the host and port (7687 by default). neo4j:// and bolt:// without TLS reach only this computer (localhost)."
+      },
+      "database": {
+        "type": "string",
+        "title": "Database",
+        "default": "neo4j",
+        "pattern": "^[A-Za-z][A-Za-z0-9.-]{2,62}$",
+        "description": "Every call runs in this database. Not system."
+      },
+      "authentication": {
+        "type": "object",
+        "title": "Authentication",
+        "required": [
+          "method"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "method": {
+            "enum": [
+              "password",
+              "token"
+            ],
+            "default": "password",
+            "title": "Sign in with",
+            "x-enumTitles": [
+              "User and password",
+              "Bearer token (single sign-on)"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(user|password|token)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "password"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "user": {
+                  "type": "string",
+                  "title": "User",
+                  "minLength": 1,
+                  "maxLength": 256,
+                  "description": "Use a user with the reader role wherever you can. Test connection shows its roles."
+                },
+                "password": {
+                  "type": "string",
+                  "title": "Password",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "maxLength": 1024
+                },
+                "token": false
+              },
+              "required": [
+                "user",
+                "password"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "token"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "title": "Bearer token",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "maxLength": 16384,
+                  "description": "An access token of the identity provider Neo4j trusts (OIDC). It expires: paste a new one when Test connection says so."
+                },
+                "user": false,
+                "password": false
+              },
+              "required": [
+                "token"
+              ]
+            }
+          }
+        ]
+      },
+      "caCertificate": {
+        "type": "string",
+        "title": "CA certificate (PEM)",
+        "maxLength": 20000,
+        "x-widget": "textarea",
+        "x-section": "/advanced",
+        "description": "Only for a server whose certificate comes from a private CA, with neo4j+s:// or bolt+s://. GateRook still checks the host name. Empty: the system trust store."
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "Policies set row limits and timeouts per environment; these can only tighten them.",
+        "properties": {
+          "maxRows": {
+            "type": "integer",
+            "title": "Rows per query",
+            "minimum": 1,
+            "maximum": 10000,
+            "x-unit": "rows",
+            "x-stricter": "min",
+            "description": "Empty: the environment policy's row limit; with both, the lower applies."
+          },
+          "transactionTimeoutMs": {
+            "type": "integer",
+            "title": "Transaction timeout",
+            "minimum": 100,
+            "maximum": 600000,
+            "x-unit": "ms",
+            "x-stricter": "min",
+            "description": "Neo4j stops slower transactions. Empty: the environment policy's statement timeout; with both, the shorter applies."
+          },
+          "connectTimeoutMs": {
+            "type": "integer",
+            "title": "Connect timeout",
+            "minimum": 1000,
+            "maximum": 30000,
+            "default": 5000,
+            "x-unit": "ms"
+          }
+        }
+      }
+    }
   }
 };
 
@@ -12105,6 +12274,263 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "crossPartitionQueries": true,
         "maxPages": 5,
         "maxItemKb": 2048
+      }
+    }
+  },
+  "neo4j": {
+    "sections": [
+      "/authentication",
+      "/advanced"
+    ],
+    "loose": [
+      "/uri",
+      "/database"
+    ],
+    "rows": {
+      "/authentication": [
+        [
+          "/authentication/method"
+        ],
+        [
+          "/authentication/user"
+        ],
+        [
+          "/authentication/password"
+        ],
+        [
+          "/authentication/token"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/maxRows",
+          "/advanced/transactionTimeoutMs",
+          "/advanced/connectTimeoutMs"
+        ],
+        [
+          "/caCertificate"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/uri",
+        "kind": "text",
+        "title": "Connection URI",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/database",
+        "kind": "text",
+        "title": "Database",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/authentication",
+        "kind": "object",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/authentication/method",
+        "kind": "select",
+        "title": "Sign in with",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "password",
+          "token"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/authentication/user",
+        "kind": "text",
+        "title": "User",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "authentication.method in [\"password\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/authentication/password",
+        "kind": "secret",
+        "title": "Password",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "authentication.method in [\"password\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/authentication/token",
+        "kind": "secret",
+        "title": "Bearer token",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "authentication.method in [\"token\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxRows",
+        "kind": "number",
+        "title": "Rows per query",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "rows",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/transactionTimeoutMs",
+        "kind": "number",
+        "title": "Transaction timeout",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "ms",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/connectTimeoutMs",
+        "kind": "number",
+        "title": "Connect timeout",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "ms",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "database": "neo4j",
+      "authentication": {
+        "method": "password"
+      },
+      "advanced": {
+        "connectTimeoutMs": 5000
+      }
+    },
+    "prodDefaults": {
+      "database": "neo4j",
+      "authentication": {
+        "method": "password"
+      },
+      "advanced": {
+        "connectTimeoutMs": 5000
       }
     }
   },
