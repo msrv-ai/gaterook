@@ -1,14 +1,23 @@
-.gw-setup-map__network-native--empty,
-.gw-setup-map__network-mcp--empty {
-  align-self: stretch;
+// One list of every service, built-in and MCP alike. From lg the kit's services band keeps a second column for a
+// separate MCP card; the list spans the whole band instead.
+.gw-setup-map--vertical .gw-setup-map__network-side--services > .gw-setup-map__network-native {
+  grid-column: 1 / -1;
 }
 
-.gw-setup-map__network-native--empty > .gw-setup-map__network-grid {
-  flex: 1;
+.gw-setup-map--vertical .gw-setup-map__network-native > .gw-setup-map__network-grid {
+  // raw: at most three columns, each a third of the row less the two gaps and a pixel of rounding slack, and no
+  // narrower than the kit's 20rem readable minimum for a service card. Fewer services keep their column width.
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(min(100%, max(20rem, (100% - 2 * var(--gw-space-2)) / 3 - var(--gw-space-px))), 1fr)
+  );
 }
 
 .gw-setup-map__network-native > .gw-setup-map__network-grid {
-  grid-auto-rows: 1fr;
+  // Every row as tall as the tallest card, except beside the empty state, which would stretch the cards after it.
+  &:not(:has(> .gw-setup-map__network-empty)) {
+    grid-auto-rows: 1fr;
+  }
 
   // Stretch each card through its list item to fill the shared row height.
   > li {
