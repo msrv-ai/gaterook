@@ -104,9 +104,9 @@ class ConnectorCatalogApiIT {
               + "Changes wait for approval."),
       new KitCard("Cloud", "aws", null, "AWS", "cloud", "built-in", 4,
           "Resources, statuses, metrics and any AWS API, with AssumeRole. Changes wait for approval."),
-      new KitCard("Cloud", "azure", null, "Azure", "cloud", "built-in", 6,
-          "Resources, Resource Manager calls, metrics, alerts, the Activity Log and Azure Monitor logs, with the "
-              + "connection's Entra ID identity. Changes wait for approval."),
+      new KitCard("Cloud", "azure", null, "Azure", "cloud", "built-in", 11,
+          "Resources, Resource Manager calls, Azure Monitor, Storage data, Service Bus dead letters and Key Vault "
+              + "expiry, with the connection's Entra ID identity. Changes wait for approval."),
       new KitCard("HTTP and MCP", "http", null, "HTTP API", "globe", "built-in", 2,
           "One base URL with an allowlist. GET reads; every other method waits for approval."),
       new KitCard("HTTP and MCP", "mcp-server", null, "External MCP server", "plug", "mcp-server", null,

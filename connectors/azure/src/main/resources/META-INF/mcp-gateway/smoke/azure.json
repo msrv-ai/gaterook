@@ -2,7 +2,7 @@
   "area": "azure",
   "module": "connectors/azure",
   "connectorTypes": ["azure"],
-  "description": "Touches of the Azure connector for the native smoke: the call checks without I/O (an action that returns keys is denied, a KQL control command in Resource Graph is denied), and Test connection of an Azure CLI sign-in stops for the person's decision before anything runs (or fails where the CLI isn't installed). None needs a server.",
+  "description": "Touches of the Azure connector for the native smoke: the call checks without I/O (an action that returns keys is denied, a KQL control command in Resource Graph is denied, a blob that usually holds keys isn't read, Key Vault stays hidden until the policy names it), and Test connection of an Azure CLI sign-in stops for the person's decision before anything runs (or fails where the CLI isn't installed). None needs a server.",
   "touches": [
     {
       "name": "secret-action-denied",
@@ -17,6 +17,20 @@
         "config": {"tenantId": "6f1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", "subscriptions": ["0b1f6471-1bf0-4dda-aec3-111122223333"], "credentials": {"source": "cli"}}},
       "call": {"tool": "azure_describe", "arguments": {"query": ".show tables"}},
       "expect": {"isError": true, "textStartsWith": "Denied by policy dev.cloud.kql_command"}
+    },
+    {
+      "name": "key-file-blob-refused",
+      "connection": {"type": "azure", "env": "dev",
+        "config": {"tenantId": "6f1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", "subscriptions": ["0b1f6471-1bf0-4dda-aec3-111122223333"], "credentials": {"source": "cli"}}},
+      "call": {"tool": "azure_storage_read", "arguments": {"action": "read_blob", "account": "/subscriptions/0b1f6471-1bf0-4dda-aec3-111122223333/resourceGroups/smoke/providers/Microsoft.Storage/storageAccounts/smoke", "container": "config", "blob": "prod/.env"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.cloud.object_not_allowed"}
+    },
+    {
+      "name": "key-vault-sensitive",
+      "connection": {"type": "azure", "env": "dev",
+        "config": {"tenantId": "6f1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", "subscriptions": ["0b1f6471-1bf0-4dda-aec3-111122223333"], "credentials": {"source": "cli"}}},
+      "call": {"tool": "azure_keyvault_read", "arguments": {"vault": "/subscriptions/0b1f6471-1bf0-4dda-aec3-111122223333/resourceGroups/smoke/providers/Microsoft.KeyVault/vaults/smoke-kv"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.cloud.sensitive_service"}
     },
     {
       "name": "cli-asks-first",

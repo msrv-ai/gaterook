@@ -78,8 +78,8 @@ public final class AzureConnector implements Connector {
         .name("Azure")
         .icon("cloud")
         .group("Cloud")
-        .description("Resources, Resource Manager calls, metrics, alerts, the Activity Log and Azure Monitor logs, "
-            + "with the connection's Entra ID identity. Changes wait for approval.")
+        .description("Resources, Resource Manager calls, Azure Monitor, Storage data, Service Bus dead letters and "
+            + "Key Vault expiry, with the connection's Entra ID identity. Changes wait for approval.")
         .configSchema(schemas.load("config"))
         .policySchema(schemas.load("policy"))
         .tools(tools)
