@@ -73,6 +73,28 @@ class ApiMaskerTest {
   }
 
   @Test
+  void receivedMessagesKeepTheirIdsAndCountsButNotTheirContent() {
+    JsonNode received = TestCtx.JSON.readTree("""
+        {"Messages":[{"MessageId":"5fea7756-0ea4-451a-a703-a558b933e274","ReceiptHandle":"AQEBzbVv…",
+          "MD5OfBody":"fafb00f5732ab283681e124bf8747ed1","Body":"{\\"orderId\\":42,\\"email\\":\\"jane@example.com\\"}",
+          "Attributes":{"ApproximateReceiveCount":"4","SentTimestamp":"1762851600000"},
+          "MessageAttributes":{"trace":{"StringValue":"abc-123","DataType":"String"},
+            "tags":{"StringListValues":["a","b"],"DataType":"String"}}}]}""");
+
+    assertThat(mask("sqs", "ReceiveMessage", received)).isEqualTo(3);
+
+    JsonNode m = received.at("/Messages/0");
+    assertThat(m.path("Body").asString()).isEqualTo("‹masked›");
+    assertThat(m.at("/MessageAttributes/trace/StringValue").asString()).isEqualTo("‹masked›");
+    assertThat(m.at("/MessageAttributes/tags/StringListValues").asString()).isEqualTo("‹masked›");
+    assertThat(m.at("/MessageAttributes/trace/DataType").asString()).isEqualTo("String");
+    assertThat(m.path("MessageId").asString()).startsWith("5fea7756");
+    assertThat(m.path("ReceiptHandle").asString()).startsWith("AQEB");
+    assertThat(m.at("/Attributes/ApproximateReceiveCount").asString()).isEqualTo("4");
+    assertThat(m.path("MD5OfBody").asString()).hasSize(32);
+  }
+
+  @Test
   void theRedactorRunsOnTopAndCursorsStayReadable() {
     // CodeBuild doesn't mark its environment variables: the Redactor knows their shape and masks each value.
     JsonNode projects = TestCtx.JSON.readTree("""

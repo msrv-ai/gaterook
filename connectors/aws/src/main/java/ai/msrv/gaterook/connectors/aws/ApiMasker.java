@@ -16,7 +16,7 @@ import tools.jackson.databind.node.ObjectNode;
  *       Secrets Manager's {@code SecretStringType}, keys and passwords of many services);</li>
  *   <li>what the models leave unmarked: any {@code UserData}, whatever its shape; presigned URLs
  *       ({@code X-Amz-Signature}), such as Lambda's {@code Code.Location}; API Gateway key values and AppSync API keys,
- *       whose id is the key;</li>
+ *       whose id is the key; the content of received SQS messages, their bodies and attribute values;</li>
  *   <li>the {@link Redactor}'s rules for environment variables, headers, repository credentials and keys that name
  *       secrets, keeping cursor keys readable.</li>
  * </ol>
@@ -30,6 +30,14 @@ final class ApiMasker {
       "apigateway", Map.of("GetApiKey", List.of("value"), "GetApiKeys", List.of("items[].value"),
           "UpdateApiKey", List.of("value")),
       "appsync", Map.of("ListApiKeys", List.of("apiKeys[].id"), "UpdateApiKey", List.of("apiKey.id")));
+  /**
+   * Content, not configuration: data an approved change returns that agents don't get (§5.2: mask message bodies).
+   * {@code name{}} is every value of a map. IDs, receipt handles, system attributes and digests stay readable.
+   */
+  private static final Map<String, Map<String, List<String>>> DATA = Map.of(
+      "sqs", Map.of("ReceiveMessage", List.of("Messages[].Body", "Messages[].MessageAttributes{}.StringValue",
+          "Messages[].MessageAttributes{}.BinaryValue", "Messages[].MessageAttributes{}.StringListValues",
+          "Messages[].MessageAttributes{}.BinaryListValues")));
 
   private ApiMasker() {}
 
@@ -39,12 +47,19 @@ final class ApiMasker {
     if (op.output() != null) {
       masked += sensitive(m, m.shape(op.output()), result);
     }
-    for (String path : PATHS.getOrDefault(m.name, Map.of()).getOrDefault(op.name(), List.of())) {
-      masked += path(result, path.split("\\."), 0);
+    for (Map<String, Map<String, List<String>>> table : List.of(PATHS, DATA)) {
+      for (String path : table.getOrDefault(m.name, Map.of()).getOrDefault(op.name(), List.of())) {
+        masked += path(result, path.split("\\."), 0);
+      }
     }
     masked += unmarked(result);
     masked += Redactor.redactAnswer(result);
     return masked;
+  }
+
+  /** Whether the answer of {@code op} holds content that is masked as data (received messages). */
+  static boolean hidesData(String service, ApiModel.Operation op) {
+    return DATA.getOrDefault(service, Map.of()).containsKey(op.name());
   }
 
   /** Values of {@code @sensitive} shapes, walking {@code value} along {@code shape}. */
@@ -145,9 +160,19 @@ final class ApiMasker {
     }
     String part = parts[at];
     boolean each = part.endsWith("[]");
-    String name = each ? part.substring(0, part.length() - 2) : part;
+    boolean values = part.endsWith("{}");
+    String name = each || values ? part.substring(0, part.length() - 2) : part;
     if (!(node instanceof ObjectNode o) || !o.has(name)) {
       return 0;
+    }
+    if (values) {
+      int masked = 0;
+      if (o.get(name) instanceof ObjectNode map) {
+        for (String key : new ArrayList<>(map.propertyNames())) {
+          masked += at == parts.length - 1 ? replace(map, key) : path(map.get(key), parts, at + 1);
+        }
+      }
+      return masked;
     }
     if (at == parts.length - 1 && !each) {
       return replace(o, name);

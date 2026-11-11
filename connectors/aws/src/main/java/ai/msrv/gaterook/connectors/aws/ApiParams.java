@@ -30,7 +30,8 @@ import tools.jackson.databind.node.ObjectNode;
  *   <li>a missing required top-level member, a union with other than one member, deep or large input;</li>
  *   <li>text with invisible characters (control, bidi, zero-width) other than tab and line breaks.</li>
  * </ul>
- * Every ARN found in a string is recorded, so the account pin and the resource masks can be checked.
+ * Every ARN found in a string is recorded, so the account pin and the resource masks can be checked; so is the ARN of
+ * every SQS queue URL ({@code https://sqs.<region>.amazonaws.com/<account>/<queue>}), which names a queue as well.
  */
 final class ApiParams {
 
@@ -38,6 +39,10 @@ final class ApiParams {
   static final int MAX_NODES = 20_000;
   static final int MAX_BYTES = 256 * 1024;
   private static final JsonNodeFactory F = JsonNodeFactory.instance;
+  /** An SQS queue URL: the current form, the legacy regional one and the legacy us-east-1 one. */
+  private static final java.util.regex.Pattern QUEUE_URL = java.util.regex.Pattern.compile(
+      "^https://(?:sqs\\.([a-z0-9-]+)\\.|([a-z0-9-]+)\\.queue\\.|queue\\.)amazonaws\\.com(\\.cn)?/(\\d{12})/"
+      + "([A-Za-z0-9_-]{1,80}(?:\\.fifo)?)/?$");
 
   /** The canonical input and the ARNs found in it. */
   record Checked(ObjectNode parameters, List<String> arns) {}
@@ -82,6 +87,17 @@ final class ApiParams {
       }
     }
     return new Checked(reorder(input, out), List.copyOf(p.arns));
+  }
+
+  /** The ARN of the queue an SQS queue URL names, or {@code null} for anything else. */
+  static String queueArn(String url) {
+    java.util.regex.Matcher m = QUEUE_URL.matcher(url);
+    if (!m.matches()) {
+      return null;
+    }
+    String region = m.group(1) != null ? m.group(1) : m.group(2) != null ? m.group(2) : "us-east-1";
+    String partition = m.group(3) != null ? "aws-cn" : region.startsWith("us-gov-") ? "aws-us-gov" : "aws";
+    return "arn:" + partition + ":sqs:" + region + ":" + m.group(4) + ":" + m.group(5);
   }
 
   /** The idempotency token of a call: random-looking, but the same for every check of the call. */
@@ -223,6 +239,11 @@ final class ApiParams {
         printable(s, path);
         if (s.startsWith("arn:")) {
           arns.add(s);
+        } else if (s.startsWith("https://")) {
+          String queue = queueArn(s);
+          if (queue != null) {
+            arns.add(queue);
+          }
         }
         return F.stringNode(s);
       }

@@ -191,6 +191,71 @@ class AwsCallTest {
   }
 
   @Test
+  void aDeadLetterQueueIsReceivedOnlyWithAnApprovalAndItsContentStaysMasked() throws ConnectorException {
+    aws.on("ReceiveMessage", r -> FakeAws.json(200, """
+        {"Messages":[{"MessageId":"5fea7756-0ea4-451a-a703-a558b933e274","ReceiptHandle":"AQEBzbVvExample",
+          "MD5OfBody":"fafb00f5732ab283681e124bf8747ed1","Body":"{\\"orderId\\":42}",
+          "Attributes":{"ApproximateReceiveCount":"4","SentTimestamp":"1762851600000"},
+          "MessageAttributes":{"trace":{"StringValue":"abc-123","DataType":"String"}}}]}"""));
+    ConnectionConfig cfg = Configs.stage();
+    String dlq = "https://sqs.eu-central-1.amazonaws.com/412398765012/stage-orders-dlq";
+    String args = "{\"service\":\"sqs\",\"operation\":\"ReceiveMessage\",\"parameters\":{\"QueueUrl\":\"" + dlq
+        + "\",\"MaxNumberOfMessages\":10,\"MessageSystemAttributeNames\":[\"All\"],\"MessageAttributeNames\":"
+        + "[\"All\"]}}";
+
+    // Never a read: the read tool sends it to the change tool.
+    Classification asRead = connector.classify(Configs.call("aws_api_read", cfg.name(), args), cfg,
+        Configs.policy(Env.STAGE));
+    assertThat(asRead.ruleId()).isEqualTo("stage.cloud.change_tool");
+    assertThat(asRead.hint()).contains("aws_api_change");
+
+    ToolCall call = Configs.call("aws_api_change", cfg.name(), args);
+    Classification c = connector.classify(call, cfg, Configs.policy(Env.STAGE));
+    assertThat(c.kind()).isEqualTo(Classification.Kind.MUTATION);
+    assertThat(c.reason()).startsWith("SQS ReceiveMessage hides the messages it returns").contains("receive count");
+
+    ActionPreview preview = connector.describeAction(call, cfg);
+    assertThat(preview.text()).contains("POST https://sqs.eu-central-1.amazonaws.com/", "X-Amz-Target: "
+        + "AmazonSQS.ReceiveMessage", "\"QueueUrl\":\"" + dlq + "\"");
+    assertThat(preview.impact()).extracting(ActionPreview.Field::label).containsExactly("Effect", "Answer");
+    assertThat(preview.impact().getFirst().value()).contains("visibility timeout", "receive count",
+        "dead-letter queue");
+    assertThat(preview.warnings()).anyMatch(w -> w.startsWith("This isn't a read: sqs ReceiveMessage hides"));
+
+    ToolResult r = connector.execute(call, cfg, Configs.secrets(), TestCtx.of().approved(preview.payload()));
+
+    JsonNode m = r.structuredContent().at("/result/Messages/0");
+    assertThat(m.path("Body").asString()).isEqualTo("‹masked›");
+    assertThat(m.at("/MessageAttributes/trace/StringValue").asString()).isEqualTo("‹masked›");
+    assertThat(m.path("ReceiptHandle").asString()).isEqualTo("AQEBzbVvExample");
+    assertThat(m.at("/Attributes/ApproximateReceiveCount").asString()).isEqualTo("4");
+    assertThat(r.structuredContent().path("masked").asInt()).isEqualTo(2);
+    assertThat(r.structuredContent().path("access").asString()).isEqualTo("change");
+    // AWS lets this session receive and nothing else; its Deny no longer names the receive, the rest stays.
+    JsonNode policy = sessionPolicy();
+    assertThat(policy.at("/Statement/0/Action").toString()).isEqualTo("[\"sqs:ReceiveMessage\"]");
+    assertThat(policy.at("/Statement/1/Action").toString()).doesNotContain("sqs:ReceiveMessage")
+        .contains("kms:Decrypt");
+    assertThat(aws.to("ReceiveMessage")).hasSize(1);
+  }
+
+  @Test
+  void aQueueOutsideTheMasksOrOfAnotherAccountIsRefused() {
+    ConnectionConfig cfg = Configs.stage();
+    PolicyView masked = Configs.policy(Env.STAGE, "{\"resources\":[\"arn:aws:sqs:eu-central-1:*:stage-*\"]}");
+    String other = "{\"service\":\"sqs\",\"operation\":\"ReceiveMessage\",\"parameters\":{\"QueueUrl\":"
+        + "\"https://sqs.eu-central-1.amazonaws.com/412398765012/prod-orders-dlq\"}}";
+    String foreign = "{\"service\":\"sqs\",\"operation\":\"ReceiveMessage\",\"parameters\":{\"QueueUrl\":"
+        + "\"https://sqs.eu-central-1.amazonaws.com/999999999999/stage-orders-dlq\"}}";
+
+    assertThat(connector.classify(Configs.call("aws_api_change", cfg.name(), other), cfg, masked).ruleId())
+        .isEqualTo("stage.cloud.resource_not_allowed");
+    assertThat(connector.classify(Configs.call("aws_api_change", cfg.name(), foreign), cfg,
+        Configs.policy(Env.STAGE)).ruleId()).isEqualTo("stage.cloud.scope_not_allowed");
+    assertThat(aws.requests).isEmpty();
+  }
+
+  @Test
   void refusalsNameTheirRuleAndNeverReachAws() {
     ConnectionConfig cfg = Configs.stage();
     PolicyView policy = Configs.policy(Env.STAGE);

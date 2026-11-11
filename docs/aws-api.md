@@ -5,7 +5,7 @@ Use the AWS connector's generic API tools when the curated tools (`aws_describe`
 | Tool | What it does | Default mode |
 | --- | --- | --- |
 | `aws_api_read` | Calls an operation that only reads: the service model marks it read-only, or its name starts with `Describe`, `List`, `Get`, `BatchGet`, `Search` or `Lookup`, or it is a known read such as `iam` `SimulatePrincipalPolicy` or `cloudformation` `ValidateTemplate`. | **Read only** |
-| `aws_api_change` | Calls an operation that changes something: update, scale, restart, deploy, tag, delete. A person approves the exact HTTP request first. | **Approval** (every environment) |
+| `aws_api_change` | Calls an operation that changes something: update, scale, restart, deploy, tag, delete, and SQS receives, which change the messages they return. A person approves the exact HTTP request first. | **Approval** (every environment) |
 
 Newly introduced tools on existing endpoint attachments require explicit enablement. Reconnect the AI client after changing endpoint tool permissions.
 
@@ -42,6 +42,7 @@ More examples:
 | Force a new deployment | `aws_api_change`: `ecs` `UpdateService`, `{"cluster": "stage", "service": "api", "forceNewDeployment": true}` |
 | Shift a Lambda alias | `aws_api_change`: `lambda` `UpdateAlias`, `{"FunctionName": "orders", "Name": "live", "FunctionVersion": "42"}` |
 | Set desired capacity | `aws_api_change`: `autoscaling` `SetDesiredCapacity`, `{"AutoScalingGroupName": "stage-web", "DesiredCapacity": 4}` |
+| Inspect a dead-letter queue | `aws_api_change`: `sqs` `ReceiveMessage`, `{"QueueUrl": "https://sqs.eu-central-1.amazonaws.com/123456789012/stage-orders-dlq", "MaxNumberOfMessages": 10, "MessageSystemAttributeNames": ["All"]}` |
 
 `describe_connection` with the object `ecs` lists a service's operations by the tool that calls them; with `ecs DescribeServices` it lists the operation's parameters.
 
@@ -63,9 +64,11 @@ An answer holds the operation's output in `result`, under the model's member nam
 
 **Reads only read.** `aws_api_read` refuses operations that change something, and `aws_api_change` refuses reads, which belong to `aws_api_read`.
 
-**AWS enforces it too.** With a role and the generated session policy, every call assumes the role with a session policy made for it. A read allows only the read actions of the call's service. An approved change allows only that operation's IAM action; API Gateway authorizes by HTTP method, so its action is, for example, `apigateway:PATCH`. Both deny secret values, KMS decryption, object, item, message and log reads, whatever the role allows. Without a role, the credentials' own permissions apply, and the approval says so.
+**AWS enforces it too.** With a role and the generated session policy, every call assumes the role with a session policy made for it. A read allows only the read actions of the call's service. An approved change allows only that operation's IAM action; API Gateway authorizes by HTTP method, so its action is, for example, `apigateway:PATCH`. Both deny secret values, KMS decryption, object, item, message and log reads, whatever the role allows, except the approved action itself (`sqs:ReceiveMessage` for an approved receive). Without a role, the credentials' own permissions apply, and the approval says so.
 
 **Changes run as approved.** The approver sees the HTTP method, URL, the protocol's headers and the body, with the IAM action and what the session allows; the approved request is the one that runs. If a change's answer is lost after the request was sent, GateRook reports the outcome as unknown and doesn't retry.
+
+**Receiving from a queue changes it.** An SQS `ReceiveMessage` hides the messages it returns from other consumers for the visibility timeout and raises their receive count. On a queue with a redrive policy, a message past `maxReceiveCount` moves to its dead-letter queue. So a receive is never a read: `aws_api_read` refuses it, and the approval says what it does. The answer keeps message IDs, receipt handles, system attributes such as `ApproximateReceiveCount`, and digests; bodies and message attribute values are masked. A queue URL is checked like an ARN, against the connection's account and the resource masks. A queue encrypted with a customer managed KMS key can't be received under the generated session policy, which denies `kms:Decrypt`.
 
 **Never sent or returned, whatever the policy:**
 
@@ -78,9 +81,9 @@ An answer holds the operation's output in `result`, under the model's member nam
 
 - DynamoDB items and streams: use the DynamoDB connector's tools.
 - CloudWatch Logs events and queries: use `logs_search`.
-- SQS receive, Kinesis records, Lambda invoke, Bedrock and SageMaker runtimes, Athena, Redshift Data, RDS Data and Timestream queries, and AppConfig configuration data.
+- Kinesis records, Lambda invoke, Bedrock and SageMaker runtimes, Athena, Redshift Data, RDS Data and Timestream queries, and AppConfig configuration data.
 
-**Masking.** Answers are masked before they reach the client: every value the service model marks sensitive, user data, presigned URLs, API Gateway key values, environment variables and keys that name secrets. GateRook's masker then applies to the answer as to any other. Page markers stay readable.
+**Masking.** Answers are masked before they reach the client: every value the service model marks sensitive, user data, presigned URLs, API Gateway key values, the bodies and attribute values of received SQS messages, environment variables and keys that name secrets. GateRook's masker then applies to the answer as to any other. Page markers stay readable.
 
 **Limits.** Calls count against a share of 300 requests a minute for each service, account and region (100 for CloudTrail, 30 for Cost Explorer). Answers are read up to 8 MiB; a page of a list that is larger than the call's size limit is cut at a whole item and continues with `nextCursor`.
 
