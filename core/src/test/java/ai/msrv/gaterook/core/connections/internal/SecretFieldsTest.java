@@ -232,6 +232,8 @@ class SecretFieldsTest {
         .isEqualTo("acme-stage");
     assertThat(ConnectionTargets.display(j("{\"project\":\"acme-stage\",\"database\":\"orders-db\"}")))
         .isEqualTo("acme-stage · orders-db");
+    assertThat(ConnectionTargets.display(j("{\"project\":\"acme-prod\",\"instance\":\"orders-prod\",\"database\":\"orders\"}")))
+        .as("Spanner").isEqualTo("acme-prod · orders-prod/orders");
     assertThat(ConnectionTargets.display(j("{\"region\":\"eu-central-1\",\"tables\":[\"orders\"]}")))
         .as("DynamoDB").isEqualTo("eu-central-1");
     assertThat(ConnectionTargets.display(j("{\"accountId\":\"0123456789abcdef0123456789abcdef\","

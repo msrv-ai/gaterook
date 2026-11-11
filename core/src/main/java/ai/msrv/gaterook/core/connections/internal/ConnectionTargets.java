@@ -172,9 +172,11 @@ public final class ConnectionTargets {
           + (dc.isBlank() ? "" : " · " + dc);
     }
     if (config.path("project").isString()) {
-      // BigQuery's location, a named Firestore database.
+      // BigQuery's location, a named Firestore database, a Spanner instance and its database.
       String detail = config.path("location").asString("");
-      if (detail.isBlank() && !"(default)".equals(config.path("database").asString("(default)"))) {
+      if (config.path("instance").isString()) {
+        detail = config.path("instance").asString() + "/" + config.path("database").asString("");
+      } else if (detail.isBlank() && !"(default)".equals(config.path("database").asString("(default)"))) {
         detail = config.path("database").asString("");
       }
       return config.path("project").asString() + (detail.isBlank() ? "" : " · " + detail);

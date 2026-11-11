@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "table"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "table": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 260,
+      "description": "table, or schema.table."
+    }
+  }
+}

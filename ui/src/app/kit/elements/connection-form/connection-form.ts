@@ -137,6 +137,7 @@ export function signInTarget(type: string): string {
     case 'cloudflare':
     case 'dynamodb':
     case 'bigquery':
+    case 'spanner':
     case 'firestore':
     case 'firebase-rtdb':
     case 'redshift':

@@ -8299,6 +8299,153 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         }
       }
     }
+  },
+  "spanner": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Google Cloud Spanner",
+    "type": "object",
+    "x-card": {
+      "description": "Tables and GoogleSQL or PostgreSQL queries in read-only transactions. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "project",
+      "instance",
+      "database",
+      "credentials"
+    ],
+    "properties": {
+      "project": {
+        "type": "string",
+        "title": "Project",
+        "pattern": "^([a-z][a-z0-9-]{4,28}[a-z0-9]|[a-z0-9.-]{1,63}:[a-z][a-z0-9-]{4,28}[a-z0-9])$",
+        "examples": [
+          "acme-prod"
+        ],
+        "description": "The Google Cloud project of the Spanner instance."
+      },
+      "instance": {
+        "type": "string",
+        "title": "Instance",
+        "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
+        "examples": [
+          "orders-prod"
+        ],
+        "description": "The instance id, as gcloud spanner instances list shows it."
+      },
+      "database": {
+        "type": "string",
+        "title": "Database",
+        "pattern": "^[a-z][a-z0-9_-]{0,28}[a-z0-9]$",
+        "examples": [
+          "orders"
+        ],
+        "description": "The database agents use. GoogleSQL and PostgreSQL-dialect databases both work."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Authentication",
+            "enum": [
+              "adc",
+              "serviceAccountKey"
+            ],
+            "default": "adc",
+            "x-enumTitles": [
+              "Existing Google sign-in (ADC)",
+              "Service account key (JSON)"
+            ],
+            "description": "Uses Application Default Credentials (ADC) on this computer, or a service account key."
+          },
+          "impersonate": {
+            "type": "string",
+            "title": "Service account to impersonate",
+            "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+            "examples": [
+              "gw-spanner@acme-prod.iam.gserviceaccount.com"
+            ]
+          },
+          "delegates": {
+            "type": "array",
+            "title": "Delegation chain",
+            "maxItems": 5,
+            "items": {
+              "type": "string"
+            },
+            "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
+          },
+          "lifetimeSeconds": {
+            "type": "integer",
+            "title": "Token lifetime",
+            "minimum": 300,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s"
+          },
+          "quotaProject": {
+            "type": "string",
+            "title": "Billed project",
+            "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
+          }
+        },
+        "patternProperties": {
+          "^(serviceAccountKey)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "serviceAccountKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "serviceAccountKey": {
+                  "type": "string",
+                  "title": "Service account key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "x-widget": "textarea",
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "serviceAccountKey"
+              ]
+            }
+          }
+        ]
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "Fine-grained access control. Policies set row limits and timeouts per environment.",
+        "properties": {
+          "databaseRole": {
+            "type": "string",
+            "title": "Database role",
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,127}$",
+            "examples": [
+              "agent_reader"
+            ],
+            "description": "A fine-grained access control role whose privileges every session gets, instead of the credentials' IAM access to the whole database. The credentials need roles/spanner.fineGrainedAccessUser and access to the role."
+          }
+        }
+      }
+    }
   }
 };
 
@@ -9842,6 +9989,257 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "foreignKeys": true,
         "poolSize": 2
       }
+    }
+  },
+  "spanner": {
+    "sections": [
+      "/credentials",
+      "/advanced"
+    ],
+    "loose": [
+      "/project",
+      "/instance",
+      "/database"
+    ],
+    "rows": {
+      "/credentials": [
+        [
+          "/credentials/source"
+        ],
+        [
+          "/credentials/serviceAccountKey"
+        ],
+        [
+          "/credentials/impersonate"
+        ],
+        [
+          "/credentials/delegates"
+        ],
+        [
+          "/credentials/lifetimeSeconds"
+        ],
+        [
+          "/credentials/quotaProject"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/databaseRole"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/project",
+        "kind": "text",
+        "title": "Project",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/instance",
+        "kind": "text",
+        "title": "Instance",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/database",
+        "kind": "text",
+        "title": "Database",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/source",
+        "kind": "select",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "adc",
+          "serviceAccountKey"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/serviceAccountKey",
+        "kind": "secret",
+        "title": "Service account key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"serviceAccountKey\"]"
+        ],
+        "multiline": true,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/impersonate",
+        "kind": "text",
+        "title": "Service account to impersonate",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/delegates",
+        "kind": "tags",
+        "title": "Delegation chain",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/lifetimeSeconds",
+        "kind": "number",
+        "title": "Token lifetime",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "s",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/quotaProject",
+        "kind": "text",
+        "title": "Billed project",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/databaseRole",
+        "kind": "text",
+        "title": "Database role",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "credentials": {
+        "source": "adc",
+        "lifetimeSeconds": 900
+      },
+      "advanced": {}
+    },
+    "prodDefaults": {
+      "credentials": {
+        "source": "adc",
+        "lifetimeSeconds": 900
+      },
+      "advanced": {}
     }
   },
   "mongodb": {

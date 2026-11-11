@@ -362,6 +362,7 @@ export function checkPrompt(type: string | null, name: string | null): string {
     case 'sqlite':
     case 'dynamodb':
     case 'bigquery':
+    case 'spanner':
     case 'snowflake':
     case 'sql':
       return `Show me the tables in ${name}`;

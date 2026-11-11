@@ -52,7 +52,7 @@ final class ApiRules {
       Map.entry("bigquery.jobs.getQueryResults", "Use the BigQuery connector for queries and table data."),
       Map.entry("bigquery.tabledata.", "Use the BigQuery connector for queries and table data."),
       Map.entry("firestore.projects.databases.documents.", "Use a database connector for Firestore documents."),
-      Map.entry("spanner.projects.instances.databases.sessions.", "Use a database connector for Spanner data."),
+      Map.entry("spanner.projects.instances.databases.sessions.", "Use the Spanner connector for Spanner data."),
       Map.entry("datastore.projects.runQuery", "Use a database connector for Datastore entities."),
       Map.entry("datastore.projects.runAggregationQuery", "Use a database connector for Datastore entities."),
       Map.entry("datastore.projects.lookup", "Use a database connector for Datastore entities."),
