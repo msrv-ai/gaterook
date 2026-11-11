@@ -11,8 +11,9 @@ import tools.jackson.databind.json.JsonMapper;
  * Athena's answer to {@code EXPLAIN (TYPE IO, FORMAT JSON) <statement>}, written by its Trino engine (version 3): the
  * tables the statement reads ({@code inputTableColumnInfos}) and the table it writes ({@code outputTable}), each as
  * catalog, schema (Athena's database) and table. Views count as the tables read through them. A data definition
- * statement isn't planned: the answer is the statement's own text, which is {@link #planned()} {@code false}. Copied
- * from the Trino connector (connectors don't share internals).
+ * statement isn't planned: the answer is the statement's own text, which is {@link #planned()} {@code false}. GateRook
+ * asks only for the plan of queries (a change's read of what it reads included), never of a write, so a plan that
+ * names a table written is refused. Copied from the Trino connector (connectors don't share internals).
  *
  * @param inputs  the tables read, in the plan's order
  * @param output  the table written, or {@code null}

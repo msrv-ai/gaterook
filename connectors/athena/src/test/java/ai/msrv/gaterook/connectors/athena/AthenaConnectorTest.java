@@ -21,6 +21,7 @@ import ai.msrv.gaterook.connectors.athena.FakeAthena.Script;
 import ai.msrv.gaterook.connectors.cloudauth.AwsSessionPolicy;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -318,7 +319,7 @@ class AthenaConnectorTest {
   void withARoleEachCallAssumesItUnderTheSessionPolicyOfWhatItDoes() throws Exception {
     athena.on(EXPLAIN + "SELECT", Script.plan(List.of("awsdatacatalog.sales.orders"), null))
         .on("SELECT", orders())
-        .on(EXPLAIN + "INSERT", Script.plan(List.of("awsdatacatalog.staging.orders"), "awsdatacatalog.sales.orders"))
+        .on(EXPLAIN + "SELECT * FROM staging.orders", Script.plan(List.of("awsdatacatalog.staging.orders"), null))
         .on("INSERT", orders().statement("DML", "INSERT").updated(4));
     ConnectionConfig cfg = config(Env.DEV, true, "sales", "staging");
     connector.execute(call("athena_query", sql("SELECT * FROM sales.orders")), cfg, secrets, TestCtx.of());
@@ -384,7 +385,8 @@ class AthenaConnectorTest {
   @Test
   void aChangeRunsOnlyApprovedOnceAndALostAnswerIsUnknown() throws Exception {
     String text = "DELETE FROM sales.orders WHERE id = 1";
-    athena.on(EXPLAIN + "DELETE", Script.plan(List.of("awsdatacatalog.sales.orders"), "awsdatacatalog.sales.orders"))
+    athena.on(EXPLAIN + "SELECT 1 FROM sales.orders WHERE id = 1", Script.plan(List.of("awsdatacatalog.sales.orders"),
+            null))
         .on("DELETE", orders().statement("DML", "DELETE").updated(1));
     ToolCall c = call("athena_execute", sql(text));
     assertThatThrownBy(() -> connector.execute(c, config(Env.DEV), secrets, TestCtx.of()))
@@ -436,7 +438,7 @@ class AthenaConnectorTest {
     assertThatThrownBy(() -> connector.execute(call("athena_query", sql("SELECT * FROM sales.orders")),
         config(Env.DEV), secrets, TestCtx.of())).hasMessageContaining("workgroup's data limit");
     athena.on("INSERT", Script.failed("HIVE_PATH_ALREADY_EXISTS", 2))
-        .on(EXPLAIN + "INSERT", Script.plan(List.of(), "awsdatacatalog.sales.orders"));
+        .on(EXPLAIN + "VALUES", Script.plan(List.of(), null));
     assertThatThrownBy(() -> connector.execute(call("athena_execute", "{}"), config(Env.DEV), secrets,
         TestCtx.of().approved(JsonNodeFactory.instance.objectNode().put("sql", "INSERT INTO sales.orders VALUES 1"))))
         .isInstanceOfSatisfying(ConnectorException.class, e -> {
@@ -451,21 +453,103 @@ class AthenaConnectorTest {
 
   @Test
   void theApprovalShowsAthenasPlanAndTheWorkgroupsLimit() throws Exception {
-    athena.on(EXPLAIN + "INSERT", Script.plan(List.of("awsdatacatalog.staging.orders"), "awsdatacatalog.sales.orders"));
+    athena.on(EXPLAIN + "SELECT", Script.plan(List.of("awsdatacatalog.staging.orders"), null));
     PreparedAction prepared = connector.prepare(call("athena_execute", sql("INSERT INTO sales.orders SELECT * FROM "
         + "staging.orders")), config(Env.DEV, true, "sales", "staging"), secrets, TestCtx.of());
     assertThat(prepared.outcome()).isEqualTo(PreparedAction.Outcome.APPROVAL);
     assertThat(prepared.preview().impact()).extracting(ActionPreview.Field::label).startsWith("Statement", "Writes",
         "Reads", "Data limit");
+    // The table written is the statement's own, in the connection's catalog; what it reads is Athena's plan.
+    assertThat(prepared.preview().impact().get(1).value()).isEqualTo("awsdatacatalog.sales.orders");
+    assertThat(prepared.preview().impact().get(2).value()).isEqualTo("awsdatacatalog.staging.orders");
     assertThat(prepared.preview().impact().get(3).value()).isEqualTo("10.0 GiB per query (workgroup primary)");
+    PreparedAction unqualified = connector.prepare(call("athena_execute", sql("INSERT INTO Daily SELECT 1")),
+        config(Env.DEV), secrets, TestCtx.of());
+    assertThat(unqualified.preview().impact().get(1).value()).isEqualTo("awsdatacatalog.sales.daily");
     PreparedAction ddl = connector.prepare(call("athena_execute", sql("ALTER TABLE sales.orders ADD PARTITION "
         + "(dt = '2026-11-11')")), config(Env.DEV), secrets, TestCtx.of());
     assertThat(ddl.preview().impact()).extracting(ActionPreview.Field::label).contains("Athena's plan");
-    athena.on(EXPLAIN + "INSERT", Script.plan(List.of("awsdatacatalog.hr.salaries"), "awsdatacatalog.sales.orders"));
+    athena.on(EXPLAIN + "SELECT", Script.plan(List.of("awsdatacatalog.hr.salaries"), null));
     PreparedAction outside = connector.prepare(call("athena_execute", sql("INSERT INTO sales.orders SELECT * FROM "
         + "hr.salaries")), config(Env.DEV, "sales"), secrets, TestCtx.of());
     assertThat(outside.outcome()).isEqualTo(PreparedAction.Outcome.REJECT);
     assertThat(outside.message()).contains("awsdatacatalog.hr.salaries");
+    // A plan of the read that writes a table is no plan of a read; a target outside the list is refused unasked.
+    athena.on(EXPLAIN + "SELECT", Script.plan(List.of("awsdatacatalog.staging.orders"), "awsdatacatalog.sales.x"));
+    assertThat(connector.prepare(call("athena_execute", sql("INSERT INTO sales.orders SELECT * FROM staging.orders")),
+        config(Env.DEV), secrets, TestCtx.of()).outcome()).isEqualTo(PreparedAction.Outcome.REJECT);
+    int started = athena.started.size();
+    PreparedAction elsewhere = connector.prepare(call("athena_execute", sql("INSERT INTO hr.salaries SELECT 1")),
+        config(Env.DEV, "sales"), secrets, TestCtx.of());
+    assertThat(elsewhere.outcome()).isEqualTo(PreparedAction.Outcome.REJECT);
+    assertThat(athena.started).hasSize(started);
+  }
+
+  @Test
+  void aChangeIsPlannedByAReadOfWhatItReadsNeverByItsWrite() throws Exception {
+    Map<String, String> reads = new LinkedHashMap<>();
+    reads.put("CREATE TABLE sales.daily WITH (format = 'PARQUET') AS SELECT * FROM staging.orders WITH DATA",
+        "SELECT * FROM staging.orders");
+    reads.put("INSERT INTO sales.orders (id) VALUES (1)", "VALUES (1)");
+    reads.put("DELETE FROM sales.orders WHERE id IN (SELECT id FROM staging.orders)",
+        "SELECT 1 FROM sales.orders WHERE id IN (SELECT id FROM staging.orders)");
+    reads.put("UPDATE sales.orders SET paid = true WHERE id = 1", "SELECT true FROM sales.orders WHERE id = 1");
+    reads.put("MERGE INTO sales.orders o USING staging.orders s ON o.id = s.id WHEN NOT MATCHED THEN INSERT (id) "
+        + "VALUES (s.id)", "SELECT s.id FROM sales.orders o FULL JOIN staging.orders s ON o.id = s.id");
+    for (Map.Entry<String, String> e : reads.entrySet()) {
+      // Each change in its own Athena: one approval's request token starts one query.
+      try (FakeAthena fake = new FakeAthena()) {
+        AthenaConnector own = new AthenaConnector(fake.cloud);
+        fake.on(EXPLAIN, Script.plan(List.of("awsdatacatalog.sales.orders", "awsdatacatalog.staging.orders"), null));
+        for (String prefix : List.of("CREATE", "INSERT", "DELETE", "UPDATE", "MERGE")) {
+          fake.on(prefix, orders().statement("DML", prefix).updated(1));
+        }
+        ConnectionConfig cfg = config(Env.DEV, true, "sales", "staging");
+        ToolCall c = call("athena_execute", sql(e.getKey()));
+        assertThat(own.classify(c, cfg, policy(Env.DEV)).kind()).as(e.getKey())
+            .isEqualTo(Classification.Kind.MUTATION);
+        PreparedAction prepared = own.prepare(c, cfg, secrets, TestCtx.of());
+        assertThat(prepared.outcome()).as(e.getKey()).isEqualTo(PreparedAction.Outcome.APPROVAL);
+        assertThat(prepared.preview().impact()).extracting(ActionPreview.Field::value).as(e.getKey())
+            .contains("awsdatacatalog.sales.orders, awsdatacatalog.staging.orders");
+        own.execute(c, cfg, secrets, TestCtx.of().approved(prepared.preview().payload()));
+        // Before the approval and right before the run, Athena plans the read; then the approved statement runs.
+        assertThat(fake.started).extracting(FakeAthena.Query::sql).as(e.getKey()).containsExactly(EXPLAIN
+            + e.getValue(), EXPLAIN + e.getValue(), e.getKey());
+        assertThat(fake.started).extracting(FakeAthena.Query::sql).noneMatch(s -> s.matches("(?s)EXPLAIN \\(TYPE IO, "
+            + "FORMAT JSON\\) (CREATE|INSERT|DELETE|UPDATE|MERGE).*"));
+        own.close();
+      }
+    }
+  }
+
+  @Test
+  void aReadOutsideTheDatabasesStopsTheChangeAlsoRightBeforeItRuns() throws Exception {
+    athena.on(EXPLAIN + "SELECT", Script.plan(List.of("awsdatacatalog.staging.orders"), null))
+        .on("INSERT", orders().statement("DML", "INSERT").updated(4));
+    String text = "INSERT INTO sales.orders SELECT * FROM staging.orders";
+    PreparedAction prepared = connector.prepare(call("athena_execute", sql(text)), config(Env.DEV, "sales", "staging"),
+        secrets, TestCtx.of());
+    assertThat(prepared.outcome()).isEqualTo(PreparedAction.Outcome.APPROVAL);
+    athena.on(EXPLAIN + "SELECT", Script.plan(List.of("awsdatacatalog.staging.orders", "awsdatacatalog.hr.salaries"),
+        null));
+    assertThatThrownBy(() -> connector.execute(call("athena_execute", "{}"), config(Env.DEV, "sales", "staging"),
+        secrets, TestCtx.of().approved(prepared.preview().payload())))
+        .isInstanceOfSatisfying(ConnectorException.class, e -> {
+          assertThat(e.kind()).isEqualTo(ConnectorException.Kind.DENIED);
+          assertThat(e.getMessage()).contains("awsdatacatalog.hr.salaries");
+        });
+    assertThat(athena.started).extracting(FakeAthena.Query::sql).containsExactly(EXPLAIN + "SELECT * FROM "
+        + "staging.orders", EXPLAIN + "SELECT * FROM staging.orders");
+    // Only queries are ever planned: a write is refused before anything is sent.
+    AthenaApi.Call c = new AthenaApi.Call(config(Env.DEV), AthenaSettings.of(config(Env.DEV)), secrets, TestCtx.of());
+    for (String write : List.of(text, "CREATE TABLE sales.t AS SELECT 1", "DELETE FROM sales.orders",
+        "DESCRIBE sales.orders")) {
+      assertThatThrownBy(() -> connector.plan(c, write, null)).as(write)
+          .isInstanceOfSatisfying(ConnectorException.class,
+              e -> assertThat(e.kind()).isEqualTo(ConnectorException.Kind.DENIED));
+    }
+    assertThat(athena.started).hasSize(2);
   }
 
   @Test

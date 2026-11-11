@@ -35,7 +35,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
@@ -54,10 +53,12 @@ import tools.jackson.databind.node.ObjectNode;
  * the route without I/O. Before a query runs, Athena plans it: {@code EXPLAIN (TYPE IO, FORMAT JSON)}, which scans
  * nothing and costs nothing, must name no table it writes and only tables of the connection's databases
  * ({@link IoPlan}). {@code SHOW} and {@code DESCRIBE} run in Athena's Hive engine, which no plan covers: the names they
- * show are checked instead. With an IAM role, AWS enforces the rest: each call assumes the role with a session policy
- * that allows reading and writing query results to the workgroup's results location, and no other change
- * ({@link AthenaSettings#readPolicy}); an approved change gets Glue changes in its own database. The workgroup's
- * per-query data limit is the cost boundary; GateRook stops a query at the call's deadline.
+ * show are checked instead. A change is never planned itself, as Trino begins a write in its catalog while planning
+ * it: a change Athena runs with Trino is planned by a read of what it reads, and writes the table its own name says.
+ * With an IAM role, AWS enforces the rest: each call assumes the role with a session policy that allows reading and
+ * writing query results to the workgroup's results location, and no other change ({@link AthenaSettings#readPolicy});
+ * an approved change gets Glue changes in its own database. The workgroup's per-query data limit is the cost
+ * boundary; GateRook stops a query at the call's deadline.
  */
 public final class AthenaConnector implements Connector {
 
@@ -67,8 +68,6 @@ public final class AthenaConnector implements Connector {
   /** Time kept back from the deadline to stop the query and answer. */
   static final Duration CANCEL_RESERVE = Duration.ofMillis(1_000);
   static final Duration WORKGROUP_TTL = Duration.ofMinutes(10);
-  /** Statements Athena plans with Trino: the IO plan shows what they read and write. */
-  private static final Set<String> PLANNED_CHANGES = Set.of("INSERT", "UPDATE", "DELETE", "MERGE", "CREATE TABLE AS");
   /** Substatement types Athena reports for a statement that changed something: never the answer of a read. */
   private static final Pattern WRITE_SUBSTATEMENT = Pattern.compile("(?i)(INSERT|UPDATE|DELETE|MERGE|UNLOAD|OPTIMIZE"
       + "|VACUUM|CREATE|DROP|ALTER|MSCK|REPAIR).*");
@@ -286,7 +285,9 @@ public final class AthenaConnector implements Connector {
   }
 
   /**
-   * Athena's plan before a person is asked: the tables a change reads and the one it writes. A statement Athena
+   * Athena's plan before a person is asked. A change Athena runs with Trino is never planned itself: Trino would begin
+   * the write in its catalog while planning it. GateRook plans the read of what the change reads ({@link AthenaSql})
+   * and shows the tables it reads and the table the statement's own name says it writes. A statement whose read Athena
    * refuses, a read sent as a change, or one that reaches past the connection's databases is never put to a person.
    */
   @Override
@@ -307,15 +308,17 @@ public final class AthenaConnector implements Connector {
           return PreparedAction.reject(st.read() ? "This is a read. Use athena_query; it doesn't need approval."
               : Objects.requireNonNullElse(st.problem(), "athena_execute runs one analyzed change."));
         }
+        String problem = refs(st, s, ctx.env() == null ? "this environment" : ctx.env().id());
+        if (problem != null) {
+          return PreparedAction.reject(problem);
+        }
         impact.add(new Field("Statement", st.type()));
-        if (PLANNED_CHANGES.contains(st.type())) {
-          IoPlan plan = plan(c, st.sql(), readPolicy(c));
+        if (st.planned() != null) {
+          IoPlan plan = plan(c, st.planned(), readPolicy(c));
           checkChange(plan, s);
-          impact.add(new Field("Writes", plan.output() == null ? "No table, by Athena's plan"
-              : plan.output().text()));
-          if (!plan.inputs().isEmpty()) {
-            impact.add(new Field("Reads", shorten(String.join(", ", plan.inputNames()), 2_000)));
-          }
+          impact.add(new Field("Writes", written(st.target(), s)));
+          impact.add(new Field("Reads", plan.inputs().isEmpty() ? "No table, by Athena's plan"
+              : shorten(String.join(", ", plan.inputNames()), 2_000)));
         } else {
           impact.add(new Field("Athena's plan", "None: Athena checks " + st.type() + " when it runs it"));
         }
@@ -570,9 +573,17 @@ public final class AthenaConnector implements Connector {
     return true;
   }
 
-  /** {@code EXPLAIN (TYPE IO, FORMAT JSON) <statement>}: what Athena says the statement reads and writes. */
-  IoPlan plan(Call c, String statement, String policy) throws ConnectorException {
-    String id = start(c, "EXPLAIN (TYPE IO, FORMAT JSON) " + statement, policy, UUID.randomUUID().toString(), false);
+  /**
+   * {@code EXPLAIN (TYPE IO, FORMAT JSON) <read>}: what Athena says a read reads. Only a query GateRook reads as a read
+   * that Athena plans with Trino is sent, a change's read of what it reads included; never a write, which Trino plans
+   * through its catalog's write hooks.
+   */
+  IoPlan plan(Call c, String read, String policy) throws ConnectorException {
+    AthenaSql.Statement st = AthenaSql.read(read);
+    if (!st.read() || st.hive()) {
+      throw ConnectorException.denied("GateRook asks Athena to plan queries only.");
+    }
+    String id = start(c, "EXPLAIN (TYPE IO, FORMAT JSON) " + read, policy, UUID.randomUUID().toString(), false);
     await(c, id, policy, false);
     StringBuilder text = new StringBuilder();
     String token = null;
@@ -615,13 +626,25 @@ public final class AthenaConnector implements Connector {
     checkInputs(plan, s);
   }
 
-  /** A change: what Athena's plan writes and reads is in databases of the connection. */
+  /**
+   * A change, by Athena's plan of the read of what it reads: a plan of a query that writes no table, whose tables are
+   * all in databases of the connection. The table the change writes is its own target, which {@link #refs} checks.
+   */
   static void checkChange(IoPlan plan, AthenaSettings s) throws ConnectorException {
-    if (plan.planned() && plan.output() != null && !s.allows(plan.output().catalog(), plan.output().schema())) {
-      throw ConnectorException.denied("The statement writes " + plan.output().text() + ", which isn't in a database "
-          + "of this connection.");
+    if (!plan.planned() || plan.output() != null) {
+      throw ConnectorException.denied("Athena's plan of what the change reads isn't the plan of a read, and GateRook "
+          + "doesn't run what it can't check.");
     }
     checkInputs(plan, s);
+  }
+
+  /** The table a change writes, as its own name says, with the connection's catalog and default database. */
+  static String written(Ref target, AthenaSettings s) {
+    String database = s.databaseOf(target);
+    if (database == null) {
+      return target.name().text();
+    }
+    return s.catalogOf(target) + "." + database + "." + target.name().parts().getLast().toLowerCase(Locale.ROOT);
   }
 
   private static void checkInputs(IoPlan plan, AthenaSettings s) throws ConnectorException {
@@ -1002,8 +1025,9 @@ public final class AthenaConnector implements Connector {
       throw ConnectorException.denied(problem);
     }
     String database = s.databaseOf(st.target());
-    if (PLANNED_CHANGES.contains(st.type())) {
-      checkChange(plan(c, st.sql(), readPolicy(c)), s);
+    // Checked again right before it runs: the read of what it reads, never the write itself.
+    if (st.planned() != null) {
+      checkChange(plan(c, st.planned(), readPolicy(c)), s);
     }
     String policy = writePolicy(c, database);
     // Athena runs one request token once: the same approval can't start its statement twice.

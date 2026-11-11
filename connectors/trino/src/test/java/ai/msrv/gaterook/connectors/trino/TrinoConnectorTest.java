@@ -23,6 +23,7 @@ import ai.msrv.gaterook.connector.api.ToolResult;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -370,7 +371,7 @@ class TrinoConnectorTest {
 
   @Test
   void aChangeRunsOnlyApprovedAndWhatRunsIsTheApprovedText() throws Exception {
-    trino.on("EXPLAIN (TYPE IO, FORMAT JSON) INSERT", plan(List.of("tpch.tiny.nation"), "memory.default.t"))
+    trino.on("EXPLAIN (TYPE IO, FORMAT JSON) SELECT", plan(List.of("tpch.tiny.nation"), null))
         .on("INSERT", update("INSERT", 25L));
     String text = "INSERT INTO memory.default.t SELECT * FROM tpch.tiny.nation";
     ToolCall c = call("trino_execute", sql(text + ";"));
@@ -386,7 +387,9 @@ class TrinoConnectorTest {
     ToolResult r = connector.execute(c, config(Env.DEV), secrets, approved);
     assertThat(r.structuredContent().path("rowsAffected").asInt()).isEqualTo(25);
     assertThat(r.content().getFirst().text()).isEqualTo("25 rows written by INSERT on memory.default.t.");
-    assertThat(trino.statements).containsExactly("EXPLAIN (TYPE IO, FORMAT JSON) " + text, text);
+    // Right before it runs, Trino plans the query it inserts again; the INSERT itself is never planned.
+    assertThat(trino.statements).containsExactly("EXPLAIN (TYPE IO, FORMAT JSON) SELECT * FROM tpch.tiny.nation",
+        text);
     assertThat(trino.to("POST /v1/statement").getLast().getHeaders().get("X-Trino-Client-Tags"))
         .isEqualTo("gaterook,change");
 
@@ -399,7 +402,8 @@ class TrinoConnectorTest {
   @Test
   void aLostOrUnfinishedChangeIsAnUnknownOutcome() {
     String text = "DELETE FROM memory.default.t WHERE id = 1";
-    trino.on("EXPLAIN (TYPE IO, FORMAT JSON) DELETE", plan(List.of("memory.default.t"), "memory.default.t"))
+    trino.on("EXPLAIN (TYPE IO, FORMAT JSON) SELECT 1 FROM memory.default.t WHERE id = 1",
+            plan(List.of("memory.default.t"), null))
         .on("DELETE", r -> new FakeTrino.Script(List.of(update(null, null)), true));
     TestCtx approved = TestCtx.of().timeout(Duration.ofMillis(2_500)).approved(JsonNodeFactory.instance.objectNode()
         .put("sql", text));
@@ -419,7 +423,7 @@ class TrinoConnectorTest {
 
   @Test
   void theApprovalShowsTrinosPlanAndNeverAsksForWhatCantRun() throws Exception {
-    trino.on("EXPLAIN (TYPE IO, FORMAT JSON) INSERT", plan(List.of("tpch.tiny.nation"), "memory.default.t"));
+    trino.on("EXPLAIN (TYPE IO, FORMAT JSON) SELECT", plan(List.of("tpch.tiny.nation"), null));
     PreparedAction prepared = connector.prepare(call("trino_execute", sql("INSERT INTO memory.default.t SELECT * "
         + "FROM tpch.tiny.nation")), config(Env.DEV, "tpch", "memory"), secrets, TestCtx.of());
     assertThat(prepared.outcome()).isEqualTo(PreparedAction.Outcome.APPROVAL);
@@ -427,25 +431,128 @@ class TrinoConnectorTest {
         "Reads");
     assertThat(prepared.preview().impact().get(1).value()).isEqualTo("memory.default.t");
     assertThat(prepared.preview().impact().get(2).value()).isEqualTo("tpch.tiny.nation");
+    // The table written is the statement's own, in the connection's default catalog and schema.
+    PreparedAction unqualified = connector.prepare(call("trino_execute", sql("INSERT INTO \"Nation_Copy\" SELECT * "
+        + "FROM nation")), config(Env.DEV), secrets, TestCtx.of());
+    assertThat(unqualified.preview().impact().get(1).value()).isEqualTo("tpch.tiny.nation_copy");
+    // A query that reads no table says so.
+    trino.on("EXPLAIN (TYPE IO, FORMAT JSON) VALUES", plan(List.of(), null));
+    PreparedAction values = connector.prepare(call("trino_execute", sql("INSERT INTO memory.default.t VALUES (1)")),
+        config(Env.DEV), secrets, TestCtx.of());
+    assertThat(values.preview().impact().get(2).value()).isEqualTo("No table, by Trino's plan");
 
     // A data definition statement isn't planned: the approval says Trino checks it when it runs it.
     trino.on("EXPLAIN (TYPE IO, FORMAT JSON) DROP", text("DROP TABLE memory.default.t"));
     PreparedAction drop = connector.prepare(call("trino_execute", sql("DROP TABLE memory.default.t")),
         config(Env.DEV), secrets, TestCtx.of());
     assertThat(drop.preview().impact()).extracting(ActionPreview.Field::label).contains("Trino's plan");
+    // One that Trino plans after all, as a write, isn't put to a person.
+    trino.on("EXPLAIN (TYPE IO, FORMAT JSON) DROP", plan(List.of(), "memory.default.t"));
+    PreparedAction planned = connector.prepare(call("trino_execute", sql("DROP TABLE memory.default.t")),
+        config(Env.DEV), secrets, TestCtx.of());
+    assertThat(planned.outcome()).isEqualTo(PreparedAction.Outcome.REJECT);
+    assertThat(planned.message()).contains("as a write");
 
-    // What Trino refuses, and what reads another catalog, never reaches a person.
-    trino.on("EXPLAIN (TYPE IO, FORMAT JSON) DELETE", error("NOT_SUPPORTED", "USER_ERROR", "This connector does not "
-        + "support modifying table rows"));
+    // What Trino refuses of the read, and what reads another catalog, never reaches a person.
+    trino.on("EXPLAIN (TYPE IO, FORMAT JSON) SELECT 1 FROM memory.default.t", error("TABLE_NOT_FOUND", "USER_ERROR",
+        "line 1:15: Table 'memory.default.t' does not exist"));
     PreparedAction refused = connector.prepare(call("trino_execute", sql("DELETE FROM memory.default.t")),
         config(Env.DEV), secrets, TestCtx.of());
     assertThat(refused.outcome()).isEqualTo(PreparedAction.Outcome.REJECT);
-    assertThat(refused.message()).contains("does not support modifying");
-    trino.on("EXPLAIN (TYPE IO, FORMAT JSON) INSERT", plan(List.of("hive.hr.salaries"), "memory.default.t"));
+    assertThat(refused.message()).contains("does not exist");
+    trino.on("EXPLAIN (TYPE IO, FORMAT JSON) SELECT", plan(List.of("hive.hr.salaries"), null));
     PreparedAction outside = connector.prepare(call("trino_execute", sql("INSERT INTO memory.default.t SELECT * "
-        + "FROM hive.hr.salaries")), config(Env.DEV, "tpch", "memory"), secrets, TestCtx.of());
+        + "FROM hr.salaries")), config(Env.DEV, "tpch", "memory"), secrets, TestCtx.of());
     assertThat(outside.outcome()).isEqualTo(PreparedAction.Outcome.REJECT);
     assertThat(outside.message()).contains("hive.hr.salaries");
+    // A plan of the read that writes a table is no plan of a read.
+    trino.on("EXPLAIN (TYPE IO, FORMAT JSON) SELECT", plan(List.of("tpch.tiny.nation"), "memory.default.t"));
+    PreparedAction writing = connector.prepare(call("trino_execute", sql("INSERT INTO memory.default.t SELECT * "
+        + "FROM tpch.tiny.nation")), config(Env.DEV), secrets, TestCtx.of());
+    assertThat(writing.outcome()).isEqualTo(PreparedAction.Outcome.REJECT);
+    // A target outside the connection's catalogs is refused before Trino is asked anything.
+    trino.statements.clear();
+    PreparedAction elsewhere = connector.prepare(call("trino_execute", sql("INSERT INTO hive.s.t SELECT 1")),
+        config(Env.DEV, "tpch", "memory"), secrets, TestCtx.of());
+    assertThat(elsewhere.outcome()).isEqualTo(PreparedAction.Outcome.REJECT);
+    assertThat(elsewhere.message()).contains("hive");
+    assertThat(trino.statements).isEmpty();
+  }
+
+  @Test
+  void aChangeIsPlannedByAReadOfWhatItReadsNeverByItsWrite() throws Exception {
+    trino.on("EXPLAIN (TYPE IO, FORMAT JSON) ", plan(List.of("memory.default.t", "tpch.tiny.nation"), null));
+    for (String prefix : List.of("CREATE", "INSERT", "DELETE", "UPDATE", "MERGE", "ANALYZE", "REFRESH", "ALTER")) {
+      trino.on(prefix, update(prefix, 1L));
+    }
+    Map<String, String> reads = new LinkedHashMap<>();
+    reads.put("CREATE TABLE memory.default.t2 AS SELECT * FROM tpch.tiny.nation WITH DATA",
+        "SELECT * FROM tpch.tiny.nation");
+    reads.put("CREATE TABLE memory.default.t3 AS (SELECT nationkey FROM tpch.tiny.nation) WITH NO DATA",
+        "SELECT nationkey FROM tpch.tiny.nation");
+    reads.put("INSERT INTO memory.default.t (id) VALUES (1)", "VALUES (1)");
+    reads.put("INSERT INTO memory.default.t SELECT nationkey FROM tpch.tiny.nation",
+        "SELECT nationkey FROM tpch.tiny.nation");
+    reads.put("DELETE FROM memory.default.t WHERE id = 1", "SELECT 1 FROM memory.default.t WHERE id = 1");
+    reads.put("UPDATE memory.default.t SET name = 'x' WHERE id = 1", "SELECT 'x' FROM memory.default.t WHERE id = 1");
+    reads.put("MERGE INTO memory.default.t t USING tpch.tiny.nation n ON t.id = n.nationkey WHEN NOT MATCHED THEN "
+        + "INSERT (id) VALUES (n.nationkey)", "SELECT n.nationkey FROM memory.default.t t FULL JOIN tpch.tiny.nation n "
+        + "ON t.id = n.nationkey");
+    reads.put("ANALYZE memory.default.t", "SELECT 1 FROM memory.default.t");
+    reads.put("REFRESH MATERIALIZED VIEW memory.default.mv", "SELECT 1 FROM memory.default.mv");
+    reads.put("ALTER TABLE memory.default.t EXECUTE optimize", "SELECT 1 FROM memory.default.t");
+    reads.put("ALTER MATERIALIZED VIEW memory.default.mv EXECUTE optimize", "SELECT 1 FROM memory.default.mv");
+    for (Map.Entry<String, String> e : reads.entrySet()) {
+      trino.statements.clear();
+      ToolCall c = call("trino_execute", sql(e.getKey()));
+      assertThat(connector.classify(c, config(Env.DEV, "tpch", "memory"), policy(Env.DEV)).kind()).as(e.getKey())
+          .isEqualTo(Classification.Kind.MUTATION);
+      PreparedAction prepared = connector.prepare(c, config(Env.DEV, "tpch", "memory"), secrets, TestCtx.of());
+      assertThat(prepared.outcome()).as(e.getKey()).isEqualTo(PreparedAction.Outcome.APPROVAL);
+      assertThat(prepared.preview().impact()).extracting(ActionPreview.Field::value).as(e.getKey())
+          .contains("memory.default.t, tpch.tiny.nation");
+      connector.execute(c, config(Env.DEV, "tpch", "memory"), secrets,
+          TestCtx.of().approved(prepared.preview().payload()));
+      // Before the approval and right before the run, Trino plans the read; then the approved statement runs.
+      assertThat(trino.statements).as(e.getKey()).containsExactly("EXPLAIN (TYPE IO, FORMAT JSON) " + e.getValue(),
+          "EXPLAIN (TYPE IO, FORMAT JSON) " + e.getValue(), e.getKey());
+    }
+    assertThat(trino.to("POST /v1/statement")).extracting(r -> r.getBody().utf8())
+        .noneMatch(s -> s.matches("(?s)EXPLAIN \\(TYPE IO, FORMAT JSON\\) \\(*\\s*(CREATE TABLE \\S+ AS|INSERT|DELETE"
+            + "|UPDATE|MERGE|ANALYZE|REFRESH|ALTER \\S+( VIEW)? \\S+ EXECUTE).*"));
+  }
+
+  @Test
+  void aReadOutsideTheCatalogsStopsTheChangeAlsoRightBeforeItRuns() throws Exception {
+    trino.on("EXPLAIN (TYPE IO, FORMAT JSON) SELECT", plan(List.of("tpch.tiny.nation"), null))
+        .on("INSERT", update("INSERT", 25L));
+    String text = "INSERT INTO memory.default.t SELECT * FROM tpch.tiny.nation";
+    PreparedAction prepared = connector.prepare(call("trino_execute", sql(text)), config(Env.DEV, "tpch", "memory"),
+        secrets, TestCtx.of());
+    assertThat(prepared.outcome()).isEqualTo(PreparedAction.Outcome.APPROVAL);
+    // By the time it runs, what the query reads is outside the connection's catalogs: nothing runs.
+    trino.on("EXPLAIN (TYPE IO, FORMAT JSON) SELECT", plan(List.of("tpch.tiny.nation", "hive.hr.salaries"), null));
+    trino.statements.clear();
+    assertThatThrownBy(() -> connector.execute(call("trino_execute", "{}"), config(Env.DEV, "tpch", "memory"), secrets,
+        TestCtx.of().approved(prepared.preview().payload())))
+        .isInstanceOfSatisfying(ConnectorException.class, e -> {
+          assertThat(e.kind()).isEqualTo(ConnectorException.Kind.DENIED);
+          assertThat(e.getMessage()).contains("hive.hr.salaries");
+        });
+    assertThat(trino.statements).containsExactly("EXPLAIN (TYPE IO, FORMAT JSON) SELECT * FROM tpch.tiny.nation");
+  }
+
+  @Test
+  void onlyReadsAndDataDefinitionStatementsAreEverExplained() throws Exception {
+    TrinoHttp.Call c = new TrinoHttp.Call(config(Env.DEV), TrinoSettings.of(config(Env.DEV)), secrets, TestCtx.of());
+    for (String write : List.of("INSERT INTO memory.default.t SELECT 1", "CREATE TABLE memory.default.t AS SELECT 1",
+        "DELETE FROM memory.default.t", "MERGE INTO t USING u ON t.id = u.id WHEN MATCHED THEN DELETE")) {
+      assertThatThrownBy(() -> connector.plan(c, write)).as(write).isInstanceOfSatisfying(ConnectorException.class,
+          e -> assertThat(e.kind()).isEqualTo(ConnectorException.Kind.DENIED));
+      assertThatThrownBy(() -> connector.definition(c, TrinoSql.read(write))).as(write)
+          .isInstanceOf(ConnectorException.class);
+    }
+    assertThat(trino.statements).isEmpty();
   }
 
   @Test
