@@ -380,6 +380,7 @@ export function checkPrompt(type: string | null, name: string | null): string {
     case 'logs':
     case 'gcp-logging':
     case 'cloudwatch':
+    case 'azure-monitor':
     case 'loki':
     case 'ssh-logs':
       return `Show me the latest errors in ${name}`;

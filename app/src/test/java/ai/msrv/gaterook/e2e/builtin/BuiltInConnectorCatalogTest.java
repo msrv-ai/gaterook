@@ -41,8 +41,8 @@ class BuiltInConnectorCatalogTest {
   /** Current built-in tool counts used by the runtime connector catalog. */
   private static final Map<String, Integer> TOOLS_PER_CONNECTOR = orderedMap(
       "PostgreSQL", 4, "MySQL", 4, "Oracle Database", 4, "SQL Server", 4, "SQLite", 4, "MongoDB", 4, "Redis", 8, "Amazon DynamoDB", 6, "Google BigQuery", 5, "Snowflake", 4, "Cloud Firestore", 4, "Firebase Realtime Database", 2, "SSH", 2, "Logs", 5, "SSH log files", 3,
-      "Kubernetes", 4, "GCP", 4, "AWS", 2, "HTTP API", 2, "GCP Cloud Logging", 2, "AWS CloudWatch", 2,
-      "Loki", 2, "OpenSearch", 3, "Elasticsearch", 3);
+      "Kubernetes", 4, "GCP", 4, "AWS", 2, "Azure", 5, "HTTP API", 2, "GCP Cloud Logging", 2, "AWS CloudWatch", 2,
+      "Azure Monitor Logs", 2, "Loki", 2, "OpenSearch", 3, "Elasticsearch", 3);
 
   /** Current default modes for the connection types in the demo world's {@code dev} endpoint. */
   private static final Map<String, Map<String, Mode>> DEV_ENDPOINT = Map.of(
@@ -63,13 +63,14 @@ class BuiltInConnectorCatalogTest {
   /** Names a tool of each built-in family must start with; reserved for them against plugins and MCP servers. */
   private static final Map<String, String> TOOL_PREFIX = orderedMap("postgres", "sql_", "mysql", "sql_", "oracle", "sql_", "sqlserver", "sql_", "sqlite", "sql_",
       "mongodb", "mongo_", "redis", "redis_", "dynamodb", "dynamodb_", "bigquery", "bigquery_", "snowflake", "snowflake_", "firestore", "firestore_", "firebase-rtdb", "rtdb_", "ssh", "ssh_", "ssh-logs", "ssh_logs_", "logs", "logs_",
-      "kubernetes", "k8s_", "gcp", "gcp_", "aws", "aws_", "http", "http_",
-      "gcp-logging", "gcp_logging_", "cloudwatch", "cloudwatch_logs_", "loki", "loki_", "opensearch", "opensearch_",
+      "kubernetes", "k8s_", "gcp", "gcp_", "aws", "aws_", "azure", "azure_", "http", "http_",
+      "gcp-logging", "gcp_logging_", "cloudwatch", "cloudwatch_logs_", "azure-monitor", "azure_logs_", "loki", "loki_",
+      "opensearch", "opensearch_",
       "elasticsearch", "elasticsearch_");
 
   /** Property names that hold credentials: a connection form must never show them back (ARCHITECTURE.md §9). */
   private static final Set<String> SECRET_PROPERTIES = Set.of("password", "passphrase", "privateKey", "token",
-      "secret", "apiKey", "secretAccessKey", "serviceAccountKey", "kubeconfig", "secretRef");
+      "secret", "apiKey", "secretAccessKey", "serviceAccountKey", "kubeconfig", "secretRef", "clientSecret");
 
   private static List<Connector> connectors;
   private static Map<String, ConnectorManifest> byId;
@@ -100,7 +101,8 @@ class BuiltInConnectorCatalogTest {
   @Test
   void everyConnectorModuleRegistersItsConnectorTypes() {
     assertThat(byId.keySet()).containsExactlyInAnyOrder("postgres", "mysql", "oracle", "sqlserver", "sqlite", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "firestore", "firebase-rtdb", "ssh", "logs", "ssh-logs",
-        "kubernetes", "gcp", "aws", "http", "mcp-server", "gcp-logging", "cloudwatch", "loki", "opensearch", "elasticsearch");
+        "kubernetes", "gcp", "aws", "azure", "http", "mcp-server", "gcp-logging", "cloudwatch", "azure-monitor", "loki",
+        "opensearch", "elasticsearch");
     assertThat(connectors).hasSize(byId.size());
   }
 
@@ -182,7 +184,7 @@ class BuiltInConnectorCatalogTest {
     for (ConnectorManifest m : byId.values()) {
       for (ToolDefinition t : m.tools()) {
         String prefix = m.id().equals("logs") && t.name().startsWith("opensearch_")
-            ? "opensearch_" : m.id().equals("gcp") && t.name().startsWith("logs_")
+            ? "opensearch_" : (m.id().equals("gcp") || m.id().equals("azure")) && t.name().startsWith("logs_")
             ? "logs_" : TOOL_PREFIX.get(m.id());
         assertThat(t.name()).as(m.id()).matches("^[a-z][a-z0-9_]{0,63}$").startsWith(prefix);
         ToolDefinition earlier = seen.putIfAbsent(t.name(), t);
@@ -193,7 +195,7 @@ class BuiltInConnectorCatalogTest {
         }
       }
     }
-    assertThat(seen).hasSize(66);
+    assertThat(seen).hasSize(71);
   }
 
   @Test

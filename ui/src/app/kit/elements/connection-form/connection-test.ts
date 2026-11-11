@@ -44,6 +44,8 @@ const CONFIRM_TITLES: Record<string, (host: string | null) => string> = {
   'host-key': (h) => (h ? `Check the host key of ${h}` : 'Check the host key'),
   'tls-cert': (h) => (h ? `Check the certificate of ${h}` : 'Check the certificate'),
   'exec-plugin': () => 'Run the credential command from the kubeconfig?',
+  'azure-cli': () => 'Run the Azure CLI to get tokens?',
+  'azure-sign-in': () => 'Sign in to Azure in your browser',
 };
 
 /** "INSERT, UPDATE, DELETE on public.*": SQL keywords and `schema.*` patterns are literals the kit sets in mono. */
@@ -111,6 +113,8 @@ export function testFacts(data: JsonValue | null | undefined): { readonly key: s
   add('issuer', 'Issuer');
   add('sha256', 'SHA-256');
   add('command', 'Command');
+  add('userCode', 'Code');
+  add('verificationUri', 'Sign-in page');
   return out;
 }
 
@@ -439,7 +443,10 @@ export class GwConnectionTest {
       case 'tls-cert':
         return 'Trust this certificate and test again';
       case 'exec-plugin':
+      case 'azure-cli':
         return 'Allow the command and test again';
+      case 'azure-sign-in':
+        return 'I signed in, test again';
       default:
         return 'Trust and test again';
     }

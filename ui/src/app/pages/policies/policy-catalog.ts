@@ -188,14 +188,14 @@ export const CONNECTOR_SECTIONS: Readonly<Record<string, SectionSpec>> = {
   sql: { types: ['postgres', 'mysql', 'oracle', 'sqlserver', 'sqlite'], icon: 'database', noun: 'SQL' },
   ssh: { types: ['ssh', 'ssh-logs'], icon: 'terminal', noun: 'SSH' },
   k8s: { types: ['kubernetes'], icon: 'ship-wheel', noun: 'Kubernetes' },
-  cloud: { types: ['aws', 'gcp'], icon: 'cloud', noun: 'cloud' },
+  cloud: { types: ['aws', 'gcp', 'azure'], icon: 'cloud', noun: 'cloud' },
   http: { types: ['http'], icon: 'globe', noun: 'HTTP' },
-  logs: { types: ['gcp-logging', 'cloudwatch', 'loki', 'logs', 'ssh-logs', 'gcp'], icon: 'scroll-text', noun: 'logs' },
+  logs: { types: ['gcp-logging', 'cloudwatch', 'azure-monitor', 'loki', 'logs', 'ssh-logs', 'gcp'], icon: 'scroll-text', noun: 'logs' },
 };
 export const CORE_SECTIONS: readonly string[] = ['masking', 'limits', 'approvals'];
 
 /** The connector type order of the catalog (Databases, Remote access, Logs, Kubernetes, Cloud, HTTP and MCP). */
-const TYPE_ORDER = ['postgres', 'mysql', 'oracle', 'sqlserver', 'sqlite', 'mongodb', 'redis', 'dynamodb', 'bigquery', 'snowflake', 'firestore', 'firebase-rtdb', 'opensearch', 'elasticsearch', 'ssh', 'ssh-logs', 'gcp-logging', 'cloudwatch', 'loki', 'logs', 'kubernetes', 'gcp', 'aws', 'http', 'mcp-server'];
+const TYPE_ORDER = ['postgres', 'mysql', 'oracle', 'sqlserver', 'sqlite', 'mongodb', 'redis', 'dynamodb', 'bigquery', 'snowflake', 'firestore', 'firebase-rtdb', 'opensearch', 'elasticsearch', 'ssh', 'ssh-logs', 'gcp-logging', 'cloudwatch', 'azure-monitor', 'loki', 'logs', 'kubernetes', 'gcp', 'aws', 'azure', 'http', 'mcp-server'];
 
 export function typeRank(type: string): number {
   const i = TYPE_ORDER.indexOf(type);

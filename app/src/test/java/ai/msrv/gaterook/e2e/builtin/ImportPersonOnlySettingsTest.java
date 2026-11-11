@@ -119,6 +119,10 @@ class ImportPersonOnlySettingsTest {
       new Refused("http", "{\"baseUrls\":[\"https://api.example.test\"],\"tls\":{\"caCertificates\":"
           + "\"-----BEGIN CERTIFICATE----- MIIB -----END CERTIFICATE-----\"}}", "/tls/caCertificates"),
       new Refused("aws", "{\"regions\":[\"eu-central-1\"],\"accountId\":\"123456789012\"}", "/accountId"),
+      new Refused("azure", "{\"subscriptions\":[\"0b1f6471-1bf0-4dda-aec3-111122223333\"],\"credentials\":"
+          + "{\"source\":\"cli\"},\"trustedCli\":\"" + FINGERPRINT + "\"}", "/trustedCli"),
+      new Refused("azure-monitor", "{\"workspaces\":[\"5b2f8c1e-0a3d-4e6f-9b7a-1c2d3e4f5a6b\"],\"credentials\":"
+          + "{\"source\":\"cli\"},\"trustedCli\":\"" + FINGERPRINT + "\"}", "/trustedCli"),
       new Refused("sqlite", "{\"connection\":{\"file\":\"~/projects/shop/db/development.sqlite3\"}}",
           "/connection/file"));
 
@@ -147,6 +151,8 @@ class ImportPersonOnlySettingsTest {
             + "\"jump\":{\"host\":\"bastion.example.test\"},\"credentials\":{\"method\":\"vaultSshCa\"}}",
         "ssh-logs", "{\"connection\":{\"host\":\"logs.example.test\",\"username\":\"reader\"}}",
         "aws", "{\"regions\":[\"eu-central-1\"],\"credentials\":{\"source\":\"accessKey\"}}",
+        "azure", "{\"subscriptions\":[\"0b1f6471-1bf0-4dda-aec3-111122223333\"],\"credentials\":"
+            + "{\"source\":\"cli\"}}",
         "http", "{\"baseUrls\":[\"https://api.example.test\"],\"tls\":{\"minVersion\":\"TLSv1.3\"}}").entrySet()) {
       var session = service.start("/repositories/example", "dev");
       ObjectNode manifest = manifest(ordinary.getKey(), ordinary.getValue());
@@ -158,11 +164,11 @@ class ImportPersonOnlySettingsTest {
   @Test
   void theSchemaAnAgentReadsOffersNoneOfThem() {
     var session = service.start("/repositories/example", "dev");
-    for (String type : List.of("kubernetes", "ssh", "ssh-logs", "http", "aws")) {
+    for (String type : List.of("kubernetes", "ssh", "ssh-logs", "http", "aws", "azure", "azure-monitor")) {
       ObjectNode result = service.schema(session.id(), session.submissionToken(), "ep-source", type);
       String schema = result.path("configSchema").toString();
       assertThat(schema).as(type).doesNotContain(PersonOnly.KEYWORD, "trustedExec", "pinnedCluster", "allowExecPlugin",
-          "\"pinned\"", "knownHosts", "caCertificates", "\"pins\"", "accountId");
+          "\"pinned\"", "knownHosts", "caCertificates", "\"pins\"", "accountId", "trustedCli");
       assertThat(result.path("personOnlyFields")).as(type).isNotEmpty();
     }
     assertThat(service.schema(session.id(), session.submissionToken(), "ep-source", "kubernetes")
@@ -189,7 +195,8 @@ class ImportPersonOnlySettingsTest {
     }
     // The scan finds the settings (a rewritten description would otherwise make this test pass for nothing).
     assertThat(found).contains("kubernetes /pinnedCluster", "kubernetes /trustedExec", "kubernetes /allowExecPlugin",
-        "ssh /hostKeys/pinned", "ssh-logs /hostKeys/pinned", "http /tls/caCertificates", "aws /accountId");
+        "ssh /hostKeys/pinned", "ssh-logs /hostKeys/pinned", "http /tls/caCertificates", "aws /accountId",
+        "azure /trustedCli", "azure-monitor /trustedCli");
   }
 
   @Test
@@ -199,7 +206,8 @@ class ImportPersonOnlySettingsTest {
       List<String> templates = ConnectionForms.personOnlyFields(m.configSchema());
       if (!templates.isEmpty()) marked.put(m.id(), templates);
     });
-    assertThat(marked).containsOnlyKeys("kubernetes", "ssh", "ssh-logs", "http", "aws", "sqlite");
+    assertThat(marked).containsOnlyKeys("kubernetes", "ssh", "ssh-logs", "http", "aws", "azure", "azure-monitor", "logs",
+        "sqlite");
     assertThat(marked.get("sqlite")).containsExactly("/connection/file");
     assertThat(marked.get("ssh")).containsExactly("/hostKeys/knownHosts", "/hostKeys/pinned",
         "/jump/hostKeys/knownHosts", "/jump/hostKeys/pinned");

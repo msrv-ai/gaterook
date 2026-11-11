@@ -101,7 +101,7 @@ class SharePersonOnlySettingsTest {
     // The walk found the settings (schemas without marks would otherwise make this test pass for nothing).
     assertThat(checked).contains("kubernetes /allowExecPlugin", "kubernetes /pinnedCluster", "kubernetes /trustedExec",
         "ssh /hostKeys/pinned", "ssh /jump/hostKeys/knownHosts", "ssh-logs /hostKeys/knownHosts", "http /tls/pins",
-        "http /tls/caCertificates", "aws /accountId");
+        "http /tls/caCertificates", "aws /accountId", "azure /trustedCli", "azure-monitor /trustedCli");
   }
 
   @Test
@@ -149,7 +149,7 @@ class SharePersonOnlySettingsTest {
     }
     assertThat(checked).contains("kubernetes /allowExecPlugin", "kubernetes /pinnedCluster", "kubernetes /trustedExec",
         "ssh /hostKeys/pinned", "ssh /jump/hostKeys/pinned", "ssh-logs /hostKeys/pinned", "http /tls/pins",
-        "aws /accountId");
+        "aws /accountId", "azure /trustedCli");
   }
 
   /** A share entry of a built-in connector whose config is {@code config}, as an older GateRook wrote one. */
