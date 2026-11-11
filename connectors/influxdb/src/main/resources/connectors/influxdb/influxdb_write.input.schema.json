@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "database",
+    "lines"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "database": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "The database the points go to (a bucket on InfluxDB 2.x)."
+    },
+    "lines": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1048576,
+      "description": "Line protocol, one point per line: measurement,tag=value field=value timestamp. A person approves the exact points."
+    },
+    "precision": {
+      "enum": [
+        "ns",
+        "us",
+        "ms",
+        "s"
+      ],
+      "default": "ns",
+      "description": "The unit of the timestamps: nanoseconds, microseconds, milliseconds or seconds."
+    },
+    "retentionPolicy": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "InfluxDB 1.x only: the retention policy the points go to. Empty: the database's default."
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Why you need this change. Shown to the approver as unverified."
+    }
+  }
+}

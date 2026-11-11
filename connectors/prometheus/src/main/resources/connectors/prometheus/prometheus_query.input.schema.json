@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "query"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "query": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8192,
+      "description": "One PromQL expression, such as up or sum by (job) (rate(http_requests_total[5m]))."
+    },
+    "time": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "When to evaluate it: ISO 8601 with an offset (2026-11-11T09:00:00Z) or relative to now (-1h, now-30m, now). Default: now."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000,
+      "description": "Most series to return; the connection and the endpoint cap it."
+    }
+  }
+}

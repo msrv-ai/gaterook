@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "active",
+        "dropped",
+        "any"
+      ],
+      "default": "active",
+      "description": "active: targets being scraped, with their health and last error. dropped: discovered targets that relabeling dropped, with their discovered labels."
+    },
+    "scrapePool": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Only targets of this scrape pool (usually the job name)."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000,
+      "description": "Most targets to return; the endpoint caps it."
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "area": "cassandra",
+  "module": "connectors/cassandra",
+  "connectorTypes": ["cassandra"],
+  "description": "Touches of the Cassandra connector for the native smoke (report 15 §6): the CQL reader and the schemas in the image, without I/O.",
+  "touches": [
+    {
+      "name": "cassandra-classify-without-io",
+      "connection": {"type": "cassandra", "env": "dev",
+        "config": {"contactPoints": ["cassandra.example.com:9042"], "localDataCenter": "dc1", "keyspace": "shop"}},
+      "call": {"tool": "cassandra_query", "arguments": {"statement": "DELETE FROM shop.orders WHERE id = 1"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.cassandra.query-writes"}
+    },
+    {
+      "name": "cassandra-refuses-batches",
+      "connection": {"type": "cassandra", "env": "dev",
+        "config": {"contactPoints": ["cassandra.example.com:9042"], "localDataCenter": "dc1"}},
+      "call": {"tool": "cassandra_execute", "arguments": {"statement": "BEGIN BATCH INSERT INTO shop.orders (id) VALUES (1); APPLY BATCH"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.cassandra."}
+    }
+  ]
+}

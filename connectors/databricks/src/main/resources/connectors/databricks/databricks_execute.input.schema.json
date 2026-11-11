@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "sql"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "sql": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100000,
+      "description": "One INSERT, UPDATE, DELETE, MERGE, TRUNCATE, CREATE, ALTER, DROP, COMMENT, OPTIMIZE, VACUUM, ANALYZE, REFRESH or RESTORE statement. A person approves the exact text."
+    },
+    "parameters": {
+      "type": "array",
+      "maxItems": 50,
+      "description": "Values of the statement's :name parameter markers. type defaults to STRING; null is NULL.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "value"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$"
+          },
+          "value": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "pattern": "^(STRING|BOOLEAN|TINYINT|BYTE|SMALLINT|SHORT|INT|INTEGER|BIGINT|LONG|FLOAT|REAL|DOUBLE|DATE|TIMESTAMP|TIMESTAMP_NTZ|BINARY|DECIMAL(\\([0-9]{1,2}(, ?[0-9]{1,2})?\\))?)$",
+            "description": "The SQL type Databricks checks the value against, in upper case, such as INT, DATE or DECIMAL(10,2)."
+          }
+        }
+      }
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Why you need this change. Shown to the approver as unverified."
+    }
+  }
+}

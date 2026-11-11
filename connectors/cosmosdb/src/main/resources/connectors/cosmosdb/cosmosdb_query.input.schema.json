@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "database",
+    "container",
+    "query"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "database": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "The database's ID."
+    },
+    "container": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "The container's ID."
+    },
+    "query": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32768,
+      "description": "One Cosmos DB SQL SELECT, such as SELECT c.id, c.total FROM c WHERE c.status = @status. Across partitions the gateway refuses TOP, ORDER BY, OFFSET LIMIT, DISTINCT, GROUP BY and aggregates: give partitionKey for those."
+    },
+    "parameters": {
+      "type": "object",
+      "maxProperties": 100,
+      "propertyNames": {
+        "pattern": "^@[A-Za-z_][A-Za-z0-9_]{0,127}$"
+      },
+      "description": "Values of the query's @name parameters, such as {\"@status\": \"paid\"}: any JSON value."
+    },
+    "partitionKey": {
+      "type": [
+        "string",
+        "number",
+        "boolean",
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": [
+          "string",
+          "number",
+          "boolean",
+          "null"
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 3,
+      "description": "The partition key value to read, such as \"c-42\" (an array of values for a hierarchical key). Leave it out to query every partition."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 25,
+      "description": "Most items to return; the endpoint caps it."
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 16384,
+      "description": "nextCursor of the previous answer; leave it out for the first page."
+    }
+  }
+}

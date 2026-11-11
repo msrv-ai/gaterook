@@ -5,7 +5,7 @@
 #   scripts/test-services.sh up sql redis      # or: docker compose -f test-services/docker-compose.yml --profile sql up -d --wait
 #   mvn -B -ntp verify -Pservices              # the ITs connect here instead of starting their own servers
 #
-# Profiles: sql · oracle · sqlserver · mongo · redis · logs · aws · vault · ssh · k8s · all
+# Profiles: sql · oracle · sqlserver · cockroach · trino · cosmosdb · cassandra · mongo · neo4j · redis · logs · aws · dynamodb · prometheus · influxdb · vault · ssh · k8s · all
 name: gw-test
 
 x-health: &health
@@ -102,6 +102,83 @@ services:
     healthcheck:
       test: ["CMD", "/cockroach/cockroach", "sql", "--certs-dir=/cockroach/certs", "--host=127.0.0.1", "-e", "SELECT 1"]
       <<: *health
+
+  # Trino (connectors/trino): one coordinator that is its own worker, with only the built-in memory and tpch catalogs
+  # of trino/catalog and only their two plugins loaded. The tpch generator keeps a 300 MB text pool in the 768 MiB
+  # heap, so the rest is kept small: capped native memory and a C1-only JIT (trino/jvm.config), two malloc arenas, few
+  # threads, little query memory and a short query history (trino/config.properties). Repeated IT runs peak near
+  # 1.05 GiB. No authentication: the IT names its user on loopback.
+  trino:
+    image: trinodb/trino:${GW_TRINO_TAG}
+    container_name: gw-test-trino
+    profiles: [trino, all]
+    mem_limit: 1280m
+    environment:
+      MALLOC_ARENA_MAX: "2"
+    # Trino loads every plugin of its plugin directory: give it one with only the plugins of these catalogs.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - mkdir -p /tmp/plugin && ln -sf /usr/lib/trino/plugin/memory /usr/lib/trino/plugin/tpch /tmp/plugin/ && exec /usr/lib/trino/bin/launcher run --etc-dir /etc/trino
+    volumes:
+      - ./trino/jvm.config:/etc/trino/jvm.config:ro
+      - ./trino/config.properties:/etc/trino/config.properties:ro
+      - ./trino/catalog:/etc/trino/catalog:ro
+    ports:
+      - "127.0.0.1:${GW_TRINO_PORT}:8080"
+    healthcheck:
+      test: ["CMD", "/usr/lib/trino/bin/health-check"]
+      <<: *health
+
+  # Azure Cosmos DB for NoSQL through the Linux emulator vNext (amd64 and arm64): the gateway on plain HTTP, about
+  # 700 MB at rest. Its data lives in the container and goes with it. It checks no key or token; the IT signs with the
+  # well-known emulator key of .env, and the signature itself is checked against a fake (CosmosDbConnectorTest).
+  cosmosdb:
+    image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:${GW_COSMOSDB_TAG}
+    container_name: gw-test-cosmosdb
+    profiles: [cosmosdb, all]
+    mem_limit: 2g
+    environment:
+      PROTOCOL: http
+      ENABLE_EXPLORER: "false"
+      ENABLE_TELEMETRY: "false"
+      LOG_LEVEL: warn
+    ports:
+      - "127.0.0.1:${GW_COSMOSDB_PORT}:8081"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://127.0.0.1:8080/ready"]
+      <<: *health
+
+  # Apache Cassandra 5.0 through connectors/cassandra: one node, data center gw-dc1, password sign-in with roles and
+  # permissions, and TLS on the native port next to plain CQL. cassandra-start.sh switches the authenticator and
+  # authorizer (the image has no variables for them) and makes the node's certificate in run/cassandra-certs. Its
+  # data stays in the container's writable layer and is removed with it.
+  cassandra:
+    image: cassandra:${GW_CASSANDRA_TAG}
+    container_name: gw-test-cassandra
+    profiles: [cassandra, all]
+    mem_limit: 1280m
+    entrypoint: ["/bin/sh", "/scripts/cassandra-start.sh"]
+    environment:
+      MAX_HEAP_SIZE: 512M
+      HEAP_NEWSIZE: 128M
+      CASSANDRA_CLUSTER_NAME: gw-test
+      CASSANDRA_DC: gw-dc1
+      CASSANDRA_ENDPOINT_SNITCH: GossipingPropertyFileSnitch
+      JVM_EXTRA_OPTS: "-Dcassandra.superuser_setup_delay_ms=0 -Dcassandra.skip_wait_for_gossip_to_settle=0"
+      GW_CASSANDRA_KEYSTORE_PASSWORD: ${GW_CASSANDRA_KEYSTORE_PASSWORD}
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./run/cassandra-certs:/certs
+    ports:
+      - "127.0.0.1:${GW_CASSANDRA_PORT}:9042"
+    healthcheck:
+      test: ["CMD", "cqlsh", "-u", "${GW_CASSANDRA_USER}", "-p", "${GW_CASSANDRA_PASSWORD}", "-e",
+             "SELECT release_version FROM system.local"]
+      interval: 5s
+      timeout: 15s
+      retries: 60
+      start_period: 30s
 
   # Oracle Free includes FREEPDB1 on both amd64 and arm64. Keep its large datafiles in the container layer:
   # they are removed with the container, without consuming the Docker VM's RAM as a data tmpfs would.
@@ -238,6 +315,52 @@ services:
       - "127.0.0.1:${GW_MONGO9_PORT}:27017"
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      <<: *health
+
+  # ── Neo4j ───────────────────────────────────────────────────────────────────────────────────────────────────
+  # Neo4j 5 Community for connectors/neo4j (docs/neo4j.md), no plugins. Bolt takes TLS and plain connections on one
+  # port: its certificate (DNS:localhost, IP:127.0.0.1) and gw-test-ca come from gen-certs.sh, run by a one-shot of
+  # this profile into run/neo4j-certs, apart from the certs of the other profiles. The IT signs in as neo4j and
+  # resets the database.
+  neo4j-certs:
+    image: alpine:${GW_ALPINE_TAG}
+    container_name: gw-test-neo4j-certs
+    profiles: [neo4j, all]
+    command: ["/bin/sh", "-c", "/bin/sh /scripts/gen-certs.sh /out && mkdir -p /out/trusted /out/revoked"]
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./run/neo4j-certs:/out
+
+  neo4j:
+    image: neo4j:${GW_NEO4J_TAG}
+    container_name: gw-test-neo4j
+    profiles: [neo4j, all]
+    depends_on:
+      neo4j-certs:
+        condition: service_completed_successfully
+    mem_limit: 1g
+    environment:
+      NEO4J_AUTH: neo4j/${GW_NEO4J_PASSWORD}
+      NEO4J_dbms_usage__report_enabled: "false"
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 128m
+      # neo4j:// follows the routing table, which must name the published port.
+      NEO4J_server_bolt_advertised__address: 127.0.0.1:${GW_NEO4J_PORT}
+      NEO4J_server_bolt_tls__level: OPTIONAL
+      NEO4J_dbms_ssl_policy_bolt_enabled: "true"
+      NEO4J_dbms_ssl_policy_bolt_base__directory: /certs
+      NEO4J_dbms_ssl_policy_bolt_private__key: localhost-ip.key
+      NEO4J_dbms_ssl_policy_bolt_public__certificate: localhost-ip.crt
+      NEO4J_dbms_ssl_policy_bolt_client__auth: NONE
+      NEO4J_dbms_ssl_policy_bolt_trusted__dir: /certs/trusted
+      NEO4J_dbms_ssl_policy_bolt_revoked__dir: /certs/revoked
+    volumes:
+      - ./run/neo4j-certs:/certs:ro
+    ports:
+      - "127.0.0.1:${GW_NEO4J_PORT}:7687"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:7474 || exit 1"]
       <<: *health
 
   # ── Redis ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -387,6 +510,76 @@ services:
     profiles: [logs, aws, dynamodb, all]
     ports:
       - "127.0.0.1:${GW_MOTO_PORT}:5000"
+
+  # ── Metrics ─────────────────────────────────────────────────────────────────────────────────────────────────
+  # Prometheus scraping itself (prometheus/prometheus.yml), with a down target, a dropped one and rules that record
+  # and alert. Its TSDB is in memory; no admin, lifecycle or remote write endpoint is enabled.
+  prometheus:
+    image: prom/prometheus:${GW_PROMETHEUS_TAG}
+    container_name: gw-test-prometheus
+    profiles: [prometheus, all]
+    mem_limit: 256m
+    command: ["--config.file=/etc/prometheus/gw-prometheus.yml", "--storage.tsdb.path=/prometheus",
+              "--storage.tsdb.retention.time=1d", "--query.timeout=30s"]
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/gw-prometheus.yml:ro
+      - ./prometheus/rules.yml:/etc/prometheus/gw-rules.yml:ro
+    tmpfs:
+      - /prometheus:mode=1777
+    ports:
+      - "127.0.0.1:${GW_PROMETHEUS_PORT}:9090"
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:9090/-/ready"]
+      <<: *health
+
+  # ── InfluxDB ────────────────────────────────────────────────────────────────────────────────────────────────
+  # InfluxDB 3 Core in memory. Its admin token is the one of .env, written to a token file at start-up and loaded
+  # with --admin-token-file: no setup call and no network. /health stays open for the health check, /ping and the
+  # APIs need the token; no telemetry upload, no package management. The connector's IT makes its own databases.
+  influxdb3:
+    image: influxdb:${GW_INFLUXDB3_TAG}
+    container_name: gw-test-influxdb3
+    profiles: [influxdb, all]
+    mem_limit: 512m
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        printf '{"token": "%s", "name": "_admin"}' "$$GW_INFLUXDB3_TOKEN" > /tmp/admin-token.json &&
+        chmod 600 /tmp/admin-token.json &&
+        exec influxdb3 serve --node-id gw-test --object-store memory --admin-token-file /tmp/admin-token.json
+        --disable-authz health --disable-telemetry-upload --disable-package-management
+        --exec-mem-pool-size 128MB --file-cache-size 32MB
+    environment:
+      GW_INFLUXDB3_TOKEN: ${GW_INFLUXDB3_TOKEN}
+    ports:
+      - "127.0.0.1:${GW_INFLUXDB3_PORT}:8181"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://127.0.0.1:8181/health"]
+      <<: *health
+
+  # InfluxDB 2.9, set up on every start (DOCKER_INFLUXDB_INIT_*, data and CLI configuration in tmpfs): organization
+  # acme, bucket metrics, the operator token of .env. The IT adds its own bucket and a token that may only read it.
+  influxdb2:
+    image: influxdb:${GW_INFLUXDB2_TAG}
+    container_name: gw-test-influxdb2
+    profiles: [influxdb, all]
+    mem_limit: 512m
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: gaterook
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${GW_INFLUXDB2_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: acme
+      DOCKER_INFLUXDB_INIT_BUCKET: metrics
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${GW_INFLUXDB2_TOKEN}
+      INFLUXD_REPORTING_DISABLED: "true"
+    tmpfs:
+      - /var/lib/influxdb2
+      - /etc/influxdb2
+    ports:
+      - "127.0.0.1:${GW_INFLUXDB2_PORT}:8086"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://127.0.0.1:8086/health"]
+      <<: *health
 
   # ── Secrets and SSH ─────────────────────────────────────────────────────────────────────────────────────────
   # Dev mode: in memory, unsealed, the root token of .env. Vault reaches PostgreSQL as postgres:5432.
