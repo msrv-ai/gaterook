@@ -71,13 +71,16 @@
         },
         "delegates": {
           "type": "array",
+          "title": "Delegation chain",
           "maxItems": 5,
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
         },
         "lifetimeSeconds": {
           "type": "integer",
+          "title": "Token lifetime",
           "minimum": 300,
           "maximum": 3600,
           "default": 900,
@@ -85,6 +88,7 @@
         },
         "quotaProject": {
           "type": "string",
+          "title": "Billed project",
           "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
         }
       },

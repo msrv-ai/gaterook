@@ -4971,13 +4971,16 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "delegates": {
             "type": "array",
+            "title": "Delegation chain",
             "maxItems": 5,
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
           },
           "lifetimeSeconds": {
             "type": "integer",
+            "title": "Token lifetime",
             "minimum": 300,
             "maximum": 3600,
             "default": 900,
@@ -4985,6 +4988,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "quotaProject": {
             "type": "string",
+            "title": "Billed project",
             "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
           }
         },
@@ -8308,7 +8312,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/delegates",
         "kind": "tags",
-        "title": "delegates",
+        "title": "Delegation chain",
         "required": false,
         "secret": null,
         "mono": true,
@@ -8324,7 +8328,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/lifetimeSeconds",
         "kind": "number",
-        "title": "lifetimeSeconds",
+        "title": "Token lifetime",
         "required": false,
         "secret": null,
         "mono": true,
@@ -8340,7 +8344,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/quotaProject",
         "kind": "text",
-        "title": "quotaProject",
+        "title": "Billed project",
         "required": false,
         "secret": null,
         "mono": true,
