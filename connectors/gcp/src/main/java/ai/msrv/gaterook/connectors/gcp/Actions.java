@@ -102,6 +102,17 @@ final class Actions {
         new ActionPreview.Field("Method", r.method())));
   }
 
+  /** {@code gcp_storage_read} in Approval mode: the object and the bytes the read asks for. */
+  static ActionPreview storage(StorageRead r, Settings s, ConnectionConfig cfg) {
+    List<String> lines = new ArrayList<>();
+    lines.add(StorageRead.TOOL + " · " + cfg.name() + " (GCP · " + s.target() + " · " + cfg.env().id() + ")");
+    lines.add("GET " + r.path() + "?alt=media" + (r.generation() == null ? "" : "&generation=" + r.generation())
+        + " Range: bytes=" + r.offset() + "-" + (r.offset() + r.maxBytes() - 1));
+    return preview(StorageRead.TOOL, lines, cfg, s, "gs://" + r.bucket() + "/" + r.object(), r.payload(), List.of(
+        new ActionPreview.Field("Object", "gs://" + r.bucket() + "/" + r.object()),
+        new ActionPreview.Field("Bytes", r.maxBytes() + " from " + r.offset())));
+  }
+
   private static ActionPreview preview(String tool, List<String> lines, ConnectionConfig cfg, Settings s, String what,
       tools.jackson.databind.JsonNode payload, List<ActionPreview.Field> fields) {
     String summary = tool + " on " + cfg.name() + ": " + what;

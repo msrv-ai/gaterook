@@ -1,0 +1,53 @@
+{
+  "type": "object",
+  "required": [
+    "provider",
+    "bucket",
+    "object",
+    "offset",
+    "bytes",
+    "text",
+    "truncated"
+  ],
+  "properties": {
+    "provider": {
+      "const": "gcp"
+    },
+    "bucket": {
+      "type": "string"
+    },
+    "object": {
+      "type": "string"
+    },
+    "contentType": {
+      "type": "string"
+    },
+    "size": {
+      "type": "integer"
+    },
+    "generation": {
+      "type": "string"
+    },
+    "offset": {
+      "type": "integer"
+    },
+    "bytes": {
+      "type": "integer"
+    },
+    "text": {
+      "type": "string"
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "nextOffset": {
+      "type": "integer"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

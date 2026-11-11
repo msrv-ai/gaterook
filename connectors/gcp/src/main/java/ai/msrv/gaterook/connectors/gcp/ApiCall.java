@@ -318,23 +318,34 @@ final class ApiCall {
     }
   }
 
-  /** A bucket of a project of the connection, by the project number Cloud Storage gives. */
-  private void requireBucket(String bucket) throws ConnectorException {
+  /**
+   * A bucket of a project of the connection, by the project number Cloud Storage gives, in a location the Cloud policy
+   * allows. Also what {@code gcp_storage_read} checks before it reads an object.
+   */
+  void requireBucket(String bucket) throws ConnectorException {
     if (!BUCKET.matcher(bucket).matches()) {
       throw ConnectorException.badInput("\"" + DescribeRequest.abbreviate(bucket) + "\" isn't a bucket name.");
     }
     String key = call.cfg().id() + "|" + call.cfg().version() + "|bucket|" + bucket;
-    String number = membership.get(key);
-    if (number == null) {
+    String known = membership.get(key);
+    if (known == null) {
       URI base = call.base("gcp.storage", STORAGE);
       String root = base.toString().replaceAll("/$", "");
-      JsonNode answer = call.api().get(URI.create(root + "/storage/v1/b/" + bucket + "?fields=projectNumber"),
-          "Cloud Storage");
-      number = answer.path("projectNumber").asString("");
+      JsonNode answer = call.api().get(URI.create(root + "/storage/v1/b/" + bucket + "?fields=projectNumber,"
+          + "location"), "Cloud Storage");
+      String number = answer.path("projectNumber").asString("");
       if (!number.matches("\\d{1,19}")) {
         throw ConnectorException.resourceError("Cloud Storage didn't say which project owns " + bucket + ".", null);
       }
-      membership.put(key, number);
+      known = number + "|" + answer.path("location").asString("").toLowerCase(java.util.Locale.ROOT);
+      membership.put(key, known);
+    }
+    String number = known.substring(0, known.indexOf('|'));
+    String location = known.substring(known.indexOf('|') + 1);
+    GcpPolicy p = call.policy();
+    if (!p.regions().isEmpty() && !p.regionAllowed(location)) {
+      throw ConnectorException.denied("Bucket " + bucket + " is in " + (location.isEmpty() ? "an unknown location"
+          : location) + "; " + p.regionsText() + ".");
     }
     if (ApiRequest.ownProject(number, call.settings())) {
       return;

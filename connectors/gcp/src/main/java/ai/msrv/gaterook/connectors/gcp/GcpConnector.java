@@ -137,6 +137,15 @@ public final class GcpConnector implements Connector {
     if (GcpTools.api(call.tool())) {
       return classifyApi(call, cfg, s, p, policy);
     }
+    if (call.tool().equals(StorageRead.TOOL)) {
+      try {
+        StorageRead.of(call.arguments(), p);
+      } catch (Refusal r) {
+        return Classification.deny(policy.rule(r.rule), r.getMessage(), r.hint);
+      }
+      decisions.remember(call.callId(), call.tool(), cfg.id(), cfg.version(), p);
+      return Classification.read();
+    }
     try {
       parse(call.tool(), call.arguments(), cfg, s, p, clock.instant());
     } catch (Refusal r) {
@@ -188,6 +197,10 @@ public final class GcpConnector implements Connector {
       Settings s = Settings.parse(cfg);
       if (CloudLogs.isTool(call.tool())) {
         return logs.describeAction(call, cfg, s);
+      }
+      if (call.tool().equals(StorageRead.TOOL)) {
+        StorageRead r = StorageRead.of(call.arguments(), GcpPolicy.defaults(cfg.env()));
+        return Actions.storage(r, s, cfg);
       }
       if (GcpTools.api(call.tool())) {
         ApiRequest r = ApiRequest.of(call.tool(), call.arguments(), cfg.name(), s, GcpPolicy.defaults(cfg.env()), 0);
@@ -276,7 +289,7 @@ public final class GcpConnector implements Connector {
   public ToolResult execute(ToolCall call, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
       throws ConnectorException {
     if (!call.tool().equals("gcp_describe") && !call.tool().equals("gcp_metrics") && !CloudLogs.isTool(call.tool())
-        && !GcpTools.api(call.tool())) {
+        && !GcpTools.api(call.tool()) && !call.tool().equals(StorageRead.TOOL)) {
       throw ConnectorException.badInput("The GCP connector has no tool " + call.tool() + ".");
     }
     Settings s;
@@ -297,6 +310,16 @@ public final class GcpConnector implements Connector {
     }
     if (CloudLogs.isTool(call.tool())) {
       return logs.execute(call, cfg, s, p, secrets, ctx);
+    }
+    if (call.tool().equals(StorageRead.TOOL)) {
+      StorageRead read;
+      try {
+        read = StorageRead.of(args, p);
+      } catch (Refusal e) {
+        throw ConnectorException.denied(e.forAgent());
+      }
+      Call c = call(cfg, s, p, secrets, ctx);
+      return read.run(c, new ApiCall(c, discovery, membership));
     }
     if (GcpTools.api(call.tool())) {
       // A change runs only as approved: its request is rebuilt from the call and compared with the approved payload.

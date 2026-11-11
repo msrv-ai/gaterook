@@ -22,10 +22,17 @@ final class OutputSchema {
   private static final Schema API_READ = REGISTRY.getSchema(SchemaLocation.of("urn:mcp-gateway:gcp_api_read.output"),
       SCHEMAS.load("gcp_api_read.output"));
 
+  private static final Schema STORAGE_READ = REGISTRY.getSchema(SchemaLocation.of(
+      "urn:mcp-gateway:gcp_storage_read.output"), SCHEMAS.load("gcp_storage_read.output"));
+
   private OutputSchema() {}
 
   static ToolResult apiRead(ToolResult r) {
     return valid(API_READ, r);
+  }
+
+  static ToolResult storageRead(ToolResult r) {
+    return valid(STORAGE_READ, r);
   }
 
   static ToolResult describe(ToolResult r) {

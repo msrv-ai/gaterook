@@ -41,7 +41,7 @@ class BuiltInConnectorCatalogTest {
   /** Current built-in tool counts used by the runtime connector catalog. */
   private static final Map<String, Integer> TOOLS_PER_CONNECTOR = orderedMap(
       "PostgreSQL", 4, "MySQL", 4, "Oracle Database", 4, "SQL Server", 4, "SQLite", 4, "MongoDB", 4, "Redis", 8, "Amazon DynamoDB", 6, "Google BigQuery", 5, "Snowflake", 4, "Cloud Firestore", 4, "Firebase Realtime Database", 2, "SSH", 2, "Logs", 5, "SSH log files", 3,
-      "Kubernetes", 4, "GCP", 6, "AWS", 2, "HTTP API", 2, "GCP Cloud Logging", 2, "AWS CloudWatch", 2,
+      "Kubernetes", 4, "GCP", 7, "AWS", 2, "HTTP API", 2, "GCP Cloud Logging", 2, "AWS CloudWatch", 2,
       "Loki", 2, "OpenSearch", 3, "Elasticsearch", 3);
 
   /** Current default modes for the connection types in the demo world's {@code dev} endpoint. */
@@ -193,7 +193,7 @@ class BuiltInConnectorCatalogTest {
         }
       }
     }
-    assertThat(seen).hasSize(68);
+    assertThat(seen).hasSize(69);
   }
 
   @Test
