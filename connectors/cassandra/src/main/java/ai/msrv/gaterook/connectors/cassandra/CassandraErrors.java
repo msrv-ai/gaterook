@@ -79,11 +79,10 @@ final class CassandraErrors {
           + (rf.getNumFailures() == 1 ? "" : "s") + ": " + server(rf) + ".", t);
     }
     if (t instanceof ClosedConnectionException || t instanceof HeartbeatException) {
-      return ConnectorException.unavailable("The connection to the node closed while " + what + " ran. Try again.",
-          t);
+      return ConnectorException.unavailable(what + " lost its connection to the node. Try again.", t);
     }
     if (t instanceof CoordinatorException ce) {
-      return ConnectorException.resourceError("Cassandra refused " + what + ": " + server(ce) + ".", t);
+      return ConnectorException.resourceError(what + " failed. Cassandra said: " + server(ce) + ".", t);
     }
     return internal(t, what);
   }
@@ -129,7 +128,7 @@ final class CassandraErrors {
       return common;
     }
     if (t instanceof CoordinatorException ce) {
-      return ConnectorException.resourceError("Cassandra refused " + what + ": " + server(ce) + ". Nothing changed.",
+      return ConnectorException.resourceError(what + " failed. Cassandra said: " + server(ce) + ". Nothing changed.",
           t);
     }
     return unknown(what + " failed in a way the driver couldn't explain (" + t.getClass().getSimpleName() + ")", t);
@@ -154,7 +153,7 @@ final class CassandraErrors {
           + "in Cassandra, or use a connection whose role may.", ue);
     }
     if (t instanceof QueryValidationException qe) {
-      return ConnectorException.resourceError("Cassandra refused " + what + ": " + server(qe) + ". Nothing ran.", t);
+      return ConnectorException.resourceError(what + " failed. Cassandra said: " + server(qe) + ". Nothing ran.", t);
     }
     if (t instanceof UnavailableException ue) {
       return ConnectorException.unavailable("Too few replicas are up for " + ue.getConsistencyLevel() + ": "

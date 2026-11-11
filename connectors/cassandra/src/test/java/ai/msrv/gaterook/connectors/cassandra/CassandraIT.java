@@ -611,7 +611,7 @@ class CassandraIT {
     assertThatThrownBy(() -> read(CassandraTools.QUERY, query("SELECT nope FROM typed WHERE id = 1")))
         .isInstanceOfSatisfying(ConnectorException.class, e -> {
           assertThat(e.kind()).isEqualTo(ConnectorException.Kind.RESOURCE_ERROR);
-          assertThat(e.getMessage()).contains("Cassandra refused", "nope");
+          assertThat(e.getMessage()).contains("failed. Cassandra said:", "nope");
         });
     assertThatThrownBy(() -> read(CassandraTools.QUERY, query("SELECT * FROM missing_table")))
         .isInstanceOfSatisfying(ConnectorException.class, e -> assertThat(e.getMessage()).contains("missing_table"));
