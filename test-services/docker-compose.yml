@@ -5,7 +5,7 @@
 #   scripts/test-services.sh up sql redis      # or: docker compose -f test-services/docker-compose.yml --profile sql up -d --wait
 #   mvn -B -ntp verify -Pservices              # the ITs connect here instead of starting their own servers
 #
-# Profiles: sql · oracle · sqlserver · mongo · redis · logs · aws · prometheus · vault · ssh · k8s · all
+# Profiles: sql · oracle · sqlserver · mongo · redis · logs · aws · prometheus · influxdb · vault · ssh · k8s · all
 name: gw-test
 
 x-health: &health
@@ -407,6 +407,55 @@ services:
       - "127.0.0.1:${GW_PROMETHEUS_PORT}:9090"
     healthcheck:
       test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:9090/-/ready"]
+      <<: *health
+
+  # ── InfluxDB ────────────────────────────────────────────────────────────────────────────────────────────────
+  # InfluxDB 3 Core in memory. Its admin token is the one of .env, written to a token file at start-up and loaded
+  # with --admin-token-file: no setup call and no network. /health stays open for the health check, /ping and the
+  # APIs need the token; no telemetry upload, no package management. The connector's IT makes its own databases.
+  influxdb3:
+    image: influxdb:${GW_INFLUXDB3_TAG}
+    container_name: gw-test-influxdb3
+    profiles: [influxdb, all]
+    mem_limit: 512m
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        printf '{"token": "%s", "name": "_admin"}' "$$GW_INFLUXDB3_TOKEN" > /tmp/admin-token.json &&
+        chmod 600 /tmp/admin-token.json &&
+        exec influxdb3 serve --node-id gw-test --object-store memory --admin-token-file /tmp/admin-token.json
+        --disable-authz health --disable-telemetry-upload --disable-package-management
+        --exec-mem-pool-size 128MB --file-cache-size 32MB
+    environment:
+      GW_INFLUXDB3_TOKEN: ${GW_INFLUXDB3_TOKEN}
+    ports:
+      - "127.0.0.1:${GW_INFLUXDB3_PORT}:8181"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://127.0.0.1:8181/health"]
+      <<: *health
+
+  # InfluxDB 2.9, set up on every start (DOCKER_INFLUXDB_INIT_*, data and CLI configuration in tmpfs): organization
+  # acme, bucket metrics, the operator token of .env. The IT adds its own bucket and a token that may only read it.
+  influxdb2:
+    image: influxdb:${GW_INFLUXDB2_TAG}
+    container_name: gw-test-influxdb2
+    profiles: [influxdb, all]
+    mem_limit: 512m
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: gaterook
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${GW_INFLUXDB2_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: acme
+      DOCKER_INFLUXDB_INIT_BUCKET: metrics
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${GW_INFLUXDB2_TOKEN}
+      INFLUXD_REPORTING_DISABLED: "true"
+    tmpfs:
+      - /var/lib/influxdb2
+      - /etc/influxdb2
+    ports:
+      - "127.0.0.1:${GW_INFLUXDB2_PORT}:8086"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://127.0.0.1:8086/health"]
       <<: *health
 
   # ── Secrets and SSH ─────────────────────────────────────────────────────────────────────────────────────────

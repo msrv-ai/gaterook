@@ -43,6 +43,7 @@
     <module>connectors/firebase</module>
     <module>connectors/snowflake</module>
     <module>connectors/prometheus</module>
+    <module>connectors/influxdb</module>
     <module>connectors/http</module>
     <module>connectors/mcp-server</module>
     <module>core</module>
@@ -117,6 +118,7 @@
     <it.tag.sqlserver>sqlserver-it</it.tag.sqlserver>
     <it.tag.cockroach>cockroach-it</it.tag.cockroach>
     <it.tag.prometheus>prometheus-it</it.tag.prometheus>
+    <it.tag.influxdb>influxdb-it</it.tag.influxdb>
     <it.tag.mongo>mongo-it</it.tag.mongo>
     <it.tag.logs>logs-it</it.tag.logs>
     <it.tag.kube>kube-api</it.tag.kube>
@@ -130,7 +132,7 @@
     <it.services></it.services>
     <!-- Extra JVM options of the test forks: the tracing agent of the nightly metadata report (native.yml). -->
     <test.jvm.extra></test.jvm.extra>
-    <it.excludedGroups>${it.tag.mysql},${it.tag.sqlserver},${it.tag.cockroach},${it.tag.prometheus},${it.tag.mongo},${it.tag.logs},${it.tag.kube},${it.tag.vault},${it.tag.cloud},${it.tag.network},${it.tag.mcpclients},${it.tag.openapi},${it.tag.mcpservers}</it.excludedGroups>
+    <it.excludedGroups>${it.tag.mysql},${it.tag.sqlserver},${it.tag.cockroach},${it.tag.prometheus},${it.tag.influxdb},${it.tag.mongo},${it.tag.logs},${it.tag.kube},${it.tag.vault},${it.tag.cloud},${it.tag.network},${it.tag.mcpclients},${it.tag.openapi},${it.tag.mcpservers}</it.excludedGroups>
   </properties>
 
   <dependencyManagement>
@@ -224,6 +226,11 @@
       <dependency>
         <groupId>ai.msrv.gaterook</groupId>
         <artifactId>connectors-prometheus</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-influxdb</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
@@ -757,6 +764,11 @@
       <!-- Prometheus of the test services (scripts/test-services.sh up prometheus), with -Pservices. -->
       <id>prometheus-it</id>
       <properties><it.tag.prometheus>__enabled-prometheus-it</it.tag.prometheus></properties>
+    </profile>
+    <profile>
+      <!-- InfluxDB 3 Core and InfluxDB 2.9 of the Compose services: scripts/test-services.sh up influxdb. -->
+      <id>influxdb-it</id>
+      <properties><it.tag.influxdb>__enabled-influxdb-it</it.tag.influxdb></properties>
     </profile>
     <profile>
       <id>mongo-it</id>
