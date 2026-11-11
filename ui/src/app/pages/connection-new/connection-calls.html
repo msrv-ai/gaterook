@@ -1,0 +1,23 @@
+<dt class="gw-stat__label">Calls, last 30 days</dt>
+@switch (state()) {
+  @case ('loading') {
+    <dd class="gw-stat__value"><span class="gw-skeleton gw-skeleton--text" aria-hidden="true"></span><span class="gw-sr-only">Loading</span></dd>
+  }
+  @case ('error') {
+    <dd class="gw-stat__meta" role="status">The calls didn't load. <button class="gw-btn gw-btn--link gw-btn--sm" type="button" (click)="retry()">Try again<span class="gw-sr-only"> to load the calls of {{ connection() }}</span></button></dd>
+  }
+  @default {
+    @if (stat(); as st) {
+      <dd class="gw-stat__value">{{ st.value }}</dd>
+      @if (st.chart; as ch) {
+        <dd class="gw-stat__chart">
+          <svg class="gw-sparkline" viewBox="0 0 230 40" preserveAspectRatio="none" role="img" [attr.aria-label]="ch.label"><polyline [attr.points]="ch.points"></polyline></svg>
+        </dd>
+      }
+      @if (st.delta; as d) {
+        <dd [class]="'gw-stat__delta gw-stat__delta--' + d.dir" [attr.data-sentiment]="d.sentiment"><svg [lucideIcon]="d.icon" class="gw-icon"></svg>{{ d.text }}</dd>
+      }
+      <dd class="gw-stat__meta">@for (part of st.meta; track $index) {@if (!$first) { · }@if (part.link; as l) {<a class="gw-link" [routerLink]="l.route" [queryParams]="l.query">{{ part.text }}</a>} @else {{{ part.text }}}}</dd>
+    }
+  }
+}

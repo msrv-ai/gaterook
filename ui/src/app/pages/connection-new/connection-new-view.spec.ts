@@ -5,6 +5,7 @@ import { EnvPolicy } from '../../core/api/policies.api';
 import { JsonObject } from '../../core/api/types';
 import {
   activityQuery,
+  callsStat,
   copyName,
   defaultCardKey,
   deletedToast,
@@ -36,10 +37,12 @@ import {
   toolPreview,
   toolsLine,
   toolsSentence,
+  toolCount,
   usage,
   usedByMeta,
   usedByRows,
 } from './connection-new-view';
+import { busyMonth, connectionMonth } from './connection-calls.fixtures';
 
 /** Add connection's words and decisions against the kit and the core's rules. */
 
@@ -426,6 +429,50 @@ describe('Connection: edit view', () => {
   it('builds the Activity query of a connection and of one of its tools on one endpoint', () => {
     expect(activityQuery('dev-db')).toBe('connection:dev-db');
     expect(activityQuery('dev-db', 'sql_query', 'dev')).toBe('connection:dev-db tool:sql_query endpoint:dev');
+  });
+
+  it('counts the tools the Tools tab lists once, however many endpoints have them', () => {
+    expect(toolCount([])).toBe(0);
+    expect(toolCount([
+      { tool: 'sql_query', endpoint: 'dev', mode: 'READ_ONLY' },
+      { tool: 'sql_query', endpoint: 'stage-readonly', mode: 'READ_ONLY' },
+      { tool: 'sql_execute', endpoint: 'dev', mode: 'OFF' },
+    ])).toBe(2);
+  });
+});
+
+describe('Edit connection: calls of the last 30 days', () => {
+  const NOW = new Date(2026, 9, 22, 14, 30).getTime();
+  const errors = { route: '/activity', query: { q: 'connection:dev-db decision:error', range: '30d' } };
+  const denied = { route: '/activity', query: { q: 'connection:dev-db decision:denied', range: '30d' } };
+
+  it('counts the calls, draws them per day with the busiest day, compares them and links what went wrong', () => {
+    const stat = callsStat(busyMonth(NOW), 'dev-db', NOW);
+    expect(stat.value).toBe('412');
+    expect(stat.chart?.label).toBe('Calls per day, last 30 days: peak of 41 on Oct 12');
+    expect(stat.chart?.points.split(' ')).toHaveLength(31);
+    expect(stat.chart?.points.split(' ')[20]).toBe('153.3,4');
+    expect(stat.delta).toEqual({ dir: 'up', sentiment: 'neutral', icon: 'trending-up', text: '+18% vs previous 30 days' });
+    expect(stat.meta).toEqual([
+      { text: '3 errors', link: errors },
+      { text: '2 denied by policy', link: denied },
+      { text: '1 waiting for approval', link: { route: '/approvals' } },
+    ]);
+  });
+
+  it('says a quiet month plainly and compares only when the audit reaches back and there were calls', () => {
+    const today = Array.from({ length: 31 }, (_, i) => (i === 30 ? 9 : 0));
+    const calm = callsStat(connectionMonth(NOW, today, { calls: 9, errors: 1 }), 'dev-db', NOW);
+    expect(calm.chart?.label).toBe('Calls per day, last 30 days: peak of 9 today');
+    expect(calm.delta).toBeNull();
+    expect(calm.meta).toEqual([{ text: '1 error', link: errors }]);
+    expect(callsStat(connectionMonth(NOW, today, { calls: 9 }, { calls: 9 }), 'dev-db', NOW).delta?.text).toBe('No change vs previous 30 days');
+    expect(callsStat(connectionMonth(NOW, today, { calls: 9 }), 'dev-db', NOW).meta).toEqual([{ text: 'No errors or denials' }]);
+
+    const none = callsStat(connectionMonth(NOW, Array(31).fill(0), {}, { calls: 0 }), 'dev-db', NOW);
+    expect(none).toEqual({ value: '0', chart: null, delta: null, meta: [{ text: 'No calls in the last 30 days' }] });
+    const stopped = callsStat(connectionMonth(NOW, Array(31).fill(0), {}, { calls: 120 }), 'dev-db', NOW);
+    expect(stopped.delta).toEqual({ dir: 'down', sentiment: 'neutral', icon: 'trending-down', text: '−100% vs previous 30 days' });
   });
 });
 

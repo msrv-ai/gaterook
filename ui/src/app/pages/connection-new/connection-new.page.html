@@ -129,8 +129,8 @@
       </div>
     }
     @case ('ready') {
-      <!-- How the connection is doing and who uses it -->
-      <dl class="gw-grid gw-grid--2">
+      <!-- How the connection is doing, how much agents call it and who uses it -->
+      <dl class="gw-grid gw-grid--3">
         <div class="gw-stat">
           <dt class="gw-stat__label">Health check, last 24 hours</dt>
           @if (stat(); as st) {
@@ -143,6 +143,7 @@
             <dd class="gw-stat__meta">{{ st.meta }}</dd>
           }
         </div>
+        <div gwConnectionCalls [connection]="name()!"></div>
         <div class="gw-stat">
           <dt class="gw-stat__label">Used by</dt>
           @let um = usesMeta();
@@ -153,7 +154,8 @@
     }
     @default {
       <div class="gw-stack" aria-busy="true">
-        <div class="gw-grid gw-grid--2" aria-hidden="true">
+        <div class="gw-grid gw-grid--3" aria-hidden="true">
+          <span class="gw-skeleton gw-skeleton--block"></span>
           <span class="gw-skeleton gw-skeleton--block"></span>
           <span class="gw-skeleton gw-skeleton--block"></span>
         </div>
@@ -243,7 +245,7 @@
   @if (m === 'edit') {
     <div class="gw-tabs__list" role="tablist" gwTabs aria-label="Connection details">
       <button class="gw-tabs__tab" type="button" role="tab" id="connection-settings-tab" aria-controls="connection-settings" aria-selected="true" tabindex="0"><svg lucideIcon="settings" class="gw-icon"></svg>Settings</button>
-      <button class="gw-tabs__tab" type="button" role="tab" id="connection-tools-tab" aria-controls="used-by" aria-selected="false" tabindex="-1"><svg lucideIcon="wrench" class="gw-icon"></svg>Tools</button>
+      <button class="gw-tabs__tab" type="button" role="tab" id="connection-tools-tab" aria-controls="used-by" aria-selected="false" tabindex="-1"><svg lucideIcon="wrench" class="gw-icon"></svg>Tools <span class="gw-tabs__count">{{ toolCount() }}<span class="gw-sr-only"> {{ toolCount() === 1 ? 'tool' : 'tools' }}</span></span></button>
     </div>
   }
   <div id="connection-settings" class="gw-stack gw-stack--lg" [class.gw-tabs__panel]="m === 'edit'" [attr.role]="m === 'edit' ? 'tabpanel' : null" [attr.aria-labelledby]="m === 'edit' ? 'connection-settings-tab' : null" [attr.tabindex]="m === 'edit' ? 0 : null">

@@ -85,6 +85,7 @@ import {
   testSummary,
   testTarget,
   testToast,
+  toolCount,
   toolPreview,
   toolsLine,
   toolsSentence,
@@ -92,6 +93,7 @@ import {
   usedByMeta,
   usedByRows,
 } from './connection-new-view';
+import { GwConnectionCalls } from './connection-calls';
 import { ConnectionToolModes } from './connection-tool-modes';
 
 /** The connector type of external MCP servers, which Add MCP server adds (Connectors › MCP servers). */
@@ -131,8 +133,9 @@ export function errorText(e: ApiError | null): string {
  *   endpoint, the core's own preview and `POST /api/endpoints/{slug}/connections/{name}`.
  * - **Duplicate** (`?duplicate=<name>`): the wizard from Configure with the settings of `GET …/{name}/duplicate`;
  *   credentials are never copied.
- * - **Edit** (`/connections/<name>`): health (live through `connection.health`), Test connection, Settings with
- *   stored secrets (Replace, Rotate where the source can), references and Delete, and Tools with endpoint modes.
+ * - **Edit** (`/connections/<name>`): health (live through `connection.health`), its calls over the last 30 days
+ *   (`GwConnectionCalls`), Test connection, Settings with stored secrets (Replace, Rotate where the source can),
+ *   references and Delete, and Tools (counted in its tab) with endpoint modes.
  *   Both tab panels stay mounted so changing tabs preserves the settings draft.
  *
  * Step changes move focus to the step's heading and announce "Step 2 of 4: Configure", as the kit's page script does.
@@ -162,6 +165,7 @@ interface ReferenceChange {
     GwConnectionTest,
     GwAccessSwitch,
     ConnectionToolModes,
+    GwConnectionCalls,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-page gw-page--narrow', '[class.gw-form--sticky-actions]': "mode() === 'edit'" },
@@ -456,6 +460,8 @@ export class ConnectionNewPage {
   protected readonly usedBy = computed(() =>
     usedByRows(this.detail()?.usedBy ?? [], (this.typeDetail()?.tools ?? []).map((t) => t.name)),
   );
+  /** The Tools tab's count: the rows its table lists. */
+  protected readonly toolCount = computed(() => toolCount(this.usedBy()));
   /** Saved endpoint membership exists independently of the connection's tool rows. */
   private readonly assignedEndpoints = signal<readonly string[]>([]);
   protected readonly uses = computed(() => endpointUses(this.usedBy(), this.endpoints() ?? [], this.assignedEndpoints()));
