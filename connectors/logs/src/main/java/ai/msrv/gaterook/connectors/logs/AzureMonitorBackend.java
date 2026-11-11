@@ -94,8 +94,8 @@ final class AzureMonitorBackend implements Backend {
     if (KqlQuery.aggregates(q)) {
       return q + "\n| take " + want;
     }
-    return q + "\n| where " + timeColumn + " between (datetime(" + instant(fromNs) + ") .. datetime(" + instant(toNs)
-        + "))\n| top " + want + " by " + timeColumn + (ascending ? " asc" : " desc");
+    return q + "\n| where " + timeColumn + " between (datetime(" + kusto(fromNs, false) + ") .. datetime("
+        + kusto(toNs, true) + "))\n| top " + want + " by " + timeColumn + (ascending ? " asc" : " desc");
   }
 
   private Page run(String query, String source, long fromNs, long toNs, int want, boolean ascending)
@@ -250,7 +250,7 @@ final class AzureMonitorBackend implements Backend {
     ObjectNode body = JsonNodeFactory.instance.objectNode();
     body.put("query", query);
     // The window, a second wider on both sides: the inclusive where in the query is the exact one.
-    body.put("timespan", instant(fromNs - 1_000_000_000L) + "/" + instant(toNs + 1_000_000_000L));
+    body.put("timespan", kusto(fromNs - 1_000_000_000L, false) + "/" + kusto(toNs + 1_000_000_000L, true));
     if (!moreWorkspaces.isEmpty()) {
       ArrayNode w = body.putArray("workspaces");
       moreWorkspaces.forEach(w::add);
@@ -386,6 +386,20 @@ final class AzureMonitorBackend implements Backend {
   static String instant(long ns) {
     return Instant.ofEpochSecond(Math.floorDiv(ns, 1_000_000_000L), Math.floorMod(ns, 1_000_000_000L)).toString();
   }
+
+  /**
+   * A time as Kusto and the query API read it: at most seven fractional digits (100 ns ticks), rounded down for the
+   * start of a window and up for its end, so the window never shrinks.
+   */
+  static String kusto(long ns, boolean ceil) {
+    long ticks = ceil ? Math.floorDiv(ns + 99, 100) : Math.floorDiv(ns, 100);
+    long rounded = Math.multiplyExact(ticks, 100);
+    return KUSTO_TIME.format(Instant.ofEpochSecond(Math.floorDiv(rounded, 1_000_000_000L),
+        Math.floorMod(rounded, 1_000_000_000L)));
+  }
+
+  private static final java.time.format.DateTimeFormatter KUSTO_TIME = java.time.format.DateTimeFormatter
+      .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSSS'Z'").withZone(java.time.ZoneOffset.UTC);
 
   // ── Test, health, describe ──────────────────────────────────────────────────────────────────────────────────
 

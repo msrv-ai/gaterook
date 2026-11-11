@@ -38,10 +38,11 @@ final class Monitor {
   static final String ACTIVITY_API = "2015-04-01";
   static final String HEALTH_API = "2022-10-01";
   static final String PURPOSE = "azure.monitor";
-  /** Fields of an Activity Log event kept for agents; {@code claims} repeats the caller's token claims. */
-  static final String ACTIVITY_SELECT = "authorization,caller,category,correlationId,description,eventDataId,"
-      + "eventName,eventTimestamp,httpRequest,level,operationId,operationName,properties,resourceGroupName,"
-      + "resourceId,resourceProviderName,resourceType,status,subStatus,submissionTimestamp";
+  /**
+   * Properties of an Activity Log event left out: the request and response bodies of an operation can hold what was
+   * written (settings, keys). The event's {@code claims}, which repeat the caller's token claims, are never mapped.
+   */
+  static final java.util.Set<String> ACTIVITY_BODIES = java.util.Set.of("requestbody", "responsebody");
   static final int MAX_PAGES = 3;
 
   private final Call call;
@@ -52,6 +53,18 @@ final class Monitor {
 
   ToolResult run(MonitorRequest r) throws ConnectorException {
     call.quota(r.subscription(), "Azure Monitor", Call.MONITOR_PER_MINUTE);
+    if (r.cursor() != null) {
+      // The page token continues the query of the first page: its range comes with it.
+      JsonNode c = continuation(r);
+      if (c.hasNonNull("f") && c.hasNonNull("e")) {
+        try {
+          r = r.withRange(java.time.Instant.parse(c.path("f").asString()), java.time.Instant.parse(
+              c.path("e").asString()));
+        } catch (java.time.format.DateTimeParseException e) {
+          throw ConnectorException.badInput("The cursor is invalid. Start again without cursor.");
+        }
+      }
+    }
     return switch (r.action()) {
       case QUERY -> metrics(r);
       case LIST_METRICS -> definitions(r);
@@ -278,7 +291,6 @@ final class Monitor {
       filter.append(" and resourceUri eq '").append(r.rawResource().replace("'", "''")).append('\'');
     }
     q.put("$filter", filter.toString());
-    q.put("$select", ACTIVITY_SELECT);
     String path = "/subscriptions/" + r.subscription() + "/providers/Microsoft.Insights/eventtypes/management/values";
     Page page = pages(path, q, r, "the Azure Activity Log", e -> {
       if (r.status() != null && !r.status().equalsIgnoreCase(e.path("status").path("value").asString(""))) {
@@ -310,7 +322,13 @@ final class Monitor {
       }
       JsonNode props = e.path("properties");
       if (props.isObject() && !props.isEmpty()) {
-        a.set("properties", props.deepCopy());
+        ObjectNode kept = JsonNodeFactory.instance.objectNode();
+        props.properties().forEach(p -> {
+          if (!ACTIVITY_BODIES.contains(p.getKey().toLowerCase(Locale.ROOT))) {
+            kept.set(p.getKey(), p.getValue().deepCopy());
+          }
+        });
+        a.set("properties", kept);
       }
       return a;
     }, a -> a.path("resourceId").asString(null));
@@ -402,15 +420,10 @@ final class Monitor {
     String token = null;
     int skip = 0;
     if (r.cursor() != null) {
-      // "<Azure's $skipToken>|<items of that page already handed out>"
-      String c = Cursors.open(call.ctx(), PURPOSE, "azure_monitor", r.cursor(), call.cfg().id(), r.hash());
-      int bar = c.lastIndexOf('|');
-      try {
-        skip = bar < 0 ? 0 : Math.max(0, Integer.parseInt(c.substring(bar + 1)));
-      } catch (NumberFormatException e) {
-        skip = 0;
-      }
-      token = bar <= 0 ? null : c.substring(0, bar);
+      JsonNode c = continuation(r);
+      token = c.path("s").asString("");
+      token = token.isBlank() ? null : token;
+      skip = Math.max(0, c.path("o").asInt(0));
     }
     String encoded = ResourceIds.encodedPath(ResourceIds.parse(path));
     for (int n = 0; n < MAX_PAGES; n++) {
@@ -434,8 +447,7 @@ final class Monitor {
           continue;
         }
         if (page.items.size() >= r.limit()) {
-          page.cursor = Cursors.seal(call.ctx(), PURPOSE, call.cfg().id(), r.hash(), (token == null ? "" : token)
-              + "|" + at);
+          page.cursor = seal(r, token, at);
           page.notes.add("More items: call azure_monitor again with the same arguments and cursor.");
           return finish(page);
         }
@@ -452,9 +464,37 @@ final class Monitor {
         break;
       }
     }
-    page.cursor = Cursors.seal(call.ctx(), PURPOSE, call.cfg().id(), r.hash(), token + "|0");
+    page.cursor = seal(r, token, 0);
     page.notes.add("More items: call azure_monitor again with the same arguments and cursor.");
     return finish(page);
+  }
+
+  /**
+   * A cursor of the next page: Azure's {@code $skipToken}, how many items of that page were handed out, and the range
+   * of the first page.
+   */
+  private String seal(MonitorRequest r, String token, int offset) {
+    ObjectNode c = JsonNodeFactory.instance.objectNode();
+    c.put("s", token == null ? "" : token);
+    c.put("o", offset);
+    if (r.from() != null) {
+      c.put("f", r.from().toString());
+      c.put("e", r.to().toString());
+    }
+    return Cursors.seal(call.ctx(), PURPOSE, call.cfg().id(), r.hash(), c.toString());
+  }
+
+  private JsonNode continuation(MonitorRequest r) throws ConnectorException {
+    String text = Cursors.open(call.ctx(), PURPOSE, "azure_monitor", r.cursor(), call.cfg().id(), r.hash());
+    try {
+      JsonNode n = tools.jackson.databind.json.JsonMapper.builder().build().readTree(text);
+      if (n.isObject()) {
+        return n;
+      }
+    } catch (tools.jackson.core.JacksonException e) {
+      // Not a cursor of this version: refused below.
+    }
+    throw ConnectorException.badInput("The cursor is invalid. Start again without cursor.");
   }
 
   private Page finish(Page page) {

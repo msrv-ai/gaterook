@@ -409,7 +409,37 @@ class AzureConnectorTest {
     assertThat(events.structuredContent().toString()).doesNotContain("203.0.113.9");
     RecordedRequest e = azure.to("GET /subscriptions/" + SUB + "/providers/Microsoft.Insights/eventtypes").getFirst();
     assertThat(FakeAzure.param(e, "$filter")).startsWith("eventTimestamp ge '").contains("and eventTimestamp le '");
-    assertThat(FakeAzure.param(e, "$select")).doesNotContain("claims");
+    assertThat(FakeAzure.param(e, "$filter")).doesNotContain(".");
+  }
+
+  @Test
+  void theActivityLogPagesOverTheRangeOfItsFirstPage() throws Exception {
+    azure.on("GET /subscriptions/" + SUB + "/providers/Microsoft.Insights/eventtypes/management/values",
+        r -> FakeAzure.json(200, "{\"value\":[" + event("e1", "Microsoft.Web/sites/write") + ","
+            + event("e2", "Microsoft.Web/sites/restart/action") + "," + event("e3",
+            "Microsoft.Web/sites/config/write") + "]}"));
+    String args = "{\"action\":\"activity_log\",\"from\":\"-2h\",\"limit\":2}";
+
+    ToolResult first = OutputSchema.monitor(run("azure_monitor", args));
+    String cursor = first.structuredContent().path("nextCursor").asString();
+    ToolResult second = OutputSchema.monitor(run("azure_monitor", args.replace("}", ",\"cursor\":\"" + cursor
+        + "\"}")));
+
+    assertThat(first.structuredContent().path("items")).hasSize(2);
+    assertThat(first.structuredContent().toString()).doesNotContain("adminPassword").contains("statusCode");
+    assertThat(cursor).startsWith(Cursors.PREFIX);
+    assertThat(second.structuredContent().path("items")).hasSize(1);
+    assertThat(second.structuredContent().at("/items/0/correlationId").asString()).isEqualTo("e3");
+    var sent = azure.to("GET /subscriptions/" + SUB + "/providers/Microsoft.Insights/eventtypes");
+    assertThat(FakeAzure.param(sent.get(1), "$filter")).isEqualTo(FakeAzure.param(sent.get(0), "$filter"));
+    assertThat(second.structuredContent().path("from").asString())
+        .isEqualTo(first.structuredContent().path("from").asString());
+  }
+
+  private static String event(String id, String operation) {
+    return "{\"eventTimestamp\":\"2026-11-11T09:00:00Z\",\"correlationId\":\"" + id + "\",\"operationName\":"
+        + "{\"value\":\"" + operation + "\"},\"status\":{\"value\":\"Succeeded\"},\"resourceId\":\"" + SITE + "\","
+        + "\"properties\":{\"statusCode\":\"OK\",\"requestbody\":\"{\\\"adminPassword\\\":\\\"cnry\\\"}\"}}";
   }
 
   @Test

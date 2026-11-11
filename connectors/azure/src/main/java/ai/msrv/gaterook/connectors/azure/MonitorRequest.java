@@ -137,8 +137,12 @@ record MonitorRequest(Action action, ResourceIds.Parsed resource, String rawReso
     } else if (action == Action.QUERY || action == Action.ALERTS || action == Action.ACTIVITY_LOG) {
       try {
         TimeArg.Range range = TimeArg.range(text(args, "from", defaultFrom), text(args, "to", "now"), now, maxRange);
-        from = range.from();
-        to = range.to();
+        // Whole seconds: Azure's APIs read at most seven fractional digits, and absolute times make approvals exact.
+        from = range.from().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        to = range.to().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        if (!from.isBefore(to)) {
+          throw new Refusal("range", "from must be at least a second before to.", null);
+        }
       } catch (TimeArg.InvalidTimeException e) {
         throw new Refusal("range", e.getMessage(), "Write times as -1h, now-30m or 2026-10-22T14:00:00Z.");
       }
@@ -260,10 +264,20 @@ record MonitorRequest(Action action, ResourceIds.Parsed resource, String rawReso
     return of(payload.path("arguments"), s, p, now);
   }
 
-  /** The hash of what makes two calls the same query, for cursors. */
+  /**
+   * The hash of what makes two calls the same query, for cursors. Not the times: relative ones move between calls, so
+   * a cursor carries the range of its first page ({@link #withRange}).
+   */
   String hash() {
-    return Cursors.hash(action.id, rawResource, subscription, String.valueOf(from), String.valueOf(to), timeRange,
-        state, condition, severity, resourceGroup, status, level, operation, Integer.toString(limit));
+    return Cursors.hash(action.id, rawResource, subscription, timeRange, state, condition, severity, resourceGroup,
+        status, level, operation, Integer.toString(limit));
+  }
+
+  /** The same request over the range a cursor carries. */
+  MonitorRequest withRange(Instant from, Instant to) {
+    return new MonitorRequest(action, resource, rawResource, subscription, metrics, aggregations, interval, filter,
+        namespace, top, from, to, timeRange, state, condition, severity, resourceGroup, status, level, operation, limit,
+        cursor, notes);
   }
 
   ObjectNode payload() {
