@@ -1,0 +1,24 @@
+{
+  "area": "snowflake",
+  "module": "connectors/snowflake",
+  "connectorTypes": ["snowflake"],
+  "description": "Touches of the Snowflake connector for the native smoke (report 15 §6): the Snowflake lexer and classifier, the schemas and the PEM key reader in the image, without I/O.",
+  "touches": [
+    {
+      "name": "snowflake-classify-without-io",
+      "connection": {"type": "snowflake", "env": "dev",
+        "config": {"account": "myorg-myaccount", "user": "GW_READER", "authentication": {"method": "token"}},
+        "secrets": {"/authentication/token": "smoke-only-0001"}},
+      "call": {"tool": "snowflake_query", "arguments": {"sql": "DELETE FROM orders WHERE id = 1"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.snowflake.query-writes"}
+    },
+    {
+      "name": "snowflake-key-refused-without-io",
+      "connection": {"type": "snowflake", "env": "dev",
+        "config": {"account": "myorg-myaccount", "user": "GW_READER", "authentication": {"method": "keyPair"}},
+        "secrets": {"/authentication/privateKey": "smoke-only-not-a-key"}},
+      "test": true,
+      "expect": {"ok": false, "errorCode": "snowflake.credentials"}
+    }
+  ]
+}
