@@ -78,7 +78,6 @@ export const VISIBLE_SERVICES = 6;
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-page' },
   templateUrl: './overview.page.html',
-  styleUrl: './overview.page.scss',
 })
 export class OverviewPage {
   protected readonly data = inject(OverviewData);
