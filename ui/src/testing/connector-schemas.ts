@@ -7351,7 +7351,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "examples": [
           "https://acme.documents.azure.com"
         ],
-        "description": "The account's URI from its Keys page: https://<account>.documents.azure.com (.documents.azure.us in Azure Government, .documents.azure.cn in Azure operated by 21Vianet). The emulator on this computer: http://127.0.0.1:8081 in development builds, or its https:// address."
+        "description": "The account's URI from its Keys page: https://<account>.documents.azure.com (.documents.azure.us in Azure Government, .documents.azure.cn in Azure operated by 21Vianet)."
       },
       "auth": {
         "type": "object",
@@ -7768,7 +7768,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "examples": [
           "neo4j+s://a1b2c3d4.databases.neo4j.io"
         ],
-        "description": "neo4j+s:// for a cluster or Aura, bolt+s:// for one server, with the host and port (7687 by default). neo4j:// and bolt:// without TLS reach only this computer (localhost)."
+        "description": "neo4j+s:// for a cluster or Aura, bolt+s:// for one server, with the host and port (7687 by default). neo4j:// and bolt:// without TLS reach only this computer."
       },
       "database": {
         "type": "string",
@@ -7937,7 +7937,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "examples": [
           "https://prometheus.example.com"
         ],
-        "description": "Where the server answers, with any path before /api/v1: https://mimir.example.com/prometheus for Mimir. Plain http:// only to this computer (localhost, 127.0.0.1)."
+        "description": "Where the server answers, with any path before /api/v1: https://mimir.example.com/prometheus for Mimir. Plain http:// only to this computer."
       },
       "tenant": {
         "type": "string",
@@ -8107,7 +8107,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "examples": [
           "https://influxdb.example.com:8181"
         ],
-        "description": "The server's address with https:// and its port, optionally with a path prefix. Plain http:// only to this computer (localhost, 127.0.0.1 or ::1)."
+        "description": "The server's address with https:// and its port, optionally with a path prefix. Plain http:// only to this computer."
       },
       "version": {
         "title": "Server",

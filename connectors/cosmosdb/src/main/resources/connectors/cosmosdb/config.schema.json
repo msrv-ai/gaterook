@@ -19,7 +19,7 @@
       "examples": [
         "https://acme.documents.azure.com"
       ],
-      "description": "The account's URI from its Keys page: https://<account>.documents.azure.com (.documents.azure.us in Azure Government, .documents.azure.cn in Azure operated by 21Vianet). The emulator on this computer: http://127.0.0.1:8081 in development builds, or its https:// address."
+      "description": "The account's URI from its Keys page: https://<account>.documents.azure.com (.documents.azure.us in Azure Government, .documents.azure.cn in Azure operated by 21Vianet)."
     },
     "auth": {
       "type": "object",
