@@ -252,19 +252,26 @@ describe('starting', () => {
       'Native core, completed Native image · 0.1 s',
       'Master key, completed Loaded ~/.gaterook/master.keyset',
       'Database migrations, completed Up to date · 0.4 s',
-      'Local API, in progress Binding 127.0.0.1:7465',
+      'Local API, in progress',
     ]);
     expect(steps[3].getAttribute('aria-current')).toBe('step');
     expect(text(page.querySelector('[role=status]'))).toBe('Starting the gateway core: local api, step 4 of 4.');
     expect(text(page.querySelector('.gw-status-screen__meta'))).toBe('GateRook 0.4.0 · log ~/.gaterook/logs/core.log');
   });
 
-  it('keeps the startup screen free of connection details: the meta line names only the version and the log file', async () => {
+  it('keeps the startup screen free of connection details: no address in the steps, only version and log file below', async () => {
     const page = await render();
     await emit({ kind: 'starting', steps: [], port: 7475, publicPort: 7466, version: '0.4.0' });
     expect(text(page.querySelector('.gw-status-screen__card'))).not.toMatch(/127\.0\.0\.1|7475/);
     expect(text(page.querySelector('.gw-status-screen__meta'))).toBe('GateRook 0.4.0 · log ~/.gaterook/logs/core.log');
     expect(text(page.querySelector('.gw-stepper__step[data-state=current]'))).toContain('Native core');
+
+    // The local API binding, then listening: the step says so without the address.
+    await emit({ kind: 'starting', steps: [{ step: 'local-api', state: 'running' }], port: 7475, publicPort: 7466, version: '0.4.0' });
+    expect(text(page.querySelector('.gw-stepper__step[data-state=current]'))).toBe('Local API, in progress');
+    await emit({ kind: 'starting', steps: [{ step: 'local-api', state: 'done' }], port: 7475, publicPort: 7466, version: '0.4.0' });
+    expect(text(page.querySelectorAll('.gw-stepper__step')[3])).toBe('Local API, completed Listening');
+    expect(text(page.querySelector('.gw-status-screen__card'))).not.toMatch(/127\.0\.0\.1|7475/);
   });
 });
 

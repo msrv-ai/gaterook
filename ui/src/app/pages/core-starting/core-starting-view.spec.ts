@@ -78,21 +78,21 @@ const KIT_LIVE: CoreStep[] = [
 ];
 
 describe('start-up steps from the progress lines', () => {
-  it('reads the kit’s live state: three done with their lines, Local API binding the address', () => {
-    expect(progressSteps(KIT_LIVE, ADDRESS, '~/.gaterook/master.keyset')).toEqual([
+  it('reads the kit’s live state: three done with their lines, Local API binding without naming the address', () => {
+    expect(progressSteps(KIT_LIVE, '~/.gaterook/master.keyset')).toEqual([
       { id: 'runtime', state: 'complete', description: 'Native image · 0.1 s' },
       { id: 'master-key', state: 'complete', description: 'Loaded', mono: '~/.gaterook/master.keyset' },
       { id: 'db-migrations', state: 'complete', description: 'Up to date · 0.4 s' },
-      { id: 'local-api', state: 'current', description: 'Binding', mono: ADDRESS },
+      { id: 'local-api', state: 'current' },
     ]);
   });
 
   it('before any line the process itself is starting; the rest has not started', () => {
-    expect(progressSteps([], ADDRESS, KEY).map((s) => s.state)).toEqual(['current', 'upcoming', 'upcoming', 'upcoming']);
+    expect(progressSteps([], KEY).map((s) => s.state)).toEqual(['current', 'upcoming', 'upcoming', 'upcoming']);
   });
 
   it('a later step that reported means the earlier ones are done, even without their lines', () => {
-    const steps = progressSteps([{ step: 'db-migrations', state: 'running' }], ADDRESS, KEY);
+    const steps = progressSteps([{ step: 'db-migrations', state: 'running' }], KEY);
     expect(steps.map((s) => [s.id, s.state])).toEqual([
       ['runtime', 'complete'],
       ['master-key', 'complete'],
@@ -101,9 +101,9 @@ describe('start-up steps from the progress lines', () => {
     ]);
   });
 
-  it('a failed line is the failed step; the local API done listens on the address', () => {
-    expect(progressSteps([{ step: 'db-migrations', state: 'failed' }], ADDRESS, KEY)[2].state).toBe('error');
-    expect(progressSteps([{ step: 'local-api', state: 'done' }], ADDRESS, KEY)[3]).toEqual({ id: 'local-api', state: 'complete', description: 'Listening on', mono: ADDRESS });
+  it('a failed line is the failed step; the local API done is listening, without the address', () => {
+    expect(progressSteps([{ step: 'db-migrations', state: 'failed' }], KEY)[2].state).toBe('error');
+    expect(progressSteps([{ step: 'local-api', state: 'done', ms: 30 }], KEY)[3]).toEqual({ id: 'local-api', state: 'complete', description: 'Listening' });
   });
 
   it('writes step times in tenths of a second, as the kit', () => {
