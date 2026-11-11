@@ -42,6 +42,7 @@
     <module>connectors/bigquery</module>
     <module>connectors/firebase</module>
     <module>connectors/snowflake</module>
+    <module>connectors/cassandra</module>
     <module>connectors/http</module>
     <module>connectors/mcp-server</module>
     <module>core</module>
@@ -70,6 +71,11 @@
     <jedis.version>8.0.2</jedis.version>
     <!-- Jedis 8.0.2 and google-auth 1.54.0 need gson 2.14.0; Boot 4.1.2 would pin 2.13.2. -->
     <gson.version>2.14.0</gson.version>
+    <!--
+      The Apache Cassandra Java driver of connectors/cassandra (docs/cassandra.md): Boot 4.1.2's own value, pinned here
+      so that the version the connector was tested with doesn't move with a Boot upgrade.
+    -->
+    <cassandra-driver.version>4.19.4</cassandra-driver.version>
 
     <!-- Versions the Spring Boot BOM does not manage. -->
     <spring-modulith.version>2.1.2</spring-modulith.version>
@@ -115,6 +121,7 @@
     <it.tag.mysql>mysql-it</it.tag.mysql>
     <it.tag.sqlserver>sqlserver-it</it.tag.sqlserver>
     <it.tag.cockroach>cockroach-it</it.tag.cockroach>
+    <it.tag.cassandra>cassandra-it</it.tag.cassandra>
     <it.tag.mongo>mongo-it</it.tag.mongo>
     <it.tag.logs>logs-it</it.tag.logs>
     <it.tag.kube>kube-api</it.tag.kube>
@@ -128,7 +135,7 @@
     <it.services></it.services>
     <!-- Extra JVM options of the test forks: the tracing agent of the nightly metadata report (native.yml). -->
     <test.jvm.extra></test.jvm.extra>
-    <it.excludedGroups>${it.tag.mysql},${it.tag.sqlserver},${it.tag.cockroach},${it.tag.mongo},${it.tag.logs},${it.tag.kube},${it.tag.vault},${it.tag.cloud},${it.tag.network},${it.tag.mcpclients},${it.tag.openapi},${it.tag.mcpservers}</it.excludedGroups>
+    <it.excludedGroups>${it.tag.mysql},${it.tag.sqlserver},${it.tag.cockroach},${it.tag.cassandra},${it.tag.mongo},${it.tag.logs},${it.tag.kube},${it.tag.vault},${it.tag.cloud},${it.tag.network},${it.tag.mcpclients},${it.tag.openapi},${it.tag.mcpservers}</it.excludedGroups>
   </properties>
 
   <dependencyManagement>
@@ -221,6 +228,11 @@
       </dependency>
       <dependency>
         <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-cassandra</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
         <artifactId>connectors-http</artifactId>
         <version>${project.version}</version>
       </dependency>
@@ -309,6 +321,26 @@
         <groupId>com.github.jsqlparser</groupId>
         <artifactId>jsqlparser</artifactId>
         <version>${jsqlparser.version}</version>
+      </dependency>
+
+      <!-- ── Connectors: Cassandra (docs/cassandra.md) ───────────────────────────────────────────────────── -->
+      <!--
+        The driver's optional extras stay out: JNR (native clock and PID; the driver falls back to Java's), Jackson 2
+        (banned, A9: the connector sends the driver's STARTUP options itself, without their JSON "baggage", and
+        leaves DSE Insights off), Dropwizard metrics and HdrHistogram (the connector configures NoopMetricsFactory).
+        Netty comes at the Boot BOM's version.
+      -->
+      <dependency>
+        <groupId>org.apache.cassandra</groupId>
+        <artifactId>java-driver-core</artifactId>
+        <version>${cassandra-driver.version}</version>
+        <exclusions>
+          <exclusion><groupId>com.github.jnr</groupId><artifactId>jnr-posix</artifactId></exclusion>
+          <exclusion><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-core</artifactId></exclusion>
+          <exclusion><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId></exclusion>
+          <exclusion><groupId>io.dropwizard.metrics</groupId><artifactId>metrics-core</artifactId></exclusion>
+          <exclusion><groupId>org.hdrhistogram</groupId><artifactId>HdrHistogram</artifactId></exclusion>
+        </exclusions>
       </dependency>
 
       <!-- ── Plugins: DuckDB (docs/duckdb.md) ──────────────────────────────────────────────────────────── -->
@@ -745,6 +777,11 @@
     <profile>
       <id>cockroach-it</id>
       <properties><it.tag.cockroach>__enabled-cockroach-it</it.tag.cockroach></properties>
+    </profile>
+    <profile>
+      <!-- Apache Cassandra 5.0 of the Compose services (scripts/test-services.sh up cassandra), with -Pservices. -->
+      <id>cassandra-it</id>
+      <properties><it.tag.cassandra>__enabled-cassandra-it</it.tag.cassandra></properties>
     </profile>
     <profile>
       <id>mongo-it</id>

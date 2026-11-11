@@ -5,7 +5,7 @@
 #   scripts/test-services.sh up sql redis      # or: docker compose -f test-services/docker-compose.yml --profile sql up -d --wait
 #   mvn -B -ntp verify -Pservices              # the ITs connect here instead of starting their own servers
 #
-# Profiles: sql · oracle · sqlserver · mongo · redis · logs · aws · vault · ssh · k8s · all
+# Profiles: sql · oracle · sqlserver · cassandra · mongo · redis · logs · aws · vault · ssh · k8s · all
 name: gw-test
 
 x-health: &health
@@ -102,6 +102,37 @@ services:
     healthcheck:
       test: ["CMD", "/cockroach/cockroach", "sql", "--certs-dir=/cockroach/certs", "--host=127.0.0.1", "-e", "SELECT 1"]
       <<: *health
+
+  # Apache Cassandra 5.0 through connectors/cassandra: one node, data center gw-dc1, password sign-in with roles and
+  # permissions, and TLS on the native port next to plain CQL. cassandra-start.sh switches the authenticator and
+  # authorizer (the image has no variables for them) and makes the node's certificate in run/cassandra-certs. Its
+  # data stays in the container's writable layer and is removed with it.
+  cassandra:
+    image: cassandra:${GW_CASSANDRA_TAG}
+    container_name: gw-test-cassandra
+    profiles: [cassandra, all]
+    mem_limit: 1280m
+    entrypoint: ["/bin/sh", "/scripts/cassandra-start.sh"]
+    environment:
+      MAX_HEAP_SIZE: 512M
+      HEAP_NEWSIZE: 128M
+      CASSANDRA_CLUSTER_NAME: gw-test
+      CASSANDRA_DC: gw-dc1
+      CASSANDRA_ENDPOINT_SNITCH: GossipingPropertyFileSnitch
+      JVM_EXTRA_OPTS: "-Dcassandra.superuser_setup_delay_ms=0 -Dcassandra.skip_wait_for_gossip_to_settle=0"
+      GW_CASSANDRA_KEYSTORE_PASSWORD: ${GW_CASSANDRA_KEYSTORE_PASSWORD}
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./run/cassandra-certs:/certs
+    ports:
+      - "127.0.0.1:${GW_CASSANDRA_PORT}:9042"
+    healthcheck:
+      test: ["CMD", "cqlsh", "-u", "${GW_CASSANDRA_USER}", "-p", "${GW_CASSANDRA_PASSWORD}", "-e",
+             "SELECT release_version FROM system.local"]
+      interval: 5s
+      timeout: 15s
+      retries: 60
+      start_period: 30s
 
   # Oracle Free includes FREEPDB1 on both amd64 and arm64. Keep its large datafiles in the container layer:
   # they are removed with the container, without consuming the Docker VM's RAM as a data tmpfs would.
