@@ -1274,6 +1274,20 @@ table {
   height: var(--gw-size-control-lg);
   border-radius: var(--gw-radius-md);
 }
+.gw-icon-tile--mark {
+  padding: var(--gw-space-1);
+  background: var(--gw-color-bg-mark);
+  box-shadow: inset 0 0 0 var(--gw-border-width-default) var(--gw-color-border-subtle);
+}
+.gw-icon-tile--mark > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.gw-icon-tile--lg.gw-icon-tile--mark {
+  padding: var(--gw-space-1-5);
+}
 
 .gw-spinner {
   --gw-spinner-size: var(--gw-size-icon-md);

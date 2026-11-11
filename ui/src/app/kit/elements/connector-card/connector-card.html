@@ -1,7 +1,11 @@
 @let c = card();
 <header class="gw-card__header">
   <div class="gw-connector-card__identity">
-    <span class="gw-icon-tile gw-icon-tile--lg"><svg [lucideIcon]="c.icon" class="gw-icon gw-icon--lg"></svg></span>
+    @if (mark(); as src) {
+      <span class="gw-icon-tile gw-icon-tile--lg gw-icon-tile--mark"><img [src]="src" alt="" width="32" height="32"></span>
+    } @else {
+      <span class="gw-icon-tile gw-icon-tile--lg"><svg [lucideIcon]="c.icon" class="gw-icon gw-icon--lg"></svg></span>
+    }
     <div class="gw-card__heading">
       @switch (level()) {
         @case (2) { <h2 class="gw-card__title" [id]="uid + '-t'">{{ c.name }}</h2> }
