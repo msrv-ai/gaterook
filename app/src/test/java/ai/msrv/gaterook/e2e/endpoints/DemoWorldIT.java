@@ -303,13 +303,13 @@ class DemoWorldIT {
     assertForbiddenOnProd("aws", """
         {"regions":["eu-central-1"],"credentials":{"source":"accessKey","accessKeyId":"AKIAPROD00001EXAMPLE",
          "roleArn":"arn:aws:iam::123456789012:role/gw-readonly","sessionPolicy":"none"}}""",
-        "/credentials/secretAccessKey", "/config/credentials/sessionPolicy", "sessionPolicy can't be none on prod.");
+        "/credentials/secretAccessKey", "/config/credentials/sessionPolicy", "Session policy can't be none on prod.");
     assertForbiddenOnProd("http", """
         {"baseUrls":["https://billing.acme.dev"],"auth":{"type":"apiKeyQuery"}}""", "/auth/apiKey",
-        "/config/auth/type", "type can't be apiKeyQuery on prod.");
+        "/config/auth/type", "Authentication can't be apiKeyQuery on prod.");
     assertForbiddenOnProd("http", """
         {"baseUrls":["https://billing.acme.dev"],"auth":{"type":"bearer"},"advanced":{"followRedirects":"same-origin"}}""",
-        "/auth/token", "/config/advanced/followRedirects", "followRedirects can't be same-origin on prod.");
+        "/auth/token", "/config/advanced/followRedirects", "Follow redirects can't be same-origin on prod.");
     assertForbiddenOnProd("redis", """
         {"connection":{"host":"cache.prod.internal","port":6379,"tlsVerify":"ca"}}""", "/credentials/password",
         "/config/connection/tlsVerify", "TLS verification can't be ca on prod.");
