@@ -1093,6 +1093,22 @@ describe('Add connection: wizard', () => {
     expect((p.page().form()!.value().config['connection'] as JsonObject)['hostKey']).toBe('ssh-ed25519 AAAA');
   });
 
+  it('a host key on an unsaved draft: Trust pins the key, then the wizard tests the patched draft itself', async () => {
+    core.nextTest = HOST_KEY;
+    const p = await open();
+    await toTest(p);
+    // The core keeps no credentials of an unsaved draft, so it returns the patched config without a retest.
+    core.pendingConfirm = Promise.resolve({ kind: 'host-key', config: { connection: { hostKey: 'ssh-ed25519 AAAA' } }, retest: null });
+    core.nextTest = OK;
+    const tests = core.tests.length;
+    p.button('Trust this key and test again', p.q('#step-3')!).click();
+    await p.settle();
+    expect(TestBed.inject(ConnectionsApi).confirmDraft).toHaveBeenCalledWith('cf-1');
+    expect(core.tests).toHaveLength(tests + 1);
+    expect((core.tests.at(-1)!.config['connection'] as JsonObject)['hostKey']).toBe('ssh-ed25519 AAAA');
+    expect(text(p.q('#step-3 .gw-status'))).toBe('Connected · PostgreSQL 16.4 · 12 ms');
+  });
+
   it('a refused draft (422) is a failed test whose field shows the error back in Configure', async () => {
     core.nextTest = new ApiError('unprocessable', 422, { title: "Can't test it", detail: 'Check the host.', errors: [{ field: '/config/connection/host', message: 'Use a host name or an IP address.' }] });
     const p = await open();

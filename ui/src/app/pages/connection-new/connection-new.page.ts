@@ -1008,26 +1008,35 @@ export class ConnectionNewPage {
     };
   }
 
-  /** Trust the key or certificate the test stopped for: the core patches the draft and tests again. */
+  /**
+   * Trust the key or certificate the test stopped for. The core patches the draft; it cannot test an unsaved draft
+   * again (it keeps none of its credentials), so without a retest of its own the wizard tests the patched draft.
+   */
   async trust(confirmationId: string): Promise<void> {
     if (this.trusting()) return;
     this.trusting.set(true);
+    let testAgain = false;
     try {
       const r = await this.connections.confirmDraft(confirmationId);
       const form = this.form();
       if (form && r.config && Object.keys(r.config).length) form.state().model.update((m) => merge(m, r.config) as JsonObject);
-      const v = form?.value() ?? this.draft();
-      if (v) {
-        this.draft.set(v);
-        this.testedKey = draftKey(this.spec()?.type ?? null, v);
+      if (r.retest) {
+        const v = form?.value() ?? this.draft();
+        if (v) {
+          this.draft.set(v);
+          this.testedKey = draftKey(this.spec()?.type ?? null, v);
+        }
+        this.outcome.set(r.retest);
+        this.testedAt.set(new Date(this.time.now()).toISOString());
+      } else {
+        testAgain = true;
       }
-      if (r.retest) this.outcome.set(r.retest);
-      this.testedAt.set(new Date(this.time.now()).toISOString());
     } catch (e) {
       this.toasts.show({ tone: 'danger', title: "Couldn't trust it", body: isApiError(e) ? e.detail : 'Test again, then trust what it shows.' });
     } finally {
       this.trusting.set(false);
     }
+    if (testAgain) await this.runTest();
   }
 
   /** "Change user" (or, for a database file, "Choose another file"): back to Configure, focus on that field. */
