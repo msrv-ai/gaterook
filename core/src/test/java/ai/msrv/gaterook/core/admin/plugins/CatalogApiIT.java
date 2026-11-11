@@ -101,6 +101,8 @@ class CatalogApiIT {
         "mcp-gateway-plugin.json")));
     JARS.put("gw-duckdb-1.0.0.jar", jar(Path.of("..", "plugins", "duckdb", "src", "main", "resources",
         "mcp-gateway-plugin.json")));
+    JARS.put("gw-h2-1.0.0.jar", jar(Path.of("..", "plugins", "h2", "src", "main", "resources",
+        "mcp-gateway-plugin.json")));
     JARS.forEach((name, bytes) -> serve("/catalog/" + name, bytes));
     serve("/catalog/fixture-mcp.package-lock.json", lockfile());
     publish(index(5, Instant.now().plus(30, ChronoUnit.DAYS), List.of()));
@@ -153,13 +155,15 @@ class CatalogApiIT {
             + "not reviewed. | 4 tools | puzzle | not installed",
         "plugin | duckdb | DuckDB | v1.0.0 | Signed | A DuckDB database file on this computer: read-only queries with "
             + "row, memory and time limits; changes wait for approval. | 4 tools | database | not installed",
+        "plugin | h2 | H2 | v1.0.0 | Signed | An H2 database server: checked read-only queries with row and time "
+            + "limits, always rolled back; changes wait for approval. | 4 tools | database | not installed",
         "template | pg-slow-queries | PostgreSQL slow queries | v1.0.0 | Signed | pg_slow_queries and pg_locks as "
             + "read-only SQL tools. No code runs. | 2 tools | file-code | not installed",
         "mcp-server | fixture-mcp | Fixture MCP server | v1.0.0 | Signed | A test-only server for catalog "
             + "installation. | 2 tools | plug | not installed",
         "template | fake-slow | Fake slow queries | v1.0.0 | Signed | A test template of two reads. | 2 tools | "
             + "file-code | not installed");
-    assertThat(c.path("entries").get(4).path("connectionTypes")).extracting(JsonNode::asString)
+    assertThat(c.path("entries").get(5).path("connectionTypes")).extracting(JsonNode::asString)
         .containsExactly("postgres");
   }
 
@@ -294,7 +298,7 @@ class CatalogApiIT {
     assertThat(Instant.parse(c.path("checkedAt").asString())).as("Checked … ago").isEqualTo(firstCheck);
     assertThat(c.path("signature").path("ok").asBoolean()).isTrue();
     assertThat(c.path("problem").asString()).contains("can't be reached").contains("HTTP 503");
-    assertThat(c.path("entries")).hasSize(7);
+    assertThat(c.path("entries")).hasSize(8);
     // The tab's look doesn't wait on the network again right away.
     assertThat(api.ok("/api/catalog").path("offline").asBoolean()).isTrue();
   }
@@ -313,7 +317,7 @@ class CatalogApiIT {
     assertThat(c.path("signature").path("sequence").asLong()).as("the last good one").isEqualTo(5);
     assertThat(c.path("offline").asBoolean()).isTrue();
     assertThat(c.path("problem").asString()).contains("doesn't match");
-    assertThat(c.path("entries")).hasSize(7);
+    assertThat(c.path("entries")).hasSize(8);
 
     // An index signed long ago that expired: refused, the last good stays.
     publish(index(7, Instant.now().minus(1, ChronoUnit.DAYS), List.of()));
@@ -359,12 +363,12 @@ class CatalogApiIT {
     assertThat(Instant.parse(c.path("checkedAt").asString())).isEqualTo(checked);
     assertThat(c.path("signature").path("sequence").asLong()).isEqualTo(9);
     assertThat(c.path("signature").path("ok").asBoolean()).isTrue();
-    assertThat(c.path("entries")).hasSize(7);
+    assertThat(c.path("entries")).hasSize(8);
     // Try again: the catalog can't be reached, the cache stays with its age.
     JsonNode again = api.expect(200, HttpMethod.POST, "/api/catalog/refresh", null);
     assertThat(again.path("offline").asBoolean()).isTrue();
     assertThat(Instant.parse(again.path("checkedAt").asString())).isEqualTo(checked);
-    assertThat(again.path("entries")).hasSize(7);
+    assertThat(again.path("entries")).hasSize(8);
     assertThat(again.path("problem").asString()).contains("can't be reached");
   }
 

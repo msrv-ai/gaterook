@@ -80,6 +80,9 @@ final class TcpGate {
   /** How long a closed grant is remembered, to explain a late socket. */
   static final Duration REMEMBER_CLOSED = Duration.ofMinutes(2);
 
+  /** Set once the gate is the JVM's proxy selector: what a plugin that needs it checks. */
+  static final String PROPERTY = "gaterook.tcpGate";
+
   /** The user name the authenticator sends from a thread with no grant. */
   static final String NO_GRANT = "-";
 
@@ -123,6 +126,8 @@ final class TcpGate {
       installed = new TcpGate(InetAddress::getAllByName, Clock.systemUTC());
     }
     installed.ensureDefaults();
+    // A plugin can tell that its sockets are gated before it opens one (a gateway without the gate would let them go).
+    System.setProperty(PROPERTY, "socks5");
     return installed;
   }
 

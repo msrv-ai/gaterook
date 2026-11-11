@@ -43,13 +43,14 @@ trap 'rm -rf "$dist"' EXIT
 mkdir -p "$dist/assets" "$dist/out"
 
 echo "Building the plugins of the catalog"
-(cd "$root" && mvn -B -ntp -q -pl plugins/jira-service-desk,plugins/clickhouse,plugins/rabbitmq,plugins/duckdb -am package -DskipTests)
+(cd "$root" && mvn -B -ntp -q -pl plugins/jira-service-desk,plugins/clickhouse,plugins/rabbitmq,plugins/duckdb,plugins/h2 -am package -DskipTests)
 
 # The catalog's file names of the built JARs (the index names them in artifact.url).
 cp "$root"/plugins/jira-service-desk/target/plugins-jira-service-desk-*-1.3.0.jar "$dist/assets/gw-jira-service-desk-1.3.0.jar"
 cp "$root/plugins/clickhouse/target/gw-clickhouse-0.6.1.jar" "$dist/assets/"
 cp "$root/plugins/rabbitmq/target/gw-rabbitmq-0.3.0.jar" "$dist/assets/"
 cp "$root/plugins/duckdb/target/gw-duckdb-1.0.0.jar" "$dist/assets/"
+cp "$root/plugins/h2/target/gw-h2-1.0.0.jar" "$dist/assets/"
 for lockfile in "$root"/catalog/mcp-servers/*.package-lock.json; do
   [ -f "$lockfile" ] || continue
   cp "$lockfile" "$dist/assets/"
