@@ -7,7 +7,8 @@
     {
       "name": "dynamodb-classify-without-io",
       "connection": {"type": "dynamodb", "env": "dev",
-        "config": {"region": "eu-central-1", "credentials": {"source": "accessKey", "accessKeyId": "AKIAIOSFODNN7EXAMPLE"}}},
+        "config": {"region": "eu-central-1", "credentials": {"source": "accessKey", "accessKeyId": "AKIAIOSFODNN7EXAMPLE"}},
+        "secrets": {"/credentials/secretAccessKey": "smoke-only-0001"}},
       "call": {"tool": "dynamodb_partiql", "arguments": {"statement": "DELETE FROM \"orders\" WHERE id = 'o-1'"}},
       "expect": {"isError": true, "textStartsWith": "Denied by policy dev.dynamodb.query-writes"}
     }
