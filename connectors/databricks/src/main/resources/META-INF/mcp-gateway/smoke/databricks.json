@@ -1,0 +1,16 @@
+{
+  "area": "databricks",
+  "module": "connectors/databricks",
+  "connectorTypes": ["databricks"],
+  "description": "Touches of the Databricks connector for the native smoke (report 15 §6): the SQL reader and the schemas in the image, without I/O.",
+  "touches": [
+    {
+      "name": "databricks-classify-without-io",
+      "connection": {"type": "databricks", "env": "dev",
+        "config": {"host": "https://dbc-a1b2c3d4-e5f6.cloud.databricks.com", "warehouseId": "1a2b3c4d5e6f7a8b",
+          "auth": {"method": "oauth", "clientId": "6f0e2c9a-1b3d-4e5f-8a7b-9c0d1e2f3a4b"}}},
+      "call": {"tool": "databricks_query", "arguments": {"sql": "DELETE FROM main.sales.orders WHERE true"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.databricks.query-writes"}
+    }
+  ]
+}

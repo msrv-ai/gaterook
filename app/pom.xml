@@ -86,6 +86,10 @@
     </dependency>
     <dependency>
       <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-databricks</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
       <artifactId>connectors-http</artifactId>
     </dependency>
     <dependency>
