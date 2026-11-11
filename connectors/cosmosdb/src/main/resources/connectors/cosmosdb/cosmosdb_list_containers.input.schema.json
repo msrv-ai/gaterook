@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "database"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "database": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "The database's ID, as cosmosdb_list_databases returns it."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 100,
+      "description": "Most containers to return."
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 16384,
+      "description": "nextCursor of the previous answer; leave it out for the first page."
+    }
+  }
+}

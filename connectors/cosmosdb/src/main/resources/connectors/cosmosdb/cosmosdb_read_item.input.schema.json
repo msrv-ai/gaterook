@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "database",
+    "container",
+    "id",
+    "partitionKey"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "database": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "The database's ID."
+    },
+    "container": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "The container's ID."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1023,
+      "description": "The item's id."
+    },
+    "partitionKey": {
+      "type": [
+        "string",
+        "number",
+        "boolean",
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": [
+          "string",
+          "number",
+          "boolean",
+          "null"
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 3,
+      "description": "The item's partition key value, such as \"c-42\" (an array of values for a hierarchical key)."
+    }
+  }
+}

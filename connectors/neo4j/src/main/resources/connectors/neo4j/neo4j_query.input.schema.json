@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "cypher"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "cypher": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100000,
+      "description": "One Cypher read, such as MATCH (p:Person {name: $name})-[:KNOWS]->(f) RETURN f LIMIT 25. Neo4j's EXPLAIN must call it read only. No semicolon, USE, LOAD CSV, or CALL of procedures other than db.labels, db.relationshipTypes, db.propertyKeys and db.schema.*."
+    },
+    "parameters": {
+      "type": "object",
+      "maxProperties": 100,
+      "propertyNames": {
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+      },
+      "description": "Values of the statement's $parameters: strings, numbers, booleans, null, lists and maps. Build dates and points in Cypher: date($day), point({x: $x, y: $y})."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000,
+      "default": 100,
+      "description": "Most rows to return; the endpoint caps it."
+    }
+  }
+}

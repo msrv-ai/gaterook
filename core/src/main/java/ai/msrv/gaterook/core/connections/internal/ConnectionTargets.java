@@ -21,7 +21,7 @@ public final class ConnectionTargets {
    * ({@code <account>.snowflakecomputing.com}), a Realtime Database's {@code databaseUrl} where its token goes.
    */
   private static final Set<String> TARGET_KEYS = Set.of("host", "hostname", "server", "apiServer", "url", "uri",
-      "baseUrl", "baseUrls", "endpoint", "address", "command", "account", "databaseUrl");
+      "baseUrl", "baseUrls", "endpoint", "address", "command", "account", "databaseUrl", "contactPoints");
 
   private ConnectionTargets() {}
 
@@ -157,6 +157,19 @@ public final class ConnectionTargets {
     }
     if (config.path("databaseUrl").isString()) {
       return address(config.path("databaseUrl").asString());
+    }
+    // A Neo4j URI, a Databricks workspace (an endpoint, such as Azure Cosmos DB's, is shown above with its scheme).
+    for (String key : new String[] {"uri", "host"}) {
+      if (config.path(key).isString()) {
+        return address(config.path(key).asString());
+      }
+    }
+    if (config.at("/contactPoints/0").isString()) {
+      // Cassandra: the first contact point, how many more there are, and the local data center.
+      int more = config.path("contactPoints").size() - 1;
+      String dc = config.path("localDataCenter").asString("");
+      return config.at("/contactPoints/0").asString() + (more > 0 ? " (+" + more + ")" : "")
+          + (dc.isBlank() ? "" : " · " + dc);
     }
     if (config.path("project").isString()) {
       // BigQuery's location, a named Firestore database.

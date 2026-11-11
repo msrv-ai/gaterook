@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "sql"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "sql": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100000,
+      "description": "One SELECT, WITH, VALUES, SHOW, DESCRIBE or EXPLAIN statement. Name tables as catalog.schema.table; quote names with double quotes."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000,
+      "default": 100,
+      "description": "Most rows to return; the endpoint caps it. Trino can't resume a query: narrow it to see further rows."
+    }
+  }
+}
