@@ -457,34 +457,55 @@
                   app.mark
                 }}</span
                 ><span class="gw-setup-map__network-label"
-                  ><strong class="gw-text-h3">{{ app.name }}</strong
-                  ><span [class]="'gw-status gw-status--' + app.state.tone"
+                  >@if (app.reinstall) {<span
+                      class="gw-setup-map__network-meta"
+                      ><strong class="gw-text-h3">{{ app.name }}</strong
+                      ><span class="gw-badge gw-badge--warning gw-badge--sm"
+                        ><svg lucideIcon="triangle-alert" class="gw-icon"></svg>Needs reinstall</span
+                      ></span
+                    >} @else {<strong class="gw-text-h3">{{ app.name }}</strong>}<span
+                    [class]="'gw-status gw-status--' + app.state.tone"
                     ><span class="gw-status__dot" aria-hidden="true"></span
                     ><span class="gw-status__label">{{ app.state.label }}</span></span
                   ></span
                 >
               </button>
-              @if (app.action === 'connect') {
-                <a
-                  class="gw-btn gw-btn--sm"
-                  routerLink="/clients"
-                  [queryParams]="{ endpoint: endpoint()?.slug, connect: app.client }"
-                  [fragment]="app.fragment"
-                  [attr.aria-label]="'Connect ' + app.name"
-                  [attr.aria-disabled]="mutationBlocked() || app.actionReason ? 'true' : null"
-                  [title]="mutationBlocked() ?? app.actionReason ?? 'Review endpoint access'"
-                  >Connect</a
+              <div class="gw-setup-map__network-actions">
+                <span class="gw-tooltip gw-tooltip--end"
+                  ><a
+                    class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-setup-map__network-settings"
+                    routerLink="/clients"
+                    [queryParams]="{ endpoint: endpoint()?.slug }"
+                    [fragment]="app.fragment"
+                    [attr.aria-label]="'Open settings for ' + app.name"
+                    [attr.aria-describedby]="'ov-app-settings-tip-' + app.client"
+                    ><svg lucideIcon="settings" class="gw-icon gw-icon--sm" aria-hidden="true"></svg></a
+                  ><span class="gw-tooltip__bubble" role="tooltip" [id]="'ov-app-settings-tip-' + app.client"
+                    >Open AI app settings</span
+                  ></span
                 >
-              } @else if (app.action === 'manage') {
-                <a
-                  class="gw-btn gw-btn--sm"
-                  routerLink="/clients"
-                  [queryParams]="{ endpoint: endpoint()?.slug }"
-                  [fragment]="app.fragment"
-                  [attr.aria-label]="'Manage setup for ' + app.name"
-                  >{{ app.state.label === 'Needs repair' ? 'Repair' : 'Manage' }}</a
-                >
-              }
+                @if (app.action === 'connect') {
+                  <a
+                    class="gw-btn gw-btn--sm"
+                    routerLink="/clients"
+                    [queryParams]="{ endpoint: endpoint()?.slug, connect: app.client }"
+                    [fragment]="app.fragment"
+                    [attr.aria-label]="'Connect ' + app.name"
+                    [attr.aria-disabled]="mutationBlocked() || app.actionReason ? 'true' : null"
+                    [title]="mutationBlocked() ?? app.actionReason ?? 'Review endpoint access'"
+                    >Connect</a
+                  >
+                } @else if (app.action === 'manage') {
+                  <a
+                    class="gw-btn gw-btn--sm"
+                    routerLink="/clients"
+                    [queryParams]="{ endpoint: endpoint()?.slug }"
+                    [fragment]="app.fragment"
+                    [attr.aria-label]="'Manage setup for ' + app.name"
+                    >{{ app.state.label === 'Needs repair' ? 'Repair' : 'Manage' }}</a
+                  >
+                }
+              </div>
             </li>
           } @empty {
             <li class="gw-card">

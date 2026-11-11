@@ -226,6 +226,8 @@ const href = (a: Element | null) => a?.getAttribute('href') ?? null;
 const service = (root: ParentNode, name: string) => [...root.querySelectorAll<HTMLElement>('[data-map-service]')].find((node) => node.dataset['mapService'] === name) ?? null;
 const services = (root: ParentNode) => [...root.querySelectorAll<HTMLElement>('[data-map-service]')].map((node) => node.dataset['mapService']);
 const app = (root: ParentNode, name: string) => root.querySelector<HTMLElement>(`[data-map-app="${name}"]`)!;
+/** The app card's setup action (Connect, Manage or Repair) after its settings link; null when it has none. */
+const appAction = (root: ParentNode, name: string) => app(root, name).querySelector<HTMLAnchorElement>('.gw-setup-map__network-actions > a');
 const switchOf = (root: ParentNode) => root.querySelector<HTMLInputElement>('input[role="switch"]')!;
 const findButton = (root: ParentNode, name: string) => byText<HTMLButtonElement>(root, 'button', name)!;
 
@@ -365,6 +367,51 @@ describe('Overview connection map', () => {
     expect(calls.some((call) => call.startsWith('connection ') || call.startsWith('endpoint '))).toBe(false);
   });
 
+  it('opens an AI app’s settings from its card, before its setup action, without selecting it', async () => {
+    TestBed.inject(Router).resetConfig([{ path: 'clients', children: [] }]);
+    const { fixture, el } = await render();
+    const codex = app(el, 'codex');
+    const settings = codex.querySelector<HTMLAnchorElement>('a[aria-label="Open settings for Codex"]')!;
+    expect(settings.classList).toContain('gw-setup-map__network-settings');
+    expect(href(settings)).toBe('/clients?endpoint=dev#cl-cx-t');
+    expect(settings.closest('button')).toBeNull();
+    expect(text(el.querySelector(`#${settings.getAttribute('aria-describedby')}`))).toBe('Open AI app settings');
+    expect(appAction(el, 'codex'), 'a connected app has no setup action').toBeNull();
+    const cursor = app(el, 'cursor').querySelector('.gw-setup-map__network-actions')!;
+    expect([...cursor.children].map((child) => (child.matches('.gw-tooltip') ? 'settings' : text(child)))).toEqual(['settings', 'Connect']);
+    settings.click();
+    await settle(fixture);
+    expect(TestBed.inject(Router).url).toBe('/clients?endpoint=dev#cl-cx-t');
+    expect(codex.getAttribute('data-selected')).toBe('false');
+    expect(calls.some((call) => call.startsWith('connection ') || call.startsWith('endpoint '))).toBe(false);
+  });
+
+  it('marks Claude Desktop while an extension needs a reinstall, on every endpoint, until the new bridge connects', async () => {
+    const extension = (bridgeUpdate: string | null): ClientsView => {
+      const inUse = clientsInUse();
+      return { ...inUse, clients: inUse.clients.map((c) => c.client === 'claude-desktop'
+        ? { ...c, links: c.links.map((l) => (l.endpoint === 'incident-prod' ? { ...l, bridgeVersion: '0.6.0', bridgeUpdate } : l)) }
+        : c) };
+    };
+    clientsAnswer = async () => extension('0.9.2');
+    const { fixture, el } = await render();
+    const badge = (name: string) => app(el, name).querySelector('.gw-setup-map__network-node .gw-badge--warning');
+    expect(selectedEndpoint(el)).toBe('dev');
+    expect(text(badge('claude-desktop')), 'the outdated extension is incident-prod’s').toBe('Needs reinstall');
+    expect(text(app(el, 'claude-desktop'))).toContain('Connected');
+    expect(appAction(el, 'claude-desktop'), 'the badge only, no extra action').toBeNull();
+    expect(badge('codex')).toBeNull();
+    await selectEndpoint(fixture, el, 'incident-prod');
+    expect(text(badge('claude-desktop'))).toBe('Needs reinstall');
+
+    clientsAnswer = async () => extension(null);
+    events.emit('clients.drift', { link: 'cl_claude-desktop_incident-prod', client: 'claude-desktop', status: 'connected', bridgeUpdate: false });
+    await sleep(1_050);
+    await settle(fixture);
+    expect(badge('claude-desktop')).toBeNull();
+    expect(text(app(el, 'claude-desktop'))).toContain('Connected');
+  });
+
   it('toggles an endpoint from its card without selecting it or changing connections', async () => {
     const { fixture, el } = await render();
     const card = el.querySelector('[data-map-endpoint="stage-readonly"]')!.parentElement!;
@@ -410,20 +457,20 @@ describe('Overview connection map', () => {
     expect(text(service(el, 'dev-db')!.querySelector('.gw-env--dev'))).toBe('dev');
     expect(text(service(el, 'aws-stage')!.querySelector('.gw-env--stage'))).toBe('stage');
     expect(text(app(el, 'codex'))).toContain('Connected');
-    expect(app(el, 'codex').querySelector('a')).toBeNull();
+    expect(appAction(el, 'codex')).toBeNull();
 
     await selectEndpoint(fixture, el, 'incident-prod');
     expect(services(el)).toEqual(['prod-logs', 'prod-replica', 'prod-vm']);
     expect(text(service(el, 'prod-replica')!.querySelector('.gw-env--prod'))).toBe('prod');
     expect(text(app(el, 'codex'))).toContain('Not connected');
-    const connect = app(el, 'codex').querySelector('a')!;
+    const connect = appAction(el, 'codex')!;
     expect(href(connect)).toBe('/clients?endpoint=incident-prod&connect=codex#cl-cx-t');
     expect(connect.getAttribute('aria-label')).toBe('Connect Codex');
     expect(connect.hasAttribute('aria-disabled')).toBe(false);
     expect(text(app(el, 'claude-desktop'))).toContain('Connected');
     expect(app(el, 'antigravity')).toBeNull();
-    expect(href(app(el, 'vscode').querySelector('a'))).toBe('/clients?endpoint=incident-prod&connect=vscode#cl-vs-t');
-    expect(app(el, 'vscode').querySelector('a')!.hasAttribute('aria-disabled')).toBe(false);
+    expect(href(appAction(el, 'vscode'))).toBe('/clients?endpoint=incident-prod&connect=vscode#cl-vs-t');
+    expect(appAction(el, 'vscode')!.hasAttribute('aria-disabled')).toBe(false);
     expect(findButton(el, 'Add endpoint').getAttribute('aria-haspopup')).toBe('dialog');
 
     clientsAnswer = async () => ({ ...installedApps, clients: [...installedApps.clients, card('vscode', 'VS Code', 'not-installed')]
@@ -991,7 +1038,7 @@ describe('Overview availability', () => {
       expect(text(el)).toContain('Endpoints could not be loaded.');
       expect(el.querySelector('input[name="overview-endpoint"]')).toBeNull();
       expect((el.querySelector('#ov-service-search') as HTMLInputElement).disabled).toBe(true);
-      expect(app(el, 'codex').querySelector('a')?.getAttribute('aria-disabled')).toBe('true');
+      expect(appAction(el, 'codex')?.getAttribute('aria-disabled')).toBe('true');
       expect(text(el.querySelector('#ov-services'))).not.toContain('Not connected to an endpoint');
       expect(el.querySelector('button[aria-label^="Connect github-mcp"]')).toBeNull();
     } else {
@@ -1013,7 +1060,7 @@ describe('Overview availability', () => {
     expect(href(byText(el.querySelector('#ov-services')!, 'a', 'Import with AI'))).toBe('/connection-import');
     expect(text(el.querySelector('#ov-services'))).toContain('analyze a repository and prepare connections for review');
     expect(el.querySelector('input[name="overview-endpoint"]')).toBeNull();
-    expect(app(el, 'codex').querySelector('a')?.getAttribute('aria-disabled')).toBe('true');
+    expect(appAction(el, 'codex')?.getAttribute('aria-disabled')).toBe('true');
     findButton(el.querySelector('.gw-page-header__actions')!, 'Add service').click();
     await settle(fixture);
     const picker = el.querySelector<HTMLDialogElement>('dialog[open]')!;
@@ -1024,7 +1071,7 @@ describe('Overview availability', () => {
     events.emit('approval.requested', { id: 'refresh' });
     await sleep(180);
     await settle(fixture);
-    const connect = app(el, 'codex').querySelector('a')!;
+    const connect = appAction(el, 'codex')!;
     expect(href(connect)).toBe('/clients?endpoint=empty&connect=codex#cl-cx-t');
     expect(connect.hasAttribute('aria-disabled')).toBe(false);
     expect(text(el)).toContain('No services on this endpoint');
