@@ -18,7 +18,7 @@ The Azure Monitor Logs connector publishes the same log tools as `azure_logs_sea
 
 Agents never pass a URL. GateRook builds the request on the cloud's Resource Manager host from a checked path, percent-encodes every segment, and refuses paths outside the connection's subscriptions.
 
-1. An action that hands out keys, secrets or credentials is refused whatever the method: `listKeys`, `listSecrets`, `listCredentials`, `listConnectionStrings`, `listClusterUserCredential`, `listAccountSas`, `listCallbackUrl`, `regenerate…`, App Service `config/<name>/list` and `publishxml`, among others. Azure's API contract keeps secrets out of GET answers and returns them from such actions.
+1. An action that hands out keys, secrets or credentials is refused whatever the method: `listKeys`, `listSecrets`, `listCredentials`, `listConnectionStrings`, `listClusterUserCredential`, `listAccountSas`, `listCallbackUrl`, `listAppSettings`, `getFullUrl`, `getDeliveryAttributes`, `regenerate…`, App Service `config/<name>/list` and `publishxml`, among others. Azure's API contract keeps secrets out of GET answers and returns them from such actions. A GET of App Service's value-bearing configuration (`config/appsettings`, `config/connectionstrings`, `config/azurestorageaccounts`, `config/metadata`, `config/publishingcredentials`, `config/authsettings`) is refused too.
 2. GET is a read, for `azure_api_read`.
 3. A POST is a read only for queries that change nothing: Cost Management `query` and `forecast`, the subscription's metrics batch (`/subscriptions/<id>/providers/Microsoft.Insights/metrics`) and `checkNameAvailability`.
 4. Every other POST, and every PUT, PATCH and DELETE, is a change for `azure_api_change`, which waits for a person to approve the exact request. The approval shows the method, the full URL with every parameter, and the body. An approved call runs exactly what was approved.
@@ -26,6 +26,43 @@ Agents never pass a URL. GateRook builds the request on the cloud's Resource Man
 Each tool refuses the other's requests and names the right one, so an endpoint can keep `azure_api_change` Off while agents read.
 
 Answers are data: a 403 or 404 from Azure comes back to the agent with its status and error. Paging and long-running operations come back as arguments for the next call (`next.query` with the `$skipToken`, `operation` with the path and API version to GET), never as URLs to follow. Values that look like secrets are masked before the core's own masking: app settings and connection strings, container environment values and secrets, fields named like passwords, keys or SAS tokens, and connection strings or SAS URLs anywhere.
+
+## Recipes
+
+These tasks need no tools of their own: the API tools and `azure_monitor` cover them under the rules above. Paths start with `/subscriptions/<id>/resourceGroups/<group>/providers/`; each operation's API version is in the Azure REST API reference.
+
+| Task | Call |
+| --- | --- |
+| App Service or Functions app: state, plan, slots | `azure_api_read` GET `Microsoft.Web/sites/<app>`, `…/slots`, `…/slots/<slot>` (`properties.state`, `hostNames`) |
+| Deployments and their logs | GET `Microsoft.Web/sites/<app>/deployments`, then `…/deployments/<id>/log` |
+| Functions of a Functions app | GET `Microsoft.Web/sites/<app>/functions` |
+| Restart, stop or start an app or slot | `azure_api_change` POST `Microsoft.Web/sites/<app>/restart` (`stop`, `start`; a slot: `…/slots/<slot>/restart`) |
+| Swap slots | `azure_api_change` POST `Microsoft.Web/sites/<app>/slotsswap` with `{"targetSlot": "staging"}` (or `…/slots/<slot>/slotsswap` with the target slot); `applySlotConfig` and `resetSlotConfig` for a swap with preview |
+| App logs | `logs_search` over `AppServiceConsoleLogs`, `AppServiceHTTPLogs` or `FunctionAppLogs`, once the app's diagnostic settings send them to a configured workspace; `requests` and `exceptions` of its Application Insights component |
+| Container Apps revisions and replicas | GET `Microsoft.App/containerApps/<app>/revisions`, `…/revisions/<revision>/replicas` |
+| Restart, activate or deactivate a revision | `azure_api_change` POST `Microsoft.App/containerApps/<app>/revisions/<revision>/restart` (`activate`, `deactivate`) |
+| Container Apps jobs | GET `Microsoft.App/jobs/<job>/executions`; POST `…/jobs/<job>/start` and `…/executions/<execution>/stop` with approval |
+| Container logs | `logs_search` over `ContainerAppConsoleLogs_CL` (or `ContainerAppConsoleLogs`) and `ContainerAppSystemLogs_CL` |
+| Static Web Apps | GET `Microsoft.Web/staticSites/<site>` and `…/builds` |
+| Cost so far and forecast | `azure_api_read` POST `/subscriptions/<id>/providers/Microsoft.CostManagement/query` (or a resource group's) with `{"type": "ActualCost", "timeframe": "MonthToDate", "dataset": {"granularity": "Daily", "aggregation": {"totalCost": {"name": "Cost", "function": "Sum"}}, "grouping": [{"type": "Dimension", "name": "ServiceName"}]}}`; `…/forecast` the same way |
+| Budgets | GET `/subscriptions/<id>/providers/Microsoft.Consumption/budgets` |
+| Advisor cost recommendations | GET `/subscriptions/<id>/providers/Microsoft.Advisor/recommendations` with `query` `{"$filter": "Category eq 'Cost'"}` |
+| Event Hubs partitions and consumer groups | GET `Microsoft.EventHub/namespaces/<ns>/eventhubs/<hub>` (`partitionIds`, retention) and `…/consumergroups` |
+| Event Grid delivery failures | `azure_monitor` query of `DeliveryAttemptFailCount`, `DeadLetteredCount` and `DroppedEventCount` on the topic, system topic or domain, with `filter` `EventSubscriptionName eq '*'` to split them per subscription; dead-lettered events are blobs in the subscription's dead-letter container, read with `azure_storage_read` |
+| Service Bus counts | GET `Microsoft.ServiceBus/namespaces/<ns>/queues/<queue>` or `…/topics/<topic>/subscriptions/<name>`: `countDetails` holds active, dead-lettered, scheduled and transfer counts |
+| AKS clusters | `azure_describe` `resources \| where type =~ 'microsoft.containerservice/managedclusters'`, or GET `Microsoft.ContainerService/managedClusters/<cluster>` (`fqdn`, `kubernetesVersion`, `aadProfile`) and `…/agentPools` |
+
+Refused: app settings, connection strings, mounted storage and publishing credentials of App Service (`config/<name>/list` and GET of those `config` resources), function and host keys, `listSecrets` and `getAuthToken` of Container Apps, Static Web Apps' `listAppSettings` and `listSecrets`, Event Grid's `getFullUrl` and `getDeliveryAttributes`, and AKS's `listClusterUserCredential`, `listClusterAdminCredential` and `listClusterMonitoringUserCredential`. A cluster's workloads go through the [Kubernetes connector](#aks-workloads).
+
+The approval of a common action names its effect: a restart fails the requests in flight, a stopped app answers 403, a swap moves the target slot's traffic, a deactivated revision serves no traffic.
+
+### AKS workloads
+
+GateRook never fetches a cluster's kubeconfig. Read the cluster's workloads through a Kubernetes connection:
+
+1. Run `az aks get-credentials --resource-group <group> --name <cluster> --file aks.kubeconfig` on your computer, then `kubelogin convert-kubeconfig --login azurecli --kubeconfig aks.kubeconfig`.
+2. Add a Kubernetes connection from that kubeconfig and turn on **Run the credential command from kubeconfig**. Its user runs `kubelogin get-token` as an exec credential; Test connection shows the exact command and runs it only after you allow it, as for the Azure CLI here.
+3. Give the identity a Kubernetes RBAC or Azure RBAC role on the cluster (such as Azure Kubernetes Service RBAC Reader).
 
 ## Sign-in
 

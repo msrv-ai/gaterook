@@ -49,9 +49,21 @@ record CallRequest(String tool, String method, ResourceIds.Parsed path, String r
   static final int MAX_QUERY_VALUE = 4_096;
   static final int MAX_QUERY = 8_192;
 
-  /** Words in an action's name that say it hands out a credential ({@code listKeys}, {@code listCredential}). */
+  /**
+   * Words in an action's name that say it hands out a credential ({@code listKeys}, {@code listCredential}), or values
+   * that hold them: app settings ({@code listAppSettings} of Static Web Apps), an endpoint's full URL with its query
+   * keys ({@code getFullUrl} of Event Grid), delivery attributes with secret header values.
+   */
   private static final List<String> SECRET_WORDS = List.of("key", "secret", "credential", "connectionstring",
-      "password", "token", "sas", "callbackurl", "publishingprofile", "dataplaneaccess");
+      "password", "token", "sas", "callbackurl", "publishingprofile", "dataplaneaccess", "appsetting", "fullurl",
+      "deliveryattribute");
+  /**
+   * App Service configuration resources ({@code …/sites/<app>/config/<name>}) that hold values: app settings,
+   * connection strings, mounted storage with its access key, metadata, publishing credentials, legacy auth settings.
+   * Azure reads them through {@code …/list} actions; a GET of one is refused too, whatever an API version answers.
+   */
+  private static final Set<String> VALUE_CONFIG = Set.of("appsettings", "connectionstrings", "azurestorageaccounts",
+      "metadata", "publishingcredentials", "authsettings");
 
   static CallRequest of(String tool, JsonNode args, Settings s, AzurePolicy p) throws Refusal {
     boolean change = CHANGE.equals(tool);
@@ -118,6 +130,9 @@ record CallRequest(String tool, String method, ResourceIds.Parsed path, String r
       throw new Refusal("bad_input", "body is a JSON object or array.", null);
     }
     String secret = secretAction(path);
+    if (secret == null && method.equals("GET")) {
+      secret = valueConfig(path);
+    }
     if (secret != null) {
       throw new Refusal("azure_secret_action", "The action " + secret + " returns keys, secrets or credentials, "
           + "which GateRook never hands to agents.", "Read the resource's properties with GET instead; a person "
@@ -176,6 +191,17 @@ record CallRequest(String tool, String method, ResourceIds.Parsed path, String r
       i += 2;
     }
     return null;
+  }
+
+  /** {@code config/appsettings} and the other value-bearing App Service configuration a path ends at, or {@code null}. */
+  static String valueConfig(ResourceIds.Parsed path) {
+    List<String> segments = path.segments();
+    int n = segments.size();
+    if (n < 2 || !path.namespaces().contains("microsoft.web") || !segments.get(n - 2).equalsIgnoreCase("config")) {
+      return null;
+    }
+    String name = segments.get(n - 1);
+    return VALUE_CONFIG.contains(name.toLowerCase(Locale.ROOT)) ? "config/" + name : null;
   }
 
   /**

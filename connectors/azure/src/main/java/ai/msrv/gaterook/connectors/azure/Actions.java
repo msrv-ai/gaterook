@@ -52,6 +52,11 @@ final class Actions {
     if (r.method().equals("PUT")) {
       warnings.add("PUT replaces the whole resource with the body: properties left out are reset.");
     }
+    String effect = effect(r);
+    if (effect != null) {
+      warnings.add(effect);
+      fields.add(new ActionPreview.Field("Action", r.path().segments().getLast()));
+    }
     String summary = r.tool() + " on " + cfg.name() + ": " + r.method() + " " + r.rawPath();
     return ActionPreview.of(ActionPreview.Kind.HTTP, "http", text.toString(), cfg.name() + " · " + s.target(),
         cut(summary))
@@ -59,6 +64,57 @@ final class Actions {
         .withWarnings(warnings)
         .withFacets(Map.of("provider", "azure", "tool", r.tool(), "method", r.method()))
         .withPayload(r.payload());
+  }
+
+  /**
+   * What a common action does to what serves traffic (the write cards of the research: restart, stop, swap, revision
+   * traffic), for the approval card; {@code null} for other requests.
+   */
+  static String effect(CallRequest r) {
+    if (!r.method().equals("POST") || r.path().namespaces().isEmpty()) {
+      return null;
+    }
+    String ns = r.path().namespaces().getLast();
+    String type = r.path().type() == null ? "" : r.path().type();
+    List<String> seg = r.path().segments();
+    String parent = seg.size() >= 3 ? seg.get(seg.size() - 3).toLowerCase(java.util.Locale.ROOT) : "";
+    String what = r.path().name() == null ? "the resource" : r.path().name();
+    for (int i = 0; i + 1 < seg.size() - 1; i++) {
+      if (seg.get(i).equalsIgnoreCase("slots") && ns.equals("microsoft.web")) {
+        what = what + " (slot " + seg.get(i + 1) + ")";
+      }
+    }
+    return switch (ns + " " + r.path().last()) {
+      case "microsoft.web restart" -> "Restarts " + what + " on every instance: requests in flight fail until it "
+          + "has started again.";
+      case "microsoft.web stop" -> "Stops " + what + ": it answers 403 (site stopped) until someone starts it.";
+      case "microsoft.web start" -> "Starts " + what + ": it serves requests again.";
+      case "microsoft.web slotsswap" -> "Swaps the slots of " + what + ": the target slot's traffic moves to the "
+          + "other slot after warm-up. Swap back the same way.";
+      case "microsoft.web applyslotconfig" -> "Applies the source slot's settings to the target slot (the first "
+          + "phase of a swap with preview); the target slot restarts.";
+      case "microsoft.web resetslotconfig" -> "Cancels a swap with preview: the slot gets its own settings back and "
+          + "restarts.";
+      case "microsoft.web syncfunctiontriggers" -> "Syncs " + what + "'s function triggers with the platform.";
+      case "microsoft.app restart" -> parent.equals("revisions") ? "Restarts every replica of revision "
+          + seg.get(seg.size() - 2) + "." : "Restarts " + what + ".";
+      case "microsoft.app activate" -> "Activates revision " + seg.get(seg.size() - 2) + ": it gets replicas again "
+          + "and serves its traffic weight.";
+      case "microsoft.app deactivate" -> "Deactivates revision " + seg.get(seg.size() - 2) + ": its replicas are "
+          + "removed and it serves no traffic.";
+      case "microsoft.app start" -> type.equals("microsoft.app/jobs") ? "Starts a new execution of job " + what
+          + "." : "Starts " + what + ".";
+      case "microsoft.app stop" -> parent.equals("executions") ? "Stops execution " + seg.get(seg.size() - 2)
+          + " of job " + what + "." : "Stops " + what + ": it serves no traffic until started.";
+      case "microsoft.containerservice runcommand" -> "Runs the command inside cluster " + what + " with the "
+          + "cluster's command rights (kubectl as the run-command identity).";
+      case "microsoft.containerservice stop" -> "Stops cluster " + what + ": its nodes and workloads stop.";
+      case "microsoft.compute restart" -> "Restarts virtual machine " + what + ".";
+      case "microsoft.compute poweroff", "microsoft.compute deallocate" -> "Stops virtual machine " + what
+          + (r.path().last().equals("deallocate") ? " and releases its compute (its dynamic public IP may change)."
+              : " (it is still billed for compute).");
+      default -> null;
+    };
   }
 
   static ActionPreview describe(DescribeRequest r, Settings s, ConnectionConfig cfg) {
