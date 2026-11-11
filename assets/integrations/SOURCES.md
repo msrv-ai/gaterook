@@ -270,8 +270,60 @@ exact name, with path-traversal and symlink checks. Packages whose marks are not
   draws its service icons as native PowerPoint shapes and offers no SVG.
   Requests go to trademar_us@oracle.com with a written summary and mock-up.
 - **Google Cloud:** the press kit offers only the "Google Cloud" wordmark lockup, unreadable on a 32 px tile, and
-  no symbol-only file, so the GCP connector type keeps its icon.
+  no symbol-only file. The GCP card uses Google Cloud's site icon instead; see the cloud connector additions below.
 
 These SVGs also retain their original geometry, colours, proportions and metadata, with no scripts, event handlers,
 embedded foreign content, embedded raster images or remote asset references. Cards show each one with the service's
 plain name on a light plate in every theme, never recoloured.
+
+## Cloud connector additions (2026-11-11)
+
+Added on 2026-11-11 for the cloud connector types of the Add connection page, under the same terms as above: intact
+vendor-provided artwork, not GateRook artwork, not covered by a blanket open-source licence, identifying the services
+being connected without indicating sponsorship or endorsement. This record does not assert that any permission has
+been granted. The owner approved both downloads below and the use of Google Cloud's site icon on 2026-11-11.
+
+| File | Official source page | Exact downloaded asset |
+|---|---|---|
+| `azure.svg` | [Azure icons, Azure Architecture Center](https://learn.microsoft.com/en-us/azure/architecture/icons/) | Azure icons ZIP (as for SQL Server), member `Azure_Public_Service_Icons/Icons/other/10018-icon-service-Azure-A.svg` |
+| `azure-monitor.svg` | [Azure icons, Azure Architecture Center](https://learn.microsoft.com/en-us/azure/architecture/icons/) | Azure icons ZIP (as for SQL Server), member `Azure_Public_Service_Icons/Icons/monitor/00001-icon-service-Monitor.svg` |
+| `s3.svg` | [AWS Architecture Icons](https://aws.amazon.com/architecture/icons/) | AWS icon package ZIP (as for Redshift), member `Architecture-Service-Icons_07312026/Arch_Storage/32/Arch_Amazon-Simple-Storage-Service_32.svg` |
+| `cloudflare.png` | [Cloudflare press kit](https://www.cloudflare.com/press-kit/) ("Company logos"), [Cloudflare trademark guidelines](https://www.cloudflare.com/trademark/) | [Cloudflare logos ZIP](https://cf-assets.www.cloudflare.com/dzlvafdwdttg/2Twekn3xyYyd94qDYAl0ed/9ab649caa40958f195166e0d9f5d9a04/Logos.zip), member `CF-Logo 1.png` |
+| `google-cloud.png` | [cloud.google.com](https://cloud.google.com/), whose page head names this file as its `apple-touch-icon` | [Google Cloud site icon PNG](https://www.gstatic.com/cgc/super_cloud_gradient.png) |
+
+### Downloads
+
+The Azure and AWS members were extracted from the packages listed above, which were not downloaded again. The
+Cloudflare member was extracted by exact name; the archive holds no links, and its only other entries are the second
+image and macOS resource forks under `__MACOSX/`, none of them extracted into the kit.
+
+| Download | Bytes | SHA-256 |
+|---|---:|---|
+| [Cloudflare logos ZIP](https://cf-assets.www.cloudflare.com/dzlvafdwdttg/2Twekn3xyYyd94qDYAl0ed/9ab649caa40958f195166e0d9f5d9a04/Logos.zip) | 78319 | `00420d13d6541742116e2de5f0fd496a0b6532d9dc00d43c55867c84b43e56a5` |
+| [Google Cloud site icon PNG](https://www.gstatic.com/cgc/super_cloud_gradient.png) | 9447 | `a332b54b620a2fa04413561c01c925cd40f936581c7bed52df424ecccc9c08b4` |
+
+### Asset notes
+
+- **Azure and Azure Monitor:** Azure Architecture Icons V25, under the Microsoft terms recorded above for SQL Server
+  and Azure Cosmos DB: diagrams, training material and documentation, with every other use reserved for Microsoft's
+  explicit permission; the full service name next to the icon; no cropping or reshaping; an icon represents only the
+  Microsoft product it was designed for. `azure.svg` is the Azure "A" from the package's `other` folder and identifies
+  Azure on the Azure card; `azure-monitor.svg` is the Monitor service icon and identifies Azure Monitor Logs.
+- **Amazon S3:** AWS Architecture Icons, release 2026-07-31, 32 px variant, under the AWS terms recorded above for
+  Amazon Redshift. The S3 card also reaches other storage that speaks the S3 API; the icon identifies Amazon S3, whose
+  API the connector uses, next to the card's plain name.
+- **Cloudflare:** the press kit's only logo download ("Logo on transparent and white background") holds two raster
+  files of the full lockup, the orange cloud above the CLOUDFLARE wordmark. `CF-Logo 1.png` (512 x 173, transparent)
+  was taken; `CF Logo 2.jpg` (1277 x 431, white background) was not. No SVG and no symbol-only file is offered. The
+  trademark guidelines require Cloudflare's written permission for any use of its logos other than its Web Badges,
+  forbid modifying the marks or combining them with other symbols, words or images, and forbid implying affiliation,
+  endorsement or sponsorship; plain-text references such as "for use with Cloudflare" need no permission. On a 32 px
+  tile the cloud identifies the service and the wordmark is too small to read.
+- **Google Cloud:** Google Cloud's asset collections offer no symbol-only mark (see Not included above). With the
+  owner's agreement, the GCP card uses the icon that cloud.google.com itself declares as its `apple-touch-icon`: the
+  gradient cloud symbol, a 192 x 192 PNG with transparency on Google's static host. Its use remains subject to
+  Google's [brand permission terms](https://about.google/brand-resource-center/brand-terms/), as for BigQuery above.
+
+The PNG files are the downloaded bytes, unmodified; the SVGs keep their original geometry, colours, proportions and
+metadata, with no scripts, event handlers, embedded foreign content, embedded raster images or remote asset
+references. Cards show each one with the service's plain name on a light plate in every theme, never recoloured.

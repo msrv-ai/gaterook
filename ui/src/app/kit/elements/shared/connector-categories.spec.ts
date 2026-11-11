@@ -50,9 +50,20 @@ describe('connector categories', () => {
     expect(connectorMark('firebase-rtdb')).toBe('assets/integrations/firebase-realtime-database.svg');
     expect(connectorMark('gcp-logging')).toBe('assets/integrations/cloud-logging.svg');
     expect(connectorMark('mcp-server')).toBe('assets/integrations/mcp.svg');
-    for (const type of ['oracle', 'gcp', 'ssh', 'ssh-logs', 'http', 'acme-db']) {
+    for (const type of ['oracle', 'ssh', 'ssh-logs', 'http', 'acme-db']) {
       expect(connectorMark(type), type).toBeNull();
     }
+  });
+
+  it('gives every cloud type a mark: SVG by default, the PNG files of Google Cloud and Cloudflare by name', () => {
+    expect(connectorMark('gcp')).toBe('assets/integrations/google-cloud.png');
+    expect(connectorMark('cloudflare')).toBe('assets/integrations/cloudflare.png');
+    expect(connectorMark('aws')).toBe('assets/integrations/aws.svg');
+    expect(connectorMark('azure')).toBe('assets/integrations/azure.svg');
+    expect(connectorMark('azure-monitor')).toBe('assets/integrations/azure-monitor.svg');
+    expect(connectorMark('s3')).toBe('assets/integrations/s3.svg');
+    expect(connectorMark('cloudwatch')).toBe('assets/integrations/cloudwatch.svg');
+    expect(connectorMark('kubernetes')).toBe('assets/integrations/kubernetes.svg');
   });
 
   it('filters by name, other names, category and description: every word must match', () => {

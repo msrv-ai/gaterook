@@ -49,8 +49,9 @@ const CATEGORY_OF: Readonly<Record<string, string>> = {
 
 /**
  * Connector type → its vendor's mark in `assets/integrations/` (official artwork; provenance and terms in its
- * SOURCES.md). A type without one keeps its kit icon: Oracle and Google Cloud (no mark readable on a 32 px tile), and
- * the protocols (SSH, HTTP) that have no vendor.
+ * SOURCES.md): an SVG file's base name, or a file name with its extension for the PNG marks of Google Cloud (its site
+ * icon: the asset collection has only a lockup unreadable on a 32 px tile) and Cloudflare (its press kit has no SVG).
+ * A type without one keeps its kit icon: Oracle, and the protocols (SSH, HTTP) that have no vendor.
  */
 const MARKS: Readonly<Record<string, string>> = {
   postgres: 'postgresql',
@@ -79,9 +80,14 @@ const MARKS: Readonly<Record<string, string>> = {
   influxdb: 'influxdb',
   'gcp-logging': 'cloud-logging',
   cloudwatch: 'cloudwatch',
+  'azure-monitor': 'azure-monitor',
   loki: 'loki',
   kubernetes: 'kubernetes',
+  gcp: 'google-cloud.png',
   aws: 'aws',
+  azure: 'azure',
+  cloudflare: 'cloudflare.png',
+  s3: 's3',
   'mcp-server': 'mcp',
 };
 
@@ -122,18 +128,19 @@ const ALIASES: Readonly<Record<string, string>> = {
   aws: 'amazon web services',
   azure: 'microsoft',
   cloudflare: 'workers dns zones cdn r2 d1 kv',
+  s3: 'aws amazon bucket object storage files r2 minio spaces backblaze b2',
   'azure-monitor': 'microsoft log analytics kql',
   http: 'rest api openapi',
   'mcp-server': 'model context protocol',
 };
 
 /**
- * `assets/integrations/<file>.svg` for the vendor mark of a type (or of its variant: the Logs type's OpenSearch), or
+ * `assets/integrations/<file>` for the vendor mark of a type (or of its variant: the Logs type's OpenSearch), or
  * `null` when the type keeps its icon.
  */
 export function connectorMark(type: string, variant: string | null = null): string | null {
   const file = (variant && MARKS[variant]) || MARKS[type];
-  return file ? `assets/integrations/${file}.svg` : null;
+  return file ? `assets/integrations/${file.includes('.') ? file : `${file}.svg`}` : null;
 }
 
 /** The picker's category of a card (type and variant) that the core put in `group`. */

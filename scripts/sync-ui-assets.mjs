@@ -18,7 +18,7 @@ function entries() {
     .filter((f) => f.endsWith('.woff2') || f.endsWith('.txt'))
     .map((f) => [join('fonts', f), join('fonts', f)]);
   const integrations = readdirSync(join(ASSETS, 'integrations'))
-    .filter((f) => f.endsWith('.svg') || f.endsWith('.md'))
+    .filter((f) => f.endsWith('.svg') || f.endsWith('.png') || f.endsWith('.md'))
     .map((f) => [join('integrations', f), join('integrations', f)]);
   return [...fonts, ...integrations, ['theme-boot.js', 'theme-boot.js'], ['logo-mark.svg', 'logo-mark.svg']];
 }
