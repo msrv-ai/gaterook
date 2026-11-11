@@ -208,6 +208,15 @@ final class Session {
     ServerConfig server = r.server();
     Map<String, String> values = new LinkedHashMap<>();
     List<String> secretValues = new ArrayList<>();
+    if (server.http()) {
+      String problem = ServerConfig.fixedHeaderProblem(server.fixedHeaders(),
+          server.headers().stream().map(ServerConfig.Binding::name).toList());
+      if (problem != null) {
+        throw ConnectorException.badInput(problem);
+      }
+      // Written in the settings, not secrets: sent as they are, and neither masked nor tainted.
+      server.fixedHeaders().forEach(h -> values.put(h.name(), h.text()));
+    }
     for (ServerConfig.Binding b : server.http() ? server.headers() : server.env()) {
       if (b.secretField() == null) {
         throw ConnectorException.badInput(b.name() + " has no stored secret: give it a value in the server's "

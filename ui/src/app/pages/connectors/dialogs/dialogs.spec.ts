@@ -137,6 +137,20 @@ describe('Add MCP server request', () => {
     });
   });
 
+  it('sends a verified profile’s switch as a header with a fixed value, never a credential or a secret’s name', () => {
+    const fixed = [{ name: 'X-MCP-Readonly', text: 'true' }];
+    expect(mcpRequest('devops-mcp', 'http', '', 'https://mcp.dev.azure.com/contoso', [], undefined, fixed).source).toEqual({
+      config: { name: 'devops-mcp', transport: 'http', url: 'https://mcp.dev.azure.com/contoso', headers: [], fixedHeaders: fixed },
+    });
+    expect(mcpRequest('devops-mcp', 'stdio', 'npx -y @azure-devops/mcp contoso', '', [], undefined, fixed).source).toEqual({
+      config: { name: 'devops-mcp', transport: 'stdio', command: ['npx', '-y', '@azure-devops/mcp', 'contoso'], env: [] },
+    });
+    expect(mcpRequest('devops-mcp', 'http', '', 'https://mcp.dev.azure.com/contoso', [], undefined, [{ name: 'Authorization', text: 'Bearer x' }]).errors)
+      .toEqual({ fixedHeaders: 'Authorization carries a credential: add it as a header whose value the review asks for.' });
+    expect(mcpRequest('devops-mcp', 'http', '', 'https://mcp.dev.azure.com/contoso', [{ name: 'x-mcp-readonly' }], undefined, fixed).errors)
+      .toEqual({ fixedHeaders: 'X-MCP-Readonly is also a header whose value the review asks for. Keep one.' });
+  });
+
   it('reuses an existing Authorization header for Bearer tokens and still rejects duplicate header names', () => {
     const options = { with: 'bearer' as const, clientId: '', scopes: '', callbackPort: '' };
     const headers = [{ name: 'X-Workspace' }, { name: 'authorization' }];
@@ -316,9 +330,9 @@ describe('MCP server review', () => {
     const profile = {
       id: 'supabase', name: 'Supabase', publisher: 'Supabase', category: 'Cloud platform', description: '',
       documentation: 'https://supabase.com/docs/guides/getting-started/mcp', registryName: 'com.supabase/mcp', checked: '2026-11-11',
-      transport: 'http' as const, url: 'https://mcp.supabase.com/mcp?project_ref={project_ref}&read_only=true', command: [],
+      transport: 'http' as const, url: 'https://mcp.supabase.com/mcp?project_ref={project_ref}&read_only=true', command: [], headers: [],
       placeholders: [], signIn: 'OAuth.', notes: [],
-      pins: [{ parameter: 'read_only', setTo: 'true', purpose: 'Supabase lists only its read tools.', missing: 'Without read_only=true …', set: false }],
+      pins: [{ in: 'query' as const, name: 'read_only', setTo: 'true', purpose: 'Supabase lists only its read tools.', missing: 'Without read_only=true …', set: false }],
       tools: [{ tool: 'execute_sql', start: 'approval' as const, kind: 'write' as const, reason: 'It runs any SQL.' }],
     };
     const url = 'https://mcp.supabase.com/mcp?project_ref=abc';

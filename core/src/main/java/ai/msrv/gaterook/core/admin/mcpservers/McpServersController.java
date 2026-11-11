@@ -38,7 +38,8 @@ import tools.jackson.databind.JsonNode;
     McpServersController.SignIn.class,
     McpServersController.SignInStatus.class, McpServersController.Address.class,
     McpServersController.AuthorizationPage.class, McpServerService.ProfileView.class, McpServerService.PinView.class,
-    McpServerService.PlaceholderView.class, McpServerService.ToolRuleView.class})
+    McpServerService.PlaceholderView.class, McpServerService.ToolRuleView.class,
+    McpServerService.HeaderView.class})
 class McpServersController {
 
   /**

@@ -1,7 +1,7 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { afterNextRender, ChangeDetectionStrategy, Component, ElementRef, inject, Injector, output, signal, viewChild } from '@angular/core';
 import { SecretInputs } from '../../../core/api/connections.api';
-import { McpProfile, McpServerAuthReview, McpServerConfig, McpServerReview, McpServerSource, McpSignIn } from '../../../core/api/plugins.api';
+import { McpFixedHeader, McpProfile, McpServerAuthReview, McpServerConfig, McpServerReview, McpServerSource, McpSignIn } from '../../../core/api/plugins.api';
 import { Env } from '../../../core/api/types';
 import { GwCopy } from '../../../kit/copy';
 import { GwDialog, GwDialogClose } from '../../../kit/dialog';
@@ -77,7 +77,9 @@ export interface McpReviewView {
    * set). A command's are rows of the review already: its pin and where it runs.
    */
   readonly warnings: readonly string[];
-  /** GateRook's verified profile of the vendor's server, with how its pins stand in the URL, or null. */
+  /** Over HTTP: the headers sent as written in the settings (`X-MCP-Readonly: true`), not secrets. */
+  readonly fixed: readonly McpFixedHeader[];
+  /** GateRook's verified profile of the vendor's server, with how its pins stand in the settings, or null. */
   readonly profile: McpProfile | null;
   /** "execute in Approval": the tools the profile starts other than their annotations say, or ''. */
   readonly profileStarts: string;
@@ -163,6 +165,7 @@ export function mcpReviewView(r: McpReviewed): McpReviewView {
     cloudText: chosen ? cloudSignInText(chosen, review.url ?? r.target) : null,
     suggest: http && !cloud && !keyed && auth?.cloud ? auth.cloud : null,
     warnings: http ? (review.warnings ?? []) : [],
+    fixed: http ? (config?.fixedHeaders ?? []) : [],
     profile: review.profile ?? null,
     profileStarts: review.profile ? profileStarts(review.profile.tools) : '',
   };
@@ -279,6 +282,12 @@ let nextId = 0;
                 @if (w.cloud) {{{ w.cloud === 'google' ? 'A token of your Google Cloud credentials' : 'A signature of your AWS credentials' }}, made by GateRook for each request@if (w.named.length) {, and }}
                 @for (s of w.named; track s.pointer; let last = $last; let i = $index) {@if (i > 0) {{{ last ? ' and ' : ', ' }}}<span class="gw-mono">{{ s.name }}</span>}@if (w.named.length) {{{ w.named.length === 1 ? ', from a new secret' : ', each from a new secret' }} of {{ w.name }}, encrypted here} @else if (!w.signIn && !w.cloud) {None}
               </dd></div>
+              @if (w.fixed.length) {
+                <div class="gw-kv__row"><dt class="gw-kv__key">Fixed headers</dt><dd class="gw-kv__value">
+                  @for (h of w.fixed; track h.name; let last = $last) {<code class="gw-code">{{ h.name }}: {{ h.text }}</code>@if (!last) {, }}
+                  sent as written with every request.
+                </dd></div>
+              }
               @if (w.cloudText) {
                 <div class="gw-kv__row"><dt class="gw-kv__key">Sign-in</dt><dd class="gw-kv__value">{{ w.cloudText }} The agent never sees {{ w.cloud === 'google' ? 'the token' : 'the keys' }}.</dd></div>
               }
@@ -294,8 +303,8 @@ let nextId = 0;
                   {{ p.publisher }}’s own server. GateRook checked its tools, sign-in and switches on {{ p.checked }}; that doesn’t verify what the server does.
                   <a class="gw-link" [href]="p.documentation" target="_blank" rel="noopener noreferrer">{{ p.publisher }}’s documentation<span class="gw-sr-only"> (opens in your browser)</span></a>
                 </dd></div>
-                @for (pin of p.pins; track pin.parameter) {
-                  <div class="gw-kv__row"><dt class="gw-kv__key"><span class="gw-mono">{{ pin.parameter }}</span></dt><dd class="gw-kv__value">
+                @for (pin of p.pins; track pin.name) {
+                  <div class="gw-kv__row"><dt class="gw-kv__key"><span class="gw-mono">{{ pin.name }}</span>@if (pin.in === 'header') {<span class="gw-sr-only"> header</span>}</dt><dd class="gw-kv__value">
                     @if (pin.set) {<span class="gw-badge gw-badge--success gw-badge--sm"><svg lucideIcon="check" class="gw-icon gw-badge__icon"></svg>Set</span>} @else {<span class="gw-badge gw-badge--warning gw-badge--sm"><svg lucideIcon="triangle-alert" class="gw-icon gw-badge__icon"></svg>Not set</span>} {{ pin.purpose }}
                   </dd></div>
                 }

@@ -2,6 +2,7 @@ package ai.msrv.gaterook.connectors.mcpserver;
 
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.Env;
+import ai.msrv.gaterook.connectors.support.mcp.FixedHeaders;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,17 +25,30 @@ import tools.jackson.databind.node.MissingNode;
  * @param sharePrompts    whether the person lets agents get the server's prompts ({@code share.prompts})
  * @param offThisComputer whether the person keeps a stdio server off this computer: an AppContainer on Windows
  *                        ({@code offThisComputer})
+ * @param fixedHeaders    an HTTP server's headers with a value the person wrote in its settings, not a secret: a
+ *                        switch such as {@code X-MCP-Readonly: true} ({@code fixedHeaders})
  */
 record ServerConfig(String name, String transport, List<String> command, String url, List<Binding> env,
     List<Binding> headers, List<String> inheritEnv, boolean startWithCore, Duration idleStop, Duration startTimeout,
     Duration callTimeout, int maxInFlight, String catalogEntry, String toolPrefix, String auth,
-    boolean shareResources, boolean sharePrompts, boolean offThisComputer) {
+    boolean shareResources, boolean sharePrompts, boolean offThisComputer, List<FixedHeader> fixedHeaders) {
 
   static final String STDIO = "stdio";
   static final String HTTP = "http";
 
   /** A variable (stdio) or header (HTTP) whose value comes from a secret. */
   record Binding(String name, String secretField) {}
+
+  /** A header sent as the person wrote it in the server's settings. */
+  record FixedHeader(String name, String text) {}
+
+  /**
+   * Why the fixed headers can't go beside these headers from secrets, or {@code null} ({@link FixedHeaders#problem}).
+   */
+  static String fixedHeaderProblem(List<FixedHeader> fixed, List<String> secretHeaders) {
+    return FixedHeaders.problem(fixed.stream().map(h -> new FixedHeaders.Header(h.name(), h.text())).toList(),
+        secretHeaders);
+  }
 
   /** {@code auth.type} of a server the person signs in to in the browser (OAuth 2.1, ARCHITECTURE.md §7.5). */
   static final String OAUTH = "oauth";
@@ -74,7 +88,20 @@ record ServerConfig(String name, String transport, List<String> command, String 
         prefix != null && PREFIX.matcher(prefix).matches() ? prefix : defaultPrefix(cfg.name()),
         HTTP.equals(transport) && auth.isObject() ? Texts.JSON.writeValueAsString(Texts.canonical(auth)) : null,
         c.path("share").path("resources").asBoolean(false), c.path("share").path("prompts").asBoolean(false),
-        !HTTP.equals(transport) && c.path("offThisComputer").asBoolean(false));
+        !HTTP.equals(transport) && c.path("offThisComputer").asBoolean(false),
+        HTTP.equals(transport) ? fixedHeaders(c) : List.of());
+  }
+
+  /** The fixed headers of an HTTP server's settings, in their order; an entry without a name is left out. */
+  private static List<FixedHeader> fixedHeaders(JsonNode c) {
+    List<FixedHeader> out = new ArrayList<>();
+    for (JsonNode h : c.path("fixedHeaders")) {
+      String name = Texts.str(h.path("name"), null);
+      if (name != null) {
+        out.add(new FixedHeader(name, Texts.str(h.path("text"), "")));
+      }
+    }
+    return List.copyOf(out);
   }
 
   boolean http() {

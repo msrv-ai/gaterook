@@ -195,6 +195,32 @@
         {"tool": "netlify-deploy-services-updater", "start": "approval", "kind": "credentials", "reason": "Its deploy-site operation returns a command that carries a 30-minute token for your Netlify account and asks the agent to run it."}
       ],
       "match": {"hosts": ["mcp.netlify.com", "netlify-mcp.netlify.app"], "paths": ["/mcp"]}
+    },
+    {
+      "id": "azure-devops",
+      "name": "Azure DevOps",
+      "publisher": "Microsoft",
+      "category": "Code & collaboration",
+      "description": "Work items, repos, pull requests, pipelines, wikis and test plans of one Azure DevOps organization.",
+      "documentation": "https://github.com/microsoft/azure-devops-mcp",
+      "checked": "2026-11-11",
+      "command": ["npx", "-y", "@azure-devops/mcp@2.11.0", "{organization}", "--authentication", "azcli"],
+      "placeholders": [
+        {"name": "organization", "description": "Your organization, the name in dev.azure.com/<organization>."}
+      ],
+      "signIn": "The Azure CLI's sign-in on this computer (az login). With --authentication pat instead, it takes a personal access token in PERSONAL_ACCESS_TOKEN.",
+      "notes": [
+        "Microsoft's remote server, https://mcp.dev.azure.com/<organization>, admits only an Entra ID app registered in your tenant, which GateRook's sign-in doesn't support yet. This is Microsoft's local server for the same organization.",
+        "It has no read-only switch. Add -d with domains, such as core work-items repositories, to limit what it lists.",
+        "Tools that ask which project or team to use need it in the call, or ado_mcp_project and ado_mcp_team under Variables: GateRook doesn't pass a server's questions on."
+      ],
+      "tools": [
+        {"tool": "pipelines_write", "start": "approval", "kind": "code", "reason": "It queues pipeline runs and runs or retries stages, which run your pipelines' code."},
+        {"tool": "repo_file_write", "start": "approval", "kind": "code", "reason": "It commits file content to a branch, which can change pipeline code and start a build."},
+        {"tool": "repo_pull_request_write", "start": "approval", "kind": "write", "reason": "It can complete pull requests, and bypass branch policies when asked to."},
+        {"tool": "wit_work_item_attachment", "start": "approval", "kind": "write", "reason": "Despite its read-only declaration, it writes the attachment to a file on this computer when given a path."}
+      ],
+      "match": {"npm": "@azure-devops/mcp", "bin": "mcp-server-azuredevops"}
     }
   ]
 }

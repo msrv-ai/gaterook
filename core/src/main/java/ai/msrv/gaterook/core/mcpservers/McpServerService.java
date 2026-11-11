@@ -9,6 +9,7 @@ import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connectors.cloudauth.AwsSigV4;
 import ai.msrv.gaterook.connectors.support.egress.EgressDenial;
+import ai.msrv.gaterook.connectors.support.mcp.FixedHeaders;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
 import ai.msrv.gaterook.connectors.support.mcp.VerifiedProfiles;
 import ai.msrv.gaterook.core.connections.ConnectionConfigs;
@@ -110,23 +111,27 @@ public class McpServerService {
 
   /**
    * GateRook's verified profile of a vendor's own server ({@link VerifiedProfiles}, ARCHITECTURE.md §7.5), as its
-   * card and the review show it: the setup URL with its pins and {@code {placeholders}}, or the setup command, and the
-   * tools that don't start as their annotations say.
+   * card and the review show it: the setup URL with its pins and {@code {placeholders}} and the headers with a fixed
+   * value it sends, or the setup command, and the tools that don't start as their annotations say.
    *
    * @param checked the day GateRook last checked the server ({@code 2026-11-11})
    */
   public record ProfileView(String id, String name, String publisher, String category, String description,
-      String documentation, String registryName, String checked, String transport, String url, List<String> command,
-      List<PlaceholderView> placeholders, List<PinView> pins, String signIn, List<String> notes,
-      List<ToolRuleView> tools) {}
+      String documentation, String registryName, String checked, String transport, String url,
+      List<HeaderView> headers, List<String> command, List<PlaceholderView> placeholders, List<PinView> pins,
+      String signIn, List<String> notes, List<ToolRuleView> tools) {}
+
+  /** A header with a fixed value the profile's setup sends ({@code X-MCP-Readonly: true}). */
+  public record HeaderView(String name, String text) {}
 
   /**
-   * A query parameter the profile's setup URL sets.
+   * A switch the profile's setup sets: a query parameter of its URL or a header with a fixed value.
    *
+   * @param in    {@code query} or {@code header}
    * @param setTo the value it sets ({@code true}), or {@code null} when the value is the person's ({@code project_ref})
-   * @param set   in a review, whether the reviewed URL sets it so; {@code null} on a card
+   * @param set   in a review, whether the reviewed settings set it so; {@code null} on a card
    */
-  public record PinView(String parameter, String setTo, String purpose, String missing, Boolean set) {}
+  public record PinView(String in, String name, String setTo, String purpose, String missing, Boolean set) {}
 
   /** A part of the setup the person fills in ({@code project_ref}). */
   public record PlaceholderView(String name, String description) {}
@@ -239,7 +244,7 @@ public class McpServerService {
     VerifiedProfiles.Profile profile = VerifiedProfiles.of(d.config()).orElse(null);
     ProfileView view = null;
     if (profile != null) {
-      view = profileView(profile, d.config().path("url").asString(null));
+      view = profileView(profile, d.config());
       List<String> missing = view.pins().stream().filter(p -> Boolean.FALSE.equals(p.set())).map(PinView::missing)
           .toList();
       if (!missing.isEmpty()) {
@@ -252,25 +257,31 @@ public class McpServerService {
     return new ReviewView(r, d.cfg().name(), d.catalogEntry(), null, auth, view);
   }
 
+  private static String in(VerifiedProfiles.Pin pin) {
+    return pin.in().name().toLowerCase(java.util.Locale.ROOT);
+  }
+
   /** {@code GET /api/mcp-profiles}: every verified profile, for the cards of Connectors › MCP servers. */
   public List<ProfileView> profiles() {
     return VerifiedProfiles.all().stream().map(p -> profileView(p, null)).toList();
   }
 
   /**
-   * A profile as the API shows it; with the {@code url} under review, how each pin stands in it. A pin's value in
-   * that URL is never echoed: only whether it is set.
+   * A profile as the API shows it; with the {@code config} under review, how each pin stands in it. A pin's value in
+   * those settings is never echoed: only whether it is set.
    */
-  static ProfileView profileView(VerifiedProfiles.Profile p, String url) {
+  static ProfileView profileView(VerifiedProfiles.Profile p, JsonNode config) {
     List<PinView> pins = new ArrayList<>();
-    if (url == null) {
-      p.pins().forEach(pin -> pins.add(new PinView(pin.parameter(), pin.setTo(), pin.purpose(), pin.missing(), null)));
+    if (config == null) {
+      p.pins().forEach(pin -> pins.add(new PinView(in(pin), pin.name(), pin.setTo(), pin.purpose(), pin.missing(),
+          null)));
     } else {
-      VerifiedProfiles.pins(p, url).forEach(s -> pins.add(new PinView(s.pin().parameter(), s.pin().setTo(),
+      VerifiedProfiles.pins(p, config).forEach(s -> pins.add(new PinView(in(s.pin()), s.pin().name(), s.pin().setTo(),
           s.pin().purpose(), s.pin().missing(), s.set())));
     }
     return new ProfileView(p.id(), p.name(), p.publisher(), p.category(), p.description(), p.documentation(),
-        p.registryName(), p.checked().toString(), p.transport(), p.url(), p.command(),
+        p.registryName(), p.checked().toString(), p.transport(), p.url(),
+        p.headers().stream().map(h -> new HeaderView(h.name(), h.text())).toList(), p.command(),
         p.placeholders().stream().map(h -> new PlaceholderView(h.name(), h.description())).toList(), pins,
         p.signIn(), p.notes(), p.tools().stream().map(t -> new ToolRuleView(t.tool(),
             t.start().name().toLowerCase(java.util.Locale.ROOT), t.kind().name().toLowerCase(java.util.Locale.ROOT),
@@ -547,6 +558,7 @@ public class McpServerService {
             + plugin.get() + ". Choose another prefix.");
       }
     }
+    fixedHeaders(config);
     if (config.path("auth").isObject()) {
       signIn(config, credentialMembers(registry.requireManifest(TYPE).configSchema()), key -> {
         checked.add(key);
@@ -568,6 +580,31 @@ public class McpServerService {
     ConnectionConfig cfg = new ConnectionConfig("draft-" + Ids.uuid(), name, TYPE, env, 0, config.deepCopy(),
         Set.copyOf(fields), null);
     return new Draft(cfg, config, prefix, entry, entry == null ? null : entry.ref(), null);
+  }
+
+  /**
+   * Checks a server's headers with a fixed value as adding and editing it both do ({@link FixedHeaders}, §7.5): only
+   * over HTTP, never a credential's name or a header the transport sets, each name once, none also from a secret.
+   */
+  static void fixedHeaders(ObjectNode config) {
+    JsonNode fixed = config.path("fixedHeaders");
+    if (fixed.isMissingNode() || fixed.isNull()) {
+      return;
+    }
+    if (!"http".equals(config.path("transport").asString("stdio"))) {
+      throw ProblemException.unprocessable("Headers over HTTP only", "A command on this computer gets variables, "
+          + "not headers.", "/config/fixedHeaders");
+    }
+    List<FixedHeaders.Header> headers = new ArrayList<>();
+    for (JsonNode h : fixed) {
+      headers.add(new FixedHeaders.Header(h.path("name").asString(""), h.path("text").asString("")));
+    }
+    List<String> fromSecrets = new ArrayList<>();
+    config.path("headers").forEach(h -> fromSecrets.add(h.path("name").asString("")));
+    String problem = FixedHeaders.problem(headers, fromSecrets);
+    if (problem != null) {
+      throw ProblemException.unprocessable("Fixed header", problem, "/config/fixedHeaders");
+    }
   }
 
   /**
@@ -940,6 +977,7 @@ public class McpServerService {
     if (entry.isString()) {
       next.put("catalogEntry", entry.asString());
     }
+    fixedHeaders(next);
     signIn(next, credentialMembers(registry.requireManifest(TYPE).configSchema()), key -> {
       if (!c.secretIds().containsKey(key)) {
         // Said at the source, where the person changes it: Edit replaces a stored key but has none to add.
