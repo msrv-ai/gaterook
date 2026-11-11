@@ -6,6 +6,7 @@ import ai.msrv.gaterook.connectors.support.mcp.VerifiedProfiles;
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * GateRook's verified profile of a vendor's server as the admin API shows it (§7.5): on a card, its setup and pins;
@@ -25,9 +26,10 @@ class McpServerProfileViewTest {
     assertThat(card.checked()).isEqualTo("2026-11-11");
     assertThat(card.registryName()).isEqualTo("com.supabase/mcp");
     assertThat(card.placeholders()).extracting(McpServerService.PlaceholderView::name).containsExactly("project_ref");
-    assertThat(card.pins()).extracting(McpServerService.PinView::parameter).containsExactly("read_only", "project_ref");
+    assertThat(card.pins()).extracting(McpServerService.PinView::name).containsExactly("read_only", "project_ref");
     assertThat(card.pins()).extracting(McpServerService.PinView::set).containsOnlyNulls();
     assertThat(card.pins().getFirst().setTo()).isEqualTo("true");
+    assertThat(card.pins()).extracting(McpServerService.PinView::in).containsOnly("query");
     assertThat(card.pins().get(1).setTo()).isNull();
     assertThat(card.tools()).extracting(McpServerService.ToolRuleView::start).containsOnly("approval");
     assertThat(card.tools()).extracting(McpServerService.ToolRuleView::kind).containsOnly("code");
@@ -35,14 +37,14 @@ class McpServerProfileViewTest {
 
   @Test
   void aReviewSaysHowEachPinStandsWithoutEchoingTheValue() {
-    McpServerService.ProfileView review = McpServerService.profileView(SUPABASE,
-        "https://mcp.supabase.com/mcp?project_ref=abcdefghijklmnopqrst");
+    McpServerService.ProfileView review = McpServerService.profileView(SUPABASE, JsonMapper.builder().build()
+        .readTree("{\"transport\": \"http\", \"url\": \"https://mcp.supabase.com/mcp?project_ref=abcdefghijklmnopqrst\"}"));
 
     assertThat(review.pins()).extracting(McpServerService.PinView::set).containsExactly(false, true);
     assertThat(review.pins().getFirst().missing()).startsWith("Without read_only=true");
     // A pin's view has no field that could carry the value from the person's URL.
     assertThat(Arrays.stream(McpServerService.PinView.class.getRecordComponents()).map(RecordComponent::getName))
-        .containsExactly("parameter", "setTo", "purpose", "missing", "set");
+        .containsExactly("in", "name", "setTo", "purpose", "missing", "set");
     assertThat(review.toString()).doesNotContain("abcdefghijklmnopqrst");
   }
 

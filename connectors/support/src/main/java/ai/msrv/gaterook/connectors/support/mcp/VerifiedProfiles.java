@@ -37,9 +37,10 @@ import tools.jackson.databind.node.ObjectNode;
  * request to another agent). Tools it doesn't name keep the rules of their annotations. A profile never makes a tool
  * Read only: GateRook doesn't infer read-only behavior from a tool's name (ARCHITECTURE.md §5.1).
  *
- * <p>Pins are query parameters of the setup URL: a fixed value ({@code read_only=true}) or the person's own
- * ({@code project_ref}). The review says how each stands in the URL the person gave and warns when one is missing;
- * GateRook never adds one behind the person's back.
+ * <p>Pins are the vendor's switches the setup sets: query parameters of its URL, with a fixed value
+ * ({@code read_only=true}) or the person's own ({@code project_ref}), and headers with a fixed value
+ * ({@code X-MCP-Readonly: true}, {@link FixedHeaders}). The review says how each stands in the settings the person gave
+ * and warns when one is missing; GateRook never adds one behind the person's back.
  */
 public final class VerifiedProfiles {
 
@@ -65,15 +66,19 @@ public final class VerifiedProfiles {
    */
   public record ToolRule(String tool, Start start, Kind kind, String reason) {}
 
+  /** Where a pin goes: a query parameter of the URL, or a header with a fixed value. */
+  public enum In { QUERY, HEADER }
+
   /**
-   * A query parameter of the setup URL.
+   * A switch the setup sets.
    *
+   * @param name    the query parameter ({@code read_only}) or header ({@code X-MCP-Readonly})
    * @param setTo   the value the profile sets ({@code true}), or {@code null} when it is the person's own
-   *                ({@code project_ref})
+   *                ({@code project_ref}; query parameters only)
    * @param purpose what it does, for the review
-   * @param missing what the review warns when the URL lacks it
+   * @param missing what the review warns when the settings lack it
    */
-  public record Pin(String parameter, String setTo, String purpose, String missing) {}
+  public record Pin(In in, String name, String setTo, String purpose, String missing) {}
 
   /** A part of the setup URL or command the person fills in ({@code {project_ref}}), with what to put there. */
   public record Placeholder(String name, String description) {}
@@ -112,16 +117,18 @@ public final class VerifiedProfiles {
    * @param registryName the vendor's own entry in the Official MCP Registry, or {@code null} when it has none
    * @param checked      the day GateRook last checked the server's tools, sign-in and switches
    * @param url          the setup URL over HTTP, with its pins and {@code {placeholders}}; {@code null} for a command
+   * @param headers      the headers with a fixed value the setup sends over HTTP, its header pins among them
    * @param command      the setup command over stdio; empty over HTTP
    * @param signIn       how it signs in, in one sentence for the card and the review
    * @param notes        what else to know before connecting it
    */
   public record Profile(String id, String name, String publisher, String category, String description,
-      String documentation, String registryName, LocalDate checked, String url, List<String> command,
-      List<Placeholder> placeholders, List<Pin> pins, String signIn, List<String> notes, List<ToolRule> tools,
-      Match match) {
+      String documentation, String registryName, LocalDate checked, String url, List<FixedHeaders.Header> headers,
+      List<String> command, List<Placeholder> placeholders, List<Pin> pins, String signIn, List<String> notes,
+      List<ToolRule> tools, Match match) {
 
     public Profile {
+      headers = headers == null ? List.of() : List.copyOf(headers);
       command = command == null ? List.of() : List.copyOf(command);
       placeholders = placeholders == null ? List.of() : List.copyOf(placeholders);
       pins = pins == null ? List.of() : List.copyOf(pins);
@@ -218,11 +225,11 @@ public final class VerifiedProfiles {
   }
 
   /**
-   * How a pin stands in a server's URL.
+   * How a pin stands in a server's settings.
    *
-   * @param actual the parameter's value there, or {@code null} without it
-   * @param set    whether the URL sets it as the profile does (its value, or any value of the person's that isn't a
-   *               {@code {placeholder}})
+   * @param actual the query parameter's or fixed header's value there, or {@code null} without it
+   * @param set    whether the settings set it as the profile does (its value, or any value of the person's that isn't
+   *               a {@code {placeholder}})
    */
   public record PinState(Pin pin, String actual, boolean set) {}
 
@@ -230,6 +237,9 @@ public final class VerifiedProfiles {
   private static final Pattern ID = Pattern.compile("^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$");
   private static final Pattern PLACEHOLDER = Pattern.compile("\\{([A-Za-z_][A-Za-z0-9_]*)\\}");
   private static final Pattern TOOL = Pattern.compile("^[A-Za-z0-9_.\\-/]{1,128}$");
+  /** A fixed header's name and value as the server's settings take them ({@code config.schema.json}). */
+  private static final Pattern HEADER = Pattern.compile("^[A-Za-z0-9-]{1,64}$");
+  private static final Pattern HEADER_TEXT = Pattern.compile("^[\\x20-\\x7E]{0,256}$");
   private static final Set<String> RUNNERS = Set.of("npx", "bunx", "pnpx", "pnpm", "yarn");
   private static final JsonMapper MAPPER = JsonMapper.builder().build();
   private static final List<Profile> ALL = load();
@@ -261,12 +271,21 @@ public final class VerifiedProfiles {
     return of(config).flatMap(p -> p.rule(original));
   }
 
-  /** How each of the profile's pins stands in {@code url}, in the profile's order. */
-  public static List<PinState> pins(Profile profile, String url) {
-    Map<String, String> query = query(url);
+  /**
+   * How each of the profile's pins stands in a server's settings ({@code url}, {@code fixedHeaders}), in the profile's
+   * order. Header names don't depend on case; values do.
+   */
+  public static List<PinState> pins(Profile profile, JsonNode config) {
+    Map<String, String> query = query(config == null ? null : config.path("url").asString(null));
+    Map<String, String> headers = new LinkedHashMap<>();
+    if (config != null) {
+      for (JsonNode h : config.path("fixedHeaders")) {
+        headers.putIfAbsent(h.path("name").asString("").toLowerCase(Locale.ROOT), h.path("text").asString(""));
+      }
+    }
     List<PinState> out = new ArrayList<>();
     for (Pin pin : profile.pins()) {
-      String actual = query.get(pin.parameter());
+      String actual = pin.in() == In.QUERY ? query.get(pin.name()) : headers.get(pin.name().toLowerCase(Locale.ROOT));
       boolean set = actual != null && (pin.setTo() != null ? pin.setTo().equals(actual)
           : !actual.isBlank() && !PLACEHOLDER.matcher(actual).find());
       out.add(new PinState(pin, actual, set));
@@ -336,6 +355,10 @@ public final class VerifiedProfiles {
     node.put("transport", p.transport());
     if (p.url() != null) {
       node.put("url", p.url());
+      if (!p.headers().isEmpty()) {
+        var fixed = node.putArray("fixedHeaders");
+        p.headers().forEach(h -> fixed.addObject().put("name", h.name()).put("text", h.text()));
+      }
     } else {
       var command = node.putArray("command");
       p.command().forEach(command::add);
@@ -379,16 +402,32 @@ public final class VerifiedProfiles {
       throw new IllegalArgumentException("verified profiles: " + id + " describes placeholders " + declared
           + " but its setup uses " + used);
     }
+    List<FixedHeaders.Header> headers = new ArrayList<>();
+    for (JsonNode h : p.path("headers")) {
+      String headerName = text(h, "name", id);
+      String headerText = h.path("text").isString() ? h.path("text").asString() : "";
+      if (!HEADER.matcher(headerName).matches() || !HEADER_TEXT.matcher(headerText).matches()) {
+        throw new IllegalArgumentException("verified profiles: " + id + " has a bad header " + headerName);
+      }
+      headers.add(new FixedHeaders.Header(headerName, headerText));
+    }
+    String headerProblem = FixedHeaders.problem(headers, List.of());
+    if (url == null && !headers.isEmpty() || headerProblem != null) {
+      throw new IllegalArgumentException("verified profiles: " + id + "'s headers: "
+          + (headerProblem == null ? "a command has no headers" : headerProblem));
+    }
     List<Pin> pins = new ArrayList<>();
     Map<String, String> setupQuery = url == null ? Map.of() : query(url);
     for (JsonNode n : p.path("pins")) {
-      Pin pin = new Pin(text(n, "parameter", id), optional(n, "setTo"), text(n, "purpose", id),
-          text(n, "missing", id));
-      String inSetup = setupQuery.get(pin.parameter());
+      boolean header = n.path("header").isString();
+      Pin pin = new Pin(header ? In.HEADER : In.QUERY, text(n, header ? "header" : "parameter", id),
+          optional(n, "setTo"), text(n, "purpose", id), text(n, "missing", id));
+      String inSetup = header ? headers.stream().filter(h -> h.name().equalsIgnoreCase(pin.name())).findFirst()
+          .map(FixedHeaders.Header::text).orElse(null) : setupQuery.get(pin.name());
       if (url == null || inSetup == null || pin.setTo() != null && !pin.setTo().equals(inSetup)
-          || pin.setTo() == null && !PLACEHOLDER.matcher(inSetup).matches()) {
-        throw new IllegalArgumentException("verified profiles: " + id + " pins " + pin.parameter()
-            + " but its setup URL doesn't set it that way");
+          || pin.setTo() == null && (header || !PLACEHOLDER.matcher(inSetup).matches())) {
+        throw new IllegalArgumentException("verified profiles: " + id + " pins " + pin.name()
+            + " but its setup doesn't set it that way");
       }
       pins.add(pin);
     }
@@ -421,7 +460,7 @@ public final class VerifiedProfiles {
       throw new IllegalArgumentException("verified profiles: " + id + " has a match that doesn't fit its setup");
     }
     Profile profile = new Profile(id, name, publisher, category, description, documentation, registryName, checked,
-        url, command, placeholders, pins, text(p, "signIn", id), strings(p.path("notes")), tools, match);
+        url, headers, command, placeholders, pins, text(p, "signIn", id), strings(p.path("notes")), tools, match);
     if (!profile.matches(sampleConfig(profile))) {
       throw new IllegalArgumentException("verified profiles: " + id + "'s match doesn't recognize its own setup");
     }

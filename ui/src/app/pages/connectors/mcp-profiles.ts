@@ -48,12 +48,16 @@ export function fromProfile(p: McpProfile): PastedServer | { readonly error: str
     ...(parts.length
       ? [`Replace ${joinAnd(parts)} in the URL with your own ${parts.length === 1 ? 'value' : 'values'}.${described.length ? ` ${described.join('. ')}.` : ''}`]
       : []),
-    ...p.pins.filter((pin) => pin.setTo !== null).map((pin) => `${pin.parameter}=${pin.setTo}: ${pin.purpose}`),
+    ...p.pins.filter((pin) => pin.setTo !== null).map((pin) =>
+      pin.in === 'header' ? `Header ${pin.name} set to ${pin.setTo}: ${pin.purpose}` : `${pin.name}=${pin.setTo}: ${pin.purpose}`),
     ...(p.tools.length ? [`Its profile starts ${profileStarts(p.tools)}.`] : []),
   ];
   if (p.transport === 'http') {
     if (!p.url) return { error: `The profile of ${p.name} names no URL.` };
-    return { name: serverName(p), transport: 'http', url: p.url, command: '', variables: [], notes, others: 0 };
+    return {
+      name: serverName(p), transport: 'http', url: p.url, command: '', variables: [], notes, others: 0,
+      ...(p.headers?.length ? { fixedHeaders: p.headers } : {}),
+    };
   }
   const result = fromArgv(serverName(p), p.command, []);
   return 'error' in result ? result : { ...result, notes: [...result.notes, ...notes] };

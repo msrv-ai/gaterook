@@ -212,6 +212,8 @@ export interface McpProfile {
   readonly checked: string;
   readonly transport: 'http' | 'stdio';
   readonly url: string | null;
+  /** Over HTTP: the headers with a fixed value the setup sends, its header switches among them. */
+  readonly headers: readonly McpFixedHeader[];
   readonly command: readonly string[];
   readonly placeholders: readonly McpProfilePlaceholder[];
   readonly pins: readonly McpProfilePin[];
@@ -221,9 +223,11 @@ export interface McpProfile {
   readonly tools: readonly McpProfileTool[];
 }
 
-/** A query parameter the setup URL sets; `set` is how it stands in the reviewed URL (null on a card). */
+/** A switch the setup sets, a query parameter or a fixed header; `set` is how it stands in a review (null on a card). */
 export interface McpProfilePin {
-  readonly parameter: string;
+  readonly in: 'query' | 'header';
+  /** The query parameter (`read_only`) or header (`X-MCP-Readonly`). */
+  readonly name: string;
   /** The value it sets (`true`), or null when it is the person's own (`project_ref`). */
   readonly setTo: string | null;
   readonly purpose: string;
@@ -384,8 +388,16 @@ export interface McpServerConfig {
   readonly url?: string;
   readonly env?: McpSecretBinding[];
   readonly headers?: McpSecretBinding[];
+  /** Over HTTP: headers sent as written here, not secrets: a server's switch such as `X-MCP-Readonly: true`. */
+  readonly fixedHeaders?: McpFixedHeader[];
   /** Over HTTP: sign in with OAuth in the browser, or with the server's Google Cloud or AWS credentials. */
   readonly auth?: McpServerAuthConfig;
+}
+
+/** A header with a fixed value (`fixedHeaders`): never a credential, which belongs in a header from a secret. */
+export interface McpFixedHeader {
+  readonly name: string;
+  readonly text: string;
 }
 
 /**

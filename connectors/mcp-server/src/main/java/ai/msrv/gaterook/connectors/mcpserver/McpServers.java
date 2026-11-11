@@ -790,6 +790,9 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
     for (ServerConfig.Binding b : server.http() ? server.headers() : server.env()) {
       bindings.addObject().put("name", b.name()).put("field", b.secretField());
     }
+    // A changed switch, such as X-MCP-Readonly, is another session: one opened with the old value drains.
+    ArrayNode fixed = n.putArray("fixedHeaders");
+    server.fixedHeaders().forEach(h -> fixed.addObject().put("name", h.name()).put("text", h.text()));
     ArrayNode inherit = n.putArray("inherit");
     server.inheritEnv().forEach(inherit::add);
     n.put("npmIntegrity", npmIntegrity);

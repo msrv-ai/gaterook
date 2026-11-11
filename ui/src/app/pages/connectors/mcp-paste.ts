@@ -1,4 +1,4 @@
-import { McpServerAuthConfig } from '../../core/api/plugins.api';
+import { McpFixedHeader, McpServerAuthConfig } from '../../core/api/plugins.api';
 import { formatArgv, tokenizeCommand } from './connectors-view';
 import { awsTarget } from './mcp-cloud';
 
@@ -25,6 +25,8 @@ export interface PastedServer {
    * header becomes Google Cloud credentials. Absent otherwise.
    */
   readonly auth?: McpServerAuthConfig;
+  /** Over HTTP: headers sent as written (a verified profile's switches); absent from pastes, whose values are asked for. */
+  readonly fixedHeaders?: readonly McpFixedHeader[];
 }
 
 /**
