@@ -59,7 +59,7 @@
       "properties": {
         "source": {
           "title": "Authentication",
-          "description": "Uses Application Default Credentials (ADC) on this computer. If sign-in is missing or expired, test the connection and choose Sign in with Google, or run gcloud auth application-default login in a terminal.",
+          "description": "Existing Google sign-in uses Application Default Credentials (ADC) on this computer: if sign-in is missing or expired, test the connection and choose Sign in with Google, or run gcloud auth application-default login in a terminal. A service account key signs in as that service account.",
           "enum": [
             "adc",
             "serviceAccountKey"
@@ -72,6 +72,7 @@
         },
         "impersonate": {
           "type": "string",
+          "title": "Service account to impersonate",
           "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
           "examples": [
             "gw-reader@acme-stage.iam.gserviceaccount.com"
@@ -79,13 +80,16 @@
         },
         "delegates": {
           "type": "array",
+          "title": "Delegation chain",
           "maxItems": 5,
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
         },
         "lifetimeSeconds": {
           "type": "integer",
+          "title": "Token lifetime",
           "minimum": 300,
           "maximum": 3600,
           "default": 900,
@@ -93,6 +97,7 @@
         },
         "quotaProject": {
           "type": "string",
+          "title": "Billed project",
           "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
         }
       },
@@ -115,6 +120,7 @@
             "properties": {
               "serviceAccountKey": {
                 "type": "string",
+                "title": "Service account key (JSON)",
                 "writeOnly": true,
                 "x-gateway-secret": "value",
                 "x-widget": "textarea",

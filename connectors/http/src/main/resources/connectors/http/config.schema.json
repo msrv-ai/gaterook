@@ -53,6 +53,7 @@
       ],
       "properties": {
         "type": {
+          "title": "Authentication",
           "enum": [
             "none",
             "bearer",
@@ -95,6 +96,7 @@
             "properties": {
               "token": {
                 "type": "string",
+                "title": "Token",
                 "writeOnly": true,
                 "x-gateway-secret": "value"
               }
@@ -119,11 +121,13 @@
             "properties": {
               "headerName": {
                 "type": "string",
+                "title": "Header name",
                 "default": "X-API-Key",
                 "pattern": "^[A-Za-z0-9-]{1,64}$"
               },
               "apiKey": {
                 "type": "string",
+                "title": "API key",
                 "writeOnly": true,
                 "x-gateway-secret": "value"
               }
@@ -148,11 +152,13 @@
             "properties": {
               "queryName": {
                 "type": "string",
+                "title": "Query parameter name",
                 "default": "api_key",
                 "maxLength": 64
               },
               "apiKey": {
                 "type": "string",
+                "title": "API key",
                 "writeOnly": true,
                 "x-gateway-secret": "value"
               }
@@ -177,10 +183,12 @@
             "properties": {
               "username": {
                 "type": "string",
+                "title": "User",
                 "maxLength": 256
               },
               "password": {
                 "type": "string",
+                "title": "Password",
                 "writeOnly": true,
                 "x-gateway-secret": "value",
                 "format": "password"
@@ -249,6 +257,7 @@
       "properties": {
         "caCertificates": {
           "type": "string",
+          "title": "CA certificates",
           "x-person-only": true,
           "x-widget": "textarea",
           "maxLength": 64000,
@@ -256,6 +265,7 @@
         },
         "pins": {
           "type": "array",
+          "title": "Certificate pins",
           "x-person-only": true,
           "items": {
             "type": "string",
@@ -263,6 +273,7 @@
           }
         },
         "minVersion": {
+          "title": "Minimum TLS version",
           "enum": [
             "TLSv1.2",
             "TLSv1.3"
@@ -279,12 +290,14 @@
       "properties": {
         "connectTimeoutSeconds": {
           "type": "integer",
+          "title": "Connect timeout",
           "minimum": 1,
           "maximum": 30,
           "default": 5,
           "x-unit": "s"
         },
         "followRedirects": {
+          "title": "Follow redirects",
           "enum": [
             "off",
             "same-origin"
@@ -299,6 +312,7 @@
         },
         "allowPlainHttp": {
           "type": "boolean",
+          "title": "Allow plain HTTP",
           "default": false,
           "x-forbidden-env": [
             "prod"
@@ -307,6 +321,7 @@
         },
         "maxConcurrentCalls": {
           "type": "integer",
+          "title": "Concurrent calls",
           "minimum": 1,
           "maximum": 16,
           "default": 4,
@@ -316,9 +331,11 @@
         },
         "test": {
           "type": "object",
+          "title": "Test request",
           "additionalProperties": false,
           "properties": {
             "method": {
+              "title": "Method",
               "enum": [
                 "GET",
                 "HEAD"
@@ -327,6 +344,7 @@
             },
             "path": {
               "type": "string",
+              "title": "Path",
               "default": "/"
             }
           }

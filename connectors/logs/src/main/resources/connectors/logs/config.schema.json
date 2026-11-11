@@ -95,6 +95,7 @@
         },
         "url": {
           "type": "string",
+          "title": "Loki URL",
           "format": "uri",
           "pattern": "^https?://[^/?#]+(/[^?#]*)?$",
           "examples": [
@@ -224,6 +225,7 @@
           "additionalProperties": false,
           "properties": {
             "source": {
+              "title": "Authentication",
               "enum": [
                 "adc",
                 "serviceAccountKey"
@@ -236,6 +238,7 @@
             },
             "impersonate": {
               "type": "string",
+              "title": "Service account to impersonate",
               "maxLength": 254,
               "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
               "examples": [
@@ -244,10 +247,12 @@
             },
             "delegates": {
               "type": "array",
+              "title": "Delegation chain",
               "maxItems": 5,
               "items": {
                 "type": "string"
-              }
+              },
+              "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
             }
           },
           "patternProperties": {
@@ -315,6 +320,7 @@
         },
         "quotaPerMinute": {
           "type": "integer",
+          "title": "API calls per minute",
           "minimum": 1,
           "maximum": 60,
           "default": 30,
@@ -336,6 +342,7 @@
         },
         "region": {
           "type": "string",
+          "title": "Region",
           "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
           "examples": [
             "eu-central-1"
@@ -343,6 +350,7 @@
         },
         "logGroups": {
           "type": "array",
+          "title": "Log groups",
           "minItems": 1,
           "maxItems": 50,
           "uniqueItems": true,
@@ -357,6 +365,7 @@
           "title": "Credentials"
         },
         "searchApi": {
+          "title": "Search API",
           "enum": [
             "insights",
             "filter"

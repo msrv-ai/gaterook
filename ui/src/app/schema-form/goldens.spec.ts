@@ -24,6 +24,17 @@ describe('schema-form goldens: every connector form the core serves', () => {
     );
   });
 
+  it('labels the fields of the infrastructure connectors with titles, never with their property names', () => {
+    // The log backend and OpenSearch-style API access are constants of the type, which the form never shows.
+    const constants = new Set(['/backend', '/apiAccess']);
+    for (const type of ['aws', 'gcp', 'gcp-logging', 'cloudwatch', 'loki', 'opensearch', 'elasticsearch', 'logs', 'http', 'ssh', 'ssh-logs']) {
+      const raw = CONNECTOR_GOLDENS[type].fields
+        .filter((f) => !constants.has(f.pointer) && /^[a-z][A-Za-z0-9]*$/.test(f.title) && f.pointer.endsWith(`/${f.title}`))
+        .map((f) => f.pointer);
+      expect(raw, type).toEqual([]);
+    }
+  });
+
   it('never puts a secret into what is sent, and every secret field is a secret widget', () => {
     for (const [type, schema] of Object.entries(CONNECTOR_FORMS)) {
       const form = compileSchema(schema);
