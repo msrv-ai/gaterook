@@ -28,6 +28,10 @@ import tools.jackson.databind.JsonNode;
  * Oracle accepts only unquoted SQL built-ins: stored routines may use autonomous transactions whose commits survive
  * the caller's rollback. This static check does not resolve view definitions or parameterless stored functions;
  * database privileges remain the boundary for those indirect calls.
+ *
+ * <p>A SQLite file holds no functions: the connection has SQLite's own and nothing registered by GateRook, so every
+ * single-part name is built in, except the denylist of what loads code, reads or writes files or raw pages, or runs
+ * SQL given as text.
  */
 final class FunctionRules {
 
@@ -73,6 +77,18 @@ final class FunctionRules {
   static final List<String> SQLSERVER_DENIED = List.of(
       "openrowset", "openquery", "opendatasource", "openxml", "xp_*", "sp_*", "fn_get_audit_file",
       "fn_trace_gettable", "fn_xe_file_target_read_file");
+
+  /**
+   * SQLite functions and table-valued functions that load native code ({@code load_extension}), take a tokenizer
+   * pointer ({@code fts3_tokenizer}), read or change raw database pages ({@code sqlite_dbpage}, the recovery
+   * extension's {@code sqlite_dbdata} and {@code sqlite_dbptr}), touch files ({@code readfile}, {@code writefile},
+   * {@code edit}, {@code fsdir}, {@code zipfile}, {@code sqlar_*}), or run SQL given as text ({@code eval},
+   * {@code sha3_query}). Most come from the sqlite3 shell or loadable extensions and are absent from the library; the
+   * names stay refused should a build ever include them.
+   */
+  static final List<String> SQLITE_DENIED = List.of("load_extension", "fts3_tokenizer", "sqlite_dbpage",
+      "sqlite_dbdata", "sqlite_dbptr", "readfile", "writefile", "edit", "fsdir", "zipfile", "zipfile_cds",
+      "sqlar_compress", "sqlar_uncompress", "eval", "sha3_query", "shell_*");
 
   /** A conservative set of SQL Server functions that do not change database or session state. */
   static final Set<String> SQLSERVER_BUILT_IN = names(
@@ -268,6 +284,7 @@ final class FunctionRules {
       case POSTGRES -> POSTGRES_DENIED;
       case SQLSERVER -> SQLSERVER_DENIED;
       case ORACLE -> List.of("dbms_*", "utl_*", "nextval", "currval");
+      case SQLITE -> SQLITE_DENIED;
     });
     policyDenied.forEach(d -> denylist.add(d.toLowerCase(Locale.ROOT)));
     Set<String> seen = new HashSet<>();
@@ -291,6 +308,11 @@ final class FunctionRules {
       } else if (syntax == SqlSyntax.SQLSERVER) {
         // SQL Server cannot contain unknown functions in a read-only transaction; explicit allowlists do not help.
         if (f.parts().size() != 1 || quoted(f.parts().getFirst()) || !SQLSERVER_BUILT_IN.contains(bare)) {
+          notBuiltIn.add(f.written());
+        }
+      } else if (syntax == SqlSyntax.SQLITE) {
+        // No function lives in a SQLite file; a qualified name ("main.f") is no call SQLite accepts.
+        if (f.parts().size() != 1) {
           notBuiltIn.add(f.written());
         }
       } else if (!builtIn(f, syntax == SqlSyntax.MYSQL, metadataBuiltIns)

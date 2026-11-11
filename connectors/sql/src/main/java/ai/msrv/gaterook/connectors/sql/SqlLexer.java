@@ -16,7 +16,10 @@ import java.util.Locale;
  * identifiers, {@code #} and {@code -- } line comments, {@code /* … *}{@code /}; {@code /*!…*}{@code /} and
  * {@code /*M!…*}{@code /} are code the server runs although every parser reads them as comments.
  * Oracle uses standard apostrophe strings, q/nq alternative quotes, double-quoted identifiers and non-nested block
- * comments. Both {@code /*+…*}{@code /} and {@code --+…} are executable optimizer hints.
+ * comments. Both {@code /*+…*}{@code /} and {@code --+…} are executable optimizer hints. SQLite: {@code '…'} with
+ * {@code ''}, no backslash escapes; {@code "…"} and {@code `…`} names with doubled quotes, {@code […]} names that end at
+ * the first {@code ]}; {@code --} line comments and block comments that don't nest (SQLite accepts one left open at the
+ * end of the text; this scan calls it unterminated, so it is never analyzed).
  */
 final class SqlLexer {
 
@@ -146,6 +149,7 @@ final class SqlLexer {
       case POSTGRES -> scanPostgres(sql);
       case ORACLE -> scanOracle(sql);
       case SQLSERVER -> scanSqlServer(sql);
+      case SQLITE -> scanSqlite(sql);
     };
   }
 
@@ -193,6 +197,56 @@ final class SqlLexer {
     }
     if (code < sql.length()) {
       out.add(new Segment(Kind.CODE, code, sql.length()));
+    }
+    return new Scan(sql, List.copyOf(out), unterminated);
+  }
+
+  /** SQLite's tokens (tokenize.c): brackets end at the first {@code ]}, block comments don't nest. */
+  private static Scan scanSqlite(String sql) {
+    List<Segment> out = new ArrayList<>();
+    int n = sql.length();
+    int code = 0;
+    int i = 0;
+    boolean unterminated = false;
+    while (i < n) {
+      char c = sql.charAt(i);
+      int end = -1;
+      Kind kind = null;
+      if (c == '\'') {
+        end = quoted(sql, i, '\'', false);
+        kind = Kind.STRING;
+      } else if (c == '"' || c == '`') {
+        end = quoted(sql, i, c, false);
+        kind = Kind.QUOTED_IDENTIFIER;
+      } else if (c == '[') {
+        int close = sql.indexOf(']', i + 1);
+        end = close < 0 ? -1 : close + 1;
+        kind = Kind.QUOTED_IDENTIFIER;
+      } else if (c == '-' && i + 1 < n && sql.charAt(i + 1) == '-') {
+        end = lineEnd(sql, i);
+        kind = Kind.COMMENT;
+      } else if (c == '/' && i + 1 < n && sql.charAt(i + 1) == '*') {
+        int close = sql.indexOf("*/", i + 2);
+        end = close < 0 ? -1 : close + 2;
+        kind = Kind.COMMENT;
+      }
+      if (kind == null) {
+        i++;
+        continue;
+      }
+      if (code < i) {
+        out.add(new Segment(Kind.CODE, code, i));
+      }
+      if (end < 0) {
+        unterminated = true;
+        end = n;
+      }
+      out.add(new Segment(kind, i, end));
+      i = end;
+      code = end;
+    }
+    if (code < n) {
+      out.add(new Segment(Kind.CODE, code, n));
     }
     return new Scan(sql, List.copyOf(out), unterminated);
   }

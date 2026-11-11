@@ -4646,6 +4646,81 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "additionalProperties": false
+  },
+  "sqlite": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "x-card": {
+      "description": "A SQLite database file on this computer. Read queries and schema."
+    },
+    "additionalProperties": false,
+    "required": [
+      "connection"
+    ],
+    "properties": {
+      "connection": {
+        "type": "object",
+        "title": "Database file",
+        "description": "GateRook opens the file on this computer: reads through a read-only handle, approved changes through their own. It never creates a file.",
+        "additionalProperties": false,
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "title": "Database file",
+            "x-file-picker": "sqlite-database",
+            "x-person-only": true,
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "^[^?\\u0000-\\u001f]+$",
+            "description": "An absolute path or ~/…, such as ~/projects/shop/db/development.sqlite3. Only you choose the file: an AI import can't."
+          }
+        }
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "Timeouts, locking, foreign keys and the pool. Policies can tighten limits per environment.",
+        "properties": {
+          "statementTimeoutMs": {
+            "type": "integer",
+            "title": "Statement timeout",
+            "minimum": 100,
+            "maximum": 600000,
+            "x-unit": "ms",
+            "x-stricter": "min",
+            "description": "GateRook interrupts slower statements. Empty: the environment policy."
+          },
+          "busyTimeoutMs": {
+            "type": "integer",
+            "title": "Lock wait",
+            "minimum": 0,
+            "maximum": 30000,
+            "default": 2000,
+            "x-unit": "ms",
+            "description": "How long a call waits while another program writes to the file."
+          },
+          "foreignKeys": {
+            "type": "boolean",
+            "title": "Enforce foreign keys",
+            "default": true,
+            "description": "SQLite checks the file's foreign keys, and runs their ON DELETE and ON UPDATE actions, on approved changes, as most apps that use them do."
+          },
+          "poolSize": {
+            "type": "integer",
+            "title": "Pool size",
+            "minimum": 1,
+            "maximum": 4,
+            "default": 2,
+            "x-unit": "connections"
+          }
+        }
+      }
+    }
   }
 };
 
@@ -6032,6 +6107,162 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "poolSize": 2,
         "connectTimeoutMs": 5000,
         "defaultSchema": "dbo"
+      }
+    }
+  },
+  "sqlite": {
+    "sections": [
+      "/connection",
+      "/advanced"
+    ],
+    "loose": [],
+    "rows": {
+      "/connection": [
+        [
+          "/connection/file"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/statementTimeoutMs",
+          "/advanced/busyTimeoutMs"
+        ],
+        [
+          "/advanced/foreignKeys"
+        ],
+        [
+          "/advanced/poolSize"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/connection",
+        "kind": "object",
+        "title": "Database file",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/file",
+        "kind": "text",
+        "title": "Database file",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/statementTimeoutMs",
+        "kind": "number",
+        "title": "Statement timeout",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "ms",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/busyTimeoutMs",
+        "kind": "number",
+        "title": "Lock wait",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "ms",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/foreignKeys",
+        "kind": "checkbox",
+        "title": "Enforce foreign keys",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/poolSize",
+        "kind": "number",
+        "title": "Pool size",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "connections",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "connection": {},
+      "advanced": {
+        "busyTimeoutMs": 2000,
+        "foreignKeys": true,
+        "poolSize": 2
+      }
+    },
+    "prodDefaults": {
+      "connection": {},
+      "advanced": {
+        "busyTimeoutMs": 2000,
+        "foreignKeys": true,
+        "poolSize": 2
       }
     }
   },

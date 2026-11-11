@@ -359,6 +359,7 @@ export function checkPrompt(type: string | null, name: string | null): string {
     case 'mysql':
     case 'oracle':
     case 'sqlserver':
+    case 'sqlite':
     case 'sql':
       return `Show me the tables in ${name}`;
     case 'mongodb':

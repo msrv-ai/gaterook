@@ -47,6 +47,9 @@ const gwDesktop = {
   choosePrivateKeyFile(): Promise<string | null> {
     return ipcRenderer.invoke(IPC.choosePrivateKeyFile);
   },
+  chooseDatabaseFile(): Promise<string | null> {
+    return ipcRenderer.invoke(IPC.chooseDatabaseFile);
+  },
   chooseRepository(): Promise<string | null> {
     return ipcRenderer.invoke(IPC.chooseRepository);
   },

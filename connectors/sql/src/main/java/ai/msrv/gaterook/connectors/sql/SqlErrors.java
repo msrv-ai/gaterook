@@ -8,9 +8,12 @@ import java.sql.SQLException;
 import java.sql.SQLTransientConnectionException;
 import java.time.Duration;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.net.ssl.SSLException;
 import org.postgresql.util.PSQLException;
 import org.postgresql.util.ServerErrorMessage;
+import org.sqlite.SQLiteException;
 
 /**
  * Errors of the database in words for the agent (report 04 §6.6): the SQLState and the first line of the server's
@@ -51,6 +54,7 @@ final class SqlErrors {
     boolean mysql = syntax == SqlSyntax.MYSQL;
     boolean oracle = syntax == SqlSyntax.ORACLE;
     boolean sqlServer = syntax == SqlSyntax.SQLSERVER;
+    boolean sqlite = syntax == SqlSyntax.SQLITE;
     String state = state(e);
     int code = e.getErrorCode();
     if (e instanceof SQLTransientConnectionException && !(e.getCause() instanceof SQLException)) {
@@ -64,16 +68,26 @@ final class SqlErrors {
           + ". Select fewer or smaller columns (left(column, 2000) for long text), or fewer rows.", e);
     }
     if (unreachable(e, state, syntax, phase)) {
-      return ConnectorException.unavailable(reach(e, connection), e);
+      return ConnectorException.unavailable(sqlite ? sqliteReach(e, connection) : reach(e, connection), e);
     }
-    if (timedOut(state, code, mysql) || (oracle && (code == 1013 || code == 30006))
+    if (sqlite && (code == SQLITE_BUSY || code == SQLITE_LOCKED)) {
+      return ConnectorException.resourceError(connection + " is locked by another program that is writing to it. Try "
+          + "again in a moment.", e);
+    }
+    if (sqlite && code == SQLITE_TOOBIG) {
+      return ConnectorException.resourceError("A value of this statement is larger than "
+          + (SqliteDialect.MAX_VALUE_BYTES >> 20) + " MiB, the most GateRook reads or writes in one SQLite value. "
+          + "Select a part of it (substr(column, 1, 2000)).", e);
+    }
+    if (timedOut(state, code, mysql) || (oracle && (code == 1013 || code == 30006)) || (sqlite && code == SQLITE_INTERRUPT)
         || (sqlServer && (e instanceof java.sql.SQLTimeoutException || "HYT00".equals(state)
             || "HYT01".equals(state) || code == 1222))) {
       return ConnectorException.resourceError("Statement timeout (" + seconds(timeout) + " on " + env
           + ") exceeded. Narrow the WHERE clause or "
           + (oracle ? "add FETCH FIRST n ROWS ONLY." : sqlServer ? "use TOP." : "add LIMIT."), e);
     }
-    if ((oracle && code == 1456) || "25006".equals(state) || (mysql && (code == 1792 || "S1009".equals(state)))) {
+    if ((oracle && code == 1456) || "25006".equals(state) || (mysql && (code == 1792 || "S1009".equals(state)))
+        || (sqlite && code == SQLITE_READONLY)) {
       return ConnectorException.resourceError("This statement writes, and the read-only transaction refused it: "
           + describe(e) + ". Use sql_execute for changes; a person approves them.", e);
     }
@@ -101,6 +115,9 @@ final class SqlErrors {
    * prints it: {@code ERROR 1146 (42S02): Table 'app.ordrs' doesn't exist}.
    */
   static String describe(SQLException e) {
+    if (e instanceof SQLiteException sqlite) {
+      return sqliteDescribe(sqlite);
+    }
     StringBuilder out = new StringBuilder("ERROR");
     String state = state(e);
     if (!(e instanceof PSQLException) && e.getErrorCode() > 0) {
@@ -168,6 +185,9 @@ final class SqlErrors {
           || code == 3135 || code == 12154 || code == 12514 || code == 12541 || code == 17002 || code == 17008
           || code == 17410 || (connect && (code == 1017 || code == 1045 || code == 28000 || code == 28001));
       case POSTGRES -> false;
+      // The file can't be opened, isn't a database, is damaged, or can't be read: no call can use it.
+      case SQLITE -> code == SQLITE_CANTOPEN || code == SQLITE_NOTADB || code == SQLITE_CORRUPT
+          || code == SQLITE_IOERR || code == SQLITE_PERM || code == SQLITE_AUTH;
     };
     if (lost) {
       return true;
@@ -179,6 +199,53 @@ final class SqlErrors {
       }
     }
     return false;
+  }
+
+  static final int SQLITE_PERM = 3;
+  static final int SQLITE_BUSY = 5;
+  static final int SQLITE_LOCKED = 6;
+  static final int SQLITE_READONLY = 8;
+  static final int SQLITE_INTERRUPT = 9;
+  static final int SQLITE_IOERR = 10;
+  static final int SQLITE_CORRUPT = 11;
+  static final int SQLITE_CANTOPEN = 14;
+  static final int SQLITE_TOOBIG = 18;
+  static final int SQLITE_AUTH = 23;
+  static final int SQLITE_NOTADB = 26;
+
+  /** {@code [SQLITE_ERROR] SQL error or missing database (no such table: ordrs)}: the part in parentheses. */
+  private static final Pattern SQLITE_MESSAGE = Pattern.compile("^\\[(SQLITE_[A-Z_]+)\\][^(]*\\((.*)\\)$",
+      Pattern.DOTALL);
+
+  /** SQLite as its shell prints it: {@code ERROR 1 (SQLITE_ERROR): no such table: ordrs}. */
+  static String sqliteDescribe(SQLiteException e) {
+    String text = e.getMessage() == null ? "" : e.getMessage().strip();
+    Matcher m = SQLITE_MESSAGE.matcher(text);
+    String name = e.getResultCode() == null ? null : e.getResultCode().name();
+    String message = text;
+    if (m.matches()) {
+      name = m.group(1).equals("SQLITE_UNKNOWN") && name != null ? name : m.group(1);
+      message = m.group(2);
+    }
+    message = firstLine(message);
+    return "ERROR " + e.getErrorCode() + (name == null ? "" : " (" + name + ")") + ": "
+        + (message == null || message.isBlank() ? "the database refused the statement" : message);
+  }
+
+  /** The SQLite file of {@code connection} can't be used, in the kit's tone. */
+  static String sqliteReach(SQLException e, String connection) {
+    if (!(e instanceof SQLiteException)) {
+      // GateRook's own check of the file refused it before SQLite opened it.
+      return connection + ": " + firstLine(e.getMessage()) + ".";
+    }
+    return switch (e.getErrorCode()) {
+      case SQLITE_CANTOPEN -> "The database file of " + connection + " can't be opened. Check that it exists and that "
+          + "GateRook may read it.";
+      case SQLITE_NOTADB -> "The file of " + connection + " isn't a SQLite database.";
+      case SQLITE_CORRUPT -> "The database file of " + connection + " is damaged: " + describe(e) + ".";
+      case SQLITE_PERM, SQLITE_AUTH -> "GateRook may not open the database file of " + connection + ".";
+      default -> "The database file of " + connection + " can't be read: " + describe(e) + ".";
+    };
   }
 
   private static boolean timedOut(String state, int code, boolean mysql) {

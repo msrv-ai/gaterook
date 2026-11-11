@@ -36,6 +36,24 @@ class SqlConfigSchemaTest {
     assertThat(schema.validate(config)).isNotEmpty();
   }
 
+  @Test
+  void sqliteNeedsOnlyItsFileWhichThePersonChooses() {
+    var schema = SCHEMAS.getSchema(RESOURCES.load("sqlite.config"));
+    ObjectNode config = (ObjectNode) JSON.readTree("""
+        {"connection":{"file":"~/projects/shop/db/development.sqlite3"},
+         "advanced":{"busyTimeoutMs":500,"foreignKeys":false,"poolSize":1}}""");
+    assertThat(schema.validate(config)).isEmpty();
+    ((ObjectNode) config.path("connection")).put("file", "/data/shop.db?open_mode=6");
+    assertThat(schema.validate(config)).as("sqlite-jdbc would read the query as settings").isNotEmpty();
+    ((ObjectNode) config.path("connection")).put("file", "");
+    assertThat(schema.validate(config)).isNotEmpty();
+    ((ObjectNode) config.path("connection")).remove("file");
+    assertThat(schema.validate(config)).isNotEmpty();
+    var file = RESOURCES.load("sqlite.config").path("properties").path("connection").path("properties").path("file");
+    assertThat(file.path("x-person-only").asBoolean()).as("an AI import can't choose a local file").isTrue();
+    assertThat(file.path("x-file-picker").asString()).isEqualTo("sqlite-database");
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"postgres", "mysql"})
   void passwordlessConnectionsMatchTheSupportedRuntimeLogin(String type) throws Exception {

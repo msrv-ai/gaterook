@@ -11,7 +11,7 @@
       "default": true,
       "readOnly": true,
       "title": "Keep query calls read-only",
-      "description": "Always on: reads end with ROLLBACK. PostgreSQL, MySQL and Oracle enforce READ ONLY transactions; SQL Server enforces strict SELECT validation and needs a SELECT-only login for server-enforced protection."
+      "description": "Always on: reads end with ROLLBACK. PostgreSQL, MySQL and Oracle enforce READ ONLY transactions, SQLite a read-only file handle; SQL Server enforces strict SELECT validation and needs a SELECT-only login for server-enforced protection."
     },
     "statementTimeoutMs": {
       "type": "integer",

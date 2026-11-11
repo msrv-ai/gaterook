@@ -18,7 +18,8 @@ import java.util.Set;
  *
  * <p>System catalogs ({@code pg_catalog}, {@code information_schema}; MySQL's {@code mysql}, {@code sys},
  * {@code performance_schema}) are closed while a list restricts anything, unless an entry names the catalog itself:
- * a {@code *} never opens them. The gateway's own introspection reads them with its own SQL, past this list.
+ * a {@code *} never opens them. SQLite's catalog tables ({@code sqlite_schema}, {@code sqlite_sequence},
+ * {@code sqlite_stat1}…) are closed the same way: only an entry that names the table itself opens one. The gateway's own introspection reads them with its own SQL, past this list.
  *
  * <p>This is convenience and defence in depth, not the boundary: a view on the list shows its base tables. The
  * boundary is the database user's {@code GRANT}s.
@@ -30,6 +31,7 @@ final class Allowlist {
   private static final Set<String> SQLSERVER_SYSTEM = Set.of("sys", "information_schema");
   private static final Set<String> ORACLE_SYSTEM = Set.of("SYS", "SYSTEM", "XDB", "CTXSYS", "MDSYS", "ORDSYS", "OUTLN",
       "DBSNMP", "AUDSYS");
+  private static final Set<String> SQLITE_SYSTEM = Set.of("temp");
 
   private record Entry(String schema, String table) {}
 
@@ -123,8 +125,10 @@ final class Allowlist {
     if (entries.isEmpty()) {
       return true;
     }
+    boolean catalog = syntax == SqlSyntax.SQLITE && t.name().startsWith("sqlite_");
     for (Entry e : entries) {
-      if (schemaMatches(e.schema(), t.schema()) && Glob.text(e.table()).matches(t.name())) {
+      if (schemaMatches(e.schema(), t.schema())
+          && (catalog ? e.table().equals(t.name()) : Glob.text(e.table()).matches(t.name()))) {
         return true;
       }
     }
@@ -152,6 +156,7 @@ final class Allowlist {
       case POSTGRES -> POSTGRES_SYSTEM;
       case ORACLE -> ORACLE_SYSTEM;
       case SQLSERVER -> SQLSERVER_SYSTEM;
+      case SQLITE -> SQLITE_SYSTEM;
     };
     if (system.contains(syntax == SqlSyntax.MYSQL || syntax == SqlSyntax.SQLSERVER ? schema.toLowerCase(java.util.Locale.ROOT) : schema)) {
       return entry.equals(schema);

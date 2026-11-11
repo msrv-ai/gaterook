@@ -45,19 +45,28 @@ export class GwSchemaField {
   protected readonly choosingFile = signal(false);
   protected readonly filePickerError = signal<string | null>(null);
 
+  /** The desktop's native picker for this field: an SSH private key or a SQLite database file. */
   protected filePicker(): boolean {
-    return this.node().schema['x-file-picker'] === 'ssh-private-key';
+    const kind = this.node().schema['x-file-picker'];
+    return kind === 'ssh-private-key' || kind === 'sqlite-database';
+  }
+
+  /** Whether this desktop shell has the field's picker (an older one may not). */
+  protected pickerAvailable(): boolean {
+    return this.node().schema['x-file-picker'] === 'sqlite-database' ? this.desktop.databasePickerAvailable
+      : this.desktop.privateKeyPickerAvailable;
   }
 
   protected async chooseFile(): Promise<void> {
-    if (!this.filePicker() || !this.desktop.privateKeyPickerAvailable || this.choosingFile() || this.form().locked(this.node())) return;
+    if (!this.filePicker() || !this.pickerAvailable() || this.choosingFile() || this.form().locked(this.node())) return;
     const form = this.form();
     const node = this.node();
     const previous = this.value();
     this.choosingFile.set(true);
     this.filePickerError.set(null);
     try {
-      const path = await this.desktop.choosePrivateKeyFile();
+      const path = node.schema['x-file-picker'] === 'sqlite-database' ? await this.desktop.chooseDatabaseFile()
+        : await this.desktop.choosePrivateKeyFile();
       // A dialog may outlive its form or an edit made while it was open.
       if (!this.destroyRef.destroyed && this.form() === form && this.node() === node
           && form.visible(node) && !form.locked(node) && this.value() === previous && path) {

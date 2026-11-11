@@ -40,6 +40,7 @@ class SmokeDescriptorTest {
         case "mysql" -> new MySqlDialect();
         case "oracle" -> new OracleDialect();
         case "sqlserver" -> new SqlServerDialect();
+        case "sqlite" -> new SqliteDialect();
         default -> new PostgresDialect();
       });
       ConnectionConfig cfg = new ConnectionConfig("smoke-" + touch.path("name").asString(), "dev-db", type, env, 1,
@@ -61,6 +62,6 @@ class SmokeDescriptorTest {
       connector.close();
       checked++;
     }
-    assertThat(checked).isEqualTo(4);
+    assertThat(checked).isEqualTo(6);
   }
 }

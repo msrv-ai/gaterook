@@ -1,5 +1,7 @@
 package ai.msrv.gaterook.connectors.sql;
 
+import ai.msrv.gaterook.connector.api.ConnectorException;
+import ai.msrv.gaterook.connector.api.ExecContext;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -14,9 +16,10 @@ import java.util.Properties;
  * parameters: report 04 §6.5), the settings of every call, plan estimates, introspection, the probes of Test
  * connection and password changes.
  */
-public sealed interface SqlDialect permits PostgresDialect, MySqlDialect, OracleDialect, SqlServerDialect {
+public sealed interface SqlDialect permits PostgresDialect, MySqlDialect, OracleDialect, SqlServerDialect,
+    SqliteDialect {
 
-  /** Connector type: {@code postgres}, {@code mysql}, {@code oracle}, or {@code sqlserver}. */
+  /** Connector type: {@code postgres}, {@code mysql}, {@code oracle}, {@code sqlserver} or {@code sqlite}. */
   String type();
 
   /** Catalog name, e.g. "PostgreSQL". */
@@ -60,6 +63,29 @@ public sealed interface SqlDialect permits PostgresDialect, MySqlDialect, Oracle
    *                        timeouts
    */
   Properties properties(ConnectionSettings s, Path certificates, int socketTimeoutMs) throws IOException;
+
+  /**
+   * The properties of a connection for reads ({@code write} false) or approved changes. A database file opens
+   * read-only for reads ({@link #separateWriteConnections}); a server's connection is the same for both.
+   */
+  default Properties properties(ConnectionSettings s, Path certificates, int socketTimeoutMs, boolean write)
+      throws IOException {
+    return properties(s, certificates, socketTimeoutMs);
+  }
+
+  /** Whether changes need connections of their own: SQLite reads through a read-only handle of the file. */
+  default boolean separateWriteConnections() {
+    return false;
+  }
+
+  /**
+   * Checks where the connection points before anything connects there: SQLite's file must be a database file outside
+   * GateRook's own folder. {@code ctx} gives the connector's work folder; a server dialect has nothing to check.
+   */
+  default void checkTarget(ConnectionSettings s, ExecContext ctx) throws ConnectorException {}
+
+  /** After the call's work, before its COMMIT or ROLLBACK: SQLite stops counting down the statement deadline. */
+  default void afterWork(Connection c) {}
 
   /** Product and version of the server behind an open connection. */
   ServerInfo identify(Connection c) throws SQLException;

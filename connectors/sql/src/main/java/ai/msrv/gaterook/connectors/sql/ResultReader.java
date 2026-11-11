@@ -126,7 +126,15 @@ final class ResultReader {
   private static String origin(ResultSetMetaData md, int i, Part part, SqlSyntax syntax) {
     try {
       String v;
-      if (syntax != SqlSyntax.POSTGRES) {
+      if (syntax == SqlSyntax.SQLITE) {
+        // sqlite-jdbc names the table of a column that comes from one; every table of a connection is in main.
+        String table = md.getTableName(i);
+        v = table == null || table.isEmpty() ? null : switch (part) {
+          case SCHEMA -> "main";
+          case TABLE -> table;
+          case COLUMN -> md.getColumnName(i);
+        };
+      } else if (syntax != SqlSyntax.POSTGRES) {
         v = switch (part) {
           case SCHEMA -> syntax == SqlSyntax.MYSQL ? md.getCatalogName(i) : md.getSchemaName(i);
           case TABLE -> md.getTableName(i);
@@ -158,6 +166,9 @@ final class ResultReader {
       if (syntax == SqlSyntax.POSTGRES && textFormat(rs, i, type)) {
         return pgText(rs, i, maxCellChars);
       }
+      if (syntax == SqlSyntax.SQLITE) {
+        return sqlite(rs.getObject(i), maxCellChars);
+      }
       if (syntax == SqlSyntax.ORACLE) {
         if (type == oracle.jdbc.OracleTypes.TIMESTAMPTZ || type == Types.TIMESTAMP_WITH_TIMEZONE) {
           OffsetDateTime value = rs.getObject(i, OffsetDateTime.class);
@@ -173,6 +184,23 @@ final class ResultReader {
       String v = rs.getString(i);
       return v == null ? JsonNodeFactory.instance.nullNode() : text(v, maxCellChars);
     }
+  }
+
+  /**
+   * A SQLite value by its storage class, whatever the column declares: an integer (as text beyond JavaScript's exact
+   * range), a real (non-finite as text), text, or a blob's first bytes with its length.
+   */
+  static JsonNode sqlite(Object value, int maxCellChars) {
+    JsonNodeFactory f = JsonNodeFactory.instance;
+    return switch (value) {
+      case null -> f.nullNode();
+      case Integer n -> f.numberNode(n.longValue());
+      case Long n -> n >= -MAX_SAFE_INTEGER && n <= MAX_SAFE_INTEGER ? f.numberNode(n) : f.stringNode(n.toString());
+      case Double d -> Double.isFinite(d) ? f.numberNode(d) : f.stringNode(d.toString());
+      case byte[] b -> f.stringNode(hex(b));
+      case String t -> text(t, maxCellChars);
+      default -> text(String.valueOf(value), maxCellChars);
+    };
   }
 
   /**

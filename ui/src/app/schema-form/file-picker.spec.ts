@@ -103,3 +103,42 @@ describe('private key path field', () => {
     expect(p.input().value).toBe('/example/keys/newer');
   });
 });
+
+describe('SQLite database file field', () => {
+  async function renderDatabase(choose: () => Promise<string | null>, available = true) {
+    const privateKey = vi.fn<() => Promise<string | null>>();
+    TestBed.configureTestingModule({ providers: [provideKitIcons(), { provide: DesktopBridge, useValue: {
+      privateKeyPickerAvailable: true, choosePrivateKeyFile: privateKey,
+      databasePickerAvailable: available, chooseDatabaseFile: choose } }] });
+    const form = createSchemaForm(CONNECTOR_FORMS['sqlite'], { idPrefix: 'db', injector: TestBed.inject(Injector),
+      current: { connection: { file: '~/projects/shop/db/old.sqlite3' } } });
+    const fixture = TestBed.createComponent(Host);
+    fixture.componentRef.setInput('form', form);
+    const settle = async () => { await Promise.resolve(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges(); };
+    await settle();
+    const el = fixture.nativeElement as HTMLElement;
+    return { el, form, settle, privateKey,
+      input: () => el.querySelector<HTMLInputElement>('#db-connection-file')!,
+      button: () => el.querySelector<HTMLButtonElement>('#db-connection-file-choose')! };
+  }
+
+  it('chooses the database with the database picker, not the key picker', async () => {
+    const choose = vi.fn<() => Promise<string | null>>().mockResolvedValue('/example/projects/shop/db/development.sqlite3');
+    const p = await renderDatabase(choose);
+    expect(p.button().getAttribute('aria-label')).toBe('Choose database file');
+    p.button().click(); await p.settle();
+    expect(choose).toHaveBeenCalledExactlyOnceWith();
+    expect(p.privateKey).not.toHaveBeenCalled();
+    expect(p.input().value).toBe('/example/projects/shop/db/development.sqlite3');
+    expect(p.form.value()['connection']).toEqual({ file: '/example/projects/shop/db/development.sqlite3' });
+  });
+
+  it('keeps manual entry when this desktop shell has no database picker', async () => {
+    const choose = vi.fn<() => Promise<string | null>>();
+    const p = await renderDatabase(choose, false);
+    expect(p.button().getAttribute('aria-disabled')).toBe('true');
+    p.button().click(); await p.settle();
+    expect(choose).not.toHaveBeenCalled();
+    expect(p.input().value).toBe('~/projects/shop/db/old.sqlite3');
+  });
+});

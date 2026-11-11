@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "x-card": {
+    "description": "A SQLite database file on this computer. Read queries and schema."
+  },
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "object",
+      "title": "Database file",
+      "description": "GateRook opens the file on this computer: reads through a read-only handle, approved changes through their own. It never creates a file.",
+      "additionalProperties": false,
+      "required": [
+        "file"
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "title": "Database file",
+          "x-file-picker": "sqlite-database",
+          "x-person-only": true,
+          "minLength": 1,
+          "maxLength": 4096,
+          "pattern": "^[^?\\u0000-\\u001f]+$",
+          "description": "An absolute path or ~/…, such as ~/projects/shop/db/development.sqlite3. Only you choose the file: an AI import can't."
+        }
+      }
+    },
+    "advanced": {
+      "type": "object",
+      "title": "Advanced",
+      "x-collapsed": true,
+      "additionalProperties": false,
+      "description": "Timeouts, locking, foreign keys and the pool. Policies can tighten limits per environment.",
+      "properties": {
+        "statementTimeoutMs": {
+          "type": "integer",
+          "title": "Statement timeout",
+          "minimum": 100,
+          "maximum": 600000,
+          "x-unit": "ms",
+          "x-stricter": "min",
+          "description": "GateRook interrupts slower statements. Empty: the environment policy."
+        },
+        "busyTimeoutMs": {
+          "type": "integer",
+          "title": "Lock wait",
+          "minimum": 0,
+          "maximum": 30000,
+          "default": 2000,
+          "x-unit": "ms",
+          "description": "How long a call waits while another program writes to the file."
+        },
+        "foreignKeys": {
+          "type": "boolean",
+          "title": "Enforce foreign keys",
+          "default": true,
+          "description": "SQLite checks the file's foreign keys, and runs their ON DELETE and ON UPDATE actions, on approved changes, as most apps that use them do."
+        },
+        "poolSize": {
+          "type": "integer",
+          "title": "Pool size",
+          "minimum": 1,
+          "maximum": 4,
+          "default": 2,
+          "x-unit": "connections"
+        }
+      }
+    }
+  }
+}

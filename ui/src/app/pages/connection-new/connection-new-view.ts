@@ -473,6 +473,7 @@ export const POLICY_SECTION: Readonly<Record<string, string>> = {
   mysql: 'sql',
   oracle: 'sql',
   sqlserver: 'sql',
+  sqlite: 'sql',
   ssh: 'ssh',
   kubernetes: 'k8s',
   logs: 'logs',

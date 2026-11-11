@@ -118,7 +118,9 @@ class ImportPersonOnlySettingsTest {
           "/tls/pins"),
       new Refused("http", "{\"baseUrls\":[\"https://api.example.test\"],\"tls\":{\"caCertificates\":"
           + "\"-----BEGIN CERTIFICATE----- MIIB -----END CERTIFICATE-----\"}}", "/tls/caCertificates"),
-      new Refused("aws", "{\"regions\":[\"eu-central-1\"],\"accountId\":\"123456789012\"}", "/accountId"));
+      new Refused("aws", "{\"regions\":[\"eu-central-1\"],\"accountId\":\"123456789012\"}", "/accountId"),
+      new Refused("sqlite", "{\"connection\":{\"file\":\"~/projects/shop/db/development.sqlite3\"}}",
+          "/connection/file"));
 
   @Test
   void aProposalCannotCarryWhatTestConnectionRecordsAfterTrustOrSwitchOnALocalCommand() {
@@ -197,7 +199,8 @@ class ImportPersonOnlySettingsTest {
       List<String> templates = ConnectionForms.personOnlyFields(m.configSchema());
       if (!templates.isEmpty()) marked.put(m.id(), templates);
     });
-    assertThat(marked).containsOnlyKeys("kubernetes", "ssh", "ssh-logs", "http", "aws");
+    assertThat(marked).containsOnlyKeys("kubernetes", "ssh", "ssh-logs", "http", "aws", "sqlite");
+    assertThat(marked.get("sqlite")).containsExactly("/connection/file");
     assertThat(marked.get("ssh")).containsExactly("/hostKeys/knownHosts", "/hostKeys/pinned",
         "/jump/hostKeys/knownHosts", "/jump/hostKeys/pinned");
     assertThat(marked.get("http")).containsExactly("/tls/caCertificates", "/tls/pins");

@@ -174,6 +174,16 @@ final class SqlClassifier {
       "binary", "varbinary", "image", "uniqueidentifier", "xml", "sql_variant");
   private static final Pattern SQLSERVER_TYPE_ARGUMENTS = Pattern.compile("(?i)\\s*\\(\\s*(?:max|[0-9]+)"
       + "(?:\\s*,\\s*[0-9]+)?\\s*\\)\\s*$");
+  /**
+   * SQLite statements the gateway never runs: PRAGMA changes how the connection or the file behaves
+   * ({@code writable_schema}, {@code query_only}, journal and checkpoint settings), ATTACH and DETACH open other files,
+   * REINDEX and ANALYZE are maintenance a person runs outside GateRook.
+   */
+  private static final Set<String> SQLITE_FORBIDDEN_FIRST_WORDS = Set.of("PRAGMA", "ATTACH", "DETACH", "REINDEX",
+      "ANALYZE");
+  /** SQLite's temporary schema as a qualifier ({@code temp.t}, {@code "temp".t}, {@code [temp].t}). */
+  private static final Pattern SQLITE_TEMPORARY_SCHEMA = Pattern.compile(
+      "(?i)(?<![\\p{L}\\p{N}_$])temp(?:orary)?\\s*\\.");
   private static final Pattern ORACLE_SEQUENCE = Pattern.compile("(?i)\\b(?:NEXTVAL|CURRVAL)\\b");
   private static final Pattern ORACLE_PACKAGE = Pattern.compile("(?i)\\b(?:DBMS_[A-Z0-9_$#]*|UTL_[A-Z0-9_$#]*)\\s*\\.");
   private static final Pattern ORACLE_INLINE_PLSQL = Pattern.compile("(?i)\\bWITH\\s+(?:FUNCTION|PROCEDURE)\\b");
@@ -402,10 +412,33 @@ final class SqlClassifier {
         return "inline PL/SQL";
       }
     }
+    if (syntax == SqlSyntax.SQLITE) {
+      if (SQLITE_FORBIDDEN_FIRST_WORDS.contains(first)) {
+        return first;
+      }
+      if (SQLITE_TEMPORARY_SCHEMA.matcher(sqliteNames(scan)).find()) {
+        return TEMPORARY_OBJECT;
+      }
+    }
     if (mysql && MYSQL_ASSIGNMENT.matcher(code).find()) {
       return VARIABLE_ASSIGNMENT;
     }
     return null;
+  }
+
+  /** The code and the names of a SQLite statement without their quotes or brackets; literals are one space. */
+  private static String sqliteNames(SqlLexer.Scan scan) {
+    StringBuilder text = new StringBuilder();
+    for (SqlLexer.Segment segment : scan.segments()) {
+      if (segment.kind() == SqlLexer.Kind.CODE) {
+        text.append(scan.sql(), segment.start(), segment.end());
+      } else if (segment.kind() == SqlLexer.Kind.QUOTED_IDENTIFIER && segment.end() - segment.start() >= 2) {
+        text.append(' ').append(scan.sql(), segment.start() + 1, segment.end() - 1).append(' ');
+      } else {
+        text.append(' ');
+      }
+    }
+    return text.toString();
   }
 
   private static String identifierCode(SqlLexer.Scan scan) {

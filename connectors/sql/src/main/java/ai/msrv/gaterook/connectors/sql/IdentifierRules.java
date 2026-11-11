@@ -7,6 +7,9 @@ import java.util.Locale;
 /**
  * Names of tables and functions as the server resolves them (report 04 §6.3).
  *
+ * <p>SQLite compares names without ASCII case, quoted or not ({@code "Orders"} is {@code orders}; {@code "Ä"} is not
+ * {@code "ä"}), and takes {@code "…"}, {@code `…`} and {@code […]} quotes; a name without a schema is in {@code main}.
+ *
  * <p>PostgreSQL folds an unquoted name to lower case and keeps a quoted one ({@code "Orders"} is not {@code orders});
  * Oracle folds an unquoted name to upper case and keeps quoted names. MySQL keeps the name as written, and the comparison is exact: with {@code lower_case_table_names=0} (Linux) that is
  * the server's rule, elsewhere exactness errs towards refusing. A name without a schema is in the connection's
@@ -54,15 +57,18 @@ final class IdentifierRules {
         // A trailing dot, or nothing at all: a part is missing.
         return List.of();
       }
+      boolean sqlite = syntax == SqlSyntax.SQLITE;
       if (s.charAt(i) == quote || (mysql && s.charAt(i) == '"')
-          || (syntax == SqlSyntax.SQLSERVER && s.charAt(i) == '[')) {
+          || ((syntax == SqlSyntax.SQLSERVER || sqlite) && s.charAt(i) == '[') || (sqlite && s.charAt(i) == '`')) {
         char q = s.charAt(i) == '[' ? ']' : s.charAt(i);
+        // SQLite ends a bracketed name at its first ]: there is no escape inside.
+        boolean doubles = !(sqlite && q == ']');
         StringBuilder name = new StringBuilder();
         int j = i + 1;
         boolean closed = false;
         while (j < s.length()) {
           if (s.charAt(j) == q) {
-            if (j + 1 < s.length() && s.charAt(j + 1) == q) {
+            if (doubles && j + 1 < s.length() && s.charAt(j + 1) == q) {
               name.append(q);
               j += 2;
               continue;
@@ -86,7 +92,9 @@ final class IdentifierRules {
         String name = s.substring(i, j).strip();
         if ((syntax == SqlSyntax.ORACLE && !name.matches("[\\p{L}*][\\p{L}\\p{N}_$#*]*"))
             || name.isEmpty() || name.indexOf(quote) >= 0
-            || (syntax == SqlSyntax.SQLSERVER && (name.indexOf('[') >= 0 || name.indexOf(']') >= 0))
+            || ((syntax == SqlSyntax.SQLSERVER || syntax == SqlSyntax.SQLITE)
+                && (name.indexOf('[') >= 0 || name.indexOf(']') >= 0))
+            || (syntax == SqlSyntax.SQLITE && name.indexOf('`') >= 0)
             || name.chars().anyMatch(Character::isWhitespace)) {
           return List.of();
         }
@@ -114,6 +122,9 @@ final class IdentifierRules {
 
   static String normalize(Part part, SqlSyntax syntax) {
     boolean mysql = syntax == SqlSyntax.MYSQL;
+    if (syntax == SqlSyntax.SQLITE) {
+      return asciiLower(part.text());
+    }
     if (part.quoted() || mysql || syntax == SqlSyntax.SQLSERVER) {
       return part.text();
     }
@@ -182,6 +193,14 @@ final class IdentifierRules {
     if (syntax == SqlSyntax.SQLSERVER) {
       return quote(name, syntax);
     }
+    if (syntax == SqlSyntax.SQLITE) {
+      boolean plain = !name.isEmpty() && (asciiLetter(name.charAt(0)) || name.charAt(0) == '_');
+      for (int i = 1; plain && i < name.length(); i++) {
+        char c = name.charAt(i);
+        plain = asciiLetter(c) || (c >= '0' && c <= '9') || c == '_';
+      }
+      return plain ? name : quote(name, syntax);
+    }
     boolean mysql = syntax == SqlSyntax.MYSQL;
     boolean plain = !name.isEmpty() && (Character.isLetter(name.charAt(0)) || name.charAt(0) == '_');
     for (int i = 0; plain && i < name.length(); i++) {
@@ -191,6 +210,25 @@ final class IdentifierRules {
           || c == '_' || (mysql && c == '$') || (syntax == SqlSyntax.ORACLE && (c == '$' || c == '#'));
     }
     return plain ? name : quote(name, syntax);
+  }
+
+  private static boolean asciiLetter(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+  }
+
+  /** SQLite's case folding of names: ASCII letters only. */
+  static String asciiLower(String text) {
+    StringBuilder out = null;
+    for (int i = 0; i < text.length(); i++) {
+      char c = text.charAt(i);
+      if (c >= 'A' && c <= 'Z') {
+        if (out == null) {
+          out = new StringBuilder(text);
+        }
+        out.setCharAt(i, (char) (c + ('a' - 'A')));
+      }
+    }
+    return out == null ? text : out.toString();
   }
 
   /** Always quoted, the quote character doubled inside. */

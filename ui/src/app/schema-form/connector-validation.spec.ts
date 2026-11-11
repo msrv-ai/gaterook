@@ -30,6 +30,8 @@ const cases: readonly ConnectionCase[] = [
     name: `${type}: passwordless authentication with selected database`, type,
     config: { connection: { host: 'db.example.test', databases: ['orders'] }, credentials: { user: 'reader' } },
   })),
+  { name: 'SQLite: a database file on this computer', type: 'sqlite',
+    config: { connection: { file: '/home/dev/projects/shop/db/development.sqlite3' } } },
   { name: 'Oracle Database: service name and password', type: 'oracle',
     config: { connection: { host: 'oracle.example.test', database: 'orders.example.test' }, credentials: { user: 'READER' } },
     secrets: { '/credentials/password': password } },

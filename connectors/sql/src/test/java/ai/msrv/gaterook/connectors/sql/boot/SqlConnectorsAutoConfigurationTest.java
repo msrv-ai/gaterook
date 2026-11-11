@@ -25,7 +25,7 @@ class SqlConnectorsAutoConfigurationTest {
         .withConfiguration(AutoConfigurations.of(SqlConnectorsAutoConfiguration.class))
         .run(ctx -> assertThat(ctx.getBeansOfType(Connector.class).values())
             .extracting(c -> c.manifest().id())
-            .containsExactlyInAnyOrder("postgres", "mysql", "oracle", "sqlserver"));
+            .containsExactlyInAnyOrder("postgres", "mysql", "oracle", "sqlserver", "sqlite"));
   }
 
   @Test
