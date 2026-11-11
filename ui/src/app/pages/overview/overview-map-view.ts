@@ -2,6 +2,7 @@ import { ClientCard, ClientId } from '../../core/api/clients.api';
 import { ConnectionHealth, ConnectionRow, nextHealth } from '../../core/api/connections.api';
 import { EndpointSummary } from '../../core/api/endpoints.api';
 import { HealthRow } from '../../core/api/overview.api';
+import { olderBridge } from '../../kit/elements/client-card/client-view';
 import { connectorIcon, connectorName } from '../../kit/elements/shared/connector-icons';
 import { TileState } from '../../kit/elements/status-tile/status-tile';
 import { appAnchor, tileHealth } from './overview-view';
@@ -94,6 +95,11 @@ export interface MapApp {
   readonly pending: boolean;
   readonly action: 'connect' | 'manage' | null;
   readonly actionReason: string | null;
+  /**
+   * An extension of the app, on any endpoint, runs an older bridge than this GateRook's: its card says it needs a
+   * reinstall whichever endpoint the map shows. AI apps names each extension, with Reinstall extension.
+   */
+  readonly reinstall: boolean;
   readonly fragment: string;
 }
 
@@ -153,7 +159,8 @@ export function mapApps(cards: readonly ClientCard[] | null, endpoint: EndpointS
     return {
       card, client: card.client, name: card.name, ...(APP_MARKS[card.client] ?? { mark: card.name.slice(0, 1).toUpperCase(), tone: 'generic' }), state,
       assigned, connected, pending: assigned && !connected, action,
-      actionReason: action === 'connect' ? connectReason(card, endpoint) : null, fragment: appAnchor(card.client),
+      actionReason: action === 'connect' ? connectReason(card, endpoint) : null,
+      reinstall: card.links.some(olderBridge), fragment: appAnchor(card.client),
     };
   });
 }

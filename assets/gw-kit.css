@@ -8409,15 +8409,18 @@ th[aria-sort=descending] .gw-table__sort .gw-table__sort-icon--desc {
   min-width: 0;
   border-radius: var(--gw-radius-md);
 }
-.gw-setup-map.gw-setup-map--network .gw-setup-map__network-app > .gw-btn {
+.gw-setup-map.gw-setup-map--network .gw-setup-map__network-app > :is(.gw-btn, .gw-setup-map__network-actions) {
   justify-self: end;
   margin: 0 var(--gw-space-3) var(--gw-space-3);
+}
+.gw-setup-map.gw-setup-map--network .gw-setup-map__network-app > .gw-setup-map__network-actions > .gw-btn {
+  margin-inline-end: 0;
 }
 @media (min-width: 640px) {
   .gw-setup-map.gw-setup-map--network .gw-setup-map__network-app {
     grid-template-columns: minmax(0, 1fr) auto;
   }
-  .gw-setup-map.gw-setup-map--network .gw-setup-map__network-app > .gw-btn {
+  .gw-setup-map.gw-setup-map--network .gw-setup-map__network-app > :is(.gw-btn, .gw-setup-map__network-actions) {
     margin-block-end: 0;
   }
 }
@@ -8445,7 +8448,7 @@ th[aria-sort=descending] .gw-table__sort .gw-table__sort-icon--desc {
   opacity: 0;
   pointer-events: none;
 }
-.gw-setup-map.gw-setup-map--network .gw-setup-map__network-service:is(:hover, :focus-within, [data-selected=true]) .gw-setup-map__network-settings {
+.gw-setup-map.gw-setup-map--network :is(.gw-setup-map__network-service, .gw-setup-map__network-app):is(:hover, :focus-within, [data-selected=true]) .gw-setup-map__network-settings {
   opacity: 1;
   pointer-events: auto;
 }
@@ -8707,11 +8710,11 @@ th[aria-sort=descending] .gw-table__sort .gw-table__sort-icon--desc {
   align-content: center;
 }
 .gw-setup-map.gw-setup-map--network.gw-setup-map--vertical .gw-setup-map__network-side--apps > .gw-setup-map__network-grid .gw-setup-map__network-app > .gw-setup-map__network-node {
-  flex: 1 1 14rem;
+  flex: 1 1 12rem;
   min-height: var(--gw-space-16);
   padding-block: var(--gw-space-2);
 }
-.gw-setup-map.gw-setup-map--network.gw-setup-map--vertical .gw-setup-map__network-side--apps > .gw-setup-map__network-grid .gw-setup-map__network-app > .gw-btn {
+.gw-setup-map.gw-setup-map--network.gw-setup-map--vertical .gw-setup-map__network-side--apps > .gw-setup-map__network-grid .gw-setup-map__network-app > :is(.gw-btn, .gw-setup-map__network-actions) {
   flex: none;
   margin: var(--gw-space-2) var(--gw-space-3) var(--gw-space-2) auto;
 }
