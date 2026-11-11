@@ -8543,21 +8543,6 @@ th[aria-sort=descending] .gw-table__sort .gw-table__sort-icon--desc {
   height: var(--gw-size-icon-2xl);
   object-fit: contain;
 }
-.gw-setup-map.gw-setup-map--network .gw-setup-map__network-mcp {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gw-space-2);
-  min-width: 0;
-}
-.gw-setup-map.gw-setup-map--network .gw-setup-map__network-mcp > .gw-card__header {
-  padding: var(--gw-space-3) var(--gw-space-3) 0;
-}
-.gw-setup-map.gw-setup-map--network .gw-setup-map__network-mcp > .gw-card__body {
-  padding: var(--gw-space-3);
-}
-.gw-setup-map.gw-setup-map--network .gw-setup-map__network-mcp > .gw-card__footer {
-  padding: var(--gw-space-2) var(--gw-space-3);
-}
 .gw-setup-map.gw-setup-map--network .gw-setup-map__network-add {
   display: flex;
   flex-direction: row;
@@ -8663,17 +8648,17 @@ th[aria-sort=descending] .gw-table__sort .gw-table__sort-icon--desc {
 .gw-setup-map.gw-setup-map--network.gw-setup-map--vertical .gw-setup-map__network-native {
   min-width: 0;
 }
-.gw-setup-map.gw-setup-map--network.gw-setup-map--vertical .gw-setup-map__network-mcp-grid {
-  display: grid;
-  gap: var(--gw-space-2);
-  min-width: 0;
-}
 .gw-setup-map.gw-setup-map--network.gw-setup-map--vertical .gw-setup-map__network-empty {
   grid-column: 1/-1;
 }
-.gw-setup-map.gw-setup-map--network.gw-setup-map--vertical .gw-setup-map__network-native > .gw-setup-map__network-grid,
-.gw-setup-map.gw-setup-map--network.gw-setup-map--vertical .gw-setup-map__network-mcp-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+.gw-setup-map.gw-setup-map--network.gw-setup-map--vertical .gw-setup-map__network-native > .gw-setup-map__network-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(20rem, (100% - 2 * var(--gw-space-2)) / 3 - var(--gw-space-px))), 1fr));
+}
+.gw-setup-map.gw-setup-map--network.gw-setup-map--vertical .gw-setup-map__network-native > .gw-setup-map__network-grid:not(:has(> .gw-setup-map__network-empty)) {
+  grid-auto-rows: 1fr;
+}
+.gw-setup-map.gw-setup-map--network.gw-setup-map--vertical .gw-setup-map__network-native > .gw-setup-map__network-grid > li {
+  display: grid;
 }
 .gw-setup-map.gw-setup-map--network.gw-setup-map--vertical .gw-setup-map__network-endpoints > .gw-setup-map__network-grid {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
@@ -8690,13 +8675,7 @@ th[aria-sort=descending] .gw-table__sort .gw-table__sort-icon--desc {
     gap: var(--gw-space-16);
   }
   .gw-setup-map.gw-setup-map--network.gw-setup-map--vertical .gw-setup-map__network-side--services {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-    gap: var(--gw-space-3) var(--gw-space-4);
-  }
-  .gw-setup-map.gw-setup-map--network.gw-setup-map--vertical .gw-setup-map__network-side--services > :is(header, search, p, .gw-alert) {
-    grid-column: 1/-1;
+    gap: var(--gw-space-3);
   }
   .gw-setup-map.gw-setup-map--network.gw-setup-map--vertical .gw-setup-map__network-hub {
     display: grid;
