@@ -136,7 +136,7 @@ export function mcpRequest(
   } else if (!url.trim()) {
     errors.url = 'Enter the URL of the server.';
   } else if (!SERVER_URL.test(url.trim())) {
-    errors.url = 'Use an HTTPS URL, or http://127.0.0.1 for a server on this computer.';
+    errors.url = 'Use an HTTPS URL, starting with https://.';
   } else if (templateParts(url).length) {
     const blanks = templateParts(url);
     errors.url = `Replace ${joinAnd(blanks)} in the URL with your own ${blanks.length === 1 ? 'value' : 'values'}.`;
@@ -335,7 +335,7 @@ let nextId = 0;
               <div class="gw-field" [hidden]="transport() !== 'http'">
                 <label class="gw-field__label" [for]="uid + '-url'">URL</label>
                 <input class="gw-input gw-input--mono" [id]="uid + '-url'" type="url" required [disabled]="transport() !== 'http'" placeholder="https://mcp.linear.app/mcp" spellcheck="false" autocomplete="off" [value]="url()" (input)="setUrl(value($event))" [attr.aria-invalid]="errors().url ? 'true' : null" [attr.aria-describedby]="uid + '-url-hint' + (errors().url ? ' ' + uid + '-url-err' : '')">
-                <p class="gw-field__hint" [id]="uid + '-url-hint'">HTTPS, or <span class="gw-mono">http://127.0.0.1</span> for a server on this computer. A server that asks for a sign-in gets one in your browser after the review.</p>
+                <p class="gw-field__hint" [id]="uid + '-url-hint'">An HTTPS address. A server that asks for a sign-in gets one in your browser after the review.</p>
                 @if (errors().url) {<p class="gw-field__error" [id]="uid + '-url-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().url }}</p>}
               </div>
               <section class="gw-card" [hidden]="transport() !== 'http'" [attr.aria-labelledby]="uid + '-signin-title'">

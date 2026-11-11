@@ -73,7 +73,7 @@ describe('Add MCP server request', () => {
       command: 'A quote in the command isn’t closed.',
     });
     expect(mcpRequest('linear', 'http', '', 'http://example.com/mcp', []).errors).toEqual({
-      url: 'Use an HTTPS URL, or http://127.0.0.1 for a server on this computer.',
+      url: 'Use an HTTPS URL, starting with https://.',
     });
     expect(mcpRequest('local', 'http', '', 'http://127.0.0.1:3000/mcp', []).errors).toBeNull();
     expect(mcpRequest('a', 'stdio', 'run', '', [{ name: '1BAD' }]).errors?.variables).toBe(

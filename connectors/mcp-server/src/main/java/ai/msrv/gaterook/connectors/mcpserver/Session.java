@@ -566,7 +566,7 @@ final class Session {
     if (parsed.isHttps() || host.equals("127.0.0.1") || host.equals("localhost")) {
       return parsed.uri();
     }
-    throw ConnectorException.badInput("Use an https:// URL, or http://127.0.0.1 for a server on this computer.");
+    throw ConnectorException.badInput("Use an https:// URL.");
   }
 
   /** {@link #prepare(Path, ServerLog)} without a log: the error alone says what is wrong. */
