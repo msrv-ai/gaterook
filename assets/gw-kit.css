@@ -8437,6 +8437,9 @@ th[aria-sort=descending] .gw-table__sort .gw-table__sort-icon--desc {
   align-items: center;
   gap: var(--gw-space-2);
 }
+.gw-setup-map.gw-setup-map--network .gw-setup-map__network-actions > .gw-btn {
+  margin-inline-end: var(--gw-space-3);
+}
 .gw-setup-map.gw-setup-map--network .gw-setup-map__network-settings {
   flex: none;
   opacity: 0;
