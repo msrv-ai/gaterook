@@ -118,7 +118,6 @@ final class ApiRules {
       Map.entry("dynamodb", ops("dynamodb_query, dynamodb_scan, dynamodb_partiql or dynamodb_execute", "GetItem",
           "BatchGetItem", "Query", "Scan", "ExecuteStatement", "BatchExecuteStatement", "ExecuteTransaction",
           "TransactGetItems", "TransactWriteItems", "PutItem", "UpdateItem", "DeleteItem", "BatchWriteItem")),
-      Map.entry("sqs", ops(null, "ReceiveMessage")),
       Map.entry("kinesis", ops(null, "GetRecords", "GetShardIterator", "SubscribeToShard")),
       Map.entry("logs", ops("logs_search", "GetLogEvents", "FilterLogEvents", "StartQuery", "GetQueryResults",
           "StartLiveTail", "GetLogRecord", "GetLogObject")),
@@ -142,6 +141,20 @@ final class ApiRules {
       "cloudformation", Set.of("ValidateTemplate", "EstimateTemplateCost"),
       "rds", Set.of("DownloadDBLogFilePortion"),
       "config", Set.of("SelectResourceConfig", "SelectAggregateResourceConfig"));
+
+  /**
+   * What a change does beyond its name, for the person who approves it: a receive from a queue is no read, since it
+   * hides the messages and counts the receive (§5.2 of the cloud research: queue peeks that change state).
+   */
+  static final Map<String, Map<String, String>> EFFECTS = Map.of(
+      "sqs", Map.of("ReceiveMessage", "hides the messages it returns from other consumers for the visibility timeout "
+          + "and raises their receive count; on a queue with a redrive policy, a message past maxReceiveCount moves to "
+          + "its dead-letter queue"));
+
+  /** What {@code op} does beyond its name, or {@code null}. */
+  static String effect(String service, ApiModel.Operation op) {
+    return EFFECTS.getOrDefault(service, Map.of()).get(op.name());
+  }
 
   /** Reads by their verb that change state or start work: a person approves them. */
   static final Map<String, Set<String>> CHANGES = Map.of(

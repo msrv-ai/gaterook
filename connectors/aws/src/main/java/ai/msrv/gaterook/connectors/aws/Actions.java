@@ -127,8 +127,19 @@ final class Actions {
           + "apply.");
     }
     fields.add(new ActionPreview.Field("Retried", "No: a request whose answer is lost is reported as unknown"));
+    List<ActionPreview.Field> impact = new ArrayList<>();
+    String effect = ApiRules.effect(m.name, op);
+    if (effect != null) {
+      impact.add(new ActionPreview.Field("Effect", Character.toUpperCase(effect.charAt(0)) + effect.substring(1)
+          + "."));
+      warnings.add("This isn't a read: " + m.name + " " + op.name() + " " + effect + ".");
+    }
+    if (ApiMasker.hidesData(m.name, op)) {
+      impact.add(new ActionPreview.Field("Answer", "Message bodies and attribute values are masked."));
+    }
     String what = m.name + " " + op.name();
     return preview(r.tool(), lines, cfg, s, r.region(), what, r.payload(), fields).withWarnings(warnings)
+        .withImpact(impact)
         .withFacets(Map.of("provider", "aws", "tool", r.tool(), "region", r.region(), "service", m.name,
             "operation", op.name(), "access", r.access() == ApiRules.Access.READ ? "read" : "change"));
   }

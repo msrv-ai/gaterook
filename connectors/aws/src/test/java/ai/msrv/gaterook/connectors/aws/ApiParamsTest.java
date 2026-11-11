@@ -104,6 +104,21 @@ class ApiParamsTest {
   }
 
   @Test
+  void aQueueUrlNamesItsQueueLikeAnArn() throws Refusal {
+    ApiParams.Checked c = check("sqs", "GetQueueAttributes",
+        "{\"QueueUrl\":\"https://sqs.eu-central-1.amazonaws.com/412398765012/stage-orders-dlq\"}");
+
+    assertThat(c.arns()).containsExactly("arn:aws:sqs:eu-central-1:412398765012:stage-orders-dlq");
+    assertThat(ApiParams.queueArn("https://eu-west-1.queue.amazonaws.com/412398765012/jobs.fifo"))
+        .isEqualTo("arn:aws:sqs:eu-west-1:412398765012:jobs.fifo");
+    assertThat(ApiParams.queueArn("https://sqs.cn-north-1.amazonaws.com.cn/412398765012/q"))
+        .isEqualTo("arn:aws-cn:sqs:cn-north-1:412398765012:q");
+    assertThat(ApiParams.queueArn("https://queue.amazonaws.com/412398765012/legacy"))
+        .isEqualTo("arn:aws:sqs:us-east-1:412398765012:legacy");
+    assertThat(ApiParams.queueArn("https://example.com/412398765012/q")).isNull();
+  }
+
+  @Test
   void invisibleCharactersAreRefusedButLineBreaksPass() throws Refusal {
     assertThat(refusal("ecs", "DescribeServices", "{\"services\":[\"api\\u202e\"]}").getMessage())
         .contains("U+202E");

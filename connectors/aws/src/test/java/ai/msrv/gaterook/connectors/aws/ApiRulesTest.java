@@ -49,6 +49,8 @@ class ApiRulesTest {
       "autoscaling, SetDesiredCapacity, CHANGE",
       "ec2, RebootInstances, CHANGE",
       "sqs, StartMessageMoveTask, CHANGE",
+      // A receive hides the messages and counts it: never a read (§5.2), so a person approves it.
+      "sqs, ReceiveMessage, CHANGE",
       "cloudfront, CreateInvalidation, CHANGE",
       "route53, ChangeResourceRecordSets, CHANGE",
       "cloudformation, DetectStackDrift, CHANGE"})
@@ -96,7 +98,6 @@ class ApiRulesTest {
       "dynamodb, GetItem, data_plane",
       "dynamodb, Query, data_plane",
       "dynamodb, PutItem, data_plane",
-      "sqs, ReceiveMessage, data_plane",
       "kinesis, GetRecords, data_plane",
       "logs, FilterLogEvents, data_plane",
       "logs, GetLogEvents, data_plane",
@@ -177,6 +178,17 @@ class ApiRulesTest {
     ApiModel lambda = catalog.model(catalog.find("lambda"));
     assertThat(ApiPolicies.of(lambda, lambda.operation("GetFunction"), ApiRules.Access.READ, java.util.List.of()))
         .contains("\"lambda:InvokeFunction\"");
+
+    // An approved receive needs its own action, which every other session denies; the rest of the Deny stays.
+    ApiModel sqs = catalog.model(catalog.find("sqs"));
+    String receive = ApiPolicies.of(sqs, sqs.operation("ReceiveMessage"), ApiRules.Access.CHANGE, java.util.List.of());
+    assertThat(receive).startsWith("{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":"
+        + "[\"sqs:ReceiveMessage\"],\"Resource\":[\"*\"]}").contains("\"secretsmanager:GetSecretValue\"",
+        "\"kms:Decrypt\"");
+    assertThat(receive.substring(receive.indexOf("\"Deny\""))).doesNotContain("sqs:ReceiveMessage");
+    // A read session of the same service still denies the receive.
+    assertThat(ApiPolicies.of(sqs, sqs.operation("GetQueueAttributes"), ApiRules.Access.READ, java.util.List.of()))
+        .contains("\"sqs:ReceiveMessage\"");
     ApiModel apigw = catalog.model(catalog.find("apigateway"));
     assertThat(ApiPolicies.action(apigw, apigw.operation("UpdateStage"))).isEqualTo("apigateway:PATCH");
     assertThat(ApiPolicies.of(apigw, apigw.operation("GetRestApis"), ApiRules.Access.READ, java.util.List.of()))

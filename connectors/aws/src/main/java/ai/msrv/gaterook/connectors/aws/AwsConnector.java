@@ -131,7 +131,9 @@ public final class AwsConnector implements Connector {
     if (parsed instanceof ApiRequest r && r.tool().equals(ApiRequest.CHANGE)) {
       ObjectNode facts = JsonNodeFactory.instance.objectNode().put("service", r.model().name)
           .put("operation", r.op().name()).put("iamAction", r.iamAction()).put("region", r.region());
-      return Classification.mutation(r.model().sdkId + " " + r.op().name() + " changes something in AWS", facts);
+      String effect = ApiRules.effect(r.model().name, r.op());
+      return Classification.mutation(r.model().sdkId + " " + r.op().name() + (effect == null
+          ? " changes something in AWS" : " " + effect), facts);
     }
     return Classification.read();
   }

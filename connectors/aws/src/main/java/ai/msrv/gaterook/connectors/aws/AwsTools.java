@@ -44,9 +44,10 @@ final class AwsTools {
   static final String API_CHANGE = "Call an AWS API operation that changes something (update, scale, restart, "
       + "deploy, delete): service as the AWS CLI names it, operation as in the API reference, parameters as its input "
       + "members: ecs UpdateService {cluster, service, forceNewDeployment: true}; autoscaling SetDesiredCapacity "
-      + "{AutoScalingGroupName, DesiredCapacity}; lambda UpdateAlias {FunctionName, Name, FunctionVersion}. A person "
-      + "approves the exact request before it runs; AWS allows the session only that action. Secret values are never "
-      + "sent.";
+      + "{AutoScalingGroupName, DesiredCapacity}; lambda UpdateAlias {FunctionName, Name, FunctionVersion}; sqs "
+      + "ReceiveMessage {QueueUrl} to inspect a dead-letter queue (it hides the messages and counts the receive; "
+      + "bodies come back masked). A person approves the exact request before it runs; AWS allows the session only "
+      + "that action. Secret values are never sent.";
 
   private AwsTools() {}
 
