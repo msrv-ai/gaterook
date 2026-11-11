@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 200,
+      "description": "Most entries per list: labels, relationship types, property keys, indexes, constraints."
+    },
+    "visualization": {
+      "type": "boolean",
+      "default": false,
+      "description": "Also which labels connect through which relationship types (db.schema.visualization)."
+    }
+  }
+}
