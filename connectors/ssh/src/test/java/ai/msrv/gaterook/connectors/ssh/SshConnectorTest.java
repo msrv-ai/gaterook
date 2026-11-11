@@ -26,6 +26,8 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
@@ -177,6 +179,22 @@ class SshConnectorTest {
     assertThat(bad.ruleId()).isEqualTo("dev.ssh.param-invalid");
     assertThat(bad.reason()).isEqualTo("service must be one of api, worker");
     assertThat(extra.ruleId()).isEqualTo("dev.ssh.param-invalid");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"sh -c {text}", "ssh example.test echo {text}", "'eval' {text}",
+      "printf '%s' \"${v#'}\" {text} #'}\"", "printf '%s' $'\\'' {text} #'"})
+  void previouslyCompiledUnsafeRunbooksAreNotOfferedOrClassifiedAsReads(String command) {
+    ObjectNode contribution = TestConfigs.runbook("unsafe-echo", command, true,
+        "[{\"name\":\"text\",\"type\":\"string\",\"pattern\":\".*\",\"required\":true}]");
+    TestConfigs.offer(connector, TestCtx.devLimits(), List.of(dev),
+        List.of(new EndpointView.Contribution("c1", "tpl_old", 1, contribution)));
+
+    Classification result = connector.classify(run("unsafe-echo", "{\"text\":\"printf MP5\"}"), dev,
+        policy(Env.DEV, null));
+
+    assertThat(result.kind()).isEqualTo(Classification.Kind.DENY);
+    assertThat(result.ruleId()).isEqualTo("dev.ssh.runbook-unknown");
   }
 
   @Test

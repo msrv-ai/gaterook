@@ -92,6 +92,46 @@ class CommandLexerTest {
     assertThat(r.segments()).filteredOn(s -> s instanceof CommandLexer.Placeholder).isNotEmpty();
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"sh -c {service}", "/bin/bash -c {service}", "dash -c {service}",
+      "zsh -c {service}", "ksh -c {service}", "ssh example.test echo {service}", "su -c {service}",
+      "watch echo {service}", "'eval' {service}", "e\\val {service}", "e\"va\"l {service}",
+      "command -p eval {service}", "builtin -- eval {service}", "exec /bin/sh -c {service}",
+      "exec -a status sh -c {service}", "busybox sh -c {service}", "sudo -s echo {service}",
+      "eval { printf '%s' {service}", "true && { eval {service}; }",
+      "env sh -c {service}", "sudo -u nobody sh -c {service}", "timeout 5 sh -c {service}",
+      "X='fixed' eval {service}", "$(printf eval) {service}", "$SHELL -c {service}"})
+  void shellReparsingAndUnresolvedCommandsRefuseParameters(String command) {
+    assertThat(CommandLexer.lex(command, PARAMS).errors()).isNotEmpty();
+  }
+
+  @Test
+  void aParameterCannotSelectTheExecutable() {
+    assertThat(CommandLexer.lex("{service} status", PARAMS).errors()).isNotEmpty();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"printf '%s' \"${v#'}\" {service} #'}\"",
+      "printf '%s' \"${v%'}\" {service} #'}\"", "printf '%s' $'\\'' {service} #'"})
+  void shellDependentQuoteBoundariesRefuseParameters(String command) {
+    assertThat(CommandLexer.lex(command, PARAMS).errors()).isNotEmpty();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"/usr/bin/printf '%s' {service}", "'printf' '%s' {service}",
+      "pr\\intf '%s' {service}", "command -p printf '%s' {service}", "X='fixed' printf '%s' {service}",
+      "printf '%s' \"${HOME:-fallback}\" {service}", "sh -c 'printf fixed'; printf '%s' {service}"})
+  void fixedLiteralCommandsStillAcceptArguments(String command) {
+    assertThat(CommandLexer.lex(command, PARAMS).errors()).isEmpty();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"sh -c 'printf fixed'", "sudo -n systemctl status app", "printf '%s' $'\\''",
+      "printf '%s' \"${HOME#'prefix'}\""})
+  void commandsWithoutParametersKeepTheirLiteralShellSyntax(String command) {
+    assertThat(CommandLexer.lex(command, Set.of()).errors()).isEmpty();
+  }
+
   @Test
   void anUndeclaredPlaceholderOutsideQuotesIsAnError() {
     assertThat(CommandLexer.lex("journalctl -u {unit}", PARAMS).errors())
