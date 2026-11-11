@@ -5551,6 +5551,68 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         }
       }
     }
+  },
+  "cloudflare": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Cloudflare",
+    "type": "object",
+    "x-card": {
+      "description": "DNS, cache, Workers, Pages, analytics and tunnels. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "accountId",
+      "credentials"
+    ],
+    "properties": {
+      "accountId": {
+        "type": "string",
+        "title": "Account ID",
+        "pattern": "^[0-9a-f]{32}$",
+        "examples": [
+          "0123456789abcdef0123456789abcdef"
+        ],
+        "description": "The 32-character ID of the Cloudflare account, shown on the dashboard's account home and in its Overview pages. Workers, Pages, KV, tunnels and Logpush are read in this account; a zone of another account is refused."
+      },
+      "zones": {
+        "type": "array",
+        "title": "Zones",
+        "maxItems": 200,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "maxLength": 253,
+          "pattern": "^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$"
+        },
+        "examples": [
+          [
+            "example.com",
+            "example.org"
+          ]
+        ],
+        "description": "The zones agents may use, by name. Empty: every zone of the account that the token can see."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "token"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "API token",
+            "writeOnly": true,
+            "x-gateway-secret": "value",
+            "format": "password",
+            "minLength": 20,
+            "maxLength": 512,
+            "description": "A user or account API token, limited to this account and its zones. Read permissions cover the read tools; add DNS Edit, Cache Purge, Workers Scripts Edit or Pages Edit only for the changes you want agents to request. The Global API Key isn't accepted."
+          }
+        }
+      }
+    }
   }
 };
 
@@ -13947,6 +14009,94 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "sessionSeconds": 900,
         "sessionPolicy": "generated"
       }
+    }
+  },
+  "cloudflare": {
+    "sections": [
+      "/credentials"
+    ],
+    "loose": [
+      "/accountId",
+      "/zones"
+    ],
+    "rows": {
+      "/credentials": [
+        [
+          "/credentials/token"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/accountId",
+        "kind": "text",
+        "title": "Account ID",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/zones",
+        "kind": "tags",
+        "title": "Zones",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/token",
+        "kind": "secret",
+        "title": "API token",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "credentials": {}
+    },
+    "prodDefaults": {
+      "credentials": {}
     }
   },
   "http": {

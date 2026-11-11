@@ -128,6 +128,7 @@ export function signInTarget(type: string): string {
       return 'the API';
     case 'gcp':
     case 'aws':
+    case 'cloudflare':
     case 'dynamodb':
     case 'bigquery':
     case 'firestore':

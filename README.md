@@ -61,7 +61,7 @@ GateRook applies its MCP Firewall controls to built-in connectors and external M
 | Data warehouses | [Google BigQuery](docs/bigquery.md): datasets, tables and GoogleSQL reads checked by a dry run and capped in bytes; [Snowflake](docs/snowflake.md): schemas, tables and reads checked against Snowflake's plan; both with reviewed changes |
 | Search engines | OpenSearch and Elasticsearch: discover indices, query documents, and review administrative requests |
 | Logs | [GCP Cloud Logging](docs/gcp-logs.md), AWS CloudWatch Logs, Loki, and [selected log files over SSH](docs/ssh-log-files.md): search and read logs within configured limits |
-| Infrastructure and cloud | SSH commands and runbooks; Kubernetes resources, events, pod logs, and reviewed changes; AWS and GCP resource inspection and metrics; [any Google Cloud API method](docs/gcp-api.md) within the connection's scopes, with reviewed changes |
+| Infrastructure and cloud | SSH commands and runbooks; Kubernetes resources, events, pod logs, and reviewed changes; AWS and GCP resource inspection and metrics; [any Google Cloud API method](docs/gcp-api.md) within the connection's scopes, with reviewed changes; [Cloudflare](docs/cloudflare.md) zones, DNS, Workers and their logs, Pages, analytics and tunnels, with reviewed DNS changes, cache purges, deployments and rollbacks |
 | HTTP APIs | Scoped HTTP requests and selected operations imported from an OpenAPI specification |
 | [MCP servers](docs/mcp-servers.md) | Remote Streamable HTTP/SSE servers and local stdio commands, added by URL, command, or pasted configuration; tools follow GateRook's access rules and approvals |
 | [Official MCP Registry](https://registry.modelcontextprotocol.io/) | Search public MCP servers from GateRook and fill in supported remote URLs or npm/PyPI commands for review before connecting |
@@ -190,6 +190,7 @@ For the full connector integration suite, follow [the Docker test-services guide
 | [Redis](docs/redis.md) | Reading and writing values, expiration, key and database scopes, and write limits |
 | [GCP logs](docs/gcp-logs.md) | Logs Explorer filters, GKE logs, credentials, scopes, and endpoint access |
 | [Google Cloud APIs](docs/gcp-api.md) | Calling API methods by their Discovery names, scope and policy checks, refused methods, and approved changes |
+| [Cloudflare](docs/cloudflare.md) | API token permissions, zones and DNS, Workers Logs, Pages, analytics, masking, and approved changes |
 | [SSH log files](docs/ssh-log-files.md) | Remote file selection, searching, latest records, time ranges, and continuation |
 | [Repository layout](docs/repository-layout.md) | Source directories and their responsibilities |
 | [Migration scope](docs/migration.md) | Source inclusion, compatibility, and publication boundaries |

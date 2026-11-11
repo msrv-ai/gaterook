@@ -27,6 +27,7 @@ export const CONNECTOR_ICONS: Record<string, string> = {
   kubernetes: 'ship-wheel',
   gcp: 'cloud',
   aws: 'cloud',
+  cloudflare: 'cloud',
   http: 'globe',
   'mcp-server': 'plug',
 };
@@ -55,6 +56,7 @@ export const CONNECTOR_NAMES: Record<string, string> = {
   kubernetes: 'Kubernetes',
   gcp: 'GCP',
   aws: 'AWS',
+  cloudflare: 'Cloudflare',
   http: 'HTTP API',
   'mcp-server': 'External MCP server',
 };
