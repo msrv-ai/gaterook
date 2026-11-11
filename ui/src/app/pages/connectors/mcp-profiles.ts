@@ -4,13 +4,18 @@ import { PastedServer, fromArgv } from './mcp-paste';
 import { templateParts } from './mcp-registry';
 
 /**
- * The vendor marks the Cloud platforms cards show, where the page already bundles them (`public/mcp-logos/SOURCES.md`);
- * the other cards show a cloud icon.
+ * The vendor marks the Cloud platforms cards show, bundled with their provenance in `public/mcp-logos/SOURCES.md`; a
+ * profile without one shows a cloud icon.
  */
 const LOGOS: Readonly<Record<string, string>> = {
+  'aws-knowledge': 'mcp-logos/aws.png',
+  'azure-devops': 'mcp-logos/azure-devops.svg',
+  'cloudflare-api': 'mcp-logos/cloudflare.jpg',
+  digitalocean: 'mcp-logos/digitalocean.svg',
+  firebase: 'mcp-logos/firebase.png',
+  netlify: 'mcp-logos/netlify.png',
   supabase: 'mcp-logos/supabase.png',
   vercel: 'mcp-logos/vercel.png',
-  'cloudflare-api': 'mcp-logos/cloudflare.jpg',
 };
 
 export function profileLogo(p: Pick<McpProfile, 'id'>): string | null {

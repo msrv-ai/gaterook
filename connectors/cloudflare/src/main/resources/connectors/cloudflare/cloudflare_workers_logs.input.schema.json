@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "script": {
+      "type": "string",
+      "pattern": "^[a-z0-9_][a-z0-9_-]{0,62}$",
+      "description": "Only this Worker's events."
+    },
+    "from": {
+      "type": "string",
+      "maxLength": 40,
+      "description": "Start: -1h (default), -15m, -2d or an ISO time with an offset."
+    },
+    "to": {
+      "type": "string",
+      "maxLength": 40,
+      "description": "End: now (default) or an ISO time with an offset."
+    },
+    "search": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "Text to find in any field of an event, such as an error message."
+    },
+    "regex": {
+      "type": "boolean",
+      "description": "Treat search as an RE2 regular expression."
+    },
+    "filters": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "operation"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[$A-Za-z0-9_.\\[\\]-]{1,128}$",
+            "description": "A field such as $metadata.level, $metadata.statusCode, $metadata.trigger or $workers.outcome."
+          },
+          "operation": {
+            "enum": [
+              "eq",
+              "neq",
+              "includes",
+              "not_includes",
+              "starts_with",
+              "ends_with",
+              "regex",
+              "exists",
+              "is_null",
+              "in",
+              "not_in",
+              "gt",
+              "gte",
+              "lt",
+              "lte"
+            ]
+          },
+          "value": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ],
+            "description": "Not used by exists and is_null; for in and not_in, values separated by commas."
+          }
+        }
+      },
+      "description": "All must match."
+    },
+    "view": {
+      "enum": [
+        "events",
+        "count"
+      ],
+      "default": "events",
+      "description": "events: matching log events, newest first; count: how many, grouped by groupBy."
+    },
+    "groupBy": {
+      "type": "array",
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[$A-Za-z0-9_.\\[\\]-]{1,128}$"
+      },
+      "description": "Fields to count by, for view count, such as $metadata.statusCode."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 500,
+      "default": 50,
+      "description": "Most events, or groups."
+    },
+    "cursor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "nextCursor of the previous answer."
+    }
+  }
+}

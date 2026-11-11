@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "bucket",
+    "key"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "bucket": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{1,220}[A-Za-z0-9]$",
+      "description": "The bucket, such as acme-reports."
+    },
+    "key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "The object's key."
+    },
+    "versionId": {
+      "type": "string",
+      "maxLength": 1024,
+      "description": "Delete this version permanently. Without it, a versioned bucket keeps earlier versions."
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Why you need this change. Shown to the approver as unverified."
+    }
+  }
+}

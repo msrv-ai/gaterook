@@ -82,6 +82,10 @@
     </dependency>
     <dependency>
       <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-s3</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
       <artifactId>connectors-bigquery</artifactId>
     </dependency>
     <dependency>
@@ -91,6 +95,10 @@
     <dependency>
       <groupId>ai.msrv.gaterook</groupId>
       <artifactId>connectors-snowflake</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-cloudflare</artifactId>
     </dependency>
     <dependency>
       <groupId>ai.msrv.gaterook</groupId>

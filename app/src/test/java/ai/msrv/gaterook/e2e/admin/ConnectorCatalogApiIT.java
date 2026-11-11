@@ -107,6 +107,11 @@ class ConnectorCatalogApiIT {
       new KitCard("Cloud", "azure", null, "Azure", "cloud", "built-in", 11,
           "Resources, Resource Manager calls, Azure Monitor, Storage data, Service Bus dead letters and Key Vault "
               + "expiry, with the connection's Entra ID identity. Changes wait for approval."),
+      new KitCard("Cloud", "cloudflare", null, "Cloudflare", "cloud", "built-in", 13,
+          "DNS, cache, Workers, Pages, analytics and tunnels. Changes wait for approval."),
+      new KitCard("Cloud", "s3", null, "S3 object storage", "archive", "built-in", 7,
+          "Buckets and objects on Amazon S3, Cloudflare R2, MinIO and other S3-compatible storage. Writes wait for "
+              + "approval."),
       new KitCard("HTTP and MCP", "http", null, "HTTP API", "globe", "built-in", 2,
           "One base URL with an allowlist. GET reads; every other method waits for approval."),
       new KitCard("HTTP and MCP", "mcp-server", null, "External MCP server", "plug", "mcp-server", null,
@@ -161,7 +166,7 @@ class ConnectorCatalogApiIT {
     // Connectors › Installed: one row per type, the MCP server type isn't one (its servers are, with K5).
     List<String> installed = each(catalog.path("installed"), "id");
     assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "sqlite", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "firestore", "firebase-rtdb", "opensearch", "elasticsearch", "ssh", "gcp-logging", "cloudwatch", "azure-monitor", "loki", "ssh-logs", "kubernetes",
-        "gcp", "aws", "azure", "http");
+        "gcp", "aws", "azure", "cloudflare", "s3", "http");
     for (JsonNode row : catalog.path("installed")) {
       assertThat(row.path("state").asString()).isEqualTo("enabled");
       assertThat(row.path("kind").asString()).isEqualTo("built-in");
@@ -187,6 +192,8 @@ class ConnectorCatalogApiIT {
         "gcp_api_change", "logs_search", "logs_tail");
     assertThat(cloud).allSatisfy(tool -> assertThat(tool.path("description").asString())
         .doesNotContain("OpenSearch", "Loki", "CloudWatch"));
+    assertThat(each(preview("cloudflare", "{\"accountId\":\"0123456789abcdef0123456789abcdef\",\"credentials\":{}}"),
+        "name")).containsExactly(CLOUDFLARE_TOOLS.toArray(String[]::new));
     assertThat(each(preview("loki", "{}"), "name")).containsExactly("loki_search", "loki_tail");
     assertThat(each(preview("cloudwatch", "{}"), "name"))
         .containsExactly("cloudwatch_logs_search", "cloudwatch_logs_tail");
@@ -255,6 +262,43 @@ class ConnectorCatalogApiIT {
       assertThat(tool.description()).contains("Elasticsearch").doesNotContain("OpenSearch", "catalog-search");
     });
     assertThat(published.tool("logs_search")).isEmpty();
+  }
+
+  private static final List<String> CLOUDFLARE_TOOLS = List.of("cloudflare_zones", "cloudflare_dns_records",
+      "cloudflare_dns_change", "cloudflare_cache_purge", "cloudflare_workers", "cloudflare_workers_logs",
+      "cloudflare_workers_deploy", "cloudflare_kv", "cloudflare_pages", "cloudflare_pages_deployment",
+      "cloudflare_analytics", "cloudflare_tunnels", "cloudflare_logpush_jobs");
+
+  @Test
+  void aCloudflareConnectionPublishesItsCuratedToolsReadOnlyAndChangesWithApproval() throws Exception {
+    Answer created = send("POST", "/api/connections", """
+        {"name":"catalog-cloudflare","type":"cloudflare","env":"dev",
+         "config":{"accountId":"0123456789abcdef0123456789abcdef","zones":["example.com"],"credentials":{}},
+         "secrets":{"/credentials/token":{"source":"local","value":"catalog-cloudflare-token-0001"}}}""");
+    assertThat(created.status()).as(created.body()).isEqualTo(201);
+    assertThat(send("POST", "/api/endpoints", "{\"slug\":\"catalog-cloudflare\",\"startFrom\":\"empty\"}").status())
+        .isEqualTo(201);
+    assertThat(send("POST", "/api/endpoints/catalog-cloudflare/connections/catalog-cloudflare", "{}").status())
+        .isEqualTo(200);
+    JsonNode connection = get("/api/connections/catalog-cloudflare");
+    assertThat(connection.toString()).doesNotContain("catalog-cloudflare-token-0001");
+    List<String> changes = List.of("cloudflare_dns_change", "cloudflare_cache_purge", "cloudflare_workers_deploy",
+        "cloudflare_pages_deployment");
+    assertThat(each(connection.path("usedBy"), "tool")).containsExactlyInAnyOrderElementsOf(CLOUDFLARE_TOOLS);
+    for (JsonNode use : connection.path("usedBy")) {
+      assertThat(use.path("mode").asString()).as(use.toString())
+          .isEqualTo(changes.contains(use.path("tool").asString()) ? "APPROVAL" : "READ_ONLY");
+    }
+    ToolCatalog.Catalog published = core.getBean(ToolCatalog.class)
+        .forEndpoint(core.getBean(EndpointService.class).snapshot("catalog-cloudflare"));
+    assertThat(published.problems()).isEmpty();
+    assertThat(published.tool("cloudflare_dns_records")).isPresent().get().satisfies(tool -> {
+      assertThat(tool.inputSchema().at("/properties/connection/enum").toString())
+          .isEqualTo("[\"catalog-cloudflare\"]");
+      assertThat(tool.description()).contains(" Zones: catalog-cloudflare: example.com.")
+          .contains("Connections: catalog-cloudflare (Cloudflare, dev).");
+    });
+    assertThat(published.tool("cloudflare_workers_deploy")).isPresent();
   }
 
   @Test

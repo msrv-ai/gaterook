@@ -126,6 +126,12 @@ public final class ConnectionTargets {
       String url = config.path("url").asString();
       return config.has("transport") ? Masker.standard().url(withoutQuery(withoutUserInfo(url))) : address(url);
     }
+    if (config.path("endpoint").isString() && !config.path("endpoint").asString().isBlank()) {
+      // S3-compatible storage: its endpoint, scheme included (http sends objects in the clear), not the region its
+      // provider names (auto for R2).
+      String endpoint = withoutQuery(withoutUserInfo(config.path("endpoint").asString().strip()));
+      return endpoint.endsWith("/") ? endpoint.substring(0, endpoint.length() - 1) : endpoint;
+    }
     if (config.at("/regions/0").isString()) {
       String account = config.path("accountAlias").asString("");
       if (account.isBlank()) {
@@ -159,6 +165,22 @@ public final class ConnectionTargets {
         detail = config.path("database").asString("");
       }
       return config.path("project").asString() + (detail.isBlank() ? "" : " · " + detail);
+    }
+    String cloudflare = config.path("accountId").asString("");
+    if (cloudflare.matches("[0-9a-f]{32}")) {
+      // Cloudflare: its listed zones, or the account when agents may use every zone of it.
+      List<String> zones = new ArrayList<>();
+      for (JsonNode z : config.path("zones")) {
+        String zone = oneLine(z.asString(""), 253);
+        if (zone != null) {
+          zones.add(zone);
+        }
+      }
+      if (zones.isEmpty()) {
+        return "account " + cloudflare;
+      }
+      return zones.size() <= 2 ? String.join(", ", zones) : zones.get(0) + ", " + zones.get(1) + " +"
+          + (zones.size() - 2);
     }
     return "";
   }

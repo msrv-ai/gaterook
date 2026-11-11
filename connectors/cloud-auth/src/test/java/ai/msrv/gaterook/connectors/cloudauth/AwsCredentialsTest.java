@@ -234,6 +234,12 @@ class AwsCredentialsTest {
     assertThat(json).isEqualTo("{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":"
         + "[\"ec2:Describe*\",\"cloudwatch:GetMetricData\"],\"Resource\":[\"*\"]},{\"Effect\":\"Deny\",\"Action\":"
         + "[\"secretsmanager:GetSecretValue\"],\"Resource\":[\"*\"]}]}");
+    assertThat(AwsSessionPolicy.builder().allowWhen(List.of("kms:Decrypt"), List.of(), "kms:ViaService",
+        List.of("s3.eu-central-1.amazonaws.com")).toJson()).isEqualTo("{\"Version\":\"2012-10-17\",\"Statement\":"
+        + "[{\"Effect\":\"Allow\",\"Action\":[\"kms:Decrypt\"],\"Resource\":[\"*\"],\"Condition\":{\"StringEquals\":"
+        + "{\"kms:ViaService\":[\"s3.eu-central-1.amazonaws.com\"]}}}]}");
+    assertThatThrownBy(() -> AwsSessionPolicy.builder().allowWhen(List.of("kms:Decrypt"), List.of(), "",
+        List.of("x"))).isInstanceOf(IllegalArgumentException.class);
     AwsSessionPolicy huge = AwsSessionPolicy.builder();
     for (int i = 0; i < 100; i++) {
       huge.allow(List.of("service" + i + ":Describe*"), List.of("arn:aws:service" + i + ":eu-central-1:*:thing/*"));

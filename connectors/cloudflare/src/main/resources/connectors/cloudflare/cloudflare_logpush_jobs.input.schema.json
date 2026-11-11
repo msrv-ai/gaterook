@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "zone": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 253,
+      "description": "A zone's Logpush jobs. Omit for the account's."
+    },
+    "job": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647,
+      "description": "One job by its ID."
+    }
+  }
+}
