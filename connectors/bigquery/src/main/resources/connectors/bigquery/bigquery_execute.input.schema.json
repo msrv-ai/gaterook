@@ -58,9 +58,9 @@
         }
       }
     },
-    "reason": {
+    "note": {
       "type": "string",
-      "maxLength": 2000,
+      "maxLength": 500,
       "description": "Why you need this change. Shown to the approver as unverified."
     }
   }

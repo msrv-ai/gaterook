@@ -24,9 +24,9 @@
       },
       "description": "Values of the statement's ? placeholders, in order, as DynamoDB typed values such as {\"S\": \"c-42\"}."
     },
-    "reason": {
+    "note": {
       "type": "string",
-      "maxLength": 2000,
+      "maxLength": 500,
       "description": "Why you need this change. Shown to the approver as unverified."
     }
   }
