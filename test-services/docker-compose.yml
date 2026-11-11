@@ -5,7 +5,7 @@
 #   scripts/test-services.sh up sql redis      # or: docker compose -f test-services/docker-compose.yml --profile sql up -d --wait
 #   mvn -B -ntp verify -Pservices              # the ITs connect here instead of starting their own servers
 #
-# Profiles: sql · oracle · sqlserver · mongo · redis · logs · aws · vault · ssh · k8s · all
+# Profiles: sql · oracle · sqlserver · mongo · neo4j · redis · logs · aws · vault · ssh · k8s · all
 name: gw-test
 
 x-health: &health
@@ -238,6 +238,52 @@ services:
       - "127.0.0.1:${GW_MONGO9_PORT}:27017"
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      <<: *health
+
+  # ── Neo4j ───────────────────────────────────────────────────────────────────────────────────────────────────
+  # Neo4j 5 Community for connectors/neo4j (docs/neo4j.md), no plugins. Bolt takes TLS and plain connections on one
+  # port: its certificate (DNS:localhost, IP:127.0.0.1) and gw-test-ca come from gen-certs.sh, run by a one-shot of
+  # this profile into run/neo4j-certs, apart from the certs of the other profiles. The IT signs in as neo4j and
+  # resets the database.
+  neo4j-certs:
+    image: alpine:${GW_ALPINE_TAG}
+    container_name: gw-test-neo4j-certs
+    profiles: [neo4j, all]
+    command: ["/bin/sh", "-c", "/bin/sh /scripts/gen-certs.sh /out && mkdir -p /out/trusted /out/revoked"]
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./run/neo4j-certs:/out
+
+  neo4j:
+    image: neo4j:${GW_NEO4J_TAG}
+    container_name: gw-test-neo4j
+    profiles: [neo4j, all]
+    depends_on:
+      neo4j-certs:
+        condition: service_completed_successfully
+    mem_limit: 1g
+    environment:
+      NEO4J_AUTH: neo4j/${GW_NEO4J_PASSWORD}
+      NEO4J_dbms_usage__report_enabled: "false"
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 128m
+      # neo4j:// follows the routing table, which must name the published port.
+      NEO4J_server_bolt_advertised__address: 127.0.0.1:${GW_NEO4J_PORT}
+      NEO4J_server_bolt_tls__level: OPTIONAL
+      NEO4J_dbms_ssl_policy_bolt_enabled: "true"
+      NEO4J_dbms_ssl_policy_bolt_base__directory: /certs
+      NEO4J_dbms_ssl_policy_bolt_private__key: localhost-ip.key
+      NEO4J_dbms_ssl_policy_bolt_public__certificate: localhost-ip.crt
+      NEO4J_dbms_ssl_policy_bolt_client__auth: NONE
+      NEO4J_dbms_ssl_policy_bolt_trusted__dir: /certs/trusted
+      NEO4J_dbms_ssl_policy_bolt_revoked__dir: /certs/revoked
+    volumes:
+      - ./run/neo4j-certs:/certs:ro
+    ports:
+      - "127.0.0.1:${GW_NEO4J_PORT}:7687"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:7474 || exit 1"]
       <<: *health
 
   # ── Redis ───────────────────────────────────────────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 # Connector test services
 
-Docker Compose supplies disposable servers for connector integration tests: PostgreSQL, MySQL, MariaDB, Oracle Database, SQL Server, MongoDB, Redis, Loki, OpenSearch, Elasticsearch, moto, Vault, OpenSSH, and k3s. This avoids relying on Linux x86-64 fixture binaries when testing on macOS or another Docker-capable machine.
+Docker Compose supplies disposable servers for connector integration tests: PostgreSQL, MySQL, MariaDB, Oracle Database, SQL Server, MongoDB, Neo4j, Redis, Loki, OpenSearch, Elasticsearch, moto, Vault, OpenSSH, and k3s. This avoids relying on Linux x86-64 fixture binaries when testing on macOS or another Docker-capable machine.
 
 Services bind to `127.0.0.1`. Credentials are public test fixtures, and service data is disposable. Tests reset databases, users, and server settings; never point this suite at real data.
 
@@ -14,7 +14,7 @@ scripts/test-services.sh run mvn -B -ntp verify -Pservices
 scripts/test-services.sh down
 ```
 
-The default starts everything except Kubernetes and SQL Server and waits for health checks. Profiles are `sql`, `oracle`, `sqlserver`, `cockroach`, `mongo`, `redis`, `logs`, `aws`, `dynamodb`, `vault`, `ssh`, `k8s`, and `all`:
+The default starts everything except Kubernetes and SQL Server and waits for health checks. Profiles are `sql`, `oracle`, `sqlserver`, `cockroach`, `mongo`, `neo4j`, `redis`, `logs`, `aws`, `dynamodb`, `vault`, `ssh`, `k8s`, and `all`:
 
 ```bash
 scripts/test-services.sh up sql redis
@@ -49,6 +49,7 @@ The committed [.env](.env) contains image pins, ports, and disposable passwords.
 | `cockroach` | CockroachDB v26.3.5, one in-memory node with TLS | 55257 | cockroach |
 | `mongo`, `mongo-open`, `mongo-tls` | MongoDB 8.2.4 with auth / no auth / required TLS | 55017 / 55018 / 55019 | mongo |
 | `mongo7`, `mongo9` | MongoDB 7.0.45 / 9.0.4 | 55070 / 55090 | mongo |
+| `neo4j` | Neo4j 5.26.31 Community, Bolt with optional TLS on one port | 55687 | neo4j |
 | `redis` | Redis 7.0.15, plain and TLS listeners | 55379 / 55380 | redis |
 | `redis-replica`, `redis-open`, `redis-cluster` | Replica, no-auth, and cluster fixtures | 55381 / 55382 / 55383 | redis |
 | `redis62` | Redis 6.2.11, plain and TLS | 55362 / 55363 | redis |
@@ -60,8 +61,9 @@ The committed [.env](.env) contains image pins, ports, and disposable passwords.
 | `openssh` | Ubuntu 24.04 / OpenSSH 9.6p1 | 55022 | ssh |
 | `k3s` | k3s v1.37.0-k3s1, privileged | 55443 | k8s |
 | `certs` | One-shot Alpine certificate generation | None | sql, mongo, redis, vault |
+| `neo4j-certs` | The same generation into `run/neo4j-certs/` | None | neo4j |
 
-PostgreSQL uses `postgres` / `postgres-pw-0001`; tests create the `app` database and `ro`, `rw`, `signal`, and `rotator` roles with `<role>-pw-0001`. MySQL/MariaDB use a passwordless fixture root account; tests create their database and users. Oracle uses the scoped `GATEROOK_TEST` / `oracle-pw-0001` account in `FREEPDB1`; the container creates it with session/table privileges and a limited tablespace quota. MongoDB uses `root` / `root-pw-7a1c2e9b`, except the no-auth fixture. Redis ACL users use `<user>-pass` as specified in `redis/users*.acl`. Vault's fixture token is `cnry-root-compose-0001`.
+PostgreSQL uses `postgres` / `postgres-pw-0001`; tests create the `app` database and `ro`, `rw`, `signal`, and `rotator` roles with `<role>-pw-0001`. MySQL/MariaDB use a passwordless fixture root account; tests create their database and users. Oracle uses the scoped `GATEROOK_TEST` / `oracle-pw-0001` account in `FREEPDB1`; the container creates it with session/table privileges and a limited tablespace quota. MongoDB uses `root` / `root-pw-7a1c2e9b`, except the no-auth fixture. Neo4j uses `neo4j` / `neo4j-pw-0001`. Redis ACL users use `<user>-pass` as specified in `redis/users*.acl`. Vault's fixture token is `cnry-root-compose-0001`.
 
 SSH test keys are generated under `run/openssh/`; connect with `ssh -i test-services/run/openssh/user_ed25519 -p 55022 ubuntu@127.0.0.1`. Kubernetes configuration is `test-services/run/k3s/kubeconfig.yaml`.
 
@@ -69,7 +71,7 @@ The ignored `run/` directory holds generated certificates, SSH keys/logs, and ku
 
 ## Fixture isolation and platform differences
 
-SQL fixtures recreate their test database and roles. Oracle recreates only its named test tables in the dedicated test user's schema; it never resets other schemas. Oracle data lives in the container's writable layer, survives a restart, and is removed by `down`. MongoDB removes non-system databases/users and resets fail points. Redis reloads ACLs, clears statistics/logs and data, and restores changed passwords. Loki uses per-run tenants; OpenSearch recreates test indexes; Elasticsearch creates and deletes uniquely named test indexes; moto resets its emulator state. Vault recreates engines and roles, revoking database leases. SSH tests reset logs and inspect child processes. Kubernetes tests recreate a dedicated namespace and workload.
+SQL fixtures recreate their test database and roles. Oracle recreates only its named test tables in the dedicated test user's schema; it never resets other schemas. Oracle data lives in the container's writable layer, survives a restart, and is removed by `down`. MongoDB removes non-system databases/users and resets fail points. Neo4j deletes every node of `neo4j` and recreates its test index and constraint. Redis reloads ACLs, clears statistics/logs and data, and restores changed passwords. Loki uses per-run tenants; OpenSearch recreates test indexes; Elasticsearch creates and deletes uniquely named test indexes; moto resets its emulator state. Vault recreates engines and roles, revoking database leases. SSH tests reset logs and inspect child processes. Kubernetes tests recreate a dedicated namespace and workload.
 
 The Compose MongoDB 8.x fixture uses 8.2.4 because the original investigation found a Linux-kernel compatibility problem in 8.0.x; see [SERVER-121912](https://jira.mongodb.org/browse/SERVER-121912). Redis glob matching differs for high bytes between signed-`char` and unsigned-`char` platforms; tests probe the server's behavior rather than assuming the client architecture.
 
@@ -107,3 +109,19 @@ scripts/test-services.sh run mvn -B -ntp -pl connectors/sql -am verify -Pservice
 ```
 
 The ordinary `services` Maven profile does not enable CockroachDB tests. See [CockroachDB](../docs/cockroachdb.md).
+
+## Neo4j
+
+Neo4j is opt-in: one Community Edition server with a 512 MB heap and a 128 MB page cache, within a 1 GiB container
+limit, without plugins and without usage reports. Bolt listens on 55687 for plain and TLS connections alike
+(`server.bolt.tls_level=OPTIONAL`), with a certificate for `localhost` and `127.0.0.1` signed by the test CA. The
+one-shot `neo4j-certs` makes them in `run/neo4j-certs/` with the same script as `certs`, apart from the other
+profiles' files. The routing table names `127.0.0.1:55687`, so `neo4j://` works through Docker's port mapping. The IT
+signs in as `neo4j` with the password from `.env`.
+
+```bash
+scripts/test-services.sh up neo4j
+scripts/test-services.sh run mvn -B -ntp -pl connectors/neo4j -am verify -Pservices,neo4j-it -Dit.test=Neo4jIT -Dfailsafe.failIfNoSpecifiedTests=false
+```
+
+The ordinary `services` Maven profile does not enable Neo4j tests. See [Neo4j](../docs/neo4j.md).

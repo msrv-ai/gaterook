@@ -1,0 +1,26 @@
+{
+  "area": "neo4j",
+  "module": "connectors/neo4j",
+  "connectorTypes": ["neo4j"],
+  "description": "Touches of the Neo4j connector for the native smoke (report 15 §6): the Cypher reader and the schemas in the image, without I/O.",
+  "touches": [
+    {
+      "name": "neo4j-classify-without-io",
+      "connection": {"type": "neo4j", "env": "dev",
+        "config": {"uri": "neo4j+s://graph.example.com", "database": "neo4j",
+          "authentication": {"method": "password", "user": "gw_reader"}},
+        "secrets": {"/authentication/password": "smoke-only-0001"}},
+      "call": {"tool": "neo4j_query", "arguments": {"cypher": "MATCH (n:Person) SET n.flagged = true RETURN n"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.neo4j.query-writes"}
+    },
+    {
+      "name": "neo4j-load-csv-refused",
+      "connection": {"type": "neo4j", "env": "dev",
+        "config": {"uri": "neo4j+s://graph.example.com", "database": "neo4j",
+          "authentication": {"method": "password", "user": "gw_reader"}},
+        "secrets": {"/authentication/password": "smoke-only-0001"}},
+      "call": {"tool": "neo4j_query", "arguments": {"cypher": "LOAD CSV FROM 'https://example.com/a.csv' AS row RETURN row"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.neo4j.load-csv"}
+    }
+  ]
+}
