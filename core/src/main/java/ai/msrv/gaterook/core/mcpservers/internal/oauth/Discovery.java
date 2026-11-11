@@ -17,7 +17,8 @@ import tools.jackson.databind.node.ObjectNode;
  * metadata it names or the well-known one (RFC 9728), and the metadata of its authorization server (RFC 8414, OpenID
  * Connect Discovery as the fallback, with the issuer's path inserted and appended). A server of the 2025-03-26
  * revision without resource metadata is its own authorization server, with that revision's default endpoints when
- * it publishes no metadata either.
+ * it publishes no metadata either. The Microsoft identity platform gets the exceptions {@link MicrosoftIdentityPlatform}
+ * describes: S256 without its advertisement, and no {@code resource} parameter.
  */
 public final class Discovery {
 
@@ -95,13 +96,22 @@ public final class Discovery {
     public boolean deviceGrant() {
       return deviceAuthorization != null && (grantTypes.isEmpty() || grantTypes.contains(DEVICE_GRANT));
     }
+
+    /**
+     * It is the Microsoft identity platform: a v2.0 issuer on one of Microsoft's sign-in hosts, with both endpoints
+     * there ({@link MicrosoftIdentityPlatform}).
+     */
+    public boolean microsoftIdentityPlatform() {
+      return MicrosoftIdentityPlatform.serves(issuer, authorization, token);
+    }
   }
 
   /**
    * What discovery found.
    *
    * @param resource the {@code resource} parameter of the sign-in (RFC 8707): the metadata's resource identifier, or
-   *                 the server's URL when it has none
+   *                 the server's URL when it has none; {@code null} at the Microsoft identity platform, which takes the
+   *                 token's audience from the scopes and refuses the parameter ({@link MicrosoftIdentityPlatform})
    * @param scope    the scopes the 401 challenge asks for, or {@code null}
    * @param message  for {@link Kind#REFUSED} and {@link Kind#UNKNOWN}: what happened
    */
@@ -126,7 +136,7 @@ public final class Discovery {
       Server server = metadata == null || metadata.authorizationServers().isEmpty() ? null
           : authorizationServer(http, metadata.authorizationServers().getFirst());
       return server == null ? new Result(Kind.NONE, serverUrl, null, null, null, null, null)
-          : new Result(Kind.OPTIONAL, serverUrl, metadata.resource(), metadata, server, null, null);
+          : new Result(Kind.OPTIONAL, serverUrl, resourceParameter(metadata, server), metadata, server, null, null);
     }
     WwwAuthenticate challenge = WwwAuthenticate.parse(probe.challenges());
     if (probe.status() != 401 && probe.status() != 403) {
@@ -153,7 +163,7 @@ public final class Discovery {
         throw new OAuthHttp.Failure("The authorization server of " + OAuthHttp.host(serverUrl) + " ("
             + metadata.authorizationServers().getFirst() + ") publishes no metadata GateRook could read.");
       }
-      resource = metadata.resource();
+      resource = resourceParameter(metadata, server);
     } else {
       // 2025-03-26: the MCP server's origin is the authorization server.
       server = legacyServer(http, serverUrl);
@@ -164,6 +174,15 @@ public final class Discovery {
       resource = canonical(serverUrl);
     }
     return new Result(Kind.OAUTH, serverUrl, resource, metadata, server, challenge.scope(), null);
+  }
+
+  /**
+   * The {@code resource} parameter of a sign-in with resource metadata: its resource identifier, except at the
+   * Microsoft identity platform, which refuses the parameter beside scopes of another resource and takes the audience
+   * from the scopes instead ({@link MicrosoftIdentityPlatform}).
+   */
+  private static String resourceParameter(Resource metadata, Server server) {
+    return server.microsoftIdentityPlatform() ? null : metadata.resource();
   }
 
   /**
@@ -211,6 +230,12 @@ public final class Discovery {
       String declared = j.path("issuer").asString();
       if (!trimSlash(declared).equals(trimSlash(issuer))) {
         // RFC 8414 §3.3: metadata that names another issuer is not this server's.
+        if (MicrosoftIdentityPlatform.issuer(issuer) && declared.contains("{tenantid}")) {
+          // Entra's organizations and common endpoints: the tokens' issuer is whichever tenant signs in.
+          throw new OAuthHttp.Failure(issuer + " is Microsoft Entra ID's sign-in for any tenant, whose metadata names "
+              + "no single issuer, so GateRook doesn't sign in there. Use the server's address for your organization "
+              + "or tenant instead, such as https://mcp.dev.azure.com/<organization> for Azure DevOps.");
+        }
         throw new OAuthHttp.Failure("The metadata at " + url + " names another issuer (" + OAuthHttp.clean(declared)
             + ") than " + issuer + ", so GateRook doesn't use it.");
       }
@@ -248,9 +273,13 @@ public final class Discovery {
           + "flow, the only one a desktop app can use safely.");
     }
     List<String> methods = OAuthHttp.strings(j.path("code_challenge_methods_supported"));
+    URI authorization = OAuthHttp.checked(j.path("authorization_endpoint").asString(), "The authorization endpoint");
+    URI token = OAuthHttp.checked(j.path("token_endpoint").asString(), "The token endpoint");
     // MCP authorization: without S256 in the metadata a client doesn't proceed. Only the 2025-03-26 defaults, which
-    // have no metadata to say it in, are taken on trust.
-    if (!defaults && !methods.contains("S256")) {
+    // have no metadata to say it in, are taken on trust, and the Microsoft identity platform, whose metadata lists no
+    // methods although it takes S256 (MicrosoftIdentityPlatform); a list without S256 is refused there too.
+    boolean trusted = defaults || methods.isEmpty() && MicrosoftIdentityPlatform.serves(issuer, authorization, token);
+    if (!trusted && !methods.contains("S256")) {
       throw new OAuthHttp.Failure("The authorization server " + issuer + " doesn't say it supports PKCE with S256, "
           + "which GateRook requires for a sign-in.");
     }
@@ -268,9 +297,7 @@ public final class Discovery {
         device = null;
       }
     }
-    return new Server(issuer,
-        OAuthHttp.checked(j.path("authorization_endpoint").asString(), "The authorization endpoint"),
-        OAuthHttp.checked(j.path("token_endpoint").asString(), "The token endpoint"), registration, revocation,
+    return new Server(issuer, authorization, token, registration, revocation,
         OAuthHttp.strings(j.path("scopes_supported")), methods,
         OAuthHttp.strings(j.path("token_endpoint_auth_methods_supported")),
         j.path("authorization_response_iss_parameter_supported").asBoolean(false),

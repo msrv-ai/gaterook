@@ -197,8 +197,57 @@
       "match": {"hosts": ["mcp.netlify.com", "netlify-mcp.netlify.app"], "paths": ["/mcp"]}
     },
     {
-      "id": "azure-devops",
+      "id": "azure-devops-remote",
       "name": "Azure DevOps",
+      "publisher": "Microsoft",
+      "category": "Code & collaboration",
+      "description": "Work items, repos, pull requests, pipelines, wikis and test plans of one Azure DevOps organization, read only, on Microsoft's hosted server.",
+      "documentation": "https://learn.microsoft.com/en-us/azure/devops/mcp-server/remote-mcp-server",
+      "checked": "2026-11-11",
+      "url": "https://mcp.dev.azure.com/{organization}",
+      "headers": [
+        {"name": "X-MCP-Readonly", "text": "true"}
+      ],
+      "placeholders": [
+        {"name": "organization", "description": "Your organization, the name in dev.azure.com/<organization>."}
+      ],
+      "pins": [
+        {"header": "X-MCP-Readonly", "setTo": "true", "purpose": "Microsoft's server keeps to read-only operations.", "missing": "Without X-MCP-Readonly: true, the server also offers the tools that change work items, repositories, pipelines, wikis and test plans. They start in Approval."}
+      ],
+      "signIn": "OAuth with Microsoft Entra ID, through an app you register for GateRook in your tenant. It needs no client secret.",
+      "notes": [
+        "Register the app in the Microsoft Entra admin center (App registrations): add the redirect URI http://localhost/callback under Mobile and desktop applications, turn on Allow public client flows, add the delegated permissions of the Azure DevOps MCP API (2a72489c-aab2-4b65-b93a-a91edccf33b8), and grant admin consent. Then enter its Application (client) ID in the review.",
+        "If your tenant lacks the Azure DevOps MCP enterprise application, an administrator adds it with az ad sp create --id 2a72489c-aab2-4b65-b93a-a91edccf33b8.",
+        "Keep your organization in the URL: without it, the sign-in goes to Entra's multi-tenant endpoint, which GateRook doesn't sign in to.",
+        "It takes no personal access tokens, and organizations whose users sign in with personal Microsoft accounts can't use it. Guest users of a tenant sign in through the organization's URL.",
+        "Add the fixed header X-MCP-Toolsets, such as repos,wit,wiki, to limit the tools it offers.",
+        "Microsoft publishes no annotations for its remote tools, so this profile names every tool its documentation marks as a write; the others start as the server declares them."
+      ],
+      "tools": [
+        {"tool": "pipelines_write", "start": "approval", "kind": "code", "reason": "It queues pipeline runs, creates pipelines, and runs or retries their stages, which run your pipelines' code."},
+        {"tool": "repo_pull_request_write", "start": "approval", "kind": "write", "reason": "It creates and updates pull requests, changes their reviewers and votes on them."},
+        {"tool": "repo_pull_request_thread_write", "start": "approval", "kind": "write", "reason": "It starts, answers and resolves comment threads on pull requests."},
+        {"tool": "repo_create_branch", "start": "approval", "kind": "write", "reason": "It creates a branch in a repository."},
+        {"tool": "wiki_upsert_page", "start": "approval", "kind": "write", "reason": "It creates or replaces a wiki page."},
+        {"tool": "wit_work_item_write", "start": "approval", "kind": "write", "reason": "It creates and updates work items."},
+        {"tool": "wit_work_item_comment_write", "start": "approval", "kind": "write", "reason": "It adds and edits comments on work items."},
+        {"tool": "wit_work_item_link_write", "start": "approval", "kind": "write", "reason": "It links and unlinks work items, pull requests and artifacts."},
+        {"tool": "wit_work_item_attachment_upload", "start": "approval", "kind": "write", "reason": "It uploads an attachment to a work item."},
+        {"tool": "wit_work_item_attachment_link", "start": "approval", "kind": "write", "reason": "It links an attachment to a work item."},
+        {"tool": "work_iteration_write", "start": "approval", "kind": "write", "reason": "It creates iterations and assigns them to teams."},
+        {"tool": "work_capacity_write", "start": "approval", "kind": "write", "reason": "It changes a team's capacity."},
+        {"tool": "testplan_test_plan_write", "start": "approval", "kind": "write", "reason": "It creates test plans."},
+        {"tool": "testplan_test_suite_write", "start": "approval", "kind": "write", "reason": "It creates test suites and adds test cases to them."},
+        {"tool": "testplan_test_case_write", "start": "approval", "kind": "write", "reason": "It creates test cases and changes their steps."},
+        {"tool": "testplan_test_run_write", "start": "approval", "kind": "write", "reason": "It creates and completes test runs and records their results."},
+        {"tool": "enterprise_live_migration_write", "start": "approval", "kind": "write", "reason": "It creates, pauses and cuts over migrations, and can abandon one, which deletes it for good."},
+        {"tool": "enterprise_live_migration_pipelines_write", "start": "approval", "kind": "write", "reason": "It submits, changes and deletes the pipelines of a migration."}
+      ],
+      "match": {"hosts": ["mcp.dev.azure.com"], "paths": ["/*"]}
+    },
+    {
+      "id": "azure-devops",
+      "name": "Azure DevOps (local)",
       "publisher": "Microsoft",
       "category": "Code & collaboration",
       "description": "Work items, repos, pull requests, pipelines, wikis and test plans of one Azure DevOps organization.",
@@ -210,7 +259,7 @@
       ],
       "signIn": "The Azure CLI's sign-in on this computer (az login). With --authentication pat instead, it takes a personal access token in PERSONAL_ACCESS_TOKEN.",
       "notes": [
-        "Microsoft's remote server, https://mcp.dev.azure.com/<organization>, admits only an Entra ID app registered in your tenant, which GateRook's sign-in doesn't support yet. This is Microsoft's local server for the same organization.",
+        "This is Microsoft's local server. Its remote server, https://mcp.dev.azure.com/<organization>, has a profile of its own, with a read-only switch; it needs an app registered in your Entra ID tenant.",
         "It has no read-only switch. Add -d with domains, such as core work-items repositories, to limit what it lists.",
         "Tools that ask which project or team to use need it in the call, or ado_mcp_project and ado_mcp_team under Variables: GateRook doesn't pass a server's questions on."
       ],

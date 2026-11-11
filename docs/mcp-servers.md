@@ -89,7 +89,8 @@ GateRook checked these servers on 2026-11-11:
 | Firebase | `npx -y firebase-tools@15.35.0 mcp` | The Firebase CLI's sign-in on this computer, or Application Default Credentials | `firebase_deploy` and the Data Connect tools that run GraphQL in Approval, and `storage_get_object_download_url`, whose link opens the object to anyone. `apptesting_run_test` Off: an AI agent runs the test. Firebase has no read-only switch; `--only` and `--tools` limit what it lists. |
 | Supabase | `https://mcp.supabase.com/mcp?project_ref={project_ref}&read_only=true` | OAuth, or a personal access token as a Bearer token | Switches: `read_only=true` lists only reads, runs SQL read-only and asks only for read access when you sign in, and `project_ref` keeps the server to one project. With them, `execute_sql` is declared read only and starts in Read only. `apply_migration` and `deploy_edge_function` start in Approval. |
 | Netlify | `https://mcp.netlify.com/mcp?verbose=true` | OAuth, or a Netlify personal access token as a Bearer token | Switch: `verbose=true` lists one tool per operation, so each change gets its own mode. `netlify-deploy-site` in Approval: it returns a command that carries a 30-minute token for your account. Netlify has no read-only switch. |
-| Azure DevOps | `npx -y @azure-devops/mcp@2.11.0 {organization} --authentication azcli`, Microsoft's local server | The Azure CLI's sign-in on this computer (`az login`), or a personal access token with `--authentication pat` | `pipelines_write` and `repo_file_write` in Approval: they run your pipelines' code or change it. `wit_work_item_attachment` in Approval: despite its read-only declaration, it can write a file on this computer. It has no read-only switch; `-d` limits the domains it lists. Microsoft's remote server, `https://mcp.dev.azure.com/<organization>`, admits only an Entra ID app registered in your tenant, which GateRook's sign-in doesn't support yet. |
+| Azure DevOps | `https://mcp.dev.azure.com/{organization}` with the header `X-MCP-Readonly: true`, Microsoft's hosted server | OAuth with Microsoft Entra ID, through an app you register in your tenant: see [Microsoft Entra ID](#microsoft-entra-id) | Switch: `X-MCP-Readonly: true` keeps the server to read-only operations. Microsoft publishes no annotations for its remote tools, so all 18 tools its documentation marks as writes start in Approval, such as `pipelines_write`, which runs your pipelines' code. The header `X-MCP-Toolsets`, such as `repos,wit,wiki`, limits the tools it offers. |
+| Azure DevOps (local) | `npx -y @azure-devops/mcp@2.11.0 {organization} --authentication azcli`, Microsoft's local server | The Azure CLI's sign-in on this computer (`az login`), or a personal access token with `--authentication pat` | `pipelines_write` and `repo_file_write` in Approval: they run your pipelines' code or change it. `wit_work_item_attachment` in Approval: despite its read-only declaration, it can write a file on this computer. It has no read-only switch; `-d` limits the domains it lists. For a read-only switch, use the remote server above. |
 
 A vendor can change its server at any time. The rules that bind modes to a tool's definition still apply: a tool whose definition changes goes back to Approval wherever it ran without one.
 
@@ -124,7 +125,7 @@ The server's row shows **Signed in**, **Needs sign-in** or **Signed out**. A ser
 
 ## Servers that need your own OAuth app
 
-Some servers neither accept GateRook's published details nor let apps register themselves. At the time of writing (November 2026) these include Slack's and Asana's v2 server. GitHub's is one too, but it signs in with GateRook's own GitHub app, as [Sign in](#sign-in) describes. The review then says so and shows the redirect URI to register, `http://127.0.0.1:7471/callback`:
+Some servers neither accept GateRook's published details nor let apps register themselves. At the time of writing (November 2026) these include Slack's and Asana's v2 server, and the servers that sign in with Microsoft Entra ID, which [Microsoft Entra ID](#microsoft-entra-id) covers. GitHub's is one too, but it signs in with GateRook's own GitHub app, as [Sign in](#sign-in) describes. The review then says so and shows the redirect URI to register, `http://127.0.0.1:7471/callback`:
 
 1. Create an OAuth app for GateRook in the provider's developer settings, with that redirect URI.
 2. In **Add MCP server › Sign-in options › OAuth app options**, enter its client ID, or enter it in the review.
@@ -133,6 +134,21 @@ Some servers neither accept GateRook's published details nor let apps register t
 GateRook sends the client secret only to the authorization server it was entered for: the review shows the address it goes to, and the sign-in goes there only. Later sign-ins go to the authorization server the secret was first used with. If the server names another one, or its authorization server takes tokens at another address, GateRook doesn't send the secret and says so. If you trust the new one, enter the client secret again, in **Secrets** or by editing the server in **Connections**, then sign in. Signing out keeps this record; removing the server deletes it.
 
 **OAuth app options** also set the **Scopes** to ask for, and a **Callback port** for a server or an app that accepts only one redirect address. A client ID entered there replaces GateRook's own GitHub app.
+
+### Microsoft Entra ID
+
+Servers whose sign-in is Microsoft Entra ID, such as Azure DevOps' remote server (`https://mcp.dev.azure.com/<organization>`), admit only an app registered in your tenant. GateRook recognizes Entra by its sign-in addresses: `login.microsoftonline.com`, and `login.microsoftonline.us` and `login.partner.microsoftonline.cn` for the Azure Government and China clouds. The review shows the redirect URI to register, `http://localhost/callback`:
+
+1. In the Microsoft Entra admin center, open **App registrations** and register an app for GateRook.
+2. Under **Authentication**, add the platform **Mobile and desktop applications** with the redirect URI `http://localhost/callback`, and set **Allow public client flows** to **Yes**.
+3. Under **API permissions**, add the server's delegated permissions and grant admin consent. For Azure DevOps, they are under **APIs my organization uses › Azure DevOps MCP** (`2a72489c-aab2-4b65-b93a-a91edccf33b8`). If your tenant lacks that enterprise application, an administrator adds it with `az ad sp create --id 2a72489c-aab2-4b65-b93a-a91edccf33b8`.
+4. Enter the app's **Application (client) ID** in the review. Leave the client secret empty: the app is a public client.
+
+GateRook listens on any free port of this computer during the sign-in, because Entra ignores the port of a `localhost` redirect address. GateRook doesn't use `127.0.0.1` here, because the admin center can't register it. A **Callback port** you set in **OAuth app options** is kept.
+
+Entra decides which API a token is for by the scopes it is asked for, such as `https://mcp.dev.azure.com/.default`, which the server names. GateRook therefore asks for the server's scopes plus `offline_access`, and asks for them again whenever it renews the sign-in. It sends a token only to the API its scopes name, so it refuses to sign in when a scope names another API, such as Microsoft Graph's `User.Read`, or an application ID it can't match to the server's address. In that case, set **Scopes** to the server's, such as `https://mcp.dev.azure.com/.default`.
+
+For Azure DevOps, keep your organization in the URL. Without one, the sign-in goes to Entra's multi-tenant endpoint, which GateRook doesn't sign in to. Guest users of a tenant sign in through the organization's URL as well.
 
 ## Servers on Google Cloud
 
@@ -172,6 +188,10 @@ A few providers admit only clients on their own allowlist, by name or by redirec
 | It answered HTTP 404 or 405 | Check the URL. Streamable HTTP addresses usually end in `/mcp`, SSE addresses in `/sse`. |
 | The provider's page says the client or its redirect address is invalid | The provider couldn't use the details GateRook publishes. Cancel the sign-in in GateRook and try again later. If it keeps happening and the provider lets you create an OAuth app, enter that app's client ID in **Sign-in options**. |
 | Needs you to sign in again | Sign in from the server's row. |
+| The scope … names another API, or no scope names the server | Microsoft Entra ID issues a token for the API its scopes name. Set **Scopes** in **Sign-in options** to the server's own, such as `https://mcp.dev.azure.com/.default`. |
+| Entra's page says `AADSTS50011` (redirect URI mismatch) | Register `http://localhost/callback` under **Mobile and desktop applications**, not **Web** or **Single-page application**, with the same path. |
+| `AADSTS7000218` (a client secret is required) | The app isn't a public client: register the redirect URI under **Mobile and desktop applications** and set **Allow public client flows** to **Yes**. |
+| `AADSTS65001` (consent) or `AADSTS500011` (resource not found) | Grant admin consent for the app's API permissions. For Azure DevOps, an administrator may first have to add its enterprise application with `az ad sp create --id 2a72489c-aab2-4b65-b93a-a91edccf33b8`. |
 | Access wasn't allowed on github.com | The sign-in was cancelled on GitHub's page. Sign in again for a new code. |
 | The code expired before it was entered | Sign in again for a new code, and enter it within 10 minutes. |
 | GitHub's tools don't see an organization's repositories | The organization restricts OAuth apps. Request approval for GateRook on GitHub's authorization page, or ask an organization owner to approve it. |

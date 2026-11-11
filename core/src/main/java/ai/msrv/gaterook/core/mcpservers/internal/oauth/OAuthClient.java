@@ -19,7 +19,9 @@ import tools.jackson.databind.node.ObjectNode;
  * as client ID its own Client ID Metadata Document where the server accepts one, else dynamic registration (RFC 7591)
  * under its own name, else its own app registered at that server ({@link GateRookApps}, with the device authorization
  * grant of RFC 8628), or the client ID of an OAuth app the person created. It never presents itself as another
- * application: no other client's ID, name or redirect URI.
+ * application: no other client's ID, name or redirect URI. At the Microsoft identity platform the token's audience
+ * travels in the scopes instead of the {@code resource} ({@link MicrosoftIdentityPlatform}): the scopes go with every
+ * token request there.
  */
 public final class OAuthClient {
 
@@ -121,6 +123,24 @@ public final class OAuthClient {
   public static boolean acceptsMetadataDocument(Discovery.Server server, URI redirectUri) {
     return server.clientMetadataDocuments() && server.authMethods().contains("none")
         && METADATA_DOCUMENT_REDIRECTS.contains(withoutPort(redirectUri));
+  }
+
+  /**
+   * Whether the person's OAuth app at {@code server} may be a public client, without a client secret: the server lists
+   * {@code none} among its token endpoint authentication methods, or it is the Microsoft identity platform, which lists
+   * it nowhere but takes an app with a "Mobile and desktop applications" redirect URI as a public client.
+   */
+  public static boolean publicClients(Discovery.Server server) {
+    return server.authMethods().contains("none") || server.microsoftIdentityPlatform();
+  }
+
+  /**
+   * The scopes a code redemption or a renewal carries again (RFC 6749 §6 lets a renewal name them): the sign-in's
+   * {@code scope} at the Microsoft identity platform, where they name the token's audience and a renewal without them
+   * gets a token for Microsoft Graph; {@code null} elsewhere, where the grant keeps its scopes.
+   */
+  public static String audienceScope(Discovery.Server server, String scope) {
+    return server.microsoftIdentityPlatform() ? scope : null;
   }
 
   /** GateRook by its metadata document: the document's URL as client ID, no secret, nothing registered. */
@@ -288,7 +308,10 @@ public final class OAuthClient {
     return new Client(id, secret, method, false, redirectUri.toString());
   }
 
-  /** The URL the browser opens: the authorization request with PKCE, {@code state} and the resource. */
+  /**
+   * The URL the browser opens: the authorization request with PKCE, {@code state} and the resource ({@code null}
+   * leaves it out, as at the Microsoft identity platform).
+   */
   public static URI authorizationUrl(Discovery.Server server, Client client, Pkce pkce, String state, String scope,
       String resource) {
     HttpUrl.Builder b = HttpUrl.get(server.authorization().toString()).newBuilder()
@@ -307,28 +330,39 @@ public final class OAuthClient {
     return b.build().uri();
   }
 
-  /** Redeems the authorization code (RFC 6749 §4.1.3 with the PKCE verifier and the resource). */
+  /**
+   * Redeems the authorization code (RFC 6749 §4.1.3 with the PKCE verifier and the resource).
+   *
+   * @param resource the resource, or {@code null} to leave it out
+   * @param scope    the scopes again ({@link #audienceScope}), or {@code null} to leave them out
+   */
   public static Tokens exchange(OAuthHttp http, URI tokenEndpoint, Client client, String code, String verifier,
-      String resource, Instant now) throws OAuthHttp.Failure {
+      String resource, String scope, Instant now) throws OAuthHttp.Failure {
     Map<String, String> form = new LinkedHashMap<>();
     form.put("grant_type", "authorization_code");
     form.put("code", code);
     form.put("redirect_uri", client.redirectUri());
     form.put("code_verifier", verifier);
     form.put("resource", resource);
+    form.put("scope", blankToNull(scope));
     return tokens("Signing in", http, tokenEndpoint, client, form, null, now);
   }
 
   /**
    * Renews the access token (RFC 6749 §6). A server that rotates refresh tokens sends a new one; one that doesn't
    * keeps the old one valid, which is kept then.
+   *
+   * @param resource the resource, or {@code null} to leave it out
+   * @param scope    the scopes again ({@link #audienceScope}, {@link SignInBundle#renewalScope}), or {@code null} to
+   *                 leave them out
    */
   public static Tokens refresh(OAuthHttp http, URI tokenEndpoint, Client client, String refreshToken,
-      String resource, Instant now) throws OAuthHttp.Failure {
+      String resource, String scope, Instant now) throws OAuthHttp.Failure {
     Map<String, String> form = new LinkedHashMap<>();
     form.put("grant_type", "refresh_token");
     form.put("refresh_token", refreshToken);
     form.put("resource", resource);
+    form.put("scope", blankToNull(scope));
     return tokens("Renewing the sign-in", http, tokenEndpoint, client, form, refreshToken, now);
   }
 
@@ -430,6 +464,10 @@ public final class OAuthClient {
   private static String withoutPort(URI u) {
     return u.getScheme() + "://" + u.getHost() + (u.getRawPath() == null ? "" : u.getRawPath())
         + (u.getRawQuery() == null ? "" : "?" + u.getRawQuery());
+  }
+
+  private static String blankToNull(String s) {
+    return s == null || s.isBlank() ? null : s;
   }
 
   private static long parseLong(String s) {

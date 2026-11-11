@@ -10,6 +10,7 @@ import { templateParts } from './mcp-registry';
 const LOGOS: Readonly<Record<string, string>> = {
   'aws-knowledge': 'mcp-logos/aws.png',
   'azure-devops': 'mcp-logos/azure-devops.svg',
+  'azure-devops-remote': 'mcp-logos/azure-devops.svg',
   'cloudflare-api': 'mcp-logos/cloudflare.jpg',
   digitalocean: 'mcp-logos/digitalocean.svg',
   firebase: 'mcp-logos/firebase.png',
