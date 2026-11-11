@@ -1908,6 +1908,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "additionalProperties": false,
             "properties": {
               "source": {
+                "title": "Sign in with",
                 "enum": [
                   "cli",
                   "deviceCode",
@@ -5706,6 +5707,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "additionalProperties": false,
         "properties": {
           "source": {
+            "title": "Sign in with",
             "enum": [
               "cli",
               "deviceCode",
@@ -5876,6 +5878,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "additionalProperties": false,
         "properties": {
           "source": {
+            "title": "Sign in with",
             "enum": [
               "cli",
               "deviceCode",
@@ -12398,7 +12401,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/source",
         "kind": "select",
-        "title": "source",
+        "title": "Sign in with",
         "required": true,
         "secret": null,
         "mono": false,
@@ -14742,7 +14745,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/source",
         "kind": "select",
-        "title": "source",
+        "title": "Sign in with",
         "required": true,
         "secret": null,
         "mono": false,
@@ -14976,7 +14979,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/source",
         "kind": "select",
-        "title": "source",
+        "title": "Sign in with",
         "required": true,
         "secret": null,
         "mono": false,

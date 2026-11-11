@@ -703,6 +703,7 @@
           "additionalProperties": false,
           "properties": {
             "source": {
+              "title": "Sign in with",
               "enum": [
                 "cli",
                 "deviceCode",
