@@ -47,6 +47,20 @@
       "artifact": {"url": "gw-rabbitmq-0.3.0.jar", "sha256": null, "size": null}
     },
     {
+      "kind": "plugin",
+      "id": "duckdb",
+      "version": "1.0.0",
+      "name": "DuckDB",
+      "description": "A DuckDB database file on this computer: read-only queries with row, memory and time limits; changes wait for approval.",
+      "icon": "database",
+      "group": "Databases",
+      "signed": true,
+      "requires": {"gateway": ">=0.4.0 & <1.0.0", "connectorApi": ">=1.0.0 & <2.0.0"},
+      "tools": 4,
+      "access": {"hosts": [], "commands": [], "files": ["chosen in each connection"]},
+      "artifact": {"url": "gw-duckdb-1.0.0.jar", "sha256": null, "size": null}
+    },
+    {
       "kind": "template",
       "id": "pg-slow-queries",
       "version": "1.0.0",

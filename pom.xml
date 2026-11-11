@@ -51,6 +51,7 @@
     <module>plugins/test-fixtures</module>
     <module>plugins/clickhouse</module>
     <module>plugins/rabbitmq</module>
+    <module>plugins/duckdb</module>
     <module>plugin-it</module>
     <module>bridge-cli</module>
   </modules>
@@ -79,6 +80,8 @@
     <google-auth.version>1.54.0</google-auth.version>
     <mssql-jdbc.version>13.6.0.jre11</mssql-jdbc.version>
     <jsqlparser.version>5.4</jsqlparser.version>
+    <!-- The DuckDB catalog plugin's engine (docs/duckdb.md); the plugin JAR carries two of its native libraries. -->
+    <duckdb-jdbc.version>2.0.0.1</duckdb-jdbc.version>
     <oracle-jdbc.version>23.26.4.0.0</oracle-jdbc.version>
     <sshd.version>2.20.0</sshd.version>
     <re2j.version>1.8</re2j.version>
@@ -306,6 +309,13 @@
         <groupId>com.github.jsqlparser</groupId>
         <artifactId>jsqlparser</artifactId>
         <version>${jsqlparser.version}</version>
+      </dependency>
+
+      <!-- ── Plugins: DuckDB (docs/duckdb.md) ──────────────────────────────────────────────────────────── -->
+      <dependency>
+        <groupId>org.duckdb</groupId>
+        <artifactId>duckdb_jdbc</artifactId>
+        <version>${duckdb-jdbc.version}</version>
       </dependency>
 
       <!-- ── Connectors: Redis (report 05) ─────────────────────────────────────────────────────────────── -->
