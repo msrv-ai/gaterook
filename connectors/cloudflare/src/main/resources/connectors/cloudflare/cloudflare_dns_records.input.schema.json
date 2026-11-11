@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "zone"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "zone": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 253,
+      "description": "A zone by name, such as example.com, or by its 32-character ID."
+    },
+    "record": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$",
+      "description": "One record by its 32-character ID."
+    },
+    "type": {
+      "enum": [
+        "A",
+        "AAAA",
+        "CAA",
+        "CERT",
+        "CNAME",
+        "DNSKEY",
+        "DS",
+        "HTTPS",
+        "LOC",
+        "MX",
+        "NAPTR",
+        "NS",
+        "OPENPGPKEY",
+        "PTR",
+        "SMIMEA",
+        "SRV",
+        "SSHFP",
+        "SVCB",
+        "TLSA",
+        "TXT",
+        "URI"
+      ],
+      "description": "Only records of this type."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 253,
+      "description": "Only records with this exact name: www.example.com, www (in the zone) or @ (the zone itself)."
+    },
+    "nameContains": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 253,
+      "description": "Only records whose name contains this text."
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "description": "Only records with exactly this content, such as 192.0.2.10."
+    },
+    "search": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Text to look for in names, contents and comments."
+    },
+    "proxied": {
+      "type": "boolean",
+      "description": "Only proxied (true) or DNS-only (false) records."
+    },
+    "page": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000,
+      "description": "Page of the list, from 1."
+    },
+    "perPage": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 500,
+      "default": 100,
+      "description": "Records per page."
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "area": "cloudflare",
+  "module": "connectors/cloudflare",
+  "connectorTypes": ["cloudflare"],
+  "description": "Touches of the Cloudflare connector for the native smoke (report 15 §6): the call checks without I/O — a zone outside the connection's list, a purge URL of another zone — and Test connection's error mapping when the API can't be reached with the token.",
+  "touches": [
+    {
+      "name": "cloudflare-zone-outside-the-list",
+      "connection": {"type": "cloudflare", "env": "dev",
+        "config": {"accountId": "0123456789abcdef0123456789abcdef", "zones": ["example.com"], "credentials": {}},
+        "secrets": {"/credentials/token": "smoke-only-cloudflare-token-0001"}},
+      "call": {"tool": "cloudflare_dns_records", "arguments": {"zone": "example.org"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.cloudflare.zone_not_allowed"}
+    },
+    {
+      "name": "cloudflare-purge-outside-the-zone",
+      "connection": {"type": "cloudflare", "env": "dev",
+        "config": {"accountId": "0123456789abcdef0123456789abcdef", "zones": ["example.com"], "credentials": {}},
+        "secrets": {"/credentials/token": "smoke-only-cloudflare-token-0001"}},
+      "call": {"tool": "cloudflare_cache_purge", "arguments": {"zone": "example.com", "files": ["https://www.example.org/app.js"]}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.cloudflare.purge_outside_zone"}
+    }
+  ]
+}

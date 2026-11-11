@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "script",
+    "versions"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "script": {
+      "type": "string",
+      "pattern": "^[a-z0-9_][a-z0-9_-]{0,62}$",
+      "description": "The Worker's name, as cloudflare_workers lists it."
+    },
+    "versions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "percentage"
+        ],
+        "properties": {
+          "version": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "description": "A version ID from cloudflare_workers view versions."
+          },
+          "percentage": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 100,
+            "description": "Share of traffic, in percent."
+          }
+        }
+      },
+      "description": "One version at 100 (a rollback or a promotion), or two whose percentages add up to 100 (a gradual rollout)."
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "description": "Why, shown with the deployment in Cloudflare."
+    }
+  }
+}

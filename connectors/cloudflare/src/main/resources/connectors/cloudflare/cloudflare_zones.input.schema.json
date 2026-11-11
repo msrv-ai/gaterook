@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "zone": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 253,
+      "description": "One zone by name or ID: its details, name servers and DNSSEC status. Omit to list the zones."
+    },
+    "status": {
+      "enum": [
+        "active",
+        "pending",
+        "initializing",
+        "moved"
+      ],
+      "description": "List only zones in this status."
+    },
+    "page": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "description": "Page of the list, from 1."
+    }
+  }
+}

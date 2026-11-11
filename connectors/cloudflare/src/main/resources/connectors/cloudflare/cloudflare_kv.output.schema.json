@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "provider",
+    "account",
+    "view",
+    "truncated"
+  ],
+  "properties": {
+    "provider": {
+      "const": "cloudflare"
+    },
+    "account": {
+      "type": "string"
+    },
+    "zone": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "view": {
+      "enum": [
+        "namespaces",
+        "keys",
+        "value"
+      ]
+    },
+    "items": {
+      "type": "array"
+    },
+    "item": {
+      "type": "object"
+    },
+    "count": {
+      "type": "integer"
+    },
+    "page": {
+      "type": "integer"
+    },
+    "totalPages": {
+      "type": "integer"
+    },
+    "totalCount": {
+      "type": "integer"
+    },
+    "nextCursor": {
+      "type": "string"
+    },
+    "hiddenByConnection": {
+      "type": "integer"
+    },
+    "masked": {
+      "type": "integer"
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
