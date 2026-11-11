@@ -136,6 +136,7 @@ export function signInTarget(type: string): string {
     case 'firebase-rtdb':
     case 'redshift':
     case 'athena':
+    case 'cosmosdb':
       return 'the cloud account';
     case 'prometheus':
       return 'the metrics server';

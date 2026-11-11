@@ -8,7 +8,8 @@
       "name": "cosmosdb-container-not-allowed",
       "connection": {"type": "cosmosdb", "env": "dev",
         "config": {"endpoint": "https://acme-dev.documents.azure.com", "containers": ["app/orders"],
-          "auth": {"method": "key", "keyKind": "readOnly"}}},
+          "auth": {"method": "key", "keyKind": "readOnly"}},
+        "secrets": {"/auth/accountKey": "smoke-only-0001"}},
       "call": {"tool": "cosmosdb_query", "arguments": {"database": "app", "container": "secrets",
         "query": "SELECT * FROM c"}},
       "expect": {"isError": true, "textStartsWith": "Denied by policy dev.cosmosdb.container-not-allowed"}
@@ -17,7 +18,8 @@
       "name": "cosmosdb-read-only-key-writes-nothing",
       "connection": {"type": "cosmosdb", "env": "dev",
         "config": {"endpoint": "https://acme-dev.documents.azure.com",
-          "auth": {"method": "key", "keyKind": "readOnly"}}},
+          "auth": {"method": "key", "keyKind": "readOnly"}},
+        "secrets": {"/auth/accountKey": "smoke-only-0001"}},
       "call": {"tool": "cosmosdb_execute", "arguments": {"database": "app", "container": "orders",
         "operation": "delete", "id": "o-1", "partitionKey": "c-42"}},
       "expect": {"isError": true, "textStartsWith": "Denied by policy dev.cosmosdb.read-only-key"}

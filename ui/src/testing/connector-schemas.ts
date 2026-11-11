@@ -6754,6 +6754,232 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         ]
       }
     }
+  },
+  "cosmosdb": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Azure Cosmos DB for NoSQL",
+    "type": "object",
+    "x-card": {
+      "description": "Databases, containers, SQL queries and items. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "endpoint",
+      "auth"
+    ],
+    "properties": {
+      "endpoint": {
+        "type": "string",
+        "title": "Account endpoint",
+        "maxLength": 300,
+        "pattern": "^(https://[A-Za-z0-9](?:[A-Za-z0-9-]{1,61}[A-Za-z0-9])\\.documents\\.azure\\.(?:com|us|cn)(?::443)?|https?://(?:localhost|127\\.0\\.0\\.1|\\[::1\\]):[0-9]{1,5})/?$",
+        "examples": [
+          "https://acme.documents.azure.com"
+        ],
+        "description": "The account's URI from its Keys page: https://<account>.documents.azure.com (.documents.azure.us in Azure Government, .documents.azure.cn in Azure operated by 21Vianet). The emulator on this computer: http://127.0.0.1:8081 in development builds, or its https:// address."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Authentication",
+        "required": [
+          "method"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "method": {
+            "enum": [
+              "key",
+              "entra"
+            ],
+            "default": "key",
+            "title": "Sign in with",
+            "x-enumTitles": [
+              "Account key",
+              "Microsoft Entra ID (service principal)"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(keyKind|accountKey|tenantId|clientId|clientSecret)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "key"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "keyKind": {
+                  "enum": [
+                    "readOnly",
+                    "readWrite"
+                  ],
+                  "default": "readOnly",
+                  "title": "Key",
+                  "x-enumTitles": [
+                    "Read-only key (recommended)",
+                    "Primary or secondary key (read and write)"
+                  ],
+                  "description": "Azure refuses every change made with a read-only key, so agents can't propose any. GateRook can't tell the keys apart without writing: say which one you paste."
+                },
+                "accountKey": {
+                  "type": "string",
+                  "title": "Account key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "maxLength": 200,
+                  "description": "A key of the account's Keys page (Read-only Keys, or Read-write Keys), the Base64 text of 88 characters."
+                }
+              },
+              "required": [
+                "keyKind",
+                "accountKey"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "entra"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "properties": {
+                "tenantId": {
+                  "type": "string",
+                  "title": "Directory (tenant) ID",
+                  "maxLength": 253,
+                  "pattern": "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$",
+                  "examples": [
+                    "00000000-0000-0000-0000-000000000000"
+                  ],
+                  "description": "The tenant of the service principal, or one of its domains such as acme.onmicrosoft.com."
+                },
+                "clientId": {
+                  "type": "string",
+                  "title": "Application (client) ID",
+                  "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                  "examples": [
+                    "00000000-0000-0000-0000-000000000000"
+                  ],
+                  "description": "Give the principal Cosmos DB Built-in Data Reader to read, or Data Contributor for approved changes, on the databases or containers agents use: the data-plane roles are the boundary."
+                },
+                "clientSecret": {
+                  "type": "string",
+                  "title": "Client secret",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "maxLength": 1024,
+                  "description": "The secret's Value, not its Secret ID."
+                }
+              },
+              "required": [
+                "tenantId",
+                "clientId",
+                "clientSecret"
+              ]
+            }
+          }
+        ]
+      },
+      "databases": {
+        "type": "array",
+        "title": "Databases",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[^/\\\\#?\\u0000-\\u001f\\u007f]{1,255}$"
+        },
+        "examples": [
+          [
+            "app",
+            "audit-*"
+          ]
+        ],
+        "description": "The databases agents may use; * matches any characters, such as audit-*. Empty: every database the credentials may read."
+      },
+      "containers": {
+        "type": "array",
+        "title": "Containers",
+        "maxItems": 100,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[^/\\\\#?\\u0000-\\u001f\\u007f]{1,255}(?:/[^/\\\\#?\\u0000-\\u001f\\u007f]{1,255})?$"
+        },
+        "examples": [
+          [
+            "orders",
+            "app/customers"
+          ]
+        ],
+        "description": "The containers agents may use: a container ID such as orders (in every allowed database), or database/container such as app/customers; * matches any characters. Empty: every container of the allowed databases."
+      },
+      "readConsistency": {
+        "enum": [
+          "account",
+          "Session",
+          "ConsistentPrefix",
+          "Eventual"
+        ],
+        "default": "account",
+        "title": "Read consistency",
+        "x-enumTitles": [
+          "The account's default",
+          "Session",
+          "Consistent prefix",
+          "Eventual"
+        ],
+        "description": "The consistency of queries and item reads. Cosmos DB refuses a level stronger than the account's default."
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "Policies set item limits and timeouts per environment.",
+        "properties": {
+          "crossPartitionQueries": {
+            "type": "boolean",
+            "title": "Cross-partition queries",
+            "default": true,
+            "description": "Off: every query names its partition key value, so none fans out over every partition and pays for each."
+          },
+          "maxPages": {
+            "type": "integer",
+            "title": "Pages per query",
+            "minimum": 1,
+            "maximum": 20,
+            "default": 5,
+            "description": "The pages of Cosmos DB's answer one call reads at most to fill its limit."
+          },
+          "maxItemKb": {
+            "type": "integer",
+            "title": "Largest change",
+            "minimum": 1,
+            "maximum": 2048,
+            "default": 2048,
+            "x-unit": "KB",
+            "description": "The largest body a change sends. Cosmos DB takes up to 2 MB; the endpoint's request size applies too."
+          }
+        }
+      }
+    }
   }
 };
 
@@ -11549,6 +11775,336 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "credentials": {
         "source": "adc",
         "lifetimeSeconds": 900
+      }
+    }
+  },
+  "cosmosdb": {
+    "sections": [
+      "/auth",
+      "/advanced"
+    ],
+    "loose": [
+      "/endpoint",
+      "/databases",
+      "/containers",
+      "/readConsistency"
+    ],
+    "rows": {
+      "/auth": [
+        [
+          "/auth/method"
+        ],
+        [
+          "/auth/keyKind"
+        ],
+        [
+          "/auth/accountKey"
+        ],
+        [
+          "/auth/tenantId"
+        ],
+        [
+          "/auth/clientId"
+        ],
+        [
+          "/auth/clientSecret"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/crossPartitionQueries"
+        ],
+        [
+          "/advanced/maxPages",
+          "/advanced/maxItemKb"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/endpoint",
+        "kind": "text",
+        "title": "Account endpoint",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/databases",
+        "kind": "tags",
+        "title": "Databases",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/containers",
+        "kind": "tags",
+        "title": "Containers",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/readConsistency",
+        "kind": "select",
+        "title": "Read consistency",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "account",
+          "Session",
+          "ConsistentPrefix",
+          "Eventual"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth",
+        "kind": "object",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/method",
+        "kind": "select",
+        "title": "Sign in with",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "key",
+          "entra"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/keyKind",
+        "kind": "select",
+        "title": "Key",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "readOnly",
+          "readWrite"
+        ],
+        "when": [
+          "auth.method in [\"key\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/accountKey",
+        "kind": "secret",
+        "title": "Account key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"key\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/tenantId",
+        "kind": "text",
+        "title": "Directory (tenant) ID",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"entra\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/clientId",
+        "kind": "text",
+        "title": "Application (client) ID",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"entra\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/clientSecret",
+        "kind": "secret",
+        "title": "Client secret",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"entra\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/crossPartitionQueries",
+        "kind": "checkbox",
+        "title": "Cross-partition queries",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxPages",
+        "kind": "number",
+        "title": "Pages per query",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/maxItemKb",
+        "kind": "number",
+        "title": "Largest change",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "KB",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "auth": {
+        "method": "key",
+        "keyKind": "readOnly"
+      },
+      "readConsistency": "account",
+      "advanced": {
+        "crossPartitionQueries": true,
+        "maxPages": 5,
+        "maxItemKb": 2048
+      }
+    },
+    "prodDefaults": {
+      "auth": {
+        "method": "key",
+        "keyKind": "readOnly"
+      },
+      "readConsistency": "account",
+      "advanced": {
+        "crossPartitionQueries": true,
+        "maxPages": 5,
+        "maxItemKb": 2048
       }
     }
   },

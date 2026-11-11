@@ -57,7 +57,7 @@ GateRook applies its MCP Firewall controls to built-in connectors and external M
 | Service | Supported capabilities |
 | --- | --- |
 | SQL databases | PostgreSQL and [CockroachDB](docs/cockroachdb.md), MySQL/MariaDB, [Oracle Database](docs/oracle.md), [SQL Server](docs/sql-server.md), [SQLite](docs/sqlite.md) files, and [DuckDB](docs/duckdb.md) files through a catalog plugin: inspect schemas, query data, and review changes before execution |
-| Document and key-value stores | MongoDB document queries and updates; [Redis](docs/redis.md) key inspection, reads, and reviewed value writes; [Amazon DynamoDB](docs/dynamodb.md) Query, Scan and PartiQL with reviewed changes; [Cloud Firestore](docs/firestore.md) documents and queries and the [Firebase Realtime Database](docs/firebase-rtdb.md) paths, with reviewed writes |
+| Document and key-value stores | MongoDB document queries and updates; [Redis](docs/redis.md) key inspection, reads, and reviewed value writes; [Amazon DynamoDB](docs/dynamodb.md) Query, Scan and PartiQL with reviewed changes; [Cloud Firestore](docs/firestore.md) documents and queries and the [Firebase Realtime Database](docs/firebase-rtdb.md) paths, with reviewed writes; [Azure Cosmos DB](docs/cosmosdb.md) for NoSQL containers, SQL queries and point reads, with reviewed item changes |
 | Data warehouses | [Google BigQuery](docs/bigquery.md): datasets, tables and GoogleSQL reads checked by a dry run and capped in bytes; [Snowflake](docs/snowflake.md): schemas, tables and reads checked against Snowflake's plan; [Amazon Redshift](docs/redshift.md) through its Data API in read-only transactions; [Databricks SQL](docs/databricks.md) on Unity Catalog; [Trino and Presto](docs/trino.md) with reads checked by Trino's own plan; [Amazon Athena](docs/athena.md) within a workgroup's limits; all with reviewed changes |
 | Metrics and time series | [Prometheus](docs/prometheus.md) and compatible servers: PromQL queries, series, targets, rules and alerts, read only; [InfluxDB](docs/influxdb.md) 3, 2.x and 1.x: SQL and InfluxQL reads and reviewed writes |
 | Search engines | OpenSearch and Elasticsearch: discover indices, query documents, and review administrative requests |
@@ -192,6 +192,7 @@ For the full connector integration suite, follow [the Docker test-services guide
 | [Snowflake](docs/snowflake.md) | Key-pair and token sign-in, roles and warehouses, plan-checked reads, and approved changes |
 | [Cloud Firestore](docs/firestore.md) | Google identities, collection lists, queries, and approved document writes |
 | [Firebase Realtime Database](docs/firebase-rtdb.md) | Database URLs, path lists, shallow reads and queries, and approved writes |
+| [Azure Cosmos DB](docs/cosmosdb.md) | Account keys or Microsoft Entra ID, container lists, partition keys, SQL queries, and approved item changes |
 | [InfluxDB](docs/influxdb.md) | Server versions and tokens, SQL and InfluxQL reads, database lists, and approved line-protocol writes |
 | [Prometheus](docs/prometheus.md) | Servers and tenants, PromQL and range limits, series, targets, rules and alerts |
 | [Redis](docs/redis.md) | Reading and writing values, expiration, key and database scopes, and write limits |
