@@ -19,7 +19,7 @@ import java.util.Map;
 public record CallRow(String callId, CallPhase phase, Instant createdAt, String endpointSlug, String toolName,
     CallDecision decision, String toolKey, String connectionName, Env env, Caller.Kind principalKind, Ingress ingress,
     String tokenLabel, String callerIp, String client, Map<String, Object> clientInfo, String protocolVersion,
-    String traceId, String spanId, Map<String, Object> argsMasked, String argsSha256,
+    String traceId, String spanId, Map<String, Object> argsMasked, String argsSha256, Long requestBytes,
     Classification.Kind classification, String ruleId, String approvalId, ApprovalDeliveryMode delivery,
     String decidedVia, String commentSha256, String actionSha256, String executedSha256, Long durationMs,
     Long gatewayMs, Long resourceMs, Long approvalWaitMs, Long resultBytes, String resultSha256, String resultPreview,
@@ -33,6 +33,7 @@ public record CallRow(String callId, CallPhase phase, Instant createdAt, String 
         .client(client, clientInfo, protocolVersion)
         .trace(traceId, spanId)
         .arguments(argsMasked, argsSha256)
+        .requestBytes(requestBytes)
         .policy(classification, ruleId)
         .approval(approvalId, delivery, decidedVia, commentSha256, actionSha256, executedSha256)
         .timing(durationMs, gatewayMs, resourceMs, approvalWaitMs)
@@ -47,15 +48,15 @@ public record CallRow(String callId, CallPhase phase, Instant createdAt, String 
    * This row of an approval request (resolved, completed) for another call that reused the request: that call's own
    * identity from its {@code received} row — who, which client, which trace — and this row's decision and outcome.
    * Timings and the wait stay with the call that made the request, so that one execution and one wait are counted
-   * once.
+   * once. What the call sent stays on its own received row; what came back is this row's result, which reached it too.
    */
   public CallRow repeatedBy(ToolCallEntity received) {
     return new CallRow(received.getCallId(), phase, createdAt, received.getEndpointSlug(), received.getToolName(),
         decision, received.getToolKey(), received.getConnectionName(), received.getEnv(), received.getPrincipalKind(),
         received.getIngress(), received.getTokenLabel(), received.getCallerIp(), received.getClient(),
         received.getClientInfo(), received.getProtocolVersion(), received.getTraceId(), received.getSpanId(), null,
-        null, null, ruleId, approvalId, delivery, decidedVia, commentSha256, actionSha256, executedSha256, null, null,
-        null, null, resultBytes, resultSha256, resultPreview, maskedCount, truncated, errorKind, errorMessage,
+        null, null, null, ruleId, approvalId, delivery, decidedVia, commentSha256, actionSha256, executedSha256, null,
+        null, null, null, resultBytes, resultSha256, resultPreview, maskedCount, truncated, errorKind, errorMessage,
         outcomeUnknown, null);
   }
 

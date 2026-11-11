@@ -29,6 +29,7 @@ import {
   sizeText,
   timing,
   tokenParts,
+  trafficText,
 } from './event-view';
 
 let nextId = 0;
@@ -82,6 +83,7 @@ export class GwEventDetail {
   /** The Client row: the implied client with its mark, or what the client reports about itself, said as such. */
   protected readonly clientRow = computed(() => callClientText(this.detail()));
   protected readonly duration = computed(() => durationText(this.detail()));
+  protected readonly traffic = computed(() => trafficText(this.detail()));
   /** Copy link: the app's own scheme (decision 11), opened through shell/deep-links.ts. */
   protected readonly link = computed(() => `gaterook://activity/events/${this.e().id}`);
   protected readonly token = computed(() => tokenParts(this.rows().received ?? this.rows().last, this.e().tokenLabel));

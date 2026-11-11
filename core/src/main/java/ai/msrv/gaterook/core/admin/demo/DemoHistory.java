@@ -930,6 +930,28 @@ final class DemoHistory {
     };
   }
 
+  /**
+   * How big the whole result was that a preview sums up, as the call path counts what went back to the app: a query
+   * row about 100 bytes, a log line 140, a Kubernetes object 900, a document 420, a cached value 180; an HTTP answer
+   * says its size; a statement's count of changed rows is as short as its preview. Taken from the preview, not drawn:
+   * the world's random sequence, and with it the kit's numbers, stay as they are.
+   */
+  static long resultSize(String tool, String preview) {
+    java.util.regex.Matcher count = java.util.regex.Pattern.compile("^([0-9]+) ").matcher(preview);
+    long n = count.find() ? Long.parseLong(count.group(1)) : 0;
+    java.util.regex.Matcher kb = java.util.regex.Pattern.compile("([0-9]+(?:\\.[0-9]+)?) KB").matcher(preview);
+    return switch (tool) {
+      case "sql_query" -> 180 + n * 96;
+      case "logs_search" -> 120 + n * 140;
+      case "k8s_get" -> 240 + n * 900;
+      case "mongo_find" -> 160 + n * 420;
+      case "http_request" -> kb.find() ? Math.round(Double.parseDouble(kb.group(1)) * 1024) : preview.length();
+      case "ssh_run" -> preview.startsWith("api,") ? 1_400 : 260;
+      case "redis_get" -> 180;
+      default -> preview.getBytes(StandardCharsets.UTF_8).length;
+    };
+  }
+
   // ── Rows ────────────────────────────────────────────────────────────────────────────────────────────────────
 
   /** The rows of a planned call, as the call path writes them. */
@@ -949,7 +971,8 @@ final class DemoHistory {
     boolean traced = p.traceId != null;
     AuditWriter.Call call = new AuditWriter.Call(Ids.next("tc_"), p.endpoint, pair.tool().name(), pair.toolKey(),
         pair.connectionName(), pair.config().env(), caller, caller.clientHint(), null, PROTOCOL,
-        traced ? p.traceId : hex(16), hex(8), traced, args, CanonicalJson.sha256Hex(args), facets);
+        traced ? p.traceId : hex(16), hex(8), traced, args, CanonicalJson.sha256Hex(args),
+        (long) CanonicalJson.bytes(args).length, facets);
     List<AuditBackfill.PastRow> rows = new ArrayList<>();
     long duration = p.gatewayMs + p.resourceMs;
     switch (p.decision) {
@@ -962,7 +985,7 @@ final class DemoHistory {
         String text = error ? p.errorMessage : preview(p);
         rows.add(AuditBackfill.PastRow.completed(p.at.plusMillis(duration), new AuditWriter.Completion(error
             ? AuditWriter.Verdict.ERROR : AuditWriter.Verdict.ALLOWED, null, null, null, null, duration, p.gatewayMs,
-            p.resourceMs, null, (long) text.getBytes(StandardCharsets.UTF_8).length,
+            p.resourceMs, null, error ? (long) text.getBytes(StandardCharsets.UTF_8).length : resultSize(p.tool, text),
             CanonicalJson.sha256Hex(JsonNodeFactory.instance.stringNode(text)), error ? null : text, 0, false,
             error ? p.errorKind : null, error ? text : null, null, null, null)));
       }
@@ -985,7 +1008,7 @@ final class DemoHistory {
           String text = preview(p);
           rows.add(AuditBackfill.PastRow.completed(decided.plusMillis(duration), new AuditWriter.Completion(
               AuditWriter.Verdict.APPROVED, p.rule, approvalId, AuditWriter.Delivery.HANDLE, p.via, duration,
-              p.gatewayMs, p.resourceMs, waitMs, (long) text.length(), CanonicalJson.sha256Hex(
+              p.gatewayMs, p.resourceMs, waitMs, resultSize(p.tool, text), CanonicalJson.sha256Hex(
                   JsonNodeFactory.instance.stringNode(text)), text, 0, false, null, null, null, action, action)));
         }
       }

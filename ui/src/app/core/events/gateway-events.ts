@@ -32,6 +32,10 @@ export interface GatewayEvents {
     readonly endpoint: string;
     readonly token: string | null;
     readonly durationMs: number | null;
+    /** What the app sent: set on the call's received row only. */
+    readonly requestBytes?: number | null;
+    /** What went back to the app: set on its completed row. */
+    readonly resultBytes?: number | null;
     readonly rule: string | null;
     readonly approvalId: string | null;
     readonly traceId: string | null;

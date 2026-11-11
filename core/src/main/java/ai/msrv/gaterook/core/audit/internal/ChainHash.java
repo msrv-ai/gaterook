@@ -79,6 +79,11 @@ public final class ChainHash {
     n.put("spanId", r.getSpanId());
     n.set("args", tree(r.getArgsMasked()));
     n.put("argsSha256", r.getArgsSha256());
+    // Added by V91: hashed only where set, so the rows written before it keep the hashes they were written with, and
+    // setting or clearing it later changes the hash either way.
+    if (r.getRequestBytes() != null) {
+      n.put("requestBytes", r.getRequestBytes());
+    }
     n.put("classification", r.getClassification() == null ? null : r.getClassification().name());
     n.put("decision", KebabCaseEnumConverter.idOf(r.getDecision()));
     n.put("rule", r.getRuleId());

@@ -177,6 +177,6 @@ public class ApprovalRows {
         a.getConnectionName(), a.getEnv(), caller, origin.path("client").asString(null),
         clientInfo.isObject() ? clientInfo : null, origin.path("protocol").asString(null),
         origin.path("traceId").asString(null), origin.path("spanId").asString(null),
-        origin.path("traceFromClient").asBoolean(false), null, null, null);
+        origin.path("traceFromClient").asBoolean(false), null, null, null, null);
   }
 }

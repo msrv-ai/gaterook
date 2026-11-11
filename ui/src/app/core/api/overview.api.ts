@@ -82,6 +82,43 @@ export interface Overview {
   readonly healthIntervalSeconds?: number;
 }
 
+/** One day of `GET /api/overview/summary`: a date in the person's zone and what went through GateRook that day. */
+export interface SummaryDay {
+  /** The date in the summary's zone, ISO (`2026-11-11`). */
+  readonly date: string;
+  /** The first clock hour of the day (its midnight wherever the zone is whole hours off UTC). */
+  readonly from: Iso;
+  /** The first hour of the next day: today's is still ahead. */
+  readonly to: Iso;
+  /** The day's calls by the decision of their latest row; a missing key is 0. */
+  readonly decisions: { readonly [decision: string]: number };
+  readonly calls: number;
+  /** Bytes AI apps sent with the calls received that day: their arguments ("in"). */
+  readonly requestBytes: number;
+  /** Bytes that went back to AI apps with the calls completed that day: results and errors ("out"). */
+  readonly resultBytes: number;
+}
+
+export interface SummaryTotals {
+  readonly calls: number;
+  readonly decisions: { readonly [decision: string]: number };
+  readonly requestBytes: number;
+  readonly resultBytes: number;
+}
+
+/** `GET /api/overview/summary`: the last 30 days, today included, oldest first. */
+export interface OverviewSummary {
+  readonly from: Iso;
+  readonly to: Iso;
+  /** The zone the dates are in: the one the app asked for, or the computer's own when the core doesn't know it. */
+  readonly zone: string;
+  /** When the oldest call the audit keeps reached the gateway; null before the first call. */
+  readonly firstCallAt: Iso | null;
+  readonly totals: SummaryTotals;
+  /** Always 30, the last one today. */
+  readonly days: readonly SummaryDay[];
+}
+
 /** `GET /api/onboarding`: `firstRun` comes from this start's ready line. */
 export interface Onboarding {
   readonly firstRun: boolean;
@@ -96,6 +133,11 @@ export class OverviewApi {
 
   get(): Promise<Overview> {
     return this.api.get('/api/overview');
+  }
+
+  /** The last 30 days by day, as dates in `zone` (the person's, `Europe/Berlin`; the core's own without it). */
+  summary(zone?: string | null): Promise<OverviewSummary> {
+    return this.api.get('/api/overview/summary', { zone });
   }
 
   /** Hide the checklist (the setup map keeps showing what is left); Undo is {@link restore}. */

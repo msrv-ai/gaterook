@@ -78,13 +78,15 @@ public class AuditWriter {
    * What every row of one call repeats: the call id, where it went, who made it, how it was traced.
    *
    * @param argsMasked      the arguments after masking, or {@code null}
+   * @param requestBytes    UTF-8 bytes of the arguments as sent (canonical JSON, before masking), or {@code null}:
+   *                        what the app sent with the call, stored with the arguments on the {@code received} row
    * @param traceFromClient the trace id came from the client's {@code traceparent}: the call belongs to an agent's
    *                        task and its trace is summarized for Activity › Traces
    * @param facets          non-secret facts for the query language and the summarizer (runbook, template, task)
    */
   public record Call(String callId, String endpointSlug, String tool, String toolKey, String connectionName, Env env,
       Caller caller, String client, JsonNode clientInfo, String protocolVersion, String traceId, String spanId,
-      boolean traceFromClient, JsonNode argsMasked, String argsSha256, JsonNode facets) {
+      boolean traceFromClient, JsonNode argsMasked, String argsSha256, Long requestBytes, JsonNode facets) {
 
     public Call {
       Objects.requireNonNull(callId, "callId");
@@ -353,6 +355,9 @@ public class AuditWriter {
     n.put("endpoint", r.getEndpointSlug());
     n.put("token", r.getTokenLabel());
     n.put("durationMs", r.getDurationMs());
+    // What the app sent comes with the received row, what went back with the completed one: Live keeps both.
+    n.put("requestBytes", r.getRequestBytes());
+    n.put("resultBytes", r.getResultBytes());
     n.put("rule", r.getRuleId());
     n.put("approvalId", r.getApprovalId());
     n.put("traceId", r.getTraceId());
@@ -373,10 +378,10 @@ public class AuditWriter {
         caller == null ? null : cut(caller.label(), 64), caller == null ? null : cut(caller.ip(), 45),
         cut(call.client(), 32), map(call.clientInfo()), cut(call.protocolVersion(), 10), call.traceId(),
         call.spanId(), withArguments ? map(call.argsMasked()) : null, withArguments ? call.argsSha256() : null,
-        classification, cut(ruleId, 128), approvalId, delivery, cut(decidedVia, 24), commentSha256, actionSha256,
-        executedSha256, durationMs, gatewayMs, resourceMs, approvalWaitMs, resultBytes, resultSha256, resultPreview,
-        maskedCount, truncated, cut(errorKind, 24), cut(errorMessage, 1000), outcomeUnknown,
-        withArguments ? map(call.facets()) : null);
+        withArguments ? call.requestBytes() : null, classification, cut(ruleId, 128), approvalId, delivery,
+        cut(decidedVia, 24), commentSha256, actionSha256, executedSha256, durationMs, gatewayMs, resourceMs,
+        approvalWaitMs, resultBytes, resultSha256, resultPreview, maskedCount, truncated, cut(errorKind, 24),
+        cut(errorMessage, 1000), outcomeUnknown, withArguments ? map(call.facets()) : null);
   }
 
   @SuppressWarnings("unchecked")

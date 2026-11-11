@@ -16,6 +16,13 @@ export interface ActivityEvent {
   readonly endpoint: string;
   readonly tokenLabel: string | null;
   readonly durationMs: number | null;
+  /**
+   * Bytes the AI app sent with the call: its arguments ("in"). Null when the audit kept no size (calls from before
+   * the core counted it); absent from a core that doesn't count it.
+   */
+  readonly requestBytes?: number | null;
+  /** Bytes that went back to the AI app: the result or the error ("out"). Null when nothing did (a denied call). */
+  readonly resultBytes?: number | null;
   readonly rule: string | null;
   readonly approvalId: string | null;
   readonly traceId: string | null;
@@ -68,6 +75,8 @@ export interface AuditRow {
   readonly tokenLabel: string | null;
   readonly args: { readonly [key: string]: JsonValue } | null;
   readonly argsSha256: string | null;
+  /** Bytes of the arguments as the app sent them (the `received` row only; absent from older cores). */
+  readonly requestBytes?: number | null;
   readonly durationMs: number | null;
   readonly gatewayMs: number | null;
   readonly resourceMs: number | null;

@@ -344,14 +344,16 @@ class ActivityController {
 
   // ── Mapping ─────────────────────────────────────────────────────────────────────────────────────────────────
 
+  /** The sizes came last (V91): a sheet that reads the earlier columns by position still finds them. */
   private static final List<String> CSV_COLUMNS = List.of("id", "callId", "at", "decision", "tool", "connection",
       "env", "client", "endpoint", "tokenLabel", "durationMs", "rule", "approvalId", "traceId", "errorKind",
-      "errorMessage");
+      "errorMessage", "requestBytes", "resultBytes");
 
   private static String csv(ActivityDtos.Event e) {
     List<Object> values = List.of(e.id(), nz(e.callId()), nz(e.at()), nz(e.decision()), nz(e.tool()),
         nz(e.connection()), nz(e.env()), nz(e.client()), nz(e.endpoint()), nz(e.tokenLabel()), nz(e.durationMs()),
-        nz(e.rule()), nz(e.approvalId()), nz(e.traceId()), nz(e.errorKind()), nz(e.errorMessage()));
+        nz(e.rule()), nz(e.approvalId()), nz(e.traceId()), nz(e.errorKind()), nz(e.errorMessage()),
+        nz(e.requestBytes()), nz(e.resultBytes()));
     List<String> cells = new ArrayList<>();
     for (Object v : values) {
       String text = String.valueOf(v);

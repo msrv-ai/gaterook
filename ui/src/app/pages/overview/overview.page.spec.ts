@@ -17,7 +17,7 @@ import { TimeService } from '../../core/time/time.service';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
-import { NOW, ROWS, card, clientsFound, clientsInUse, devDb, firstRun, overview, row } from './overview.fixtures';
+import { NOW, ROWS, busySummary, card, clientsFound, clientsInUse, devDb, firstRun, overview, row } from './overview.fixtures';
 import { ENDPOINT_STORAGE_KEY, OverviewPage, SKELETON_DELAY_MS } from './overview.page';
 import { catalogIndex, sentryReview } from '../connectors/connectors.fixtures';
 import { endpoint, kitEndpoints } from '../endpoints/endpoints.fixtures';
@@ -112,6 +112,8 @@ function setupPage(first: () => Promise<Overview> = () => Promise.resolve(overvi
       const next = overviewAnswers.length > 1 ? overviewAnswers.shift()! : overviewAnswers[0];
       return next();
     },
+    // The last 30 days read on their own (GwOverviewSummary); not among the calls the page's actions make.
+    summary: () => Promise.resolve(busySummary()),
   };
   const approvalsApi: Partial<ApprovalsApi> = {
     get: (id) =>
@@ -266,6 +268,20 @@ function openReview(el: HTMLElement): HTMLDialogElement | null {
 beforeEach(() => {
   localStorage.clear();
   setupPage();
+});
+
+describe('Overview last 30 days', () => {
+  it('sums up the month under the connection map, above the line about the last 24 hours', async () => {
+    const { el } = await render();
+    const month = el.querySelector('#ov-month')!;
+    expect(text(month.querySelector('#ov-month-title'))).toBe('Last 30 days');
+    expect([...month.querySelectorAll('.gw-stat__label')].map(text)).toEqual(['Calls', 'Denied by policy', 'Traffic in', 'Traffic out']);
+    expect(month.querySelectorAll('.gw-chart[role="img"]')).toHaveLength(2);
+    const order = [el.querySelector('#ov-detail')!, month, byText(el, 'p', '1,287 calls from your AI apps')!];
+    expect(order.every(Boolean)).toBe(true);
+    expect(order[0].compareDocumentPosition(order[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(order[1].compareDocumentPosition(order[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
 
 describe('Overview connection map', () => {

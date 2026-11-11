@@ -1102,7 +1102,7 @@ class ClientsIT {
     AuditWriter.Call call = new AuditWriter.Call(ai.msrv.gaterook.core.platform.Ids.next("tc_"), "dev",
         "gateway_status", "gateway_status", null, Env.DEV, caller, client, clientInfo, "2025-11-25",
         "4bf92f3577b34da6a3ce929d0e0e4736", "00f067aa0ba902b7", false, JsonNodeFactory.instance.objectNode(),
-        "0".repeat(64), null);
+        "0".repeat(64), 2L, null);
     AuditWriter writer = core.bean(AuditWriter.class);
     writer.received(call, AuditWriter.Received.of(AuditWriter.Verdict.ALLOWED, Classification.Kind.READ, null));
     writer.completed(call, new AuditWriter.Completion(AuditWriter.Verdict.ALLOWED, null, null, null, null, 3L, 3L,

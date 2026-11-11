@@ -37,6 +37,7 @@ import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.node.BooleanNode;
 
@@ -44,14 +45,15 @@ import tools.jackson.databind.node.BooleanNode;
  * Overview and onboarding (ARCHITECTURE.md §6 overview, onboarding; kit {@code overview.html}, {@code getting-started},
  * {@code setup-map}): getting started in the kit's six steps (master key backed up, a connection, an endpoint, a
  * client, a Playground call, approval notifications), the setup map's five nodes with their state, the day's numbers
- * against the day before, the three requests closest to their auto-deny, recent calls and the connections' health.
+ * against the day before, the three requests closest to their auto-deny, recent calls and the connections' health;
+ * and, read on its own because it reads a month of the audit, the last 30 days by day ({@link OverviewSummary}).
  */
 @RestController
 @RegisterReflectionForBinding({OverviewController.Overview.class, OverviewController.GettingStarted.class,
     OverviewController.Step.class, OverviewController.SetupMap.class, OverviewController.Node.class,
     OverviewController.Stats.class, OverviewController.Deltas.class, OverviewController.HealthRow.class,
     OverviewController.Onboarding.class, OverviewController.Skipped.class, ApprovalDtos.Item.class,
-    ActivityDtos.Event.class})
+    ActivityDtos.Event.class, OverviewSummary.Summary.class, OverviewSummary.Totals.class, OverviewSummary.Day.class})
 class OverviewController {
 
   static final String DISMISSED = "overview.getting-started-dismissed";
@@ -168,6 +170,20 @@ class OverviewController {
         .toList();
     return new Overview(gettingStarted(w), setupMap(w), stats, waiting, recent, health,
         monitor.interval().toSeconds());
+  }
+
+  /**
+   * The last 30 days, today included, day by day: calls by what they came to, what AI apps sent with them and what
+   * went back. {@code zone} is the person's ({@code Europe/Berlin}); without it, or one this runtime doesn't know, the
+   * computer's own.
+   */
+  @GetMapping("/api/overview/summary")
+  OverviewSummary.Summary summary(@RequestParam(name = "zone", required = false) String zone) {
+    java.time.ZoneId z = OverviewSummary.zone(zone);
+    Instant now = clock.instant();
+    Instant from = OverviewSummary.start(now, z);
+    return OverviewSummary.of(now, z, audit.firstCallAt().orElse(null), audit.histogram(null, from, now, 1),
+        audit.traffic(from, now));
   }
 
   /** 24 hours span 25 clock hours unless now is on the hour; the sparkline shows the 24 latest. */

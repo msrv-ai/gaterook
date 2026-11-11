@@ -39,8 +39,13 @@ public final class CanonicalJson {
 
   /** Lower-case hex SHA-256 of {@link #bytes}. */
   public static String sha256Hex(JsonNode node) {
+    return sha256Hex(bytes(node));
+  }
+
+  /** Lower-case hex SHA-256 of canonical bytes already written (one text for both its digest and its size). */
+  public static String sha256Hex(byte[] canonical) {
     try {
-      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes(node)));
+      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical));
     } catch (NoSuchAlgorithmException e) {
       throw new IllegalStateException(e);
     }

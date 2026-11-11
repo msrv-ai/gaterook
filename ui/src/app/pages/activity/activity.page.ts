@@ -69,6 +69,7 @@ import {
   retentionNote,
   revokeWords,
   sortRows,
+  trafficCell,
   tracesInRange,
   tracesPagerText,
   unsendable,
@@ -108,8 +109,8 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
  *   of Settings › Audit and retention; before step K5 the dialog says it isn't available yet).
  * - Agent calls: the log-explorer (query → tags, range, Live, saved views, facets, histogram by decision; a bar zooms
  *   into its hour) over Events and Traces.
- *   - Events: Time · Decision · Tool·connection · Client·endpoint · Duration, no sideways scroll at 1440 × 900; a
- *     waiting call has Review; Time and Duration sort; Load older calls. Each row opens the event-detail drawer at
+ *   - Events: Time · Decision · Tool·connection · Client·endpoint · Duration · Traffic (what the app sent, what went
+ *     back), no sideways scroll at 1440 × 900; a waiting call has Review; Time and Duration sort; Load older calls. Each row opens the event-detail drawer at
  *     `#event-<id>` (also a deep link): Copy link, Open trace, the approval, and Revoke of the access that made it.
  *   - Traces: the agents' tasks (title unverified, In progress / waiting for you / ended, phases), Load older tasks.
  *   - Empty: an hour without calls, a query nothing matches, a range without calls, and the first run (no call has
@@ -532,6 +533,10 @@ export class ActivityPage implements OnInit {
 
   protected durationText(e: ActivityEvent): string {
     return durationCell(e, this.time.now());
+  }
+
+  protected traffic(e: ActivityEvent) {
+    return trafficCell(e);
   }
 
   protected client(e: ActivityEvent) {

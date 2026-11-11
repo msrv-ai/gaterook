@@ -522,7 +522,7 @@ class AuditExportIT {
     args.put("connection", "dev-db");
     return new AuditWriter.Call(Ids.next("tc_"), "dev", tool, tool, "dev-db", Env.DEV, CODEX, "codex", null,
         "2025-11-25", HexFormat.of().formatHex(new byte[16]), "00f067aa0ba902b7", false, args,
-        CanonicalJson.sha256Hex(args), null);
+        CanonicalJson.sha256Hex(args), (long) CanonicalJson.bytes(args).length, null);
   }
 
   private static AuditWriter.Completion completion() {

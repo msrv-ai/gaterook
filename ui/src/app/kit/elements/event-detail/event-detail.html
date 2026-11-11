@@ -30,6 +30,12 @@
         <dd class="gw-kv__value gw-tabular">{{ duration() }}</dd>
       </div>
     }
+    @if (traffic(); as tr) {
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Traffic</dt>
+        <dd class="gw-kv__value gw-tabular">{{ tr }}</dd>
+      </div>
+    }
     @if (showEventId()) {
       <div class="gw-kv__row">
         <dt class="gw-kv__key">Event</dt>

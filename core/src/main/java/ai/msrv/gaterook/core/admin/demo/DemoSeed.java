@@ -591,7 +591,7 @@ class DemoSeed {
     return new AuditWriter.Call(callId, slug, pair.tool().name(), pair.toolKey(), pair.connectionName(),
         pair.config().env(), caller, caller.clientHint(), null, "2025-11-25", task == null
             ? HexFormat.of().formatHex(bytes(16)) : task.traceId(), HexFormat.of().formatHex(bytes(8)), task != null,
-        args, CanonicalJson.sha256Hex(args), facets);
+        args, CanonicalJson.sha256Hex(args), (long) CanonicalJson.bytes(args).length, facets);
   }
 
   private static Caller caller(JsonNode who) {

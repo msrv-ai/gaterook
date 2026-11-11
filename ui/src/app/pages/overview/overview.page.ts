@@ -37,6 +37,7 @@ import { OverviewConnectionTools } from './overview-connection-tools';
 import { activityLine, overviewState, retestToast, RetestResult } from './overview-view';
 import { MapConnection, endpointUnreachable, mapApps, mapConnections } from './overview-map-view';
 import { GwOverviewSetup } from './overview-setup';
+import { GwOverviewSummary } from './overview-summary';
 import { GwOverviewWires, OverviewWireTrace } from './overview-wires';
 import { OverviewRequestPath } from './overview-request-path';
 import { GwEndpointCreate } from '../endpoints/endpoint-create';
@@ -45,7 +46,7 @@ export const SKELETON_DELAY_MS = 300;
 /** The endpoint last chosen on Overview, which the page opens on the next visit. */
 export const ENDPOINT_STORAGE_KEY = 'gw-overview-endpoint';
 
-/** Live connection map for Overview. */
+/** Live connection map for Overview, with the last 30 days under it (GwOverviewSummary). */
 @Component({
   selector: 'gw-overview-page',
   imports: [
@@ -64,6 +65,7 @@ export const ENDPOINT_STORAGE_KEY = 'gw-overview-endpoint';
     GwSearchClearButton,
     GwSearchClear,
     GwOverviewSetup,
+    GwOverviewSummary,
     GwMcpSetupFlow,
     GwOverviewWires,
     OverviewConnectionTools,

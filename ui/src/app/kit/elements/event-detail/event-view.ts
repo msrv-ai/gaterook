@@ -353,6 +353,20 @@ export function resultStatus(d: EventDetail): TextPart[] {
   }
 }
 
+/**
+ * The call's traffic in the summary, as Activity's Traffic column says it: "312 B in · 48 KB out" — what the app
+ * sent (its arguments, from the received row) and what went back (from the completed row). A size the audit didn't
+ * keep is left out; neither: null.
+ */
+export function trafficText(d: EventDetail): string | null {
+  const { received, completed } = callRows(d);
+  const sent = received?.requestBytes ?? d.event.requestBytes ?? null;
+  const back = completed?.resultBytes ?? d.event.resultBytes ?? null;
+  const parts = [sent == null ? null : `${formatBytes(sent)} in`, back == null ? null : `${formatBytes(back)} out`];
+  const said = parts.filter((p): p is string => p !== null);
+  return said.length ? said.join(' · ') : null;
+}
+
 /** "312 B", "164 B (the error returned to Codex)". */
 export function sizeText(d: EventDetail): string | null {
   const { completed } = callRows(d);
