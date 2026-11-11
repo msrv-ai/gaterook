@@ -5041,6 +5041,251 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         }
       }
     }
+  },
+  "firestore": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Cloud Firestore",
+    "type": "object",
+    "x-card": {
+      "description": "Documents, collections and queries. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "project",
+      "credentials"
+    ],
+    "properties": {
+      "project": {
+        "type": "string",
+        "title": "Project",
+        "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$",
+        "examples": [
+          "acme-stage"
+        ],
+        "description": "The ID of the Google Cloud project that holds the database."
+      },
+      "database": {
+        "type": "string",
+        "title": "Database",
+        "default": "(default)",
+        "pattern": "^(\\(default\\)|[a-z][a-z0-9-]{2,61}[a-z0-9])$",
+        "examples": [
+          "(default)"
+        ],
+        "description": "The Firestore database ID: (default) for the project's default database."
+      },
+      "collections": {
+        "type": "array",
+        "title": "Collections",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "maxLength": 1500,
+          "pattern": "^/?[^/\\u0000-\\u001f\\u007f#%\\\\]+(/[^/\\u0000-\\u001f\\u007f#%\\\\]+)*$"
+        },
+        "examples": [
+          [
+            "orders",
+            "users/*/orders"
+          ]
+        ],
+        "description": "The collections agents may use. An ID such as orders or audit-* allows every collection with that ID, collection-group queries included; a path such as /orders or users/*/orders allows the collections at that path (* is one ID, ** any number). Empty: every collection the credentials may read."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Authentication",
+            "description": "Uses Application Default Credentials (ADC) on this computer. If sign-in is missing or expired, test the connection and choose Sign in with Google, or run gcloud auth application-default login in a terminal.",
+            "enum": [
+              "adc",
+              "serviceAccountKey"
+            ],
+            "default": "adc",
+            "x-enumTitles": [
+              "Existing Google sign-in (ADC)",
+              "Service account key (JSON)"
+            ]
+          },
+          "impersonate": {
+            "type": "string",
+            "title": "Service account to impersonate",
+            "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+            "examples": [
+              "gw-firestore@acme-stage.iam.gserviceaccount.com"
+            ],
+            "description": "Recommended: each token is borrowed for a few minutes and limited to Datastore and Firestore. Grant roles/datastore.viewer, or roles/datastore.user for approved changes."
+          },
+          "lifetimeSeconds": {
+            "type": "integer",
+            "title": "Token lifetime",
+            "minimum": 300,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s"
+          },
+          "quotaProject": {
+            "type": "string",
+            "title": "Billed project",
+            "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
+          }
+        },
+        "patternProperties": {
+          "^(serviceAccountKey)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "serviceAccountKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "serviceAccountKey": {
+                  "type": "string",
+                  "title": "Service account key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "x-widget": "textarea",
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "serviceAccountKey"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "firebase-rtdb": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Firebase Realtime Database",
+    "type": "object",
+    "x-card": {
+      "description": "Paths, shallow reads and queries. Changes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "databaseUrl",
+      "credentials"
+    ],
+    "properties": {
+      "databaseUrl": {
+        "type": "string",
+        "title": "Database URL",
+        "maxLength": 200,
+        "pattern": "^https://([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.firebaseio\\.com|[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.[a-z]{2,20}-[a-z]{2,20}[0-9]{1,2}\\.firebasedatabase\\.app)/?$",
+        "examples": [
+          "https://acme-default-rtdb.firebaseio.com",
+          "https://acme-eu.europe-west1.firebasedatabase.app"
+        ],
+        "description": "As the Firebase console shows it: https://<database>.firebaseio.com or https://<database>.<region>.firebasedatabase.app."
+      },
+      "paths": {
+        "type": "array",
+        "title": "Paths",
+        "maxItems": 50,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "maxLength": 768,
+          "pattern": "^[^/.$#\\[\\]%\\\\\\u0000-\\u001f\\u007f]+$"
+        },
+        "examples": [
+          [
+            "users",
+            "public-*"
+          ]
+        ],
+        "description": "The top-level paths agents may use, with everything under them; * matches any characters, such as public-*. Empty: the whole database."
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Authentication",
+            "description": "Uses Application Default Credentials (ADC) on this computer. If sign-in is missing or expired, test the connection and choose Sign in with Google, or run gcloud auth application-default login in a terminal. Your own sign-in keeps the scopes it was given; a key or an impersonated service account gets firebase.database and userinfo.email.",
+            "enum": [
+              "adc",
+              "serviceAccountKey"
+            ],
+            "default": "adc",
+            "x-enumTitles": [
+              "Existing Google sign-in (ADC)",
+              "Service account key (JSON)"
+            ]
+          },
+          "impersonate": {
+            "type": "string",
+            "title": "Service account to impersonate",
+            "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+            "examples": [
+              "gw-rtdb@acme-stage.iam.gserviceaccount.com"
+            ],
+            "description": "Recommended: each token is borrowed for a few minutes and limited to the Realtime Database. Grant roles/firebasedatabase.viewer, or roles/firebasedatabase.admin for approved changes."
+          },
+          "lifetimeSeconds": {
+            "type": "integer",
+            "title": "Token lifetime",
+            "minimum": 300,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s"
+          }
+        },
+        "patternProperties": {
+          "^(serviceAccountKey)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "serviceAccountKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "serviceAccountKey": {
+                  "type": "string",
+                  "title": "Service account key",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "x-widget": "textarea",
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "serviceAccountKey"
+              ]
+            }
+          }
+        ]
+      }
+    }
   }
 };
 
@@ -7978,6 +8223,356 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       },
       "advanced": {
         "maxMbBilled": 10240
+      }
+    }
+  },
+  "firestore": {
+    "sections": [
+      "/credentials"
+    ],
+    "loose": [
+      "/project",
+      "/database",
+      "/collections"
+    ],
+    "rows": {
+      "/credentials": [
+        [
+          "/credentials/source"
+        ],
+        [
+          "/credentials/serviceAccountKey"
+        ],
+        [
+          "/credentials/impersonate"
+        ],
+        [
+          "/credentials/lifetimeSeconds"
+        ],
+        [
+          "/credentials/quotaProject"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/project",
+        "kind": "text",
+        "title": "Project",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/database",
+        "kind": "text",
+        "title": "Database",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/collections",
+        "kind": "tags",
+        "title": "Collections",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/source",
+        "kind": "select",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "adc",
+          "serviceAccountKey"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/serviceAccountKey",
+        "kind": "secret",
+        "title": "Service account key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"serviceAccountKey\"]"
+        ],
+        "multiline": true,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/impersonate",
+        "kind": "text",
+        "title": "Service account to impersonate",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/lifetimeSeconds",
+        "kind": "number",
+        "title": "Token lifetime",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "s",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/quotaProject",
+        "kind": "text",
+        "title": "Billed project",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "database": "(default)",
+      "credentials": {
+        "source": "adc",
+        "lifetimeSeconds": 900
+      }
+    },
+    "prodDefaults": {
+      "database": "(default)",
+      "credentials": {
+        "source": "adc",
+        "lifetimeSeconds": 900
+      }
+    }
+  },
+  "firebase-rtdb": {
+    "sections": [
+      "/credentials"
+    ],
+    "loose": [
+      "/databaseUrl",
+      "/paths"
+    ],
+    "rows": {
+      "/credentials": [
+        [
+          "/credentials/source"
+        ],
+        [
+          "/credentials/serviceAccountKey"
+        ],
+        [
+          "/credentials/impersonate"
+        ],
+        [
+          "/credentials/lifetimeSeconds"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/databaseUrl",
+        "kind": "text",
+        "title": "Database URL",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/paths",
+        "kind": "tags",
+        "title": "Paths",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/source",
+        "kind": "select",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "adc",
+          "serviceAccountKey"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/serviceAccountKey",
+        "kind": "secret",
+        "title": "Service account key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.source in [\"serviceAccountKey\"]"
+        ],
+        "multiline": true,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/impersonate",
+        "kind": "text",
+        "title": "Service account to impersonate",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/lifetimeSeconds",
+        "kind": "number",
+        "title": "Token lifetime",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "s",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "credentials": {
+        "source": "adc",
+        "lifetimeSeconds": 900
+      }
+    },
+    "prodDefaults": {
+      "credentials": {
+        "source": "adc",
+        "lifetimeSeconds": 900
       }
     }
   },

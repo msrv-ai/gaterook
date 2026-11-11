@@ -129,6 +129,8 @@ export function signInTarget(type: string): string {
     case 'aws':
     case 'dynamodb':
     case 'bigquery':
+    case 'firestore':
+    case 'firebase-rtdb':
       return 'the cloud account';
     default:
       return 'the service';

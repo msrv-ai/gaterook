@@ -57,7 +57,7 @@ GateRook applies its MCP Firewall controls to built-in connectors and external M
 | Service | Supported capabilities |
 | --- | --- |
 | SQL databases | PostgreSQL and [CockroachDB](docs/cockroachdb.md), MySQL/MariaDB, [Oracle Database](docs/oracle.md), [SQL Server](docs/sql-server.md), and [SQLite](docs/sqlite.md) files: inspect schemas, query data, and review changes before execution |
-| Document and key-value stores | MongoDB document queries and updates; [Redis](docs/redis.md) key inspection, reads, and reviewed value writes; [Amazon DynamoDB](docs/dynamodb.md) Query, Scan and PartiQL with reviewed changes |
+| Document and key-value stores | MongoDB document queries and updates; [Redis](docs/redis.md) key inspection, reads, and reviewed value writes; [Amazon DynamoDB](docs/dynamodb.md) Query, Scan and PartiQL with reviewed changes; [Cloud Firestore](docs/firestore.md) documents and queries and the [Firebase Realtime Database](docs/firebase-rtdb.md) paths, with reviewed writes |
 | Data warehouses | [Google BigQuery](docs/bigquery.md): datasets, tables and GoogleSQL reads checked by a dry run and capped in bytes, with reviewed changes |
 | Search engines | OpenSearch and Elasticsearch: discover indices, query documents, and review administrative requests |
 | Logs | [GCP Cloud Logging](docs/gcp-logs.md), AWS CloudWatch Logs, Loki, and [selected log files over SSH](docs/ssh-log-files.md): search and read logs within configured limits |
@@ -181,6 +181,8 @@ For the full connector integration suite, follow [the Docker test-services guide
 | [SQLite](docs/sqlite.md) | Choosing the database file, read-only handles, file rules, and SQLite-specific limits |
 | [Amazon DynamoDB](docs/dynamodb.md) | Roles and session policies, Query, Scan and PartiQL, and approved changes |
 | [Google BigQuery](docs/bigquery.md) | Credentials and datasets, dry runs and byte limits, GoogleSQL reads, and approved changes |
+| [Cloud Firestore](docs/firestore.md) | Google identities, collection lists, queries, and approved document writes |
+| [Firebase Realtime Database](docs/firebase-rtdb.md) | Database URLs, path lists, shallow reads and queries, and approved writes |
 | [Redis](docs/redis.md) | Reading and writing values, expiration, key and database scopes, and write limits |
 | [GCP logs](docs/gcp-logs.md) | Logs Explorer filters, GKE logs, credentials, scopes, and endpoint access |
 | [SSH log files](docs/ssh-log-files.md) | Remote file selection, searching, latest records, time ranges, and continuation |
