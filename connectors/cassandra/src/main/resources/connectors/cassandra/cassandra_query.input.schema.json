@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "statement"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "statement": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000,
+      "description": "One CQL SELECT, such as SELECT * FROM shop.orders WHERE customer_id = ? LIMIT 50. Filter by the partition key; ALLOW FILTERING is refused."
+    },
+    "values": {
+      "type": [
+        "array",
+        "object"
+      ],
+      "maxItems": 100,
+      "maxProperties": 100,
+      "description": "Values of the markers: an array for ?, in order, or an object for :name. By column type: strings for text, uuid, inet, date (2026-11-11), time and duration; numbers (bigint, varint and decimal also as strings); true or false; timestamps as ISO-8601 or epoch milliseconds; blobs as 0x hex; arrays for list, set, tuple and vector; objects for map and UDT."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000,
+      "default": 100,
+      "description": "Most rows to return; the endpoint caps it."
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 8192,
+      "description": "nextCursor of the previous answer, with the same statement and values; leave it out for the first page."
+    }
+  }
+}

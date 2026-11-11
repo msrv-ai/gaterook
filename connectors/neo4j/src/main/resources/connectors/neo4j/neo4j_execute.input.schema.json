@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "cypher"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "cypher": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100000,
+      "description": "One Cypher write: CREATE, MERGE, SET, DELETE, REMOVE or FOREACH, or a CREATE or DROP of an index or constraint. A person approves the exact statement with Neo4j's plan of it; it runs once, in one transaction."
+    },
+    "parameters": {
+      "type": "object",
+      "maxProperties": 100,
+      "propertyNames": {
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+      },
+      "description": "Values of the statement's $parameters: strings, numbers, booleans, null, lists and maps."
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Why you need this change. Shown to the approver as unverified."
+    }
+  }
+}

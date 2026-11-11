@@ -1,0 +1,28 @@
+{
+  "area": "cosmosdb",
+  "module": "connectors/cosmosdb",
+  "connectorTypes": ["cosmosdb"],
+  "description": "Touches of the Cosmos DB connector for the native smoke (report 15 §6): the container and database lists and the schemas in the image, without I/O. A touch calls only a tool the core publishes for its connection (cosmosdb_execute isn't offered for a read-only key).",
+  "touches": [
+    {
+      "name": "cosmosdb-container-not-allowed",
+      "connection": {"type": "cosmosdb", "env": "dev",
+        "config": {"endpoint": "https://acme-dev.documents.azure.com", "containers": ["app/orders"],
+          "auth": {"method": "key", "keyKind": "readOnly"}},
+        "secrets": {"/auth/accountKey": "smoke-only-0001"}},
+      "call": {"tool": "cosmosdb_query", "arguments": {"database": "app", "container": "secrets",
+        "query": "SELECT * FROM c"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.cosmosdb.container-not-allowed"}
+    },
+    {
+      "name": "cosmosdb-change-outside-the-listed-databases",
+      "connection": {"type": "cosmosdb", "env": "dev",
+        "config": {"endpoint": "https://acme-dev.documents.azure.com", "databases": ["app"],
+          "auth": {"method": "key", "keyKind": "readWrite"}},
+        "secrets": {"/auth/accountKey": "smoke-only-0001"}},
+      "call": {"tool": "cosmosdb_execute", "arguments": {"database": "billing", "container": "invoices",
+        "operation": "delete", "id": "i-1", "partitionKey": "c-42"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.cosmosdb.database-not-allowed"}
+    }
+  ]
+}

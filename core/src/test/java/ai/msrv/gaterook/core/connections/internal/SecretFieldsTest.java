@@ -245,6 +245,18 @@ class SecretFieldsTest {
         + "\"region\":\"auto\"}"))).as("S3-compatible storage").isEqualTo("https://0123abcd.r2.cloudflarestorage.com");
     assertThat(ConnectionTargets.display(j("{\"endpoint\":\"http://minio.internal:9000\",\"region\":\"us-east-1\"}")))
         .isEqualTo("http://minio.internal:9000");
+    assertThat(ConnectionTargets.display(j("{\"endpoint\":\"https://acme-orders.documents.azure.com:443/\"}")))
+        .as("Azure Cosmos DB: an endpoint keeps its scheme").isEqualTo("https://acme-orders.documents.azure.com:443");
+    assertThat(ConnectionTargets.display(j("{\"uri\":\"neo4j+s://graph.example.com:7687\",\"database\":\"neo4j\"}")))
+        .as("Neo4j").isEqualTo("graph.example.com:7687");
+    assertThat(ConnectionTargets.display(j("{\"host\":\"https://adb-1234567890123456.7.azuredatabricks.net\","
+        + "\"warehouseId\":\"0123456789abcdef\"}"))).as("Databricks")
+        .isEqualTo("adb-1234567890123456.7.azuredatabricks.net");
+    assertThat(ConnectionTargets.display(j("{\"contactPoints\":[\"cassandra-1.example.test:9042\",\"10.0.4.12\"],"
+        + "\"localDataCenter\":\"dc1\"}"))).as("Cassandra").isEqualTo("cassandra-1.example.test:9042 (+1) · dc1");
+    assertThat(ConnectionTargets.changedTarget(j("{\"contactPoints\":[\"cassandra-1.example.test\"]}"),
+        j("{\"contactPoints\":[\"cassandra-1.example.test\",\"203.0.113.9\"]}")))
+        .as("a password goes to every contact point").contains("203.0.113.9");
   }
 
   /** Review API #5: never user info, a query or a fragment — however the URI was typed. */

@@ -16,6 +16,7 @@ import { GwAriaDisabled } from '../../aria-disabled';
 import { GwDialog, GwDialogClose, GwDialogOpen } from '../../dialog';
 import { GwEnableWhen } from '../../enable-when';
 import { GwIcon } from '../../icons';
+import { connectorMark } from '../shared/connector-categories';
 import { literalParts } from '../shared/literals';
 
 /** The kind badge: Built-in (neutral, it is also the trust), Template, Plugin, MCP server (outline). */
@@ -148,7 +149,9 @@ export class GwConnectorCard {
 /**
  * `<fieldset gwConnectorPicker [groups]="catalog.groups" [(value)]="type">` (connector card component, Picker): step
  * 1 of Add connection — radio cards grouped by category, one radio group across all of them so the arrow keys move
- * through every type. Built-in types say so with their tool count; packages carry their kind and trust; a type that
+ * through every type. A type shows its vendor's mark (`gw-choice-card__mark`, kit `assets/integrations/`) where it has
+ * one, else its icon. The page puts the categories and the search above it (`connectorCategories`,
+ * `filterConnectorGroups`). Built-in types say so with their tool count; packages carry their kind and trust; a type that
  * isn't installed stays visible and focusable but unavailable (`aria-disabled`, its reason as the description).
  * `error` marks every card and says what to do ("Choose a connector type to continue.").
  */
@@ -169,6 +172,7 @@ export class GwConnectorPicker {
 
   protected readonly uid = `pk-${++nextId}`;
   protected readonly kindBadge = kindBadge;
+  protected readonly mark = connectorMark;
 
   protected key(c: ConnectorCard): string {
     return c.variant ? `${c.type}:${c.variant}` : c.type;

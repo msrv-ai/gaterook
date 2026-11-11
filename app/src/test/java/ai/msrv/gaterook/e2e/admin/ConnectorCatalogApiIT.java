@@ -77,10 +77,28 @@ class ConnectorCatalogApiIT {
           "Datasets, tables and GoogleSQL queries with a cost limit. Changes wait for approval."),
       new KitCard("Databases", "snowflake", null, "Snowflake", "database", "built-in", 4,
           "Read queries, schemas and tables. Changes wait for approval."),
+      new KitCard("Databases", "redshift", null, "Amazon Redshift", "database", "built-in", 5,
+          "Schemas, tables and SQL queries in read-only transactions. Changes wait for approval."),
+      new KitCard("Databases", "databricks", null, "Databricks SQL", "database", "built-in", 6,
+          "Unity Catalog tables and Databricks SQL queries on a SQL warehouse. Changes wait for approval."),
+      new KitCard("Databases", "trino", null, "Trino / Presto", "database", "built-in", 6,
+          "Catalogs, schemas and SQL reads checked by Trino's own plan. Changes wait for approval."),
+      new KitCard("Databases", "athena", null, "Amazon Athena", "database", "built-in", 6,
+          "Data catalogs, databases and SQL reads within a workgroup's limits. Changes wait for approval."),
       new KitCard("Databases", "firestore", null, "Cloud Firestore", "database", "built-in", 4,
           "Documents, collections and queries. Changes wait for approval."),
       new KitCard("Databases", "firebase-rtdb", null, "Firebase Realtime Database", "database", "built-in", 2,
           "Paths, shallow reads and queries. Changes wait for approval."),
+      new KitCard("Databases", "cosmosdb", null, "Azure Cosmos DB", "database", "built-in", 6,
+          "Databases, containers, SQL queries and items. Changes wait for approval."),
+      new KitCard("Databases", "cassandra", null, "Apache Cassandra", "database", "built-in", 4,
+          "Keyspaces, tables and CQL reads on Cassandra and CQL-compatible services. Changes wait for approval."),
+      new KitCard("Databases", "neo4j", null, "Neo4j", "waypoints", "built-in", 3,
+          "Cypher reads in read-only transactions, the graph's schema and its nodes and paths. Writes wait for approval."),
+      new KitCard("Databases", "prometheus", null, "Prometheus", "activity", "built-in", 9,
+          "PromQL queries, series, labels, targets, rules and alerts of Prometheus-compatible servers. Read only."),
+      new KitCard("Databases", "influxdb", null, "InfluxDB", "activity", "built-in", 5,
+          "Databases, measurements and SQL or InfluxQL reads of InfluxDB 3, 2.x and 1.x. Writes wait for approval."),
       new KitCard("Databases", "opensearch", null, "OpenSearch", "database", "built-in", 3,
           "Query OpenSearch indices and use its REST API. Administrative requests require approval by default."),
       new KitCard("Databases", "elasticsearch", null, "Elasticsearch", "database", "built-in", 3,
@@ -165,7 +183,7 @@ class ConnectorCatalogApiIT {
 
     // Connectors › Installed: one row per type, the MCP server type isn't one (its servers are, with K5).
     List<String> installed = each(catalog.path("installed"), "id");
-    assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "sqlite", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "firestore", "firebase-rtdb", "opensearch", "elasticsearch", "ssh", "gcp-logging", "cloudwatch", "azure-monitor", "loki", "ssh-logs", "kubernetes",
+    assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "sqlite", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "redshift", "databricks", "trino", "athena", "firestore", "firebase-rtdb", "cosmosdb", "cassandra", "neo4j", "prometheus", "influxdb", "opensearch", "elasticsearch", "ssh", "gcp-logging", "cloudwatch", "azure-monitor", "loki", "ssh-logs", "kubernetes",
         "gcp", "aws", "azure", "cloudflare", "s3", "http");
     for (JsonNode row : catalog.path("installed")) {
       assertThat(row.path("state").asString()).isEqualTo("enabled");

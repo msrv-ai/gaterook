@@ -128,8 +128,8 @@ class CoreProcessIT {
       assertThat(core.untilReady(READY).getLast().get("ready").asBoolean()).as(core.stderr()).isTrue();
       try (Connection db = readOnly(home)) {
         assertThat(rows(db, "select id from connector_type where kind = 'BUILT_IN' and mac is not null order by id"))
-            .containsExactly("aws", "azure", "azure-monitor", "bigquery", "cloudflare", "cloudwatch", "dynamodb", "elasticsearch", "firebase-rtdb", "firestore", "gcp", "gcp-logging", "http", "kubernetes", "logs", "loki",
-                "mongodb", "mysql", "opensearch", "oracle", "postgres", "redis", "s3", "snowflake", "sqlite", "sqlserver", "ssh", "ssh-logs");
+            .containsExactly("athena", "aws", "azure", "azure-monitor", "bigquery", "cassandra", "cloudflare", "cloudwatch", "cosmosdb", "databricks", "dynamodb", "elasticsearch", "firebase-rtdb", "firestore", "gcp", "gcp-logging", "http", "influxdb", "kubernetes", "logs", "loki",
+                "mongodb", "mysql", "neo4j", "opensearch", "oracle", "postgres", "prometheus", "redis", "redshift", "s3", "snowflake", "sqlite", "sqlserver", "ssh", "ssh-logs", "trino");
         assertThat(rows(db, "select id from connector_type where mac is null")).isEmpty();
         assertThat(rows(db, "select env || ':' || coalesce(inherits, '-') from policy where mac is not null "
             + "order by env")).containsExactly("dev:-", "prod:-", "stage:dev");

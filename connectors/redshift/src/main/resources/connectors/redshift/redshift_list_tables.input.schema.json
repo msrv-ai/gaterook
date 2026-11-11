@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "schema"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "schema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 127,
+      "description": "A schema of the connection's database; quote a name with capitals as \"Name\"."
+    },
+    "pattern": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Only tables whose names match this LIKE pattern: % matches any characters, _ one."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 100,
+      "description": "Most tables to return."
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 8192,
+      "description": "nextCursor of the previous answer; leave it out for the first page."
+    }
+  }
+}

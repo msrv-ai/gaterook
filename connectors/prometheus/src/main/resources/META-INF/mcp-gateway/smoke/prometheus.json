@@ -1,0 +1,17 @@
+{
+  "area": "prometheus",
+  "module": "connectors/prometheus",
+  "connectorTypes": ["prometheus"],
+  "description": "Touches of the Prometheus connector for the native smoke (report 15 §6): the request planner, its duration and time parsing and the schemas in the image, without I/O.",
+  "touches": [
+    {
+      "name": "prometheus-classify-without-io",
+      "connection": {"type": "prometheus", "env": "dev",
+        "config": {"url": "https://prometheus.example.com", "auth": {"mode": "none"}}},
+      "call": {"tool": "prometheus_query_range",
+        "arguments": {"query": "rate(http_requests_total[5m])", "start": "2026-11-01T00:00:00Z",
+          "end": "2026-11-08T00:00:00Z", "step": "15s"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.prometheus.too-many-points"}
+    }
+  ]
+}

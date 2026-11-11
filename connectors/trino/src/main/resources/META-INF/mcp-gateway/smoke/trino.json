@@ -1,0 +1,16 @@
+{
+  "area": "trino",
+  "module": "connectors/trino",
+  "connectorTypes": ["trino"],
+  "description": "Touches of the Trino connector for the native smoke (report 15 §6): the Trino SQL reader and the schemas in the image, without I/O.",
+  "touches": [
+    {
+      "name": "trino-classify-without-io",
+      "connection": {"type": "trino", "env": "dev",
+        "config": {"url": "https://trino.example.com:8443", "auth": {"mode": "basic", "user": "gaterook_reader"}},
+        "secrets": {"/auth/password": "smoke-only-0001"}},
+      "call": {"tool": "trino_query", "arguments": {"sql": "DELETE FROM hive.sales.orders WHERE true"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.trino.query-writes"}
+    }
+  ]
+}
