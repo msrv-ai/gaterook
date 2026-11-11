@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "query"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "query": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8192,
+      "description": "One PromQL expression that gives an instant vector or a scalar, such as rate(http_requests_total[5m])."
+    },
+    "start": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Start of the range: ISO 8601 with an offset (2026-11-11T09:00:00Z) or relative to now (-1h, now-30m, now). Default: one hour before end."
+    },
+    "end": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "End of the range: ISO 8601 with an offset (2026-11-11T09:00:00Z) or relative to now (-1h, now-30m, now). Default: now."
+    },
+    "step": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "description": "Time between points: a duration (30s, 5m, 1h) or seconds (15). Default: about 120 points over the range. (end - start) / step + 1 may not exceed the connection's points per series."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000,
+      "description": "Most series to return; the connection and the endpoint cap it."
+    }
+  }
+}

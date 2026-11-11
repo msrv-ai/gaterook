@@ -41,11 +41,13 @@ import { ProjectDiscoveryRequest } from '../../kit/elements/connection-form/clou
 import { databaseSelection, removeConfigPath } from '../../kit/elements/connection-form/database-selection';
 import { GwConnectionTest, TestState, testConfirmTitle, testFacts, usesGoogleAdc } from '../../kit/elements/connection-form/connection-test';
 import { GwConnectorPicker } from '../../kit/elements/connector-card/connector-card';
+import { connectorCategories, filterConnectorGroups } from '../../kit/elements/shared/connector-categories';
 import { clientName } from '../../kit/elements/shared/client-mark';
 import { connectorIcon } from '../../kit/elements/shared/connector-icons';
 import { MODES, healthLook } from '../../kit/elements/shared/dictionaries';
 import { literalParts } from '../../kit/elements/shared/literals';
 import { GwIcon } from '../../kit/icons';
+import { GwSearchClear, GwSearchClearButton } from '../../kit/search';
 import { GwTabs } from '../../kit/tabs';
 import { ToastService } from '../../kit/toast.service';
 import { getAt, setAt } from '../../schema-form/compile';
@@ -161,6 +163,8 @@ interface ReferenceChange {
     GwDialogClose,
     GwCodeBlock,
     GwConnectorPicker,
+    GwSearchClear,
+    GwSearchClearButton,
     GwConnectionForm,
     GwConnectionTest,
     GwAccessSwitch,
@@ -221,6 +225,18 @@ export class ConnectionNewPage {
   protected readonly pickError = signal<string | null>(null);
   protected readonly groups = computed(() => this.catalog()?.groups ?? []);
   protected readonly card = computed(() => findCard(this.groups(), this.selected()));
+  /** The search above the picker: it filters the types by name, other names, description and category. */
+  protected readonly typeQuery = signal('');
+  /** The core's groups split into the picker's categories (SQL databases, NoSQL databases, Data warehouses…). */
+  protected readonly categories = computed(() => connectorCategories(this.groups()));
+  protected readonly pickerGroups = computed(() => filterConnectorGroups(this.categories(), this.typeQuery()));
+  /** "34 connector types", or "3 of 34 connector types" while searching (a status region reads it). */
+  protected readonly typeCountText = computed(() => {
+    const total = this.categories().reduce((n, g) => n + g.cards.length, 0);
+    const shown = this.pickerGroups().reduce((n, g) => n + g.cards.length, 0);
+    const all = `${total} connector ${total === 1 ? 'type' : 'types'}`;
+    return this.typeQuery().trim() ? `${shown} of ${all}` : all;
+  });
   /** "3 connections use PostgreSQL" under the picker (ARCHITECTURE.md §8.4). */
   protected readonly usage = computed(() => {
     const c = this.card();
@@ -616,6 +632,18 @@ export class ConnectionNewPage {
       if (gen !== this.gen) return;
       this.catalogError.set(isApiError(e) ? e : null);
       this.catalogState.set('error');
+    }
+  }
+
+  /**
+   * Enter in the search never submits step 1 (that would continue with a type the search may hide): when exactly one
+   * available type matches, it picks that one.
+   */
+  protected onTypeSearchEnter(event: Event): void {
+    event.preventDefault();
+    const shown = this.pickerGroups().flatMap((g) => g.cards).filter((c) => c.available);
+    if (this.typeQuery().trim() && shown.length === 1) {
+      this.onPick(shown[0].variant ? `${shown[0].type}:${shown[0].variant}` : shown[0].type);
     }
   }
 

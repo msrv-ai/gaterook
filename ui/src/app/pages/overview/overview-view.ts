@@ -384,6 +384,24 @@ export function checkPrompt(type: string | null, name: string | null): string {
     case 'loki':
     case 'ssh-logs':
       return `Show me the latest errors in ${name}`;
+    case 'prometheus':
+      return `Show me the targets Prometheus scrapes in ${name}`;
+    case 'influxdb':
+      return `Show me the measurements in ${name}`;
+    case 'redshift':
+      return `Show me the tables in ${name}`;
+    case 'databricks':
+      return `Show me the tables in ${name}`;
+    case 'trino':
+      return `Show me the tables in ${name}`;
+    case 'athena':
+      return `Show me the tables in ${name}`;
+    case 'cosmosdb':
+      return `Show me the containers in ${name}`;
+    case 'neo4j':
+      return `Show me the node labels in ${name}`;
+    case 'cassandra':
+      return `Show me the keyspaces in ${name}`;
     default:
       return `Show me what you can see in ${name}`;
   }

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "database",
+    "container"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "database": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "The database's ID."
+    },
+    "container": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "The container's ID, as cosmosdb_list_containers returns it."
+    }
+  }
+}

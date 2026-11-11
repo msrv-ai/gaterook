@@ -1,0 +1,33 @@
+# Prometheus of the test services (connectors/prometheus PrometheusIT): it scrapes itself every 5 s, keeps a target
+# that is down and one that relabeling drops, and evaluates the rules of gw-rules.yml. No admin, lifecycle or remote
+# write endpoint is turned on; the TSDB lives in the container's tmpfs.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+  external_labels:
+    gw_test: prometheus
+
+rule_files:
+  - /etc/prometheus/gw-rules.yml
+
+scrape_configs:
+  - job_name: prometheus
+    scrape_native_histograms: true
+    static_configs:
+      - targets: ["127.0.0.1:9090"]
+
+  # Nothing listens on port 9 in the container: a target with health down and a last error.
+  - job_name: gw-it-down
+    static_configs:
+      - targets: ["127.0.0.1:9"]
+
+  # Discovered, then dropped by relabeling: what prometheus_targets lists with state dropped.
+  - job_name: gw-it-dropped
+    static_configs:
+      - targets: ["127.0.0.1:9091"]
+        labels:
+          gw_drop: "yes"
+    relabel_configs:
+      - source_labels: [gw_drop]
+        regex: "yes"
+        action: drop

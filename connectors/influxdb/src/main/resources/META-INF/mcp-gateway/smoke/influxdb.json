@@ -1,0 +1,32 @@
+{
+  "area": "influxdb",
+  "module": "connectors/influxdb",
+  "connectorTypes": ["influxdb"],
+  "description": "Touches of the InfluxDB connector for the native smoke (report 15 §6): the InfluxQL and SQL readers, the line protocol reader and the schemas in the image, without I/O.",
+  "touches": [
+    {
+      "name": "influxdb-influxql-classify-without-io",
+      "connection": {"type": "influxdb", "env": "dev",
+        "config": {"url": "https://influxdb.example.com:8086", "version": "2", "auth": {"method": "token"}},
+        "secrets": {"/auth/token": "smoke-only-0001"}},
+      "call": {"tool": "influxdb_query", "arguments": {"database": "metrics", "query": "SELECT usage INTO cpu_copy FROM cpu"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.influxdb.query-writes"}
+    },
+    {
+      "name": "influxdb-sql-classify-without-io",
+      "connection": {"type": "influxdb", "env": "dev",
+        "config": {"url": "https://influxdb.example.com:8181", "version": "3", "auth": {"method": "token"}},
+        "secrets": {"/auth/token": "smoke-only-0001"}},
+      "call": {"tool": "influxdb_query", "arguments": {"database": "metrics", "query": "SELECT 1; DELETE FROM cpu"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.influxdb.forbidden"}
+    },
+    {
+      "name": "influxdb-line-protocol-without-io",
+      "connection": {"type": "influxdb", "env": "dev",
+        "config": {"url": "https://influxdb.example.com:8181", "version": "3", "auth": {"method": "token"}},
+        "secrets": {"/auth/token": "smoke-only-0001"}},
+      "call": {"tool": "influxdb_write", "arguments": {"database": "metrics", "lines": "cpu,host=web\\\\1 usage=1"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.influxdb.bad-line-protocol"}
+    }
+  ]
+}

@@ -211,8 +211,10 @@ class ConnectionImportSummaryTest {
     assertThat(endpoint).startsWith("https://" + host + ":8443/").endsWith("…").hasSizeLessThanOrEqualTo(512);
     String label = summary.path("settings").get(1).path("value").asString();
     assertThat(label).hasSize(200).endsWith("…");
-    // No connection.host names it: the target line is the first setting that says where credentials go.
-    assertThat(summary.path("target").asString()).isEqualTo(endpoint);
+    // The target line names the endpoint as the connection list does (an Azure Cosmos DB account's endpoint):
+    // its address without the scheme, cut from the end, so the host stays.
+    assertThat(summary.path("target").asString()).startsWith(host + ":8443/").endsWith("…")
+        .hasSizeLessThanOrEqualTo(512);
   }
 
   @Test

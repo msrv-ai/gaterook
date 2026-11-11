@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # The real servers the connectors' integration tests can use instead of starting their own (test-services/README.md).
 #
-#   scripts/test-services.sh up [profile…]   start and wait until healthy; default: everything but k8s and sqlserver
+#   scripts/test-services.sh up [profile…]   start and wait until healthy; default: sql mongo redis logs aws vault ssh
 #   scripts/test-services.sh down            stop and remove the containers (disposable data is removed with them)
 #   scripts/test-services.sh run <command…>  run a command (mvn … -Pservices) as the only user of the servers: the ITs
 #                                            reset them, so two runs at once (two worktrees) would spoil each other
 #   scripts/test-services.sh ps | logs [service…] | env
 #
-# Profiles: sql oracle sqlserver cockroach mongo redis logs aws dynamodb vault ssh k8s all. Then: mvn -B -ntp verify -Pservices
+# Profiles: sql oracle sqlserver cockroach trino cosmosdb cassandra mongo neo4j redis logs aws dynamodb prometheus influxdb vault ssh k8s all. Then: mvn -B -ntp verify -Pservices
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 dir="$root/test-services"

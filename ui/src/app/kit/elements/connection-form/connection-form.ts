@@ -113,6 +113,10 @@ export function signInTarget(type: string): string {
     case 'redis':
     case 'opensearch':
     case 'elasticsearch':
+    case 'influxdb':
+    case 'trino':
+    case 'neo4j':
+    case 'cassandra':
       return 'the database';
     case 'ssh':
     case 'ssh-logs':
@@ -134,7 +138,14 @@ export function signInTarget(type: string): string {
     case 'bigquery':
     case 'firestore':
     case 'firebase-rtdb':
+    case 'redshift':
+    case 'athena':
+    case 'cosmosdb':
       return 'the cloud account';
+    case 'prometheus':
+      return 'the metrics server';
+    case 'databricks':
+      return 'the workspace';
     default:
       return 'the service';
   }
