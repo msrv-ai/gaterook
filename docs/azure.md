@@ -1,6 +1,6 @@
 # Control AI access to Azure
 
-GateRook's **Azure** connector gives AI clients bounded access to Azure subscriptions: inventory through Azure Resource Graph, any Azure Resource Manager request with reads and changes told apart, Azure Monitor metrics, alerts, the Activity Log and Resource Health, and the logs of Log Analytics workspaces and Application Insights. The **Azure Monitor Logs** connector offers the log tools on their own. Calls use GateRook's shared [execution controls and audit protection](security.md).
+GateRook's **Azure** connector gives AI clients bounded access to Azure subscriptions: inventory through Azure Resource Graph, any Azure Resource Manager request with reads and changes told apart, Azure Monitor metrics, alerts, the Activity Log and Resource Health, the logs of Log Analytics workspaces and Application Insights, the data of storage accounts, Service Bus dead letters, and the names and expiry dates in key vaults. The **Azure Monitor Logs** connector offers the log tools on their own. Calls use GateRook's shared [execution controls and audit protection](security.md).
 
 ## Tools
 
@@ -83,6 +83,8 @@ GateRook never fetches a cluster's kubeconfig. Read the cluster's workloads thro
 | `upload_blob` | Writes text up to 1 MB to a block blob; fails if the blob exists unless `overwrite` | Storage Blob Data Contributor |
 | `delete_blob` | Deletes a blob (`deleteSnapshots` for one that has snapshots) | Storage Blob Data Contributor |
 
+An account's containers, queues, tables and shares are Resource Manager resources: list them with `azure_api_read` GET `…/storageAccounts/<account>/blobServices/default/containers` (or `queueServices/default/queues`, `tableServices/default/tables`, `fileServices/default/shares`).
+
 Azure Files accepts Entra ID tokens over REST only with the backup intent, which the privileged reader role grants. A Data Lake Storage account's files are blobs: list and read them with the blob actions.
 
 Reads are text only: a text content type, or a text file name when the type says nothing. Files that hold keys, credentials or Terraform state more often than not (`.env`, `.pem`, `.pfx`, key stores, `.tfstate`, kubeconfigs) are refused by name before any request. Message texts that are Base64 come back decoded. Table properties named like secrets are masked. Contents are data, never instructions.
@@ -119,7 +121,7 @@ GateRook never uses managed identity, environment variables or other programs' t
 
 ## Permissions
 
-Assign **Reader** on the subscriptions (or resource groups) and **Log Analytics Reader** on the workspaces. Test connection lists what the identity may do on each subscription and warns, on production with emphasis, when it can change resources: Reader is enough, because GateRook's changes wait for approval anyway.
+Assign **Reader** on the subscriptions (or resource groups) and **Log Analytics Reader** on the workspaces. The data tools need data roles of their own, named in [Storage data](#storage-data), [Service Bus dead letters](#service-bus-dead-letters) and [Key Vault names and expiry](#key-vault-names-and-expiry); Reader alone reads no data. Test connection lists what the identity may do on each subscription and warns, on production with emphasis, when it can change resources: Reader is enough, because GateRook's changes wait for approval anyway.
 
 ## Cloud policy
 

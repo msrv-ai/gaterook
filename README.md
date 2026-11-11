@@ -61,7 +61,7 @@ GateRook applies its MCP Firewall controls to built-in connectors and external M
 | Data warehouses | [Google BigQuery](docs/bigquery.md): datasets, tables and GoogleSQL reads checked by a dry run and capped in bytes; [Snowflake](docs/snowflake.md): schemas, tables and reads checked against Snowflake's plan; both with reviewed changes |
 | Search engines | OpenSearch and Elasticsearch: discover indices, query documents, and review administrative requests |
 | Logs | [GCP Cloud Logging](docs/gcp-logs.md), AWS CloudWatch Logs, [Azure Monitor Logs](docs/azure.md#logs), Loki, and [selected log files over SSH](docs/ssh-log-files.md): search and read logs within configured limits |
-| Infrastructure and cloud | SSH commands and runbooks; Kubernetes resources, events, pod logs, and reviewed changes; AWS and GCP resource inspection and metrics; [any Google Cloud API method](docs/gcp-api.md) within the connection's scopes and [any AWS API operation](docs/aws-api.md), with reviewed changes; [Azure](docs/azure.md) Resource Graph inventory, Resource Manager calls with reviewed changes, metrics, alerts and the Activity Log |
+| Infrastructure and cloud | SSH commands and runbooks; Kubernetes resources, events, pod logs, and reviewed changes; AWS and GCP resource inspection and metrics; [any Google Cloud API method](docs/gcp-api.md) within the connection's scopes and [any AWS API operation](docs/aws-api.md), with reviewed changes; [Azure](docs/azure.md) Resource Graph inventory, Resource Manager calls with reviewed changes, metrics, alerts, the Activity Log, Storage data, Service Bus dead letters and Key Vault expiry |
 | HTTP APIs | Scoped HTTP requests and selected operations imported from an OpenAPI specification |
 | [MCP servers](docs/mcp-servers.md) | Remote Streamable HTTP/SSE servers and local stdio commands, added by URL, command, or pasted configuration; tools follow GateRook's access rules and approvals |
 | [Official MCP Registry](https://registry.modelcontextprotocol.io/) | Search public MCP servers from GateRook and fill in supported remote URLs or npm/PyPI commands for review before connecting |
@@ -192,7 +192,7 @@ For the full connector integration suite, follow [the Docker test-services guide
 | [GCP logs](docs/gcp-logs.md) | Logs Explorer filters, GKE logs, credentials, scopes, and endpoint access |
 | [Google Cloud APIs](docs/gcp-api.md) | Calling API methods by their Discovery names, scope and policy checks, refused methods, and approved changes |
 | [AWS APIs](docs/aws-api.md) | Calling any AWS operation by its API name, read and change classification, session policies, refused operations, and approved changes |
-| [Azure](docs/azure.md) | Entra ID sign-in, tenants and subscriptions, classified Resource Manager calls, Azure Monitor, and KQL logs |
+| [Azure](docs/azure.md) | Entra ID sign-in, tenants and subscriptions, classified Resource Manager calls, service recipes, Azure Monitor, KQL logs, Storage, Service Bus and Key Vault |
 | [SSH log files](docs/ssh-log-files.md) | Remote file selection, searching, latest records, time ranges, and continuation |
 | [Repository layout](docs/repository-layout.md) | Source directories and their responsibilities |
 | [Migration scope](docs/migration.md) | Source inclusion, compatibility, and publication boundaries |
