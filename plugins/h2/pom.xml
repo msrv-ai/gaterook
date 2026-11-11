@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  H2, a plugin of the signed catalog (docs/h2.md): an H2 database server over H2's TCP protocol. The H2 client opens
+  its own sockets, which the plugin host's TCP gate lets reach only the connection's host and port (access.tcp), under
+  the environment's policy. Reads are checked statements that are always rolled back; a change runs one approved
+  statement. connector-api and Jackson are provided by the host (parent-first).
+
+  The plugin is one JAR (the installer refuses nested jars and anything over 50 MB), so H2's unmodified classes are
+  shaded into it, with H2's license (MPL 2.0 or EPL 1.0) and where its source is (META-INF/NOTICE-H2.txt).
+
+  The JAR is the catalog's package gw-h2-1.0.0.jar: the manifest (src/main/resources/mcp-gateway-plugin.json) says
+  1.0.0, and the fixed outputTimestamp makes the build reproducible, so the SHA-256 the catalog pins can be checked by
+  a rebuild. H2PluginHostIT loads that JAR in a real plugin host after `package`.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>ai.msrv.gaterook</groupId>
+    <artifactId>mcp-gateway</artifactId>
+    <version>${revision}</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>plugins-h2</artifactId>
+  <name>GateRook · Plugins · H2</name>
+
+  <properties>
+    <maven.deploy.skip>true</maven.deploy.skip>
+    <!-- Reproducible JAR: the catalog signs its SHA-256. -->
+    <project.build.outputTimestamp>2026-11-11T00:00:00Z</project.build.outputTimestamp>
+  </properties>
+
+  <dependencies>
+    <!-- The host serves both parent-first: a plugin never ships its own copy (the installer refuses one). -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connector-api</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <!-- Shaded into the plugin JAR, unmodified. -->
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.platform</groupId>
+      <artifactId>junit-platform-launcher</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- The manifest must parse as the core and the host parse it; the host IT speaks GPP/1 to a real host. -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>plugin-protocol</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!--
+      Build order only: the host must be packaged before H2PluginHostIT copies its jar. A pom-type dependency with
+      every transitive excluded adds the reactor edge without putting PF4J on any classpath of this module.
+    -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>plugin-host</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>gw-h2-1.0.0</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals><goal>shade</goal></goals>
+            <configuration combine.self="override">
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <artifactSet>
+                <includes>
+                  <include>com.h2database:h2</include>
+                </includes>
+              </artifactSet>
+              <filters>
+                <filter>
+                  <artifact>com.h2database:h2</artifact>
+                  <includes>
+                    <include>org/h2/**</include>
+                    <include>META-INF/services/java.sql.Driver</include>
+                  </includes>
+                </filter>
+              </filters>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <!-- The plugin host H2PluginHostIT starts, copied next to the tests (never on a classpath here). -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>copy-plugin-host</id>
+            <phase>pre-integration-test</phase>
+            <goals><goal>copy</goal></goals>
+            <configuration>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>ai.msrv.gaterook</groupId>
+                  <artifactId>plugin-host</artifactId>
+                  <version>${project.version}</version>
+                  <destFileName>plugin-host.jar</destFileName>
+                </artifactItem>
+              </artifactItems>
+              <outputDirectory>${project.build.directory}/plugin-host</outputDirectory>
+              <excludeTransitive>true</excludeTransitive>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <!-- After package: the release JAR in a real plugin host (H2PluginHostIT). -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <gateway.pluginHostJar>${project.build.directory}/plugin-host/plugin-host.jar</gateway.pluginHostJar>
+            <gateway.h2Jar>${project.build.directory}/${project.build.finalName}.jar</gateway.h2Jar>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

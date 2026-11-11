@@ -123,4 +123,22 @@ class PluginManifestTest {
             .anyMatch(p -> p.startsWith("dynamicTools isn't supported"))
             .anyMatch(p -> p.startsWith("type must be the plugin's id")));
   }
+  @Test
+  void tcpDestinationsAreHostAndPortWithTheConnectionsPlaceholdersAndNoWildcards() throws Exception {
+    ObjectNode n = (ObjectNode) json(JIRA);
+    ((ObjectNode) n.get("access")).putArray("tcp").add("{connection.host}:{connection.port}").add("db2.acme.com:50000")
+        .add("[fd12::7]:5000").add("10.0.0.5:{connection.port}");
+    PluginManifest m = PluginManifest.parse(n);
+    assertThat(m.access().tcp()).containsExactly("{connection.host}:{connection.port}", "db2.acme.com:50000",
+        "[fd12::7]:5000", "10.0.0.5:{connection.port}");
+    assertThat(m.connectorManifest().access().tcp()).isEqualTo(m.access().tcp());
+    for (String bad : new String[] {"{connection.host}", "{connection.host}:*", "db.acme.com:0", "db.acme.com:65536",
+        "*.acme.com:5432", "fd12::7:5000", "{connection.port}:5432", "db.acme.com:5432/x", " db.acme.com:5432"}) {
+      ObjectNode b = (ObjectNode) json(JIRA);
+      ((ObjectNode) b.get("access")).putArray("tcp").add(bad);
+      assertThatThrownBy(() -> PluginManifest.parse(b)).as(bad).isInstanceOf(PluginManifest.InvalidManifest.class)
+          .hasMessageContaining("access.tcp entries are host:port");
+    }
+    assertThat(PluginManifest.parse(json(JIRA)).access().tcp()).isEmpty();
+  }
 }

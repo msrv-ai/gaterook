@@ -1,0 +1,29 @@
+{
+  "manifestVersion": 1,
+  "id": "fixture-tcp-client",
+  "version": "1.0.0",
+  "name": "TCP client fixture",
+  "provider": "GateRook tests",
+  "license": "Apache-2.0",
+  "description": "A plugin whose own sockets reach its connection's host and port through the host's TCP gate, and nothing else.",
+  "requires": {"gateway": ">=0.0.0", "connectorApi": ">=1.0.0 & <2.0.0"},
+  "connectorClass": "gaterook.plugins.fixtures.TcpClientConnector",
+  "type": "fixture-tcp-client",
+  "toolNamespace": "tcp_",
+  "configSchema": {
+    "type": "object",
+    "required": ["host", "port"],
+    "properties": {
+      "host": {"type": "string"},
+      "port": {"type": "integer", "default": 5000}
+    }
+  },
+  "tools": [
+    {"name": "tcp_probe", "title": "Connect with the plugin's own sockets",
+     "inputSchema": {"type": "object", "properties": {"otherPort": {"type": "integer"}, "corePort": {"type": "integer"}}},
+     "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+     "nature": "READ", "resultShape": "JSON"}
+  ],
+  "access": {"hosts": [], "commands": [], "files": [], "tcp": ["{connection.host}:{connection.port}"]},
+  "resources": {"maxHeapMb": 64}
+}

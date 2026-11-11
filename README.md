@@ -69,7 +69,7 @@ Built-in connectors give AI structured tools for the services you already operat
 
 | Category | Connectors | Typical tasks |
 | --- | --- | --- |
-| **SQL databases** | PostgreSQL and [CockroachDB](docs/cockroachdb.md), MySQL, MariaDB, [Oracle Database](docs/oracle.md), [SQL Server](docs/sql-server.md), [SQLite](docs/sqlite.md), [Google Cloud Spanner](docs/spanner.md), and [DuckDB](docs/duckdb.md) through a catalog plugin | Explore schemas, query data, and review supported writes. |
+| **SQL databases** | PostgreSQL and [CockroachDB](docs/cockroachdb.md), MySQL, MariaDB, [Oracle Database](docs/oracle.md), [SQL Server](docs/sql-server.md), [SQLite](docs/sqlite.md), [Google Cloud Spanner](docs/spanner.md), and, through catalog plugins, [DuckDB](docs/duckdb.md) and [H2](docs/h2.md) | Explore schemas, query data, and review supported writes. |
 | **Documents, key-value, and wide-column data** | MongoDB, [Redis](docs/redis.md), [Amazon DynamoDB](docs/dynamodb.md), [Cloud Firestore](docs/firestore.md), [Firebase Realtime Database](docs/firebase-rtdb.md), [Azure Cosmos DB](docs/cosmosdb.md), [Apache Cassandra](docs/cassandra.md) | Find documents and items, inspect keys and values, run queries, and review updates. |
 | **Graph databases** | [Neo4j](docs/neo4j.md) | Explore labels, relationships, and properties, run Cypher reads that Neo4j confirms as read only, and review writes. |
 | **Data warehouses** | [Google BigQuery](docs/bigquery.md), [Snowflake](docs/snowflake.md), [Amazon Redshift](docs/redshift.md), [Databricks SQL](docs/databricks.md), [Trino and Presto](docs/trino.md), [Amazon Athena](docs/athena.md) | Explore datasets and tables, run reads checked by the engine's own plan or dry run, and review changes. |

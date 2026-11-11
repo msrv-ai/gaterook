@@ -160,12 +160,16 @@ class PluginsController {
     List<String> removed = before.stream().filter(n -> !after.contains(n)).toList();
     boolean annotations = plan.toolsBefore().stream().anyMatch(b -> plan.toolsAfter().stream()
         .anyMatch(a -> a.name().equals(b.name()) && !a.annotations().equals(b.annotations())));
-    String oldText = manifestSummary(plan.from(), plan.toolsBefore(), plan.hostsBefore(), plan.commandsBefore());
-    String newText = manifestSummary(plan.to(), plan.toolsAfter(), plan.hostsAfter(), plan.commandsAfter());
+    boolean tcp = !plan.tcpBefore().isEmpty() || !plan.tcpAfter().isEmpty();
+    String oldText = manifestSummary(plan.from(), plan.toolsBefore(), plan.hostsBefore(), plan.commandsBefore(),
+        tcp ? plan.tcpBefore() : null);
+    String newText = manifestSummary(plan.to(), plan.toolsAfter(), plan.hostsAfter(), plan.commandsAfter(),
+        tcp ? plan.tcpAfter() : null);
     return new UpdatePreview(id, plan.name(), plan.from(), plan.to(), plan.signed(),
         new Package(plan.packageFile(), plan.packageSize(), plan.packageSha256()), summary(added, removed,
             annotations, !plan.hostsBefore().equals(plan.hostsAfter()),
-            !plan.commandsBefore().equals(plan.commandsAfter())),
+            !plan.commandsBefore().equals(plan.commandsAfter()),
+            tcp ? !plan.tcpBefore().equals(plan.tcpAfter()) : null),
         ManifestDiff.unified(oldText, newText), added, removed);
   }
 
@@ -274,6 +278,12 @@ class PluginsController {
    */
   static String manifestSummary(String version, List<Plugins.ToolLine> tools, List<String> hosts,
       List<String> commands) {
+    return manifestSummary(version, tools, hosts, commands, null);
+  }
+
+  /** The summary the diff compares; {@code tcp} is listed when either version declares TCP destinations. */
+  static String manifestSummary(String version, List<Plugins.ToolLine> tools, List<String> hosts,
+      List<String> commands, List<String> tcp) {
     StringBuilder b = new StringBuilder("version: ").append(version).append('\n').append("tools:\n");
     tools.forEach(t -> b.append("  ").append(t.name()).append(t.readOnly() ? " readOnly" : " writes").append('\n'));
     b.append("hosts:\n");
@@ -284,12 +294,26 @@ class PluginsController {
       b.append("commands:\n");
       commands.forEach(c -> b.append("  ").append(c).append('\n'));
     }
+    if (tcp != null) {
+      if (tcp.isEmpty()) {
+        b.append("tcp: none\n");
+      } else {
+        b.append("tcp:\n");
+        tcp.forEach(t -> b.append("  ").append(t).append('\n'));
+      }
+    }
     return b.toString();
   }
 
   /** "1 tool added · annotations, hosts and commands unchanged" (kit {@code dlg-update-jira}). */
   static String summary(List<String> added, List<String> removed, boolean annotations, boolean hosts,
       boolean commands) {
+    return summary(added, removed, annotations, hosts, commands, null);
+  }
+
+  /** {@code tcp}: whether the TCP destinations changed, {@code null} when neither version declares any. */
+  static String summary(List<String> added, List<String> removed, boolean annotations, boolean hosts,
+      boolean commands, Boolean tcp) {
     List<String> parts = new ArrayList<>();
     if (!added.isEmpty()) {
       parts.add(added.size() + (added.size() == 1 ? " tool added" : " tools added"));
@@ -302,6 +326,9 @@ class PluginsController {
     (annotations ? changed : same).add("annotations");
     (hosts ? changed : same).add("hosts");
     (commands ? changed : same).add("commands");
+    if (tcp != null) {
+      (tcp ? changed : same).add("TCP destinations");
+    }
     if (!changed.isEmpty()) {
       parts.add(join(changed) + " changed");
     }

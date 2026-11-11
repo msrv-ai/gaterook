@@ -73,8 +73,11 @@ public record ConnectorManifest(String id /* "postgres" */, String version, Kind
     List<ToolDefinition> tools, RequiredAccess access /* "Needs access to" */, boolean dynamicTools /* MCP servers */,
     String connectorApi) {
   public enum Kind { BUILT_IN, PLUGIN, MCP_SERVER }
-  public record RequiredAccess(List<String> hosts, List<String> commands, List<String> files) {
-    public static RequiredAccess none() { return new RequiredAccess(List.of(), List.of(), List.of()); }
+  /** hosts: HTTP(S) through ctx.egress(); tcp: host:port of the connector's own TCP connections, such as a plugin's JDBC
+   *  driver ("{connection.host}:{connection.port}"), which the plugin host's TCP gate allows and nothing else. */
+  public record RequiredAccess(List<String> hosts, List<String> commands, List<String> files, List<String> tcp) {
+    public RequiredAccess(List<String> hosts, List<String> commands, List<String> files) { this(hosts, commands, files, List.of()); }
+    public static RequiredAccess none() { return new RequiredAccess(List.of(), List.of(), List.of(), List.of()); }
   }
   public static Builder builder(String id, String version, Kind kind) { return new Builder(id, version, kind); }
   public static final class Builder {
@@ -321,7 +324,8 @@ public interface ExecContext {
   HandleCodec handles();
   boolean acquire(String remoteQuotaKey, int permitsPerMinute);   // shared remote quotas: gcp:<project>, aws:<acct>:<region>:<api>
   Path workDir();                      // ~/.gaterook/connectors/<type>/ ; plugins: plugin-data/<id>/
-  Egress egress();                     // guarded HTTP (allowlist ∩ policy, no metadata/private ranges, no redirects)
+  Egress egress();                     // guarded HTTP (allowlist ∩ policy, no metadata/private ranges, no redirects);
+                                       // a plugin's own sockets: the TCP gate, while the call runs (access.tcp)
   /** Derived credentials (GCP/STS/Vault/exec/OAuth tokens) the connector obtained itself: masked like resolver values. */
   void taint(CharSequence value);
   /** A copy of tree as the core will mask the answer (keys, formats, this call's taint, the env's PII): a filter by values
@@ -424,7 +428,7 @@ public record ResourceDescriptor(String uri /* mcpgw://connections/dev-db/schema
   public static String appPrefix(String connection) { return "ui://gaterook/connections/" + connection + "/"; }
 }
 package ai.msrv.gaterook.connector.api;
-public final class ApiVersion { public static final String CURRENT = "1.0.0"; private ApiVersion() {} }  // plugins: requires.connectorApi
+public final class ApiVersion { public static final String CURRENT = "1.1.0"; private ApiVersion() {} }  // plugins: requires.connectorApi; 1.1: RequiredAccess.tcp
 ```
 
 ## Settings only the person makes

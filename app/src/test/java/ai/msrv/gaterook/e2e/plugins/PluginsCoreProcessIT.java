@@ -95,6 +95,7 @@ class PluginsCoreProcessIT {
     FILES.put("/catalog/gw-clickhouse-0.6.1.jar", Files.readAllBytes(plugin("clickhouse", "gw-clickhouse-0.6.1.jar")));
     FILES.put("/catalog/gw-rabbitmq-0.3.0.jar", Files.readAllBytes(plugin("rabbitmq", "gw-rabbitmq-0.3.0.jar")));
     FILES.put("/catalog/gw-duckdb-1.0.0.jar", Files.readAllBytes(plugin("duckdb", "gw-duckdb-1.0.0.jar")));
+    FILES.put("/catalog/gw-h2-1.0.0.jar", Files.readAllBytes(plugin("h2", "gw-h2-1.0.0.jar")));
     FILES.put("/catalog/fixture-mcp.package-lock.json", Files.readAllBytes(npmFixture().resolve("package-lock.json")));
     byte[] index = index(1, List.of());
     FILES.put("/catalog/index.json", index);
@@ -375,6 +376,142 @@ class PluginsCoreProcessIT {
     assertThat(back.path("version").asString()).isEqualTo("1.3.0");
     assertThat(back.path("enabled").asBoolean()).isTrue();
     assertThat(back.path("signed").asBoolean()).isTrue();
+  }
+
+  /**
+   * The catalog's H2 plugin end to end, against an H2 server on this computer: the core fills the plugin's TCP
+   * destination with the connection's host and port, the host's TCP gate refuses the server until the environment's
+   * policy allows 127.0.0.1 for the connection (the test says so, with the suggestion the policy API takes), and then
+   * an agent's query reaches the server through the gate.
+   */
+  @Test
+  @Order(9)
+  void theH2PluginReachesItsServerThroughTheTcpGateOnceThePolicyAllowsIt(@TempDir Path h2Dir) throws Exception {
+    Path h2Jar = plugin("h2", "gw-h2-1.0.0.jar");
+    Path script = Files.writeString(h2Dir.resolve("init.sql"), """
+        CREATE TABLE ORDERS (ID INT PRIMARY KEY, TOTAL DECIMAL(10, 2));
+        INSERT INTO ORDERS VALUES (1, 10.50), (2, 99.00);
+        CREATE USER READER PASSWORD 'cnry-h2-reader-4c2d';
+        GRANT SELECT ON ORDERS TO READER;
+        """);
+    Process h2 = h2Server(h2Jar, h2Dir);
+    try {
+      int port = h2Port(h2);
+      runScript(h2Jar, "jdbc:h2:tcp://127.0.0.1:" + port + "/e2e", script);
+
+      JsonNode check = json(admin("POST", "/api/plugins/check", "{\"catalog\":\"h2@1.0.0\"}"), 200);
+      assertThat(check.path("report").path("access").path("tcp").toString())
+          .isEqualTo("[\"{connection.host}:{connection.port}\"]");
+      json(admin("POST", "/api/plugins/install", "{\"stagingId\":\"" + check.path("stagingId").asString()
+          + "\"}"), 200);
+      json(admin("POST", "/api/connections", """
+          {"name":"orders-h2","type":"h2","env":"dev",
+           "config":{"host":"127.0.0.1","port":%d,"database":"e2e","user":"READER"},
+           "secrets":{"/password":{"source":"local","value":"cnry-h2-reader-4c2d"}}}""".formatted(port)), 201);
+
+      JsonNode refused = json(admin("POST", "/api/connections/orders-h2/test", null), 200);
+      assertThat(refused.path("ok").asBoolean()).as(refused.toString()).isFalse();
+      assertThat(refused.path("error").path("code").asString()).as(refused.toString())
+          .isEqualTo("tcp.private-address");
+      assertThat(refused.path("suggestedPolicyChange").path("cidr").asString()).isEqualTo("127.0.0.1/32");
+
+      json(admin("POST", "/api/connections/orders-h2/policy-suggestion",
+          "{\"kind\":\"allow-private\",\"cidr\":\"127.0.0.1/32\",\"reason\":\"the e2e H2 server\"}"), 200);
+      JsonNode ok = json(admin("POST", "/api/connections/orders-h2/test", null), 200);
+      assertThat(ok.path("ok").asBoolean()).as(ok.toString()).isTrue();
+      assertThat(ok.path("serverVersion").asString()).isEqualTo("H2 2.5.252");
+
+      json(admin("POST", "/api/endpoints", "{\"slug\":\"orders\",\"startFrom\":\"empty\"}"), 201);
+      json(admin("POST", "/api/endpoints/orders/connections/orders-h2", "{}"), 200);
+      JsonNode query = null;
+      for (JsonNode g : json(admin("GET", "/api/endpoints/orders/tools", null), 200)) {
+        for (JsonNode t : g.path("tools")) {
+          if (t.path("name").asString().equals("h2_query")) {
+            query = t;
+          }
+        }
+      }
+      assertThat(query).isNotNull();
+      // A plugin declares h2_query read only; a person confirms it before it may run without approval.
+      ObjectNode confirm = CoreProcess.JSON.createObjectNode().put("toolKey", query.path("toolKey").asString())
+          .put("connection", "orders-h2").put("definitionHash", query.path("definitionHash").asString())
+          .put("reason", "h2_query reads through a user with SELECT rights only");
+      json(admin("POST", "/api/endpoints/orders/tools/confirm-read-only", confirm.toString()), 200);
+      for (JsonNode g : json(admin("GET", "/api/endpoints/orders/tools", null), 200)) {
+        for (JsonNode t : g.path("tools")) {
+          if (t.path("name").asString().equals("h2_query")) {
+            query = t;
+          }
+        }
+      }
+      ObjectNode readOnly = CoreProcess.JSON.createObjectNode().put("toolKey", query.path("toolKey").asString())
+          .put("connection", "orders-h2").put("mode", "READ_ONLY").put("version", query.path("version").asLong())
+          .put("definitionHash", query.path("definitionHash").asString());
+      json(admin("PUT", "/api/endpoints/orders/tools", readOnly.toString()), 200);
+      String ordersToken = json(admin("POST", "/api/endpoints/orders/tokens", "{\"name\":\"h2-e2e\",\"ttlDays\":1}"),
+          201).path("token").asString();
+      mcp("orders", ordersToken, """
+          {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},
+           "clientInfo":{"name":"h2-e2e","version":"1"}}}""");
+      JsonNode rows = mcp("orders", ordersToken, "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\","
+          + "\"params\":{\"name\":\"h2_query\",\"arguments\":{\"connection\":\"orders-h2\",\"sql\":"
+          + "\"SELECT ID, TOTAL FROM ORDERS ORDER BY ID\"}}}");
+      assertThat(rows.at("/result/isError").asBoolean()).as(rows.toString()).isFalse();
+      assertThat(rows.at("/result/content/0/text").asString()).as(rows.toString()).contains("10.50").contains("99.00");
+      assertThat(core.coreLog()).doesNotContain("cnry-h2-reader-4c2d");
+    } finally {
+      h2.descendants().forEach(ProcessHandle::destroyForcibly);
+      h2.destroyForcibly();
+    }
+  }
+
+  /** An H2 TCP server on this computer, from the plugin's own JAR, on a free port it prints. */
+  private static Process h2Server(Path h2Jar, Path baseDir) throws IOException {
+    Path java = Path.of(System.getProperty("java.home"), "bin", "java");
+    return new ProcessBuilder(java.toString(), "-cp", h2Jar.toString(), "org.h2.tools.Server", "-tcp", "-tcpPort",
+        "0", "-ifNotExists", "-baseDir", baseDir.toString()).redirectErrorStream(true).start();
+  }
+
+  /** The port the server says it listens on ("TCP server running at tcp://…:port"). */
+  private static int h2Port(Process h2) throws IOException {
+    java.io.BufferedReader out = new java.io.BufferedReader(new java.io.InputStreamReader(h2.getInputStream(),
+        StandardCharsets.UTF_8));
+    String line;
+    long until = System.nanoTime() + Duration.ofSeconds(30).toNanos();
+    while (System.nanoTime() < until && (line = out.readLine()) != null) {
+      java.util.regex.Matcher m = java.util.regex.Pattern.compile("tcp://[^\\s]*:(\\d+)").matcher(line);
+      if (m.find()) {
+        Thread.ofVirtual().start(() -> {
+          try {
+            out.transferTo(java.io.Writer.nullWriter());
+          } catch (IOException ignored) {
+            // The server ended.
+          }
+        });
+        return Integer.parseInt(m.group(1));
+      }
+    }
+    throw new AssertionError("The H2 server didn't say its port");
+  }
+
+  /** Runs {@code script} on {@code url} as the administrator, which creates the database (-ifNotExists). */
+  private static void runScript(Path h2Jar, String url, Path script) throws Exception {
+    Path java = Path.of(System.getProperty("java.home"), "bin", "java");
+    Process p = new ProcessBuilder(java.toString(), "-cp", h2Jar.toString(), "org.h2.tools.RunScript", "-url", url,
+        "-user", "sa", "-password", "cnry-h2-admin-7e1a", "-script", script.toString()).redirectErrorStream(true)
+        .start();
+    String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+    assertThat(p.waitFor()).as(output).isZero();
+  }
+
+  private static JsonNode mcp(String slug, String bearer, String message) throws Exception {
+    HttpResponse<String> r = HTTP.send(HttpRequest.newBuilder(uri("/mcp/" + slug))
+        .timeout(Duration.ofSeconds(60)).header("Content-Type", "application/json")
+        .header("Accept", "application/json, text/event-stream").header("MCP-Protocol-Version", "2025-11-25")
+        .header("Authorization", "Bearer " + bearer).POST(HttpRequest.BodyPublishers.ofString(message)).build(),
+        HttpResponse.BodyHandlers.ofString());
+    assertThat(r.statusCode()).as(r.body()).isEqualTo(200);
+    return CoreProcess.JSON.readTree(r.body());
   }
 
   // ── Fixtures ────────────────────────────────────────────────────────────────────────────────────────────────

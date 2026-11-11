@@ -40,6 +40,12 @@ public record PluginManifest(String id, String version, String name, String prov
   static final Pattern TOOL = Pattern.compile("^[a-z][a-z0-9_]{0,63}$");
   static final Pattern CLASS = Pattern.compile("^[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)+$");
   static final Pattern MODULE = Pattern.compile("^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$");
+  /**
+   * An {@code access.tcp} entry: the connection's host, a DNS name, an IPv4 or a bracketed IPv6 literal, then a port
+   * from 1 to 65535 or the connection's port. No wildcards: the TCP gate allows exactly these.
+   */
+  static final Pattern TCP_ENTRY = Pattern.compile("^(\\{connection\\.host\\}|[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}"
+      + "[A-Za-z0-9])?|\\[[0-9A-Fa-f:.]{2,45}\\]):(\\{connection\\.port\\}|[1-9][0-9]{0,4})$");
 
   /** Packages a plugin can't ship: the host serves them parent-first, so a copy inside would only shadow nothing. */
   public static final List<String> SHARED_PACKAGES = List.of("ai.msrv.gaterook.", "tools.jackson.",
@@ -158,8 +164,15 @@ public record PluginManifest(String id, String version, String name, String prov
     List<String> hosts = WireCodec.strings(access.path("hosts"));
     List<String> commands = WireCodec.strings(access.path("commands"));
     List<String> files = WireCodec.strings(access.path("files"));
-    if (hosts.size() > 32 || commands.size() > 32 || files.size() > 32) {
-      problems.add("access lists at most 32 hosts, commands and files each");
+    List<String> tcp = WireCodec.strings(access.path("tcp"));
+    if (hosts.size() > 32 || commands.size() > 32 || files.size() > 32 || tcp.size() > 32) {
+      problems.add("access lists at most 32 hosts, commands, files and TCP destinations each");
+    }
+    for (String entry : tcp) {
+      if (!tcpEntry(entry)) {
+        problems.add("access.tcp entries are host:port, such as {connection.host}:{connection.port} or "
+            + "db.example.com:5432, not " + entry);
+      }
     }
     int maxHeap = n.path("resources").path("maxHeapMb").asInt(256);
     if (maxHeap < 64 || maxHeap > 1024) {
@@ -171,7 +184,16 @@ public record PluginManifest(String id, String version, String name, String prov
     return new PluginManifest(id, version, name, WireCodec.text(n.get("provider")), WireCodec.text(n.get("license")),
         description, new Requires(gateway, api, modules), connectorClass, namespace, n.path("icon").asString("puzzle"),
         n.path("group").asString("HTTP and MCP"), configSchema.deepCopy(), policySchema, tools,
-        new ConnectorManifest.RequiredAccess(hosts, commands, files), maxHeap, n.deepCopy());
+        new ConnectorManifest.RequiredAccess(hosts, commands, files, tcp), maxHeap, n.deepCopy());
+  }
+
+  /** Whether {@code entry} is a valid {@code access.tcp} destination ({@link #TCP_ENTRY}, a port up to 65535). */
+  static boolean tcpEntry(String entry) {
+    if (entry == null || !TCP_ENTRY.matcher(entry).matches()) {
+      return false;
+    }
+    String port = entry.substring(entry.lastIndexOf(':') + 1);
+    return port.startsWith("{") || Integer.parseInt(port) <= 65_535;
   }
 
   private static List<ToolDefinition> tools(JsonNode array, String namespace, List<String> problems) {

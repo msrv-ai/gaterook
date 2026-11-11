@@ -10,6 +10,8 @@
   stdout-polluter — println in a static initializer, raw lines on the protocol's file descriptor
   secret-thief    — asks for a field outside its connection, replays its call's token after the call, and tries to
                     read GateRook's master key, database and the core's environment
+  tcp-client      — opens its own java.net.Sockets, as a JDBC driver does: the host's TCP gate lets through only its
+                    connection's host and port
 
   Never installed anywhere but in tests. Built by step K4.
 -->
@@ -99,6 +101,18 @@
             </configuration>
           </execution>
           <execution>
+            <id>fixture-tcp-client</id>
+            <phase>prepare-package</phase>
+            <goals><goal>copy-resources</goal></goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/fixture-tcp-client</outputDirectory>
+              <resources>
+                <resource><directory>${project.build.outputDirectory}</directory></resource>
+                <resource><directory>src/main/fixtures/tcp-client</directory></resource>
+              </resources>
+            </configuration>
+          </execution>
+          <execution>
             <id>fixture-secret-thief</id>
             <phase>prepare-package</phase>
             <goals><goal>copy-resources</goal></goals>
@@ -150,6 +164,15 @@
             <configuration>
               <classifier>stdout-polluter</classifier>
               <classesDirectory>${project.build.directory}/fixture-stdout-polluter</classesDirectory>
+            </configuration>
+          </execution>
+          <execution>
+            <id>fixture-tcp-client</id>
+            <phase>package</phase>
+            <goals><goal>jar</goal></goals>
+            <configuration>
+              <classifier>tcp-client</classifier>
+              <classesDirectory>${project.build.directory}/fixture-tcp-client</classesDirectory>
             </configuration>
           </execution>
           <execution>

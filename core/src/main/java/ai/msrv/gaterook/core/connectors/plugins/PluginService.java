@@ -67,7 +67,8 @@ public class PluginService {
   /** What an update would change, for the update preview (the admin builds the diff from it). */
   public record UpdatePlan(String id, String name, String from, String to, boolean signed, String packageFile,
       long packageSize, String packageSha256, List<ToolLine> toolsBefore, List<ToolLine> toolsAfter,
-      List<String> hostsBefore, List<String> hostsAfter, List<String> commandsBefore, List<String> commandsAfter) {}
+      List<String> hostsBefore, List<String> hostsAfter, List<String> commandsBefore, List<String> commandsAfter,
+      List<String> tcpBefore, List<String> tcpAfter) {}
 
   /**
    * One tool of a manifest as the update preview compares them: its name, whether it is declared read only, and its
@@ -479,7 +480,8 @@ public class PluginService {
       return new UpdatePlan(id, staged.manifest().name(), row.getCurrentVersion(), to, staged.signed(),
           staged.fileName(), staged.sizeBytes(), staged.sha256(), toolsBefore, toolsAfter,
           before.access() == null ? List.of() : before.access().hosts(), staged.manifest().access().hosts(),
-          before.access() == null ? List.of() : before.access().commands(), staged.manifest().access().commands());
+          before.access() == null ? List.of() : before.access().commands(), staged.manifest().access().commands(),
+          before.access() == null ? List.of() : before.access().tcp(), staged.manifest().access().tcp());
     } finally {
       installer.discard(staged.stagingId());
     }

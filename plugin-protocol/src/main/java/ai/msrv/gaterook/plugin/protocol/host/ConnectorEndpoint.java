@@ -46,10 +46,17 @@ public final class ConnectorEndpoint {
     Collection<Loaded> all();
   }
 
-  /** The guarded HTTP client of one call (the plugin host's {@code EgressHttpClient}). */
+  /**
+   * The guarded egress of one call: the plugin host's {@code EgressHttpClient}, and where the plugin declares TCP
+   * destinations a {@link ScopedEgress} that also gates its own connections for the call's {@code timeout}.
+   */
   @FunctionalInterface
   public interface EgressFactory {
     ExecContext.Egress egress(Messages.EgressGrant grant, ConnectionConfig cfg);
+
+    default ExecContext.Egress egress(Messages.EgressGrant grant, ConnectionConfig cfg, Duration timeout) {
+      return egress(grant, cfg);
+    }
   }
 
   private final Supplier<JsonRpcPeer> peer;
@@ -104,12 +111,15 @@ public final class ConnectorEndpoint {
   private Object execute(Messages.Execute e, JsonRpcPeer.Incoming incoming) throws RpcException {
     Loaded l = loaded(e.generation());
     long started = System.nanoTime();
+    ExecContext.Egress callEgress = egress(e.egress(), e.connection(), e.timeoutMs());
+    ScopedEgress scoped = callEgress instanceof ScopedEgress s ? s : null;
     HostExecContext ctx = context(e.call().callId(), e.callToken(), e.traceId(), e.traceparent(), e.connection(),
         e.limits(), e.timeoutMs(), e.approved(), e.approvalId(), e.preparedState(), e.approvedPayload(), l,
-        e.egress(), incoming);
+        callEgress, incoming);
     ToolCall call = new ToolCall(e.call().callId(), e.call().tool(), e.connection().name(), e.call().arguments(), null);
-    try (RemoteSecretResolver secrets = new RemoteSecretResolver(peer.get(), e.callToken())) {
-      ToolResult result = l.connector().execute(call, e.connection(), secrets, ctx);
+    try (RemoteSecretResolver secrets = new RemoteSecretResolver(peer.get(), e.callToken()); scoped) {
+      ToolResult result = scoped == null ? l.connector().execute(call, e.connection(), secrets, ctx)
+          : scoped.run(() -> l.connector().execute(call, e.connection(), secrets, ctx));
       if (incoming != null && incoming.cancelled()) {
         throw new RpcException(Gpp.CANCELLED, "Cancelled");
       }
@@ -118,24 +128,101 @@ public final class ConnectorEndpoint {
       stats.put("durationMs", (System.nanoTime() - started) / 1_000_000);
       return out;
     } catch (ConnectorException ce) {
-      throw cancelledOr(incoming, connectorError(ce));
+      throw cancelledOr(incoming, connectorError(explained(ce, scoped)));
     } catch (RuntimeException | LinkageError | StackOverflowError t) {
-      throw cancelledOr(incoming, internal(t));
+      throw cancelledOr(incoming, explainedInternal(t, scoped));
     }
   }
 
   private Object test(Messages.Test t, JsonRpcPeer.Incoming incoming, boolean discovery) throws RpcException {
     Loaded l = loaded(t.generation());
+    ExecContext.Egress callEgress = egress(t.egress(), t.connection(), t.timeoutMs());
+    ScopedEgress scoped = callEgress instanceof ScopedEgress s ? s : null;
     HostExecContext ctx = context(t.callId(), t.callToken(), null, null, t.connection(), t.limits(), t.timeoutMs(),
-        false, null, null, null, l, t.egress(), incoming);
-    try (RemoteSecretResolver secrets = new RemoteSecretResolver(peer.get(), t.callToken())) {
-      TestResult result = discovery ? l.connector().discoverDatabases(t.connection(), secrets, ctx)
-          : l.connector().test(t.connection(), secrets, ctx);
-      return WireCodec.test(result == null ? TestResult.failure("no-result", "The plugin returned no result.", null)
-          : result);
+        false, null, null, null, l, callEgress, incoming);
+    try (RemoteSecretResolver secrets = new RemoteSecretResolver(peer.get(), t.callToken()); scoped) {
+      TestResult result;
+      if (scoped == null) {
+        result = discovery ? l.connector().discoverDatabases(t.connection(), secrets, ctx)
+            : l.connector().test(t.connection(), secrets, ctx);
+      } else {
+        result = scoped.run(() -> discovery ? l.connector().discoverDatabases(t.connection(), secrets, ctx)
+            : l.connector().test(t.connection(), secrets, ctx));
+      }
+      if (result == null) {
+        result = TestResult.failure("no-result", "The plugin returned no result.", null);
+      }
+      return WireCodec.test(explained(result, scoped));
     } catch (RuntimeException | LinkageError | StackOverflowError e) {
-      throw cancelledOr(incoming, internal(e));
+      throw cancelledOr(incoming, explainedInternal(e, scoped));
     }
+  }
+
+  private ExecContext.Egress egress(Messages.EgressGrant grant, ConnectionConfig cfg, long timeoutMs) {
+    return egress == null ? null : egress.egress(grant, cfg, Duration.ofMillis(Math.max(1, timeoutMs)));
+  }
+
+  /**
+   * A failure while the TCP gate refused a connection of the call: the refusal is the explanation when the plugin
+   * couldn't reach its resource (a driver says "SOCKS: Connection not allowed by ruleset"), and is added to any other
+   * failure.
+   */
+  static ConnectorException explained(ConnectorException ce, ScopedEgress scoped) {
+    Optional<ScopedEgress.Denial> denial = scoped == null ? Optional.empty() : scoped.lastDenial();
+    if (denial.isEmpty()) {
+      return ce;
+    }
+    String message = ce.getMessage() == null ? "" : ce.getMessage();
+    if (ce.kind() == ConnectorException.Kind.RESOURCE_UNAVAILABLE || ce.kind() == ConnectorException.Kind.DENIED
+        || refusedByGate(message)) {
+      return ConnectorException.denied(denial.get().text());
+    }
+    return new ConnectorException(ce.kind(), message + " GateRook also refused a connection: "
+        + denial.get().text(), null);
+  }
+
+  /** A failed test explained by the gate's refusal, with the policy change that would allow a private address. */
+  static TestResult explained(TestResult result, ScopedEgress scoped) {
+    Optional<ScopedEgress.Denial> denial = scoped == null ? Optional.empty() : scoped.lastDenial();
+    if (result.ok() || result.needsConfirmation() != null || denial.isEmpty()) {
+      return result;
+    }
+    ScopedEgress.Denial d = denial.get();
+    String code = switch (d.reason()) {
+      case PRIVATE_ADDRESS -> "tcp.private-address";
+      case ALWAYS_BLOCKED, CORE_PORT -> "tcp.address-blocked";
+      case OUTSIDE_CALL -> "tcp.outside-call";
+      case LIMIT -> "tcp.limit";
+      case NOT_GRANTED -> "tcp.not-granted";
+    };
+    String technical = result.error() == null ? null : result.error().message();
+    TestResult explained = TestResult.failure(code, d.text(), technical).withChecks(result.checks());
+    for (TestResult.Hint h : result.hints()) {
+      explained = explained.withHint(h);
+    }
+    if (d.reason() == ScopedEgress.Reason.PRIVATE_ADDRESS && d.suggestedCidr() != null) {
+      ObjectNode change = GppJson.object();
+      change.put("kind", "allow-private");
+      change.put("cidr", d.suggestedCidr());
+      if (d.connection() != null) {
+        change.put("connection", d.connection());
+      }
+      explained = explained.withSuggestedPolicyChange(change);
+    }
+    return explained;
+  }
+
+  private static RpcException explainedInternal(Throwable t, ScopedEgress scoped) {
+    Optional<ScopedEgress.Denial> denial = scoped == null ? Optional.empty() : scoped.lastDenial();
+    if (denial.isPresent() && refusedByGate(String.valueOf(t.getMessage()))) {
+      return connectorError(ConnectorException.denied(denial.get().text()));
+    }
+    return internal(t);
+  }
+
+  /** The JDK's SOCKS client's words for a refusal, which drivers quote. */
+  static boolean refusedByGate(String message) {
+    return message != null && message.toLowerCase(java.util.Locale.ROOT).contains("not allowed by ruleset");
   }
 
   private Object classify(Messages.Classify c) throws RpcException {
@@ -171,9 +258,8 @@ public final class ConnectorEndpoint {
 
   private HostExecContext context(String callId, String callToken, String traceId, String traceparent,
       ConnectionConfig cfg, ai.msrv.gaterook.connector.api.Limits limits, long timeoutMs, boolean approved,
-      String approvalId, JsonNode preparedState, JsonNode approvedPayload, Loaded l, Messages.EgressGrant grant,
+      String approvalId, JsonNode preparedState, JsonNode approvedPayload, Loaded l, ExecContext.Egress e,
       JsonRpcPeer.Incoming incoming) {
-    ExecContext.Egress e = egress == null ? null : egress.egress(grant, cfg);
     String logger = "plugin." + l.generation().substring(0, Math.max(0, l.generation().indexOf('@')));
     return new HostExecContext(peer.get(), incoming, new HostExecContext.Spec(callId, callToken, traceId,
         traceparent, cfg.env(), limits, Duration.ofMillis(Math.max(1, timeoutMs)), approved, approvalId,

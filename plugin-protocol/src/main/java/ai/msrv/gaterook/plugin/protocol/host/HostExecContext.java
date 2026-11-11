@@ -89,10 +89,11 @@ public final class HostExecContext implements ExecContext {
     return (incoming != null && incoming.cancelled()) || Thread.currentThread().isInterrupted();
   }
 
+  /** A cancel runs with the call's TCP grant, where the host gates the plugin's connections: it may open one. */
   @Override
   public void onCancel(Runnable action) {
     if (incoming != null) {
-      incoming.onCancel(action);
+      incoming.onCancel(spec.egress() instanceof ScopedEgress scoped ? scoped.wrap(action) : action);
     }
   }
 

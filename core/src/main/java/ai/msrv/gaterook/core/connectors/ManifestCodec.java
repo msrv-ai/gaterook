@@ -43,6 +43,10 @@ public final class ManifestCodec {
     strings(access.putArray("hosts"), m.access().hosts());
     strings(access.putArray("commands"), m.access().commands());
     strings(access.putArray("files"), m.access().files());
+    // Only where the connector declares some: a manifest stored before TCP destinations existed reads back the same.
+    if (!m.access().tcp().isEmpty()) {
+      strings(access.putArray("tcp"), m.access().tcp());
+    }
     out.put("dynamicTools", m.dynamicTools());
     out.put("connectorApi", m.connectorApi());
     return out;
@@ -82,7 +86,7 @@ public final class ManifestCodec {
         in.path("name").asString(), in.path("icon").asString("puzzle"), in.path("group").asString("HTTP and MCP"),
         in.path("description").asString(""), nullable(in.get("configSchema")), nullable(in.get("policySchema")),
         List.copyOf(tools), new ConnectorManifest.RequiredAccess(strings(access.path("hosts")),
-            strings(access.path("commands")), strings(access.path("files"))),
+            strings(access.path("commands")), strings(access.path("files")), strings(access.path("tcp"))),
         in.path("dynamicTools").asBoolean(false), in.path("connectorApi").asString());
   }
 

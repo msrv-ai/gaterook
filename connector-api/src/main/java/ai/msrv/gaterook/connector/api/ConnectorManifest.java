@@ -21,9 +21,28 @@ public record ConnectorManifest(String id, String version, Kind kind, String nam
 
   public enum Kind { BUILT_IN, PLUGIN, MCP_SERVER }
 
-  public record RequiredAccess(List<String> hosts, List<String> commands, List<String> files) {
+  /**
+   * What the connector reaches: {@code hosts} over HTTP(S) through {@code ctx.egress()}, {@code commands} it runs,
+   * {@code files} it reads, and {@code tcp}, the {@code host:port} destinations of its own TCP connections (a plugin's
+   * JDBC driver: {@code {connection.host}:{connection.port}}). A plugin that lists {@code tcp} opens every
+   * {@code java.net.Socket} through the host's TCP gate, which allows only these, under the environment's policy.
+   */
+  public record RequiredAccess(List<String> hosts, List<String> commands, List<String> files, List<String> tcp) {
+
+    public RequiredAccess {
+      hosts = hosts == null ? List.of() : List.copyOf(hosts);
+      commands = commands == null ? List.of() : List.copyOf(commands);
+      files = files == null ? List.of() : List.copyOf(files);
+      tcp = tcp == null ? List.of() : List.copyOf(tcp);
+    }
+
+    /** No TCP destinations: what every connector declared before {@code tcp} (connector-api 1.0). */
+    public RequiredAccess(List<String> hosts, List<String> commands, List<String> files) {
+      this(hosts, commands, files, List.of());
+    }
+
     public static RequiredAccess none() {
-      return new RequiredAccess(List.of(), List.of(), List.of());
+      return new RequiredAccess(List.of(), List.of(), List.of(), List.of());
     }
   }
 

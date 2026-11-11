@@ -45,7 +45,7 @@ class ConnectorManifestTest {
         .build();
 
     assertThat(m).isEqualTo(new ConnectorManifest("postgres", "0.4.0", Kind.BUILT_IN, "PostgreSQL", "database",
-        "Databases", "Schemas, tables and queries.", config, policy, List.of(tool), access, true, "1.0.0"));
+        "Databases", "Schemas, tables and queries.", config, policy, List.of(tool), access, true, ApiVersion.CURRENT));
   }
 
   @Test

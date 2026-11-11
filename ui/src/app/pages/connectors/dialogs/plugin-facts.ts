@@ -33,11 +33,34 @@ function strings(v: JsonValue | undefined): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
 }
 
+/**
+ * `access.tcp` in words: `{connection.host}:{connection.port}` → "TCP connections to the host and port of each
+ * connection", `{connection.host}:9092` → "… to the host of each connection, port 9092", other destinations as they are.
+ */
+function tcpText(tcp: string[]): string | null {
+  if (!tcp.length) return null;
+  const parts: string[] = [];
+  const ports: string[] = [];
+  const named: string[] = [];
+  for (const t of tcp) {
+    if (t === '{connection.host}:{connection.port}') parts.push('the host and port of each connection');
+    else {
+      const m = /^\{connection\.host\}:(\d+)$/.exec(t);
+      if (m) ports.push(m[1]);
+      else named.push(t);
+    }
+  }
+  if (ports.length) parts.push(`the host of each connection, ${ports.length === 1 ? 'port' : 'ports'} ${joinAnd(ports)}`);
+  if (named.length) parts.push(joinAnd(named));
+  return `TCP connections to ${parts.join('; ')}`;
+}
+
 /** `{connection.host}:15672` → "the host of each connection, port 15672"; other hosts as they are. */
 export function accessText(access: JsonValue): string {
   const hosts = isObject(access) ? strings(access['hosts']) : [];
   const commands = isObject(access) ? strings(access['commands']) : [];
   const files = isObject(access) ? strings(access['files']) : [];
+  const tcp = isObject(access) ? tcpText(strings(access['tcp'])) : null;
   const ports: string[] = [];
   const named: string[] = [];
   for (const h of hosts) {
@@ -59,6 +82,7 @@ export function accessText(access: JsonValue): string {
     );
   }
   if (named.length) parts.push(joinAnd(named));
+  if (tcp) parts.push(tcp);
   if (commands.length) parts.push(`the commands ${joinAnd(commands)}`);
   if (files.length) parts.push(`the files ${joinAnd(files)}`);
   if (!parts.length) return 'Nothing beyond its connections';
