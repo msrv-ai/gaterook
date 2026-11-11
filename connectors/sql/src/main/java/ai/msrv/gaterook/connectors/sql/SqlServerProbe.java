@@ -72,9 +72,14 @@ final class SqlServerProbe implements SqlProbe {
         if (rs.getInt(5) == 1) schemaChanges = true;
       }
     }
-    try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery("SELECT TOP (1) 1 FROM sys.schemas "
-        + "WHERE name NOT IN ('sys','INFORMATION_SCHEMA') AND "
-        + "(HAS_PERMS_BY_NAME(name, 'SCHEMA', 'ALTER') = 1 OR HAS_PERMS_BY_NAME(name, 'SCHEMA', 'CONTROL') = 1)")) {
+    // Each fixed database role owns the schema of its name (principal IDs 16384 to 16399), so a db_datareader member
+    // holds ALTER on the empty db_datareader schema. That changes no objects: creating them needs the database
+    // permissions checked above, so only such a schema that contains objects counts.
+    try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery("SELECT TOP (1) 1 FROM sys.schemas s "
+        + "WHERE s.name NOT IN ('sys','INFORMATION_SCHEMA') AND "
+        + "(HAS_PERMS_BY_NAME(s.name, 'SCHEMA', 'ALTER') = 1 OR HAS_PERMS_BY_NAME(s.name, 'SCHEMA', 'CONTROL') = 1) "
+        + "AND NOT (s.principal_id BETWEEN 16384 AND 16399 "
+        + "AND NOT EXISTS (SELECT 1 FROM sys.objects o WHERE o.schema_id = s.schema_id))")) {
       schemaChanges |= rs.next();
     }
     List<String> extensions = new ArrayList<>();

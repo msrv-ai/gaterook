@@ -10,6 +10,7 @@
   "properties": {
     "regions": {
       "type": "array",
+      "title": "Regions",
       "minItems": 1,
       "maxItems": 10,
       "uniqueItems": true,
@@ -25,12 +26,14 @@
     },
     "accountId": {
       "type": "string",
+      "title": "Account ID",
       "x-person-only": true,
       "pattern": "^\\d{12}$",
       "description": "Filled by Test connection; calls fail if the account changes"
     },
     "accountAlias": {
       "type": "string",
+      "title": "Account alias",
       "maxLength": 63,
       "examples": [
         "acme-stage"
@@ -46,14 +49,20 @@
       "additionalProperties": false,
       "properties": {
         "source": {
+          "title": "Credential source",
           "enum": [
             "accessKey",
             "profile"
+          ],
+          "x-enumTitles": [
+            "Access key",
+            "AWS profile"
           ],
           "default": "accessKey"
         },
         "roleArn": {
           "type": "string",
+          "title": "Assume role ARN",
           "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
           "examples": [
             "arn:aws:iam::412398765012:role/gw-readonly"
@@ -61,18 +70,21 @@
         },
         "externalId": {
           "type": "string",
+          "title": "External ID",
           "pattern": "^[\\w+=,.@:/-]{2,1224}$",
           "x-generated": "gw-ext-<12 hex>",
           "description": "Not a secret. Add it to the role's trust policy as sts:ExternalId"
         },
         "sessionSeconds": {
           "type": "integer",
+          "title": "Session duration",
           "minimum": 900,
           "maximum": 3600,
           "default": 900,
           "x-unit": "s"
         },
         "sessionPolicy": {
+          "title": "Session policy",
           "enum": [
             "generated",
             "none"
@@ -108,11 +120,13 @@
             "properties": {
               "accessKeyId": {
                 "type": "string",
+                "title": "Access key ID",
                 "pattern": "^AKIA[A-Z0-9]{16}$",
                 "x-not-secret": true
               },
               "secretAccessKey": {
                 "type": "string",
+                "title": "Secret access key",
                 "writeOnly": true,
                 "x-gateway-secret": "value",
                 "format": "password"
@@ -139,6 +153,7 @@
             "properties": {
               "profile": {
                 "type": "string",
+                "title": "Profile",
                 "maxLength": 128,
                 "pattern": "\\S"
               }

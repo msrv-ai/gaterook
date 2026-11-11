@@ -2,6 +2,7 @@ package ai.msrv.gaterook.connectors.sql;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import ai.msrv.gaterook.connector.api.ActionPreview;
 import ai.msrv.gaterook.connector.api.Classification;
@@ -38,6 +39,8 @@ class OracleIT {
   private static final String CUSTOMERS = "GW_ORACLE_IT_CUSTOMERS";
   private static final String ORDERS = "GW_ORACLE_IT_ORDERS";
   private static final String QUOTED = "\"GateRook mixed table\"";
+  private static final String READER = "GW_ORACLE_IT_READER";
+  private static final String READER_PASSWORD = "Oracle_reader_pw_0001";
   private static boolean fixtureStarted;
   private static OracleTestSettings settings;
   private final JdbcSqlConnector connector = new JdbcSqlConnector(DIALECT);
@@ -65,6 +68,20 @@ class OracleIT {
     properties.setProperty("user", settings.user());
     properties.setProperty("password", OracleIT.settings.password());
     return DIALECT.driver().connect(DIALECT.url(settings), properties);
+  }
+
+  /** SYSTEM of the Compose service, which may create users; an external fixture only provides the test user. */
+  private static Connection system() throws Exception {
+    ConnectionSettings settings = ConnectionSettings.of(cfg(), DIALECT);
+    Properties properties = DIALECT.properties(settings, WORK, 15_000);
+    properties.setProperty("user", "SYSTEM");
+    properties.setProperty("password", TestServices.value("GW_ORACLE_ADMIN_PASSWORD"));
+    return DIALECT.driver().connect(DIALECT.url(settings), properties);
+  }
+
+  private static void dropReader(Statement st) throws SQLException {
+    try { st.execute("DROP USER " + READER + " CASCADE"); }
+    catch (SQLException e) { if (e.getErrorCode() != 1918) throw e; }
   }
 
   @BeforeAll
@@ -126,6 +143,30 @@ class OracleIT {
     assertThat(tested.permissions().level()).isNotEqualTo(TestResult.Level.ADMIN);
     assertThat(tested.permissions().write()).isNotEmpty();
     assertThat(connector.health(cfg(), secrets(), ctx()).state()).isEqualTo(HealthResult.State.HEALTHY);
+  }
+
+  @Test
+  void aReaderWithOnlySessionAndSelectGrantsIsReportedAsReadOnly() throws Exception {
+    assumeTrue(System.getenv("GW_ORACLE_HOST") == null && TestServices.enabled(),
+        "Creating a second user needs SYSTEM of the Compose Oracle service");
+    try (Connection c = system(); Statement st = c.createStatement()) {
+      dropReader(st);
+      st.execute("CREATE USER " + READER + " IDENTIFIED BY \"" + READER_PASSWORD + "\"");
+      st.execute("GRANT CREATE SESSION TO " + READER);
+      st.execute("GRANT SELECT ON " + settings.user() + "." + ORDERS + " TO " + READER);
+    }
+    try {
+      ConnectionConfig reader = Fixtures.config("oracle", Env.DEV, settings.host(), settings.port(),
+          settings.service(), READER, null, null);
+      TestResult tested = connector.test(reader, Fixtures.Secrets.password(READER_PASSWORD), ctx());
+      assertThat(tested.ok()).as(String.valueOf(tested.error())).isTrue();
+      // CREATE SESSION and PUBLIC's grants on Oracle's own schemas let it neither write nor change objects.
+      assertThat(tested.permissions().level()).isEqualTo(TestResult.Level.READ);
+      assertThat(tested.permissions().write()).isNull();
+    } finally {
+      connector.close();
+      try (Connection c = system(); Statement st = c.createStatement()) { dropReader(st); }
+    }
   }
 
   @Test

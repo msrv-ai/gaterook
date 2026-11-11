@@ -48,6 +48,7 @@
       "properties": {
         "pinned": {
           "type": "array",
+          "title": "Trusted host keys",
           "x-person-only": true,
           "maxItems": 8,
           "items": {
@@ -58,6 +59,7 @@
         },
         "knownHosts": {
           "type": "string",
+          "title": "Known hosts",
           "x-person-only": true,
           "x-widget": "textarea",
           "maxLength": 64000,
@@ -70,6 +72,7 @@
       "title": "Credentials",
       "properties": {
         "method": {
+          "title": "Authentication",
           "enum": [
             "vaultSshCa",
             "privateKeyFile",
@@ -105,6 +108,7 @@
       "properties": {
         "host": {
           "type": "string",
+          "title": "Jump host",
           "maxLength": 253
         }
       },
@@ -128,12 +132,14 @@
             "properties": {
               "port": {
                 "type": "integer",
+                "title": "Jump host port",
                 "minimum": 1,
                 "maximum": 65535,
                 "default": 22
               },
               "username": {
                 "type": "string",
+                "title": "Jump host user",
                 "pattern": "^[a-z_][a-z0-9_.-]{0,31}$",
                 "description": "Empty: use the connection user."
               },
@@ -142,6 +148,7 @@
                 "title": "Jump host credentials",
                 "properties": {
                   "method": {
+                    "title": "Authentication",
                     "enum": [
                       "inherit",
                       "vaultSshCa",
@@ -176,6 +183,7 @@
       "properties": {
         "connectTimeoutSeconds": {
           "type": "integer",
+          "title": "Connect timeout",
           "minimum": 1,
           "maximum": 60,
           "default": 10,
@@ -183,6 +191,7 @@
         },
         "keepaliveSeconds": {
           "type": "integer",
+          "title": "Keepalive interval",
           "minimum": 0,
           "maximum": 300,
           "default": 15,
@@ -190,26 +199,31 @@
         },
         "reuseSessions": {
           "type": "boolean",
+          "title": "Reuse SSH sessions",
           "default": true
         },
         "maxChannelsPerSession": {
           "type": "integer",
+          "title": "Channels per session",
           "minimum": 1,
           "maximum": 10,
           "default": 8
         },
         "remoteDeadline": {
           "type": "boolean",
+          "title": "Stop commands on the server at the time limit",
           "default": false,
           "description": "Wrap commands in timeout -k 5 <limit> sh -c '…' so they stop even if this computer goes offline. Approvers see the wrapped text."
         },
         "legacyAlgorithms": {
           "type": "boolean",
+          "title": "Allow legacy algorithms",
           "default": false,
           "description": "Allow ssh-rsa (SHA-1), CBC ciphers and hmac-sha1 for old servers."
         },
         "probeSudo": {
           "type": "boolean",
+          "title": "Check sudo during the test",
           "default": true,
           "description": "Test connection runs sudo -n true; some hosts log it as a failed sudo."
         }
@@ -248,21 +262,26 @@
             "properties": {
               "vault": {
                 "type": "object",
+                "title": "Vault SSH CA",
                 "additionalProperties": false,
                 "properties": {
                   "store": {
                     "type": "string",
+                    "title": "Vault store",
                     "description": "A Vault from Secrets › External stores"
                   },
                   "mount": {
                     "type": "string",
+                    "title": "SSH secrets engine mount",
                     "default": "ssh-client-signer"
                   },
                   "role": {
                     "type": "string",
+                    "title": "Vault role",
                     "default": "gw-runbooks"
                   },
                   "ttl": {
+                    "title": "Certificate lifetime",
                     "enum": [
                       "1m",
                       "2m",
@@ -273,6 +292,7 @@
                   },
                   "principal": {
                     "type": "string",
+                    "title": "Principal",
                     "description": "Empty: the user name"
                   }
                 },
@@ -298,6 +318,7 @@
             "properties": {
               "privateKey": {
                 "type": "string",
+                "title": "Private key",
                 "writeOnly": true,
                 "x-gateway-secret": "pem",
                 "x-widget": "textarea",
@@ -353,6 +374,7 @@
               },
               "certificate": {
                 "type": "string",
+                "title": "User certificate",
                 "maxLength": 20000,
                 "description": "Optional user certificate for this key (…-cert.pub)."
               }
@@ -374,6 +396,7 @@
             "properties": {
               "password": {
                 "type": "string",
+                "title": "Password",
                 "writeOnly": true,
                 "x-gateway-secret": "value",
                 "format": "password"

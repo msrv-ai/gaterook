@@ -865,6 +865,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "properties": {
           "pinned": {
             "type": "array",
+            "title": "Trusted host keys",
             "x-person-only": true,
             "maxItems": 8,
             "items": {
@@ -875,6 +876,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "knownHosts": {
             "type": "string",
+            "title": "Known hosts",
             "x-person-only": true,
             "x-widget": "textarea",
             "maxLength": 64000,
@@ -887,6 +889,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "title": "Credentials",
         "properties": {
           "method": {
+            "title": "Authentication",
             "enum": [
               "vaultSshCa",
               "privateKeyFile",
@@ -922,6 +925,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "properties": {
           "host": {
             "type": "string",
+            "title": "Jump host",
             "maxLength": 253
           }
         },
@@ -945,12 +949,14 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "properties": {
                 "port": {
                   "type": "integer",
+                  "title": "Jump host port",
                   "minimum": 1,
                   "maximum": 65535,
                   "default": 22
                 },
                 "username": {
                   "type": "string",
+                  "title": "Jump host user",
                   "pattern": "^[a-z_][a-z0-9_.-]{0,31}$",
                   "description": "Empty: use the connection user."
                 },
@@ -959,6 +965,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                   "title": "Jump host credentials",
                   "properties": {
                     "method": {
+                      "title": "Authentication",
                       "enum": [
                         "inherit",
                         "vaultSshCa",
@@ -993,6 +1000,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "properties": {
           "connectTimeoutSeconds": {
             "type": "integer",
+            "title": "Connect timeout",
             "minimum": 1,
             "maximum": 60,
             "default": 10,
@@ -1000,6 +1008,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "keepaliveSeconds": {
             "type": "integer",
+            "title": "Keepalive interval",
             "minimum": 0,
             "maximum": 300,
             "default": 15,
@@ -1007,26 +1016,31 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "reuseSessions": {
             "type": "boolean",
+            "title": "Reuse SSH sessions",
             "default": true
           },
           "maxChannelsPerSession": {
             "type": "integer",
+            "title": "Channels per session",
             "minimum": 1,
             "maximum": 10,
             "default": 8
           },
           "remoteDeadline": {
             "type": "boolean",
+            "title": "Stop commands on the server at the time limit",
             "default": false,
             "description": "Wrap commands in timeout -k 5 <limit> sh -c '…' so they stop even if this computer goes offline. Approvers see the wrapped text."
           },
           "legacyAlgorithms": {
             "type": "boolean",
+            "title": "Allow legacy algorithms",
             "default": false,
             "description": "Allow ssh-rsa (SHA-1), CBC ciphers and hmac-sha1 for old servers."
           },
           "probeSudo": {
             "type": "boolean",
+            "title": "Check sudo during the test",
             "default": true,
             "description": "Test connection runs sudo -n true; some hosts log it as a failed sudo."
           }
@@ -1065,21 +1079,26 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "properties": {
                 "vault": {
                   "type": "object",
+                  "title": "Vault SSH CA",
                   "additionalProperties": false,
                   "properties": {
                     "store": {
                       "type": "string",
+                      "title": "Vault store",
                       "description": "A Vault from Secrets › External stores"
                     },
                     "mount": {
                       "type": "string",
+                      "title": "SSH secrets engine mount",
                       "default": "ssh-client-signer"
                     },
                     "role": {
                       "type": "string",
+                      "title": "Vault role",
                       "default": "gw-runbooks"
                     },
                     "ttl": {
+                      "title": "Certificate lifetime",
                       "enum": [
                         "1m",
                         "2m",
@@ -1090,6 +1109,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                     },
                     "principal": {
                       "type": "string",
+                      "title": "Principal",
                       "description": "Empty: the user name"
                     }
                   },
@@ -1115,6 +1135,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "properties": {
                 "privateKey": {
                   "type": "string",
+                  "title": "Private key",
                   "writeOnly": true,
                   "x-gateway-secret": "pem",
                   "x-widget": "textarea",
@@ -1170,6 +1191,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                 },
                 "certificate": {
                   "type": "string",
+                  "title": "User certificate",
                   "maxLength": 20000,
                   "description": "Optional user certificate for this key (…-cert.pub)."
                 }
@@ -1191,6 +1213,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "properties": {
                 "password": {
                   "type": "string",
+                  "title": "Password",
                   "writeOnly": true,
                   "x-gateway-secret": "value",
                   "format": "password"
@@ -1300,6 +1323,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "url": {
             "type": "string",
+            "title": "Loki URL",
             "format": "uri",
             "pattern": "^https?://[^/?#]+(/[^?#]*)?$",
             "examples": [
@@ -1429,6 +1453,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "additionalProperties": false,
             "properties": {
               "source": {
+                "title": "Authentication",
                 "enum": [
                   "adc",
                   "serviceAccountKey"
@@ -1441,6 +1466,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               },
               "impersonate": {
                 "type": "string",
+                "title": "Service account to impersonate",
                 "maxLength": 254,
                 "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
                 "examples": [
@@ -1449,10 +1475,12 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               },
               "delegates": {
                 "type": "array",
+                "title": "Delegation chain",
                 "maxItems": 5,
                 "items": {
                   "type": "string"
-                }
+                },
+                "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
               }
             },
             "patternProperties": {
@@ -1520,6 +1548,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "quotaPerMinute": {
             "type": "integer",
+            "title": "API calls per minute",
             "minimum": 1,
             "maximum": 60,
             "default": 30,
@@ -1541,6 +1570,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "region": {
             "type": "string",
+            "title": "Region",
             "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
             "examples": [
               "eu-central-1"
@@ -1548,6 +1578,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "logGroups": {
             "type": "array",
+            "title": "Log groups",
             "minItems": 1,
             "maxItems": 50,
             "uniqueItems": true,
@@ -1562,6 +1593,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "title": "Credentials"
           },
           "searchApi": {
+            "title": "Search API",
             "enum": [
               "insights",
               "filter"
@@ -2151,10 +2183,12 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "properties": {
                 "serverUrl": {
                   "type": "string",
+                  "title": "Server URL",
                   "maxLength": 2048
                 },
                 "caSha256": {
                   "type": "string",
+                  "title": "CA certificate SHA-256",
                   "pattern": "^([0-9a-f]{64})?$"
                 }
               }
@@ -2264,7 +2298,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "properties": {
           "source": {
             "title": "Authentication",
-            "description": "Uses Application Default Credentials (ADC) on this computer. If sign-in is missing or expired, test the connection and choose Sign in with Google, or run gcloud auth application-default login in a terminal.",
+            "description": "Existing Google sign-in uses Application Default Credentials (ADC) on this computer: if sign-in is missing or expired, test the connection and choose Sign in with Google, or run gcloud auth application-default login in a terminal. A service account key signs in as that service account.",
             "enum": [
               "adc",
               "serviceAccountKey"
@@ -2277,6 +2311,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "impersonate": {
             "type": "string",
+            "title": "Service account to impersonate",
             "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
             "examples": [
               "gw-reader@acme-stage.iam.gserviceaccount.com"
@@ -2284,13 +2319,16 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "delegates": {
             "type": "array",
+            "title": "Delegation chain",
             "maxItems": 5,
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
           },
           "lifetimeSeconds": {
             "type": "integer",
+            "title": "Token lifetime",
             "minimum": 300,
             "maximum": 3600,
             "default": 900,
@@ -2298,6 +2336,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "quotaProject": {
             "type": "string",
+            "title": "Billed project",
             "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
           }
         },
@@ -2320,6 +2359,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "properties": {
                 "serviceAccountKey": {
                   "type": "string",
+                  "title": "Service account key (JSON)",
                   "writeOnly": true,
                   "x-gateway-secret": "value",
                   "x-widget": "textarea",
@@ -2352,6 +2392,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
     "properties": {
       "regions": {
         "type": "array",
+        "title": "Regions",
         "minItems": 1,
         "maxItems": 10,
         "uniqueItems": true,
@@ -2367,12 +2408,14 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
       },
       "accountId": {
         "type": "string",
+        "title": "Account ID",
         "x-person-only": true,
         "pattern": "^\\d{12}$",
         "description": "Filled by Test connection; calls fail if the account changes"
       },
       "accountAlias": {
         "type": "string",
+        "title": "Account alias",
         "maxLength": 63,
         "examples": [
           "acme-stage"
@@ -2388,14 +2431,20 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "additionalProperties": false,
         "properties": {
           "source": {
+            "title": "Credential source",
             "enum": [
               "accessKey",
               "profile"
+            ],
+            "x-enumTitles": [
+              "Access key",
+              "AWS profile"
             ],
             "default": "accessKey"
           },
           "roleArn": {
             "type": "string",
+            "title": "Assume role ARN",
             "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
             "examples": [
               "arn:aws:iam::412398765012:role/gw-readonly"
@@ -2403,18 +2452,21 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "externalId": {
             "type": "string",
+            "title": "External ID",
             "pattern": "^[\\w+=,.@:/-]{2,1224}$",
             "x-generated": "gw-ext-<12 hex>",
             "description": "Not a secret. Add it to the role's trust policy as sts:ExternalId"
           },
           "sessionSeconds": {
             "type": "integer",
+            "title": "Session duration",
             "minimum": 900,
             "maximum": 3600,
             "default": 900,
             "x-unit": "s"
           },
           "sessionPolicy": {
+            "title": "Session policy",
             "enum": [
               "generated",
               "none"
@@ -2450,11 +2502,13 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "properties": {
                 "accessKeyId": {
                   "type": "string",
+                  "title": "Access key ID",
                   "pattern": "^AKIA[A-Z0-9]{16}$",
                   "x-not-secret": true
                 },
                 "secretAccessKey": {
                   "type": "string",
+                  "title": "Secret access key",
                   "writeOnly": true,
                   "x-gateway-secret": "value",
                   "format": "password"
@@ -2481,6 +2535,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "properties": {
                 "profile": {
                   "type": "string",
+                  "title": "Profile",
                   "maxLength": 128,
                   "pattern": "\\S"
                 }
@@ -2549,6 +2604,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         ],
         "properties": {
           "type": {
+            "title": "Authentication",
             "enum": [
               "none",
               "bearer",
@@ -2591,6 +2647,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "properties": {
                 "token": {
                   "type": "string",
+                  "title": "Token",
                   "writeOnly": true,
                   "x-gateway-secret": "value"
                 }
@@ -2615,11 +2672,13 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "properties": {
                 "headerName": {
                   "type": "string",
+                  "title": "Header name",
                   "default": "X-API-Key",
                   "pattern": "^[A-Za-z0-9-]{1,64}$"
                 },
                 "apiKey": {
                   "type": "string",
+                  "title": "API key",
                   "writeOnly": true,
                   "x-gateway-secret": "value"
                 }
@@ -2644,11 +2703,13 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "properties": {
                 "queryName": {
                   "type": "string",
+                  "title": "Query parameter name",
                   "default": "api_key",
                   "maxLength": 64
                 },
                 "apiKey": {
                   "type": "string",
+                  "title": "API key",
                   "writeOnly": true,
                   "x-gateway-secret": "value"
                 }
@@ -2673,10 +2734,12 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "properties": {
                 "username": {
                   "type": "string",
+                  "title": "User",
                   "maxLength": 256
                 },
                 "password": {
                   "type": "string",
+                  "title": "Password",
                   "writeOnly": true,
                   "x-gateway-secret": "value",
                   "format": "password"
@@ -2745,6 +2808,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "properties": {
           "caCertificates": {
             "type": "string",
+            "title": "CA certificates",
             "x-person-only": true,
             "x-widget": "textarea",
             "maxLength": 64000,
@@ -2752,6 +2816,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "pins": {
             "type": "array",
+            "title": "Certificate pins",
             "x-person-only": true,
             "items": {
               "type": "string",
@@ -2759,6 +2824,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             }
           },
           "minVersion": {
+            "title": "Minimum TLS version",
             "enum": [
               "TLSv1.2",
               "TLSv1.3"
@@ -2775,12 +2841,14 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "properties": {
           "connectTimeoutSeconds": {
             "type": "integer",
+            "title": "Connect timeout",
             "minimum": 1,
             "maximum": 30,
             "default": 5,
             "x-unit": "s"
           },
           "followRedirects": {
+            "title": "Follow redirects",
             "enum": [
               "off",
               "same-origin"
@@ -2795,6 +2863,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "allowPlainHttp": {
             "type": "boolean",
+            "title": "Allow plain HTTP",
             "default": false,
             "x-forbidden-env": [
               "prod"
@@ -2803,6 +2872,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "maxConcurrentCalls": {
             "type": "integer",
+            "title": "Concurrent calls",
             "minimum": 1,
             "maximum": 16,
             "default": 4,
@@ -2812,9 +2882,11 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "test": {
             "type": "object",
+            "title": "Test request",
             "additionalProperties": false,
             "properties": {
               "method": {
+                "title": "Method",
                 "enum": [
                   "GET",
                   "HEAD"
@@ -2823,6 +2895,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               },
               "path": {
                 "type": "string",
+                "title": "Path",
                 "default": "/"
               }
             }
@@ -3471,6 +3544,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "additionalProperties": false,
         "properties": {
           "source": {
+            "title": "Authentication",
             "enum": [
               "adc",
               "serviceAccountKey"
@@ -3483,6 +3557,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "impersonate": {
             "type": "string",
+            "title": "Service account to impersonate",
             "maxLength": 254,
             "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
             "examples": [
@@ -3491,10 +3566,12 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "delegates": {
             "type": "array",
+            "title": "Delegation chain",
             "maxItems": 5,
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Service accounts that pass the impersonation along, in order, as the IAM API names them. Usually empty."
           }
         },
         "patternProperties": {
@@ -3562,6 +3639,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
       },
       "quotaPerMinute": {
         "type": "integer",
+        "title": "API calls per minute",
         "minimum": 1,
         "maximum": 60,
         "default": 30,
@@ -3588,6 +3666,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
       },
       "url": {
         "type": "string",
+        "title": "Loki URL",
         "format": "uri",
         "pattern": "^https?://[^/?#]+(/[^?#]*)?$",
         "examples": [
@@ -3715,6 +3794,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
       },
       "region": {
         "type": "string",
+        "title": "Region",
         "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
         "examples": [
           "eu-central-1"
@@ -3722,6 +3802,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
       },
       "logGroups": {
         "type": "array",
+        "title": "Log groups",
         "minItems": 1,
         "maxItems": 50,
         "uniqueItems": true,
@@ -3736,6 +3817,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "title": "Credentials"
       },
       "searchApi": {
+        "title": "Search API",
         "enum": [
           "insights",
           "filter"
@@ -9298,7 +9380,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/hostKeys/pinned",
         "kind": "tags",
-        "title": "pinned",
+        "title": "Trusted host keys",
         "required": false,
         "secret": null,
         "mono": true,
@@ -9314,7 +9396,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/hostKeys/knownHosts",
         "kind": "textarea",
-        "title": "knownHosts",
+        "title": "Known hosts",
         "required": false,
         "secret": null,
         "mono": false,
@@ -9346,7 +9428,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/method",
         "kind": "select",
-        "title": "method",
+        "title": "Authentication",
         "required": true,
         "secret": null,
         "mono": false,
@@ -9367,7 +9449,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/vault",
         "kind": "object",
-        "title": "vault",
+        "title": "Vault SSH CA",
         "required": true,
         "secret": null,
         "mono": false,
@@ -9385,7 +9467,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/vault/store",
         "kind": "text",
-        "title": "store",
+        "title": "Vault store",
         "required": true,
         "secret": null,
         "mono": true,
@@ -9403,7 +9485,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/vault/mount",
         "kind": "text",
-        "title": "mount",
+        "title": "SSH secrets engine mount",
         "required": false,
         "secret": null,
         "mono": true,
@@ -9421,7 +9503,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/vault/role",
         "kind": "text",
-        "title": "role",
+        "title": "Vault role",
         "required": false,
         "secret": null,
         "mono": true,
@@ -9439,7 +9521,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/vault/ttl",
         "kind": "select",
-        "title": "ttl",
+        "title": "Certificate lifetime",
         "required": false,
         "secret": null,
         "mono": false,
@@ -9462,7 +9544,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/vault/principal",
         "kind": "text",
-        "title": "principal",
+        "title": "Principal",
         "required": false,
         "secret": null,
         "mono": true,
@@ -9480,7 +9562,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/privateKey",
         "kind": "secret",
-        "title": "privateKey",
+        "title": "Private key",
         "required": true,
         "secret": "pem",
         "mono": false,
@@ -9534,7 +9616,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/certificate",
         "kind": "text",
-        "title": "certificate",
+        "title": "User certificate",
         "required": false,
         "secret": null,
         "mono": true,
@@ -9552,7 +9634,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/password",
         "kind": "secret",
-        "title": "password",
+        "title": "Password",
         "required": true,
         "secret": "value",
         "mono": false,
@@ -9586,7 +9668,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/jump/host",
         "kind": "text",
-        "title": "host",
+        "title": "Jump host",
         "required": false,
         "secret": null,
         "mono": true,
@@ -9602,7 +9684,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/jump/port",
         "kind": "number",
-        "title": "port",
+        "title": "Jump host port",
         "required": false,
         "secret": null,
         "mono": true,
@@ -9620,7 +9702,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/jump/username",
         "kind": "text",
-        "title": "username",
+        "title": "Jump host user",
         "required": false,
         "secret": null,
         "mono": true,
@@ -9656,7 +9738,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/jump/credentials/method",
         "kind": "select",
-        "title": "method",
+        "title": "Authentication",
         "required": true,
         "secret": null,
         "mono": false,
@@ -9680,7 +9762,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/jump/credentials/vault",
         "kind": "object",
-        "title": "vault",
+        "title": "Vault SSH CA",
         "required": true,
         "secret": null,
         "mono": false,
@@ -9699,7 +9781,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/jump/credentials/vault/store",
         "kind": "text",
-        "title": "store",
+        "title": "Vault store",
         "required": true,
         "secret": null,
         "mono": true,
@@ -9718,7 +9800,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/jump/credentials/vault/mount",
         "kind": "text",
-        "title": "mount",
+        "title": "SSH secrets engine mount",
         "required": false,
         "secret": null,
         "mono": true,
@@ -9737,7 +9819,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/jump/credentials/vault/role",
         "kind": "text",
-        "title": "role",
+        "title": "Vault role",
         "required": false,
         "secret": null,
         "mono": true,
@@ -9756,7 +9838,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/jump/credentials/vault/ttl",
         "kind": "select",
-        "title": "ttl",
+        "title": "Certificate lifetime",
         "required": false,
         "secret": null,
         "mono": false,
@@ -9780,7 +9862,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/jump/credentials/vault/principal",
         "kind": "text",
-        "title": "principal",
+        "title": "Principal",
         "required": false,
         "secret": null,
         "mono": true,
@@ -9799,7 +9881,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/jump/credentials/privateKey",
         "kind": "secret",
-        "title": "privateKey",
+        "title": "Private key",
         "required": true,
         "secret": "pem",
         "mono": false,
@@ -9856,7 +9938,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/jump/credentials/certificate",
         "kind": "text",
-        "title": "certificate",
+        "title": "User certificate",
         "required": false,
         "secret": null,
         "mono": true,
@@ -9875,7 +9957,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/jump/credentials/password",
         "kind": "secret",
-        "title": "password",
+        "title": "Password",
         "required": true,
         "secret": "value",
         "mono": false,
@@ -9912,7 +9994,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/jump/hostKeys/pinned",
         "kind": "tags",
-        "title": "pinned",
+        "title": "Trusted host keys",
         "required": false,
         "secret": null,
         "mono": true,
@@ -9930,7 +10012,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/jump/hostKeys/knownHosts",
         "kind": "textarea",
-        "title": "knownHosts",
+        "title": "Known hosts",
         "required": false,
         "secret": null,
         "mono": false,
@@ -9964,7 +10046,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/advanced/connectTimeoutSeconds",
         "kind": "number",
-        "title": "connectTimeoutSeconds",
+        "title": "Connect timeout",
         "required": false,
         "secret": null,
         "mono": true,
@@ -9980,7 +10062,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/advanced/keepaliveSeconds",
         "kind": "number",
-        "title": "keepaliveSeconds",
+        "title": "Keepalive interval",
         "required": false,
         "secret": null,
         "mono": true,
@@ -9996,7 +10078,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/advanced/reuseSessions",
         "kind": "checkbox",
-        "title": "reuseSessions",
+        "title": "Reuse SSH sessions",
         "required": false,
         "secret": null,
         "mono": false,
@@ -10012,7 +10094,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/advanced/maxChannelsPerSession",
         "kind": "number",
-        "title": "maxChannelsPerSession",
+        "title": "Channels per session",
         "required": false,
         "secret": null,
         "mono": true,
@@ -10028,7 +10110,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/advanced/remoteDeadline",
         "kind": "checkbox",
-        "title": "remoteDeadline",
+        "title": "Stop commands on the server at the time limit",
         "required": false,
         "secret": null,
         "mono": false,
@@ -10044,7 +10126,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/advanced/legacyAlgorithms",
         "kind": "checkbox",
-        "title": "legacyAlgorithms",
+        "title": "Allow legacy algorithms",
         "required": false,
         "secret": null,
         "mono": false,
@@ -10060,7 +10142,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/advanced/probeSudo",
         "kind": "checkbox",
-        "title": "probeSudo",
+        "title": "Check sudo during the test",
         "required": false,
         "secret": null,
         "mono": false,
@@ -10724,7 +10806,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/url",
         "kind": "text",
-        "title": "url",
+        "title": "Loki URL",
         "required": true,
         "secret": null,
         "mono": true,
@@ -10814,7 +10896,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/quotaPerMinute",
         "kind": "number",
-        "title": "quotaPerMinute",
+        "title": "API calls per minute",
         "required": false,
         "secret": null,
         "mono": true,
@@ -10832,7 +10914,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/region",
         "kind": "text",
-        "title": "region",
+        "title": "Region",
         "required": true,
         "secret": null,
         "mono": true,
@@ -10850,7 +10932,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/logGroups",
         "kind": "tags",
-        "title": "logGroups",
+        "title": "Log groups",
         "required": true,
         "secret": null,
         "mono": true,
@@ -10868,7 +10950,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/searchApi",
         "kind": "select",
-        "title": "searchApi",
+        "title": "Search API",
         "required": false,
         "secret": null,
         "mono": false,
@@ -11022,7 +11104,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/source",
         "kind": "select",
-        "title": "source",
+        "title": "Authentication",
         "required": true,
         "secret": null,
         "mono": false,
@@ -11062,7 +11144,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/impersonate",
         "kind": "text",
-        "title": "impersonate",
+        "title": "Service account to impersonate",
         "required": false,
         "secret": null,
         "mono": true,
@@ -11080,7 +11162,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/delegates",
         "kind": "tags",
-        "title": "delegates",
+        "title": "Delegation chain",
         "required": false,
         "secret": null,
         "mono": true,
@@ -11839,7 +11921,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/quotaPerMinute",
         "kind": "number",
-        "title": "quotaPerMinute",
+        "title": "API calls per minute",
         "required": false,
         "secret": null,
         "mono": true,
@@ -11871,7 +11953,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/source",
         "kind": "select",
-        "title": "source",
+        "title": "Authentication",
         "required": true,
         "secret": null,
         "mono": false,
@@ -11908,7 +11990,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/impersonate",
         "kind": "text",
-        "title": "impersonate",
+        "title": "Service account to impersonate",
         "required": false,
         "secret": null,
         "mono": true,
@@ -11924,7 +12006,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/delegates",
         "kind": "tags",
-        "title": "delegates",
+        "title": "Delegation chain",
         "required": false,
         "secret": null,
         "mono": true,
@@ -12001,7 +12083,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/url",
         "kind": "text",
-        "title": "url",
+        "title": "Loki URL",
         "required": true,
         "secret": null,
         "mono": true,
@@ -12201,7 +12283,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/region",
         "kind": "text",
-        "title": "region",
+        "title": "Region",
         "required": true,
         "secret": null,
         "mono": true,
@@ -12217,7 +12299,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/logGroups",
         "kind": "tags",
-        "title": "logGroups",
+        "title": "Log groups",
         "required": true,
         "secret": null,
         "mono": true,
@@ -12233,7 +12315,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/searchApi",
         "kind": "select",
-        "title": "searchApi",
+        "title": "Search API",
         "required": false,
         "secret": null,
         "mono": false,
@@ -13343,7 +13425,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/pinnedCluster/serverUrl",
         "kind": "text",
-        "title": "serverUrl",
+        "title": "Server URL",
         "required": false,
         "secret": null,
         "mono": true,
@@ -13361,7 +13443,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/pinnedCluster/caSha256",
         "kind": "text",
-        "title": "caSha256",
+        "title": "CA certificate SHA-256",
         "required": false,
         "secret": null,
         "mono": true,
@@ -13508,7 +13590,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/serviceAccountKey",
         "kind": "secret",
-        "title": "serviceAccountKey",
+        "title": "Service account key (JSON)",
         "required": true,
         "secret": "value",
         "mono": false,
@@ -13526,7 +13608,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/impersonate",
         "kind": "text",
-        "title": "impersonate",
+        "title": "Service account to impersonate",
         "required": false,
         "secret": null,
         "mono": true,
@@ -13542,7 +13624,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/delegates",
         "kind": "tags",
-        "title": "delegates",
+        "title": "Delegation chain",
         "required": false,
         "secret": null,
         "mono": true,
@@ -13558,7 +13640,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/lifetimeSeconds",
         "kind": "number",
-        "title": "lifetimeSeconds",
+        "title": "Token lifetime",
         "required": false,
         "secret": null,
         "mono": true,
@@ -13574,7 +13656,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/quotaProject",
         "kind": "text",
-        "title": "quotaProject",
+        "title": "Billed project",
         "required": false,
         "secret": null,
         "mono": true,
@@ -13646,7 +13728,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/regions",
         "kind": "tags",
-        "title": "regions",
+        "title": "Regions",
         "required": true,
         "secret": null,
         "mono": true,
@@ -13662,7 +13744,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/accountId",
         "kind": "text",
-        "title": "accountId",
+        "title": "Account ID",
         "required": false,
         "secret": null,
         "mono": true,
@@ -13678,7 +13760,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/accountAlias",
         "kind": "text",
-        "title": "accountAlias",
+        "title": "Account alias",
         "required": false,
         "secret": null,
         "mono": true,
@@ -13710,7 +13792,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/source",
         "kind": "select",
-        "title": "source",
+        "title": "Credential source",
         "required": true,
         "secret": null,
         "mono": false,
@@ -13729,7 +13811,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/accessKeyId",
         "kind": "text",
-        "title": "accessKeyId",
+        "title": "Access key ID",
         "required": true,
         "secret": null,
         "mono": true,
@@ -13747,7 +13829,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/secretAccessKey",
         "kind": "secret",
-        "title": "secretAccessKey",
+        "title": "Secret access key",
         "required": true,
         "secret": "value",
         "mono": false,
@@ -13765,7 +13847,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/profile",
         "kind": "text",
-        "title": "profile",
+        "title": "Profile",
         "required": true,
         "secret": null,
         "mono": true,
@@ -13783,7 +13865,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/roleArn",
         "kind": "text",
-        "title": "roleArn",
+        "title": "Assume role ARN",
         "required": false,
         "secret": null,
         "mono": true,
@@ -13799,7 +13881,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/externalId",
         "kind": "text",
-        "title": "externalId",
+        "title": "External ID",
         "required": false,
         "secret": null,
         "mono": true,
@@ -13815,7 +13897,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/sessionSeconds",
         "kind": "number",
-        "title": "sessionSeconds",
+        "title": "Session duration",
         "required": false,
         "secret": null,
         "mono": true,
@@ -13831,7 +13913,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/sessionPolicy",
         "kind": "select",
-        "title": "sessionPolicy",
+        "title": "Session policy",
         "required": false,
         "secret": null,
         "mono": false,
@@ -14044,7 +14126,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/type",
         "kind": "select",
-        "title": "type",
+        "title": "Authentication",
         "required": true,
         "secret": null,
         "mono": false,
@@ -14068,7 +14150,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/token",
         "kind": "secret",
-        "title": "token",
+        "title": "Token",
         "required": true,
         "secret": "value",
         "mono": false,
@@ -14086,7 +14168,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/headerName",
         "kind": "text",
-        "title": "headerName",
+        "title": "Header name",
         "required": false,
         "secret": null,
         "mono": true,
@@ -14104,7 +14186,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/apiKey",
         "kind": "secret",
-        "title": "apiKey",
+        "title": "API key",
         "required": true,
         "secret": "value",
         "mono": false,
@@ -14122,7 +14204,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/queryName",
         "kind": "text",
-        "title": "queryName",
+        "title": "Query parameter name",
         "required": false,
         "secret": null,
         "mono": true,
@@ -14140,7 +14222,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/apiKey",
         "kind": "secret",
-        "title": "apiKey",
+        "title": "API key",
         "required": true,
         "secret": "value",
         "mono": false,
@@ -14158,7 +14240,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/username",
         "kind": "text",
-        "title": "username",
+        "title": "User",
         "required": false,
         "secret": null,
         "mono": true,
@@ -14176,7 +14258,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/password",
         "kind": "secret",
-        "title": "password",
+        "title": "Password",
         "required": true,
         "secret": "value",
         "mono": false,
@@ -14210,7 +14292,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/tls/caCertificates",
         "kind": "textarea",
-        "title": "caCertificates",
+        "title": "CA certificates",
         "required": false,
         "secret": null,
         "mono": false,
@@ -14226,7 +14308,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/tls/pins",
         "kind": "tags",
-        "title": "pins",
+        "title": "Certificate pins",
         "required": false,
         "secret": null,
         "mono": true,
@@ -14242,7 +14324,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/tls/minVersion",
         "kind": "select",
-        "title": "minVersion",
+        "title": "Minimum TLS version",
         "required": false,
         "secret": null,
         "mono": false,
@@ -14277,7 +14359,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/advanced/connectTimeoutSeconds",
         "kind": "number",
-        "title": "connectTimeoutSeconds",
+        "title": "Connect timeout",
         "required": false,
         "secret": null,
         "mono": true,
@@ -14293,7 +14375,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/advanced/followRedirects",
         "kind": "select",
-        "title": "followRedirects",
+        "title": "Follow redirects",
         "required": false,
         "secret": null,
         "mono": false,
@@ -14314,7 +14396,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/advanced/allowPlainHttp",
         "kind": "checkbox",
-        "title": "allowPlainHttp",
+        "title": "Allow plain HTTP",
         "required": false,
         "secret": null,
         "mono": false,
@@ -14330,7 +14412,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/advanced/maxConcurrentCalls",
         "kind": "number",
-        "title": "maxConcurrentCalls",
+        "title": "Concurrent calls",
         "required": false,
         "secret": null,
         "mono": true,
@@ -14348,7 +14430,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/advanced/test",
         "kind": "object",
-        "title": "test",
+        "title": "Test request",
         "required": false,
         "secret": null,
         "mono": false,
@@ -14364,7 +14446,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/advanced/test/method",
         "kind": "select",
-        "title": "method",
+        "title": "Method",
         "required": false,
         "secret": null,
         "mono": false,
@@ -14383,7 +14465,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/advanced/test/path",
         "kind": "text",
-        "title": "path",
+        "title": "Path",
         "required": false,
         "secret": null,
         "mono": true,

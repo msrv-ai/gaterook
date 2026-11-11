@@ -17,6 +17,12 @@ final class OracleProbe implements SqlProbe {
       "CREATE EXTERNAL JOB", "EXECUTE ANY PROCEDURE", "BECOME USER", "ADMINISTER DATABASE TRIGGER");
   private static final String EFFECTIVE_GRANTEES = "GRANTEE IN (SYS_CONTEXT('USERENV', 'SESSION_USER'), 'PUBLIC') "
       + "OR GRANTEE IN (SELECT ROLE FROM SESSION_ROLES)";
+  // Every user needs these to sign in and to set session options; they create or change no objects.
+  private static final Set<String> SESSION_PRIVILEGES = Set.of("CREATE SESSION", "ALTER SESSION");
+  // Oracle grants PUBLIC changes on some objects of its own schemas (plan and temporary tables, for example), so
+  // only grants on application schemas show where the user may write.
+  private static final String APPLICATION_SCHEMAS =
+      "TABLE_SCHEMA NOT IN (SELECT USERNAME FROM ALL_USERS WHERE ORACLE_MAINTAINED = 'Y')";
 
   @Override
   public Tls tls(Connection c, ServerInfo server) throws SQLException {
@@ -49,9 +55,7 @@ final class OracleProbe implements SqlProbe {
       if (privilege.startsWith("INSERT ") || privilege.startsWith("UPDATE ") || privilege.startsWith("DELETE ")) {
         writes.add(privilege);
       }
-      if (privilege.startsWith("CREATE ") || privilege.startsWith("ALTER ") || privilege.startsWith("DROP ")) {
-        schemaChanges = true;
-      }
+      if (changesSchema(privilege)) schemaChanges = true;
     }
     int owned = count(c, "SELECT COUNT(*) FROM USER_TABLES");
     if (owned > 0) {
@@ -59,12 +63,18 @@ final class OracleProbe implements SqlProbe {
       schemaChanges = true;
     }
     writes.addAll(strings(c, "SELECT DISTINCT PRIVILEGE FROM ALL_TAB_PRIVS WHERE (" + EFFECTIVE_GRANTEES
-        + ") AND PRIVILEGE IN ('INSERT', 'UPDATE', 'DELETE', 'ALTER', 'INDEX')"));
+        + ") AND " + APPLICATION_SCHEMAS + " AND PRIVILEGE IN ('INSERT', 'UPDATE', 'DELETE', 'ALTER', 'INDEX')"));
     // ALL_TABLES includes tables visible through non-SELECT grants; this is visibility, not a read grant count.
     String write = writes.isEmpty() ? null : String.join(", ", writes);
     boolean superuser = sys || "SYS".equals(user) || roles.contains("DBA");
     return new Access(user, -1, write == null ? 0 : -1, write, schemaChanges, superuser,
         List.copyOf(dangerous), List.copyOf(admin), List.of(), false);
+  }
+
+  /** Whether a system privilege lets the user create, change or drop objects; session privileges do not. */
+  static boolean changesSchema(String privilege) {
+    return !SESSION_PRIVILEGES.contains(privilege)
+        && (privilege.startsWith("CREATE ") || privilege.startsWith("ALTER ") || privilege.startsWith("DROP "));
   }
 
   @Override public List<String> builtInFunctions(Connection c) { return List.of(); }

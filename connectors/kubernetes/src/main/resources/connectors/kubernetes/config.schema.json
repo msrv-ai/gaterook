@@ -155,10 +155,12 @@
             "properties": {
               "serverUrl": {
                 "type": "string",
+                "title": "Server URL",
                 "maxLength": 2048
               },
               "caSha256": {
                 "type": "string",
+                "title": "CA certificate SHA-256",
                 "pattern": "^([0-9a-f]{64})?$"
               }
             }
