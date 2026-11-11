@@ -76,6 +76,31 @@ export interface EndpointSettings {
    * what Settings › Instructions shows in the empty field (step API).
    */
   readonly defaultInstructions?: string | null;
+  /** `settings.toolList` as set: `auto` and no pins unless the person chose (ARCHITECTURE.md §5.7). */
+  readonly toolList?: EndpointToolList;
+  /** What `tools/list` shows now. */
+  readonly toolListState?: EndpointToolListState;
+}
+
+/** Whether `tools/list` shows every tool, or GateRook's own and the pinned connections' (`find_tools` finds the rest). */
+export type ToolListMode = 'auto' | 'all' | 'search';
+
+export interface EndpointToolList {
+  readonly mode: ToolListMode;
+  /** Connections whose tools are listed while the endpoint searches the others. */
+  readonly pinned?: string[];
+}
+
+export interface EndpointToolListState {
+  readonly search: boolean;
+  /** The tools the model may call. */
+  readonly tools: number;
+  /** How many of them `tools/list` shows. */
+  readonly listedTools: number;
+  /** Their names, titles, descriptions and input schemas as AI apps get them, in UTF-8 bytes. */
+  readonly bytes: number;
+  readonly searchAboveTools: number;
+  readonly searchAboveBytes: number;
 }
 
 /** The ways to start a new endpoint (`POST /api/endpoints` `startFrom`). */
@@ -173,6 +198,8 @@ export interface EndpointSettingsUpdate extends WithReason {
   readonly protocol?: JsonObject;
   readonly approvalWait?: JsonObject;
   readonly oauthEnabled?: boolean;
+  /** A merge patch: `pinned: null` clears the pins. */
+  readonly toolList?: { readonly mode?: ToolListMode; readonly pinned?: string[] | null };
   readonly version: number;
   readonly confirm?: string | null;
 }

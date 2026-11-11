@@ -4,6 +4,7 @@ import ai.msrv.gaterook.core.audit.AuditWriter;
 import ai.msrv.gaterook.core.endpoints.CoreTools;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshot;
 import ai.msrv.gaterook.core.endpoints.ToolCatalog;
+import ai.msrv.gaterook.core.endpoints.ToolSearch;
 import ai.msrv.gaterook.core.mcp.McpGateway;
 import ai.msrv.gaterook.core.platform.CallTracing;
 import ai.msrv.gaterook.core.platform.Caller;
@@ -171,7 +172,7 @@ public class McpDispatcher {
       case "tools/list" -> ResultWriter.complete(env, toolsList(r), 30_000);
       case "tools/call" -> {
         requireAudit();
-        yield call(r);
+        yield runsTool(r);
       }
       case "tasks/get", "tasks/result", "tasks/list", "tasks/cancel", "tasks/update" -> task(r);
       case "resources/list" -> ResultWriter.complete(env, page(resources.list(r, false), "resources", env), 30_000);
@@ -215,6 +216,72 @@ public class McpDispatcher {
       }
       default -> throw new McpException(JsonRpc.METHOD_NOT_FOUND, "Method not found: " + env.method());
     };
+  }
+
+  /**
+   * {@code call_tool} and {@code call_read_tool} (§5.7): the call of the tool they name with its arguments, exactly as
+   * if the client had called it, before anything else looks at it. So the named tool's validation, modes, approvals,
+   * rate limits, masking, audit and tasks apply, Activity shows that tool, and the retry of an approval round names it
+   * as the first round did. {@code call_read_tool} refuses a tool that can change data. A name the endpoint doesn't
+   * publish for the model, or one of the gateway's own, gets an error the model can act on.
+   */
+  private ObjectNode runsTool(McpRequest r) {
+    Envelope env = r.env();
+    String wrapper = env.params().path("name").asString("");
+    if (!CoreTools.RUNS_TOOLS.contains(wrapper) || r.catalog().tool(wrapper).isEmpty()) {
+      return call(r);
+    }
+    JsonNode argsNode = env.params().get("arguments");
+    ObjectNode args = argsNode instanceof ObjectNode o ? o : JsonNodeFactory.instance.objectNode();
+    if (argsNode != null && !argsNode.isObject() && !argsNode.isNull()) {
+      throw McpException.invalidParams("params.arguments must be an object");
+    }
+    for (String key : args.propertyNames()) {
+      if (!key.equals("name") && !key.equals("arguments")) {
+        return refuse(r, wrapper + " takes name and arguments, the tool's own arguments inside arguments: "
+            + "{\"name\": \"<tool>\", \"arguments\": {…}}.");
+      }
+    }
+    JsonNode target = args.get("name");
+    if (target == null || !target.isString() || target.asString().isBlank()) {
+      return refuse(r, "Name the tool to run: {\"name\": \"<tool>\", \"arguments\": {…}}. find_tools finds it.");
+    }
+    String name = target.asString();
+    JsonNode inner = args.get("arguments");
+    if (inner != null && !inner.isObject() && !inner.isNull()) {
+      return refuse(r, "arguments must be an object: the arguments of " + name + ".");
+    }
+    Optional<ToolCatalog.PublishedTool> found = r.catalog().tool(name).filter(ToolSearch::searchable);
+    if (found.isEmpty()) {
+      return refuse(r, r.catalog().tool(name).map(ToolCatalog.PublishedTool::core).orElse(false)
+          ? name + " is listed: call it directly."
+          : "There is no tool " + name + " on " + r.snapshot().slug() + ". find_tools finds its tools by what "
+              + "they do.");
+    }
+    if (CoreTools.CALL_READ_TOOL.equals(wrapper) && !ToolSearch.readOnly(found.get())) {
+      return refuse(r, name + " can change data, so call_read_tool doesn't run it: run it with call_tool.");
+    }
+    ObjectNode params = env.params().deepCopy();
+    params.put("name", name);
+    if (inner == null || inner.isNull()) {
+      params.remove("arguments");
+    } else {
+      params.set("arguments", inner);
+    }
+    r.span().tag("gaterook.tool.via", wrapper);
+    Envelope named = new Envelope(env.era(), env.version(), env.id(), env.method(), params, env.clientCapabilities(),
+        env.clientInfo(), env.traceparent());
+    return call(new McpRequest(named, r.caller(), r.snapshot(), r.catalog(), r.span(), r.stream(), r.logLevel(),
+        r.client(), r.task()));
+  }
+
+  /** A wrapper's refusal: a tool error the model reads, or for a 2025-11-25 task, which expects a task, an error. */
+  private static ObjectNode refuse(McpRequest r, String text) {
+    Envelope env = r.env();
+    if (env.era() == Era.LEGACY && Era.LEGACY_VERSION.equals(env.version()) && env.params().path("task").isObject()) {
+      throw McpException.invalidParams(text);
+    }
+    return ResultWriter.toolError(env, text, null);
   }
 
   /**
@@ -375,11 +442,14 @@ public class McpDispatcher {
         + "in GateRook; a card interaction is not proof of approval.";
   }
 
-  /** {@code tools/list}: pages of 100, the cursor names its offset and the list it belongs to. */
+  /**
+   * {@code tools/list}: pages of 100, the cursor names its offset and the list it belongs to. Only the tools the
+   * catalog lists: in search, the gateway's own and those of pinned connections (§5.7).
+   */
   private ObjectNode toolsList(McpRequest r) {
     boolean ui = r.env().supportsUi();
     boolean tasks = r.env().era() == Era.LEGACY && Era.LEGACY_VERSION.equals(r.env().version());
-    List<ToolCatalog.PublishedTool> all = r.catalog().tools().stream()
+    List<ToolCatalog.PublishedTool> all = r.catalog().tools().stream().filter(t -> r.catalog().listed(t.name()))
         .filter(t -> ui || (!CoreTools.APPROVAL_CARD_ACTION.equals(t.name())
             && !CoreTools.OPEN_CONNECTION_IMPORT.equals(t.name()) && !t.appOnly())).toList();
     String listHash = r.catalog().listHash() + (ui ? ":ui" : ":text");
@@ -395,7 +465,10 @@ public class McpDispatcher {
     return out;
   }
 
-  /** @param tasks whether the client's revision runs calls as tasks (2025-11-25): the gateway's own tools don't */
+  /**
+   * @param tasks whether the client's revision runs calls as tasks (2025-11-25): the gateway's own tools don't, apart
+   *              from the two that run another tool, whose call is that tool's
+   */
   private static ObjectNode tool(ToolCatalog.PublishedTool t, boolean ui, boolean tasks) {
     ObjectNode n = JsonNodeFactory.instance.objectNode();
     n.put("name", t.name());
@@ -410,7 +483,7 @@ public class McpDispatcher {
     a.put("destructiveHint", Boolean.TRUE.equals(t.annotations().destructiveHint()));
     a.put("idempotentHint", Boolean.TRUE.equals(t.annotations().idempotentHint()));
     a.put("openWorldHint", Boolean.TRUE.equals(t.annotations().openWorldHint()));
-    if (tasks && !t.core()) {
+    if (tasks && (!t.core() || CoreTools.RUNS_TOOLS.contains(t.name()))) {
       n.putObject("execution").put("taskSupport", "optional");
     }
     ObjectNode app = ui ? clientUi(t) : null;

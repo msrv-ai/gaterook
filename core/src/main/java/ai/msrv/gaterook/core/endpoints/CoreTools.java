@@ -8,6 +8,7 @@ import ai.msrv.gaterook.connector.api.ToolDefinition.Nature;
 import ai.msrv.gaterook.connector.api.ToolDefinition.ResultShape;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Risk;
 import java.util.List;
+import java.util.Set;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -29,9 +30,15 @@ public final class CoreTools {
   public static final String CONNECTION_IMPORT_SCHEMA = "connection_import_schema";
   public static final String CONNECTION_IMPORT_PROGRESS = "connection_import_progress";
   public static final String SUBMIT_CONNECTION_IMPORT = "submit_connection_import";
+  public static final String FIND_TOOLS = "find_tools";
+  public static final String CALL_TOOL = "call_tool";
+  public static final String CALL_READ_TOOL = "call_read_tool";
 
   /** The endpoint-wide tools with a mode, in the kit's order. */
   public static final List<String> WITH_MODE = List.of(LIST_CONNECTIONS, DESCRIBE_CONNECTION);
+
+  /** The tools that run another tool of the endpoint by its name, as if the client had called it (§5.7). */
+  public static final Set<String> RUNS_TOOLS = Set.of(CALL_TOOL, CALL_READ_TOOL);
 
   private CoreTools() {}
 
@@ -216,6 +223,84 @@ public final class CoreTools {
     ObjectNode properties = (ObjectNode) input.get("properties");
     properties.putObject("sessionId").put("type", "string").put("pattern", "^ci_[a-z0-9]{12}$");
     properties.putObject("submissionToken").put("type", "string").put("minLength", 36).put("maxLength", 36);
+    return input;
+  }
+
+  /**
+   * Searches the tools an endpoint doesn't list ({@link ToolSearch}): only what {@code tools/list} would show of them,
+   * never a resource.
+   */
+  public static ToolDefinition findTools() {
+    ObjectNode input = object();
+    ObjectNode properties = (ObjectNode) input.get("properties");
+    properties.putObject("query").put("type", "string").put("minLength", 1).put("maxLength", 200)
+        .put("description", "What you want to do, in a few words, or part of a tool's name: \"jira issues by "
+            + "status\", \"slow sql queries\", \"sentry\".");
+    ObjectNode names = properties.putObject("names").put("type", "array").put("minItems", 1)
+        .put("maxItems", ToolSearch.MAX_NAMES).put("uniqueItems", true)
+        .put("description", "Exact tool names instead of a query: their full definitions.");
+    names.putObject("items").put("type", "string").put("minLength", 1).put("maxLength", 128);
+    properties.putObject("connection").put("type", "string").put("maxLength", 128)
+        .put("description", "Only the tools of this connection.");
+    properties.putObject("limit").put("type", "integer").put("minimum", 1).put("maximum", ToolSearch.MAX_LIMIT)
+        .put("default", ToolSearch.DEFAULT_LIMIT);
+    return ToolDefinition.builder(FIND_TOOLS)
+        .title("Find tools")
+        .description("Finds the tools of this endpoint that aren't listed. Give a query, a few words about what you "
+            + "want to do, or names. Each match says what it does, whether it waits for a person's approval and, for "
+            + "the best ones, its inputSchema. Run a match that only reads with call_read_tool, any other with "
+            + "call_tool.")
+        .inputSchema(input)
+        .annotations(Annotations.read())
+        .nature(Nature.READ)
+        .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY)
+        .resultShape(ResultShape.JSON)
+        .risk(new Risk(false, false, Egress.NONE))
+        .build();
+  }
+
+  /**
+   * Runs a tool that {@code find_tools} found: the call is the named tool's, with its modes, approvals, limits and
+   * audit, so this definition promises nothing about what it does.
+   */
+  public static ToolDefinition callTool() {
+    return ToolDefinition.builder(CALL_TOOL)
+        .title("Run a found tool")
+        .description("Runs a tool of this endpoint by its name, such as one find_tools found, with its arguments. "
+            + "The tool's own rules apply: a change waits until a person approves the exact action, and you get a "
+            + "handle to poll with approval_status.")
+        .inputSchema(runInput())
+        .annotations(new Annotations(false, true, false, true))
+        .nature(Nature.MUTATION)
+        .defaultMode(Mode.APPROVAL, Mode.APPROVAL)
+        .resultShape(ResultShape.JSON)
+        .risk(new Risk(true, true, Egress.CHANNEL))
+        .build();
+  }
+
+  /** {@link #callTool} for the tools that only read: an AI app may run it without asking, as it may run them. */
+  public static ToolDefinition callReadTool() {
+    return ToolDefinition.builder(CALL_READ_TOOL)
+        .title("Run a found tool that only reads")
+        .description("Runs a tool of this endpoint that only reads (readOnly in find_tools), by its name, with its "
+            + "arguments. Refuses a tool that can change data: run that one with call_tool.")
+        .inputSchema(runInput())
+        .annotations(new Annotations(true, false, false, true))
+        .nature(Nature.READ)
+        .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY)
+        .resultShape(ResultShape.JSON)
+        .risk(new Risk(true, true, Egress.NONE))
+        .build();
+  }
+
+  private static ObjectNode runInput() {
+    ObjectNode input = object();
+    input.putArray("required").add("name");
+    ObjectNode properties = (ObjectNode) input.get("properties");
+    properties.putObject("name").put("type", "string").put("minLength", 1).put("maxLength", 128)
+        .put("description", "The tool's name, as find_tools gives it.");
+    properties.putObject("arguments").put("type", "object")
+        .put("description", "The tool's own arguments, as its inputSchema describes them.");
     return input;
   }
 

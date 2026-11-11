@@ -107,6 +107,67 @@
     </div>
   </section>
 
+  <section gwSettingsSection name="tools" idPrefix="ep-st-" heading="Tool list" [description]="'Which tools of ' + ep + ' AI apps get when they list them.'">
+    <div class="gw-form gw-form--sticky-actions">
+      <form class="gw-form__section" id="ep-st-tools-form" aria-labelledby="ep-st-tools-legend" (submit)="saveToolList($event)" (reset)="discardToolList($event)">
+        <header class="gw-form__section-header">
+          <h3 class="gw-form__legend" id="ep-st-tools-legend">Listed tools</h3>
+          <p class="gw-form__description">An AI app puts every tool it lists into the model's context before the first message, and some refuse more than 128. A searched list keeps GateRook's own tools: <code class="gw-code">find_tools</code> finds the others by what they do, and <code class="gw-code">call_tool</code> or <code class="gw-code">call_read_tool</code> runs them with their own modes, approvals and audit.</p>
+        </header>
+        <div class="gw-form__rows">
+          @if (toolListState(); as st) {
+            <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Tools of {{ ep }}</dt><dd class="gw-kv__value">{{ toolListSize(st) }}</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">AI apps get</dt><dd class="gw-kv__value">{{ toolListShown(st) }}</dd></div>
+            </dl>
+          }
+          @let mode = toolListModel().mode;
+          <fieldset class="gw-field">
+            <legend class="gw-field__label">List</legend>
+            <div class="gw-radio">
+              <input class="gw-radio__input" type="radio" name="ep-st-tools-mode" id="ep-st-tools-auto" value="auto" [checked]="mode === 'auto'" aria-describedby="ep-st-tools-auto-hint" (change)="setToolListMode($event)">
+              <span class="gw-radio__control" aria-hidden="true"></span>
+              <label class="gw-radio__label" for="ep-st-tools-auto">Search when the list is long <span class="gw-badge gw-badge--success gw-badge--sm">Recommended</span></label>
+              <p class="gw-radio__hint" id="ep-st-tools-auto-hint">@if (toolListState(); as st) {Every tool up to {{ st.searchAboveTools.toLocaleString('en-US') }} tools and {{ (st.searchAboveBytes / 1024).toLocaleString('en-US') }} KB of definitions, a searched list above that.} @else {Every tool while the list is short, a searched list above that.}</p>
+            </div>
+            <div class="gw-radio">
+              <input class="gw-radio__input" type="radio" name="ep-st-tools-mode" id="ep-st-tools-all" value="all" [checked]="mode === 'all'" aria-describedby="ep-st-tools-all-hint" (change)="setToolListMode($event)">
+              <span class="gw-radio__control" aria-hidden="true"></span>
+              <label class="gw-radio__label" for="ep-st-tools-all">Every tool</label>
+              <p class="gw-radio__hint" id="ep-st-tools-all-hint">For an AI app that searches tools itself, such as Claude Code. Others load every definition.</p>
+            </div>
+            <div class="gw-radio">
+              <input class="gw-radio__input" type="radio" name="ep-st-tools-mode" id="ep-st-tools-search" value="search" [checked]="mode === 'search'" aria-describedby="ep-st-tools-search-hint" (change)="setToolListMode($event)">
+              <span class="gw-radio__control" aria-hidden="true"></span>
+              <label class="gw-radio__label" for="ep-st-tools-search">Always search</label>
+              <p class="gw-radio__hint" id="ep-st-tools-search-hint">GateRook's own tools and those of the connections pinned below, however short the list.</p>
+            </div>
+          </fieldset>
+          @if (mode !== 'all' && pinChoices().length) {
+            <fieldset class="gw-field" aria-describedby="ep-st-pin-hint">
+              <legend class="gw-field__label">Always list the tools of</legend>
+              @for (c of pinChoices(); track c) {
+                <div class="gw-checkbox">
+                  <input class="gw-checkbox__input" type="checkbox" [id]="'ep-st-pin-' + c" [checked]="toolListModel().pinned.includes(c)" (change)="setPinned(c, $event)">
+                  <span class="gw-checkbox__control" aria-hidden="true"></span>
+                  <label class="gw-checkbox__label" [for]="'ep-st-pin-' + c"><span class="gw-mono">{{ c }}</span></label>
+                </div>
+              }
+              <p class="gw-field__hint" id="ep-st-pin-hint">For a connection whose tools agents use on most calls, or whose app (MCP Apps) should show: a tool run through <code class="gw-code">call_tool</code> shows no app.</p>
+            </fieldset>
+          }
+          @if (toolListError(); as err) {
+            <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+              <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+              <div class="gw-alert__content"><p class="gw-alert__title">The tool list settings weren't saved</p><p class="gw-alert__body">{{ err }}</p></div>
+            </div>
+          }
+        </div>
+      </form>
+      <div gwSaveBar formId="ep-st-tools-form" saveLabel="Save tool list" what="Tool list" [dirty]="toolListDirty()" [busy]="toolListBusy()"></div>
+    </div>
+  </section>
+
   <section gwSettingsSection name="auth" idPrefix="ep-st-" heading="Authorization" [description]="'How AI apps prove who they are when they call ' + ep + '.'">
     <div class="gw-form">
       <section class="gw-form__section" aria-labelledby="ep-st-tokens-legend">

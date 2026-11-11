@@ -1,6 +1,16 @@
 import { ClientCard, ClientsView } from '../../core/api/clients.api';
 import { ConnectionRow } from '../../core/api/connections.api';
-import { ConnectionPreview, EndpointRisk, EndpointSettings, EndpointSummary, ToolGroup, TokenRow, WiredConnection } from '../../core/api/endpoints.api';
+import {
+  ConnectionPreview,
+  EndpointRisk,
+  EndpointSettings,
+  EndpointSummary,
+  EndpointToolListState,
+  ToolGroup,
+  ToolListMode,
+  TokenRow,
+  WiredConnection,
+} from '../../core/api/endpoints.api';
 import { Env, JsonObject, JsonValue } from '../../core/api/types';
 import { formatCount } from '../../core/time/time-format';
 import { SplitClient, SplitOption } from '../../kit/elements/risk-callout/split-dialog';
@@ -61,6 +71,31 @@ export function statusLook(e: EndpointSummary): Look {
 export function servedRevisions(settings: EndpointSettings | null): string[] {
   const revs = settings?.protocol?.['revisions'];
   return Array.isArray(revs) ? revs.filter((r): r is string => typeof r === 'string').sort() : [];
+}
+
+/** `settings.toolList` with its defaults, pins sorted: `auto` and none unless the person chose (ARCHITECTURE.md §5.7). */
+export function toolListOf(settings: EndpointSettings | null): { readonly mode: ToolListMode; readonly pinned: string[] } {
+  const t = settings?.toolList;
+  const mode: ToolListMode = t?.mode === 'all' || t?.mode === 'search' ? t.mode : 'auto';
+  return { mode, pinned: [...(t?.pinned ?? [])].sort() };
+}
+
+/** "186 tools · 351 KB of definitions, about 90,000 tokens": what an AI app that loads every definition reads. */
+export function toolListSize(state: EndpointToolListState): string {
+  const kb = Math.max(1, Math.round(state.bytes / 1024));
+  // About 4 bytes a token: English and JSON.
+  const tokens = state.bytes / 4;
+  const rounded = tokens < 10_000 ? Math.max(100, Math.round(tokens / 100) * 100) : Math.round(tokens / 1000) * 1000;
+  return `${plural(state.tools, 'tool')} · ${formatCount(kb)} KB of definitions, about ${formatCount(rounded)} tokens`;
+}
+
+/** What `tools/list` gives AI apps now. */
+export function toolListShown(state: EndpointToolListState): string {
+  if (!state.search) return 'Every tool.';
+  const found = state.tools - state.listedTools;
+  return state.listedTools
+    ? `GateRook's own tools and ${plural(state.listedTools, 'pinned tool')}; find_tools finds the other ${formatCount(found)}.`
+    : `GateRook's own tools; find_tools finds the other ${formatCount(found)}.`;
 }
 
 /** "Tokens · OAuth off" (the kit's sign-in badge; it follows the OAuth switch of Settings). */

@@ -73,12 +73,14 @@ public class ToolCallHandler {
   private final EndpointSnapshotService snapshots;
   private final InFlight inFlight;
   private final ConnectionImportTools connectionImports;
+  private final ToolFinder finder;
 
   public ToolCallHandler(ToolCatalog catalogs, SchemaValidator validator, ConnectorRegistry registry,
       PolicyEngine engine, ToolGuard guard, AuditWriter audit, ConnectorInvoker invoker,
       ApprovalService approvals, ApprovalAnswers answers, ApprovalStatusTool statusTool, ApprovalDelivery delivery,
       RequestStateCodec states, CoreToolsHandler coreTools, Calls calls, ApprovalCards approvalCards,
-      EndpointSnapshotService snapshots, InFlight inFlight, ConnectionImportTools connectionImports) {
+      EndpointSnapshotService snapshots, InFlight inFlight, ConnectionImportTools connectionImports,
+      ToolFinder finder) {
     this.catalogs = catalogs;
     this.validator = validator;
     this.registry = registry;
@@ -97,6 +99,7 @@ public class ToolCallHandler {
     this.snapshots = snapshots;
     this.inFlight = inFlight;
     this.connectionImports = connectionImports;
+    this.finder = finder;
   }
 
   public ObjectNode call(McpRequest r) {
@@ -141,6 +144,13 @@ public class ToolCallHandler {
         || CoreTools.SUBMIT_CONNECTION_IMPORT.equals(name)
         || "open_connection_import".equals(name)) {
       return connectionImports.call(r, name, args);
+    }
+    if (CoreTools.FIND_TOOLS.equals(name)) {
+      return finder.call(r, args);
+    }
+    if (CoreTools.RUNS_TOOLS.contains(name)) {
+      // McpDispatcher turns their calls into calls of the tools they name: none of them gets here.
+      throw McpException.invalidParams(name + " runs another tool; send its call to the endpoint.");
     }
     if (published.core()) {
       return coreTools.call(r, published, args);
