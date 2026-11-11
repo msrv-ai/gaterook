@@ -56,7 +56,7 @@ GateRook applies its MCP Firewall controls to built-in connectors and external M
 
 | Service | Supported capabilities |
 | --- | --- |
-| SQL databases | PostgreSQL, MySQL/MariaDB, [Oracle Database](docs/oracle.md), [SQL Server](docs/sql-server.md), and [SQLite](docs/sqlite.md) files: inspect schemas, query data, and review changes before execution |
+| SQL databases | PostgreSQL and [CockroachDB](docs/cockroachdb.md), MySQL/MariaDB, [Oracle Database](docs/oracle.md), [SQL Server](docs/sql-server.md), and [SQLite](docs/sqlite.md) files: inspect schemas, query data, and review changes before execution |
 | Document and key-value stores | MongoDB document queries and updates; [Redis](docs/redis.md) key inspection, reads, and reviewed value writes; [Amazon DynamoDB](docs/dynamodb.md) Query, Scan and PartiQL with reviewed changes |
 | Data warehouses | [Google BigQuery](docs/bigquery.md): datasets, tables and GoogleSQL reads checked by a dry run and capped in bytes, with reviewed changes |
 | Search engines | OpenSearch and Elasticsearch: discover indices, query documents, and review administrative requests |
@@ -177,6 +177,7 @@ For the full connector integration suite, follow [the Docker test-services guide
 | [External MCP servers](docs/mcp-servers.md) | Official MCP Registry search, local and remote servers, pasted configurations, OAuth sign-in, cloud credentials, and troubleshooting |
 | [Oracle Database](docs/oracle.md) | Service connections, TLS, schema access, queries and Oracle-specific limits |
 | [SQL Server](docs/sql-server.md) | SQL authentication, database selection, permissions, and T-SQL limits |
+| [CockroachDB](docs/cockroachdb.md) | Connecting through the PostgreSQL type, TLS, read-only users, and CockroachDB's differences |
 | [SQLite](docs/sqlite.md) | Choosing the database file, read-only handles, file rules, and SQLite-specific limits |
 | [Amazon DynamoDB](docs/dynamodb.md) | Roles and session policies, Query, Scan and PartiQL, and approved changes |
 | [Google BigQuery](docs/bigquery.md) | Credentials and datasets, dry runs and byte limits, GoogleSQL reads, and approved changes |

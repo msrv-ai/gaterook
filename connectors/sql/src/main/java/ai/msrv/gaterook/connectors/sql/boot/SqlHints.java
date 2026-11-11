@@ -14,14 +14,14 @@ import org.springframework.aot.hint.TypeReference;
  */
 class SqlHints implements RuntimeHintsRegistrar {
 
-  /** pgjdbc instantiates {@code sslfactory} by name; PostgresDialect names it for a CA from the JVM's trust store. */
-  static final String PG_JAVA_SSL_FACTORY = "org.postgresql.ssl.DefaultJavaSSLFactory";
+  /** pgjdbc instantiates {@code sslfactory} by name with the connection's properties: PostgresDialect names it. */
+  static final String PG_SSL_FACTORY = "ai.msrv.gaterook.connectors.sql.PostgresSslFactory";
 
   @Override
   public void registerHints(RuntimeHints hints, ClassLoader classLoader) {
     // Tool, connection, policy and template schemas are read with getResourceAsStream: null in native without this.
     hints.resources().registerPattern("connectors/sql/*.schema.json");
-    hints.reflection().registerType(TypeReference.of(PG_JAVA_SSL_FACTORY), MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS);
+    hints.reflection().registerType(TypeReference.of(PG_SSL_FACTORY), MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS);
     // sqlite-jdbc's native code calls progress() on the handler's own class through JNI.
     hints.jni().registerType(TypeReference.of(SQLITE_DEADLINE), MemberCategory.INVOKE_DECLARED_METHODS);
   }

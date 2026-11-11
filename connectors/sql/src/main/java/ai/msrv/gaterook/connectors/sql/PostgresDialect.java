@@ -12,12 +12,16 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.OptionalLong;
 import java.util.Properties;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.postgresql.PGConnection;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * PostgreSQL 12 and later through pgjdbc (report 04).
+ * PostgreSQL 12 and later through pgjdbc (report 04), and CockroachDB, which speaks PostgreSQL's protocol
+ * (docs/cockroachdb.md): it names itself in the {@code crdb_version} parameter, has no {@code EXPLAIN (FORMAT JSON)},
+ * and refuses privilege checks of its {@code crdb_internal} tables, which the catalog and the probe leave out.
  *
  * <p>Reads: {@code setReadOnly(true)} before the first statement makes pgjdbc open the transaction with
  * {@code BEGIN READ ONLY}; the prelude sets the transaction's statement and lock timeouts, the default schema as
@@ -89,23 +93,29 @@ public final class PostgresDialect implements SqlDialect {
     String mode = s.sslMode();
     p.setProperty("sslmode", mode);
     if (!"disable".equals(mode)) {
+      // The connection's CA, else the JVM's trust store (pgjdbc's own factory would look for ~/.postgresql/root.crt),
+      // and never a client certificate (it would offer ~/.postgresql/postgresql.crt to a server that asks).
+      p.setProperty("sslfactory", PostgresSslFactory.class.getName());
       if (s.caCertificate() != null) {
         p.setProperty("sslrootcert", CertificateFiles.pem(certificates, s.caCertificate()).toString());
-      } else if (!"require".equals(mode)) {
-        // The JVM's trust store: pgjdbc's default factory would look for ~/.postgresql/root.crt instead.
-        p.setProperty("sslfactory", "org.postgresql.ssl.DefaultJavaSSLFactory");
-      }
-      if (certificates != null) {
-        // The default factory would also send a client certificate from ~/.postgresql: never one of the user's files.
-        p.setProperty("sslcert", CertificateFiles.none(certificates).toString() + ".crt");
-        p.setProperty("sslkey", CertificateFiles.none(certificates).toString() + ".pk8");
       }
     }
     return p;
   }
 
+  /** {@code CockroachDB CCL v26.3.5 (aarch64-unknown-linux-gnu, …)}: the version after the {@code v}. */
+  private static final Pattern CRDB_VERSION = Pattern.compile("\\bv(\\d+(?:\\.\\d+){1,2})");
+  /** A node of CockroachDB's text plan: {@code estimated row count: 1,204 (…)}. */
+  private static final Pattern CRDB_ESTIMATE = Pattern.compile("estimated row count: ([\\d,]+)");
+
   @Override
   public ServerInfo identify(Connection c) throws SQLException {
+    // CockroachDB reports PostgreSQL 13 as server_version; its own version is a parameter of the session.
+    String crdb = c.unwrap(PGConnection.class).getParameterStatus("crdb_version");
+    if (crdb != null) {
+      Matcher m = CRDB_VERSION.matcher(crdb);
+      return ServerInfo.parse("CockroachDB", m.find() ? m.group(1) : "");
+    }
     return ServerInfo.parse("PostgreSQL", c.getMetaData().getDatabaseProductVersion());
   }
 
@@ -132,6 +142,9 @@ public final class PostgresDialect implements SqlDialect {
   @Override
   public OptionalLong estimateRows(Connection c, ServerInfo server, SqlExecutor.BoundSql statement)
       throws SQLException {
+    if (server != null && server.cockroach()) {
+      return cockroachEstimate(c, statement);
+    }
     String prefix = "EXPLAIN (FORMAT JSON) ";
     try (Statement st = SqlExecutor.create(c, prefix, statement, false)) {
       SqlExecutor.execute(st, prefix, statement);
@@ -147,6 +160,28 @@ public final class PostgresDialect implements SqlDialect {
         JsonNode rows = plan.path("Plan Rows");
         return rows.isNumber() ? OptionalLong.of(rows.asLong()) : OptionalLong.empty();
       }
+    } catch (RuntimeException e) {
+      return OptionalLong.empty();
+    }
+  }
+
+  /**
+   * CockroachDB's text plan, top down: the first node with an estimate. A mutation's own node often has none; the
+   * scan below it is what the change touches.
+   */
+  private static OptionalLong cockroachEstimate(Connection c, SqlExecutor.BoundSql statement) throws SQLException {
+    String prefix = "EXPLAIN ";
+    try (Statement st = SqlExecutor.create(c, prefix, statement, false)) {
+      SqlExecutor.execute(st, prefix, statement);
+      try (ResultSet rs = st.getResultSet()) {
+        while (rs != null && rs.next()) {
+          Matcher m = CRDB_ESTIMATE.matcher(String.valueOf(rs.getString(1)));
+          if (m.find()) {
+            return OptionalLong.of(Long.parseLong(m.group(1).replace(",", "")));
+          }
+        }
+      }
+      return OptionalLong.empty();
     } catch (RuntimeException e) {
       return OptionalLong.empty();
     }

@@ -109,6 +109,7 @@
     -->
     <it.tag.mysql>mysql-it</it.tag.mysql>
     <it.tag.sqlserver>sqlserver-it</it.tag.sqlserver>
+    <it.tag.cockroach>cockroach-it</it.tag.cockroach>
     <it.tag.mongo>mongo-it</it.tag.mongo>
     <it.tag.logs>logs-it</it.tag.logs>
     <it.tag.kube>kube-api</it.tag.kube>
@@ -122,7 +123,7 @@
     <it.services></it.services>
     <!-- Extra JVM options of the test forks: the tracing agent of the nightly metadata report (native.yml). -->
     <test.jvm.extra></test.jvm.extra>
-    <it.excludedGroups>${it.tag.mysql},${it.tag.sqlserver},${it.tag.mongo},${it.tag.logs},${it.tag.kube},${it.tag.vault},${it.tag.cloud},${it.tag.network},${it.tag.mcpclients},${it.tag.openapi},${it.tag.mcpservers}</it.excludedGroups>
+    <it.excludedGroups>${it.tag.mysql},${it.tag.sqlserver},${it.tag.cockroach},${it.tag.mongo},${it.tag.logs},${it.tag.kube},${it.tag.vault},${it.tag.cloud},${it.tag.network},${it.tag.mcpclients},${it.tag.openapi},${it.tag.mcpservers}</it.excludedGroups>
   </properties>
 
   <dependencyManagement>
@@ -718,6 +719,10 @@
     <profile>
       <id>sqlserver-it</id>
       <properties><it.tag.sqlserver>__enabled-sqlserver-it</it.tag.sqlserver></properties>
+    </profile>
+    <profile>
+      <id>cockroach-it</id>
+      <properties><it.tag.cockroach>__enabled-cockroach-it</it.tag.cockroach></properties>
     </profile>
     <profile>
       <id>mongo-it</id>

@@ -24,6 +24,9 @@ final class PostgresProbe implements SqlProbe {
   static final List<String> DANGEROUS_EXTENSIONS = List.of("dblink", "postgres_fdw", "plpython3u", "plpythonu",
       "plperlu", "pltclu", "adminpack", "file_fdw");
 
+  /** CockroachDB's role whose members administer the cluster, as a superuser would. */
+  static final String COCKROACH_ADMIN = "admin";
+
   @Override
   public Tls tls(Connection c, ServerInfo server) throws SQLException {
     try (Statement st = c.createStatement();
@@ -31,8 +34,14 @@ final class PostgresProbe implements SqlProbe {
       if (rs.next()) {
         return new Tls(rs.getBoolean(1), rs.getString(2));
       }
-      return new Tls(false, null);
     }
+    if (server != null && server.cockroach()) {
+      // CockroachDB's pg_stat_ssl is empty; its session setting ssl says whether this connection uses TLS.
+      try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery("SELECT current_setting('ssl')")) {
+        return new Tls(rs.next() && "on".equalsIgnoreCase(rs.getString(1)), null);
+      }
+    }
+    return new Tls(false, null);
   }
 
   @Override
@@ -40,6 +49,10 @@ final class PostgresProbe implements SqlProbe {
     List<String> roles = new ArrayList<>(DANGEROUS_ROLES);
     roles.addAll(SUPERUSER_ROLES);
     roles.add("pg_write_all_data");
+    boolean cockroach = server != null && server.cockroach();
+    if (cockroach) {
+      roles.add(COCKROACH_ADMIN);
+    }
     String user;
     boolean superuser;
     boolean createRole;
@@ -82,14 +95,16 @@ final class PostgresProbe implements SqlProbe {
     String writeSchemas;
     boolean schemaCreate;
     try (Statement st = c.createStatement();
-         ResultSet rs = st.executeQuery("SELECT count(*) FILTER (WHERE has_table_privilege(c.oid, 'SELECT')), "
-             + "count(*) FILTER (WHERE has_table_privilege(c.oid, 'INSERT,UPDATE,DELETE,TRUNCATE')), "
-             + "string_agg(DISTINCT n.nspname, ', ') FILTER (WHERE has_table_privilege(c.oid, "
-             + "'INSERT,UPDATE,DELETE,TRUNCATE')), "
-             + "coalesce(bool_or(has_schema_privilege(n.oid, 'CREATE')), false) "
+         // MATERIALIZED: the privilege checks see only the relations it keeps (PostgresCatalog.FENCE).
+         ResultSet rs = st.executeQuery("WITH t AS MATERIALIZED (SELECT c.oid, n.oid AS nsp, n.nspname "
              + "FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
-             + "WHERE c.relkind IN ('r','p','v','m','f') AND n.nspname NOT IN ('pg_catalog','information_schema') "
-             + "AND n.nspname NOT LIKE 'pg\\_toast%'")) {
+             + "WHERE c.relkind IN ('r','p','v','m','f') AND " + PostgresCatalog.NOT_DATA
+             + " AND n.nspname NOT LIKE 'pg\\_toast%') "
+             + "SELECT count(*) FILTER (WHERE has_table_privilege(oid, 'SELECT')), "
+             + "count(*) FILTER (WHERE has_table_privilege(oid, 'INSERT,UPDATE,DELETE,TRUNCATE')), "
+             + "string_agg(DISTINCT nspname, ', ') FILTER (WHERE has_table_privilege(oid, "
+             + "'INSERT,UPDATE,DELETE,TRUNCATE')), "
+             + "coalesce(bool_or(has_schema_privilege(nsp, 'CREATE')), false) FROM t")) {
       rs.next();
       readable = rs.getInt(1);
       writable = rs.getInt(2);
@@ -110,12 +125,14 @@ final class PostgresProbe implements SqlProbe {
     }
     List<String> dangerous = new ArrayList<>();
     memberOf.stream().filter(DANGEROUS_ROLES::contains).forEach(dangerous::add);
-    boolean managedSuperuser = memberOf.stream().anyMatch(SUPERUSER_ROLES::contains);
+    boolean managedSuperuser = memberOf.stream().anyMatch(SUPERUSER_ROLES::contains)
+        || (cockroach && memberOf.contains(COCKROACH_ADMIN));
     List<String> admin = new ArrayList<>();
     if (superuser) {
       admin.add("SUPERUSER");
     }
-    memberOf.stream().filter(SUPERUSER_ROLES::contains).forEach(admin::add);
+    memberOf.stream().filter(r -> SUPERUSER_ROLES.contains(r) || (cockroach && r.equals(COCKROACH_ADMIN)))
+        .forEach(admin::add);
     if (createRole) {
       admin.add("CREATEROLE");
     }

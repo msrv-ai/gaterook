@@ -7,7 +7,7 @@
 #                                            reset them, so two runs at once (two worktrees) would spoil each other
 #   scripts/test-services.sh ps | logs [service…] | env
 #
-# Profiles: sql oracle sqlserver mongo redis logs aws dynamodb vault ssh k8s all. Then: mvn -B -ntp verify -Pservices
+# Profiles: sql oracle sqlserver cockroach mongo redis logs aws dynamodb vault ssh k8s all. Then: mvn -B -ntp verify -Pservices
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 dir="$root/test-services"
@@ -20,7 +20,7 @@ case "$cmd" in
     [ ${#profiles[@]} -gt 0 ] || profiles=(sql mongo redis logs aws vault ssh)
     args=()
     for p in "${profiles[@]}"; do args+=(--profile "$p"); done
-    mkdir -p "$dir/run/certs" "$dir/run/openssh" "$dir/run/k3s"
+    mkdir -p "$dir/run/certs" "$dir/run/openssh" "$dir/run/k3s" "$dir/run/cockroach-certs"
     "${compose[@]}" "${args[@]}" up -d --build --wait
     echo
     echo "Ready. Run the ITs against them: mvn -B -ntp verify -Pservices   (or export GW_TEST_SERVICES=$dir)"

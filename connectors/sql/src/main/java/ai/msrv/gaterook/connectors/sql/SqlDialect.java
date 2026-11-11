@@ -123,6 +123,11 @@ public sealed interface SqlDialect permits PostgresDialect, MySqlDialect, Oracle
       return "MariaDB".equals(product);
     }
 
+    /** CockroachDB through the PostgreSQL dialect: its own version, PostgreSQL's protocol and catalog. */
+    boolean cockroach() {
+      return "CockroachDB".equals(product);
+    }
+
     /** {@code PostgreSQL 16.15}. */
     String full() {
       return product + " " + version;

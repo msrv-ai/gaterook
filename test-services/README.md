@@ -14,7 +14,7 @@ scripts/test-services.sh run mvn -B -ntp verify -Pservices
 scripts/test-services.sh down
 ```
 
-The default starts everything except Kubernetes and SQL Server and waits for health checks. Profiles are `sql`, `oracle`, `sqlserver`, `mongo`, `redis`, `logs`, `aws`, `dynamodb`, `vault`, `ssh`, `k8s`, and `all`:
+The default starts everything except Kubernetes and SQL Server and waits for health checks. Profiles are `sql`, `oracle`, `sqlserver`, `cockroach`, `mongo`, `redis`, `logs`, `aws`, `dynamodb`, `vault`, `ssh`, `k8s`, and `all`:
 
 ```bash
 scripts/test-services.sh up sql redis
@@ -46,6 +46,7 @@ The committed [.env](.env) contains image pins, ports, and disposable passwords.
 | `mysql`, `mariadb` | MySQL 8.4.10 / MariaDB 11.4.5 | 55306 / 55307 | sql |
 | `oracle` | [gvenzl/oracle-free](https://github.com/gvenzl/oci-oracle-free) 23.26.3-slim, service `FREEPDB1` | 55521 | sql, oracle |
 | `sqlserver` | SQL Server 2022 CU23 Developer, x86-64 image | 55433 | sqlserver |
+| `cockroach` | CockroachDB v26.3.5, one in-memory node with TLS | 55257 | cockroach |
 | `mongo`, `mongo-open`, `mongo-tls` | MongoDB 8.2.4 with auth / no auth / required TLS | 55017 / 55018 / 55019 | mongo |
 | `mongo7`, `mongo9` | MongoDB 7.0.45 / 9.0.4 | 55070 / 55090 | mongo |
 | `redis` | Redis 7.0.15, plain and TLS listeners | 55379 / 55380 | redis |
@@ -92,3 +93,17 @@ scripts/test-services.sh run mvn -B -ntp -pl connectors/sql -am verify -Pservice
 The ordinary `services` Maven profile does not enable SQL Server tests. See the [connector guide](../docs/sql-server.md)
 for supported authentication and T-SQL behavior, and Microsoft's [container deployment guide](https://learn.microsoft.com/en-us/sql/linux/sql-server-linux-docker-container-deployment?view=sql-server-ver17)
 for platform requirements.
+
+## CockroachDB
+
+CockroachDB is opt-in: one node keeps its data in 1 GiB of memory, within a 2 GiB container limit. The image makes
+its own CA and node certificate (for `127.0.0.1`) in `run/cockroach-certs/` and the admin user `gaterook` with the
+password from `.env`; the test adds a reader and its database `gaterook_crdb_it`. The PostgreSQL connector verifies the
+node with that CA.
+
+```bash
+scripts/test-services.sh up cockroach
+scripts/test-services.sh run mvn -B -ntp -pl connectors/sql -am verify -Pservices,cockroach-it -Dit.test=CockroachIT -Dfailsafe.failIfNoSpecifiedTests=false
+```
+
+The ordinary `services` Maven profile does not enable CockroachDB tests. See [CockroachDB](../docs/cockroachdb.md).
