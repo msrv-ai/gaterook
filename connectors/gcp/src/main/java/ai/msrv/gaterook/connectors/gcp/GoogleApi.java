@@ -124,6 +124,60 @@ final class GoogleApi {
     return send(HttpRequest.newBuilder(uri).GET(), uri, what, false, false, false);
   }
 
+  /** Bytes of an object's media and what Google said about them. */
+  record Media(byte[] bytes, String contentType, String contentRange) {}
+
+  /**
+   * {@code alt=media} of one Cloud Storage object ({@code gcp_storage_read}): at most {@code length} bytes from
+   * {@code offset}, asked for with a {@code Range} header and cut there whatever the server sends.
+   */
+  Media media(URI uri, long offset, long length, String what) throws ConnectorException {
+    requireGoogle(uri);
+    requireNoDotSegments(uri);
+    HttpRequest.Builder request = HttpRequest.newBuilder(uri).GET()
+        .header("Range", "bytes=" + offset + "-" + (offset + length - 1));
+    for (Map.Entry<String, List<String>> h : headers(uri).entrySet()) {
+      for (String v : h.getValue()) {
+        request.header(h.getKey(), v);
+      }
+    }
+    Duration left = ctx.remaining().minus(MARGIN);
+    if (left.isNegative() || left.isZero()) {
+      throw ConnectorException.timeout(what + " didn't answer in time.");
+    }
+    try {
+      HttpResponse<InputStream> r = http.send(request.timeout(left.compareTo(MAX_REQUEST) > 0 ? MAX_REQUEST : left)
+          .build(), HttpResponse.BodyHandlers.ofInputStream());
+      byte[] body;
+      try (InputStream in = r.body()) {
+        body = r.statusCode() / 100 == 2 ? in.readNBytes((int) Math.min(length, Integer.MAX_VALUE - 8))
+            : read(in, what, MAX_BODY);
+      }
+      if (r.statusCode() / 100 != 2) {
+        JsonNode tree;
+        try {
+          tree = body.length == 0 ? JsonNodeFactory.instance.objectNode() : JSON.readTree(body);
+        } catch (JacksonException e) {
+          tree = JsonNodeFactory.instance.objectNode();
+        }
+        throw error(r.statusCode(), tree, what, uri);
+      }
+      return new Media(body, r.headers().firstValue("Content-Type").orElse(""),
+          r.headers().firstValue("Content-Range").orElse(""));
+    } catch (HttpConnectTimeoutException e) {
+      throw ConnectorException.unavailable("Can't connect to " + host(uri) + " (timed out).", e);
+    } catch (HttpTimeoutException e) {
+      throw ConnectorException.timeout(what + " didn't answer in time.");
+    } catch (ConnectException | SSLException e) {
+      throw ConnectorException.unavailable("Can't connect to " + host(uri) + ": " + reason(e) + ".", e);
+    } catch (IOException e) {
+      throw ConnectorException.unavailable(what + " failed: " + reason(e), e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw ConnectorException.timeout(what + " was cancelled.");
+    }
+  }
+
   /**
    * A request of {@code gcp_api_read} or {@code gcp_api_change}, built by {@link Discovery#build} from a method of a
    * Discovery document: GET, a read-only POST of {@link ApiRules}, or an approved change. A path may carry a

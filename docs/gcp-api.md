@@ -6,6 +6,7 @@ Use the GCP connector's generic API tools when the curated tools (`gcp_describe`
 | --- | --- | --- |
 | `gcp_api_read` | Calls a method that only reads: an HTTP GET, or a read-only POST such as `testIamPermissions`, `getIamPolicy` or `getAncestry`. | **Read only** |
 | `gcp_api_change` | Calls a method that changes resources: create, patch, delete, run, restart, roll back. A person approves the exact HTTP request first. | **Approval** (every environment) |
+| `gcp_storage_read` | Reads up to 256 KB of one Cloud Storage object as text, from an offset. Text content only; key, credential, `.env` and Terraform state files are refused by name. | **Read only** |
 
 Newly introduced tools on existing endpoint attachments require explicit enablement. Reconnect the AI client after changing endpoint tool permissions.
 
@@ -80,11 +81,13 @@ Other requests are bounded the same way:
 
 **Refused, with a pointer to the right tool:**
 
-- Object contents and downloads (`alt=media`).
+- Object contents and downloads (`alt=media`): read text objects with `gcp_storage_read` instead.
 - Database rows, for example BigQuery table data and queries, Firestore documents, Spanner sessions and Datastore queries: use a database connector.
 - Cloud Asset searches: use `gcp_describe`.
 - Cloud Logging: use `logs_search`.
 - Monitoring time series: use `gcp_metrics`.
+
+**Object reads.** `gcp_storage_read` checks the bucket like the API tools do, and also its location against the policy's regions. Resource masks apply to `//storage.googleapis.com/<bucket>/objects/<object>`. It reads only text content types, or a text file name when the content type says nothing, and asks Cloud Storage for exactly the bytes it returns, cut at a whole character; continue with `nextOffset`.
 
 **Masking.** Answers are masked before they reach the client, as with `gcp_describe`. That covers container environment values, Compute metadata and keys that name secrets. List page tokens stay readable.
 

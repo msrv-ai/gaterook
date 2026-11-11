@@ -58,7 +58,7 @@ class GcpConnectorTest {
     List<ToolDefinition> tools = connector.manifest().tools();
 
     assertThat(tools).extracting(ToolDefinition::name).containsExactly("gcp_describe", "gcp_metrics",
-        "gcp_api_read", "gcp_api_change", "logs_search", "logs_tail");
+        "gcp_api_read", "gcp_storage_read", "gcp_api_change", "logs_search", "logs_tail");
     for (ToolDefinition t : tools) {
       assertThat(t.inputSchema().at("/properties/connection").toString()).isEqualTo("{\"type\":\"string\"}");
       assertThat(t.inputSchema().at("/required").toString()).contains("\"connection\"");
@@ -93,12 +93,13 @@ class GcpConnectorTest {
     List<ToolDefinition> preview = connector.previewTools(Configs.of("draft", Env.DEV, "{}"));
 
     assertThat(preview).extracting(ToolDefinition::name)
-        .containsExactly("gcp_describe", "gcp_metrics", "gcp_api_read", "gcp_api_change", "logs_search", "logs_tail");
+        .containsExactly("gcp_describe", "gcp_metrics", "gcp_api_read", "gcp_storage_read", "gcp_api_change",
+            "logs_search", "logs_tail");
     assertThat(preview).allSatisfy(tool -> assertThat(tool.description())
         .doesNotContain("OpenSearch", "Loki", "CloudWatch"));
     assertThat(preview.stream().filter(tool -> CloudLogs.isTool(tool.name())))
         .allSatisfy(tool -> assertThat(tool.description()).contains("Google Cloud Logging"));
-    assertThat(preview.get(4).inputSchema().at("/properties/query/description").asString())
+    assertThat(preview.get(5).inputSchema().at("/properties/query/description").asString())
         .contains("Google Cloud Logging").doesNotContain("OpenSearch", "Loki", "CloudWatch");
   }
 
@@ -122,8 +123,12 @@ class GcpConnectorTest {
         .isEqualTo("[\"acme-dev\",\"acme-stage\"]");
     assertThat(tools.get(2).description()).endsWith(" Scopes: gcp-dev: projects/acme-dev (no live reads); gcp-stage: "
         + "projects/acme-stage, folders/123456.");
-    assertThat(tools.get(3).description()).startsWith(GcpTools.API_CHANGE);
-    assertThat(tools.get(3).defaultMode()).isEqualTo(Mode.APPROVAL);
+    ToolDefinition change = tools.stream().filter(t -> t.name().equals("gcp_api_change")).findFirst().orElseThrow();
+    assertThat(change.description()).startsWith(GcpTools.API_CHANGE);
+    assertThat(change.defaultMode()).isEqualTo(Mode.APPROVAL);
+    assertThat(tools.get(3).name()).isEqualTo("gcp_storage_read");
+    assertThat(tools.get(3).description()).endsWith(" Scopes: gcp-dev: projects/acme-dev (no live reads); gcp-stage: "
+        + "projects/acme-stage, folders/123456.");
     assertThat(connector.manifest().tools().get(0).inputSchema().at("/properties/scope/enum").isMissingNode())
         .as("the manifest's schema stays as it is").isTrue();
   }

@@ -97,7 +97,7 @@ class ConnectorCatalogApiIT {
           "Read and search selected log files over SSH with bounded server-side commands."),
       new KitCard("Kubernetes", "kubernetes", null, "Kubernetes", "ship-wheel", "built-in", 4,
           "Pods, logs and events; rollouts and apply with approval."),
-      new KitCard("Cloud", "gcp", null, "GCP", "cloud", "built-in", 6,
+      new KitCard("Cloud", "gcp", null, "GCP", "cloud", "built-in", 7,
           "Resources, metrics, Cloud Logging and any Google Cloud API, with the connection's Google identity. "
               + "Changes wait for approval."),
       new KitCard("Cloud", "aws", null, "AWS", "cloud", "built-in", 2,
@@ -178,8 +178,8 @@ class ConnectorCatalogApiIT {
     assertThat(legacy).allSatisfy(tool -> assertThat(tool.path("description").asString())
         .contains("Google Cloud Logging").doesNotContain("OpenSearch", "Loki", "CloudWatch"));
     JsonNode cloud = preview("gcp", "{}");
-    assertThat(each(cloud, "name")).containsExactly("gcp_describe", "gcp_metrics", "gcp_api_read", "gcp_api_change",
-        "logs_search", "logs_tail");
+    assertThat(each(cloud, "name")).containsExactly("gcp_describe", "gcp_metrics", "gcp_api_read", "gcp_storage_read",
+        "gcp_api_change", "logs_search", "logs_tail");
     assertThat(cloud).allSatisfy(tool -> assertThat(tool.path("description").asString())
         .doesNotContain("OpenSearch", "Loki", "CloudWatch"));
     assertThat(each(preview("loki", "{}"), "name")).containsExactly("loki_search", "loki_tail");
