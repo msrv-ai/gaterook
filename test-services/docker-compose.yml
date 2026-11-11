@@ -5,7 +5,7 @@
 #   scripts/test-services.sh up sql redis      # or: docker compose -f test-services/docker-compose.yml --profile sql up -d --wait
 #   mvn -B -ntp verify -Pservices              # the ITs connect here instead of starting their own servers
 #
-# Profiles: sql · oracle · sqlserver · mongo · redis · logs · aws · vault · ssh · k8s · all
+# Profiles: sql · oracle · sqlserver · trino · mongo · redis · logs · aws · vault · ssh · k8s · all
 name: gw-test
 
 x-health: &health
@@ -101,6 +101,22 @@ services:
       - "127.0.0.1:${GW_COCKROACH_PORT}:26257"
     healthcheck:
       test: ["CMD", "/cockroach/cockroach", "sql", "--certs-dir=/cockroach/certs", "--host=127.0.0.1", "-e", "SELECT 1"]
+      <<: *health
+
+  # Trino (connectors/trino): one coordinator that is its own worker, with only the built-in memory and tpch catalogs
+  # of trino/catalog and a 768 MiB heap (trino/jvm.config). No authentication: the IT names its user on loopback.
+  trino:
+    image: trinodb/trino:${GW_TRINO_TAG}
+    container_name: gw-test-trino
+    profiles: [trino, all]
+    mem_limit: 1280m
+    volumes:
+      - ./trino/jvm.config:/etc/trino/jvm.config:ro
+      - ./trino/catalog:/etc/trino/catalog:ro
+    ports:
+      - "127.0.0.1:${GW_TRINO_PORT}:8080"
+    healthcheck:
+      test: ["CMD", "/usr/lib/trino/bin/health-check"]
       <<: *health
 
   # Oracle Free includes FREEPDB1 on both amd64 and arm64. Keep its large datafiles in the container layer:

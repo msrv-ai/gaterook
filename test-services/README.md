@@ -1,6 +1,6 @@
 # Connector test services
 
-Docker Compose supplies disposable servers for connector integration tests: PostgreSQL, MySQL, MariaDB, Oracle Database, SQL Server, MongoDB, Redis, Loki, OpenSearch, Elasticsearch, moto, Vault, OpenSSH, and k3s. This avoids relying on Linux x86-64 fixture binaries when testing on macOS or another Docker-capable machine.
+Docker Compose supplies disposable servers for connector integration tests: PostgreSQL, MySQL, MariaDB, Oracle Database, SQL Server, CockroachDB, Trino, MongoDB, Redis, Loki, OpenSearch, Elasticsearch, moto, Vault, OpenSSH, and k3s. This avoids relying on Linux x86-64 fixture binaries when testing on macOS or another Docker-capable machine.
 
 Services bind to `127.0.0.1`. Credentials are public test fixtures, and service data is disposable. Tests reset databases, users, and server settings; never point this suite at real data.
 
@@ -14,7 +14,7 @@ scripts/test-services.sh run mvn -B -ntp verify -Pservices
 scripts/test-services.sh down
 ```
 
-The default starts everything except Kubernetes and SQL Server and waits for health checks. Profiles are `sql`, `oracle`, `sqlserver`, `cockroach`, `mongo`, `redis`, `logs`, `aws`, `dynamodb`, `vault`, `ssh`, `k8s`, and `all`:
+The default starts everything except Kubernetes, SQL Server, CockroachDB and Trino and waits for health checks. Profiles are `sql`, `oracle`, `sqlserver`, `cockroach`, `trino`, `mongo`, `redis`, `logs`, `aws`, `dynamodb`, `vault`, `ssh`, `k8s`, and `all`:
 
 ```bash
 scripts/test-services.sh up sql redis
@@ -47,6 +47,7 @@ The committed [.env](.env) contains image pins, ports, and disposable passwords.
 | `oracle` | [gvenzl/oracle-free](https://github.com/gvenzl/oci-oracle-free) 23.26.3-slim, service `FREEPDB1` | 55521 | sql, oracle |
 | `sqlserver` | SQL Server 2022 CU23 Developer, x86-64 image | 55433 | sqlserver |
 | `cockroach` | CockroachDB v26.3.5, one in-memory node with TLS | 55257 | cockroach |
+| `trino` | Trino 484 with the `memory` and `tpch` catalogs, no authentication | 55808 | trino |
 | `mongo`, `mongo-open`, `mongo-tls` | MongoDB 8.2.4 with auth / no auth / required TLS | 55017 / 55018 / 55019 | mongo |
 | `mongo7`, `mongo9` | MongoDB 7.0.45 / 9.0.4 | 55070 / 55090 | mongo |
 | `redis` | Redis 7.0.15, plain and TLS listeners | 55379 / 55380 | redis |
@@ -107,3 +108,17 @@ scripts/test-services.sh run mvn -B -ntp -pl connectors/sql -am verify -Pservice
 ```
 
 The ordinary `services` Maven profile does not enable CockroachDB tests. See [CockroachDB](../docs/cockroachdb.md).
+
+## Trino
+
+Trino is opt-in: one coordinator that is also its own worker, with a 768 MiB heap ([trino/jvm.config](trino/jvm.config))
+within a 1,280 MiB container limit. [trino/catalog](trino/catalog) replaces the image's catalogs with the built-in
+`memory` catalog (64 MB per node) and `tpch`, so nothing reaches another system. The coordinator has no
+authentication: the test names its user on loopback. Tables it creates in `memory` disappear with the container.
+
+```bash
+scripts/test-services.sh up trino
+scripts/test-services.sh run mvn -B -ntp -pl connectors/trino -am verify -Pservices,trino-it -Dit.test=TrinoIT -Dfailsafe.failIfNoSpecifiedTests=false
+```
+
+The ordinary `services` Maven profile does not enable Trino tests. See [Trino and Presto](../docs/trino.md).
