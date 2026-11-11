@@ -1,0 +1,26 @@
+{
+  "area": "cosmosdb",
+  "module": "connectors/cosmosdb",
+  "connectorTypes": ["cosmosdb"],
+  "description": "Touches of the Cosmos DB connector for the native smoke (report 15 §6): the container list, the read-only key and the schemas in the image, without I/O.",
+  "touches": [
+    {
+      "name": "cosmosdb-container-not-allowed",
+      "connection": {"type": "cosmosdb", "env": "dev",
+        "config": {"endpoint": "https://acme-dev.documents.azure.com", "containers": ["app/orders"],
+          "auth": {"method": "key", "keyKind": "readOnly"}}},
+      "call": {"tool": "cosmosdb_query", "arguments": {"database": "app", "container": "secrets",
+        "query": "SELECT * FROM c"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.cosmosdb.container-not-allowed"}
+    },
+    {
+      "name": "cosmosdb-read-only-key-writes-nothing",
+      "connection": {"type": "cosmosdb", "env": "dev",
+        "config": {"endpoint": "https://acme-dev.documents.azure.com",
+          "auth": {"method": "key", "keyKind": "readOnly"}}},
+      "call": {"tool": "cosmosdb_execute", "arguments": {"database": "app", "container": "orders",
+        "operation": "delete", "id": "o-1", "partitionKey": "c-42"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.cosmosdb.read-only-key"}
+    }
+  ]
+}

@@ -5,7 +5,7 @@
 #   scripts/test-services.sh up sql redis      # or: docker compose -f test-services/docker-compose.yml --profile sql up -d --wait
 #   mvn -B -ntp verify -Pservices              # the ITs connect here instead of starting their own servers
 #
-# Profiles: sql · oracle · sqlserver · trino · mongo · redis · logs · aws · prometheus · influxdb · vault · ssh · k8s · all
+# Profiles: sql · oracle · sqlserver · cockroach · trino · cosmosdb · mongo · redis · logs · aws · dynamodb · prometheus · influxdb · vault · ssh · k8s · all
 name: gw-test
 
 x-health: &health
@@ -128,6 +128,25 @@ services:
       - "127.0.0.1:${GW_TRINO_PORT}:8080"
     healthcheck:
       test: ["CMD", "/usr/lib/trino/bin/health-check"]
+      <<: *health
+
+  # Azure Cosmos DB for NoSQL through the Linux emulator vNext (amd64 and arm64): the gateway on plain HTTP, about
+  # 700 MB at rest. Its data lives in the container and goes with it. It checks no key or token; the IT signs with the
+  # well-known emulator key of .env, and the signature itself is checked against a fake (CosmosDbConnectorTest).
+  cosmosdb:
+    image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:${GW_COSMOSDB_TAG}
+    container_name: gw-test-cosmosdb
+    profiles: [cosmosdb, all]
+    mem_limit: 2g
+    environment:
+      PROTOCOL: http
+      ENABLE_EXPLORER: "false"
+      ENABLE_TELEMETRY: "false"
+      LOG_LEVEL: warn
+    ports:
+      - "127.0.0.1:${GW_COSMOSDB_PORT}:8081"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://127.0.0.1:8080/ready"]
       <<: *health
 
   # Oracle Free includes FREEPDB1 on both amd64 and arm64. Keep its large datafiles in the container layer:
