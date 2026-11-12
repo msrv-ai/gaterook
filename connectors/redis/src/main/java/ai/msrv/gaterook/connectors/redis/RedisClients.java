@@ -35,6 +35,7 @@ import redis.clients.jedis.exceptions.JedisException;
  *
  * <p>RESP2 is requested explicitly ({@code HELLO 2 AUTH …}): replies have one shape whatever the server prefers, and
  * a server without {@code HELLO} (Redis &lt; 6.0) fails the handshake. Housekeeping runs on one shared virtual thread.
+ * Connection type Auto is resolved before a pool is created, once per version of the connection ({@link AutoTls}).
  */
 final class RedisClients implements AutoCloseable {
 
@@ -46,6 +47,7 @@ final class RedisClients implements AutoCloseable {
   record PoolKey(String connectionId, int database) {}
 
   private final ConcurrentHashMap<PoolKey, Pool> pools = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, Transport> transports = new ConcurrentHashMap<>();
   private ScheduledThreadPoolExecutor scheduler;
   private boolean closed;
 
@@ -214,11 +216,21 @@ final class RedisClients implements AutoCloseable {
    */
   RedisSession open(ConnectionConfig cfg, RedisSettings s, Credentials login, Instant deadline)
       throws ConnectorException {
-    Pool p = pool(cfg, s, login);
+    Pool p = pool(cfg, s, login, deadline);
     return new RedisSession(p, p.borrow(deadline), clock, deadline);
   }
 
-  private Pool pool(ConnectionConfig cfg, RedisSettings s, Credentials login) {
+  private Pool pool(ConnectionConfig cfg, RedisSettings s, Credentials login, Instant deadline)
+      throws ConnectorException {
+    PoolKey key = new PoolKey(cfg.id(), s.database());
+    RedisSettings settings = s;
+    if (s.autoTls()) {
+      Pool current = pools.get(key);
+      if (current == null || current.configVersion != cfg.version() || !current.credentials.equals(login)) {
+        // Outside the lock: detecting the transport talks to the server, within the call's deadline.
+        settings = transport(cfg, s, login, deadline);
+      }
+    }
     Pool stale;
     Pool result;
     synchronized (this) {
@@ -226,13 +238,21 @@ final class RedisClients implements AutoCloseable {
         login.close();
         throw new IllegalStateException("The Redis connector is closed");
       }
-      PoolKey key = new PoolKey(cfg.id(), s.database());
       Pool current = pools.get(key);
       if (current != null && current.configVersion == cfg.version() && current.credentials.equals(login)) {
         login.close();
         return current;
       }
-      result = new Pool(cfg.id(), cfg.version(), s, login);
+      if (settings.autoTls()) {
+        // A pool of this version existed a moment ago, so its transport is known unless the connection changed.
+        Transport known = transports.get(cfg.id());
+        if (known == null || known.configVersion() != cfg.version()) {
+          login.close();
+          throw ConnectorException.unavailable("The connection changed while the call started. Try again.", null);
+        }
+        settings = s.withTls(known.tls());
+      }
+      result = new Pool(cfg.id(), cfg.version(), settings, login);
       stale = pools.put(key, result);
       scheduler();
     }
@@ -241,6 +261,33 @@ final class RedisClients implements AutoCloseable {
     }
     return result;
   }
+
+  /**
+   * The transport Auto finds for this version of the connection: detected once ({@link AutoTls}), then shared by its
+   * pools (one per database) until the connection changes or its pools close for being idle. A failure closes
+   * {@code login}, which the pool would have owned.
+   */
+  private RedisSettings transport(ConnectionConfig cfg, RedisSettings s, Credentials login, Instant deadline)
+      throws ConnectorException {
+    Transport known = transports.get(cfg.id());
+    if (known != null && known.configVersion() == cfg.version()) {
+      return s.withTls(known.tls());
+    }
+    try {
+      RedisSettings found = AutoTls.resolve(s, deadline);
+      transports.put(cfg.id(), new Transport(cfg.version(), found.tls()));
+      return found;
+    } catch (JedisException e) {
+      login.close();
+      throw RedisErrors.connect(e, s);
+    } catch (RuntimeException e) {
+      login.close();
+      throw e;
+    }
+  }
+
+  /** The transport Auto found for one version of a connection. */
+  private record Transport(long configVersion, boolean tls) {}
 
   /** The current pool of a connection, if any (tests). */
   Pool current(String connectionId) {
@@ -258,11 +305,18 @@ final class RedisClients implements AutoCloseable {
 
   /** The connection changed or went away: its pool closes, busy sockets after their calls. */
   void evict(String connectionId) {
+    transports.remove(connectionId);
     pools.forEach((key, pool) -> {
       if (key.connectionId().equals(connectionId) && pools.remove(key, pool)) {
         pool.retire();
       }
     });
+  }
+
+  /** Whether Auto found the transport of {@code connectionId} and its pools still use it (tests). */
+  Boolean knownTls(String connectionId) {
+    Transport t = transports.get(connectionId);
+    return t == null ? null : t.tls();
   }
 
   /** Closes connections idle for a minute and pools nobody used for {@link #IDLE_POOL}. */
@@ -276,6 +330,10 @@ final class RedisClients implements AutoCloseable {
       if (now - p.lastUsedNanos >= idlePool.toNanos() && p.active() == 0) {
         if (pools.remove(new PoolKey(p.connectionId, p.settings.database()), p)) {
           p.retire();
+          // The next call detects Auto's transport again: the server may have changed meanwhile.
+          if (pools.keySet().stream().noneMatch(k -> k.connectionId().equals(p.connectionId))) {
+            transports.remove(p.connectionId);
+          }
         }
       } else {
         p.evictIdle(idleConnection);
@@ -291,6 +349,7 @@ final class RedisClients implements AutoCloseable {
       closed = true;
       all = new ArrayList<>(pools.values());
       pools.clear();
+      transports.clear();
       s = scheduler;
       scheduler = null;
     }

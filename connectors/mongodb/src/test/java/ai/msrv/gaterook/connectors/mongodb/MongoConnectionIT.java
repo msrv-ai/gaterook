@@ -9,6 +9,7 @@ import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.SecretResolver;
 import ai.msrv.gaterook.connector.api.SecretUnavailableException;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
@@ -160,6 +161,41 @@ class MongoConnectionIT {
           .isEqualTo(HealthResult.State.HEALTHY);
       assertThat(selected.config().at("/connection/tls").asString()).isEqualTo("auto");
     }
+  }
+
+  @Test
+  void serviceSuggestionsSignInWithAutoAndOfferTheReadableDatabases() throws Exception {
+    for (LocalMongod server : List.of(auth, tls)) {
+      ObjectNode config = Fixtures.json("""
+          {"connection":{"host":"127.0.0.1","tls":"auto"},"credentials":{"user":"gw_ro"}}
+          """);
+      ObjectNode connection = (ObjectNode) config.path("connection");
+      connection.put("port", server.port);
+      if (server == tls) {
+        connection.put("caCertificate", server.caCertificate());
+      }
+      ConnectionConfig draft = Fixtures.config("suggest-" + server.port, Env.DEV, config.toString(), 1);
+
+      Suggestions s = connector.suggest(draft, Fixtures.Secrets.password(LocalMongod.password("gw_ro")),
+          Fixtures.Context.of(Env.DEV), Suggestions.Scope.SERVICE);
+
+      Suggestions.Field allowlist = s.fields().get("/advanced/namespaceAllowlist");
+      assertThat(allowlist).as("%s", s.notes()).isNotNull();
+      assertThat(allowlist.source()).isEqualTo("the server");
+      assertThat(allowlist.value()).isNull();
+      assertThat(allowlist.options()).extracting(Suggestions.Option::value).containsExactly("orders.*");
+      assertThat(s.notes()).contains(server == tls ? "The server speaks TLS: Auto connects with TLS."
+          : "The server doesn't speak TLS: Auto connects without it, so the traffic isn't encrypted.");
+      assertThat(s.notes()).contains("Signed in as gw_ro@admin. 1 database to read: choose the ones agents may use.");
+    }
+    // A certificate the computer doesn't trust is a note, never a plaintext retry.
+    ConnectionConfig untrusted = Fixtures.config("suggest-untrusted", Env.DEV,
+        "{\"connection\":{\"host\":\"127.0.0.1\",\"port\":" + tls.port + ",\"tls\":\"auto\"},"
+            + "\"credentials\":{\"user\":\"gw_ro\"}}", 1);
+    Suggestions refused = connector.suggest(untrusted, Fixtures.Secrets.password(LocalMongod.password("gw_ro")),
+        Fixtures.Context.of(Env.DEV), Suggestions.Scope.SERVICE);
+    assertThat(refused.fields()).isEmpty();
+    assertThat(refused.notes()).anyMatch(n -> n.contains("certificate isn't trusted"));
   }
 
   @Test

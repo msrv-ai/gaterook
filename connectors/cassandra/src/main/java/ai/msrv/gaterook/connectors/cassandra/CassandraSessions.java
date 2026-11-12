@@ -24,6 +24,7 @@ import com.datastax.oss.driver.api.core.ssl.SslEngineFactory;
 import com.datastax.oss.driver.api.core.uuid.Uuids;
 import com.datastax.oss.driver.internal.core.context.DefaultDriverContext;
 import com.datastax.oss.driver.internal.core.context.StartupOptionsBuilder;
+import com.datastax.oss.driver.internal.core.loadbalancing.DcInferringLoadBalancingPolicy;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -151,6 +152,13 @@ final class CassandraSessions implements AutoCloseable {
     }
   }
 
+  /** The time Auto may take to find the transport: two connect timeouts, never past the call's deadline. */
+  static Duration autoBudget(CassandraSettings s, ExecContext ctx) {
+    Duration budget = s.connectTimeout().multipliedBy(2);
+    Duration left = ctx.remaining();
+    return left.compareTo(budget) < 0 ? left : budget;
+  }
+
   /** The session of a saved connection, opened within the call's deadline when there is none yet. */
   CqlSession session(ConnectionConfig cfg, CassandraSettings s, SecretResolver secrets, ExecContext ctx)
       throws ConnectorException {
@@ -160,6 +168,8 @@ final class CassandraSessions implements AutoCloseable {
       Entry entry = entries.get(cfg.id());
       if (entry == null || !entry.usable(key)) {
         List<InetSocketAddress> points = contactPoints(s);
+        // Connection type Auto: the transport is found once per session, before anything signs in.
+        CassandraSettings resolved = AutoTls.resolve(s, points, autoBudget(s, ctx));
         Entry fresh = new Entry(key, login.notAfter());
         entry = entries.compute(cfg.id(), (id, old) -> {
           if (old != null && old.usable(key)) {
@@ -168,7 +178,7 @@ final class CassandraSessions implements AutoCloseable {
           if (old != null) {
             old.close();
           }
-          fresh.future = open(cfg.id(), s, login, points);
+          fresh.future = open(cfg.id(), resolved, login, points);
           return fresh;
         });
       }
@@ -271,14 +281,19 @@ final class CassandraSessions implements AutoCloseable {
   static CompletableFuture<CqlSession> open(String connectionId, CassandraSettings s, Login login,
       List<InetSocketAddress> points) {
     try {
+      if (s.autoTls()) {
+        throw new IllegalStateException("Connection type Auto must be resolved before a session opens");
+      }
       CqlSessionBuilder b = builder()
           .withConfigLoader(DriverConfigLoader.fromMap(options(connectionId, s)))
           .withClassLoader(CassandraSessions.class.getClassLoader())
           .addContactPoints(points)
-          .withLocalDatacenter(s.localDataCenter())
           .withNodeDistanceEvaluator(guard())
           .withApplicationName("GateRook")
           .withApplicationVersion(BuiltIn.VERSION);
+      if (s.localDataCenter() != null) {
+        b.withLocalDatacenter(s.localDataCenter());
+      }
       if (login.password() != null) {
         b.withAuthProvider(new PasswordAuth(login.user(), login.password().clone()));
       }
@@ -356,7 +371,12 @@ final class CassandraSessions implements AutoCloseable {
     o.put(TypedDriverOption.REQUEST_PAGE_SIZE, 100);
     o.put(TypedDriverOption.REQUEST_DEFAULT_IDEMPOTENCE, false);
     o.put(TypedDriverOption.REQUEST_LOG_WARNINGS, false);
-    o.put(TypedDriverOption.LOAD_BALANCING_LOCAL_DATACENTER, s.localDataCenter());
+    if (s.localDataCenter() != null) {
+      o.put(TypedDriverOption.LOAD_BALANCING_LOCAL_DATACENTER, s.localDataCenter());
+    } else {
+      // Only a draft's own session (setup suggestions): the contact points' data center, if they share one.
+      o.put(TypedDriverOption.LOAD_BALANCING_POLICY_CLASS, DcInferringLoadBalancingPolicy.class.getName());
+    }
     o.put(TypedDriverOption.CONNECTION_CONNECT_TIMEOUT, s.connectTimeout());
     o.put(TypedDriverOption.CONNECTION_INIT_QUERY_TIMEOUT, s.connectTimeout());
     o.put(TypedDriverOption.CONNECTION_SET_KEYSPACE_TIMEOUT, s.connectTimeout());

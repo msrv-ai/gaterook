@@ -18,6 +18,8 @@ The **Server URL** is the server's address with `https://` and its port, optiona
 
 **Databases** lists the databases (buckets on 2.x) agents may use; `*` matches any characters, as in `iot_*`. Empty, every database the credentials may read. GateRook checks the list for the database a call names and for every database a statement names itself (`SHOW MEASUREMENTS ON hr`, `FROM "hr"."autogen"."cpu"`), and filters database listings by it. **Organization** is needed by InfluxDB OSS 2.x for writes; InfluxDB Cloud takes it from the token.
 
+While you fill in the form, GateRook offers the servers and organizations of the `influx` CLI's `~/.influxdbv2/configs` (never their tokens) and `http://localhost:8181` or `http://localhost:8086` when a server answers there. For a URL of this computer it reads `/ping` without credentials and sets **Server** to the kind the server reports. Once the form can sign in, it does the same for any server, fills in the organization when the token sees exactly one, and lists the buckets or databases for **Databases**.
+
 Test connection reports the server's version, the databases agents may use, and what the credentials may do as far as the server tells: InfluxDB 3 Core has admin tokens only; on InfluxDB 3 Enterprise, a token that may use the configuration API is an admin token; on 2.x, a token that can read the organization's users is an all-access or operator token; on 1.x, it asks whether the user is an admin (`SHOW USERS`). It never writes to find out. Outside dev it warns about credentials that may also write and delete.
 
 ## Bound reads and review exact writes

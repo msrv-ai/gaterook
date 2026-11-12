@@ -28,13 +28,12 @@
         "port": true,
         "uri": true,
         "tls": {
-          "x-advanced": false,
           "type": [
             "boolean",
             "string"
           ],
           "title": "Connection type",
-          "default": false,
+          "default": "auto",
           "x-env-default": {
             "prod": true
           },
@@ -48,7 +47,7 @@
             "Without TLS",
             "TLS"
           ],
-          "description": "Auto detects TLS before signing in and uses an unencrypted connection only when the server supports it. TLS verifies the certificate and host name. Explicit connection-string TLS settings still apply."
+          "description": "Auto uses TLS when the server speaks it and an unencrypted connection only when it doesn't, checked before signing in. TLS verifies the certificate and host name. Explicit connection-string TLS settings still apply."
         },
         "caCertificate": {
           "type": "string",

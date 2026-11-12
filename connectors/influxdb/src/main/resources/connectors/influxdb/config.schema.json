@@ -32,12 +32,13 @@
         "1"
       ],
       "default": "3",
+      "x-suggest": true,
       "x-enumTitles": [
         "InfluxDB 3 Core or Enterprise",
         "InfluxDB 2.x or InfluxDB Cloud",
         "InfluxDB 1.x"
       ],
-      "description": "The API GateRook uses; Test connection checks it against the server. InfluxDB Cloud Serverless and Cloud Dedicated answer SQL only over Arrow Flight: choose InfluxDB 2.x for their InfluxQL and write APIs."
+      "description": "The API GateRook uses, set from the server's /ping once the form can reach it; Test connection checks it. InfluxDB Cloud Serverless and Cloud Dedicated answer SQL only over Arrow Flight: choose InfluxDB 2.x for their InfluxQL and write APIs."
     },
     "organization": {
       "type": "string",

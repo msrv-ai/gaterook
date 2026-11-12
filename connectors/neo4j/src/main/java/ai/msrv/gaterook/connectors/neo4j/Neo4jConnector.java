@@ -13,12 +13,14 @@ import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
+import ai.msrv.gaterook.connectors.support.LocalPorts;
 import ai.msrv.gaterook.connectors.support.OutputSanitizer;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
 import java.time.Duration;
@@ -57,6 +59,8 @@ public final class Neo4jConnector implements Connector {
   static final AccessMode PLAN_MODE = AccessMode.READ;
   private static final JsonNodeFactory F = JsonNodeFactory.instance;
   private static final Set<String> WRITER_ROLES = Set.of("editor", "publisher", "architect", "admin");
+  /** How long a local suggestion waits for a port of this computer to answer a TLS hello or a Bolt handshake. */
+  private static final Duration LOCAL_PROBE = Duration.ofMillis(1500);
 
   private final Bolt.Source bolts;
   private final ConnectorManifest manifest;
@@ -922,6 +926,13 @@ public final class Neo4jConnector implements Connector {
 
   private static String text(Value v) {
     return v == null || v.isNull() ? "" : v.asString();
+  }
+
+  /** The scheme the server needs and, signed in, its databases ({@link Neo4jSuggestions}). */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return Neo4jSuggestions.suggest(cfg, secrets, ctx, scope, bolts, LocalPorts::listening,
+        (host, port) -> LoopbackBolt.probe(host, port, LOCAL_PROBE));
   }
 
   @Override
