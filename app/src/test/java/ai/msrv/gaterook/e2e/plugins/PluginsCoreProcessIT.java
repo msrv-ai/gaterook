@@ -96,6 +96,7 @@ class PluginsCoreProcessIT {
     FILES.put("/catalog/gw-rabbitmq-0.3.0.jar", Files.readAllBytes(plugin("rabbitmq", "gw-rabbitmq-0.3.0.jar")));
     FILES.put("/catalog/gw-duckdb-1.0.0.jar", Files.readAllBytes(plugin("duckdb", "gw-duckdb-1.0.0.jar")));
     FILES.put("/catalog/gw-h2-1.0.0.jar", Files.readAllBytes(plugin("h2", "gw-h2-1.0.0.jar")));
+    FILES.put("/catalog/gw-msaccess-1.0.0.jar", Files.readAllBytes(plugin("access", "gw-msaccess-1.0.0.jar")));
     FILES.put("/catalog/fixture-mcp.package-lock.json", Files.readAllBytes(npmFixture().resolve("package-lock.json")));
     byte[] index = index(1, List.of());
     FILES.put("/catalog/index.json", index);

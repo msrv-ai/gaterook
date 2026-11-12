@@ -165,3 +165,24 @@ describe('DuckDB database file field (the DuckDB plugin)', () => {
     expect(form.value()['file']).toBe('/example/analytics/warehouse.duckdb');
   });
 });
+
+describe('Access database file field (the Microsoft Access plugin)', () => {
+  const schema: JsonObject = { type: 'object', additionalProperties: false, required: ['file'], properties: {
+    file: { type: 'string', title: 'Database file', 'x-file-picker': 'access-database', 'x-person-only': true } } };
+
+  it('asks the desktop for an Access file', async () => {
+    const choose = vi.fn<(kind?: string) => Promise<string | null>>().mockResolvedValue('/example/office/orders.accdb');
+    TestBed.configureTestingModule({ providers: [provideKitIcons(), { provide: DesktopBridge, useValue: {
+      privateKeyPickerAvailable: true, choosePrivateKeyFile: vi.fn(),
+      databasePickerAvailable: true, chooseDatabaseFile: choose } }] });
+    const form = createSchemaForm(schema, { idPrefix: 'ac', injector: TestBed.inject(Injector) });
+    const fixture = TestBed.createComponent(Host);
+    fixture.componentRef.setInput('form', form);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    el.querySelector<HTMLButtonElement>('#ac-file-choose')!.click();
+    await Promise.resolve(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    expect(choose).toHaveBeenCalledExactlyOnceWith('access');
+    expect(form.value()['file']).toBe('/example/office/orders.accdb');
+  });
+});

@@ -47,7 +47,7 @@ const gwDesktop = {
   choosePrivateKeyFile(): Promise<string | null> {
     return ipcRenderer.invoke(IPC.choosePrivateKeyFile);
   },
-  chooseDatabaseFile(kind?: 'sqlite' | 'duckdb'): Promise<string | null> {
+  chooseDatabaseFile(kind?: 'sqlite' | 'duckdb' | 'access'): Promise<string | null> {
     return kind === undefined ? ipcRenderer.invoke(IPC.chooseDatabaseFile) : ipcRenderer.invoke(IPC.chooseDatabaseFile, String(kind));
   },
   chooseRepository(): Promise<string | null> {

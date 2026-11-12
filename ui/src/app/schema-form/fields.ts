@@ -45,16 +45,17 @@ export class GwSchemaField {
   protected readonly choosingFile = signal(false);
   protected readonly filePickerError = signal<string | null>(null);
 
-  /** The desktop's native picker for this field: an SSH private key, or a SQLite or DuckDB database file. */
+  /** The desktop's native picker for this field: an SSH private key, or a SQLite, DuckDB or Access database file. */
   protected filePicker(): boolean {
     const kind = this.node().schema['x-file-picker'];
-    return kind === 'ssh-private-key' || kind === 'sqlite-database' || kind === 'duckdb-database';
+    return kind === 'ssh-private-key' || this.databaseKind() !== null;
   }
 
   /** The database engine of a database file picker, or null for an SSH key. */
-  private databaseKind(): 'sqlite' | 'duckdb' | null {
+  private databaseKind(): 'sqlite' | 'duckdb' | 'access' | null {
     const kind = this.node().schema['x-file-picker'];
-    return kind === 'sqlite-database' ? 'sqlite' : kind === 'duckdb-database' ? 'duckdb' : null;
+    return kind === 'sqlite-database' ? 'sqlite' : kind === 'duckdb-database' ? 'duckdb'
+      : kind === 'access-database' ? 'access' : null;
   }
 
   /** Whether this desktop shell has the field's picker (an older one may not). */

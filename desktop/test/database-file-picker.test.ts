@@ -37,10 +37,25 @@ describe('Database path picker', () => {
     } finally { t.remove(); }
   });
 
+  it('offers Access files for an Access connection', async () => {
+    const t = tempDir('database-picker');
+    try {
+      const path = join(t.dir, 'orders.accdb');
+      writeFileSync(path, 'not a database: selection must not open or read it');
+      const result = await chooseDatabasePath(async (options) => {
+        assert.equal(options.title, 'Choose Access database');
+        assert.deepEqual(options.filters?.[0]?.extensions, ['accdb', 'mdb']);
+        return { canceled: false, filePaths: [path] };
+      }, 'access');
+      assert.equal(result, path);
+    } finally { t.remove(); }
+  });
+
   it('takes no kind or one known kind from the renderer', () => {
     assert.equal(databaseKind([]), 'sqlite');
     assert.equal(databaseKind(['sqlite']), 'sqlite');
     assert.equal(databaseKind(['duckdb']), 'duckdb');
+    assert.equal(databaseKind(['access']), 'access');
     for (const args of [['postgres'], ['duckdb', 'x'], [{ kind: 'duckdb' }], [null]]) {
       assert.throws(() => databaseKind(args), /Unknown database kind/);
     }

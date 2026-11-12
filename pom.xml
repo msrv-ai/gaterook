@@ -66,6 +66,7 @@
     <module>plugins/rabbitmq</module>
     <module>plugins/duckdb</module>
     <module>plugins/h2</module>
+    <module>plugins/access</module>
     <module>plugin-it</module>
     <module>bridge-cli</module>
   </modules>
@@ -105,6 +106,8 @@
     <duckdb-jdbc.version>2.0.0.1</duckdb-jdbc.version>
     <!-- The H2 catalog plugin's client (docs/h2.md): a server's TCP protocol, through the plugin host's TCP gate. -->
     <h2.version>2.5.252</h2.version>
+    <!-- The Microsoft Access catalog plugin's engine (docs/access.md): UCanAccess with Jackcess and HSQLDB. -->
+    <ucanaccess.version>5.3.0</ucanaccess.version>
     <oracle-jdbc.version>23.26.4.0.0</oracle-jdbc.version>
     <sshd.version>2.20.0</sshd.version>
     <re2j.version>1.8</re2j.version>
@@ -438,6 +441,13 @@
         <groupId>com.h2database</groupId>
         <artifactId>h2</artifactId>
         <version>${h2.version}</version>
+      </dependency>
+
+      <!-- ── Plugins: Microsoft Access (docs/access.md) ─────────────────────────────────────────────────── -->
+      <dependency>
+        <groupId>io.github.spannm</groupId>
+        <artifactId>ucanaccess</artifactId>
+        <version>${ucanaccess.version}</version>
       </dependency>
 
       <!-- ── Connectors: Redis (report 05) ─────────────────────────────────────────────────────────────── -->

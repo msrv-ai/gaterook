@@ -1,0 +1,292 @@
+{
+  "manifestVersion": 1,
+  "id": "msaccess",
+  "version": "1.0.0",
+  "name": "Microsoft Access",
+  "provider": "GateRook",
+  "license": "Apache-2.0",
+  "description": "A Microsoft Access .accdb or .mdb file on this computer: read-only queries with row and time limits; changes wait for approval.",
+  "requires": {
+    "gateway": ">=0.4.0 & <1.0.0",
+    "connectorApi": ">=1.0.0 & <2.0.0",
+    "javaModules": [
+      "java.sql",
+      "java.logging"
+    ]
+  },
+  "connectorClass": "gaterook.plugins.access.AccessConnector",
+  "type": "msaccess",
+  "toolNamespace": "access_",
+  "icon": "database",
+  "group": "Databases",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "file"
+    ],
+    "x-card": {
+      "description": "A Microsoft Access .accdb or .mdb file on this computer. Read-only queries; changes wait for approval."
+    },
+    "properties": {
+      "file": {
+        "type": "string",
+        "title": "Database file",
+        "x-file-picker": "access-database",
+        "x-person-only": true,
+        "minLength": 1,
+        "maxLength": 4096,
+        "pattern": "^[^?;\\u0000-\\u001f]+$",
+        "description": "An absolute path or ~/…, such as ~/Documents/orders.accdb. Only you choose the file: an AI import can't. Password-protected files aren't supported."
+      },
+      "options": {
+        "type": "object",
+        "additionalProperties": false,
+        "title": "Limits",
+        "x-collapsed": true,
+        "description": "Rows and time of each call. Policies can tighten them per environment.",
+        "properties": {
+          "maxRows": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000,
+            "default": 1000,
+            "title": "Max rows",
+            "description": "Rows a query returns at most; the environment's row limit still applies"
+          },
+          "statementTimeoutMs": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 600000,
+            "x-unit": "ms",
+            "x-stricter": "min",
+            "title": "Statement timeout",
+            "description": "GateRook stops slower statements. Empty: the environment policy."
+          }
+        }
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "access_list_tables",
+      "title": "List tables",
+      "description": "The tables and saved select queries of the Access file, with their kind.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "like": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Only names matching this LIKE pattern (case-insensitive), for example Order%"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 200
+          }
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "nature": "READ",
+      "resultShape": "TABLE",
+      "risk": {
+        "privateData": true,
+        "untrustedContent": true,
+        "egress": "NONE"
+      }
+    },
+    {
+      "name": "access_describe_table",
+      "title": "Describe table",
+      "description": "The columns of one table or saved query with their types, sizes, nullability, defaults and AutoNumber, its primary key and its indexes.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "table"
+        ],
+        "properties": {
+          "table": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "columns"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "type",
+                "nullable"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "nullable": {
+                  "type": "boolean"
+                },
+                "default": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "autoNumber": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "primaryKey": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "indexes": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "nature": "READ",
+      "resultShape": "JSON",
+      "risk": {
+        "privateData": true,
+        "untrustedContent": true,
+        "egress": "NONE"
+      }
+    },
+    {
+      "name": "access_query",
+      "title": "Run a read-only query",
+      "description": "Runs one SELECT or WITH … SELECT in Access SQL ([names in brackets], 'text' or \"text\", #dates#, IIf, Nz, Format, DateAdd …) on the Access file, with row and time limits. GateRook opens the file read-only and runs the query in a read-only transaction. SELECT … INTO, LOAD_FILE, domain functions (DLookup, DSum …), NEXT VALUE FOR, FOR UPDATE and JDBC escapes are refused.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sql"
+        ],
+        "properties": {
+          "sql": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000,
+            "description": "One SELECT or WITH … SELECT"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Max rows; the connection and the endpoint cap it"
+          }
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "nature": "READ",
+      "resultShape": "TABLE",
+      "risk": {
+        "privateData": true,
+        "untrustedContent": true,
+        "egress": "NONE"
+      }
+    },
+    {
+      "name": "access_execute",
+      "title": "Change the database",
+      "description": "Runs one INSERT, UPDATE or DELETE, or CREATE TABLE, ALTER TABLE, DROP TABLE or CREATE INDEX on the Access file, only after a person approved exactly this statement, and writes it to the file once. LOAD_FILE, domain functions, queries, routines and rights are refused. A change is never retried.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sql"
+        ],
+        "properties": {
+          "sql": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000,
+            "description": "One INSERT, UPDATE, DELETE, CREATE TABLE, ALTER TABLE, DROP TABLE or CREATE INDEX statement. A person approves the exact text."
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Why you need this change. Shown to the approver as unverified."
+          }
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "nature": "MUTATION",
+      "resultShape": "JSON",
+      "risk": {
+        "privateData": true,
+        "untrustedContent": true,
+        "egress": "NONE"
+      }
+    }
+  ],
+  "access": {
+    "hosts": [],
+    "commands": [],
+    "files": [
+      "chosen in each connection"
+    ]
+  },
+  "resources": {
+    "maxHeapMb": 512
+  }
+}

@@ -2,19 +2,20 @@ import { stat } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import type { OpenDialogOptions, OpenDialogReturnValue } from 'electron';
 
-/** The engines whose database file a connection names: SQLite (built in) and DuckDB (a plugin). */
-export type DatabaseKind = 'sqlite' | 'duckdb';
+/** The engines whose database file a connection names: SQLite (built in), DuckDB and Microsoft Access (plugins). */
+export type DatabaseKind = 'sqlite' | 'duckdb' | 'access';
 
 /** Each engine's usual file names; any file may be chosen, the core or the plugin checks that it is a database. */
 const DATABASES: Record<DatabaseKind, { readonly name: string; readonly extensions: readonly string[] }> = {
   sqlite: { name: 'SQLite', extensions: ['db', 'sqlite', 'sqlite3', 'db3', 's3db', 'sl3'] },
   duckdb: { name: 'DuckDB', extensions: ['duckdb', 'ddb', 'db'] },
+  access: { name: 'Access', extensions: ['accdb', 'mdb'] },
 };
 
 /** The kind an IPC call names: none is SQLite, the picker's first kind; anything else is refused. */
 export function databaseKind(args: readonly unknown[]): DatabaseKind {
   if (args.length === 0) return 'sqlite';
-  if (args.length === 1 && (args[0] === 'sqlite' || args[0] === 'duckdb')) return args[0];
+  if (args.length === 1 && (args[0] === 'sqlite' || args[0] === 'duckdb' || args[0] === 'access')) return args[0];
   throw new Error('Unknown database kind.');
 }
 
