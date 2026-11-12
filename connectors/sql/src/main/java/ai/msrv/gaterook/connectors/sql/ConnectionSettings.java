@@ -17,11 +17,23 @@ import java.util.Locale;
  * @param statementTimeoutMs the connection's own statement timeout ({@code advanced.statementTimeoutMs}), 0 when it
  *                           has none: a call gets the stricter of it and the policy's (the core's limits don't
  *                           read connection settings)
+ * @param sslMode            the form's choice ({@code verify-full} when a stored PostgreSQL connection has none);
+ *                           once {@link SqlDialect#resolveTransport} chose for PostgreSQL's {@code auto}, what it chose
  * @param file               SQLite: the database file on this computer; {@code null} for a database server
+ * @param autoTls            whether {@code sslMode} is what Auto chose after asking the server ({@link PostgresTls})
  */
 record ConnectionSettings(String host, int port, String database, String sslMode, String caCertificate, String user,
     int poolSize, int connectTimeoutMs, String defaultSchema, List<String> schemaAllowlist,
-    List<String> allowedFunctions, boolean allowPublicKeyRetrieval, int statementTimeoutMs, FileDatabase file) {
+    List<String> allowedFunctions, boolean allowPublicKeyRetrieval, int statementTimeoutMs, FileDatabase file,
+    boolean autoTls) {
+
+  /** Settings as the form gave them: the transport is the form's choice, not one Auto made. */
+  ConnectionSettings(String host, int port, String database, String sslMode, String caCertificate, String user,
+      int poolSize, int connectTimeoutMs, String defaultSchema, List<String> schemaAllowlist,
+      List<String> allowedFunctions, boolean allowPublicKeyRetrieval, int statementTimeoutMs, FileDatabase file) {
+    this(host, port, database, sslMode, caCertificate, user, poolSize, connectTimeoutMs, defaultSchema,
+        schemaAllowlist, allowedFunctions, allowPublicKeyRetrieval, statementTimeoutMs, file, false);
+  }
 
   /**
    * A database file ({@code sqlite.config.schema.json}).
@@ -100,14 +112,20 @@ record ConnectionSettings(String host, int port, String database, String sslMode
   ConnectionSettings withDatabase(String value, boolean mysql) {
     return new ConnectionSettings(host, port, value, sslMode, caCertificate, user, poolSize, connectTimeoutMs,
         mysql ? value : defaultSchema, schemaAllowlist, allowedFunctions, allowPublicKeyRetrieval, statementTimeoutMs,
-        file);
+        file, autoTls);
   }
 
   /** The same settings with a connect timeout of at most {@code maxMs}: a test or health check has its budget. */
   ConnectionSettings withConnectTimeoutAtMost(int maxMs) {
     return new ConnectionSettings(host, port, database, sslMode, caCertificate, user, poolSize,
         Math.min(connectTimeoutMs, maxMs), defaultSchema, schemaAllowlist, allowedFunctions, allowPublicKeyRetrieval,
-        statementTimeoutMs, file);
+        statementTimeoutMs, file, autoTls);
+  }
+
+  /** The same settings with the transport Auto chose for this server: {@code verify-full} or {@code disable}. */
+  ConnectionSettings withTransport(String mode) {
+    return new ConnectionSettings(host, port, database, mode, caCertificate, user, poolSize, connectTimeoutMs,
+        defaultSchema, schemaAllowlist, allowedFunctions, allowPublicKeyRetrieval, statementTimeoutMs, file, true);
   }
 
   /** The statement timeout of a call: the policy's, or the connection's own where that is stricter. */

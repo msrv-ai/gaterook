@@ -10,6 +10,7 @@ import ai.msrv.gaterook.connector.api.EndpointView;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.Limits;
 import ai.msrv.gaterook.connector.api.PolicyView;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
@@ -258,6 +259,25 @@ class GoldenMessagesTest {
         .withChecks(List.of(new TestResult.Check("servicedeskapi/info", true, 40, "5.25.0")));
     golden("connector-test.result", result(63L, WireCodec.test(r)));
     assertThat(WireCodec.test(WireCodec.test(r))).isEqualTo(r);
+  }
+
+  @Test
+  void suggest() throws IOException {
+    Messages.Test t = new Messages.Test("jira-service-desk@1.3.0", "sug_01JBAB", "ct_Zx81bR4wQ0mN2pL7sK3tAb", JSM,
+        5_000, DEV, EGRESS);
+    Messages.Suggest s = new Messages.Suggest(t, Suggestions.Scope.SERVICE);
+    golden("connector-suggest.request", request(65L, Gpp.CONNECTOR_SUGGEST, s.write()));
+    assertThat(Messages.Suggest.read(s.write())).isEqualTo(s);
+    // A scope this side doesn't know reads as LOCAL: this computer only, nothing signs in.
+    assertThat(Messages.Suggest.read(s.write().put("scope", "EVERYWHERE")).scope())
+        .isEqualTo(Suggestions.Scope.LOCAL);
+    Suggestions found = Suggestions.builder()
+        .value("/serviceDeskIds", "the site", "4", List.of(new Suggestions.Option("4", "IT Help Desk", "SD"),
+            Suggestions.Option.of("7")))
+        .note("Signed in as svc-gateway@acme.com: 2 service desks.")
+        .build();
+    golden("connector-suggest.result", result(65L, WireCodec.suggestions(found)));
+    assertThat(WireCodec.suggestions(WireCodec.suggestions(found))).isEqualTo(found);
   }
 
   @Test

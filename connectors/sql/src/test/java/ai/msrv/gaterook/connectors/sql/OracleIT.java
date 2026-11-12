@@ -135,6 +135,19 @@ class OracleIT {
   }
 
   @Test
+  void signedInTheSchemasWithTablesAreOfferedAndTheOwnOneIsLeftEmpty() {
+    var s = connector.suggest(cfg(), secrets(), ctx(), ai.msrv.gaterook.connector.api.Suggestions.Scope.SERVICE);
+
+    String own = settings.user().toUpperCase(java.util.Locale.ROOT);
+    var schema = s.fields().get("/advanced/defaultSchema");
+    // The user's own schema holds the fixture's tables: an empty Default schema already means it.
+    assertThat(schema.value()).isNull();
+    assertThat(schema.options()).extracting(ai.msrv.gaterook.connector.api.Suggestions.Option::value).contains(own);
+    assertThat(s.notes()).singleElement().satisfies(n -> assertThat(n).startsWith("Signed in to "
+        + settings.service() + " as " + own + ": "));
+  }
+
+  @Test
   void connectionTestAndHealthUseTheOracleServiceAndReportItsIdentity() {
     TestResult tested = connector.test(cfg(), secrets(), ctx());
     assertThat(tested.ok()).as(String.valueOf(tested.error())).isTrue();

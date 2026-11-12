@@ -7,7 +7,9 @@ GateRook's MCP Firewall scopes AI access to selected SQL Server databases and to
 The built-in **SQL Server** connector (`sqlserver`) uses Microsoft's JDBC driver over TCP with SQL authentication.
 Create a connection with its host, TCP port (default **1433**), SQL login and password, then load and select the
 databases it may expose. A named instance must have a known TCP port. Windows integrated authentication,
-Microsoft Entra authentication and in-app password rotation are not supported.
+Microsoft Entra authentication and in-app password rotation are not supported. Once the login signs in, the form fills
+in **Default schema** with the database user's default schema, which calls require, and offers the schemas for the
+allowlist.
 
 TLS defaults to **verify-full**, which validates the certificate and host name. Add a PEM CA certificate for a
 private CA. **require** encrypts without validating the certificate; it is suitable for the disposable test fixture.

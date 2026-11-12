@@ -10,6 +10,7 @@ import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
@@ -193,6 +194,14 @@ public final class DuckDbConnector implements Connector {
             shorten(what + " of " + cfg.name())).withFields(List.of(limits)).withPayload(call.arguments());
       }
     }
+  }
+
+  // ── Setup help ──────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** The databases and data folders next to the typed path ({@link DuckDbSuggestions}), in either scope. */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return DuckDbSuggestions.suggest(cfg, ctx);
   }
 
   // ── Test connection ─────────────────────────────────────────────────────────────────────────────────────────

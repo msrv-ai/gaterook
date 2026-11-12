@@ -150,7 +150,7 @@ final class SqlPools implements AutoCloseable {
     CredentialAwareDataSource source;
     try {
       source = new CredentialAwareDataSource(dialect.driver(), dialect.url(s),
-          dialect.properties(s, certificates, SOCKET_TIMEOUT_MS, write), login);
+          dialect.poolTransport(s, certificates, SOCKET_TIMEOUT_MS, write), login);
     } catch (IOException | RuntimeException e) {
       login.close();
       throw e;

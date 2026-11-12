@@ -24,8 +24,7 @@
     "required": [
       "host",
       "database",
-      "user",
-      "password"
+      "user"
     ],
     "x-card": {
       "description": "An H2 database server over its TCP protocol. Checked queries, always rolled back; changes wait for approval."
@@ -72,6 +71,7 @@
         "format": "password",
         "maxLength": 1024,
         "title": "Password",
+        "description": "Leave empty for a user without a password, as H2's sa often is.",
         "x-gateway-secret": "value"
       },
       "options": {

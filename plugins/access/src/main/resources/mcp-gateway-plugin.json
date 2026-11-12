@@ -8,7 +8,7 @@
   "description": "A Microsoft Access .accdb or .mdb file on this computer: read-only queries with row and time limits; changes wait for approval.",
   "requires": {
     "gateway": ">=0.4.0 & <1.0.0",
-    "connectorApi": ">=1.0.0 & <2.0.0",
+    "connectorApi": ">=1.1.0 & <2.0.0",
     "javaModules": [
       "java.sql",
       "java.logging"

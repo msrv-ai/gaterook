@@ -22,6 +22,11 @@ public final class Gpp {
   public static final String CONNECTOR_TOOLS = "connector/tools";
   public static final String CONNECTOR_TEST = "connector/test";
   public static final String CONNECTOR_DISCOVER_DATABASES = "connector/discoverDatabases";
+  /**
+   * Setup help for a draft ({@code Connector.suggest}), with the params of {@code connector/test} and a scope. A host
+   * from before this method answers {@link #METHOD_NOT_FOUND}: the core then offers nothing.
+   */
+  public static final String CONNECTOR_SUGGEST = "connector/suggest";
   public static final String CONNECTOR_CLASSIFY = "connector/classify";
   public static final String CONNECTOR_DESCRIBE_ACTION = "connector/describeAction";
   public static final String CONNECTOR_EXECUTE = "connector/execute";

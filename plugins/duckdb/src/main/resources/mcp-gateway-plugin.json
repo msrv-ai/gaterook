@@ -8,7 +8,7 @@
   "description": "A DuckDB database file on this computer: read-only queries with row, memory and time limits; changes wait for approval.",
   "requires": {
     "gateway": ">=0.4.0 & <1.0.0",
-    "connectorApi": ">=1.0.0 & <2.0.0",
+    "connectorApi": ">=1.1.0 & <2.0.0",
     "javaModules": ["java.sql"]
   },
   "connectorClass": "gaterook.plugins.duckdb.DuckDbConnector",
@@ -39,7 +39,8 @@
         "maxItems": 16,
         "uniqueItems": true,
         "items": {"type": "string", "minLength": 1, "maxLength": 4096, "pattern": "^[^?;*\\u0000-\\u001f]+$"},
-        "description": "Folders whose Parquet, CSV and JSON files queries may read with read_parquet, read_csv and read_json, such as ~/projects/analytics/data. Empty: queries read only the database file. Only you choose them: an AI import can't."
+        "description": "Folders whose Parquet, CSV and JSON files queries may read with read_parquet, read_csv and read_json, such as ~/projects/analytics/data; not the folder that holds the database file. Empty: queries read only the database file. Only you choose them: an AI import can't.",
+        "x-advanced": false
       },
       "options": {
         "type": "object",

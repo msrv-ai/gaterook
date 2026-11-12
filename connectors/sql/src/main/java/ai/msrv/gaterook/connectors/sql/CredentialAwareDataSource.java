@@ -19,16 +19,45 @@ import javax.sql.DataSource;
  */
 final class CredentialAwareDataSource implements DataSource {
 
+  /** The driver properties of each new connection, except the login. */
+  @FunctionalInterface
+  interface Transport {
+    Properties properties() throws SQLException;
+
+    /** The same properties for every connection. */
+    static Transport fixed(Properties properties) {
+      return () -> properties;
+    }
+
+    /**
+     * {@code choice}'s answer, asked at the first connection and then kept: Auto asks the server once per pool, so a
+     * later connection never goes without TLS after the server spoke it. A failure is asked again at the next one.
+     */
+    static Transport once(Transport choice) {
+      return new Transport() {
+        private Properties chosen;
+
+        @Override
+        public synchronized Properties properties() throws SQLException {
+          if (chosen == null) {
+            chosen = choice.properties();
+          }
+          return chosen;
+        }
+      };
+    }
+  }
+
   private final Driver driver;
   private final String url;
-  private final Properties base;
+  private final Transport transport;
   private volatile Credentials current;
   private volatile int loginTimeoutSeconds;
 
-  CredentialAwareDataSource(Driver driver, String url, Properties base, Credentials credentials) {
+  CredentialAwareDataSource(Driver driver, String url, Transport transport, Credentials credentials) {
     this.driver = driver;
     this.url = url;
-    this.base = base;
+    this.transport = transport;
     this.current = credentials;
   }
 
@@ -51,7 +80,8 @@ final class CredentialAwareDataSource implements DataSource {
   @Override
   public Connection getConnection() throws SQLException {
     Properties p = new Properties();
-    p.putAll(base);
+    // Before the login is read: Auto's question goes to the server without it.
+    p.putAll(transport.properties());
     synchronized (this) {
       // Under the lock of update(): the password is never read while it is being zeroed.
       Credentials c = current;

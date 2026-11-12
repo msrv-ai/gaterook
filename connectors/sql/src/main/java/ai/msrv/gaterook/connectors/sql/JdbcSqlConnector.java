@@ -12,6 +12,7 @@ import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TemplateKind;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
@@ -1029,6 +1030,12 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     return probe.discoverDatabases(cfg, secrets, ctx);
   }
 
+  /** Setup help for the form ({@link SqlSuggestions}). */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return SqlSuggestions.suggest(dialect, probe, cfg, secrets, ctx, scope);
+  }
+
   /**
    * A direct connection and one {@code SELECT 1} (the latency), never the pool: health says whether a new connection
    * gets through, and it doesn't take one of the pool's connections from a call.
@@ -1059,10 +1066,14 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     }
   }
 
-  /** A connection outside the pool, with the budget of Test connection; for reads where the dialect tells. */
+  /**
+   * A connection outside the pool, with the budget of Test connection; for reads where the dialect tells. Auto's
+   * transport is asked of the server before the login goes there.
+   */
   private Connection connect(ConnectionSettings s, Credentials login, ExecContext ctx)
       throws SQLException, IOException {
-    ConnectionSettings bounded = s.withConnectTimeoutAtMost(TestProbe.BUDGET_MS);
+    ConnectionSettings bounded = dialect.resolveTransport(s.withConnectTimeoutAtMost(TestProbe.BUDGET_MS),
+        TestProbe.BUDGET_MS);
     Properties props = dialect.properties(bounded, TestProbe.certificates(ctx), TestProbe.BUDGET_MS);
     if (login.user() != null) {
       props.setProperty("user", login.user());
