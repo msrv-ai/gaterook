@@ -23,6 +23,7 @@ import java.util.regex.Pattern;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 import tools.jackson.dataformat.toml.TomlMapper;
 
 /**
@@ -268,13 +269,30 @@ final class SnowflakeSuggestions {
 
   // ── Signed in ───────────────────────────────────────────────────────────────────────────────────────────────
 
+  /**
+   * The settings to sign in with: the form's, or without its database and schema when only those keep it from being
+   * read: a schema without its database (x-suggest: the form asks while Database is empty) or a database typed
+   * halfway. The lists don't need them, and they offer the database. {@code null} and a note otherwise.
+   */
+  private static SnowflakeSettings settings(ConnectionConfig cfg, Suggestions.Builder out) {
+    try {
+      return SnowflakeSettings.of(cfg);
+    } catch (ConnectorException e) {
+      try {
+        SnowflakeSettings s = SnowflakeSettings.of(without(cfg, "database", "schema"));
+        out.note(e.getMessage());
+        return s;
+      } catch (ConnectorException again) {
+        out.note(again.getMessage());
+        return null;
+      }
+    }
+  }
+
   static void service(SnowflakeApi api, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx,
       Suggestions.Builder out) {
-    SnowflakeSettings s;
-    try {
-      s = SnowflakeSettings.of(cfg);
-    } catch (ConnectorException e) {
-      out.note(e.getMessage());
+    SnowflakeSettings s = settings(cfg, out);
+    if (s == null) {
       return;
     }
     // The user's own session: a warehouse or database typed wrong doesn't keep the lists from being read.
@@ -420,6 +438,16 @@ final class SnowflakeSuggestions {
       out.note("The role may not use the " + what + " " + ObjectName.quoteIfNeeded(typed) + ", or it doesn't exist: "
           + "choose one of the " + what + "s it may use.");
     }
+  }
+
+  /** {@code cfg} without the top-level fields {@code keys}. */
+  private static ConnectionConfig without(ConnectionConfig cfg, String... keys) {
+    ObjectNode config = cfg.config() instanceof ObjectNode o ? o.deepCopy() : JSON.createObjectNode();
+    for (String key : keys) {
+      config.remove(key);
+    }
+    return new ConnectionConfig(cfg.id(), cfg.name(), cfg.type(), cfg.env(), cfg.version(), config,
+        cfg.secretFields(), cfg.metadata());
   }
 
   private static SnowflakeApi.Call call(ConnectionConfig cfg, SnowflakeSettings s, SecretResolver secrets,

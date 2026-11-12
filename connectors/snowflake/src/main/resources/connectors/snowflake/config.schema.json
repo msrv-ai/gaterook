@@ -138,13 +138,16 @@
       "title": "Database",
       "maxLength": 257,
       "pattern": "^(?:[A-Za-z_][A-Za-z0-9_$]{0,254}|\"(?:[^\"]|\"\"){1,255}\")$",
-      "description": "Where names without a database resolve. Empty: the user's default namespace."
+      "x-advanced": true,
+      "x-suggest": true,
+      "description": "Where names without a database resolve; required with a schema. Empty: the user's default namespace."
     },
     "schema": {
       "type": "string",
       "title": "Schema",
       "maxLength": 257,
       "pattern": "^(?:[A-Za-z_][A-Za-z0-9_$]{0,254}|\"(?:[^\"]|\"\"){1,255}\")$",
+      "x-advanced": true,
       "description": "Where names without a schema resolve; needs Database. Write names with lower case or spaces in double quotes."
     },
     "tables": {
@@ -176,5 +179,25 @@
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "schema"
+        ]
+      },
+      "then": {
+        "required": [
+          "database"
+        ]
+      }
+    }
+  ]
 }

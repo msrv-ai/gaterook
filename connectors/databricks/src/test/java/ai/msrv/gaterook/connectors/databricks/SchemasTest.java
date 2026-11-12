@@ -63,5 +63,19 @@ class SchemasTest {
         + "\"6f0e2c9a-1b3d-4e5f-8a7b-9c0d1e2f3a4b\", \"clientSecret\": \"x\"}}"))).isEmpty();
     assertThat(config.validate(json.readTree("{\"host\": \"https://dbc.cloud.databricks.com\", \"warehouseId\": "
         + "\"1a2b\", \"auth\": {\"method\": \"token\", \"token\": \"x\", \"other\": 1}}"))).isNotEmpty();
+    // Catalogs and Schemas need the default a statement without a catalog or schema uses: the connector refuses them
+    // without one.
+    assertThat(config.validate(json.readTree("{\"host\": \"https://dbc.cloud.databricks.com\", \"warehouseId\": "
+        + "\"1a2b\", \"catalogs\": [\"main\"], \"auth\": {\"method\": \"token\", \"token\": \"x\"}}")))
+        .anySatisfy(e -> assertThat(e.getProperty()).isEqualTo("catalog"));
+    assertThat(config.validate(json.readTree("{\"host\": \"https://dbc.cloud.databricks.com\", \"warehouseId\": "
+        + "\"1a2b\", \"catalog\": \"main\", \"schemas\": [\"sales\"], \"auth\": {\"method\": \"token\", \"token\": "
+        + "\"x\"}}"))).anySatisfy(e -> assertThat(e.getProperty()).isEqualTo("schema"));
+    assertThat(config.validate(json.readTree("{\"host\": \"https://dbc.cloud.databricks.com\", \"warehouseId\": "
+        + "\"1a2b\", \"catalogs\": [], \"auth\": {\"method\": \"token\", \"token\": \"x\"}}"))).isEmpty();
+    // The setup helpers list what the form requires here: the warehouse always, the defaults with a list.
+    for (String field : List.of("warehouseId", "catalog", "schema")) {
+      assertThat(manifest.configSchema().at("/properties/" + field + "/x-suggest").asBoolean()).as(field).isTrue();
+    }
   }
 }

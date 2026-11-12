@@ -39,6 +39,7 @@
       "examples": [
         "main"
       ],
+      "x-suggest": true,
       "description": "For tables named without a catalog; with Catalogs set, one of them. Empty: the workspace's default."
     },
     "schema": {
@@ -48,6 +49,7 @@
       "examples": [
         "sales"
       ],
+      "x-suggest": true,
       "description": "For tables named without a schema; with Schemas set, one of them. Empty: default."
     },
     "catalogs": {
@@ -166,5 +168,43 @@
         }
       ]
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "catalogs": {
+            "type": "array",
+            "minItems": 1
+          }
+        },
+        "required": [
+          "catalogs"
+        ]
+      },
+      "then": {
+        "required": [
+          "catalog"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schemas": {
+            "type": "array",
+            "minItems": 1
+          }
+        },
+        "required": [
+          "schemas"
+        ]
+      },
+      "then": {
+        "required": [
+          "schema"
+        ]
+      }
+    }
+  ]
 }

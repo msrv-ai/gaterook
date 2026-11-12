@@ -218,6 +218,20 @@ class SnowflakeSuggestionsTest {
   }
 
   @Test
+  void aSchemaWithoutItsDatabaseStillGetsTheDatabasesOffered() throws Exception {
+    // x-suggest: the form asks while Database is empty, which the schema requires with a schema.
+    account();
+
+    Suggestions s = snowflake.suggest(draft("{\"account\": \"myorg-myaccount\", \"user\": \"gw_reader\", "
+        + "\"schema\": \"staging\", \"authentication\": {\"method\": \"keyPair\"}}"), secrets, TestCtx.of(),
+        Suggestions.Scope.SERVICE);
+
+    assertThat(s.notes()).contains("A schema needs its database: set Database too.");
+    assertThat(s.fields().get("/database").value()).isEqualTo("ANALYTICS");
+    assertThat(values(s, "/schema")).containsExactly("PUBLIC", "STAGING");
+  }
+
+  @Test
   void aSignInSnowflakeRefusesIsANote() throws Exception {
     fake.token("the-right-token");
 

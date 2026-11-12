@@ -71,6 +71,12 @@ class SnowflakeSettingsTest {
     assertThat(SCHEMA.validate(names)).isEmpty();
     names.put("schema", "public; DROP");
     assertThat(SCHEMA.validate(names)).isNotEmpty();
+    // A schema needs its database, as the connector says: the form requires Database with one.
+    ObjectNode schemaOnly = config("myorg-myaccount", "{\"method\": \"token\", \"token\": \"t\"}");
+    schemaOnly.put("schema", "PUBLIC");
+    assertThat(SCHEMA.validate(schemaOnly)).anySatisfy(e -> assertThat(e.getProperty()).isEqualTo("database"));
+    assertThat(CONFIG_SCHEMA.at("/properties/database/x-suggest").asBoolean()).isTrue();
+    assertThat(CONFIG_SCHEMA.at("/properties/warehouse/x-advanced").asBoolean(true)).isFalse();
   }
 
   @Test
