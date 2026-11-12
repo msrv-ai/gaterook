@@ -62,6 +62,18 @@ class CloudLocalTest {
   }
 
   @Test
+  void withoutADefaultProfileTheFirstProfilesRegionIsFilledIn() throws IOException {
+    Path aws = Files.createDirectories(home.resolve(".aws"));
+    Files.writeString(aws.resolve("config"), "[profile work]\nregion = ap-southeast-2\n");
+    CloudLocal local = new CloudLocal(new CloudEndpoints(null, null, home.resolve("adc.json"), null,
+        aws.resolve("config"), aws.resolve("none")), Map.<String, String>of()::get, home);
+
+    Suggestions s = local.aws(Suggestions.builder(), null, null, true, "/regions").build();
+
+    assertThat(s.fields().get("/regions").value()).isEqualTo("ap-southeast-2");
+  }
+
+  @Test
   void anEnvironmentRegionStandsInForAProfileWithout() throws IOException {
     CloudLocal local = local(Map.of("AWS_REGION", "ap-south-1"));
     assertThat(local.awsRegion("noregion")).isEqualTo("ap-south-1");

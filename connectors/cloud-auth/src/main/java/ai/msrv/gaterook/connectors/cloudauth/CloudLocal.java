@@ -134,7 +134,11 @@ public final class CloudLocal {
       out.value(profilePointer, "~/.aws/config", profile == null || profile.isBlank() ? preferred : null,
           profiles.stream().map(p -> new Option(p.name(), null, p.region())).toList());
     }
+    // Without a profile named yet, the region of the one the AWS CLI would pick, else the first with a region.
     String region = awsRegion(profile);
+    if (region == null && (profile == null || profile.isBlank())) {
+      region = profiles.stream().map(AwsProfile::region).filter(r -> r != null).findFirst().orElse(null);
+    }
     for (String pointer : regionPointers) {
       out.value(pointer, region != null ? "~/.aws/config" : "the AWS regions", region, awsRegionOptions());
     }
