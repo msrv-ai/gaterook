@@ -41,6 +41,8 @@ final class FakeTrino implements AutoCloseable {
   private final MockWebServer server = new MockWebServer();
   /** Overrides the {@code nextUri} host (a coordinator that names another server). */
   volatile String nextBase;
+  /** The version {@code GET /v1/info} names: Trino's release, or a Presto one such as {@code 0.289}. */
+  volatile String version = "484";
 
   FakeTrino() throws IOException {
     server.setDispatcher(new Dispatcher() {
@@ -50,8 +52,8 @@ final class FakeTrino implements AutoCloseable {
         String path = request.getUrl().encodedPath();
         String method = request.getMethod();
         if (method.equals("GET") && path.equals("/v1/info")) {
-          return json(200, "{\"nodeVersion\":{\"version\":\"484\"},\"environment\":\"test\",\"coordinator\":true,"
-              + "\"starting\":false,\"uptime\":\"1.00m\"}");
+          return json(200, "{\"nodeVersion\":{\"version\":\"" + version + "\"},\"environment\":\"test\","
+              + "\"coordinator\":true,\"starting\":false,\"uptime\":\"1.00m\"}");
         }
         if (method.equals("POST") && path.equals("/v1/statement")) {
           String sql = request.getBody().utf8();

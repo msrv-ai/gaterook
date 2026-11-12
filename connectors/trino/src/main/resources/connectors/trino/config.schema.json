@@ -32,7 +32,7 @@
         "Trino",
         "Presto"
       ],
-      "description": "Presto (prestodb) speaks the same protocol with X-Presto headers."
+      "description": "Trino, or Presto (prestodb) with its X-Presto headers; the form fills it in from the coordinator's /v1/info."
     },
     "auth": {
       "type": "object",
@@ -155,7 +155,9 @@
       "examples": [
         "hive"
       ],
-      "description": "The catalog of names without one."
+      "x-advanced": true,
+      "x-suggest": true,
+      "description": "The catalog of table names without one; required with a default schema. Empty: every name needs its catalog."
     },
     "schema": {
       "type": "string",
@@ -163,6 +165,7 @@
       "minLength": 1,
       "maxLength": 255,
       "pattern": "^[ -~]+$",
+      "x-advanced": true,
       "description": "The schema of table names without one; needs a default catalog."
     },
     "catalogs": {
@@ -201,5 +204,25 @@
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "schema"
+        ]
+      },
+      "then": {
+        "required": [
+          "catalog"
+        ]
+      }
+    }
+  ]
 }

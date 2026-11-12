@@ -112,6 +112,11 @@ final class TrinoHttp implements AutoCloseable {
     return TrustStores.sslContext(TrustStores.of(certificates, true));
   }
 
+  /** Whether a client of {@code connectionId} is kept: the setup helpers drop only the ones they made themselves. */
+  boolean has(String connectionId) {
+    return clients.containsKey(connectionId);
+  }
+
   void evict(String connectionId) {
     Client c = clients.remove(connectionId);
     if (c != null) {
