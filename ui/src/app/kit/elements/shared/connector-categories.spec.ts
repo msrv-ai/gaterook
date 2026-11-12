@@ -161,10 +161,10 @@ describe('compatible services', () => {
     for (const type of ['qdrant', 'weaviate', 'chroma', 'meilisearch']) {
       expect(connectorMark(type, 'cloud'), `${type} cloud`).toBe(`assets/integrations/${type}.svg`);
     }
-    // Typesense publishes only a wordmark; Zilliz is a vendor of its own, not the Milvus project.
-    expect(connectorMark('typesense')).toBeNull();
-    expect(connectorMark('typesense', 'cloud')).toBeNull();
-    expect(connectorMark('milvus', 'zilliz')).toBeNull();
+    // Typesense's site icon is a PNG (it publishes only a wordmark); Zilliz Cloud shows Zilliz's own mark, not Milvus's.
+    expect(connectorMark('typesense')).toBe('assets/integrations/typesense.png');
+    expect(connectorMark('typesense', 'cloud')).toBe('assets/integrations/typesense.png');
+    expect(connectorMark('milvus', 'zilliz')).toBe('assets/integrations/zilliz.png');
   });
 
   it('finds every service by its name, and not its base type’s card', () => {
