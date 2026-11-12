@@ -70,7 +70,7 @@ export function stepperSteps(
     const n = (i + 1) as StepNumber;
     // An MCP server is reviewed, then connects (or starts), where a connection is tested. First run reuses the starter
     // endpoint, or creates one when none exists.
-    const name = flow === 'mcp' && n === 3 ? 'Review' : n === 4 && firstRun && !firstEndpoint && flow === 'connector' ? 'Create endpoint' : stepName;
+    const name = flow === 'mcp' && n === 3 ? 'Review' : n === 4 && firstRun && !firstEndpoint ? 'Create endpoint' : stepName;
     const failed = n === 3 && !!facts.test && !facts.test.passed && current >= 3;
     const state: StepState = failed ? 'error' : n < current ? 'complete' : n === current ? 'current' : 'upcoming';
     let description: StepView['description'] = null;
@@ -78,7 +78,7 @@ export function stepperSteps(
       if (n === 1) description = facts.typeName ? { text: facts.typeName } : null;
       else if (n === 2) description = { name: facts.name || 'this connection', env: facts.env };
       else if (n === 3) description = facts.test ? { text: facts.test.text } : { text: flow === 'mcp' ? 'Not connected' : 'Not tested' };
-      else if (firstRun && flow === 'connector') description = { text: `Endpoint ${firstEndpoint ?? facts.env}` };
+      else if (firstRun) description = { text: `Endpoint ${firstEndpoint ?? facts.env}` };
       else description = { text: facts.endpoints.length ? `Endpoint ${facts.endpoints.join(', ')}` : 'No endpoint yet' };
     }
     return { n, name, state, current: n === current, description };

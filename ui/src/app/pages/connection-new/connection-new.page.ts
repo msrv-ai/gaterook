@@ -105,7 +105,7 @@ import {
 import { GwConnectionCalls } from './connection-calls';
 import { ConnectionToolModes } from './connection-tool-modes';
 import { GwMcpConfigure, McpReviewed } from './mcp/mcp-configure';
-import { EndpointOutcome, GwMcpEndpoints, McpServerConnected } from './mcp/mcp-endpoints';
+import { EndpointOutcome, GwMcpEndpoints, McpFirstEndpoint, McpServerConnected } from './mcp/mcp-endpoints';
 import {
   EXTERNAL_KEY,
   MCP_SERVER_TYPE,
@@ -531,8 +531,9 @@ export class ConnectionNewPage {
       const server = this.mcpServer();
       const choice = this.mcpChoice();
       const title = choice?.origin === 'external' ? 'External MCP server' : `${this.card()?.name ?? this.mcpReviewed()?.name ?? 'MCP server'} · MCP server`;
+      const done = this.ready();
       return stepperSteps(
-        this.step(),
+        done ? 5 : this.step(),
         {
           typeName: title,
           name: configure?.name().trim() || this.mcpReviewed()?.name || '',
@@ -541,7 +542,7 @@ export class ConnectionNewPage {
           endpoints: this.mcpEndpoints()?.chosen() ?? [],
         },
         this.firstRun(),
-        null,
+        done ? (done.endpointCreated ? null : done.endpoint) : this.reusesFirstEndpoint() ? this.firstEndpointSlug() : null,
         'mcp',
       );
     }
@@ -578,9 +579,13 @@ export class ConnectionNewPage {
     return slug ? this.existingUse().filter((usedBy) => !usedBy.includes(slug)).length : 0;
   });
   private readonly firstEndpoint = signal<EndpointSummary | null>(null);
+  /** The first endpoint is named after this environment: the connection's, or the MCP server's. */
+  private readonly firstEnv = computed<Env>(() => this.flow() === 'mcp'
+    ? (this.mcpServer()?.env ?? this.mcpConfigure()?.environment() ?? 'dev')
+    : this.current().env);
   protected readonly firstEndpointSlug = computed(() => {
     const endpoint = this.firstEndpoint();
-    const env = this.current().env;
+    const env = this.firstEnv();
     // A live client or token must not cross the production boundary with an empty endpoint.
     return endpoint && !(env === 'prod' && endpoint.env !== 'prod' && (endpoint.tokens.active > 0 || endpoint.clients.length > 0))
       ? endpoint.slug : env;
@@ -600,6 +605,8 @@ export class ConnectionNewPage {
     readonly local: boolean;
     readonly tested: boolean;
     readonly health: ReturnType<typeof healthLook> | null;
+    /** An MCP server (saved when it connected) rather than a connection saved by the wizard. */
+    readonly mcp: { readonly http: boolean } | null;
   } | null>(null);
   /** The first endpoint's tools as Save will create them: reads in Read only, changes in Approval, on prod too. */
   protected readonly firstPreview = computed(() => {
@@ -1217,17 +1224,50 @@ export class ConnectionNewPage {
     this.go(3);
   }
 
-  /** The server connected (or started): it is saved now, so the wizard can't go back past this point. */
+  /**
+   * The server connected (or started): it is saved now, so the wizard can't go back past this point. In first run its
+   * last step offers the first endpoint, as a connection's does: the empty default, or one named after its environment.
+   */
   protected onMcpConnected(server: McpServerConnected): void {
     this.mcpServer.set(server);
-    void this.mcpEndpoints()?.load(server, this.endpoint());
+    const first: McpFirstEndpoint | null = this.firstRun()
+      ? { slug: this.firstEndpointSlug(), url: this.firstUrl(), reuse: this.reusesFirstEndpoint(), starterEnv: this.firstEndpoint()?.env ?? null, address: this.core.address() }
+      : null;
+    void this.mcpEndpoints()?.load(server, this.endpoint(), first);
     this.go(4);
   }
 
-  /** Add to endpoint or Not now: the server's own page, as after saving a connection. */
-  protected onMcpFinished(_: EndpointOutcome): void {
+  /**
+   * Add to endpoint or Not now: the server's own page, as after saving a connection. A first run that put it on its
+   * first endpoint ends on the "<name> is ready" card instead.
+   */
+  protected async onMcpFinished(outcome: EndpointOutcome): Promise<void> {
     const server = this.mcpServer();
-    if (server) void this.router.navigate(['/connections', server.name], { replaceUrl: true });
+    if (!server) return;
+    const first = outcome.first;
+    if (!first) {
+      void this.router.navigate(['/connections', server.name], { replaceUrl: true });
+      return;
+    }
+    const gen = this.gen;
+    const groups: ToolGroup[] | null = await this.endpointsApi.tools(first.slug).catch(() => null);
+    const detail = await this.connections.get(server.name).catch(() => null);
+    if (gen !== this.gen) return;
+    const h = detail?.health;
+    this.ready.set({
+      name: server.name,
+      env: server.env,
+      endpoint: first.slug,
+      url: first.url,
+      createdAt: new Date(this.time.now()).toISOString(),
+      endpointCreated: first.created,
+      tools: toolsLine((groups ?? []).filter((g) => g.connection === server.name).flatMap((g) => g.tools)),
+      local: true,
+      tested: true,
+      health: h && h.state !== 'unknown' ? healthLook(h.state, h.latencyMs) : null,
+      mcp: { http: server.http },
+    });
+    afterNextRender(() => this.doc.getElementById('fr-done-t')?.focus(), { injector: this.injector });
   }
 
   /**
@@ -1694,6 +1734,7 @@ export class ConnectionNewPage {
       local: this.secretLocal(),
       tested: this.summary()?.passed === true,
       health: h && h.state !== 'unknown' ? healthLook(h.state, h.latencyMs) : outcome?.ok ? healthLook('healthy', outcome.latencyMs) : null,
+      mcp: null,
     });
     this.saving.set(false);
     afterNextRender(() => this.doc.getElementById('fr-done-t')?.focus(), { injector: this.injector });
