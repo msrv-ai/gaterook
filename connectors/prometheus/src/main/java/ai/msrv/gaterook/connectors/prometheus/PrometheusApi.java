@@ -56,9 +56,10 @@ final class PrometheusApi implements AutoCloseable {
   /**
    * One answer.
    *
-   * @param cut whether the body was longer than the connection's limit and only its start was read
+   * @param cut          whether the body was longer than the connection's limit and only its start was read
+   * @param authenticate the {@code WWW-Authenticate} header of a 401 (the sign-in the server asks for), or {@code ""}
    */
-  record Answer(int status, byte[] body, boolean cut, String contentType, long elapsedMs) {
+  record Answer(int status, byte[] body, boolean cut, String contentType, long elapsedMs, String authenticate) {
     boolean ok() {
       return status / 100 == 2;
     }
@@ -113,7 +114,7 @@ final class PrometheusApi implements AutoCloseable {
         body = out.toByteArray();
       }
       return new Answer(r.statusCode(), body, cut, r.headers().firstValue("Content-Type").orElse(""),
-          (System.nanoTime() - started) / 1_000_000);
+          (System.nanoTime() - started) / 1_000_000, r.headers().firstValue("WWW-Authenticate").orElse(""));
     } catch (HttpConnectTimeoutException e) {
       throw ConnectorException.unavailable("Can't connect to " + host(uri) + " (timed out). Check the URL and that "
           + "this computer can reach the server.", e);

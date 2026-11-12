@@ -12,12 +12,14 @@ import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
+import ai.msrv.gaterook.connectors.support.LocalPorts;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -207,6 +209,12 @@ public final class PrometheusConnector implements Connector {
   }
 
   // ── Test connection, health, describe ───────────────────────────────────────────────────────────────────────
+
+  /** A local server; the server's kind, its sign-in, tenant and API path ({@link PrometheusSuggestions}). */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return PrometheusSuggestions.suggest(cfg, secrets, ctx, scope, api, LocalPorts::listening);
+  }
 
   /**
    * The server's build information (its version; compatible servers may not report one), an instant query of
