@@ -12,6 +12,10 @@ The built-in **Trino / Presto** connector (`trino`) speaks Trino's client protoc
 - the **user** statements run as, and optionally a **default catalog** and **default schema** for names without one;
 - the **catalogs** agents may use, with `*` matching any characters. Empty, every catalog the user may read.
 
+A default schema needs a default catalog, so the form requires one with it.
+
+While you fill in the form, GateRook offers a coordinator that answers on Trino's usual port 8080 of this computer, and for a coordinator on this computer it reads the engine from `/v1/info`, without credentials. Once the form can sign in, it fills in the engine from the coordinator's version: Presto releases are numbered 0.x, and PrestoSQL up to 350 used the Presto headers too. It then offers the catalogs for the default catalog and the list, fills in the only data catalog as the default, and offers the schemas of the default catalog.
+
 Trino has no read-only session, so the user's access control in Trino stays part of the boundary: give it read access only wherever you can. **Test connection** reads the coordinator's version, runs `SELECT current_user` to show who the statements run as, and lists the catalogs agents may use.
 
 ## Bound reads and review exact changes

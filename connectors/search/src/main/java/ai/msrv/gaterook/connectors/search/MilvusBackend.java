@@ -2,6 +2,7 @@ package ai.msrv.gaterook.connectors.search;
 
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
@@ -62,6 +63,11 @@ final class MilvusBackend extends VectorBackend {
   String description() {
     return "Collections and entities of Milvus and Zilliz Cloud: filtered pages, vector and full-text search. "
         + "Upserts and deletes wait for approval.";
+  }
+
+  @Override
+  int localPort() {
+    return 19530;
   }
 
   @Override
@@ -243,6 +249,47 @@ final class MilvusBackend extends VectorBackend {
       out.add(F.objectNode().put("name", n.asString("")));
     }
     return out;
+  }
+
+  /**
+   * Service suggestions: the databases the credentials see, the only one filled in, and the collections of the
+   * connection's database, or of the only database when the connection names one that doesn't exist. A server that
+   * doesn't list databases (an older Milvus, a Zilliz Cloud serverless cluster) offers the collections only.
+   */
+  @Override
+  void service(Call c, Suggestions.Builder out) throws ConnectorException {
+    String chosen = database(c.cfg());
+    List<String> databases = new ArrayList<>();
+    try {
+      JsonNode data = milvus(c, ServiceHttp.Request.json("POST", endpoint(c.cfg()).uri("/v2/vectordb/databases/list"),
+          null, F.objectNode(), "Milvus's database list", false));
+      for (JsonNode n : data) {
+        String name = n.isString() ? n.asString() : n.path("name").asString("");
+        if (!name.isEmpty() && !databases.contains(name)) {
+          databases.add(name);
+        }
+      }
+    } catch (ConnectorException e) {
+      // No database list (or not for these credentials): the collection list below says whether they sign in.
+    }
+    Call listed = c;
+    if (!databases.isEmpty()) {
+      List<Suggestions.Option> options = databases.stream().map(Suggestions.Option::of).toList();
+      out.value("/database", name(), databases.size() == 1 ? databases.getFirst() : null, options);
+      if (!databases.contains(chosen)) {
+        if (databases.size() != 1) {
+          out.note("Milvus has no database " + chosen + ": choose one of " + count(databases.size(), "database")
+              + ".");
+          return;
+        }
+        listed = new Call(StoreSuggestions.with(c.cfg(), "database", databases.getFirst()), c.secrets(), c.ctx());
+      }
+    }
+    StoreSuggestions.offerList(this, c.cfg(), collections(listed), out);
+    if (databases.size() > 1) {
+      out.note("The collections offered are those of database " + database(listed.cfg()) + " (Milvus has "
+          + count(databases.size(), "database") + ").");
+    }
   }
 
   @Override

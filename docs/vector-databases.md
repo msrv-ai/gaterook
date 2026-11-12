@@ -26,6 +26,8 @@ TLS is verified with the system's CAs, or with a private CA you paste under **Ad
 
 **Collections** (**Indexes** on Pinecone) lists what agents may use; `*` matches any characters, as in `support_*`. Empty, every collection the credentials see. GateRook checks the list for every collection a call names and filters listings by it.
 
+While you fill in the form, GateRook offers a store that answers on its usual port of this computer as its address, such as `http://localhost:6333` for Qdrant. Once the form can sign in, it offers the collections the credentials see. Milvus also offers its databases, and Chroma fills in the tenant and database its credentials belong to.
+
 **Test connection** reports:
 
 - the server and its version where it says one;

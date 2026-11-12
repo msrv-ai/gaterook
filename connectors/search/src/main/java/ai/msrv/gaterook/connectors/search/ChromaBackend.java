@@ -2,6 +2,7 @@ package ai.msrv.gaterook.connectors.search;
 
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
@@ -51,6 +52,11 @@ final class ChromaBackend extends VectorBackend implements VectorConnector.Recor
   String description() {
     return "Collections and records of Chroma and Chroma Cloud: metadata-filtered pages and nearest-neighbour search "
         + "by embedding or record. Upserts and deletes wait for approval.";
+  }
+
+  @Override
+  int localPort() {
+    return 8000;
   }
 
   @Override
@@ -242,6 +248,63 @@ final class ChromaBackend extends VectorBackend implements VectorConnector.Recor
       out.add(o);
     }
     return out;
+  }
+
+  /**
+   * Service suggestions: the tenant the credentials belong to (Chroma Cloud's tenant id), filled in; the databases
+   * they may use, as the identity names them or else as the tenant lists them, the only one filled in; and the
+   * collections of the database the connection would use.
+   */
+  @Override
+  void service(Call c, Suggestions.Builder out) throws ConnectorException {
+    JsonNode identity = json(c, ServiceHttp.Request.get(endpoint(c.cfg()).uri("/api/v2/auth/identity"), null,
+        "Chroma's identity"), 1 << 20);
+    String tenant = identity.path("tenant").asString("").strip();
+    if (tenant.isEmpty()) {
+      tenant = tenant(c.cfg());
+    } else {
+      out.value("/tenant", name(), tenant, List.of(Suggestions.Option.of(tenant)));
+    }
+    List<String> databases = new ArrayList<>();
+    boolean any = identity.path("databases").isEmpty();
+    for (JsonNode d : identity.path("databases")) {
+      String name = d.asString("").strip();
+      if (name.equals("*")) {
+        any = true;
+      } else if (!name.isEmpty() && !databases.contains(name)) {
+        databases.add(name);
+      }
+    }
+    if (any) {
+      try {
+        JsonNode list = json(c, ServiceHttp.Request.get(endpoint(c.cfg()).uri("/api/v2/tenants/" + ServiceHttp.seg(
+            tenant) + "/databases", "limit", "200"), null, "Chroma's database list"), 1 << 20);
+        for (JsonNode d : list) {
+          String name = d.path("name").asString("").strip();
+          if (!name.isEmpty() && !databases.contains(name)) {
+            databases.add(name);
+          }
+        }
+      } catch (ConnectorException e) {
+        // The tenant's databases aren't listable here: the connection's database is all there is to go on.
+      }
+    }
+    String database = database(c.cfg());
+    if (!databases.isEmpty()) {
+      out.value("/database", name(), databases.size() == 1 ? databases.getFirst() : null,
+          databases.stream().map(Suggestions.Option::of).toList());
+      if (!databases.contains(database)) {
+        if (databases.size() != 1) {
+          out.note("The credentials may use " + count(databases.size(), "database") + " of tenant " + tenant
+              + ", not " + database + ": choose one.");
+          return;
+        }
+        database = databases.getFirst();
+      }
+    }
+    ConnectionConfig where = StoreSuggestions.with(StoreSuggestions.with(c.cfg(), "tenant", tenant), "database",
+        database);
+    StoreSuggestions.offerList(this, c.cfg(), collections(new Call(where, c.secrets(), c.ctx())), out);
   }
 
   @Override

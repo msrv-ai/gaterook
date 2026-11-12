@@ -48,6 +48,11 @@ final class QdrantBackend extends VectorBackend {
   }
 
   @Override
+  int localPort() {
+    return 6333;
+  }
+
+  @Override
   ServiceHttp.Endpoint endpoint(ConnectionConfig cfg) throws ConnectorException {
     return new ServiceHttp.Endpoint(ServiceHttp.base(cfg.string("/url"), "https://xyz.cloud.qdrant.io:6333",
         "/collections"), ca(cfg));

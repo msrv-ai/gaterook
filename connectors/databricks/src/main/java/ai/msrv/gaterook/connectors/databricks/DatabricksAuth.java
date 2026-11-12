@@ -95,6 +95,12 @@ final class DatabricksAuth {
     cache.keySet().removeIf(k -> k.startsWith(prefix));
   }
 
+  /** Whether a token of {@code connectionId} is kept: the setup helpers drop only the ones they got themselves. */
+  boolean has(String connectionId) {
+    String prefix = connectionId + "|";
+    return cache.keySet().stream().anyMatch(k -> k.startsWith(prefix));
+  }
+
   /** Drops every token of {@code connectionId}: its config, secret or policy changed, or it was removed. */
   void evict(String connectionId) {
     String prefix = connectionId + "|";

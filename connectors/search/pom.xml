@@ -40,6 +40,11 @@
       <groupId>tools.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
     </dependency>
+    <!-- The setup helpers read the Algolia CLI's config.toml (application IDs only, never a key). -->
+    <dependency>
+      <groupId>tools.jackson.dataformat</groupId>
+      <artifactId>jackson-dataformat-toml</artifactId>
+    </dependency>
 
     <!-- Registration of the built-in beans, .boot subpackage only (ARCHITECTURE.md §2.3). -->
     <dependency>

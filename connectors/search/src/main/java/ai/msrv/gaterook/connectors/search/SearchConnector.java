@@ -11,6 +11,7 @@ import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
@@ -551,6 +552,15 @@ final class SearchConnector implements Connector {
       return TestResult.failure(backend.type() + ".settings", e.getMessage(), null);
     }
     return backend.test(new Call(cfg, secrets, ctx));
+  }
+
+  /**
+   * Setup helpers: an engine answering on its usual port of this computer, offered as its address, and the Azure
+   * CLI's tenants for an Entra ID sign-in; signed in, the indexes the credentials see.
+   */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return StoreSuggestions.suggest(backend, cfg, secrets, ctx, scope);
   }
 
   @Override
