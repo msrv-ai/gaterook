@@ -13,12 +13,14 @@ import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
+import ai.msrv.gaterook.connectors.cloudauth.CloudLocal;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
 import java.io.IOException;
@@ -57,9 +59,17 @@ public final class S3Connector implements Connector {
   private final S3Api api;
   private final Reads reads;
   private final ConnectorManifest manifest;
+  /** What the setup helpers read of this computer: AWS profiles and regions. */
+  private final CloudLocal local;
 
   public S3Connector(CloudCredentials cloud) {
+    this(cloud, cloud == null ? null : new CloudLocal(cloud.endpoints()));
+  }
+
+  /** {@code local}: the profiles and regions the setup helpers read (tests: their own files and environment). */
+  S3Connector(CloudCredentials cloud, CloudLocal local) {
     this.cloud = Objects.requireNonNull(cloud, "cloud");
+    this.local = Objects.requireNonNull(local, "local");
     this.api = new S3Api(cloud);
     this.reads = new Reads(api);
     SchemaResources schemas = SchemaResources.of(S3Connector.class, TYPE);
@@ -335,6 +345,15 @@ public final class S3Connector implements Connector {
         onConnectionRemoved(cfg.id());
       }
     }
+  }
+
+  /**
+   * Profiles and regions of this computer, or what a provider's endpoint names; signed in, the buckets
+   * ({@link S3Suggestions}).
+   */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return S3Suggestions.suggest(cfg, secrets, ctx, scope, cloud, local, api);
   }
 
   static List<Hint> hints(Env env, S3Settings s, int visible, boolean listed) {

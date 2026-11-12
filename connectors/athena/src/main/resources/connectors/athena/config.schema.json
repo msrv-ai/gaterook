@@ -25,6 +25,7 @@
       "title": "Workgroup",
       "pattern": "^[a-zA-Z0-9._-]{1,128}$",
       "default": "primary",
+      "x-advanced": false,
       "description": "Every query runs here. Its per-query data limit is the cost boundary: set one, and let the workgroup override client-side settings."
     },
     "catalog": {
@@ -52,6 +53,7 @@
         "type": "string",
         "pattern": "^([A-Za-z0-9_/:*?-]{1,256}\\.)?[A-Za-z0-9_*?-]{1,255}$"
       },
+      "x-advanced": false,
       "description": "The databases agents may use: database in the data catalog above, or catalog.database, * matching any characters. Every table Athena's plan reads must be in one of them. Empty: every database the credentials may read."
     },
     "outputLocation": {
@@ -90,7 +92,8 @@
           "examples": [
             "arn:aws:iam::412398765012:role/gw-athena"
           ],
-          "description": "With a role, GateRook limits each call to what it needs, enforced by AWS."
+          "x-advanced": false,
+          "description": "With a role, GateRook limits each call to what it needs, enforced by AWS; empty: the credentials' own permissions apply."
         },
         "externalId": {
           "type": "string",
@@ -105,7 +108,8 @@
           "minimum": 900,
           "maximum": 3600,
           "default": 900,
-          "x-unit": "s"
+          "x-unit": "s",
+          "description": "How long a role session lasts, 900 to 3,600 seconds."
         },
         "sessionPolicy": {
           "enum": [
@@ -179,7 +183,8 @@
                 "type": "string",
                 "title": "Profile",
                 "maxLength": 128,
-                "pattern": "\\S"
+                "pattern": "\\S",
+                "description": "A profile of ~/.aws/config or ~/.aws/credentials on this computer."
               }
             },
             "required": [

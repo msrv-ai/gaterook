@@ -13,6 +13,7 @@ import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
@@ -23,6 +24,7 @@ import ai.msrv.gaterook.connectors.athena.AthenaSql.Kind;
 import ai.msrv.gaterook.connectors.athena.AthenaSql.Ref;
 import ai.msrv.gaterook.connectors.athena.AthenaSql.Role;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
+import ai.msrv.gaterook.connectors.cloudauth.CloudLocal;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
 import ai.msrv.gaterook.connectors.support.OutputSanitizer;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
@@ -77,9 +79,17 @@ public final class AthenaConnector implements Connector {
   private final AthenaApi api;
   private final ConnectorManifest manifest;
   private final Map<String, Cached> workgroups = new ConcurrentHashMap<>();
+  /** What the setup helpers read of this computer: AWS profiles and regions. */
+  private final CloudLocal local;
 
   public AthenaConnector(CloudCredentials cloud) {
+    this(cloud, cloud == null ? null : new CloudLocal(cloud.endpoints()));
+  }
+
+  /** {@code local}: the profiles and regions the setup helpers read (tests: their own files and environment). */
+  AthenaConnector(CloudCredentials cloud, CloudLocal local) {
     this.cloud = Objects.requireNonNull(cloud, "cloud");
+    this.local = Objects.requireNonNull(local, "local");
     this.api = new AthenaApi(cloud);
     SchemaResources schemas = SchemaResources.of(AthenaConnector.class, TYPE);
     this.manifest = ConnectorManifest.builder(TYPE, BuiltIn.VERSION, ConnectorManifest.Kind.BUILT_IN)
@@ -1169,6 +1179,15 @@ public final class AthenaConnector implements Connector {
       result = result.withHint(h);
     }
     return result;
+  }
+
+  /**
+   * Profiles and regions of this computer; signed in, the workgroups, the workgroup's results location, the data
+   * catalogs and the databases ({@link AthenaSuggestions}).
+   */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return AthenaSuggestions.suggest(cfg, secrets, ctx, scope, cloud, local, api);
   }
 
   static List<Hint> hints(Env env, AthenaSettings s, Workgroup wg, List<String> visible) {

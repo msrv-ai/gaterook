@@ -13,12 +13,14 @@ import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
+import ai.msrv.gaterook.connectors.cloudauth.CloudLocal;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
 import ai.msrv.gaterook.connectors.support.OutputSanitizer;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
@@ -74,9 +76,17 @@ public final class RedshiftConnector implements Connector {
   private final CloudCredentials cloud;
   private final RedshiftApi api;
   private final ConnectorManifest manifest;
+  /** What the setup helpers read of this computer: AWS profiles and regions. */
+  private final CloudLocal local;
 
   public RedshiftConnector(CloudCredentials cloud) {
+    this(cloud, cloud == null ? null : new CloudLocal(cloud.endpoints()));
+  }
+
+  /** {@code local}: the profiles and regions the setup helpers read (tests: their own files and environment). */
+  RedshiftConnector(CloudCredentials cloud, CloudLocal local) {
     this.cloud = Objects.requireNonNull(cloud, "cloud");
+    this.local = Objects.requireNonNull(local, "local");
     this.api = new RedshiftApi(cloud);
     SchemaResources schemas = SchemaResources.of(RedshiftConnector.class, TYPE);
     this.manifest = ConnectorManifest.builder(TYPE, BuiltIn.VERSION, ConnectorManifest.Kind.BUILT_IN)
@@ -87,7 +97,9 @@ public final class RedshiftConnector implements Connector {
             + "for approval.")
         .configSchema(schemas.load("config"))
         .tools(RedshiftTools.definitions(schemas))
-        .access(new ConnectorManifest.RequiredAccess(List.of("redshift-data.*.amazonaws.com", "sts.*.amazonaws.com"),
+        // Redshift, Redshift Serverless and Secrets Manager: the setup helpers' listings of the form's names.
+        .access(new ConnectorManifest.RequiredAccess(List.of("redshift-data.*.amazonaws.com", "sts.*.amazonaws.com",
+            "redshift.*.amazonaws.com", "redshift-serverless.*.amazonaws.com", "secretsmanager.*.amazonaws.com"),
             List.of(), List.of("~/.aws/config", "~/.aws/credentials")))
         .build();
   }
@@ -929,6 +941,15 @@ public final class RedshiftConnector implements Connector {
       result = result.withHint(h);
     }
     return result;
+  }
+
+  /**
+   * Profiles and regions of this computer; signed in, the clusters, Serverless workgroups, databases and secrets
+   * ({@link RedshiftSuggestions}).
+   */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return RedshiftSuggestions.suggest(cfg, secrets, ctx, scope, cloud, local, api);
   }
 
   /** {@code profileWarnings}: what cloud-auth says about the AWS profile, such as that it runs a command. */
