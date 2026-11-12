@@ -28,6 +28,11 @@
       <groupId>ai.msrv.gaterook</groupId>
       <artifactId>connectors-support</artifactId>
     </dependency>
+    <!-- The Azure CLI's tenants on this computer, for the form's suggestions (CloudLocal). -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-cloud-auth</artifactId>
+    </dependency>
     <dependency>
       <groupId>tools.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>

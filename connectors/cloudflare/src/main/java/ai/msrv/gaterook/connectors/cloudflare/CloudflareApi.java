@@ -158,7 +158,7 @@ final class CloudflareApi implements AutoCloseable {
    *               failure to retry
    */
   Answer send(Call c, String method, URI uri, JsonNode body, String what, boolean change) throws ConnectorException {
-    quota(c, "cloudflare:" + c.settings().accountId(), PER_MINUTE);
+    quota(c, budget(c), PER_MINUTE);
     Response r = exchange(c, method, uri, body, what, change, MAX_BODY);
     JsonNode tree = parse(r, what);
     if (r.status / 100 != 2 || tree.path("success").isBoolean() && !tree.path("success").asBoolean()) {
@@ -169,7 +169,7 @@ final class CloudflareApi implements AutoCloseable {
 
   /** A value Cloudflare returns as it was stored (a KV value): at most {@code max} bytes of it. */
   Raw raw(Call c, URI uri, int max, String what) throws ConnectorException {
-    quota(c, "cloudflare:" + c.settings().accountId(), PER_MINUTE);
+    quota(c, budget(c), PER_MINUTE);
     Response r = exchange(c, "GET", uri, null, what, false, max);
     if (r.status / 100 != 2) {
       JsonNode tree;
@@ -188,7 +188,7 @@ final class CloudflareApi implements AutoCloseable {
    * GraphQL reports most failures with HTTP 200 and an {@code errors} list; they become refusals here.
    */
   JsonNode graphql(Call c, String query, String what) throws ConnectorException {
-    quota(c, "cloudflare:" + c.settings().accountId() + ":graphql", GRAPHQL_PER_MINUTE);
+    quota(c, budget(c) + ":graphql", GRAPHQL_PER_MINUTE);
     ObjectNode body = JsonNodeFactory.instance.objectNode().put("query", query);
     Response r = exchange(c, "POST", graphqlUri(), body, what, false, MAX_BODY);
     JsonNode tree = parse(r, what);
@@ -211,6 +211,15 @@ final class CloudflareApi implements AutoCloseable {
           + "refused the query: " + text + (denied ? " " + permissionHint(what) : ""), r.status, 0);
     }
     return tree.path("data");
+  }
+
+  /**
+   * The share of the account's request budget a call takes from; a form's suggestions that run before an account is
+   * chosen take from the connection's own.
+   */
+  private static String budget(Call c) {
+    String account = c.settings().accountId();
+    return "cloudflare:" + (account != null ? account : "connection:" + c.cfg().id());
   }
 
   private static void quota(Call c, String key, int perMinute) throws ConnectorException {

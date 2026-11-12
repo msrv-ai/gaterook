@@ -18,6 +18,7 @@
       "examples": [
         "0123456789abcdef0123456789abcdef"
       ],
+      "x-suggest": true,
       "description": "The 32-character ID of the Cloudflare account, shown on the dashboard's account home and in its Overview pages. Workers, Pages, KV, tunnels and Logpush are read in this account; a zone of another account is refused."
     },
     "zones": {
