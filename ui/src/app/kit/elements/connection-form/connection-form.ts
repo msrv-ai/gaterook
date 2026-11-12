@@ -558,8 +558,9 @@ export class GwConnectionForm {
       if (!this.helpers()) return;
       const value = this.value();
       const key = this.suggestionKey('service', value);
-      // A saved connection signs in for suggestions only once the person changed something: opening it doesn't.
-      const ready = this.state().ready() && (this.mode() === 'create' || this.state().changed());
+      // The fields the connector lists (x-suggest) may still be empty; a saved connection signs in for suggestions
+      // only once the person changed something: opening it doesn't.
+      const ready = this.state().readyExcept(this.listedFields()) && (this.mode() === 'create' || this.state().changed());
       // Findings of other settings stay until the next answer replaces them, unless the form can't sign in any more.
       if (!ready) untracked(() => this.dropStaleService(key));
       if (!ready || key === this.requested.service) return;
@@ -582,6 +583,10 @@ export class GwConnectionForm {
   }
 
   // ─── Setup helpers ───
+
+  /** Required fields the connector lists when it signs in (`x-suggest`): a service lookup doesn't wait for them. */
+  private readonly listedFields = computed(() =>
+    this.state().compiled.all.filter((node) => node.schema['x-suggest'] === true).map((node) => node.pointer));
 
   /** The fingerprints asked for last, per scope: an answer for another one is stale. */
   private readonly requested: Record<SuggestScope, string | null> = { local: null, service: null };

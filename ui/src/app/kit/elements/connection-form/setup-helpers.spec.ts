@@ -183,6 +183,22 @@ describe('setup helpers: the Kubernetes form', () => {
   });
 });
 
+describe('setup helpers: fields the service lists', () => {
+  it('signs in while a required field marked x-suggest is still empty', async () => {
+    const schema = structuredClone(CONNECTOR_FORMS['cloudflare']) as JsonObject;
+    const props = schema['properties'] as JsonObject;
+    props['accountId'] = { ...(props['accountId'] as JsonObject), 'x-suggest': true };
+    const v = await render('cloudflare');
+    v.host.spec.set({ ...spec('cloudflare'), schema });
+    await v.settle();
+    expect(await v.asked('service', 1200)).toBeNull();
+    await v.type('cf-credentials-token', 'cf-token-1');
+    const service = await v.asked('service');
+    expect(service).not.toBeNull();
+    expect(service!.value.config['accountId'] ?? null).toBeNull();
+  });
+});
+
 describe('setup helpers: a saved connection', () => {
   it('signs in for suggestions only once the person changed something', async () => {
     const v = await render('kubernetes', { auth: 'kubeconfig-file', kubeconfigPath: '~/.kube/config', context: 'kind-dev',

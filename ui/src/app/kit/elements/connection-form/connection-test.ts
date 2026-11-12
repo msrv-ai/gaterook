@@ -19,8 +19,11 @@ export interface TestTarget {
 export type TestState = 'idle' | 'testing' | 'done';
 
 /** Only local Google ADC connections can use the desktop sign-in command. */
+/** The Google connectors that can sign in with Google sign-in on this computer (ADC). */
+const GOOGLE_ADC_TYPES: ReadonlySet<string> = new Set(['gcp', 'gcp-logging', 'bigquery', 'spanner', 'firestore', 'firebase-rtdb']);
+
 export function usesGoogleAdc(type: string | undefined, config: JsonObject | null): boolean {
-  if (type !== 'gcp' && type !== 'gcp-logging' && !(type === 'logs' && config?.['backend'] === 'gcp-logging')) return false;
+  if (!GOOGLE_ADC_TYPES.has(type ?? '') && !(type === 'logs' && config?.['backend'] === 'gcp-logging')) return false;
   const credentials = config?.['credentials'];
   return !!credentials && typeof credentials === 'object' && !Array.isArray(credentials) && credentials['source'] === 'adc';
 }

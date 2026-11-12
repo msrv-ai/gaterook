@@ -1012,6 +1012,49 @@ public class ConnectionService {
     validate(manifest, config, newSecretFields, dynamicSecretFields, env, true, schema);
   }
 
+  /**
+   * A setup suggestion lists what the fields marked {@code x-suggest} may hold (an instance, an account ID, log groups),
+   * so those may still be empty or unfinished; everything else is checked as for discovery.
+   */
+  void validateSuggestion(ConnectorManifest manifest, ObjectNode config, Set<String> newSecretFields,
+      Set<String> dynamicSecretFields, Env env) {
+    JsonNode schema = manifest.configSchema().deepCopy();
+    List<List<String>> listed = new ArrayList<>();
+    for (SchemaPointers.Located field : SchemaPointers.collect(schema,
+        node -> node.path("x-suggest").asBoolean(false))) {
+      if (!field.template().contains("*") && field.template().startsWith("/")) {
+        listed.add(Arrays.stream(field.template().substring(1).split("/", -1)).map(SecretFields::unescape)
+            .toList());
+      }
+    }
+    listed.forEach(path -> relax(schema, path));
+    validate(manifest, config, newSecretFields, dynamicSecretFields, env, true, schema);
+  }
+
+  /**
+   * Leaves out what requires or constrains the field at {@code path} (keys from the root): its property schema becomes
+   * {@code {}} and its key leaves every {@code required} on the way, in the object itself and in its branches.
+   */
+  static void relax(JsonNode schema, List<String> path) {
+    if (!(schema instanceof ObjectNode object) || path.isEmpty()) {
+      return;
+    }
+    String head = path.get(0);
+    if (path.size() == 1) {
+      relaxProjectSelection(object, head);
+      return;
+    }
+    if (object.path("properties").path(head) instanceof ObjectNode child) {
+      relax(child, path.subList(1, path.size()));
+    }
+    for (String keyword : List.of("allOf", "anyOf", "oneOf")) {
+      for (JsonNode branch : object.path(keyword)) relax(branch, path);
+    }
+    for (String keyword : List.of("if", "then", "else")) {
+      relax(object.path(keyword), path);
+    }
+  }
+
   /** Only same-instance schema branches are relaxed; nested credentials retain every constraint. */
   private static void relaxProjectSelection(JsonNode schema, String field) {
     if (!(schema instanceof ObjectNode object)) return;

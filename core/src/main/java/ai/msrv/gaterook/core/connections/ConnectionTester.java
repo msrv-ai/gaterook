@@ -84,8 +84,11 @@ public class ConnectionTester implements DisposableBean {
 
   private enum DraftOperation { TEST, DATABASES, FILES, PROJECTS }
 
-  /** How much of a draft must hold before it is used: nothing (local suggestions), discovery, or a test. */
-  private enum DraftCheck { NONE, DISCOVERY, PROJECTS, TEST }
+  /**
+   * How much of a draft must hold before it is used: nothing (local suggestions), discovery without the fields a
+   * suggestion lists ({@code x-suggest}), discovery, or a test.
+   */
+  private enum DraftCheck { NONE, SUGGEST, DISCOVERY, PROJECTS, TEST }
 
   /** One use of a prepared draft: its config, the secrets for this request and the taint that masks them. */
   @FunctionalInterface
@@ -189,14 +192,15 @@ public class ConnectionTester implements DisposableBean {
   /**
    * {@code POST /api/connections/suggest}: what the form can offer the person for this draft ({@link Suggestions}).
    * {@code LOCAL} needs no complete draft, reads no store and uses no stored secret: only what was typed, parsed on
-   * this computer. {@code SERVICE} checks the draft as discovery does and signs in with it, stored secrets included
+   * this computer. {@code SERVICE} checks the draft as discovery does, except the fields the connector lists
+   * ({@code x-suggest}), which may still be empty, and signs in with it, stored secrets included
    * (after the same new-host confirmation as a test). Masked by the request's taint: an option whose value a mask
    * would change is left out rather than offered changed.
    */
   public Suggestions suggest(String type, Env env, JsonNode config, Map<String, SecretInput> typed, String existing,
       String confirm, Suggestions.Scope scope) {
     boolean local = scope == Suggestions.Scope.LOCAL;
-    return withDraft(type, env, config, typed, existing, confirm, local ? DraftCheck.NONE : DraftCheck.DISCOVERY,
+    return withDraft(type, env, config, typed, existing, confirm, local ? DraftCheck.NONE : DraftCheck.SUGGEST,
         !local, (manifest, cfg, resolver, stores, taint, draft) -> suggestions(manifest, cfg, resolver, stores, taint,
             scope));
   }
@@ -268,6 +272,7 @@ public class ConnectionTester implements DisposableBean {
       }
       switch (check) {
         case NONE -> { }
+        case SUGGEST -> connections.validateSuggestion(manifest, draft, present, dynamic, env);
         case PROJECTS -> connections.validateProjectDiscovery(manifest, draft, present, dynamic, env);
         case DISCOVERY -> connections.validate(manifest, draft, present, dynamic, env, true);
         case TEST -> connections.validate(manifest, draft, present, dynamic, env, false);
