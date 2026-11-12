@@ -1,0 +1,57 @@
+{
+  "$comment": "How each connector module reaches the application: `bundled` is compiled into the core, `module` is not part of the installer. docs/connector-delivery.md explains the rule; app/pom.xml and scripts/size-report.mjs follow this file, and scripts/delivery.test.mjs keeps them in step.",
+  "schema": 1,
+  "budget": {
+    "$comment": "The most a bundled connector may add to the native core, in megabytes of image, unless it is listed in `exempt` with the reason it stays compiled in.",
+    "bundledImageMegabytes": 3,
+    "exempt": {
+      "sql": "PostgreSQL, MySQL and SQLite are the first connections most people make; JSqlParser classifies every dialect.",
+      "kubernetes": "A flagship connector; kept compiled in by decision.",
+      "ssh": "A flagship connector, and SSH log files and runbooks depend on it.",
+      "mongodb": "One of the most used databases.",
+      "logs": "Seven log services share it.",
+      "aws": "The generic AWS API tools carry a catalog of every service.",
+      "neo4j": "Becomes a module together with its first release."
+    }
+  },
+  "connectors": {
+    "athena": {"types": ["athena"], "delivery": "bundled"},
+    "aws": {"types": ["aws"], "delivery": "bundled"},
+    "azure": {"types": ["azure"], "delivery": "bundled"},
+    "bigquery": {"types": ["bigquery"], "delivery": "bundled"},
+    "cassandra": {
+      "types": ["cassandra"],
+      "delivery": "module",
+      "why": "The driver's own GraalVM substitutions need JNR, which this build excludes, so the native core can't be built with it; its driver stack is also heavier than the budget."
+    },
+    "cloudflare": {"types": ["cloudflare"], "delivery": "bundled"},
+    "cosmosdb": {"types": ["cosmosdb"], "delivery": "bundled"},
+    "databricks": {"types": ["databricks"], "delivery": "bundled"},
+    "dynamodb": {"types": ["dynamodb"], "delivery": "bundled"},
+    "firebase": {"types": ["firestore", "firebase-rtdb"], "delivery": "bundled"},
+    "gcp": {"types": ["gcp"], "delivery": "bundled"},
+    "http": {"types": ["http"], "delivery": "bundled"},
+    "influxdb": {"types": ["influxdb"], "delivery": "bundled"},
+    "kubernetes": {"types": ["kubernetes"], "delivery": "bundled"},
+    "logs": {
+      "types": ["logs", "gcp-logging", "loki", "cloudwatch", "opensearch", "elasticsearch", "azure-monitor"],
+      "delivery": "bundled"
+    },
+    "mcp-server": {"types": ["mcp-server"], "delivery": "bundled"},
+    "mongodb": {"types": ["mongodb"], "delivery": "bundled"},
+    "neo4j": {"types": ["neo4j"], "delivery": "bundled"},
+    "prometheus": {"types": ["prometheus"], "delivery": "bundled"},
+    "redis": {"types": ["redis"], "delivery": "bundled"},
+    "redshift": {"types": ["redshift"], "delivery": "bundled"},
+    "s3": {"types": ["s3"], "delivery": "bundled"},
+    "search": {
+      "types": ["pinecone", "qdrant", "milvus", "weaviate", "chroma", "algolia", "meilisearch", "typesense", "azure-ai-search"],
+      "delivery": "bundled"
+    },
+    "snowflake": {"types": ["snowflake"], "delivery": "bundled"},
+    "spanner": {"types": ["spanner"], "delivery": "bundled"},
+    "sql": {"types": ["postgres", "mysql", "oracle", "sqlserver", "sqlite"], "delivery": "bundled"},
+    "ssh": {"types": ["ssh", "ssh-logs"], "delivery": "bundled"},
+    "trino": {"types": ["trino"], "delivery": "bundled"}
+  }
+}

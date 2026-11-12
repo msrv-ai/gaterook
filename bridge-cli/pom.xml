@@ -19,6 +19,8 @@
 
   <properties>
     <start-class>ai.msrv.gaterook.bridge.Main</start-class>
+    <!-- The image builder's optimization level; see the native profile below. -->
+    <native.optimization>-O2</native.optimization>
   </properties>
 
   <dependencies>
@@ -176,6 +178,13 @@
                 <buildArg>-H:+ReportExceptionStackTraces</buildArg>
                 <!-- A small binary every client starts often: compatible with any x86-64/arm64 CPU. -->
                 <buildArg>-march=compatibility</buildArg>
+                <!--
+                  The optimization level, -O2 unless a build passes -Dnative.optimization=-Os (the same switch as the
+                  core's, app/pom.xml). With -Os the bridge is 29.6 MB instead of 35.3 MB and starts as fast: 5.7 ms
+                  against 5.9 ms from exec until its version is printed (medians of 40, macOS arm64, GraalVM CE 25.0.2,
+                  2026-11-12).
+                -->
+                <buildArg>${native.optimization}</buildArg>
               </buildArgs>
             </configuration>
             <executions>

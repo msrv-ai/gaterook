@@ -10,7 +10,7 @@
 //   npm run dev -w desktop -- --protection off     no OS protection of the master key (no Keychain entry)
 //
 // Needs JAVA_HOME (JDK 25) for the jar, `npm run build -w ui` (done here when ui/dist is missing) and
-// `mvn -B -ntp -pl app -am -DskipTests package` for app/target/app.jar. The development build keeps its own
+// `mvn -B -ntp -pl app -am -DskipTests -Pall-bundled package` for app/target/app.jar. The development build keeps its own
 // Chromium profile in <home>/electron and its own Keychain entry ("GateRook Dev Safe Storage"); it never registers
 // itself at login or as the gaterook:// handler. Ctrl+C quits; the core follows (stdin EOF).
 import { spawn, spawnSync } from 'node:child_process';
@@ -41,7 +41,7 @@ if (!process.env.GW_UI_DIST && !existsSync(join(uiDistOf(repo), 'index.html'))) 
   if (spawnSync(npm, ['run', 'build', '-w', 'ui'], { cwd: repo, stdio: 'inherit' }).status !== 0) process.exit(1);
 }
 if (!binary && !existsSync(jar)) {
-  console.error(`[dev] ${jar} is missing: mvn -B -ntp -pl app -am -DskipTests package`);
+  console.error(`[dev] ${jar} is missing: mvn -B -ntp -pl app -am -DskipTests -Pall-bundled package`);
   process.exit(1);
 }
 if (flag('--fresh')) rmSync(home, { recursive: true, force: true });

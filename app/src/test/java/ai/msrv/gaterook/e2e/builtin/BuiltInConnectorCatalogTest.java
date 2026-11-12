@@ -13,6 +13,7 @@ import ai.msrv.gaterook.connector.api.ConnectorManifest.Kind;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
+import ai.msrv.gaterook.e2e.ConnectorDelivery;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -43,6 +44,9 @@ class BuiltInConnectorCatalogTest {
       "PostgreSQL", 4, "MySQL", 4, "Oracle Database", 4, "SQL Server", 4, "SQLite", 4, "MongoDB", 4, "Redis", 8, "Amazon DynamoDB", 6, "Google BigQuery", 5, "Google Cloud Spanner", 4, "Snowflake", 4, "Amazon Redshift", 5, "Databricks SQL", 6, "Trino / Presto", 6, "Amazon Athena", 6, "Cloud Firestore", 4, "Firebase Realtime Database", 2, "Azure Cosmos DB", 6, "Apache Cassandra", 4, "Neo4j", 3, "Prometheus", 9, "InfluxDB", 5, "Pinecone", 6, "Qdrant", 6, "Milvus", 6, "Weaviate", 6, "Chroma", 6, "Algolia", 6, "Meilisearch", 6, "Typesense", 6, "Azure AI Search", 6, "SSH", 2, "Logs", 5, "SSH log files", 3,
       "Kubernetes", 4, "GCP", 7, "AWS", 4, "Azure", 11, "Cloudflare", 13, "S3 object storage", 7, "HTTP API", 2, "GCP Cloud Logging", 2, "AWS CloudWatch", 2,
       "Azure Monitor Logs", 2, "Loki", 2, "OpenSearch", 3, "Elasticsearch", 3);
+
+  /** The names of the connectors that connectors/delivery.json delivers as modules: absent without -Pall-bundled. */
+  private static final Set<String> MODULE_DELIVERED_NAMES = Set.of("Apache Cassandra");
 
   /** Current default modes for the connection types in the demo world's {@code dev} endpoint. */
   private static final Map<String, Map<String, Mode>> DEV_ENDPOINT = Map.of(
@@ -100,8 +104,11 @@ class BuiltInConnectorCatalogTest {
 
   @Test
   void everyConnectorModuleRegistersItsConnectorTypes() {
-    assertThat(byId.keySet()).containsExactlyInAnyOrder("postgres", "mysql", "oracle", "sqlserver", "sqlite", "spanner", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "redshift", "databricks", "trino", "athena", "firestore", "firebase-rtdb", "cosmosdb", "cassandra", "neo4j", "prometheus", "influxdb", "pinecone", "qdrant", "milvus", "weaviate", "chroma", "algolia", "meilisearch", "typesense", "azure-ai-search", "ssh", "logs", "ssh-logs",
-        "kubernetes", "gcp", "aws", "azure", "cloudflare", "s3", "http", "mcp-server", "gcp-logging", "cloudwatch", "azure-monitor", "loki", "opensearch", "elasticsearch");
+    // connectors/delivery.json is the list: every bundled type, the module-delivered ones only with -Pall-bundled.
+    Set<String> expected = new java.util.LinkedHashSet<>(ConnectorDelivery.assembled());
+    assertThat(byId.keySet()).containsExactlyInAnyOrderElementsOf(expected);
+    assertThat(expected).contains("postgres", "mysql", "sqlite", "mongodb", "redis", "ssh", "kubernetes", "http",
+        "mcp-server");
     assertThat(connectors).hasSize(byId.size());
   }
 
@@ -112,7 +119,11 @@ class BuiltInConnectorCatalogTest {
         .filter(m -> m.kind() == Kind.BUILT_IN)
         .forEach(m -> counts.put(m.name(), m.tools().size()));
 
-    assertThat(counts).containsExactlyInAnyOrderEntriesOf(TOOLS_PER_CONNECTOR);
+    Map<String, Integer> expected = new LinkedHashMap<>(TOOLS_PER_CONNECTOR);
+    if (!ConnectorDelivery.inProcess()) {
+      MODULE_DELIVERED_NAMES.forEach(expected::remove);
+    }
+    assertThat(counts).containsExactlyInAnyOrderEntriesOf(expected);
   }
 
   @Test
@@ -195,7 +206,10 @@ class BuiltInConnectorCatalogTest {
         }
       }
     }
-    assertThat(seen).hasSize(168);
+    // 168 with every connector; the tools of a module-delivered one are its own (no shared family).
+    int absent = ConnectorDelivery.inProcess() ? 0
+        : MODULE_DELIVERED_NAMES.stream().mapToInt(TOOLS_PER_CONNECTOR::get).sum();
+    assertThat(seen).hasSize(168 - absent);
   }
 
   @Test
