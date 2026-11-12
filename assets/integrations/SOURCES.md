@@ -738,3 +738,134 @@ name from that package (its SHA-256 is listed there), not downloaded again, and 
 | File | Bytes | SHA-256 |
 |---|---:|---|
 | `spanner.svg` | 1735 | `8e6e5bd76d4f41afbd0f0056b5efa2335963f0dcfe7a0def3fa0bb393a02c700` |
+
+## Vector database and search engine additions (2026-11-12)
+
+Downloaded on 2026-11-12 for the vector database and search engine cards of the Add connection page, under the same
+terms as above: intact vendor-provided artwork, not GateRook artwork, not covered by a blanket open-source licence,
+identifying the services being connected without indicating sponsorship or endorsement. The notes record each vendor's
+conditions; this record does not assert that any permission has been granted. Each vendor's cloud card (Qdrant Cloud,
+Weaviate Cloud, Chroma Cloud, Meilisearch Cloud) shows the same vendor's mark. Weaviate, Chroma and Meilisearch publish
+no brand or press page: their marks are the symbol of each vendor's logo as the vendor publishes it on its own website or
+in its own GitHub organisation, recorded with the commit that last changed the file.
+
+| File | Official source page | Exact downloaded asset |
+|---|---|---|
+| `pinecone.svg` | [Pinecone brand guidelines](https://www.pinecone.io/brand/) (Brand 4.0, updated October 2026) | [Logomark, black, for light backgrounds](https://www.pinecone.io/images/brand/pinecone-logomark-black.svg) |
+| `qdrant.svg` | [Qdrant brand resources](https://qdrant.tech/brand-resources/) | ["Logomark Full Color" SVG](https://qdrant.tech/img/brand-resources-logos/qdrant-brandmark-red.svg) |
+| `milvus.svg` | [Milvus artwork repository, milvus-io GitHub organisation](https://github.com/milvus-io/artwork); the same set is in the [LF AI & Data artwork repository](https://github.com/lfai/artwork/tree/main/projects/lfai-milvus) | [Milvus colour icon SVG](https://raw.githubusercontent.com/milvus-io/artwork/684ecb4b3de4b3171a7f4387afa64b7f81046c9c/icon/color/milvus-icon-color.svg) |
+| `weaviate.svg` | [weaviate.io](https://weaviate.io/), source in Weaviate's [website repository](https://github.com/weaviate/weaviate-io) | [Weaviate symbol SVG](https://weaviate.io/img/site/weaviate-logo-icon.svg) (byte-identical to `static/img/site/weaviate-logo-icon.svg` in the website repository) |
+| `chroma.svg` | [Chroma repository, documentation configuration `docs/mintlify/docs.json`](https://github.com/chroma-core/chroma/tree/main/docs/mintlify) | [Chroma symbol SVG](https://raw.githubusercontent.com/chroma-core/chroma/HEAD/docs/mintlify/images/favicon.svg) |
+| `algolia.svg` | [Algolia newsroom](https://www.algolia.com/about/news) ("Looking for our logo?"), [Algolia brand guidelines](https://algolia.frontify.com/) | [Algolia logo pack ZIP](https://www.algolia.com/algolia-logo-pack.zip), member `algolia-logo-pack/SVG/Algolia-mark-blue.svg` |
+| `meilisearch.svg` | [Meilisearch repository, `assets/`](https://github.com/meilisearch/meilisearch/tree/main/assets) | [Meilisearch symbol SVG](https://raw.githubusercontent.com/meilisearch/meilisearch/HEAD/assets/logo.svg) |
+| `azure-ai-search.svg` | [Azure icons, Azure Architecture Center](https://learn.microsoft.com/en-us/azure/architecture/icons/) | Azure icons ZIP (as for SQL Server), member `Azure_Public_Service_Icons/Icons/ai + machine learning/10044-icon-service-Cognitive-Search.svg` |
+
+### Checksums
+
+| File | Bytes | SHA-256 |
+|---|---:|---|
+| `algolia.svg` | 1020 | `92490f716cf1752c0a909cd90412551f4537fbab2f2883be76a22d1a8ec49866` |
+| `azure-ai-search.svg` | 1146 | `f7af1213ce089236593835cb5564d6d3f01358cba6488fe562aa8bbc8adc3b38` |
+| `chroma.svg` | 945 | `dcbd0b1c44052cf5caaa3db9182bd7e8e70afeb7f82709b329371f4beff99cf6` |
+| `meilisearch.svg` | 1315 | `9e9aecb57526b612666d146ad160ed85b9052d9a5ba1f54af983e903e297808e` |
+| `milvus.svg` | 2369 | `1194acd695cdc8e7f713b0cf5f91d7e25f33922df6e01314f96ccd07d727a244` |
+| `pinecone.svg` | 1829 | `34755f91827edbfd409d8edb8a7209b8704cc39af69ac7518640b1016db15add` |
+| `qdrant.svg` | 1478 | `1642d28e5c93229b5f0d13546a4275e6120a8a6be159ac2ebaaf2f1a8feddaca` |
+| `weaviate.svg` | 4216 | `8d6fa8dcfb40e749ae92921c25fb77a6f590ebec1d19f6c52711ff28dd78413b` |
+
+### Packages
+
+The Algolia member was extracted by exact name, with path-traversal and symlink checks; the archive's other members
+(SVG, PNG and EPS logos, an Illustrator EPS source, `.DS_Store` files and macOS resource forks under `__MACOSX/`) were
+not extracted into the kit. The Azure member comes from the copy of the Azure package downloaded on 2026-11-11, whose
+SHA-256 still matched the connector-card record above; it was not downloaded again.
+
+| Package | Bytes | SHA-256 |
+|---|---:|---|
+| [Algolia logo pack](https://www.algolia.com/algolia-logo-pack.zip) | 4716275 | `ae126df090abba1f525e107b1e8a3af6a8aff4923a3522e6896232aab20507fd` |
+
+### Asset notes
+
+- **Pinecone:** the black logomark, which the brand page offers "for tight spaces and grids of partner logos, where
+  people already know the brand"; black files are for light backgrounds. The page's usage section lets anyone, without
+  asking, use the Pinecone name and logo to refer to Pinecone and its products accurately and show that a product
+  uses or integrates with Pinecone. It forbids suggesting that Pinecone sponsors, endorses or partners with you without
+  an agreement, using Pinecone in the name of your company, product or domain, changing the logo, making it more
+  prominent than your own name, and putting it on merchandise; other uses, such as co-marketing and event signage, need
+  asking first. The logo must never appear below 24 px tall: the 32 px card tile (4 px padding) shows the logomark
+  exactly 24 px tall, so a smaller tile must not use it. Black or white only. Pinecone is a registered trademark of
+  Pinecone Systems, Inc. Alternate: the square black-on-white icon for app directories, whose built-in margin would
+  shrink the mark below that minimum.
+- **Qdrant:** the full-colour logomark (Amaranth `#DC244C` with a darker and a lighter shade); the black logomark is an
+  alternate. The brand page says that use of the Qdrant trademark must adhere to Qdrant's "Trademark Standards for Use"
+  and directs permission requests and questions to info@qdrant.com. The page does not link those standards, and
+  Qdrant's terms and conditions contain no trademark clause, so nothing grants a licence.
+- **Milvus:** the colour icon (`#33B5F1`) from the official milvus-io artwork repository, last changed in commit
+  `684ecb4b3de4b3171a7f4387afa64b7f81046c9c` (2026-09-22, "fix: circles drawn as arcs in SVG render incorrectly"); the
+  black icon is an alternate. Milvus is an LF AI & Data Foundation project, and zilliz.com states that "LF AI, LF AI &
+  Data, Milvus, and associated open-source project names are trademarks of the Linux Foundation". Both artwork
+  repositories make the files available under the
+  [Linux Foundation trademark usage guidelines](https://www.linuxfoundation.org/legal/trademark-usage): compatibility
+  statements must be accurate and imply no sponsorship or endorsement; a logo may link to the project's home page; using
+  a logo on websites or other marketing materials that promote your products or services, or in any other commercial
+  context, needs written permission (trademarks@linuxfoundation.org; questions about Milvus: info@lfai.foundation).
+  Zilliz's brand page also offers Milvus logo files, under the Zilliz terms described below; they were not downloaded.
+- **Weaviate:** weaviate.io has no brand or press page (`/brand`, `/press`, `/company/press`, `/brand-assets` and
+  `/media-kit` return 404), and the press section of its About page lists articles only. `weaviate.svg` is the Weaviate
+  "W" symbol served by weaviate.io, byte-identical to the website repository's copy, last changed in commit
+  `4e8c78603d34561a5e3bc311d9a560109e0523bd` (2024-04-26). The same symbol and gradients lead the logos that the
+  website and the documentation configure for their navigation bar (`weaviate-logo-horizontal-light-1.svg` and
+  `-dark-1.svg`) and the stacked logo that weaviate.io declares as its organisation logo in structured data
+  (`weaviate-logo-square-dark.png`, an alternate that is unreadable on the tile). The 2026 home page header uses a
+  newer two-colour outline variant (`/img/site/2026/weaviate-logo-2-colours-dark-green.svg`, symbol
+  `weaviate-website-logo.svg`, commit `6b2f898357a0397fd28abbe19be6b9ebb293b492`, 2026-06-03) drawn in light colours
+  for dark backgrounds: it almost disappears on the light plate, no version for light backgrounds was found, and the
+  marks are never recoloured. weaviate.io publishes no logo or trademark policy and grants no licence; the site belongs
+  to Weaviate B.V., Amsterdam (legal@weaviate.io).
+- **Chroma:** trychroma.com has no brand or press page (`/brand`, `/press`, `/brand-assets`, `/media-kit` and
+  `/press-kit` redirect to its sign-in page). `chroma.svg` is the Chroma symbol (three discs, `#327EFF`, `#FFDE2D` and
+  `#FF6446`) that Chroma's documentation configuration in its official repository declares as the documentation
+  favicon, last changed in commit `5d40e7f9ed8bacd54c087e56b6eb3c6e38e300b8` (2026-02-02). The same symbol in the same
+  colours leads the "Chroma" wordmark of the documentation logo `docs/mintlify/images/light-logo.svg` (alternate;
+  unreadable on the tile). The [website terms](https://www.trychroma.com/website-terms) license the site for personal
+  use only and reserve the rights in its graphics and design; no trademark or logo policy is published.
+- **Algolia:** the blue mark (`#003DFF`) from the logo pack that Algolia's newsroom and site-wide banner offer
+  ("Looking for our logo? We got you covered!"). The pack holds the logo and the mark (plain, and on a circle, a
+  rounded square and a square, in blue and in white); the plain blue mark suits the light plate, and the rounded blue
+  mark is an alternate. The newsroom's "Brand guidelines" link leads to Algolia's Frontify portal
+  (`algolia.frontify.com`), a JavaScript application that a plain HTTP client cannot read, so its rules were not read.
+  Algolia's [terms of service](https://www.algolia.com/policies/terms) and legal pages grant no logo licence; press
+  contact PR@algolia.com.
+- **Meilisearch:** meilisearch.com has no brand or press page (`/press`, `/brand`, `/press-kit`, `/brand-assets` and
+  `/media-kit` return 404). `meilisearch.svg` is the symbol from the official repository's `assets/logo.svg`, last
+  changed in commit `372f4fc924f36319c921fd36fbdc354d96b1d974` ("Replace logo", 2022-01-26). The same symbol and
+  `#FF4E62` to `#FF5CAA` gradients lead the wordmark in the repository's `meilisearch-logo-light.svg` (alternate) and
+  in meilisearch.com's header logo (`/logo.svg`, a white wordmark for dark backgrounds). The
+  [terms of use](https://www.meilisearch.com/terms-of-use) say that Meilisearch's logos and brands are protected by
+  intellectual-property rights and grant no licence to them.
+- **Azure AI Search:** Azure Architecture Icons V25, under the Microsoft terms recorded above for SQL Server and Azure
+  Cosmos DB: diagrams, training material and documentation, with every other use reserved for Microsoft's explicit
+  permission, and the full service name next to the icon. The package still names this icon after the service's former
+  name; Microsoft's [Azure AI Search FAQ](https://learn.microsoft.com/en-us/azure/search/search-faq-frequently-asked-questions)
+  confirms that Azure Search, Azure Cognitive Search and Azure AI Search are the same product, renamed in October 2019
+  and October 2023. Byte-identical copies are under `app services/` and `web/`; `03321-icon-service-Serverless-Search.svg`
+  in the same folder adds a lightning bolt to the symbol and was not used.
+
+### Not included
+
+- **Zilliz Cloud:** Zilliz's [brand assets page](https://zilliz.com/brand-assets) offers the Zilliz logo
+  (`https://assets.zilliz.com/zilliz-logo.zip`) and Milvus logos under its Terms and Conditions, which a download
+  accepts: a limited, non-exclusive, non-transferable licence to use the assets solely to refer to, promote or create
+  content about Zilliz and its products; no modification; no use that could confuse the public about the relationship
+  with Zilliz; Zilliz may review uses and terminate the licence; questions to marketing@zilliz.com. Accepting those
+  terms is the owner's decision, so nothing was downloaded from that page, and the Zilliz Cloud card keeps the Milvus
+  type's icon.
+- **Typesense:** typesense.org has no brand or press page (`/brand`, `/press`, `/media-kit`, `/brand-assets` and
+  `/press-kit` return 404). Its only logo files, on the website and in its repositories, are the "typesense" wordmark
+  with a small symbol, unreadable on a 32 px tile. The site's declared icon (`https://typesense.org/favicon.png`,
+  620 x 620, a green bolt on a black rounded square) would be legible, but using a site icon needs the owner's
+  agreement, so the Typesense cards keep their icon. Typesense® is a registered trademark of Typesense, Inc.
+
+These SVGs retain their original geometry, colours, proportions and metadata, with no scripts, event handlers,
+embedded foreign content, embedded raster images or remote references. Cards show each one with the service's plain
+name on a light plate in every theme, never recoloured.

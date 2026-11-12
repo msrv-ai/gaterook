@@ -66,7 +66,8 @@ const CATEGORY_OF: Readonly<Record<string, string>> = {
  * Connector type → its vendor's mark in `assets/integrations/` (official artwork; provenance and terms in its
  * SOURCES.md): an SVG file's base name, or a file name with its extension for the PNG marks of Google Cloud (its site
  * icon: the asset collection has only a lockup unreadable on a 32 px tile) and Cloudflare (its press kit has no SVG).
- * A type without one keeps its kit icon: the protocols (SSH, HTTP) that have no vendor.
+ * A type without one keeps its kit icon: the protocols (SSH, HTTP) that have no vendor, and Typesense, whose only
+ * logo is a wordmark that a 32 px tile can't show.
  */
 const MARKS: Readonly<Record<string, string>> = {
   postgres: 'postgresql',
@@ -91,8 +92,16 @@ const MARKS: Readonly<Record<string, string>> = {
   trino: 'trino',
   athena: 'athena',
   clickhouse: 'clickhouse',
+  pinecone: 'pinecone',
+  qdrant: 'qdrant',
+  milvus: 'milvus',
+  weaviate: 'weaviate',
+  chroma: 'chroma',
   opensearch: 'opensearch',
   elasticsearch: 'elasticsearch',
+  algolia: 'algolia',
+  meilisearch: 'meilisearch',
+  'azure-ai-search': 'azure-ai-search',
   prometheus: 'prometheus',
   influxdb: 'influxdb',
   'gcp-logging': 'cloud-logging',
