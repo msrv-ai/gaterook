@@ -1,6 +1,6 @@
 # Connector test services
 
-Docker Compose supplies disposable servers for connector integration tests: PostgreSQL, MySQL, MariaDB, Oracle Database, SQL Server, CockroachDB, Trino, the Azure Cosmos DB emulator, Google's Cloud Spanner emulator, Apache Cassandra, MongoDB, Neo4j, Redis, Loki, OpenSearch, Elasticsearch, moto, Prometheus, InfluxDB, Vault, OpenSSH, and k3s. This avoids relying on Linux x86-64 fixture binaries when testing on macOS or another Docker-capable machine.
+Docker Compose supplies disposable servers for connector integration tests: PostgreSQL, MySQL, MariaDB, Oracle Database, SQL Server, CockroachDB, Trino, the Azure Cosmos DB emulator, Google's Cloud Spanner emulator, Apache Cassandra, MongoDB, Neo4j, Redis, Loki, OpenSearch, Elasticsearch, moto, Prometheus, InfluxDB, Qdrant, Milvus, Weaviate, Chroma, Pinecone's local emulator, Meilisearch, Typesense, Vault, OpenSSH, and k3s. This avoids relying on Linux x86-64 fixture binaries when testing on macOS or another Docker-capable machine.
 
 Services bind to `127.0.0.1`. Credentials are public test fixtures, and service data is disposable. Tests reset databases, users, and server settings; never point this suite at real data.
 
@@ -14,7 +14,7 @@ scripts/test-services.sh run mvn -B -ntp verify -Pservices
 scripts/test-services.sh down
 ```
 
-The default starts everything except Kubernetes, SQL Server, CockroachDB, Trino, the Cosmos DB and Spanner emulators, Cassandra, Neo4j, Prometheus and InfluxDB and waits for health checks. Profiles are `sql`, `oracle`, `sqlserver`, `cockroach`, `trino`, `cosmosdb`, `spanner`, `cassandra`, `mongo`, `neo4j`, `redis`, `logs`, `aws`, `dynamodb`, `s3`, `prometheus`, `influxdb`, `vault`, `ssh`, `k8s`, and `all`:
+The default starts everything except Kubernetes, SQL Server, CockroachDB, Trino, the Cosmos DB and Spanner emulators, Cassandra, Neo4j, Prometheus, InfluxDB and the search profile and waits for health checks. Profiles are `sql`, `oracle`, `sqlserver`, `cockroach`, `trino`, `cosmosdb`, `spanner`, `cassandra`, `mongo`, `neo4j`, `redis`, `logs`, `aws`, `dynamodb`, `s3`, `prometheus`, `influxdb`, `search`, `vault`, `ssh`, `k8s`, and `all`:
 
 ```bash
 scripts/test-services.sh up sql redis
@@ -64,6 +64,13 @@ The committed [.env](.env) contains image pins, ports, and disposable passwords.
 | `prometheus` | Prometheus v3.15.1 scraping itself, with a down target, a dropped target and rules | 55909 | prometheus |
 | `influxdb3` | InfluxDB 3 Core 3.12.1 in memory, admin token from `.env` | 55086 | influxdb |
 | `influxdb2` | InfluxDB 2.9.1 set up with organization `acme` and an operator token | 55087 | influxdb |
+| `qdrant` | Qdrant 1.20.0 with an API key and a read-only key | 55633 | search |
+| `milvus` | Milvus 3.0.6 standalone with authorization (`root` / `Milvus`) | 55530 | search |
+| `weaviate` | Weaviate 1.40.5 with API keys of an admin and a read-only user | 55880 | search |
+| `chroma` | Chroma 1.5.9 without authentication | 55800 | search |
+| `pinecone` | Pinecone's local emulator, its last image (end of life 2026-10-07), indexes on the next ports | 55600–55609 | search |
+| `meilisearch` | Meilisearch 1.56.2 with a master key | 55770 | search |
+| `typesense` | Typesense 30.2 with an admin key | 55108 | search |
 | `vault` | Vault 2.2.1 dev mode | 55820 | vault, ssh |
 | `openssh` | Ubuntu 24.04 / OpenSSH 9.6p1 | 55022 | ssh |
 | `k3s` | k3s v1.37.0-k3s1, privileged | 55443 | k8s |
@@ -147,6 +154,23 @@ scripts/test-services.sh run mvn -B -ntp -pl connectors/influxdb -am verify -Pse
 ```
 
 The ordinary `services` Maven profile does not enable InfluxDB tests. See [InfluxDB](../docs/influxdb.md).
+
+## Vector databases and search engines
+
+The `search` profile is opt-in: Qdrant, Milvus, Weaviate, Chroma, Pinecone's local emulator, Meilisearch and Typesense,
+each with a container limit (2 GiB for Milvus, 512 MiB for the others) and the fixture keys of `.env`. Their data lives
+in tmpfs, Milvus's in its disposable container filesystem. Images without a shell tool have no health check, so the
+test waits until each answers. `StoresIT` makes its own collections and indexes, with a read-only key or a scoped key
+where the server has one, and drops them afterwards. Pinecone's local emulator reached end of life on 2026-10-07; its
+last image is pinned by digest and lacks fetch by metadata.
+
+```bash
+scripts/test-services.sh up search
+scripts/test-services.sh run mvn -B -ntp -pl connectors/search -am verify -Pservices,search-it -Dit.test=StoresIT -Dfailsafe.failIfNoSpecifiedTests=false
+```
+
+The ordinary `services` Maven profile does not enable these tests. See [vector databases](../docs/vector-databases.md)
+and [search engines](../docs/search-engines.md).
 
 ## Trino
 

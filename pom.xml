@@ -55,6 +55,7 @@
     <module>connectors/cosmosdb</module>
     <module>connectors/neo4j</module>
     <module>connectors/cassandra</module>
+    <module>connectors/search</module>
     <module>connectors/http</module>
     <module>connectors/mcp-server</module>
     <module>core</module>
@@ -148,6 +149,7 @@
     <it.tag.neo4j>neo4j-it</it.tag.neo4j>
     <it.tag.cassandra>cassandra-it</it.tag.cassandra>
     <it.tag.spanner>spanner-it</it.tag.spanner>
+    <it.tag.search>search-it</it.tag.search>
     <it.tag.mongo>mongo-it</it.tag.mongo>
     <it.tag.logs>logs-it</it.tag.logs>
     <it.tag.kube>kube-api</it.tag.kube>
@@ -161,7 +163,7 @@
     <it.services></it.services>
     <!-- Extra JVM options of the test forks: the tracing agent of the nightly metadata report (native.yml). -->
     <test.jvm.extra></test.jvm.extra>
-    <it.excludedGroups>${it.tag.mysql},${it.tag.sqlserver},${it.tag.cockroach},${it.tag.trino},${it.tag.prometheus},${it.tag.influxdb},${it.tag.cosmosdb},${it.tag.neo4j},${it.tag.cassandra},${it.tag.spanner},${it.tag.mongo},${it.tag.logs},${it.tag.kube},${it.tag.vault},${it.tag.cloud},${it.tag.network},${it.tag.mcpclients},${it.tag.openapi},${it.tag.mcpservers}</it.excludedGroups>
+    <it.excludedGroups>${it.tag.mysql},${it.tag.sqlserver},${it.tag.cockroach},${it.tag.trino},${it.tag.prometheus},${it.tag.influxdb},${it.tag.cosmosdb},${it.tag.neo4j},${it.tag.cassandra},${it.tag.spanner},${it.tag.search},${it.tag.mongo},${it.tag.logs},${it.tag.kube},${it.tag.vault},${it.tag.cloud},${it.tag.network},${it.tag.mcpclients},${it.tag.openapi},${it.tag.mcpservers}</it.excludedGroups>
   </properties>
 
   <dependencyManagement>
@@ -290,6 +292,11 @@
       <dependency>
         <groupId>ai.msrv.gaterook</groupId>
         <artifactId>connectors-influxdb</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-search</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
@@ -912,6 +919,14 @@
       <!-- Google's Spanner emulator of the Compose services (scripts/test-services.sh up spanner), with -Pservices. -->
       <id>spanner-it</id>
       <properties><it.tag.spanner>__enabled-spanner-it</it.tag.spanner></properties>
+    </profile>
+    <profile>
+      <!--
+        Qdrant, Milvus, Weaviate, Chroma, Pinecone Local, Meilisearch and Typesense of the search Compose profile
+        (scripts/test-services.sh up search), with -Pservices.
+      -->
+      <id>search-it</id>
+      <properties><it.tag.search>__enabled-search-it</it.tag.search></properties>
     </profile>
     <profile>
       <id>mongo-it</id>

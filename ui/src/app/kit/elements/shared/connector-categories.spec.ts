@@ -141,6 +141,20 @@ describe('compatible services', () => {
     expect(found('aurora')).toEqual(['PostgreSQL-compatible: aws-rds']);
   });
 
+  it('puts vector databases and search engines in categories of their own, found by what they do', () => {
+    const groups = connectorCategories([{ name: 'Databases', cards: [
+      card('postgres', 'PostgreSQL'), card('opensearch', 'OpenSearch'), card('pinecone', 'Pinecone'), card('qdrant', 'Qdrant'),
+      card('chroma', 'Chroma'), card('algolia', 'Algolia'), card('azure-ai-search', 'Azure AI Search'),
+    ] }]);
+    expect(names(groups)).toEqual(['SQL databases: postgres', 'Vector databases: pinecone qdrant chroma',
+      'Search engines: opensearch algolia azure-ai-search']);
+    expect(names(filterConnectorGroups(groups, 'embeddings'))).toEqual(['Vector databases: pinecone qdrant chroma']);
+    expect(names(filterConnectorGroups(groups, 'rag'))).toEqual(['Vector databases: pinecone qdrant chroma',
+      'Search engines: azure-ai-search']);
+    expect(names(filterConnectorGroups(groups, 'chromadb'))).toEqual(['Vector databases: chroma']);
+    expect(connectorMark('qdrant')).toBeNull();
+  });
+
   it('finds every service by its name, and not its base type’s card', () => {
     const types = [...new Set(COMPATIBLE_SERVICES.map((s) => s.type))];
     const all = connectorCategories(withCompatibleServices([{ name: 'Databases', cards: types.map((t) => card(t, `${t} base`)) }]));

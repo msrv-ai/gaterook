@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Milvus",
+  "type": "object",
+  "x-card": {
+    "description": "Collections and entities of Milvus and Zilliz Cloud: filtered pages, vector and full-text search. Upserts and deletes wait for approval."
+  },
+  "additionalProperties": false,
+  "required": [
+    "url",
+    "auth"
+  ],
+  "properties": {
+    "url": {
+      "type": "string",
+      "title": "Server URL",
+      "format": "uri",
+      "minLength": 8,
+      "maxLength": 2048,
+      "pattern": "^https?://[^\\s?#]+$",
+      "examples": [
+        "https://in03-0123456789abcdef.serverless.gcp-us-west1.cloud.zilliz.com"
+      ],
+      "description": "Milvus's address with https:// and its port (19530 by default), or the public endpoint of a Zilliz Cloud cluster. Plain http:// only to this computer."
+    },
+    "database": {
+      "type": "string",
+      "title": "Database",
+      "minLength": 1,
+      "maxLength": 255,
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,254}$",
+      "default": "default",
+      "description": "The database of the collections."
+    },
+    "collections": {
+      "type": "array",
+      "title": "Collections",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 255,
+        "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+      },
+      "examples": [
+        [
+          "items",
+          "kb_*"
+        ]
+      ],
+      "description": "The collections agents may use; * matches any characters, such as docs_*. Empty: every collection the credentials see."
+    },
+    "auth": {
+      "type": "object",
+      "title": "Credentials",
+      "additionalProperties": false,
+      "required": [
+        "method"
+      ],
+      "properties": {
+        "method": {
+          "title": "Authentication",
+          "enum": [
+            "token",
+            "password",
+            "none"
+          ],
+          "default": "token",
+          "x-enumTitles": [
+            "API key or token (Zilliz Cloud)",
+            "Username and password",
+            "No authentication"
+          ],
+          "x-forbidden-env-values": {
+            "prod": [
+              "none"
+            ]
+          },
+          "description": "Zilliz Cloud signs in with an API key; Milvus with a user and password when its authorization is on. No authentication only for a server that checks none, never on prod."
+        }
+      },
+      "patternProperties": {
+        "^(token|username|password)$": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "method": {
+                "const": "token"
+              }
+            },
+            "required": [
+              "method"
+            ]
+          },
+          "then": {
+            "required": [
+              "token"
+            ],
+            "properties": {
+              "token": {
+                "type": "string",
+                "title": "API key or token",
+                "minLength": 1,
+                "maxLength": 4096,
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "format": "password",
+                "description": "Stored encrypted by GateRook. Prefer a key of a user whose role may only read."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "method": {
+                "const": "password"
+              }
+            },
+            "required": [
+              "method"
+            ]
+          },
+          "then": {
+            "required": [
+              "username",
+              "password"
+            ],
+            "properties": {
+              "username": {
+                "type": "string",
+                "title": "Username",
+                "minLength": 1,
+                "maxLength": 255,
+                "pattern": "^[^:\\u0000-\\u001f\\u007f]+$",
+                "x-not-secret": true,
+                "description": "A user whose role may only read the collections agents use, unless agents should write."
+              },
+              "password": {
+                "type": "string",
+                "title": "Password",
+                "minLength": 1,
+                "maxLength": 4096,
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "format": "password",
+                "description": "Stored encrypted by GateRook."
+              }
+            }
+          }
+        }
+      ]
+    },
+    "advanced": {
+      "type": "object",
+      "title": "Advanced",
+      "x-collapsed": true,
+      "additionalProperties": false,
+      "description": "A private CA. Policies set row limits and timeouts per environment.",
+      "properties": {
+        "caCertificate": {
+          "type": "string",
+          "title": "CA certificate (PEM)",
+          "maxLength": 20000,
+          "x-widget": "textarea",
+          "description": "Only for a server whose certificate comes from a private CA."
+        }
+      }
+    }
+  }
+}

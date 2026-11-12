@@ -117,7 +117,17 @@ export function signInTarget(type: string): string {
     case 'trino':
     case 'neo4j':
     case 'cassandra':
+    case 'pinecone':
+    case 'qdrant':
+    case 'milvus':
+    case 'weaviate':
+    case 'chroma':
       return 'the database';
+    case 'algolia':
+    case 'meilisearch':
+    case 'typesense':
+    case 'azure-ai-search':
+      return 'the search engine';
     case 'ssh':
     case 'ssh-logs':
       return 'the server';

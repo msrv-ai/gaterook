@@ -128,8 +128,8 @@ class CoreProcessIT {
       assertThat(core.untilReady(READY).getLast().get("ready").asBoolean()).as(core.stderr()).isTrue();
       try (Connection db = readOnly(home)) {
         assertThat(rows(db, "select id from connector_type where kind = 'BUILT_IN' and mac is not null order by id"))
-            .containsExactly("athena", "aws", "azure", "azure-monitor", "bigquery", "cassandra", "cloudflare", "cloudwatch", "cosmosdb", "databricks", "dynamodb", "elasticsearch", "firebase-rtdb", "firestore", "gcp", "gcp-logging", "http", "influxdb", "kubernetes", "logs", "loki",
-                "mongodb", "mysql", "neo4j", "opensearch", "oracle", "postgres", "prometheus", "redis", "redshift", "s3", "snowflake", "spanner", "sqlite", "sqlserver", "ssh", "ssh-logs", "trino");
+            .containsExactly("algolia", "athena", "aws", "azure", "azure-ai-search", "azure-monitor", "bigquery", "cassandra", "chroma", "cloudflare", "cloudwatch", "cosmosdb", "databricks", "dynamodb", "elasticsearch", "firebase-rtdb", "firestore", "gcp", "gcp-logging", "http", "influxdb", "kubernetes", "logs", "loki",
+                "meilisearch", "milvus", "mongodb", "mysql", "neo4j", "opensearch", "oracle", "pinecone", "postgres", "prometheus", "qdrant", "redis", "redshift", "s3", "snowflake", "spanner", "sqlite", "sqlserver", "ssh", "ssh-logs", "trino", "typesense", "weaviate");
         assertThat(rows(db, "select id from connector_type where mac is null")).isEmpty();
         assertThat(rows(db, "select env || ':' || coalesce(inherits, '-') from policy where mac is not null "
             + "order by env")).containsExactly("dev:-", "prod:-", "stage:dev");

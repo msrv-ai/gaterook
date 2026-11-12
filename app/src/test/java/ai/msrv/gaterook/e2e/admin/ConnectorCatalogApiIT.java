@@ -101,10 +101,28 @@ class ConnectorCatalogApiIT {
           "PromQL queries, series, labels, targets, rules and alerts of Prometheus-compatible servers. Read only."),
       new KitCard("Databases", "influxdb", null, "InfluxDB", "activity", "built-in", 5,
           "Databases, measurements and SQL or InfluxQL reads of InfluxDB 3, 2.x and 1.x. Writes wait for approval."),
+      new KitCard("Databases", "pinecone", null, "Pinecone", "scan-search", "built-in", 6,
+          "Indexes and records of Pinecone: metadata-filtered fetches, nearest-neighbour search by vector, record or text with integrated embedding. Upserts and deletes wait for approval."),
+      new KitCard("Databases", "qdrant", null, "Qdrant", "scan-search", "built-in", 6,
+          "Collections and points of Qdrant and Qdrant Cloud: filtered pages, nearest-neighbour search by vector or point. Upserts and deletes wait for approval."),
+      new KitCard("Databases", "milvus", null, "Milvus", "scan-search", "built-in", 6,
+          "Collections and entities of Milvus and Zilliz Cloud: filtered pages, vector and full-text search. Upserts and deletes wait for approval."),
+      new KitCard("Databases", "weaviate", null, "Weaviate", "scan-search", "built-in", 6,
+          "Collections and objects of Weaviate and Weaviate Cloud: filtered pages, vector, BM25 and hybrid search through GraphQL. Upserts and deletes wait for approval."),
+      new KitCard("Databases", "chroma", null, "Chroma", "scan-search", "built-in", 6,
+          "Collections and records of Chroma and Chroma Cloud: metadata-filtered pages and nearest-neighbour search by embedding or record. Upserts and deletes wait for approval."),
       new KitCard("Databases", "opensearch", null, "OpenSearch", "database", "built-in", 3,
           "Query OpenSearch indices and use its REST API. Administrative requests require approval by default."),
       new KitCard("Databases", "elasticsearch", null, "Elasticsearch", "database", "built-in", 3,
           "Query Elasticsearch indices and use its REST API. Administrative requests require approval by default."),
+      new KitCard("Databases", "algolia", null, "Algolia", "search", "built-in", 6,
+          "Indices and records of Algolia: search with filters and facets, records by objectID. Record writes and deletes wait for approval."),
+      new KitCard("Databases", "meilisearch", null, "Meilisearch", "search", "built-in", 6,
+          "Indexes and documents of Meilisearch and Meilisearch Cloud: full-text search with filters, facets and sorting. Document writes and deletes wait for approval."),
+      new KitCard("Databases", "typesense", null, "Typesense", "search", "built-in", 6,
+          "Collections and documents of Typesense and Typesense Cloud: typo-tolerant search with filters, facets and sorting. Document writes and deletes wait for approval."),
+      new KitCard("Databases", "azure-ai-search", null, "Azure AI Search", "search", "built-in", 6,
+          "Indexes and documents of an Azure AI Search service: full-text, filtered and vector search, documents by key. Document writes and deletes wait for approval."),
       new KitCard("Remote access", "ssh", null, "SSH", "terminal", "built-in", 2,
           "Runbooks with typed parameters, through an SSH CA or a key."),
       new KitCard("Logs", "gcp-logging", null, "GCP Cloud Logging", "scroll-text", "built-in", 2,
@@ -185,7 +203,7 @@ class ConnectorCatalogApiIT {
 
     // Connectors › Installed: one row per type, the MCP server type isn't one (its servers are, with K5).
     List<String> installed = each(catalog.path("installed"), "id");
-    assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "sqlite", "spanner", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "redshift", "databricks", "trino", "athena", "firestore", "firebase-rtdb", "cosmosdb", "cassandra", "neo4j", "prometheus", "influxdb", "opensearch", "elasticsearch", "ssh", "gcp-logging", "cloudwatch", "azure-monitor", "loki", "ssh-logs", "kubernetes",
+    assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "sqlite", "spanner", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "redshift", "databricks", "trino", "athena", "firestore", "firebase-rtdb", "cosmosdb", "cassandra", "neo4j", "prometheus", "influxdb", "pinecone", "qdrant", "milvus", "weaviate", "chroma", "opensearch", "elasticsearch", "algolia", "meilisearch", "typesense", "azure-ai-search", "ssh", "gcp-logging", "cloudwatch", "azure-monitor", "loki", "ssh-logs", "kubernetes",
         "gcp", "aws", "azure", "cloudflare", "s3", "http");
     for (JsonNode row : catalog.path("installed")) {
       assertThat(row.path("state").asString()).isEqualTo("enabled");

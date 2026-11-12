@@ -7,7 +7,7 @@
 #                                            reset them, so two runs at once (two worktrees) would spoil each other
 #   scripts/test-services.sh ps | logs [service…] | env
 #
-# Profiles: sql oracle sqlserver cockroach trino cosmosdb spanner cassandra mongo neo4j redis logs aws dynamodb s3 prometheus influxdb vault ssh k8s all. Then: mvn -B -ntp verify -Pservices
+# Profiles: sql oracle sqlserver cockroach trino cosmosdb spanner cassandra mongo neo4j redis logs aws dynamodb s3 prometheus influxdb search vault ssh k8s all. Then: mvn -B -ntp verify -Pservices
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 dir="$root/test-services"
