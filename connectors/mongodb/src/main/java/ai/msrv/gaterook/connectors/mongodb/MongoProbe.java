@@ -78,6 +78,7 @@ final class MongoProbe {
             + "Credentials, or choose Mechanism none for a server without access control.", null);
       }
       List<TestResult.Check> checks = new ArrayList<>();
+      boolean auto = s.autoTls();
       MongoClient client;
       try {
         MongoClientSettings settings = ClientSettings.build(s, login, dns,
@@ -88,7 +89,7 @@ final class MongoProbe {
         return MongoErrors.test(e, s, null);
       }
       try (client) {
-        return probe(client, cfg, s, login, checks);
+        return probe(client, cfg, s, auto, login, checks);
       } catch (MongoException e) {
         return MongoErrors.test(e, s, client).withChecks(checks);
       }
@@ -97,7 +98,7 @@ final class MongoProbe {
     }
   }
 
-  private TestResult probe(MongoClient client, ConnectionConfig cfg, MongoSettings s, MongoLogin login,
+  private TestResult probe(MongoClient client, ConnectionConfig cfg, MongoSettings s, boolean auto, MongoLogin login,
       List<TestResult.Check> checks) {
     MongoDatabase admin = client.getDatabase("admin");
     BsonDocument ping = new BsonDocument("ping", new BsonInt32(1));
@@ -119,7 +120,8 @@ final class MongoProbe {
     BsonDocument build = admin.runCommand(new BsonDocument("buildInfo", new BsonInt32(1)), BsonDocument.class);
     String version = build.getString("version", new BsonString("?")).getValue();
     Topology topology = topology(admin);
-    checks.add(new TestResult.Check("tls", true, 0, s.tls() ? "Encrypted" : "Not encrypted"));
+    checks.add(new TestResult.Check("tls", true, 0, (s.tls() ? "Encrypted" : "Not encrypted")
+        + (auto ? s.tls() ? " (Auto: the server speaks TLS)" : " (Auto: the server doesn't speak TLS)" : "")));
 
     BsonDocument status = admin.runCommand(new BsonDocument("connectionStatus", new BsonInt32(1))
         .append("showPrivileges", BsonBoolean.TRUE), BsonDocument.class);
@@ -348,7 +350,8 @@ final class MongoProbe {
     return out;
   }
 
-  private static List<String> databases(MongoDatabase admin) {
+  /** The databases the user may see ({@code listDatabases {nameOnly, authorizedDatabases}}). */
+  static List<String> databases(MongoDatabase admin) {
     BsonDocument r = admin.runCommand(new BsonDocument("listDatabases", new BsonInt32(1))
         .append("nameOnly", BsonBoolean.TRUE).append("authorizedDatabases", BsonBoolean.TRUE), BsonDocument.class);
     List<String> out = new ArrayList<>();
