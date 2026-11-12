@@ -13,12 +13,14 @@ import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
+import ai.msrv.gaterook.connectors.cloudauth.CloudLocal;
 import ai.msrv.gaterook.connectors.cloudauth.GcpSpec;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
 import ai.msrv.gaterook.connectors.support.OutputSanitizer;
@@ -64,11 +66,18 @@ public final class BigQueryConnector implements Connector {
       "CAPACITY", "RESERVATION", "ASSIGNMENT");
 
   private final CloudCredentials cloud;
+  private final CloudLocal local;
   private final BigQueryApi api;
   private final ConnectorManifest manifest;
 
   public BigQueryConnector(CloudCredentials cloud) {
+    this(cloud, new CloudLocal(Objects.requireNonNull(cloud, "cloud").endpoints()));
+  }
+
+  /** @param local what this computer's gcloud knows, for the form's suggestions (tests: their own files) */
+  BigQueryConnector(CloudCredentials cloud, CloudLocal local) {
     this.cloud = Objects.requireNonNull(cloud, "cloud");
+    this.local = Objects.requireNonNull(local, "local");
     this.api = new BigQueryApi(cloud);
     SchemaResources schemas = SchemaResources.of(BigQueryConnector.class, TYPE);
     this.manifest = ConnectorManifest.builder(TYPE, BuiltIn.VERSION, ConnectorManifest.Kind.BUILT_IN)
@@ -837,6 +846,12 @@ public final class BigQueryConnector implements Connector {
       result = result.withHint(h);
     }
     return result;
+  }
+
+  /** The project from this computer or the key; signed in, the datasets, their locations and the projects. */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return BigQuerySuggestions.suggest(cfg, secrets, ctx, scope, api, cloud, local);
   }
 
   static List<Hint> hints(Env env, BigQuerySettings s, int visible) {

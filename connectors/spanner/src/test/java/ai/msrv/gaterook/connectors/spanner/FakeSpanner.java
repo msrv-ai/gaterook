@@ -35,6 +35,8 @@ final class FakeSpanner implements AutoCloseable {
 
   final List<RecordedRequest> requests = new CopyOnWriteArrayList<>();
   private final Map<String, Function<RecordedRequest, MockResponse>> routes = new ConcurrentHashMap<>();
+  /** Answers by {@code METHOD /path} from the API's root ({@code GET /v1/projects/acme-prod/instances}). */
+  private final Map<String, Function<RecordedRequest, MockResponse>> exact = new ConcurrentHashMap<>();
   /** Answers of executeSql and executeStreamingSql, by a text the statement contains (the longest match wins). */
   private final Map<String, Function<RecordedRequest, MockResponse>> sql = new ConcurrentHashMap<>();
   private final MockWebServer server = new MockWebServer();
@@ -55,6 +57,9 @@ final class FakeSpanner implements AutoCloseable {
               + Instant.now().plusSeconds(900) + "\"}");
         }
         String key = request.getMethod() + " " + path;
+        if (exact.containsKey(key)) {
+          return exact.get(key).apply(request);
+        }
         if (key.equals("POST /v1/" + DATABASE + "/sessions") && !routes.containsKey("POST /sessions")) {
           return json(200, "{\"name\":\"" + SESSION + "\"}");
         }
@@ -117,6 +122,12 @@ final class FakeSpanner implements AutoCloseable {
 
   FakeSpanner on(String prefix, String body) {
     return on(prefix, r -> json(200, body));
+  }
+
+  /** Answers {@code METHOD /path} exactly, the path from the API's root ({@code GET /v1/projects/p/instances}). */
+  FakeSpanner onExact(String methodAndPath, Function<RecordedRequest, MockResponse> answer) {
+    exact.put(methodAndPath, answer);
+    return this;
   }
 
   /** Answers a query or a change whose text contains {@code part}. */

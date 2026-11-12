@@ -28,8 +28,9 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * Google on this computer: a token server for the sign-in and the key, IAM's {@code generateAccessToken} for the
  * impersonated service account, the token information, and whatever a test wires in by path prefix — Firestore's
- * {@code /v1/projects/…}, a database's {@code /<path>.json}. The test endpoints {@code gcp.firestore},
- * {@code gcp.firebase-rtdb} and {@code gcp.oauth2} point here, with the test token endpoint that goes with them.
+ * {@code /v1/projects/…}, a database's {@code /<path>.json}, the Realtime Database Management API's
+ * {@code /v1beta/projects/…}. The test endpoints {@code gcp.firestore}, {@code gcp.firebase-rtdb},
+ * {@code gcp.firebasedatabase} and {@code gcp.oauth2} point here, with the test token endpoint that goes with them.
  */
 final class FakeGoogle implements AutoCloseable {
 
@@ -89,7 +90,7 @@ final class FakeGoogle implements AutoCloseable {
   /** The test endpoints, with the test token endpoint or, with {@code testTokens} false, Google's real one. */
   CloudEndpoints endpoints(boolean testTokens) {
     Map<String, URI> services = new LinkedHashMap<>();
-    for (String key : List.of("gcp.firestore", "gcp.firebase-rtdb", "gcp.oauth2")) {
+    for (String key : List.of("gcp.firestore", "gcp.firebase-rtdb", "gcp.firebasedatabase", "gcp.oauth2")) {
       services.put(key, URI.create(base()));
     }
     return new CloudEndpoints(testTokens ? server.url("/token").uri() : null,

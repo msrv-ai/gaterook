@@ -10,6 +10,8 @@ The credentials are those of the Cloud Firestore and GCP connectors, without a b
 
 Firebase documents that requests with a Google OAuth token bypass the database's security rules, so the identity's IAM roles are the boundary behind GateRook's checks: give a service account `roles/firebasedatabase.viewer` to read, or `roles/firebasedatabase.admin` when agents may propose changes. On prod, **Test connection** warns about your own sign-in or a stored key used without impersonation.
 
+While you fill in the form, GateRook offers the default database URL of the project gcloud works in on this computer, or of a pasted key's project, without filling it in. Once the form can sign in, it lists the project's databases from the Firebase Realtime Database Management API, with a read-only token of the `firebase.readonly` scope used for nothing else, and the database's top-level keys for **Paths**. Listing databases needs `roles/firebasedatabase.viewer`.
+
 **Paths** lists the top-level keys agents may use, with everything under them (`*` matches any characters, as in `public-*`). Empty, the whole database. Test connection names the identity (the service account, or for your own sign-in the email Google's token information reports) and the top-level paths agents may use.
 
 ## Bound reads and review exact changes
