@@ -17,7 +17,7 @@ GateRook's desktop MCP Firewall lives in a single application source tree with M
 | `bridge/`, `bridge-cli/` | Electron token broker, Node stdio bridge, and Java/native helper |
 | `desktop/` | Electron main/preload, lifecycle, security, development runner, and packaging configuration |
 | `ui/` | Angular renderer, component tests, development proxy, and development gallery |
-| `assets/` | Compiled interface styles, fonts, icons, theme bootstrap, and third-party notices used by local builds |
+| `assets/` | Compiled interface styles, fonts, icons, installer artwork, theme bootstrap, and third-party notices used by local builds |
 | `catalog/` | Extension catalog format, signing tools, and pinned metadata |
 | `third-party/` | Build-time adaptation of third-party dependencies |
 | `scripts/` | Asset synchronization, staging, native/AOT checks, and test helpers |

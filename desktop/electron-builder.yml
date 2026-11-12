@@ -1,7 +1,7 @@
 # GateRook installers (ARCHITECTURE.md §7.1 "Packaging", A20; report 14 §7.7). Built from:
 #   dist/          main and preload bundles (scripts/build.mjs --release: no development code, no node_modules)
 #   stage/         everything else, laid out by ../scripts/stage.mjs (UI, native core, JRE, plugin host, bridges,
-#                  cloudflared, icon)
+#                  cloudflared, icons, disk image window)
 # This file defines packaging inputs and target configuration. Production build execution,
 # signing, notarization, and publication are separate from local application development.
 appId: ai.msrv.gaterook.desktop          # = the Windows AUMID main sets (app.ts APP_ID): notifications belong to it
@@ -73,6 +73,17 @@ mac:
     - /cloudflared/[^/]+/cloudflared$
   extendInfo:
     NSUserNotificationAlertStyle: alert   # without it macOS hides the Review / Deny buttons
+dmg:
+  title: ${productName}                   # volume and window name, without a version or architecture suffix
+  # Finder sizes the window frame to this 640 × 512 pt picture; its background@2x.png sibling keeps it sharp on Retina
+  # displays. The icon centres below sit on the picture's stage; its bottom band absorbs Finder's title, path and
+  # status bars.
+  background: stage/dmg/background.png
+  iconSize: 128
+  iconTextSize: 14
+  contents:
+    - { x: 216, y: 220, type: file }      # the app
+    - { x: 424, y: 220, type: link, path: /Applications }
 
 win:
   icon: stage/icons/icon.png
