@@ -114,6 +114,10 @@
     </dependency>
     <dependency>
       <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-search</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
       <artifactId>connectors-redshift</artifactId>
     </dependency>
     <dependency>

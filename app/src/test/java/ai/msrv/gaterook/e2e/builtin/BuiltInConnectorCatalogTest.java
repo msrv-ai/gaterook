@@ -40,7 +40,7 @@ class BuiltInConnectorCatalogTest {
 
   /** Current built-in tool counts used by the runtime connector catalog. */
   private static final Map<String, Integer> TOOLS_PER_CONNECTOR = orderedMap(
-      "PostgreSQL", 4, "MySQL", 4, "Oracle Database", 4, "SQL Server", 4, "SQLite", 4, "MongoDB", 4, "Redis", 8, "Amazon DynamoDB", 6, "Google BigQuery", 5, "Google Cloud Spanner", 4, "Snowflake", 4, "Amazon Redshift", 5, "Databricks SQL", 6, "Trino / Presto", 6, "Amazon Athena", 6, "Cloud Firestore", 4, "Firebase Realtime Database", 2, "Azure Cosmos DB", 6, "Apache Cassandra", 4, "Neo4j", 3, "Prometheus", 9, "InfluxDB", 5, "SSH", 2, "Logs", 5, "SSH log files", 3,
+      "PostgreSQL", 4, "MySQL", 4, "Oracle Database", 4, "SQL Server", 4, "SQLite", 4, "MongoDB", 4, "Redis", 8, "Amazon DynamoDB", 6, "Google BigQuery", 5, "Google Cloud Spanner", 4, "Snowflake", 4, "Amazon Redshift", 5, "Databricks SQL", 6, "Trino / Presto", 6, "Amazon Athena", 6, "Cloud Firestore", 4, "Firebase Realtime Database", 2, "Azure Cosmos DB", 6, "Apache Cassandra", 4, "Neo4j", 3, "Prometheus", 9, "InfluxDB", 5, "Pinecone", 6, "Qdrant", 6, "Milvus", 6, "Weaviate", 6, "Chroma", 6, "Algolia", 6, "Meilisearch", 6, "Typesense", 6, "Azure AI Search", 6, "SSH", 2, "Logs", 5, "SSH log files", 3,
       "Kubernetes", 4, "GCP", 7, "AWS", 4, "Azure", 11, "Cloudflare", 13, "S3 object storage", 7, "HTTP API", 2, "GCP Cloud Logging", 2, "AWS CloudWatch", 2,
       "Azure Monitor Logs", 2, "Loki", 2, "OpenSearch", 3, "Elasticsearch", 3);
 
@@ -63,7 +63,7 @@ class BuiltInConnectorCatalogTest {
 
   /** Names a tool of each built-in family must start with; reserved for them against plugins and MCP servers. */
   private static final Map<String, String> TOOL_PREFIX = orderedMap("postgres", "sql_", "mysql", "sql_", "oracle", "sql_", "sqlserver", "sql_", "sqlite", "sql_",
-      "mongodb", "mongo_", "redis", "redis_", "dynamodb", "dynamodb_", "bigquery", "bigquery_", "spanner", "spanner_", "snowflake", "snowflake_", "redshift", "redshift_", "databricks", "databricks_", "trino", "trino_", "athena", "athena_", "firestore", "firestore_", "firebase-rtdb", "rtdb_", "cosmosdb", "cosmosdb_", "cassandra", "cassandra_", "neo4j", "neo4j_", "prometheus", "prometheus_", "influxdb", "influxdb_", "ssh", "ssh_", "ssh-logs", "ssh_logs_", "logs", "logs_",
+      "mongodb", "mongo_", "redis", "redis_", "dynamodb", "dynamodb_", "bigquery", "bigquery_", "spanner", "spanner_", "snowflake", "snowflake_", "redshift", "redshift_", "databricks", "databricks_", "trino", "trino_", "athena", "athena_", "firestore", "firestore_", "firebase-rtdb", "rtdb_", "cosmosdb", "cosmosdb_", "cassandra", "cassandra_", "neo4j", "neo4j_", "prometheus", "prometheus_", "influxdb", "influxdb_", "pinecone", "vector_", "qdrant", "vector_", "milvus", "vector_", "weaviate", "vector_", "chroma", "vector_", "algolia", "search_", "meilisearch", "search_", "typesense", "search_", "azure-ai-search", "search_", "ssh", "ssh_", "ssh-logs", "ssh_logs_", "logs", "logs_",
       "kubernetes", "k8s_", "gcp", "gcp_", "aws", "aws_", "azure", "azure_", "cloudflare", "cloudflare_", "s3", "s3_", "http", "http_",
       "gcp-logging", "gcp_logging_", "cloudwatch", "cloudwatch_logs_", "azure-monitor", "azure_logs_", "loki", "loki_", "opensearch", "opensearch_",
       "elasticsearch", "elasticsearch_");
@@ -100,7 +100,7 @@ class BuiltInConnectorCatalogTest {
 
   @Test
   void everyConnectorModuleRegistersItsConnectorTypes() {
-    assertThat(byId.keySet()).containsExactlyInAnyOrder("postgres", "mysql", "oracle", "sqlserver", "sqlite", "spanner", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "redshift", "databricks", "trino", "athena", "firestore", "firebase-rtdb", "cosmosdb", "cassandra", "neo4j", "prometheus", "influxdb", "ssh", "logs", "ssh-logs",
+    assertThat(byId.keySet()).containsExactlyInAnyOrder("postgres", "mysql", "oracle", "sqlserver", "sqlite", "spanner", "mongodb", "redis", "dynamodb", "bigquery", "snowflake", "redshift", "databricks", "trino", "athena", "firestore", "firebase-rtdb", "cosmosdb", "cassandra", "neo4j", "prometheus", "influxdb", "pinecone", "qdrant", "milvus", "weaviate", "chroma", "algolia", "meilisearch", "typesense", "azure-ai-search", "ssh", "logs", "ssh-logs",
         "kubernetes", "gcp", "aws", "azure", "cloudflare", "s3", "http", "mcp-server", "gcp-logging", "cloudwatch", "azure-monitor", "loki", "opensearch", "elasticsearch");
     assertThat(connectors).hasSize(byId.size());
   }
@@ -188,13 +188,14 @@ class BuiltInConnectorCatalogTest {
         assertThat(t.name()).as(m.id()).matches("^[a-z][a-z0-9_]{0,63}$").startsWith(prefix);
         ToolDefinition earlier = seen.putIfAbsent(t.name(), t);
         if (earlier != null) {
-          // SQL and the retained legacy cloud log/OpenSearch aliases share identical definitions.
-          assertThat(t.name()).matches("^(sql_|logs_|opensearch_).*");
+          // SQL, the vector databases, the search engines and the retained legacy cloud log/OpenSearch aliases share
+          // identical definitions.
+          assertThat(t.name()).matches("^(sql_|vector_|search_|logs_|opensearch_).*");
           assertThat(t).isEqualTo(earlier);
         }
       }
     }
-    assertThat(seen).hasSize(156);
+    assertThat(seen).hasSize(168);
   }
 
   @Test

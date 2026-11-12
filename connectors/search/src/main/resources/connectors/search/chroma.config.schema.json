@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Chroma",
+  "type": "object",
+  "x-card": {
+    "description": "Collections and records of Chroma and Chroma Cloud: metadata-filtered pages and nearest-neighbour search by embedding or record. Upserts and deletes wait for approval."
+  },
+  "additionalProperties": false,
+  "required": [
+    "url",
+    "auth"
+  ],
+  "properties": {
+    "url": {
+      "type": "string",
+      "title": "Server URL",
+      "format": "uri",
+      "minLength": 8,
+      "maxLength": 2048,
+      "pattern": "^https?://[^\\s?#]+$",
+      "examples": [
+        "https://api.trychroma.com"
+      ],
+      "description": "Chroma's address with https:// (Chroma Cloud: https://api.trychroma.com) and its port for a server of your own (8000 by default). Plain http:// only to this computer."
+    },
+    "tenant": {
+      "type": "string",
+      "title": "Tenant",
+      "minLength": 1,
+      "maxLength": 255,
+      "pattern": "^[^/\\\\\\u0000-\\u001f\\u007f]+$",
+      "default": "default_tenant",
+      "description": "The tenant of the collections: default_tenant on a server of your own, your tenant's id on Chroma Cloud."
+    },
+    "database": {
+      "type": "string",
+      "title": "Database",
+      "minLength": 1,
+      "maxLength": 255,
+      "pattern": "^[^/\\\\\\u0000-\\u001f\\u007f]+$",
+      "default": "default_database",
+      "description": "The database of the collections: default_database on a server of your own, the database's name on Chroma Cloud."
+    },
+    "collections": {
+      "type": "array",
+      "title": "Collections",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 255,
+        "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+      },
+      "examples": [
+        [
+          "notes",
+          "kb-*"
+        ]
+      ],
+      "description": "The collections agents may use; * matches any characters, such as docs_*. Empty: every collection the credentials see."
+    },
+    "auth": {
+      "type": "object",
+      "title": "Credentials",
+      "additionalProperties": false,
+      "required": [
+        "method"
+      ],
+      "properties": {
+        "method": {
+          "title": "Authentication",
+          "enum": [
+            "token",
+            "bearer",
+            "none"
+          ],
+          "default": "token",
+          "x-enumTitles": [
+            "Token in X-Chroma-Token (Chroma Cloud)",
+            "Bearer token in Authorization",
+            "No authentication"
+          ],
+          "x-forbidden-env-values": {
+            "prod": [
+              "none"
+            ]
+          },
+          "description": "Chroma Cloud signs in with an API key in X-Chroma-Token. A server of your own checks a token only when its auth is set up; No authentication only for a server that checks none, never on prod."
+        }
+      },
+      "patternProperties": {
+        "^token$": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "method": {
+                "enum": [
+                  "token",
+                  "bearer"
+                ]
+              }
+            },
+            "required": [
+              "method"
+            ]
+          },
+          "then": {
+            "required": [
+              "token"
+            ],
+            "properties": {
+              "token": {
+                "type": "string",
+                "title": "API key or token",
+                "minLength": 1,
+                "maxLength": 4096,
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "format": "password",
+                "description": "Stored encrypted by GateRook."
+              }
+            }
+          }
+        }
+      ]
+    },
+    "advanced": {
+      "type": "object",
+      "title": "Advanced",
+      "x-collapsed": true,
+      "additionalProperties": false,
+      "description": "A private CA. Policies set row limits and timeouts per environment.",
+      "properties": {
+        "caCertificate": {
+          "type": "string",
+          "title": "CA certificate (PEM)",
+          "maxLength": 20000,
+          "x-widget": "textarea",
+          "description": "Only for a server whose certificate comes from a private CA."
+        }
+      }
+    }
+  }
+}

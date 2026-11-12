@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Meilisearch",
+  "type": "object",
+  "x-card": {
+    "description": "Indexes and documents of Meilisearch and Meilisearch Cloud: full-text search with filters, facets and sorting. Document writes and deletes wait for approval."
+  },
+  "additionalProperties": false,
+  "required": [
+    "url",
+    "auth"
+  ],
+  "properties": {
+    "url": {
+      "type": "string",
+      "title": "Server URL",
+      "format": "uri",
+      "minLength": 8,
+      "maxLength": 2048,
+      "pattern": "^https?://[^\\s?#]+$",
+      "examples": [
+        "https://ms-0123456789ab-1234.lon.meilisearch.io"
+      ],
+      "description": "Meilisearch's address with https:// (and its port, 7700 for a server of your own), optionally with a path prefix. Plain http:// only to this computer."
+    },
+    "indexes": {
+      "type": "array",
+      "title": "Indexes",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 255,
+        "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+      },
+      "examples": [
+        [
+          "movies",
+          "products_*"
+        ]
+      ],
+      "description": "The indexes agents may use; * matches any characters, such as products_*. Empty: every index the credentials see."
+    },
+    "auth": {
+      "type": "object",
+      "title": "Credentials",
+      "additionalProperties": false,
+      "required": [
+        "method"
+      ],
+      "properties": {
+        "method": {
+          "title": "Authentication",
+          "enum": [
+            "apiKey",
+            "none"
+          ],
+          "default": "apiKey",
+          "x-enumTitles": [
+            "API key",
+            "No authentication"
+          ],
+          "x-forbidden-env-values": {
+            "prod": [
+              "none"
+            ]
+          },
+          "description": "No authentication only for a server that checks no key, never on prod."
+        }
+      },
+      "patternProperties": {
+        "^apiKey$": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "method": {
+                "const": "apiKey"
+              }
+            },
+            "required": [
+              "method"
+            ]
+          },
+          "then": {
+            "required": [
+              "apiKey"
+            ],
+            "properties": {
+              "apiKey": {
+                "type": "string",
+                "title": "API key",
+                "minLength": 1,
+                "maxLength": 4096,
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "format": "password",
+                "description": "Stored encrypted by GateRook. Prefer the Default Search API Key, or a key with search and documents.get only, unless agents should write."
+              }
+            }
+          }
+        }
+      ]
+    },
+    "advanced": {
+      "type": "object",
+      "title": "Advanced",
+      "x-collapsed": true,
+      "additionalProperties": false,
+      "description": "A private CA. Policies set row limits and timeouts per environment.",
+      "properties": {
+        "caCertificate": {
+          "type": "string",
+          "title": "CA certificate (PEM)",
+          "maxLength": 20000,
+          "x-widget": "textarea",
+          "description": "Only for a server whose certificate comes from a private CA."
+        }
+      }
+    }
+  }
+}

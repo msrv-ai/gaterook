@@ -69,7 +69,9 @@ cluster serves several), VictoriaMetrics, and Grafana Cloud Metrics with basic s
 ## Next to their base type
 
 PocketBase (SQLite: choose `pb_data/data.db` in PocketBase's folder; approved changes write the file directly and so skip PocketBase's API rules, hooks and realtime events), Starburst (Trino), Azure Databricks (Databricks SQL), Amazon OpenSearch Service (OpenSearch), Elastic Cloud
-(Elasticsearch), Neo4j AuraDB (Neo4j), InfluxDB Cloud (InfluxDB), Grafana Cloud Logs (Loki), and Amazon EKS, Google
+(Elasticsearch), Neo4j AuraDB (Neo4j), InfluxDB Cloud (InfluxDB), Zilliz Cloud (Milvus), Qdrant Cloud (Qdrant), Weaviate
+Cloud (Weaviate), Chroma Cloud (Chroma, with its address), Meilisearch Cloud (Meilisearch), Typesense Cloud (Typesense),
+Grafana Cloud Logs (Loki), and Amazon EKS, Google
 Kubernetes Engine, Azure Kubernetes Service, Red Hat OpenShift and k3s (Kubernetes, from your kubeconfig; a cloud's
 sign-in command runs only once you trust it in **Test connection**).
 

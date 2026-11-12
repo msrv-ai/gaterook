@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "collection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "collection": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "The collection (an index on Pinecone, a class on Weaviate). vector_list_collections lists them."
+    },
+    "namespace": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "description": "Pinecone: the namespace (empty: the default one). Weaviate: the tenant of a multi-tenant collection. Milvus: the partition. Not used by Qdrant and Chroma."
+    },
+    "vector": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20000,
+      "items": {
+        "type": "number"
+      },
+      "description": "Search near this vector; its length is the collection's dimension."
+    },
+    "id": {
+      "type": [
+        "string",
+        "integer"
+      ],
+      "description": "Search near the stored record with this id."
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000,
+      "description": "Search by text where the store embeds or matches it itself: Pinecone's indexes with integrated embedding, Weaviate (with a vectorizer for semantic; keyword and hybrid with BM25), Milvus collections with a text function. Qdrant and Chroma need vector or id."
+    },
+    "textMode": {
+      "enum": [
+        "semantic",
+        "keyword",
+        "hybrid"
+      ],
+      "default": "semantic",
+      "description": "With text: semantic (embeddings), keyword (BM25) or hybrid (both, Weaviate)."
+    },
+    "filter": {
+      "type": "object",
+      "maxProperties": 64,
+      "description": "Records whose metadata match, in MongoDB's form: {\"genre\": \"drama\", \"year\": {\"$gte\": 2020}}. Operators $eq $ne $gt $gte $lt $lte $in $nin $exists, and $and / $or with a list. The store evaluates it; a field it doesn't index may be refused."
+    },
+    "topK": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 10,
+      "description": "How many nearest records."
+    },
+    "vectorName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "Which vector of a collection with several named vectors (Qdrant, Weaviate) or vector fields (Milvus)."
+    },
+    "includeVectors": {
+      "type": "boolean",
+      "default": false,
+      "description": "Also return each record's vector values."
+    }
+  }
+}

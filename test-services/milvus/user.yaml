@@ -1,0 +1,4 @@
+# Authorization on: the IT signs in as Milvus's own root user (password Milvus) and makes a role that may only read.
+common:
+  security:
+    authorizationEnabled: true

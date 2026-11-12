@@ -1,0 +1,64 @@
+{
+  "area": "search",
+  "module": "connectors/search",
+  "connectorTypes": ["pinecone", "qdrant", "milvus", "weaviate", "chroma", "algolia", "meilisearch", "typesense", "azure-ai-search"],
+  "description": "Touches of the vector database and search engine connectors for the native smoke (report 15 §6): the filter reader, the name and id rules and the schemas in the image, without I/O.",
+  "touches": [
+    {
+      "name": "qdrant-text-query-without-io",
+      "connection": {"type": "qdrant", "env": "dev",
+        "config": {"url": "https://qdrant.example.com:6333", "auth": {"method": "apiKey"}},
+        "secrets": {"/auth/apiKey": "smoke-only-0001"}},
+      "call": {"tool": "vector_query", "arguments": {"collection": "docs", "text": "refund policy"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.qdrant.unsupported"}
+    },
+    {
+      "name": "milvus-filter-field-without-io",
+      "connection": {"type": "milvus", "env": "dev",
+        "config": {"url": "https://milvus.example.com:19530", "auth": {"method": "token"}},
+        "secrets": {"/auth/token": "smoke-only-0001"}},
+      "call": {"tool": "vector_get", "arguments": {"collection": "items", "filter": {"city or 1": "x"}}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.milvus.bad-filter"}
+    },
+    {
+      "name": "weaviate-object-id-without-io",
+      "connection": {"type": "weaviate", "env": "dev",
+        "config": {"url": "https://weaviate.example.com", "auth": {"method": "apiKey"}},
+        "secrets": {"/auth/apiKey": "smoke-only-0001"}},
+      "call": {"tool": "vector_upsert", "arguments": {"collection": "Article", "records": [{"id": "not-a-uuid"}]}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.weaviate.bad-argument"}
+    },
+    {
+      "name": "pinecone-listed-indexes-without-io",
+      "connection": {"type": "pinecone", "env": "dev",
+        "config": {"collections": ["docs"]},
+        "secrets": {"/apiKey": "smoke-only-0001"}},
+      "call": {"tool": "vector_get", "arguments": {"collection": "payroll", "ids": ["a"]}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.pinecone.not-listed"}
+    },
+    {
+      "name": "typesense-filter-quoting-without-io",
+      "connection": {"type": "typesense", "env": "dev",
+        "config": {"url": "https://typesense.example.com"},
+        "secrets": {"/apiKey": "smoke-only-0001"}},
+      "call": {"tool": "search_query", "arguments": {"index": "books", "query": "x", "filter": {"author": "a` || id:*"}}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.typesense.bad-filter"}
+    },
+    {
+      "name": "algolia-sort-without-io",
+      "connection": {"type": "algolia", "env": "dev",
+        "config": {"applicationId": "ABCD1234EF"},
+        "secrets": {"/apiKey": "smoke-only-0001"}},
+      "call": {"tool": "search_query", "arguments": {"index": "products", "query": "shoe", "sort": ["price:asc"]}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.algolia.unsupported"}
+    },
+    {
+      "name": "azure-index-name-without-io",
+      "connection": {"type": "azure-ai-search", "env": "dev",
+        "config": {"endpoint": "https://contoso.search.windows.net"},
+        "secrets": {"/apiKey": "smoke-only-0001"}},
+      "call": {"tool": "search_delete_documents", "arguments": {"index": "Hotels", "ids": ["1"]}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.azure-ai-search.bad-argument"}
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "collection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "collection": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "The collection (an index on Pinecone, a class on Weaviate). vector_list_collections lists them."
+    }
+  }
+}

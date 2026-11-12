@@ -20,7 +20,7 @@ describe('schema-form goldens: every connector form the core serves', () => {
 
   it('covers the connector types of the catalog', () => {
     expect(Object.keys(CONNECTOR_FORMS).sort()).toEqual(
-      ['aws', 'azure', 'azure-monitor', 'cloudflare', 'gcp', 'gcp-logging', 'cloudwatch', 'loki', 'opensearch', 'elasticsearch', 'http', 'kubernetes', 'logs', 'mcp-server', 'cassandra', 'neo4j', 'cosmosdb', 'athena', 'trino', 'databricks', 'redshift', 'influxdb', 'prometheus', 'mongodb', 'mysql', 'oracle', 'sqlserver', 'sqlite', 'dynamodb', 'bigquery', 'spanner', 'snowflake', 'firestore', 'firebase-rtdb', 'postgres', 'redis', 's3', 'ssh', 'ssh-logs'].sort(),
+      ['aws', 'azure', 'azure-monitor', 'cloudflare', 'gcp', 'gcp-logging', 'cloudwatch', 'loki', 'opensearch', 'elasticsearch', 'http', 'kubernetes', 'logs', 'mcp-server', 'cassandra', 'neo4j', 'cosmosdb', 'athena', 'trino', 'databricks', 'redshift', 'influxdb', 'prometheus', 'pinecone', 'qdrant', 'milvus', 'weaviate', 'chroma', 'algolia', 'meilisearch', 'typesense', 'azure-ai-search', 'mongodb', 'mysql', 'oracle', 'sqlserver', 'sqlite', 'dynamodb', 'bigquery', 'spanner', 'snowflake', 'firestore', 'firebase-rtdb', 'postgres', 'redis', 's3', 'ssh', 'ssh-logs'].sort(),
     );
   });
 

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "index",
+    "documents"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "index": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "The index (a collection on Typesense). search_list_indexes lists them."
+    },
+    "documents": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "minProperties": 1,
+        "maxProperties": 500
+      },
+      "description": "The documents to write, each with its id field (objectID, the primary key, id, the key). A person approves the exact documents."
+    },
+    "mode": {
+      "enum": [
+        "replace",
+        "merge"
+      ],
+      "default": "replace",
+      "description": "replace: a document with an existing id replaces it whole. merge: its fields are merged into the existing document, which is created when missing."
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Why you need this change. Shown to the approver as unverified."
+    }
+  }
+}

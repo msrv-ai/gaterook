@@ -195,7 +195,7 @@ export const CONNECTOR_SECTIONS: Readonly<Record<string, SectionSpec>> = {
 export const CORE_SECTIONS: readonly string[] = ['masking', 'limits', 'approvals'];
 
 /** The connector type order of the catalog (Databases, Remote access, Logs, Kubernetes, Cloud, HTTP and MCP). */
-const TYPE_ORDER = ['postgres', 'mysql', 'oracle', 'sqlserver', 'sqlite', 'spanner', 'mongodb', 'redis', 'dynamodb', 'bigquery', 'snowflake', 'redshift', 'databricks', 'trino', 'athena', 'firestore', 'firebase-rtdb', 'cosmosdb', 'cassandra', 'neo4j', 'prometheus', 'influxdb', 'opensearch', 'elasticsearch', 'ssh', 'ssh-logs', 'gcp-logging', 'cloudwatch', 'azure-monitor', 'loki', 'logs', 'kubernetes', 'gcp', 'aws', 'azure', 'cloudflare', 's3', 'http', 'mcp-server'];
+const TYPE_ORDER = ['postgres', 'mysql', 'oracle', 'sqlserver', 'sqlite', 'spanner', 'mongodb', 'redis', 'dynamodb', 'bigquery', 'snowflake', 'redshift', 'databricks', 'trino', 'athena', 'firestore', 'firebase-rtdb', 'cosmosdb', 'cassandra', 'neo4j', 'prometheus', 'influxdb', 'pinecone', 'qdrant', 'milvus', 'weaviate', 'chroma', 'opensearch', 'elasticsearch', 'algolia', 'meilisearch', 'typesense', 'azure-ai-search', 'ssh', 'ssh-logs', 'gcp-logging', 'cloudwatch', 'azure-monitor', 'loki', 'logs', 'kubernetes', 'gcp', 'aws', 'azure', 'cloudflare', 's3', 'http', 'mcp-server'];
 
 export function typeRank(type: string): number {
   const i = TYPE_ORDER.indexOf(type);

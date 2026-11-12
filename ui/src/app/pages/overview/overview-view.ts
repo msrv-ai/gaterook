@@ -376,6 +376,19 @@ export function checkPrompt(type: string | null, name: string | null): string {
     case 'opensearch':
     case 'elasticsearch':
       return `Show me the indices in ${name}`;
+    case 'pinecone':
+      return `Show me the indexes in ${name}`;
+    case 'qdrant':
+    case 'milvus':
+    case 'weaviate':
+    case 'chroma':
+      return `Show me the vector collections in ${name}`;
+    case 'algolia':
+    case 'meilisearch':
+    case 'azure-ai-search':
+      return `Show me the search indexes in ${name}`;
+    case 'typesense':
+      return `Show me the collections in ${name}`;
     case 'kubernetes':
       return `Show me the pods in ${name}`;
     case 'cloudflare':

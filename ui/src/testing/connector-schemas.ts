@@ -8446,6 +8446,926 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         }
       }
     }
+  },
+  "pinecone": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Pinecone",
+    "type": "object",
+    "x-card": {
+      "description": "Indexes and records of Pinecone: metadata-filtered fetches, nearest-neighbour search by vector, record or text with integrated embedding. Upserts and deletes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "apiKey"
+    ],
+    "properties": {
+      "apiKey": {
+        "type": "string",
+        "title": "API key",
+        "minLength": 1,
+        "maxLength": 4096,
+        "writeOnly": true,
+        "x-gateway-secret": "value",
+        "format": "password",
+        "description": "Stored encrypted by GateRook. The project's key: ControlPlaneViewer finds the indexes, DataPlaneViewer reads them; agents that upsert and delete need DataPlaneEditor."
+      },
+      "collections": {
+        "type": "array",
+        "title": "Indexes",
+        "maxItems": 100,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "examples": [
+          [
+            "docs",
+            "support-*"
+          ]
+        ],
+        "description": "The indexes agents may use; * matches any characters, such as products_*. Empty: every index the credentials see."
+      }
+    }
+  },
+  "qdrant": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Qdrant",
+    "type": "object",
+    "x-card": {
+      "description": "Collections and points of Qdrant and Qdrant Cloud: filtered pages, nearest-neighbour search by vector or point. Upserts and deletes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "url",
+      "auth"
+    ],
+    "properties": {
+      "url": {
+        "type": "string",
+        "title": "Server URL",
+        "format": "uri",
+        "minLength": 8,
+        "maxLength": 2048,
+        "pattern": "^https?://[^\\s?#]+$",
+        "examples": [
+          "https://xyz.us-east4-0.gcp.cloud.qdrant.io:6333"
+        ],
+        "description": "Qdrant's REST address with https:// and its port (6333 by default), optionally with a path prefix. Plain http:// only to this computer."
+      },
+      "collections": {
+        "type": "array",
+        "title": "Collections",
+        "maxItems": 100,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "examples": [
+          [
+            "docs",
+            "support_*"
+          ]
+        ],
+        "description": "The collections agents may use; * matches any characters, such as docs_*. Empty: every collection the credentials see."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Credentials",
+        "additionalProperties": false,
+        "required": [
+          "method"
+        ],
+        "properties": {
+          "method": {
+            "title": "Authentication",
+            "enum": [
+              "apiKey",
+              "none"
+            ],
+            "default": "apiKey",
+            "x-enumTitles": [
+              "API key",
+              "No authentication"
+            ],
+            "x-forbidden-env-values": {
+              "prod": [
+                "none"
+              ]
+            },
+            "description": "No authentication only for a server that checks no key, never on prod."
+          }
+        },
+        "patternProperties": {
+          "^apiKey$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "apiKey"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "required": [
+                "apiKey"
+              ],
+              "properties": {
+                "apiKey": {
+                  "type": "string",
+                  "title": "API key",
+                  "minLength": 1,
+                  "maxLength": 4096,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "description": "Stored encrypted by GateRook. Prefer Qdrant's read-only API key, or a JWT that may only read the collections agents use."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "A private CA. Policies set row limits and timeouts per environment.",
+        "properties": {
+          "caCertificate": {
+            "type": "string",
+            "title": "CA certificate (PEM)",
+            "maxLength": 20000,
+            "x-widget": "textarea",
+            "description": "Only for a server whose certificate comes from a private CA."
+          }
+        }
+      }
+    }
+  },
+  "milvus": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Milvus",
+    "type": "object",
+    "x-card": {
+      "description": "Collections and entities of Milvus and Zilliz Cloud: filtered pages, vector and full-text search. Upserts and deletes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "url",
+      "auth"
+    ],
+    "properties": {
+      "url": {
+        "type": "string",
+        "title": "Server URL",
+        "format": "uri",
+        "minLength": 8,
+        "maxLength": 2048,
+        "pattern": "^https?://[^\\s?#]+$",
+        "examples": [
+          "https://in03-0123456789abcdef.serverless.gcp-us-west1.cloud.zilliz.com"
+        ],
+        "description": "Milvus's address with https:// and its port (19530 by default), or the public endpoint of a Zilliz Cloud cluster. Plain http:// only to this computer."
+      },
+      "database": {
+        "type": "string",
+        "title": "Database",
+        "minLength": 1,
+        "maxLength": 255,
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,254}$",
+        "default": "default",
+        "description": "The database of the collections."
+      },
+      "collections": {
+        "type": "array",
+        "title": "Collections",
+        "maxItems": 100,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "examples": [
+          [
+            "items",
+            "kb_*"
+          ]
+        ],
+        "description": "The collections agents may use; * matches any characters, such as docs_*. Empty: every collection the credentials see."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Credentials",
+        "additionalProperties": false,
+        "required": [
+          "method"
+        ],
+        "properties": {
+          "method": {
+            "title": "Authentication",
+            "enum": [
+              "token",
+              "password",
+              "none"
+            ],
+            "default": "token",
+            "x-enumTitles": [
+              "API key or token (Zilliz Cloud)",
+              "Username and password",
+              "No authentication"
+            ],
+            "x-forbidden-env-values": {
+              "prod": [
+                "none"
+              ]
+            },
+            "description": "Zilliz Cloud signs in with an API key; Milvus with a user and password when its authorization is on. No authentication only for a server that checks none, never on prod."
+          }
+        },
+        "patternProperties": {
+          "^(token|username|password)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "token"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "required": [
+                "token"
+              ],
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "title": "API key or token",
+                  "minLength": 1,
+                  "maxLength": 4096,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "description": "Stored encrypted by GateRook. Prefer a key of a user whose role may only read."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "password"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "required": [
+                "username",
+                "password"
+              ],
+              "properties": {
+                "username": {
+                  "type": "string",
+                  "title": "Username",
+                  "minLength": 1,
+                  "maxLength": 255,
+                  "pattern": "^[^:\\u0000-\\u001f\\u007f]+$",
+                  "x-not-secret": true,
+                  "description": "A user whose role may only read the collections agents use, unless agents should write."
+                },
+                "password": {
+                  "type": "string",
+                  "title": "Password",
+                  "minLength": 1,
+                  "maxLength": 4096,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "description": "Stored encrypted by GateRook."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "A private CA. Policies set row limits and timeouts per environment.",
+        "properties": {
+          "caCertificate": {
+            "type": "string",
+            "title": "CA certificate (PEM)",
+            "maxLength": 20000,
+            "x-widget": "textarea",
+            "description": "Only for a server whose certificate comes from a private CA."
+          }
+        }
+      }
+    }
+  },
+  "weaviate": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Weaviate",
+    "type": "object",
+    "x-card": {
+      "description": "Collections and objects of Weaviate and Weaviate Cloud: filtered pages, vector, BM25 and hybrid search through GraphQL. Upserts and deletes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "url",
+      "auth"
+    ],
+    "properties": {
+      "url": {
+        "type": "string",
+        "title": "Server URL",
+        "format": "uri",
+        "minLength": 8,
+        "maxLength": 2048,
+        "pattern": "^https?://[^\\s?#]+$",
+        "examples": [
+          "https://abc123.c0.europe-west3.gcp.weaviate.cloud"
+        ],
+        "description": "Weaviate's REST address with https:// (and its port, 8080 for a server of your own), optionally with a path prefix. Plain http:// only to this computer."
+      },
+      "collections": {
+        "type": "array",
+        "title": "Collections",
+        "maxItems": 100,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "examples": [
+          [
+            "Article",
+            "Support*"
+          ]
+        ],
+        "description": "The collections agents may use; * matches any characters, such as docs_*. Empty: every collection the credentials see. Weaviate's collection names start with a capital letter."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Credentials",
+        "additionalProperties": false,
+        "required": [
+          "method"
+        ],
+        "properties": {
+          "method": {
+            "title": "Authentication",
+            "enum": [
+              "apiKey",
+              "none"
+            ],
+            "default": "apiKey",
+            "x-enumTitles": [
+              "API key",
+              "No authentication"
+            ],
+            "x-forbidden-env-values": {
+              "prod": [
+                "none"
+              ]
+            },
+            "description": "No authentication only for a server that checks no key, never on prod."
+          }
+        },
+        "patternProperties": {
+          "^apiKey$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "apiKey"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "required": [
+                "apiKey"
+              ],
+              "properties": {
+                "apiKey": {
+                  "type": "string",
+                  "title": "API key",
+                  "minLength": 1,
+                  "maxLength": 4096,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "description": "Stored encrypted by GateRook. Prefer a key of a read-only user (AUTHORIZATION_ADMINLIST_READONLY_USERS) or a role that may only read."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "A private CA. Policies set row limits and timeouts per environment.",
+        "properties": {
+          "caCertificate": {
+            "type": "string",
+            "title": "CA certificate (PEM)",
+            "maxLength": 20000,
+            "x-widget": "textarea",
+            "description": "Only for a server whose certificate comes from a private CA."
+          }
+        }
+      }
+    }
+  },
+  "chroma": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Chroma",
+    "type": "object",
+    "x-card": {
+      "description": "Collections and records of Chroma and Chroma Cloud: metadata-filtered pages and nearest-neighbour search by embedding or record. Upserts and deletes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "url",
+      "auth"
+    ],
+    "properties": {
+      "url": {
+        "type": "string",
+        "title": "Server URL",
+        "format": "uri",
+        "minLength": 8,
+        "maxLength": 2048,
+        "pattern": "^https?://[^\\s?#]+$",
+        "examples": [
+          "https://api.trychroma.com"
+        ],
+        "description": "Chroma's address with https:// (Chroma Cloud: https://api.trychroma.com) and its port for a server of your own (8000 by default). Plain http:// only to this computer."
+      },
+      "tenant": {
+        "type": "string",
+        "title": "Tenant",
+        "minLength": 1,
+        "maxLength": 255,
+        "pattern": "^[^/\\\\\\u0000-\\u001f\\u007f]+$",
+        "default": "default_tenant",
+        "description": "The tenant of the collections: default_tenant on a server of your own, your tenant's id on Chroma Cloud."
+      },
+      "database": {
+        "type": "string",
+        "title": "Database",
+        "minLength": 1,
+        "maxLength": 255,
+        "pattern": "^[^/\\\\\\u0000-\\u001f\\u007f]+$",
+        "default": "default_database",
+        "description": "The database of the collections: default_database on a server of your own, the database's name on Chroma Cloud."
+      },
+      "collections": {
+        "type": "array",
+        "title": "Collections",
+        "maxItems": 100,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "examples": [
+          [
+            "notes",
+            "kb-*"
+          ]
+        ],
+        "description": "The collections agents may use; * matches any characters, such as docs_*. Empty: every collection the credentials see."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Credentials",
+        "additionalProperties": false,
+        "required": [
+          "method"
+        ],
+        "properties": {
+          "method": {
+            "title": "Authentication",
+            "enum": [
+              "token",
+              "bearer",
+              "none"
+            ],
+            "default": "token",
+            "x-enumTitles": [
+              "Token in X-Chroma-Token (Chroma Cloud)",
+              "Bearer token in Authorization",
+              "No authentication"
+            ],
+            "x-forbidden-env-values": {
+              "prod": [
+                "none"
+              ]
+            },
+            "description": "Chroma Cloud signs in with an API key in X-Chroma-Token. A server of your own checks a token only when its auth is set up; No authentication only for a server that checks none, never on prod."
+          }
+        },
+        "patternProperties": {
+          "^token$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "enum": [
+                    "token",
+                    "bearer"
+                  ]
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "required": [
+                "token"
+              ],
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "title": "API key or token",
+                  "minLength": 1,
+                  "maxLength": 4096,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "description": "Stored encrypted by GateRook."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "A private CA. Policies set row limits and timeouts per environment.",
+        "properties": {
+          "caCertificate": {
+            "type": "string",
+            "title": "CA certificate (PEM)",
+            "maxLength": 20000,
+            "x-widget": "textarea",
+            "description": "Only for a server whose certificate comes from a private CA."
+          }
+        }
+      }
+    }
+  },
+  "algolia": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Algolia",
+    "type": "object",
+    "x-card": {
+      "description": "Indices and records of Algolia: search with filters and facets, records by objectID. Record writes and deletes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "applicationId",
+      "apiKey"
+    ],
+    "properties": {
+      "applicationId": {
+        "type": "string",
+        "title": "Application ID",
+        "minLength": 6,
+        "maxLength": 32,
+        "pattern": "^[A-Za-z0-9]{6,32}$",
+        "examples": [
+          "ABCD1234EF"
+        ],
+        "x-not-secret": true,
+        "description": "Your Algolia application's ID (Dashboard › Settings › API Keys)."
+      },
+      "apiKey": {
+        "type": "string",
+        "title": "API key",
+        "minLength": 1,
+        "maxLength": 4096,
+        "writeOnly": true,
+        "x-gateway-secret": "value",
+        "format": "password",
+        "description": "Stored encrypted by GateRook. Prefer the Search API key, or a key with search, browse and listIndexes only, unless agents should write."
+      },
+      "indexes": {
+        "type": "array",
+        "title": "Indices",
+        "maxItems": 100,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "examples": [
+          [
+            "products",
+            "products_*"
+          ]
+        ],
+        "description": "The indexes agents may use; * matches any characters, such as products_*. Empty: every index the credentials see."
+      }
+    }
+  },
+  "meilisearch": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Meilisearch",
+    "type": "object",
+    "x-card": {
+      "description": "Indexes and documents of Meilisearch and Meilisearch Cloud: full-text search with filters, facets and sorting. Document writes and deletes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "url",
+      "auth"
+    ],
+    "properties": {
+      "url": {
+        "type": "string",
+        "title": "Server URL",
+        "format": "uri",
+        "minLength": 8,
+        "maxLength": 2048,
+        "pattern": "^https?://[^\\s?#]+$",
+        "examples": [
+          "https://ms-0123456789ab-1234.lon.meilisearch.io"
+        ],
+        "description": "Meilisearch's address with https:// (and its port, 7700 for a server of your own), optionally with a path prefix. Plain http:// only to this computer."
+      },
+      "indexes": {
+        "type": "array",
+        "title": "Indexes",
+        "maxItems": 100,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "examples": [
+          [
+            "movies",
+            "products_*"
+          ]
+        ],
+        "description": "The indexes agents may use; * matches any characters, such as products_*. Empty: every index the credentials see."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Credentials",
+        "additionalProperties": false,
+        "required": [
+          "method"
+        ],
+        "properties": {
+          "method": {
+            "title": "Authentication",
+            "enum": [
+              "apiKey",
+              "none"
+            ],
+            "default": "apiKey",
+            "x-enumTitles": [
+              "API key",
+              "No authentication"
+            ],
+            "x-forbidden-env-values": {
+              "prod": [
+                "none"
+              ]
+            },
+            "description": "No authentication only for a server that checks no key, never on prod."
+          }
+        },
+        "patternProperties": {
+          "^apiKey$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "apiKey"
+                }
+              },
+              "required": [
+                "method"
+              ]
+            },
+            "then": {
+              "required": [
+                "apiKey"
+              ],
+              "properties": {
+                "apiKey": {
+                  "type": "string",
+                  "title": "API key",
+                  "minLength": 1,
+                  "maxLength": 4096,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "description": "Stored encrypted by GateRook. Prefer the Default Search API Key, or a key with search and documents.get only, unless agents should write."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "A private CA. Policies set row limits and timeouts per environment.",
+        "properties": {
+          "caCertificate": {
+            "type": "string",
+            "title": "CA certificate (PEM)",
+            "maxLength": 20000,
+            "x-widget": "textarea",
+            "description": "Only for a server whose certificate comes from a private CA."
+          }
+        }
+      }
+    }
+  },
+  "typesense": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Typesense",
+    "type": "object",
+    "x-card": {
+      "description": "Collections and documents of Typesense and Typesense Cloud: typo-tolerant search with filters, facets and sorting. Document writes and deletes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "url",
+      "apiKey"
+    ],
+    "properties": {
+      "url": {
+        "type": "string",
+        "title": "Server URL",
+        "format": "uri",
+        "minLength": 8,
+        "maxLength": 2048,
+        "pattern": "^https?://[^\\s?#]+$",
+        "examples": [
+          "https://xyz.a1.typesense.net"
+        ],
+        "description": "Typesense's address with https:// (and its port, 8108 for a server of your own), optionally with a path prefix. Plain http:// only to this computer."
+      },
+      "apiKey": {
+        "type": "string",
+        "title": "API key",
+        "minLength": 1,
+        "maxLength": 4096,
+        "writeOnly": true,
+        "x-gateway-secret": "value",
+        "format": "password",
+        "description": "Stored encrypted by GateRook. Prefer a key with documents:search, documents:get and collections:get only, unless agents should write."
+      },
+      "indexes": {
+        "type": "array",
+        "title": "Collections",
+        "maxItems": 100,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "examples": [
+          [
+            "books",
+            "products_*"
+          ]
+        ],
+        "description": "The collections agents may use; * matches any characters, such as products_*. Empty: every collection the credentials see."
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "A private CA. Policies set row limits and timeouts per environment.",
+        "properties": {
+          "caCertificate": {
+            "type": "string",
+            "title": "CA certificate (PEM)",
+            "maxLength": 20000,
+            "x-widget": "textarea",
+            "description": "Only for a server whose certificate comes from a private CA."
+          }
+        }
+      }
+    }
+  },
+  "azure-ai-search": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Azure AI Search",
+    "type": "object",
+    "x-card": {
+      "description": "Indexes and documents of an Azure AI Search service: full-text, filtered and vector search, documents by key. Document writes and deletes wait for approval."
+    },
+    "additionalProperties": false,
+    "required": [
+      "endpoint",
+      "apiKey"
+    ],
+    "properties": {
+      "endpoint": {
+        "type": "string",
+        "title": "Service endpoint",
+        "format": "uri",
+        "minLength": 8,
+        "maxLength": 300,
+        "pattern": "^https://[a-z0-9][a-z0-9-]{0,58}[a-z0-9]?\\.search\\.(windows\\.net|azure\\.us|azure\\.cn)/?$",
+        "examples": [
+          "https://contoso-search.search.windows.net"
+        ],
+        "description": "The service's URL: https://<service>.search.windows.net (or .search.azure.us, .search.azure.cn)."
+      },
+      "apiKey": {
+        "type": "string",
+        "title": "API key",
+        "minLength": 1,
+        "maxLength": 4096,
+        "writeOnly": true,
+        "x-gateway-secret": "value",
+        "format": "password",
+        "description": "Stored encrypted by GateRook. A query key searches and reads documents only; listing and describing indexes and writes need an admin key."
+      },
+      "indexes": {
+        "type": "array",
+        "title": "Indexes",
+        "maxItems": 100,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "examples": [
+          [
+            "hotels",
+            "kb-*"
+          ]
+        ],
+        "description": "The indexes agents may use; * matches any characters, such as products_*. Empty: every index the credentials see."
+      }
+    }
   }
 };
 
@@ -14991,6 +15911,1168 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "maxWritePoints": 1000
       }
     }
+  },
+  "pinecone": {
+    "sections": [],
+    "loose": [
+      "/apiKey",
+      "/collections"
+    ],
+    "rows": {},
+    "fields": [
+      {
+        "pointer": "/apiKey",
+        "kind": "secret",
+        "title": "API key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/collections",
+        "kind": "tags",
+        "title": "Indexes",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {},
+    "prodDefaults": {}
+  },
+  "qdrant": {
+    "sections": [
+      "/auth",
+      "/advanced"
+    ],
+    "loose": [
+      "/url",
+      "/collections"
+    ],
+    "rows": {
+      "/auth": [
+        [
+          "/auth/method"
+        ],
+        [
+          "/auth/apiKey"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/caCertificate"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/url",
+        "kind": "text",
+        "title": "Server URL",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/collections",
+        "kind": "tags",
+        "title": "Collections",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/method",
+        "kind": "select",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "apiKey",
+          "none"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": [
+          "none"
+        ],
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/apiKey",
+        "kind": "secret",
+        "title": "API key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"apiKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "auth": {
+        "method": "apiKey"
+      },
+      "advanced": {}
+    },
+    "prodDefaults": {
+      "auth": {
+        "method": "apiKey"
+      },
+      "advanced": {}
+    }
+  },
+  "milvus": {
+    "sections": [
+      "/auth",
+      "/advanced"
+    ],
+    "loose": [
+      "/url",
+      "/database",
+      "/collections"
+    ],
+    "rows": {
+      "/auth": [
+        [
+          "/auth/method"
+        ],
+        [
+          "/auth/token"
+        ],
+        [
+          "/auth/username"
+        ],
+        [
+          "/auth/password"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/caCertificate"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/url",
+        "kind": "text",
+        "title": "Server URL",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/database",
+        "kind": "text",
+        "title": "Database",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/collections",
+        "kind": "tags",
+        "title": "Collections",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/method",
+        "kind": "select",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "token",
+          "password",
+          "none"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": [
+          "none"
+        ],
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/token",
+        "kind": "secret",
+        "title": "API key or token",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"token\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/username",
+        "kind": "text",
+        "title": "Username",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"password\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/password",
+        "kind": "secret",
+        "title": "Password",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"password\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "database": "default",
+      "auth": {
+        "method": "token"
+      },
+      "advanced": {}
+    },
+    "prodDefaults": {
+      "database": "default",
+      "auth": {
+        "method": "token"
+      },
+      "advanced": {}
+    }
+  },
+  "weaviate": {
+    "sections": [
+      "/auth",
+      "/advanced"
+    ],
+    "loose": [
+      "/url",
+      "/collections"
+    ],
+    "rows": {
+      "/auth": [
+        [
+          "/auth/method"
+        ],
+        [
+          "/auth/apiKey"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/caCertificate"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/url",
+        "kind": "text",
+        "title": "Server URL",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/collections",
+        "kind": "tags",
+        "title": "Collections",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/method",
+        "kind": "select",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "apiKey",
+          "none"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": [
+          "none"
+        ],
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/apiKey",
+        "kind": "secret",
+        "title": "API key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"apiKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "auth": {
+        "method": "apiKey"
+      },
+      "advanced": {}
+    },
+    "prodDefaults": {
+      "auth": {
+        "method": "apiKey"
+      },
+      "advanced": {}
+    }
+  },
+  "chroma": {
+    "sections": [
+      "/auth",
+      "/advanced"
+    ],
+    "loose": [
+      "/url",
+      "/tenant",
+      "/database",
+      "/collections"
+    ],
+    "rows": {
+      "/auth": [
+        [
+          "/auth/method"
+        ],
+        [
+          "/auth/token"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/caCertificate"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/url",
+        "kind": "text",
+        "title": "Server URL",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/tenant",
+        "kind": "text",
+        "title": "Tenant",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/database",
+        "kind": "text",
+        "title": "Database",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/collections",
+        "kind": "tags",
+        "title": "Collections",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/method",
+        "kind": "select",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "token",
+          "bearer",
+          "none"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": [
+          "none"
+        ],
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/token",
+        "kind": "secret",
+        "title": "API key or token",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"token\",\"bearer\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "tenant": "default_tenant",
+      "database": "default_database",
+      "auth": {
+        "method": "token"
+      },
+      "advanced": {}
+    },
+    "prodDefaults": {
+      "tenant": "default_tenant",
+      "database": "default_database",
+      "auth": {
+        "method": "token"
+      },
+      "advanced": {}
+    }
+  },
+  "algolia": {
+    "sections": [],
+    "loose": [
+      "/applicationId",
+      "/apiKey",
+      "/indexes"
+    ],
+    "rows": {},
+    "fields": [
+      {
+        "pointer": "/applicationId",
+        "kind": "text",
+        "title": "Application ID",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/apiKey",
+        "kind": "secret",
+        "title": "API key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/indexes",
+        "kind": "tags",
+        "title": "Indices",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {},
+    "prodDefaults": {}
+  },
+  "meilisearch": {
+    "sections": [
+      "/auth",
+      "/advanced"
+    ],
+    "loose": [
+      "/url",
+      "/indexes"
+    ],
+    "rows": {
+      "/auth": [
+        [
+          "/auth/method"
+        ],
+        [
+          "/auth/apiKey"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/advanced/caCertificate"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/url",
+        "kind": "text",
+        "title": "Server URL",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/indexes",
+        "kind": "tags",
+        "title": "Indexes",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/method",
+        "kind": "select",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "apiKey",
+          "none"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": [
+          "none"
+        ],
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/apiKey",
+        "kind": "secret",
+        "title": "API key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.method in [\"apiKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "auth": {
+        "method": "apiKey"
+      },
+      "advanced": {}
+    },
+    "prodDefaults": {
+      "auth": {
+        "method": "apiKey"
+      },
+      "advanced": {}
+    }
+  },
+  "typesense": {
+    "sections": [
+      "/advanced"
+    ],
+    "loose": [
+      "/url",
+      "/apiKey",
+      "/indexes"
+    ],
+    "rows": {
+      "/advanced": [
+        [
+          "/advanced/caCertificate"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/url",
+        "kind": "text",
+        "title": "Server URL",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/apiKey",
+        "kind": "secret",
+        "title": "API key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/indexes",
+        "kind": "tags",
+        "title": "Collections",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "advanced": {}
+    },
+    "prodDefaults": {
+      "advanced": {}
+    }
+  },
+  "azure-ai-search": {
+    "sections": [],
+    "loose": [
+      "/endpoint",
+      "/apiKey",
+      "/indexes"
+    ],
+    "rows": {},
+    "fields": [
+      {
+        "pointer": "/endpoint",
+        "kind": "text",
+        "title": "Service endpoint",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/apiKey",
+        "kind": "secret",
+        "title": "API key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/indexes",
+        "kind": "tags",
+        "title": "Indexes",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {},
+    "prodDefaults": {}
   },
   "ssh": {
     "sections": [
