@@ -128,6 +128,16 @@ class CatalogApiIT {
   // ── The catalog ─────────────────────────────────────────────────────────────────────────────────────────────
 
   @Test
+  @Order(0)
+  void addConnectionChecksACatalogThatNeverWasChecked() {
+    // Add connection is often where a person looks for a plugin first: its list checks the catalog, as the Catalog
+    // tab does, instead of offering nothing until that tab was opened.
+    JsonNode duckdb = card(api.ok("/api/connector-types"), "Databases", "duckdb");
+    assertThat(duckdb.path("catalogRef").asString()).isEqualTo("duckdb@1.0.0");
+    assertThat(duckdb.path("available").asBoolean()).isFalse();
+  }
+
+  @Test
   @Order(1)
   void theFirstLookChecksTheCatalogAndOffersItInTheKitsTerms() {
     JsonNode c = api.ok("/api/catalog");

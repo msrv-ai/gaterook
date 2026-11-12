@@ -91,9 +91,13 @@ public class Plugins {
     return catalog(service.refreshCatalog());
   }
 
-  /** The catalog's plugin entries that aren't installed (the wizard's disabled cards), without a network check. */
+  /**
+   * The catalog's plugin entries that aren't installed (Add connection's cards that install from the catalog). The
+   * catalog is checked first when it never was or is older than six hours, as the Catalog tab checks it: Add
+   * connection is often where a person looks for a plugin first.
+   */
   public List<Entry> notInstalledPlugins() {
-    PluginCatalog.State state = service.catalog().state();
+    PluginCatalog.State state = service.catalogState();
     List<Entry> out = new ArrayList<>();
     if (state.verified() != null) {
       for (JsonNode e : state.verified().index().path("entries")) {
