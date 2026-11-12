@@ -348,12 +348,21 @@
         <div><a class="gw-btn" routerLink="/connections/http-import" [queryParams]="m === 'edit' ? { connection: name() } : {}">Import OpenAPI or create with AI</a></div>
       </div></div>
     }
+    @if (specState() === 'loading' && moduleDownload(); as download) {
+      <div class="gw-alert gw-alert--info" role="status" id="module-download">
+        <span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>
+        <div class="gw-alert__content">
+          <p class="gw-alert__title">Getting {{ download.name }} ready</p>
+          <p class="gw-alert__body">{{ moduleDownloadText() }}</p>
+        </div>
+      </div>
+    }
     @if (specState() === 'error') {
       <div class="gw-alert gw-alert--danger" role="alert">
         <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
         <div class="gw-alert__content">
-          <p class="gw-alert__title">The {{ typeName() || 'connector' }} form didn't load</p>
-          <p class="gw-alert__body">{{ errorText(specError()) }}</p>
+          <p class="gw-alert__title">@if (moduleDownload(); as download) {{{ download.name }} didn't download} @else {The {{ typeName() || 'connector' }} form didn't load}</p>
+          <p class="gw-alert__body">{{ moduleDownload()?.message || errorText(specError()) }}</p>
           <div class="gw-alert__actions">
             <button class="gw-btn gw-btn--sm" type="button" (click)="retrySpec()">Try again</button>
             @if (m !== 'edit') {

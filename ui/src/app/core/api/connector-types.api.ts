@@ -5,6 +5,24 @@ import { Env, JsonObject, JsonValue, ToolAnnotations, WithReason } from './types
 /** `built-in`, `plugin`, `mcp-server`, `template`. */
 export type ConnectorKind = 'built-in' | 'plugin' | 'mcp-server' | 'template' | string;
 
+/**
+ * The connector module that adds a card's type: one of GateRook's own connectors that isn't part of the installer.
+ * Choosing the card installs it without a review; the type's form waits for it.
+ */
+export interface ConnectorModuleRef {
+  readonly id: string;
+  readonly version: string;
+  /** `ready`, `installing`, `missing`, `available`, `failed` or `disabled`. */
+  readonly state: string;
+  /** The step of a running installation (`runtime`, `downloading`, `verifying`, `installing`), else null. */
+  readonly step: string | null;
+  /** The size of the download. */
+  readonly sizeBytes: number;
+  readonly installed: boolean;
+  /** Why the last installation failed, in the core's words; else null. */
+  readonly message: string | null;
+}
+
 /** A card of the Add connection wizard (one per type or `x-variants` variant). */
 export interface ConnectorCard {
   readonly type: string;
@@ -26,6 +44,8 @@ export interface ConnectorCard {
   readonly presetConfig: JsonValue;
   /** `id@version` of a plugin the signed catalog offers and this core hasn't installed: the wizard installs it. */
   readonly catalogRef?: string | null;
+  /** The connector module that adds the type, when one does; absent for a type that is part of the installer. */
+  readonly module?: ConnectorModuleRef | null;
   /** Set by the wizard, not the core: a compatible service's card names its base connector ("PostgreSQL"). */
   readonly compatibleWith?: string | null;
   /** Set by the wizard for an MCP server card: its mark, a path of the app's public files (`mcp-logos/linear.png`). */

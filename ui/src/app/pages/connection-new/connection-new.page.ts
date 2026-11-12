@@ -49,7 +49,9 @@ import { MODES, healthLook } from '../../kit/elements/shared/dictionaries';
 import { literalParts } from '../../kit/elements/shared/literals';
 import { GwIcon } from '../../kit/icons';
 import { GwSearchClear, GwSearchClearButton } from '../../kit/search';
+import { ModulesApi } from '../../core/api/modules.api';
 import { McpProfile, McpServersApi, PluginsApi } from '../../core/api/plugins.api';
+import { formatBytes } from '../../core/time/time-format';
 import { ConnectorsData } from '../connectors/connectors.data';
 import { failureText } from '../connectors/dialogs/failure';
 import { FEATURED_MCP_SERVERS } from '../connectors/mcp-featured-servers';
@@ -214,6 +216,7 @@ interface ReferenceChange {
 export class ConnectionNewPage {
   private readonly typesApi = inject(ConnectorTypesApi);
   private readonly pluginsApi = inject(PluginsApi);
+  private readonly modulesApi = inject(ModulesApi);
   private readonly mcpApi = inject(McpServersApi);
   private readonly mcpData = inject(ConnectorsData);
   private readonly connections = inject(ConnectionsApi);
@@ -353,6 +356,32 @@ export class ConnectionNewPage {
   /** Nothing to choose: no type or server matches and the registry found nothing (or isn't asked). */
   protected readonly nothingMatches = computed(() =>
     !this.pickerGroups().length && !this.pasteRead() && !(this.registryAsked() && this.finder.searching()));
+  /**
+   * The connector module the picked type's form is waiting for: one of GateRook's own connectors that isn't part of
+   * the installer. The form's request installs it; `module.state` says which step it is at. Nothing is asked.
+   */
+  protected readonly moduleDownload = signal<{
+    readonly id: string;
+    readonly name: string;
+    readonly sizeBytes: number;
+    readonly step: string;
+    readonly message: string | null;
+  } | null>(null);
+  /** What step 2 says while the module arrives ("Downloading Cassandra (9.4 MB). This happens once."). */
+  protected readonly moduleDownloadText = computed(() => {
+    const m = this.moduleDownload();
+    if (!m) return '';
+    switch (m.step) {
+      case 'runtime':
+        return `Preparing the Java runtime that ${m.name} runs on. This happens once.`;
+      case 'verifying':
+        return `Checking the download of ${m.name}.`;
+      case 'installing':
+        return `Installing ${m.name}.`;
+      default:
+        return `Downloading ${m.name} (${formatBytes(m.sizeBytes)}). This happens once.`;
+    }
+  });
   /** A catalog plugin that isn't installed yet: Continue reviews and installs it first. */
   protected readonly installPicked = computed(() => {
     const c = this.card();
@@ -747,6 +776,11 @@ export class ConnectionNewPage {
         else if (this.selected() === PASTE_KEY || this.selected() === 'postgres:paste') this.selected.set(null);
       });
     });
+    const offModule = this.events.on('module.state', (m) => {
+      const waiting = this.moduleDownload();
+      if (waiting && waiting.id === m.id) this.moduleDownload.set({ ...waiting, step: m.step, message: m.message ?? null });
+    });
+    destroy.onDestroy(offModule);
     const offHealth = this.events.on('connection.health', (h) => {
       if (this.mode() !== 'edit' || h.name !== this.name()) return;
       this.healthRevision++;
@@ -1102,8 +1136,17 @@ export class ConnectionNewPage {
     this.specState.set('loading');
     this.specError.set(null);
     this.formProblem.set(null);
+    // A type of a connector module that isn't here yet: the form's request installs it and waits for it.
+    const module = card?.module && card.module.state !== 'ready' ? card.module : null;
+    this.moduleDownload.set(module
+      ? { id: module.id, name: card!.name, sizeBytes: module.sizeBytes, step: module.step ?? 'queued', message: null }
+      : null);
     try {
-      const [spec, detail] = await Promise.all([this.typesApi.form(type), this.typesApi.get(type).catch(() => null)]);
+      // The form first: it is what installs a module, and the type's detail exists only once it is here.
+      const spec = await this.typesApi.form(type);
+      const detail = await this.typesApi.get(type).catch(() => null);
+      this.moduleDownload.set(null);
+      if (module) void this.reloadCatalog();
       this.startConfig.set(keepCopy ? this.copied!.config : this.preset(card));
       this.typeDetail.set(detail);
       this.spec.set(spec);
@@ -1117,7 +1160,37 @@ export class ConnectionNewPage {
     } catch (e) {
       this.specError.set(isApiError(e) ? e : null);
       this.specState.set('error');
+      if (module) void this.explainModule(module.id, key);
       return false;
+    }
+  }
+
+  /** The catalog read again, quietly: the card of a module that just arrived no longer says it downloads. */
+  private async reloadCatalog(): Promise<void> {
+    const gen = this.gen;
+    try {
+      const catalog = await this.typesApi.catalog();
+      if (gen === this.gen) this.catalog.set(catalog);
+    } catch {
+      // The cards stay as they were.
+    }
+  }
+
+  /**
+   * Why a connector module didn't arrive, in the core's words: the form's own error only says the type isn't there.
+   * Still downloading after the form stopped waiting is no failure: Try again joins the same download.
+   */
+  private async explainModule(id: string, key: string): Promise<void> {
+    const waiting = this.moduleDownload();
+    try {
+      const found = (await this.modulesApi.list()).modules.find((m) => m.id === id);
+      if (this.specCard() === key || this.selected() !== key || this.specState() !== 'error') return;
+      const message = found?.state === 'installing'
+        ? `${waiting?.name ?? 'The connector'} is still downloading. Try again in a moment.`
+        : found?.message ?? waiting?.message ?? null;
+      this.moduleDownload.set(waiting ? { ...waiting, step: found?.state ?? 'failed', message } : null);
+    } catch {
+      // The form's error stands.
     }
   }
 

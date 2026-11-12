@@ -81,6 +81,18 @@ export interface GatewayEvents {
    */
   'ui.open': { readonly path?: string };
   'plugin.state': { readonly id: string; readonly state: string; readonly [key: string]: unknown };
+  /**
+   * One of GateRook's connector modules moved a step in its installation: `queued`, `runtime` (the Java runtime it
+   * runs on), `downloading`, `verifying`, `installing`, then `ready` or `failed` (`message` says why).
+   */
+  'module.state': {
+    readonly id: string;
+    readonly version: string;
+    readonly step: string;
+    readonly sizeBytes: number;
+    readonly message?: string;
+    readonly types?: readonly string[];
+  };
   'mcp-server.state': { readonly name: string; readonly state: string; readonly [key: string]: unknown };
   /** A sign-in in the browser changed (`id`), or a stored server's sign-in did (`server`, `needs-sign-in`). */
   'mcp-server.sign-in': { readonly id?: string; readonly server: string; readonly state: string; readonly message?: string };

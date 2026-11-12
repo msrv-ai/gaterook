@@ -62,6 +62,10 @@ The steps are: the Java runtime (downloaded once when the application doesn't ca
 
 `GET /api/modules` lists the installed and the listed modules. `POST /api/modules/{id}/install` starts an installation by module id or connector type id and answers at once. `DELETE /api/modules/{id}` removes a module that no connection uses. The cards of `GET /api/connector-types` carry `module` for a type that a module adds.
 
+### In the interface
+
+A type that a module adds is a card among the built-in types in Add connection. Until the module is installed, its line says what choosing it costs: `Built-in · 3 tools · 9.4 MB download`. Continue goes straight to Configure, with no review and no dialog. While the form waits for the module, Configure says which step the installation is at, from the `module.state` events: the Java runtime, the download, its check, the installation. A module that doesn't arrive is reported in the core's own words, and Try again asks for it again; a download that is still under way is joined, not restarted.
+
 ### At run time
 
 An installed module's row stores its manifest, and the row's MAC covers it. Its connector types are therefore registered at start without a host and without the package; a host starts on the first call. All types of a module share one host process. A compiled-in connector of the same type id comes first: a build that compiles a type in serves it itself, whatever is installed.
