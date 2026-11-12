@@ -10,6 +10,7 @@ import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
@@ -23,6 +24,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.function.IntPredicate;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.sftp.SftpModuleProperties;
 import org.apache.sshd.sftp.client.SftpClient;
@@ -38,14 +40,30 @@ public final class SshLogsConnector implements Connector {
   static final String LIST = "ssh_logs_list";
   static final String READ = "ssh_logs_read";
   static final String SEARCH = "ssh_logs_search";
+  /** Common log folders for the form: the system's, and macOS's real one ({@code /var} is a link there). */
+  private static final List<String> LOG_FOLDERS = List.of("/var/log", "/private/var/log");
+  /** Rotated, compressed or binary logs: never a file the read and search tools can follow. */
+  private static final java.util.regex.Pattern NOT_A_LOG = java.util.regex.Pattern.compile(
+      "(?i).*(\\.(gz|bz2|xz|zst|zip|lz4|z|tgz|old|bak)|\\.\\d+|-\\d{8}(\\d{2})?)$|^(wtmp|btmp|utmp|lastlog|faillog)$"
+          + "|.*\\.journal~?$");
   private final ConnectorManifest manifest;
   private final byte[] scanFingerprintKey = new byte[32];
   private final SshClients clients;
   private final SshSessions sessions;
   private final Map<String, Integer> parallel = new ConcurrentHashMap<>();
   private final Map<String, Semaphore> slots = new ConcurrentHashMap<>();
+  /** This computer's {@code ~/.ssh} and loopback, for the form's local suggestions only. */
+  private final SshHome home;
+  private final IntPredicate loopbackSsh;
 
   public SshLogsConnector() {
+    this(SshHome.current(), SshSuggestions::sshOnLoopback);
+  }
+
+  /** For tests: another home folder, and what answers on loopback. */
+  SshLogsConnector(SshHome home, IntPredicate loopbackSsh) {
+    this.home = home;
+    this.loopbackSsh = loopbackSsh;
     MinaSecurity.install();
     new java.security.SecureRandom().nextBytes(scanFingerprintKey);
     SchemaResources schemas = SchemaResources.of(SshLogsConnector.class, "ssh-logs");
@@ -138,6 +156,98 @@ public final class SshLogsConnector implements Connector {
   @Override
   public TestResult browseFiles(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, String path) {
     return inspect(cfg, secrets, ctx, path == null || path.isBlank() ? "/" : path, false);
+  }
+
+  /**
+   * Local: the hosts, user, port and key file {@code ~/.ssh} knows ({@link SshSuggestions}). Service, once the host
+   * key is trusted and while no folder or file is chosen yet: signs in as Test connection does and offers the log
+   * folder and its log files, the folder browser's own SFTP listing of one folder. An untrusted host key is a note:
+   * nothing is trusted or sent for a suggestion.
+   */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    if (scope == Suggestions.Scope.LOCAL) {
+      return SshSuggestions.local(cfg, secrets, home, loopbackSsh, SshSuggestions.Form.LOGS);
+    }
+    Suggestions.Builder out = Suggestions.builder();
+    SshLogSettings settings;
+    HostKeys.Check check;
+    try {
+      settings = SshLogSettings.of(cfg, false);
+      if (settings.root() != null && !settings.allowedFiles().isEmpty()) {
+        return Suggestions.none(); // chosen: nothing to sign in for
+      }
+      check = HostKeys.check(settings.ssh().target(), settings.ssh().hostKeys());
+    } catch (ConnectorException e) {
+      return out.note(e.getMessage()).build();
+    }
+    if (!SshSuggestions.trusted(check)) {
+      return out.note(SshSuggestions.untrusted(settings.ssh().target(), false)).build();
+    }
+    try (Connection opened = open(settings, secrets, ctx, check)) {
+      SftpClient sftp = opened.sftp();
+      String folder = settings.root();
+      if (folder == null) {
+        List<Suggestions.Option> folders = new java.util.ArrayList<>();
+        List<String> candidates = new java.util.ArrayList<>(LOG_FOLDERS);
+        try {
+          String own = SshLogSettings.absolute(sftp.canonicalPath("."));
+          candidates.add(SshLogSettings.join(own, "logs"));
+          candidates.add(SshLogSettings.join(own, "log"));
+        } catch (IOException | ConnectorException e) {
+          // No login folder to look in.
+        }
+        for (String candidate : candidates) {
+          try {
+            SshLogFiles.directory(sftp, candidate, ctx);
+            folders.add(Suggestions.Option.of(candidate));
+          } catch (IOException | ConnectorException e) {
+            // Missing, a link or not a folder: not a log folder the connection can use.
+          }
+        }
+        folder = folders.isEmpty() ? null : folders.getFirst().value();
+        out.value("/logs/root", "the server", folder, folders);
+      }
+      String who = settings.ssh().target().label();
+      if (folder == null) {
+        return out.note("Signed in as " + who + ". No common log folder is readable there: choose the folder of "
+            + "the logs agents may read.").build();
+      }
+      var listing = SshLogFiles.browse(sftp, folder, ctx);
+      List<Suggestions.Option> files = new java.util.ArrayList<>();
+      for (var entry : listing.path("entries")) {
+        String name = entry.path("name").asString("");
+        if ("file".equals(entry.path("type").asString("")) && !NOT_A_LOG.matcher(name).matches()) {
+          files.add(Suggestions.Option.of(name, size(entry.path("size").asLong(0))));
+        }
+      }
+      out.field("/logs/allowedFiles", new Suggestions.Field(files, null, "the server",
+          !listing.path("truncated").asBoolean(false)));
+      return out.note("Signed in as " + who + ". " + files.size() + (listing.path("truncated").asBoolean(false)
+          ? "+" : "") + " log file" + (files.size() == 1 ? "" : "s") + " in " + folder + ": select the ones agents "
+          + "may read.").build();
+    } catch (ConnectorException e) {
+      return out.note(e.getMessage()).build();
+    } catch (IOException e) {
+      return out.note("Signed in, but the server's folders can't be listed over SFTP. Check that SFTP is on for this "
+          + "account.").build();
+    }
+  }
+
+  /** {@code 12 KB}: a file's size as the line under a field shows it. */
+  static String size(long bytes) {
+    if (bytes < 1024) {
+      return bytes + " bytes";
+    }
+    String[] units = {"KB", "MB", "GB", "TB"};
+    double v = bytes;
+    int u = -1;
+    while (v >= 1024 && u < units.length - 1) {
+      v /= 1024;
+      u++;
+    }
+    return (v >= 10 ? String.valueOf(Math.round(v)) : String.format(java.util.Locale.ROOT, "%.1f", v)) + " "
+        + units[u];
   }
 
   private TestResult inspect(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, String path,

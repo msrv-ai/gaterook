@@ -17,6 +17,7 @@
         "stdio",
         "http"
       ],
+      "title": "Transport",
       "default": "stdio",
       "x-enumTitles": [
         "Command on this computer (stdio)",
@@ -28,20 +29,28 @@
         "on-first-call",
         "with-core"
       ],
-      "default": "on-first-call"
+      "title": "Start",
+      "default": "on-first-call",
+      "x-enumTitles": [
+        "On the first call",
+        "When GateRook starts"
+      ]
     },
     "idleStopMinutes": {
       "type": "integer",
+      "title": "Stop when idle for",
       "minimum": 0,
       "maximum": 1440,
       "default": 15,
       "x-unit": "min",
       "x-env-default": {
         "prod": 5
-      }
+      },
+      "description": "0 keeps it running."
     },
     "startTimeoutSeconds": {
       "type": "integer",
+      "title": "Start timeout",
       "minimum": 5,
       "maximum": 300,
       "default": 30,
@@ -49,6 +58,7 @@
     },
     "callTimeoutSeconds": {
       "type": "integer",
+      "title": "Call timeout",
       "minimum": 1,
       "maximum": 300,
       "default": 60,
@@ -59,6 +69,7 @@
     },
     "maxInFlight": {
       "type": "integer",
+      "title": "Calls at a time",
       "minimum": 1,
       "maximum": 16,
       "default": 4
@@ -83,6 +94,7 @@
     },
     "catalogEntry": {
       "type": "string",
+      "title": "Catalog entry",
       "readOnly": true,
       "description": "github-mcp@0.6.2 when installed from the catalog"
     }
@@ -110,11 +122,12 @@
             },
             "minItems": 1,
             "maxItems": 64,
-            "description": "argv; the UI line is tokenized (quotes only), never run by a shell"
+            "description": "The program, then each of its arguments. No shell runs it."
           },
           "env": {
             "type": "array",
             "title": "Environment variables from secrets",
+            "x-advanced": false,
             "maxItems": 32,
             "items": {
               "type": "object",
@@ -126,10 +139,12 @@
               "properties": {
                 "name": {
                   "type": "string",
+                  "title": "Variable",
                   "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
                 },
                 "secretRef": {
                   "type": "string",
+                  "title": "Value",
                   "writeOnly": true,
                   "x-gateway-secret": "value",
                   "description": "A secret, or a vault:// | gcp-sm:// | aws-sm:// reference"
@@ -177,9 +192,11 @@
         "properties": {
           "url": {
             "type": "string",
+            "title": "URL",
             "format": "uri",
             "pattern": "^(https://|http://(127\\.0\\.0\\.1|localhost)[:/])",
-            "x-key-allowed": true
+            "x-key-allowed": true,
+            "description": "The server's MCP address: https://, or http:// on this computer."
           },
           "auth": {
             "type": "object",
@@ -195,6 +212,7 @@
                   "google",
                   "aws"
                 ],
+                "title": "Sign in with",
                 "x-enumTitles": [
                   "Sign in with OAuth in the browser",
                   "Google Cloud credentials",
@@ -203,6 +221,7 @@
               },
               "optional": {
                 "type": "boolean",
+                "title": "Sign-in is optional",
                 "default": false,
                 "description": "OAuth only: the server also answers without a sign-in, so it connects without one until you sign in"
               },
@@ -240,6 +259,7 @@
                   "127.0.0.1",
                   "localhost"
                 ],
+                "title": "Callback host",
                 "default": "127.0.0.1"
               },
               "callbackPath": {
@@ -261,6 +281,7 @@
                       "profile",
                       "accessKey"
                     ],
+                    "title": "Credentials from",
                     "x-enumTitles": [
                       "Google sign-in on this computer (ADC)",
                       "Service account key (JSON)",
@@ -270,6 +291,7 @@
                   },
                   "serviceAccountKey": {
                     "type": "string",
+                    "title": "Service account key",
                     "writeOnly": true,
                     "x-gateway-secret": "value",
                     "x-widget": "textarea",
@@ -277,6 +299,8 @@
                   },
                   "impersonate": {
                     "type": "string",
+                    "title": "Act as a service account",
+                    "description": "Empty: the credentials themselves.",
                     "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
                     "examples": [
                       "gw-mcp@acme-stage.iam.gserviceaccount.com"
@@ -284,6 +308,7 @@
                   },
                   "lifetimeSeconds": {
                     "type": "integer",
+                    "title": "Token lifetime",
                     "minimum": 300,
                     "maximum": 3600,
                     "default": 900,
@@ -291,27 +316,33 @@
                   },
                   "quotaProject": {
                     "type": "string",
+                    "title": "Billed project",
                     "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$",
-                    "description": "Billed project (x-goog-user-project)"
+                    "description": "The project billed for the requests (x-goog-user-project). Empty: the credentials decide."
                   },
                   "profile": {
                     "type": "string",
+                    "title": "Profile",
                     "maxLength": 128,
-                    "pattern": "\\S"
+                    "pattern": "\\S",
+                    "description": "A profile of ~/.aws/config or ~/.aws/credentials, such as default."
                   },
                   "accessKeyId": {
                     "type": "string",
+                    "title": "Access key ID",
                     "pattern": "^(AKIA|ASIA)[A-Z0-9]{16}$",
                     "x-not-secret": true
                   },
                   "secretAccessKey": {
                     "type": "string",
+                    "title": "Secret access key",
                     "writeOnly": true,
                     "x-gateway-secret": "value",
                     "format": "password"
                   },
                   "roleArn": {
                     "type": "string",
+                    "title": "Assume a role",
                     "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
                     "examples": [
                       "arn:aws:iam::412398765012:role/gw-mcp"
@@ -319,11 +350,13 @@
                   },
                   "externalId": {
                     "type": "string",
+                    "title": "External ID",
                     "pattern": "^[\\w+=,.@:/-]{2,1224}$",
                     "description": "Not a secret. Add it to the role's trust policy as sts:ExternalId"
                   },
                   "sessionSeconds": {
                     "type": "integer",
+                    "title": "Session length",
                     "minimum": 900,
                     "maximum": 3600,
                     "default": 900,
@@ -333,11 +366,13 @@
               },
               "service": {
                 "type": "string",
+                "title": "Service",
                 "pattern": "^[a-z0-9-]{1,64}$",
                 "description": "AWS: the service requests are signed for. Default: from the URL, aws-mcp.us-east-1.api.aws → aws-mcp"
               },
               "region": {
                 "type": "string",
+                "title": "Region",
                 "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
                 "description": "AWS: the region requests are signed for. Default: from the URL"
               }
@@ -346,6 +381,7 @@
           "headers": {
             "type": "array",
             "title": "Headers from secrets",
+            "x-advanced": false,
             "maxItems": 16,
             "items": {
               "type": "object",
@@ -357,10 +393,12 @@
               "properties": {
                 "name": {
                   "type": "string",
+                  "title": "Header",
                   "pattern": "^[A-Za-z0-9-]{1,64}$"
                 },
                 "secretRef": {
                   "type": "string",
+                  "title": "Value",
                   "writeOnly": true,
                   "x-gateway-secret": "value",
                   "description": "A secret, or a vault:// | gcp-sm:// | aws-sm:// reference"

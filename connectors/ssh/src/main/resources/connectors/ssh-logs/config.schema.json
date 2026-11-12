@@ -28,7 +28,8 @@
         "host": {
           "type": "string",
           "title": "Host",
-          "maxLength": 253
+          "maxLength": 253,
+          "description": "The server's host name or IP address, not a ~/.ssh/config alias."
         },
         "port": {
           "type": "integer",
@@ -116,7 +117,7 @@
               },
               "passphrase": {
                 "type": "string",
-                "title": "Key passphrase (optional)",
+                "title": "Key passphrase",
                 "writeOnly": true,
                 "x-gateway-secret": "value",
                 "format": "password"
