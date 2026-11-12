@@ -159,6 +159,24 @@
   }
 }
 
+<!--
+  The setup helpers' findings: what this computer or the service showed (contexts, namespaces, databases) and what comes
+  next. The values themselves are offered under their fields.
+-->
+@if (show('connection') && helpers() && (suggesting() === 'service' || suggestionNotes().length)) {
+  <div class="gw-alert gw-alert--info gw-alert--compact" role="status" [id]="p + '-helpers'">
+    <svg lucideIcon="lightbulb" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content">
+      @for (note of suggestionNotes(); track $index) {
+        <p class="gw-alert__body">{{ note }}</p>
+      }
+      @if (suggesting() === 'service') {
+        <p class="gw-alert__body"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Signing in to look up what this account can use…</p>
+      }
+    </div>
+  </div>
+}
+
 @if (show('safety')) {
   @let env = common().env;
   <section class="gw-form__section gw-connection-form__safety" [attr.aria-labelledby]="p + '-env-t'">

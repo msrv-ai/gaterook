@@ -19,7 +19,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { GwCodeBlock } from '../../code/code-block';
 import { ApiError, isApiError } from '../../core/api/api-error';
 import { ApprovalItem, ApprovalsApi } from '../../core/api/approvals.api';
-import { ConnectionDetail, ConnectionHealth, ConnectionsApi, StoredSecret, TestOutcome } from '../../core/api/connections.api';
+import { ConnectionDetail, ConnectionHealth, ConnectionsApi, StoredSecret, Suggested, TestOutcome } from '../../core/api/connections.api';
 import { ConnectionFormSpec, ConnectorCatalog, ConnectorTool, ConnectorTypeDetail, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointSummary, EndpointsApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { Policies, PoliciesApi } from '../../core/api/policies.api';
@@ -35,7 +35,7 @@ import { AccessChanges, GwAccessSwitch } from '../../kit/access-switch';
 import { GwAriaDisabled } from '../../kit/aria-disabled';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
 import { GwToggle } from '../../kit/disclosure';
-import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm, InitialCredentialReference, ProdDefault, signInTarget } from '../../kit/elements/connection-form/connection-form';
+import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm, InitialCredentialReference, ProdDefault, SuggestionRequest, signInTarget } from '../../kit/elements/connection-form/connection-form';
 import { FileBrowseRequest, FileBrowseTrust } from '../../kit/elements/connection-form/remote-files';
 import { ProjectDiscoveryRequest } from '../../kit/elements/connection-form/cloud-projects';
 import { databaseSelection, removeConfigPath } from '../../kit/elements/connection-form/database-selection';
@@ -941,6 +941,26 @@ export class ConnectionNewPage {
     this.nameProblem.set(null);
     this.draft.set(value);
     this.go(3);
+  }
+
+  /**
+   * The setup helpers' lookups. Quiet: a failure (an incomplete draft, a stored secret that would go to a new host)
+   * offers nothing new and never asks the person anything; Test connection still does.
+   */
+  async loadSuggestions(request: SuggestionRequest): Promise<void> {
+    const form = this.form();
+    const spec = this.spec();
+    if (!form || !spec) return;
+    const gen = this.gen;
+    let result: Suggested | null = null;
+    try {
+      result = await this.connections.suggest({ type: spec.type, env: request.value.env, config: request.value.config,
+        secrets: request.value.secrets, scope: request.scope,
+        ...(this.mode() === 'edit' ? { existing: this.name() } : {}) });
+    } catch {
+      result = null;
+    }
+    if (gen === this.gen && form === this.form()) form.completeSuggestions(request.key, request.scope, result);
   }
 
   /** The Configure form owns selection state; requests and stored-secret consent stay with the page. */

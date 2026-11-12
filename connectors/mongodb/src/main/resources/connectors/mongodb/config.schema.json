@@ -28,6 +28,7 @@
         "port": true,
         "uri": true,
         "tls": {
+          "x-advanced": false,
           "type": [
             "boolean",
             "string"

@@ -18,9 +18,9 @@ import {
 import { FormField, form, required, validate } from '@angular/forms/signals';
 import { RouterLink } from '@angular/router';
 import { ConnectionFormSpec, EnvChange } from '../../../core/api/connector-types.api';
-import { SecretInputs, StoredSecret, TestOutcome } from '../../../core/api/connections.api';
+import { SecretInputs, StoredSecret, SuggestScope, Suggested, SuggestedField, TestOutcome } from '../../../core/api/connections.api';
 import { Env, JsonObject, JsonValue } from '../../../core/api/types';
-import { SchemaNode, getAt, rootSection } from '../../../schema-form/compile';
+import { SchemaNode, getAt, isAdvanced, layoutRows, rootSection } from '../../../schema-form/compile';
 import { GwSchemaSection } from '../../../schema-form/section';
 import { ConfirmChange, SchemaForm, SecretAction, StoreOption, createSchemaForm, kindTitle, storedReference } from '../../../schema-form/schema-form';
 import { GwDialog, GwDialogClose } from '../../dialog';
@@ -66,6 +66,18 @@ interface DatabaseDiscovery {
   readonly message: string | null;
   readonly hints: readonly string[];
 }
+
+/** The page fetches suggestions for the form (`POST /api/connections/suggest`) and hands them back by `key`. */
+export interface SuggestionRequest {
+  /** In-memory fingerprint only; includes credentials and must never be logged or rendered. */
+  readonly key: string;
+  readonly scope: SuggestScope;
+  readonly value: ConnectionFormValue;
+}
+
+/** How long the helpers wait after the last keystroke: local lookups read files, service lookups sign in. */
+const LOCAL_DELAY_MS = 350;
+const SERVICE_DELAY_MS = 900;
 
 /** The parts of the form a view shows (the kit's partial views show one section each). */
 export type ConnectionFormPart = 'connection' | 'credentials' | 'safety' | 'advanced' | 'test' | 'actions';
@@ -280,6 +292,13 @@ export class GwConnectionForm {
   readonly fileSelection = computed(() => fileSelection(this.spec().schema));
   readonly files = viewChild(GwRemoteFiles);
   readonly discoverDatabases = output<DatabaseDiscoveryRequest>();
+  /**
+   * The setup helpers ask the page for suggestions: `local` while the person types, `service` once the form holds what
+   * it needs to sign in. The page answers with {@link completeSuggestions}. Off unless `helpers` is set.
+   */
+  readonly suggest = output<SuggestionRequest>();
+  /** Whether the form asks for suggestions (the Add connection and edit pages do; static demos don't). */
+  readonly helpers = input(false, { transform: booleanAttribute });
   readonly discoverProjects = output<ProjectDiscoveryRequest>();
   readonly projects = viewChild(GwCloudProjects);
   protected readonly projectTitle = computed(() => {
@@ -306,9 +325,11 @@ export class GwConnectionForm {
     const replacing = this.replacing();
     const expanded = this.expandedSections();
     const references = this.initialReferences();
+    const saved = this.mode() !== 'create';
     return untracked(() => {
       const state = createSchemaForm(spec.schema, {
         idPrefix,
+        saved,
         current: mongodbFormConfig(spec.type, current, this.common().env),
         stored,
         replacing,
@@ -494,6 +515,32 @@ export class GwConnectionForm {
       const metadata = this.metadata();
       untracked(this.state).metadata.set(metadata);
     });
+    // Save opens the gathered Advanced settings when one of their fields holds an error.
+    effect(() => {
+      const collapsed = this.arranged().filter((section) => section.collapsed);
+      untracked(this.state).displaySections.set(collapsed);
+    });
+    // Local helpers: what this computer knows, as the person types (a kubeconfig's contexts, AWS profiles).
+    effect((onCleanup) => {
+      if (!this.helpers()) return;
+      const value = this.value();
+      const key = this.suggestionKey('local', value);
+      if (key === this.requested.local) return;
+      const timer = setTimeout(() => this.requestSuggestions('local', key, value), LOCAL_DELAY_MS);
+      onCleanup(() => clearTimeout(timer));
+    });
+    // Service helpers: once the form can sign in, what the account may use (namespaces, databases, regions).
+    effect((onCleanup) => {
+      if (!this.helpers()) return;
+      const value = this.value();
+      const key = this.suggestionKey('service', value);
+      const ready = this.state().ready();
+      // Findings of other settings stay until the next answer replaces them, unless the form can't sign in any more.
+      if (!ready) untracked(() => this.dropStaleService(key));
+      if (!ready || key === this.requested.service) return;
+      const timer = setTimeout(() => this.requestSuggestions('service', key, value), SERVICE_DELAY_MS);
+      onCleanup(() => clearTimeout(timer));
+    });
     effect(() => {
       const stored = this.stored();
       untracked(this.state).setStored(stored);
@@ -507,6 +554,66 @@ export class GwConnectionForm {
       const off = this.state().onSecretAction((a) => this.secretAction.emit(a));
       onCleanup(off);
     });
+  }
+
+  // ─── Setup helpers ───
+
+  /** The fingerprints asked for last, per scope: an answer for another one is stale. */
+  private readonly requested: Record<SuggestScope, string | null> = { local: null, service: null };
+  /** The latest answers, per scope, with the fingerprint each answers. */
+  private readonly found = signal<Readonly<Record<SuggestScope, { readonly key: string; readonly result: Suggested } | null>>>(
+    { local: null, service: null });
+  /** The scope being looked up, for the status line. */
+  protected readonly suggesting = signal<SuggestScope | null>(null);
+
+  /** What was found or comes next ("Signed in to … 12 namespaces"), local notes first. */
+  protected readonly suggestionNotes = computed(() => {
+    const f = this.found();
+    return [...new Set([...(f.local?.result.notes ?? []), ...(f.service?.result.notes ?? [])])];
+  });
+
+  private suggestionKey(scope: SuggestScope, value: ConnectionFormValue): string {
+    const s = this.state();
+    return JSON.stringify([scope, this.spec().type, value.env, value.config, value.secrets, s.source(), s.fieldStores(),
+      this.stored().map((secret) => [secret.field, secret.version, secret.state, secret.source])]);
+  }
+
+  private requestSuggestions(scope: SuggestScope, key: string, value: ConnectionFormValue): void {
+    this.requested[scope] = key;
+    this.suggesting.set(scope);
+    this.suggest.emit({ key, scope, value });
+  }
+
+  /** Service answers belong to settings that can sign in: once the form can't, they go. */
+  private dropStaleService(key: string): void {
+    const service = this.found().service;
+    if (service && service.key !== key) {
+      this.found.update((f) => ({ ...f, service: null }));
+      this.applyFound();
+    }
+  }
+
+  /**
+   * The page's answer to a {@link SuggestionRequest} (`null` when it failed: nothing new is offered). An answer for
+   * settings that changed meanwhile is dropped. Service findings replace local ones for the same field.
+   */
+  completeSuggestions(key: string, scope: SuggestScope, result: Suggested | null): boolean {
+    if (this.requested[scope] !== key || this.suggestionKey(scope, untracked(() => this.value())) !== key) return false;
+    if (this.suggesting() === scope) this.suggesting.set(null);
+    this.found.update((f) => ({ ...f, [scope]: result ? { key, result } : null }));
+    this.applyFound();
+    return true;
+  }
+
+  private applyFound(): void {
+    const f = untracked(this.found);
+    const fields: Record<string, SuggestedField> = { ...(f.local?.result.fields ?? {}) };
+    for (const [pointer, field] of Object.entries(f.service?.result.fields ?? {})) {
+      const local = fields[pointer];
+      // A value the computer knows (the context's namespace) stays the one filled in when the service only lists.
+      fields[pointer] = local && !field.value && local.value ? { ...field, value: local.value, source: local.source } : field;
+    }
+    this.state().setSuggestions(fields);
   }
 
   protected show(part: ConnectionFormPart): boolean {
@@ -531,9 +638,65 @@ export class GwConnectionForm {
    * the loose fields before the sections (HTTP's base URLs, AWS regions). It comes first and takes the Name.
    */
   protected readonly rootSection = computed<SchemaNode | null>(() => {
-    const fields = withoutFileFields(withoutDatabaseFields(this.state().compiled.loose, this.databaseSelection()), this.fileSelection())
-      .filter((node) => node !== this.projectNode());
+    const advanced = this.advancedFields();
+    const fields = this.looseFields().filter((node) => !advanced.has(node));
     return fields.length ? rootSection(fields, 'Connection') : null;
+  });
+
+  /** The schema's root fields this form shows: not the database, file or project choices it renders itself. */
+  private readonly looseFields = computed(() =>
+    withoutFileFields(withoutDatabaseFields(this.state().compiled.loose, this.databaseSelection()), this.fileSelection())
+      .filter((node) => node !== this.projectNode()));
+
+  /**
+   * Optional settings the person rarely changes ({@link isAdvanced}): the form gathers them under the collapsed
+   * Advanced settings, so the open part holds only what a connection needs. Display only: each keeps its config path.
+   */
+  protected readonly advancedFields = computed(() => {
+    const compiled = this.state().compiled;
+    return new Set(compiled.all.filter((node) => isAdvanced(node, compiled)));
+  });
+
+  /**
+   * The sections as shown: optional fields moved out of the open sections and the root, and gathered with values set
+   * by Test connection into the schema's own collapsed `advanced` section, or into a new "Advanced" one at the end.
+   */
+  private readonly arranged = computed(() => {
+    const advanced = this.advancedFields();
+    const moved: SchemaNode[] = this.looseFields().filter((node) => advanced.has(node));
+    const sections: SchemaNode[] = [];
+    for (const section of this.databaseSections()) {
+      if (section.readOnly) {
+        moved.push(section);
+        continue;
+      }
+      if (section.collapsed) {
+        sections.push(section);
+        continue;
+      }
+      const keep = section.children.filter((child) => !advanced.has(child));
+      moved.push(...section.children.filter((child) => advanced.has(child)));
+      if (keep.length === section.children.length) sections.push(section);
+      else if (keep.length) sections.push({ ...section, children: keep, rows: layoutRows(keep) });
+    }
+    if (!moved.length) return sections;
+    // Only a section that always shows can take them (Logs' Advanced belongs to its OpenSearch branch).
+    const at = sections.findIndex((section) => section.collapsed && section.key === 'advanced' && !section.when.length);
+    if (at >= 0) {
+      const host = sections[at];
+      const children = [...host.children, ...moved];
+      sections[at] = { ...host, children, rows: layoutRows(children) };
+    } else {
+      sections.push({
+        ...rootSection(moved, 'Advanced'),
+        key: 'advanced-settings',
+        path: ['advanced-settings'],
+        pointer: '#advanced-settings',
+        collapsed: true,
+        description: 'Optional settings. The defaults suit most connections.',
+      });
+    }
+    return sections;
   });
 
   /** A flat schema keeps its secrets at the root: the secret source picker goes there, after the Name. */
@@ -545,10 +708,16 @@ export class GwConnectionForm {
   protected readonly sectionsBefore = computed(() => {
     const all = this.displaySections();
     const cut = all.findIndex((s) => s.collapsed);
-    const root = this.rootSection();
     const before = cut < 0 ? all : all.slice(0, cut);
+    // The Name leads the first section; when every other root field went under Advanced and the credentials come
+    // first, it gets a Connection section of its own.
+    const root = this.rootSection()
+      ?? (this.showName() && (!before.length || before[0] === this.secretSection()) ? this.nameOnly() : null);
     return root ? [root, ...before] : before;
   });
+
+  /** A Connection section holding only the Name. */
+  private readonly nameOnly = computed(() => rootSection([], 'Connection'));
 
   protected readonly sectionsAfter = computed(() => {
     const all = this.displaySections();
@@ -560,7 +729,7 @@ export class GwConnectionForm {
 
   private readonly displaySections = computed(() => {
     const state = this.state();
-    return this.databaseSections().filter((node) => state.visible(node));
+    return this.arranged().filter((node) => state.visible(node));
   });
 
   protected partOf(section: SchemaNode): ConnectionFormPart {
@@ -801,6 +970,9 @@ export class GwConnectionForm {
       this.env() ?? this.spec().env ?? 'dev'), this.spec().schema);
     this.restoreReferences(this.state(), this.initialReferences());
     this.databaseDiscovery.set(null);
+    this.found.set({ local: null, service: null });
+    this.requested.local = null;
+    this.requested.service = null;
     this.files()?.reset();
     this.projects()?.reset();
     this.common.set({ name: this.name(), env: (this.env() ?? this.spec().env ?? 'dev') as string });

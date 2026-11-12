@@ -37,6 +37,7 @@
           "x-section": "/advanced"
         },
         "tls": {
+          "x-advanced": false,
           "type": "boolean",
           "title": "Connection type",
           "default": false,

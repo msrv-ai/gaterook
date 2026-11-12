@@ -322,6 +322,8 @@
         [busy]="saving()"
         (submit)="showSettings()"
         (save)="onFormSubmit($event)"
+        helpers
+        (suggest)="loadSuggestions($event)"
         (discoverDatabases)="loadDatabases($event)"
         (discoverProjects)="loadProjects($event)"
         (browseFiles)="browseFiles($event)"

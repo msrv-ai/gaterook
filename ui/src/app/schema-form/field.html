@@ -11,9 +11,27 @@
   @let pickerErrorId = filePicker() && filePickerError() ? id + '-picker-error' : null;
   @let describedBy = join(errId, hintId, lockId, pickerHintId, pickerErrorId);
 
-  <ng-template #label>{{ n.title }}@if (n.optional) { <span class="gw-field__optional">Optional</span>}@if (n.stricter && f.stricterBadges) { <span class="gw-badge gw-badge--neutral gw-badge--sm">Policy may tighten</span>}</ng-template>
+  <ng-template #label>{{ n.title }}@if (f.optionalNow(n)) { <span class="gw-field__optional">Optional</span>}@if (n.stricter && f.stricterBadges) { <span class="gw-badge gw-badge--neutral gw-badge--sm">Policy may tighten</span>}</ng-template>
   <!-- Why options are off on this env (x-forbidden-env): native disabled, as they would weaken prod, with the reason. -->
   <ng-template #lockLine><p class="gw-field__hint" [id]="lockId">{{ lock }}</p></ng-template>
+  <!--
+    What the setup helpers found for this field (a kubeconfig's contexts, the cluster's namespaces): a line of values
+    to pick under it, the rest in the input's autocomplete. A value they filled in says where it came from.
+  -->
+  <ng-template #suggestLine>
+    @if (showSuggestLine()) {
+      <p class="gw-field__hint" [id]="id + '-found-line'">{{ suggestLead() }}@for (o of chips(); track o.value; let last = $last) {
+        <button class="gw-btn gw-btn--link gw-mono" type="button" [attr.aria-label]="chipLabel(o)" [attr.title]="o.detail" (click)="pick(o.value)">{{ o.label ?? o.value }}</button>@if (!last) {<span>,</span>}
+      }@if (moreChips() > 0) {<span> and more: type to search.</span>}</p>
+    }
+    @if (datalistId(); as listId) {
+      <datalist [id]="listId">
+        @for (o of suggestion()!.options; track o.value) {
+          <option [value]="o.value">{{ o.detail ? (o.label ?? o.value) + ' · ' + o.detail : (o.label ?? '') }}</option>
+        }
+      </datalist>
+    }
+  </ng-template>
   <ng-template #errorLine let-message>
     <p class="gw-field__error" [id]="errId"><svg lucideIcon="circle-alert" class="gw-icon"></svg>@for (part of errorParts(message); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {<ng-container>{{ part.text }}</ng-container>}}</p>
   </ng-template>
@@ -42,7 +60,16 @@
     </div>
   </ng-template>
 
-  @if (n.kind === 'text' && (f.credential(n) || f.fieldKind(n) || f.textState(n) === 'reference')) {
+  @if (n.readOnly && n.kind !== 'object') {
+    <!-- Set by Test connection when the person trusted it (a pinned cluster, an allowed command): shown, never typed. -->
+    <div class="gw-field">
+      <label class="gw-field__label" [for]="id">{{ n.title }}</label>
+      <input class="gw-input gw-input--mono" [id]="id" readonly [value]="readOnlyText()" [attr.aria-describedby]="hintId" />
+      @if (n.description) {
+        <p class="gw-field__hint" [id]="hintId">{{ n.description }}</p>
+      }
+    </div>
+  } @else if (n.kind === 'text' && (f.credential(n) || f.fieldKind(n) || f.textState(n) === 'reference')) {
     <!--
       A text field next to a secret (a login's user, a client ID), or any text field that holds a reference: typed, or
       read from a store like the secret.
@@ -102,9 +129,11 @@
               [formField]="textField()"
               autocomplete="off"
               spellcheck="false"
+              [attr.list]="datalistId()"
               [attr.aria-describedby]="join(errId, textHintId, lockId)"
               [attr.aria-invalid]="error ? 'true' : null"
               (input)="keepFocus()"
+              (blur)="f.completeScheme(n)"
             />
           </div>
         }
@@ -118,6 +147,7 @@
       @if (lock) {
         <ng-container [ngTemplateOutlet]="lockLine" />
       }
+      <ng-container [ngTemplateOutlet]="suggestLine" />
     </div>
   } @else {
   @switch (n.kind) {
@@ -379,6 +409,7 @@
                   [formField]="textField()"
                   autocomplete="off"
                   spellcheck="false"
+                  [attr.list]="datalistId()"
                   [attr.aria-describedby]="describedBy"
                   [attr.aria-invalid]="error ? 'true' : null"
                 />
@@ -417,9 +448,11 @@
                 [formField]="textField()"
                 autocomplete="off"
                 spellcheck="false"
+                [attr.list]="datalistId()"
                 [attr.aria-describedby]="describedBy"
                 [attr.aria-invalid]="error ? 'true' : null"
                 (input)="keepFocus()"
+                (blur)="f.completeScheme(n)"
               />
             }
           }
@@ -479,7 +512,7 @@
                 (change)="setOption($event)"
                 (blur)="f.touch(n)"
               >
-                @if (value() === null) {
+                @if (value() === null || value() === '') {
                   <option value="" selected>{{ clearable() ? 'Not set' : 'Choose…' }}</option>
                 } @else if (clearable()) {
                   <option value="">Not set</option>
@@ -553,6 +586,7 @@
         @if (lock) {
           <ng-container [ngTemplateOutlet]="lockLine" />
         }
+        <ng-container [ngTemplateOutlet]="suggestLine" />
       </div>
     }
   }

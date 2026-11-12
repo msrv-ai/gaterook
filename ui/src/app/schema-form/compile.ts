@@ -45,8 +45,21 @@ export interface SchemaNode {
   readonly title: string;
   readonly description: string | null;
   readonly required: boolean;
+  /**
+   * Branch conditions under which the field is required although the branch that declares it doesn't say so: a
+   * `required` of another `if`/`then` branch (Kubernetes: a kubeconfig file requires the Context both kubeconfig modes
+   * declare). Each entry holds when all of its conditions do.
+   */
+  readonly requiredWhen: readonly (readonly Condition[])[];
   /** "Optional" after the label: not required and nothing filled in for the user. */
   readonly optional: boolean;
+  /**
+   * `x-advanced`: `true` puts an optional field under the collapsed Advanced settings, `false` keeps it where the schema
+   * places it; `null` lets the form decide ({@link isAdvanced}).
+   */
+  readonly advanced: boolean | null;
+  /** `readOnly` (on the field or an object around it): set by Test connection, shown only once it has a value. */
+  readonly readOnly: boolean;
   /** Identifiers, hosts, paths: the kit sets config values in the mono face. */
   readonly mono: boolean;
   readonly schema: JsonObject;
@@ -295,8 +308,10 @@ function compileNode(
   when: readonly Condition[],
   inheritedSecret: string | null,
   within: readonly (readonly string[])[],
+  inheritedReadOnly = false,
 ): SchemaNode {
   const { schema: s, seen: next } = deref(raw, root, seen);
+  const readOnly = inheritedReadOnly || s['readOnly'] === true;
   const path = key === null ? [...parent] : [...parent, key];
   const kind = kindOf(s);
   const ownSecret = str(s['x-gateway-secret']);
@@ -307,7 +322,16 @@ function compileNode(
   const children: SchemaNode[] = [];
   const has = (k: string, depth: number) => children.some((c) => c.key === k && c.when.length === depth);
   const add = (k: string, child: JsonValue | undefined, req: boolean, cond: readonly Condition[]) => {
-    if (isObject(child)) children.push(compileNode(k, child, path, req, root, next, cond, ownSecret ?? inheritedSecret, inner));
+    if (isObject(child)) children.push(compileNode(k, child, path, req, root, next, cond, ownSecret ?? inheritedSecret, inner, readOnly));
+  };
+  // A branch's `required` may name a field another branch or the object itself declares: required while it holds.
+  const branchRequired = new Map<string, Condition[][]>();
+  const requireIn = (branch: JsonObject, conds: readonly Condition[]) => {
+    const declared = isObject(branch['properties']) ? branch['properties'] : {};
+    for (const k of requiredOf(branch)) {
+      if (k in declared) continue;
+      branchRequired.set(k, [...(branchRequired.get(k) ?? []), [...conds]]);
+    }
   };
   if (kind === 'object') {
     const props = isObject(s['properties']) ? s['properties'] : {};
@@ -338,12 +362,14 @@ function compileNode(
           ['else', true],
         ] as const) {
           const b = c[branch];
-          if (!isObject(b) || !isObject(b['properties'])) continue;
+          if (!isObject(b)) continue;
+          requireIn(b, [...inherited, { ...ifCond, negate }]);
+          if (!isObject(b['properties'])) continue;
           const breq = requiredOf(b);
           for (const [k, child] of Object.entries(b['properties'])) {
             if (has(k, inherited.length) || !isObject(child)) continue;
             const node = compileNode(k, child, path, breq.has(k), root, next, [...inherited, { ...ifCond, negate }],
-              ownSecret ?? inheritedSecret, inner);
+              ownSecret ?? inheritedSecret, inner, readOnly);
             children.splice(chosenBy(ifCond.path), 0, node);
           }
         }
@@ -377,11 +403,13 @@ function compileNode(
           when,
           inheritedSecret,
           inner,
+          readOnly,
         ),
       );
     }
     branches.forEach((b, i) => {
       const cond = conds[i];
+      requireIn(b, cond ? [...when, cond] : when);
       const bprops = b['properties'];
       if (!isObject(bprops)) return;
       const breq = requiredOf(b);
@@ -393,6 +421,10 @@ function compileNode(
       addConditionals(b, cond ? [...when, cond] : when);
     });
   }
+  for (let i = 0; i < children.length; i++) {
+    const extra = branchRequired.get(children[i].key);
+    if (extra && !children[i].required) children[i] = { ...children[i], requiredWhen: [...children[i].requiredWhen, ...extra] };
+  }
   const optional = !required && s['default'] === undefined && kind !== 'checkbox' && kind !== 'object' && kind !== 'number';
   const secret = kind === 'secret' ? (ownSecret ?? (inheritedSecret === 'login' ? 'value' : inheritedSecret) ?? 'value') : ownSecret;
   return {
@@ -403,7 +435,10 @@ function compileNode(
     title: str(s['title']) ?? key ?? '',
     description: str(s['description']),
     required,
+    requiredWhen: [],
     optional,
+    advanced: s['x-advanced'] === true ? true : s['x-advanced'] === false ? false : null,
+    readOnly,
     mono: kind === 'text' || kind === 'number' || kind === 'tags',
     schema: s,
     unit: str(s['x-unit']),
@@ -439,7 +474,10 @@ export function rootSection(fields: readonly SchemaNode[], title: string, rows: 
     title,
     description: null,
     required: true,
+    requiredWhen: [],
     optional: false,
+    advanced: null,
+    readOnly: false,
     mono: false,
     schema: {},
     unit: null,
@@ -590,14 +628,47 @@ export function setAt(model: JsonObject, path: readonly string[], value: JsonVal
   return { ...model, [head]: rest.length ? setAt(isObject(child) ? child : {}, rest, value) : value };
 }
 
+/** Whether one branch condition holds for this model. */
+export function conditionHolds(c: Condition, model: JsonValue): boolean {
+  const v = getAt(model, c.path);
+  const hit = c.minLength === undefined ? c.values.some((x) => x === v)
+    : typeof v === 'string' && [...v].length >= c.minLength;
+  return c.negate ? !hit : hit;
+}
+
 /** Whether a node shows for this model: all of its branch conditions hold. */
 export function isVisible(node: SchemaNode, model: JsonValue): boolean {
-  return node.when.every((c) => {
-    const v = getAt(model, c.path);
-    const hit = c.minLength === undefined ? c.values.some((x) => x === v)
-      : typeof v === 'string' && [...v].length >= c.minLength;
-    return c.negate ? !hit : hit;
-  });
+  return node.when.every((c) => conditionHolds(c, model));
+}
+
+/** Whether the field is required for this model: by its branch, or by another branch's `required` that holds. */
+export function isRequired(node: SchemaNode, model: JsonValue): boolean {
+  return node.required || node.requiredWhen.some((conds) => conds.every((c) => conditionHolds(c, model)));
+}
+
+/** Logins pair a user with its password: the user stays next to it, never under Advanced. */
+const LOGIN_KEY = /^(user|username|login|accessKeyId|clientId|applicationId)$/;
+
+/**
+ * Whether the form shows a field under the collapsed Advanced settings: `x-advanced` when the schema says, else every
+ * optional field that isn't a credential (a secret, the user of a login), doesn't decide which other fields show and
+ * may never be required. Display only: the config keeps the field where the schema puts it.
+ */
+export function isAdvanced(node: SchemaNode, form: CompiledForm): boolean {
+  if (node.kind === 'object') return false;
+  if (node.advanced !== null) return node.advanced;
+  if (node.readOnly) return true;
+  if (node.required || node.requiredWhen.length || node.kind === 'secret' || node.secret === 'login') return false;
+  if (LOGIN_KEY.test(node.key) && form.all.some((n) => n.kind === 'secret' && samePath(n.path.slice(0, -1), node.path.slice(0, -1)))) {
+    return false;
+  }
+  return !decides(node, form);
+}
+
+/** Whether another field shows, or is required, only for some values of this one (Sign in with, an endpoint). */
+export function decides(node: SchemaNode, form: CompiledForm): boolean {
+  return form.all.some((n) => n !== node && (n.when.some((c) => samePath(c.path, node.path))
+    || n.requiredWhen.some((conds) => conds.some((c) => samePath(c.path, node.path)))));
 }
 
 /**

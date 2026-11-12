@@ -7,6 +7,7 @@ import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.HealthResult;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.platform.EventBus;
@@ -329,6 +330,65 @@ class ConnectionsIT {
     ConnectionTester.Outcome failed = tester.discoverDatabases("pgfake", Env.DEV, TestCore.config("fail.test"),
         Map.of("/credentials/password", SecretInput.local("discovery-pass-7654321".toCharArray())), null, null);
     assertThat(failed.result().error().message()).contains("‹masked›").doesNotContain("discovery-pass-7654321");
+  }
+
+  @Test
+  void localSuggestionsTakeAnIncompleteDraftAndNeitherSaveNorReadStores() {
+    int before = core.jdbc().queryForObject("select count(*) from connection", Integer.class);
+    SecretInput password = SecretInput.local("suggest-pass-7654321".toCharArray());
+    // No host, no user: the form is still being filled in.
+    ObjectNode partial = (ObjectNode) TestCore.config("db.test");
+    ((ObjectNode) partial.get("connection")).remove("host");
+
+    Suggestions found = tester.suggest("pgfake", Env.DEV, partial, Map.of("/credentials/password", password), null,
+        null, Suggestions.Scope.LOCAL);
+
+    assertThat(found.fields().get("/connection/database").value()).isEqualTo("orders");
+    assertThat(found.notes()).containsExactly("A password was typed.");
+    assertThat(password.value()).containsOnly('\0');
+    assertThat(core.jdbc().queryForObject("select count(*) from connection", Integer.class)).isEqualTo(before);
+
+    // A reference is never read for a local suggestion.
+    Suggestions referenced = tester.suggest("pgfake", Env.DEV, partial, Map.of("/credentials/password",
+        SecretInput.reference("vault://kv/dev/db#password")), null, null, Suggestions.Scope.LOCAL);
+    assertThat(referenced.notes()).containsExactly("No password typed.");
+  }
+
+  @Test
+  void serviceSuggestionsCheckTheDraftAndLeaveOutWhatEchoesASecret() {
+    SecretInput password = SecretInput.local("suggest-pass-7654321".toCharArray());
+    Suggestions found = tester.suggest("pgfake", Env.DEV, TestCore.config("db.test"),
+        Map.of("/credentials/password", password), null, null, Suggestions.Scope.SERVICE);
+
+    assertThat(found.fields().get("/connection/schema").options()).extracting(Suggestions.Option::value)
+        .containsExactly("public", "sales");
+    assertThat(found.fields().get("/connection/schema").options().get(1).detail()).isEqualTo("owned by ‹masked›");
+    assertThat(found.fields().get("/connection/schema").complete()).isFalse();
+    assertThat(found.notes()).containsExactly("Signed in with ‹masked›.");
+    assertThat(password.value()).containsOnly('\0');
+
+    Suggestions failed = tester.suggest("pgfake", Env.DEV, TestCore.config("suggest-fail.test"),
+        Map.of("/credentials/password", SecretInput.local("suggest-pass-7654321".toCharArray())), null, null,
+        Suggestions.Scope.SERVICE);
+    assertThat(failed.fields()).isEmpty();
+    assertThat(failed.notes()).singleElement().asString().contains("‹masked›").doesNotContain("7654321");
+
+    ObjectNode incomplete = (ObjectNode) TestCore.config("db.test");
+    ((ObjectNode) incomplete.get("connection")).remove("host");
+    assertThatThrownBy(() -> tester.suggest("pgfake", Env.DEV, incomplete, Map.of(), null, null,
+        Suggestions.Scope.SERVICE)).isInstanceOf(ProblemException.class);
+  }
+
+  @Test
+  void serviceSuggestionsWithStoredCredentialsKeepTheNewHostConfirmation() {
+    core.connection("suggest-stored", "pgfake", Env.DEV, "db.test");
+    assertThatThrownBy(() -> tester.suggest("pgfake", Env.DEV, TestCore.config("another.test"), Map.of(),
+        "suggest-stored", null, Suggestions.Scope.SERVICE)).isInstanceOfSatisfying(ProblemException.class,
+            e -> assertThat(e.confirm()).isEqualTo(ConnectionService.CONFIRM_NEW_HOST));
+    // Local suggestions never use the stored secrets, so they ask nothing.
+    Suggestions local = tester.suggest("pgfake", Env.DEV, TestCore.config("another.test"), Map.of(),
+        "suggest-stored", null, Suggestions.Scope.LOCAL);
+    assertThat(local.notes()).containsExactly("No password typed.");
   }
 
   @Test

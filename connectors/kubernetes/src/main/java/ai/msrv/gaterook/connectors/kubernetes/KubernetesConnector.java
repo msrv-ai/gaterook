@@ -12,6 +12,7 @@ import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
@@ -262,6 +263,12 @@ public final class KubernetesConnector implements Connector {
     } finally {
       release(cfg, client, ctx);
     }
+  }
+
+  /** Contexts, servers and the context's namespace from the kubeconfig; the cluster's namespaces once signed in. */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return K8sSuggestions.suggest(cfg, secrets, ctx, scope, clients);
   }
 
   @Override

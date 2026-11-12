@@ -8,12 +8,14 @@ import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.SecretResolver;
 import ai.msrv.gaterook.connector.api.SecretUnavailableException;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.core.connections.internal.ConnectionTargets;
 import ai.msrv.gaterook.core.connections.internal.DraftSecrets;
 import ai.msrv.gaterook.core.connections.internal.SecretFields;
 import ai.msrv.gaterook.core.connections.internal.TestConfirmations;
 import ai.msrv.gaterook.core.connections.internal.TestResults;
+import ai.msrv.gaterook.core.connections.internal.TlsProbe;
 import ai.msrv.gaterook.core.connectors.CallContext;
 import ai.msrv.gaterook.core.connectors.CallContexts;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
@@ -82,6 +84,23 @@ public class ConnectionTester implements DisposableBean {
 
   private enum DraftOperation { TEST, DATABASES, FILES, PROJECTS }
 
+  /** How much of a draft must hold before it is used: nothing (local suggestions), discovery, or a test. */
+  private enum DraftCheck { NONE, DISCOVERY, PROJECTS, TEST }
+
+  /** One use of a prepared draft: its config, the secrets for this request and the taint that masks them. */
+  @FunctionalInterface
+  private interface DraftUse<T> {
+    T apply(ConnectorManifest manifest, ConnectionConfig cfg, DraftSecrets resolver, ScopedSecretResolver stores,
+        Taint taint, ObjectNode draft);
+  }
+
+  /**
+   * The deadline of local suggestions: they read files of this computer while the person types, and try the address of
+   * a URL typed without a scheme ({@link TlsProbe}) for at most {@link #TLS_PROBE} twice.
+   */
+  private static final Duration LOCAL_SUGGESTIONS = Duration.ofSeconds(5);
+  private static final Duration TLS_PROBE = Duration.ofMillis(1500);
+
   private final ConnectorRegistry registry;
   private final ConnectionConfigs configs;
   private final ConnectionService connections;
@@ -149,13 +168,49 @@ public class ConnectionTester implements DisposableBean {
 
   private Outcome testDraft(String type, Env env, JsonNode config, Map<String, SecretInput> typed, String existing,
       String confirm, DraftOperation operation, String path) {
+    if (operation == DraftOperation.FILES && path != null
+        && (path.length() > 4096 || !path.startsWith("/") || path.chars().anyMatch(c -> c < 32 || c == 127))) {
+      clear(typed);
+      throw ProblemException.unprocessable("Invalid folder", "Enter an absolute remote folder path.", "/path");
+    }
+    DraftCheck check = switch (operation) {
+      case TEST -> DraftCheck.TEST;
+      case PROJECTS -> DraftCheck.PROJECTS;
+      case DATABASES, FILES -> DraftCheck.DISCOVERY;
+    };
+    return withDraft(type, env, config, typed, existing, confirm, check, true,
+        (manifest, cfg, resolver, stores, taint, draft) -> {
+          TestResult result = run(manifest, cfg, resolver, stores, taint, operation, path);
+          // Trust applies to the draft: an edit saves the patched config with the rest of the form.
+          return outcome(result, type, env, null, draft);
+        });
+  }
+
+  /**
+   * {@code POST /api/connections/suggest}: what the form can offer the person for this draft ({@link Suggestions}).
+   * {@code LOCAL} needs no complete draft, reads no store and uses no stored secret: only what was typed, parsed on
+   * this computer. {@code SERVICE} checks the draft as discovery does and signs in with it, stored secrets included
+   * (after the same new-host confirmation as a test). Masked by the request's taint: an option whose value a mask
+   * would change is left out rather than offered changed.
+   */
+  public Suggestions suggest(String type, Env env, JsonNode config, Map<String, SecretInput> typed, String existing,
+      String confirm, Suggestions.Scope scope) {
+    boolean local = scope == Suggestions.Scope.LOCAL;
+    return withDraft(type, env, config, typed, existing, confirm, local ? DraftCheck.NONE : DraftCheck.DISCOVERY,
+        !local, (manifest, cfg, resolver, stores, taint, draft) -> suggestions(manifest, cfg, resolver, stores, taint,
+            scope));
+  }
+
+  /**
+   * Prepares a draft for one request: checks it as {@code check} says, resolves typed secrets (values copied here,
+   * references read through their store for this request) and, for an edit when {@code useStored}, the stored
+   * secrets of the fields left empty. Typed values are zeroed afterwards whatever happens.
+   */
+  private <T> T withDraft(String type, Env env, JsonNode config, Map<String, SecretInput> typed, String existing,
+      String confirm, DraftCheck check, boolean useStored, DraftUse<T> use) {
     Map<String, char[]> values = new HashMap<>();
     Map<String, SecretService.DraftReference> references = new HashMap<>();
     try {
-      if (operation == DraftOperation.FILES && path != null
-          && (path.length() > 4096 || !path.startsWith("/") || path.chars().anyMatch(c -> c < 32 || c == 127))) {
-        throw ProblemException.unprocessable("Invalid folder", "Enter an absolute remote folder path.", "/path");
-      }
       ConnectorManifest manifest = usable(type);
       if (config == null || !config.isObject() || SecretFields.mentionsPlaceholder(config)) {
         throw ProblemException.unprocessable("Invalid settings", "The settings must be an object without stored "
@@ -169,8 +224,8 @@ public class ConnectionTester implements DisposableBean {
           .forEach((field, input) -> {
             if (input.isLocal()) {
               values.put(field, input.value().clone());
-            } else {
-              // Read through its store for this one test (dynamic: leased and revoked when the test ends).
+            } else if (useStored) {
+              // Read through its store for this one request (dynamic: leased and revoked when it ends).
               references.put(field, new SecretService.DraftReference(input.reference(), input.dynamic(),
                   input.store()));
             }
@@ -194,25 +249,28 @@ public class ConnectionTester implements DisposableBean {
           throw ProblemException.conflict("Changed outside GateRook", existing + " was changed outside "
               + "GateRook. Review it first.");
         }
-        boolean usesStored = stored.secretIds().keySet().stream().anyMatch(f -> !values.containsKey(f)
-            && !references.containsKey(f));
-        if (usesStored && !ConnectionService.confirmed(confirm, ConnectionService.CONFIRM_NEW_HOST)) {
-          ConnectionTargets.changedTarget(stored.config().config(), draft).ifPresent(target -> {
-            throw ProblemException.needsConfirmation("Send the stored secret to a new host?",
-                "Test sends the stored credentials of " + existing + " to " + masker.url(target) + ". Confirm, or "
-                    + "enter new values.", ConnectionService.CONFIRM_NEW_HOST);
-          });
+        if (useStored) {
+          boolean usesStored = stored.secretIds().keySet().stream().anyMatch(f -> !values.containsKey(f)
+              && !references.containsKey(f));
+          if (usesStored && !ConnectionService.confirmed(confirm, ConnectionService.CONFIRM_NEW_HOST)) {
+            ConnectionTargets.changedTarget(stored.config().config(), draft).ifPresent(target -> {
+              throw ProblemException.needsConfirmation("Send the stored secret to a new host?",
+                  "Test sends the stored credentials of " + existing + " to " + masker.url(target) + ". Confirm, "
+                      + "or enter new values.", ConnectionService.CONFIRM_NEW_HOST);
+            });
+          }
+          for (String field : connections.dynamicSecretFields(stored.secretIds())) {
+            if (!present.contains(field)) dynamic.add(field);
+          }
+          present.addAll(stored.secretIds().keySet());
+          secretFields.addAll(stored.secretIds().keySet());
         }
-        for (String field : connections.dynamicSecretFields(stored.secretIds())) {
-          if (!present.contains(field)) dynamic.add(field);
-        }
-        present.addAll(stored.secretIds().keySet());
-        secretFields.addAll(stored.secretIds().keySet());
       }
-      if (operation == DraftOperation.PROJECTS) {
-        connections.validateProjectDiscovery(manifest, draft, present, dynamic, env);
-      } else {
-        connections.validate(manifest, draft, present, dynamic, env, operation != DraftOperation.TEST);
+      switch (check) {
+        case NONE -> { }
+        case PROJECTS -> connections.validateProjectDiscovery(manifest, draft, present, dynamic, env);
+        case DISCOVERY -> connections.validate(manifest, draft, present, dynamic, env, true);
+        case TEST -> connections.validate(manifest, draft, present, dynamic, env, false);
       }
       String id = stored == null ? "draft-" + Ids.uuid() : stored.id();
       ConnectionConfig cfg = new ConnectionConfig(id, stored == null ? "draft" : stored.name(), type, env,
@@ -220,23 +278,78 @@ public class ConnectionTester implements DisposableBean {
           stored == null ? null : stored.config().metadata());
       Taint taint = new Taint();
       // Typed values first; then references typed into the form; then the stored secrets of the edited connection.
-      ScopedSecretResolver fallback = stored == null && references.isEmpty() ? null
+      ScopedSecretResolver fallback = !useStored || (stored == null && references.isEmpty()) ? null
           : secrets.draftResolver(cfg, references, taint);
       try (DraftSecrets resolver = new DraftSecrets(secretFields, values, fallback, taint)) {
-        TestResult result = run(manifest, cfg, resolver, fallback, taint, operation, path);
-        // Trust applies to the draft: an edit saves the patched config with the rest of the form.
-        return outcome(result, type, env, null, draft);
+        return use.apply(manifest, cfg, resolver, fallback, taint, draft);
       }
     } finally {
       values.values().forEach(v -> java.util.Arrays.fill(v, '\0'));
-      if (typed != null) {
-        typed.values().forEach(i -> {
-          if (i != null) {
-            i.clear();
-          }
-        });
-      }
+      clear(typed);
     }
+  }
+
+  private static void clear(Map<String, SecretInput> typed) {
+    if (typed != null) {
+      typed.values().forEach(i -> {
+        if (i != null) {
+          i.clear();
+        }
+      });
+    }
+  }
+
+  /**
+   * Runs {@code suggest} under its deadline (a few seconds for local suggestions) and masks what it says. A failure
+   * of the connector is a note, never an error of the request: the form simply offers nothing new.
+   */
+  private Suggestions suggestions(ConnectorManifest manifest, ConnectionConfig cfg, SecretResolver resolver,
+      ScopedSecretResolver stores, Taint taint, Suggestions.Scope scope) {
+    Connector connector = registry.connectorFor(cfg).orElseThrow(() -> ProblemException.unprocessable(
+        "Unknown connector", "There is no connector type " + cfg.type() + ".", "/type"));
+    Duration deadline = scope == Suggestions.Scope.LOCAL && LOCAL_SUGGESTIONS.compareTo(timeout) < 0
+        ? LOCAL_SUGGESTIONS : timeout;
+    CallContext ctx = contexts.builder(Ids.next("sug_"), cfg, policies.limits(cfg.env()))
+        .timeout(deadline).taint(taint).build();
+    Future<Suggestions> future = executor.submit(() -> {
+      ConnectionConfig call;
+      try {
+        call = ConnectionTexts.fill(cfg, manifest, stores);
+      } catch (SecretUnavailableException e) {
+        // A text field read from a store can't be read now: suggest from what the form says.
+        call = cfg;
+      }
+      Suggestions own = connector.suggest(call, resolver, ctx, scope);
+      if (scope != Suggestions.Scope.LOCAL) {
+        return own;
+      }
+      // Auto for http:// or https://: an address typed without a scheme is tried once, nothing but a TLS hello sent.
+      Suggestions schemes = TlsProbe.schemes(manifest.configSchema(), call.config(),
+          (host, port) -> TlsProbe.probe(host, port, TLS_PROBE));
+      return own == null ? schemes : own.merge(schemes);
+    });
+    Suggestions result;
+    try {
+      result = future.get(deadline.toMillis(), TimeUnit.MILLISECONDS);
+    } catch (TimeoutException e) {
+      ctx.cancel();
+      future.cancel(true);
+      result = Suggestions.builder().note("No answer within " + deadline.toSeconds() + " s: nothing to suggest yet.")
+          .build();
+    } catch (ExecutionException e) {
+      if (e.getCause() instanceof ConnectorException failed) {
+        result = Suggestions.builder().note(failed.getMessage()).build();
+      } else {
+        log.warn("Suggestions of {} connector failed: {}", manifest.id(), masker.log(String.valueOf(e.getCause())));
+        result = Suggestions.none();
+      }
+    } catch (InterruptedException e) {
+      ctx.cancel();
+      future.cancel(true);
+      Thread.currentThread().interrupt();
+      result = Suggestions.none();
+    }
+    return TestResults.maskSuggestions(result == null ? Suggestions.none() : result, masker, taint);
   }
 
   // ── Stored ──────────────────────────────────────────────────────────────────────────────────────────────────

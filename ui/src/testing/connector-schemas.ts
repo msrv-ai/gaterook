@@ -399,6 +399,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           "port": true,
           "uri": true,
           "tls": {
+            "x-advanced": false,
             "type": [
               "boolean",
               "string"
@@ -660,6 +661,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "x-section": "/advanced"
           },
           "tls": {
+            "x-advanced": false,
             "type": "boolean",
             "title": "Connection type",
             "default": false,
@@ -746,18 +748,18 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "properties": {
           "keyAllowlist": {
             "type": "array",
-            "title": "Keys the agent may read",
+            "title": "Keys the agent may access",
             "items": {
               "type": "string",
               "maxLength": 256
             },
             "maxItems": 100,
             "x-stricter": "intersect",
-            "description": "Redis globs: cache:*, product:*. Empty: every key."
+            "description": "Redis globs: cache:*, product:*. Applies to reads and writes. Empty: every key."
           },
           "keyDenylist": {
             "type": "array",
-            "title": "Keys the agent never reads",
+            "title": "Keys the agent never accesses",
             "items": {
               "type": "string",
               "maxLength": 256
@@ -2347,7 +2349,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "kubeconfigPath": {
               "type": "string",
               "title": "kubeconfig file",
-              "default": "~/.kube/config"
+              "default": "~/.kube/config",
+              "x-local-path": true
             },
             "pinnedCluster": {
               "type": "object",
@@ -2397,6 +2400,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "title": "Run the credential command from kubeconfig",
               "x-confirm": "warning",
               "x-person-only": true,
+              "x-advanced": false,
               "description": "gke-gcloud-auth-plugin, aws eks get-token, kubelogin. Runs on this computer with your user rights."
             },
             "trustedExec": {
@@ -12028,7 +12032,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/advanced/keyAllowlist",
         "kind": "tags",
-        "title": "Keys the agent may read",
+        "title": "Keys the agent may access",
         "required": false,
         "secret": null,
         "mono": true,
@@ -12044,7 +12048,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/advanced/keyDenylist",
         "kind": "tags",
-        "title": "Keys the agent never reads",
+        "title": "Keys the agent never accesses",
         "required": false,
         "secret": null,
         "mono": true,
