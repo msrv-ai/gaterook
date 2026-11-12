@@ -1,11 +1,10 @@
-package ai.msrv.gaterook.connectors.bigquery;
+package ai.msrv.gaterook.connectors.cloudauth;
 
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.SecretResolver;
 import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.Suggestions.Option;
-import ai.msrv.gaterook.connectors.cloudauth.CloudLocal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -14,20 +13,21 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * The Google project a form most likely means, as this computer and the form say (local suggestions): the project of a
+ * The Google project a form most likely means (shared by the GCP, BigQuery, Spanner, Firestore and Realtime Database
+ * forms), as this computer and the form say (local suggestions): the project of a
  * pasted service account key, gcloud's project, the project of the service account to impersonate. Names only: nothing
  * goes over the network and no command runs. The only secret read is the form's service account key, parsed in memory:
  * for local suggestions the core hands over a typed key only.
  */
-final class GoogleLocal {
+public final class GoogleLocal {
 
-  static final String KEY_FIELD = "/credentials/serviceAccountKey";
-  static final String NO_SIGN_IN = "No Google sign-in on this computer. Run gcloud auth application-default login, "
+  public static final String KEY_FIELD = "/credentials/serviceAccountKey";
+  public static final String NO_SIGN_IN = "No Google sign-in on this computer. Run gcloud auth application-default login, "
       + "or use a service account key.";
-  static final String NOT_A_KEY = "The service account key isn't the JSON of a key file: paste the whole file that "
+  public static final String NOT_A_KEY = "The service account key isn't the JSON of a key file: paste the whole file that "
       + "Google downloaded.";
-  static final String KEY_SOURCE = "the service account key";
-  static final String GCLOUD_SOURCE = "your gcloud configuration";
+  public static final String KEY_SOURCE = "the service account key";
+  public static final String GCLOUD_SOURCE = "your gcloud configuration";
   private static final Pattern PROJECT = Pattern.compile("[a-z][a-z0-9-]{4,28}[a-z0-9]");
   private static final Pattern SERVICE_ACCOUNT =
       Pattern.compile("[a-z0-9-]+@([a-z][a-z0-9-]{4,28}[a-z0-9])\\.iam\\.gserviceaccount\\.com");
@@ -41,10 +41,10 @@ final class GoogleLocal {
    * @param source  where the options come from, as the hint under the field names it
    * @param options every project found, {@code value} first
    */
-  record Projects(String value, String source, List<Option> options) {
+  public record Projects(String value, String source, List<Option> options) {
 
     /** These projects and {@code more} after them, found in {@code where} (a service's own list). */
-    Projects plus(String where, List<Option> more) {
+    public Projects plus(String where, List<Option> more) {
       Map<String, Option> all = new LinkedHashMap<>();
       options.forEach(o -> all.put(o.value(), o));
       more.forEach(o -> all.putIfAbsent(o.value(), o));
@@ -53,7 +53,7 @@ final class GoogleLocal {
   }
 
   /** The projects, and a note in {@code out} when the form can't sign in on this computer yet. */
-  static Projects projects(ConnectionConfig cfg, SecretResolver secrets, CloudLocal local, Suggestions.Builder out) {
+  public static Projects projects(ConnectionConfig cfg, SecretResolver secrets, CloudLocal local, Suggestions.Builder out) {
     boolean key = "serviceAccountKey".equals(cfg.string("/credentials/source"));
     Map<String, Option> found = new LinkedHashMap<>();
     List<String> sources = new ArrayList<>();
@@ -85,7 +85,7 @@ final class GoogleLocal {
   }
 
   /** The projects for {@code pointer}, each with {@code prefix} ({@code projects/} for a resource scope). */
-  static void suggest(Suggestions.Builder out, Projects projects, String pointer, String prefix) {
+  public static void suggest(Suggestions.Builder out, Projects projects, String pointer, String prefix) {
     List<Option> options = projects.options().stream()
         .map(o -> new Option(prefix + o.value(), o.label(), o.detail())).toList();
     out.value(pointer, projects.source(), projects.value() == null ? null : prefix + projects.value(), options);
@@ -95,7 +95,7 @@ final class GoogleLocal {
    * A service suggestion that failed, as a note: what Google or the sign-in said, unless it only repeats that this
    * computer has no Google sign-in, which the local note already says.
    */
-  static void failed(Suggestions.Builder out, ConnectorException e) {
+  public static void failed(Suggestions.Builder out, ConnectorException e) {
     String message = e.getMessage();
     if (message != null && message.startsWith("No Google sign-in on this computer")
         && out.build().notes().contains(NO_SIGN_IN)) {

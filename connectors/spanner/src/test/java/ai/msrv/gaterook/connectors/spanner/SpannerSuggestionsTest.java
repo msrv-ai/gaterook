@@ -9,6 +9,7 @@ import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.Suggestions.Option;
 import ai.msrv.gaterook.connectors.cloudauth.CloudEndpoints;
 import ai.msrv.gaterook.connectors.cloudauth.CloudLocal;
+import ai.msrv.gaterook.connectors.cloudauth.GoogleLocal;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -116,6 +117,24 @@ class SpannerSuggestionsTest {
         });
     assertThat(ctx.taints).contains(FakeSpanner.USER_TOKEN);
     assertThat(google.cloud.issued()).isEmpty();
+  }
+
+  @Test
+  void withNoInstanceYetItListsTheInstancesAndThenTheDatabases() {
+    Suggestions first = spanner.suggest(draft("", ""), new TestSecrets(), TestCtx.of(), Suggestions.Scope.SERVICE);
+
+    assertThat(first.fields().get("/instance").options()).extracting(Option::value)
+        .containsExactly("orders-prod", "analytics");
+    assertThat(first.fields().get("/instance").value()).isNull();
+    assertThat(first.notes()).containsExactly("acme-prod has 2 Spanner instances: choose the one to use.");
+    assertThat(google.requests).noneMatch(r -> r.getUrl().encodedPath().contains("/databases"));
+
+    Suggestions second = spanner.suggest(draft("orders-prod", ""), new TestSecrets(), TestCtx.of(),
+        Suggestions.Scope.SERVICE);
+    assertThat(second.fields().get("/database").options()).extracting(Option::value)
+        .containsExactly("orders", "billing");
+    assertThat(second.notes()).containsExactly("orders-prod has 2 databases: choose the one agents use.");
+    assertThat(second.fields()).doesNotContainKey("/advanced/databaseRole");
   }
 
   @Test

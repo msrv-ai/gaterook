@@ -77,7 +77,6 @@
           "examples": [
             "gw-reader@acme-stage.iam.gserviceaccount.com"
           ],
-          "x-advanced": false,
           "description": "Recommended for stage and prod: calls borrow this service account's token for a few minutes. Empty: calls use the sign-in or key itself."
         },
         "delegates": {

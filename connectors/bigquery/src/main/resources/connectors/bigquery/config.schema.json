@@ -38,7 +38,6 @@
         "type": "string",
         "pattern": "^([a-z0-9.:-]{1,100}\\.)?[A-Za-z0-9_*]{1,1024}$"
       },
-      "x-advanced": false,
       "description": "The datasets agents may use: dataset or project.dataset, * matching any characters. Empty: every dataset the credentials may read."
     },
     "credentials": {
@@ -69,7 +68,6 @@
           "examples": [
             "gw-bigquery@acme-analytics.iam.gserviceaccount.com"
           ],
-          "x-advanced": false,
           "description": "Recommended for stage and prod: calls borrow this service account's token for a few minutes. Grant it roles/bigquery.dataViewer on the datasets and roles/bigquery.jobUser on the project. Empty: calls use the sign-in or key itself."
         },
         "delegates": {

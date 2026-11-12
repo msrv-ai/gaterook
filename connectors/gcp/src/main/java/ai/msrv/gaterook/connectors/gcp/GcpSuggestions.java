@@ -8,6 +8,7 @@ import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.Suggestions.Option;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
 import ai.msrv.gaterook.connectors.cloudauth.CloudLocal;
+import ai.msrv.gaterook.connectors.cloudauth.GoogleLocal;
 import ai.msrv.gaterook.connectors.support.OutputSanitizer;
 import java.net.URI;
 import java.net.http.HttpClient;

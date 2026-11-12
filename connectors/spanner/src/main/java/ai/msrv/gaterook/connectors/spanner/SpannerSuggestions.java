@@ -8,6 +8,7 @@ import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.Suggestions.Option;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
 import ai.msrv.gaterook.connectors.cloudauth.CloudLocal;
+import ai.msrv.gaterook.connectors.cloudauth.GoogleLocal;
 import ai.msrv.gaterook.connectors.support.OutputSanitizer;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,7 +47,7 @@ final class SpannerSuggestions {
       CloudCredentials cloud, Suggestions.Builder out) {
     SpannerSettings s;
     try {
-      s = SpannerSettings.of(cfg);
+      s = SpannerSettings.forSuggestions(cfg);
     } catch (ConnectorException e) {
       out.note(e.getMessage());
       return;
@@ -94,7 +95,18 @@ final class SpannerSuggestions {
     }
     boolean complete = r.tree().path("nextPageToken").asString("").isEmpty();
     if (!options.isEmpty()) {
-      out.field("/instance", new Suggestions.Field(options, null, s.project(), complete));
+      // The only instance is the one to use while none is chosen.
+      String only = s.instance() == null && complete && options.size() == 1 ? options.getFirst().value() : null;
+      out.field("/instance", new Suggestions.Field(options, only, s.project(), complete));
+    }
+    if (s.instance() == null) {
+      if (!options.isEmpty()) {
+        out.note(s.project() + " has " + options.size() + (complete ? "" : "+") + (options.size() == 1
+            ? " Spanner instance." : " Spanner instances: choose the one to use."));
+      } else if (complete) {
+        out.note(s.project() + " has no Spanner instance the credentials can see.");
+      }
+      return false;
     }
     if (complete && options.stream().noneMatch(o -> o.value().equals(s.instance()))) {
       out.note(options.isEmpty() ? s.project() + " has no Spanner instance the credentials can see."
@@ -140,7 +152,14 @@ final class SpannerSuggestions {
     }
     boolean complete = r.tree().path("nextPageToken").asString("").isEmpty();
     if (!options.isEmpty()) {
-      out.field("/database", new Suggestions.Field(options, null, s.instance(), complete));
+      String only = s.database() == null && complete && options.size() == 1 ? options.getFirst().value() : null;
+      out.field("/database", new Suggestions.Field(options, only, s.instance(), complete));
+    }
+    if (s.database() == null) {
+      out.note(options.isEmpty() ? s.instance() + " has no database the credentials can see."
+          : s.instance() + " has " + options.size() + (complete ? "" : "+")
+              + (options.size() == 1 ? " database." : " databases: choose the one agents use."));
+      return false;
     }
     boolean found = options.stream().anyMatch(o -> o.value().equals(s.database()));
     if (!found && complete) {

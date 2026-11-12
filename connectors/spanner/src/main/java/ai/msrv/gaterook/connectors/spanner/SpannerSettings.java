@@ -28,17 +28,33 @@ record SpannerSettings(String project, String instance, String database, String 
   static final Pattern NAME = Pattern.compile("[A-Za-z_][A-Za-z0-9_]{0,127}");
 
   static SpannerSettings of(ConnectionConfig cfg) throws ConnectorException {
+    return of(cfg, false);
+  }
+
+  /**
+   * The settings a suggestion signs in with: the instance and the database may still be empty ({@code null}), since
+   * the suggestion lists them.
+   */
+  static SpannerSettings forSuggestions(ConnectionConfig cfg) throws ConnectorException {
+    return of(cfg, true);
+  }
+
+  private static SpannerSettings of(ConnectionConfig cfg, boolean listing) throws ConnectorException {
     String project = cfg.string("/project");
     if (project == null || !PROJECT.matcher(project).matches()) {
       throw ConnectorException.badInput("Enter the Google Cloud project of the Spanner instance, such as acme-prod.");
     }
-    String instance = cfg.string("/instance");
-    if (instance == null || !INSTANCE.matcher(instance).matches()) {
+    String instance = blank(cfg.string("/instance"), listing);
+    if (instance == null && listing) {
+      // Listed by the suggestion.
+    } else if (instance == null || !INSTANCE.matcher(instance).matches()) {
       throw ConnectorException.badInput("Enter the Spanner instance id, such as orders-prod: lower-case letters, digits "
           + "and hyphens.");
     }
-    String database = cfg.string("/database");
-    if (database == null || !DATABASE.matcher(database).matches()) {
+    String database = blank(cfg.string("/database"), listing);
+    if (database == null && listing) {
+      // Listed by the suggestion.
+    } else if (database == null || !DATABASE.matcher(database).matches()) {
       throw ConnectorException.badInput("Enter the Spanner database id, such as orders: lower-case letters, digits, "
           + "underscores and hyphens.");
     }
@@ -58,6 +74,11 @@ record SpannerSettings(String project, String instance, String database, String 
           + e.getMessage() + ".");
     }
     return new SpannerSettings(project, instance, database, role, spec);
+  }
+
+  /** A suggestion takes an empty value as none. */
+  private static String blank(String value, boolean listing) {
+    return listing && value != null && value.isBlank() ? null : value;
   }
 
   /** {@code projects/<p>/instances/<i>/databases/<d>}: the database's resource name. */

@@ -23,6 +23,7 @@
       "description": "The Google Cloud project of the Spanner instance."
     },
     "instance": {
+      "x-suggest": true,
       "type": "string",
       "title": "Instance",
       "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
@@ -32,6 +33,7 @@
       "description": "The instance id, as gcloud spanner instances list shows it, not its display name."
     },
     "database": {
+      "x-suggest": true,
       "type": "string",
       "title": "Database",
       "pattern": "^[a-z][a-z0-9_-]{0,28}[a-z0-9]$",
@@ -68,7 +70,6 @@
           "examples": [
             "gw-spanner@acme-prod.iam.gserviceaccount.com"
           ],
-          "x-advanced": false,
           "description": "Recommended for stage and prod: calls borrow this service account's token for a few minutes. Grant it roles/spanner.databaseReader on the database. Empty: calls use the sign-in or key itself."
         },
         "delegates": {

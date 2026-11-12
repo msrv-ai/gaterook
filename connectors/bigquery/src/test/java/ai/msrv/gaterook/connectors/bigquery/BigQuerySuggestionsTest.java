@@ -10,6 +10,7 @@ import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.Suggestions.Option;
 import ai.msrv.gaterook.connectors.cloudauth.CloudEndpoints;
 import ai.msrv.gaterook.connectors.cloudauth.CloudLocal;
+import ai.msrv.gaterook.connectors.cloudauth.GoogleLocal;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
