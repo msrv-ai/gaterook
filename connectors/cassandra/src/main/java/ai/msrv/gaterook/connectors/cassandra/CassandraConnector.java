@@ -13,10 +13,12 @@ import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
+import ai.msrv.gaterook.connectors.support.LocalPorts;
 import ai.msrv.gaterook.connectors.support.OutputSanitizer;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
 import com.datastax.oss.driver.api.core.ConsistencyLevel;
@@ -34,6 +36,7 @@ import com.datastax.oss.driver.api.core.type.DataType;
 import com.datastax.oss.driver.api.core.type.codec.TypeCodec;
 import com.datastax.oss.driver.api.core.type.codec.registry.CodecRegistry;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -889,6 +892,13 @@ public final class CassandraConnector implements Connector {
   @Override
   public TestResult test(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
     return CassandraProbe.test(cfg, secrets, ctx);
+  }
+
+  /** cqlsh's settings and a local node; signed in, the data centers and keyspaces ({@link CassandraSuggestions}). */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return CassandraSuggestions.suggest(cfg, secrets, ctx, scope, LocalPorts::listening,
+        Path.of(System.getProperty("user.home"), ".cassandra", "cqlshrc"));
   }
 
   @Override

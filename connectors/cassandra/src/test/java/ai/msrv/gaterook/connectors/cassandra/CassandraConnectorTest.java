@@ -122,7 +122,9 @@ class CassandraConnectorTest {
     assertThat(config.at("/x-card/description").asString()).isNotBlank();
     assertThat(config.at("/properties/credentials/x-gateway-secret").asString()).isEqualTo("login");
     assertThat(config.at("/properties/credentials/properties/password/writeOnly").asBoolean()).isTrue();
-    assertThat(config.at("/properties/tls/default").asBoolean()).isTrue();
+    // New connections detect TLS (Auto) outside prod; prod starts with TLS.
+    assertThat(config.at("/properties/tls/default").asString()).isEqualTo("auto");
+    assertThat(config.at("/properties/tls/x-env-default/prod").asBoolean()).isTrue();
     assertThat(config.at("/properties/tlsVerify/default").asString()).isEqualTo("full");
     assertThat(config.at("/properties/advanced/properties/allowFiltering/x-forbidden-env").toString())
         .isEqualTo("[\"stage\",\"prod\"]");
@@ -132,6 +134,10 @@ class CassandraConnectorTest {
     assertThat(form.validate(config(Env.DEV, null).config())).isEmpty();
     assertThat(form.validate(JSON.readTree("{\"contactPoints\": [\"[2001:db8::1]:9042\"], \"localDataCenter\": "
         + "\"dc1\", \"tls\": false}"))).isEmpty();
+    assertThat(form.validate(JSON.readTree("{\"contactPoints\": [\"db\"], \"localDataCenter\": \"dc1\", "
+        + "\"tls\": \"auto\"}"))).isEmpty();
+    assertThat(form.validate(JSON.readTree("{\"contactPoints\": [\"db\"], \"localDataCenter\": \"dc1\", "
+        + "\"tls\": \"on\"}"))).isNotEmpty();
     assertThat(form.validate(JSON.readTree("{\"contactPoints\": [], \"localDataCenter\": \"dc1\"}"))).isNotEmpty();
     assertThat(form.validate(JSON.readTree("{\"contactPoints\": [\"a:b:c\"], \"localDataCenter\": \"dc1\"}")))
         .isNotEmpty();

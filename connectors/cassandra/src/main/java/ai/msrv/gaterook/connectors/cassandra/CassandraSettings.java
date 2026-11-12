@@ -13,16 +13,20 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import tools.jackson.databind.JsonNode;
 
 /**
  * The settings of one Cassandra connection ({@code config.schema.json}).
  *
  * @param contactPoints   the nodes the driver first connects to
- * @param localDataCenter the data center whose nodes serve every request (the driver's {@code local-datacenter})
+ * @param localDataCenter the data center whose nodes serve every request (the driver's {@code local-datacenter});
+ *                        {@code null} only in a draft of the form ({@link #draft}), whose own session infers it
  * @param keyspace        the session's keyspace, used by statements that don't name one; or {@code null}
  * @param keyspaces       globs of keyspace names agents may use; empty: every keyspace but the system ones
  * @param user            the role GateRook signs in as, or {@code null} for a cluster without sign-in
- * @param tls             TLS to every node
+ * @param tls             TLS to every node; with {@link #autoTls} the detected transport replaces it
+ *                        ({@link #withTls}) before a session opens
+ * @param autoTls         Connection type Auto: {@link AutoTls} finds the transport before a credential is sent
  * @param verifyHostname  whether a node's certificate must carry its address (or {@link #tlsServerName})
  * @param tlsServerName   the name every node's certificate must carry, or {@code null}: each node's own address
  * @param caCertificates  a private CA; empty: the platform's CAs
@@ -30,7 +34,7 @@ import java.util.regex.Pattern;
  * @param allowFiltering  {@code ALLOW FILTERING} on dev; never anywhere else
  */
 record CassandraSettings(List<ContactPoint> contactPoints, String localDataCenter, String keyspace,
-    List<String> keyspaces, String user, boolean tls, boolean verifyHostname, String tlsServerName,
+    List<String> keyspaces, String user, boolean tls, boolean autoTls, boolean verifyHostname, String tlsServerName,
     List<X509Certificate> caCertificates, String readConsistency, boolean allowFiltering,
     Duration statementTimeout, Duration connectTimeout, int connectionsPerNode) {
 
@@ -77,6 +81,18 @@ record CassandraSettings(List<ContactPoint> contactPoints, String localDataCente
   }
 
   static CassandraSettings of(ConnectionConfig cfg) throws ConnectorException {
+    return of(cfg, false);
+  }
+
+  /**
+   * A draft of the form as setup suggestions read it: Local data center may still be empty, as they find it
+   * ({@code x-suggest}). Never used for a saved connection.
+   */
+  static CassandraSettings draft(ConnectionConfig cfg) throws ConnectorException {
+    return of(cfg, true);
+  }
+
+  private static CassandraSettings of(ConnectionConfig cfg, boolean draft) throws ConnectorException {
     List<ContactPoint> points = new ArrayList<>();
     for (String text : cfg.strings("/contactPoints")) {
       points.add(contactPoint(text));
@@ -89,7 +105,9 @@ record CassandraSettings(List<ContactPoint> contactPoints, String localDataCente
           + "other nodes itself.");
     }
     String dc = cfg.string("/localDataCenter");
-    if (dc == null || dc.isBlank() || dc.length() > 128 || !printable(dc)) {
+    if (draft && (dc == null || dc.isBlank())) {
+      dc = null;
+    } else if (dc == null || dc.isBlank() || dc.length() > 128 || !printable(dc)) {
       throw ConnectorException.badInput("Enter the local data center, such as datacenter1: the driver of Cassandra 4 "
           + "and later sends requests only to its nodes.");
     }
@@ -107,7 +125,14 @@ record CassandraSettings(List<ContactPoint> contactPoints, String localDataCente
       keyspaces.add(glob);
     }
     String user = blankToNull(cfg.string(USER));
-    boolean tls = cfg.bool("/tls", true);
+    // A stored connection without the key keeps TLS, the old default; Auto is what new connections choose outside
+    // prod, and it is TLS until AutoTls finds otherwise: no session opens before it resolved the transport.
+    JsonNode tlsNode = cfg.config().path("tls");
+    boolean autoTls = tlsNode.isString() && tlsNode.asString().equals("auto");
+    if (!tlsNode.isMissingNode() && !tlsNode.isNull() && !tlsNode.isBoolean() && !autoTls) {
+      throw ConnectorException.badInput("Connection type is Auto, TLS or Without TLS.");
+    }
+    boolean tls = autoTls || !tlsNode.isBoolean() || tlsNode.asBoolean();
     String verify = cfg.string("/tlsVerify");
     boolean verifyHostname = verify == null || verify.equals("full");
     if (verify != null && !verify.equals("full") && !verify.equals("ca")) {
@@ -142,8 +167,15 @@ record CassandraSettings(List<ContactPoint> contactPoints, String localDataCente
     Duration connectTimeout = Duration.ofMillis(Math.max(500, Math.min(cfg.integer("/advanced/connectTimeoutMs",
         5_000), 30_000)));
     int perNode = Math.max(1, Math.min(cfg.integer("/advanced/connectionsPerNode", 1), 8));
-    return new CassandraSettings(List.copyOf(points), dc, keyspace, List.copyOf(keyspaces), user, tls,
+    return new CassandraSettings(List.copyOf(points), dc, keyspace, List.copyOf(keyspaces), user, tls, autoTls,
         verifyHostname, serverName, ca, consistency, allowFiltering, statementTimeout, connectTimeout, perNode);
+  }
+
+  /** The transport Auto found, without changing the saved choice. */
+  CassandraSettings withTls(boolean enabled) {
+    return new CassandraSettings(contactPoints, localDataCenter, keyspace, keyspaces, user, enabled, false,
+        verifyHostname, tlsServerName, caCertificates, readConsistency, allowFiltering, statementTimeout,
+        connectTimeout, connectionsPerNode);
   }
 
   static ContactPoint contactPoint(String text) throws ConnectorException {

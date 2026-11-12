@@ -35,10 +35,11 @@
       "title": "Local data center",
       "minLength": 1,
       "maxLength": 128,
+      "x-suggest": true,
       "examples": [
         "datacenter1"
       ],
-      "description": "The data center whose nodes serve every request, as nodetool status names it. Amazon Keyspaces: the region, such as eu-central-1."
+      "description": "The data center whose nodes serve every request, as nodetool status names it; found from the contact points once the form can sign in. Amazon Keyspaces: the region, such as eu-central-1."
     },
     "keyspace": {
       "type": "string",
@@ -82,18 +83,26 @@
       }
     },
     "tls": {
-      "type": "boolean",
+      "type": [
+        "boolean",
+        "string"
+      ],
       "title": "Connection type",
-      "default": true,
+      "default": "auto",
+      "x-env-default": {
+        "prod": true
+      },
       "enum": [
+        "auto",
         true,
         false
       ],
       "x-enumTitles": [
+        "Auto",
         "TLS",
         "Without TLS"
       ],
-      "description": "TLS to every node. Without TLS, the password and the data cross the network in clear; outside dev the test warns."
+      "description": "Auto uses TLS when the nodes speak it and connects without TLS only when they don't, checked before signing in. TLS goes to every node. Without TLS, the password and the data cross the network in clear; outside dev the test warns."
     },
     "tlsVerify": {
       "type": "string",
