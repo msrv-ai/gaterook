@@ -2,6 +2,7 @@ package ai.msrv.gaterook.connectors.http;
 
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
+import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.SecretResolver;
@@ -57,6 +58,13 @@ final class TestProbe {
       guard = HttpExecutor.guard(ctx, s);
     } catch (ConnectorException e) {
       return TestResult.failure("http.config", e.getMessage(), null);
+    }
+    // Calls refuse plain http:// without Allow plain HTTP, and always on prod: the test says so instead of passing.
+    if (probe.url().scheme().equals("http") && (!s.allowPlainHttp() || cfg.env() == Env.PROD)) {
+      return TestResult.failure("http.plain-http", cfg.env() == Env.PROD
+          ? "Prod connections never send plain http://. Use an https:// base URL."
+          : "Calls over plain http:// are refused until you turn on Allow plain HTTP under Advanced settings, for a "
+              + "private address you allow in Policies. Or use an https:// base URL.", null);
     }
     String host = probe.url().host();
     List<TestResult.Check> checks = new ArrayList<>();
