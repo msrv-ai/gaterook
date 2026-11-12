@@ -11,7 +11,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
- * The release as the gateway reads it (catalog entry {@code clickhouse} 0.6.1): the manifest passes the parser the
+ * The release as the gateway reads it (catalog entry {@code clickhouse} 0.7.0): the manifest passes the parser the
  * core and the host share, the code serves exactly its six tools (the host's "tools ⊆ manifest" check by definition
  * hash), every tool is a declared read, and the connection form is the kit's "Host, port, database, user and
  * password" with the limits behind a collapsed section.
@@ -22,7 +22,7 @@ class ManifestTest {
   void theManifestParsesAndTheCodeServesExactlyItsTools() throws Exception {
     PluginManifest manifest = PluginManifest.parse(TestCalls.manifest());
     assertThat(manifest.id()).isEqualTo("clickhouse");
-    assertThat(manifest.version()).isEqualTo("0.6.1");
+    assertThat(manifest.version()).isEqualTo("0.7.0");
     assertThat(manifest.name()).isEqualTo("ClickHouse");
     assertThat(manifest.icon()).isEqualTo("database");
     assertThat(manifest.group()).isEqualTo("Databases");

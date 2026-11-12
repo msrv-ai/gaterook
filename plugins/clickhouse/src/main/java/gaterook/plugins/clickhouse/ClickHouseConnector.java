@@ -27,7 +27,7 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * ClickHouse for agents (catalog plugin {@code clickhouse} 0.6.1, step K6): read-only analytics over the HTTP
+ * ClickHouse for agents (catalog plugin {@code clickhouse} 0.7.0, step K6): read-only analytics over the HTTP
  * interface — one query with row and time limits, databases, tables, a table's columns, a query's plan and the queries
  * running now. Nothing here writes: a statement that isn't a read is refused before it leaves the plugin
  * ({@link ReadOnlySql}), and ClickHouse runs every query with {@code readonly=1} and {@code allow_ddl=0}.

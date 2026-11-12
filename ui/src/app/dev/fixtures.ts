@@ -258,7 +258,7 @@ export const DEMO_REQUESTS: Record<'sql' | 'prod' | 'approved' | 'expired', Noti
 export const DEMO_CONNECTOR_CARDS: ConnectorCardView[] = [
   { type: 'postgres', variant: null, name: 'PostgreSQL', icon: 'database', kind: 'built-in', version: 'v1.4.0', signed: null, description: 'Queries, schema and EXPLAIN. Writes wait for approval.', tools: 4, action: 'add' },
   { type: 'template', variant: 'pg-slow-queries', name: 'PostgreSQL slow queries', icon: 'file-code', kind: 'template', version: 'v1.0.0', signed: true, description: 'pg_slow_queries and pg_locks as read-only SQL tools.', literals: ['pg_slow_queries', 'pg_locks'], tools: 2, action: 'install' },
-  { type: 'clickhouse', variant: null, name: 'ClickHouse', icon: 'database', kind: 'plugin', version: 'v0.6.1', signed: true, description: 'Analytics queries with row and time limits. Read only.', tools: 6, action: 'install' },
+  { type: 'clickhouse', variant: null, name: 'ClickHouse', icon: 'database', kind: 'plugin', version: 'v0.7.0', signed: true, description: 'Analytics queries with row and time limits. Read only.', tools: 6, action: 'install' },
   {
     type: 'rabbitmq',
     variant: null,

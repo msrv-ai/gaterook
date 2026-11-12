@@ -21,7 +21,7 @@
     {
       "kind": "plugin",
       "id": "clickhouse",
-      "version": "0.6.1",
+      "version": "0.7.0",
       "name": "ClickHouse",
       "description": "Analytics queries with row and time limits. Read only.",
       "icon": "database",
@@ -30,7 +30,7 @@
       "requires": {"gateway": ">=0.4.0 & <1.0.0", "connectorApi": ">=1.1.0 & <2.0.0"},
       "tools": 6,
       "access": {"hosts": ["{connection.host}:8443", "{connection.host}:8123"], "commands": []},
-      "artifact": {"url": "gw-clickhouse-0.6.1.jar", "sha256": null, "size": null}
+      "artifact": {"url": "gw-clickhouse-0.7.0.jar", "sha256": null, "size": null}
     },
     {
       "kind": "plugin",
