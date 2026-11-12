@@ -1151,6 +1151,21 @@ describe('Add connection: wizard', () => {
     expect(start).toEqual({ connection: { sslMode: 'verify-full' } });
   });
 
+  it('names a plugin’s tools in its review, the last one right before the comma', async () => {
+    const check = clickhouseCheck(true);
+    core.nextPluginCheck = { ...check, report: { ...check.report, tools: [
+      { name: 'ch_query', declared: { readOnlyHint: true } }, { name: 'ch_execute', declared: { readOnlyHint: false } }] } };
+    const p = await open();
+    p.q<HTMLInputElement>('#step-1 input[value="clickhouse"]')!.click();
+    await p.settle();
+    p.button('Continue').click();
+    await p.settle();
+    const review = document.querySelector<HTMLDialogElement>('dialog.gw-dialog[open]')!;
+    const tools = Array.from(review.querySelectorAll('.gw-kv__row')).find((r) => text(r.querySelector('dt')) === 'Tools')!;
+    expect(tools.querySelector('dd')!.textContent!.replace(/\s+/g, ' ').trim()).toBe('ch_query ch_execute, Off until you '
+      + 'add them to an endpoint. There each starts as Approval: the plugin declares its own annotations.');
+  });
+
   it('a catalog plugin that isn’t installed is reviewed and installed on Continue, then Configure opens on it', async () => {
     const p = await open();
     p.q<HTMLInputElement>('#step-1 input[value="clickhouse"]')!.click();
