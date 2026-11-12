@@ -28,11 +28,21 @@ export interface ConnectorCard {
   readonly catalogRef?: string | null;
   /** Set by the wizard, not the core: a compatible service's card names its base connector ("PostgreSQL"). */
   readonly compatibleWith?: string | null;
+  /** Set by the wizard for an MCP server card: its mark, a path of the app's public files (`mcp-logos/linear.png`). */
+  readonly markSrc?: string | null;
+  /** Set by the wizard for an MCP server card: the line under its description ("MCP server · HTTP · v1.2.0"). */
+  readonly metaText?: string | null;
+  /** Set by the wizard for an MCP server card: GateRook's verified profile, an official registry entry, a deprecated one. */
+  readonly badge?: 'verified' | 'official' | 'deprecated' | null;
+  /** Set by the wizard for an MCP server card: what the search matches besides its name, in place of its type and variant. */
+  readonly searchWords?: string | null;
 }
 
 export interface ConnectorGroup {
   readonly name: string;
   readonly cards: ConnectorCard[];
+  /** Set by the wizard: a sentence under the category's title (the MCP section's groups). */
+  readonly description?: string | null;
 }
 
 export interface ConnectorProcess {

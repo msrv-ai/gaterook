@@ -1,19 +1,18 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { afterNextRender, ChangeDetectionStrategy, Component, ElementRef, inject, Injector, output, signal, viewChild } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, DestroyRef, ElementRef, inject, Injector, output, signal, viewChild } from '@angular/core';
 import { SecretInputs } from '../../../core/api/connections.api';
 import { McpFixedHeader, McpProfile, McpServerAuthReview, McpServerConfig, McpServerReview, McpServerSource, McpSignIn } from '../../../core/api/plugins.api';
 import { Env } from '../../../core/api/types';
 import { GwCopy } from '../../../kit/copy';
-import { GwDialog, GwDialogClose } from '../../../kit/dialog';
 import { GwIcon } from '../../../kit/icons';
-import { formatArgv, npmPackage, onThisComputer, serverPaths, signInHost } from '../connectors-view';
-import { ConnectorsData } from '../connectors.data';
-import { cloudSecret, cloudSignInText } from '../mcp-cloud';
-import { profileStarts } from '../mcp-profiles';
-import { failureText } from './failure';
-import { McpReviewed } from './mcp-add.dialog';
-import { McpServerConnected } from './mcp-endpoint.dialog';
-import { GwMcpSignIn } from './mcp-sign-in';
+import { formatArgv, npmPackage, onThisComputer, serverPaths, signInHost } from '../../connectors/connectors-view';
+import { ConnectorsData } from '../../connectors/connectors.data';
+import { failureText } from '../../connectors/dialogs/failure';
+import { GwMcpSignIn } from '../../connectors/dialogs/mcp-sign-in';
+import { cloudSecret, cloudSignInText } from '../../connectors/mcp-cloud';
+import { profileStarts } from '../../connectors/mcp-profiles';
+import { McpReviewed } from './mcp-configure';
+import { McpServerConnected } from './mcp-endpoints';
 
 /** The secret field of an OAuth app's client secret. */
 export const CLIENT_SECRET = '/auth/clientSecret';
@@ -204,12 +203,12 @@ export function mcpSecretValues(
 let nextId = 0;
 
 /**
- * `<dialog gwMcpReviewDialog>` (kit `dlg-review-mcp`): the review before an MCP server first starts — what runs, which
- * version, as whom, with which secrets — in `gw-dialog--danger` (untrusted code next to secrets). "Start MCP server
- * sentry-mcp" stays `aria-disabled` until "I trust this code with these secrets on this computer" (for a server at a URL:
- * "I trust this server with the calls of my AI apps") is checked; focus
- * starts on Cancel. Starting it (`POST /api/mcp-servers {…, secrets, acknowledge: true}`) lists its tools, Off
- * everywhere.
+ * `<form gwMcpReview>` (kit `connection-new`, step 3 of an MCP server): the review before an MCP server first starts —
+ * what runs, which version, as whom, with which secrets — under an alert that names the risk (danger for code on this
+ * computer, warning for a server at a URL). "Start MCP server sentry-mcp" stays `aria-disabled` until "I trust this code
+ * with these secrets on this computer" (for a server at a URL: "I trust this server with the calls of my AI apps") is
+ * checked. Starting it (`POST /api/mcp-servers {…, secrets, acknowledge: true}`) saves the server and lists its tools,
+ * Off everywhere; the wizard then moves on to Add to endpoint.
  *
  * A server that answers only with an OAuth sign-in has neither the checkbox nor Connect: the review ends in a centred
  * call to sign in whose large button is the primary action, and the finished sign-in — the person allowed this server
@@ -220,41 +219,27 @@ let nextId = 0;
  * The values of its variables (or headers) are typed here, for a typed server and a catalog one alike: the core keeps
  * each as a new secret of the server (it takes no existing secret by name). They are write-only: never in a signal
  * (only whether a field is empty is), read from the fields once when the server starts, sent with that one request and
- * wiped from the fields when the dialog closes or shows another review.
+ * wiped from the fields when the person goes back, leaves the page or the review shows another server.
  */
 @Component({
-  selector: 'dialog[gwMcpReviewDialog]',
-  imports: [NgTemplateOutlet, GwIcon, GwDialogClose, GwCopy, GwMcpSignIn],
-  hostDirectives: [{ directive: GwDialog, inputs: ['gwDialogStatic'], outputs: ['closed'] }],
+  selector: 'form[gwMcpReview]',
+  imports: [NgTemplateOutlet, GwIcon, GwCopy, GwMcpSignIn],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: {
-    class: 'gw-dialog gw-dialog--md gw-dialog--danger',
-    '[attr.aria-labelledby]': 'view() ? uid + "-t" : null',
-    '[attr.aria-describedby]': 'view() ? uid + "-d" : null',
-    '(close)': 'closed()',
-  },
+  host: { class: 'gw-form gw-form--sticky-actions', novalidate: '', '(submit)': 'start($event)' },
   template: `
     @if (view(); as w) {
-      <form method="dialog" novalidate (submit)="start($event)">
-        <header class="gw-dialog__header">
-          <span class="gw-icon-tile"><svg lucideIcon="shield-alert" class="gw-icon"></svg></span>
-          <h2 class="gw-dialog__title" [id]="uid + '-t'">{{ w.verb }} MCP server <span class="gw-mono">{{ w.name }}</span>?</h2>
-          <p class="gw-dialog__description" [id]="uid + '-d'">{{ w.risk }}</p>
-          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+      <div class="gw-alert" [class]="w.http ? 'gw-alert--warning' : 'gw-alert--danger'" [id]="uid + '-risk'">
+        <svg [lucideIcon]="w.http ? 'globe' : 'shield-alert'" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content"><p class="gw-alert__title" [id]="uid + '-t'">{{ w.verb }} MCP server <span class="gw-mono">{{ w.name }}</span>?</p><p class="gw-alert__body" [id]="uid + '-d'">{{ w.risk }}</p></div>
+      </div>
+      <section class="gw-card" [attr.aria-labelledby]="uid + '-facts-t'">
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" [id]="uid + '-facts-t'">What {{ w.http ? 'connects' : 'runs' }}</h3>
+            <p class="gw-card__description">As the core resolved it from your settings.</p>
+          </div>
         </header>
-        <div class="gw-dialog__body">
-          <div class="gw-stack">
-            @if (catalogSource()) {
-              <fieldset class="gw-field" [disabled]="busy() || switching()" [attr.aria-describedby]="uid + '-environment-hint'">
-                <legend class="gw-field__label">Environment</legend>
-                <div class="gw-segmented">
-                  @for (env of environments; track env) {
-                    <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-environment'" [value]="env" [checked]="environment() === env" (change)="changeEnvironment(env)"><span class="gw-segmented__label">{{ env.toUpperCase() }}</span></label>
-                  }
-                </div>
-                <p class="gw-field__hint" [id]="uid + '-environment-hint'">Choose the environment this server can access. Production servers require production endpoints.</p>
-              </fieldset>
-            }
+        <div class="gw-card__body">
             <dl class="gw-kv gw-kv--dense">
               <div class="gw-kv__row"><dt class="gw-kv__key">Environment</dt><dd class="gw-kv__value"><span [class]="'gw-env gw-env--sm gw-env--' + environment()">{{ environment() }}</span></dd></div>
               <div class="gw-kv__row"><dt class="gw-kv__key">{{ w.targetKey }}</dt><dd class="gw-kv__value"><code class="gw-code">{{ w.target }}</code></dd></div>
@@ -327,6 +312,8 @@ let nextId = 0;
                 </dd></div>
               }
             </dl>
+        </div>
+      </section>
             @for (warning of w.warnings; track $index) {
               <div class="gw-alert gw-alert--warning gw-alert--compact">
                 <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
@@ -425,21 +412,16 @@ let nextId = 0;
                 <ng-container [ngTemplateOutlet]="failure" />
               }
             }
-          </div>
-        </div>
-        <footer class="gw-dialog__footer">
-          @if (canGoBack()) {
-            <button class="gw-btn" type="button" (click)="goBack()" [attr.aria-disabled]="busy() || switching() ? 'true' : null" [attr.aria-describedby]="busy() || switching() ? uid + '-back-wait' : null"><svg lucideIcon="arrow-left" class="gw-icon"></svg>Back</button>
-            @if (busy() || switching()) {<span class="gw-sr-only" [id]="uid + '-back-wait'">Wait for the current request to finish before going back.</span>}
-          }
-          <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
-          <!-- With a required sign-in, Connect shows only when a finished sign-in couldn't connect on its own (a value
-               emptied while the browser was open). -->
-          @if (w.signIn !== 'required' || (signedIn() && !busy())) {
-            <button class="gw-btn" [class.gw-btn--danger]="w.signIn !== 'required'" [class.gw-btn--primary]="w.signIn === 'required'" type="submit" [attr.aria-disabled]="!confirmed() || busy() || switching() ? 'true' : null" [attr.aria-describedby]="w.signIn === 'required' ? null : uid + '-ack-label'" [attr.aria-busy]="busy() || switching() ? 'true' : null">@if (busy() || switching()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}{{ w.verb }} MCP server {{ w.name }}</button>
-          }
-        </footer>
-      </form>
+      <div class="gw-form__actions">
+        <p class="gw-form__note"><svg lucideIcon="info" class="gw-icon"></svg>{{ w.http ? 'Connecting' : 'Starting' }} saves {{ w.name }}; its tools stay Off</p>
+        <button class="gw-btn gw-btn--ghost" type="button" (click)="goBack()" [attr.aria-disabled]="busy() || switching() ? 'true' : null" [attr.aria-describedby]="busy() || switching() ? uid + '-back-wait' : null"><svg lucideIcon="arrow-left" class="gw-icon"></svg> Back</button>
+        @if (busy() || switching()) {<span class="gw-sr-only" [id]="uid + '-back-wait'">Wait for the current request to finish before going back.</span>}
+        <!-- With a required sign-in, Connect shows only when a finished sign-in couldn't connect on its own (a value
+             emptied while the browser was open). -->
+        @if (w.signIn !== 'required' || (signedIn() && !busy())) {
+          <button class="gw-btn" [class.gw-btn--danger]="w.signIn !== 'required'" [class.gw-btn--primary]="w.signIn === 'required'" type="submit" [attr.aria-disabled]="!confirmed() || busy() || switching() ? 'true' : null" [attr.aria-describedby]="w.signIn === 'required' ? null : uid + '-ack-label'" [attr.aria-busy]="busy() || switching() ? 'true' : null">@if (busy() || switching()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}{{ w.verb }} MCP server {{ w.name }}</button>
+        }
+      </div>
       <ng-template #failure>
         <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert" [id]="uid + '-error'">
           <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
@@ -449,23 +431,19 @@ let nextId = 0;
     }
   `,
 })
-export class GwMcpReviewDialog {
+export class GwMcpReview {
   private readonly data = inject(ConnectorsData);
-  private readonly dialog = inject(GwDialog);
-  private readonly host: HTMLDialogElement = inject(ElementRef<HTMLDialogElement>).nativeElement;
+  private readonly host: HTMLElement = inject(ElementRef<HTMLElement>).nativeElement;
   private readonly injector = inject(Injector);
 
-  /** The server connected (or started): the page offers the endpoint step next. */
+  /** The server connected (or started): the wizard moves on to Add to endpoint. */
   readonly connected = output<McpServerConnected>();
-  /** Return to the setup form, carrying the original focus-return target through the dialog chain. */
-  readonly back = output<HTMLElement | null>();
+  /** Back to Configure, with what was typed there. */
+  readonly back = output<void>();
 
   protected readonly uid = `mr-${++nextId}`;
   protected readonly onThisComputer = onThisComputer;
-  protected readonly canGoBack = signal(false);
-  protected readonly environments: readonly Env[] = ['dev', 'stage', 'prod'];
   protected readonly environment = signal<Env>('dev');
-  protected readonly catalogSource = signal(false);
   private readonly source = signal<McpServerSource | null>(null);
   protected readonly view = signal<McpReviewView | null>(null);
   /** How many of a verified profile's tools the review lists before Show more, and whether the person asked for all. */
@@ -491,31 +469,6 @@ export class GwMcpReviewDialog {
   protected readonly signedIn = signal<McpSignIn | null>(null);
   private signedInConfig: McpServerConfig | null = null;
   private readonly signInBlock = viewChild(GwMcpSignIn);
-
-  /** Catalog entries skip the setup form, so changing their environment refreshes the review here. */
-  protected async changeEnvironment(env: Env): Promise<void> {
-    let r = this.reviewed;
-    if (!r || this.busy() || this.switching() || env === this.environment()) return;
-    const previous = this.environment();
-    this.environment.set(env);
-    this.switching.set(true);
-    this.error.set(null);
-    try {
-      const source = { ...r.source, env };
-      const review = await this.data.reviewServer(source);
-      if (this.reviewed === r && this.host.open) {
-        r = { ...r, source, review };
-        this.render(r);
-      }
-    } catch (err) {
-      if (this.reviewed === r && this.host.open) {
-        this.environment.set(previous);
-        this.error.set(failureText(err, 'The server could not be reviewed for this environment.'));
-      }
-    } finally {
-      if (this.reviewed === r) this.switching.set(false);
-    }
-  }
 
   /**
    * Why Sign in can't start: a server that needs an OAuth app has no client ID yet, or no secret where it needs one; or
@@ -597,7 +550,7 @@ export class GwMcpReviewDialog {
     try {
       const source = { ...r.source, config };
       const review = await this.data.reviewServer(source);
-      if (this.reviewed !== r || !this.host.open) return;
+      if (this.reviewed !== r) return;
       this.render({ ...r, review, source, variables: config.headers ?? [], bearer: true });
       setTimeout(() => this.host.querySelector<HTMLElement>(`input[id^="${this.uid}-value-"]`)?.focus());
     } catch (err) {
@@ -640,20 +593,22 @@ export class GwMcpReviewDialog {
     }
   }
 
-  show(reviewed: McpReviewed, canGoBack = false): void {
-    this.canGoBack.set(canGoBack);
+  constructor() {
+    // Leaving the page: typed values go, and a sign-in still waiting is cancelled at the core.
+    inject(DestroyRef).onDestroy(() => this.reset());
+  }
+
+  /** Shows the core's review of what Configure asked for, unacknowledged and with empty values. */
+  load(reviewed: McpReviewed): void {
     this.switching.set(false);
     this.allProfileTools.set(false);
     this.render(reviewed);
-    this.dialog.openAfterRender(reviewed.opener);
   }
 
   protected goBack(): void {
-    if (!this.canGoBack() || this.busy() || this.switching()) return;
-    const opener = this.dialog.returnTo;
-    this.dialog.returnTo = null;
-    this.dialog.close('back');
-    this.back.emit(opener);
+    if (this.busy() || this.switching()) return;
+    this.reset();
+    this.back.emit();
   }
 
   /** Every review starts unacknowledged and with empty values (the fields are reused from the last one). */
@@ -668,7 +623,6 @@ export class GwMcpReviewDialog {
     this.reviewed = reviewed;
     this.source.set(reviewed.source);
     this.environment.set(reviewed.source.env ?? 'dev');
-    this.catalogSource.set('catalog' in reviewed.source);
     this.view.set(mcpReviewView(reviewed));
     this.busy.set(false);
     this.error.set(null);
@@ -680,8 +634,8 @@ export class GwMcpReviewDialog {
     if (this.missing().includes(i)) this.missing.update((m) => m.filter((x) => x !== i));
   }
 
-  /** Closing the review: typed values leave the page, and a sign-in still waiting is cancelled at the core. */
-  protected closed(): void {
+  /** Leaving the review: typed values leave the page, and a sign-in still waiting is cancelled at the core. */
+  reset(): void {
     this.wipe();
     this.signInBlock()?.reset();
   }
@@ -738,17 +692,13 @@ export class GwMcpReviewDialog {
       const started = await this.data.addServer(request);
       this.wipe();
       this.signedIn.set(null);
-      // Focus goes back to the opener only after the endpoint step.
-      const opener = this.dialog.returnTo;
-      this.dialog.returnTo = null;
-      this.dialog.close('started');
       this.connected.emit({
         name: started?.name || w.name,
         env: source.env ?? 'dev',
         http: w.http,
         tools: typeof started?.tools === 'number' ? started.tools : null,
         signedIn: signIn ? { host: signInHost(signIn.authorizationHost || w.auth?.authorizationHost) } : null,
-        opener,
+        opener: null,
       });
     } catch (err) {
       // The values stay in their fields for another try; closing the dialog wipes them.

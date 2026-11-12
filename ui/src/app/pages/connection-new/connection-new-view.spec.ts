@@ -545,7 +545,7 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
 
   it('names step 4 Create endpoint, and once done says the endpoint after the environment', () => {
     const facts = { typeName: 'PostgreSQL', name: 'dev-db', env: 'stage' as const, test: null, endpoints: [] };
-    expect(stepperSteps(1, facts, true).map((s) => s.name)).toEqual(['Choose type', 'Configure', 'Test', 'Create endpoint']);
+    expect(stepperSteps(1, facts, true).map((s) => s.name)).toEqual(['Choose', 'Configure', 'Test', 'Create endpoint']);
     // After Save every step is complete (5): the card takes the wizard's place.
     const done = stepperSteps(5, facts, true);
     expect(done.map((s) => s.state)).toEqual(['complete', 'complete', 'complete', 'complete']);

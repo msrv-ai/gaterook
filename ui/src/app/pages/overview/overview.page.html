@@ -13,7 +13,7 @@
       <button
         class="gw-btn gw-btn--primary"
         type="button"
-        (click)="picker($event)"
+        (click)="addService()"
         [attr.aria-disabled]="loading() || data.error() ? 'true' : null"
       >
         <svg lucideIcon="plus" class="gw-icon"></svg>Add service
@@ -166,7 +166,7 @@
               </p>
             </div>
             <div class="gw-toolbar__end">
-              <button class="gw-btn gw-btn--sm" type="button" (click)="picker($event)">
+              <button class="gw-btn gw-btn--sm" type="button" (click)="addService()">
                 <svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg>Add service
               </button>
             </div>
@@ -799,6 +799,5 @@
     <button class="gw-btn gw-btn--primary" type="button" gwDialogClose autofocus>Got it</button>
   </footer>
 </dialog>
-<gw-overview-setup (added)="added($event)" (mcpRequested)="openMcp($event.opener, $event.source)" />
-<gw-mcp-setup-flow (changed)="data.refresh()" />
+<gw-overview-setup (added)="added($event)" />
 <gw-endpoint-create [connections]="data.connections()" (created)="onEndpointCreated($event)" />

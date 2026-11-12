@@ -1,31 +1,30 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output, signal, viewChild } from '@angular/core';
-import { RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
 import { ConnectionRow } from '../../core/api/connections.api';
 import { ConnectionPreview, EndpointSummary, EndpointsApi } from '../../core/api/endpoints.api';
-import { GwDialog, GwDialogClose } from '../../kit/dialog';
+import { GwDialog } from '../../kit/dialog';
 import { GwIcon } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
 
 let nextId = 0;
 
-/** Overview's service chooser and exact-endpoint review. Only the core decides eligible tools and modes. */
+/**
+ * Overview's exact-endpoint review of an existing service (Connect on its card). Add service opens Add connection
+ * instead, where every kind of service is chosen. Only the core decides eligible tools and modes.
+ */
 @Component({
   selector: 'gw-overview-setup',
-  imports: [RouterLink, GwDialog, GwDialogClose, GwIcon],
+  imports: [GwDialog, GwIcon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './overview-setup.html',
 })
 export class GwOverviewSetup {
   private readonly api = inject(EndpointsApi);
   private readonly toasts = inject(ToastService);
-  private readonly picker = viewChild.required<GwDialog>('picker');
   private readonly review = viewChild.required<GwDialog>('review');
   readonly added = output<string>();
-  readonly mcpRequested = output<{ readonly source: 'url'; readonly opener: HTMLElement | null }>();
   protected readonly uid = `overview-setup-${++nextId}`;
   protected readonly endpoint = signal<EndpointSummary | null>(null);
-  protected readonly unconnectedCount = signal(0);
   protected readonly connection = signal<ConnectionRow | null>(null);
   protected readonly preview = signal<ConnectionPreview | null>(null);
   protected readonly pending = signal(false);
@@ -43,21 +42,6 @@ export class GwOverviewSetup {
     ].map((item) => ({ ...item, count: tools.filter((tool) => tool.mode === item.mode).length })).filter((item) => item.count > 0);
   });
   private generation = 0;
-
-  showPicker(endpoint: EndpointSummary | null, connections: readonly ConnectionRow[], opener: HTMLElement | null): void {
-    ++this.generation;
-    this.endpoint.set(endpoint);
-    this.unconnectedCount.set(endpoint ? connections.filter((row) => !row.usedBy.includes(endpoint.slug)).length : 0);
-    this.picker().openAfterRender(opener);
-  }
-
-  protected openMcpUrl(): void {
-    const picker = this.picker();
-    const opener = picker.returnTo;
-    picker.returnTo = null;
-    picker.close('next');
-    this.mcpRequested.emit({ source: 'url', opener });
-  }
 
   showConnection(connection: ConnectionRow, endpoint: EndpointSummary, opener: HTMLElement | null): void {
     const generation = ++this.generation;

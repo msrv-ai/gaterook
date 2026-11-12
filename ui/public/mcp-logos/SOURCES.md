@@ -17,6 +17,7 @@ The local copies avoid third-party image requests when opening the page.
 | `chrome-devtools.png` | [chrome-devtools](https://github.com/ChromeDevTools.png?size=96) |
 | `cloudflare.jpg` | [cloudflare](https://github.com/cloudflare.png?size=96) |
 | `context7.png` | [context7](https://raw.githubusercontent.com/upstash/context7/master/public/icon.png) |
+| `digitalocean-on-light.svg` | `digitalocean.svg` without its dark-mode style, for the light mark tile of an Add connection card |
 | `exa.png` | [exa](https://github.com/exa-labs.png?size=96) |
 | `digitalocean.svg` | [DigitalOcean](https://www.digitalocean.com/_do-www-marketing/01f28db2/_next/static/media/favicon.91372345.svg), the site icon of [DigitalOcean's press page](https://www.digitalocean.com/press); its own style turns it light in dark themes |
 | `figma.png` | [figma](https://github.com/figma.png?size=96) |
