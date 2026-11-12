@@ -239,6 +239,25 @@ describe('setup helpers: AWS', () => {
   });
 });
 
+describe('setup helpers: SSH', () => {
+  it('switches to the private key file this computer has, unless a Vault store is connected', async () => {
+    const answer: Suggested = { fields: { '/credentials/method': { value: 'privateKeyFile', source: '~/.ssh',
+      complete: true, options: [] } }, notes: [] };
+    const plain = await render('ssh');
+    await plain.answer((await plain.asked('local'))!, answer);
+    expect(plain.host.form().value().config['credentials']).toMatchObject({ method: 'privateKeyFile' });
+    document.body.innerHTML = '';
+
+    const withVault = await render('ssh');
+    withVault.host.spec.set({ ...spec('ssh'), secretSources: [
+      { id: 'local', label: 'Encrypted here', available: true, reason: null },
+      { id: 'vault', label: 'HashiCorp Vault', available: true, reason: null, store: 'vault-dev' }] });
+    await withVault.settle();
+    await withVault.answer((await withVault.asked('local'))!, answer);
+    expect(withVault.host.form().value().config['credentials']).toMatchObject({ method: 'vaultSshCa' });
+  });
+});
+
 describe('setup helpers: a saved connection', () => {
   it('signs in for suggestions only once the person changed something', async () => {
     const v = await render('kubernetes', { auth: 'kubeconfig-file', kubeconfigPath: '~/.kube/config', context: 'kind-dev',

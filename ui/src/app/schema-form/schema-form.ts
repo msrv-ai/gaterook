@@ -780,6 +780,9 @@ export class SchemaForm {
       if (!s?.value || node.kind === 'object' || node.kind === 'secret' || node.readOnly || !isVisible(node, model)) continue;
       const value = this.typedSuggestion(node, s.value);
       if (value === null) continue;
+      // `x-keep-default-with-store`: the default stays while a store of that kind is connected (SSH's Vault SSH CA).
+      const keep = node.schema['x-keep-default-with-store'];
+      if (typeof keep === 'string' && this.stores().some((store) => store.kind === keep && store.available)) continue;
       const now = getAt(model, node.path);
       // A typed address the helpers found the scheme of (Auto http:// or https://) is completed once its field is left.
       const completes = this.completesScheme(node, now, value) && this.doc.activeElement?.id !== this.id(node);

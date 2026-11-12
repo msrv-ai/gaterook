@@ -842,7 +842,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           "host": {
             "type": "string",
             "title": "Host",
-            "maxLength": 253
+            "maxLength": 253,
+            "description": "The server's host name or IP address, not a ~/.ssh/config alias."
           },
           "port": {
             "type": "integer",
@@ -891,6 +892,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "title": "Credentials",
         "properties": {
           "method": {
+            "x-keep-default-with-store": "vault",
             "title": "Authentication",
             "enum": [
               "vaultSshCa",
@@ -1186,7 +1188,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "properties": {
                 "passphrase": {
                   "type": "string",
-                  "title": "Key passphrase (optional)",
+                  "title": "Key passphrase",
                   "writeOnly": true,
                   "x-gateway-secret": "value",
                   "format": "password"
@@ -17495,7 +17497,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
     "rows": {
       "/connection": [
         [
-          "/connection/host",
+          "/connection/host"
+        ],
+        [
           "/connection/port"
         ],
         [
@@ -17957,7 +17961,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/passphrase",
         "kind": "secret",
-        "title": "Key passphrase (optional)",
+        "title": "Key passphrase",
         "required": false,
         "secret": "value",
         "mono": false,
@@ -18278,7 +18282,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/jump/credentials/passphrase",
         "kind": "secret",
-        "title": "Key passphrase (optional)",
+        "title": "Key passphrase",
         "required": false,
         "secret": "value",
         "mono": false,

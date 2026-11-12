@@ -73,6 +73,7 @@
       "title": "Credentials",
       "properties": {
         "method": {
+          "x-keep-default-with-store": "vault",
           "title": "Authentication",
           "enum": [
             "vaultSshCa",
