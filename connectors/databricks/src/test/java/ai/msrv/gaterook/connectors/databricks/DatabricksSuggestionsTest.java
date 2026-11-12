@@ -188,6 +188,20 @@ class DatabricksSuggestionsTest {
   }
 
   @Test
+  void aWarehouseIdTypedHalfwayStillGetsTheWarehousesListed() throws Exception {
+    // x-suggest: the core relaxes the required SQL warehouse ID for a suggestion, its pattern included.
+    workspace("{\"warehouses\": [{\"id\": \"1a2b3c4d5e6f7a8b\", \"name\": \"Starter\", \"state\": \"RUNNING\"}]}");
+
+    Suggestions s = databricks.suggest(draft("{\"host\": \"" + dbx.host() + "\", \"warehouseId\": \"1a2b/\", "
+        + "\"auth\": {\"method\": \"token\"}}"), secrets, TestCtx.of(), Suggestions.Scope.SERVICE);
+
+    assertThat(s.fields().get("/warehouseId").value()).isEqualTo("1a2b3c4d5e6f7a8b");
+    assertThat(s.notes()).noneMatch(n -> n.contains("may not use the SQL warehouse"));
+    assertThat(JSON.readTree(getClass().getResourceAsStream("/connectors/databricks/config.schema.json"))
+        .at("/properties/warehouseId/x-suggest").asBoolean()).isTrue();
+  }
+
+  @Test
   void aRefusedSignInIsANote() throws Exception {
     dbx.on("GET /api/2.0/preview/scim/v2/Me", r -> FakeDatabricks.json(401, "{\"error_code\": \"UNAUTHENTICATED\", "
         + "\"message\": \"Invalid access token.\"}"));

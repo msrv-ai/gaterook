@@ -29,6 +29,7 @@
       "examples": [
         "1a2b3c4d5e6f7a8b"
       ],
+      "x-suggest": true,
       "description": "From the warehouse's Connection details: the ID that ends its HTTP path, /sql/1.0/warehouses/<ID>."
     },
     "catalog": {
