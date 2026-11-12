@@ -631,6 +631,7 @@ public class ConnectionTester implements DisposableBean {
   }
 
   private ConnectorManifest usable(String type) {
+    registry.awaitInstalled(type);
     var t = registry.type(type == null ? "" : type).orElseThrow(() -> ProblemException.unprocessable(
         "Unknown connector", "There is no connector type " + type + ".", "/type"));
     if (!t.usable()) {

@@ -150,7 +150,7 @@ public class PluginService {
     // What the last good catalog revoked is off before a host could start (a revocation that came with a refresh
     // before a crash, or with an index accepted while the plugin's row was being changed).
     applyRevocations();
-    for (PluginEntity row : store.verifiedAll()) {
+    for (PluginEntity row : plugins()) {
       // A disabled or revoked plugin is registered too, its host refused to start: its type stays in Connectors,
       // switched off, instead of vanishing with its connections still pointing at it.
       registerLive(row);
@@ -196,6 +196,11 @@ public class PluginService {
     // Before anything touches plugins/<id>/: placing the JAR would replace the running generation's file or the one
     // kept for Roll back, and a failed probe would delete that folder.
     installer.staged(stagingId).ifPresent(s -> {
+      if (s.manifest().module()) {
+        installer.discard(stagingId);
+        throw ProblemException.unprocessable("Not a plugin", "Connector modules aren't installed as plugins.",
+            "/stagingId");
+      }
       if (repository.existsById(s.manifest().id())) {
         installer.discard(stagingId);
         throw ProblemException.conflict("Already installed", s.manifest().name() + " is already installed; update it "
@@ -402,11 +407,16 @@ public class PluginService {
   // ── Reads ───────────────────────────────────────────────────────────────────────────────────────────────────
 
   public List<PluginView> installed() {
-    return store.verifiedAll().stream().map(this::view).toList();
+    return plugins().stream().map(this::view).toList();
   }
 
   public Optional<PluginView> view(String id) {
-    return store.find(id).map(this::view);
+    return store.find(id).filter(row -> !row.isModule()).map(this::view);
+  }
+
+  /** The installed plugins. A connector module's row is the module service's: nothing here lists or changes one. */
+  private List<PluginEntity> plugins() {
+    return store.verifiedAll().stream().filter(row -> !row.isModule()).toList();
   }
 
   public PluginCatalog catalog() {
@@ -437,7 +447,7 @@ public class PluginService {
    * stops, its tools stop answering, and it can't be enabled again — only updated or replaced (Setup change).
    */
   void applyRevocations() {
-    for (PluginEntity row : store.verifiedAll()) {
+    for (PluginEntity row : plugins()) {
       if (row.getState() == PluginState.REVOKED || !catalog.isRevoked(row.getSha256())) {
         continue;
       }
@@ -537,8 +547,8 @@ public class PluginService {
   }
 
   private PluginEntity require(String id) {
-    return store.find(id).orElseThrow(() -> ProblemException.notFound("Plugin not found",
-        "There is no plugin " + id + "."));
+    return store.find(id).filter(row -> !row.isModule()).orElseThrow(() -> ProblemException.notFound(
+        "Plugin not found", "There is no plugin " + id + "."));
   }
 
   public ai.msrv.gaterook.core.connectors.Plugins.RuntimeDetails runtimeDetails() { return runtime.runtimeDetails(); }

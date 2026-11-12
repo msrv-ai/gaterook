@@ -1,0 +1,8 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 73,
+  "result" : {
+    "outcome" : "REJECT",
+    "message" : "The statement doesn't compile: Variable `x` not defined."
+  }
+}

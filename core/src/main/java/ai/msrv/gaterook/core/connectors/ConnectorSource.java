@@ -30,4 +30,32 @@ public interface ConnectorSource {
    * start a process: hosts and servers start on the first call that needs them.
    */
   Optional<Connector> connectorFor(ConnectionConfig connection);
+
+  /**
+   * Whether {@code typeId} is one of GateRook's own connectors with another delivery: a connector module
+   * (docs/connector-delivery.md). Such a type is registered as a built-in one, with its tools' own names and modes;
+   * a compiled-in connector of the same id comes first and serves its connections. Every other type of a source is
+   * foreign code: it takes no name of a built-in tool and declares no built-in kind.
+   */
+  default boolean firstParty(String typeId) {
+    return false;
+  }
+
+  /** The installed package (the {@code plugin} row) that delivers {@code typeId}, which its type row points at. */
+  default Optional<String> packageOf(String typeId) {
+    return Optional.empty();
+  }
+
+  /** The connectors of this source's {@link #firstParty first-party} types, one per type. */
+  default List<Connector> firstPartyConnectors() {
+    return List.of();
+  }
+
+  /**
+   * Tool names of GateRook's own connectors that this source knows without having them installed (the modules its
+   * channel lists): no plugin, MCP server or template may publish one.
+   */
+  default java.util.Set<String> reservedToolNames() {
+    return java.util.Set.of();
+  }
 }

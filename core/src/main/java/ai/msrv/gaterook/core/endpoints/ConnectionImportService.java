@@ -208,6 +208,8 @@ public class ConnectionImportService {
           types.add(descriptor(connector, false));
         }
       } else {
+        // A type one of GateRook's connector modules adds installs now: the import doesn't stop to ask.
+        registry.awaitInstalled(type);
         ConnectorType connector = registry.type(type).orElseThrow(() -> invalid("Unknown connector type.", "/type"));
         out.setAll(descriptor(connector, true));
       }
@@ -364,6 +366,7 @@ public class ConnectionImportService {
         throw invalid("Choose a candidate from this import.", "/candidateId");
       }
       if (config == null || !config.isObject()) throw invalid("Provide the candidate's config object.", "/config");
+      registry.awaitInstalled(candidate.path("type").asString());
       ConnectorManifest connector = registry.manifest(candidate.path("type").asString())
           .orElseThrow(() -> invalid("Unknown connector type.", "/candidateId"));
       return ConnectionImportSummary.of(config, connector.configSchema(), env(env));
@@ -817,6 +820,8 @@ public class ConnectionImportService {
       Env candidateEnv = env(text(candidate.path("env"), 5));
       JsonNode config = candidate.path("config");
       if (!config.isObject()) throw invalid("Each candidate needs a config object.", "/manifest/connections");
+      // A type one of GateRook's connector modules adds installs now: the import doesn't stop to ask.
+      registry.awaitInstalled(type);
       ConnectorManifest connector = registry.manifest(type).orElse(null);
       if (connector == null && !config.isEmpty()) throw invalid("Unknown connector types must use an empty config.", "/manifest/connections");
       if (connector != null) {

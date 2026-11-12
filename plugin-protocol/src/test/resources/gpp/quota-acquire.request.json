@@ -1,0 +1,10 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : "h31",
+  "method" : "quota/acquire",
+  "params" : {
+    "callToken" : "ct_9Qm2xLkP0aZs4vRt7yUb1w",
+    "key" : "cloud:acct-4821:search",
+    "permitsPerMinute" : 60
+  }
+}

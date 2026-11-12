@@ -1,6 +1,8 @@
 package ai.msrv.gaterook.pluginhost;
 
 import ai.msrv.gaterook.connector.api.Connector;
+import ai.msrv.gaterook.connector.api.ConnectorModule;
+import ai.msrv.gaterook.connector.api.ModuleContext;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.plugin.protocol.Gpp;
 import ai.msrv.gaterook.plugin.protocol.GppJson;
@@ -16,7 +18,9 @@ import java.nio.file.Path;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -43,9 +47,17 @@ import tools.jackson.databind.node.ObjectNode;
  */
 final class PluginRegistry implements ConnectorEndpoint.Generations {
 
-  /** One loaded generation. */
-  record LoadedPlugin(String generation, GatewayPluginManager manager, String pluginId, Connector connector,
-      Path dataDir) {}
+  /**
+   * One loaded generation: a plugin's one connector, or a connector module's connectors by connector type with the
+   * module object that made them.
+   */
+  record LoadedPlugin(String generation, GatewayPluginManager manager, String pluginId,
+      Map<String, Connector> connectors, ConnectorModule module, Path dataDir) {
+
+    ConnectorEndpoint.Loaded endpoint() {
+      return new ConnectorEndpoint.Loaded(generation, connectors, dataDir, module != null);
+    }
+  }
 
   private final Map<String, LoadedPlugin> byGeneration = new ConcurrentHashMap<>();
   private final ClassLoader apiOnly = new ApiOnlyClassLoader(PluginRegistry.class.getClassLoader());
@@ -80,7 +92,7 @@ final class PluginRegistry implements ConnectorEndpoint.Generations {
     }
     PluginManifest manifest;
     try {
-      manifest = PluginManifest.parse(readManifest(jar));
+      manifest = PluginManifest.read(readManifestBytes(jar));
     } catch (IOException | RuntimeException e) {
       throw failed("verify", "Can't read " + PluginManifest.FILE + ": " + e.getMessage());
     } catch (PluginManifest.InvalidManifest e) {
@@ -136,42 +148,88 @@ final class PluginRegistry implements ConnectorEndpoint.Generations {
       manager.unloadPlugins();
       throw failed("pf4j", e.toString());
     }
-    Connector connector;
+    Map<String, Connector> connectors = new LinkedHashMap<>();
+    ConnectorModule module = null;
     try {
-      Class<?> type = manager.getPluginClassLoader(pluginId).loadClass(manifest.connectorClass());
-      if (!Connector.class.isAssignableFrom(type)) {
-        throw failed("instantiate", manifest.connectorClass() + " doesn't implement Connector");
+      ClassLoader loader = manager.getPluginClassLoader(pluginId);
+      if (manifest.module()) {
+        Class<?> type = loader.loadClass(manifest.moduleClass());
+        if (!ConnectorModule.class.isAssignableFrom(type)) {
+          throw failed("instantiate", manifest.moduleClass() + " doesn't implement ConnectorModule");
+        }
+        module = (ConnectorModule) type.getDeclaredConstructor().newInstance();
+        String moduleId = manifest.id();
+        String moduleVersion = manifest.version();
+        List<Connector> made = module.connectors(new ModuleContext() {
+          @Override
+          public String moduleId() {
+            return moduleId;
+          }
+
+          @Override
+          public String moduleVersion() {
+            return moduleVersion;
+          }
+        });
+        for (Connector c : made == null ? List.<Connector>of() : made) {
+          if (connectors.putIfAbsent(c.manifest().id(), c) != null) {
+            throw failed("instantiate", manifest.moduleClass() + " made two connectors of the type "
+                + c.manifest().id());
+          }
+        }
+        // The module's connectors are exactly the types its manifest declares: no more, no fewer.
+        java.util.Set<String> declared = new java.util.TreeSet<>();
+        manifest.types().forEach(t -> declared.add(t.id()));
+        if (!declared.equals(new java.util.TreeSet<>(connectors.keySet()))) {
+          throw failed("instantiate", "The module's manifest declares the types " + declared + ", its code makes "
+              + new java.util.TreeSet<>(connectors.keySet()));
+        }
+      } else {
+        Class<?> type = loader.loadClass(manifest.connectorClass());
+        if (!Connector.class.isAssignableFrom(type)) {
+          throw failed("instantiate", manifest.connectorClass() + " doesn't implement Connector");
+        }
+        connectors.put(manifest.id(), (Connector) type.getDeclaredConstructor().newInstance());
       }
-      connector = (Connector) type.getDeclaredConstructor().newInstance();
     } catch (RpcException e) {
+      closeAll(connectors.values(), module);
       manager.unloadPlugins();
       throw e;
     } catch (InvocationTargetException e) {
+      closeAll(connectors.values(), module);
       manager.unloadPlugins();
       throw failed("instantiate", String.valueOf(e.getCause()));
     } catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
+      closeAll(connectors.values(), module);
       manager.unloadPlugins();
       throw failed("instantiate", e.toString());
     }
-    List<ToolDefinition> tools;
-    String connectorApi;
+    List<Messages.TypeTools> types = new ArrayList<>();
+    String connectorApi = null;
     try {
-      tools = connector.manifest().tools();
-      connectorApi = connector.manifest().connectorApi();
+      // In the manifest's order, so the first type is the same on both sides.
+      for (PluginManifest.Type declared : manifest.types()) {
+        Connector c = manifest.module() ? connectors.get(declared.id()) : connectors.values().iterator().next();
+        types.add(new Messages.TypeTools(declared.id(), c.manifest().tools()));
+        if (connectorApi == null) {
+          connectorApi = c.manifest().connectorApi();
+        }
+      }
     } catch (RuntimeException | LinkageError e) {
-      close(connector);
+      closeAll(connectors.values(), module);
       manager.unloadPlugins();
       throw failed("tools", "The plugin's manifest() failed: " + e);
     }
-    byGeneration.put(load.generation(), new LoadedPlugin(load.generation(), manager, pluginId, connector, dataDir));
-    return new Messages.Loaded(load.generation(), manifest.id(), connectorApi,
-        (System.nanoTime() - started) / 1_000_000, tools, sandboxKind);
+    byGeneration.put(load.generation(), new LoadedPlugin(load.generation(), manager, pluginId, connectors, module,
+        dataDir));
+    return new Messages.Loaded(load.generation(), types.getFirst().type(), connectorApi,
+        (System.nanoTime() - started) / 1_000_000, types.getFirst().tools(), sandboxKind, types);
   }
 
   synchronized void unload(String generation) {
     LoadedPlugin p = byGeneration.remove(generation);
     if (p != null) {
-      close(p.connector());
+      closeAll(p.connectors().values(), p.module());
       p.manager().unloadPlugins();
     }
   }
@@ -185,14 +243,12 @@ final class PluginRegistry implements ConnectorEndpoint.Generations {
   @Override
   public Optional<ConnectorEndpoint.Loaded> find(String generation) {
     LoadedPlugin p = byGeneration.get(generation);
-    return p == null ? Optional.empty()
-        : Optional.of(new ConnectorEndpoint.Loaded(p.generation(), p.connector(), p.dataDir()));
+    return p == null ? Optional.empty() : Optional.of(p.endpoint());
   }
 
   @Override
   public Collection<ConnectorEndpoint.Loaded> all() {
-    return byGeneration.values().stream()
-        .map(p -> new ConnectorEndpoint.Loaded(p.generation(), p.connector(), p.dataDir())).toList();
+    return byGeneration.values().stream().map(LoadedPlugin::endpoint).toList();
   }
 
   String sandboxKind() {
@@ -207,20 +263,37 @@ final class PluginRegistry implements ConnectorEndpoint.Generations {
     }
   }
 
-  static JsonNode readManifest(Path jar) throws IOException {
+  /** Closes a generation's connectors, then the module that made them. */
+  private static void closeAll(Collection<Connector> connectors, ConnectorModule module) {
+    connectors.forEach(PluginRegistry::close);
+    if (module != null) {
+      try {
+        module.close();
+      } catch (Exception e) {
+        // The process ends soon anyway.
+      }
+    }
+  }
+
+  /** The bytes of the JAR's manifest, at most one more than the largest manifest read ({@code PluginManifest.read}). */
+  static byte[] readManifestBytes(Path jar) throws IOException {
     try (ZipFile zip = new ZipFile(jar.toFile())) {
       ZipEntry entry = zip.getEntry(PluginManifest.FILE);
       if (entry == null) {
         throw new IOException("no " + PluginManifest.FILE + " in the JAR");
       }
       try (InputStream in = zip.getInputStream(entry)) {
-        byte[] bytes = in.readNBytes(PluginManifest.MAX_BYTES + 1);
-        if (bytes.length > PluginManifest.MAX_BYTES) {
-          throw new IOException(PluginManifest.FILE + " is larger than 1 MB");
-        }
-        return GppJson.MAPPER.readTree(bytes);
+        return in.readNBytes(PluginManifest.MAX_MODULE_BYTES + 1);
       }
     }
+  }
+
+  static JsonNode readManifest(Path jar) throws IOException {
+    byte[] bytes = readManifestBytes(jar);
+    if (bytes.length > PluginManifest.MAX_MODULE_BYTES) {
+      throw new IOException(PluginManifest.FILE + " is larger than 4 MB");
+    }
+    return GppJson.MAPPER.readTree(bytes);
   }
 
   static String sha256(Path file) throws IOException {

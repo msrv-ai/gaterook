@@ -52,6 +52,8 @@ final class HostInbound implements JsonRpcPeer.Handler {
       case Gpp.SECRETS_SSH_CERTIFICATE -> secrets.sshCertificate(hostInstance, params);
       case Gpp.HANDLES_SEAL -> seal(params);
       case Gpp.HANDLES_OPEN -> open(params);
+      case Gpp.QUOTA_ACQUIRE -> quota(params);
+      case Gpp.MASK_PREVIEW -> masked(params);
       default -> throw new RpcException(Gpp.METHOD_NOT_FOUND, "No method " + method);
     };
   }
@@ -62,10 +64,56 @@ final class HostInbound implements JsonRpcPeer.Handler {
       case Gpp.LOG -> log.line(params.path("logger").asString(null), params.path("level").asString("info"),
           params.path("message").asString(""));
       case Gpp.TAINT_ADD -> secrets.taintAdd(hostInstance, params);
+      case Gpp.PROGRESS -> services(params).ifPresent(ctx -> ctx.progress(params.path("progress").asDouble(0),
+          params.path("total").isNumber() ? Double.valueOf(params.get("total").asDouble()) : null,
+          clip(params.path("message").asString(null), MAX_MESSAGE_CHARS)));
+      case Gpp.CLIENT_LOG -> services(params).ifPresent(ctx -> {
+        JsonNode data = params.path("data");
+        if (ai.msrv.gaterook.plugin.protocol.Canonical.bytes(data).length <= MAX_PAYLOAD_BYTES) {
+          ctx.clientLog(params.path("level").asString("info"), clip(params.path("logger").asString(null), 64), data);
+        }
+      });
       default -> {
         // connector/toolsChanged isn't used by static plugins; ignore anything else.
       }
     }
+  }
+
+  /** The longest progress message a module's call passes on. */
+  static final int MAX_MESSAGE_CHARS = 500;
+
+  /**
+   * The context of a live call of a connector module. A plugin's call has none: a plugin can't draw on the quotas
+   * that GateRook's own connectors share, nor ask what the core masks.
+   */
+  private Optional<ai.msrv.gaterook.connector.api.ExecContext> services(JsonNode params) {
+    return secrets.services(hostInstance, params.path("callToken").asString(null));
+  }
+
+  /** {@code quota/acquire}: a permit of a quota shared by every connector that reaches the same account. */
+  private JsonNode quota(JsonNode params) throws RpcException {
+    ai.msrv.gaterook.connector.api.ExecContext ctx = services(params).orElseThrow(() ->
+        new RpcException(Gpp.METHOD_NOT_FOUND, "No method " + Gpp.QUOTA_ACQUIRE));
+    String key = params.path("key").asString("");
+    int permits = params.path("permitsPerMinute").asInt(0);
+    if (key.isBlank() || key.length() > 200 || permits < 1) {
+      throw new RpcException(Gpp.INVALID_PARAMS, "A quota has a key and at least one permit a minute.");
+    }
+    return GppJson.object().put("granted", ctx.acquire(key, permits));
+  }
+
+  /** {@code mask/preview}: a tree as the core will mask the call's answer. */
+  private JsonNode masked(JsonNode params) throws RpcException {
+    ai.msrv.gaterook.connector.api.ExecContext ctx = services(params).orElseThrow(() ->
+        new RpcException(Gpp.METHOD_NOT_FOUND, "No method " + Gpp.MASK_PREVIEW));
+    JsonNode tree = params.path("tree");
+    ObjectNode o = GppJson.object();
+    o.set("tree", tree.isMissingNode() ? GppJson.MAPPER.nullNode() : ctx.masked(tree));
+    return o;
+  }
+
+  private static String clip(String text, int max) {
+    return text == null || text.length() <= max ? text : text.substring(0, max - 1) + "…";
   }
 
   private JsonNode seal(JsonNode params) throws RpcException {

@@ -75,6 +75,25 @@ public final class PluginCatalog {
 
   public record SignatureInfo(String keyId, long sequence, Instant expiresAt, boolean ok) {}
 
+  /**
+   * What tells one signed index from another in the core's own state: the settings it is kept in and what it is
+   * called. The plugin catalog and the module channel are two indexes under different keys.
+   *
+   * @param setting  the signed setting that holds the last good index
+   * @param sequence the signed setting that holds the highest sequence accepted
+   * @param title    what messages call the index ("The catalog")
+   * @param check    where a person checks it again, for the messages ("in Connectors › Catalog"), or empty
+   */
+  public record Names(String setting, String sequence, String title, String check) {
+
+    /** The plugin catalog. */
+    public static final Names CATALOG = new Names(SETTING, SEQUENCE, "The catalog", " in Connectors › Catalog");
+    /** The channel of GateRook's own connector modules. */
+    public static final Names MODULES = new Names("modules.last-good", "modules.sequence", "The list of GateRook's "
+        + "connector modules", "");
+  }
+
+  private final Names names;
   private final CatalogVerifier verifier;
   private final SettingStore settings;
   private final CatalogDownloads downloads;
@@ -94,6 +113,13 @@ public final class PluginCatalog {
 
   public PluginCatalog(CatalogVerifier verifier, SettingStore settings, CatalogDownloads downloads, String baseUrl,
       IntegrityAlerts alerts, MasterKeyLock lock, PlatformTransactionManager transactions, Clock clock) {
+    this(Names.CATALOG, verifier, settings, downloads, baseUrl, alerts, lock, transactions, clock);
+  }
+
+  public PluginCatalog(Names names, CatalogVerifier verifier, SettingStore settings, CatalogDownloads downloads,
+      String baseUrl, IntegrityAlerts alerts, MasterKeyLock lock, PlatformTransactionManager transactions,
+      Clock clock) {
+    this.names = names;
     this.verifier = verifier;
     this.settings = settings;
     this.downloads = downloads;
@@ -241,7 +267,7 @@ public final class PluginCatalog {
     state.set(s);
     floor = Math.max(floor, verified.sequence());
     trusted = true;
-    alerts.resolve(SettingStore.ALERT_KIND, SETTING);
+    alerts.resolve(SettingStore.ALERT_KIND, names.setting());
     return s;
   }
 
@@ -252,14 +278,14 @@ public final class PluginCatalog {
    * @return what was signed, for the Setup change, or {@code null} when nothing was stored
    */
   synchronized String signLegacyRows() {
-    if (!settings.signLegacy(SETTING)) {
+    if (!settings.signLegacy(names.setting())) {
       return null;
     }
-    long sequence = settings.find(SETTING).map(s -> genuine(s.value())).map(g -> g.verified().sequence())
+    long sequence = settings.find(names.setting()).map(s -> genuine(s.value())).map(g -> g.verified().sequence())
         .orElse(-1L);
     // A database rolled back to before V87 may still hold the sequence it reached then: never lower it.
-    long kept = settings.find(SEQUENCE).map(s -> s.value().path("sequence").asLong(-1)).orElse(-1L);
-    settings.put(SEQUENCE, JSON.createObjectNode().put("sequence", Math.max(sequence, kept)), null);
+    long kept = settings.find(names.sequence()).map(s -> s.value().path("sequence").asLong(-1)).orElse(-1L);
+    settings.put(names.sequence(), JSON.createObjectNode().put("sequence", Math.max(sequence, kept)), null);
     // Read again at the next use, in case something looked before the signing.
     loaded = false;
     return "the catalog's last good index";
@@ -279,8 +305,8 @@ public final class PluginCatalog {
   }
 
   private void loadLastGood() {
-    Optional<SettingStore.Setting> stored = settings.find(SETTING);
-    Optional<SettingStore.Setting> sequence = settings.find(SEQUENCE);
+    Optional<SettingStore.Setting> stored = settings.find(names.setting());
+    Optional<SettingStore.Setting> sequence = settings.find(names.sequence());
     long vouched = sequence.filter(SettingStore.Setting::verified)
         .map(s -> s.value().path("sequence").asLong(-1)).orElse(-1L);
     // As the core left them: both rows verify, or neither exists (every accepted index writes both).
@@ -291,8 +317,8 @@ public final class PluginCatalog {
     trusted = intact && g != null && !older;
     floor = Math.max(vouched, g == null ? -1 : g.verified().sequence());
     if ((!intact || older) && !lock.locked()) {
-      alerts.report(SettingStore.ALERT_KIND, SETTING, "The catalog", "nothing installs or updates from the stored "
-          + "catalog until a new one is checked in Connectors › Catalog");
+      alerts.report(SettingStore.ALERT_KIND, names.setting(), names.title(), "nothing installs or updates from the "
+          + "stored one until a new one is checked" + names.check());
     }
     if (g == null) {
       // Nothing stored, or an index the catalog's keys no longer verify (another release's keys): nothing to show.
@@ -361,8 +387,8 @@ public final class PluginCatalog {
     value.put("checkedAt", checkedAt.toString());
     ObjectNode reached = JSON.createObjectNode().put("sequence", sequence);
     writeTx.executeWithoutResult(s -> {
-      settings.put(SEQUENCE, reached, null);
-      settings.put(SETTING, value, null);
+      settings.put(names.sequence(), reached, null);
+      settings.put(names.setting(), value, null);
     });
   }
 

@@ -24,13 +24,33 @@ import tools.jackson.databind.node.ObjectNode;
  * environment, limits, budget, approval, prepared state, approved payload) plus what the host provides — cancellation
  * by {@code $/cancel}, a logger whose lines go to the core, sealed handles through the core's key, quotas of this
  * process, the plugin's data folder, guarded egress. No identity, no secret store, no other connection.
+ *
+ * <p>A connector module's call ({@link Spec#coreServices}) also gets what a compiled-in connector has from the core:
+ * remote quotas that every connector of an account shares, the masked view of a tree, and the progress and log
+ * messages the call's client asked for. A plugin keeps its host's own quotas and gets none of the others.
  */
 public final class HostExecContext implements ExecContext {
 
-  /** Everything a context is built from. */
+  /**
+   * Everything a context is built from.
+   *
+   * @param coreServices   the call is a connector module's: quotas and masking are asked of the core
+   * @param wantsProgress  the call's client asked for progress
+   * @param clientLogLevel the level from which the call's client wants the resource's log messages, or {@code null}
+   */
   public record Spec(String callId, String callToken, String traceId, String traceparent, Env env, Limits limits,
       Duration timeout, boolean approved, String approvalId, JsonNode preparedState, JsonNode approvedPayload,
-      Path workDir, Egress egress, String loggerName, System.Logger.Level logLevel) {}
+      Path workDir, Egress egress, String loggerName, System.Logger.Level logLevel, boolean coreServices,
+      boolean wantsProgress, String clientLogLevel) {
+
+    /** A plugin's call. */
+    public Spec(String callId, String callToken, String traceId, String traceparent, Env env, Limits limits,
+        Duration timeout, boolean approved, String approvalId, JsonNode preparedState, JsonNode approvedPayload,
+        Path workDir, Egress egress, String loggerName, System.Logger.Level logLevel) {
+      this(callId, callToken, traceId, traceparent, env, limits, timeout, approved, approvalId, preparedState,
+          approvedPayload, workDir, egress, loggerName, logLevel, false, false, null);
+    }
+  }
 
   private final JsonRpcPeer peer;
   private final JsonRpcPeer.Incoming incoming;
@@ -167,9 +187,63 @@ public final class HostExecContext implements ExecContext {
     }
   }
 
+  /**
+   * A plugin's quotas are this process's. A module's are the core's, shared with every connector that reaches the same
+   * account; when the core can't be asked the permit isn't given.
+   */
   @Override
   public boolean acquire(String remoteQuotaKey, int permitsPerMinute) {
-    return quotas == null || quotas.acquire(remoteQuotaKey, permitsPerMinute);
+    if (!spec.coreServices()) {
+      return quotas == null || quotas.acquire(remoteQuotaKey, permitsPerMinute);
+    }
+    try {
+      JsonNode r = peer.request(Gpp.QUOTA_ACQUIRE, Messages.quota(spec.callToken(), remoteQuotaKey, permitsPerMinute))
+          .get(Duration.ofSeconds(5));
+      return r != null && r.path("granted").asBoolean(false);
+    } catch (RpcException | TimeoutException e) {
+      return false;
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return false;
+    }
+  }
+
+  /** A module's tree as the core will mask the call's answer; a call that can't ask the core fails instead. */
+  @Override
+  public JsonNode masked(JsonNode tree) {
+    if (!spec.coreServices() || tree == null) {
+      return tree;
+    }
+    JsonNode r = await(peer.request(Gpp.MASK_PREVIEW, Messages.mask(spec.callToken(), tree)));
+    JsonNode masked = r == null ? null : r.get("tree");
+    if (masked == null) {
+      throw new IllegalStateException("GateRook didn't return the masked view");
+    }
+    return masked;
+  }
+
+  @Override
+  public boolean wantsProgress() {
+    return spec.coreServices() && spec.wantsProgress();
+  }
+
+  @Override
+  public void progress(double progress, Double total, String message) {
+    if (wantsProgress()) {
+      peer.notify(Gpp.PROGRESS, Messages.progress(spec.callToken(), progress, total, message));
+    }
+  }
+
+  @Override
+  public String clientLogLevel() {
+    return spec.coreServices() ? spec.clientLogLevel() : null;
+  }
+
+  @Override
+  public void clientLog(String level, String logger, JsonNode data) {
+    if (clientLogLevel() != null && level != null) {
+      peer.notify(Gpp.CLIENT_LOG, Messages.clientLog(spec.callToken(), level, logger, data));
+    }
   }
 
   @Override

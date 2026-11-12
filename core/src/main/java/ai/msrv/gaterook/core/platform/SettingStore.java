@@ -37,7 +37,8 @@ public class SettingStore {
    * without any record); {@code catalog.last-good} and {@code catalog.sequence}, the catalog's last good index and the
    * highest sequence the core accepted (an edit could lower what counts as a rollback).
    */
-  public static final Set<String> SIGNED = Set.of("audit", "catalog.last-good", "catalog.sequence");
+  public static final Set<String> SIGNED = Set.of("audit", "catalog.last-good", "catalog.sequence",
+      "modules.last-good", "modules.sequence");
 
   /** The kind of the integrity alert of a signed key whose row doesn't verify; its id is the key. */
   public static final String ALERT_KIND = "setting";

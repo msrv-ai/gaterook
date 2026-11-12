@@ -4,7 +4,9 @@ import ai.msrv.gaterook.connector.api.Classification;
 import ai.msrv.gaterook.connector.api.Connector;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.ExecContext;
+import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.Suggestions;
+import ai.msrv.gaterook.connector.api.TemplateKind;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connector.api.TestResult;
@@ -19,6 +21,9 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -37,8 +42,46 @@ import tools.jackson.databind.node.ObjectNode;
  */
 public final class ConnectorEndpoint {
 
-  /** One loaded plugin generation. */
-  public record Loaded(String generation, Connector connector, Path dataDir) {}
+  /**
+   * One loaded generation: a plugin's one connector, or a connector module's connectors by connector type.
+   *
+   * @param module the generation is a connector module: its calls get the core's services ({@link
+   *               HostExecContext.Spec#coreServices}) and keep their template binding
+   */
+  public record Loaded(String generation, Map<String, Connector> connectors, Path dataDir, boolean module) {
+
+    public Loaded {
+      connectors = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(connectors));
+      if (connectors.isEmpty()) {
+        throw new IllegalArgumentException(generation + " has no connector");
+      }
+    }
+
+    /** A plugin: one connector, which serves every connection the core sends it. */
+    public Loaded(String generation, Connector connector, Path dataDir) {
+      this(generation, Map.of(connector.manifest().id(), connector), dataDir, false);
+    }
+
+    /** The first connector: a plugin's only one. */
+    public Connector connector() {
+      return connectors.values().iterator().next();
+    }
+
+    /**
+     * The connector of a connector type. A plugin's connector answers for whatever type the core names; a module's
+     * types are exactly its connectors.
+     */
+    public Connector connector(String type) throws RpcException {
+      if (!module) {
+        return connector();
+      }
+      Connector c = type == null ? null : connectors.get(type);
+      if (c == null) {
+        throw new RpcException(Gpp.INVALID_PARAMS, type + " isn't a connector type of " + generation);
+      }
+      return c;
+    }
+  }
 
   /** The generations this host has loaded. */
   public interface Generations {
@@ -81,7 +124,8 @@ public final class ConnectorEndpoint {
   public static boolean handles(String method) {
     return switch (method) {
       case Gpp.CONNECTOR_EXECUTE, Gpp.CONNECTOR_TEST, Gpp.CONNECTOR_DISCOVER_DATABASES, Gpp.CONNECTOR_SUGGEST,
-          Gpp.CONNECTOR_CLASSIFY, Gpp.CONNECTOR_DESCRIBE_ACTION, Gpp.CONNECTOR_TOOLS -> true;
+          Gpp.CONNECTOR_CLASSIFY, Gpp.CONNECTOR_DESCRIBE_ACTION, Gpp.CONNECTOR_TOOLS, Gpp.CONNECTOR_PREPARE,
+          Gpp.CONNECTOR_DESCRIBE, Gpp.CONNECTOR_SUPPORTS_TOOL, Gpp.TEMPLATE_COMPILE, Gpp.TEMPLATE_PREVIEW -> true;
       default -> false;
     };
   }
@@ -95,6 +139,11 @@ public final class ConnectorEndpoint {
       case Gpp.CONNECTOR_CLASSIFY -> classify(Messages.Classify.read(params));
       case Gpp.CONNECTOR_DESCRIBE_ACTION -> describe(Messages.Describe.read(params));
       case Gpp.CONNECTOR_TOOLS -> tools(Messages.Tools.read(params));
+      case Gpp.CONNECTOR_PREPARE -> prepare(Messages.Prepare.read(params), incoming);
+      case Gpp.CONNECTOR_DESCRIBE -> describeConnection(Messages.DescribeConnection.read(params), incoming);
+      case Gpp.CONNECTOR_SUPPORTS_TOOL -> supportsTool(Messages.SupportsTool.read(params));
+      case Gpp.TEMPLATE_COMPILE -> template(Messages.Template.read(params), false);
+      case Gpp.TEMPLATE_PREVIEW -> template(Messages.Template.read(params), true);
       default -> throw new RpcException(Gpp.METHOD_NOT_FOUND, "No method " + method);
     };
   }
@@ -102,26 +151,31 @@ public final class ConnectorEndpoint {
   /** A connection changed or went away: every loaded plugin drops what it pooled for it. */
   public void invalidate(String connectionId) {
     for (Loaded l : generations.all()) {
-      try {
-        l.connector().onConnectionChanged(connectionId);
-      } catch (RuntimeException e) {
-        // One plugin failing to drop a pool must not keep the others from hearing of it.
+      for (Connector connector : l.connectors().values()) {
+        try {
+          connector.onConnectionChanged(connectionId);
+        } catch (RuntimeException e) {
+          // One connector failing to drop a pool must not keep the others from hearing of it.
+        }
       }
     }
   }
 
   private Object execute(Messages.Execute e, JsonRpcPeer.Incoming incoming) throws RpcException {
     Loaded l = loaded(e.generation());
+    Connector connector = l.connector(e.connection().type());
     long started = System.nanoTime();
     ExecContext.Egress callEgress = egress(e.egress(), e.connection(), e.timeoutMs());
     ScopedEgress scoped = callEgress instanceof ScopedEgress s ? s : null;
     HostExecContext ctx = context(e.call().callId(), e.callToken(), e.traceId(), e.traceparent(), e.connection(),
         e.limits(), e.timeoutMs(), e.approved(), e.approvalId(), e.preparedState(), e.approvedPayload(), l,
-        callEgress, incoming);
-    ToolCall call = new ToolCall(e.call().callId(), e.call().tool(), e.connection().name(), e.call().arguments(), null);
+        callEgress, incoming, e.wantsProgress(), e.clientLogLevel());
+    // A template's binding is a module's to read (its SQL templates); a plugin has no templates.
+    ToolCall call = new ToolCall(e.call().callId(), e.call().tool(), e.connection().name(), e.call().arguments(),
+        l.module() ? e.call().template() : null);
     try (RemoteSecretResolver secrets = new RemoteSecretResolver(peer.get(), e.callToken()); scoped) {
-      ToolResult result = scoped == null ? l.connector().execute(call, e.connection(), secrets, ctx)
-          : scoped.run(() -> l.connector().execute(call, e.connection(), secrets, ctx));
+      ToolResult result = scoped == null ? connector.execute(call, e.connection(), secrets, ctx)
+          : scoped.run(() -> connector.execute(call, e.connection(), secrets, ctx));
       if (incoming != null && incoming.cancelled()) {
         throw new RpcException(Gpp.CANCELLED, "Cancelled");
       }
@@ -138,18 +192,19 @@ public final class ConnectorEndpoint {
 
   private Object test(Messages.Test t, JsonRpcPeer.Incoming incoming, boolean discovery) throws RpcException {
     Loaded l = loaded(t.generation());
+    Connector connector = l.connector(t.connection().type());
     ExecContext.Egress callEgress = egress(t.egress(), t.connection(), t.timeoutMs());
     ScopedEgress scoped = callEgress instanceof ScopedEgress s ? s : null;
     HostExecContext ctx = context(t.callId(), t.callToken(), null, null, t.connection(), t.limits(), t.timeoutMs(),
-        false, null, null, null, l, callEgress, incoming);
+        false, null, null, null, l, callEgress, incoming, false, null);
     try (RemoteSecretResolver secrets = new RemoteSecretResolver(peer.get(), t.callToken()); scoped) {
       TestResult result;
       if (scoped == null) {
-        result = discovery ? l.connector().discoverDatabases(t.connection(), secrets, ctx)
-            : l.connector().test(t.connection(), secrets, ctx);
+        result = discovery ? connector.discoverDatabases(t.connection(), secrets, ctx)
+            : connector.test(t.connection(), secrets, ctx);
       } else {
-        result = scoped.run(() -> discovery ? l.connector().discoverDatabases(t.connection(), secrets, ctx)
-            : l.connector().test(t.connection(), secrets, ctx));
+        result = scoped.run(() -> discovery ? connector.discoverDatabases(t.connection(), secrets, ctx)
+            : connector.test(t.connection(), secrets, ctx));
       }
       if (result == null) {
         result = TestResult.failure("no-result", "The plugin returned no result.", null);
@@ -167,13 +222,14 @@ public final class ConnectorEndpoint {
   private Object suggest(Messages.Suggest s, JsonRpcPeer.Incoming incoming) throws RpcException {
     Messages.Test t = s.test();
     Loaded l = loaded(t.generation());
+    Connector connector = l.connector(t.connection().type());
     ExecContext.Egress callEgress = egress(t.egress(), t.connection(), t.timeoutMs());
     ScopedEgress scoped = callEgress instanceof ScopedEgress e ? e : null;
     HostExecContext ctx = context(t.callId(), t.callToken(), null, null, t.connection(), t.limits(), t.timeoutMs(),
-        false, null, null, null, l, callEgress, incoming);
+        false, null, null, null, l, callEgress, incoming, false, null);
     try (RemoteSecretResolver secrets = new RemoteSecretResolver(peer.get(), t.callToken()); scoped) {
-      Suggestions result = scoped == null ? l.connector().suggest(t.connection(), secrets, ctx, s.scope())
-          : scoped.run(() -> l.connector().suggest(t.connection(), secrets, ctx, s.scope()));
+      Suggestions result = scoped == null ? connector.suggest(t.connection(), secrets, ctx, s.scope())
+          : scoped.run(() -> connector.suggest(t.connection(), secrets, ctx, s.scope()));
       if (incoming != null && incoming.cancelled()) {
         throw new RpcException(Gpp.CANCELLED, "Cancelled");
       }
@@ -254,8 +310,9 @@ public final class ConnectorEndpoint {
 
   private Object classify(Messages.Classify c) throws RpcException {
     Loaded l = loaded(c.generation());
+    Connector connector = l.connector(c.connection().type());
     try {
-      Classification result = l.connector().classify(c.call(), c.connection(), c.policy());
+      Classification result = connector.classify(c.call(), c.connection(), c.policy());
       return WireCodec.classification(result == null
           ? Classification.deny("plugin-classify-empty", "The plugin didn't classify the call.", null) : result);
     } catch (RuntimeException | LinkageError | StackOverflowError e) {
@@ -265,8 +322,9 @@ public final class ConnectorEndpoint {
 
   private Object describe(Messages.Describe d) throws RpcException {
     Loaded l = loaded(d.generation());
+    Connector connector = l.connector(d.connection().type());
     try {
-      return WireCodec.action(l.connector().describeAction(d.call(), d.connection()));
+      return WireCodec.action(connector.describeAction(d.call(), d.connection()));
     } catch (RuntimeException | LinkageError | StackOverflowError e) {
       throw internal(e);
     }
@@ -274,10 +332,100 @@ public final class ConnectorEndpoint {
 
   private Object tools(Messages.Tools t) throws RpcException {
     Loaded l = loaded(t.generation());
+    Connector connector = l.module() ? l.connector(t.type()) : l.connector();
     try {
       ObjectNode out = GppJson.object();
-      out.set("tools", WireCodec.tools(l.connector().tools(t.endpoint())));
+      out.set("tools", WireCodec.tools(connector.tools(t.endpoint())));
       return out;
+    } catch (RuntimeException | LinkageError | StackOverflowError e) {
+      throw internal(e);
+    }
+  }
+
+  // ── Connector modules: the rest of the SPI ──────────────────────────────────────────────────────────────────
+
+  /** {@code Connector.prepare}: the dry run, the impact, the exact action; a refusal crosses as a connector error. */
+  private Object prepare(Messages.Prepare p, JsonRpcPeer.Incoming incoming) throws RpcException {
+    Loaded l = loaded(p.generation());
+    Connector connector = l.connector(p.connection().type());
+    ExecContext.Egress callEgress = egress(p.egress(), p.connection(), p.timeoutMs());
+    ScopedEgress scoped = callEgress instanceof ScopedEgress s ? s : null;
+    HostExecContext ctx = context(p.call().callId(), p.callToken(), p.traceId(), p.traceparent(), p.connection(),
+        p.limits(), p.timeoutMs(), false, null, null, null, l, callEgress, incoming, false, null);
+    ToolCall call = new ToolCall(p.call().callId(), p.call().tool(), p.connection().name(), p.call().arguments(),
+        l.module() ? p.call().template() : null);
+    try (RemoteSecretResolver secrets = new RemoteSecretResolver(peer.get(), p.callToken()); scoped) {
+      PreparedAction result = scoped == null ? connector.prepare(call, p.connection(), secrets, ctx)
+          : scoped.run(() -> connector.prepare(call, p.connection(), secrets, ctx));
+      if (incoming != null && incoming.cancelled()) {
+        throw new RpcException(Gpp.CANCELLED, "Cancelled");
+      }
+      if (result == null) {
+        throw new RpcException(Gpp.INTERNAL_ERROR, "The connector prepared nothing.");
+      }
+      return WireCodec.prepared(result);
+    } catch (ConnectorException ce) {
+      throw cancelledOr(incoming, connectorError(explained(ce, scoped)));
+    } catch (RuntimeException | LinkageError | StackOverflowError t) {
+      throw cancelledOr(incoming, explainedInternal(t, scoped));
+    }
+  }
+
+  /** {@code Connector.describe}: {@code {"value": …}}, or an empty object when the connector has nothing to add. */
+  private Object describeConnection(Messages.DescribeConnection d, JsonRpcPeer.Incoming incoming) throws RpcException {
+    Messages.Test t = d.test();
+    Loaded l = loaded(t.generation());
+    Connector connector = l.connector(t.connection().type());
+    ExecContext.Egress callEgress = egress(t.egress(), t.connection(), t.timeoutMs());
+    ScopedEgress scoped = callEgress instanceof ScopedEgress s ? s : null;
+    HostExecContext ctx = context(t.callId(), t.callToken(), null, null, t.connection(), t.limits(), t.timeoutMs(),
+        false, null, null, null, l, callEgress, incoming, false, null);
+    try (RemoteSecretResolver secrets = new RemoteSecretResolver(peer.get(), t.callToken()); scoped) {
+      Optional<JsonNode> value = scoped == null ? connector.describe(t.connection(), secrets, ctx, d.object())
+          : scoped.run(() -> connector.describe(t.connection(), secrets, ctx, d.object()));
+      ObjectNode out = GppJson.object();
+      if (value != null && value.isPresent()) {
+        out.set("value", value.get());
+      }
+      return out;
+    } catch (ConnectorException ce) {
+      throw cancelledOr(incoming, connectorError(explained(ce, scoped)));
+    } catch (RuntimeException | LinkageError | StackOverflowError e) {
+      throw cancelledOr(incoming, explainedInternal(e, scoped));
+    }
+  }
+
+  private Object supportsTool(Messages.SupportsTool s) throws RpcException {
+    Loaded l = loaded(s.generation());
+    Connector connector = l.connector(s.connection().type());
+    try {
+      List<String> supported = new java.util.ArrayList<>();
+      for (String tool : s.tools()) {
+        if (connector.supportsTool(tool, s.connection())) {
+          supported.add(tool);
+        }
+      }
+      return Messages.SupportsTool.result(supported);
+    } catch (RuntimeException | LinkageError | StackOverflowError e) {
+      throw internal(e);
+    }
+  }
+
+  /** {@code TemplateKind.compile} or {@code preview} of the kind the connection's type offers. */
+  private Object template(Messages.Template t, boolean preview) throws RpcException {
+    Loaded l = loaded(t.generation());
+    Connector connector = l.connector(t.runsOn().type());
+    try {
+      TemplateKind kind = connector.templateKinds().stream().filter(k -> k.kind().equals(t.kind())).findFirst()
+          .orElseThrow(() -> new RpcException(Gpp.INVALID_PARAMS, t.runsOn().type() + " has no template kind "
+              + t.kind()));
+      if (preview) {
+        return WireCodec.action(kind.preview(t.definition(),
+            t.arguments() == null ? GppJson.object() : t.arguments(), t.runsOn()));
+      }
+      return WireCodec.compiled(kind.compile(t.definition(), t.runsOn()));
+    } catch (RpcException e) {
+      throw e;
     } catch (RuntimeException | LinkageError | StackOverflowError e) {
       throw internal(e);
     }
@@ -286,11 +434,12 @@ public final class ConnectorEndpoint {
   private HostExecContext context(String callId, String callToken, String traceId, String traceparent,
       ConnectionConfig cfg, ai.msrv.gaterook.connector.api.Limits limits, long timeoutMs, boolean approved,
       String approvalId, JsonNode preparedState, JsonNode approvedPayload, Loaded l, ExecContext.Egress e,
-      JsonRpcPeer.Incoming incoming) {
+      JsonRpcPeer.Incoming incoming, boolean wantsProgress, String clientLogLevel) {
     String logger = "plugin." + l.generation().substring(0, Math.max(0, l.generation().indexOf('@')));
     return new HostExecContext(peer.get(), incoming, new HostExecContext.Spec(callId, callToken, traceId,
         traceparent, cfg.env(), limits, Duration.ofMillis(Math.max(1, timeoutMs)), approved, approvalId,
-        preparedState, approvedPayload, l.dataDir(), e, logger, logLevel.get()), clock, quotas);
+        preparedState, approvedPayload, l.dataDir(), e, logger, logLevel.get(), l.module(), wantsProgress,
+        clientLogLevel), clock, quotas);
   }
 
   private Loaded loaded(String generation) throws RpcException {

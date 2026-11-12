@@ -40,7 +40,7 @@ class ConnectorTypesControllerTest {
   private final ObjectProvider<ConnectorProcessStatus> processes = mock(ObjectProvider.class);
   private final Plugins plugins = mock(Plugins.class);
   private final ConnectorTypesController controller = new ConnectorTypesController(registry, connections,
-      processes, mock(SecretStores.class), plugins);
+      processes, mock(SecretStores.class), plugins, mock(ai.msrv.gaterook.core.connectors.Modules.class));
 
   @BeforeEach
   void setup() {

@@ -1,0 +1,12 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : "h32",
+  "method" : "mask/preview",
+  "params" : {
+    "callToken" : "ct_9Qm2xLkP0aZs4vRt7yUb1w",
+    "tree" : {
+      "customer" : "ann@example.com",
+      "total" : 41.5
+    }
+  }
+}

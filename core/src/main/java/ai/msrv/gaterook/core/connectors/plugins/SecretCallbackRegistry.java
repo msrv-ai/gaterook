@@ -55,6 +55,8 @@ public final class SecretCallbackRegistry {
     final SecretResolver resolver;
     final ExecContext ctx;
     final PluginLog hostLog;
+    /** The call is a connector module's: its host may ask for shared quotas, the masked view and progress. */
+    volatile boolean coreServices;
     final AtomicInteger reads = new AtomicInteger();
     final AtomicInteger taints = new AtomicInteger();
     final java.util.concurrent.atomic.AtomicBoolean warned = new java.util.concurrent.atomic.AtomicBoolean();
@@ -83,6 +85,27 @@ public final class SecretCallbackRegistry {
     Scope scope = new Scope(hostInstance, generation, connectionId, callId, fields, resolver, ctx, hostLog);
     byToken.put(token, scope);
     return new Permit(token, scope);
+  }
+
+  /**
+   * A token for one call of a connector module: besides its secrets the host may ask the core for what a compiled-in
+   * connector has from its context ({@link #services}).
+   */
+  public Permit openForModule(long hostInstance, String generation, String connectionId, String callId,
+      Set<String> fields, SecretResolver resolver, ExecContext ctx, PluginLog hostLog) {
+    Permit permit = open(hostInstance, generation, connectionId, callId, fields, resolver, ctx, hostLog);
+    permit.scope.coreServices = true;
+    return permit;
+  }
+
+  /**
+   * The context of a live call of a connector module on {@code hostInstance}: shared quotas, the masked view,
+   * progress and client log messages. Empty for a plugin's call, a stale token or another host's.
+   */
+  java.util.Optional<ExecContext> services(long hostInstance, String token) {
+    Scope scope = token == null ? null : byToken.get(token);
+    return scope == null || scope.hostInstance != hostInstance || !scope.coreServices ? java.util.Optional.empty()
+        : java.util.Optional.of(scope.ctx);
   }
 
   /** The live token of a call; closing it stops the host asking for the call's secrets. */

@@ -53,6 +53,8 @@ public final class FakeHost implements AutoCloseable {
   private final MemoryPipe toHost = new MemoryPipe();
   private final MemoryPipe fromHost = new MemoryPipe();
   private final Function<Messages.Load, Connector> plugins;
+  /** A connector module's connectors, one per connector type; {@code null} for a host of plugins. */
+  private final Function<Messages.Load, List<Connector>> modules;
   private final Map<String, ConnectorEndpoint.Loaded> loaded = new ConcurrentHashMap<>();
   private final CompletableFuture<Integer> exit = new CompletableFuture<>();
   private final long pid = PIDS.incrementAndGet();
@@ -60,8 +62,9 @@ public final class FakeHost implements AutoCloseable {
   private final ConnectorEndpoint endpoint;
   private final Switches switches = new Switches();
 
-  private FakeHost(Function<Messages.Load, Connector> plugins) {
+  private FakeHost(Function<Messages.Load, Connector> plugins, Function<Messages.Load, List<Connector>> modules) {
     this.plugins = plugins;
+    this.modules = modules;
     ConnectorEndpoint.Generations generations = new ConnectorEndpoint.Generations() {
       @Override
       public Optional<ConnectorEndpoint.Loaded> find(String generation) {
@@ -102,7 +105,17 @@ public final class FakeHost implements AutoCloseable {
 
   /** A host that loads every generation with {@code plugins}. */
   public static FakeHost start(Function<Messages.Load, Connector> plugins) {
-    FakeHost host = new FakeHost(plugins);
+    FakeHost host = new FakeHost(plugins, null);
+    host.peer.start();
+    return host;
+  }
+
+  /**
+   * A host of connector modules: every generation is a module whose connectors {@code modules} gives, one per
+   * connector type, as the real host gets them from the module's {@code moduleClass}.
+   */
+  public static FakeHost startModules(Function<Messages.Load, List<Connector>> modules) {
+    FakeHost host = new FakeHost(null, modules);
     host.peer.start();
     return host;
   }
@@ -195,6 +208,19 @@ public final class FakeHost implements AutoCloseable {
           data.put("phase", "instantiate");
           throw new RpcException(Gpp.PLUGIN_LOAD_FAILED, switches.failLoad, data);
         }
+        if (modules != null) {
+          Map<String, Connector> byType = new java.util.LinkedHashMap<>();
+          List<Messages.TypeTools> types = new java.util.ArrayList<>();
+          for (Connector c : modules.apply(load)) {
+            byType.put(c.manifest().id(), c);
+            types.add(new Messages.TypeTools(c.manifest().id(),
+                switches.reportedTools != null ? switches.reportedTools : c.manifest().tools()));
+          }
+          loaded.put(load.generation(), new ConnectorEndpoint.Loaded(load.generation(), byType,
+              Path.of(load.dataDir()), true));
+          return new Messages.Loaded(load.generation(), types.getFirst().type(), ApiVersion.CURRENT, 1,
+              types.getFirst().tools(), null, types).write();
+        }
         Connector connector = plugins.apply(load);
         loaded.put(load.generation(), new ConnectorEndpoint.Loaded(load.generation(), connector,
             Path.of(load.dataDir())));
@@ -206,7 +232,7 @@ public final class FakeHost implements AutoCloseable {
       case Gpp.PLUGIN_UNLOAD -> {
         ConnectorEndpoint.Loaded l = loaded.remove(params.path("generation").asString());
         if (l != null) {
-          l.connector().close();
+          l.connectors().values().forEach(Connector::close);
         }
         return GppJson.object();
       }

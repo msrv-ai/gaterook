@@ -102,6 +102,13 @@ public class ConnectorTypeEntity {
   }
 
   /** Replaces the stored manifest, e.g. after an upgrade of the gateway or of a plugin. */
+  /** As {@link #updateManifest(String, Map, String, Instant)}, for a type whose kind changed with its delivery. */
+  public void updateManifest(ConnectorManifest.Kind kind, String implVersion, Map<String, Object> manifest,
+      String manifestSha256, Instant now) {
+    this.kind = Objects.requireNonNull(kind, "kind");
+    updateManifest(implVersion, manifest, manifestSha256, now);
+  }
+
   public void updateManifest(String implVersion, Map<String, Object> manifest, String manifestSha256, Instant now) {
     this.implVersion = Objects.requireNonNull(implVersion, "implVersion");
     this.manifest = Objects.requireNonNull(manifest, "manifest");

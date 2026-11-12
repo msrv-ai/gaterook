@@ -37,6 +37,11 @@ public final class PluginArtifacts {
    * @throws ProblemException 409 when it can't be downloaded or isn't the file the catalog signed
    */
   public byte[] fetchPinned(JsonNode ref, long maxBytes, String what, String accept) {
+    return fetchPinned(ref, maxBytes, what, accept, TIMEOUT);
+  }
+
+  /** As {@link #fetchPinned(JsonNode, long, String, String)}, with the time a large file may take. */
+  public byte[] fetchPinned(JsonNode ref, long maxBytes, String what, String accept, Duration timeout) {
     String expectedSha = ref.path("sha256").asString(null);
     long expectedSize = ref.path("size").asLong(-1);
     if (expectedSha == null || !expectedSha.matches("[0-9a-fA-F]{64}")) {
@@ -45,7 +50,7 @@ public final class PluginArtifacts {
     byte[] bytes;
     try {
       HttpUrl url = CatalogDownloads.resolve(catalog.source(), ref.path("url").asString(null), what);
-      bytes = downloads.get(url, maxBytes, TIMEOUT, accept, what);
+      bytes = downloads.get(url, maxBytes, timeout, accept, what);
     } catch (CatalogDownloads.DownloadException e) {
       throw ProblemException.conflict("Can't download " + what, e.getMessage());
     }

@@ -149,7 +149,7 @@ class RowIntegrityIT {
     try (TestCore core = TestCore.start("row-integrity-settings")) {
       SettingStore settings = core.bean(SettingStore.class);
       assertThat(SettingStore.SIGNED).containsExactlyInAnyOrder(AuditRetentionJob.SETTING, "catalog.last-good",
-          "catalog.sequence");
+          "catalog.sequence", "modules.last-good", "modules.sequence");
       // Written by the first start, signed.
       assertThat(settings.find("audit")).hasValueSatisfying(a -> assertThat(a.verified()).isTrue());
       settings.put("catalog.sequence", JsonNodeFactory.instance.objectNode().put("sequence", 7), null);

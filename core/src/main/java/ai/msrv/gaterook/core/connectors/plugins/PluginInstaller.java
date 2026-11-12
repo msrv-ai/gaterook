@@ -47,6 +47,11 @@ public final class PluginInstaller {
   static final long MAX_UNCOMPRESSED = 200L * 1024 * 1024;
   static final int MAX_ENTRIES = 10_000;
 
+  /** A connector module's limits: a vendor's driver stack is larger than a plugin may be. */
+  static final long MAX_MODULE_BYTES = 150L * 1024 * 1024;
+  static final long MAX_MODULE_UNCOMPRESSED = 600L * 1024 * 1024;
+  static final int MAX_MODULE_ENTRIES = 60_000;
+
   /** Packages a plugin may not ship: the host serves them parent-first, so a copy only shadows nothing or the SPI. */
   static final List<String> FORBIDDEN_PREFIXES = List.of("ai/msrv/gaterook/", "tools/jackson/",
       "com/fasterxml/jackson/", "org/pf4j/", "org/slf4j/");
@@ -87,8 +92,22 @@ public final class PluginInstaller {
 
   /** Stages and checks a JAR's bytes; {@code source} says where it came from, {@code catalogEntry} is {@code id@ver}. */
   public Staged check(byte[] bytes, PluginSource source, String catalogEntry, String fileName) {
-    if (bytes.length > MAX_JAR_BYTES) {
-      throw ProblemException.unprocessable("Plugin too large", "A plugin JAR is at most 50 MB.", "/file");
+    return check(bytes, source, catalogEntry, fileName, false);
+  }
+
+  /**
+   * Stages and checks the package of a connector module that the module channel's signed index pins ({@code bytes}
+   * were verified against it). Only this path takes a module: a module's connectors are trusted as compiled-in ones
+   * are, so one that comes as a file or from the plugin catalog is refused ({@link #check}).
+   */
+  public Staged checkModule(byte[] bytes, String channelEntry, String fileName) {
+    return check(bytes, PluginSource.CATALOG, channelEntry, fileName, true);
+  }
+
+  private Staged check(byte[] bytes, PluginSource source, String catalogEntry, String fileName, boolean module) {
+    if (bytes.length > (module ? MAX_MODULE_BYTES : MAX_JAR_BYTES)) {
+      throw ProblemException.unprocessable("Plugin too large", module ? "A connector module is at most 150 MB."
+          : "A plugin JAR is at most 50 MB.", "/file");
     }
     String stagingId = ai.msrv.gaterook.core.platform.Ids.next("stg_");
     Path jar = paths.staging().resolve(stagingId + ".jar");
@@ -99,18 +118,36 @@ public final class PluginInstaller {
       throw new UncheckedIOException(e);
     }
     try {
-      return stage(stagingId, jar, source, catalogEntry, fileName);
+      return stage(stagingId, jar, source, catalogEntry, fileName, module);
     } catch (RuntimeException e) {
       deleteQuietly(jar);
       throw e;
     }
   }
 
-  private Staged stage(String stagingId, Path jar, PluginSource source, String catalogEntry, String fileName) {
+  private Staged stage(String stagingId, Path jar, PluginSource source, String catalogEntry, String fileName,
+      boolean module) {
     String sha256 = sha256(jar);
-    checkZip(jar);
+    // The manifest first: it says whether this is a plugin or a module, and each has its own limits.
     PluginManifest manifest = parse(jar);
+    if (manifest.module() != module) {
+      throw module ? ProblemException.unprocessable("Not a connector module", "The package isn't a connector "
+          + "module.", "/file") : ProblemException.unprocessable("Not a plugin", manifest.name() + " is one of "
+          + "GateRook's own connector modules. GateRook installs those by itself when a connection needs them; "
+          + "they can't be installed as plugins.", "/file");
+    }
+    checkZip(jar, module);
     checkRequires(manifest);
+    if (module) {
+      // The channel's signed index pins these bytes; the registry decides about names when the types register.
+      Report report = new Report(true, sha256, fileSize(jar), manifest.id(), manifest.version(), manifest.name(),
+          fileName, manifest.raw().path("requires"), List.of(), manifest.raw().path("access"), null,
+          launcher.sandboxKind());
+      Staged s = new Staged(stagingId, jar, sha256, fileSize(jar), manifest, true, source, catalogEntry, fileName,
+          report);
+      staged.put(stagingId, s);
+      return s;
+    }
     if (registry.manifest(manifest.id()).filter(m -> m.kind() != ai.msrv.gaterook.connector.api.ConnectorManifest.Kind
         .PLUGIN).isPresent()) {
       throw ProblemException.conflict("Name taken", manifest.id() + " is already a built-in connector type.");
@@ -213,7 +250,12 @@ public final class PluginInstaller {
 
   // ── Checks ──────────────────────────────────────────────────────────────────────────────────────────────────
 
-  private void checkZip(Path jar) {
+  private void checkZip(Path jar, boolean module) {
+    int maxEntries = module ? MAX_MODULE_ENTRIES : MAX_ENTRIES;
+    long maxUncompressed = module ? MAX_MODULE_UNCOMPRESSED : MAX_UNCOMPRESSED;
+    // A module is GateRook's own connector code: of ai/msrv/gaterook/ only what the host provides is closed to it.
+    List<String> forbidden = module ? PluginManifest.MODULE_SHARED_PACKAGES.stream().map(p -> p.replace('.', '/'))
+        .toList() : FORBIDDEN_PREFIXES;
     try (ZipFile zip = new ZipFile(jar.toFile())) {
       int entries = 0;
       long uncompressed = 0;
@@ -221,8 +263,8 @@ public final class PluginInstaller {
       var it = zip.entries();
       while (it.hasMoreElements()) {
         ZipEntry entry = it.nextElement();
-        if (++entries > MAX_ENTRIES) {
-          throw ProblemException.unprocessable("Plugin has too many files", "A plugin has at most " + MAX_ENTRIES
+        if (++entries > maxEntries) {
+          throw ProblemException.unprocessable("Plugin has too many files", "A plugin has at most " + maxEntries
               + " entries.", "/file");
         }
         String name = entry.getName();
@@ -238,7 +280,7 @@ public final class PluginInstaller {
         }
         if (entry.getName().endsWith(".class")) {
           String path = name;
-          for (String prefix : FORBIDDEN_PREFIXES) {
+          for (String prefix : forbidden) {
             if (path.startsWith(prefix)) {
               throw ProblemException.unprocessable("Forbidden package", "A plugin can't ship " + prefix
                   + "**: the host provides it.", "/file");
@@ -247,9 +289,9 @@ public final class PluginInstaller {
         }
         long size = entry.getSize();
         uncompressed += size < 0 ? 0 : size;
-        if (uncompressed > MAX_UNCOMPRESSED) {
-          throw ProblemException.unprocessable("Plugin too large", "A plugin's contents are at most 200 MB.",
-              "/file");
+        if (uncompressed > maxUncompressed) {
+          throw ProblemException.unprocessable("Plugin too large", "A plugin's contents are at most "
+              + maxUncompressed / (1024 * 1024) + " MB.", "/file");
         }
       }
       if (!manifest) {
@@ -267,12 +309,8 @@ public final class PluginInstaller {
         throw ProblemException.unprocessable("Not a plugin", "The JAR has no " + PluginManifest.FILE + ".", "/file");
       }
       try (InputStream in = zip.getInputStream(entry)) {
-        byte[] bytes = in.readNBytes(PluginManifest.MAX_BYTES + 1);
-        if (bytes.length > PluginManifest.MAX_BYTES) {
-          throw ProblemException.unprocessable("Manifest too large", PluginManifest.FILE + " is larger than 1 MB.",
-              "/file");
-        }
-        return PluginManifest.parse(ai.msrv.gaterook.plugin.protocol.GppJson.MAPPER.readTree(bytes));
+        // A plugin's manifest is at most 1 MB, a module's 4 MB: the reader applies the limit of what it finds.
+        return PluginManifest.read(in.readNBytes(PluginManifest.MAX_MODULE_BYTES + 1));
       }
     } catch (PluginManifest.InvalidManifest e) {
       throw ProblemException.unprocessable("Invalid manifest", e.getMessage(), "/file");

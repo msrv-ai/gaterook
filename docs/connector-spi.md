@@ -435,7 +435,18 @@ public record ResourceDescriptor(String uri /* mcpgw://connections/dev-db/schema
   public static String appPrefix(String connection) { return "ui://gaterook/connections/" + connection + "/"; }
 }
 package ai.msrv.gaterook.connector.api;
-public final class ApiVersion { public static final String CURRENT = "1.1.0"; private ApiVersion() {} }  // plugins: requires.connectorApi; 1.1: RequiredAccess.tcp
+public final class ApiVersion { public static final String CURRENT = "1.2.0"; private ApiVersion() {} }  // plugins: requires.connectorApi; 1.1: RequiredAccess.tcp; 1.2: ConnectorModule
+
+// ── ConnectorModule.java / ModuleContext.java (1.2) ────────────────────────────────────────────────────────────
+package ai.msrv.gaterook.connector.api;
+/** The entry point of a connector module (docs/connector-delivery.md): a package of GateRook's own connectors that is
+ *  delivered apart from the application. The module host instantiates the manifest's moduleClass once and asks it for
+ *  its connectors, one per connector type the manifest declares. */
+public interface ConnectorModule extends AutoCloseable {
+  List<Connector> connectors(ModuleContext context);
+  @Override default void close() {}
+}
+public interface ModuleContext { String moduleId(); String moduleVersion(); }
 ```
 
 ## Settings only the person makes

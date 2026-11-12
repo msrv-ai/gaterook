@@ -70,25 +70,48 @@ public final class HostLauncher {
   private static final AtomicInteger INSTANCES = new AtomicInteger();
 
   /**
-   * A plugin generation to start.
+   * A generation to start: a plugin's, or a connector module's.
    *
-   * @param toolHashes    the manifest's tools by name and definition hash: what the host may report from
-   *                      {@code plugin/load} ({@code null}: not checked)
-   * @param readOnlyPaths more paths the sandbox lets the host read
+   * @param toolHashes     the manifest's tools by name and definition hash: what the host may report from
+   *                       {@code plugin/load} ({@code null}: not checked)
+   * @param readOnlyPaths  more paths the sandbox lets the host read
+   * @param maxMetaspaceMb the host's class metadata limit
+   * @param maxInFlight    calls the host runs at once
+   * @param typeToolHashes a module's tools by connector type, name and definition hash: the host must report exactly
+   *                       these types, each with tools of its own ({@code null} for a plugin)
    */
   public record Spec(String id, String version, Path jar, String sha256, int maxHeapMb,
-      Map<String, String> toolHashes, List<String> readOnlyPaths) {
+      Map<String, String> toolHashes, List<String> readOnlyPaths, int maxMetaspaceMb, int maxInFlight,
+      Map<String, Map<String, String>> typeToolHashes) {
 
-    /** The spec of {@code manifest}'s JAR at {@code jar}: its heap and its tools as the manifest declares them. */
+    /** A plugin's generation, with a plugin's limits. */
+    public Spec(String id, String version, Path jar, String sha256, int maxHeapMb, Map<String, String> toolHashes,
+        List<String> readOnlyPaths) {
+      this(id, version, jar, sha256, maxHeapMb, toolHashes, readOnlyPaths, PLUGIN_METASPACE_MB,
+          PluginSupervisor.BULKHEAD, null);
+    }
+
+    /** The spec of {@code manifest}'s JAR at {@code jar}: its limits and its tools as the manifest declares them. */
     static Spec of(PluginManifest manifest, Path jar, String sha256) {
+      if (manifest.module()) {
+        return new Spec(manifest.id(), manifest.version(), jar, sha256, manifest.maxHeapMb(), null, List.of(),
+            manifest.maxMetaspaceMb(), manifest.maxInFlight(), manifest.definitionHashesByType());
+      }
       return new Spec(manifest.id(), manifest.version(), jar, sha256, manifest.maxHeapMb(),
           manifest.definitionHashes(), List.of());
+    }
+
+    boolean module() {
+      return typeToolHashes != null;
     }
 
     String generation() {
       return id + "@" + version;
     }
   }
+
+  /** The class metadata limit of a plugin's host. */
+  static final int PLUGIN_METASPACE_MB = 128;
 
   /** Requests one host may have the core work on at once (secrets, handles); one more is busy at once. */
   static final int MAX_INCOMING = 64;
@@ -371,11 +394,34 @@ public final class HostLauncher {
    */
   private static void checkTools(HostProcess host, Spec spec) throws HostStartException {
     Messages.Loaded loaded = host.loaded();
-    if (spec.toolHashes() == null || loaded == null) {
+    if (loaded == null) {
       return;
     }
-    for (ToolDefinition t : loaded.tools()) {
-      String expected = spec.toolHashes().get(t.name());
+    if (spec.module()) {
+      // A module's code must give exactly the connector types its manifest declares, each with tools of its own.
+      Set<String> reported = new TreeSet<>();
+      for (Messages.TypeTools type : loaded.types()) {
+        Map<String, String> declared = spec.typeToolHashes().get(type.type());
+        if (declared == null || !reported.add(type.type())) {
+          throw new HostStartException("tools", type.type() + " isn't a connector type the manifest declares.");
+        }
+        checkTools(type.tools(), declared);
+      }
+      if (!reported.equals(spec.typeToolHashes().keySet())) {
+        throw new HostStartException("tools", "The module's code has other connector types than its manifest: "
+            + reported + ".");
+      }
+      return;
+    }
+    if (spec.toolHashes() != null) {
+      checkTools(loaded.tools(), spec.toolHashes());
+    }
+  }
+
+  private static void checkTools(List<ToolDefinition> reported, Map<String, String> declared)
+      throws HostStartException {
+    for (ToolDefinition t : reported) {
+      String expected = declared.get(t.name());
       if (expected == null || !expected.equals(WireCodec.definitionHash(t))) {
         throw new HostStartException("tools", t.name() + " isn't the tool the manifest declares.");
       }
@@ -455,7 +501,7 @@ public final class HostLauncher {
     argv.add("-Xmx" + Math.clamp(spec.maxHeapMb(), 64, 1024) + "m");
     argv.add("-Xss512k");
     argv.add("-XX:ReservedCodeCacheSize=32m");
-    argv.add("-XX:MaxMetaspaceSize=128m");
+    argv.add("-XX:MaxMetaspaceSize=" + Math.clamp(spec.maxMetaspaceMb(), 64, 512) + "m");
     argv.add("-XX:-UsePerfData");
     argv.add("-XX:+DisableAttachMechanism");
     argv.add("-XX:+ExitOnOutOfMemoryError");

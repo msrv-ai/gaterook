@@ -1,0 +1,69 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 71,
+  "method" : "connector/execute",
+  "params" : {
+    "generation" : "neo4j@1.0.0",
+    "callId" : "tc_01JBC1",
+    "callToken" : "ct_9Qm2xLkP0aZs4vRt7yUb1w",
+    "tool" : "neo4j_execute",
+    "arguments" : {
+      "cypher" : "MATCH (o:Order {id: $id}) SET o.status = 'shipped'",
+      "params" : {
+        "id" : 48213
+      }
+    },
+    "template" : {
+      "templateId" : "tpl_ship_order",
+      "version" : 3,
+      "opKey" : "ship",
+      "binding" : {
+        "statement" : "ship-order"
+      }
+    },
+    "connection" : {
+      "id" : "9d2e",
+      "name" : "graph-dev",
+      "type" : "neo4j",
+      "env" : "dev",
+      "version" : 2,
+      "configHash" : "sha256:31229bddb792a3e5bd33c964dc8b5166b5d7556879368055892b04d7ea9e43a3",
+      "config" : {
+        "uri" : "neo4j+s://graph.example.com:7687",
+        "database" : "neo4j"
+      },
+      "secretFields" : [ "/password" ]
+    },
+    "timeoutMs" : 9400,
+    "approved" : true,
+    "approvalId" : "ap_3kq7m2x9vt4p",
+    "preparedState" : {
+      "plan" : "NodeByLabelScan",
+      "rows" : 1
+    },
+    "approvedPayload" : {
+      "cypher" : "MATCH (o:Order {id: $id}) SET o.status = 'shipped'"
+    },
+    "limits" : {
+      "maxRows" : 1000,
+      "maxLines" : 1000,
+      "maxResponseBytes" : 524288,
+      "maxRequestBytes" : 1048576,
+      "maxOutputBytes" : 262144,
+      "maxStderrBytes" : 65536,
+      "maxCellChars" : 8192,
+      "statementTimeoutMs" : 5000,
+      "commandTimeoutMs" : 30000,
+      "toolTimeoutMs" : 10000,
+      "maxRangeMs" : 604800000
+    },
+    "egress" : {
+      "hosts" : [ ],
+      "allowPrivate" : [ ],
+      "corePorts" : [ 7465, 7466 ],
+      "tcp" : [ "graph.example.com:7687" ]
+    },
+    "wantsProgress" : true,
+    "clientLogLevel" : "info"
+  }
+}

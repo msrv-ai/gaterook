@@ -846,6 +846,7 @@ public class ConnectionService {
   }
 
   private ConnectorManifest usableType(String type) {
+    registry.awaitInstalled(type);
     ConnectorType t = registry.type(type == null ? "" : type).orElseThrow(() -> ProblemException.unprocessable(
         "Unknown connector", "There is no connector type " + type + ".", "/type"));
     if (!t.usable()) {

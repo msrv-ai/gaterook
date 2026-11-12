@@ -1,0 +1,28 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 72,
+  "result" : {
+    "outcome" : "APPROVAL",
+    "preview" : {
+      "kind" : "TEXT",
+      "language" : "cypher",
+      "text" : "MATCH (o:Order {id: $id}) SET o.status = 'shipped'",
+      "target" : "graph-dev · graph.example.com",
+      "summary" : "Sets the status of one order",
+      "fields" : [ ],
+      "impact" : [ {
+        "label" : "Nodes changed",
+        "value" : "1"
+      } ],
+      "warnings" : [ ],
+      "auditFacets" : { },
+      "payload" : {
+        "cypher" : "MATCH (o:Order {id: $id}) SET o.status = 'shipped'"
+      }
+    },
+    "preparedState" : {
+      "plan" : "NodeByLabelScan",
+      "rows" : 1
+    }
+  }
+}

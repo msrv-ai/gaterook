@@ -10,7 +10,9 @@ import ai.msrv.gaterook.connector.api.EndpointView;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.Limits;
 import ai.msrv.gaterook.connector.api.PolicyView;
+import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.Suggestions;
+import ai.msrv.gaterook.connector.api.TemplateKind;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
@@ -327,6 +329,151 @@ class GoldenMessagesTest {
     seal.set("payload", json("{\"start\":50}"));
     seal.put("ttlSeconds", 86_400);
     golden("handles-seal.request", request("h23", Gpp.HANDLES_SEAL, seal));
+  }
+
+  // ── Connector modules ───────────────────────────────────────────────────────────────────────────────────────
+
+  static final ConnectionConfig GRAPH = new ConnectionConfig("9d2e", "graph-dev", "neo4j", Env.DEV, 2,
+      json("{\"uri\":\"neo4j+s://graph.example.com:7687\",\"database\":\"neo4j\"}"), Set.of("/password"), null);
+
+  static final ToolDefinition CYPHER = ToolDefinition.builder("neo4j_execute").title("Run Cypher")
+      .description("Runs one Cypher statement that may change the graph.")
+      .inputSchema(json("""
+          {"type":"object","additionalProperties":false,"required":["connection","cypher"],"properties":{
+           "connection":{"type":"string"},"cypher":{"type":"string"},"params":{"type":"object"}}}"""))
+      .annotations(ToolDefinition.Annotations.write(false)).nature(ToolDefinition.Nature.MUTATION)
+      .defaultMode(ToolDefinition.Mode.APPROVAL, ToolDefinition.Mode.APPROVAL).build();
+
+  static final ToolCall CYPHER_CALL = new ToolCall("tc_01JBC1", "neo4j_execute", "graph-dev", (ObjectNode) json(
+      "{\"cypher\":\"MATCH (o:Order {id: $id}) SET o.status = 'shipped'\",\"params\":{\"id\":48213}}"),
+      new ToolCall.TemplateBinding("tpl_ship_order", 3, "ship", json("{\"statement\":\"ship-order\"}")));
+
+  static final Messages.EgressGrant GRAPH_EGRESS = new Messages.EgressGrant(List.of(), List.of(), List.of(7465, 7466),
+      List.of("graph.example.com:7687"));
+
+  /**
+   * What a connector module adds to GPP/1: several connector types in one generation, the calls of the SPI a plugin
+   * is never asked (prepare, describe, supportsTool, templates), and the core's services for a module's call.
+   */
+  @Test
+  void modules() throws IOException {
+    ToolDefinition documents = ToolDefinition.builder("firestore_get").title("Get a document")
+        .description("Reads one document.").inputSchema(json("{\"type\":\"object\"}")).build();
+    ToolDefinition paths = ToolDefinition.builder("rtdb_get").title("Read a path")
+        .description("Reads the value at a path.").inputSchema(json("{\"type\":\"object\"}")).build();
+    Messages.Loaded loaded = new Messages.Loaded("firebase@1.2.0", "firestore", ApiVersion.CURRENT, 212,
+        List.of(documents), "seatbelt", List.of(new Messages.TypeTools("firestore", List.of(documents)),
+            new Messages.TypeTools("firebase-rtdb", List.of(paths))));
+    golden("plugin-load.module-result", result(2L, loaded.write()));
+    Messages.Loaded back = Messages.Loaded.read(loaded.write());
+    assertThat(back.types()).extracting(Messages.TypeTools::type).containsExactly("firestore", "firebase-rtdb");
+    assertThat(WireCodec.definitionHash(back.types().get(1).tools().getFirst()))
+        .isEqualTo(WireCodec.definitionHash(paths));
+    // One type says nothing that `type` and `tools` don't: the message of GPP/1 before modules, byte for byte.
+    Messages.Loaded single = new Messages.Loaded("neo4j@1.0.0", "neo4j", ApiVersion.CURRENT, 90, List.of(CYPHER),
+        null);
+    assertThat(single.write().has("types")).isFalse();
+    assertThat(Messages.Loaded.read(single.write()).types()).singleElement()
+        .satisfies(t -> assertThat(t.type()).isEqualTo("neo4j"));
+
+    Messages.Execute e = new Messages.Execute("neo4j@1.0.0", "ct_9Qm2xLkP0aZs4vRt7yUb1w", CYPHER_CALL, GRAPH, 9_400,
+        true, "ap_3kq7m2x9vt4p", json("{\"plan\":\"NodeByLabelScan\",\"rows\":1}"),
+        json("{\"cypher\":\"MATCH (o:Order {id: $id}) SET o.status = 'shipped'\"}"), DEV, null, null, GRAPH_EGRESS,
+        true, "info");
+    golden("connector-execute.module-request", request(71L, Gpp.CONNECTOR_EXECUTE, e.write()));
+    Messages.Execute executed = Messages.Execute.read(e.write());
+    assertThat(executed.call().template()).isEqualTo(CYPHER_CALL.template());
+    assertThat(executed.wantsProgress()).isTrue();
+    assertThat(executed.clientLogLevel()).isEqualTo("info");
+    assertThat(executed.preparedState()).isEqualTo(e.preparedState());
+
+    Messages.Prepare p = new Messages.Prepare("neo4j@1.0.0", "ct_9Qm2xLkP0aZs4vRt7yUb1w", CYPHER_CALL, GRAPH, 5_000,
+        DEV, "4f2a9c71e8d04b5a9c3e2b1f0a6d8e81", null, GRAPH_EGRESS);
+    golden("connector-prepare.request", request(72L, Gpp.CONNECTOR_PREPARE, p.write()));
+    Messages.Prepare prepared = Messages.Prepare.read(p.write());
+    assertThat(prepared.call().template()).isEqualTo(CYPHER_CALL.template());
+    assertThat(prepared.call().arguments()).isEqualTo(CYPHER_CALL.arguments());
+    assertThat(prepared.egress()).isEqualTo(GRAPH_EGRESS);
+    assertThat(prepared.limits()).isEqualTo(DEV);
+    PreparedAction action = PreparedAction.approval(
+        ActionPreview.of(ActionPreview.Kind.TEXT, "cypher", "MATCH (o:Order {id: $id}) SET o.status = 'shipped'",
+            "graph-dev · graph.example.com", "Sets the status of one order")
+            .withImpact(List.of(new ActionPreview.Field("Nodes changed", "1")))
+            .withPayload(json("{\"cypher\":\"MATCH (o:Order {id: $id}) SET o.status = 'shipped'\"}")),
+        json("{\"plan\":\"NodeByLabelScan\",\"rows\":1}"));
+    golden("connector-prepare.result", result(72L, WireCodec.prepared(action)));
+    assertThat(WireCodec.prepared(WireCodec.prepared(action))).isEqualTo(action);
+    PreparedAction rejected = PreparedAction.reject(
+        "The statement doesn't compile: Variable `x` not defined.");
+    golden("connector-prepare.rejected", result(73L, WireCodec.prepared(rejected)));
+    assertThat(WireCodec.prepared(WireCodec.prepared(rejected))).isEqualTo(rejected);
+    PreparedAction same = PreparedAction.noChange(
+        "The order is already shipped.");
+    assertThat(WireCodec.prepared(WireCodec.prepared(same))).isEqualTo(same);
+
+    Messages.Test t = new Messages.Test("neo4j@1.0.0", "dc_01JBC4", "ct_Zx81bR4wQ0mN2pL7sK3tAb", GRAPH, 10_000, DEV,
+        GRAPH_EGRESS);
+    Messages.DescribeConnection d = new Messages.DescribeConnection(t, "Order");
+    golden("connector-describe.request", request(74L, Gpp.CONNECTOR_DESCRIBE, d.write()));
+    assertThat(Messages.DescribeConnection.read(d.write())).isEqualTo(d);
+    assertThat(Messages.DescribeConnection.read(t.write()).object()).isNull();
+    ObjectNode described = GppJson.object();
+    described.set("value", json("{\"labels\":[\"Order\"],\"properties\":{\"id\":\"INTEGER\",\"status\":\"STRING\"}}"));
+    golden("connector-describe.result", result(74L, described));
+
+    Messages.SupportsTool s = new Messages.SupportsTool("neo4j@1.0.0", GRAPH, List.of("neo4j_query", "neo4j_execute"));
+    golden("connector-supportsTool.request", request(75L, Gpp.CONNECTOR_SUPPORTS_TOOL, s.write()));
+    assertThat(Messages.SupportsTool.read(s.write()).tools()).isEqualTo(s.tools());
+    ObjectNode supported = Messages.SupportsTool.result(List.of("neo4j_query"));
+    golden("connector-supportsTool.result", result(75L, supported));
+    assertThat(Messages.SupportsTool.supported(supported)).containsExactly("neo4j_query");
+
+    EndpointView view = new EndpointView("dev", Env.DEV, List.of(GRAPH), Map.of("9d2e", DEV), List.of());
+    Messages.Tools tools = new Messages.Tools("firebase@1.2.0", "ct_Ab12", view, "firebase-rtdb");
+    golden("connector-tools.module-request", request(76L, Gpp.CONNECTOR_TOOLS, tools.write()));
+    assertThat(Messages.Tools.read(tools.write()).type()).isEqualTo("firebase-rtdb");
+
+    JsonNode definition = json("""
+        {"name":"ship_order","statement":"MATCH (o:Order {id: $id}) SET o.status = 'shipped'",
+         "parameters":{"id":{"type":"integer"}}}""");
+    Messages.Template compile = new Messages.Template("neo4j@1.0.0", "cypher-query", definition, null, GRAPH);
+    golden("template-compile.request", request(77L, Gpp.TEMPLATE_COMPILE, compile.write()));
+    Messages.Template compileBack = Messages.Template.read(compile.write());
+    assertThat(compileBack.definition()).isEqualTo(definition);
+    assertThat(compileBack.arguments()).isNull();
+    assertThat(compileBack.runsOn().type()).isEqualTo("neo4j");
+    TemplateKind.CompileResult compiled =
+        new TemplateKind.CompileResult(List.of(
+            new TemplateKind.CompiledTool("ship", CYPHER,
+                json("{\"statement\":\"ship-order\"}"))), List.of(json("{\"note\":\"Orders\"}")), List.of(),
+            List.of("The statement changes the graph: every call waits for approval."), "sha256:4be0c1");
+    golden("template-compile.result", result(77L, WireCodec.compiled(compiled)));
+    TemplateKind.CompileResult compiledBack =
+        WireCodec.compiled(WireCodec.compiled(compiled));
+    assertThat(compiledBack.digest()).isEqualTo(compiled.digest());
+    assertThat(compiledBack.warnings()).isEqualTo(compiled.warnings());
+    assertThat(compiledBack.contributions()).isEqualTo(compiled.contributions());
+    assertThat(compiledBack.tools()).singleElement().satisfies(tool -> {
+      assertThat(tool.opKey()).isEqualTo("ship");
+      assertThat(tool.binding()).isEqualTo(compiled.tools().getFirst().binding());
+      assertThat(WireCodec.definitionHash(tool.definition())).isEqualTo(WireCodec.definitionHash(CYPHER));
+    });
+    Messages.Template preview = new Messages.Template("neo4j@1.0.0", "cypher-query", definition,
+        (ObjectNode) json("{\"id\":48213}"), GRAPH);
+    golden("template-preview.request", request(78L, Gpp.TEMPLATE_PREVIEW, preview.write()));
+    assertThat(Messages.Template.read(preview.write()).arguments()).isEqualTo(preview.arguments());
+
+    golden("quota-acquire.request", request("h31", Gpp.QUOTA_ACQUIRE, Messages.quota("ct_9Qm2xLkP0aZs4vRt7yUb1w",
+        "cloud:acct-4821:search", 60)));
+    golden("quota-acquire.result", result("h31", GppJson.object().put("granted", true)));
+    golden("mask-preview.request", request("h32", Gpp.MASK_PREVIEW, Messages.mask("ct_9Qm2xLkP0aZs4vRt7yUb1w",
+        json("{\"customer\":\"ann@example.com\",\"total\":41.5}"))));
+    golden("mask-preview.result", result("h32", GppJson.object().set("tree",
+        json("{\"customer\":\"\u2039masked\u203a\",\"total\":41.5}"))));
+    golden("call-progress.notification", notification(Gpp.PROGRESS, Messages.progress("ct_9Qm2xLkP0aZs4vRt7yUb1w",
+        2_000, 10_000.0, "2,000 of 10,000 nodes")));
+    golden("call-clientLog.notification", notification(Gpp.CLIENT_LOG, Messages.clientLog(
+        "ct_9Qm2xLkP0aZs4vRt7yUb1w", "warning", "neo4j", json("{\"message\":\"The plan scans every node\"}"))));
   }
 
   private static JsonNode raw(JsonRpcPeer.RawResult r) {
