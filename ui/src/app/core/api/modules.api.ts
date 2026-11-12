@@ -20,7 +20,7 @@ export interface ConnectorModule {
   readonly id: string;
   readonly name: string;
   readonly version: string;
-  /** `ready`, `installing`, `missing`, `available`, `failed` or `disabled`. */
+  /** `ready`, `installing`, `missing`, `available`, `failed`, `revoked` or `disabled`. */
   readonly state: string;
   /** The step of a running installation (`runtime`, `downloading`, `verifying`, `installing`), else null. */
   readonly step: string | null;
@@ -29,6 +29,10 @@ export interface ConnectorModule {
   readonly message: string | null;
   readonly types: ModuleType[];
   readonly installed: boolean;
+  /** The version kept for Roll back (a week after an update), else null. */
+  readonly previousVersion?: string | null;
+  /** A higher version the list has for an installed module: it installs by itself unless it was rolled back from. */
+  readonly listedVersion?: string | null;
 }
 
 export interface ConnectorModules {
@@ -49,5 +53,15 @@ export class ModulesApi {
   /** Starts the installation of a module, by its id or by a connector type it adds; answers at once. */
   install(idOrType: string): Promise<ConnectorModule> {
     return this.api.post(ApiClient.path`/api/modules/${idOrType}/install`, {});
+  }
+
+  /** Checks the list again now; the updates it calls for start by themselves. */
+  refresh(): Promise<ConnectorModules> {
+    return this.api.post('/api/modules/refresh', {});
+  }
+
+  /** Returns a module to the version it had before; an update then installs only a later version. */
+  rollback(id: string, reason?: string): Promise<ConnectorModule> {
+    return this.api.post(ApiClient.path`/api/modules/${id}/rollback`, { reason: reason ?? null });
   }
 }

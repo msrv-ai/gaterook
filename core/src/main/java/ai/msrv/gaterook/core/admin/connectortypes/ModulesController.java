@@ -37,7 +37,7 @@ class ModulesController {
     return new ModulesView(modules.channel(), all);
   }
 
-  /** Checks the list of modules again now. */
+  /** Checks the list of modules again now and starts the updates it calls for. */
   @PostMapping("/api/modules/refresh")
   ModulesView refresh() {
     Modules.Channel channel = modules.refreshChannel();
@@ -51,6 +51,15 @@ class ModulesController {
   @PostMapping("/api/modules/{id}/install")
   Modules.Module install(@PathVariable String id) {
     return modules.ensure(id);
+  }
+
+  /**
+   * Returns an installed module to the version it had before, which is kept for a week. An update doesn't install
+   * the version it was rolled back from again. 409 when no previous version is kept.
+   */
+  @PostMapping("/api/modules/{id}/rollback")
+  Modules.Module rollback(@PathVariable String id, @RequestBody(required = false) Reason reason) {
+    return modules.rollback(id, reason == null ? null : reason.reason());
   }
 
   /** Removes an installed module. 409 while connections use one of its connector types. */

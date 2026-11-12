@@ -95,7 +95,19 @@ A request that is about to work with the type waits for the installation, up to 
 
 The steps are: the Java runtime (downloaded once when the application doesn't carry one), the package, its checks (the pinned bytes, the manifest, the versions it needs, the connector types the index promised), a first load in a fresh host, and a signed row. One installation runs per module; whoever asks meanwhile joins it. Each step is published as a `module.state` event.
 
-`GET /api/modules` lists the installed and the listed modules. `POST /api/modules/{id}/install` starts an installation by module id or connector type id and answers at once. `DELETE /api/modules/{id}` removes a module that no connection uses. The cards of `GET /api/connector-types` carry `module` for a type that a module adds.
+`GET /api/modules` lists the installed and the listed modules. `POST /api/modules/{id}/install` starts an installation by module id or connector type id and answers at once. `POST /api/modules/refresh` checks the list again and starts the updates it calls for. `DELETE /api/modules/{id}` removes a module that no connection uses. The cards of `GET /api/connector-types` carry `module` for a type that a module adds.
+
+### Updates
+
+An installed module follows the list. When the list has a higher version that the build can run, the module updates by itself: soon after the start, every six hours, and whenever the list is checked again. Nobody is asked. `gateway.modules.auto-update=false` turns the checks off.
+
+- The new version's host starts beside the old one and takes over; the old one finishes the calls it has and stops.
+- What waits for approval on the module's connections is rejected with "Connector updated to 1.0.1, ask again": it was prepared and described by the old code.
+- The version before is kept for a week. `POST /api/modules/{id}/rollback` returns to it, and an update then installs only a version past the one that was rolled back from.
+- A package the list revokes is switched off: its host stops and its connector types leave the endpoints. The best listed version that isn't revoked replaces it, at once.
+- An update that fails leaves the installed version as it is and is tried again after six hours.
+
+Each change is a Setup change ("Connector Apache Cassandra: 1.0.0 → 1.0.1").
 
 ### In the interface
 

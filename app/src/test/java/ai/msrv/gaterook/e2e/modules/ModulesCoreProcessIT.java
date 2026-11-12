@@ -72,7 +72,11 @@ class ModulesCoreProcessIT {
 
   private static MockWebServer channel;
   private static CoreProcess core;
+  private static KeyPair key;
+  /** The package of 1.0.0. */
   private static byte[] jar;
+  /** Every released package, by version. */
+  private static final Map<String, byte[]> RELEASED = new java.util.LinkedHashMap<>();
   private static String token;
 
   @TempDir
@@ -82,7 +86,7 @@ class ModulesCoreProcessIT {
 
   @BeforeAll
   static void start() throws Exception {
-    jar = moduleJar();
+    jar = release("1.0.0");
     channel = new MockWebServer();
     channel.useHttps(new HandshakeCertificates.Builder().heldCertificate(LEAF).build().sslSocketFactory());
     channel.setDispatcher(new Dispatcher() {
@@ -97,11 +101,8 @@ class ModulesCoreProcessIT {
       }
     });
     channel.start(InetAddress.getByName("127.0.0.1"), 0);
-    KeyPair key = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
-    FILES.put("/modules/echo-1.0.0.jar", jar);
-    byte[] index = index();
-    FILES.put("/modules/index.json", index);
-    FILES.put("/modules/index.json.sig", signature(key, index));
+    key = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+    publish(index(1, List.of("1.0.0"), List.of()));
 
     Path ca = home.resolve("channel-ca.pem");
     Files.writeString(ca, CA.certificatePem());
@@ -263,6 +264,72 @@ class ModulesCoreProcessIT {
 
   @Test
   @Order(7)
+  void aNewVersionInTheListUpdatesTheModuleByItselfAndRejectsWhatWaitedOnTheOldCode() throws Exception {
+    assertThat(call(10, "echo_read", "{\"connection\":\"echo-dev\",\"text\":\"x\"}")
+        .at("/result/structuredContent/build").asString()).isEqualTo("1.0.0");
+    // A change waits for approval: it was prepared and described by 1.0.0.
+    JsonNode waiting = call(11, "echo_write", "{\"connection\":\"echo-dev\",\"text\":\"before the update\"}");
+    String handle = waiting.at("/result/structuredContent/handle").asString();
+    assertThat(handle).as(waiting.toString()).startsWith("ap_");
+
+    release("1.1.0");
+    publish(index(2, List.of("1.0.0", "1.1.0"), List.of()));
+    json(admin("POST", "/api/modules/refresh", null), 200);
+    JsonNode echo = awaitModule("1.1.0", "ready");
+    assertThat(echo.path("previousVersion").asString()).isEqualTo("1.0.0");
+    assertThat(echo.path("listedVersion").isNull()).isTrue();
+
+    assertThat(call(12, "echo_read", "{\"connection\":\"echo-dev\",\"text\":\"x\"}")
+        .at("/result/structuredContent/build").asString()).as("the new package serves the call").isEqualTo("1.1.0");
+    JsonNode approval = json(admin("GET", "/api/approvals/" + handle, null), 200);
+    assertThat(approval.path("status").asString()).isEqualTo("rejected");
+    assertThat(approval.toString()).contains("Connector updated to 1.1.0, ask again");
+    assertThat(installed(json(admin("GET", "/api/connector-types", null), 200), "echo-db").path("version").asString())
+        .isEqualTo("1.1.0");
+  }
+
+  @Test
+  @Order(8)
+  void aRollBackReturnsToTheKeptVersionAndOnlyALaterVersionUpdatesItAgain() throws Exception {
+    JsonNode rolled = json(admin("POST", "/api/modules/echo/rollback", "{\"reason\":\"1.1.0 misbehaves\"}"), 200);
+    assertThat(rolled.path("version").asString()).isEqualTo("1.0.0");
+    assertThat(rolled.path("previousVersion").asString()).isEqualTo("1.1.0");
+    assertThat(call(13, "echo_read", "{\"connection\":\"echo-dev\",\"text\":\"x\"}")
+        .at("/result/structuredContent/build").asString()).isEqualTo("1.0.0");
+
+    // The list still has 1.1.0: a check doesn't bring it back.
+    json(admin("POST", "/api/modules/refresh", null), 200);
+    Thread.sleep(2_000);
+    JsonNode held = module(json(admin("GET", "/api/modules", null), 200), "echo");
+    assertThat(held.path("version").asString()).isEqualTo("1.0.0");
+    assertThat(held.path("state").asString()).isEqualTo("ready");
+    assertThat(held.path("listedVersion").asString()).isEqualTo("1.1.0");
+
+    // A version past the one rolled back from is installed again by itself.
+    release("1.2.0");
+    publish(index(3, List.of("1.0.0", "1.1.0", "1.2.0"), List.of()));
+    json(admin("POST", "/api/modules/refresh", null), 200);
+    awaitModule("1.2.0", "ready");
+    assertThat(call(14, "echo_read", "{\"connection\":\"echo-dev\",\"text\":\"x\"}")
+        .at("/result/structuredContent/build").asString()).isEqualTo("1.2.0");
+  }
+
+  @Test
+  @Order(9)
+  void aRevokedPackageIsSwitchedOffAndReplacedByTheBestOneThatIsNot() throws Exception {
+    publish(index(4, List.of("1.0.0", "1.1.0"), List.of(sha256(RELEASED.get("1.2.0")))));
+    json(admin("POST", "/api/modules/refresh", null), 200);
+    // 1.1.0 is the version a person rolled back from: 1.0.0 replaces the revoked package.
+    JsonNode echo = awaitModule("1.0.0", "ready");
+    assertThat(echo.path("installed").asBoolean()).isTrue();
+    assertThat(installed(json(admin("GET", "/api/connector-types", null), 200), "echo-db").path("state").asString())
+        .as("its types are on again").isEqualTo("enabled");
+    assertThat(call(15, "echo_read", "{\"connection\":\"echo-dev\",\"text\":\"x\"}")
+        .at("/result/structuredContent/build").asString()).isEqualTo("1.0.0");
+  }
+
+  @Test
+  @Order(10)
   void aModuleInUseIsNotRemovedAndOneThatIsNotLeavesWithItsTypes() throws Exception {
     Answer inUse = admin("DELETE", "/api/modules/echo", null);
     assertThat(inUse.status()).as(inUse.body()).isEqualTo(409);
@@ -282,14 +349,30 @@ class ModulesCoreProcessIT {
 
   // ── The module and its channel ──────────────────────────────────────────────────────────────────────────────
 
-  /** The module as it is published: its classes and the manifest written from its connectors. */
-  private static byte[] moduleJar() throws Exception {
+  /** Builds and releases the package of {@code version}: its bytes are what the channel serves from then on. */
+  private static byte[] release(String version) throws Exception {
+    byte[] bytes = moduleJar(version);
+    RELEASED.put(version, bytes);
+    FILES.put("/modules/echo-" + version + ".jar", bytes);
+    return bytes;
+  }
+
+  /**
+   * The module as it is published: its classes, the manifest written from its connectors, and the build it says it
+   * is when it answers a call.
+   */
+  private static byte[] moduleJar(String version) throws Exception {
     List<Connector> connectors = new EchoModule().connectors(null);
-    ObjectNode manifest = ModuleManifests.write(CoreProcess.JSON.readTree(EchoModule.DESCRIPTOR), connectors);
+    ObjectNode descriptor = (ObjectNode) CoreProcess.JSON.readTree(EchoModule.DESCRIPTOR);
+    descriptor.put("version", version);
+    ObjectNode manifest = ModuleManifests.write(descriptor, connectors);
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
     try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
       zip.putNextEntry(new ZipEntry(PluginManifest.FILE));
       zip.write(CoreProcess.JSON.writeValueAsBytes(manifest));
+      zip.closeEntry();
+      zip.putNextEntry(new ZipEntry("META-INF/echo-build.txt"));
+      zip.write(version.getBytes(StandardCharsets.UTF_8));
       zip.closeEntry();
       String folder = EchoModule.class.getPackageName().replace('.', '/') + "/";
       for (String name : List.of("EchoModule", "EchoModule$EchoDb", "EchoModule$EchoLog")) {
@@ -303,24 +386,55 @@ class ModulesCoreProcessIT {
     return bytes.toByteArray();
   }
 
-  private static byte[] index() throws Exception {
+  /** The channel's list at {@code sequence}: the given released versions, and the packages it revokes. */
+  private static byte[] index(long sequence, List<String> versions, List<String> revoked) throws Exception {
     ObjectNode index = CoreProcess.JSON.createObjectNode();
-    index.put("schema", 1).put("sequence", 1);
+    index.put("schema", 1).put("sequence", sequence);
     index.put("generatedAt", Instant.now().truncatedTo(ChronoUnit.SECONDS).toString());
     index.put("expiresAt", Instant.now().plus(30, ChronoUnit.DAYS).truncatedTo(ChronoUnit.SECONDS).toString());
-    ObjectNode entry = index.putArray("entries").addObject();
-    entry.put("kind", "module").put("id", "echo").put("version", "1.0.0").put("name", "Echo")
-        .put("description", "A connector module for tests.");
-    entry.putObject("requires").put("gateway", ">=0.1.0 & <99.0.0").put("connectorApi", ">=1.2.0 & <2.0.0");
-    entry.putObject("artifact").put("url", "echo-1.0.0.jar").put("sha256", sha256(jar)).put("size", jar.length);
-    ObjectNode db = entry.putArray("types").addObject().put("id", "echo-db").put("name", "Echo DB")
-        .put("icon", "database").put("group", "Databases").put("description", "Answers what it is asked.");
-    db.putArray("tools").add("echo_read").add("echo_write");
-    ObjectNode log = entry.withArray("types").addObject().put("id", "echo-log").put("name", "Echo Log")
-        .put("icon", "activity").put("group", "Logs").put("description", "Reads lines that aren't there.");
-    log.putArray("tools").add("echolog_tail");
-    index.putArray("revoked");
+    index.putArray("entries");
+    for (String version : versions) {
+      byte[] bytes = RELEASED.get(version);
+      ObjectNode entry = index.withArray("entries").addObject();
+      entry.put("kind", "module").put("id", "echo").put("version", version).put("name", "Echo")
+          .put("description", "A connector module for tests.");
+      entry.putObject("requires").put("gateway", ">=0.1.0 & <99.0.0").put("connectorApi", ">=1.2.0 & <2.0.0");
+      entry.putObject("artifact").put("url", "echo-" + version + ".jar").put("sha256", sha256(bytes))
+          .put("size", bytes.length);
+      ObjectNode db = entry.putArray("types").addObject().put("id", "echo-db").put("name", "Echo DB")
+          .put("icon", "database").put("group", "Databases").put("description", "Answers what it is asked.");
+      db.putArray("tools").add("echo_read").add("echo_write");
+      ObjectNode log = entry.withArray("types").addObject().put("id", "echo-log").put("name", "Echo Log")
+          .put("icon", "activity").put("group", "Logs").put("description", "Reads lines that aren't there.");
+      log.putArray("tools").add("echolog_tail");
+    }
+    for (String sha : revoked) {
+      index.withArray("revoked").addObject().put("sha256", sha).put("reason", "leaked e2e build");
+    }
+    if (!index.has("revoked")) {
+      index.putArray("revoked");
+    }
     return CoreProcess.JSON.writerWithDefaultPrettyPrinter().writeValueAsBytes(index);
+  }
+
+  /** Puts a list on the channel, signed. */
+  private static void publish(byte[] index) throws Exception {
+    FILES.put("/modules/index.json.sig", signature(key, index));
+    FILES.put("/modules/index.json", index);
+  }
+
+  /** Waits until the module is at {@code version} in {@code state}. */
+  private static JsonNode awaitModule(String version, String state) throws Exception {
+    JsonNode echo = null;
+    long deadline = System.nanoTime() + Duration.ofSeconds(60).toNanos();
+    while (System.nanoTime() < deadline) {
+      echo = module(json(admin("GET", "/api/modules", null), 200), "echo");
+      if (echo.path("version").asString().equals(version) && echo.path("state").asString().equals(state)) {
+        return echo;
+      }
+      Thread.sleep(250);
+    }
+    throw new AssertionError("echo didn't reach " + version + " " + state + ": " + echo);
   }
 
   private static byte[] signature(KeyPair key, byte[] index) throws Exception {

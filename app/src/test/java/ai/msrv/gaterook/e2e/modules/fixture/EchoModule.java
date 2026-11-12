@@ -50,6 +50,15 @@ public final class EchoModule implements ConnectorModule {
     return JSON.readTree(text);
   }
 
+  /** The build of the package this code was loaded from: the test puts it beside the classes. */
+  static String build() {
+    try (java.io.InputStream in = EchoModule.class.getResourceAsStream("/META-INF/echo-build.txt")) {
+      return in == null ? "unpackaged" : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).strip();
+    } catch (java.io.IOException e) {
+      return "unreadable";
+    }
+  }
+
   private static JsonNode input(String extra) {
     return json("{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"connection\"],\"properties\":{"
         + "\"connection\":{\"type\":\"string\",\"description\":\"The connection to run on\"}" + extra + "}}");
@@ -124,6 +133,7 @@ public final class EchoModule implements ConnectorModule {
         out.put("passwordLength", password.chars().length);
       }
       out.put("pid", ProcessHandle.current().pid());
+      out.put("build", build());
       return ToolResult.json(out, null);
     }
   }
