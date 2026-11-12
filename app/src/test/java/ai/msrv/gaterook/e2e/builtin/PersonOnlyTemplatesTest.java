@@ -27,7 +27,7 @@ class PersonOnlyTemplatesTest {
       if (!templates.isEmpty()) marked.put(manifest.id(), templates.size());
     }
     // The comparison found marks (schemas without any would otherwise make it pass for nothing).
-    assertThat(marked).containsOnlyKeys("aws", "azure", "azure-monitor", "http", "kubernetes", "logs", "sqlite", "ssh",
-        "ssh-logs");
+    assertThat(marked).containsOnlyKeys("aws", "azure", "azure-ai-search", "azure-monitor", "http", "kubernetes", "logs", "sqlite",
+        "ssh", "ssh-logs");
   }
 }
