@@ -3093,6 +3093,91 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     expect(text(p.q('#page-title'))).toBe('Add connection');
     expect(p.steps()[3]).toBe('upcoming:4 Add to endpoint');
   });
+
+  /** External MCP server on the first run: Configure, then the review that starts it. */
+  async function startMcp(p: Awaited<ReturnType<typeof open>>) {
+    const field = (suffix: string) => p.q<HTMLInputElement>(`#step-2-mcp [id$="${suffix}"]`)!;
+    await p.type(field('-name').id, 'docs');
+    await p.type(field('-command').id, 'npx -y @modelcontextprotocol/server-filesystem@2026.1.14 /srv/docs');
+    p.button('Continue', p.q('#step-2-mcp')!).click();
+    await p.settle();
+    p.q<HTMLInputElement>('#step-3-mcp input[type=checkbox][id$="-ack"]')!.click();
+    await p.settle();
+    p.button('Start MCP server docs', p.q('#step-3-mcp')!).click();
+    await p.settle();
+  }
+
+  it('creates the first endpoint for a first MCP server, named after its environment, then the ready card', async () => {
+    vi.mocked(TestBed.inject(EndpointsApi).tools).mockResolvedValue([
+      { group: 'docs', connection: 'docs', env: null, tools: [row('read_file', 'READ_ONLY'), row('write_file', 'APPROVAL')] },
+    ]);
+    const p = await open('/connections/new?type=mcp-server');
+    expect(text(p.q('#page-title'))).toBe('Add your first connection');
+    expect(text(p.q('.gw-page-header__description'))).toContain('An MCP server is saved when it first connects.');
+    await startMcp(p);
+    expect(p.visible()).toEqual(['step-4-mcp']);
+    expect(text(p.q('#step-4-mcp-title'))).toBe('Make docs available to your AI apps');
+    expect(p.steps()[3]).toBe('current:4 Create endpoint');
+    expect(kv('#step-4-mcp')[0]).toEqual(['Name', 'dev']);
+    // The server is saved: Cancel would undo nothing.
+    expect(p.q('.gw-page-header__actions a')).toBeNull();
+    p.button('Create endpoint', p.q('#step-4-mcp')!).click();
+    await p.settle();
+    expect(core.endpointsCreated).toEqual([{ slug: 'dev', startFrom: 'empty' }]);
+    expect(core.added).toEqual(['dev']);
+    expect(p.visible()).toEqual([]);
+    expect(text(p.q('#fr-done-t'))).toBe('docs is ready');
+    expect(text(p.q('#fr-done .gw-card__description'))).toBe('Saved and started. Your AI apps can use it as soon as you connect one.');
+    expect(kv('#fr-done').map(([key]) => key)).toEqual(['Endpoint', 'Tools']);
+    expect(kv('#fr-done')[0]?.[1]).toContain('dev · http://127.0.0.1:7465/mcp/dev · created');
+    expect(p.steps()).toEqual([
+      'complete:Choose, completed External MCP server',
+      'complete:Configure, completed docs · dev',
+      'complete:Review, completed Started · 3 tools',
+      'complete:Create endpoint, completed Endpoint dev',
+    ]);
+    expect(TestBed.inject(Router).url).toBe('/connections/new?type=mcp-server');
+    expect(TestBed.inject(ToastService).toasts().at(-1)).toMatchObject({
+      title: 'MCP server docs started', body: 'Endpoint dev created with its tools. Next: connect your AI app.',
+    });
+  });
+
+  it('puts a first MCP server on the empty default endpoint, its tools previewed there', async () => {
+    useDefault();
+    core.previews.set('default', {
+      connection: 'docs', env: 'dev', warnings: [], refusal: null,
+      tools: [{ toolKey: 'docs:read_file', tool: 'read_file', mode: 'READ_ONLY', locked: null, declaredBy: 'server' }],
+    } as ConnectionPreview);
+    const p = await open('/connections/new?type=mcp-server');
+    await startMcp(p);
+    expect(p.steps()[3]).toBe('current:4 Add to endpoint');
+    expect(text(p.q('#step-4-mcp [id$="-first-t"] + .gw-form__description'))).toContain('Endpoint default is already set up.');
+    expect(text(p.q('#step-4-mcp table'))).toContain('read_file');
+    p.button('Add to endpoint', p.q('#step-4-mcp')!).click();
+    await p.settle();
+    expect(core.endpointsCreated).toEqual([]);
+    expect(core.added).toEqual(['default']);
+    expect(text(p.q('#fr-done-t'))).toBe('docs is ready');
+    expect(kv('#fr-done')[0]?.[1]).toContain('default · http://127.0.0.1:7465/mcp/default · connection added');
+    expect(TestBed.inject(ToastService).toasts().at(-1)?.body).toBe('Added to endpoint default with its tools. Next: connect your AI app.');
+  });
+
+  it('keeps a first MCP server’s last step when its endpoint can’t be created, and tries again', async () => {
+    core.createEndpointFails = new ApiError('unprocessable', 422, { detail: 'The endpoint name is reserved.' });
+    const p = await open('/connections/new?type=mcp-server');
+    await startMcp(p);
+    p.button('Create endpoint', p.q('#step-4-mcp')!).click();
+    await p.settle();
+    expect(core.added).toEqual([]);
+    expect(p.visible()).toEqual(['step-4-mcp']);
+    expect(text(p.q('#step-4-mcp [role=alert]'))).toContain('dev: The endpoint name is reserved.');
+    core.createEndpointFails = null;
+    p.button('Create endpoint', p.q('#step-4-mcp')!).click();
+    await p.settle();
+    expect(core.endpointsCreated).toEqual([{ slug: 'dev', startFrom: 'empty' }]);
+    expect(core.added).toEqual(['dev']);
+    expect(text(p.q('#fr-done-t'))).toBe('docs is ready');
+  });
 });
 
 

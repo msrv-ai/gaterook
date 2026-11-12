@@ -543,6 +543,14 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     });
   });
 
+  it('names an MCP server’s step 4 Create endpoint on the first run, unless the empty default takes it', () => {
+    const facts = { typeName: 'External MCP server', name: 'docs', env: 'dev' as const, test: null, endpoints: [] };
+    expect(stepperSteps(4, facts, true, null, 'mcp').map((s) => s.name)).toEqual(['Choose', 'Configure', 'Review', 'Create endpoint']);
+    expect(stepperSteps(4, facts, true, 'default', 'mcp')[3].name).toBe('Add to endpoint');
+    expect(stepperSteps(5, facts, true, null, 'mcp')[3].description).toEqual({ text: 'Endpoint dev' });
+    expect(stepperSteps(4, facts, false, null, 'mcp')[3].name).toBe('Add to endpoint');
+  });
+
   it('names step 4 Create endpoint, and once done says the endpoint after the environment', () => {
     const facts = { typeName: 'PostgreSQL', name: 'dev-db', env: 'stage' as const, test: null, endpoints: [] };
     expect(stepperSteps(1, facts, true).map((s) => s.name)).toEqual(['Choose', 'Configure', 'Test', 'Create endpoint']);

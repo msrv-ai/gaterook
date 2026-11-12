@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { isApiError } from '../../../core/api/api-error';
+import { ApiError, isApiError } from '../../../core/api/api-error';
 import { ConnectionPreview, EndpointsApi } from '../../../core/api/endpoints.api';
 import { Env } from '../../../core/api/types';
 import { GwAriaDisabled } from '../../../kit/aria-disabled';
@@ -28,10 +28,25 @@ export interface McpServerConnected {
   readonly opener: HTMLElement | null;
 }
 
+/**
+ * First run (no connection yet, and no endpoint or only the empty default): the one endpoint the connection wizard would
+ * use, the default reused or a new one named after the server's environment. `address` is the core's, for a new URL.
+ */
+export interface McpFirstEndpoint {
+  readonly slug: string;
+  readonly url: string;
+  readonly reuse: boolean;
+  /** The reused default's environment: a prod server never joins a non-prod default an AI app already uses. */
+  readonly starterEnv: Env | null;
+  readonly address: string;
+}
+
 /** What adding a server to endpoints came to: where its tools are now, and where they couldn't go and why. */
 export interface EndpointOutcome {
   readonly added: readonly string[];
   readonly notAdded: readonly { readonly slug: string; readonly why: string }[];
+  /** First run: the first endpoint it joined, created now or reused. */
+  readonly first?: { readonly slug: string; readonly url: string; readonly created: boolean } | null;
 }
 
 /**
@@ -105,6 +120,26 @@ interface EndpointPreview {
         </div>
       </div>
 
+      @if (first(); as f) {
+      <!-- First run: the endpoint GateRook reuses or creates, as the connection wizard's first run does. -->
+      <section class="gw-form__section" [attr.aria-labelledby]="uid + '-first-t'">
+        <header class="gw-form__section-header">
+          <h3 class="gw-form__legend" [id]="uid + '-first-t'">Your first endpoint</h3>
+          <p class="gw-form__description">@if (f.reuse) {Endpoint <span class="gw-mono">{{ f.slug }}</span> is already set up. Adding puts <span class="gw-mono">{{ s.name }}</span> on it.} @else {GateRook creates it with <span class="gw-mono">{{ s.name }}</span> on it.} You can add more endpoints later, under Endpoints.</p>
+        </header>
+        <div class="gw-form__rows">
+          <div class="gw-card gw-card--muted">
+            <div class="gw-card__body">
+              <dl class="gw-kv gw-kv--dense">
+                <div class="gw-kv__row"><dt class="gw-kv__key">Name</dt><dd class="gw-kv__value gw-mono">{{ f.slug }}</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Address</dt><dd class="gw-kv__value"><span class="gw-mono">{{ f.url }}</span>, the one your AI apps connect to</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">AI apps</dt><dd class="gw-kv__value">None yet. You connect one next.</dd></div>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </section>
+      } @else {
       <fieldset class="gw-form__section" [disabled]="busy()">
         <legend class="gw-form__legend">Endpoints</legend>
         <p class="gw-form__description">Pick where agents may use <span class="gw-mono">{{ s.name }}</span>. Every AI app of a chosen endpoint gets its tools on the next call.</p>
@@ -152,11 +187,17 @@ interface EndpointPreview {
           }
         </div>
       </fieldset>
+      }
 
       <section class="gw-form__section" [attr.aria-labelledby]="uid + '-tools-t'">
         <header class="gw-form__section-header">
-          <h3 class="gw-form__legend" [id]="uid + '-tools-t'">Tools agents get</h3>
-          <p class="gw-form__description">What <span class="gw-mono">{{ s.name }}</span> listed, with the mode each starts in. Declared reads start as Read only and other tools as Approval; the server declares its annotations and GateRook can’t verify them. You can change every mode on the endpoint.</p>
+          @if (first()) {
+            <h3 class="gw-form__legend" [id]="uid + '-tools-t'">What your AI apps can do</h3>
+            <p class="gw-form__description">Tools <span class="gw-mono">{{ s.name }}</span> declares as reads run at once; every other tool waits for your approval. The server declares this itself and GateRook can’t verify it. You can change the modes later.</p>
+          } @else {
+            <h3 class="gw-form__legend" [id]="uid + '-tools-t'">Tools agents get</h3>
+            <p class="gw-form__description">What <span class="gw-mono">{{ s.name }}</span> listed, with the mode each starts in. Declared reads start as Read only and other tools as Approval; the server declares its annotations and GateRook can’t verify them. You can change every mode on the endpoint.</p>
+          }
         </header>
         <div class="gw-form__rows">
           @for (slug of shown(); track slug) {
@@ -215,6 +256,9 @@ interface EndpointPreview {
               </section>
             </div>
           } @empty {
+            @if (first(); as f) {
+              <p class="gw-text-small gw-fg-muted">Its {{ toolsWord(s) }} join <span class="gw-mono">{{ f.slug }}</span> when GateRook creates it, in these modes.</p>
+            } @else {
             <div class="gw-card gw-card--dashed">
               <div class="gw-empty gw-empty--compact">
                 <span class="gw-empty__icon"><svg lucideIcon="waypoints" class="gw-icon"></svg></span>
@@ -222,6 +266,7 @@ interface EndpointPreview {
                 <p class="gw-empty__text">Agents can’t reach <span class="gw-mono">{{ s.name }}</span> until it is on an endpoint. Choose one above, or use Not now and add it from the endpoint later.</p>
               </div>
             </div>
+            }
           }
         </div>
       </section>
@@ -236,8 +281,12 @@ interface EndpointPreview {
       <div class="gw-form__actions">
         <p class="gw-form__note"><svg lucideIcon="circle-check" class="gw-icon"></svg><span><span class="gw-mono">{{ s.name }}</span> is saved</span></p>
         <button class="gw-btn gw-btn--ghost" type="button" (click)="notNow()" [attr.aria-disabled]="busy() ? 'true' : null">Not now<span class="gw-sr-only">: leave its tools Off</span></button>
-        <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() || !usable().length ? 'true' : null" [attr.aria-describedby]="!usable().length ? uid + '-none' : null">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}{{ usable().length > 1 ? 'Add to ' + usable().length + ' endpoints' : 'Add to endpoint' }}</button>
-        @if (!usable().length) {<span class="gw-sr-only" [id]="uid + '-none'">Choose an endpoint first.</span>}
+        @if (first(); as f) {
+          <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() ? 'true' : null">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}{{ f.reuse ? 'Add to endpoint' : 'Create endpoint' }}<span class="gw-sr-only"> {{ f.slug }}</span></button>
+        } @else {
+          <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() || !usable().length ? 'true' : null" [attr.aria-describedby]="!usable().length ? uid + '-none' : null">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}{{ usable().length > 1 ? 'Add to ' + usable().length + ' endpoints' : 'Add to endpoint' }}</button>
+          @if (!usable().length) {<span class="gw-sr-only" [id]="uid + '-none'">Choose an endpoint first.</span>}
+        }
       </div>
     }
   `,
@@ -254,6 +303,8 @@ export class GwMcpEndpoints {
   protected readonly uid = `med-${++nextId}`;
   protected readonly literalParts = literalParts;
   readonly server = signal<McpServerConnected | null>(null);
+  /** First run: the one endpoint offered instead of the list. */
+  readonly first = signal<McpFirstEndpoint | null>(null);
   protected readonly choices = signal<readonly EndpointChoice[]>([]);
   readonly chosen = signal<readonly string[]>([]);
   protected readonly loading = signal(false);
@@ -267,19 +318,33 @@ export class GwMcpEndpoints {
 
   /** The chosen endpoints that may take the server, in the order of the list. */
   protected readonly usable = computed(() => this.choices().filter((c) => !c.refusal && this.chosen().includes(c.slug)).map((c) => c.slug));
-  protected readonly shown = computed(() => (this.loading() || this.loadError() ? [] : this.usable()));
+  protected readonly shown = computed(() => {
+    const first = this.first();
+    if (first) return first.reuse ? [first.slug] : [];
+    return this.loading() || this.loadError() ? [] : this.usable();
+  });
 
-  /** The server that just connected: its endpoints load, the usual one (or the one asked for) chosen. */
-  async load(server: McpServerConnected, preferred: string | null = null): Promise<void> {
+  /**
+   * The server that just connected: its endpoints load, the usual one (or the one asked for) chosen. In first run the
+   * one first endpoint stands in for the list, its tools previewed when it exists already.
+   */
+  async load(server: McpServerConnected, preferred: string | null = null, first: McpFirstEndpoint | null = null): Promise<void> {
     const generation = ++this.generation;
     this.server.set(server);
     this.preferred = preferred;
+    this.first.set(first);
     this.error.set(null);
     this.busy.set(false);
     this.loadError.set(null);
     this.choices.set([]);
     this.chosen.set([]);
     this.previews.set({});
+    if (first) {
+      this.loading.set(false);
+      this.chosen.set([first.slug]);
+      if (first.reuse) void this.preview(first.slug);
+      return;
+    }
     this.loading.set(true);
     try {
       const endpoints = await this.endpointsApi.list();
@@ -299,7 +364,7 @@ export class GwMcpEndpoints {
 
   protected reload(): void {
     const s = this.server();
-    if (s) void this.load(s, this.preferred);
+    if (s) void this.load(s, this.preferred, this.first());
   }
 
   protected toolsWord(s: McpServerConnected): string {
@@ -351,6 +416,11 @@ export class GwMcpEndpoints {
   async add(e?: Event): Promise<void> {
     e?.preventDefault();
     const s = this.server();
+    const first = this.first();
+    if (s && first && !this.busy()) {
+      await this.addFirst(s, first);
+      return;
+    }
     if (!s || this.busy() || !this.usable().length) return;
     this.busy.set(true);
     this.error.set(null);
@@ -379,6 +449,48 @@ export class GwMcpEndpoints {
     this.finish({ added, notAdded });
   }
 
+  /**
+   * First run: the default endpoint takes the server, or the endpoint named after its environment is created with it,
+   * as the connection wizard's first run does. A failure stays here with its reason, for another try or Not now.
+   */
+  private async addFirst(s: McpServerConnected, f: McpFirstEndpoint): Promise<void> {
+    this.busy.set(true);
+    this.error.set(null);
+    let slug = f.slug;
+    let reuse = f.reuse;
+    let url = f.url;
+    let created = false;
+    try {
+      if (reuse) {
+        const preview = await this.endpointsApi.previewConnection(slug, s.name);
+        if (preview.refusal) {
+          if (s.env !== 'prod' || f.starterEnv === 'prod') throw new ApiError('unprocessable', 422, { detail: preview.refusal });
+          // The core may know about a live grant or environment change since the page opened.
+          slug = 'prod';
+          reuse = false;
+          url = `http://${f.address}/mcp/${slug}`;
+        }
+      }
+      if (!reuse) {
+        try {
+          url = (await this.endpointsApi.create({ slug, startFrom: 'empty' })).url;
+          created = true;
+        } catch (err) {
+          // An endpoint by that name appeared meanwhile: the core checks the server's attachment below.
+          if (!isApiError(err) || err.kind !== 'conflict') throw err;
+        }
+      }
+      await this.endpointsApi.addConnection(slug, s.name);
+    } catch (err) {
+      this.busy.set(false);
+      this.error.set(`${slug}: ${failureText(err, 'This build of the core can’t add it to an endpoint.')}`);
+      return;
+    }
+    this.busy.set(false);
+    void this.data.connections.refresh();
+    this.finish({ added: [slug], notAdded: [], first: { slug, url, created } });
+  }
+
   /** Not now: its tools stay Off everywhere. */
   protected notNow(): void {
     if (this.busy()) return;
@@ -388,6 +500,17 @@ export class GwMcpEndpoints {
   private finish(outcome: EndpointOutcome): void {
     const s = this.server();
     if (!s) return;
+    if (outcome.first) {
+      // The card that replaces the wizard holds the ways on, Connect your AI app first.
+      const f = outcome.first;
+      this.toasts.show({
+        tone: 'success',
+        title: `MCP server ${s.name} ${s.http ? 'connected' : 'started'}`,
+        body: `${f.created ? `Endpoint ${f.slug} created with its tools.` : `Added to endpoint ${f.slug} with its tools.`} Next: connect your AI app.`,
+      });
+      this.finished.emit(outcome);
+      return;
+    }
     const first = outcome.added[0];
     this.toasts.show({
       ...connectedToast(s, outcome),

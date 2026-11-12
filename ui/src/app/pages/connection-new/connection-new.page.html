@@ -53,7 +53,7 @@
             @if (done) {
               <p class="gw-page-header__description"><span class="gw-mono">{{ done.name }}</span> is saved and on your first endpoint. Next, connect the AI app you use.</p>
             } @else {
-              <p class="gw-page-header__description">Choose its type, say where it is and how to sign in, and test it. @if (reusesFirstEndpoint()) {GateRook then adds it to endpoint <span class="gw-mono">{{ firstEndpointSlug() }}</span>, the address your AI apps connect to.} @else {GateRook then creates your first endpoint, the address your AI apps connect to.} Nothing is saved until the last step.</p>
+              <p class="gw-page-header__description">Choose its type, say where it is and how to sign in, and test it. @if (reusesFirstEndpoint()) {GateRook then adds it to endpoint <span class="gw-mono">{{ firstEndpointSlug() }}</span>, the address your AI apps connect to.} @else {GateRook then creates your first endpoint, the address your AI apps connect to.}@if (flow() === 'mcp') { An MCP server is saved when it first connects.} @else { Nothing is saved until the last step.}</p>
             }
           } @else {
             <h1 class="gw-page-header__title" id="page-title">Add connection</h1>
@@ -64,8 +64,8 @@
     </div>
     <div class="gw-page-header__actions">
       @if (m !== 'edit' && first) {
-        <!-- After Save the card holds the ways on: Cancel no longer holds. -->
-        @if (!done) {
+        <!-- After Save the card holds the ways on, and an MCP server that connected is saved: Cancel no longer holds. -->
+        @if (!done && !mcpServer()) {
           <a class="gw-btn gw-btn--ghost" routerLink="/overview">Cancel<span class="gw-sr-only"> and go back to Overview</span></a>
         }
       } @else if (m !== 'edit') {
@@ -666,24 +666,29 @@
        Configure (nothing runs) → Review (what runs, its secrets, the sign-in; connecting saves the server with its tools
        Off everywhere) → Add to endpoint (Not now leaves them Off). Rendered from the start, shown while an MCP server's
        steps run. -->
-  <section class="gw-section" id="step-2-mcp" aria-labelledby="step-2-mcp-title" [hidden]="flow() !== 'mcp' || step() !== 2">
+  <section class="gw-section" id="step-2-mcp" aria-labelledby="step-2-mcp-title" [hidden]="flow() !== 'mcp' || step() !== 2 || !!done">
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="step-2-mcp-title" tabindex="-1">Configure {{ mcpChoice()?.origin === 'external' ? 'your MCP server' : (card()?.name ?? mcpReviewed()?.name ?? 'the MCP server') }}</h2>
       <p class="gw-section__description">Name it, pick its environment and check how GateRook reaches it. Nothing runs or connects until you confirm the review in the next step.</p>
     </header>
     <form gwMcpConfigure aria-labelledby="step-2-mcp-title" (reviewed)="onMcpReviewed($event)" (back)="go(1)"></form>
   </section>
-  <section class="gw-section" id="step-3-mcp" aria-labelledby="step-3-mcp-title" [hidden]="flow() !== 'mcp' || step() !== 3">
+  <section class="gw-section" id="step-3-mcp" aria-labelledby="step-3-mcp-title" [hidden]="flow() !== 'mcp' || step() !== 3 || !!done">
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="step-3-mcp-title" tabindex="-1">Review <span class="gw-mono">{{ mcpReviewed()?.name }}</span></h2>
       <p class="gw-section__description">What GateRook will run and pass, before anything does. {{ mcpReviewed()?.transport === 'http' ? 'Connecting' : 'Starting' }} saves it with its tools Off everywhere; the next step adds them to endpoints.</p>
     </header>
     <form gwMcpReview aria-labelledby="step-3-mcp-title" (back)="go(2)" (connected)="onMcpConnected($event)"></form>
   </section>
-  <section class="gw-section" id="step-4-mcp" aria-labelledby="step-4-mcp-title" [hidden]="flow() !== 'mcp' || step() !== 4">
+  <section class="gw-section" id="step-4-mcp" aria-labelledby="step-4-mcp-title" [hidden]="flow() !== 'mcp' || step() !== 4 || !!done">
     <header class="gw-section__header">
-      <h2 class="gw-section__title" id="step-4-mcp-title" tabindex="-1">Add <span class="gw-mono">{{ mcpServer()?.name }}</span> to an endpoint</h2>
-      <p class="gw-section__description">Agents reach its tools only through an endpoint. They appear there in safe starting modes you can change later.</p>
+      @if (first) {
+        <h2 class="gw-section__title" id="step-4-mcp-title" tabindex="-1">Make <span class="gw-mono">{{ mcpServer()?.name }}</span> available to your AI apps</h2>
+        <p class="gw-section__description">Your AI apps reach <span class="gw-mono">{{ mcpServer()?.name }}</span> through an endpoint: one address with the tools you allow.</p>
+      } @else {
+        <h2 class="gw-section__title" id="step-4-mcp-title" tabindex="-1">Add <span class="gw-mono">{{ mcpServer()?.name }}</span> to an endpoint</h2>
+        <p class="gw-section__description">Agents reach its tools only through an endpoint. They appear there in safe starting modes you can change later.</p>
+      }
     </header>
     <form gwMcpEndpoints aria-labelledby="step-4-mcp-title" (finished)="onMcpFinished($event)"></form>
   </section>
@@ -753,7 +758,7 @@
       <header class="gw-card__header">
         <div class="gw-card__heading">
           <h2 class="gw-card__title" id="fr-done-t" tabindex="-1"><span class="gw-mono">{{ done.name }}</span> is ready</h2>
-          <p class="gw-card__description">@if (done.tested) {Saved and tested.} @else {Saved, though its test didn't pass.} Your AI apps can use it as soon as you connect one.</p>
+          <p class="gw-card__description">@if (done.mcp; as mcp) {Saved and {{ mcp.http ? 'connected' : 'started' }}.} @else if (done.tested) {Saved and tested.} @else {Saved, though its test didn't pass.} Your AI apps can use it as soon as you connect one.</p>
         </div>
         @if (done.health; as h) {
           <div class="gw-card__actions"><span class="gw-status" [class]="'gw-status--' + h.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ h.text }}</span></span></div>
@@ -765,7 +770,7 @@
           @if (readyTools(); as rt) {
             <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value">@for (part of literalParts(rt.text, rt.literals); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {{{ part.text }}}}</dd></div>
           }
-          @if (secretTitle(); as st) {
+          @if (!done.mcp && secretTitle(); as st) {
             <div class="gw-kv__row"><dt class="gw-kv__key">{{ st }}</dt><dd class="gw-kv__value">@if (done.local) {Encrypted with a key kept on this computer.@if (!keyBackedUp()) { <a class="gw-link" routerLink="/secrets" fragment="master-key">Back up the key</a> so you can restore it.}} @else {Read from your secret manager when a call needs it; nothing is stored here.}</dd></div>
           }
         </dl>
