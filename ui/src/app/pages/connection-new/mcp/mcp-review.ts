@@ -85,7 +85,7 @@ export interface McpReviewView {
 }
 
 /**
- * The review in words (kit `dlg-review-mcp`, filled by its page script): the verb and risk of the transport, the
+ * The review in words (kit `#step-3-mcp`, filled by its page script): the verb and risk of the transport, the
  * command as the core resolved it (ARCHITECTURE §8.6.7: `node …/dist/index.js` for a catalog server, not `npx`), the
  * pinned version or "Not pinned", where it runs and the secrets it gets, by name. The names and their order are the
  * core's (`env` of the review: a catalog entry names its own, `GITHUB_PERSONAL_ACCESS_TOKEN`); the n-th one's value
