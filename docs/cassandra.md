@@ -54,8 +54,12 @@ GateRook runs one statement per approval, so batches are refused: a logged batch
 
 The driver gets its options in code and from nothing else: no `application.conf`, no system properties, no schema metadata of its own, no metrics and no logging of server warnings, which go to the answer instead. Jackson 2, JNR and Dropwizard Metrics are not on GateRook's classpath. The driver's STARTUP message therefore carries its name and version, a client id and the application (GateRook and its version, shown in `system_views.clients` on Cassandra 4 and later), but not the driver's "baggage" JSON. Each connection's session has its own Netty threads (two for I/O, one for administration); it closes when the connection changes, and at the next call of any connection once it has been idle for ten minutes.
 
+## Delivery
+
+The connector is a [connector module](connector-delivery.md#connector-modules): it is not part of the installer. GateRook downloads it when the first Cassandra connection needs it, about 12 MB, and runs it in a separate Java process. A development build started with the `all-bundled` profile compiles it in instead.
+
 ## Verify
 
-The `cassandra` profile of the [Docker test services](../test-services/README.md#cassandra) runs one Apache Cassandra 5.0 node with password sign-in, permissions and TLS for the connector's integration test. ScyllaDB, Amazon Keyspaces, Azure Managed Instance, DataStax Enterprise, multi-node and multi-data-center clusters were not tested. JVM checks do not establish native-image or installer compatibility.
+The `cassandra` profile of the [Docker test services](../test-services/README.md#cassandra) runs one Apache Cassandra 5.0 node with password sign-in, permissions and TLS for the connector's integration test. `CassandraModuleCoreProcessIT` installs the built module through the core and runs it against the same node (`-Pservices,cassandra-it`). ScyllaDB, Amazon Keyspaces, Azure Managed Instance, DataStax Enterprise, multi-node and multi-data-center clusters were not tested. JVM checks do not establish native-image or installer compatibility.
 
 The Apache Cassandra project documents [CQL](https://cassandra.apache.org/doc/latest/cassandra/developing/cql/index.html), [roles and permissions](https://cassandra.apache.org/doc/latest/cassandra/developing/cql/security.html), [lightweight transactions](https://cassandra.apache.org/doc/latest/cassandra/developing/cql/dml.html) and the [Java driver](https://github.com/apache/cassandra-java-driver).

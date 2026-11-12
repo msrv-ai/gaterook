@@ -2,7 +2,7 @@
 // The UI's development loop in one command (ARCHITECTURE.md §8.1, README "UI development"):
 //
 //   npm run dev -w ui            # or: node ui/scripts/dev.mjs [--port 4300] [--core-port 7465] [--keep] [--no-demo]
-//                                #     [--no-plugins]
+//                                #     [--no-plugins] [--core-flag <JVM flag>]...
 //
 // 1. app/target/app.jar is built once if it is missing (mvn -pl app -am -DskipTests -Pall-bundled package; under the shared
 //    heavy-build lock when `flock` exists).
@@ -16,6 +16,10 @@
 //    The plugins of this checkout come from a local signed catalog on loopback (ui/scripts/dev-catalog.mjs: the
 //    plugin JARs and plugin-host.jar are built once if missing), so Add connection and Connectors › Catalog offer
 //    and install them as a release does; --no-plugins starts without it (no catalog, no plugin host).
+//    --core-flag passes one more flag to the core's JVM, as often as it is given. To see connector modules arrive as
+//    in a release, build app.jar without -Pall-bundled and start with
+//    --no-plugins --core-flag -Dgateway.lists=official --core-flag -Dgateway.pluginHostJar=<plugin-host.jar>:
+//    the core then reads GateRook's published list of modules and downloads from it.
 // 4. Waits for the core's ready line, then `ng serve` with ui/proxy.conf.mjs signing every /api request with the
 //    secret as Electron's main process does.
 //
@@ -41,6 +45,8 @@ const option = (name, fallback) => {
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
 const flag = (name) => args.includes(name);
+/** Every value of an option that may be given several times. */
+const options = (name) => args.flatMap((a, i) => (a === name && args[i + 1] ? [args[i + 1]] : []));
 
 /** A port the OS says is free right now (0 = let it choose). */
 function freePort(preferred = 0) {
@@ -121,6 +127,7 @@ async function main() {
       // still check for real.
       ...(demo ? ['-Dgateway.connections.health-interval=1m', '-Dgateway.connections.health-initial-delay=7d'] : [`-Dgateway.clients.user-home=${userHome}`]),
       ...(catalog?.properties ?? []),
+      ...options('--core-flag'),
       '-jar',
       JAR,
     ],

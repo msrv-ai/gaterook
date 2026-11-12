@@ -221,3 +221,47 @@ test('the CLI refuses without a key, with an unknown option, and never overwrite
   assert.ok(!printed.includes('PRIVATE KEY'));
   assert.equal(main(['keygen', '--key-file', file, '--key-id', 'catalog-test'], { stdout: quiet, stderr: quiet }), 1);
 });
+
+const MODULE = {
+  kind: 'module', id: 'cassandra', version: '1.0.0', name: 'Apache Cassandra',
+  requires: { gateway: '>=0.9.2 & <1.0.0', connectorApi: '>=1.2.0 & <2.0.0' },
+  artifact: { url: 'https://github.com/gaterook/gaterook-plugins/releases/download/module-cassandra-1.0.0/cassandra-1.0.0.jar' },
+  types: [{ id: 'cassandra', name: 'Apache Cassandra', group: 'Databases', tools: ['cassandra_query'] }],
+};
+const moduleList = (...entries) => ({ schema: 1, entries });
+
+test('a connector module is pinned to its built package, and a released version keeps the pin it has', () => {
+  const jar = Buffer.from('cassandra 1.0.0');
+  const built = new Map([['cassandra-1.0.0.jar', jar]]);
+  const first = prepareIndex(moduleList(MODULE), { artifacts: built, sequence: 1, now: NOW });
+  assert.equal(first.entries[0].artifact.sha256, createHash('sha256').update(jar).digest('hex'));
+  assert.equal(first.entries[0].artifact.size, jar.length);
+  assert.deepEqual(first.entries[0].types, MODULE.types);
+
+  // The next list keeps 1.0.0 as it was released, without its package at hand, and adds 1.1.0.
+  const next = { ...MODULE, version: '1.1.0', artifact: { url: MODULE.artifact.url.replaceAll('1.0.0', '1.1.0') } };
+  const second = prepareIndex(moduleList(first.entries[0], next), {
+    artifacts: new Map([['cassandra-1.1.0.jar', Buffer.from('cassandra 1.1.0')]]), previous: first, now: NOW,
+  });
+  assert.equal(second.sequence, 2);
+  assert.deepEqual(second.entries[0].artifact, first.entries[0].artifact);
+  assert.equal(second.entries[1].version, '1.1.0');
+
+  // A released version is never listed with other bytes.
+  assert.throws(() => prepareIndex(moduleList(first.entries[0]), {
+    artifacts: new Map([['cassandra-1.0.0.jar', Buffer.from('rebuilt differently')]]), previous: first, now: NOW,
+  }), /released with other bytes/);
+  assert.throws(() => prepareIndex(moduleList(MODULE), { artifacts: new Map(), sequence: 1, now: NOW }),
+    /neither built nor pinned/);
+});
+
+test('a module entry says what it runs with and which connector types and tools it adds', () => {
+  const built = new Map([['cassandra-1.0.0.jar', Buffer.from('x')]]);
+  const refused = (entry, why) => assert.throws(
+    () => prepareIndex(moduleList(entry), { artifacts: built, sequence: 1, now: NOW }), why);
+  refused({ ...MODULE, requires: { gateway: '>=0.9.2' } }, /which application and connector API versions/);
+  refused({ ...MODULE, types: [] }, /lists the connector types it adds/);
+  refused({ ...MODULE, types: [{ id: 'Cassandra', tools: [] }] }, /not a connector type id/);
+  refused({ ...MODULE, types: [{ id: 'cassandra', tools: ['Bad-Name'] }] }, /lists its tool names/);
+  refused({ ...MODULE, kind: 'package' }, /kind is plugin, template, mcp-server or module/);
+});

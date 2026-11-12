@@ -28,7 +28,7 @@ import { fileURLToPath } from 'node:url';
 
 export const KEY_ENV = 'GATEROOK_CATALOG_KEY';
 export const MAX_DAYS = 90;
-const KINDS = new Set(['plugin', 'template', 'mcp-server']);
+const KINDS = new Set(['plugin', 'template', 'mcp-server', 'module']);
 const ID = /^[a-z][a-z0-9-]{1,47}$/;
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -115,6 +115,45 @@ function pin(ref, what, artifacts) {
   return { ...ref, sha256: sha256(bytes), size: bytes.length };
 }
 
+/**
+ * Pins a connector module's package. A list keeps the versions it released: one whose package was built now is pinned
+ * to those bytes, and they must be the bytes it was released with; one that wasn't built keeps the pin it has.
+ */
+function pinReleased(ref, what, artifacts) {
+  const name = artifactName(ref?.url);
+  const bytes = artifacts.get(name);
+  const kept = SHA256.test(String(ref.sha256 ?? '')) && Number.isInteger(ref.size) && ref.size > 0;
+  if (!bytes) {
+    if (!kept) throw new Refused(`${what}: the package ${name} is neither built nor pinned by sha256 and size.`);
+    return { ...ref };
+  }
+  const hash = sha256(bytes);
+  if (ref.sha256 && ref.sha256 !== hash) {
+    throw new Refused(`${what}: ${name} was released with other bytes. A released package never changes: give the `
+      + 'changed one a new version.');
+  }
+  return { ...ref, sha256: hash, size: bytes.length };
+}
+
+const TYPE_ID = /^[a-z][a-z0-9-]{0,47}$/;
+const TOOL = /^[a-z][a-z0-9_]{0,63}$/;
+
+/** A connector module's entry: the versions it runs with and the connector types it adds, by id and tool names. */
+function checkModule(entry, where) {
+  if (typeof entry.requires?.gateway !== 'string' || typeof entry.requires?.connectorApi !== 'string') {
+    throw new Refused(`${where}: a module says which application and connector API versions it runs with.`);
+  }
+  if (!Array.isArray(entry.types) || entry.types.length === 0) {
+    throw new Refused(`${where}: a module lists the connector types it adds.`);
+  }
+  for (const type of entry.types) {
+    if (!TYPE_ID.test(String(type?.id ?? ''))) throw new Refused(`${where}: ${type?.id} is not a connector type id.`);
+    if (!Array.isArray(type.tools) || type.tools.some((t) => !TOOL.test(String(t)))) {
+      throw new Refused(`${where}: type ${type.id} lists its tool names.`);
+    }
+  }
+}
+
 function checkSemver(entry, where) {
   if (!SEMVER.test(String(entry.version ?? ''))) throw new Refused(`${where}: version must be a semantic version.`);
 }
@@ -148,7 +187,7 @@ export function prepareIndex(source, { artifacts, sequence, previous, now, days 
   const seen = new Set();
   const entries = source.entries.map((entry, i) => {
     const where = `entry ${i} (${entry?.kind}:${entry?.id})`;
-    if (!KINDS.has(entry?.kind)) throw new Refused(`${where}: kind is plugin, template or mcp-server.`);
+    if (!KINDS.has(entry?.kind)) throw new Refused(`${where}: kind is plugin, template, mcp-server or module.`);
     if (!ID.test(String(entry.id ?? ''))) throw new Refused(`${where}: id must match ${ID}.`);
     checkSemver(entry, where);
     const key = `${entry.kind}:${entry.id}@${entry.version}`;
@@ -158,6 +197,9 @@ export function prepareIndex(source, { artifacts, sequence, previous, now, days 
     const out = structuredClone(entry);
     if (entry.kind === 'plugin') {
       out.artifact = pin(entry.artifact, where, artifacts);
+    } else if (entry.kind === 'module') {
+      checkModule(entry, where);
+      out.artifact = pinReleased(entry.artifact, where, artifacts);
     } else if (entry.kind === 'mcp-server') {
       const npm = entry.npm;
       if (!npm?.package || !npm?.version || !/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(String(npm.integrity ?? ''))) {

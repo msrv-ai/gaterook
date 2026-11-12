@@ -100,14 +100,20 @@ class PluginsConfiguration {
 
   /**
    * The channel of GateRook's own connector modules (docs/connector-delivery.md): the catalog's machinery under keys
-   * and settings of its own. A release sets {@code gateway.modules.channel-keys} and {@code
-   * gateway.modules.channel-url}; without them nothing downloads and the installed modules still work. Its index is
-   * not a bean: whatever asks for the catalog gets the plugin catalog.
+   * and settings of its own. A release reads GateRook's official list ({@link OfficialLists}); a development build
+   * reads none unless it is given one ({@code gateway.modules.channel-keys} and {@code gateway.modules.channel-url})
+   * or asked for the official one ({@code gateway.lists=official}). Without a channel nothing downloads and the
+   * installed modules still work. Its index is not a bean: whatever asks for the catalog gets the plugin catalog.
    */
   @Bean
   ModuleChannel moduleChannel(@Value("${gateway.modules.channel-keys:}") String keys,
-      @Value("${gateway.modules.channel-url:}") String baseUrl, SettingStore settings, CatalogDownloads downloads,
-      IntegrityAlerts alerts, MasterKeyLock lock, PlatformTransactionManager transactions, Clock clock) {
+      @Value("${gateway.modules.channel-url:}") String baseUrl, @Value("${gateway.lists:}") String lists,
+      SettingStore settings, CatalogDownloads downloads, IntegrityAlerts alerts, MasterKeyLock lock,
+      PlatformTransactionManager transactions, Clock clock) {
+    if (baseUrl.isBlank() && keys.isBlank() && OfficialLists.inUse(lists)) {
+      baseUrl = OfficialLists.MODULES_URL;
+      keys = OfficialLists.MODULES_KEYS;
+    }
     PluginCatalog index = new PluginCatalog(PluginCatalog.Names.MODULES, new CatalogVerifier(parseKeys(keys), clock),
         settings, downloads, baseUrl, alerts, lock, transactions, clock);
     return new ModuleChannel(index, new PluginArtifacts(downloads, index));

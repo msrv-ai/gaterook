@@ -68,6 +68,7 @@
     <module>plugins/duckdb</module>
     <module>plugins/h2</module>
     <module>plugins/access</module>
+    <module>modules/cassandra</module>
     <module>plugin-it</module>
     <module>bridge-cli</module>
   </modules>
@@ -77,6 +78,12 @@
     <revision>0.9.2</revision>
     <java.version>25</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!--
+      Reproducible archives: every JAR of the reactor gets this time on its entries, so the same sources give the same
+      bytes. A connector module's package is made of reactor JARs, and its released SHA-256 must be what a rebuild gives
+      (docs/connector-delivery.md). A package that pins a time of its own keeps it.
+    -->
+    <project.build.outputTimestamp>2026-11-12T00:00:00Z</project.build.outputTimestamp>
 
     <!-- The SPI is versioned on its own: plugins declare requires.connectorApi against it (ApiVersion.CURRENT). -->
     <connector-api.version>1.0.0</connector-api.version>

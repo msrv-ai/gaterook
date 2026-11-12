@@ -15,7 +15,7 @@ bundled fonts, `theme-boot.js` and logo into `public/assets` (`scripts/sync-ui-a
 ## Develop against the demo world
 
 ```bash
-npm run dev -w ui                    # or: npm run dev -w ui -- --port 4311 [--core-port N] [--keep] [--no-demo] [--no-plugins]
+npm run dev -w ui                    # or: npm run dev -w ui -- --port 4311 [--core-port N] [--keep] [--no-demo] [--no-plugins] [--core-flag <JVM flag>]...
 ```
 
 One command (`scripts/dev.mjs`):
@@ -31,7 +31,11 @@ One command (`scripts/dev.mjs`):
    signed with a key made for this run and served over HTTPS with a certificate made for this run, and the core gets
    the plugin host, the catalog's address and key, and that certificate as its test CA (`gateway.test.catalog.ca`).
    Add connection and Connectors › Catalog then offer and install the plugins as a release does; `--no-plugins` starts
-   without a catalog or plugin host;
+   without a catalog or plugin host. `--core-flag` passes one more flag to the core's JVM. To see
+   [connector modules](../docs/connector-delivery.md#connector-modules) arrive as in a release, build `app.jar` without
+   `-Pall-bundled` and start with `--no-plugins --core-flag -Dgateway.lists=official --core-flag
+   -Dgateway.pluginHostJar=<path to plugin-host.jar>`: the core reads GateRook's published list of modules and
+   downloads from it;
 4. waits for the core's ready line and starts `ng serve` with `proxy.conf.mjs`, which signs every `/api` request
    (`X-Gateway-Auth`, HMAC of `METHOD|target|ts|nonce`) and strips `Origin`, `Referer`, `Cookie` and `Sec-Fetch-*`,
    as Electron's main process does. `/internal` is not proxied.

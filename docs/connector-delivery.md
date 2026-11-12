@@ -39,11 +39,46 @@ A module is one JAR with an `mcp-gateway-plugin.json` of `manifestVersion` 2. Th
 
 A module may ship its own classes under `ai.msrv.gaterook.connectors.` and its driver stack. It may not ship the packages the host provides: the connector API, the plugin protocol, the host itself, Jackson, PF4J and SLF4J.
 
+Each module has a folder under `modules/`:
+
+| File | What |
+| --- | --- |
+| `module.json` | The module's descriptor: its id, version, name, the application and connector API versions it runs with, what it may reach, and its host's limits. |
+| `pom.xml` | Builds the package: the connector module of `connectors/`, its libraries and the shared connector code in one JAR, without what the host provides. |
+| `src/main/java/…/…Module.java` | The entry point: it gives the host the module's connectors. |
+| `src/main/resources/META-INF/LICENSE-…-module.txt` | Which of the bundled libraries is under which license. The libraries' own license and notice files stay in the package. |
+
+```bash
+mvn -B -ntp -pl modules/cassandra -am package -DskipTests
+```
+
+The package is `modules/cassandra/target/cassandra-<version>.jar`. `modules/cassandra` is the first one: Apache Cassandra with its Java driver, about 12 MB.
+
+### Versions
+
+A module's version is its own and has nothing to do with the application's. It changes only when the package does. Every archive of the reactor is built with a fixed timestamp (`project.build.outputTimestamp` in the root `pom.xml`), so the same sources give the same bytes, and [`modules/modules.lock.json`](../modules/modules.lock.json) records the SHA-256 of every version that was released.
+
+```bash
+node scripts/modules.mjs check
+```
+
+```bash
+node scripts/modules.mjs status
+```
+
+```bash
+node scripts/modules.mjs bump cassandra patch
+```
+
+`check` compares `modules/` with `connectors/delivery.json` and the poms; it runs with `npm test`. `status` says for each built package whether its version is `new`, `released` with these bytes, or `changed`: built with other bytes than the released ones. A changed package can't be released until `bump` gives it a new version. A package that didn't change is not released again.
+
 ### The channel
 
-Modules come from the module channel: a signed index with its own Ed25519 keys (`gateway.modules.channel-keys`) and address (`gateway.modules.channel-url`), kept apart from the plugin catalog because it vouches for something else. The index is verified as the catalog is: the signature covers the raw bytes, the sequence never goes back, an expired index installs nothing, and a revoked package is refused. Its state lives in the signed settings `modules.last-good` and `modules.sequence`.
+Modules come from the module channel: a signed index with its own Ed25519 keys (`gateway.modules.channel-keys`) and address (`gateway.modules.channel-url`), kept apart from the plugin catalog because it vouches for something else. A release reads GateRook's official list, `modules/index.json` of [gaterook/gaterook-plugins](https://github.com/gaterook/gaterook-plugins) on GitHub, under the key built into the application (`OfficialLists`); the packages are the assets of that repository's releases. A development build reads no list unless it is given one or started with `-Dgateway.lists=official`, so tests and the development loop don't depend on the network. The index is verified as the catalog is: the signature covers the raw bytes, the sequence never goes back, an expired index installs nothing, and a revoked package is refused. Its state lives in the signed settings `modules.last-good` and `modules.sequence`.
 
 An entry lists one version of one module: the application and connector API versions it needs, the package's address, size and SHA-256, and the connector types it adds with their tool names. Several versions of a module may be listed. A build takes the highest version whose requirements it satisfies, so an application that isn't updated keeps a module it can run.
+
+`catalog/sign-index.mjs` signs a list of modules as it signs the catalog, and `node scripts/modules.mjs index` writes the list's source from the built packages and the list before it. A version that is listed keeps the package it was released with: a list that would pin other bytes to it is refused.
 
 Only the channel installs a module. A module package that arrives as a file, or through the plugin catalog, is refused. The tool names of every listed module are reserved: no new plugin, MCP server tool or template may publish one. A plugin that was installed before a module was listed keeps its tools until the module itself is installed.
 

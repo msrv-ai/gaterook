@@ -22,6 +22,11 @@ bytes of `index.json`, made with a key whose public half a release ships (`gatew
 - `mcp-server`: `npm {package, version, integrity, lockfile {url, sha256, size}, bin, node, ignoreScripts}`, `env[]`,
   `serverName`, `toolPrefix` — installed by the C10 runtime with `npm ci --ignore-scripts` and started as `node <bin>`.
 
+- `module`: one version of one of GateRook's own connector modules, in the list of modules rather than in this
+  catalog ([connector delivery](../docs/connector-delivery.md#connector-modules)): `requires {gateway, connectorApi}`,
+  `artifact {url, sha256, size}` and `types[]` with each connector type's tool names. A version that is listed keeps
+  its pin; the script refuses to pin other bytes to it.
+
 An artifact `url` is a file name (or an `https://` URL): the core resolves it against the folder the index came from,
 so one GitHub release carries the index, its signature and every file it pins.
 

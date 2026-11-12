@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "modules": {
+    "cassandra": {
+      "1.0.0": {
+        "sha256": "fc69dbbd2e2f5cfc1096cbb3b3cf21b883c0b745a33a73dbfd54d201023fc6ae",
+        "size": 11950498
+      }
+    }
+  }
+}
