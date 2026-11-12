@@ -4,6 +4,7 @@ import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.EndpointView;
 import ai.msrv.gaterook.connector.api.Limits;
 import ai.msrv.gaterook.connector.api.PolicyView;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import java.util.ArrayList;
@@ -262,6 +263,23 @@ public final class Messages {
       return new Test(n.path("generation").asString(), n.path("callId").asString(), n.path("callToken").asString(),
           WireCodec.connection(n.path("connection")), n.path("timeoutMs").asLong(10_000),
           WireCodec.limits(n.path("limits")), EgressGrant.read(n.get("egress")));
+    }
+  }
+
+  /** {@code connector/suggest} params: those of {@code connector/test} and where the plugin may look. */
+  public record Suggest(Test test, Suggestions.Scope scope) {
+
+    public ObjectNode write() {
+      ObjectNode o = test.write();
+      o.put("scope", scope.name());
+      return o;
+    }
+
+    /** A scope this side doesn't know reads as {@code LOCAL}: this computer only, nothing signs in. */
+    public static Suggest read(JsonNode n) {
+      Suggestions.Scope scope = Suggestions.Scope.SERVICE.name().equals(n.path("scope").asString(""))
+          ? Suggestions.Scope.SERVICE : Suggestions.Scope.LOCAL;
+      return new Suggest(Test.read(n), scope);
     }
   }
 

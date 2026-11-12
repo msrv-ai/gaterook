@@ -9,6 +9,7 @@ import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
@@ -218,6 +219,83 @@ final class RemoteConnector implements Connector {
   @Override
   public TestResult discoverDatabases(ConnectionConfig cfg, SecretResolver resolver, ExecContext ctx) {
     return test(cfg, resolver, ctx, Gpp.CONNECTOR_DISCOVER_DATABASES);
+  }
+
+  /**
+   * The plugin's setup help, with a test's secrets and egress. A local suggestion never starts the plugin's host (a JVM
+   * and maybe its runtime's download, while the person types): it asks a host that already runs, else offers nothing.
+   * A host from before {@code connector/suggest} offers nothing either. What the plugin says is bounded and shown as a
+   * classification's words are ({@link #fromPlugin(Suggestions)}).
+   */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver resolver, ExecContext ctx, Suggestions.Scope scope)
+      throws ConnectorException {
+    if (scope == Suggestions.Scope.LOCAL && !supervisor.running()) {
+      return Suggestions.none();
+    }
+    try (PluginSupervisor.Permit permit = supervisor.permit(ctx.deadline())) {
+      HostProcess host = permit.host();
+      try (SecretCallbackRegistry.Permit token = secrets.open(host.instance(), generation(), cfg.id(),
+          ctx.callId(), cfg.secretFields(), resolver, ctx, host.log())) {
+        Messages.Suggest params = new Messages.Suggest(new Messages.Test(generation(), ctx.callId(), token.token(),
+            cfg, remaining(ctx).toMillis(), ctx.limits(), egressGrant(cfg)), scope);
+        JsonNode result = answer(permit, host.request(Gpp.CONNECTOR_SUGGEST, params.write()), remaining(ctx));
+        if (token.taintOverLimit()) {
+          return Suggestions.builder().note(manifest.name() + " sent more values to mask than a call may: its "
+              + "suggestions aren't shown.").build();
+        }
+        return fromPlugin(WireCodec.suggestions(result));
+      }
+    } catch (RpcException e) {
+      if (e.code() == Gpp.METHOD_NOT_FOUND) {
+        return Suggestions.none();
+      }
+      if (e.code() == Gpp.CONNECTOR_ERROR) {
+        throw new ConnectorException(parseKind(e.data()), pluginText(e.getMessage()), null);
+      }
+      throw ConnectorException.resourceError(manifest.name() + " couldn't suggest settings: "
+          + pluginText(e.getMessage()), null);
+    } catch (TimeoutException e) {
+      return Suggestions.builder().note(manifest.name() + " didn't answer in time: nothing to suggest yet.").build();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return Suggestions.none();
+    }
+  }
+
+  /** The longest value a plugin may suggest for a field; a longer one isn't offered. */
+  static final int MAX_SUGGESTED_VALUE = 4_096;
+
+  /**
+   * A plugin's suggestions as the form may show them: pointers that are JSON Pointers, values only where they read
+   * exactly as offered (no control or invisible characters, at most {@link #MAX_SUGGESTED_VALUE} characters: an
+   * option the person picks is what fills the field), and labels, details, sources and notes with their invisible
+   * characters made visible and clipped, as a classification's words are.
+   */
+  static Suggestions fromPlugin(Suggestions said) {
+    Suggestions.Builder out = Suggestions.builder();
+    said.fields().forEach((pointer, f) -> {
+      if (pointer == null || !pointer.startsWith("/") || pointer.length() > 512 || !OutputSanitizer.isClean(pointer)) {
+        return;
+      }
+      List<Suggestions.Option> options = new ArrayList<>();
+      for (Suggestions.Option o : f.options()) {
+        if (offerable(o.value())) {
+          options.add(new Suggestions.Option(o.value(), pluginText(o.label()), pluginText(o.detail())));
+        }
+      }
+      String value = offerable(f.value()) ? f.value() : null;
+      if (!options.isEmpty() || value != null) {
+        out.field(pointer, new Suggestions.Field(options, value, pluginText(f.source()),
+            f.complete() && options.size() == f.options().size()));
+      }
+    });
+    said.notes().forEach(n -> out.note(pluginText(n)));
+    return out.build();
+  }
+
+  private static boolean offerable(String value) {
+    return value != null && value.length() <= MAX_SUGGESTED_VALUE && OutputSanitizer.isClean(value);
   }
 
   private TestResult test(ConnectionConfig cfg, SecretResolver resolver, ExecContext ctx, String method) {

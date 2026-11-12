@@ -27,7 +27,7 @@
       "icon": "database",
       "group": "Databases",
       "signed": true,
-      "requires": {"gateway": ">=0.4.0 & <1.0.0", "connectorApi": ">=1.0.0 & <2.0.0"},
+      "requires": {"gateway": ">=0.4.0 & <1.0.0", "connectorApi": ">=1.1.0 & <2.0.0"},
       "tools": 6,
       "access": {"hosts": ["{connection.host}:8443", "{connection.host}:8123"], "commands": []},
       "artifact": {"url": "gw-clickhouse-0.6.1.jar", "sha256": null, "size": null}

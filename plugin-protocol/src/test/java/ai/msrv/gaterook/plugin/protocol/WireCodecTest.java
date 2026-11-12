@@ -35,6 +35,35 @@ class WireCodecTest {
     }
   }
 
+  @Test
+  void suggestionsFromAPluginAreBoundedAsTheyAreRead() {
+    tools.jackson.databind.node.ObjectNode wire = GppJson.object();
+    tools.jackson.databind.node.ObjectNode fields = wire.putObject("fields");
+    for (int i = 0; i < WireCodec.MAX_SUGGESTED_FIELDS + 5; i++) {
+      fields.putObject("/f" + i).putArray("options").addObject().put("value", "v" + i);
+    }
+    tools.jackson.databind.node.ArrayNode many = fields.putObject("/f0").putArray("options");
+    for (int i = 0; i < ai.msrv.gaterook.connector.api.Suggestions.MAX_OPTIONS + 3; i++) {
+      many.addObject().put("value", "o" + i);
+    }
+    many.addObject().put("label", "no value");
+    tools.jackson.databind.node.ArrayNode notes = wire.putArray("notes");
+    for (int i = 0; i < WireCodec.MAX_SUGGESTION_NOTES + 5; i++) {
+      notes.add("note " + i);
+    }
+    notes.add(42);
+
+    var s = WireCodec.suggestions(wire);
+
+    assertThat(s.fields()).hasSize(WireCodec.MAX_SUGGESTED_FIELDS);
+    assertThat(s.fields().get("/f0").options()).hasSize(ai.msrv.gaterook.connector.api.Suggestions.MAX_OPTIONS);
+    assertThat(s.fields().get("/f0").complete()).isFalse();
+    assertThat(s.fields().get("/f1").complete()).isTrue();
+    assertThat(s.notes()).hasSize(WireCodec.MAX_SUGGESTION_NOTES);
+    assertThat(WireCodec.suggestions(GppJson.object()).isEmpty()).isTrue();
+    assertThat(WireCodec.suggestions((tools.jackson.databind.JsonNode) null).isEmpty()).isTrue();
+  }
+
   private static Limits limits(Duration range) {
     return new Limits(1000, 1000, 524_288, 1_048_576, 262_144, 65_536, 8192, Duration.ofSeconds(5),
         Duration.ofSeconds(30), Duration.ofSeconds(10), range);
