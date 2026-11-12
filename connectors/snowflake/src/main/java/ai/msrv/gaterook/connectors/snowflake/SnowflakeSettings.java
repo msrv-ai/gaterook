@@ -108,6 +108,15 @@ record SnowflakeSettings(String account, boolean privateLink, String host, Strin
     return name;
   }
 
+  /**
+   * These settings in another session: the setup helpers list what the user's own defaults and grants show, without
+   * the connection's warehouse, database and schema (a name typed wrong would make every statement fail).
+   */
+  SnowflakeSettings withSession(String warehouse, String role, String database, String schema) {
+    return new SnowflakeSettings(account, privateLink, host, jwtAccount, user, auth, warehouse, role, database, schema,
+        tables, statementTimeoutSeconds);
+  }
+
   /** The SQL API's base address. */
   URI base() {
     return URI.create("https://" + host);
