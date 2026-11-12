@@ -6,7 +6,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { CONNECTOR_FORMS } from '../../../testing/connector-schemas';
 import { ApiError } from '../../core/api/api-error';
 import { ApprovalItem, ApprovalsApi } from '../../core/api/approvals.api';
-import { ConnectionDetail, ConnectionsApi, CreateConnectionRequest, TestConfirmed, TestDraftRequest, TestOutcome, UpdateConnectionRequest } from '../../core/api/connections.api';
+import { ConnectionDetail, ConnectionsApi, CreateConnectionRequest, SuggestRequest, Suggested, TestConfirmed, TestDraftRequest, TestOutcome, UpdateConnectionRequest } from '../../core/api/connections.api';
 import { ConnectionFormSpec, ConnectorCatalog, ConnectorTool, ConnectorTypeDetail, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { ConnectionPreview, EndpointSummary, EndpointsApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { Insights, InsightsApi, InsightsQuery } from '../../core/api/insights.api';
@@ -221,6 +221,8 @@ class FakeCore {
     projects: [{ projectId: 'example-dev', displayName: 'Example development' }], discoveryComplete: true,
   } });
   pendingProjects: Promise<TestOutcome> | null = null;
+  suggestRequests: SuggestRequest[] = [];
+  nextSuggestions: Suggested | ApiError = { fields: {}, notes: [] };
   fileRequests: (TestDraftRequest & { readonly path: string })[] = [];
   nextFiles: TestOutcome | ApiError = outcome({ ok: true, details: { path: '/var/log', parent: '/var',
     entries: [{ name: 'app.log', path: '/var/log/app.log', type: 'file', size: 20 }], truncated: false } });
@@ -312,6 +314,11 @@ beforeEach(() => {
     }),
   };
   const connections: Partial<ConnectionsApi> = {
+    suggest: vi.fn(async (r: SuggestRequest) => {
+      core.suggestRequests.push(structuredClone(r));
+      if (core.nextSuggestions instanceof ApiError) throw core.nextSuggestions;
+      return structuredClone(core.nextSuggestions);
+    }),
     projects: vi.fn(async (r: TestDraftRequest) => {
       core.projectRequests.push(structuredClone(r));
       if (core.pendingProjects) return core.pendingProjects;
@@ -539,6 +546,37 @@ function cloudLogging(): void {
     presetConfig: { backend: 'gcp-logging' }, tools: 2, connections: 0,
   }] }], installed: [] };
 }
+
+describe('setup helpers', () => {
+  it('asks the core what this computer knows and offers it under the field', async () => {
+    core.nextSuggestions = { fields: { '/connection/host': { value: null, source: 'this computer', complete: true,
+      options: [{ value: 'localhost', label: null, detail: 'A PostgreSQL server answers on port 5432' }] } },
+    notes: ['A PostgreSQL server answers on localhost:5432.'] };
+    const p = await open('/connections/new#step-2');
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    await p.settle();
+    expect(core.suggestRequests.length).toBeGreaterThan(0);
+    expect(core.suggestRequests[0]).toMatchObject({ type: 'postgres', env: 'dev', scope: 'local' });
+    expect(core.suggestRequests[0].existing).toBeUndefined();
+    const line = p.q('#cf-connection-host-found-line')!;
+    expect(text(line)).toContain('Found in this computer:');
+    p.button('localhost', line).click();
+    await p.settle();
+    expect(p.q<HTMLInputElement>('#cf-connection-host')!.value).toBe('localhost');
+    expect(text(p.q('#cf-helpers'))).toContain('A PostgreSQL server answers on localhost:5432.');
+  });
+
+  it('offers nothing new, and asks nothing, when the core refuses a lookup', async () => {
+    core.nextSuggestions = new ApiError('conflict', 409, { title: 'Send the stored secret to a new host?', detail: 'x',
+      confirm: 'send-secret-to-new-host' });
+    const p = await open('/connections/new#step-2');
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    await p.settle();
+    expect(core.suggestRequests.length).toBeGreaterThan(0);
+    expect(p.q('#cf-helpers')).toBeNull();
+    expect(p.q('dialog[open]')).toBeNull();
+  });
+});
 
 describe('Redis production connections', () => {
   it('adds an External MCP server through Add MCP server, which reviews, signs in and ends on an endpoint', async () => {
