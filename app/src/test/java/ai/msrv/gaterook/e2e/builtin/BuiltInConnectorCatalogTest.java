@@ -46,7 +46,7 @@ class BuiltInConnectorCatalogTest {
       "Azure Monitor Logs", 2, "Loki", 2, "OpenSearch", 3, "Elasticsearch", 3);
 
   /** The names of the connectors that connectors/delivery.json delivers as modules: absent without -Pall-bundled. */
-  private static final Set<String> MODULE_DELIVERED_NAMES = Set.of("Apache Cassandra");
+  private static final Set<String> MODULE_DELIVERED_NAMES = Set.of("Apache Cassandra", "Neo4j");
 
   /** Current default modes for the connection types in the demo world's {@code dev} endpoint. */
   private static final Map<String, Map<String, Mode>> DEV_ENDPOINT = Map.of(

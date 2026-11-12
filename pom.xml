@@ -69,6 +69,7 @@
     <module>plugins/h2</module>
     <module>plugins/access</module>
     <module>modules/cassandra</module>
+    <module>modules/neo4j</module>
     <module>plugin-it</module>
     <module>bridge-cli</module>
   </modules>

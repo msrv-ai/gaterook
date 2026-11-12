@@ -253,7 +253,7 @@ final class ModuleConnector implements Connector {
     }
   }
 
-  private static ActionPreview callAsAction(ToolCall call, ConnectionConfig cfg, String why) {
+  static ActionPreview callAsAction(ToolCall call, ConnectionConfig cfg, String why) {
     JsonNode arguments = call.arguments() == null ? GppJson.object() : call.arguments();
     return new ActionPreview(ActionPreview.Kind.JSON, "json", CanonicalJson.text(arguments), cfg.name(),
         call.tool() + " on " + cfg.name(), List.of(), List.of(), List.of(why + " Shown as the call's arguments."),

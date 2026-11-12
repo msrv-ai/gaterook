@@ -97,6 +97,19 @@ public final class CoreProcess implements AutoCloseable {
 
   /** Starts the core; {@code jvmFlags} are extra {@code -D}/{@code -X} flags as Electron would pass them. */
   public static CoreProcess start(Path home, int port, List<String> jvmFlags) {
+    return start(home, port, jvmFlags, List.of());
+  }
+
+  /**
+   * Starts the core with more code compiled in: the jars of {@code compiledIn} join the core's own classes and
+   * libraries in one class loader (Spring Boot's {@code PropertiesLauncher} and {@code loader.path}), so their
+   * auto-configurations register beans as a connector that is part of the build does. The core of an earlier build,
+   * which had a connector this one gets as a module, is started that way. On the JVM only.
+   */
+  public static CoreProcess start(Path home, int port, List<String> jvmFlags, List<Path> compiledIn) {
+    if (!compiledIn.isEmpty() && nativeBinary()) {
+      throw new IllegalStateException("A native core can't be given more compiled-in code");
+    }
     int publicPort = freePort();
     while (publicPort == port) {
       publicPort = freePort();
@@ -122,8 +135,17 @@ public final class CoreProcess implements AutoCloseable {
     command.add("-Djava.io.tmpdir=" + home.resolve("tmp"));
     command.addAll(jvmFlags);
     if (binary == null) {
-      command.add("-jar");
-      command.add(Path.of(System.getProperty("gateway.core.jar", "target/app.jar")).toAbsolutePath().toString());
+      String jar = Path.of(System.getProperty("gateway.core.jar", "target/app.jar")).toAbsolutePath().toString();
+      if (compiledIn.isEmpty()) {
+        command.add("-jar");
+        command.add(jar);
+      } else {
+        command.add("-Dloader.path=" + String.join(",", compiledIn.stream()
+            .map(p -> p.toAbsolutePath().toString()).toList()));
+        command.add("-cp");
+        command.add(jar);
+        command.add("org.springframework.boot.loader.launch.PropertiesLauncher");
+      }
     }
     ProcessBuilder builder = new ProcessBuilder(command);
     // Electron's minimal environment; HOME points into target/ so nothing can reach the real one.

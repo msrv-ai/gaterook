@@ -99,6 +99,12 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
   private volatile Map<String, String> sourcePackages = Map.of();
   /** The connectors of GateRook's own types that sources deliver (connector modules), by type. */
   private volatile Map<String, Connector> delivered = Map.of();
+  /**
+   * GateRook's own types that an earlier build compiled in, that this build doesn't have and that connections still
+   * use, by type: known from their signed rows and answered by a stand-in until what delivers them arrives
+   * ({@link MissingTypes#standIn}).
+   */
+  private volatile Map<String, Connector> awaited = Map.of();
   /** The names and families of the compiled-in tools and the core's own. */
   private final Set<String> reserved;
   private final Set<String> reservedPrefixes;
@@ -129,6 +135,16 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
      * @return whether something delivers the type at all (it may still be on its way when the wait ends)
      */
     boolean await(String typeId, Duration budget);
+
+    /**
+     * The connector that answers for {@code known} until the type arrives: a type GateRook itself added in an earlier
+     * build, which this build doesn't compile in and whose row is still here. Its connections keep their tools on
+     * their endpoints meanwhile, as the row describes them; the stand-in runs nothing itself. Empty when the type
+     * isn't worth keeping: nothing here can make it arrive, or no connection uses it.
+     */
+    default Optional<Connector> standIn(ConnectorManifest known) {
+      return Optional.empty();
+    }
   }
 
   /** How long a request that needs a type waits for its connector module to install. */
@@ -250,8 +266,15 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
         }
       }
     }
+    // Almost every start finds every row as it was left. Reading them in a read-only transaction keeps Hibernate
+    // from taking a snapshot of each row (a deep copy of the JSON manifest, the costliest part of the native start);
+    // only new or changed types are written, re-read and re-verified inside the write transaction.
+    Map<String, ConnectorTypeEntity> rows = new HashMap<>();
+    readTx.executeWithoutResult(s -> repository.findAll().forEach(row -> rows.put(row.getId(), row)));
+    Map<String, Connector> standIns = standIns(rows, fromSources);
     Set<String> names = new TreeSet<>();
     fromSources.values().forEach(m -> m.tools().forEach(t -> names.add(t.name())));
+    standIns.values().forEach(c -> c.manifest().tools().forEach(t -> names.add(t.name())));
     deliveredNames = Set.copyOf(names);
     deliveredPrefixes = prefixes(names);
     Set<String> listed = new TreeSet<>();
@@ -263,7 +286,8 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
         if (source.firstParty(m.id())) {
           continue;
         }
-        Optional<String> problem = sourceTypeProblem(m, fromSources);
+        Optional<String> problem = standIns.containsKey(m.id())
+            ? Optional.of("another connector already uses this id") : sourceTypeProblem(m, fromSources);
         if (problem.isPresent()) {
           log.error("Connector type {} is not registered: {}", m.id(), problem.get());
           continue;
@@ -275,15 +299,11 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
     sourcePackages = Map.copyOf(packages);
     delivered = Collections.unmodifiableMap(ownConnectors);
     sourceTypes = Map.copyOf(fromSources);
+    standIns.keySet().forEach(id -> stored.put(id, new Stored(rows.get(id).isEnabled(), true)));
+    awaited = Collections.unmodifiableMap(standIns);
     List<ConnectorManifest> all = new ArrayList<>(builtIn.values().stream().map(Connector::manifest).toList());
     all.addAll(fromSources.values());
 
-    // Almost every start finds every row as it was left. Checking them in a read-only transaction keeps Hibernate
-    // from taking a snapshot of each row (a deep copy of the JSON manifest, the costliest part of the native start);
-    // only new or changed types are written, re-read and re-verified inside the write transaction.
-    Map<String, ConnectorTypeEntity> rows = new HashMap<>();
-    readTx.executeWithoutResult(s -> repository.findAllById(all.stream().map(ConnectorManifest::id).toList())
-        .forEach(row -> rows.put(row.getId(), row)));
     List<Upsert> writes = new ArrayList<>();
     for (ConnectorManifest m : all) {
       ObjectNode tree = ManifestCodec.write(m);
@@ -305,6 +325,46 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
     if (!writes.isEmpty()) {
       writeTx.executeWithoutResult(s -> writes.forEach(this::upsert));
     }
+  }
+
+  /**
+   * The types that are awaited: rows of GateRook's own types that no package delivered (an earlier build compiled
+   * them in), that neither this build nor a source has now, and for which the {@link MissingTypes} handler gives a
+   * stand-in. A row that doesn't verify, or whose manifest this build can't hold beside its own types, is left out:
+   * the type then isn't here until it arrives, as any type that was never here.
+   */
+  private Map<String, Connector> standIns(Map<String, ConnectorTypeEntity> rows,
+      Map<String, ConnectorManifest> fromSources) {
+    MissingTypes handler = missingTypes;
+    Map<String, Connector> out = new LinkedHashMap<>();
+    if (handler == null) {
+      return out;
+    }
+    Map<String, ConnectorManifest> taken = new LinkedHashMap<>(fromSources);
+    for (ConnectorTypeEntity row : rows.values()) {
+      String id = row.getId();
+      if (builtIn.containsKey(id) || fromSources.containsKey(id) || row.getKind() != ConnectorManifest.Kind.BUILT_IN
+          || row.getPlugin() != null || !verify(row)) {
+        continue;
+      }
+      try {
+        ConnectorManifest known = ManifestCodec.read(json.valueToTree(row.getManifest()));
+        Optional<String> problem = known.id().equals(id) ? firstPartyProblem(known, taken)
+            : Optional.of("its row describes " + known.id());
+        if (problem.isPresent()) {
+          log.warn("Connector type {} isn't kept until its connector module arrives: {}", id, problem.get());
+          continue;
+        }
+        Optional<Connector> standIn = handler.standIn(known);
+        if (standIn.isPresent()) {
+          out.put(id, standIn.get());
+          taken.put(id, known);
+        }
+      } catch (RuntimeException e) {
+        log.warn("Connector type {} isn't kept until its connector module arrives: {}", id, e.toString());
+      }
+    }
+    return out;
   }
 
   private record Upsert(ConnectorManifest manifest, ObjectNode tree, String sha) {}
@@ -339,9 +399,9 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
       }
       row = repository.saveAndFlush(row);
       sign(row);
-      if (changed) {
-        publisher.publishEvent(new ConnectorTypeChanged(m.id()));
-      }
+      // Another package delivers the type now (a compiled-in type that became a module, or the other way round): its
+      // connections are served by other code, so their endpoints rebuild even when the manifest is the same.
+      publisher.publishEvent(new ConnectorTypeChanged(m.id()));
     }
     stored.put(m.id(), new Stored(row.isEnabled(), true));
   }
@@ -370,18 +430,23 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
     for (ConnectorManifest m : sourceTypes.values()) {
       out.add(typeOf(m));
     }
+    for (Connector c : awaited.values()) {
+      out.add(typeOf(c.manifest()));
+    }
     out.sort(Comparator.comparing((ConnectorType t) -> t.manifest().group()).thenComparing(t -> t.manifest().name()));
     return List.copyOf(out);
   }
 
   /**
    * The type as it is registered now. A type that isn't here but that a connector module adds is asked for in passing
-   * ({@link MissingTypes#wanted}): it installs in the background and is here at a later look.
+   * ({@link MissingTypes#wanted}): it installs in the background and is here at a later look. So is a type that is
+   * awaited: it is answered as its row describes it until its module arrives.
    */
   public Optional<ConnectorType> type(String typeId) {
     Optional<ConnectorType> known = registered(typeId);
     MissingTypes handler = missingTypes;
-    if (known.isEmpty() && handler != null && typeId != null && TYPE_ID.matcher(typeId).matches()) {
+    if (handler != null && typeId != null && (known.isEmpty() ? TYPE_ID.matcher(typeId).matches()
+        : awaited.containsKey(typeId))) {
       handler.wanted(typeId);
     }
     return known;
@@ -395,9 +460,18 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
    */
   public void awaitInstalled(String typeId) {
     MissingTypes handler = missingTypes;
-    if (handler != null && typeId != null && TYPE_ID.matcher(typeId).matches() && registered(typeId).isEmpty()) {
+    if (handler != null && typeId != null && TYPE_ID.matcher(typeId).matches()
+        && (registered(typeId).isEmpty() || awaited.containsKey(typeId))) {
       handler.await(typeId, INSTALL_WAIT);
     }
+  }
+
+  /**
+   * The types that are awaited: GateRook's own types of an earlier build that this build gets as connector modules
+   * and that aren't installed yet, although connections use them. Each is registered as its row describes it.
+   */
+  public Set<String> awaitedTypes() {
+    return awaited.keySet();
   }
 
   private Optional<ConnectorType> registered(String typeId) {
@@ -406,6 +480,10 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
       return Optional.of(typeOf(c.manifest()));
     }
     ConnectorManifest m = typeId == null ? null : sourceTypes.get(typeId);
+    if (m == null && typeId != null) {
+      Connector standIn = awaited.get(typeId);
+      m = standIn == null ? null : standIn.manifest();
+    }
     return m == null ? Optional.empty() : Optional.of(typeOf(m));
   }
 
@@ -445,7 +523,11 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
       // A connection of a type that isn't here: when a connector module adds it, it is on its way now.
       handler.wanted(cfg.type());
     }
-    return Optional.ofNullable(compiledIn);
+    if (compiledIn != null || cfg.type() == null) {
+      return Optional.ofNullable(compiledIn);
+    }
+    // Awaited: its stand-in answers until the module is here.
+    return Optional.ofNullable(awaited.get(cfg.type()));
   }
 
   /** Whether this build compiles the connector type in (rather than a connector module adding it). */

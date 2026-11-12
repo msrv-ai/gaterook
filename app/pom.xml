@@ -152,10 +152,6 @@
     </dependency>
     <dependency>
       <groupId>ai.msrv.gaterook</groupId>
-      <artifactId>connectors-neo4j</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>ai.msrv.gaterook</groupId>
       <artifactId>connectors-http</artifactId>
     </dependency>
     <dependency>
@@ -381,6 +377,10 @@
         <dependency>
           <groupId>ai.msrv.gaterook</groupId>
           <artifactId>connectors-cassandra</artifactId>
+        </dependency>
+        <dependency>
+          <groupId>ai.msrv.gaterook</groupId>
+          <artifactId>connectors-neo4j</artifactId>
         </dependency>
       </dependencies>
     </profile>

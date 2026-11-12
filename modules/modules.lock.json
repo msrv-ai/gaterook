@@ -6,6 +6,12 @@
         "sha256": "fc69dbbd2e2f5cfc1096cbb3b3cf21b883c0b745a33a73dbfd54d201023fc6ae",
         "size": 11950498
       }
+    },
+    "neo4j": {
+      "1.0.0": {
+        "sha256": "69a4092eaa7cde946afbed57e88a630a612c0d0070cfc68f2a4fb8570e1f530b",
+        "size": 9429498
+      }
     }
   }
 }

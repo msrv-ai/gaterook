@@ -1,0 +1,23 @@
+This package is GateRook's Neo4j connector with the libraries it needs, unmodified, in one file.
+
+GateRook's own code (ai.msrv.gaterook.connectors.*, https://github.com/gaterook/gaterook) is under the Apache
+License 2.0.
+
+It includes:
+
+- Neo4j Java Driver @neo4j-java-driver.version@ (org.neo4j.driver:neo4j-java-driver, with
+  org.neo4j.bolt:neo4j-bolt-connection and its codec, netty, pooled and routed parts;
+  https://github.com/neo4j/neo4j-java-driver), under the Apache License 2.0.
+- Netty (io.netty:netty-handler, netty-codec-base, netty-transport, netty-transport-native-unix-common, netty-buffer,
+  netty-resolver, netty-common and netty-tcnative-classes; https://netty.io), under the Apache License 2.0.
+- Reactor Core (io.projectreactor:reactor-core, https://projectreactor.io), under the Apache License 2.0. Its license
+  is META-INF/LICENSE.
+- Reactive Streams (org.reactivestreams:reactive-streams, https://www.reactive-streams.org), under the MIT No
+  Attribution license.
+- JSpecify (org.jspecify:jspecify, https://jspecify.dev), under the Apache License 2.0.
+- OkHttp @okhttp.version@ (com.squareup.okhttp3:okhttp-jvm and okhttp-tls) and Okio (com.squareup.okio:okio-jvm;
+  https://square.github.io), under the Apache License 2.0.
+- The Kotlin standard library (org.jetbrains.kotlin:kotlin-stdlib) and JetBrains annotations
+  (org.jetbrains:annotations; https://kotlinlang.org), under the Apache License 2.0.
+
+The text of the Apache License 2.0 is META-INF/LICENSE.

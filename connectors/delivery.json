@@ -10,8 +10,7 @@
       "ssh": "A flagship connector, and SSH log files and runbooks depend on it.",
       "mongodb": "One of the most used databases.",
       "logs": "Seven log services share it.",
-      "aws": "The generic AWS API tools carry a catalog of every service.",
-      "neo4j": "Becomes a module together with its first release."
+      "aws": "The generic AWS API tools carry a catalog of every service."
     }
   },
   "connectors": {
@@ -39,7 +38,11 @@
     },
     "mcp-server": {"types": ["mcp-server"], "delivery": "bundled"},
     "mongodb": {"types": ["mongodb"], "delivery": "bundled"},
-    "neo4j": {"types": ["neo4j"], "delivery": "bundled"},
+    "neo4j": {
+      "types": ["neo4j"],
+      "delivery": "module",
+      "why": "Its driver stack (the Bolt driver, Netty and Reactor) is more than twice the budget of a bundled connector."
+    },
     "prometheus": {"types": ["prometheus"], "delivery": "bundled"},
     "redis": {"types": ["redis"], "delivery": "bundled"},
     "redshift": {"types": ["redshift"], "delivery": "bundled"},

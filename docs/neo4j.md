@@ -46,9 +46,13 @@ Parameters are JSON: strings, integers of 64 bits, floats, booleans, null, lists
 
 `LOAD CSV` is a read to Neo4j: only GateRook's reading refuses it. Community Edition can't limit what a user may do, so the READ transaction and the plan check are the boundary there; on Enterprise Edition and Aura, the `reader` role is one more. With `neo4j://`, the driver follows the cluster's routing table to the servers it names; GateRook checks the configured host only, refusing link-local, cloud metadata and reserved addresses. A private CA reaches the driver as a file in GateRook's work folder while the driver is built, and is deleted right after.
 
+## Delivery
+
+The connector is a [connector module](connector-delivery.md#connector-modules): it is not part of the installer. GateRook downloads it when the first Neo4j connection needs it, about 9 MB, and runs it in a separate Java process. A development build started with the `all-bundled` profile compiles it in instead.
+
 ## Verify
 
-The `neo4j` profile of the [Docker test services](../test-services/README.md#neo4j) runs Neo4j 5.26 Community with Bolt on one port, with or without TLS from the test CA. Start it with `scripts/test-services.sh up neo4j` and run the connector's integration test with `-Pservices,neo4j-it`: it covers Test connection, TLS with the private CA and with the wrong one, the schema, typed results, each of the three read checks on its own, an approved write with its counters, refused administration, `LOAD CSV` and procedures, limits and the transaction timeout. The unit tests stand in for the server behind the connector's Bolt interface in every build.
+The `neo4j` profile of the [Docker test services](../test-services/README.md#neo4j) runs Neo4j 5.26 Community with Bolt on one port, with or without TLS from the test CA. Start it with `scripts/test-services.sh up neo4j` and run the connector's integration test with `-Pservices,neo4j-it`: it covers Test connection, TLS with the private CA and with the wrong one, the schema, typed results, each of the three read checks on its own, an approved write with its counters, refused administration, `LOAD CSV` and procedures, limits and the transaction timeout. The unit tests stand in for the server behind the connector's Bolt interface in every build. `Neo4jModuleCoreProcessIT` installs the built module through the core and runs it against the same server (`-Pservices,neo4j-it`).
 
 Memgraph speaks Bolt, but GateRook supports Neo4j only. Probed with Memgraph 3.14.0, the driver connects (database `memgraph`, not `neo4j`) and Memgraph refuses writes in READ transactions, but it reports every statement as read and write, `EXPLAIN` and `RETURN 1` included, and returns its plan as rows: `neo4j_query` therefore refuses every read. It has no `db.labels` and allows no `SHOW INDEX INFO` in an explicit transaction, so `neo4j_schema` fails. Test connection names it and warns.
 
