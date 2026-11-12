@@ -26,6 +26,7 @@
   <name>GateRook · App</name>
 
   <properties>
+    <gateway.e2e.officialLists>false</gateway.e2e.officialLists>
     <start-class>ai.msrv.gaterook.core.GatewayApplication</start-class>
     <spring-boot.run.skip>false</spring-boot.run.skip>
     <!--
@@ -358,6 +359,10 @@
             <gateway.pluginHostJar>${project.basedir}/../plugin-host/target/plugin-host.jar</gateway.pluginHostJar>
             <gateway.pluginsDir>${project.basedir}/../plugins</gateway.pluginsDir>
             <gateway.catalogDir>${project.basedir}/../catalog</gateway.catalogDir>
+            <!-- e2e/modules: the connector module packages, by path. -->
+            <gateway.modulesDir>${project.basedir}/../modules</gateway.modulesDir>
+            <!-- e2e/modules: true reads GateRook's published list on GitHub (a manual check, needs the network). -->
+            <gateway.e2e.officialLists>${gateway.e2e.officialLists}</gateway.e2e.officialLists>
           </systemPropertyVariables>
         </configuration>
       </plugin>
