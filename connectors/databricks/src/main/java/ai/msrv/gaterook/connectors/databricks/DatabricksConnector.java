@@ -12,6 +12,7 @@ import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.Suggestions;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
@@ -73,6 +74,7 @@ public final class DatabricksConnector implements Connector {
 
   private final DatabricksApi api;
   private final ConnectorManifest manifest;
+  private volatile DatabricksSuggestions.Machine machine = DatabricksSuggestions.Machine.system();
 
   public DatabricksConnector() {
     this(Clock.systemUTC(), defaultTls());
@@ -1051,6 +1053,21 @@ public final class DatabricksConnector implements Connector {
           + (s.catalogs().isEmpty() ? "" : "matching the connection's list ") + "in this workspace."));
     }
     return out;
+  }
+
+  /**
+   * Setup helpers ({@link DatabricksSuggestions}): the workspace profiles of {@code ~/.databrickscfg}; signed in, the
+   * SQL warehouses, catalogs and schemas the identity may use.
+   */
+  @Override
+  public Suggestions suggest(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Suggestions.Scope scope) {
+    return DatabricksSuggestions.suggest(api, cfg, secrets, ctx, scope, machine);
+  }
+
+  /** Tests: this computer's files and environment elsewhere. */
+  DatabricksConnector machine(DatabricksSuggestions.Machine machine) {
+    this.machine = Objects.requireNonNull(machine, "machine");
+    return this;
   }
 
   /** The SQL warehouse's state: the workspace and the sign-in, without starting the warehouse. */

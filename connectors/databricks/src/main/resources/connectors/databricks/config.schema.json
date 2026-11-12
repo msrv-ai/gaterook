@@ -29,7 +29,7 @@
       "examples": [
         "1a2b3c4d5e6f7a8b"
       ],
-      "description": "From the warehouse's Connection details: the end of its HTTP path."
+      "description": "From the warehouse's Connection details: the ID that ends its HTTP path, /sql/1.0/warehouses/<ID>."
     },
     "catalog": {
       "type": "string",
@@ -38,7 +38,7 @@
       "examples": [
         "main"
       ],
-      "description": "For tables named without a catalog. Empty: the workspace's default."
+      "description": "For tables named without a catalog; with Catalogs set, one of them. Empty: the workspace's default."
     },
     "schema": {
       "type": "string",
@@ -47,7 +47,7 @@
       "examples": [
         "sales"
       ],
-      "description": "For tables named without a schema. Empty: default."
+      "description": "For tables named without a schema; with Schemas set, one of them. Empty: default."
     },
     "catalogs": {
       "type": "array",

@@ -14,6 +14,8 @@ Databricks SQL has no read-only session: Unity Catalog's grants are the boundary
 
 **Catalogs** and **Schemas** (`schema` or `catalog.schema`; `*` matches any characters) narrow what agents may use; empty, every catalog and schema the identity may use. The metadata tools list and describe only what they allow. A statement is refused when it names a catalog or schema off them: every table it names (after `FROM` and the commas of a `FROM` clause, `JOIN`, `INTO`, `UPDATE`, `TABLE`, `VIEW`, `USING`, `CLONE`, `LIKE`, `RENAME TO`, `OPTIMIZE`, `VACUUM` and `DESCRIBE`), every schema and catalog it names, and every function it calls with its schema. A name without a catalog or schema is read in the connection's defaults, which must be on the lists; `SHOW CATALOGS` and `SHOW SCHEMAS` are refused while the lists limit them, as they would show the names off them. GateRook doesn't follow views or functions: a view on the list shows what its owner may read, so the grants stay the boundary.
 
+While you fill in the form, GateRook offers the workspace profiles of `~/.databrickscfg` (or `DATABRICKS_CONFIG_FILE`): the default profile's host (`DATABRICKS_CONFIG_PROFILE`, else `DEFAULT`), and the `warehouse_id` or `http_path` and `client_id` of the profile whose host the form names. It never reads a token or client secret from the file. Once the form can sign in, it offers the SQL warehouses the identity may use, the catalogs, and the schemas of the default catalog. It fills in a default catalog and schema where Catalogs or Schemas need one: the workspace's default when the list allows it, else the list's only match. These are reads of the REST APIs only: no warehouse starts.
+
 ## Bound reads and review exact changes
 
 | Tool | What it does | Default mode |
